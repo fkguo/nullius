@@ -11,7 +11,7 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
 
 class ArtifactRef(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     uri: Annotated[
         str,
@@ -26,44 +26,44 @@ class ArtifactRef(BaseModel):
         ),
     ] = None
     schema_version: Annotated[
-        int | None, Field(description='Schema version of the referenced artifact.')
+        int | None, Field(description="Schema version of the referenced artifact.")
     ] = None
     sha256: Annotated[
         str,
         Field(
-            description='SHA-256 hex digest of the artifact content. Used for integrity verification and content addressing.',
-            pattern='^[0-9a-f]{64}$',
+            description="SHA-256 hex digest of the artifact content. Used for integrity verification and content addressing.",
+            pattern="^[0-9a-f]{64}$",
         ),
     ]
     size_bytes: Annotated[
-        int | None, Field(description='Size of the artifact in bytes.', ge=0)
+        int | None, Field(description="Size of the artifact in bytes.", ge=0)
     ] = None
     produced_by: Annotated[
-        str | None, Field(description='Agent or component that produced this artifact.')
+        str | None, Field(description="Agent or component that produced this artifact.")
     ] = None
     created_at: Annotated[
         AwareDatetime | None,
-        Field(description='ISO 8601 UTC Z timestamp of artifact creation.'),
+        Field(description="ISO 8601 UTC Z timestamp of artifact creation."),
     ] = None
 
 
 class EvidenceType(StrEnum):
-    title = 'title'
-    abstract = 'abstract'
-    section = 'section'
-    paragraph = 'paragraph'
-    equation = 'equation'
-    figure = 'figure'
-    table = 'table'
-    theorem = 'theorem'
-    citation_context = 'citation_context'
-    pdf_page = 'pdf_page'
-    pdf_region = 'pdf_region'
+    title = "title"
+    abstract = "abstract"
+    section = "section"
+    paragraph = "paragraph"
+    equation = "equation"
+    figure = "figure"
+    table = "table"
+    theorem = "theorem"
+    citation_context = "citation_context"
+    pdf_page = "pdf_page"
+    pdf_region = "pdf_region"
 
 
 class Anchor(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     before: str
     after: str
@@ -71,36 +71,36 @@ class Anchor(BaseModel):
 
 class LatexLocatorV1(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
-    kind: Annotated[Literal['latex'], Field(description='Locator kind discriminator.')]
+    kind: Annotated[Literal["latex"], Field(description="Locator kind discriminator.")]
     file: Annotated[
         str,
         Field(
-            description='Relative path to the LaTeX source file within the extracted directory.'
+            description="Relative path to the LaTeX source file within the extracted directory."
         ),
     ]
     offset: Annotated[
-        int, Field(description='Byte offset in the (merged) source.', ge=0)
+        int, Field(description="Byte offset in the (merged) source.", ge=0)
     ]
-    line: Annotated[int, Field(description='1-based line number.', ge=1)]
-    column: Annotated[int, Field(description='0-based column number.', ge=0)]
+    line: Annotated[int, Field(description="1-based line number.", ge=1)]
+    column: Annotated[int, Field(description="0-based column number.", ge=0)]
     endOffset: Annotated[
-        int | None, Field(description='End byte offset (exclusive).', ge=0)
+        int | None, Field(description="End byte offset (exclusive).", ge=0)
     ] = None
-    endLine: Annotated[int | None, Field(description='End line number.', ge=1)] = None
-    endColumn: Annotated[int | None, Field(description='End column number.', ge=0)] = (
+    endLine: Annotated[int | None, Field(description="End line number.", ge=1)] = None
+    endColumn: Annotated[int | None, Field(description="End column number.", ge=0)] = (
         None
     )
     anchor: Annotated[
         Anchor | None,
-        Field(description='Textual anchors around the evidence for fuzzy re-location.'),
+        Field(description="Textual anchors around the evidence for fuzzy re-location."),
     ] = None
 
 
 class Bbox(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     x0: float
     y0: float
@@ -110,67 +110,67 @@ class Bbox(BaseModel):
 
 class PdfLocatorV1(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
-    kind: Annotated[Literal['pdf'], Field(description='Locator kind discriminator.')]
-    page: Annotated[int, Field(description='1-based page number in the PDF.', ge=1)]
+    kind: Annotated[Literal["pdf"], Field(description="Locator kind discriminator.")]
+    page: Annotated[int, Field(description="1-based page number in the PDF.", ge=1)]
     bbox: Annotated[
         Bbox | None,
-        Field(description='Bounding box coordinates in PDF coordinate space.'),
+        Field(description="Bounding box coordinates in PDF coordinate space."),
     ] = None
     char_offset: Annotated[
         int | None,
         Field(
-            description='Character offset within the extracted text of the page.', ge=0
+            description="Character offset within the extracted text of the page.", ge=0
         ),
     ] = None
     char_length: Annotated[
-        int | None, Field(description='Character length of the evidence text.', ge=0)
+        int | None, Field(description="Character length of the evidence text.", ge=0)
     ] = None
 
 
 class EvidenceCatalogItemV1(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
-    version: Annotated[Literal[1], Field(description='Schema version.')]
+    version: Annotated[Literal[1], Field(description="Schema version.")]
     evidence_id: Annotated[
         str,
         Field(
-            description='Unique identifier for this evidence item (e.g. ev_<paper_id>_<type>_<hash>).'
+            description="Unique identifier for this evidence item (e.g. ev_<paper_id>_<type>_<hash>)."
         ),
     ]
-    project_id: Annotated[str, Field(description='Project that owns this evidence.')]
+    project_id: Annotated[str, Field(description="Project that owns this evidence.")]
     paper_id: Annotated[
-        str, Field(description='Paper from which this evidence was extracted.')
+        str, Field(description="Paper from which this evidence was extracted.")
     ]
     type: EvidenceType
     locator: Annotated[
         LatexLocatorV1 | PdfLocatorV1,
         Field(
-            description='Source locator pointing to the evidence in the original document.'
+            description="Source locator pointing to the evidence in the original document."
         ),
     ]
-    text: Annotated[str, Field(description='Extracted text content of the evidence.')]
+    text: Annotated[str, Field(description="Extracted text content of the evidence.")]
     normalized_text: Annotated[
-        str | None, Field(description='Normalized text for search matching.')
+        str | None, Field(description="Normalized text for search matching.")
     ] = None
     citations: Annotated[
         list[str] | None,
         Field(
-            description='Citation keys referenced in this evidence (for citation_context type).'
+            description="Citation keys referenced in this evidence (for citation_context type)."
         ),
     ] = None
     meta: Annotated[
         dict[str, Any] | None,
         Field(
-            description='Type-specific metadata (e.g. equation_type, label, section_path).'
+            description="Type-specific metadata (e.g. equation_type, label, section_path)."
         ),
     ] = None
     artifact_ref: Annotated[
         ArtifactRef | None,
         Field(
-            description='Content-addressed reference to a research artifact. Used by integrity reports, research outcomes, and events to point at specific versioned artifacts.',
-            title='ArtifactRef V1',
+            description="Content-addressed reference to a research artifact. Used by integrity reports, research outcomes, and events to point at specific versioned artifacts.",
+            title="ArtifactRef V1",
         ),
     ] = None

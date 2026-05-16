@@ -11,13 +11,13 @@ from pydantic import BaseModel, ConfigDict, Field
 
 class AnalysisTypesV1(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
 
 
 class PaperSummaryRef(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     recid: str | None = None
     inspire_id: str | None = None
@@ -34,80 +34,80 @@ class PaperSummaryRef(BaseModel):
 
 
 class AnalysisType(StrEnum):
-    overview = 'overview'
-    timeline = 'timeline'
-    authors = 'authors'
-    topics = 'topics'
-    all = 'all'
+    overview = "overview"
+    timeline = "timeline"
+    authors = "authors"
+    topics = "topics"
+    all = "all"
 
 
 class RelatedStrategy(StrEnum):
-    high_cited_refs = 'high_cited_refs'
-    common_refs = 'common_refs'
-    citing_overlap = 'citing_overlap'
-    co_citation = 'co_citation'
-    all = 'all'
+    high_cited_refs = "high_cited_refs"
+    common_refs = "common_refs"
+    citing_overlap = "citing_overlap"
+    co_citation = "co_citation"
+    all = "all"
 
 
 class ExpansionDirection(StrEnum):
-    forward = 'forward'
-    backward = 'backward'
-    lateral = 'lateral'
-    all = 'all'
+    forward = "forward"
+    backward = "backward"
+    lateral = "lateral"
+    all = "all"
 
 
 class SurveyGoal(StrEnum):
-    comprehensive_review = 'comprehensive_review'
-    quick_overview = 'quick_overview'
-    find_methods = 'find_methods'
-    historical_context = 'historical_context'
+    comprehensive_review = "comprehensive_review"
+    quick_overview = "quick_overview"
+    find_methods = "find_methods"
+    historical_context = "historical_context"
 
 
 class SurveyPrioritize(StrEnum):
-    citations = 'citations'
-    recency = 'recency'
-    relevance = 'relevance'
+    citations = "citations"
+    recency = "recency"
+    relevance = "relevance"
 
 
 class SurveyPriority(StrEnum):
-    essential = 'essential'
-    recommended = 'recommended'
-    optional = 'optional'
+    essential = "essential"
+    recommended = "recommended"
+    optional = "optional"
 
 
 class TopicTrend(StrEnum):
-    growing = 'growing'
-    stable = 'stable'
-    declining = 'declining'
+    growing = "growing"
+    stable = "stable"
+    declining = "declining"
 
 
 class ImportStatus(StrEnum):
-    imported = 'imported'
-    skipped = 'skipped'
-    failed = 'failed'
+    imported = "imported"
+    skipped = "skipped"
+    failed = "failed"
 
 
 class AnalyzePapersParams(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     recids: Annotated[list[str], Field(min_length=1)]
-    analysis_type: list[AnalysisType] | None = ['all']
+    analysis_type: list[AnalysisType] | None = ["all"]
 
 
 class AnalyzeCollectionParams(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     collectionKey: Annotated[str, Field(min_length=1)]
     group_id: int | None = None
-    analysis_type: list[AnalysisType] | None = ['all']
+    analysis_type: list[AnalysisType] | None = ["all"]
     max_items: Annotated[int | None, Field(ge=1)] = 100
 
 
 class FindConnectionsParams(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     recids: Annotated[list[str], Field(min_length=1)]
     include_external: bool | None = False
@@ -116,7 +116,7 @@ class FindConnectionsParams(BaseModel):
 
 class FindRelatedParams(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     recids: Annotated[list[str], Field(min_length=1)]
     strategy: RelatedStrategy
@@ -126,7 +126,7 @@ class FindRelatedParams(BaseModel):
 
 class YearRange(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     start: int | None = None
     end: int | None = None
@@ -134,7 +134,7 @@ class YearRange(BaseModel):
 
 class Filters(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     min_citations: int | None = None
     year_range: YearRange | None = None
@@ -143,7 +143,7 @@ class Filters(BaseModel):
 
 class ResearchExpansionParams(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     seed_recids: Annotated[list[str], Field(min_length=1)]
     direction: ExpansionDirection
@@ -154,35 +154,35 @@ class ResearchExpansionParams(BaseModel):
 
 class GenerateSurveyParams(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     seed_recids: Annotated[list[str], Field(min_length=1)]
     goal: SurveyGoal
     max_papers: Annotated[int | None, Field(ge=5)] = None
-    prioritize: SurveyPrioritize | None = 'relevance'
+    prioritize: SurveyPrioritize | None = "relevance"
     include_reviews: bool | None = True
 
 
 class Granularity(StrEnum):
-    year = 'year'
-    field_5year = '5year'
-    decade = 'decade'
+    year = "year"
+    field_5year = "5year"
+    decade = "decade"
 
 
 class TopicEvolutionParams(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     topic: Annotated[str, Field(min_length=1)]
     start_year: Annotated[int | None, Field(ge=1900)] = None
     end_year: int | None = None
-    granularity: Granularity | None = 'year'
+    granularity: Granularity | None = "year"
     include_subtopics: bool | None = False
 
 
 class BatchImportParams(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     recids: Annotated[list[str], Field(min_length=1)]
     target_collection: str | None = None
@@ -194,7 +194,7 @@ class BatchImportParams(BaseModel):
 
 class DateRange(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     earliest: str
     latest: str
@@ -202,7 +202,7 @@ class DateRange(BaseModel):
 
 class Collaboration(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     name: str
     count: float
@@ -210,7 +210,7 @@ class Collaboration(BaseModel):
 
 class ArxivCategory(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     category: str
     count: float
@@ -218,7 +218,7 @@ class ArxivCategory(BaseModel):
 
 class Overview(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     total_citations: float
     avg_citations: float
@@ -229,7 +229,7 @@ class Overview(BaseModel):
 
 class TimelineItem(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     year: float
     count: float
@@ -238,7 +238,7 @@ class TimelineItem(BaseModel):
 
 class Author(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     name: str
     paper_count: float
@@ -248,7 +248,7 @@ class Author(BaseModel):
 
 class Topic(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     keywords: list[str]
     paper_count: float
@@ -257,7 +257,7 @@ class Topic(BaseModel):
 
 class CollectionAnalysis(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     item_count: float
     date_range: DateRange
@@ -269,7 +269,7 @@ class CollectionAnalysis(BaseModel):
 
 class InternalEdge(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     source: str
     target: str
@@ -277,7 +277,7 @@ class InternalEdge(BaseModel):
 
 class BridgePaper(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     recid: str
     title: str
@@ -286,7 +286,7 @@ class BridgePaper(BaseModel):
 
 class ConnectionsResult(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     internal_edges: list[InternalEdge]
     bridge_papers: list[BridgePaper]
@@ -296,7 +296,7 @@ class ConnectionsResult(BaseModel):
 
 class Paper(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     recid: str
     title: str
@@ -310,7 +310,7 @@ class Paper(BaseModel):
 
 class RelatedPapers(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     papers: list[Paper]
     total_candidates: float
@@ -318,7 +318,7 @@ class RelatedPapers(BaseModel):
 
 class Paper1(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     recid: str
     title: str
@@ -332,7 +332,7 @@ class Paper1(BaseModel):
 
 class ExpansionResult(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     direction: str
     papers: list[Paper1]
@@ -341,7 +341,7 @@ class ExpansionResult(BaseModel):
 
 class Paper2(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     recid: str
     title: str
@@ -355,7 +355,7 @@ class Paper2(BaseModel):
 
 class Section(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     name: str
     description: str
@@ -364,7 +364,7 @@ class Section(BaseModel):
 
 class SurveyResult(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     goal: str
     sections: list[Section]
@@ -373,7 +373,7 @@ class SurveyResult(BaseModel):
 
 class TimeRange(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     start: float
     end: float
@@ -381,7 +381,7 @@ class TimeRange(BaseModel):
 
 class Phase(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     period: str
     paper_count: float
@@ -393,7 +393,7 @@ class Phase(BaseModel):
 
 class Subtopic(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     name: str
     emerged_year: float
@@ -403,7 +403,7 @@ class Subtopic(BaseModel):
 
 class CurrentStatus(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     recent_papers: float
     growth_rate: float
@@ -412,7 +412,7 @@ class CurrentStatus(BaseModel):
 
 class TopicEvolution(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     topic: str
     time_range: TimeRange
@@ -423,7 +423,7 @@ class TopicEvolution(BaseModel):
 
 class Detail(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     recid: str
     status: ImportStatus
@@ -433,7 +433,7 @@ class Detail(BaseModel):
 
 class BatchImportResult(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     total: float
     imported: float

@@ -14,47 +14,47 @@ class TargetRef(BaseModel):
     uri: str
     kind: str | None = None
     schema_version: int | None = None
-    sha256: Annotated[str, Field(pattern='^[0-9a-f]{64}$')]
+    sha256: Annotated[str, Field(pattern="^[0-9a-f]{64}$")]
     size_bytes: Annotated[int | None, Field(ge=0)] = None
     produced_by: str | None = None
     created_at: AwareDatetime | None = None
 
 
 class OverallStatus(StrEnum):
-    pass_ = 'pass'
-    fail = 'fail'
-    advisory_only = 'advisory_only'
+    pass_ = "pass"
+    fail = "fail"
+    advisory_only = "advisory_only"
 
 
 class Status(StrEnum):
-    pass_ = 'pass'
-    fail = 'fail'
-    advisory = 'advisory'
-    skipped = 'skipped'
+    pass_ = "pass"
+    fail = "fail"
+    advisory = "advisory"
+    skipped = "skipped"
 
 
 class Severity(StrEnum):
-    blocking = 'blocking'
-    advisory = 'advisory'
+    blocking = "blocking"
+    advisory = "advisory"
 
 
 class Type(StrEnum):
-    computation = 'computation'
-    reference = 'reference'
-    comparison = 'comparison'
-    limit_check = 'limit_check'
-    statistical = 'statistical'
+    computation = "computation"
+    reference = "reference"
+    comparison = "comparison"
+    limit_check = "limit_check"
+    statistical = "statistical"
 
 
 class ArtifactRef(BaseModel):
     uri: str | None = None
-    sha256: Annotated[str | None, Field(pattern='^[0-9a-f]{64}$')] = None
+    sha256: Annotated[str | None, Field(pattern="^[0-9a-f]{64}$")] = None
     size_bytes: Annotated[int | None, Field(ge=0)] = None
 
 
 class Evidence(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     type: Annotated[
         Type,
@@ -65,21 +65,21 @@ class Evidence(BaseModel):
     artifact_ref: Annotated[
         ArtifactRef | None,
         Field(
-            description='Optional reference to an artifact containing detailed evidence.'
+            description="Optional reference to an artifact containing detailed evidence."
         ),
     ] = None
     description: Annotated[
-        str, Field(description='Human-readable description of this evidence.')
+        str, Field(description="Human-readable description of this evidence.")
     ]
     data: Annotated[
         dict[str, Any] | None,
-        Field(description='Structured data specific to the evidence type.'),
+        Field(description="Structured data specific to the evidence type."),
     ] = None
 
 
 class IntegrityCheckResult(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     check_id: Annotated[
         str,
@@ -87,7 +87,7 @@ class IntegrityCheckResult(BaseModel):
             description="Unique identifier of the check (e.g., 'theory_cross_check.invariant_consistency')."
         ),
     ]
-    check_name: Annotated[str, Field(description='Human-readable name of the check.')]
+    check_name: Annotated[str, Field(description="Human-readable name of the check.")]
     status: Annotated[
         Status,
         Field(
@@ -97,44 +97,44 @@ class IntegrityCheckResult(BaseModel):
     severity: Annotated[
         Severity,
         Field(
-            description='Whether this check is blocking (prevents publication) or advisory (informational).'
+            description="Whether this check is blocking (prevents publication) or advisory (informational)."
         ),
     ]
     confidence: Annotated[
         float | None,
-        Field(description='Confidence in the check result (0-1).', ge=0.0, le=1.0),
+        Field(description="Confidence in the check result (0-1).", ge=0.0, le=1.0),
     ] = None
     evidence: Annotated[
         list[Evidence] | None,
-        Field(description='Supporting evidence for the check result.'),
+        Field(description="Supporting evidence for the check result."),
     ] = None
     message: Annotated[
-        str, Field(description='Human-readable explanation of the result.')
+        str, Field(description="Human-readable explanation of the result.")
     ]
     remediation: Annotated[
-        str | None, Field(description='Suggested remediation if check failed.')
+        str | None, Field(description="Suggested remediation if check failed.")
     ] = None
     duration_ms: Annotated[int | None, Field(ge=0)] = None
 
 
 class IntegrityreportV1(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     schema_version: Literal[1]
     report_id: Annotated[
         str,
         Field(
-            description='Content-addressed identifier: SHA-256 hex digest of RFC 8785 (JCS) canonical JSON of this object excluding report_id itself.',
-            pattern='^[0-9a-f]{64}$',
+            description="Content-addressed identifier: SHA-256 hex digest of RFC 8785 (JCS) canonical JSON of this object excluding report_id itself.",
+            pattern="^[0-9a-f]{64}$",
         ),
     ]
     target_ref: Annotated[
-        TargetRef, Field(description='ArtifactRef V1 of the artifact being checked.')
+        TargetRef, Field(description="ArtifactRef V1 of the artifact being checked.")
     ]
     checks: Annotated[
         list[IntegrityCheckResult],
-        Field(description='Results of individual integrity checks.'),
+        Field(description="Results of individual integrity checks."),
     ]
     overall_status: Annotated[
         OverallStatus,
@@ -155,18 +155,18 @@ class IntegrityreportV1(BaseModel):
         ),
     ]
     domain_pack_version: Annotated[
-        str | None, Field(description='Version of the domain pack used for checks.')
+        str | None, Field(description="Version of the domain pack used for checks.")
     ] = None
     run_id: Annotated[
-        str | None, Field(description='Run in which this report was generated.')
+        str | None, Field(description="Run in which this report was generated.")
     ] = None
     trace_id: Annotated[
-        UUID | None, Field(description='Trace ID for cross-layer correlation.')
+        UUID | None, Field(description="Trace ID for cross-layer correlation.")
     ] = None
     created_at: Annotated[
-        AwareDatetime, Field(description='ISO 8601 UTC Z timestamp of report creation.')
+        AwareDatetime, Field(description="ISO 8601 UTC Z timestamp of report creation.")
     ]
     duration_ms: Annotated[
         int | None,
-        Field(description='Total time taken for all checks in milliseconds.', ge=0),
+        Field(description="Total time taken for all checks in milliseconds.", ge=0),
     ] = None

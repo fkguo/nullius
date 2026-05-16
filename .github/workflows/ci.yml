@@ -22,8 +22,8 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: pnpm
 
-      - name: Install uv
-        run: python3 -m pip install uv
+      - name: Install uv + Python codegen tools
+        run: python3 -m pip install uv datamodel-code-generator ruff
 
       - run: pnpm install --frozen-lockfile
 
@@ -34,6 +34,10 @@ jobs:
       - name: Check governance sync (AGENTS.md ↔ CLAUDE.md)
         if: ${{ matrix.node-version == 22 }}
         run: node scripts/check-governance-sync.mjs
+
+      - name: Check codegen drift (meta/schemas ↔ generated)
+        if: ${{ matrix.node-version == 22 }}
+        run: pnpm codegen:check
 
       - run: pnpm -r build
 

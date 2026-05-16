@@ -10,10 +10,10 @@ from pydantic import BaseModel, ConfigDict, Field, RootModel
 
 
 class CostTier(StrEnum):
-    low = 'low'
-    medium = 'medium'
-    high = 'high'
-    variable = 'variable'
+    low = "low"
+    medium = "medium"
+    high = "high"
+    variable = "variable"
 
 
 class InputContractId(RootModel[str]):
@@ -26,7 +26,7 @@ class OutputContractId(RootModel[str]):
 
 class Capability(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     capability_id: Annotated[str, Field(min_length=1)]
     description: Annotated[str, Field(min_length=1)]
@@ -35,14 +35,14 @@ class Capability(BaseModel):
 
 
 class Format(StrEnum):
-    json_schema = 'json_schema'
-    openrpc = 'openrpc'
-    protocol = 'protocol'
+    json_schema = "json_schema"
+    openrpc = "openrpc"
+    protocol = "protocol"
 
 
 class ContractRef(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     contract_id: Annotated[str, Field(min_length=1)]
     format: Format
@@ -52,10 +52,10 @@ class ContractRef(BaseModel):
 
 class AgentCardV1(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     schema_version: Literal[1]
-    agent_id: Annotated[str, Field(min_length=1, pattern='^[a-z][a-z0-9-]*$')]
+    agent_id: Annotated[str, Field(min_length=1, pattern="^[a-z][a-z0-9-]*$")]
     name: Annotated[str, Field(min_length=1)]
     description: Annotated[str | None, Field(min_length=1)] = None
     version: Annotated[str, Field(min_length=1)]

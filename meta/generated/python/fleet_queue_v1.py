@@ -15,7 +15,7 @@ class SchemaVersion(IntEnum):
 
 class FleetQueueClaim(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     claim_id: Annotated[str, Field(min_length=1)]
     owner_id: Annotated[str, Field(min_length=1)]
@@ -25,16 +25,16 @@ class FleetQueueClaim(BaseModel):
 
 
 class Status(StrEnum):
-    queued = 'queued'
-    claimed = 'claimed'
-    completed = 'completed'
-    failed = 'failed'
-    cancelled = 'cancelled'
+    queued = "queued"
+    claimed = "claimed"
+    completed = "completed"
+    failed = "failed"
+    cancelled = "cancelled"
 
 
 class FleetQueueItem(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     queue_item_id: Annotated[str, Field(min_length=1)]
     run_id: Annotated[str, Field(min_length=1)]
@@ -49,7 +49,7 @@ class FleetQueueItem(BaseModel):
 
 class FleetqueueV1(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     schema_version: SchemaVersion
     updated_at: AwareDatetime

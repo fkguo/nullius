@@ -10,8 +10,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class SeverityDefault(StrEnum):
-    blocking = 'blocking'
-    advisory = 'advisory'
+    blocking = "blocking"
+    advisory = "advisory"
 
 
 class SubCheck(BaseModel):
@@ -29,25 +29,25 @@ class Check(BaseModel):
     check_id: Annotated[
         str,
         Field(
-            description='Check identifier, must match IntegrityCheck.check_id.',
-            pattern='^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)?$',
+            description="Check identifier, must match IntegrityCheck.check_id.",
+            pattern="^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)?$",
         ),
     ]
-    name: Annotated[str, Field(description='Human-readable name.')]
-    severity_default: Annotated[SeverityDefault, Field(description='Default severity.')]
+    name: Annotated[str, Field(description="Human-readable name.")]
+    severity_default: Annotated[SeverityDefault, Field(description="Default severity.")]
     configurable: Annotated[
-        bool | None, Field(description='Whether severity can be overridden.')
+        bool | None, Field(description="Whether severity can be overridden.")
     ] = False
     entry_point: Annotated[
         str | None,
         Field(
-            description='Module path or function name for loading the check implementation.'
+            description="Module path or function name for loading the check implementation."
         ),
     ] = None
     sub_checks: Annotated[
         list[SubCheck] | None,
         Field(
-            description='Sub-checks within this check (e.g., cross_check has ward_identity, gauge_invariance, etc.).'
+            description="Sub-checks within this check (e.g., cross_check has ward_identity, gauge_invariance, etc.)."
         ),
     ] = None
 
@@ -55,26 +55,26 @@ class Check(BaseModel):
 class Dependencies(BaseModel):
     tools: Annotated[
         list[str] | None,
-        Field(description='MCP tools required by checks in this pack.'),
+        Field(description="MCP tools required by checks in this pack."),
     ] = None
     databases: Annotated[
-        list[str] | None, Field(description='External databases required.')
+        list[str] | None, Field(description="External databases required.")
     ] = None
     computation_packages: Annotated[
-        list[str] | None, Field(description='Computation software required.')
+        list[str] | None, Field(description="Computation software required.")
     ] = None
     npm_packages: Annotated[
         dict[str, str] | None,
-        Field(description='npm package dependencies with version ranges.'),
+        Field(description="npm package dependencies with version ranges."),
     ] = None
 
 
 class Type(StrEnum):
-    string = 'string'
-    number = 'number'
-    boolean = 'boolean'
-    array = 'array'
-    object = 'object'
+    string = "string"
+    number = "number"
+    boolean = "boolean"
+    array = "array"
+    object = "object"
 
 
 class Configuration(BaseModel):
@@ -88,12 +88,12 @@ class Compatibility(BaseModel):
     integrity_framework_version: Annotated[
         str | None,
         Field(
-            description='Minimum integrity framework version required (SemVer range).'
+            description="Minimum integrity framework version required (SemVer range)."
         ),
     ] = None
     rep_sdk_version: Annotated[
         str | None,
-        Field(description='Minimum REP SDK version required (SemVer range).'),
+        Field(description="Minimum REP SDK version required (SemVer range)."),
     ] = None
 
 
@@ -116,19 +116,19 @@ class RdiWeightOverrides(BaseModel):
 
 class TaxonomyExpansion(BaseModel):
     enabled: Annotated[
-        bool, Field(description='Whether automatic taxonomy expansion is active.')
+        bool, Field(description="Whether automatic taxonomy expansion is active.")
     ]
     min_miss_count: Annotated[
         int | None,
         Field(
-            description='Minimum distinct taxonomy_miss events with a common pattern before a proposal is generated.',
+            description="Minimum distinct taxonomy_miss events with a common pattern before a proposal is generated.",
             ge=1,
         ),
     ] = 3
     auto_approve_threshold: Annotated[
         float | None,
         Field(
-            description='Confidence threshold at or above which proposals are auto-committed without human review.',
+            description="Confidence threshold at or above which proposals are auto-committed without human review.",
             ge=0.0,
             le=1.0,
         ),
@@ -136,13 +136,13 @@ class TaxonomyExpansion(BaseModel):
     require_human_review: Annotated[
         bool | None,
         Field(
-            description='When true, all proposals require explicit human approval regardless of confidence score.'
+            description="When true, all proposals require explicit human approval regardless of confidence score."
         ),
     ] = False
     max_pending_proposals: Annotated[
         int | None,
         Field(
-            description='Maximum number of pending (unapproved) proposals retained. Oldest proposals are discarded when exceeded.',
+            description="Maximum number of pending (unapproved) proposals retained. Oldest proposals are discarded when exceeded.",
             ge=1,
         ),
     ] = 50
@@ -158,27 +158,27 @@ class ScoringConfig(BaseModel):
     problem_taxonomy: Annotated[
         ProblemTaxonomy | None,
         Field(
-            description='Problem significance classification for the significance RDI dimension.'
+            description="Problem significance classification for the significance RDI dimension."
         ),
     ] = None
     reference_metric_count: Annotated[
         int | None,
         Field(
-            description='Normalization denominator for result_breadth in generality scoring.',
+            description="Normalization denominator for result_breadth in generality scoring.",
             ge=1,
         ),
     ] = 10
     reference_assumption_count: Annotated[
         int | None,
         Field(
-            description='Normalization denominator for assumption_lightness in generality scoring.',
+            description="Normalization denominator for assumption_lightness in generality scoring.",
             ge=1,
         ),
     ] = 10
     rdi_weight_overrides: Annotated[
         RdiWeightOverrides | None,
         Field(
-            description='Optional RDI weight overrides. Must sum to 1.0 (enforced by SDK runtime validator; not expressible in JSON Schema alone). Values outside allowed bounds are rejected at validation time.'
+            description="Optional RDI weight overrides. Must sum to 1.0 (enforced by SDK runtime validator; not expressible in JSON Schema alone). Values outside allowed bounds are rejected at validation time."
         ),
     ] = None
     literature_service_id: Annotated[
@@ -190,7 +190,7 @@ class ScoringConfig(BaseModel):
     taxonomy_expansion: Annotated[
         TaxonomyExpansion | None,
         Field(
-            description='Automatic taxonomy expansion configuration. When enabled, taxonomy_miss diagnostics are accumulated and new entries are proposed (and optionally auto-approved) to grow method_taxonomy and problem_taxonomy over time. Default: disabled.'
+            description="Automatic taxonomy expansion configuration. When enabled, taxonomy_miss diagnostics are accumulated and new entries are proposed (and optionally auto-approved) to grow method_taxonomy and problem_taxonomy over time. Default: disabled."
         ),
     ] = None
 
@@ -226,19 +226,19 @@ class FingerprintConfig(BaseModel):
     method_vectors: Annotated[
         dict[str, list[float]] | None,
         Field(
-            description='Pre-computed method embedding vectors (maps method approach to fixed-length vector).'
+            description="Pre-computed method embedding vectors (maps method approach to fixed-length vector)."
         ),
     ] = None
     observable_vocabulary: Annotated[
         list[str] | None,
         Field(
-            description='Vocabulary of observable types for one-hot encoding in fingerprint. Also used by result_breadth to deduplicate metric keys into distinct observable classes.'
+            description="Vocabulary of observable types for one-hot encoding in fingerprint. Also used by result_breadth to deduplicate metric keys into distinct observable classes."
         ),
     ] = None
     literature_record_adapter: Annotated[
         LiteratureRecordAdapter | None,
         Field(
-            description='Adapter specification for extracting fingerprint components from LiteratureRecord.metadata. Maps service-specific metadata fields to the 96-dim fingerprint components.'
+            description="Adapter specification for extracting fingerprint components from LiteratureRecord.metadata. Maps service-specific metadata fields to the 96-dim fingerprint components."
         ),
     ] = None
 
@@ -258,7 +258,7 @@ class ReproducibilityConfig(BaseModel):
     backends: Annotated[
         list[Backend] | None,
         Field(
-            description='Available computation backends for reproducibility verification.'
+            description="Available computation backends for reproducibility verification."
         ),
     ] = None
 
@@ -281,7 +281,7 @@ class StrategyExtensions(BaseModel):
 
 class DomainpackmanifestV1(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     schema_version: Literal[1]
     pack_id: Annotated[
@@ -290,7 +290,7 @@ class DomainpackmanifestV1(BaseModel):
             description="Unique identifier for this domain pack (e.g., 'cond-mat-integrity').",
             max_length=100,
             min_length=1,
-            pattern='^[a-z][a-z0-9-]*$',
+            pattern="^[a-z][a-z0-9-]*$",
         ),
     ]
     name: Annotated[
@@ -304,8 +304,8 @@ class DomainpackmanifestV1(BaseModel):
     version: Annotated[
         str,
         Field(
-            description='SemVer version of this pack.',
-            pattern='^\\d+\\.\\d+\\.\\d+(-[a-zA-Z0-9.]+)?$',
+            description="SemVer version of this pack.",
+            pattern="^\\d+\\.\\d+\\.\\d+(-[a-zA-Z0-9.]+)?$",
         ),
     ]
     domain: Annotated[
@@ -317,48 +317,48 @@ class DomainpackmanifestV1(BaseModel):
     ]
     description: Annotated[
         str | None,
-        Field(description='Description of what this pack checks.', max_length=2000),
+        Field(description="Description of what this pack checks.", max_length=2000),
     ] = None
-    author: Annotated[str | None, Field(description='Author or organization.')] = None
+    author: Annotated[str | None, Field(description="Author or organization.")] = None
     license: Annotated[
         str | None, Field(description="License identifier (e.g., 'MIT').")
     ] = None
     checks: Annotated[
         list[Check],
         Field(
-            description='List of integrity checks provided by this pack.', min_length=1
+            description="List of integrity checks provided by this pack.", min_length=1
         ),
     ]
     dependencies: Annotated[
         Dependencies | None,
-        Field(description='External dependencies needed by this pack.'),
+        Field(description="External dependencies needed by this pack."),
     ] = None
     configuration: Annotated[
         dict[str, Configuration] | None,
-        Field(description='Configuration options for this pack.'),
+        Field(description="Configuration options for this pack."),
     ] = None
     compatibility: Compatibility | None = None
     scoring_config: Annotated[
         ScoringConfig | None,
         Field(
-            description='RDI scoring configuration: method taxonomy for generality, problem taxonomy for significance, and reference values. If omitted, REP SDK uses built-in defaults (method_class fallback 0.5, significance fallback 0.5).'
+            description="RDI scoring configuration: method taxonomy for generality, problem taxonomy for significance, and reference values. If omitted, REP SDK uses built-in defaults (method_class fallback 0.5, significance fallback 0.5)."
         ),
     ] = None
     fingerprint_config: Annotated[
         FingerprintConfig | None,
         Field(
-            description='Novelty scoring configuration: fingerprint vector construction and literature record extraction adapters. If omitted, REP SDK uses the default 96-dim fingerprint with title-only fallback for external records (see EVO-17 Section 4.3.1).'
+            description="Novelty scoring configuration: fingerprint vector construction and literature record extraction adapters. If omitted, REP SDK uses the default 96-dim fingerprint with title-only fallback for external records (see EVO-17 Section 4.3.1)."
         ),
     ] = None
     reproducibility_config: Annotated[
         ReproducibilityConfig | None,
         Field(
-            description='Reproducibility verification configuration: computation backends and verification modes for the domain.'
+            description="Reproducibility verification configuration: computation backends and verification modes for the domain."
         ),
     ] = None
     strategy_extensions: Annotated[
         StrategyExtensions | None,
         Field(
-            description='Domain-specific strategy field constraints. Defines which additional fields the domain expects in ResearchStrategy.method (via additionalProperties) and their validation rules.'
+            description="Domain-specific strategy field constraints. Defines which additional fields the domain expects in ResearchStrategy.method (via additionalProperties) and their validation rules."
         ),
     ] = None

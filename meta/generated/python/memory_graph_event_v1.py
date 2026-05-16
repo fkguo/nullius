@@ -11,64 +11,64 @@ from pydantic import AnyUrl, AwareDatetime, BaseModel, ConfigDict, Field
 
 
 class EventType(StrEnum):
-    signal = 'signal'
-    hypothesis = 'hypothesis'
-    attempt = 'attempt'
-    outcome = 'outcome'
-    confidence_edge = 'confidence_edge'
-    confidence_gene_outcome = 'confidence_gene_outcome'
-    external_candidate = 'external_candidate'
+    signal = "signal"
+    hypothesis = "hypothesis"
+    attempt = "attempt"
+    outcome = "outcome"
+    confidence_edge = "confidence_edge"
+    confidence_gene_outcome = "confidence_gene_outcome"
+    external_candidate = "external_candidate"
 
 
 class SignalPayload(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
-    type: Literal['signal']
-    signals: Annotated[list[str], Field(description='List of observed signals')]
+    type: Literal["signal"]
+    signals: Annotated[list[str], Field(description="List of observed signals")]
     signal_key: Annotated[
-        str, Field(description='FNV-1a hash of normalized+sorted signal set')
+        str, Field(description="FNV-1a hash of normalized+sorted signal set")
     ]
 
 
 class HypothesisPayload(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
-    type: Literal['hypothesis']
+    type: Literal["hypothesis"]
     gene_id: str
     signals: list[str]
     signal_key: str
     selection_reason: Annotated[
         str | None,
         Field(
-            description='Why this gene was selected (memory_preferred, signal_match, drift, auto_gene)'
+            description="Why this gene was selected (memory_preferred, signal_match, drift, auto_gene)"
         ),
     ] = None
 
 
 class MutationType(StrEnum):
-    repair = 'repair'
-    optimize = 'optimize'
-    innovate = 'innovate'
+    repair = "repair"
+    optimize = "optimize"
+    innovate = "innovate"
 
 
 class AttemptPayload(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
-    type: Literal['attempt']
+    type: Literal["attempt"]
     gene_id: str
     mutation_type: Annotated[
-        MutationType | None, Field(description='Mutation type (EVO-21 extension)')
+        MutationType | None, Field(description="Mutation type (EVO-21 extension)")
     ] = None
 
 
 class ConfidenceEdgePayload(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
-    type: Literal['confidence_edge']
+    type: Literal["confidence_edge"]
     signal_key: str
     gene_id: str
     success: bool
@@ -76,37 +76,37 @@ class ConfidenceEdgePayload(BaseModel):
 
 class ConfidenceGeneOutcomePayload(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
-    type: Literal['confidence_gene_outcome']
+    type: Literal["confidence_gene_outcome"]
     gene_id: str
     outcome_score: Annotated[float, Field(ge=0.0, le=1.0)]
 
 
 class ExternalCandidatePayload(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
-    type: Literal['external_candidate']
+    type: Literal["external_candidate"]
     source: Annotated[
-        str, Field(description='Source of external candidate (e.g., hub, manual)')
+        str, Field(description="Source of external candidate (e.g., hub, manual)")
     ]
     candidate: Annotated[
-        dict[str, Any], Field(description='External gene/capsule candidate data')
+        dict[str, Any], Field(description="External gene/capsule candidate data")
     ]
 
 
 class Severity(StrEnum):
-    within_limit = 'within_limit'
-    approaching_limit = 'approaching_limit'
-    exceeded = 'exceeded'
-    critical_overrun = 'critical_overrun'
-    hard_cap_breach = 'hard_cap_breach'
+    within_limit = "within_limit"
+    approaching_limit = "approaching_limit"
+    exceeded = "exceeded"
+    critical_overrun = "critical_overrun"
+    hard_cap_breach = "hard_cap_breach"
 
 
 class BlastRadiusSummary(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     files_changed: Annotated[int | None, Field(ge=0)] = None
     lines_added: Annotated[int | None, Field(ge=0)] = None
@@ -116,34 +116,34 @@ class BlastRadiusSummary(BaseModel):
 
 class MemorygrapheventV1(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
-    id: Annotated[int | None, Field(description='Auto-incremented event ID')] = None
+    id: Annotated[int | None, Field(description="Auto-incremented event ID")] = None
     event_type: EventType
     run_id: Annotated[
         str | None,
         Field(
-            description='Run ID (null for cross-run context events)',
-            pattern='^run_[0-9a-f-]+$',
+            description="Run ID (null for cross-run context events)",
+            pattern="^run_[0-9a-f-]+$",
         ),
     ] = None
     trace_id: Annotated[
-        UUID | None, Field(description='Trace ID from H-02 observability')
+        UUID | None, Field(description="Trace ID from H-02 observability")
     ] = None
     payload: Annotated[
         dict[str, Any],
         Field(
-            description='Event-type-specific payload (discriminated by event_type via allOf)'
+            description="Event-type-specific payload (discriminated by event_type via allOf)"
         ),
     ]
-    created_at: Annotated[AwareDatetime, Field(description='ISO 8601 timestamp')]
+    created_at: Annotated[AwareDatetime, Field(description="ISO 8601 timestamp")]
 
 
 class OutcomePayload(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
-    type: Literal['outcome']
+    type: Literal["outcome"]
     gene_id: Annotated[
         str,
         Field(
@@ -155,40 +155,40 @@ class OutcomePayload(BaseModel):
     reason: Annotated[
         str | None,
         Field(
-            description='Failure reason (e.g., hard_cap_breach, contract_violation, validation_failed, canary_failed)'
+            description="Failure reason (e.g., hard_cap_breach, contract_violation, validation_failed, canary_failed)"
         ),
     ] = None
     mutation_type: Annotated[
         MutationType | None,
-        Field(description='Mutation type that produced this outcome (EVO-21)'),
+        Field(description="Mutation type that produced this outcome (EVO-21)"),
     ] = None
     selected_arm_id: Annotated[
         str | None,
         Field(
-            description='Bandit arm that was selected (EVO-21/EVO-11 binding). When present, executed_gene_id must also be present.'
+            description="Bandit arm that was selected (EVO-21/EVO-11 binding). When present, executed_gene_id must also be present."
         ),
     ] = None
     executed_gene_id: Annotated[
         str | None,
         Field(
-            description='Gene that actually executed (may differ from selected_arm_id if fallback occurred within the gene family)'
+            description="Gene that actually executed (may differ from selected_arm_id if fallback occurred within the gene family)"
         ),
     ] = None
     quality_score: Annotated[
         float | None,
-        Field(description='Quality metric (0-1) for the outcome', ge=0.0, le=1.0),
+        Field(description="Quality metric (0-1) for the outcome", ge=0.0, le=1.0),
     ] = None
     blast_radius: BlastRadiusSummary | None = None
     files_modified: Annotated[
         list[str] | None,
-        Field(description='List of files modified (for co-change tracking)'),
+        Field(description="List of files modified (for co-change tracking)"),
     ] = None
     error_delta: Annotated[
-        int | None, Field(description='Change in error count (negative = improvement)')
+        int | None, Field(description="Change in error count (negative = improvement)")
     ] = None
     details_artifact_uri: Annotated[
         AnyUrl | None,
         Field(
-            description='H-18 ArtifactRef URI (e.g., hep://runs/{run_id}/artifact/{name}) pointing to detailed outcome data (violations, validation steps, full blast radius). The full ArtifactRef object (uri, sha256, size_bytes) is resolved via the artifact store. Keeps events lightweight while preserving full traceability.'
+            description="H-18 ArtifactRef URI (e.g., hep://runs/{run_id}/artifact/{name}) pointing to detailed outcome data (violations, validation steps, full blast radius). The full ArtifactRef object (uri, sha256, size_bytes) is resolved via the artifact store. Keeps events lightweight while preserving full traceability."
         ),
     ] = None

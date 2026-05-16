@@ -10,7 +10,7 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
 
 class ArtifactrefV1(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     uri: Annotated[
         str,
@@ -25,22 +25,22 @@ class ArtifactrefV1(BaseModel):
         ),
     ] = None
     schema_version: Annotated[
-        int | None, Field(description='Schema version of the referenced artifact.')
+        int | None, Field(description="Schema version of the referenced artifact.")
     ] = None
     sha256: Annotated[
         str,
         Field(
-            description='SHA-256 hex digest of the artifact content. Used for integrity verification and content addressing.',
-            pattern='^[0-9a-f]{64}$',
+            description="SHA-256 hex digest of the artifact content. Used for integrity verification and content addressing.",
+            pattern="^[0-9a-f]{64}$",
         ),
     ]
     size_bytes: Annotated[
-        int | None, Field(description='Size of the artifact in bytes.', ge=0)
+        int | None, Field(description="Size of the artifact in bytes.", ge=0)
     ] = None
     produced_by: Annotated[
-        str | None, Field(description='Agent or component that produced this artifact.')
+        str | None, Field(description="Agent or component that produced this artifact.")
     ] = None
     created_at: Annotated[
         AwareDatetime | None,
-        Field(description='ISO 8601 UTC Z timestamp of artifact creation.'),
+        Field(description="ISO 8601 UTC Z timestamp of artifact creation."),
     ] = None

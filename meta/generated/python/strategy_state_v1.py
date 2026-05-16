@@ -10,12 +10,12 @@ from pydantic import BaseModel, ConfigDict, Field
 
 class StrategystateV1(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     rigor: Annotated[
         float,
         Field(
-            description='Validation thoroughness. Higher = more exhaustive testing. Increases on errors, decreases on repeated success.',
+            description="Validation thoroughness. Higher = more exhaustive testing. Increases on errors, decreases on repeated success.",
             ge=0.0,
             le=1.0,
         ),
@@ -23,7 +23,7 @@ class StrategystateV1(BaseModel):
     creativity: Annotated[
         float,
         Field(
-            description='Willingness to try novel approaches. Higher = more experimental. Increases on opportunity signals and stagnation.',
+            description="Willingness to try novel approaches. Higher = more experimental. Increases on opportunity signals and stagnation.",
             ge=0.0,
             le=1.0,
         ),
@@ -31,7 +31,7 @@ class StrategystateV1(BaseModel):
     verbosity: Annotated[
         float,
         Field(
-            description='Detail level in generated outputs. Lower values preferred for automated operations.',
+            description="Detail level in generated outputs. Lower values preferred for automated operations.",
             ge=0.0,
             le=1.0,
         ),
@@ -39,7 +39,7 @@ class StrategystateV1(BaseModel):
     risk_tolerance: Annotated[
         float,
         Field(
-            description='Acceptable blast radius tolerance. Decreases on errors, increases on opportunity signals.',
+            description="Acceptable blast radius tolerance. Decreases on errors, increases on opportunity signals.",
             ge=0.0,
             le=1.0,
         ),
@@ -47,7 +47,7 @@ class StrategystateV1(BaseModel):
     obedience: Annotated[
         float,
         Field(
-            description='Constraint adherence. Higher = stricter enforcement of Contract rules. Rarely mutated.',
+            description="Constraint adherence. Higher = stricter enforcement of Contract rules. Rarely mutated.",
             ge=0.0,
             le=1.0,
         ),

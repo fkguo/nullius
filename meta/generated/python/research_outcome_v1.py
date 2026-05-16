@@ -11,34 +11,34 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
 
 
 class Status(StrEnum):
-    pending = 'pending'
-    verified = 'verified'
-    rejected = 'rejected'
-    superseded = 'superseded'
+    pending = "pending"
+    verified = "verified"
+    rejected = "rejected"
+    superseded = "superseded"
 
 
 class Metrics(BaseModel):
     value: Annotated[
         Any,
-        Field(description='The computed value (number, string expression, or array).'),
+        Field(description="The computed value (number, string expression, or array)."),
     ]
     uncertainty: Annotated[
-        float | None, Field(description='Numerical/statistical uncertainty.')
+        float | None, Field(description="Numerical/statistical uncertainty.")
     ] = None
     unit: Annotated[
         str | None,
         Field(
-            description='Unit of measurement. Omit for dimensionless quantities. Interpretation is domain-pack-defined.'
+            description="Unit of measurement. Omit for dimensionless quantities. Interpretation is domain-pack-defined."
         ),
     ] = None
     method: Annotated[
-        str | None, Field(description='How this quantity was computed.')
+        str | None, Field(description="How this quantity was computed.")
     ] = None
 
 
 class Artifact(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     uri: Annotated[
         str,
@@ -53,48 +53,48 @@ class Artifact(BaseModel):
         ),
     ] = None
     schema_version: Annotated[
-        int | None, Field(description='Schema version of the referenced artifact.')
+        int | None, Field(description="Schema version of the referenced artifact.")
     ] = None
     sha256: Annotated[
         str,
         Field(
-            description='SHA-256 hex digest of the artifact content. Used for integrity verification and content addressing.',
-            pattern='^[0-9a-f]{64}$',
+            description="SHA-256 hex digest of the artifact content. Used for integrity verification and content addressing.",
+            pattern="^[0-9a-f]{64}$",
         ),
     ]
     size_bytes: Annotated[
-        int | None, Field(description='Size of the artifact in bytes.', ge=0)
+        int | None, Field(description="Size of the artifact in bytes.", ge=0)
     ] = None
     produced_by: Annotated[
-        str | None, Field(description='Agent or component that produced this artifact.')
+        str | None, Field(description="Agent or component that produced this artifact.")
     ] = None
     created_at: Annotated[
         AwareDatetime | None,
-        Field(description='ISO 8601 UTC Z timestamp of artifact creation.'),
+        Field(description="ISO 8601 UTC Z timestamp of artifact creation."),
     ] = None
 
 
 class ReproducibilityStatus(StrEnum):
-    verified = 'verified'
-    pending = 'pending'
-    failed = 'failed'
-    not_applicable = 'not_applicable'
+    verified = "verified"
+    pending = "pending"
+    failed = "failed"
+    not_applicable = "not_applicable"
 
 
 class RdiScores(BaseModel):
     gate_passed: Annotated[
-        bool, Field(description='Whether this outcome passed the RDI fail-closed gate.')
+        bool, Field(description="Whether this outcome passed the RDI fail-closed gate.")
     ]
     novelty: Annotated[
         float,
         Field(
-            description='Novelty score (0-1). Higher means more novel.', ge=0.0, le=1.0
+            description="Novelty score (0-1). Higher means more novel.", ge=0.0, le=1.0
         ),
     ]
     generality: Annotated[
         float,
         Field(
-            description='Methodological generality score (0-1). Broader method applicability = higher.',
+            description="Methodological generality score (0-1). Broader method applicability = higher.",
             ge=0.0,
             le=1.0,
         ),
@@ -102,18 +102,18 @@ class RdiScores(BaseModel):
     significance: Annotated[
         float,
         Field(
-            description='Problem significance score (0-1). How central is the addressed problem to the field.',
+            description="Problem significance score (0-1). How central is the addressed problem to the field.",
             ge=0.0,
             le=1.0,
         ),
     ]
     citation_impact: Annotated[
-        float, Field(description='Local citation impact score (0-1).', ge=0.0, le=1.0)
+        float, Field(description="Local citation impact score (0-1).", ge=0.0, le=1.0)
     ]
     rank_score: Annotated[
         float,
         Field(
-            description='Composite ranking score: w_n*novelty + w_g*generality + w_s*significance + w_c*citation_impact.',
+            description="Composite ranking score: w_n*novelty + w_g*generality + w_s*significance + w_c*citation_impact.",
             ge=0.0,
             le=1.0,
         ),
@@ -129,10 +129,10 @@ class ApplicabilityRange(BaseModel):
 class ProducedBy(BaseModel):
     agent_id: Annotated[
         str,
-        Field(description='Identifier of the agent/tool that produced this outcome.'),
+        Field(description="Identifier of the agent/tool that produced this outcome."),
     ]
     run_id: Annotated[
-        str | None, Field(description='Run in which this outcome was produced.')
+        str | None, Field(description="Run in which this outcome was produced.")
     ] = None
     tool_versions: Annotated[
         dict[str, str] | None,
@@ -142,34 +142,34 @@ class ProducedBy(BaseModel):
 
 class ResearchoutcomeV1(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     schema_version: Literal[1]
     outcome_id: Annotated[
         str,
         Field(
-            description='Content-addressed identifier: SHA-256 hex digest of RFC 8785 (JCS) canonical JSON of this object excluding outcome_id itself.',
-            pattern='^[0-9a-f]{64}$',
+            description="Content-addressed identifier: SHA-256 hex digest of RFC 8785 (JCS) canonical JSON of this object excluding outcome_id itself.",
+            pattern="^[0-9a-f]{64}$",
         ),
     ]
     lineage_id: Annotated[
         UUID,
         Field(
-            description='Stable identity across revisions (analogous to arXiv paper ID). Generated on first publication, inherited by all subsequent versions within the same research line.'
+            description="Stable identity across revisions (analogous to arXiv paper ID). Generated on first publication, inherited by all subsequent versions within the same research line."
         ),
     ]
     version: Annotated[
         int,
         Field(
-            description='Version number within the lineage, monotonically increasing. First publication is version 1.',
+            description="Version number within the lineage, monotonically increasing. First publication is version 1.",
             ge=1,
         ),
     ]
     strategy_ref: Annotated[
         str,
         Field(
-            description='strategy_id of the ResearchStrategy that produced this outcome.',
-            pattern='^[0-9a-f]{64}$',
+            description="strategy_id of the ResearchStrategy that produced this outcome.",
+            pattern="^[0-9a-f]{64}$",
         ),
     ]
     status: Annotated[
@@ -181,27 +181,27 @@ class ResearchoutcomeV1(BaseModel):
     metrics: Annotated[
         dict[str, Metrics],
         Field(
-            description='Key-value map of research results (physical quantities, derived relations, proven statements, classification results, or other domain-specific outcomes).'
+            description="Key-value map of research results (physical quantities, derived relations, proven statements, classification results, or other domain-specific outcomes)."
         ),
     ]
     artifacts: Annotated[
         list[Artifact],
         Field(
-            description='Evidence pointers to computation artifacts (ArtifactRef V1).'
+            description="Evidence pointers to computation artifacts (ArtifactRef V1)."
         ),
     ]
     integrity_report_ref: Annotated[
         str | None,
         Field(
-            description='Content-addressed ID of the IntegrityReport for this outcome.',
-            pattern='^[0-9a-f]{64}$',
+            description="Content-addressed ID of the IntegrityReport for this outcome.",
+            pattern="^[0-9a-f]{64}$",
         ),
     ] = None
     reproducibility_report_ref: Annotated[
         str | None,
         Field(
-            description='Content-addressed ID of the DeviationReport from reproducibility verification.',
-            pattern='^[0-9a-f]{64}$',
+            description="Content-addressed ID of the DeviationReport from reproducibility verification.",
+            pattern="^[0-9a-f]{64}$",
         ),
     ] = None
     reproducibility_status: Annotated[
@@ -212,36 +212,36 @@ class ResearchoutcomeV1(BaseModel):
     ] = None
     confidence: Annotated[
         float | None,
-        Field(description='Overall confidence in this outcome (0-1).', ge=0.0, le=1.0),
+        Field(description="Overall confidence in this outcome (0-1).", ge=0.0, le=1.0),
     ] = None
     rdi_scores: Annotated[
         RdiScores | None,
         Field(
-            description='RDI (Research Desirability Index) scores. Only populated after RDI evaluation.'
+            description="RDI (Research Desirability Index) scores. Only populated after RDI evaluation."
         ),
     ] = None
     applicability_range: Annotated[
         dict[str, ApplicabilityRange] | None,
-        Field(description='Parameter space where this result is valid.'),
+        Field(description="Parameter space where this result is valid."),
     ] = None
     produced_by: Annotated[
-        ProducedBy, Field(description='Provenance: who/what produced this outcome.')
+        ProducedBy, Field(description="Provenance: who/what produced this outcome.")
     ]
     created_at: Annotated[
-        AwareDatetime, Field(description='ISO 8601 UTC Z timestamp of creation.')
+        AwareDatetime, Field(description="ISO 8601 UTC Z timestamp of creation.")
     ]
     supersedes: Annotated[
         str | None,
         Field(
-            description='outcome_id of the previous version this outcome supersedes (if version > 1). Forms the explicit revision chain.',
-            pattern='^[0-9a-f]{64}$',
+            description="outcome_id of the previous version this outcome supersedes (if version > 1). Forms the explicit revision chain.",
+            pattern="^[0-9a-f]{64}$",
         ),
     ] = None
     superseded_by: Annotated[
         str | None,
         Field(
             description="outcome_id of the outcome that supersedes this one (if status is 'superseded').",
-            pattern='^[0-9a-f]{64}$',
+            pattern="^[0-9a-f]{64}$",
         ),
     ] = None
     tags: list[str] | None = None

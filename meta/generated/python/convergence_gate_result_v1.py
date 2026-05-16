@@ -10,10 +10,10 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, constr
 
 
 class Status(StrEnum):
-    converged = 'converged'
-    not_converged = 'not_converged'
-    parse_error = 'parse_error'
-    early_stop = 'early_stop'
+    converged = "converged"
+    not_converged = "not_converged"
+    parse_error = "parse_error"
+    early_stop = "early_stop"
 
 
 class ExitCode(IntEnum):
@@ -24,32 +24,32 @@ class ExitCode(IntEnum):
 
 
 class Verdict(StrEnum):
-    ready = 'ready'
-    needs_revision = 'needs_revision'
-    unknown = 'unknown'
+    ready = "ready"
+    needs_revision = "needs_revision"
+    unknown = "unknown"
 
 
 class Derivation(StrEnum):
-    pass_ = 'pass'
-    fail = 'fail'
-    unknown = 'unknown'
+    pass_ = "pass"
+    fail = "fail"
+    unknown = "unknown"
 
 
 class Computation(StrEnum):
-    pass_ = 'pass'
-    fail = 'fail'
-    unknown = 'unknown'
+    pass_ = "pass"
+    fail = "fail"
+    unknown = "unknown"
 
 
 class SweepSemantics(StrEnum):
-    pass_ = 'pass'
-    fail = 'fail'
-    unknown = 'unknown'
+    pass_ = "pass"
+    fail = "fail"
+    unknown = "unknown"
 
 
 class ReportStatus(BaseModel):
     model_config = ConfigDict(
-        extra='allow',
+        extra="allow",
     )
     verdict: Verdict
     blocking_count: Annotated[int | None, Field(ge=0)]
@@ -67,24 +67,24 @@ class ReportStatus(BaseModel):
 
 
 class GateId(StrEnum):
-    team_convergence = 'team_convergence'
-    draft_convergence = 'draft_convergence'
+    team_convergence = "team_convergence"
+    draft_convergence = "draft_convergence"
 
 
 class WorkflowMode(StrEnum):
-    peer = 'peer'
-    leader = 'leader'
-    asymmetric = 'asymmetric'
+    peer = "peer"
+    leader = "leader"
+    asymmetric = "asymmetric"
 
 
 class Meta(BaseModel):
     model_config = ConfigDict(
-        extra='allow',
+        extra="allow",
     )
     gate_id: GateId
     generated_at: AwareDatetime
     parser_version: Annotated[str, Field(min_length=1)]
-    schema_id: Literal['convergence_gate_result_v1']
+    schema_id: Literal["convergence_gate_result_v1"]
     schema_version: Literal[1]
     workflow_mode: WorkflowMode | None = None
     require_sweep: bool | None = None
@@ -93,10 +93,10 @@ class Meta(BaseModel):
 
 class ConvergenceGateResultV1(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     status: Status
     exit_code: ExitCode
     reasons: list[str]
-    report_status: dict[constr(pattern=r'^[a-z][a-z0-9_]*$'), ReportStatus]
+    report_status: dict[constr(pattern=r"^[a-z][a-z0-9_]*$"), ReportStatus]
     meta: Meta

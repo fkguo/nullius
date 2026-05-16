@@ -10,13 +10,13 @@ from pydantic import BaseModel, ConfigDict, Field, RootModel
 
 
 class Action(StrEnum):
-    discover_seed_search = 'discover.seed_search'
-    analyze_topic_evolution = 'analyze.topic_evolution'
-    analyze_citation_network = 'analyze.citation_network'
-    analyze_paper_connections = 'analyze.paper_connections'
-    analyze_provenance_trace = 'analyze.provenance_trace'
-    analyze_paper_set_critical_review = 'analyze.paper_set_critical_review'
-    materialize_evidence_build = 'materialize.evidence_build'
+    discover_seed_search = "discover.seed_search"
+    analyze_topic_evolution = "analyze.topic_evolution"
+    analyze_citation_network = "analyze.citation_network"
+    analyze_paper_connections = "analyze.paper_connections"
+    analyze_provenance_trace = "analyze.provenance_trace"
+    analyze_paper_set_critical_review = "analyze.paper_set_critical_review"
+    materialize_evidence_build = "materialize.evidence_build"
 
 
 class DependsOnItem(RootModel[str]):
@@ -24,34 +24,34 @@ class DependsOnItem(RootModel[str]):
 
 
 class RequiredCapability(StrEnum):
-    supports_keyword_search = 'supports_keyword_search'
-    supports_semantic_search = 'supports_semantic_search'
-    supports_citation_graph = 'supports_citation_graph'
-    supports_fulltext = 'supports_fulltext'
-    supports_source_download = 'supports_source_download'
-    supports_open_access_content = 'supports_open_access_content'
-    analysis_topic_evolution = 'analysis.topic_evolution'
-    analysis_citation_network = 'analysis.citation_network'
-    analysis_paper_set_connections = 'analysis.paper_set_connections'
-    analysis_provenance_trace = 'analysis.provenance_trace'
-    analysis_paper_set_critical_review = 'analysis.paper_set_critical_review'
+    supports_keyword_search = "supports_keyword_search"
+    supports_semantic_search = "supports_semantic_search"
+    supports_citation_graph = "supports_citation_graph"
+    supports_fulltext = "supports_fulltext"
+    supports_source_download = "supports_source_download"
+    supports_open_access_content = "supports_open_access_content"
+    analysis_topic_evolution = "analysis.topic_evolution"
+    analysis_citation_network = "analysis.citation_network"
+    analysis_paper_set_connections = "analysis.paper_set_connections"
+    analysis_provenance_trace = "analysis.provenance_trace"
+    analysis_paper_set_critical_review = "analysis.paper_set_critical_review"
 
 
 class PreferredProvider(StrEnum):
-    inspire = 'inspire'
-    openalex = 'openalex'
-    arxiv = 'arxiv'
-    zotero = 'zotero'
-    crossref = 'crossref'
-    datacite = 'datacite'
-    github = 'github'
-    doi = 'doi'
+    inspire = "inspire"
+    openalex = "openalex"
+    arxiv = "arxiv"
+    zotero = "zotero"
+    crossref = "crossref"
+    datacite = "datacite"
+    github = "github"
+    doi = "doi"
 
 
 class DegradeMode(StrEnum):
-    fail_closed = 'fail_closed'
-    skip_with_reason = 'skip_with_reason'
-    partial_result = 'partial_result'
+    fail_closed = "fail_closed"
+    skip_with_reason = "skip_with_reason"
+    partial_result = "partial_result"
 
 
 class Phase(RootModel[str]):
@@ -60,17 +60,17 @@ class Phase(RootModel[str]):
 
 class SearchDepthContract(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
-    mode: Literal['deep']
+    mode: Literal["deep"]
     default_page_size: Literal[50]
-    default_page_size_semantics: Literal['page_size_not_completion_threshold']
+    default_page_size_semantics: Literal["page_size_not_completion_threshold"]
     pagination_required: Literal[True]
     cursor_or_page_tracking_required: Literal[True]
     continuation_required: Literal[True]
     returned_count_required: Literal[True]
     stop_reason_required: Literal[True]
-    coverage_incomplete_status: Literal['coverage_incomplete']
+    coverage_incomplete_status: Literal["coverage_incomplete"]
     candidate_pool_artifact: Annotated[str, Field(min_length=1)]
     selection_rationale_required: Literal[True]
     query_expansion_expected: Literal[True]
@@ -78,20 +78,20 @@ class SearchDepthContract(BaseModel):
 
 
 class FinalStatusValue(StrEnum):
-    saturated = 'saturated'
-    coverage_incomplete = 'coverage_incomplete'
+    saturated = "saturated"
+    coverage_incomplete = "coverage_incomplete"
 
 
 class ProvidersExpectedEnum(StrEnum):
-    inspire = 'inspire'
-    arxiv = 'arxiv'
-    openalex = 'openalex'
-    web = 'web'
+    inspire = "inspire"
+    arxiv = "arxiv"
+    openalex = "openalex"
+    web = "web"
 
 
 class LiteratureSaturationContract(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     artifact: Annotated[str, Field(min_length=1)]
     final_status_values: Annotated[
@@ -109,17 +109,17 @@ class LiteratureSaturationContract(BaseModel):
 
 
 class SourcePreferenceEnum(StrEnum):
-    arxiv_latex_source = 'arxiv_latex_source'
-    full_text_pdf = 'full_text_pdf'
-    available_full_text = 'available_full_text'
-    metadata_only_not_evidence_ready = 'metadata_only_not_evidence_ready'
+    arxiv_latex_source = "arxiv_latex_source"
+    full_text_pdf = "full_text_pdf"
+    available_full_text = "available_full_text"
+    metadata_only_not_evidence_ready = "metadata_only_not_evidence_ready"
 
 
 class ReadingHandoffContract(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
-    mode: Literal['source_first']
+    mode: Literal["source_first"]
     source_preference: Annotated[list[SourcePreferenceEnum], Field(min_length=4)]
     note_upgrade_required: Literal[True]
     expected_artifact: Annotated[str, Field(min_length=1)]
@@ -130,7 +130,7 @@ class ReadingHandoffContract(BaseModel):
 
 class ConsumerHints(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     phases: list[Phase] | None = None
     artifact: Annotated[str | None, Field(min_length=1)] = None
@@ -143,7 +143,7 @@ class ConsumerHints(BaseModel):
 
 class Steps(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     id: Annotated[str, Field(min_length=1)]
     tool: Annotated[str, Field(min_length=1)]
@@ -159,7 +159,7 @@ class Steps(BaseModel):
 
 class LiteratureSaturationContract1(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     artifact: Annotated[str, Field(min_length=1)]
     final_status_values: Annotated[
@@ -178,9 +178,9 @@ class LiteratureSaturationContract1(BaseModel):
 
 class ReadingHandoffContract1(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
-    mode: Literal['source_first']
+    mode: Literal["source_first"]
     source_preference: Annotated[list[SourcePreferenceEnum], Field(min_length=4)]
     note_upgrade_required: Literal[True]
     expected_artifact: Annotated[str, Field(min_length=1)]
@@ -191,7 +191,7 @@ class ReadingHandoffContract1(BaseModel):
 
 class ConsumerHints1(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     phases: list[Phase] | None = None
     artifact: Annotated[str | None, Field(min_length=1)] = None
@@ -204,7 +204,7 @@ class ConsumerHints1(BaseModel):
 
 class Steps1(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     id: Annotated[str, Field(min_length=1)]
     tool: Annotated[str | None, Field(min_length=1)] = None
@@ -220,7 +220,7 @@ class Steps1(BaseModel):
 
 class WorkflowRecipeV1(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     recipe_id: Annotated[str, Field(min_length=1)]
     name: Annotated[str, Field(min_length=1)]

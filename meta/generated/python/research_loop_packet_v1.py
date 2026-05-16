@@ -10,78 +10,78 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, RootModel
 
 
 class TaskKind(StrEnum):
-    literature = 'literature'
-    idea = 'idea'
-    compute = 'compute'
-    evidence_search = 'evidence_search'
-    finding = 'finding'
-    draft_update = 'draft_update'
-    review = 'review'
+    literature = "literature"
+    idea = "idea"
+    compute = "compute"
+    evidence_search = "evidence_search"
+    finding = "finding"
+    draft_update = "draft_update"
+    review = "review"
 
 
 class TaskStatus(StrEnum):
-    pending = 'pending'
-    active = 'active'
-    completed = 'completed'
-    blocked = 'blocked'
-    cancelled = 'cancelled'
+    pending = "pending"
+    active = "active"
+    completed = "completed"
+    blocked = "blocked"
+    cancelled = "cancelled"
 
 
 class HandoffKind(StrEnum):
-    compute = 'compute'
-    feedback = 'feedback'
-    literature = 'literature'
-    review = 'review'
-    writing = 'writing'
+    compute = "compute"
+    feedback = "feedback"
+    literature = "literature"
+    review = "review"
+    writing = "writing"
 
 
 class InterventionKind(StrEnum):
-    pause = 'pause'
-    resume = 'resume'
-    redirect = 'redirect'
-    inject_task = 'inject_task'
-    approve = 'approve'
-    cancel = 'cancel'
-    cascade_stop = 'cascade_stop'
+    pause = "pause"
+    resume = "resume"
+    redirect = "redirect"
+    inject_task = "inject_task"
+    approve = "approve"
+    cancel = "cancel"
+    cascade_stop = "cascade_stop"
 
 
 class SurfaceRef1(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
-    ref_kind: Literal['workspace_node']
+    ref_kind: Literal["workspace_node"]
     node_id: Annotated[str, Field(min_length=1)]
 
 
 class SurfaceRef2(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
-    ref_kind: Literal['workspace_edge']
+    ref_kind: Literal["workspace_edge"]
     edge_id: Annotated[str, Field(min_length=1)]
 
 
 class SurfaceRef3(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
-    ref_kind: Literal['task']
+    ref_kind: Literal["task"]
     task_kind: TaskKind
     target_node_id: Annotated[str | None, Field(min_length=1)] = None
 
 
 class SurfaceRef4(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
-    ref_kind: Literal['handoff']
+    ref_kind: Literal["handoff"]
     handoff_kind: HandoffKind
     target_node_id: Annotated[str | None, Field(min_length=1)] = None
 
 
 class ArtifactRef(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     uri: Annotated[
         str,
@@ -96,37 +96,37 @@ class ArtifactRef(BaseModel):
         ),
     ] = None
     schema_version: Annotated[
-        int | None, Field(description='Schema version of the referenced artifact.')
+        int | None, Field(description="Schema version of the referenced artifact.")
     ] = None
     sha256: Annotated[
         str,
         Field(
-            description='SHA-256 hex digest of the artifact content. Used for integrity verification and content addressing.',
-            pattern='^[0-9a-f]{64}$',
+            description="SHA-256 hex digest of the artifact content. Used for integrity verification and content addressing.",
+            pattern="^[0-9a-f]{64}$",
         ),
     ]
     size_bytes: Annotated[
-        int | None, Field(description='Size of the artifact in bytes.', ge=0)
+        int | None, Field(description="Size of the artifact in bytes.", ge=0)
     ] = None
     produced_by: Annotated[
-        str | None, Field(description='Agent or component that produced this artifact.')
+        str | None, Field(description="Agent or component that produced this artifact.")
     ] = None
     created_at: Annotated[
         AwareDatetime | None,
-        Field(description='ISO 8601 UTC Z timestamp of artifact creation.'),
+        Field(description="ISO 8601 UTC Z timestamp of artifact creation."),
     ] = None
 
 
 class SurfaceRef5(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
-    ref_kind: Literal['artifact']
+    ref_kind: Literal["artifact"]
     artifact_ref: Annotated[
         ArtifactRef,
         Field(
-            description='Content-addressed reference to a research artifact. Used by integrity reports, research outcomes, and events to point at specific versioned artifacts.',
-            title='ArtifactRef V1',
+            description="Content-addressed reference to a research artifact. Used by integrity reports, research outcomes, and events to point at specific versioned artifacts.",
+            title="ArtifactRef V1",
         ),
     ]
 
@@ -139,7 +139,7 @@ class SurfaceRef(
 
 class TaskTransition(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     from_task_kind: TaskKind
     to_task_kind: TaskKind
@@ -147,9 +147,9 @@ class TaskTransition(BaseModel):
 
 class GateCondition1(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
-    condition_kind: Literal['task_status']
+    condition_kind: Literal["task_status"]
     task_kind: TaskKind
     allowed_statuses: Annotated[list[TaskStatus], Field(min_length=1)]
     target_node_id: Annotated[str | None, Field(min_length=1)] = None
@@ -157,32 +157,32 @@ class GateCondition1(BaseModel):
 
 class GateCondition2(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
-    condition_kind: Literal['handoff_registered']
+    condition_kind: Literal["handoff_registered"]
     handoff_kind: HandoffKind
     target_node_id: Annotated[str | None, Field(min_length=1)] = None
 
 
 class GateCondition3(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
-    condition_kind: Literal['artifact_available']
+    condition_kind: Literal["artifact_available"]
     artifact_ref: Annotated[
         ArtifactRef,
         Field(
-            description='Content-addressed reference to a research artifact. Used by integrity reports, research outcomes, and events to point at specific versioned artifacts.',
-            title='ArtifactRef V1',
+            description="Content-addressed reference to a research artifact. Used by integrity reports, research outcomes, and events to point at specific versioned artifacts.",
+            title="ArtifactRef V1",
         ),
     ]
 
 
 class GateCondition4(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
-    condition_kind: Literal['checkpoint_available']
+    condition_kind: Literal["checkpoint_available"]
     checkpoint_label: str | None = None
 
 
@@ -194,41 +194,41 @@ class GateCondition(
 
 class StopCondition1(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
-    condition_kind: Literal['no_active_tasks']
+    condition_kind: Literal["no_active_tasks"]
 
 
 class StopCondition2(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
-    condition_kind: Literal['task_terminal']
+    condition_kind: Literal["task_terminal"]
     task_kind: TaskKind
     terminal_statuses: Annotated[list[TaskStatus], Field(min_length=1)]
 
 
 class StopCondition3(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
-    condition_kind: Literal['checkpoint_restored']
+    condition_kind: Literal["checkpoint_restored"]
     checkpoint_label: str | None = None
 
 
 class StopCondition4(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
-    condition_kind: Literal['intervention']
+    condition_kind: Literal["intervention"]
     intervention_kind: InterventionKind
 
 
 class StopCondition5(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
-    condition_kind: Literal['decision_node']
+    condition_kind: Literal["decision_node"]
     node_id: Annotated[str, Field(min_length=1)]
 
 
@@ -252,24 +252,24 @@ class StopCondition(
 
 class Advancement(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     allowed_followups: Annotated[list[TaskTransition], Field(min_length=1)]
 
 
 class Rollback(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     allowed_backtracks: Annotated[list[TaskTransition], Field(min_length=1)]
 
 
 class ResearchlooppacketV1(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     schema_version: Literal[1]
-    scope: Literal['single_project']
+    scope: Literal["single_project"]
     packet_id: Annotated[str, Field(min_length=1)]
     workspace_id: Annotated[str, Field(min_length=1)]
     objective: Annotated[str, Field(min_length=1)]

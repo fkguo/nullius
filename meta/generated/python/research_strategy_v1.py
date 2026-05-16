@@ -11,7 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 class Method(BaseModel):
     model_config = ConfigDict(
-        extra='allow',
+        extra="allow",
     )
     approach: Annotated[
         str,
@@ -47,15 +47,15 @@ class Approximation(BaseModel):
 
 class Constraints(BaseModel):
     model_config = ConfigDict(
-        extra='allow',
+        extra="allow",
     )
     parameter_ranges: Annotated[
         dict[str, ParameterRanges] | None,
-        Field(description='Valid parameter ranges for this strategy.'),
+        Field(description="Valid parameter ranges for this strategy."),
     ] = None
     approximations: Annotated[
         list[Approximation] | None,
-        Field(description='Approximations used and their validity conditions.'),
+        Field(description="Approximations used and their validity conditions."),
     ] = None
     assumptions: Annotated[
         list[str] | None,
@@ -66,11 +66,11 @@ class Constraints(BaseModel):
 
 
 class Type(StrEnum):
-    scalar = 'scalar'
-    vector = 'vector'
-    matrix = 'matrix'
-    function = 'function'
-    distribution = 'distribution'
+    scalar = "scalar"
+    vector = "vector"
+    matrix = "matrix"
+    function = "function"
+    distribution = "distribution"
 
 
 class Quantity(BaseModel):
@@ -86,7 +86,7 @@ class Quantity(BaseModel):
 
 class ExpectedOutcomeForm(BaseModel):
     quantities: Annotated[
-        list[Quantity] | None, Field(description='Expected output quantities.')
+        list[Quantity] | None, Field(description="Expected output quantities.")
     ] = None
     format: Annotated[
         str | None,
@@ -110,52 +110,52 @@ class ValidationCriterion(BaseModel):
         ),
     ]
     tolerance: Annotated[
-        float | None, Field(description='Acceptable deviation (relative).')
+        float | None, Field(description="Acceptable deviation (relative).")
     ] = None
     required: Annotated[
         bool | None,
         Field(
-            description='Whether this criterion is required for outcome verification.'
+            description="Whether this criterion is required for outcome verification."
         ),
     ] = True
 
 
 class Preset(StrEnum):
-    explore = 'explore'
-    deepen = 'deepen'
-    verify = 'verify'
-    consolidate = 'consolidate'
+    explore = "explore"
+    deepen = "deepen"
+    verify = "verify"
+    consolidate = "consolidate"
 
 
 class ResearchstrategyV1(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     schema_version: Annotated[
-        Literal[1], Field(description='Schema version, must be 1 for this version.')
+        Literal[1], Field(description="Schema version, must be 1 for this version.")
     ]
     strategy_id: Annotated[
         str,
         Field(
-            description='Content-addressed identifier: SHA-256 hex digest of RFC 8785 (JCS) canonical JSON of this object excluding strategy_id itself.',
-            pattern='^[0-9a-f]{64}$',
+            description="Content-addressed identifier: SHA-256 hex digest of RFC 8785 (JCS) canonical JSON of this object excluding strategy_id itself.",
+            pattern="^[0-9a-f]{64}$",
         ),
     ]
     name: Annotated[
         str,
         Field(
-            description='Human-readable name for this strategy.',
+            description="Human-readable name for this strategy.",
             max_length=200,
             min_length=1,
         ),
     ]
     description: Annotated[
-        str, Field(description='Detailed description of the strategy.', max_length=2000)
+        str, Field(description="Detailed description of the strategy.", max_length=2000)
     ]
     objective: Annotated[
         str,
         Field(
-            description='What this strategy aims to achieve.',
+            description="What this strategy aims to achieve.",
             max_length=1000,
             min_length=1,
         ),
@@ -163,11 +163,11 @@ class ResearchstrategyV1(BaseModel):
     method: Method
     constraints: Annotated[
         Constraints | None,
-        Field(description='Applicability constraints for this strategy.'),
+        Field(description="Applicability constraints for this strategy."),
     ] = None
     expected_outcome_form: Annotated[
         ExpectedOutcomeForm | None,
-        Field(description='What form the results should take.'),
+        Field(description="What form the results should take."),
     ] = None
     domain: Annotated[
         str,
@@ -178,18 +178,18 @@ class ResearchstrategyV1(BaseModel):
     ]
     applicable_when: Annotated[
         list[str] | None,
-        Field(description='Conditions under which this strategy is applicable.'),
+        Field(description="Conditions under which this strategy is applicable."),
     ] = None
     validation_criteria: Annotated[
         list[ValidationCriterion],
         Field(
-            description='Criteria for verifying outcomes produced by this strategy.',
+            description="Criteria for verifying outcomes produced by this strategy.",
             min_length=1,
         ),
     ]
     preset: Annotated[
-        Preset | None, Field(description='Strategy preset category for signal engine.')
+        Preset | None, Field(description="Strategy preset category for signal engine.")
     ] = None
     tags: Annotated[
-        list[str] | None, Field(description='Free-form tags for categorization.')
+        list[str] | None, Field(description="Free-form tags for categorization.")
     ] = None

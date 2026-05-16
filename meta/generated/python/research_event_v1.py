@@ -11,62 +11,62 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
 
 
 class EventType(StrEnum):
-    strategy_proposed = 'strategy_proposed'
-    strategy_selected = 'strategy_selected'
-    strategy_rejected = 'strategy_rejected'
-    computation_started = 'computation_started'
-    computation_completed = 'computation_completed'
-    computation_failed = 'computation_failed'
-    verification_started = 'verification_started'
-    verification_passed = 'verification_passed'
-    verification_failed = 'verification_failed'
-    outcome_published = 'outcome_published'
-    outcome_superseded = 'outcome_superseded'
-    outcome_revoked = 'outcome_revoked'
-    integrity_check_started = 'integrity_check_started'
-    integrity_check_completed = 'integrity_check_completed'
-    signal_detected = 'signal_detected'
-    stagnation_detected = 'stagnation_detected'
-    diagnostic_emitted = 'diagnostic_emitted'
+    strategy_proposed = "strategy_proposed"
+    strategy_selected = "strategy_selected"
+    strategy_rejected = "strategy_rejected"
+    computation_started = "computation_started"
+    computation_completed = "computation_completed"
+    computation_failed = "computation_failed"
+    verification_started = "verification_started"
+    verification_passed = "verification_passed"
+    verification_failed = "verification_failed"
+    outcome_published = "outcome_published"
+    outcome_superseded = "outcome_superseded"
+    outcome_revoked = "outcome_revoked"
+    integrity_check_started = "integrity_check_started"
+    integrity_check_completed = "integrity_check_completed"
+    signal_detected = "signal_detected"
+    stagnation_detected = "stagnation_detected"
+    diagnostic_emitted = "diagnostic_emitted"
 
 
 class ResearcheventV1(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     schema_version: Literal[1]
-    event_id: Annotated[UUID, Field(description='Unique event identifier (UUID v4).')]
+    event_id: Annotated[UUID, Field(description="Unique event identifier (UUID v4).")]
     event_type: Annotated[
         EventType,
         Field(
-            description='Type of research event. Determines which payload schema applies (discriminated union).'
+            description="Type of research event. Determines which payload schema applies (discriminated union)."
         ),
     ]
-    timestamp: Annotated[AwareDatetime, Field(description='ISO 8601 UTC Z timestamp.')]
-    run_id: Annotated[str, Field(description='Run in which this event occurred.')]
+    timestamp: Annotated[AwareDatetime, Field(description="ISO 8601 UTC Z timestamp.")]
+    run_id: Annotated[str, Field(description="Run in which this event occurred.")]
     trace_id: Annotated[
         UUID | None,
-        Field(description='Trace ID for cross-layer correlation (UUID v4).'),
+        Field(description="Trace ID for cross-layer correlation (UUID v4)."),
     ] = None
     sequence_number: Annotated[
         int | None,
         Field(
-            description='Monotonically increasing sequence number within a run.', ge=0
+            description="Monotonically increasing sequence number within a run.", ge=0
         ),
     ] = None
     payload: Annotated[
         dict[str, Any],
         Field(
-            description='Event-type-specific payload data. Schema is enforced by the event_type discriminator (see allOf).'
+            description="Event-type-specific payload data. Schema is enforced by the event_type discriminator (see allOf)."
         ),
     ]
 
 
 class Preset(StrEnum):
-    explore = 'explore'
-    deepen = 'deepen'
-    verify = 'verify'
-    consolidate = 'consolidate'
+    explore = "explore"
+    deepen = "deepen"
+    verify = "verify"
+    consolidate = "consolidate"
 
 
 class StrategyProposedPayload(BaseModel):
@@ -74,7 +74,7 @@ class StrategyProposedPayload(BaseModel):
     strategy_name: str
     preset: Preset
     triggering_signals: Annotated[
-        list[str] | None, Field(description='Signal IDs that triggered this proposal.')
+        list[str] | None, Field(description="Signal IDs that triggered this proposal.")
     ] = None
     score: float | None = None
 
@@ -106,10 +106,10 @@ class ComputationStartedPayload(BaseModel):
 class ComputationCompletedPayload(BaseModel):
     computation_id: str
     artifact_ref: Annotated[
-        dict[str, Any], Field(description='ArtifactRef V1 of the computation result.')
+        dict[str, Any], Field(description="ArtifactRef V1 of the computation result.")
     ]
     metrics_summary: Annotated[
-        dict[str, Any] | None, Field(description='Summary of computed quantities.')
+        dict[str, Any] | None, Field(description="Summary of computed quantities.")
     ] = None
     duration_ms: int | None = None
 
@@ -124,13 +124,13 @@ class ComputationFailedPayload(BaseModel):
     computation_id: str
     error: Error
     partial_results: Annotated[
-        dict[str, Any] | None, Field(description='Any partial results before failure.')
+        dict[str, Any] | None, Field(description="Any partial results before failure.")
     ] = None
 
 
 class VerificationStartedPayload(BaseModel):
     model_config = ConfigDict(
-        extra='allow',
+        extra="allow",
     )
     verification_id: str
     original_computation_id: str
@@ -177,14 +177,14 @@ class IntegrityCheckStartedPayload(BaseModel):
     target_ref: dict[str, Any]
     domain: str
     checks: Annotated[
-        list[str] | None, Field(description='Check IDs to be executed.')
+        list[str] | None, Field(description="Check IDs to be executed.")
     ] = None
 
 
 class OverallStatus(StrEnum):
-    pass_ = 'pass'
-    fail = 'fail'
-    advisory_only = 'advisory_only'
+    pass_ = "pass"
+    fail = "fail"
+    advisory_only = "advisory_only"
 
 
 class IntegrityCheckCompletedPayload(BaseModel):
@@ -197,21 +197,21 @@ class IntegrityCheckCompletedPayload(BaseModel):
 
 
 class SignalType(StrEnum):
-    gap_detected = 'gap_detected'
-    calculation_divergence = 'calculation_divergence'
-    known_result_match = 'known_result_match'
-    integrity_violation = 'integrity_violation'
-    method_plateau = 'method_plateau'
-    parameter_sensitivity = 'parameter_sensitivity'
-    cross_check_opportunity = 'cross_check_opportunity'
-    stagnation = 'stagnation'
+    gap_detected = "gap_detected"
+    calculation_divergence = "calculation_divergence"
+    known_result_match = "known_result_match"
+    integrity_violation = "integrity_violation"
+    method_plateau = "method_plateau"
+    parameter_sensitivity = "parameter_sensitivity"
+    cross_check_opportunity = "cross_check_opportunity"
+    stagnation = "stagnation"
 
 
 class SignalDetectedPayload(BaseModel):
     signal_id: Annotated[
         UUID,
         Field(
-            description='Reference to the ResearchSignal (UUID v4, matches ResearchSignal.signal_id).'
+            description="Reference to the ResearchSignal (UUID v4, matches ResearchSignal.signal_id)."
         ),
     ]
     signal_type: SignalType
@@ -221,9 +221,9 @@ class SignalDetectedPayload(BaseModel):
 
 
 class RecommendedAction(StrEnum):
-    switch_strategy = 'switch_strategy'
-    abandon_direction = 'abandon_direction'
-    request_guidance = 'request_guidance'
+    switch_strategy = "switch_strategy"
+    abandon_direction = "abandon_direction"
+    request_guidance = "request_guidance"
 
 
 class StagnationDetectedPayload(BaseModel):
@@ -234,9 +234,9 @@ class StagnationDetectedPayload(BaseModel):
 
 
 class Severity(StrEnum):
-    info = 'info'
-    warning = 'warning'
-    error = 'error'
+    info = "info"
+    warning = "warning"
+    error = "error"
 
 
 class DiagnosticEmittedPayload(BaseModel):
@@ -246,10 +246,10 @@ class DiagnosticEmittedPayload(BaseModel):
             description="Type of diagnostic event (e.g., 'taxonomy_miss', 'taxonomy_expansion_proposed', 'taxonomy_entry_added', 'taxonomy_entry_rejected', 'fallback_applied', 'config_warning'). Not a research signal — used for observability and debugging."
         ),
     ]
-    message: Annotated[str, Field(description='Human-readable diagnostic message.')]
+    message: Annotated[str, Field(description="Human-readable diagnostic message.")]
     context: Annotated[
         dict[str, Any] | None,
-        Field(description='Diagnostic-type-specific context data.'),
+        Field(description="Diagnostic-type-specific context data."),
     ] = None
     severity: Annotated[
         Severity | None,

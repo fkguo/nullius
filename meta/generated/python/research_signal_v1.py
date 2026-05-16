@@ -11,111 +11,111 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
 
 
 class SignalType(StrEnum):
-    gap_detected = 'gap_detected'
-    calculation_divergence = 'calculation_divergence'
-    known_result_match = 'known_result_match'
-    integrity_violation = 'integrity_violation'
-    method_plateau = 'method_plateau'
-    parameter_sensitivity = 'parameter_sensitivity'
-    cross_check_opportunity = 'cross_check_opportunity'
-    stagnation = 'stagnation'
+    gap_detected = "gap_detected"
+    calculation_divergence = "calculation_divergence"
+    known_result_match = "known_result_match"
+    integrity_violation = "integrity_violation"
+    method_plateau = "method_plateau"
+    parameter_sensitivity = "parameter_sensitivity"
+    cross_check_opportunity = "cross_check_opportunity"
+    stagnation = "stagnation"
 
 
 class Priority(StrEnum):
-    critical = 'critical'
-    high = 'high'
-    medium = 'medium'
-    low = 'low'
+    critical = "critical"
+    high = "high"
+    medium = "medium"
+    low = "low"
 
 
 class ResearchsignalV1(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     schema_version: Literal[1]
-    signal_id: Annotated[UUID, Field(description='Unique signal identifier (UUID v4).')]
+    signal_id: Annotated[UUID, Field(description="Unique signal identifier (UUID v4).")]
     signal_type: Annotated[
         SignalType,
         Field(
-            description='Type of research signal detected. Determines which payload schema applies (discriminated union).'
+            description="Type of research signal detected. Determines which payload schema applies (discriminated union)."
         ),
     ]
     source_event_ids: Annotated[
         list[str],
         Field(
-            description='ResearchEvent IDs that triggered this signal.', min_length=1
+            description="ResearchEvent IDs that triggered this signal.", min_length=1
         ),
     ]
     fingerprint: Annotated[
         str,
         Field(
-            description='Dedup fingerprint: hash of signal_type + distinguishing features. Same fingerprint within dedup_window means duplicate.'
+            description="Dedup fingerprint: hash of signal_type + distinguishing features. Same fingerprint within dedup_window means duplicate."
         ),
     ]
     confidence: Annotated[
-        float, Field(description='Confidence in the signal (0-1).', ge=0.0, le=1.0)
+        float, Field(description="Confidence in the signal (0-1).", ge=0.0, le=1.0)
     ]
     priority: Annotated[
-        Priority, Field(description='Signal priority for strategy selection.')
+        Priority, Field(description="Signal priority for strategy selection.")
     ]
     payload: Annotated[
         dict[str, Any],
         Field(
-            description='Signal-type-specific payload data. Schema is enforced by the signal_type discriminator (see allOf).'
+            description="Signal-type-specific payload data. Schema is enforced by the signal_type discriminator (see allOf)."
         ),
     ]
     detected_at: Annotated[
-        AwareDatetime, Field(description='ISO 8601 UTC Z timestamp of detection.')
+        AwareDatetime, Field(description="ISO 8601 UTC Z timestamp of detection.")
     ]
     expires_at: Annotated[
         AwareDatetime | None,
         Field(
-            description='Optional expiry timestamp. Signal is ignored after this time.'
+            description="Optional expiry timestamp. Signal is ignored after this time."
         ),
     ] = None
     run_id: Annotated[
-        str | None, Field(description='Run in which this signal was detected.')
+        str | None, Field(description="Run in which this signal was detected.")
     ] = None
     suppressed: Annotated[
         bool | None,
         Field(
-            description='Whether this signal has been suppressed (deduped or manually dismissed).'
+            description="Whether this signal has been suppressed (deduped or manually dismissed)."
         ),
     ] = False
 
 
 class RelatedLiteratureItem(BaseModel):
-    record_id: Annotated[str, Field(description='Literature record identifier.')]
+    record_id: Annotated[str, Field(description="Literature record identifier.")]
     source: Annotated[
         str,
         Field(
-            description='Which LiteratureService provided this record (matches LiteratureService.serviceId).'
+            description="Which LiteratureService provided this record (matches LiteratureService.serviceId)."
         ),
     ]
 
 
 class EstimatedImpact(StrEnum):
-    high = 'high'
-    medium = 'medium'
-    low = 'low'
+    high = "high"
+    medium = "medium"
+    low = "low"
 
 
 class GapDetectedPayload(BaseModel):
     gap_description: Annotated[
-        str, Field(description='Description of the knowledge gap.')
+        str, Field(description="Description of the knowledge gap.")
     ]
     domain_area: Annotated[
-        str, Field(description='Area of the domain where gap exists.')
+        str, Field(description="Area of the domain where gap exists.")
     ]
     related_literature: Annotated[
         list[RelatedLiteratureItem] | None,
         Field(
-            description='Literature records (from LiteratureService) of related work that highlights the gap.'
+            description="Literature records (from LiteratureService) of related work that highlights the gap."
         ),
     ] = None
     estimated_impact: Annotated[
         EstimatedImpact | None,
-        Field(description='Estimated impact of filling this gap.'),
+        Field(description="Estimated impact of filling this gap."),
     ] = None
 
 
@@ -127,12 +127,12 @@ class DivergentQuantity(BaseModel):
 
 
 class CalculationDivergencePayload(BaseModel):
-    outcome_a_ref: Annotated[str, Field(description='ID of first outcome.')]
-    outcome_b_ref: Annotated[str, Field(description='ID of second outcome.')]
+    outcome_a_ref: Annotated[str, Field(description="ID of first outcome.")]
+    outcome_b_ref: Annotated[str, Field(description="ID of second outcome.")]
     divergent_quantities: list[DivergentQuantity]
     deviation_report_ref: Annotated[
         str | None,
-        Field(description='Reference to the DeviationReport if from EVO-07.'),
+        Field(description="Reference to the DeviationReport if from EVO-07."),
     ] = None
 
 
@@ -140,13 +140,13 @@ class MatchingLiteratureItem(BaseModel):
     record_id: Annotated[
         str,
         Field(
-            description='Literature record identifier (e.g., INSPIRE recid, CrossRef DOI, OpenAlex work ID).'
+            description="Literature record identifier (e.g., INSPIRE recid, CrossRef DOI, OpenAlex work ID)."
         ),
     ]
     source: Annotated[
         str,
         Field(
-            description='Which LiteratureService provided this record (matches LiteratureService.serviceId).'
+            description="Which LiteratureService provided this record (matches LiteratureService.serviceId)."
         ),
     ]
     title: str | None = None
@@ -160,8 +160,8 @@ class KnownResultMatchPayload(BaseModel):
 
 
 class Severity(StrEnum):
-    blocking = 'blocking'
-    advisory = 'advisory'
+    blocking = "blocking"
+    advisory = "advisory"
 
 
 class FailedCheck(BaseModel):
@@ -192,7 +192,7 @@ class ParameterSensitivityPayload(BaseModel):
     sensitivity_measure: Annotated[
         float,
         Field(
-            description='Relative change in result per relative change in parameter (dimensionless).'
+            description="Relative change in result per relative change in parameter (dimensionless)."
         ),
     ]
     parameter_range_tested: ParameterRangeTested | None = None
@@ -211,9 +211,9 @@ class CrossCheckOpportunityPayload(BaseModel):
 
 
 class RecommendedAction(StrEnum):
-    switch_strategy = 'switch_strategy'
-    abandon_direction = 'abandon_direction'
-    request_guidance = 'request_guidance'
+    switch_strategy = "switch_strategy"
+    abandon_direction = "abandon_direction"
+    request_guidance = "request_guidance"
 
 
 class StagnationPayload(BaseModel):

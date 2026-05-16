@@ -10,80 +10,80 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
 
 
 class MutationType(StrEnum):
-    repair = 'repair'
-    optimize = 'optimize'
-    innovate = 'innovate'
+    repair = "repair"
+    optimize = "optimize"
+    innovate = "innovate"
 
 
 class GateLevel(StrEnum):
-    A0 = 'A0'
-    A1 = 'A1'
-    A2 = 'A2'
-    reject = 'reject'
+    A0 = "A0"
+    A1 = "A1"
+    A2 = "A2"
+    reject = "reject"
 
 
 class BlastSeverity(Enum):
-    within_limit = 'within_limit'
-    approaching_limit = 'approaching_limit'
-    exceeded = 'exceeded'
-    critical_overrun = 'critical_overrun'
-    hard_cap_breach = 'hard_cap_breach'
+    within_limit = "within_limit"
+    approaching_limit = "approaching_limit"
+    exceeded = "exceeded"
+    critical_overrun = "critical_overrun"
+    hard_cap_breach = "hard_cap_breach"
     NoneType_None = None
 
 
 class Status(StrEnum):
-    proposed = 'proposed'
-    approved = 'approved'
-    executing = 'executing'
-    succeeded = 'succeeded'
-    failed = 'failed'
-    rejected = 'rejected'
-    rolled_back = 'rolled_back'
+    proposed = "proposed"
+    approved = "approved"
+    executing = "executing"
+    succeeded = "succeeded"
+    failed = "failed"
+    rejected = "rejected"
+    rolled_back = "rolled_back"
 
 
 class StrategyState(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     rigor: Annotated[
         float,
         Field(
-            description='Validation thoroughness (0=minimal, 1=exhaustive)',
+            description="Validation thoroughness (0=minimal, 1=exhaustive)",
             ge=0.0,
             le=1.0,
         ),
     ]
     creativity: Annotated[
-        float, Field(description='Willingness to try novel approaches', ge=0.0, le=1.0)
+        float, Field(description="Willingness to try novel approaches", ge=0.0, le=1.0)
     ]
     verbosity: Annotated[
-        float, Field(description='Output detail level', ge=0.0, le=1.0)
+        float, Field(description="Output detail level", ge=0.0, le=1.0)
     ]
     risk_tolerance: Annotated[
-        float, Field(description='Acceptable blast radius tolerance', ge=0.0, le=1.0)
+        float, Field(description="Acceptable blast radius tolerance", ge=0.0, le=1.0)
     ]
     obedience: Annotated[
-        float, Field(description='Constraint adherence level', ge=0.0, le=1.0)
+        float, Field(description="Constraint adherence level", ge=0.0, le=1.0)
     ]
 
 
 class Param(StrEnum):
-    rigor = 'rigor'
-    creativity = 'creativity'
-    verbosity = 'verbosity'
-    risk_tolerance = 'risk_tolerance'
-    obedience = 'obedience'
+    rigor = "rigor"
+    creativity = "creativity"
+    verbosity = "verbosity"
+    risk_tolerance = "risk_tolerance"
+    obedience = "obedience"
 
 
 class StrategyMutation(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     param: Param
     delta: Annotated[
-        float, Field(description='Change amount (clamped to ±0.2)', ge=-0.2, le=0.2)
+        float, Field(description="Change amount (clamped to ±0.2)", ge=-0.2, le=0.2)
     ]
-    reason: Annotated[str, Field(description='Why this mutation was proposed')]
+    reason: Annotated[str, Field(description="Why this mutation was proposed")]
 
 
 class BlastRadius(BaseModel):
@@ -94,14 +94,14 @@ class BlastRadius(BaseModel):
 
 class MutationResult(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     success: bool | None = None
-    reason: Annotated[str | None, Field(description='Failure reason if !success')] = (
+    reason: Annotated[str | None, Field(description="Failure reason if !success")] = (
         None
     )
     capsule_id: Annotated[
-        str | None, Field(description='Created capsule ID on success')
+        str | None, Field(description="Created capsule ID on success")
     ] = None
     quality_score: Annotated[float | None, Field(ge=0.0, le=1.0)] = None
     blast_radius: BlastRadius | None = None
@@ -111,37 +111,37 @@ class MutationResult(BaseModel):
 
 class MutationproposalV1(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     proposal_id: Annotated[
         str,
         Field(
-            description='Unique proposal identifier (ID-01 compliant)',
-            pattern='^mp_[0-9a-f-]+$',
+            description="Unique proposal identifier (ID-01 compliant)",
+            pattern="^mp_[0-9a-f-]+$",
         ),
     ]
     mutation_type: Annotated[
         MutationType,
         Field(
-            description='Mutation type determining validation requirements and risk level'
+            description="Mutation type determining validation requirements and risk level"
         ),
     ]
-    gene_id: Annotated[str, Field(description='Selected gene to execute')]
+    gene_id: Annotated[str, Field(description="Selected gene to execute")]
     signals: Annotated[
-        list[str], Field(description='Signals that triggered this mutation')
+        list[str], Field(description="Signals that triggered this mutation")
     ]
     strategy: StrategyState
     strategy_mutations: Annotated[
         list[StrategyMutation] | None,
-        Field(description='Strategy mutations applied for this run'),
+        Field(description="Strategy mutations applied for this run"),
     ] = None
-    gate_level: Annotated[GateLevel, Field(description='Required approval gate level')]
+    gate_level: Annotated[GateLevel, Field(description="Required approval gate level")]
     blast_severity: Annotated[
         BlastSeverity | None,
-        Field(description='Blast radius severity (populated after execution)'),
+        Field(description="Blast radius severity (populated after execution)"),
     ] = None
-    status: Annotated[Status, Field(description='Current proposal status')]
+    status: Annotated[Status, Field(description="Current proposal status")]
     result: MutationResult | None = None
-    run_id: Annotated[str | None, Field(pattern='^run_[0-9a-f-]+$')] = None
+    run_id: Annotated[str | None, Field(pattern="^run_[0-9a-f-]+$")] = None
     created_at: AwareDatetime
     completed_at: AwareDatetime | None = None

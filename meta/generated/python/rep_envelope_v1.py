@@ -11,17 +11,17 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
 
 
 class MessageType(StrEnum):
-    hello = 'hello'
-    publish = 'publish'
-    fetch = 'fetch'
-    report = 'report'
-    review = 'review'
-    revoke = 'revoke'
+    hello = "hello"
+    publish = "publish"
+    fetch = "fetch"
+    report = "report"
+    review = "review"
+    revoke = "revoke"
 
 
 class Algorithm(StrEnum):
-    hmac_sha256 = 'hmac-sha256'
-    none = 'none'
+    hmac_sha256 = "hmac-sha256"
+    none = "none"
 
 
 class Signature(BaseModel):
@@ -36,21 +36,21 @@ class Signature(BaseModel):
         ),
     ] = None
     key_id: Annotated[
-        str | None, Field(description='Identifier of the signing key.')
+        str | None, Field(description="Identifier of the signing key.")
     ] = None
 
 
 class RepEnvelopeV1(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     protocol: Annotated[
-        Literal['rep-a2a'],
+        Literal["rep-a2a"],
         Field(description="Protocol identifier. Always 'rep-a2a' for REP messages."),
     ]
     protocol_version: Annotated[
         str,
-        Field(description="Protocol version (e.g., '1.0').", pattern='^\\d+\\.\\d+$'),
+        Field(description="Protocol version (e.g., '1.0').", pattern="^\\d+\\.\\d+$"),
     ]
     message_type: Annotated[
         MessageType,
@@ -59,42 +59,42 @@ class RepEnvelopeV1(BaseModel):
         ),
     ]
     message_id: Annotated[
-        UUID, Field(description='Unique message identifier (UUID v4).')
+        UUID, Field(description="Unique message identifier (UUID v4).")
     ]
     sender_id: Annotated[
-        str, Field(description='Identifier of the sending agent/server.', min_length=1)
+        str, Field(description="Identifier of the sending agent/server.", min_length=1)
     ]
     recipient_id: Annotated[
         str | None,
         Field(
-            description='Identifier of the intended recipient. Omitted for broadcast messages.'
+            description="Identifier of the intended recipient. Omitted for broadcast messages."
         ),
     ] = None
     timestamp: Annotated[
         AwareDatetime,
-        Field(description='ISO 8601 UTC Z timestamp of message creation.'),
+        Field(description="ISO 8601 UTC Z timestamp of message creation."),
     ]
     content_hash: Annotated[
         str | None,
         Field(
-            description='SHA-256 hex digest of the RFC 8785 (JCS) canonical JSON serialization of the payload field. Used for content addressing and integrity verification.',
-            pattern='^[0-9a-f]{64}$',
+            description="SHA-256 hex digest of the RFC 8785 (JCS) canonical JSON serialization of the payload field. Used for content addressing and integrity verification.",
+            pattern="^[0-9a-f]{64}$",
         ),
     ] = None
     payload: Annotated[
         dict[str, Any],
         Field(
-            description='Message-type-specific payload. Schema is enforced by the message_type discriminator (see allOf).'
+            description="Message-type-specific payload. Schema is enforced by the message_type discriminator (see allOf)."
         ),
     ]
     signature: Annotated[
         Signature | None,
         Field(
-            description='Optional message signature. Not required for local FileTransport.'
+            description="Optional message signature. Not required for local FileTransport."
         ),
     ] = None
     trace_id: Annotated[
-        UUID | None, Field(description='Trace ID for cross-system correlation.')
+        UUID | None, Field(description="Trace ID for cross-system correlation.")
     ] = None
 
 
@@ -115,14 +115,14 @@ class HelloPayload(BaseModel):
     agent_version: str | None = None
     supported_check_domains: Annotated[
         list[str] | None,
-        Field(description='Integrity check domains this agent can evaluate.'),
+        Field(description="Integrity check domains this agent can evaluate."),
     ] = None
 
 
 class AssetType(StrEnum):
-    strategy = 'strategy'
-    outcome = 'outcome'
-    integrity_report = 'integrity_report'
+    strategy = "strategy"
+    outcome = "outcome"
+    integrity_report = "integrity_report"
 
 
 class Check(BaseModel):
@@ -139,38 +139,38 @@ class RevisionOf(BaseModel):
     original_asset_id: Annotated[
         str,
         Field(
-            description='Content-addressed ID of the asset being revised.',
-            pattern='^[0-9a-f]{64}$',
+            description="Content-addressed ID of the asset being revised.",
+            pattern="^[0-9a-f]{64}$",
         ),
     ]
     review_message_id: Annotated[
         UUID | None,
         Field(
-            description='message_id of the review that triggered this revision. Links the causal chain: review -> revision -> re-review.'
+            description="message_id of the review that triggered this revision. Links the causal chain: review -> revision -> re-review."
         ),
     ] = None
 
 
 class PublishPayload(BaseModel):
     asset_type: Annotated[
-        AssetType, Field(description='Type of asset being published.')
+        AssetType, Field(description="Type of asset being published.")
     ]
     asset: Annotated[
         dict[str, Any],
         Field(
-            description='The asset being published. Validated at runtime by the REP SDK against the schema identified by asset_type (strategy→research_strategy_v1, outcome→research_outcome_v1, integrity_report→integrity_report_v1). Follows the CloudEvents dataschema pattern: envelope validates envelope, SDK validates inner payload.'
+            description="The asset being published. Validated at runtime by the REP SDK against the schema identified by asset_type (strategy→research_strategy_v1, outcome→research_outcome_v1, integrity_report→integrity_report_v1). Follows the CloudEvents dataschema pattern: envelope validates envelope, SDK validates inner payload."
         ),
     ]
     rdi_gate_result: Annotated[
         RdiGateResult | None,
         Field(
-            description='RDI gate evaluation result. Required for outcome publication.'
+            description="RDI gate evaluation result. Required for outcome publication."
         ),
     ] = None
     revision_of: Annotated[
         RevisionOf | None,
         Field(
-            description='Present when this publish is a revision of a previously published asset. Establishes the causal link between a review decision and the resulting revision, completing the audit trail.'
+            description="Present when this publish is a revision of a previously published asset. Establishes the causal link between a review decision and the resulting revision, completing the audit trail."
         ),
     ] = None
 
@@ -186,7 +186,7 @@ class Filters(BaseModel):
 class FetchPayload(BaseModel):
     asset_type: AssetType
     filters: Annotated[
-        Filters | None, Field(description='Optional filters for the fetch query.')
+        Filters | None, Field(description="Optional filters for the fetch query.")
     ] = None
     limit: Annotated[int | None, Field(ge=1, le=100)] = 10
 
@@ -195,33 +195,33 @@ class ReportPayload(BaseModel):
     event: Annotated[
         dict[str, Any],
         Field(
-            description='ResearchEvent being reported. Validated at runtime by the REP SDK against research_event_v1.schema.json. Follows the CloudEvents dataschema pattern: envelope validates envelope, SDK validates inner payload.'
+            description="ResearchEvent being reported. Validated at runtime by the REP SDK against research_event_v1.schema.json. Follows the CloudEvents dataschema pattern: envelope validates envelope, SDK validates inner payload."
         ),
     ]
 
 
 class Decision(StrEnum):
-    approve = 'approve'
-    reject = 'reject'
-    revise = 'revise'
+    approve = "approve"
+    reject = "reject"
+    revise = "revise"
 
 
 class ReviewPayload(BaseModel):
     target_asset_id: Annotated[
         str,
         Field(
-            description='Content-addressed ID of the asset being reviewed.',
-            pattern='^[0-9a-f]{64}$',
+            description="Content-addressed ID of the asset being reviewed.",
+            pattern="^[0-9a-f]{64}$",
         ),
     ]
-    decision: Annotated[Decision, Field(description='Review decision.')]
+    decision: Annotated[Decision, Field(description="Review decision.")]
     review_comments: Annotated[
-        str | None, Field(description='Structured review comments.')
+        str | None, Field(description="Structured review comments.")
     ] = None
     reviewer_id: str | None = None
     integrity_report_ref: Annotated[
         str | None,
-        Field(description='Reference to integrity report supporting the decision.'),
+        Field(description="Reference to integrity report supporting the decision."),
     ] = None
 
 
@@ -229,15 +229,15 @@ class RevokePayload(BaseModel):
     target_asset_id: Annotated[
         str,
         Field(
-            description='Content-addressed ID of the asset being revoked.',
-            pattern='^[0-9a-f]{64}$',
+            description="Content-addressed ID of the asset being revoked.",
+            pattern="^[0-9a-f]{64}$",
         ),
     ]
-    reason: Annotated[str, Field(description='Reason for revocation.')]
+    reason: Annotated[str, Field(description="Reason for revocation.")]
     superseded_by: Annotated[
         str | None,
         Field(
-            description='ID of the asset that supersedes this one (if applicable).',
-            pattern='^[0-9a-f]{64}$',
+            description="ID of the asset that supersedes this one (if applicable).",
+            pattern="^[0-9a-f]{64}$",
         ),
     ] = None

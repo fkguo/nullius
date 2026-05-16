@@ -10,27 +10,27 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, RootModel
 
 
 class BridgeKind(StrEnum):
-    writing = 'writing'
-    review = 'review'
+    writing = "writing"
+    review = "review"
 
 
 class FeedbackSignal(StrEnum):
-    success = 'success'
-    weak_signal = 'weak_signal'
-    failure = 'failure'
+    success = "success"
+    weak_signal = "weak_signal"
+    failure = "failure"
 
 
 class DecisionKind(StrEnum):
-    capture_finding = 'capture_finding'
-    refine_idea = 'refine_idea'
-    branch_idea = 'branch_idea'
-    downgrade_idea = 'downgrade_idea'
-    literature_followup = 'literature_followup'
+    capture_finding = "capture_finding"
+    refine_idea = "refine_idea"
+    branch_idea = "branch_idea"
+    downgrade_idea = "downgrade_idea"
+    literature_followup = "literature_followup"
 
 
 class ManifestRef(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     uri: Annotated[
         str,
@@ -45,30 +45,30 @@ class ManifestRef(BaseModel):
         ),
     ] = None
     schema_version: Annotated[
-        int | None, Field(description='Schema version of the referenced artifact.')
+        int | None, Field(description="Schema version of the referenced artifact.")
     ] = None
     sha256: Annotated[
         str,
         Field(
-            description='SHA-256 hex digest of the artifact content. Used for integrity verification and content addressing.',
-            pattern='^[0-9a-f]{64}$',
+            description="SHA-256 hex digest of the artifact content. Used for integrity verification and content addressing.",
+            pattern="^[0-9a-f]{64}$",
         ),
     ]
     size_bytes: Annotated[
-        int | None, Field(description='Size of the artifact in bytes.', ge=0)
+        int | None, Field(description="Size of the artifact in bytes.", ge=0)
     ] = None
     produced_by: Annotated[
-        str | None, Field(description='Agent or component that produced this artifact.')
+        str | None, Field(description="Agent or component that produced this artifact.")
     ] = None
     created_at: Annotated[
         AwareDatetime | None,
-        Field(description='ISO 8601 UTC Z timestamp of artifact creation.'),
+        Field(description="ISO 8601 UTC Z timestamp of artifact creation."),
     ] = None
 
 
 class ProducedArtifactRef(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     uri: Annotated[
         str,
@@ -83,30 +83,30 @@ class ProducedArtifactRef(BaseModel):
         ),
     ] = None
     schema_version: Annotated[
-        int | None, Field(description='Schema version of the referenced artifact.')
+        int | None, Field(description="Schema version of the referenced artifact.")
     ] = None
     sha256: Annotated[
         str,
         Field(
-            description='SHA-256 hex digest of the artifact content. Used for integrity verification and content addressing.',
-            pattern='^[0-9a-f]{64}$',
+            description="SHA-256 hex digest of the artifact content. Used for integrity verification and content addressing.",
+            pattern="^[0-9a-f]{64}$",
         ),
     ]
     size_bytes: Annotated[
-        int | None, Field(description='Size of the artifact in bytes.', ge=0)
+        int | None, Field(description="Size of the artifact in bytes.", ge=0)
     ] = None
     produced_by: Annotated[
-        str | None, Field(description='Agent or component that produced this artifact.')
+        str | None, Field(description="Agent or component that produced this artifact.")
     ] = None
     created_at: Annotated[
         AwareDatetime | None,
-        Field(description='ISO 8601 UTC Z timestamp of artifact creation.'),
+        Field(description="ISO 8601 UTC Z timestamp of artifact creation."),
     ] = None
 
 
 class SubjectRef(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     uri: Annotated[
         str,
@@ -121,30 +121,30 @@ class SubjectRef(BaseModel):
         ),
     ] = None
     schema_version: Annotated[
-        int | None, Field(description='Schema version of the referenced artifact.')
+        int | None, Field(description="Schema version of the referenced artifact.")
     ] = None
     sha256: Annotated[
         str,
         Field(
-            description='SHA-256 hex digest of the artifact content. Used for integrity verification and content addressing.',
-            pattern='^[0-9a-f]{64}$',
+            description="SHA-256 hex digest of the artifact content. Used for integrity verification and content addressing.",
+            pattern="^[0-9a-f]{64}$",
         ),
     ]
     size_bytes: Annotated[
-        int | None, Field(description='Size of the artifact in bytes.', ge=0)
+        int | None, Field(description="Size of the artifact in bytes.", ge=0)
     ] = None
     produced_by: Annotated[
-        str | None, Field(description='Agent or component that produced this artifact.')
+        str | None, Field(description="Agent or component that produced this artifact.")
     ] = None
     created_at: Annotated[
         AwareDatetime | None,
-        Field(description='ISO 8601 UTC Z timestamp of artifact creation.'),
+        Field(description="ISO 8601 UTC Z timestamp of artifact creation."),
     ] = None
 
 
 class CheckRunRef(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     uri: Annotated[
         str,
@@ -159,30 +159,30 @@ class CheckRunRef(BaseModel):
         ),
     ] = None
     schema_version: Annotated[
-        int | None, Field(description='Schema version of the referenced artifact.')
+        int | None, Field(description="Schema version of the referenced artifact.")
     ] = None
     sha256: Annotated[
         str,
         Field(
-            description='SHA-256 hex digest of the artifact content. Used for integrity verification and content addressing.',
-            pattern='^[0-9a-f]{64}$',
+            description="SHA-256 hex digest of the artifact content. Used for integrity verification and content addressing.",
+            pattern="^[0-9a-f]{64}$",
         ),
     ]
     size_bytes: Annotated[
-        int | None, Field(description='Size of the artifact in bytes.', ge=0)
+        int | None, Field(description="Size of the artifact in bytes.", ge=0)
     ] = None
     produced_by: Annotated[
-        str | None, Field(description='Agent or component that produced this artifact.')
+        str | None, Field(description="Agent or component that produced this artifact.")
     ] = None
     created_at: Annotated[
         AwareDatetime | None,
-        Field(description='ISO 8601 UTC Z timestamp of artifact creation.'),
+        Field(description="ISO 8601 UTC Z timestamp of artifact creation."),
     ] = None
 
 
 class SubjectVerdictRef(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     uri: Annotated[
         str,
@@ -197,30 +197,30 @@ class SubjectVerdictRef(BaseModel):
         ),
     ] = None
     schema_version: Annotated[
-        int | None, Field(description='Schema version of the referenced artifact.')
+        int | None, Field(description="Schema version of the referenced artifact.")
     ] = None
     sha256: Annotated[
         str,
         Field(
-            description='SHA-256 hex digest of the artifact content. Used for integrity verification and content addressing.',
-            pattern='^[0-9a-f]{64}$',
+            description="SHA-256 hex digest of the artifact content. Used for integrity verification and content addressing.",
+            pattern="^[0-9a-f]{64}$",
         ),
     ]
     size_bytes: Annotated[
-        int | None, Field(description='Size of the artifact in bytes.', ge=0)
+        int | None, Field(description="Size of the artifact in bytes.", ge=0)
     ] = None
     produced_by: Annotated[
-        str | None, Field(description='Agent or component that produced this artifact.')
+        str | None, Field(description="Agent or component that produced this artifact.")
     ] = None
     created_at: Annotated[
         AwareDatetime | None,
-        Field(description='ISO 8601 UTC Z timestamp of artifact creation.'),
+        Field(description="ISO 8601 UTC Z timestamp of artifact creation."),
     ] = None
 
 
 class CoverageRef(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     uri: Annotated[
         str,
@@ -235,30 +235,30 @@ class CoverageRef(BaseModel):
         ),
     ] = None
     schema_version: Annotated[
-        int | None, Field(description='Schema version of the referenced artifact.')
+        int | None, Field(description="Schema version of the referenced artifact.")
     ] = None
     sha256: Annotated[
         str,
         Field(
-            description='SHA-256 hex digest of the artifact content. Used for integrity verification and content addressing.',
-            pattern='^[0-9a-f]{64}$',
+            description="SHA-256 hex digest of the artifact content. Used for integrity verification and content addressing.",
+            pattern="^[0-9a-f]{64}$",
         ),
     ]
     size_bytes: Annotated[
-        int | None, Field(description='Size of the artifact in bytes.', ge=0)
+        int | None, Field(description="Size of the artifact in bytes.", ge=0)
     ] = None
     produced_by: Annotated[
-        str | None, Field(description='Agent or component that produced this artifact.')
+        str | None, Field(description="Agent or component that produced this artifact.")
     ] = None
     created_at: Annotated[
         AwareDatetime | None,
-        Field(description='ISO 8601 UTC Z timestamp of artifact creation.'),
+        Field(description="ISO 8601 UTC Z timestamp of artifact creation."),
     ] = None
 
 
 class VerificationRefs(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     subject_refs: Annotated[list[SubjectRef] | None, Field(min_length=1)] = None
     check_run_refs: Annotated[list[CheckRunRef] | None, Field(min_length=1)] = None
@@ -269,14 +269,14 @@ class VerificationRefs(BaseModel):
 
 
 class TaskKind(StrEnum):
-    draft_update = 'draft_update'
-    review = 'review'
+    draft_update = "draft_update"
+    review = "review"
 
 
 class SuggestedContentType(StrEnum):
-    section_output = 'section_output'
-    reviewer_report = 'reviewer_report'
-    revision_plan = 'revision_plan'
+    section_output = "section_output"
+    reviewer_report = "reviewer_report"
+    revision_plan = "revision_plan"
 
 
 class ProducedArtifactUri(RootModel[str]):
@@ -288,14 +288,14 @@ class FindingNodeId(RootModel[str]):
 
 
 class SourceContentType(StrEnum):
-    section_output = 'section_output'
-    reviewer_report = 'reviewer_report'
-    revision_plan = 'revision_plan'
+    section_output = "section_output"
+    reviewer_report = "reviewer_report"
+    revision_plan = "revision_plan"
 
 
 class SeedPayload(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     computation_result_uri: Annotated[str, Field(min_length=1)]
     manifest_uri: Annotated[str, Field(min_length=1)]
@@ -311,7 +311,7 @@ class SeedPayload(BaseModel):
 
 class Target(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     task_kind: TaskKind
     title: Annotated[str, Field(min_length=1)]
@@ -321,13 +321,13 @@ class Target(BaseModel):
 
 
 class HandoffKind(StrEnum):
-    writing = 'writing'
-    review = 'review'
+    writing = "writing"
+    review = "review"
 
 
 class Payload(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     draft_node_id: Annotated[str, Field(min_length=1)]
     finding_node_ids: Annotated[list[FindingNodeId], Field(min_length=1)]
@@ -335,7 +335,7 @@ class Payload(BaseModel):
 
 class Payload1(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     issue_node_id: Annotated[str, Field(min_length=1)]
     target_draft_node_id: Annotated[str | None, Field(min_length=1)] = None
@@ -343,7 +343,7 @@ class Payload1(BaseModel):
 
 class Handoff(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     handoff_kind: HandoffKind
     target_node_id: Annotated[str, Field(min_length=1)]
@@ -351,24 +351,24 @@ class Handoff(BaseModel):
 
 
 class DraftContextMode(StrEnum):
-    seeded_draft = 'seeded_draft'
-    existing_draft = 'existing_draft'
+    seeded_draft = "seeded_draft"
+    existing_draft = "existing_draft"
 
 
 class DraftSourceContentType(StrEnum):
-    section_output = 'section_output'
-    reviewer_report = 'reviewer_report'
-    revision_plan = 'revision_plan'
+    section_output = "section_output"
+    reviewer_report = "reviewer_report"
+    revision_plan = "revision_plan"
 
 
 class ReviewSourceContentType(StrEnum):
-    reviewer_report = 'reviewer_report'
-    revision_plan = 'revision_plan'
+    reviewer_report = "reviewer_report"
+    revision_plan = "revision_plan"
 
 
 class Context(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     draft_context_mode: DraftContextMode
     draft_source_artifact_name: Annotated[str | None, Field(min_length=1)] = None
@@ -379,7 +379,7 @@ class Context(BaseModel):
 
 class WritingreviewbridgeV1(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     schema_version: Literal[1]
     bridge_kind: BridgeKind
@@ -392,15 +392,15 @@ class WritingreviewbridgeV1(BaseModel):
     manifest_ref: Annotated[
         ManifestRef,
         Field(
-            description='Content-addressed reference to a research artifact. Used by integrity reports, research outcomes, and events to point at specific versioned artifacts.',
-            title='ArtifactRef V1',
+            description="Content-addressed reference to a research artifact. Used by integrity reports, research outcomes, and events to point at specific versioned artifacts.",
+            title="ArtifactRef V1",
         ),
     ]
     produced_artifact_refs: list[ProducedArtifactRef]
     verification_refs: Annotated[
         VerificationRefs | None,
         Field(
-            description='Optional refs to provider-neutral verification kernel artifacts relevant to this bridge. Batch 1 adds the ref container only; no bridge producer or consumer wiring is introduced here.'
+            description="Optional refs to provider-neutral verification kernel artifacts relevant to this bridge. Batch 1 adds the ref container only; no bridge producer or consumer wiring is introduced here."
         ),
     ] = None
     target: Target

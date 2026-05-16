@@ -10,14 +10,14 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class Severity(StrEnum):
-    blocking = 'blocking'
-    advisory = 'advisory'
+    blocking = "blocking"
+    advisory = "advisory"
 
 
 class PhaseOverrides(StrEnum):
-    blocking = 'blocking'
-    advisory = 'advisory'
-    disabled = 'disabled'
+    blocking = "blocking"
+    advisory = "advisory"
+    disabled = "disabled"
 
 
 class Requires(BaseModel):
@@ -41,18 +41,18 @@ class Requires(BaseModel):
 
 class IntegritycheckV1(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     schema_version: Literal[1]
     check_id: Annotated[
         str,
         Field(
             description="Unique identifier. Format: '{domain}_{check_name}' or '{domain}_{check_name}.{sub_check}' (e.g., 'theory_cross_check.invariant_consistency').",
-            pattern='^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)?$',
+            pattern="^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)?$",
         ),
     ]
     name: Annotated[
-        str, Field(description='Human-readable name.', max_length=200, min_length=1)
+        str, Field(description="Human-readable name.", max_length=200, min_length=1)
     ]
     domain: Annotated[
         str,
@@ -68,11 +68,11 @@ class IntegritycheckV1(BaseModel):
         ),
     ]
     description: Annotated[
-        str, Field(description='What this check verifies.', max_length=2000)
+        str, Field(description="What this check verifies.", max_length=2000)
     ]
     configurable: Annotated[
         bool | None,
-        Field(description='Whether severity can be overridden per run_card.'),
+        Field(description="Whether severity can be overridden per run_card."),
     ] = False
     phase_overrides: Annotated[
         dict[str, PhaseOverrides] | None,
@@ -81,18 +81,18 @@ class IntegritycheckV1(BaseModel):
         ),
     ] = None
     requires: Annotated[
-        Requires | None, Field(description='External dependencies for this check.')
+        Requires | None, Field(description="External dependencies for this check.")
     ] = None
     input_schema: Annotated[
         dict[str, Any] | None,
         Field(
-            description='JSON Schema for the expected input context (CheckContext.domain_config).'
+            description="JSON Schema for the expected input context (CheckContext.domain_config)."
         ),
     ] = None
     timeout_ms: Annotated[
         int | None,
         Field(
-            description='Maximum execution time in milliseconds (default 5 minutes).',
+            description="Maximum execution time in milliseconds (default 5 minutes).",
             ge=1000,
         ),
     ] = 300000

@@ -17,6 +17,11 @@ echo "=== Step 1: TS generation ==="
 npx tsx meta/scripts/codegen-ts.ts "$RESOLVED_DIR" "$TS_OUT"
 
 echo "=== Step 2: Python generation ==="
+if ! command -v datamodel-codegen &>/dev/null; then
+  echo "ERROR: datamodel-codegen (Python) is required but not on PATH." >&2
+  echo "Install with: python3 -m pip install 'datamodel-code-generator[http]'" >&2
+  exit 1
+fi
 for schema in "$RESOLVED_DIR"/*.schema.json; do
   base=$(basename "$schema" .schema.json)
   datamodel-codegen \
@@ -26,8 +31,7 @@ for schema in "$RESOLVED_DIR"/*.schema.json; do
     --output-model-type pydantic_v2.BaseModel \
     --target-python-version 3.11 \
     --use-annotated \
-    --disable-timestamp \
-    2>/dev/null
+    --disable-timestamp
 done
 echo "  PY: generated $(ls "$PY_OUT"/*.py 2>/dev/null | wc -l | tr -d ' ') files"
 
@@ -38,10 +42,20 @@ echo "=== Step 4: Generate TS barrel exports ==="
 npx tsx meta/scripts/codegen-barrel.ts "$TS_OUT"
 
 echo "=== Step 5: Format generated code ==="
-npx prettier --write "$TS_OUT/**/*.ts" 2>/dev/null
+# prettier is a devDependency of the workspace; if it's missing the host doesn't have pnpm install
+# completed, which is a real precondition failure for codegen.
+npx --no-install prettier --write "$TS_OUT/**/*.ts"
 if command -v ruff &>/dev/null; then
-  ruff check --fix "$PY_OUT" 2>/dev/null || true
-  ruff format "$PY_OUT" 2>/dev/null
+  # ruff is optional but if present must succeed; previously `|| true` and stderr-silencing
+  # hid real format/lint regressions in generated Python.
+  ruff check --fix "$PY_OUT"
+  ruff format "$PY_OUT"
+elif [[ -n "${CI:-}" ]]; then
+  echo "ERROR: ruff is required when CI is set (CI=${CI}) but not on PATH." >&2
+  echo "Install with: python3 -m pip install ruff" >&2
+  exit 1
+else
+  echo "  ruff: not installed locally, skipping Python format (codegen output is still valid). CI runs will require ruff."
 fi
 
 echo "=== Step 6: Validate generated code ==="

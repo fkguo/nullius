@@ -10,44 +10,44 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class Op(StrEnum):
-    add_field = 'add_field'
-    remove_field = 'remove_field'
-    rename_field = 'rename_field'
-    set_field = 'set_field'
+    add_field = "add_field"
+    remove_field = "remove_field"
+    rename_field = "rename_field"
+    set_field = "set_field"
 
 
 class MigrationOperation(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
-    op: Annotated[Op, Field(description='Operation type.')]
-    path: Annotated[str | None, Field(description='Dot-path to the target field.')] = (
+    op: Annotated[Op, Field(description="Operation type.")]
+    path: Annotated[str | None, Field(description="Dot-path to the target field.")] = (
         None
     )
     value: Annotated[
         str | float | bool | dict[str, Any] | list[Any] | None,
-        Field(description='Value for add_field / set_field operations.'),
+        Field(description="Value for add_field / set_field operations."),
     ] = None
     from_path: Annotated[
-        str | None, Field(description='Source path for rename_field operations.')
+        str | None, Field(description="Source path for rename_field operations.")
     ] = None
 
 
 class MigrationStep(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
-    from_version: Annotated[int, Field(description='Source version number.', ge=0)]
-    to_version: Annotated[int, Field(description='Target version number.', ge=1)]
+    from_version: Annotated[int, Field(description="Source version number.", ge=0)]
+    to_version: Annotated[int, Field(description="Target version number.", ge=1)]
     operations: Annotated[
         list[MigrationOperation],
-        Field(description='Ordered list of field-level operations to apply.'),
+        Field(description="Ordered list of field-level operations to apply."),
     ]
 
 
 class MigrationChain(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     schema_id: Annotated[
         str,
@@ -56,19 +56,19 @@ class MigrationChain(BaseModel):
         ),
     ]
     current_version: Annotated[
-        int, Field(description='Current (latest) schema version number.', ge=1)
+        int, Field(description="Current (latest) schema version number.", ge=1)
     ]
     migrations: Annotated[
         list[MigrationStep],
-        Field(description='Ordered list of version-to-version migration steps.'),
+        Field(description="Ordered list of version-to-version migration steps."),
     ]
 
 
 class MigrationRegistryV1(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
-    version: Annotated[Literal[1], Field(description='Registry format version.')]
+    version: Annotated[Literal[1], Field(description="Registry format version.")]
     chains: Annotated[
-        list[MigrationChain], Field(description='Migration chains, one per schema.')
+        list[MigrationChain], Field(description="Migration chains, one per schema.")
     ]

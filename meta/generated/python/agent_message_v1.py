@@ -11,14 +11,14 @@ from pydantic import BaseModel, ConfigDict, Field, RootModel
 
 
 class MessageKind(StrEnum):
-    request = 'request'
-    response = 'response'
-    error = 'error'
+    request = "request"
+    response = "response"
+    error = "error"
 
 
 class ErrorEnvelope(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     domain: Annotated[str, Field(min_length=1)]
     code: Annotated[str, Field(min_length=1)]
@@ -28,7 +28,7 @@ class ErrorEnvelope(BaseModel):
     trace_id: Annotated[
         UUID,
         Field(
-            pattern='^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$'
+            pattern="^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
         ),
     ]
     data: dict[str, Any] | None
@@ -36,20 +36,20 @@ class ErrorEnvelope(BaseModel):
 
 class AgentMessageV11(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     schema_version: Literal[1]
     message_id: Annotated[str, Field(min_length=1)]
     trace_id: Annotated[
         UUID,
         Field(
-            pattern='^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$'
+            pattern="^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
         ),
     ]
     run_id: str | None
     source_agent_id: Annotated[str, Field(min_length=1)]
     target_agent_id: Annotated[str, Field(min_length=1)]
-    message_kind: Literal['request']
+    message_kind: Literal["request"]
     requested_capability: Annotated[str, Field(min_length=1)]
     payload: dict[str, Any]
     error: ErrorEnvelope | None = None
@@ -57,20 +57,20 @@ class AgentMessageV11(BaseModel):
 
 class AgentMessageV12(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     schema_version: Literal[1]
     message_id: Annotated[str, Field(min_length=1)]
     trace_id: Annotated[
         UUID,
         Field(
-            pattern='^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$'
+            pattern="^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
         ),
     ]
     run_id: str | None
     source_agent_id: Annotated[str, Field(min_length=1)]
     target_agent_id: Annotated[str, Field(min_length=1)]
-    message_kind: Literal['response']
+    message_kind: Literal["response"]
     requested_capability: Annotated[str, Field(min_length=1)]
     payload: dict[str, Any]
     error: ErrorEnvelope | None = None
@@ -78,20 +78,20 @@ class AgentMessageV12(BaseModel):
 
 class AgentMessageV13(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     schema_version: Literal[1]
     message_id: Annotated[str, Field(min_length=1)]
     trace_id: Annotated[
         UUID,
         Field(
-            pattern='^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$'
+            pattern="^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
         ),
     ]
     run_id: str | None
     source_agent_id: Annotated[str, Field(min_length=1)]
     target_agent_id: Annotated[str, Field(min_length=1)]
-    message_kind: Literal['error']
+    message_kind: Literal["error"]
     requested_capability: Annotated[str, Field(min_length=1)]
     payload: dict[str, Any] | None = None
     error: ErrorEnvelope
@@ -100,5 +100,5 @@ class AgentMessageV13(BaseModel):
 class AgentMessageV1(RootModel[AgentMessageV11 | AgentMessageV12 | AgentMessageV13]):
     root: Annotated[
         AgentMessageV11 | AgentMessageV12 | AgentMessageV13,
-        Field(title='AgentMessageV1'),
+        Field(title="AgentMessageV1"),
     ]

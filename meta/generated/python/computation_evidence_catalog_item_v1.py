@@ -10,42 +10,42 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
 
 class Artifact(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     path: Annotated[
         str,
         Field(
-            description='Path to the artifact file, relative to run_dir or as an ArtifactRef URI (artifact://<run_id>/<step_id>/<filename>).'
+            description="Path to the artifact file, relative to run_dir or as an ArtifactRef URI (artifact://<run_id>/<step_id>/<filename>)."
         ),
     ]
     sha256: Annotated[
         str,
         Field(
-            description='SHA-256 hex digest of the artifact file (64 lowercase hex characters).',
-            pattern='^[0-9a-f]{64}$',
+            description="SHA-256 hex digest of the artifact file (64 lowercase hex characters).",
+            pattern="^[0-9a-f]{64}$",
         ),
     ]
     description: Annotated[
         str | None,
-        Field(description='Human-readable description of what this artifact contains.'),
+        Field(description="Human-readable description of what this artifact contains."),
     ] = None
 
 
 class ComputationEvidenceCatalogItemV1(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     schema_version: Annotated[
-        Literal[1], Field(description='Schema version, always 1 for this schema.')
+        Literal[1], Field(description="Schema version, always 1 for this schema.")
     ]
     run_id: Annotated[
         str,
-        Field(description='ID of the orchestrator run that produced these artifacts.'),
+        Field(description="ID of the orchestrator run that produced these artifacts."),
     ]
     step_id: Annotated[
         str,
         Field(
-            description='ID of the specific computation step within the run (matches manifest step.id).'
+            description="ID of the specific computation step within the run (matches manifest step.id)."
         ),
     ]
     skill_id: Annotated[
@@ -57,21 +57,21 @@ class ComputationEvidenceCatalogItemV1(BaseModel):
     artifacts: Annotated[
         list[Artifact],
         Field(
-            description='Artifact files produced by this computation step, with SHA-256 integrity checksums.',
+            description="Artifact files produced by this computation step, with SHA-256 integrity checksums.",
             min_length=1,
         ),
     ]
     manifest_sha256: Annotated[
         str | None,
         Field(
-            description='SHA-256 hex digest of the computation_manifest_v1.json file used for this computation. Provides a cryptographic pointer back to the exact computation specification.',
-            pattern='^[0-9a-f]{64}$',
+            description="SHA-256 hex digest of the computation_manifest_v1.json file used for this computation. Provides a cryptographic pointer back to the exact computation specification.",
+            pattern="^[0-9a-f]{64}$",
         ),
     ] = None
     ingested_at: Annotated[
         AwareDatetime,
         Field(
-            description='ISO 8601 UTC timestamp when this entry was ingested via hep_run_ingest_skill_artifacts.'
+            description="ISO 8601 UTC timestamp when this entry was ingested via hep_run_ingest_skill_artifacts."
         ),
     ]
     tags: Annotated[
@@ -83,5 +83,5 @@ class ComputationEvidenceCatalogItemV1(BaseModel):
     ] = None
     notes: Annotated[
         str | None,
-        Field(description='Optional free-text notes about this computation result.'),
+        Field(description="Optional free-text notes about this computation result."),
     ] = None

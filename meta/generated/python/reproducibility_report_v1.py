@@ -13,7 +13,7 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
 class OriginalRef(BaseModel):
     uri: str
     kind: str | None = None
-    sha256: Annotated[str, Field(pattern='^[0-9a-f]{64}$')]
+    sha256: Annotated[str, Field(pattern="^[0-9a-f]{64}$")]
     size_bytes: Annotated[int | None, Field(ge=0)] = None
     produced_by: str | None = None
     created_at: AwareDatetime | None = None
@@ -22,7 +22,7 @@ class OriginalRef(BaseModel):
 class RerunRef(BaseModel):
     uri: str
     kind: str | None = None
-    sha256: Annotated[str, Field(pattern='^[0-9a-f]{64}$')]
+    sha256: Annotated[str, Field(pattern="^[0-9a-f]{64}$")]
     size_bytes: Annotated[int | None, Field(ge=0)] = None
     produced_by: str | None = None
     created_at: AwareDatetime | None = None
@@ -30,7 +30,7 @@ class RerunRef(BaseModel):
 
 class RerunMethod(BaseModel):
     model_config = ConfigDict(
-        extra='allow',
+        extra="allow",
     )
     type: Annotated[
         str,
@@ -41,61 +41,61 @@ class RerunMethod(BaseModel):
 
 
 class OverallAgreement(StrEnum):
-    agree = 'agree'
-    disagree = 'disagree'
-    partial = 'partial'
-    unknown = 'unknown'
+    agree = "agree"
+    disagree = "disagree"
+    partial = "partial"
+    unknown = "unknown"
 
 
 class DeviationSource(StrEnum):
-    numerical_precision = 'numerical_precision'
-    method_difference = 'method_difference'
-    potential_error = 'potential_error'
-    unknown = 'unknown'
+    numerical_precision = "numerical_precision"
+    method_difference = "method_difference"
+    potential_error = "potential_error"
+    unknown = "unknown"
 
 
 class NumericValue(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
-    central: Annotated[float, Field(description='Central/best value.')]
+    central: Annotated[float, Field(description="Central/best value.")]
     uncertainty: Annotated[
-        float | None, Field(description='Statistical or numerical uncertainty.', ge=0.0)
+        float | None, Field(description="Statistical or numerical uncertainty.", ge=0.0)
     ] = None
     unit: Annotated[
         str | None,
         Field(
-            description='Unit of measurement. Omit for dimensionless quantities. Interpretation of units is domain-pack-defined.'
+            description="Unit of measurement. Omit for dimensionless quantities. Interpretation of units is domain-pack-defined."
         ),
     ] = None
 
 
 class Method(StrEnum):
-    stricter_of = 'stricter_of'
-    either = 'either'
+    stricter_of = "stricter_of"
+    either = "either"
 
 
 class ToleranceSpec(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     absolute: Annotated[
-        float | None, Field(description='Maximum allowed absolute deviation.', ge=0.0)
+        float | None, Field(description="Maximum allowed absolute deviation.", ge=0.0)
     ] = None
     relative: Annotated[
-        float | None, Field(description='Maximum allowed relative deviation.', ge=0.0)
+        float | None, Field(description="Maximum allowed relative deviation.", ge=0.0)
     ] = None
     method: Annotated[
         Method | None,
         Field(
             description="'stricter_of' means both absolute and relative must be satisfied. 'either' means satisfying one is enough."
         ),
-    ] = 'stricter_of'
+    ] = "stricter_of"
 
 
 class QuantityComparison(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     quantity_name: Annotated[
         str,
@@ -106,18 +106,18 @@ class QuantityComparison(BaseModel):
     original_value: NumericValue
     rerun_value: NumericValue
     absolute_deviation: Annotated[
-        float, Field(description='Absolute difference |original - rerun|.', ge=0.0)
+        float, Field(description="Absolute difference |original - rerun|.", ge=0.0)
     ]
     relative_deviation: Annotated[
         float,
         Field(
-            description='Relative difference |original - rerun| / |original|. Zero if original is zero.',
+            description="Relative difference |original - rerun| / |original|. Zero if original is zero.",
             ge=0.0,
         ),
     ]
     within_tolerance: Annotated[
         bool,
-        Field(description='Whether the deviation is within the specified tolerance.'),
+        Field(description="Whether the deviation is within the specified tolerance."),
     ]
     tolerance_used: ToleranceSpec
     deviation_source: Annotated[
@@ -127,28 +127,28 @@ class QuantityComparison(BaseModel):
         ),
     ] = None
     notes: Annotated[
-        str | None, Field(description='Explanation of deviation or additional context.')
+        str | None, Field(description="Explanation of deviation or additional context.")
     ] = None
 
 
 class ReproducibilityreportV1Deviationreport(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     schema_version: Literal[1]
     report_id: Annotated[
         str,
         Field(
-            description='Content-addressed identifier: SHA-256 hex digest of RFC 8785 (JCS) canonical JSON of this object excluding report_id itself.',
-            pattern='^[0-9a-f]{64}$',
+            description="Content-addressed identifier: SHA-256 hex digest of RFC 8785 (JCS) canonical JSON of this object excluding report_id itself.",
+            pattern="^[0-9a-f]{64}$",
         ),
     ]
     original_ref: Annotated[
         OriginalRef,
-        Field(description='ArtifactRef V1 of the original computation result.'),
+        Field(description="ArtifactRef V1 of the original computation result."),
     ]
     rerun_ref: Annotated[
-        RerunRef, Field(description='ArtifactRef V1 of the re-computation result.')
+        RerunRef, Field(description="ArtifactRef V1 of the re-computation result.")
     ]
     rerun_method: Annotated[
         RerunMethod,
@@ -169,17 +169,17 @@ class ReproducibilityreportV1Deviationreport(BaseModel):
         ),
     ]
     run_id: Annotated[
-        str | None, Field(description='Run in which this verification was performed.')
+        str | None, Field(description="Run in which this verification was performed.")
     ] = None
     trace_id: UUID | None = None
-    created_at: Annotated[AwareDatetime, Field(description='ISO 8601 UTC Z timestamp.')]
+    created_at: Annotated[AwareDatetime, Field(description="ISO 8601 UTC Z timestamp.")]
     duration_ms: Annotated[
         int | None,
         Field(
-            description='Total time for re-computation + comparison in milliseconds.',
+            description="Total time for re-computation + comparison in milliseconds.",
             ge=0,
         ),
     ] = None
     notes: Annotated[
-        str | None, Field(description='Additional notes about the verification.')
+        str | None, Field(description="Additional notes about the verification.")
     ] = None

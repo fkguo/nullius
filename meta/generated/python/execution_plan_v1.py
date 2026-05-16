@@ -18,68 +18,68 @@ class CandidateFormalism(RootModel[str]):
 
 class Source(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     outline_seed_path: Annotated[
         str,
         Field(
-            description='Canonical run-local path to outline_seed_v1.json.',
+            description="Canonical run-local path to outline_seed_v1.json.",
             min_length=1,
         ),
     ]
     source_handoff_uri: Annotated[
         str,
         Field(
-            description='Original source handoff URI preserved from the staged idea surface.',
+            description="Original source handoff URI preserved from the staged idea surface.",
             min_length=1,
         ),
     ]
     campaign_id: Annotated[
         str | None,
         Field(
-            description='Optional campaign provenance copied from IdeaHandoffC2 when available.'
+            description="Optional campaign provenance copied from IdeaHandoffC2 when available."
         ),
     ] = None
     node_id: Annotated[
         str | None,
         Field(
-            description='Optional node provenance copied from IdeaHandoffC2 when available.'
+            description="Optional node provenance copied from IdeaHandoffC2 when available."
         ),
     ] = None
     idea_id: Annotated[
         str | None,
         Field(
-            description='Optional idea provenance copied from IdeaHandoffC2 when available.'
+            description="Optional idea provenance copied from IdeaHandoffC2 when available."
         ),
     ] = None
     promoted_at: Annotated[
         AwareDatetime | None,
         Field(
-            description='Optional promotion timestamp copied from IdeaHandoffC2 when available.'
+            description="Optional promotion timestamp copied from IdeaHandoffC2 when available."
         ),
     ] = None
     required_observables: Annotated[
         list[RequiredObservable] | None,
         Field(
-            description='Optional observable-level hints copied from the staged handoff.'
+            description="Optional observable-level hints copied from the staged handoff."
         ),
     ] = None
     candidate_formalisms: Annotated[
         list[CandidateFormalism] | None,
         Field(
-            description='Optional non-authoritative method/formalism hints preserved for local context.'
+            description="Optional non-authoritative method/formalism hints preserved for local context."
         ),
     ] = None
     method_spec_present: Annotated[
         bool | None,
         Field(
-            description='Whether an upstream method_spec-like payload was present on the staged handoff surface.'
+            description="Whether an upstream method_spec-like payload was present on the staged handoff surface."
         ),
     ] = None
     method_hint_count: Annotated[
         int | None,
         Field(
-            description='Number of structured method hints consumed by the compiler.',
+            description="Number of structured method hints consumed by the compiler.",
             ge=0,
         ),
     ] = None
@@ -111,7 +111,7 @@ class DependsOnTaskId(RootModel[str]):
 
 class ExpectedArtifact(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     artifact_id: Annotated[str, Field(min_length=1)]
     kind: Annotated[str, Field(min_length=1)]
@@ -121,14 +121,14 @@ class ExpectedArtifact(BaseModel):
 
 class LoweringHints(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     workspace_subdir: Annotated[str | None, Field(min_length=1)] = None
 
 
 class Task(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     task_id: Annotated[str, Field(min_length=1)]
     title: Annotated[str, Field(min_length=1)]
@@ -136,61 +136,61 @@ class Task(BaseModel):
     hypothesis_indices: Annotated[
         list[HypothesisIndice],
         Field(
-            description='Indices into outline_seed_v1.hypotheses that motivate this task.'
+            description="Indices into outline_seed_v1.hypotheses that motivate this task."
         ),
     ]
     claim_indices: Annotated[
         list[ClaimIndice],
-        Field(description='Indices into outline_seed_v1.claims that inform this task.'),
+        Field(description="Indices into outline_seed_v1.claims that inform this task."),
     ]
     method_hint_indices: Annotated[
         list[MethodHintIndice],
-        Field(description='Indices into staged method hints consumed by this task.'),
+        Field(description="Indices into staged method hints consumed by this task."),
     ]
     observables: list[Observable] | None = None
     method_hint_summary: Annotated[
         str | None,
         Field(
-            description='Non-authoritative summary of the method hint that informed this task.'
+            description="Non-authoritative summary of the method hint that informed this task."
         ),
     ] = None
     capabilities: Annotated[
         list[Capability],
         Field(
-            description='Provider-neutral capability requirements for this task.',
+            description="Provider-neutral capability requirements for this task.",
             min_length=1,
         ),
     ]
     depends_on_task_ids: Annotated[
         list[DependsOnTaskId] | None,
-        Field(description='Optional future-facing DAG dependencies.'),
+        Field(description="Optional future-facing DAG dependencies."),
     ] = None
     expected_artifacts: Annotated[list[ExpectedArtifact], Field(min_length=1)]
     lowering_hints: Annotated[
         LoweringHints | None,
         Field(
-            description='Optional generic hints reserved for the manifest materializer.'
+            description="Optional generic hints reserved for the manifest materializer."
         ),
     ] = None
 
 
 class ExecutionplanV1(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     schema_version: Annotated[
-        Literal[1], Field(description='Schema version, always 1 for this schema.')
+        Literal[1], Field(description="Schema version, always 1 for this schema.")
     ]
     run_id: Annotated[
         str,
         Field(
-            description='Run identifier this execution plan belongs to.', min_length=1
+            description="Run identifier this execution plan belongs to.", min_length=1
         ),
     ]
     objective: Annotated[
         str,
         Field(
-            description='Human-readable objective derived from the staged thesis.',
+            description="Human-readable objective derived from the staged thesis.",
             min_length=1,
         ),
     ]
@@ -198,5 +198,5 @@ class ExecutionplanV1(BaseModel):
     tasks: Annotated[list[Task], Field(min_length=1)]
     created_at: Annotated[
         AwareDatetime | None,
-        Field(description='ISO 8601 UTC timestamp when this plan was compiled.'),
+        Field(description="ISO 8601 UTC timestamp when this plan was compiled."),
     ] = None

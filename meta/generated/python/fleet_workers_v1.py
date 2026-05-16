@@ -15,7 +15,7 @@ class SchemaVersion(IntEnum):
 
 class FleetWorker(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     worker_id: Annotated[str, Field(min_length=1)]
     registered_at: AwareDatetime
@@ -28,7 +28,7 @@ class FleetWorker(BaseModel):
 
 class FleetworkersV1(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     schema_version: SchemaVersion
     updated_at: AwareDatetime

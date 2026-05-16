@@ -10,25 +10,25 @@ from pydantic import AnyUrl, AwareDatetime, BaseModel, ConfigDict, Field, RootMo
 
 
 class Track(StrEnum):
-    a = 'a'
-    b = 'b'
-    shared = 'shared'
+    a = "a"
+    b = "b"
+    shared = "shared"
 
 
 class NodeType(RootModel[str]):
     root: Annotated[
         str,
         Field(
-            description='Node type identifier. Built-in types: signal, outcome, gene, capsule, skill, module, test, approval_pattern. Additional domain-specific types are registered at runtime by consuming tracks and validated via the NodeTypeRegistry (see EVO-20 §2.3). Non-built-in types must include a payload_schema_id in their payload for runtime validation.',
+            description="Node type identifier. Built-in types: signal, outcome, gene, capsule, skill, module, test, approval_pattern. Additional domain-specific types are registered at runtime by consuming tracks and validated via the NodeTypeRegistry (see EVO-20 §2.3). Non-built-in types must include a payload_schema_id in their payload for runtime validation.",
             examples=[
-                'signal',
-                'outcome',
-                'gene',
-                'capsule',
-                'skill',
-                'module',
-                'test',
-                'approval_pattern',
+                "signal",
+                "outcome",
+                "gene",
+                "capsule",
+                "skill",
+                "module",
+                "test",
+                "approval_pattern",
             ],
         ),
     ]
@@ -36,10 +36,10 @@ class NodeType(RootModel[str]):
 
 class SignalNodePayload(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     signal_key: Annotated[
-        str, Field(description='FNV-1a hash of normalized+sorted signal set')
+        str, Field(description="FNV-1a hash of normalized+sorted signal set")
     ]
     signals: list[str]
     first_seen: AwareDatetime | None = None
@@ -47,16 +47,16 @@ class SignalNodePayload(BaseModel):
 
 
 class MutationType(StrEnum):
-    repair = 'repair'
-    optimize = 'optimize'
-    innovate = 'innovate'
+    repair = "repair"
+    optimize = "optimize"
+    innovate = "innovate"
 
 
 class Origin(StrEnum):
-    manual = 'manual'
-    auto_gene = 'auto_gene'
-    capsule_generalization = 'capsule_generalization'
-    external = 'external'
+    manual = "manual"
+    auto_gene = "auto_gene"
+    capsule_generalization = "capsule_generalization"
+    external = "external"
 
 
 class BlastRadius(BaseModel):
@@ -67,33 +67,33 @@ class BlastRadius(BaseModel):
 
 class CapsuleNodePayload(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     capsule_id: str
     gene_id: str
     trigger: Annotated[
-        list[str], Field(description='Trigger signals that activated this capsule')
+        list[str], Field(description="Trigger signals that activated this capsule")
     ]
     confidence: Annotated[float | None, Field(ge=0.0, le=1.0)] = None
     blast_radius: BlastRadius | None = None
     artifact_uri: Annotated[
         AnyUrl | None,
         Field(
-            description='H-18 ArtifactRef URI to capsule content. Full object resolved via artifact store.'
+            description="H-18 ArtifactRef URI to capsule content. Full object resolved via artifact store."
         ),
     ] = None
 
 
 class OutcomeNodePayload(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     success: bool
     quality_score: Annotated[float | None, Field(ge=0.0, le=1.0)] = None
     error_delta: int | None = None
     validation_passed: bool | None = None
     gate_level: Annotated[
-        str | None, Field(description='Gate level applied (A0, A1, A2, etc.)')
+        str | None, Field(description="Gate level applied (A0, A1, A2, etc.)")
     ] = None
 
 
@@ -101,33 +101,33 @@ class EpigeneticMark(BaseModel):
     env_key: Annotated[
         str,
         Field(
-            description='Environment context key (platform, arch, node_version, etc.)'
+            description="Environment context key (platform, arch, node_version, etc.)"
         ),
     ]
     modifier: Annotated[
         float,
         Field(
-            description='Expression modifier (+0.05 on success, -0.1 on failure)',
+            description="Expression modifier (+0.05 on success, -0.1 on failure)",
             ge=-1.0,
             le=1.0,
         ),
     ]
-    ttl_days: Annotated[int | None, Field(description='Time-to-live in days')] = 90
+    ttl_days: Annotated[int | None, Field(description="Time-to-live in days")] = 90
     created_at: AwareDatetime | None = None
 
 
 class GateLevel(StrEnum):
-    A0 = 'A0'
-    A1 = 'A1'
-    A2 = 'A2'
+    A0 = "A0"
+    A1 = "A1"
+    A2 = "A2"
 
 
 class SkillNodePayload(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
-    skill_id: Annotated[str, Field(description='Unique skill identifier')]
-    name: Annotated[str, Field(description='Skill name')]
+    skill_id: Annotated[str, Field(description="Unique skill identifier")]
+    name: Annotated[str, Field(description="Skill name")]
     trigger_description: str | None = None
     gate_level: GateLevel | None = None
     origin_gene_id: str | None = None
@@ -135,64 +135,64 @@ class SkillNodePayload(BaseModel):
 
 class ModuleNodePayload(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
-    path: Annotated[str, Field(description='Module file path relative to repo root')]
-    component: Annotated[str | None, Field(description='Package/component name')] = None
+    path: Annotated[str, Field(description="Module file path relative to repo root")]
+    component: Annotated[str | None, Field(description="Package/component name")] = None
 
 
 class TestType(StrEnum):
-    unit = 'unit'
-    integration = 'integration'
-    e2e = 'e2e'
+    unit = "unit"
+    integration = "integration"
+    e2e = "e2e"
 
 
 class TestNodePayload(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     test_id: str
-    path: Annotated[str, Field(description='Test file path')]
+    path: Annotated[str, Field(description="Test file path")]
     test_type: TestType | None = None
 
 
 class ApprovalPatternNodePayload(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
-    pattern_key: Annotated[str, Field(description='Approval pattern identifier')]
+    pattern_key: Annotated[str, Field(description="Approval pattern identifier")]
     auto_approve: bool | None = False
     min_confidence: Annotated[float | None, Field(ge=0.0, le=1.0)] = None
 
 
 class MemorygraphnodeV1(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     id: Annotated[
         str,
         Field(
-            description='Prefixed node ID (ID-01 compliant)', pattern='^mgn_[0-9a-f-]+$'
+            description="Prefixed node ID (ID-01 compliant)", pattern="^mgn_[0-9a-f-]+$"
         ),
     ]
     node_type: NodeType
-    track: Annotated[Track, Field(description='Which evolution track owns this node')]
+    track: Annotated[Track, Field(description="Which evolution track owns this node")]
     payload: Annotated[
         dict[str, Any],
         Field(
-            description='Type-specific node data (discriminated by node_type via allOf)'
+            description="Type-specific node data (discriminated by node_type via allOf)"
         ),
     ]
     created_at: AwareDatetime
     updated_at: AwareDatetime
     decay_ts: Annotated[
         AwareDatetime | None,
-        Field(description='Last decay weight recalculation timestamp'),
+        Field(description="Last decay weight recalculation timestamp"),
     ] = None
     weight: Annotated[
         float,
         Field(
-            description='Current decay weight: 0.5^(age_days / half_life_days)',
+            description="Current decay weight: 0.5^(age_days / half_life_days)",
             ge=0.0,
             le=1.0,
         ),
@@ -201,28 +201,28 @@ class MemorygraphnodeV1(BaseModel):
 
 class GeneNodePayload(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
-    gene_id: Annotated[str, Field(description='Unique gene identifier')]
+    gene_id: Annotated[str, Field(description="Unique gene identifier")]
     name: str | None = None
     description: str | None = None
     signals_match: Annotated[
-        list[str], Field(description='Signal patterns this gene matches')
+        list[str], Field(description="Signal patterns this gene matches")
     ]
     target_scope: Annotated[
-        str | None, Field(description='Target scope (file type, module, etc.)')
+        str | None, Field(description="Target scope (file type, module, etc.)")
     ] = None
     mutation_type: MutationType | None = None
     validation: Annotated[
         list[str] | None,
         Field(
-            description='Validation commands to run after applying gene', min_length=1
+            description="Validation commands to run after applying gene", min_length=1
         ),
     ] = None
     epigenetic_marks: Annotated[
         list[EpigeneticMark] | None,
-        Field(description='Environment-specific expression modifiers'),
+        Field(description="Environment-specific expression modifiers"),
     ] = None
-    origin: Annotated[Origin | None, Field(description='How this gene was created')] = (
+    origin: Annotated[Origin | None, Field(description="How this gene was created")] = (
         None
     )

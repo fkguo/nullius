@@ -10,7 +10,7 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
 
 class Budgets(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     max_network_calls: Annotated[int | None, Field(ge=0)] = None
     max_runtime_minutes: Annotated[int | None, Field(ge=0)] = None
@@ -21,7 +21,7 @@ class Budgets(BaseModel):
 
 class GateResolutionTraceItem(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     gate_id: str | None = None
     triggered_by: str | None = None
@@ -31,77 +31,77 @@ class GateResolutionTraceItem(BaseModel):
 
 class ApprovalpacketV1(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     schema_version: Annotated[
-        Literal[1], Field(description='Schema version, always 1 for this schema.')
+        Literal[1], Field(description="Schema version, always 1 for this schema.")
     ]
     approval_id: Annotated[
-        str, Field(description='Unique approval identifier, e.g. A1-0001.')
+        str, Field(description="Unique approval identifier, e.g. A1-0001.")
     ]
     gate_id: Annotated[
         str,
         Field(
-            description='Approval category identifier (A1–A5) for the approval checkpoint being requested.'
+            description="Approval category identifier (A1–A5) for the approval checkpoint being requested."
         ),
     ]
     run_id: Annotated[
-        str, Field(description='Run identifier this approval belongs to.')
+        str, Field(description="Run identifier this approval belongs to.")
     ]
-    workflow_id: Annotated[str | None, Field(description='Workflow identifier.')] = None
+    workflow_id: Annotated[str | None, Field(description="Workflow identifier.")] = None
     purpose: Annotated[
         str,
-        Field(description='1–3 sentence description of what this approval authorizes.'),
+        Field(description="1–3 sentence description of what this approval authorizes."),
     ]
-    plan: Annotated[list[str], Field(description='Ordered list of plan steps.')]
-    risks: Annotated[list[str], Field(description='Known risks and failure modes.')]
+    plan: Annotated[list[str], Field(description="Ordered list of plan steps.")]
+    risks: Annotated[list[str], Field(description="Known risks and failure modes.")]
     budgets: Annotated[
-        Budgets, Field(description='Resource budget limits for this approval scope.')
+        Budgets, Field(description="Resource budget limits for this approval scope.")
     ]
-    outputs: Annotated[list[str], Field(description='Expected output paths/artifacts.')]
+    outputs: Annotated[list[str], Field(description="Expected output paths/artifacts.")]
     rollback: Annotated[
-        str, Field(description='Rollback plan if execution fails or is rejected.')
+        str, Field(description="Rollback plan if execution fails or is rejected.")
     ]
     commands: Annotated[
         list[str],
-        Field(description='Shell commands that will be executed upon approval.'),
+        Field(description="Shell commands that will be executed upon approval."),
     ]
     checklist: Annotated[
-        list[str], Field(description='Human-readable checklist items for the reviewer.')
+        list[str], Field(description="Human-readable checklist items for the reviewer.")
     ]
     requested_at: Annotated[
         AwareDatetime,
-        Field(description='ISO 8601 UTC Z timestamp of when approval was requested.'),
+        Field(description="ISO 8601 UTC Z timestamp of when approval was requested."),
     ]
     context_pack_path: Annotated[
-        str | None, Field(description='Relative path to the context pack file.')
+        str | None, Field(description="Relative path to the context pack file.")
     ] = None
     run_card_path: Annotated[
-        str | None, Field(description='Relative path to the run card.')
+        str | None, Field(description="Relative path to the run card.")
     ] = None
     run_card_sha256: Annotated[
         str | None,
         Field(
-            description='SHA-256 of the run card (canonical JSON).',
-            pattern='^[0-9a-f]{64}$',
+            description="SHA-256 of the run card (canonical JSON).",
+            pattern="^[0-9a-f]{64}$",
         ),
     ] = None
     plan_ssot_pointer: Annotated[
-        str | None, Field(description='JSON pointer to the plan in state.json.')
+        str | None, Field(description="JSON pointer to the plan in state.json.")
     ] = None
     plan_step_ids: Annotated[
-        list[str] | None, Field(description='Plan step IDs covered by this approval.')
+        list[str] | None, Field(description="Plan step IDs covered by this approval.")
     ] = None
     active_branch_id: Annotated[
         str | None,
-        Field(description='Currently active branch ID (if branching is in use).'),
+        Field(description="Currently active branch ID (if branching is in use)."),
     ] = None
     gate_resolution_trace: Annotated[
         list[GateResolutionTraceItem] | None,
         Field(
-            description='Approval-resolution provenance for this request, showing how A0–A5 approval requirements were derived from policy, run-card, workflow defaults, or CLI overrides.'
+            description="Approval-resolution provenance for this request, showing how A0–A5 approval requirements were derived from policy, run-card, workflow defaults, or CLI overrides."
         ),
     ] = None
     details_md: Annotated[
-        str | None, Field(description='Optional extended details in Markdown format.')
+        str | None, Field(description="Optional extended details in Markdown format.")
     ] = None

@@ -24,12 +24,12 @@ class ReviewRef(RootModel[str]):
 
 class PaperManifestV2(BaseModel):
     model_config = ConfigDict(
-        extra='allow',
+        extra="allow",
     )
     schemaVersion: Annotated[
         SchemaVersion,
         Field(
-            description='1 = legacy manifest (version always 1, parent_version and review_ref always null). 2 = versioned manifest with real version, parent_version, and review_ref.'
+            description="1 = legacy manifest (version always 1, parent_version and review_ref always null). 2 = versioned manifest with real version, parent_version, and review_ref."
         ),
     ]
     version: Annotated[int, Field(ge=1)]

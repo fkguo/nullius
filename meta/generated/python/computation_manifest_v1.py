@@ -10,15 +10,15 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
 
 
 class Tool(StrEnum):
-    mathematica = 'mathematica'
-    julia = 'julia'
-    python = 'python'
-    bash = 'bash'
+    mathematica = "mathematica"
+    julia = "julia"
+    python = "python"
+    bash = "bash"
 
 
 class EntryPoint(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     script: Annotated[
         str,
@@ -27,59 +27,59 @@ class EntryPoint(BaseModel):
         ),
     ]
     tool: Annotated[
-        Tool | None, Field(description='Tool/interpreter used to run the entry script.')
+        Tool | None, Field(description="Tool/interpreter used to run the entry script.")
     ] = None
     args: Annotated[
         list[str] | None,
-        Field(description='Command-line arguments passed to the entry script.'),
+        Field(description="Command-line arguments passed to the entry script."),
     ] = None
     env: Annotated[
         dict[str, str] | None,
-        Field(description='Environment variables required by the entry script.'),
+        Field(description="Environment variables required by the entry script."),
     ] = None
 
 
 class Step(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     id: Annotated[
-        str, Field(description='Unique step identifier within this manifest.')
+        str, Field(description="Unique step identifier within this manifest.")
     ]
     description: Annotated[
         str | None,
-        Field(description='Human-readable description of what this step does.'),
+        Field(description="Human-readable description of what this step does."),
     ] = None
-    tool: Annotated[Tool, Field(description='Tool/interpreter for this step.')]
+    tool: Annotated[Tool, Field(description="Tool/interpreter for this step.")]
     script: Annotated[
-        str | None, Field(description='Relative path to the script for this step.')
+        str | None, Field(description="Relative path to the script for this step.")
     ] = None
     args: Annotated[
-        list[str] | None, Field(description='Arguments passed to the script.')
+        list[str] | None, Field(description="Arguments passed to the script.")
     ] = None
     expected_outputs: Annotated[
         list[str] | None,
-        Field(description='Relative paths to files this step is expected to produce.'),
+        Field(description="Relative paths to files this step is expected to produce."),
     ] = None
     depends_on: Annotated[
         list[str] | None,
-        Field(description='Step IDs that must complete before this step runs.'),
+        Field(description="Step IDs that must complete before this step runs."),
     ] = None
     timeout_minutes: Annotated[
-        int | None, Field(description='Per-step timeout in minutes.', ge=1)
+        int | None, Field(description="Per-step timeout in minutes.", ge=1)
     ] = None
 
 
 class Platform(StrEnum):
-    any = 'any'
-    linux = 'linux'
-    macos = 'macos'
-    windows = 'windows'
+    any = "any"
+    linux = "linux"
+    macos = "macos"
+    windows = "windows"
 
 
 class Environment(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     mathematica_version: Annotated[
         str | None,
@@ -94,17 +94,17 @@ class Environment(BaseModel):
         str | None, Field(description="Minimum required Python version (e.g. '3.11').")
     ] = None
     platform: Annotated[
-        Platform | None, Field(description='Target platform constraint.')
-    ] = 'any'
+        Platform | None, Field(description="Target platform constraint.")
+    ] = "any"
     notes: Annotated[
         str | None,
-        Field(description='Free-text notes about the execution environment.'),
+        Field(description="Free-text notes about the execution environment."),
     ] = None
 
 
 class Dependencies(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     mathematica_packages: Annotated[
         list[str] | None,
@@ -130,80 +130,80 @@ class Dependencies(BaseModel):
     ] = None
     data_files: Annotated[
         list[str] | None,
-        Field(description='External data files required (relative paths or URIs).'),
+        Field(description="External data files required (relative paths or URIs)."),
     ] = None
 
 
 class ComputationBudget(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     estimated_runtime_minutes: Annotated[
         float | None,
-        Field(description='Estimated wall-clock runtime in minutes.', ge=0.0),
+        Field(description="Estimated wall-clock runtime in minutes.", ge=0.0),
     ] = None
     max_runtime_minutes: Annotated[
         float | None,
         Field(
-            description='Hard timeout in minutes (computation aborts if exceeded).',
+            description="Hard timeout in minutes (computation aborts if exceeded).",
             ge=0.0,
         ),
     ] = None
     max_memory_gb: Annotated[
-        float | None, Field(description='Maximum RAM usage in GB.', ge=0.0)
+        float | None, Field(description="Maximum RAM usage in GB.", ge=0.0)
     ] = None
     max_cpu_cores: Annotated[
-        int | None, Field(description='Maximum number of CPU cores to use.', ge=1)
+        int | None, Field(description="Maximum number of CPU cores to use.", ge=1)
     ] = None
     max_disk_gb: Annotated[
-        float | None, Field(description='Maximum disk space for outputs in GB.', ge=0.0)
+        float | None, Field(description="Maximum disk space for outputs in GB.", ge=0.0)
     ] = None
     notes: Annotated[
-        str | None, Field(description='Free-text notes about resource requirements.')
+        str | None, Field(description="Free-text notes about resource requirements.")
     ] = None
 
 
 class ComputationmanifestV1(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     schema_version: Annotated[
-        Literal[1], Field(description='Schema version, always 1 for this schema.')
+        Literal[1], Field(description="Schema version, always 1 for this schema.")
     ]
     title: Annotated[
         str | None,
-        Field(description='Human-readable title for this computation manifest.'),
+        Field(description="Human-readable title for this computation manifest."),
     ] = None
     description: Annotated[
         str | None,
-        Field(description='Brief description of what this computation does.'),
+        Field(description="Brief description of what this computation does."),
     ] = None
     entry_point: Annotated[
-        EntryPoint, Field(description='Primary execution entry point.')
+        EntryPoint, Field(description="Primary execution entry point.")
     ]
     steps: Annotated[
         list[Step],
         Field(
-            description='Ordered or dependency-resolved execution steps.', min_length=1
+            description="Ordered or dependency-resolved execution steps.", min_length=1
         ),
     ]
     environment: Annotated[
-        Environment, Field(description='Runtime environment requirements.')
+        Environment, Field(description="Runtime environment requirements.")
     ]
     dependencies: Annotated[
-        Dependencies, Field(description='Software and data dependencies.')
+        Dependencies, Field(description="Software and data dependencies.")
     ]
     computation_budget: Annotated[
         ComputationBudget | None,
-        Field(description='Resource budget for this computation.'),
+        Field(description="Resource budget for this computation."),
     ] = None
     outputs: Annotated[
         list[str] | None,
         Field(
-            description='Top-level output files produced by this manifest (relative paths).'
+            description="Top-level output files produced by this manifest (relative paths)."
         ),
     ] = None
     created_at: Annotated[
         AwareDatetime | None,
-        Field(description='ISO 8601 UTC timestamp when this manifest was created.'),
+        Field(description="ISO 8601 UTC timestamp when this manifest was created."),
     ] = None

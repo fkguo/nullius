@@ -10,18 +10,18 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
 
 
 class SubjectKind(StrEnum):
-    claim = 'claim'
-    result = 'result'
-    deliverable = 'deliverable'
-    acceptance_test = 'acceptance_test'
-    reference_action = 'reference_action'
-    forbidden_proxy = 'forbidden_proxy'
-    comparison_target = 'comparison_target'
+    claim = "claim"
+    result = "result"
+    deliverable = "deliverable"
+    acceptance_test = "acceptance_test"
+    reference_action = "reference_action"
+    forbidden_proxy = "forbidden_proxy"
+    comparison_target = "comparison_target"
 
 
 class SourceRef(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     uri: Annotated[
         str,
@@ -36,30 +36,30 @@ class SourceRef(BaseModel):
         ),
     ] = None
     schema_version: Annotated[
-        int | None, Field(description='Schema version of the referenced artifact.')
+        int | None, Field(description="Schema version of the referenced artifact.")
     ] = None
     sha256: Annotated[
         str,
         Field(
-            description='SHA-256 hex digest of the artifact content. Used for integrity verification and content addressing.',
-            pattern='^[0-9a-f]{64}$',
+            description="SHA-256 hex digest of the artifact content. Used for integrity verification and content addressing.",
+            pattern="^[0-9a-f]{64}$",
         ),
     ]
     size_bytes: Annotated[
-        int | None, Field(description='Size of the artifact in bytes.', ge=0)
+        int | None, Field(description="Size of the artifact in bytes.", ge=0)
     ] = None
     produced_by: Annotated[
-        str | None, Field(description='Agent or component that produced this artifact.')
+        str | None, Field(description="Agent or component that produced this artifact.")
     ] = None
     created_at: Annotated[
         AwareDatetime | None,
-        Field(description='ISO 8601 UTC Z timestamp of artifact creation.'),
+        Field(description="ISO 8601 UTC Z timestamp of artifact creation."),
     ] = None
 
 
 class LinkedIdentifier(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     id_kind: Annotated[str, Field(min_length=1)]
     id_value: Annotated[str, Field(min_length=1)]
@@ -67,7 +67,7 @@ class LinkedIdentifier(BaseModel):
 
 class VerificationsubjectV1(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     schema_version: Literal[1]
     subject_id: Annotated[str, Field(min_length=1)]

@@ -10,29 +10,29 @@ from pydantic import AnyUrl, AwareDatetime, BaseModel, ConfigDict, Field
 
 
 class MutationType(StrEnum):
-    repair = 'repair'
-    optimize = 'optimize'
-    innovate = 'innovate'
+    repair = "repair"
+    optimize = "optimize"
+    innovate = "innovate"
 
 
 class GateLevel(StrEnum):
-    A0 = 'A0'
-    A1 = 'A1'
-    A2 = 'A2'
-    reject = 'reject'
+    A0 = "A0"
+    A1 = "A1"
+    A2 = "A2"
+    reject = "reject"
 
 
 class Severity(StrEnum):
-    within_limit = 'within_limit'
-    approaching_limit = 'approaching_limit'
-    exceeded = 'exceeded'
-    critical_overrun = 'critical_overrun'
-    hard_cap_breach = 'hard_cap_breach'
+    within_limit = "within_limit"
+    approaching_limit = "approaching_limit"
+    exceeded = "exceeded"
+    critical_overrun = "critical_overrun"
+    hard_cap_breach = "hard_cap_breach"
 
 
 class BlastRadius(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     files_changed: Annotated[int, Field(ge=0)]
     lines_added: Annotated[int, Field(ge=0)]
@@ -44,7 +44,7 @@ class BlastRadius(BaseModel):
 
 class Step(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     command: str
     passed: bool
@@ -55,20 +55,20 @@ class Step(BaseModel):
 
 class ValidationResult(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     all_passed: bool
     steps: list[Step]
 
 
 class Severity1(StrEnum):
-    error = 'error'
-    warning = 'warning'
+    error = "error"
+    warning = "warning"
 
 
 class Violation(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     rule_id: str
     file: str
@@ -80,7 +80,7 @@ class Violation(BaseModel):
 
 class ContractGuardResult(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     passed: bool
     violations: list[Violation]
@@ -89,16 +89,16 @@ class ContractGuardResult(BaseModel):
 
 class CapsuleV1(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     capsule_id: Annotated[
         str,
         Field(
-            description='Unique capsule identifier (ID-01 compliant)',
-            pattern='^cap_[0-9a-f-]+$',
+            description="Unique capsule identifier (ID-01 compliant)",
+            pattern="^cap_[0-9a-f-]+$",
         ),
     ]
-    gene_id: Annotated[str, Field(description='Gene that produced this capsule')]
+    gene_id: Annotated[str, Field(description="Gene that produced this capsule")]
     trigger: Annotated[
         list[str],
         Field(
@@ -109,38 +109,38 @@ class CapsuleV1(BaseModel):
     signal_key: Annotated[
         str,
         Field(
-            description='FNV-1a hash of normalized trigger signals. Required — computed via computeSignalKey(trigger) at capsule creation time.'
+            description="FNV-1a hash of normalized trigger signals. Required — computed via computeSignalKey(trigger) at capsule creation time."
         ),
     ]
     confidence: Annotated[
-        float, Field(description='Confidence score at creation time', ge=0.0, le=1.0)
+        float, Field(description="Confidence score at creation time", ge=0.0, le=1.0)
     ]
     blast_radius: BlastRadius
-    mutation_type: MutationType | None = 'repair'
+    mutation_type: MutationType | None = "repair"
     validation_result: ValidationResult | None = None
     contract_guard_result: ContractGuardResult | None = None
     gate_level: Annotated[
-        GateLevel | None, Field(description='Determined gate level for this capsule')
+        GateLevel | None, Field(description="Determined gate level for this capsule")
     ] = None
     files_modified: Annotated[
-        list[str] | None, Field(description='List of files modified by this capsule')
+        list[str] | None, Field(description="List of files modified by this capsule")
     ] = None
     artifact_uri: Annotated[
         AnyUrl | None,
         Field(
-            description='H-18 ArtifactRef URI to capsule content (diff, patch). Full ArtifactRef object resolved via artifact store.'
+            description="H-18 ArtifactRef URI to capsule content (diff, patch). Full ArtifactRef object resolved via artifact store."
         ),
     ] = None
-    run_id: Annotated[str | None, Field(pattern='^run_[0-9a-f-]+$')] = None
+    run_id: Annotated[str | None, Field(pattern="^run_[0-9a-f-]+$")] = None
     node_id: Annotated[
         str | None,
         Field(
-            description='Corresponding Memory Graph node ID (EVO-20)',
-            pattern='^mgn_[0-9a-f-]+$',
+            description="Corresponding Memory Graph node ID (EVO-20)",
+            pattern="^mgn_[0-9a-f-]+$",
         ),
     ] = None
     generalized_to_gene: Annotated[
         str | None,
-        Field(description='If this capsule was generalized, the resulting gene_id'),
+        Field(description="If this capsule was generalized, the resulting gene_id"),
     ] = None
     created_at: AwareDatetime

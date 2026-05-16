@@ -11,150 +11,150 @@ from pydantic import AnyUrl, AwareDatetime, BaseModel, ConfigDict, Field
 
 
 class ProposalType(StrEnum):
-    new_skill = 'new_skill'
-    scope_extension = 'scope_extension'
+    new_skill = "new_skill"
+    scope_extension = "scope_extension"
 
 
 class Origin(StrEnum):
-    manual = 'manual'
-    agent_trace = 'agent_trace'
+    manual = "manual"
+    agent_trace = "agent_trace"
 
 
 class GateLevel(StrEnum):
-    A0 = 'A0'
-    A1 = 'A1'
-    A2 = 'A2'
+    A0 = "A0"
+    A1 = "A1"
+    A2 = "A2"
 
 
 class Status(StrEnum):
-    pending_review = 'pending_review'
-    approved = 'approved'
-    rejected = 'rejected'
-    installed = 'installed'
-    retired = 'retired'
+    pending_review = "pending_review"
+    approved = "approved"
+    rejected = "rejected"
+    installed = "installed"
+    retired = "retired"
 
 
 class PatternKind(StrEnum):
-    fix_pattern = 'fix_pattern'
-    methodology_pattern = 'methodology_pattern'
-    package_usage_pattern = 'package_usage_pattern'
+    fix_pattern = "fix_pattern"
+    methodology_pattern = "methodology_pattern"
+    package_usage_pattern = "package_usage_pattern"
 
 
 class SkillTrigger(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
-    description: Annotated[str, Field(description='Human-readable trigger description')]
+    description: Annotated[str, Field(description="Human-readable trigger description")]
     pattern_kind: Annotated[
         PatternKind | None,
-        Field(description='What kind of repeatable pattern triggered this proposal.'),
+        Field(description="What kind of repeatable pattern triggered this proposal."),
     ] = None
     file_types: Annotated[
-        list[str] | None, Field(description='File extensions this skill applies to')
+        list[str] | None, Field(description="File extensions this skill applies to")
     ] = None
     tool_names: Annotated[
         list[str] | None,
-        Field(description='Tools that repeatedly appear in the triggering pattern.'),
+        Field(description="Tools that repeatedly appear in the triggering pattern."),
     ] = None
     package_names: Annotated[
         list[str] | None,
         Field(
-            description='Scientific or runtime packages that repeatedly appear in the triggering pattern.'
+            description="Scientific or runtime packages that repeatedly appear in the triggering pattern."
         ),
     ] = None
     workflow_signature: Annotated[
         str | None,
         Field(
-            description='Normalized workflow or package signature for recurring process patterns.'
+            description="Normalized workflow or package signature for recurring process patterns."
         ),
     ] = None
     signal_pattern: Annotated[
-        str | None, Field(description='Signal pattern that activates this skill')
+        str | None, Field(description="Signal pattern that activates this skill")
     ] = None
 
 
 class Type(StrEnum):
-    replace_regex = 'replace_regex'
-    insert_guard = 'insert_guard'
-    wrap_block = 'wrap_block'
-    reorder_lines = 'reorder_lines'
-    add_annotation = 'add_annotation'
-    remove_pattern = 'remove_pattern'
-    restructure = 'restructure'
-    workflow_recipe = 'workflow_recipe'
-    tool_sequence = 'tool_sequence'
-    package_playbook = 'package_playbook'
+    replace_regex = "replace_regex"
+    insert_guard = "insert_guard"
+    wrap_block = "wrap_block"
+    reorder_lines = "reorder_lines"
+    add_annotation = "add_annotation"
+    remove_pattern = "remove_pattern"
+    restructure = "restructure"
+    workflow_recipe = "workflow_recipe"
+    tool_sequence = "tool_sequence"
+    package_playbook = "package_playbook"
 
 
 class SkillAction(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
-    type: Annotated[Type, Field(description='Edit pattern class')]
-    rule: Annotated[str, Field(description='Generalized rule definition')]
+    type: Annotated[Type, Field(description="Edit pattern class")]
+    rule: Annotated[str, Field(description="Generalized rule definition")]
 
 
 class EvidenceTrace(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     trace_id: UUID
-    run_id: Annotated[str, Field(pattern='^run_[0-9a-f-]+$')]
+    run_id: Annotated[str, Field(pattern="^run_[0-9a-f-]+$")]
     file_path: str
     timestamp: AwareDatetime
     artifact_uri: Annotated[
         AnyUrl | None,
-        Field(description='H-18 ArtifactRef URI to the specific trace event content'),
+        Field(description="H-18 ArtifactRef URI to the specific trace event content"),
     ] = None
 
 
 class CoverageDelta(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
-    before: Annotated[str, Field(description='Current coverage description')]
-    after: Annotated[str, Field(description='Proposed coverage description')]
+    before: Annotated[str, Field(description="Current coverage description")]
+    after: Annotated[str, Field(description="Proposed coverage description")]
 
 
 class EditPattern(StrEnum):
-    replace_regex = 'replace_regex'
-    insert_guard = 'insert_guard'
-    wrap_block = 'wrap_block'
-    reorder_lines = 'reorder_lines'
-    add_annotation = 'add_annotation'
-    remove_pattern = 'remove_pattern'
-    restructure = 'restructure'
+    replace_regex = "replace_regex"
+    insert_guard = "insert_guard"
+    wrap_block = "wrap_block"
+    reorder_lines = "reorder_lines"
+    add_annotation = "add_annotation"
+    remove_pattern = "remove_pattern"
+    restructure = "restructure"
 
 
 class PatternFingerprint(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
-    file_type: Annotated[str, Field(description='File extension pattern applies to')]
+    file_type: Annotated[str, Field(description="File extension pattern applies to")]
     edit_pattern: Annotated[
-        EditPattern, Field(description='Classified edit pattern type')
+        EditPattern, Field(description="Classified edit pattern type")
     ]
-    context: Annotated[str, Field(description='Contextual signal triggering the edit')]
+    context: Annotated[str, Field(description="Contextual signal triggering the edit")]
     fingerprint_key: Annotated[
-        str, Field(description='FNV-1a hash of (file_type|edit_pattern|context)')
+        str, Field(description="FNV-1a hash of (file_type|edit_pattern|context)")
     ]
 
 
 class SkillproposalV2(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     proposal_id: Annotated[
         str,
         Field(
-            description='Unique proposal identifier (ID-01 compliant)',
-            pattern='^sp_[0-9a-f-]+$',
+            description="Unique proposal identifier (ID-01 compliant)",
+            pattern="^sp_[0-9a-f-]+$",
         ),
     ]
     proposal_type: Annotated[
         ProposalType,
         Field(
-            description='Whether this proposes a new skill or extends an existing one'
+            description="Whether this proposes a new skill or extends an existing one"
         ),
     ]
     origin: Annotated[
@@ -164,12 +164,12 @@ class SkillproposalV2(BaseModel):
         ),
     ]
     name: Annotated[
-        str, Field(description='Proposed skill name (kebab-case)', max_length=100)
+        str, Field(description="Proposed skill name (kebab-case)", max_length=100)
     ]
     description: Annotated[
         str,
         Field(
-            description='Human-readable description of what the skill does',
+            description="Human-readable description of what the skill does",
             max_length=2000,
         ),
     ]
@@ -178,14 +178,14 @@ class SkillproposalV2(BaseModel):
     evidence_traces: Annotated[
         list[EvidenceTrace],
         Field(
-            description='Concrete trace events that evidence this pattern. Must include ≥3 instances for agent_trace origin.',
+            description="Concrete trace events that evidence this pattern. Must include ≥3 instances for agent_trace origin.",
             min_length=1,
         ),
     ]
     generalization_confidence: Annotated[
         float,
         Field(
-            description='Confidence in the generalization from specific instances to reusable skill (0-1)',
+            description="Confidence in the generalization from specific instances to reusable skill (0-1)",
             ge=0.0,
             le=1.0,
         ),
@@ -193,14 +193,14 @@ class SkillproposalV2(BaseModel):
     gate_level: Annotated[
         GateLevel,
         Field(
-            description='Required approval gate level. A0=auto, A1=light review, A2=full human review'
+            description="Required approval gate level. A0=auto, A1=light review, A2=full human review"
         ),
     ]
-    status: Annotated[Status, Field(description='Current proposal status')]
+    status: Annotated[Status, Field(description="Current proposal status")]
     existing_skill_id: Annotated[
         str | None,
         Field(
-            description='For scope_extension: the existing skill being extended. Must be non-null for scope_extension proposals (enforced via allOf discriminator).'
+            description="For scope_extension: the existing skill being extended. Must be non-null for scope_extension proposals (enforced via allOf discriminator)."
         ),
     ] = None
     existing_scope: Annotated[
@@ -212,7 +212,7 @@ class SkillproposalV2(BaseModel):
     proposed_scope: Annotated[
         dict[str, Any] | None,
         Field(
-            description='For scope_extension: the proposed merged scope after extension. Required for scope_extension proposals.'
+            description="For scope_extension: the proposed merged scope after extension. Required for scope_extension proposals."
         ),
     ] = None
     new_cases: Annotated[
@@ -225,7 +225,7 @@ class SkillproposalV2(BaseModel):
     coverage_delta: CoverageDelta | None = None
     pattern_fingerprint: PatternFingerprint | None = None
     reviewer_notes: Annotated[
-        str | None, Field(description='Notes from human reviewer')
+        str | None, Field(description="Notes from human reviewer")
     ] = None
     created_at: AwareDatetime
     reviewed_at: AwareDatetime | None = None
