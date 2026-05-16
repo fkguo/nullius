@@ -6,6 +6,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 describe('arXiv rate limiter retry behavior', () => {
   const fetchSpy = vi.fn();
 
+  function fetchFailedWithCause(code: string, message: string): TypeError {
+    const cause = Object.assign(new Error(message), { code });
+    return Object.assign(new TypeError('fetch failed'), { cause });
+  }
+
   beforeEach(() => {
     vi.stubGlobal('fetch', fetchSpy);
     vi.resetModules();
@@ -48,6 +53,35 @@ describe('arXiv rate limiter retry behavior', () => {
       code: 'RATE_LIMIT',
       retryAfterMs: 6000,
     });
+  });
+
+  it('retries transient fetch failures and succeeds on a later attempt', async () => {
+    fetchSpy
+      .mockRejectedValueOnce(fetchFailedWithCause('ETIMEDOUT', 'connect ETIMEDOUT 203.0.113.7:443'))
+      .mockResolvedValueOnce(new Response('{}', { status: 200 }));
+
+    const { arxivFetch } = await import('../src/api/rateLimiter.js');
+    const response = await arxivFetch('https://export.arxiv.org/api/query?max_results=1');
+
+    expect(response.status).toBe(200);
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it('surfaces the fetch failure cause after network retries are exhausted', async () => {
+    fetchSpy.mockRejectedValue(fetchFailedWithCause('UND_ERR_CONNECT_TIMEOUT', 'Connect Timeout Error'));
+
+    const { arxivFetch } = await import('../src/api/rateLimiter.js');
+
+    await expect(arxivFetch('https://export.arxiv.org/api/query?max_results=1')).rejects.toMatchObject({
+      code: 'UPSTREAM_ERROR',
+      message: 'arXiv request failed: fetch failed (cause: Connect Timeout Error)',
+      data: {
+        code: 'UND_ERR_CONNECT_TIMEOUT',
+        cause: 'Connect Timeout Error',
+        attempts: 4,
+      },
+    });
+    expect(fetchSpy).toHaveBeenCalledTimes(4);
   });
 });
 
