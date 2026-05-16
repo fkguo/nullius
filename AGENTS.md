@@ -26,6 +26,7 @@
 - maintainer-only 的 redesign plan、remediation tracker、implementation prompts、formal review packets、lane queue、local workflow notes，不应作为公开仓 surface。
 - 当前公开根级文档以 `README.md`、`docs/README_zh.md`、`docs/QUICKSTART.md`、`docs/TESTING_GUIDE.md`、`docs/PROJECT_STATUS.md`、`docs/ARCHITECTURE.md`、`docs/URI_REGISTRY.md`、`meta/ECOSYSTEM_DEV_CONTRACT.md` 为主。
 - `.serena/memories/architecture-decisions.md` 是仓库内允许跟踪的长期架构结论；其余 Serena memory 默认视为本地临时笔记。
+- `CLAUDE.md` 在公开仓中保留为本文件 governance 段的镜像，给只识别 `CLAUDE.md` 的旧 prompt / Claude 工具用；对 `AGENTS.md` governance 段的任何编辑必须同步到 `CLAUDE.md`，反向亦然；两边出现分歧时以 `AGENTS.md` 为准。
 - GitNexus generated appendix 可以进入 `AGENTS.md` / `CLAUDE.md` 提交面，但它只是工具生成的导航上下文，不是治理 SSOT。
 
 ## Working Norms
