@@ -4,7 +4,7 @@ import * as os from 'os';
 import * as path from 'path';
 
 import { handleToolCall } from '../../src/tools/index.js';
-import { readHepResource } from '../../src/core/resources.js';
+import { readHepUri } from '../../src/core/uriReader.js';
 import { getRunArtifactPath } from '../../src/core/paths.js';
 
 function writeMeasurementsArtifact(params: {
@@ -109,7 +109,7 @@ describe('vNext Phase4: hep_project_compare_measurements', () => {
     expect(payload.summary.comparable_pairs).toBe(1);
     expect(payload.summary.flagged_pairs).toBe(1);
 
-    const artifact = JSON.parse(String((readHepResource(payload.compare_uri) as any).text)) as {
+    const artifact = JSON.parse(String((readHepUri(payload.compare_uri) as any).text)) as {
       policy: { flagging_only: boolean; min_tension_sigma: number };
       flags: Array<{ quantity_normalized: string; z_score: number; lhs: { source: { label: string } }; rhs: { source: { label: string } } }>;
     };
@@ -172,7 +172,7 @@ describe('vNext Phase4: hep_project_compare_measurements', () => {
     expect(payload.summary.flagged_pairs).toBe(0);
     expect(payload.summary.not_comparable_pairs).toBe(1);
 
-    const artifact = JSON.parse(String((readHepResource(payload.compare_uri) as any).text)) as {
+    const artifact = JSON.parse(String((readHepUri(payload.compare_uri) as any).text)) as {
       summary: { reason_counts: Record<string, number> };
       not_comparable?: Array<{ reason: string }>;
     };
@@ -263,7 +263,7 @@ describe('vNext Phase4: hep_project_compare_measurements', () => {
     expect(payload.summary.flagged_pairs).toBe(0);
     expect(payload.summary.not_comparable_pairs).toBe(1);
 
-    const artifact = JSON.parse(String((readHepResource(payload.compare_uri) as any).text)) as {
+    const artifact = JSON.parse(String((readHepUri(payload.compare_uri) as any).text)) as {
       inputs: Array<{ run_id: string; measurements_artifact_name: string }>;
       summary: { reason_counts: Record<string, number> };
       not_comparable?: Array<{ reason: string }>;

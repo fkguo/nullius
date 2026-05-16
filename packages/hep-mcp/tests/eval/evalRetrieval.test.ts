@@ -15,7 +15,7 @@ import {
 import { BASELINES_DIR, readEvalSetFixture } from './evalSnapshots.js';
 
 const { handleToolCall } = await import('../../src/tools/index.js');
-const { readHepResource } = await import('../../src/core/resources.js');
+const { readHepUri } = await import('../../src/core/uriReader.js');
 
 type RetrievalInput = { query: string };
 type RetrievalExpected = { expected_evidence_ids: string[] };
@@ -37,8 +37,8 @@ function toStringArray(value: unknown): string[] {
   return strings;
 }
 
-function readResourceText(uri: string): string {
-  const resource = readHepResource(uri);
+function readUriText(uri: string): string {
+  const resource = readHepUri(uri);
   if (!('text' in resource)) {
     throw new Error(`Expected text resource: ${uri}`);
   }
@@ -121,7 +121,7 @@ describe('eval: retrieval metrics + explanation (local-only)', () => {
           if (!artifactUri) {
             return { evidenceIds: [], explanationAvailable: false };
           }
-          const artifactText = readResourceText(artifactUri);
+          const artifactText = readUriText(artifactUri);
           const artifact = JSON.parse(artifactText) as unknown;
           const artifactObject = isRecord(artifact) ? artifact : {};
           const evidenceIds = toStringArray(artifactObject.evidence_ids);

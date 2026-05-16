@@ -914,7 +914,7 @@ export async function performTheoreticalConflicts(params: {
     },
     artifacts: {
       meta_uri: makeHepRunArtifactUri(params.run_id, 'theoretical_meta_v1.json'),
-      source_status_uri: makeHepRunArtifactUri(params.run_id, 'theoretical_source_status_v1.json'),
+      source_status_artifact_uri: makeHepRunArtifactUri(params.run_id, 'theoretical_source_status_v1.json'),
       claim_candidates_uri: makeHepRunArtifactUri(params.run_id, 'theoretical_claim_candidates.jsonl'),
       claims_normalized_uri: makeHepRunArtifactUri(params.run_id, 'theoretical_claims_normalized.jsonl'),
       conflict_candidates_uri: makeHepRunArtifactUri(params.run_id, 'theoretical_conflict_candidates.jsonl'),

@@ -69,11 +69,11 @@
 - `autoresearch run` 现在是该 seam 的 canonical bounded consumer：它会推进 dependency-satisfied persisted workflow steps，直到完成或遇到 blocking failure，并继续保持唯一 execution front door。
 - 当前 slice 仍未提供 canonical closed-loop literature execution runtime；这里还没有 full scheduler、多步自主编排或 end-to-end closed loop。
 
-## State and resource truth
+## State and artifact truth
 
 - `HEP_DATA_DIR` defaults to `~/.hep-mcp`
 - HEP project/run artifacts live under `projects/<project_id>/...` and `runs/<run_id>/...`
-- HEP resources surface through `hep://projects`, `hep://runs`, and resource templates for papers, manifests, and artifacts
+- Paper originals, extracted text, arXiv source tarballs, and source trees are filesystem materials: keep one-off checks in local temp, and persist verification/continuation inputs under the external project root in suitable project/run artifact directories
 - Generic lifecycle state lives in external project roots under `.autoresearch/`
 - Project-local durable memory lives alongside that state in files such as `research_plan.md`, `research_contract.md`, and substantive `research_notebook.md`; reconnecting agents should treat those files plus `.autoresearch/` as the enduring project truth
 - `research_plan.md#Current Status` should stay readable as the human status entry for final target, current phase, completion state, blocker, next step, stop condition, and evidence pointers before the longer task board and log
@@ -88,4 +88,3 @@
 - [`docs/ARCHITECTURE.md`](./ARCHITECTURE.md)
 - [`docs/TESTING_GUIDE.md`](./TESTING_GUIDE.md)
 - [`docs/TOOL_CATEGORIES.md`](./TOOL_CATEGORIES.md)
-- [`docs/URI_REGISTRY.md`](./URI_REGISTRY.md)

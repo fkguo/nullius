@@ -4,7 +4,7 @@ import * as os from 'os';
 import * as path from 'path';
 
 import { handleToolCall } from '../../src/tools/index.js';
-import { readHepResource } from '../../src/core/resources.js';
+import { readHepUri } from '../../src/core/uriReader.js';
 import { getRunArtifactPath } from '../../src/core/paths.js';
 
 describe('vNext R6: hep_run_build_measurements', () => {
@@ -63,7 +63,7 @@ describe('vNext R6: hep_run_build_measurements', () => {
       artifacts: Array<{ name: string; uri: string }>;
     };
 
-    const measurementsText = String((readHepResource(payload.measurements_uri) as any).text);
+    const measurementsText = String((readHepUri(payload.measurements_uri) as any).text);
     const measurements = measurementsText
       .split('\n')
       .filter(Boolean)
@@ -76,7 +76,7 @@ describe('vNext R6: hep_run_build_measurements', () => {
     expect(measurements[1].evidence_id).toBe('ev_2');
     expect(measurements[1].unit).toBe('/fb');
 
-    const meta = JSON.parse(String((readHepResource(payload.meta_uri) as any).text)) as {
+    const meta = JSON.parse(String((readHepUri(payload.meta_uri) as any).text)) as {
       stats: { measurements_found: number; measurements_written: number };
       warnings: string[];
     };
@@ -90,7 +90,7 @@ describe('vNext R6: hep_run_build_measurements', () => {
     )?.uri;
     expect(diagUri).toBeTruthy();
 
-    const diag = JSON.parse(String((readHepResource(diagUri!) as any).text)) as {
+    const diag = JSON.parse(String((readHepUri(diagUri!) as any).text)) as {
       run_id: string;
       step: string;
       budgets: Array<{ key: string; source?: { kind?: string } }>;
@@ -109,7 +109,7 @@ describe('vNext R6: hep_run_build_measurements', () => {
     expect(diag.warnings.some(w => w.code === 'budget_hit' && w.data?.key === 'hep.measurements.max_results')).toBe(true);
     expect(diag.budgets.find(b => b.key === 'hep.measurements.max_results')?.source?.kind).toBe('tool_args');
 
-    const projectDiag = JSON.parse(String((readHepResource(diag.artifacts.project_diagnostics_uri) as any).text)) as {
+    const projectDiag = JSON.parse(String((readHepUri(diag.artifacts.project_diagnostics_uri) as any).text)) as {
       run_id: string;
       step: string;
     };

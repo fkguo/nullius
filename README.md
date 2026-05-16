@@ -37,7 +37,7 @@ The live HEP tool inventory is code-owned and mode-filtered by `HEP_TOOL_MODE`; 
 | Stateful control plane | `autoresearch` plus `orch_*` | Persistent project/run state, approvals, bounded execution, verification, and read models belong to one shared control plane |
 | Agent project harness | `research-harness` skill | Host-client guidance for recovery, routing, verification, and handoff; it delegates execution to the control plane and domain/executor layers |
 | Experimental runtime bridge | `idea-mcp` | Runtime bridge stays explicit and narrower than the full engine contract |
-| Domain workflow pack | `@autoresearch/hep-mcp`, `hep_*`, `hep://...` | Current strongest end-to-end example without becoming root identity |
+| Domain workflow pack | `@autoresearch/hep-mcp`, `hep_*` | Current strongest end-to-end example without becoming root identity |
 | Provider atoms | `openalex_*`, `arxiv_*`, `hepdata_*`, `pdg_*`, `zotero_*` | Bounded, schema-driven MCP operators are easier to compose than provider-local CLI mirrors |
 | Project-local truth | `.autoresearch/` plus durable memory files | Reconnect truth stays with the external project root, not the development repo |
 
@@ -49,7 +49,7 @@ Skill source and distribution are separate surfaces:
 - `packages/skills-market` is the installer/distribution control plane; it does not mean those skills are preinstalled in a client runtime.
 - `research-harness` is the market-listed thin entry skill for external research projects. It intentionally has no hard package dependency on `research-team`, `markdown-hygiene`, or `hep-mcp`; those remain separate capabilities that the host client may already provide or install independently.
 
-## 4. Where Do Artifacts, Resources, and State Live
+## 4. Where Do Files, Artifacts, and State Live
 
 ### `hep-mcp` data root
 
@@ -73,24 +73,8 @@ Skill source and distribution are separate surfaces:
 - Project roots are created under `projects/<project_id>/...`.
 - Run state lives under `runs/<run_id>/manifest.json` and `runs/<run_id>/artifacts/...`.
 - `PDG_DATA_DIR` is the PDG-local companion root and commonly sits at `<HEP_DATA_DIR>/pdg`.
-- Text artifacts are read directly through MCP resources; binary artifacts return metadata by default so the client does not inline large payloads.
-
-### Current resource schemes
-
-`@autoresearch/hep-mcp` currently exposes a small "iceberg" resource list plus templates:
-
-- `hep://projects`
-- `hep://runs`
-- `hep://projects/{project_id}`
-- `hep://projects/{project_id}/papers`
-- `hep://projects/{project_id}/artifact/{artifact_name}`
-- `hep://projects/{project_id}/papers/{paper_id}`
-- `hep://projects/{project_id}/papers/{paper_id}/evidence/catalog`
-- `hep://runs/{run_id}/manifest`
-- `hep://runs/{run_id}/artifact/{artifact_name}`
-- `pdg://info`
-- `pdg://artifacts`
-- `pdg://artifacts/{artifact_name}`
+- Text and binary artifacts remain on disk under package-owned artifact roots; tool results stay compact and point back to project artifacts instead of inlining large payloads.
+- Paper originals, extracted text, arXiv source tarballs, and source trees are ordinary local files. If they are only needed during the current check, keep them in a local temporary directory; if later verification or continuation needs them, place them under the external project root in the appropriate project/run artifact directory.
 
 ### Generic lifecycle state
 
@@ -112,13 +96,13 @@ Skill source and distribution are separate surfaces:
         approval_packet_v1.json
 ```
 
-The orchestrator read model also surfaces approval packet URIs such as `orch://runs/{run_id}/approvals/{approval_id}`.
+Approval packets are materialized under the run's `artifacts/runs/<run_id>/approvals/<approval_id>/approval_packet_v1.json` path and consumed through lifecycle commands.
 
 ## 5. How Does a User Connect from MCP Clients / Agent Clients
 
 The current MCP connection story is local stdio only. There is not yet a single monolithic generic root MCP server binary; today the most mature domain MCP entrypoint is `hep-mcp`, while the generic control plane is split across the `autoresearch` CLI and the canonical public `orch_*` MCP/operator surface described in [`meta/docs/orchestrator-mcp-tools-spec.md`](./meta/docs/orchestrator-mcp-tools-spec.md). In other words, generic lifecycle/control-plane work is no longer CLI-only even though it does not ship as a separate root MCP server process.
 
-Current public MCP contract: local stdio process launch, tool `inputSchema`, compact JSON/text tool results, selected package-owned resources, and no prompts. `orch_*` is an operator/tool inventory exposed by the orchestrator package; it is not a separately packaged root MCP server. Remote MCP transports, OAuth, and registry publishing remain future deployment work outside the current local-stdio contract.
+Current public MCP contract: local stdio process launch, tool `inputSchema`, compact JSON/text tool results, and no prompts. Research material placement is filesystem-first: transient fetches stay in local temp, while material needed for verification or continuation becomes a project/run artifact. `orch_*` is an operator/tool inventory exposed by the orchestrator package; it is not a separately packaged root MCP server. Remote MCP transports, OAuth, and registry publishing remain future deployment work outside the current local-stdio contract.
 
 Universal MCP config pattern:
 
@@ -131,7 +115,7 @@ Universal MCP config pattern:
         "/absolute/path/to/autoresearch-lab/packages/hep-mcp/dist/index.js"
       ],
       "env": {
-        "HEP_DATA_DIR": "/absolute/path/to/hep-data",
+        "HEP_DATA_DIR": "/absolute/path/to/external-project/artifacts/hep-mcp",
         "HEP_TOOL_MODE": "standard",
         "ZOTERO_BASE_URL": "http://127.0.0.1:23119"
       }
@@ -143,6 +127,7 @@ Universal MCP config pattern:
 Notes:
 
 - Build first: `pnpm -r build`.
+- MCP environment paths are filesystem roots, not URI/protocol settings. For durable project work, point `HEP_DATA_DIR` and colocated paths such as `HEP_DOWNLOAD_DIR`, `PDG_DATA_DIR`, and `WRITING_PROGRESS_DIR` under the external project root; for one-off checks, point them at a local temporary directory.
 - If `autoresearch` is not on `PATH`, create a local wrapper after building:
 
 ```bash
@@ -201,7 +186,6 @@ research_contract.md, research_plan.md#Current Status, and artifacts/runs/<run_i
 - [Testing Guide](./docs/TESTING_GUIDE.md)
 - [Project Status](./docs/PROJECT_STATUS.md)
 - [Tool Categories](./docs/TOOL_CATEGORIES.md)
-- [URI Registry](./docs/URI_REGISTRY.md)
 - [Chinese README](./docs/README_zh.md)
 - [Repo Governance](./AGENTS.md)
 - [Development Contract](./meta/ECOSYSTEM_DEV_CONTRACT.md)
@@ -229,7 +213,7 @@ If you want the current strongest domain-pack smoke path next, connect your MCP 
 1. Call `hep_health`.
 1. Call `hep_project_create`.
 1. Call `hep_run_create`.
-1. Read `hep://runs/{run_id}/manifest`.
+1. Inspect the created run manifest from the tool result or from the configured `HEP_DATA_DIR` run directory.
 
 If you want the current strongest end-to-end workflow family, continue with:
 

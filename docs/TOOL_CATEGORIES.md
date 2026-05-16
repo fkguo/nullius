@@ -130,7 +130,7 @@
 
 ## G) INSPIRE（网络原子工具：检索/分析）
 
-> 备注：高层 literature workflow 现由公开的 stateful `autoresearch workflow-plan` 前门承载，需先 `autoresearch init` 并且会直接通过 `@autoresearch/literature-workflows` 解析后写入 `.autoresearch/state.json#/plan` / `.autoresearch/plan.md`。这里列的是仍可直接调用的 INSPIRE 原子工具；Project/Run 与 `hep://...` resources 主要用于 evidence-first 本地工作流（`hep_*`）。
+> 备注：高层 literature workflow 现由公开的 stateful `autoresearch workflow-plan` 前门承载，需先 `autoresearch init` 并且会直接通过 `@autoresearch/literature-workflows` 解析后写入 `.autoresearch/state.json#/plan` / `.autoresearch/plan.md`。这里列的是仍可直接调用的 INSPIRE 原子工具；Project/Run artifacts 主要用于 evidence-first 本地工作流（`hep_*`）。
 
 - `inspire_search`
 - `inspire_search_next`

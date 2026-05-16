@@ -4,7 +4,7 @@ import * as os from 'os';
 import * as path from 'path';
 
 import { handleToolCall } from '../../src/tools/index.js';
-import { readHepResource } from '../../src/core/resources.js';
+import { readHepUri } from '../../src/core/uriReader.js';
 
 const LIVE_SMOKE_ENABLED = process.env.HEP_LIVE_SMOKE === '1';
 const describeLive = LIVE_SMOKE_ENABLED ? describe : describe.skip;
@@ -56,7 +56,7 @@ describeLive('R8 live smoke: INSPIRE corpus (optional)', () => {
       expect(payload.summary.not_found).toBe(0);
       expect(payload.summary.errors).toBe(0);
 
-      const mappingText = String((readHepResource(payload.mapping_uri) as any).text);
+      const mappingText = String((readHepUri(payload.mapping_uri) as any).text);
       const lines = mappingText
         .split('\n')
         .filter(Boolean)

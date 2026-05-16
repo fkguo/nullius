@@ -6,7 +6,7 @@
 >
 > - 返回值里的 `project_id`、`run_id`、时间戳、URI 等动态字段请按结构和不变量核对，不要逐字比对。
 > - 本文所有 MCP 配置都以 `packages/hep-mcp/dist/index.js` 为当前 domain MCP front door，而不是 generic root front door。
-> - 大对象默认落盘成 artifacts，通过 `hep://...` 或 `pdg://...` resources 读取。
+> - 大对象默认落盘成 artifacts；验收时优先检查 tool result 摘要、文件路径，以及 `HEP_DATA_DIR` / project artifacts 下的实际文件。
 
 ---
 
@@ -48,13 +48,14 @@ HEP_LIVE_SMOKE=1 pnpm -r test
 
 ### 0.2 准备一个干净的数据目录
 
-建议每次验收用新的 `HEP_DATA_DIR`，例如：
+建议每次验收用新的 `HEP_DATA_DIR`。如果是一次性检查，可用本机临时目录；如果结果需要后续验证或接续，应放在外部 project root 的 artifact 子目录下，例如：
 
 - `/Users/<you>/tmp/hep_data_test_001`
+- `/absolute/path/to/external-project/artifacts/hep-mcp`
 
 ### 0.3 在 MCP 客户端里接入当前 domain MCP front door
 
-当前公开 MCP contract 是本地 stdio 进程启动、tool `inputSchema`、紧凑 JSON/text tool result、少量 package-owned resources、没有 prompts。Remote HTTP/OAuth、registry publishing 与独立 root MCP server 不属于当前验收面。
+当前公开 MCP contract 是本地 stdio 进程启动、tool `inputSchema`、紧凑 JSON/text tool result、没有 prompts。MCP env 里的路径是本地文件 / artifact / cache root，不是 URI/protocol 设置。Remote HTTP/OAuth、registry publishing 与独立 root MCP server 不属于当前验收面。
 
 最小配置示例：
 
@@ -67,8 +68,10 @@ HEP_LIVE_SMOKE=1 pnpm -r test
         "/absolute/path/to/autoresearch-lab/packages/hep-mcp/dist/index.js"
       ],
       "env": {
-        "HEP_DATA_DIR": "/absolute/path/to/hep_data_test_001",
-        "HEP_TOOL_MODE": "standard"
+        "HEP_DATA_DIR": "/absolute/path/to/external-project/artifacts/hep-mcp",
+        "HEP_TOOL_MODE": "standard",
+        "HEP_DOWNLOAD_DIR": "/absolute/path/to/external-project/artifacts/hep-mcp/downloads",
+        "WRITING_PROGRESS_DIR": "/absolute/path/to/external-project/artifacts/hep-mcp/writing_progress"
       }
     }
   }
@@ -160,7 +163,7 @@ EOF
 
 ---
 
-## 2. Project / Run + Resources
+## 2. Project / Run + Files
 
 ### 2.1 `hep_project_create`
 
@@ -173,7 +176,7 @@ EOF
 **预期**
 
 - 返回非空 `project_id`
-- 返回 `project_uri = hep://projects/<project_id>`
+- 返回 project 摘要；必要时到 `HEP_DATA_DIR/projects/<project_id>/project.json` 对照完整 manifest
 
 ### 2.2 `hep_project_get`
 
@@ -199,19 +202,15 @@ EOF
 **预期**
 
 - 返回非空 `run_id`
-- 返回 `manifest_uri = hep://runs/<run_id>/manifest`
+- 返回 run manifest 摘要
 - artifacts 中至少包含 `args_snapshot.json`
 
-### 2.4 读取 `hep://runs/{run_id}/manifest`
+### 2.4 检查 run manifest
 
-在客户端资源面板或资源调用里读取：
-
-- `hep://runs`
-- `hep://runs/{run_id}/manifest`
+在 tool result 或磁盘上检查：
 
 **预期**
 
-- `hep://runs` 能列出刚创建的 run
 - manifest 中的首个 step 是 `run_create`
 - manifest 会指向 run artifacts
 
@@ -253,7 +252,7 @@ EOF
 **预期**
 
 - 返回或写入 evidence catalog
-- `hep://projects/<project_id>/papers/fixture-paper/evidence/catalog` 可读
+- `HEP_DATA_DIR/projects/<project_id>/papers/fixture-paper/evidence/catalog.jsonl` 存在且可读
 
 ### 3.2 `hep_run_build_writing_evidence`
 
@@ -521,7 +520,7 @@ autoresearch workflow-plan \
 ## 7. 常见排障
 
 - 工具看不到：先做 `pnpm -r build`，再跑上面的 `listTools` sanity check
-- 资源列表很少：这是设计如此；先看 `hep://projects` 或 `hep://runs`，再进入 manifest / artifact URI
+- 找不到 manifest 或 artifact：先确认 MCP env 中的 `HEP_DATA_DIR` 指向本轮实际使用的数据根；`HEP_DOWNLOAD_DIR` 和 `WRITING_PROGRESS_DIR` 必须位于 `HEP_DATA_DIR` 之内
 - GUI 客户端找不到 Node：把 `command` 换成 Node 的绝对路径
 - 想看 generic lifecycle state：不要从 `hep-mcp` 猜，直接使用 `autoresearch status --project-root ...`
 

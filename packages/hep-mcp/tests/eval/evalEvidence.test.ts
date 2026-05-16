@@ -8,7 +8,7 @@ import { assertEvalSnapshot } from './evalSnapshots.js';
 import { readEvalSetFixture } from './evalSnapshots.js';
 
 const { handleToolCall } = await import('../../src/tools/index.js');
-const { readHepResource } = await import('../../src/core/resources.js');
+const { readHepUri } = await import('../../src/core/uriReader.js');
 
 type EvidenceInput = { continue_on_error: boolean };
 
@@ -36,8 +36,8 @@ type SourceStatusPayload = {
   sources?: SourceStatusEntry[];
 };
 
-function readResourceText(uri: string): string {
-  const resource = readHepResource(uri);
+function readUriText(uri: string): string {
+  const resource = readHepUri(uri);
   if (!('text' in resource)) {
     throw new Error(`Expected text resource: ${uri}`);
   }
@@ -98,7 +98,7 @@ describe('eval: writing evidence (continue_on_error + source status)', () => {
           if (!sourceStatusUri) {
             throw new Error('Missing writing_evidence_source_status.json artifact');
           }
-          const statusText = readResourceText(sourceStatusUri);
+          const statusText = readUriText(sourceStatusUri);
           const status = JSON.parse(statusText) as SourceStatusPayload;
           return { buildPayload, status };
         },

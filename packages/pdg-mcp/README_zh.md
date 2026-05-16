@@ -6,7 +6,7 @@
 
 设计原则：
 
-- **Evidence-first**：大结果写入本地 `artifacts/`，tool 只返回 `uri + summary`；通过 `pdg://` resources 读取内容。
+- **Evidence-first**：大结果写入本地 `artifacts/`，tool 只返回标识符与摘要；完整内容留在本机文件系统中。
 - **Schema SSOT**：工具参数以 Zod schema 为唯一事实来源，并由此派生 MCP `inputSchema`（避免漂移）。
 
 > 依赖：需要系统 `sqlite3` 在 `PATH` 中（内部通过 `sqlite3 -json` 执行只读查询）。
@@ -23,24 +23,15 @@
 - `PDG_DATA_DIR`：本地数据目录（默认：若设置了 `HEP_DATA_DIR` 则为 `<HEP_DATA_DIR>/pdg`；否则 `~/.hep-mcp/pdg`）
   - artifacts 目录为：`$PDG_DATA_DIR/artifacts`
 - `PDG_ARTIFACT_TTL_HOURS`：PDG artifacts 缓存 TTL（小时；`0/off` 禁用；启动时 + 周期性清理；默认 24）
-- `PDG_ARTIFACT_DELETE_AFTER_READ`：若启用，则在通过 `pdg://artifacts/<name>` 成功读取后立即删除该文件（适合“即时查询缓存”用法）
 - `PDG_TOOL_MODE`：工具暴露模式（`standard` 默认；`full` 时可暴露更多工具，若未来添加）
 - `PDG_SQLITE_MAX_STDOUT_BYTES`：限制 sqlite3 单次输出（默认 50MB）
 - `PDG_SQLITE_CONCURRENCY`：sqlite3 并发上限（默认 4）
 
-## Resources（`pdg://`）
+## 本地 artifacts
 
-`pdg-mcp` 额外暴露 resources 以读取本地 artifacts：
+`pdg-mcp` 是 tool-only server，不再声明 MCP resources。
 
-- `pdg://info`
-  - 返回：最小化 server 信息与 `artifacts_dir`（JSON 文本）
-- `pdg://artifacts`
-  - 返回：当前 artifacts 目录下的文件列表（JSON 文本）
-- `pdg://artifacts/<name>`
-  - 文本类（`.json/.jsonl/.txt/.md`）：直接返回文件文本
-  - 二进制类（如 `.pdf/.png/.zip`）：**不返回 base64**，仅返回文件元信息 JSON（`file_path/size_bytes/sha256/mimeType`）
-
-> 说明：为避免 MCP 客户端 UI 中出现海量条目，`resources/list` 只暴露入口资源（`pdg://info` 与 `pdg://artifacts`）。具体 artifact 可通过直接读取 `pdg://artifacts/<name>`（名称从 `pdg://artifacts` index 获取），或通过 `resources/templates/list` 的模板 `pdg://artifacts/{artifact_name}` 访问。
+大结果写入 `$PDG_DATA_DIR/artifacts`。`pdg_info` 会返回 `data_dir` 与 `artifacts_dir`；产出 artifact 的工具可以返回 `pdg://artifacts/<name>` 作为本地指针，但文件内容仍以该目录为准。
 
 ## Tools（`pdg_*`）
 

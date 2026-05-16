@@ -38,18 +38,12 @@ import { getDataDir } from '../data/dataDir.js';
 import { resolvePathWithinParent } from '../data/pathGuard.js';
 import { writeRunJsonArtifact } from '../core/citations.js';
 import { getRun } from '../core/runs.js';
-import { makeHepRunManifestUri } from '../core/runArtifactUri.js';
+import { getRunManifestPath } from '../core/paths.js';
 
 import { getToolSpec, isToolExposed, type ToolExposureMode } from './registry.js';
 import { recordToolUsage } from './utils/toolUsageTelemetry.js';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// H-13: Result content block types (L4: supports resource_link)
-// ─────────────────────────────────────────────────────────────────────────────
-
-export type ToolResultContentBlock =
-  | { type: 'text'; text: string }
-  | { type: 'resource_link'; uri: string; name: string; mimeType: string };
+export type ToolResultContentBlock = { type: 'text'; text: string };
 
 export interface ToolCallContext {
   requestId?: string | number;
@@ -203,10 +197,10 @@ type SkillBridgeJobEnvelopeV1 = {
   version: 1;
   job_id: string;
   status: string;
-  status_uri: string;
+  manifest_path: string;
   polling: {
-    strategy: 'manifest_resource';
-    resource_uri: string;
+    strategy: 'manifest_file';
+    manifest_path: string;
     terminal_statuses: string[];
   };
 };
@@ -230,18 +224,16 @@ function maybeAttachSkillBridgeJobEnvelope(result: unknown): unknown {
     status = 'failed';
   }
 
-  const manifestUri = typeof record.manifest_uri === 'string' && record.manifest_uri.trim().length > 0
-    ? record.manifest_uri.trim()
-    : makeHepRunManifestUri(runId);
+  const manifestPath = getRunManifestPath(runId);
 
   const job: SkillBridgeJobEnvelopeV1 = {
     version: 1,
     job_id: runId,
     status,
-    status_uri: manifestUri,
+    manifest_path: manifestPath,
     polling: {
-      strategy: 'manifest_resource',
-      resource_uri: manifestUri,
+      strategy: 'manifest_file',
+      manifest_path: manifestPath,
       terminal_statuses: ['done', 'failed'],
     },
   };
@@ -393,51 +385,7 @@ function autoSummarize(result: unknown, _toolName: string): Record<string, unkno
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// H-13 L4: resource_link helpers
-// ─────────────────────────────────────────────────────────────────────────────
-
-function collectHepUris(value: unknown, depth = 0): string[] {
-  if (depth > 3) return [];
-  if (typeof value === 'string' && value.startsWith('hep://')) {
-    return [value];
-  }
-  if (Array.isArray(value)) {
-    const uris: string[] = [];
-    for (const item of value) {
-      uris.push(...collectHepUris(item, depth + 1));
-    }
-    return uris;
-  }
-  if (value && typeof value === 'object') {
-    const uris: string[] = [];
-    for (const v of Object.values(value as Record<string, unknown>)) {
-      uris.push(...collectHepUris(v, depth + 1));
-    }
-    return uris;
-  }
-  return [];
-}
-
-// M-21 R2 fix: infer MIME type from hep:// URI artifact name extension
-export function inferMimeType(uri: string): string {
-  const name = uri.split('/').pop() ?? '';
-  if (name.endsWith('.json')) return 'application/json';
-  if (name.endsWith('.jsonl')) return 'application/x-ndjson';
-  if (name.endsWith('.md')) return 'text/markdown';
-  if (name.endsWith('.tex')) return 'text/x-latex';
-  return 'application/octet-stream';
-}
-
-function appendResourceLinks(content: ToolResultContentBlock[], result: unknown): void {
-  const uris = [...new Set(collectHepUris(result))];
-  for (const uri of uris) {
-    const name = decodeURIComponent(uri.split('/').pop() ?? 'artifact');
-    content.push({ type: 'resource_link', uri, name, mimeType: inferMimeType(uri) });
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// formatToolResult — H-13 L0+L1+L3+L4 unified
+// formatToolResult — H-13 L0+L1+L3 unified
 // ─────────────────────────────────────────────────────────────────────────────
 
 function formatToolResult(
@@ -459,9 +407,7 @@ function formatToolResult(
   if (format === 'markdown') {
     const markdown = tryFormatMarkdown(name, processed, args);
     if (markdown !== null) {
-      const content: ToolResultContentBlock[] = [{ type: 'text', text: markdown }];
-      appendResourceLinks(content, processed);
-      return { content };
+      return { content: [{ type: 'text', text: markdown }] };
     }
   }
 
@@ -471,9 +417,7 @@ function formatToolResult(
 
   // L3: fast path — small result
   if (size <= MAX_INLINE_RESULT_BYTES) {
-    const content: ToolResultContentBlock[] = [{ type: 'text', text: json }];
-    appendResourceLinks(content, processed);
-    return { content };
+    return { content: [{ type: 'text', text: json }] };
   }
 
   // L3: over soft limit — write artifact if run_id available
@@ -491,7 +435,6 @@ function formatToolResult(
           artifact_name: artifactName,
           summary,
         }) },
-        { type: 'resource_link', uri: ref.uri, name: artifactName, mimeType: 'application/json' },
       ],
     };
   }
@@ -505,9 +448,7 @@ function formatToolResult(
   }
 
   // Between soft and hard cap, no run context — return as-is
-  const content: ToolResultContentBlock[] = [{ type: 'text', text: json }];
-  appendResourceLinks(content, processed);
-  return { content };
+  return { content: [{ type: 'text', text: json }] };
 }
 
 function formatToolError(

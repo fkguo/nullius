@@ -11,10 +11,10 @@ type JobEnvelope = {
   version: number;
   job_id: string;
   status: string;
-  status_uri: string;
+  manifest_path: string;
   polling: {
     strategy: string;
-    resource_uri: string;
+    manifest_path: string;
     terminal_statuses: string[];
   };
 };
@@ -44,7 +44,7 @@ describe('Contract: Skill↔MCP bridge job envelope', () => {
     }
   });
 
-  it('adds job envelope to run-scoped tool results with manifest polling info', async () => {
+  it('adds job envelope to run-scoped tool results with manifest file polling info', async () => {
     const projectRes = await handleToolCall('hep_project_create', {
       name: 'bridge-project',
       description: 'contract test',
@@ -60,9 +60,11 @@ describe('Contract: Skill↔MCP bridge job envelope', () => {
     const run = parsePayload<{ run_id: string; manifest_uri: string; job: JobEnvelope }>(runRes);
     expect(run.job.version).toBe(1);
     expect(run.job.job_id).toBe(run.run_id);
-    expect(run.job.status_uri).toBe(run.manifest_uri);
-    expect(run.job.polling.strategy).toBe('manifest_resource');
-    expect(run.job.polling.resource_uri).toBe(run.manifest_uri);
+    expect(Object.keys(run.job).sort()).toEqual(['job_id', 'manifest_path', 'polling', 'status', 'version']);
+    expect(run.job.manifest_path).toBe(path.join(tempDir, 'runs', run.run_id, 'manifest.json'));
+    expect(run.job.polling.strategy).toBe('manifest_file');
+    expect(Object.keys(run.job.polling).sort()).toEqual(['manifest_path', 'strategy', 'terminal_statuses']);
+    expect(run.job.polling.manifest_path).toBe(run.job.manifest_path);
     expect(run.job.polling.terminal_statuses).toContain('done');
     expect(['pending', 'running', 'done', 'failed', 'unknown']).toContain(run.job.status);
   });
@@ -101,8 +103,10 @@ describe('Contract: Skill↔MCP bridge job envelope', () => {
     const staged = parsePayload<{ run_id: string; job: JobEnvelope }>(stageRes);
     expect(staged.run_id).toBe(run.run_id);
     expect(staged.job.job_id).toBe(run.run_id);
-    expect(staged.job.status_uri).toBeTruthy();
-    expect(staged.job.polling.strategy).toBe('manifest_resource');
-    expect(staged.job.polling.resource_uri).toBeTruthy();
+    expect(Object.keys(staged.job).sort()).toEqual(['job_id', 'manifest_path', 'polling', 'status', 'version']);
+    expect(staged.job.manifest_path).toBe(path.join(tempDir, 'runs', run.run_id, 'manifest.json'));
+    expect(staged.job.polling.strategy).toBe('manifest_file');
+    expect(Object.keys(staged.job.polling).sort()).toEqual(['manifest_path', 'strategy', 'terminal_statuses']);
+    expect(staged.job.polling.manifest_path).toBe(staged.job.manifest_path);
   });
 });

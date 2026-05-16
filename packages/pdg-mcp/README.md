@@ -6,7 +6,7 @@ English | [中文](./README_zh.md)
 
 Design principles:
 
-- **Evidence-first**: large outputs are written to local `artifacts/`; tools return only `uri + summary`, and the full content is read via `pdg://` resources.
+- **Evidence-first**: large outputs are written to local `artifacts/`; tools return only identifiers plus summaries, and full content stays on the local filesystem.
 - **Schema SSOT**: tool parameters use Zod schemas as the single source of truth, and MCP `inputSchema` is derived from them (no drift).
 
 > Dependency: system `sqlite3` must be available in `PATH` (internally uses `sqlite3 -json` in read-only mode).
@@ -23,24 +23,15 @@ Design principles:
 - `PDG_DATA_DIR`: local data directory (default: `<HEP_DATA_DIR>/pdg` when `HEP_DATA_DIR` is set; otherwise `~/.hep-mcp/pdg`)
   - artifacts directory: `$PDG_DATA_DIR/artifacts`
 - `PDG_ARTIFACT_TTL_HOURS`: PDG artifact cache TTL in hours (`0/off` disables; cleaned on startup and periodically; default 24)
-- `PDG_ARTIFACT_DELETE_AFTER_READ`: if enabled, deletes an artifact file right after it is successfully read via `pdg://artifacts/<name>` (useful for “query cache” workflows)
 - `PDG_TOOL_MODE`: tool exposure mode (`standard` by default; `full` may expose more tools in the future)
 - `PDG_SQLITE_MAX_STDOUT_BYTES`: max sqlite3 stdout per query (default 50MB)
 - `PDG_SQLITE_CONCURRENCY`: sqlite3 concurrency limit (default 4)
 
-## Resources (`pdg://`)
+## Local artifacts
 
-`pdg-mcp` exposes resources for reading local artifacts:
+`pdg-mcp` is tool-only. It does not advertise MCP resources.
 
-- `pdg://info`
-  - returns minimal server info and `artifacts_dir` (JSON text)
-- `pdg://artifacts`
-  - returns the current artifacts index (JSON text)
-- `pdg://artifacts/<name>`
-  - text (`.json/.jsonl/.txt/.md`): returns file text directly
-  - binary (e.g. `.pdf/.png/.zip`): **no base64 payload**; returns metadata JSON only (`file_path/size_bytes/sha256/mimeType`)
-
-> Note: to avoid flooding MCP client UIs, `resources/list` only exposes entrypoints (`pdg://info` and `pdg://artifacts`). Read a concrete artifact via `pdg://artifacts/<name>` (discover names via the `pdg://artifacts` index) or via the `resources/templates/list` template `pdg://artifacts/{artifact_name}`.
+Large outputs are written under `$PDG_DATA_DIR/artifacts`. `pdg_info` reports `data_dir` and `artifacts_dir`; artifact-producing tools may return a `pdg://artifacts/<name>` identifier as a local pointer, but the file content remains in that directory.
 
 ## Tools (`pdg_*`)
 
