@@ -71,7 +71,7 @@
 
 ## State and artifact truth
 
-- `HEP_DATA_DIR` defaults to `~/.hep-mcp`
+- HEP data root resolution is project-aware: tool-call `project_root` writes under `<project_root>/artifacts/hep-mcp`; absent that, `HEP_DATA_DIR` is the explicit override; absent that, scratch fallback is `~/.autoresearch/hep-mcp`
 - HEP project/run artifacts live under `projects/<project_id>/...` and `runs/<run_id>/...`
 - Paper originals, extracted text, arXiv source tarballs, and source trees are filesystem materials: keep one-off checks in local temp, and persist verification/continuation inputs under the external project root in suitable project/run artifact directories
 - Generic lifecycle state lives in external project roots under `.autoresearch/`

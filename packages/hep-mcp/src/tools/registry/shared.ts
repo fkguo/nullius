@@ -1,4 +1,5 @@
 import { zodToMcpInputSchema } from '../mcpSchema.js';
+import { z } from 'zod';
 import { HEP_RENDER_LATEX } from '../../tool-names.js';
 import {
   type ToolExposure,
@@ -40,6 +41,19 @@ if (projectCoreRenderLatexIndex < 0) {
 const PROJECT_CORE_PREFIX_TOOL_SPECS = PROJECT_CORE_TOOL_SPECS.slice(0, projectCoreRenderLatexIndex);
 const PROJECT_CORE_RENDER_EXPORT_TOOL_SPECS = PROJECT_CORE_TOOL_SPECS.slice(projectCoreRenderLatexIndex);
 
+const PROJECT_ROOT_DESCRIPTION =
+  'Optional absolute path to an initialized autoresearch project root. When set, HEP/PDG artifacts for this call are stored under <project_root>/artifacts/hep-mcp; otherwise HEP_DATA_DIR or the scratch default is used.';
+
+function withProjectRootContract(spec: ToolSpec): ToolSpec {
+  if (!(spec.zodSchema instanceof z.ZodObject)) return spec;
+  return {
+    ...spec,
+    zodSchema: spec.zodSchema.extend({
+      project_root: z.string().optional().describe(PROJECT_ROOT_DESCRIPTION),
+    }),
+  };
+}
+
 export const TOOL_SPECS: ToolSpec[] = [
   ...PROJECT_CORE_PREFIX_TOOL_SPECS,
   ...PROJECT_CITATION_TOOL_SPECS,
@@ -49,7 +63,7 @@ export const TOOL_SPECS: ToolSpec[] = [
   ...PDG_TOOL_SPECS,
   ...OPENALEX_TOOL_SPECS,
   ...PROJECT_EXTENSION_TOOL_SPECS,
-];
+].map(withProjectRootContract);
 
 const TOOL_SPECS_BY_NAME = new Map<string, ToolSpec>(
   TOOL_SPECS.map(spec => [spec.name, spec])

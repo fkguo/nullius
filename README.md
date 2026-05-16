@@ -53,10 +53,10 @@ Skill source and distribution are separate surfaces:
 
 ### `hep-mcp` data root
 
-`@autoresearch/hep-mcp` stores local state under `HEP_DATA_DIR`, which defaults to `~/.hep-mcp`.
+`@autoresearch/hep-mcp` resolves its data root per tool call. If a tool call includes `project_root` for an initialized autoresearch project, HEP state is stored under `<project_root>/artifacts/hep-mcp`. Otherwise it uses `HEP_DATA_DIR` when set, then falls back to `~/.autoresearch/hep-mcp` for scratch/temporary checks.
 
 ```text
-<HEP_DATA_DIR>/
+<resolved HEP data root>/
   cache/
   downloads/
   projects/<project_id>/
@@ -72,7 +72,7 @@ Skill source and distribution are separate surfaces:
 
 - Project roots are created under `projects/<project_id>/...`.
 - Run state lives under `runs/<run_id>/manifest.json` and `runs/<run_id>/artifacts/...`.
-- `PDG_DATA_DIR` is the PDG-local companion root and commonly sits at `<HEP_DATA_DIR>/pdg`.
+- `PDG_DATA_DIR` is the PDG-local companion root. If unset, it follows the resolved HEP data root at `<resolved HEP data root>/pdg`.
 - Text and binary artifacts remain on disk under package-owned artifact roots; tool results stay compact and point back to project artifacts instead of inlining large payloads.
 - Paper originals, extracted text, arXiv source tarballs, and source trees are ordinary local files. If they are only needed during the current check, keep them in a local temporary directory; if later verification or continuation needs them, place them under the external project root in the appropriate project/run artifact directory.
 
@@ -115,7 +115,7 @@ Universal MCP config pattern:
         "/absolute/path/to/autoresearch-lab/packages/hep-mcp/dist/index.js"
       ],
       "env": {
-        "HEP_DATA_DIR": "/absolute/path/to/external-project/artifacts/hep-mcp",
+        "HEP_DATA_DIR": "~/.autoresearch/hep-mcp",
         "HEP_TOOL_MODE": "standard",
         "ZOTERO_BASE_URL": "http://127.0.0.1:23119"
       }
@@ -127,7 +127,7 @@ Universal MCP config pattern:
 Notes:
 
 - Build first: `pnpm -r build`.
-- MCP environment paths are filesystem roots, not URI/protocol settings. For durable project work, point `HEP_DATA_DIR` and colocated paths such as `HEP_DOWNLOAD_DIR`, `PDG_DATA_DIR`, and `WRITING_PROGRESS_DIR` under the external project root; for one-off checks, point them at a local temporary directory.
+- MCP environment paths are filesystem roots, not URI/protocol settings. For durable autoresearch project work, pass the initialized `project_root` in HEP tool calls so artifacts go under `<project_root>/artifacts/hep-mcp`. Keep `HEP_DATA_DIR` as a scratch fallback or explicit override for one-off checks, CI, and migrations.
 - If `autoresearch` is not on `PATH`, create a local wrapper after building:
 
 ```bash
@@ -211,9 +211,10 @@ If you want the generic lifecycle/control-plane smoke path first:
 If you want the current strongest domain-pack smoke path next, connect your MCP client to `packages/hep-mcp/dist/index.js` and run:
 
 1. Call `hep_health`.
+1. For durable project work, pass `project_root=/absolute/path/to/external-project` on each HEP tool call.
 1. Call `hep_project_create`.
 1. Call `hep_run_create`.
-1. Inspect the created run manifest from the tool result or from the configured `HEP_DATA_DIR` run directory.
+1. Inspect the created run manifest from the tool result or from `<project_root>/artifacts/hep-mcp/runs/<run_id>/manifest.json`; for scratch checks without `project_root`, inspect the resolved `HEP_DATA_DIR` run directory.
 
 If you want the current strongest end-to-end workflow family, continue with:
 

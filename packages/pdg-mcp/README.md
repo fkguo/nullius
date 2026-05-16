@@ -20,7 +20,7 @@ Design principles:
 
 ### Optional
 
-- `PDG_DATA_DIR`: local data directory (default: `<HEP_DATA_DIR>/pdg` when `HEP_DATA_DIR` is set; otherwise `~/.hep-mcp/pdg`)
+- `PDG_DATA_DIR`: local data directory (default: `<HEP_DATA_DIR>/pdg` when `HEP_DATA_DIR` is set; otherwise `~/.autoresearch/hep-mcp/pdg`)
   - artifacts directory: `$PDG_DATA_DIR/artifacts`
 - `PDG_ARTIFACT_TTL_HOURS`: PDG artifact cache TTL in hours (`0/off` disables; cleaned on startup and periodically; default 24)
 - `PDG_TOOL_MODE`: tool exposure mode (`standard` by default; `full` may expose more tools in the future)

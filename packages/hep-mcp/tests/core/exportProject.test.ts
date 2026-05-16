@@ -7,6 +7,7 @@ import { unzipSync } from 'fflate';
 import { handleToolCall } from '../../src/tools/index.js';
 import { readHepUri } from '../../src/core/uriReader.js';
 import { getRunArtifactPath } from '../../src/core/paths.js';
+import { withHepDataRoot } from '../../src/data/dataDir.js';
 
 function readFixtureJson<T>(fileName: string): T {
   const fixtureDir = new URL('../fixtures/core/m7/', import.meta.url);
@@ -392,5 +393,83 @@ describe('vNext M10: hep_export_project (research_pack.zip + notebooklm_pack)', 
     expect(exportManifest.files?.pdg_artifacts).toContain('pdg/artifacts/pdg_sample.json');
     expect(exportManifest.pdg_artifacts?.artifacts_dir_exists).toBe(true);
     expect(exportManifest.pdg_artifacts?.files?.some((f: any) => f?.zip_path === 'pdg/artifacts/pdg_sample.bin')).toBe(true);
+  });
+
+  it('reads PDG artifacts from project_root scoped storage when exporting a project run', async () => {
+    const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'hep-export-project-root-'));
+    fs.mkdirSync(path.join(projectRoot, '.autoresearch'), { recursive: true });
+
+    const envPdgArtifactsDir = path.join(pdgDataDir, 'artifacts');
+    fs.mkdirSync(envPdgArtifactsDir, { recursive: true });
+    fs.writeFileSync(path.join(envPdgArtifactsDir, 'global_pdg_sample.json'), JSON.stringify({ source: 'global' }), 'utf-8');
+
+    const projectPdgArtifactsDir = path.join(projectRoot, 'artifacts', 'hep-mcp', 'pdg', 'artifacts');
+    fs.mkdirSync(projectPdgArtifactsDir, { recursive: true });
+    fs.writeFileSync(path.join(projectPdgArtifactsDir, 'project_pdg_sample.json'), JSON.stringify({ source: 'project' }), 'utf-8');
+
+    try {
+      const draft = readFixtureJson<any>('section_draft.min.json');
+      const allowed = readFixtureJson<string[]>('allowed_citations.min.json');
+      const citeMapping = readFixtureJson<any>('cite_mapping.min.json');
+
+      const projectRes = await handleToolCall('hep_project_create', {
+        project_root: projectRoot,
+        name: 'M10 export project_root pdg',
+        description: 'm10',
+      });
+      const project = JSON.parse(projectRes.content[0].text) as { project_id: string };
+      const runRes = await handleToolCall('hep_run_create', {
+        project_root: projectRoot,
+        project_id: project.project_id,
+      });
+      const run = JSON.parse(runRes.content[0].text) as { run_id: string };
+
+      const renderRes = await handleToolCall('hep_render_latex', {
+        project_root: projectRoot,
+        run_id: run.run_id,
+        draft,
+        allowed_citations: allowed,
+        cite_mapping: citeMapping,
+      });
+      expect(renderRes.isError).not.toBe(true);
+
+      fs.writeFileSync(
+        path.join(projectRoot, 'artifacts', 'hep-mcp', 'runs', run.run_id, 'artifacts', 'writing_master.bib'),
+        [
+          '@misc{Doe:2020ab,',
+          '  title = {Demo Reference},',
+          '  author = {Doe, John},',
+          '  year = {2020}',
+          '}',
+          '',
+        ].join('\n'),
+        'utf-8'
+      );
+
+      const exportRes = await handleToolCall('hep_export_project', {
+        project_root: projectRoot,
+        _confirm: true,
+        run_id: run.run_id,
+        include_evidence_digests: false,
+        include_pdg_artifacts: true,
+      });
+      expect(exportRes.isError).not.toBe(true);
+
+      const payload = JSON.parse(exportRes.content[0].text) as {
+        artifacts: Array<{ name: string; uri: string }>;
+      };
+      const zipUri = payload.artifacts.find(a => a.name === 'research_pack.zip')?.uri;
+      expect(zipUri).toBeTruthy();
+
+      const zipMeta = await withHepDataRoot(projectRoot, async () =>
+        JSON.parse(String((readHepUri(zipUri!) as any).text)) as { file_path: string }
+      );
+      const files = unzipSync(new Uint8Array(fs.readFileSync(zipMeta.file_path)));
+
+      expect(Object.keys(files)).toContain('pdg/artifacts/project_pdg_sample.json');
+      expect(Object.keys(files)).not.toContain('pdg/artifacts/global_pdg_sample.json');
+    } finally {
+      fs.rmSync(projectRoot, { recursive: true, force: true });
+    }
   });
 });

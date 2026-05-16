@@ -1,8 +1,8 @@
 import * as crypto from 'crypto';
 import * as fs from 'fs';
-import * as os from 'os';
 import * as path from 'path';
 import { invalidParams } from '@autoresearch/shared';
+import { getDataDir as getPdgDataDir } from '@autoresearch/pdg-mcp/tooling';
 import { strToU8, unzipSync, zipSync } from 'fflate';
 
 import { getRun, type RunArtifactRef, type RunManifest, type RunStep, updateRunManifestAtomic } from '../runs.js';
@@ -21,28 +21,6 @@ import { createHepRunArtifactRef, makeHepRunManifestUri } from '../runArtifactUr
 
 function pad3(n: number): string {
   return String(n).padStart(3, '0');
-}
-
-function expandTilde(p: string): string {
-  const trimmed = p.trim();
-  if (trimmed === '~') return os.homedir();
-  if (trimmed.startsWith('~/')) return path.join(os.homedir(), trimmed.slice(2));
-  return trimmed;
-}
-
-function getPdgDataDir(): string {
-  const explicit = process.env.PDG_DATA_DIR;
-  if (explicit && explicit.trim().length > 0) {
-    return path.resolve(expandTilde(explicit));
-  }
-
-  // Keep PDG cache colocated with a per-project HEP_DATA_DIR when available.
-  const hepDataDir = process.env.HEP_DATA_DIR;
-  if (hepDataDir && hepDataDir.trim().length > 0) {
-    return path.resolve(path.join(expandTilde(hepDataDir), 'pdg'));
-  }
-
-  return path.resolve(path.join(os.homedir(), '.hep-mcp', 'pdg'));
 }
 
 function getPdgArtifactsDir(): string {

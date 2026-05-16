@@ -12,7 +12,9 @@ function getStandardSpec(name: string) {
 function getStandardSchemaProperties(name: string): string[] {
   const tool = getTools('standard').find(spec => spec.name === name);
   expect(tool, `missing standard tool definition: ${name}`).toBeDefined();
-  return Object.keys(((tool?.inputSchema as Record<string, unknown>)?.properties ?? {}) as Record<string, unknown>).sort();
+  return Object.keys(((tool?.inputSchema as Record<string, unknown>)?.properties ?? {}) as Record<string, unknown>)
+    .filter(prop => prop !== 'project_root')
+    .sort();
 }
 
 describe('INSPIRE research public surface (M-25)', () => {

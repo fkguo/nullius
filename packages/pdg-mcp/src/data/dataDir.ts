@@ -1,12 +1,14 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { AsyncLocalStorage } from 'async_hooks';
 import { resolvePathWithinParent } from './pathGuard.js';
 
 export const PDG_DATA_DIR_ENV = 'PDG_DATA_DIR';
 const HEP_DATA_DIR_ENV = 'HEP_DATA_DIR';
 
-const DEFAULT_DATA_DIR = path.join(os.homedir(), '.hep-mcp', 'pdg');
+const DEFAULT_DATA_DIR = path.join(os.homedir(), '.autoresearch', 'hep-mcp', 'pdg');
+const pdgDataDirScope = new AsyncLocalStorage<string>();
 
 function expandTilde(p: string): string {
   const trimmed = p.trim();
@@ -16,6 +18,9 @@ function expandTilde(p: string): string {
 }
 
 export function getDataDir(): string {
+  const scoped = pdgDataDirScope.getStore();
+  if (scoped) return scoped;
+
   const explicit = process.env[PDG_DATA_DIR_ENV];
   if (explicit && explicit.trim().length > 0) {
     return path.resolve(expandTilde(explicit));
@@ -30,6 +35,10 @@ export function getDataDir(): string {
   }
 
   return path.resolve(DEFAULT_DATA_DIR);
+}
+
+export async function withPdgDataDir<T>(dataDir: string, fn: () => Promise<T>): Promise<T> {
+  return pdgDataDirScope.run(path.resolve(expandTilde(dataDir)), fn);
 }
 
 export function ensureDir(dirPath: string): void {

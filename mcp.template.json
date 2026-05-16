@@ -6,16 +6,16 @@
         "/absolute/path/to/autoresearch-lab/packages/hep-mcp/dist/index.js"
       ],
       "env": {
-        "HEP_DATA_DIR": "/absolute/path/to/external-project/artifacts/hep-mcp",
+        "HEP_DATA_DIR": "~/.autoresearch/hep-mcp",
         "HEP_TOOL_MODE": "standard",
         "HEP_ENABLE_ZOTERO": "",
-        "HEP_DOWNLOAD_DIR": "/absolute/path/to/external-project/artifacts/hep-mcp/downloads",
+        "HEP_DOWNLOAD_DIR": "~/.autoresearch/hep-mcp/downloads",
         "HEP_DEBUG": "",
         "PDG_DB_PATH": "/absolute/path/to/pdg-data/pdgall-2024-v0.0.5.sqlite",
-        "PDG_DATA_DIR": "/absolute/path/to/external-project/artifacts/hep-mcp/pdg",
+        "PDG_DATA_DIR": "~/.autoresearch/hep-mcp/pdg",
         "ZOTERO_BASE_URL": "http://127.0.0.1:23119",
         "ZOTERO_DATA_DIR": "/absolute/path/to/Zotero",
-        "WRITING_PROGRESS_DIR": "/absolute/path/to/external-project/artifacts/hep-mcp/writing_progress"
+        "WRITING_PROGRESS_DIR": "~/.autoresearch/hep-mcp/writing_progress"
       }
     },
     "zotero-mcp": {

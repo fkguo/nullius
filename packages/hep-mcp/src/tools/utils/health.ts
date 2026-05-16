@@ -6,7 +6,7 @@ import { fileURLToPath } from 'url';
 
 import { INSPIRE_API_URL } from '@autoresearch/shared';
 
-import { getDataDir, getDownloadsDir } from '../../data/dataDir.js';
+import { getDataDir, getDataRootInfo, getDownloadsDir } from '../../data/dataDir.js';
 import { getToolUsageSnapshot } from './toolUsageTelemetry.js';
 import { getTools, type ToolExposureMode } from '../registry.js';
 
@@ -30,7 +30,7 @@ export interface HepHealthResult {
   };
   config: {
     tool_mode: 'standard' | 'full';
-    hep_data_dir: { path: string; writable: boolean };
+    hep_data_dir: { path: string; writable: boolean; source: string; project_root?: string };
     downloads_dir: { path: string; writable: boolean };
     zotero: { enabled: boolean; base_url: string };
     pdg: { configured: boolean; db_path: string | null; data_dir: string; artifacts_dir: string };
@@ -80,17 +80,15 @@ function expandTilde(p: string): string {
 }
 
 function getPdgDataDir(): string {
+  const root = getDataRootInfo();
+  if (root.source === 'project_root') return path.join(root.path, 'pdg');
+
   const explicit = process.env.PDG_DATA_DIR;
   if (explicit && explicit.trim().length > 0) {
     return path.resolve(expandTilde(explicit));
   }
 
-  const hepDataDir = process.env.HEP_DATA_DIR;
-  if (hepDataDir && hepDataDir.trim().length > 0) {
-    return path.resolve(path.join(expandTilde(hepDataDir), 'pdg'));
-  }
-
-  return path.resolve(path.join(os.homedir(), '.hep-mcp', 'pdg'));
+  return path.resolve(path.join(root.path, 'pdg'));
 }
 
 function getPdgArtifactsDir(): string {
@@ -161,6 +159,7 @@ export async function getHepHealth(params: HepHealthParams): Promise<HepHealthRe
   const pkg = readPackageInfo();
 
   const hepDataDir = getDataDir();
+  const hepDataRoot = getDataRootInfo();
   const downloadsDir = getDownloadsDir();
   const hepDataWritable = isWritableDir(hepDataDir);
   const downloadsWritable = isWritableDir(downloadsDir);
@@ -193,7 +192,12 @@ export async function getHepHealth(params: HepHealthParams): Promise<HepHealthRe
     },
     config: {
       tool_mode: parseToolModeFromEnv(),
-      hep_data_dir: { path: hepDataDir, writable: hepDataWritable },
+      hep_data_dir: {
+        path: hepDataDir,
+        writable: hepDataWritable,
+        source: hepDataRoot.source,
+        ...(hepDataRoot.project_root ? { project_root: hepDataRoot.project_root } : {}),
+      },
       downloads_dir: { path: downloadsDir, writable: downloadsWritable },
       zotero: {
         enabled: parseZoteroEnabledFromEnv(),
@@ -222,4 +226,3 @@ export async function getHepHealth(params: HepHealthParams): Promise<HepHealthRe
         },
   };
 }
-

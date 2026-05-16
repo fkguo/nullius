@@ -6,7 +6,7 @@
 >
 > - 返回值里的 `project_id`、`run_id`、时间戳、URI 等动态字段请按结构和不变量核对，不要逐字比对。
 > - 本文所有 MCP 配置都以 `packages/hep-mcp/dist/index.js` 为当前 domain MCP front door，而不是 generic root front door。
-> - 大对象默认落盘成 artifacts；验收时优先检查 tool result 摘要、文件路径，以及 `HEP_DATA_DIR` / project artifacts 下的实际文件。
+> - 大对象默认落盘成 artifacts；验收时优先检查 tool result 摘要、文件路径，以及 `project_root` 解析出的 project artifacts 或 scratch `HEP_DATA_DIR` 下的实际文件。
 
 ---
 
@@ -48,10 +48,10 @@ HEP_LIVE_SMOKE=1 pnpm -r test
 
 ### 0.2 准备一个干净的数据目录
 
-建议每次验收用新的 `HEP_DATA_DIR`。如果是一次性检查，可用本机临时目录；如果结果需要后续验证或接续，应放在外部 project root 的 artifact 子目录下，例如：
+建议每次验收使用隔离的数据根。一次性检查可设置新的 `HEP_DATA_DIR` 或使用默认 scratch；如果结果需要后续验证或接续，应在工具调用中传入已初始化 autoresearch 项目的 `project_root`，使数据写入该 project root 的 artifact 子目录。
 
 - `/Users/<you>/tmp/hep_data_test_001`
-- `/absolute/path/to/external-project/artifacts/hep-mcp`
+- `project_root=/absolute/path/to/external-project` -> `/absolute/path/to/external-project/artifacts/hep-mcp`
 
 ### 0.3 在 MCP 客户端里接入当前 domain MCP front door
 
@@ -68,10 +68,10 @@ HEP_LIVE_SMOKE=1 pnpm -r test
         "/absolute/path/to/autoresearch-lab/packages/hep-mcp/dist/index.js"
       ],
       "env": {
-        "HEP_DATA_DIR": "/absolute/path/to/external-project/artifacts/hep-mcp",
+        "HEP_DATA_DIR": "~/.autoresearch/hep-mcp",
         "HEP_TOOL_MODE": "standard",
-        "HEP_DOWNLOAD_DIR": "/absolute/path/to/external-project/artifacts/hep-mcp/downloads",
-        "WRITING_PROGRESS_DIR": "/absolute/path/to/external-project/artifacts/hep-mcp/writing_progress"
+        "HEP_DOWNLOAD_DIR": "~/.autoresearch/hep-mcp/downloads",
+        "WRITING_PROGRESS_DIR": "~/.autoresearch/hep-mcp/writing_progress"
       }
     }
   }
@@ -176,7 +176,7 @@ EOF
 **预期**
 
 - 返回非空 `project_id`
-- 返回 project 摘要；必要时到 `HEP_DATA_DIR/projects/<project_id>/project.json` 对照完整 manifest
+- 返回 project 摘要；必要时到 resolved data root 的 `projects/<project_id>/project.json` 对照完整 manifest
 
 ### 2.2 `hep_project_get`
 
@@ -219,13 +219,14 @@ EOF
 检查：
 
 ```text
-<HEP_DATA_DIR>/projects/<project_id>/
-<HEP_DATA_DIR>/runs/<run_id>/manifest.json
-<HEP_DATA_DIR>/runs/<run_id>/artifacts/args_snapshot.json
+<resolved-data-root>/projects/<project_id>/
+<resolved-data-root>/runs/<run_id>/manifest.json
+<resolved-data-root>/runs/<run_id>/artifacts/args_snapshot.json
 ```
 
 **预期**
 
+- 传入 `project_root` 时，`<resolved-data-root>` 是 `<project_root>/artifacts/hep-mcp`
 - 路径真实存在
 - run manifest 与资源里读到的内容一致
 
@@ -252,7 +253,7 @@ EOF
 **预期**
 
 - 返回或写入 evidence catalog
-- `HEP_DATA_DIR/projects/<project_id>/papers/fixture-paper/evidence/catalog.jsonl` 存在且可读
+- resolved data root 下的 `projects/<project_id>/papers/fixture-paper/evidence/catalog.jsonl` 存在且可读
 
 ### 3.2 `hep_run_build_writing_evidence`
 
@@ -520,7 +521,7 @@ autoresearch workflow-plan \
 ## 7. 常见排障
 
 - 工具看不到：先做 `pnpm -r build`，再跑上面的 `listTools` sanity check
-- 找不到 manifest 或 artifact：先确认 MCP env 中的 `HEP_DATA_DIR` 指向本轮实际使用的数据根；`HEP_DOWNLOAD_DIR` 和 `WRITING_PROGRESS_DIR` 必须位于 `HEP_DATA_DIR` 之内
+- 找不到 manifest 或 artifact：先确认 tool call 是否传入 `project_root`。有 `project_root` 时检查 `<project_root>/artifacts/hep-mcp`；没有时检查本轮 `HEP_DATA_DIR` 或默认 scratch 根。`HEP_DOWNLOAD_DIR` 和 `WRITING_PROGRESS_DIR` 只对非 `project_root` scratch/override 模式生效，且必须位于 HEP data root 之内
 - GUI 客户端找不到 Node：把 `command` 换成 Node 的绝对路径
 - 想看 generic lifecycle state：不要从 `hep-mcp` 猜，直接使用 `autoresearch status --project-root ...`
 

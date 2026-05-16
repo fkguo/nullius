@@ -54,10 +54,10 @@ Skill 源码面与分发面是分离的：
 
 ### `hep-mcp` 数据根目录
 
-`@autoresearch/hep-mcp` 的本地状态位于 `HEP_DATA_DIR` 下，默认值是 `~/.hep-mcp`。
+`@autoresearch/hep-mcp` 会按每次 tool call 解析数据根目录。若工具调用带有已初始化 autoresearch 项目的 `project_root`，HEP 状态写到 `<project_root>/artifacts/hep-mcp`。否则使用已设置的 `HEP_DATA_DIR`，再否则回退到 `~/.autoresearch/hep-mcp` 作为 scratch / 临时检查目录。
 
 ```text
-<HEP_DATA_DIR>/
+<resolved HEP data root>/
   cache/
   downloads/
   projects/<project_id>/
@@ -73,7 +73,7 @@ Skill 源码面与分发面是分离的：
 
 - Project 根位于 `projects/<project_id>/...`。
 - Run 状态位于 `runs/<run_id>/manifest.json` 与 `runs/<run_id>/artifacts/...`。
-- `PDG_DATA_DIR` 是 PDG 的本地 companion root，常见布局是 `<HEP_DATA_DIR>/pdg`。
+- `PDG_DATA_DIR` 是 PDG 的本地 companion root；未单独设置时跟随 resolved HEP data root，即 `<resolved HEP data root>/pdg`。
 - 文本与二进制 artifacts 都保留在 package-owned artifact root 下；tool result 保持紧凑，只指回 project artifacts，避免把大 payload 内联进上下文。
 - 论文原文、抽取文本、arXiv source tarball 和源码树都是普通本机文件。若只服务于本轮检查，放在本机临时目录；若后续验证或接续还需要，则放在外部 project root 中合适的 project/run artifact 子目录下。
 
@@ -123,7 +123,7 @@ Approval packet 会落在该 run 的 `artifacts/runs/<run_id>/approvals/<approva
         "/absolute/path/to/autoresearch-lab/packages/hep-mcp/dist/index.js"
       ],
       "env": {
-        "HEP_DATA_DIR": "/absolute/path/to/external-project/artifacts/hep-mcp",
+        "HEP_DATA_DIR": "~/.autoresearch/hep-mcp",
         "HEP_TOOL_MODE": "standard",
         "ZOTERO_BASE_URL": "http://127.0.0.1:23119"
       }
@@ -135,7 +135,7 @@ Approval packet 会落在该 run 的 `artifacts/runs/<run_id>/approvals/<approva
 说明：
 
 - 先构建：`pnpm -r build`。
-- MCP env 里的路径是 filesystem roots，不是 URI/protocol 设置。持久项目工作应把 `HEP_DATA_DIR` 以及同源的 `HEP_DOWNLOAD_DIR`、`PDG_DATA_DIR`、`WRITING_PROGRESS_DIR` 放到外部 project root 下；只服务于一次性检查时才指向本机临时目录。
+- MCP env 里的路径是 filesystem roots，不是 URI/protocol 设置。持久 autoresearch 项目工作应在 HEP tool call 中传入已初始化的 `project_root`，让 artifacts 写到 `<project_root>/artifacts/hep-mcp`。`HEP_DATA_DIR` 只作为 scratch fallback，或用于一次性检查、CI、迁移等显式 override。
 - 如果 `autoresearch` 不在 `PATH` 中，构建后创建本地 wrapper：
 
 ```bash
@@ -219,9 +219,10 @@ pnpm --filter @autoresearch/hep-mcp docs:tool-counts:check
 如果你接着想走当前最强的 domain-pack 烟测路径，再把 MCP client 接到 `packages/hep-mcp/dist/index.js` 并执行：
 
 1. 调用 `hep_health`
+1. 若是持久项目工作，每次 HEP tool call 都传入 `project_root=/absolute/path/to/external-project`
 1. 调用 `hep_project_create`
 1. 调用 `hep_run_create`
-1. 从 tool result 或配置的 `HEP_DATA_DIR` run 目录检查刚创建的 run manifest
+1. 从 tool result 或 `<project_root>/artifacts/hep-mcp/runs/<run_id>/manifest.json` 检查刚创建的 run manifest；不传 `project_root` 的 scratch 检查才看 resolved `HEP_DATA_DIR` run 目录
 
 如果你想直接走当前最强的端到端 workflow family，再继续：
 

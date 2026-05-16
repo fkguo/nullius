@@ -34,11 +34,12 @@ import type {
 import type { OutputFormat, SearchResultData } from '../utils/formatters.js';
 import { formatSearchResultMarkdown, formatPaperListMarkdown } from '../utils/formatters.js';
 import { compactPapersInResult, compactPaperSummary } from '../utils/compactPaper.js';
-import { getDataDir } from '../data/dataDir.js';
+import { getDataDir, getDataRootInfo, withHepDataRoot } from '../data/dataDir.js';
 import { resolvePathWithinParent } from '../data/pathGuard.js';
 import { writeRunJsonArtifact } from '../core/citations.js';
 import { getRun } from '../core/runs.js';
 import { getRunManifestPath } from '../core/paths.js';
+import { withPdgDataDir } from '@autoresearch/pdg-mcp/tooling';
 
 import { getToolSpec, isToolExposed, type ToolExposureMode } from './registry.js';
 import { recordToolUsage } from './utils/toolUsageTelemetry.js';
@@ -52,6 +53,42 @@ export interface ToolCallContext {
   spanSink?: SpanSink;
   createMessage?: (params: CreateMessageRequestParamsBase) => Promise<CreateMessageResult>;
   callTool?: (name: string, args: Record<string, unknown>) => Promise<{ content: ToolResultContentBlock[]; isError?: boolean }>;
+}
+
+function projectRootArg(args: Record<string, unknown>): unknown {
+  return Object.prototype.hasOwnProperty.call(args, 'project_root') ? args.project_root : undefined;
+}
+
+function resolvedPdgDataDirForCurrentHepRoot(): string {
+  const root = getDataRootInfo();
+  if (root.source === 'project_root') return `${root.path}/pdg`;
+
+  const explicit = process.env.PDG_DATA_DIR;
+  if (explicit && explicit.trim().length > 0) return explicit;
+  return `${root.path}/pdg`;
+}
+
+export function inferMimeType(uriOrName: string): string {
+  let fileName = uriOrName;
+  try {
+    const url = new URL(uriOrName);
+    fileName = url.pathname.split('/').filter(Boolean).at(-1) ?? uriOrName;
+  } catch {
+    // Plain artifact names are accepted too.
+  }
+
+  try {
+    fileName = decodeURIComponent(fileName);
+  } catch {
+    // Keep the raw name if percent-decoding fails.
+  }
+
+  const lower = fileName.toLowerCase();
+  if (lower.endsWith('.json')) return 'application/json';
+  if (lower.endsWith('.jsonl')) return 'application/x-ndjson';
+  if (lower.endsWith('.md')) return 'text/markdown';
+  if (lower.endsWith('.tex')) return 'text/x-latex';
+  return 'application/octet-stream';
 }
 
 function createProgressReporter(
@@ -529,6 +566,23 @@ export async function handleToolCall(
   mode: ToolExposureMode = 'standard',
   ctx?: ToolCallContext
 ): Promise<{ content: ToolResultContentBlock[]; isError?: boolean }> {
+  try {
+    return await withHepDataRoot(projectRootArg(args), () =>
+      withPdgDataDir(resolvedPdgDataDirForCurrentHepRoot(), () =>
+        handleToolCallInResolvedDataRoot(name, args, mode, ctx)
+      )
+    );
+  } catch (err) {
+    return formatToolError(err, ctx);
+  }
+}
+
+async function handleToolCallInResolvedDataRoot(
+  name: string,
+  args: Record<string, unknown>,
+  mode: ToolExposureMode = 'standard',
+  ctx?: ToolCallContext
+): Promise<{ content: ToolResultContentBlock[]; isError?: boolean }> {
   const reportProgress = createProgressReporter(ctx);
   // H-02: extract or generate trace_id for this tool call
   const { traceId, params: cleanArgs } = extractTraceId(args);
@@ -599,10 +653,25 @@ export async function handleToolCall(
 
     const parsedArgs = parseToolArgs(name, spec.zodSchema, cleanArgs) as unknown as Record<string, unknown>;
     const loopbackCallTool = ctx?.callTool
-      ? (toolName: string, toolArgs: Record<string, unknown>) => ctx.callTool!(toolName, { ...toolArgs, _chain_depth: chainDepth + 1 })
+      ? (toolName: string, toolArgs: Record<string, unknown>) => ctx.callTool!(
+        toolName,
+        {
+          ...toolArgs,
+          ...(projectRootArg(cleanArgs) !== undefined && projectRootArg(toolArgs) === undefined
+            ? { project_root: projectRootArg(cleanArgs) }
+            : {}),
+          _chain_depth: chainDepth + 1,
+        },
+      )
       : (toolName: string, toolArgs: Record<string, unknown>) => handleToolCall(
         toolName,
-        { ...toolArgs, _chain_depth: chainDepth + 1 },
+        {
+          ...toolArgs,
+          ...(projectRootArg(cleanArgs) !== undefined && projectRootArg(toolArgs) === undefined
+            ? { project_root: projectRootArg(cleanArgs) }
+            : {}),
+          _chain_depth: chainDepth + 1,
+        },
         mode,
         {
           requestId: ctx?.requestId,

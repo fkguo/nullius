@@ -59,10 +59,10 @@ Front-door surface classification lives in `meta/front_door_authority_map_v1.jso
 
 ### 5.1 `HEP_DATA_DIR`
 
-`packages/hep-mcp/src/data/dataDir.ts` resolves `HEP_DATA_DIR` to `~/.hep-mcp` by default.
+`packages/hep-mcp/src/data/dataDir.ts` resolves the HEP data root in this order: explicit tool-call `project_root` for an initialized autoresearch project (`<project_root>/artifacts/hep-mcp`), then `HEP_DATA_DIR`, then scratch fallback `~/.autoresearch/hep-mcp`.
 
 ```text
-<HEP_DATA_DIR>/
+<resolved HEP data root>/
   cache/
   downloads/
   projects/<project_id>/
@@ -146,13 +146,14 @@ The current public MCP contract is intentionally narrow: local stdio process lau
 
 Expected environment knobs at the front door:
 
+- `project_root` tool argument for project-local durable artifacts
 - `HEP_DATA_DIR`
 - `HEP_TOOL_MODE`
 - `ZOTERO_BASE_URL`
 - `ZOTERO_DATA_DIR`
 - `PDG_DB_PATH`
 
-These path-like knobs configure local filesystem roots and caches, not URI/protocol authority. Keep durable research inputs and artifacts under the external project root; use local temp roots only for one-off checks whose source files are not needed later.
+These path-like knobs configure local filesystem roots and caches, not URI/protocol authority. Keep durable research inputs and artifacts under the external project root by passing `project_root` to HEP tools; use `HEP_DATA_DIR` / local temp roots only for one-off checks, CI, migrations, or source files that are not needed later.
 
 ### 7.2 Agent/tool namespacing
 
