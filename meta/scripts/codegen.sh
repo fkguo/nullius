@@ -6,6 +6,43 @@ TS_OUT="packages/shared/src/generated"
 PY_OUT="meta/generated/python"
 RESOLVED_DIR="$(mktemp -d)"
 
+# Preflight: enumerate ALL missing required tools at once so a fresh-clone user
+# sees the full set of preconditions on a single run, not one at a time per step.
+MISSING=()
+HINTS=()
+
+if ! command -v python3 &>/dev/null; then
+  MISSING+=("python3")
+  HINTS+=("python3: install Python 3.11+ via your OS package manager")
+fi
+if ! command -v datamodel-codegen &>/dev/null; then
+  MISSING+=("datamodel-codegen")
+  HINTS+=("datamodel-codegen: python3 -m pip install 'datamodel-code-generator[http]'")
+fi
+if [[ ! -x "node_modules/.bin/tsx" ]]; then
+  MISSING+=("node_modules/.bin/tsx")
+  HINTS+=("tsx (workspace devDep): run 'pnpm install' from the repo root")
+fi
+if [[ ! -x "node_modules/.bin/prettier" ]]; then
+  MISSING+=("node_modules/.bin/prettier")
+  HINTS+=("prettier (workspace devDep): run 'pnpm install' from the repo root")
+fi
+if ! command -v ruff &>/dev/null; then
+  if [[ -n "${CI:-}" ]]; then
+    MISSING+=("ruff")
+    HINTS+=("ruff (required in CI): python3 -m pip install ruff")
+  fi
+  # local: ruff missing is a soft warning, handled in Step 5
+fi
+
+if [[ ${#MISSING[@]} -gt 0 ]]; then
+  echo "ERROR: codegen.sh preflight found ${#MISSING[@]} missing tool(s):" >&2
+  for hint in "${HINTS[@]}"; do
+    echo "  - ${hint}" >&2
+  done
+  exit 1
+fi
+
 # Clean output directories to detect stale files after schema rename/delete
 rm -rf "$TS_OUT" "$PY_OUT"
 mkdir -p "$TS_OUT" "$PY_OUT"
