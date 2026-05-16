@@ -31,6 +31,10 @@ jobs:
         if: ${{ matrix.node-version == 22 }}
         run: node scripts/check-shell-boundary-anti-drift.mjs
 
+      - name: Check governance sync (AGENTS.md ↔ CLAUDE.md)
+        if: ${{ matrix.node-version == 22 }}
+        run: node scripts/check-governance-sync.mjs
+
       - run: pnpm -r build
 
       - run: pnpm --filter @autoresearch/hep-mcp docs:tool-counts:check

@@ -10,7 +10,8 @@
     "lint": "pnpm -r lint",
     "clean": "pnpm -r clean",
     "codegen": "bash meta/scripts/codegen.sh",
-    "codegen:check": "bash meta/scripts/codegen.sh && git diff --exit-code -- packages/shared/src/generated meta/generated"
+    "codegen:check": "bash meta/scripts/codegen.sh && git diff --exit-code -- packages/shared/src/generated meta/generated",
+    "check:governance-sync": "node scripts/check-governance-sync.mjs"
   },
   "author": "Feng-Kun Guo",
   "license": "MIT",
