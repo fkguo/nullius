@@ -739,6 +739,8 @@ export async function exportPaperScaffoldForRun(params: ExportPaperScaffoldParam
       checksums[rel] = sha256FileSync(p);
     }
 
+    // Manifest shape is documented by meta/schemas/paper_manifest_v2.schema.json
+    // (covers both schemaVersion 1 and 2 — v1 omits version/parent_version/review_ref).
     const paperManifest = {
       schemaVersion: version === undefined ? 1 : 2,
       generatedAt: nowIso(),

@@ -2,6 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "meta/schemas/paper_manifest_v2.schema.json",
   "title": "Paper Manifest v2",
+  "$comment": "Documentary contract for paper_manifest.json artifacts written by packages/hep-mcp/src/core/export/exportPaperScaffold.ts. The TypeScript type generated from this schema (PaperManifestV2 in packages/shared/src/generated/) is intentionally not imported by name; the schema serves as the canonical artifact-format reference for both runtime writers and tests.",
   "type": "object",
   "additionalProperties": true,
   "required": [
@@ -13,7 +14,8 @@
   "properties": {
     "schemaVersion": {
       "type": "integer",
-      "const": 2
+      "enum": [1, 2],
+      "description": "1 = legacy manifest (version always 1, parent_version and review_ref always null). 2 = versioned manifest with real version, parent_version, and review_ref."
     },
     "version": {
       "type": "integer",

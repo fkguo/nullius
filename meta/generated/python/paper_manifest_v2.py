@@ -3,9 +3,15 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Literal
+from enum import IntEnum
+from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, RootModel
+
+
+class SchemaVersion(IntEnum):
+    integer_1 = 1
+    integer_2 = 2
 
 
 class ParentVersion(RootModel[int]):
@@ -20,7 +26,12 @@ class PaperManifestV2(BaseModel):
     model_config = ConfigDict(
         extra='allow',
     )
-    schemaVersion: Literal[2]
+    schemaVersion: Annotated[
+        SchemaVersion,
+        Field(
+            description='1 = legacy manifest (version always 1, parent_version and review_ref always null). 2 = versioned manifest with real version, parent_version, and review_ref.'
+        ),
+    ]
     version: Annotated[int, Field(ge=1)]
     parent_version: ParentVersion | None
     review_ref: ReviewRef | None
