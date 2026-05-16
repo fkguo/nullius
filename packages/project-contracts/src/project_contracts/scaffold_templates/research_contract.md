@@ -21,7 +21,8 @@ Keep narrative reasoning, interpretation, and human-readable notes in [research_
 
 ## Restart And Status Rule
 
-- If `.autoresearch/` exists, run `autoresearch status --json` before continuing after a new session, reconnect, interruption, context reset, or handoff.
+- If `.autoresearch/HARNESS` exists, run `.autoresearch/bin/autoresearch status --json` before continuing after a new session, reconnect, interruption, context reset, handoff, milestone start, or closeout.
+- If `.autoresearch/` exists but `.autoresearch/HARNESS` is missing, run `autoresearch status --json` first, then repair the runtime handshake with `autoresearch init --runtime-only`.
 - If `autoresearch` is unavailable on `PATH`, run `.autoresearch/bin/autoresearch status --json` instead.
 - Treat `autoresearch` as the guaranteed root entrypoint for this scaffold.
 - Treat that status output as the authoritative recovery briefing.

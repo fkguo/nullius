@@ -107,6 +107,18 @@ describe('autoresearch CLI init/export', () => {
     expect(fs.existsSync(path.join(projectRoot, '.autoresearch', 'state.json'))).toBe(true);
     expect(fs.existsSync(path.join(projectRoot, '.autoresearch', 'approval_policy.json'))).toBe(true);
     expect(fs.existsSync(path.join(projectRoot, '.autoresearch', '.initialized'))).toBe(true);
+    const harnessPath = path.join(projectRoot, '.autoresearch', 'HARNESS');
+    expect(fs.existsSync(harnessPath)).toBe(true);
+    expect(JSON.parse(fs.readFileSync(harnessPath, 'utf-8'))).toMatchObject({
+      schema_version: 1,
+      kind: 'autoresearch_project_harness',
+      status_receipt_required: true,
+      project_local_status_command: '.autoresearch/bin/autoresearch status --json',
+      fallback_status_command: 'autoresearch status --json',
+      host_skill: 'research-harness',
+      lifecycle_authority: 'autoresearch',
+      milestone_executor: 'research-team',
+    });
     const launcherPath = path.join(projectRoot, '.autoresearch', 'bin', 'autoresearch');
     expect(fs.existsSync(launcherPath)).toBe(true);
     expect((fs.statSync(launcherPath).mode & 0o111) !== 0).toBe(true);
@@ -138,6 +150,14 @@ describe('autoresearch CLI init/export', () => {
         status_commands: {
           canonical: 'autoresearch status --json',
           project_local_fallback: '.autoresearch/bin/autoresearch status --json',
+          harness_entrypoint: '.autoresearch/bin/autoresearch status --json',
+        },
+        control_files: {
+          harness: {
+            path: '.autoresearch/HARNESS',
+            exists: true,
+            valid: true,
+          },
         },
         recommended_files: [
           'project_index.md',
@@ -192,6 +212,8 @@ describe('autoresearch CLI init/export', () => {
     expect(code).toBe(0);
     const launcherPath = path.join(projectRoot, '.autoresearch', 'bin', 'autoresearch');
     expect(fs.existsSync(launcherPath)).toBe(true);
+    const harnessPath = path.join(projectRoot, '.autoresearch', 'HARNESS');
+    expect(fs.existsSync(harnessPath)).toBe(true);
     const launcherScript = fs.readFileSync(launcherPath, 'utf-8');
     expect(launcherScript).toContain('project-local autoresearch launcher target is missing');
     expect(launcherScript).toContain('autoresearch init --runtime-only');
@@ -212,6 +234,14 @@ describe('autoresearch CLI init/export', () => {
         status_commands: {
           canonical: 'autoresearch status --json',
           project_local_fallback: '.autoresearch/bin/autoresearch status --json',
+          harness_entrypoint: '.autoresearch/bin/autoresearch status --json',
+        },
+        control_files: {
+          harness: {
+            path: '.autoresearch/HARNESS',
+            exists: true,
+            valid: true,
+          },
         },
         recommended_files: [],
       },

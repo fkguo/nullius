@@ -12,8 +12,9 @@ Autoresearch Lab 是一个面向理论研究的 domain-neutral、evidence-first 
 - `idea-mcp` 继续是实验性的 runtime bridge。它不是 root front door，而且当前 MCP surface 也故意比完整 `idea-engine` runtime contract 更窄。当前 idea-engine phase 已关闭，不应把它当作默认 capability expansion lane。
 - `@autoresearch/hep-mcp` 继续是当前最成熟的 domain pack 与最强的端到端示例，但 HEP 不定义 root 产品身份。
 - `research-harness` 是面向 Codex / Claude Code / OpenCode 的薄 external research project 入口 skill：它恢复 `autoresearch` 项目状态，把里程碑执行路由给 `research-team`，把 Markdown 笔记清理路由给 `markdown-hygiene`，把 HEP 证据工作路由给 `hep-mcp`，并把长期结论折回项目文件与 artifacts。它不是新的 CLI，也不是第二套 control plane。
+- `.autoresearch/HARNESS` 是 `autoresearch init` 写入的机器可读 runtime handshake；存在时 agent 必须先取得 `autoresearch status --json` receipt，再开始新工作、milestone 执行、closeout 或 handoff。
 - `research_brainstorm` 是 `autoresearch workflow-plan` 下的 checked-in durable harness recipe，不是新的顶层 CLI 命令，不是 idea-engine，不是 full research-team workflow，也不是 root front-door expansion。
-- strict fail-closed research quality 继续成立。project-local durable memory 加 `.autoresearch/` state 仍是 reconnect truth；可选 support surfaces 继续只是 opt-in layers。
+- strict fail-closed research quality 继续成立。`.autoresearch/HARNESS`、project-local durable memory 加 `.autoresearch/` state 仍是 reconnect truth；可选 support surfaces 继续只是 opt-in layers。
 
 ## 2. 当前公开 Surface
 
@@ -94,11 +95,12 @@ Skill 源码面与分发面是分离的：
 
 ### 通用 lifecycle state
 
-`autoresearch init` 会在真实外部 project root 中初始化 `.autoresearch/`。当前 lifecycle 包会读写：
+`autoresearch init` 会在真实外部 project root 中初始化 `.autoresearch/HARNESS` 与 `.autoresearch/`。当前 lifecycle 包会读写：
 
 ```text
 <project_root>/
   .autoresearch/
+    HARNESS
     state.json
     ledger.jsonl
     plan.md
@@ -149,6 +151,16 @@ Skill 源码面与分发面是分离的：
 说明：
 
 - 先构建：`pnpm -r build`。
+- 如果 `autoresearch` 不在 `PATH` 中，构建后创建本地 wrapper：
+
+```bash
+mkdir -p "$HOME/.local/bin"
+ln -sf /absolute/path/to/autoresearch-lab/packages/orchestrator/dist/cli.js "$HOME/.local/bin/autoresearch"
+chmod +x "$HOME/.local/bin/autoresearch"
+autoresearch --help
+```
+
+  当前仓库是本地 workspace，不是已发布的全局 npm CLI。上面的 wrapper 是从源码 checkout 给可执行 shell 命令的 agent client 准备 CLI 的通常路径。`autoresearch init` 也会写入 project-local launcher，所以已初始化的研究目录即使没有全局 wrapper，也可以继续运行 `./.autoresearch/bin/autoresearch status --json`。
 - GUI 客户端有时需要把 `node` 换成绝对路径。
 - 有些客户端会把工具名 namespacing 成 `mcp__<serverAlias>__<toolName>`；务必以客户端实际显示的名字为准调用。
 - 常见的 MCP-compatible client 包括 Cursor、Claude Desktop、Claude Code CLI、Chatbox、Cherry Studio、Continue、Cline、Zed。
@@ -158,6 +170,36 @@ Skill 源码面与分发面是分离的：
 autoresearch init --project-root /absolute/path/to/external-project
 autoresearch status --project-root /absolute/path/to/external-project
 ```
+
+- 对 Codex、Claude Code、OpenCode、Cursor、Kimi-code 等 agent client，通常使用同一段幂等启动指令覆盖第一次使用和后续恢复：
+
+```text
+You are in a folder that should be managed by autoresearch.
+First determine whether it is already initialized.
+
+If .autoresearch/HARNESS exists, obtain a status receipt before doing any work:
+./.autoresearch/bin/autoresearch status --json
+If the project-local launcher is unavailable, run:
+autoresearch status --json
+
+If .autoresearch/ exists but .autoresearch/HARNESS is missing, run status first if possible,
+then repair the runtime handshake with:
+autoresearch init --runtime-only
+
+If AGENTS.md and .autoresearch/HARNESS are both missing, initialize the project:
+autoresearch init
+Then read the generated AGENTS.md and run:
+./.autoresearch/bin/autoresearch status --json
+
+If `autoresearch` is not available, first prepare the CLI from the source checkout
+as described in this README, then retry the same startup sequence.
+
+Use research-harness if your agent supports it. Treat autoresearch as the lifecycle
+authority, research-team as the milestone executor, and fold stable results back into
+research_contract.md, research_plan.md#Current Status, and artifacts/runs/<run_id>/.
+```
+
+初始化完成后，接续是 local-first 的：`.autoresearch/HARNESS`、`.autoresearch/bin/autoresearch`、`AGENTS.md`、`research_plan.md`、`research_contract.md` 和 `artifacts/runs/<run_id>/` 足以让 agent 在关闭会话或断网后恢复项目状态；只有真实需要外部文献/数据时才需要网络。
 
 - 对 stateful 文献工作流，先用 `autoresearch init` 初始化目标外部 project root，再在该 root 内或通过 `--project-root` 调用 `autoresearch workflow-plan`。它会直接通过 `@autoresearch/literature-workflows` 解析 recipe，并写入 `.autoresearch/state.json#/plan` / `.autoresearch/plan.md`。有意义的外部研究运行应显式传 `--run-id`；如果省略，派生的 `<recipe>-<phase>` 只作为 planning placeholder。`research_brainstorm` 是 planning-only 的轻量 durable harness：`autoresearch workflow-plan --recipe research_brainstorm --run-id 20260502T023000Z-m0-topic-r1 --topic "<topic>"` 会记录 brainstorm context、candidate angles、screening、单一 recommendation 与 `next_contract` handoff。`.autoresearch/plan.md` 是给人读的派生 read model，不是机器编排 SSOT。这个 contract 可以建议后续进入 `literature_landscape`、`literature_gap_analysis`、`derivation_cycle` 或 `review_cycle` 等更重 recipe，但不会自动启动它们，也不依赖 host-native thinking process。持久化的 `research_brainstorm.*` step tools 是 handoff authority，不是内置 runtime tools，除非未来有外部 tool caller 明确实现它们。
 

@@ -94,11 +94,12 @@ Skill source and distribution are separate surfaces:
 
 ### Generic lifecycle state
 
-`autoresearch init` bootstraps a real external project root and creates `.autoresearch/` there. The current lifecycle package reads and writes:
+`autoresearch init` bootstraps a real external project root and creates `.autoresearch/HARNESS` plus `.autoresearch/` there. The current lifecycle package reads and writes:
 
 ```text
 <project_root>/
   .autoresearch/
+    HARNESS
     state.json
     ledger.jsonl
     plan.md
@@ -142,6 +143,16 @@ Universal MCP config pattern:
 Notes:
 
 - Build first: `pnpm -r build`.
+- If `autoresearch` is not on `PATH`, create a local wrapper after building:
+
+```bash
+mkdir -p "$HOME/.local/bin"
+ln -sf /absolute/path/to/autoresearch-lab/packages/orchestrator/dist/cli.js "$HOME/.local/bin/autoresearch"
+chmod +x "$HOME/.local/bin/autoresearch"
+autoresearch --help
+```
+
+  This repository is currently a local workspace, not a published global npm CLI. The wrapper above is the normal source-checkout install path for agent clients that can execute shell commands. A project-local launcher is also written during `autoresearch init`, so already-initialized research folders can continue with `./.autoresearch/bin/autoresearch status --json` even when the global wrapper is absent.
 - GUI apps sometimes need an absolute Node path instead of bare `node`.
 - Some clients namespace tool names as `mcp__<serverAlias>__<toolName>`. Always call the exact tool name shown by the client.
 - Typical MCP-compatible clients include Cursor, Claude Desktop, Claude Code CLI, Chatbox, Cherry Studio, Continue, Cline, and Zed.
@@ -151,6 +162,36 @@ Notes:
 autoresearch init --project-root /absolute/path/to/external-project
 autoresearch status --project-root /absolute/path/to/external-project
 ```
+
+- For Codex, Claude Code, OpenCode, Cursor, Kimi-code, or similar agent clients, use one idempotent startup instruction for both first use and later recovery:
+
+```text
+You are in a folder that should be managed by autoresearch.
+First determine whether it is already initialized.
+
+If .autoresearch/HARNESS exists, obtain a status receipt before doing any work:
+./.autoresearch/bin/autoresearch status --json
+If the project-local launcher is unavailable, run:
+autoresearch status --json
+
+If .autoresearch/ exists but .autoresearch/HARNESS is missing, run status first if possible,
+then repair the runtime handshake with:
+autoresearch init --runtime-only
+
+If AGENTS.md and .autoresearch/HARNESS are both missing, initialize the project:
+autoresearch init
+Then read the generated AGENTS.md and run:
+./.autoresearch/bin/autoresearch status --json
+
+If `autoresearch` is not available, first prepare the CLI from the source checkout
+as described in this README, then retry the same startup sequence.
+
+Use research-harness if your agent supports it. Treat autoresearch as the lifecycle
+authority, research-team as the milestone executor, and fold stable results back into
+research_contract.md, research_plan.md#Current Status, and artifacts/runs/<run_id>/.
+```
+
+  Once initialized, reconnect is local-first: `.autoresearch/HARNESS`, `.autoresearch/bin/autoresearch`, `AGENTS.md`, `research_plan.md`, `research_contract.md`, and `artifacts/runs/<run_id>/` are enough for an agent to recover the project state after a closed session or a network outage. Network access is only needed for tasks that actually fetch external sources.
 
 - For stateful literature workflows, first initialize the target external project root with `autoresearch init`, then use `autoresearch workflow-plan` from that root or with `--project-root`. It resolves recipes directly via `@autoresearch/literature-workflows`, persists `.autoresearch/state.json#/plan`, and derives `.autoresearch/plan.md`. Pass an explicit `--run-id` for meaningful external research runs; if omitted, the derived `<recipe>-<phase>` id is only a planning placeholder. `research_brainstorm` is the lightweight planning-only durable harness form: `autoresearch workflow-plan --recipe research_brainstorm --run-id 20260502T023000Z-m0-topic-r1 --topic "<topic>"` records brainstorm context, candidate angles, screening, one recommendation, and a `next_contract` handoff. `.autoresearch/plan.md` is a human read model rather than machine orchestration SSOT. The contract may suggest a heavier follow-up recipe such as `literature_landscape`, `literature_gap_analysis`, `derivation_cycle`, or `review_cycle`, but it does not start that recipe automatically and it does not depend on any host-native thinking process. The persisted `research_brainstorm.*` step tools are handoff authority, not built-in runtime tools, unless a future external tool caller explicitly implements them. Any checked-in Python workflow consumers remain maintainer/eval proof only and are not a second front-door shell.
 

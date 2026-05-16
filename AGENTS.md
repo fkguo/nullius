@@ -51,6 +51,15 @@
   - `packages/orchestrator/tests/autoresearch-cli.test.ts`
   - `packages/hep-mcp/tests/docs/docToolDrift.test.ts`
 
+## Developer Runtime Refresh Rules
+
+- 每个开发阶段完成后都必须至少重新构建并验证当前 CLI 入口：`pnpm -r build`，然后运行 `autoresearch --help`。本仓当前的常见本机安装形态是 `~/.local/bin/autoresearch` 指向 `packages/orchestrator/dist/cli.js`；只要 wrapper 目标未变，重新 build 后即可生效，不需要重新安装。
+- 若改动影响 CLI 源码、CLI help、status/read-model、workflow-plan、orchestrator runtime 或 public front-door 行为，closeout 还必须用一个开发仓外的临时 project root 跑 `autoresearch init` 与 `autoresearch status --json` 烟测，并确认 `.autoresearch/HARNESS` 与 `.autoresearch/bin/autoresearch` 仍可用。
+- 若改动影响 `~/.local/bin/autoresearch` wrapper 目标、repo 路径、Node 路径、package `bin`、或安装说明，必须刷新本机 wrapper 并重新运行 `autoresearch --help`；不要假设旧 PATH 入口仍指向当前 checkout。
+- 若改动影响 `research-harness`、`research-team`、`markdown-hygiene`、`hep-mcp` 等 agent-facing skill source 或 skill metadata，必须区分安装方式：symlink 安装通常只需 `readlink` 验证仍指向本仓源文件；copy 安装必须重新安装/复制后再验证。不要把 Codex/Claude/OpenCode/Kimi/Cursor 中的旧 skill copy 当作已更新。
+- 若改动影响 project-local launcher、`.autoresearch/HARNESS`、runtime-only init、或外部项目 reconnect 语义，必须在一个已有外部项目或临时 fixture 中运行 `autoresearch init --runtime-only`，再运行 `./.autoresearch/bin/autoresearch status --json` 验证接续路径。
+- 若改动影响 scaffold templates，记住已生成的外部项目不会自动更新 `AGENTS.md`、`project_index.md`、`research_plan.md` 或 `research_contract.md`；需要迁移既有项目时，必须显式说明或执行迁移/refresh 步骤，不能只依赖新模板。
+
 ## Key Checked-in Authority
 
 - `packages/orchestrator/`: generic lifecycle、bounded computation、workflow-plan front door

@@ -45,9 +45,11 @@ Use it as the restart checklist before any new milestone, context switch, or lon
 - Do not write only "PDF-body read for X"; include the concrete section/page/equation/figure coverage above.
 - Format arXiv, DOI, PDF, source, library, and project-file references as clickable Markdown links. Do not leave bare URLs in literature notes.
 
-## Autoresearch superagent handoff / reconnect protocol
+## Autoresearch session start protocol
 
-- On `new session`, `reconnect`, `interruption`, `context reset`, or `handoff`, if `.autoresearch/` exists, run `autoresearch status --json` before taking any new action.
+- If `.autoresearch/HARNESS` exists, this is a managed autoresearch project. Before any new session, reconnect, interruption recovery, context reset, handoff, milestone start, or closeout, run `.autoresearch/bin/autoresearch status --json`; if that project-local launcher is unavailable, run `autoresearch status --json`.
+- If the host agent exposes a `research-harness` skill or equivalent project-harness entrypoint, use that entrypoint first for reconnect, recovery, routing, verification, and handoff. It restores this project's durable state and then routes lifecycle work to `autoresearch`, milestone execution to `research-team`, and provider/domain work to the relevant tool layer.
+- On `new session`, `reconnect`, `interruption`, `context reset`, or `handoff`, if `.autoresearch/` exists but `.autoresearch/HARNESS` is missing, run `autoresearch status --json` before taking any new action, then repair the runtime handshake with `autoresearch init --runtime-only`.
 - If `autoresearch` is unavailable on `PATH`, run `.autoresearch/bin/autoresearch status --json` instead.
 - Treat `autoresearch` as the guaranteed root entrypoint for this scaffold.
 - Treat that status output as the authoritative recovery briefing for the current run, recovery context, plan view, and bounded workflow outputs.
@@ -75,6 +77,7 @@ Use it as the restart checklist before any new milestone, context switch, or lon
 
 Some projects add extra host-local team or automation layers on top of this root.
 Treat those as opt-in support layers, not the default front door.
+When a host-local layer generates or updates this file, it must preserve the `.autoresearch/HARNESS` and `research-harness` reconnect requirements above so continuation starts from project recovery before executor-specific work.
 If this project already has host-local support surfaces, follow the host's local instructions before using them.
 If it does not, keep using the read order above and update `research_plan.md` directly.
 

@@ -9,6 +9,7 @@ import { readInnovateProposalView, readOptimizeProposalView, readRepairProposalV
 import { readSkillProposalView } from './skill-proposal.js';
 import { readTeamSummaryView } from './team-summary.js';
 import { deriveLedgerStatusFromOperatorEvent } from '../operator-read-model-summary.js';
+import { readAutoresearchHarnessSentinelHealth } from '../autoresearch-harness-sentinel.js';
 import { decisionOverlayForFingerprint, mutationProposalFingerprint, skillProposalFingerprint } from '../proposal-decisions.js';
 import { readProjectLocalAutoresearchLauncherHealth } from '../project-local-autoresearch.js';
 import type { RunState } from '../types.js';
@@ -315,7 +316,11 @@ function readLatestLedgerEvent(projectRoot: string, preferredRunId: string | nul
 function readRecoveryContextView(projectRoot: string, state: RunState): Record<string, unknown> {
   const rawState = stateRecord(state);
   const launcherHealth = readProjectLocalAutoresearchLauncherHealth(projectRoot);
+  const harnessSentinel = readAutoresearchHarnessSentinelHealth(projectRoot);
   const controlFiles = {
+    harness: {
+      ...harnessSentinel,
+    },
     state_json: {
       path: path.join('.autoresearch', 'state.json').split(path.sep).join('/'),
       exists: fs.existsSync(path.join(projectRoot, '.autoresearch', 'state.json')),
@@ -340,6 +345,14 @@ function readRecoveryContextView(projectRoot: string, state: RunState): Record<s
       issue_code: launcherHealth.issue_code,
       repair_command: launcherHealth.repair_command,
       missing_paths: launcherHealth.missing_paths,
+    });
+  }
+  if (harnessSentinel.exists && !harnessSentinel.valid) {
+    warnings.push({
+      code: 'AUTORESEARCH_HARNESS_SENTINEL_INVALID',
+      message: harnessSentinel.message,
+      issue_code: harnessSentinel.issue_code,
+      repair_command: 'autoresearch init --runtime-only',
     });
   }
   const stateRunId = typeof rawState.run_id === 'string' ? rawState.run_id : null;
@@ -421,6 +434,9 @@ function readRecoveryContextView(projectRoot: string, state: RunState): Record<s
     status_commands: {
       canonical: 'autoresearch status --json',
       project_local_fallback: launcherHealth.healthy ? `${launcherHealth.path} status --json` : null,
+      harness_entrypoint: harnessSentinel.valid && harnessSentinel.payload
+        ? harnessSentinel.payload.project_local_status_command
+        : null,
     },
     control_files: controlFiles,
     current_run: currentRun,

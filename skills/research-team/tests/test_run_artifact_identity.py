@@ -47,6 +47,61 @@ class TestRunArtifactIdentity(unittest.TestCase):
         self.assertIn("Do not use bare UUIDs or `run_<uuid>`", docs)
         self.assertNotIn("M0-r1", docs)
 
+    def test_agents_template_preserves_project_harness_precedence(self) -> None:
+        template = (SKILL_ROOT / "assets/AGENTS_template.md").read_text(encoding="utf-8")
+
+        self.assertIn("## Project-harness precedence", template)
+        self.assertIn(".autoresearch/HARNESS", template)
+        self.assertIn("Before any new session, reconnect, interruption recovery, context reset, handoff, milestone start, or closeout", template)
+        self.assertIn("If the host agent exposes a `research-harness` skill", template)
+        self.assertIn("use that entrypoint first for reconnect, recovery, routing, verification, and handoff", template)
+        self.assertIn("routes lifecycle work to `autoresearch`, milestone execution to this `research-team` workflow", template)
+        self.assertIn("not the root project control plane", template)
+        self.assertIn("preserve this project-harness precedence block", template)
+        self.assertIn("the `.autoresearch/HARNESS` trigger", template)
+
+    def test_agents_anchor_gate_requires_harness_precedence_when_runtime_sentinel_exists(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "research_team_config.json").write_text(
+                json.dumps({"features": {"agents_anchor_gate": True}}),
+                encoding="utf-8",
+            )
+            (root / "research_contract.md").write_text("# contract\n", encoding="utf-8")
+            (root / ".autoresearch").mkdir()
+            (root / ".autoresearch" / "HARNESS").write_text('{"schema_version":1}\n', encoding="utf-8")
+            (root / "AGENTS.md").write_text(
+                "\n".join(
+                    [
+                        "# AGENTS.md",
+                        "",
+                        "Use `research_contract.md`.",
+                        "Run `run_team_cycle.sh`.",
+                        "This intentionally long anchor text keeps the fixture above the minimum size while omitting the project-harness precedence tokens that the gate must require when the runtime sentinel exists.",
+                        "The test should fail on the missing runtime handshake, not on the generic minimum-length guard.",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SKILL_ROOT / "scripts/gates/check_agents_anchor.py"),
+                    "--notes",
+                    str(root / "research_contract.md"),
+                ],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                check=False,
+            )
+
+        self.assertEqual(result.returncode, 1, msg=result.stdout)
+        self.assertIn(".autoresearch/HARNESS", result.stdout)
+        self.assertIn("research-harness", result.stdout)
+        self.assertIn(".autoresearch/bin/autoresearch status --json", result.stdout)
+
     def test_next_team_tag_preserves_meaningful_base(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             result = subprocess.run(

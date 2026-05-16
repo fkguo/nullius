@@ -20,21 +20,22 @@ It does not replace the research executors. It restores the project state, route
 
 Work from the external project root, not from the `autoresearch-lab` development repo.
 
-1. Prefer the project-local CLI when it exists:
+1. If `.autoresearch/HARNESS` exists, treat it as the machine-readable runtime handshake: a status receipt is required before new work, milestone execution, closeout, or handoff.
+2. Prefer the project-local CLI when it exists:
    ```bash
    ./.autoresearch/bin/autoresearch status --json
    ```
-2. Otherwise use the installed CLI:
+3. Otherwise use the installed CLI:
    ```bash
    autoresearch status --json
    ```
-3. If both entrypoints are unavailable, repair only the runtime launcher from the
+4. If `.autoresearch/` exists but `.autoresearch/HARNESS` is missing, or if both entrypoints are unavailable, repair only the runtime handshake and launcher from the
    known development checkout, then retry the project-local CLI:
    ```bash
    node /home/user/Coding/Agents/autoresearch-lab/packages/orchestrator/dist/cli.js init --runtime-only
    ./.autoresearch/bin/autoresearch status --json
    ```
-4. Read and align the durable project surfaces:
+5. Read and align the durable project surfaces:
    - `research_plan.md`, especially `# Current Status`
    - `research_contract.md`
    - `research_notebook.md` when it contains substantive project notes

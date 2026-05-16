@@ -10,12 +10,39 @@
 
 ## Generic First-Touch（先走 generic front door）
 
-在 Codex / Claude Code / OpenCode 里继续一个外部研究项目时，优先安装或启用 `research-harness` skill。它不是新的 CLI；它会指导 agent 先读取 `.autoresearch/`、`research_plan.md#Current Status`、`research_contract.md` 与相关 `artifacts/runs/`，再把生命周期操作交给 `autoresearch`、把里程碑推进交给 `research-team`、把 Markdown 笔记清理交给 `markdown-hygiene`、把 HEP 文献/证据工作交给 `hep-mcp`。
+在 Codex / Claude Code / OpenCode 里继续一个外部研究项目时，优先安装或启用 `research-harness` skill。它不是新的 CLI；它会指导 agent 先读取 `.autoresearch/HARNESS`、`.autoresearch/`、`research_plan.md#Current Status`、`research_contract.md` 与相关 `artifacts/runs/`，再把生命周期操作交给 `autoresearch`、把里程碑推进交给 `research-team`、把 Markdown 笔记清理交给 `markdown-hygiene`、把 HEP 文献/证据工作交给 `hep-mcp`。
+
+给 Codex、Claude Code、OpenCode、Cursor、Kimi-code 等 agent 的通常启动指令应当是幂等的：同一段话同时覆盖第一次使用、关闭后重启、断网后恢复。
+
+```text
+You are in a folder that should be managed by autoresearch.
+First determine whether it is already initialized.
+
+If .autoresearch/HARNESS exists, obtain a status receipt before doing any work:
+./.autoresearch/bin/autoresearch status --json
+If the project-local launcher is unavailable, run:
+autoresearch status --json
+
+If .autoresearch/ exists but .autoresearch/HARNESS is missing, run status first if possible,
+then repair the runtime handshake with:
+autoresearch init --runtime-only
+
+If AGENTS.md and .autoresearch/HARNESS are both missing, initialize the project:
+autoresearch init
+Then read the generated AGENTS.md and run:
+./.autoresearch/bin/autoresearch status --json
+
+Use research-harness if your agent supports it. Treat autoresearch as the lifecycle
+authority, research-team as the milestone executor, and fold stable results back into
+research_contract.md, research_plan.md#Current Status, and artifacts/runs/<run_id>/.
+```
+
+初始化完成后，接续是 local-first 的：`.autoresearch/HARNESS`、`.autoresearch/bin/autoresearch`、`AGENTS.md`、`research_plan.md`、`research_contract.md` 和 `artifacts/runs/<run_id>/` 足以让 agent 在关闭会话或断网后恢复项目状态；只有真实需要外部文献/数据时才需要网络。
 
 如果你还没初始化外部 project root，先走这一条：
 
 1) `autoresearch init --project-root /absolute/path/to/external-project`
-- 建立 `.autoresearch/` lifecycle/control-plane 状态。
+- 建立 `.autoresearch/HARNESS` runtime handshake 与 `.autoresearch/` lifecycle/control-plane 状态。
 
 2) `autoresearch status --project-root /absolute/path/to/external-project`
 - 确认 lifecycle state、审批与后续 workflow-plan / computation 入口可见。
