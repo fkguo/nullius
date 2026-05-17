@@ -171,14 +171,18 @@ function safeReaddir(dir: string): fs.Dirent[] {
 }
 
 /**
- * Containment guard: the path MUST resolve under the resolved cacheRoot.
- * Used as a last-line defense against any future bug that produces an
- * unexpected entry path before we rmSync.
+ * Containment guard: the path MUST resolve strictly UNDER the resolved
+ * cacheRoot (not equal to it). Used as a last-line defense against any future
+ * bug that produces an unexpected entry path before we rmSync.
+ *
+ * Rejects child === parent so even a synthesized plan that names the cache
+ * root itself is refused.
  */
 function isWithin(parent: string, child: string): boolean {
-  const p = path.resolve(parent) + path.sep;
-  const c = path.resolve(child) + path.sep;
-  return c.startsWith(p);
+  const p = path.resolve(parent);
+  const c = path.resolve(child);
+  if (c === p) return false;
+  return c.startsWith(p + path.sep);
 }
 
 async function applyPlan(plan: PrunePlan, cacheRoot: string): Promise<void> {
@@ -254,8 +258,9 @@ export async function prunePaperCache(opts: PruneOptions): Promise<PruneReport> 
       if (!entry.isDirectory()) continue;
       const entryDir = path.join(cacheRoot, entry.name);
 
-      // tmp staging dirs follow the pattern <64hex>.tmp-<suffix>
-      if (entry.name.includes('.tmp-')) {
+      // tmp staging dirs follow the strict pattern <64hex>.tmp-<alnum-suffix>
+      // (mirrors papersCache.ts:materializeCacheEntry which uses crypto.randomBytes(6).toString('hex')).
+      if (/^[0-9a-f]{64}\.tmp-[A-Za-z0-9]+$/.test(entry.name)) {
         plans.push({
           cache_key: entry.name,
           cache_entry_dir: entryDir,

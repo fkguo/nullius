@@ -58,6 +58,42 @@ describe('prunePaperCache', () => {
     await expect(prunePaperCache({ project_roots: [] })).rejects.toThrow(/at least one absolute path/);
   });
 
+  it('non-empty array of all-whitespace strings: pure function resolves to cwd (DOCUMENTED CONTRACT)', async () => {
+    // The pure function does not validate per-element strings — that's the
+    // handler's job (admin.ts:125). A direct importer passing whitespace
+    // strings gets them path.resolve'd to cwd, which is harmless but worth
+    // documenting via this test so any future tightening is a deliberate
+    // breaking change.
+    const r = await prunePaperCache({ project_roots: ['   '] });
+    // project_roots gets resolved (path.resolve('   ') yields '/cwd/   ' or
+    // similar — implementation-defined). The relevant assertion is that the
+    // call did NOT throw at the pure-function layer.
+    expect(r.dry_run).toBe(true);
+    expect(r.project_roots).toHaveLength(1);
+  });
+
+  it('refuses to consider symlinked-to-dir entries inside the cache root', async () => {
+    // A planted symlink at <cache>/<64hex> pointing to /etc must NOT be
+    // followed or deleted; the top-level scan uses Dirent.isDirectory() which
+    // returns false for symlinks-to-dirs, so the entry is skipped entirely.
+    const decoyTarget = fs.mkdtempSync(path.join(os.tmpdir(), 'decoy-target-'));
+    fs.writeFileSync(path.join(decoyTarget, 'precious.txt'), 'must not be deleted');
+    const planted = path.join(tmpCacheDir, 'b'.repeat(64));
+    fs.symlinkSync(decoyTarget, planted, 'dir');
+
+    const r = await prunePaperCache({ project_roots: [tmpProjectA], apply: true });
+    // The symlink entry is not classified by the directory walk because
+    // Dirent.isDirectory() is false for symlinks. The plan should be empty.
+    expect(r.plans).toHaveLength(0);
+    // And the decoy target is intact.
+    expect(fs.readFileSync(path.join(decoyTarget, 'precious.txt'), 'utf-8')).toBe('must not be deleted');
+    // The symlink itself is still present in the cache dir (we don't unlink stray symlinks).
+    expect(fs.lstatSync(planted).isSymbolicLink()).toBe(true);
+
+    fs.unlinkSync(planted);
+    fs.rmSync(decoyTarget, { recursive: true, force: true });
+  });
+
   it('returns empty plan when cache root is empty', async () => {
     const r = await prunePaperCache({ project_roots: [tmpProjectA] });
     expect(r.plans).toEqual([]);
@@ -129,10 +165,11 @@ describe('prunePaperCache', () => {
     expect(shared?.referenced_by).toHaveLength(2);
   });
 
-  it('cleans up leftover tmp staging dirs as delete_tmp_staging', async () => {
-    // Simulate an interrupted materialization: directory matching the
-    // <key>.tmp-<suffix> pattern.
-    const tmpStaging = path.join(tmpCacheDir, 'abc123.tmp-abcdef');
+  it('cleans up leftover tmp staging dirs as delete_tmp_staging (matches <64hex>.tmp-<suffix>)', async () => {
+    // Simulate an interrupted materialization. The pattern is strict:
+    // 64-char lowercase hex prefix + `.tmp-` + alphanumeric suffix
+    // (papersCache.ts:materializeCacheEntry uses crypto.randomBytes(6).hex).
+    const tmpStaging = path.join(tmpCacheDir, 'a'.repeat(64) + '.tmp-deadbeef0123');
     fs.mkdirSync(path.join(tmpStaging, 'content'), { recursive: true });
     fs.writeFileSync(path.join(tmpStaging, 'content', 'foo'), 'leftover');
 
@@ -141,6 +178,19 @@ describe('prunePaperCache', () => {
     expect(r.plans[0]!.action).toBe('delete_tmp_staging');
     expect(r.plans[0]!.applied).toBe(true);
     expect(fs.existsSync(tmpStaging)).toBe(false);
+  });
+
+  it('preserves dirs with .tmp- substring that do NOT match the strict pattern', async () => {
+    // A user-planted dir like `notes.tmp-saved` (or any non-hex prefix) MUST
+    // NOT be classified as tmp staging — the substring check would have
+    // mis-deleted it. The strict regex protects against that.
+    const innocent = path.join(tmpCacheDir, 'notes.tmp-saved');
+    fs.mkdirSync(innocent, { recursive: true });
+    fs.writeFileSync(path.join(innocent, 'important.txt'), 'user file\n');
+
+    const r = await prunePaperCache({ project_roots: [tmpProjectA], apply: true });
+    expect(r.plans[0]!.action).toBe('keep_unrecognized');
+    expect(fs.existsSync(innocent)).toBe(true);
   });
 
   it('preserves cache entries without readable meta.json as keep_unrecognized', async () => {

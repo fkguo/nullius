@@ -36,6 +36,7 @@ function parseArgs(argv: string[]): ParsedArgs {
     else {
       process.stderr.write(`unknown argument: ${a}\n`);
       out.help = true;
+      break; // stop parsing on first unknown to avoid noisy multi-line stderr
     }
   }
   return out;
