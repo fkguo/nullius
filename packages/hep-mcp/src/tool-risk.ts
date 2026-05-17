@@ -44,6 +44,11 @@ export const HEP_TOOL_RISK_LEVELS: ToolRiskTable = {
   // any real mutation. Same pattern applies to hep_admin_prune_paper_cache.
   [T.HEP_ADMIN_MIGRATE_PAPERS_CACHE]: 'write',
   [T.HEP_ADMIN_PRUNE_PAPER_CACHE]: 'write',
+  // hep_admin_import_paper: handler enforces dual-key only on overwrite=true
+  // (the destructive path). A first-time import is a pure additive write; we
+  // still classify the tool as 'write' so the dispatcher does not gate non-
+  // destructive imports, and we keep parity with the rest of the admin family.
+  [T.HEP_ADMIN_IMPORT_PAPER]: 'write',
   [T.INSPIRE_SEARCH]: 'write',
   [T.INSPIRE_SEARCH_NEXT]: 'read',
   [T.INSPIRE_TOPIC_ANALYSIS]: 'read',

@@ -1,16 +1,24 @@
 /**
  * Admin / maintenance tools for hep-mcp. These manage hep-mcp's own state
- * (caches, paper-cache layout, eventual prune / import / kb-link reconciler)
- * and never modify human/agent work products (knowledge_base/, research_*.md).
+ * (caches, paper-cache layout, knowledge_base symlinks) and never modify the
+ * irreplaceable Tier 1 work products (curator notes, research_*.md content).
  *
- * Step 3 ships `hep_admin_migrate_papers_cache`. Steps 4–5 will add prune /
- * import / link-kb-notes here.
+ * Step 3 shipped `hep_admin_migrate_papers_cache`. Step 4 added
+ * `hep_admin_prune_paper_cache`. Step 5a adds `hep_admin_import_paper` (generic
+ * already-have-the-PDF intake); a follow-up adds `hep_admin_link_kb_notes`.
  */
+
+import * as path from 'node:path';
 
 import { invalidParams } from '@autoresearch/shared';
 import { z } from 'zod';
 
-import { HEP_ADMIN_MIGRATE_PAPERS_CACHE, HEP_ADMIN_PRUNE_PAPER_CACHE } from '../../tool-names.js';
+import {
+  HEP_ADMIN_IMPORT_PAPER,
+  HEP_ADMIN_MIGRATE_PAPERS_CACHE,
+  HEP_ADMIN_PRUNE_PAPER_CACHE,
+} from '../../tool-names.js';
+import { importPaper } from '../../admin/importPaper.js';
 import { migratePapersCache } from '../../admin/migratePapersCache.js';
 import { prunePaperCache } from '../../admin/prunePaperCache.js';
 import { getHepToolRiskLevel } from '../../tool-risk.js';
@@ -67,6 +75,34 @@ const HepAdminPrunePaperCacheToolSchema = z.object({
     .literal(true)
     .optional()
     .describe('Required together with apply=true for any filesystem mutation. Dry-run does not require _confirm.'),
+});
+
+const HepAdminImportPaperToolSchema = z.object({
+  identifier: z
+    .string()
+    .min(1)
+    .describe(
+      'Canonical paper identifier. Accepted forms: "arxiv:<id>[v<n>]", "doi:<doi>", "inspire:recid:<n>", "zotero:<lib>/<key>". Bare arxiv ids, bare DOIs, and bare INSPIRE recids are auto-prefixed. The identifier is sha256-hashed to derive the Tier 3 cache key.',
+    ),
+  pdf_path: z
+    .string()
+    .min(1)
+    .describe(
+      'Absolute path to a local PDF the agent has already obtained (institutional access, Zotero export, hand download, …). hep-mcp does not know or care about how the PDF was sourced — that is the caller\'s domain skill / workflow concern.',
+    ),
+  overwrite: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe(
+      'When true, replace any existing cache entry for this identifier with the supplied PDF. Default false: a pre-existing entry causes status=already_cached with no mutation. Overwrite is the destructive path and requires _confirm=true.',
+    ),
+  _confirm: z
+    .literal(true)
+    .optional()
+    .describe(
+      'Required together with overwrite=true. A first-time import does not need _confirm because it cannot clobber anything. With overwrite=true but no _confirm, the call is downgraded to a no-op preview (status=already_cached) with a warning.',
+    ),
 });
 
 const RAW_ADMIN_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
@@ -139,6 +175,57 @@ const RAW_ADMIN_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
           ...report,
           warning:
             'apply=true was requested but _confirm=true was not provided; returning dry-run plan only. Pass both apply=true and _confirm=true to commit.',
+        };
+      }
+      return report;
+    },
+  },
+  {
+    name: HEP_ADMIN_IMPORT_PAPER,
+    tier: 'core',
+    exposure: 'standard',
+    description:
+      'Import a locally-obtained PDF into the user-global Tier 3 paper cache under a canonical identifier (arxiv/doi/inspire/zotero). The caller is responsible for how the PDF was obtained — hep-mcp only knows about the file path. If an entry already exists, returns status=already_cached and does NOT mutate unless overwrite=true AND _confirm=true.',
+    zodSchema: HepAdminImportPaperToolSchema,
+    handler: async params => {
+      if (!params.identifier || !params.identifier.trim()) {
+        throw invalidParams(
+          'hep_admin_import_paper requires identifier (canonical paper id, e.g. "doi:10.1103/X", "arxiv:2401.09012", "inspire:recid:12345").',
+        );
+      }
+      if (!params.pdf_path || !params.pdf_path.trim()) {
+        throw invalidParams('hep_admin_import_paper requires pdf_path (absolute path to a local PDF file).');
+      }
+      // Handler-level absolute-path check, before delegating to importPaper().
+      // The pure function also enforces this, but rejecting at the MCP boundary
+      // gives a clearer error and avoids a noisy stack trace for a routine
+      // input mistake.
+      if (!path.isAbsolute(params.pdf_path)) {
+        throw invalidParams(
+          `hep_admin_import_paper: pdf_path must be an absolute path, got ${JSON.stringify(params.pdf_path)}.`,
+        );
+      }
+      // Handler-level destructive gate: overwrite=true requires _confirm=true.
+      // The fresh-import case (no existing entry) is purely additive and never
+      // needs _confirm — we let importPaper() decide. If overwrite=true was
+      // requested but _confirm is missing, we coerce overwrite to false; if the
+      // entry already exists, importPaper() will return status=already_cached
+      // with no mutation. The handler then attaches a warning so the caller
+      // knows their overwrite intent was downgraded.
+      const wantsOverwrite = params.overwrite === true;
+      const confirmed = params._confirm === true;
+      const effectiveOverwrite = wantsOverwrite && confirmed;
+      const report = await importPaper({
+        identifier: params.identifier,
+        pdf_path: params.pdf_path,
+        overwrite: effectiveOverwrite,
+      });
+      if (wantsOverwrite && !confirmed) {
+        return {
+          ...report,
+          warning:
+            'overwrite=true was requested but _confirm=true was not provided; the call was downgraded to a non-overwrite import. ' +
+            'If an entry already exists, no mutation occurred (status=already_cached). Pass both overwrite=true and _confirm=true to replace.',
         };
       }
       return report;

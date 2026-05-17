@@ -39,6 +39,7 @@ export const HEP_INSPIRE_RESOLVE_IDENTIFIERS = 'hep_inspire_resolve_identifiers'
 // research_*.md files.
 export const HEP_ADMIN_MIGRATE_PAPERS_CACHE = 'hep_admin_migrate_papers_cache' as const;
 export const HEP_ADMIN_PRUNE_PAPER_CACHE = 'hep_admin_prune_paper_cache' as const;
+export const HEP_ADMIN_IMPORT_PAPER = 'hep_admin_import_paper' as const;
 
 export {
   ARXIV_GET_METADATA,
