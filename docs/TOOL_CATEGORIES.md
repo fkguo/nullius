@@ -1,4 +1,4 @@
-# Tool Categories（standard=71 / full=78）
+# Tool Categories（standard=72 / full=79）
 
 本文件把 `hep-mcp` 的 **standard 暴露**工具按“场景/闭环”分组，目的是让你不必理解全部工具，也能快速完成闭环。它描述的是当前 HEP 领域工具面，不是仓库的 root 产品身份。
 

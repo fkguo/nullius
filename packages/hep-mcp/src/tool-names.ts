@@ -38,6 +38,7 @@ export const HEP_INSPIRE_RESOLVE_IDENTIFIERS = 'hep_inspire_resolve_identifiers'
 // project paper layout) and never modify human/agent-written knowledge_base or
 // research_*.md files.
 export const HEP_ADMIN_MIGRATE_PAPERS_CACHE = 'hep_admin_migrate_papers_cache' as const;
+export const HEP_ADMIN_PRUNE_PAPER_CACHE = 'hep_admin_prune_paper_cache' as const;
 
 export {
   ARXIV_GET_METADATA,

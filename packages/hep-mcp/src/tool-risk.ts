@@ -41,8 +41,9 @@ export const HEP_TOOL_RISK_LEVELS: ToolRiskTable = {
   // enforces the destructive gate itself: apply=true REQUIRES _confirm=true,
   // otherwise the call falls through to dry-run with a warning. This gives
   // dry-run a frictionless preview UX while still requiring two-key safety on
-  // any real mutation.
+  // any real mutation. Same pattern applies to hep_admin_prune_paper_cache.
   [T.HEP_ADMIN_MIGRATE_PAPERS_CACHE]: 'write',
+  [T.HEP_ADMIN_PRUNE_PAPER_CACHE]: 'write',
   [T.INSPIRE_SEARCH]: 'write',
   [T.INSPIRE_SEARCH_NEXT]: 'read',
   [T.INSPIRE_TOPIC_ANALYSIS]: 'read',
