@@ -17,7 +17,7 @@ if ! command -v python3 &>/dev/null; then
 fi
 if ! command -v datamodel-codegen &>/dev/null; then
   MISSING+=("datamodel-codegen")
-  HINTS+=("datamodel-codegen: python3 -m pip install 'datamodel-code-generator[http]'")
+  HINTS+=("datamodel-codegen: python3 -m pip install -r meta/scripts/codegen-requirements.txt")
 fi
 if [[ ! -x "node_modules/.bin/tsx" ]]; then
   MISSING+=("node_modules/.bin/tsx")
@@ -30,7 +30,7 @@ fi
 if ! command -v ruff &>/dev/null; then
   if [[ -n "${CI:-}" ]]; then
     MISSING+=("ruff")
-    HINTS+=("ruff (required in CI): python3 -m pip install ruff")
+    HINTS+=("ruff (required in CI): python3 -m pip install -r meta/scripts/codegen-requirements.txt")
   fi
   # local: ruff missing is a soft warning, handled in Step 5
 fi
@@ -56,7 +56,7 @@ npx tsx meta/scripts/codegen-ts.ts "$RESOLVED_DIR" "$TS_OUT"
 echo "=== Step 2: Python generation ==="
 if ! command -v datamodel-codegen &>/dev/null; then
   echo "ERROR: datamodel-codegen (Python) is required but not on PATH." >&2
-  echo "Install with: python3 -m pip install 'datamodel-code-generator[http]'" >&2
+  echo "Install with: python3 -m pip install -r meta/scripts/codegen-requirements.txt" >&2
   exit 1
 fi
 for schema in "$RESOLVED_DIR"/*.schema.json; do
@@ -89,7 +89,7 @@ if command -v ruff &>/dev/null; then
   ruff format "$PY_OUT"
 elif [[ -n "${CI:-}" ]]; then
   echo "ERROR: ruff is required when CI is set (CI=${CI}) but not on PATH." >&2
-  echo "Install with: python3 -m pip install ruff" >&2
+  echo "Install with: python3 -m pip install -r meta/scripts/codegen-requirements.txt" >&2
   exit 1
 else
   echo "  ruff: not installed locally, skipping Python format (codegen output is still valid). CI runs will require ruff."
