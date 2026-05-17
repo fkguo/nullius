@@ -184,6 +184,47 @@ def test_missing_cycle_state_with_fresh_mtime_is_skipped(project_root: Path) -> 
     assert plans[0].action == "skip"
 
 
+def test_only_status_allowlist_restricts_deletion(project_root: Path) -> None:
+    # Anti crash-ratchet hook semantics: only delete clean successful exits.
+    _make_run(project_root, "tag-completed", status="completed", updated_at="2026-01-01T00:00:00Z")
+    _make_run(project_root, "tag-converged", status="converged", updated_at="2026-01-01T00:00:00Z")
+    _make_run(project_root, "tag-error", status="error", updated_at="2026-01-01T00:00:00Z")
+    _make_run(project_root, "tag-running", status="running", updated_at="2026-01-01T00:00:00Z")
+    plans = find_plans(
+        project_root,
+        keep_last=0,
+        keep_failed=False,
+        min_age_hours=1.0,
+        only_status=frozenset({"completed", "converged", "early_stop", "preflight_only"}),
+    )
+    by_tag = {p.tag: p for p in plans}
+    assert by_tag["tag-completed"].action == "delete"
+    assert by_tag["tag-converged"].action == "delete"
+    assert by_tag["tag-error"].action == "skip"
+    assert "not in --only-status" in by_tag["tag-error"].skip_reason
+    # tag-running was already skipped by the in-progress check (running + stale mtime
+    # may still be deleted by the existing logic; verify the actual outcome).
+    # Either way, the only-status guard should not have moved it from skip to delete.
+    if by_tag["tag-running"].action == "delete":
+        # If the in-progress guard already left it as delete, the only-status
+        # filter would convert it to skip. So action="delete" here means status
+        # is in the allowlist — but "running" is NOT. Contradiction → fail.
+        pytest.fail("running status should never be promoted to delete by only-status")
+
+
+def test_only_status_empty_means_no_restriction(project_root: Path) -> None:
+    _make_run(project_root, "tag-other", status="weird-state", updated_at="2026-01-01T00:00:00Z")
+    plans = find_plans(
+        project_root,
+        keep_last=0,
+        keep_failed=False,
+        min_age_hours=1.0,
+        only_status=None,
+    )
+    # weird-state is "failed-ish" so without keep_failed it gets deleted.
+    assert plans[0].action == "delete"
+
+
 def test_symlinked_workspaces_is_excluded(project_root: Path, tmp_path_factory) -> None:
     # An attacker (or a broken project) could symlink team/runs/<tag>/workspaces
     # to a directory outside team/runs/. The prune tool must refuse to plan a

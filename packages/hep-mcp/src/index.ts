@@ -21,6 +21,7 @@ import { logConfigSummary } from './config.js';
 import { ensureDir, getDataDir, getDownloadsDir } from './data/dataDir.js';
 import { cleanupRegisteredDownloadDirs } from './data/downloadSession.js';
 import { isMarkedDirectory } from './data/markers.js';
+import { cleanupOldDiscoveryArtifacts } from './tools/research/discovery/ttlCleanup.js';
 import { cleanupOldPdgArtifacts } from '@autoresearch/pdg-mcp/tooling';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -194,6 +195,17 @@ async function main() {
     }
   } catch {
     // ignore PDG cleanup errors
+  }
+
+  try {
+    const cleaned = cleanupOldDiscoveryArtifacts();
+    if (cleaned.deleted_files > 0) {
+      console.error(
+        `[hep-mcp] Cleaned up ${cleaned.deleted_files} old discovery artifact files (TTL=${cleaned.ttl_hours}h, source=${cleaned.ttl_source})`,
+      );
+    }
+  } catch {
+    // ignore discovery cleanup errors
   }
 
   const transport = new StdioServerTransport();
