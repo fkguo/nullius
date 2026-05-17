@@ -164,11 +164,29 @@ function buildArxivFetcher(parsed: ParsedIdentifier & { scheme: 'arxiv' }, fetch
       fs.rmSync(stagingDir, { recursive: true, force: true });
       throw new Error(`arxiv-mcp did not produce expected staging dir ${arxivSubdir}`);
     }
+    // arxiv-mcp's `result.main_tex` is an ABSOLUTE path inside the staging
+    // `arxiv-<id>/` dir (see packages/arxiv-mcp/src/source/paperContent.ts).
+    // Compute its position relative to the staging dir BEFORE the rename, so
+    // we can translate it to the cache-relative `latex/extracted/<rel>` form.
+    const mainTexAbs = path.resolve(result.main_tex);
+    const mainTexRelInExtracted = path.relative(arxivSubdir, mainTexAbs);
+    if (mainTexRelInExtracted.startsWith('..') || path.isAbsolute(mainTexRelInExtracted)) {
+      fs.rmSync(stagingDir, { recursive: true, force: true });
+      throw new Error(
+        `arxiv-mcp main_tex ${mainTexAbs} is not inside the expected staging dir ${arxivSubdir}; cannot derive cache-relative main_path.`,
+      );
+    }
     fs.renameSync(arxivSubdir, finalLatexDir);
     fs.rmSync(stagingDir, { recursive: true, force: true });
+    const mainPathInCache = path.posix.join(
+      'latex',
+      'extracted',
+      mainTexRelInExtracted.split(path.sep).join(path.posix.sep),
+    );
     return {
       source_type: 'latex',
       fetched_via: fetchedVia,
+      main_path: mainPathInCache,
       cross_refs: { arxiv: result.arxiv_id },
     };
   };

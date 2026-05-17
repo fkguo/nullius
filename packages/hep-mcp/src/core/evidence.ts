@@ -7,6 +7,7 @@ import pLimit from 'p-limit';
 import { resolvePathWithinParent } from '../data/pathGuard.js';
 import { getProject, updateProjectUpdatedAt } from './projects.js';
 import {
+  getProjectPaperDir,
   getProjectPaperEvidenceCatalogPath,
   getProjectPaperJsonPath,
   getProjectPaperLatexDir,
@@ -35,6 +36,9 @@ import {
   type SourceMap,
 } from '../tools/research/latex/index.js';
 import { ensureDir } from '../data/dataDir.js';
+import { ARXIV_ID_REGEX } from '@autoresearch/arxiv-mcp/tooling';
+import { ensureInCache } from '../data/papersCacheFetch.js';
+import { readMetaJson } from '../data/papersCache.js';
 import { BudgetTrackerV1, writeProjectDiagnosticsArtifact } from './diagnostics.js';
 import { normalizeTextPreserveUnits } from '../utils/textNormalization.js';
 
@@ -342,10 +346,160 @@ function copyProjectFiles(params: {
   return { destMainTexPath, copied, warnings, mainTexRel: normalizePathForCatalog(mainTexRel) };
 }
 
+/**
+ * Returns the canonical paths under the project paper dir for a paper.
+ *
+ * IMPORTANT: this helper ensures the PARENT `latex/` dir but does NOT
+ * `ensureDir(latexExtractedDir)` — the leaf is intentionally left absent so
+ * `resolveLatexSourceForPaper` can probe `lstatSync` to decide between
+ * cache+symlink mode (creates a symlink) and legacy copy mode (creates a real
+ * dir via copyProjectFiles, which ensureDirs internally). Pre-creating the
+ * leaf would mis-classify every fresh project as "legacy real-dir" and the
+ * cache path would be dead in production.
+ */
 function ensurePaperBaseDirs(projectId: string, paperId: string): { latexDir: string; latexExtractedDir: string } {
-  const latexDir = getProjectPaperLatexDir(projectId, paperId);
-  const latexExtractedDir = getProjectPaperLatexExtractedDir(projectId, paperId);
+  const latexDir = getProjectPaperLatexDir(projectId, paperId); // ensures latex/ parent
+  const latexExtractedDir = path.join(latexDir, 'extracted');
   return { latexDir, latexExtractedDir };
+}
+
+/**
+ * Convert a raw user-supplied identifier (bare arxiv id, recid, DOI, or
+ * already-URI-prefixed form) to the canonical URI form papersCacheFetch expects.
+ */
+function canonicalizeIdentifier(raw: string): string {
+  const trimmed = raw.trim();
+  if (trimmed.includes(':')) return trimmed; // already URI-prefixed
+  if (ARXIV_ID_REGEX.test(trimmed)) return `arxiv:${trimmed}`;
+  if (/^10\.\d{4,9}\//.test(trimmed)) return `doi:${trimmed}`;
+  if (/^\d+$/.test(trimmed)) return `inspire:recid:${trimmed}`;
+  throw invalidParams(
+    `Cannot classify identifier ${JSON.stringify(raw)}. Use one of: arxiv:<id>, doi:<doi>, inspire:recid:<n>, zotero:<lib>/<key>, or a bare arxiv id / DOI / INSPIRE recid.`,
+  );
+}
+
+/**
+ * Resolve LaTeX source for the paper, preferring the user-global cache. Falls
+ * back to in-place copy mode when the project paper dir already contains a
+ * real (non-symlink) extracted/ tree from a pre-cache build — that case is
+ * preserved unchanged for backward compat until the migration tool runs.
+ *
+ * On the new cache path:
+ *   1. Canonicalize identifier (e.g. "2401.09012v3" -> "arxiv:2401.09012v3")
+ *   2. ensureInCache atomically materializes the paper under
+ *      ~/.autoresearch/hep-mcp/papers_cache/<sha>/content/latex/extracted/
+ *   3. Symlink projects/<pid>/papers/<paper_id>/sources/latex/extracted ->
+ *      the cache content dir. The symlink is created (or refreshed if the
+ *      target differs) per build call.
+ *   4. The catalog references stay relative (`sources/latex/extracted/main.tex`)
+ *      and resolve transparently through the symlink.
+ *
+ * Errors propagate directly. In particular `CacheMissError` (raised by the
+ * dispatcher when a DOI / non-arxiv INSPIRE record cannot be auto-resolved) is
+ * re-thrown unwrapped so the caller / agent gets the actionable suggestion to
+ * import a local PDF via hep_admin_import_paper.
+ */
+export async function resolveLatexSourceForPaper(params: {
+  identifier: string;
+  projectId: string;
+  paperId: string;
+}): Promise<{
+  destExtractedDir: string;
+  destMainTexPath: string;
+  mainTexRel: string;
+  copied: number;
+  warnings: string[];
+  via: 'cache_symlink' | 'legacy_copy';
+}> {
+  // Important: do NOT call ensurePaperBaseDirs() yet — its underlying
+  // getProjectPaperLatexExtractedDir() ensures the leaf dir, which would
+  // create a fresh empty real-dir at exactly the path whose existence we are
+  // trying to detect (and would mis-classify every fresh project as "legacy
+  // real-dir"). Compute the path string without side effects, then probe.
+  const paperDir = getProjectPaperDir(params.projectId, params.paperId);
+  const latexExtractedDir = path.join(paperDir, 'sources', 'latex', 'extracted');
+
+  // Detect existing state at the project paper dir.
+  let existingMode: 'absent' | 'symlink' | 'real-dir' | 'other' = 'absent';
+  try {
+    const lst = fs.lstatSync(latexExtractedDir);
+    if (lst.isSymbolicLink()) existingMode = 'symlink';
+    else if (lst.isDirectory()) existingMode = 'real-dir';
+    else existingMode = 'other';
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
+  }
+
+  if (existingMode === 'real-dir') {
+    // Legacy data from a pre-cache build. Preserve old behavior: refresh
+    // in-place via getPaperContent + copyProjectFiles. The migration tool
+    // (Step 3) will eventually convert this to a cache symlink.
+    const { getPaperContent } = await import('../utils/arxivCompat.js');
+    const res = await getPaperContent({ identifier: params.identifier, prefer: 'latex', extract: true });
+    if (!res.success || res.source_type !== 'latex' || !res.main_tex) {
+      throw new Error(res.error || res.fallback_reason || 'LaTeX source not available');
+    }
+    const copyResult = copyProjectFiles({
+      sourceMainTexPath: res.main_tex,
+      destExtractedDir: latexExtractedDir,
+    });
+    return {
+      destExtractedDir: latexExtractedDir,
+      destMainTexPath: copyResult.destMainTexPath,
+      mainTexRel: copyResult.mainTexRel,
+      copied: copyResult.copied,
+      warnings: copyResult.warnings,
+      via: 'legacy_copy',
+    };
+  }
+
+  // New path: cache + symlink. CacheMissError propagates unwrapped.
+  const canonicalId = canonicalizeIdentifier(params.identifier);
+  const cacheResult = await ensureInCache(canonicalId);
+  if (cacheResult.source_type !== 'latex') {
+    throw new Error(
+      `paper resolved as source_type=${cacheResult.source_type} but buildProjectEvidenceCatalog requires latex source. ` +
+        `Use the PDF-evidence path instead, or supply a paper with available latex source.`,
+    );
+  }
+  const cacheLatexExtractedDir = path.join(cacheResult.content_dir, 'latex', 'extracted');
+  const meta = readMetaJson(cacheResult.canonical_id);
+  const mainPathRel = meta?.main_path; // e.g. "latex/extracted/main.tex"
+  if (!mainPathRel) {
+    throw new Error(`cache entry for ${cacheResult.canonical_id} is missing main_path in meta.json`);
+  }
+  // Compute the relative path of main.tex INSIDE the extracted/ dir.
+  const mainTexRelInExtracted = path.posix.relative('latex/extracted', mainPathRel);
+  const destMainTexPath = path.join(cacheLatexExtractedDir, mainTexRelInExtracted);
+
+  // Ensure the symlink at latexExtractedDir is correct.
+  if (existingMode === 'symlink') {
+    const target = fs.readlinkSync(latexExtractedDir);
+    const absTarget = path.isAbsolute(target) ? target : path.resolve(path.dirname(latexExtractedDir), target);
+    if (path.resolve(absTarget) !== path.resolve(cacheLatexExtractedDir)) {
+      fs.unlinkSync(latexExtractedDir);
+      existingMode = 'absent';
+    }
+  } else if (existingMode === 'other') {
+    fs.unlinkSync(latexExtractedDir);
+    existingMode = 'absent';
+  }
+  if (existingMode === 'absent') {
+    fs.mkdirSync(path.dirname(latexExtractedDir), { recursive: true });
+    fs.symlinkSync(cacheLatexExtractedDir, latexExtractedDir);
+  }
+
+  if (!fs.existsSync(destMainTexPath)) {
+    throw new Error(`cache content for ${cacheResult.canonical_id} is missing expected main file ${mainPathRel}`);
+  }
+  return {
+    destExtractedDir: latexExtractedDir,
+    destMainTexPath,
+    mainTexRel: mainTexRelInExtracted,
+    copied: 0,
+    warnings: [],
+    via: 'cache_symlink',
+  };
 }
 
 export async function buildProjectEvidenceCatalog(params: {
@@ -364,23 +518,38 @@ export async function buildProjectEvidenceCatalog(params: {
   const projectId = params.project_id;
   getProject(projectId);
 
-  const sourceMainTexPath = await (async () => {
-    if (params.main_tex_path) return path.resolve(params.main_tex_path);
-    if (!params.identifier) throw invalidParams('Either identifier or main_tex_path must be provided');
-    const { getPaperContent } = await import('../utils/arxivCompat.js');
-    const res = await getPaperContent({ identifier: params.identifier, prefer: 'latex', extract: true });
-    if (!res.success || res.source_type !== 'latex' || !res.main_tex) {
-      throw new Error(res.error || res.fallback_reason || 'LaTeX source not available');
-    }
-    return res.main_tex;
-  })();
-
   const { latexDir, latexExtractedDir } = ensurePaperBaseDirs(projectId, paperId);
 
-  const copyResult = copyProjectFiles({
-    sourceMainTexPath,
-    destExtractedDir: latexExtractedDir,
-  });
+  // Resolve the LaTeX source. Three modes:
+  //   - main_tex_path: caller supplies a local file path → legacy copy mode
+  //     (no cache involvement)
+  //   - identifier: dispatch via ensureInCache (cache + symlink for fresh
+  //     projects; legacy in-place copy when the project paper dir already has
+  //     a real extracted/ tree pre-dating the cache)
+  //   - neither: invalidParams
+  let copyResult: { destMainTexPath: string; mainTexRel: string; copied: number; warnings: string[] };
+  if (params.main_tex_path) {
+    copyResult = copyProjectFiles({
+      sourceMainTexPath: path.resolve(params.main_tex_path),
+      destExtractedDir: latexExtractedDir,
+    });
+  } else if (params.identifier) {
+    // CacheMissError propagates unwrapped — caller / agent then decides
+    // whether to invoke hep_admin_import_paper with a local PDF.
+    const resolved = await resolveLatexSourceForPaper({
+      identifier: params.identifier,
+      projectId,
+      paperId,
+    });
+    copyResult = {
+      destMainTexPath: resolved.destMainTexPath,
+      mainTexRel: resolved.mainTexRel,
+      copied: resolved.copied,
+      warnings: resolved.warnings,
+    };
+  } else {
+    throw invalidParams('Either identifier or main_tex_path must be provided');
+  }
 
   const { merged, sourceMap } = mergeProjectContentWithSourceMap(copyResult.destMainTexPath);
 

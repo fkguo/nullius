@@ -40,6 +40,15 @@ export interface PaperCacheMeta {
   source_type: PaperSourceType;
   fetched_via: PaperFetchedVia;
   fetched_at: string; // ISO 8601 UTC
+  /**
+   * Optional relative path (inside content/) to the "primary" source file:
+   *   - latex sources: usually `latex/extracted/main.tex` (depends on the
+   *     project's tex tree).
+   *   - pdf sources: usually `pdf/paper.pdf`.
+   * Consumers that need to open the paper deterministically (e.g.
+   * `buildProjectEvidenceCatalog`) read this rather than scanning the tree.
+   */
+  main_path?: string;
   /** Other identifiers known to refer to the same paper (informational; never used as cache key). */
   cross_refs?: Record<string, string>;
 }
@@ -120,6 +129,8 @@ export function readMetaJson(canonicalId: string): PaperCacheMeta | null {
 export interface FetcherResult {
   source_type: PaperSourceType;
   fetched_via: PaperFetchedVia;
+  /** Optional relative path (inside the tmp content dir) to the primary source file. */
+  main_path?: string;
   /** Optional informational cross-references (e.g. {"doi": "10.1103/...", "inspire_recid": "1234567"}). */
   cross_refs?: Record<string, string>;
 }
@@ -167,6 +178,7 @@ export async function materializeCacheEntry(
       source_type: result.source_type,
       fetched_via: result.fetched_via,
       fetched_at: new Date().toISOString(),
+      main_path: result.main_path,
       cross_refs: result.cross_refs,
     };
     fs.writeFileSync(path.join(tmpRoot, 'meta.json'), JSON.stringify(meta, null, 2) + '\n', { encoding: 'utf-8' });

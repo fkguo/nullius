@@ -37,13 +37,18 @@ const mockGetPaperContent = vi.mocked(getPaperContent);
 const mockResolveArxivId = vi.mocked(resolveArxivId);
 const mockInspireLookupByDOI = vi.mocked(inspireLookupByDOI);
 
-function buildArxivStaging(stagingDir: string, arxivId: string): void {
+function buildArxivStaging(stagingDir: string, arxivId: string): string {
   // Mimic arxiv-mcp: writes to <staging>/arxiv-<id-with-slash-replaced>/
+  // and returns the ABSOLUTE path of main.tex (matches arxiv-mcp's contract:
+  // packages/arxiv-mcp/src/source/paperContent.ts always returns absolute
+  // main_tex via path.join(destDir, mainTex)).
   const subdirName = `arxiv-${arxivId.replace('/', '-')}`;
   const subdir = path.join(stagingDir, subdirName);
   fs.mkdirSync(subdir, { recursive: true });
-  fs.writeFileSync(path.join(subdir, 'main.tex'), '\\documentclass{article}\n');
+  const mainTexAbs = path.join(subdir, 'main.tex');
+  fs.writeFileSync(mainTexAbs, '\\documentclass{article}\n');
   fs.writeFileSync(path.join(subdir, 'paper.bib'), '@article{x, title="t"}\n');
+  return mainTexAbs;
 }
 
 describe('ensureInCache scheme dispatch', () => {
@@ -69,12 +74,12 @@ describe('ensureInCache scheme dispatch', () => {
     it('fetches and caches a fresh arxiv paper', async () => {
       mockGetPaperContent.mockImplementation(async (params) => {
         // params.output_dir is the staging dir we passed
-        buildArxivStaging(params.output_dir!, '2401.09012');
+        const mainAbs = buildArxivStaging(params.output_dir!, '2401.09012');
         return {
           success: true,
           source_type: 'latex',
           file_path: path.join(params.output_dir!, 'arxiv-2401.09012'),
-          main_tex: 'main.tex',
+          main_tex: mainAbs,
           arxiv_id: '2401.09012',
         };
       });
@@ -93,8 +98,8 @@ describe('ensureInCache scheme dispatch', () => {
 
     it('returns cache hit on second call (no network)', async () => {
       mockGetPaperContent.mockImplementation(async (params) => {
-        buildArxivStaging(params.output_dir!, '2401.09012');
-        return { success: true, source_type: 'latex', file_path: '', main_tex: 'main.tex', arxiv_id: '2401.09012' };
+        const mainAbs = buildArxivStaging(params.output_dir!, '2401.09012');
+        return { success: true, source_type: 'latex', file_path: '', main_tex: mainAbs, arxiv_id: '2401.09012' };
       });
       const first = await ensureInCache('arxiv:2401.09012v3');
       expect(first.cache_hit).toBe(false);
@@ -106,12 +111,12 @@ describe('ensureInCache scheme dispatch', () => {
 
     it('handles legacy hep-ph/9501234 style id with slash-to-dash staging dir name', async () => {
       mockGetPaperContent.mockImplementation(async (params) => {
-        buildArxivStaging(params.output_dir!, 'hep-ph/9501234'); // produces arxiv-hep-ph-9501234/
+        const mainAbs = buildArxivStaging(params.output_dir!, 'hep-ph/9501234'); // produces arxiv-hep-ph-9501234/
         return {
           success: true,
           source_type: 'latex',
           file_path: '',
-          main_tex: 'main.tex',
+          main_tex: mainAbs,
           arxiv_id: 'hep-ph/9501234',
         };
       });
@@ -124,12 +129,12 @@ describe('ensureInCache scheme dispatch', () => {
 
     it('supports sub-archive cond-mat.stat-mech/9501234 form', async () => {
       mockGetPaperContent.mockImplementation(async (params) => {
-        buildArxivStaging(params.output_dir!, 'cond-mat.stat-mech/9501234');
+        const mainAbs = buildArxivStaging(params.output_dir!, 'cond-mat.stat-mech/9501234');
         return {
           success: true,
           source_type: 'latex',
           file_path: '',
-          main_tex: 'main.tex',
+          main_tex: mainAbs,
           arxiv_id: 'cond-mat.stat-mech/9501234',
         };
       });
@@ -157,8 +162,8 @@ describe('ensureInCache scheme dispatch', () => {
         return null;
       });
       mockGetPaperContent.mockImplementation(async (params) => {
-        buildArxivStaging(params.output_dir!, '2401.09012');
-        return { success: true, source_type: 'latex', file_path: '', main_tex: 'main.tex', arxiv_id: '2401.09012' };
+        const mainAbs = buildArxivStaging(params.output_dir!, '2401.09012');
+        return { success: true, source_type: 'latex', file_path: '', main_tex: mainAbs, arxiv_id: '2401.09012' };
       });
 
       const r1 = await ensureInCache('inspire:recid:1234567');
@@ -175,8 +180,8 @@ describe('ensureInCache scheme dispatch', () => {
     it('records inspire_recid in cross_refs', async () => {
       mockResolveArxivId.mockResolvedValue('2401.09012');
       mockGetPaperContent.mockImplementation(async (params) => {
-        buildArxivStaging(params.output_dir!, '2401.09012');
-        return { success: true, source_type: 'latex', file_path: '', main_tex: 'main.tex', arxiv_id: '2401.09012' };
+        const mainAbs = buildArxivStaging(params.output_dir!, '2401.09012');
+        return { success: true, source_type: 'latex', file_path: '', main_tex: mainAbs, arxiv_id: '2401.09012' };
       });
       const r = await ensureInCache('inspire:recid:1234567');
       const meta = readMetaJson(r.canonical_id);
@@ -195,8 +200,8 @@ describe('ensureInCache scheme dispatch', () => {
       mockInspireLookupByDOI.mockResolvedValue('1234567');
       mockResolveArxivId.mockResolvedValue('2401.09012');
       mockGetPaperContent.mockImplementation(async (params) => {
-        buildArxivStaging(params.output_dir!, '2401.09012');
-        return { success: true, source_type: 'latex', file_path: '', main_tex: 'main.tex', arxiv_id: '2401.09012' };
+        const mainAbs = buildArxivStaging(params.output_dir!, '2401.09012');
+        return { success: true, source_type: 'latex', file_path: '', main_tex: mainAbs, arxiv_id: '2401.09012' };
       });
       const r = await ensureInCache('doi:10.1103/PhysRevD.108.052006');
       expect(r.canonical_id).toBe('arxiv:2401.09012');
