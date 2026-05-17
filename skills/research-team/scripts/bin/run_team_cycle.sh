@@ -962,6 +962,23 @@ cycle_state_path="${run_dir}/cycle_state.json"
 cycle_state_update "init" "done" "running" ""
 trap on_exit EXIT
 
+# Anti crash-ratchet: a previous cycle may have died (SIGKILL / OOM / power loss)
+# before its on_exit trap could clean up its own workspace, leaving an orphaned
+# team/runs/<old_tag>/workspaces/ tree on disk. The EXIT trap above only fires
+# for graceful exits, so we sweep at startup of every new cycle. Restrict the
+# allowlist to clean successful exits so an in-progress sibling cycle or a
+# failed run preserved for debugging is never destroyed.
+# Set RESEARCH_TEAM_KEEP_WORKSPACES_AT_STARTUP=1 to disable (parallel to the
+# existing RESEARCH_TEAM_KEEP_WORKSPACES / KEEP_WORKSPACES_ON_FAILURE family).
+if [[ -x "${SCRIPT_DIR}/prune_team_workspaces.py" \
+      && "${RESEARCH_TEAM_KEEP_WORKSPACES_AT_STARTUP:-0}" != "1" ]]; then
+  python3 "${SCRIPT_DIR}/prune_team_workspaces.py" \
+    --root "${PROJECT_ROOT}" \
+    --only-status completed,converged,early_stop,preflight_only \
+    --min-age-hours 0.5 \
+    --quiet --apply >/dev/null 2>&1 || true
+fi
+
 # Ensure project_index.md exists early (warn-only). This is a usability affordance, not part of the scientific gates.
 if [[ -f "${PROJECT_INDEX_UPDATE_SCRIPT}" ]]; then
   python3 "${PROJECT_INDEX_UPDATE_SCRIPT}" --notes "${NOTEBOOK_PATH}" --team-dir "${OUT_DIR}" --latest-kind team --tag "${RESOLVED_TAG}" --status "preflight_init" >/dev/null 2>&1 || true
@@ -2795,7 +2812,12 @@ if has_phase 2; then
       r_lower="$(echo "${responder}" | tr 'A-Z' 'a-z')"
       questions_file="${phase2_dir}/questions_${q_lower}.json"
 
-      if [[ -f "${questions_file}" ]] && python3 -c "import json,sys; d=json.load(open(sys.argv[1])); sys.exit(0 if d.get('questions') else 1)" "${questions_file}" 2>/dev/null; then
+      if [[ -f "${questions_file}" ]] && python3 -c "
+import json, sys
+with open(sys.argv[1]) as f:
+    d = json.load(f)
+sys.exit(0 if d.get('questions') else 1)
+" "${questions_file}" 2>/dev/null; then
         echo "[RT-05]   ${questioner}'s questions → ${responder} responds"
         raw_response="${phase2_dir}/response_${r_lower}_raw.md"
         filtered_response="${phase2_dir}/response_${r_lower}_filtered.md"
@@ -2804,12 +2826,14 @@ if has_phase 2; then
         consultation_prompt="${phase2_dir}/consultation_prompt_for_${r_lower}.md"
         python3 -c "
 import json, sys
-q = json.load(open(sys.argv[1]))
+with open(sys.argv[1]) as f:
+    q = json.load(f)
 lines = ['## Consultation Questions\n']
 for i, qq in enumerate(q.get('questions', []), 1):
     lines.append(f'{i}. [{qq[\"flag_type\"]}] {qq[\"question\"]}\n')
     lines.append(f'   Context: {qq[\"context\"]}\n')
-open(sys.argv[2], 'w').write('\n'.join(lines))
+with open(sys.argv[2], 'w') as f:
+    f.write('\n'.join(lines))
 " "${questions_file}" "${consultation_prompt}"
 
         # Run responder with consultation system prompt
@@ -2966,7 +2990,8 @@ import json
 import sys
 
 try:
-    data = json.loads(open(sys.argv[1], "r", encoding="utf-8").read())
+    with open(sys.argv[1], "r", encoding="utf-8") as _src:
+        data = json.loads(_src.read())
 except Exception:
     print("")
     print("")
@@ -3094,7 +3119,8 @@ PY
         challenge_raw="${phase5_dir}/challenges_from_${s_lower}_raw.md"
         python3 -c "
 import re, sys
-text = open(sys.argv[1]).read()
+with open(sys.argv[1]) as f:
+    text = f.read()
 # Find CHALLENGED verdict lines and their surrounding context
 lines = text.split('\n')
 challenges = []
@@ -3103,10 +3129,11 @@ for i, line in enumerate(lines):
         start = max(0, i-2)
         end = min(len(lines), i+3)
         challenges.append('\n'.join(lines[start:end]))
-if challenges:
-    open(sys.argv[2], 'w').write('\n\n---\n\n'.join(challenges))
-else:
-    open(sys.argv[2], 'w').write('')
+with open(sys.argv[2], 'w') as f:
+    if challenges:
+        f.write('\n\n---\n\n'.join(challenges))
+    else:
+        f.write('')
 " "${source_report}" "${challenge_raw}" 2>/dev/null || touch "${challenge_raw}"
 
         # Filter through Membrane

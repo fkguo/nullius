@@ -109,6 +109,12 @@ a run lives at the run_dir top level (`cycle_state.json`, `<tag>_member_*.md`,
   completes successfully. Set `RESEARCH_TEAM_KEEP_WORKSPACES=1` to disable.
 - On failure the workspaces are preserved by default for debugging. Set
   `RESEARCH_TEAM_KEEP_WORKSPACES_ON_FAILURE=0` to also clean up on failure.
+- At the start of every new cycle, `run_team_cycle.sh` also sweeps orphaned
+  workspaces from any earlier cycle whose `on_exit` trap could not fire
+  (SIGKILL / OOM kill / power loss). The startup sweep only deletes workspaces
+  of clean successful exits (status `completed|converged|early_stop|preflight_only`)
+  and only when the workspace mtime is at least 30 minutes old. Set
+  `RESEARCH_TEAM_KEEP_WORKSPACES_AT_STARTUP=1` to disable the sweep.
 - To reclaim disk on existing projects whose old runs still carry workspaces,
   use the prune utility. Defaults are `--keep-last 0`, `--keep-failed` unset,
   and dry-run; pass `--apply` to actually delete and any combination of the

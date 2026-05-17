@@ -24,11 +24,18 @@ touches the forensic data above.
 
 Safety policy (default):
 - Dry-run by default. Use --apply to actually delete.
-- Skip workspaces whose cycle_state.json shows status="running" AND was touched
-  within --min-age-hours (default 1).
+- Skip workspaces whose cycle_state.json shows status="running" or "unknown"
+  AND was touched within --min-age-hours (default 1) — handles the crash window
+  where a cycle may have died between mkdir(workspaces) and the first state
+  update.
 - Honor --keep-last N (keep the N most recently-updated runs' workspaces).
 - Honor --keep-failed (preserve workspaces of runs where cycle_state status is
   neither "completed" nor missing).
+- Honor --only-status SET (restrict deletion to a comma-separated allowlist of
+  cycle_state status values, e.g. "completed,converged,early_stop,preflight_only"
+  for the recommended startup-orphan-prune profile).
+- Path-containment guard refuses symlinked tag/ or workspaces/ entries that
+  resolve outside the project's team/runs/ subtree.
 
 Exit codes:
   0  success (plan computed and printed; apply succeeded)
@@ -146,9 +153,14 @@ def find_plans(
     keep_last: int,
     keep_failed: bool,
     min_age_hours: float,
+    only_status: frozenset[str] | None = None,
     now: datetime | None = None,
 ) -> list[WorkspacePlan]:
-    """Walk team/runs/<tag>/ and decide deletion plan for each workspaces dir."""
+    """Walk team/runs/<tag>/ and decide deletion plan for each workspaces dir.
+
+    `only_status` restricts deletion eligibility to runs whose cycle_state status
+    is in the given set. None or empty means no restriction (existing default).
+    """
     if now is None:
         now = datetime.now(timezone.utc)
     runs_root = (project_root / "team" / "runs").resolve()
@@ -195,6 +207,12 @@ def find_plans(
         if is_failed and keep_failed:
             candidates[-1].action = "skip"
             candidates[-1].skip_reason = f"--keep-failed set (status={status})"
+        # Apply --only-status allowlist (if non-empty): only delete entries whose
+        # status is in the set. This converts otherwise-deletable entries to skip
+        # without disturbing in-progress / keep-failed decisions made above.
+        if only_status and candidates[-1].action == "delete" and status not in only_status:
+            candidates[-1].action = "skip"
+            candidates[-1].skip_reason = f"status={status} not in --only-status allowlist"
     # Apply --keep-last to the remaining "delete" entries (sorted by recency desc).
     delete_set = [p for p in candidates if p.action == "delete"]
     delete_set.sort(key=lambda p: p.last_update_iso or "", reverse=True)
@@ -212,6 +230,17 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--keep-last", type=int, default=0, help="Keep workspaces for the N most recently-updated runs (default 0).")
     p.add_argument("--keep-failed", action="store_true", help="Preserve workspaces of failed runs (cycle_state status not in {completed, running, unknown}).")
     p.add_argument("--min-age-hours", type=float, default=1.0, help="Treat workspaces with status=running and mtime younger than this as in-progress and skip (default 1.0).")
+    p.add_argument(
+        "--only-status",
+        default="",
+        help=(
+            "Comma-separated allowlist of cycle_state.json status values eligible for deletion. "
+            "Empty (default) means any status that is not already filtered by --keep-failed / in-progress is eligible. "
+            "Use e.g. 'completed,converged,early_stop,preflight_only' to restrict cleanup to clean successful exits "
+            "(the recommended setting for startup orphan-prune from run_team_cycle.sh)."
+        ),
+    )
+    p.add_argument("--quiet", action="store_true", help="Suppress human-readable summary when no workspaces would be deleted (still prints on activity).")
     p.add_argument("--json", action="store_true", help="Emit machine-readable JSON plan instead of the human-readable summary.")
     return p.parse_args()
 
@@ -222,12 +251,17 @@ def main() -> int:
     if not project_root.is_dir():
         print(f"ERROR: project root not found: {project_root}", file=sys.stderr)
         return 2
+    only_status: frozenset[str] | None = None
+    if args.only_status:
+        only_status = frozenset(s.strip() for s in args.only_status.split(",") if s.strip())
     plans = find_plans(
         project_root,
         keep_last=args.keep_last,
         keep_failed=args.keep_failed,
         min_age_hours=args.min_age_hours,
+        only_status=only_status,
     )
+    delete_count = sum(1 for p in plans if p.action == "delete")
     if args.json:
         # schema_version=1 so a downstream parser can fail fast on incompatible
         # field additions in a future tool revision.
@@ -238,11 +272,14 @@ def main() -> int:
             "plans": [asdict(p) for p in plans],
         }
         # We may augment with "result" after the deletion pass below; emit later.
+    elif args.quiet and delete_count == 0:
+        # Quiet no-op: nothing to do, say nothing. Used by automated callers.
+        pass
     else:
         total_to_delete = sum(p.size_bytes for p in plans if p.action == "delete")
         total_to_skip = sum(p.size_bytes for p in plans if p.action == "skip")
         print(f"Found {len(plans)} workspaces under {project_root}/team/runs/")
-        print(f"  to delete: {sum(1 for p in plans if p.action == 'delete')} ({_format_bytes(total_to_delete)})")
+        print(f"  to delete: {delete_count} ({_format_bytes(total_to_delete)})")
         print(f"  to skip:   {sum(1 for p in plans if p.action == 'skip')} ({_format_bytes(total_to_skip)})")
         print("")
         for p in plans:
