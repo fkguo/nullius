@@ -518,6 +518,44 @@ on_exit() {
   fi
   cycle_state_update "end" "done" "${final_status}" "exit_code=${code}"
   cleanup
+  cleanup_workspaces_post_run "${final_status}" "${code}"
+}
+
+# Per-member workspaces under team/runs/<tag>/workspaces/ are ephemeral scratch
+# space — full filtered snapshots of the project tree at run start. The durable
+# forensic data (cycle_state.json, <tag>_member_*.md, member_*_evidence.json,
+# member_*_audit.jsonl, logs/member_*/) lives at the run_dir top level and is
+# NOT touched by this cleanup.
+#
+# Default policy: delete workspaces on a fully-completed run; preserve them on
+# failure or partial exits so the failure can be inspected. Operators can opt
+# out with RESEARCH_TEAM_KEEP_WORKSPACES=1, or force cleanup on failure with
+# RESEARCH_TEAM_KEEP_WORKSPACES_ON_FAILURE=0.
+cleanup_workspaces_post_run() {
+  local final_status="$1"
+  local code="$2"
+  if [[ "${RESEARCH_TEAM_KEEP_WORKSPACES:-0}" == "1" ]]; then
+    return 0
+  fi
+  if [[ -z "${run_dir:-}" || ! -d "${run_dir}/workspaces" ]]; then
+    return 0
+  fi
+  # Successful exits include "completed" (generic), "converged" (convergence
+  # gate passed), "early_stop" (gate decided no further cycles), and
+  # "preflight_only" (--preflight-only invocation). Anything else is a failure
+  # and (by default) we preserve workspaces for debugging.
+  local is_success=0
+  case "${final_status}" in
+    completed|converged|early_stop|preflight_only) is_success=1 ;;
+    *) is_success=0 ;;
+  esac
+  if [[ ${is_success} -eq 0 && "${RESEARCH_TEAM_KEEP_WORKSPACES_ON_FAILURE:-1}" == "1" ]]; then
+    return 0
+  fi
+  # Restore u+rwX on locked subdirs (run_team_cycle.sh chmods workspaces a-rwx
+  # for clean-room isolation) so rm -rf can traverse them.
+  chmod -R u+rwX "${run_dir}/workspaces" >/dev/null 2>&1 || true
+  rm -rf "${run_dir}/workspaces" >/dev/null 2>&1 || true
 }
 
 usage() {
