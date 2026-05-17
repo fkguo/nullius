@@ -49,6 +49,11 @@ export const HEP_TOOL_RISK_LEVELS: ToolRiskTable = {
   // still classify the tool as 'write' so the dispatcher does not gate non-
   // destructive imports, and we keep parity with the rest of the admin family.
   [T.HEP_ADMIN_IMPORT_PAPER]: 'write',
+  // hep_admin_link_kb_notes is strictly read-only: it reports the linkage
+  // state between Tier 2 paper.json and Tier 1 knowledge_base/*.md notes
+  // without mutating either surface. Classified as 'read' so no _confirm or
+  // apply gating applies.
+  [T.HEP_ADMIN_LINK_KB_NOTES]: 'read',
   [T.INSPIRE_SEARCH]: 'write',
   [T.INSPIRE_SEARCH_NEXT]: 'read',
   [T.INSPIRE_TOPIC_ANALYSIS]: 'read',

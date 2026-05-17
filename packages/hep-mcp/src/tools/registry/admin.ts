@@ -15,10 +15,12 @@ import { z } from 'zod';
 
 import {
   HEP_ADMIN_IMPORT_PAPER,
+  HEP_ADMIN_LINK_KB_NOTES,
   HEP_ADMIN_MIGRATE_PAPERS_CACHE,
   HEP_ADMIN_PRUNE_PAPER_CACHE,
 } from '../../tool-names.js';
 import { importPaper } from '../../admin/importPaper.js';
+import { linkKbNotes } from '../../admin/linkKbNotes.js';
 import { migratePapersCache } from '../../admin/migratePapersCache.js';
 import { prunePaperCache } from '../../admin/prunePaperCache.js';
 import { getHepToolRiskLevel } from '../../tool-risk.js';
@@ -75,6 +77,27 @@ const HepAdminPrunePaperCacheToolSchema = z.object({
     .literal(true)
     .optional()
     .describe('Required together with apply=true for any filesystem mutation. Dry-run does not require _confirm.'),
+});
+
+const HepAdminLinkKbNotesToolSchema = z.object({
+  project_root: z
+    .string()
+    .min(1)
+    .describe(
+      'Absolute path to the autoresearch project root. The tool scans <project_root>/artifacts/hep-mcp/projects/*/papers/*/paper.json for Tier 2 catalog entries and a configurable knowledge_base directory for Tier 1 markdown notes.',
+    ),
+  hep_data_root: z
+    .string()
+    .optional()
+    .describe(
+      'Override the HEP data root resolution; defaults to <project_root>/artifacts/hep-mcp/.',
+    ),
+  kb_dir: z
+    .string()
+    .optional()
+    .describe(
+      'Override the knowledge_base directory (absolute path). If omitted, the tool auto-detects under project_root by probing .autoresearch/knowledge_base, knowledge_base/literature, then knowledge_base in that order.',
+    ),
 });
 
 const HepAdminImportPaperToolSchema = z.object({
@@ -229,6 +252,29 @@ const RAW_ADMIN_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
         };
       }
       return report;
+    },
+  },
+  {
+    name: HEP_ADMIN_LINK_KB_NOTES,
+    tier: 'core',
+    exposure: 'standard',
+    description:
+      "Read-only reconciliation report between hep-mcp's Tier 2 paper.json catalog and the project's Tier 1 knowledge_base markdown notes. Matches by canonical_id, surfaces papers without notes (curator gap), notes without papers (orphan), and notes with no parseable identifier. Performs NO mutations.",
+    zodSchema: HepAdminLinkKbNotesToolSchema,
+    handler: async params => {
+      // Same defensive validation pattern as the rest of the admin family —
+      // withProjectRootContract may relax project_root to optional() at the
+      // shared layer, so the handler enforces it explicitly.
+      if (!params.project_root || !params.project_root.trim()) {
+        throw invalidParams(
+          'hep_admin_link_kb_notes requires project_root (absolute path to the autoresearch project root).',
+        );
+      }
+      return linkKbNotes({
+        project_root: params.project_root,
+        hep_data_root: params.hep_data_root,
+        kb_dir: params.kb_dir,
+      });
     },
   },
 ];
