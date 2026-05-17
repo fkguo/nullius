@@ -34,6 +34,11 @@ export const HEP_IMPORT_FROM_ZOTERO = 'hep_import_from_zotero' as const;
 export const HEP_INSPIRE_SEARCH_EXPORT = 'hep_inspire_search_export' as const;
 export const HEP_INSPIRE_RESOLVE_IDENTIFIERS = 'hep_inspire_resolve_identifiers' as const;
 
+// Admin / maintenance tools. These manage hep-mcp's own state (caches, indices,
+// project paper layout) and never modify human/agent-written knowledge_base or
+// research_*.md files.
+export const HEP_ADMIN_MIGRATE_PAPERS_CACHE = 'hep_admin_migrate_papers_cache' as const;
+
 export {
   ARXIV_GET_METADATA,
   ARXIV_PAPER_SOURCE,

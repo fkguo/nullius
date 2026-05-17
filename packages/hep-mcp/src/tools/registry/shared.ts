@@ -15,6 +15,7 @@ import { INSPIRE_TOOL_SPECS } from './inspire.js';
 import { ZOTERO_TOOL_SPECS } from './zotero.js';
 import { PDG_TOOL_SPECS } from './pdg.js';
 import { OPENALEX_TOOL_SPECS } from './openalex.js';
+import { ADMIN_TOOL_SPECS } from './admin.js';
 import {
   PROJECT_CORE_TOOL_SPECS,
   PROJECT_CITATION_TOOL_SPECS,
@@ -63,6 +64,7 @@ export const TOOL_SPECS: ToolSpec[] = [
   ...PDG_TOOL_SPECS,
   ...OPENALEX_TOOL_SPECS,
   ...PROJECT_EXTENSION_TOOL_SPECS,
+  ...ADMIN_TOOL_SPECS,
 ].map(withProjectRootContract);
 
 const TOOL_SPECS_BY_NAME = new Map<string, ToolSpec>(

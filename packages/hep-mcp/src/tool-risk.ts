@@ -36,6 +36,13 @@ export const HEP_TOOL_RISK_LEVELS: ToolRiskTable = {
   [T.HEP_IMPORT_FROM_ZOTERO]: 'write',
   [T.HEP_INSPIRE_SEARCH_EXPORT]: 'write',
   [T.HEP_INSPIRE_RESOLVE_IDENTIFIERS]: 'read',
+  // Classified as 'write' rather than 'destructive' so dry-run (apply=false)
+  // calls flow freely without the dispatcher-level _confirm gate. The handler
+  // enforces the destructive gate itself: apply=true REQUIRES _confirm=true,
+  // otherwise the call falls through to dry-run with a warning. This gives
+  // dry-run a frictionless preview UX while still requiring two-key safety on
+  // any real mutation.
+  [T.HEP_ADMIN_MIGRATE_PAPERS_CACHE]: 'write',
   [T.INSPIRE_SEARCH]: 'write',
   [T.INSPIRE_SEARCH_NEXT]: 'read',
   [T.INSPIRE_TOPIC_ANALYSIS]: 'read',
