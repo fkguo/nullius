@@ -2,22 +2,14 @@
 
 import { pathToFileURL } from 'node:url';
 import { parseCliArgs } from './cli-args.js';
-import { runExportCommand } from './cli-export.js';
 import { renderHelp } from './cli-help.js';
-import { runInitCommand } from './cli-init.js';
-import {
-  type CliIo,
-  runApproveCommand,
-  runFinalConclusionsCommand,
-  runPauseCommand,
-  runProposalDecisionCommand,
-  runResumeCommand,
-  runStatusCommand,
-  runVerifyCommand,
-} from './cli-lifecycle.js';
 import { resolveLifecycleProjectRoot } from './cli-project-root.js';
-import { runCommand } from './cli-run.js';
-import { runWorkflowPlanCommand } from './cli-workflow-plan.js';
+
+type CliIo = {
+  cwd: string;
+  stderr: (text: string) => void;
+  stdout: (text: string) => void;
+};
 
 function defaultIo(): CliIo {
   return {
@@ -34,47 +26,58 @@ export async function runCli(argv: string[], io: CliIo = defaultIo()): Promise<n
     return 0;
   }
   if (parsed.command === 'init') {
+    const { runInitCommand } = await import('./cli-init.js');
     await runInitCommand(parsed.projectRoot, io.cwd, parsed.passthrough, io);
     return 0;
   }
   if (parsed.command === 'export') {
+    const { runExportCommand } = await import('./cli-export.js');
     await runExportCommand(resolveLifecycleProjectRoot(parsed.projectRoot, io.cwd), io.cwd, parsed.passthrough, io);
     return 0;
   }
   if (parsed.command === 'workflow-plan') {
+    const { runWorkflowPlanCommand } = await import('./cli-workflow-plan.js');
     await runWorkflowPlanCommand(parsed, io);
     return 0;
   }
   if (parsed.command === 'run') {
+    const { runCommand } = await import('./cli-run.js');
     return runCommand(parsed, io);
   }
 
   const projectRoot = resolveLifecycleProjectRoot(parsed.projectRoot, io.cwd);
   if (parsed.command === 'verify') {
+    const { runVerifyCommand } = await import('./cli-lifecycle.js');
     await runVerifyCommand(projectRoot, parsed, io);
     return 0;
   }
   if (parsed.command === 'final-conclusions') {
+    const { runFinalConclusionsCommand } = await import('./cli-lifecycle.js');
     await runFinalConclusionsCommand(projectRoot, parsed.runId, parsed.note, io);
     return 0;
   }
   if (parsed.command === 'proposal-decision') {
+    const { runProposalDecisionCommand } = await import('./cli-lifecycle.js');
     await runProposalDecisionCommand(projectRoot, parsed, io);
     return 0;
   }
   if (parsed.command === 'status') {
+    const { runStatusCommand } = await import('./cli-lifecycle.js');
     await runStatusCommand(projectRoot, parsed.json, io);
     return 0;
   }
   if (parsed.command === 'pause') {
+    const { runPauseCommand } = await import('./cli-lifecycle.js');
     await runPauseCommand(projectRoot, parsed.note, io);
     return 0;
   }
   if (parsed.command === 'resume') {
+    const { runResumeCommand } = await import('./cli-lifecycle.js');
     await runResumeCommand(projectRoot, parsed.note, parsed.force, io);
     return 0;
   }
   if (parsed.command === 'approve') {
+    const { runApproveCommand } = await import('./cli-lifecycle.js');
     await runApproveCommand(projectRoot, parsed.approvalId, parsed.note, io);
     return 0;
   }

@@ -99,6 +99,28 @@ function packageDependencyOffenders(packageJsonPath: string): string[] {
   return offenders.sort((left, right) => left.localeCompare(right));
 }
 
+function findStaticCliCommandImportOffenders(source: string): string[] {
+  const allowedTopLevelCliImports = new Set(['./cli-args.js', './cli-help.js', './cli-project-root.js']);
+  const importPattern = /^\s*import\s+(?!type\b)[\s\S]*?\s+from\s+['"]([^'"]+)['"];?/gm;
+  const offenders: string[] = [];
+  for (const match of source.matchAll(importPattern)) {
+    const specifier = match[1]!;
+    if (specifier.startsWith('./cli-') && !allowedTopLevelCliImports.has(specifier)) {
+      const line = source.slice(0, match.index).split('\n').length;
+      offenders.push(`L${line}:${specifier}`);
+    }
+  }
+  return offenders;
+}
+
+function findScatteredRunReadModelLedgerReads(source: string): string[] {
+  const readPattern = /fs\.readFileSync\(([^)]*(?:ledgerPath|ledger\.jsonl)[^)]*)\)/g;
+  return [...source.matchAll(readPattern)].map(match => {
+    const line = source.slice(0, match.index).split('\n').length;
+    return `L${line}:${match[1]!.replace(/\s+/g, ' ').trim()}`;
+  });
+}
+
 describe('orchestrator package boundary', () => {
   it('keeps orchestrator source limited to shared plus checked-in literature workflow-pack workspace dependencies', () => {
     const repoRoot = repoRootFromThisFile();
@@ -124,6 +146,22 @@ describe('orchestrator package boundary', () => {
     const dependencyOffenders = packageDependencyOffenders(packageJsonPath);
 
     expect([...sourceOffenders, ...dependencyOffenders]).toEqual([]);
+  });
+
+  it('keeps autoresearch CLI command handlers out of the top-level startup path', () => {
+    const repoRoot = repoRootFromThisFile();
+    const cliSourcePath = path.join(repoRoot, 'packages', 'orchestrator', 'src', 'cli.ts');
+    const source = fs.readFileSync(cliSourcePath, 'utf-8');
+
+    expect(findStaticCliCommandImportOffenders(source)).toEqual([]);
+  });
+
+  it('keeps status read-model ledger parsing on one shared read path', () => {
+    const repoRoot = repoRootFromThisFile();
+    const readModelPath = path.join(repoRoot, 'packages', 'orchestrator', 'src', 'orch-tools', 'run-read-model.ts');
+    const source = fs.readFileSync(readModelPath, 'utf-8');
+
+    expect(findScatteredRunReadModelLedgerReads(source)).toHaveLength(1);
   });
 
   it('keeps top-level shell and app-layer directories out of orchestrator/src', () => {

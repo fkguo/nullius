@@ -40,9 +40,17 @@ export type RunListEntry = {
   uri: string;
 };
 
+type LedgerSnapshot = {
+  exists: boolean;
+  ledgerPath: string;
+  events: Record<string, unknown>[];
+  invalidLines: number;
+};
+
 export type ApprovalEntry = Record<string, unknown>;
 
 const PROJECT_RECENT_RUN_LIMIT = 5;
+const PROJECT_RECENT_DIGEST_SCAN_LIMIT = 50;
 const ACTIVE_DIGEST_RUN_STATUSES = new Set([
   'running',
   'awaiting_approval',
@@ -81,6 +89,29 @@ const RESEARCH_CONTRACT_RESIDUE_MARKERS = [
   'fix_markdown_double_backslash_math.py --notes research_contract.md --in-place',
   'via [research_team_config.json](research_team_config.json)',
 ] as const;
+
+function readLedgerSnapshotFromPath(ledgerPath: string): LedgerSnapshot {
+  if (!fs.existsSync(ledgerPath)) {
+    return { exists: false, ledgerPath, events: [], invalidLines: 0 };
+  }
+
+  const events: Record<string, unknown>[] = [];
+  let invalidLines = 0;
+  const lines = fs.readFileSync(ledgerPath, 'utf-8').split('\n').filter(line => line.trim().length > 0);
+  for (const line of lines) {
+    try {
+      events.push(JSON.parse(line) as Record<string, unknown>);
+    } catch {
+      invalidLines += 1;
+    }
+  }
+  return { exists: true, ledgerPath, events, invalidLines };
+}
+
+function readLedgerSnapshot(projectRoot: string): LedgerSnapshot {
+  return readLedgerSnapshotFromPath(new StateManager(projectRoot).ledgerPath);
+}
+
 const RESEARCH_NOTEBOOK_TEMPLATE_LINES = new Set([
   '# research_notebook.md',
   'This file is the human-facing research notebook.',
@@ -251,29 +282,19 @@ function selectPlanFocusFromPlanMd(projectRoot: string): RecoveryPlanFocus | nul
   }
 }
 
-function readLatestLedgerEvent(projectRoot: string, preferredRunId: string | null): {
+function readLatestLedgerEvent(projectRoot: string, preferredRunId: string | null, ledgerSnapshot = readLedgerSnapshot(projectRoot)): {
   latest_event: RecoveryLedgerEvent | null;
   warnings: Record<string, unknown>[];
 } {
-  const ledgerPath = path.join(projectRoot, '.autoresearch', 'ledger.jsonl');
-  if (!fs.existsSync(ledgerPath)) {
+  if (!ledgerSnapshot.exists) {
     return { latest_event: null, warnings: [] };
   }
 
   const warnings: Record<string, unknown>[] = [];
   const runStatuses = new Map<string, string>();
-  let invalidLines = 0;
   let latestEventOverall: RecoveryLedgerEvent | null = null;
   let latestEventForRun: RecoveryLedgerEvent | null = null;
-  const lines = fs.readFileSync(ledgerPath, 'utf-8').split('\n').filter(line => line.trim().length > 0);
-  for (const line of lines) {
-    let event: Record<string, unknown>;
-    try {
-      event = JSON.parse(line) as Record<string, unknown>;
-    } catch {
-      invalidLines += 1;
-      continue;
-    }
+  for (const event of ledgerSnapshot.events) {
     const eventType = typeof event.event_type === 'string' ? event.event_type : null;
     const runId = typeof event.run_id === 'string' ? event.run_id : null;
     if (!eventType) continue;
@@ -300,10 +321,10 @@ function readLatestLedgerEvent(projectRoot: string, preferredRunId: string | nul
     }
   }
 
-  if (invalidLines > 0) {
+  if (ledgerSnapshot.invalidLines > 0) {
     warnings.push({
       code: 'RECOVERY_LEDGER_PARSE_ERROR',
-      message: `Skipped ${invalidLines} invalid ledger line(s) while deriving recovery_context.`,
+      message: `Skipped ${ledgerSnapshot.invalidLines} invalid ledger line(s) while deriving recovery_context.`,
       ledger_path: path.join('.autoresearch', 'ledger.jsonl'),
     });
   }
@@ -313,7 +334,7 @@ function readLatestLedgerEvent(projectRoot: string, preferredRunId: string | nul
   };
 }
 
-function readRecoveryContextView(projectRoot: string, state: RunState): Record<string, unknown> {
+function readRecoveryContextView(projectRoot: string, state: RunState, ledgerSnapshot = readLedgerSnapshot(projectRoot)): Record<string, unknown> {
   const rawState = stateRecord(state);
   const launcherHealth = readProjectLocalAutoresearchLauncherHealth(projectRoot);
   const harnessSentinel = readAutoresearchHarnessSentinelHealth(projectRoot);
@@ -365,7 +386,7 @@ function readRecoveryContextView(projectRoot: string, state: RunState): Record<s
     ? rawState.pending_approval
     : null;
   const stateNotes = typeof rawState.notes === 'string' ? rawState.notes : null;
-  const ledger = readLatestLedgerEvent(projectRoot, stateRunId);
+  const ledger = readLatestLedgerEvent(projectRoot, stateRunId, ledgerSnapshot);
   warnings.push(...ledger.warnings);
 
   let currentRunSource: 'state' | 'state+ledger' | 'ledger' | 'unavailable' = 'state';
@@ -448,7 +469,7 @@ function readRecoveryContextView(projectRoot: string, state: RunState): Record<s
   };
 }
 
-function readCurrentRunWorkflowOutputsView(projectRoot: string, state: RunState): {
+function readCurrentRunWorkflowOutputsView(projectRoot: string, state: RunState, ledgerSnapshot = readLedgerSnapshot(projectRoot)): {
   current_run_workflow_outputs: Record<string, unknown> | null;
   current_run_workflow_outputs_error: Record<string, unknown> | null;
   current_run_workflow_outputs_source: WorkflowOutputSource | null;
@@ -457,7 +478,7 @@ function readCurrentRunWorkflowOutputsView(projectRoot: string, state: RunState)
   const outputs = state.workflow_outputs ?? {};
   const entries = Object.entries(outputs);
   if (entries.length === 0) {
-    return readLegacyWorkflowOutputsView(projectRoot, state);
+    return readLegacyWorkflowOutputsView(projectRoot, state, ledgerSnapshot);
   }
 
   const picked: Record<string, unknown> = {};
@@ -511,7 +532,7 @@ function readCurrentRunWorkflowOutputsView(projectRoot: string, state: RunState)
     };
   }
 
-  const legacy = readLegacyWorkflowOutputsView(projectRoot, state);
+  const legacy = readLegacyWorkflowOutputsView(projectRoot, state, ledgerSnapshot);
   if (legacy.current_run_workflow_outputs) {
     const mergedErrors = [
       ...(stateError?.output_errors as Record<string, unknown>[] | undefined ?? []),
@@ -617,7 +638,7 @@ function stepArtifactKeyMap(state: RunState): Map<string, string> {
   return map;
 }
 
-function readLegacyWorkflowOutputsView(projectRoot: string, state: RunState): {
+function readLegacyWorkflowOutputsView(projectRoot: string, state: RunState, ledgerSnapshot = readLedgerSnapshot(projectRoot)): {
   current_run_workflow_outputs: Record<string, unknown> | null;
   current_run_workflow_outputs_error: Record<string, unknown> | null;
   current_run_workflow_outputs_source: WorkflowOutputSource | null;
@@ -636,17 +657,7 @@ function readLegacyWorkflowOutputsView(projectRoot: string, state: RunState): {
   const artifactKeyByStepId = stepArtifactKeyMap(state);
   const legacyOutputs = new Map<string, Record<string, unknown>>();
   const errors: Record<string, unknown>[] = [];
-  const lines = fs.existsSync(new StateManager(projectRoot).ledgerPath)
-    ? fs.readFileSync(new StateManager(projectRoot).ledgerPath, 'utf-8').split('\n').filter((line: string) => line.trim())
-    : [];
-
-  for (const line of lines) {
-    let event: Record<string, unknown>;
-    try {
-      event = JSON.parse(line) as Record<string, unknown>;
-    } catch {
-      continue;
-    }
+  for (const event of ledgerSnapshot.events) {
     if (event.run_id !== runId) continue;
     const eventType = typeof event.event_type === 'string' ? event.event_type : '';
     if (!['workflow_step_completed', 'workflow_step_skipped', 'workflow_step_failed'].includes(eventType)) continue;
@@ -1159,24 +1170,25 @@ function readActiveTeamRunForDigest(projectRoot: string, runId: string, runStatu
 }
 
 export function buildRunStatusView(projectRoot: string, state: RunState) {
+  const ledgerSnapshot = readLedgerSnapshot(projectRoot);
   const paused = fs.existsSync(pauseFilePath(projectRoot));
   const finalConclusions = readFinalConclusionsView(projectRoot, state);
   const researchOutcomeProjection = readResearchOutcomeProjectionView(projectRoot, state);
   const planView = readPlanView(projectRoot, state);
-  const workflowOutputs = readCurrentRunWorkflowOutputsView(projectRoot, state);
+  const workflowOutputs = readCurrentRunWorkflowOutputsView(projectRoot, state, ledgerSnapshot);
   const resumeContext = readResumeContextView(
     projectRoot,
     state,
     workflowOutputs.current_run_workflow_outputs ? Object.keys(workflowOutputs.current_run_workflow_outputs) : [],
   );
-  const recoveryContext = readRecoveryContextView(projectRoot, state);
+  const recoveryContext = readRecoveryContextView(projectRoot, state, ledgerSnapshot);
   const repairProposal = readRepairProposalView(projectRoot, state);
   const optimizeProposal = readOptimizeProposalView(projectRoot, state);
   const innovateProposal = readInnovateProposalView(projectRoot, state);
   const skillProposal = readSkillProposalView(projectRoot, state);
   const learningSummary = readLearningSummaryView(projectRoot, state);
   const teamSummary = readTeamSummaryView(projectRoot, state);
-  const projectRecentDigest = readProjectRecentDigestView(projectRoot);
+  const projectRecentDigest = readProjectRecentDigestView(projectRoot, ledgerSnapshot);
   const projectSurfaceDrift = readProjectSurfaceDriftView(projectRoot);
   return {
     run_id: state.run_id,
@@ -1241,8 +1253,9 @@ export function buildRunStatusView(projectRoot: string, state: RunState) {
 export function readRunListView(
   manager: StateManager,
   params: { limit: number; status_filter: VisibleRunStatusFilter },
+  ledgerSnapshot = readLedgerSnapshotFromPath(manager.ledgerPath),
 ): { runs: RunListEntry[]; total: number; returned: number; errors: ReadModelError[] } {
-  if (!fs.existsSync(manager.ledgerPath)) {
+  if (!ledgerSnapshot.exists) {
     return {
       runs: [],
       total: 0,
@@ -1252,17 +1265,8 @@ export function readRunListView(
   }
 
   const runMap = new Map<string, RunListEntry>();
-  let invalidLines = 0;
   const unmappedEvents = new Map<string, number>();
-  const lines = fs.readFileSync(manager.ledgerPath, 'utf-8').split('\n').filter((line: string) => line.trim());
-  for (const line of lines) {
-    let event: Record<string, unknown>;
-    try {
-      event = JSON.parse(line) as Record<string, unknown>;
-    } catch {
-      invalidLines += 1;
-      continue;
-    }
+  for (const event of ledgerSnapshot.events) {
     const runId = typeof event.run_id === 'string' ? event.run_id : null;
     if (!runId) continue;
     const eventType = typeof event.event_type === 'string' ? event.event_type : '';
@@ -1292,8 +1296,8 @@ export function readRunListView(
   }
   const limited = runs.slice(0, params.limit);
   const errors: ReadModelError[] = [];
-  if (invalidLines > 0) {
-    errors.push({ code: 'LEDGER_PARSE_ERROR', message: `Skipped ${invalidLines} invalid ledger line(s) in ${manager.ledgerPath}.` });
+  if (ledgerSnapshot.invalidLines > 0) {
+    errors.push({ code: 'LEDGER_PARSE_ERROR', message: `Skipped ${ledgerSnapshot.invalidLines} invalid ledger line(s) in ${manager.ledgerPath}.` });
   }
   if (unmappedEvents.size > 0) {
     const summary = [...unmappedEvents.entries()]
@@ -1313,12 +1317,12 @@ export function readRunListView(
   };
 }
 
-export function readProjectRecentDigestView(projectRoot: string): {
+export function readProjectRecentDigestView(projectRoot: string, ledgerSnapshot = readLedgerSnapshot(projectRoot)): {
   project_recent_digest: Record<string, unknown> | null;
   project_recent_digest_error: Record<string, unknown> | null;
 } {
   const manager = new StateManager(projectRoot);
-  const runList = readRunListView(manager, { limit: Number.MAX_SAFE_INTEGER, status_filter: 'all' });
+  const runList = readRunListView(manager, { limit: Number.MAX_SAFE_INTEGER, status_filter: 'all' }, ledgerSnapshot);
   const ledgerMissing = runList.errors.find(error => error.code === 'LEDGER_MISSING');
   if (ledgerMissing) {
     return {
@@ -1358,9 +1362,32 @@ export function readProjectRecentDigestView(projectRoot: string): {
       .map(run => typeof run.run_id === 'string' ? run.run_id : '')
       .filter(runId => runId.length > 0),
   );
+  let uncheckedRecentRuns = recentRunIds.size;
+  const hasActiveTeamRunCandidate = runList.runs.some(run => ACTIVE_DIGEST_RUN_STATUSES.has(run.last_status));
+  let inspectedRunCount = 0;
 
   for (const run of runList.runs) {
     const inspectRecentErrors = recentRunIds.has(run.run_id);
+    if (!inspectRecentErrors && inspectedRunCount >= PROJECT_RECENT_DIGEST_SCAN_LIMIT) {
+      break;
+    }
+    inspectedRunCount += 1;
+    const latestProposals = digest.latest_proposals as Record<DigestProposalKind, Record<string, unknown> | null>;
+    const missingProposalKinds = (['repair', 'skill', 'optimize', 'innovate'] as const).filter(kind => !latestProposals[kind]);
+    const needsFinalConclusions = !digest.latest_final_conclusions || inspectRecentErrors;
+    const needsAnyTeamRun = !digest.active_team_run && hasActiveTeamRunCandidate;
+    if (!inspectRecentErrors && !needsFinalConclusions && missingProposalKinds.length === 0 && !needsAnyTeamRun) {
+      break;
+    }
+
+    const runArtifactDirExists = fs.existsSync(path.join(projectRoot, 'artifacts', 'runs', run.run_id));
+    if (inspectRecentErrors) {
+      uncheckedRecentRuns -= 1;
+    }
+    if (!runArtifactDirExists) {
+      continue;
+    }
+
     if (!digest.latest_final_conclusions || inspectRecentErrors) {
       const finalConclusions = readLatestFinalConclusionsForRun(projectRoot, run.run_id);
       if (finalConclusions.entry && !digest.latest_final_conclusions) {
@@ -1370,8 +1397,7 @@ export function readProjectRecentDigestView(projectRoot: string): {
       }
     }
 
-    const latestProposals = digest.latest_proposals as Record<DigestProposalKind, Record<string, unknown> | null>;
-    for (const kind of ['repair', 'skill', 'optimize', 'innovate'] as const) {
+    for (const kind of missingProposalKinds) {
       if (latestProposals[kind] && !inspectRecentErrors) continue;
       const proposal = readLatestProposalForRun({ projectRoot, runId: run.run_id, kind });
       if (proposal.entry && !latestProposals[kind]) {
@@ -1388,6 +1414,14 @@ export function readProjectRecentDigestView(projectRoot: string): {
       } else if (team.error) {
         pushDigestError(errors, seenErrors, team.error);
       }
+    }
+    if (
+      uncheckedRecentRuns <= 0
+      && digest.latest_final_conclusions
+      && Object.values(latestProposals).every(Boolean)
+      && (!hasActiveTeamRunCandidate || digest.active_team_run)
+    ) {
+      break;
     }
   }
 
