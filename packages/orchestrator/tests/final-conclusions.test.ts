@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import * as fs from 'node:fs';
+import { createHash } from 'node:crypto';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { runCli } from '../src/cli.js';
 import { handleOrchRunApprove, handleOrchRunApprovalsList } from '../src/orch-tools/approval.js';
+import { consumeApprovedFinalConclusions } from '../src/orch-tools/final-conclusions.js';
 import { handleOrchRunExport } from '../src/orch-tools/control.js';
 import { handleOrchRunStatus } from '../src/orch-tools/create-status-list.js';
 import { handleOrchRunRequestFinalConclusions } from '../src/orch-tools/final-conclusions.js';
@@ -776,5 +778,208 @@ describe('final conclusions consumer', () => {
         }),
       ]),
     });
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// B-4 regression — approval SHA-256 TOCTOU
+// Source of bug: handleOrchRunApprove read the approval packet for the
+// SHA-256 integrity check, but consumeApprovedFinalConclusions re-read the
+// SAME file via readJsonFile for JSON.parse. Between the two reads a
+// concurrent writer (or an attacker with write access to the project tree)
+// could swap bytes A for bytes B — first read passes integrity with A,
+// second read parses B, and the consumer acts on un-verified bytes.
+//
+// Fix:
+//   - handleOrchRunApprove reads the packet ONCE into a Buffer
+//   - Hash is computed from that Buffer
+//   - The Buffer (packetBytes) is passed to consumeApprovedFinalConclusions
+//   - The consumer parses from the in-memory bytes — never re-reads disk
+//
+// Direct unit test of consumeApprovedFinalConclusions used here because
+// vitest+ESM cannot spy on `fs.readFileSync` (module namespace not
+// configurable). Driving the bug surface directly is more honest than a
+// fs-spy assertion anyway: we provide *verified* bytes and a *tampered*
+// disk, and assert the consumer used the bytes.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('B-4 regression — approval packet single-buffer read', () => {
+  it('consumer parses from packetBytes, NOT from disk — survives tamper-after-hash', async () => {
+    const { manager, projectRoot, runDir, runId } = await prepareCompletedRun();
+    setVerificationPass(runDir);
+    const request = await requestA5(projectRoot, runId);
+
+    const packetPath = path.join(
+      projectRoot,
+      'artifacts', 'runs', runId, 'approvals', 'A5-0001', 'approval_packet_v1.json',
+    );
+    const packetPathRel = `artifacts/runs/${runId}/approvals/A5-0001/approval_packet_v1.json`;
+
+    // Capture the genuine SHA-verified bytes (gate_id === 'A5')
+    const genuineBytes = fs.readFileSync(packetPath);
+    const genuineSha = createHash('sha256').update(genuineBytes).digest('hex');
+    expect(genuineSha).toBe(String(request.approval_packet_sha256));
+
+    // Tamper the on-disk file AFTER capturing the genuine bytes.
+    // Simulates the attacker mutating the packet between the integrity
+    // check and the consumer parse.
+    const tampered = JSON.parse(genuineBytes.toString('utf-8')) as Record<string, unknown>;
+    tampered.gate_id = 'A4';
+    fs.writeFileSync(packetPath, JSON.stringify(tampered, null, 2), 'utf-8');
+
+    // Call the consumer DIRECTLY with the genuine bytes. With the B-4 fix,
+    // the consumer parses these bytes and sees gate_id === 'A5' → success.
+    // Without the fix, the consumer would re-read packetPath → bytes have
+    // gate_id === 'A4' → throws "final conclusions consumer requires an
+    // A5 approval packet".
+    const state = manager.readState();
+    const result = await consumeApprovedFinalConclusions({
+      approvalId: String(request.approval_id),
+      packetBytes: genuineBytes,
+      packetJsonPath: packetPath,
+      packetPathRel,
+      packetSha256: genuineSha,
+      projectRoot,
+      state,
+    });
+
+    expect(result.final_conclusions_path).toContain('final_conclusions_v1.json');
+    // The produced final_conclusions_v1 artifact should exist on disk.
+    expect(fs.existsSync(path.join(projectRoot, result.final_conclusions_path))).toBe(true);
+  });
+
+  it('end-to-end approve flow succeeds with the single-buffer-read path', async () => {
+    const { manager, projectRoot, runDir, runId } = await prepareCompletedRun();
+    setVerificationPass(runDir);
+    const request = await requestA5(projectRoot, runId);
+
+    const approval = await handleOrchRunApprove({
+      _confirm: true,
+      approval_id: String(request.approval_id),
+      approval_packet_sha256: String(request.approval_packet_sha256),
+      project_root: projectRoot,
+    }) as Record<string, unknown>;
+
+    expect(approval).toMatchObject({
+      approved: true,
+      approval_id: 'A5-0001',
+      category: 'A5',
+      run_status: 'completed',
+    });
+
+    const state = manager.readState();
+    expect(state.run_status).toBe('completed');
+    expect(state.pending_approval).toBeNull();
+  });
+
+  it('rejects approve when on-disk packet SHA-256 does not match the caller-supplied hash', async () => {
+    const { projectRoot, runDir, runId } = await prepareCompletedRun();
+    setVerificationPass(runDir);
+    const request = await requestA5(projectRoot, runId);
+
+    // Pre-existing integrity contract: passing a wrong SHA still fails
+    // closed. Guards against future refactors that might accidentally
+    // skip the SHA check while keeping the single-buffer-read pattern.
+    await expect(
+      handleOrchRunApprove({
+        _confirm: true,
+        approval_id: String(request.approval_id),
+        approval_packet_sha256: 'a'.repeat(64),
+        project_root: projectRoot,
+      }),
+    ).rejects.toThrow(/approval_packet_sha256 mismatch/);
+
+    // Sanity: the genuine SHA still approves cleanly (proves the rejection
+    // above wasn't a side-effect of the test setup).
+    const approval = await handleOrchRunApprove({
+      _confirm: true,
+      approval_id: String(request.approval_id),
+      approval_packet_sha256: String(request.approval_packet_sha256),
+      project_root: projectRoot,
+    }) as Record<string, unknown>;
+    expect(approval.approved).toBe(true);
+  });
+
+  it('provenance — approval_packet_ref.sha256 in final_conclusions_v1 derives from SHA-verified bytes, not disk', async () => {
+    // R1 reviewer found a residual TOCTOU: createControlPlaneArtifactRef
+    // re-read the packet from disk to populate approval_packet_ref.sha256
+    // and size_bytes in the persisted final_conclusions_v1.json. After
+    // tamper-after-hash, that recorded SHA would be SHA(B) (tampered disk)
+    // while the runtime decision used bytes A — a self-consistent but
+    // internally-mismatched provenance chain.
+    //
+    // With the R2 fix, the helper takes `prehashedBytes` and derives both
+    // sha256 AND size_bytes from those SHA-verified bytes.
+    const { manager, projectRoot, runDir, runId } = await prepareCompletedRun();
+    setVerificationPass(runDir);
+    const request = await requestA5(projectRoot, runId);
+
+    const packetPath = path.join(
+      projectRoot,
+      'artifacts', 'runs', runId, 'approvals', 'A5-0001', 'approval_packet_v1.json',
+    );
+    const packetPathRel = `artifacts/runs/${runId}/approvals/A5-0001/approval_packet_v1.json`;
+
+    const genuineBytes = fs.readFileSync(packetPath);
+    const genuineSha = createHash('sha256').update(genuineBytes).digest('hex');
+    expect(genuineSha).toBe(String(request.approval_packet_sha256));
+    const genuineSize = genuineBytes.length;
+
+    // Tamper disk: same gate_id (so the gate check would PASS even on disk
+    // re-read — we don't want the test to short-circuit through the gate
+    // check) but visibly different content so its SHA differs.
+    const tampered = JSON.parse(genuineBytes.toString('utf-8')) as Record<string, unknown>;
+    tampered._tamper_marker = 'mutated_after_hash_check';
+    const tamperedBytes = Buffer.from(JSON.stringify(tampered, null, 2), 'utf-8');
+    const tamperedSha = createHash('sha256').update(tamperedBytes).digest('hex');
+    fs.writeFileSync(packetPath, tamperedBytes);
+    expect(tamperedSha).not.toBe(genuineSha); // sanity
+
+    const state = manager.readState();
+    const result = await consumeApprovedFinalConclusions({
+      approvalId: String(request.approval_id),
+      packetBytes: genuineBytes,
+      packetJsonPath: packetPath,
+      packetPathRel,
+      packetSha256: genuineSha,
+      projectRoot,
+      state,
+    });
+
+    const finalConclusions = readJson<Record<string, unknown>>(
+      path.join(projectRoot, result.final_conclusions_path),
+    );
+    const ref = finalConclusions.approval_packet_ref as Record<string, unknown>;
+    // Provenance MUST record the SHA-verified bytes, not the tampered disk
+    expect(ref.sha256).toBe(genuineSha);
+    expect(ref.size_bytes).toBe(genuineSize);
+    expect(ref.sha256).not.toBe(tamperedSha);
+  });
+
+  it('falls back to disk read when packetBytes is omitted (backward compatibility)', async () => {
+    const { manager, projectRoot, runDir, runId } = await prepareCompletedRun();
+    setVerificationPass(runDir);
+    const request = await requestA5(projectRoot, runId);
+
+    const packetPath = path.join(
+      projectRoot,
+      'artifacts', 'runs', runId, 'approvals', 'A5-0001', 'approval_packet_v1.json',
+    );
+    const packetPathRel = `artifacts/runs/${runId}/approvals/A5-0001/approval_packet_v1.json`;
+
+    // Caller without packetBytes (e.g. a hypothetical legacy MCP client)
+    // should still work via the disk-read fallback path. This documents
+    // the back-compat behavior — production callers MUST use packetBytes
+    // to close the TOCTOU window.
+    const state = manager.readState();
+    const result = await consumeApprovedFinalConclusions({
+      approvalId: String(request.approval_id),
+      packetJsonPath: packetPath,
+      packetPathRel,
+      packetSha256: String(request.approval_packet_sha256),
+      projectRoot,
+      state,
+    });
+
+    expect(result.final_conclusions_path).toContain('final_conclusions_v1.json');
   });
 });

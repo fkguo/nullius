@@ -81,6 +81,22 @@ function readJsonFile<T>(filePath: string, label: string): T {
   return JSON.parse(fs.readFileSync(filePath, 'utf-8')) as T;
 }
 
+/**
+ * B-4: parse a JSON document from an in-memory Buffer. Used in the approve
+ * flow so that the SHA-256 integrity check and the JSON.parse for the
+ * consumer operate on the SAME bytes, eliminating the read-then-re-read
+ * TOCTOU window in `consumeApprovedFinalConclusions`.
+ */
+function parseJsonFromBuffer<T>(bytes: Buffer, label: string): T {
+  try {
+    return JSON.parse(bytes.toString('utf-8')) as T;
+  } catch (err) {
+    throw invalidParams(`${label}: failed to parse JSON from verified bytes`, {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
 function runArtifactPathFromUri(runDir: string, uri: string): string {
   const prefix = 'rep://runs/';
   if (!uri.startsWith(prefix)) {
@@ -178,8 +194,24 @@ function createControlPlaneArtifactRef(params: {
   filePath: string;
   kind: string;
   runId: string;
+  /**
+   * B-4: when supplied, the helper derives `sha256` and `size_bytes` from
+   * these in-memory bytes instead of re-reading `filePath` from disk. This
+   * closes the second TOCTOU window in the approve flow — without it,
+   * `approval_packet_ref.sha256` in the persisted `final_conclusions_v1.json`
+   * could record SHA(tampered-disk-bytes) while the approval decision was
+   * made against SHA-verified bytes. Callers in the approve flow MUST pass
+   * this. Other callers (none today) may omit it and accept the disk read.
+   */
+  prehashedBytes?: Buffer;
 }): ArtifactRefV1 {
-  const stat = fs.statSync(params.filePath);
+  const useBytes = params.prehashedBytes !== undefined;
+  const sha256 = useBytes
+    ? createHash('sha256').update(params.prehashedBytes as Buffer).digest('hex')
+    : createHash('sha256').update(fs.readFileSync(params.filePath)).digest('hex');
+  const size_bytes = useBytes
+    ? (params.prehashedBytes as Buffer).length
+    : fs.statSync(params.filePath).size;
   return createArtifactRefV1({
     uri: makeScopedArtifactUri({
       scheme: 'orch',
@@ -187,9 +219,9 @@ function createControlPlaneArtifactRef(params: {
       scopeId: params.runId,
       artifactName: params.artifactName,
     }),
-    sha256: createHash('sha256').update(fs.readFileSync(params.filePath)).digest('hex'),
+    sha256,
     kind: params.kind,
-    size_bytes: stat.size,
+    size_bytes,
     produced_by: '@autoresearch/orchestrator',
   });
 }
@@ -337,6 +369,19 @@ function existingPendingA5(projectRoot: string, state: RunState, runId: string) 
 export async function consumeApprovedFinalConclusions(params: {
   approvalId: string;
   note?: string;
+  /**
+   * B-4: the SHA-verified packet bytes captured at integrity-check time.
+   * When supplied, the consumer parses the packet from THESE bytes —
+   * guaranteeing the bytes that passed the SHA check and the bytes the
+   * consumer acts on are byte-identical. `packetJsonPath` is still required
+   * for artifact-ref provenance but is NOT re-read.
+   *
+   * Optional for backwards compatibility with any test/utility caller that
+   * passes only the path; in that legacy path the consumer falls back to
+   * `readJsonFile(packetJsonPath, ...)` and the TOCTOU window re-opens.
+   * Production caller `handleOrchRunApprove` always supplies `packetBytes`.
+   */
+  packetBytes?: Buffer;
   packetJsonPath: string;
   packetPathRel: string;
   packetSha256: string;
@@ -360,7 +405,11 @@ export async function consumeApprovedFinalConclusions(params: {
     throw invalidParams('final conclusions consumer requires an active run_id in state.', {});
   }
 
-  const packet = readJsonFile<ApprovalPacketV1>(params.packetJsonPath, 'approval_packet_v1.json');
+  // B-4: prefer in-memory bytes (SHA-verified by caller) to a fresh disk read
+  // so the bytes that passed integrity are the bytes parsed here.
+  const packet = params.packetBytes
+    ? parseJsonFromBuffer<ApprovalPacketV1>(params.packetBytes, 'approval_packet_v1.json')
+    : readJsonFile<ApprovalPacketV1>(params.packetJsonPath, 'approval_packet_v1.json');
   if (packet.gate_id !== 'A5') {
     throw invalidParams('final conclusions consumer requires an A5 approval packet.', {
       gate_id: packet.gate_id,
@@ -390,6 +439,11 @@ export async function consumeApprovedFinalConclusions(params: {
     filePath: params.packetJsonPath,
     kind: 'approval_packet',
     runId,
+    // B-4: derive size + sha256 from the same SHA-verified bytes that the
+    // gate-id check used. Otherwise a tamper-after-hash could embed
+    // SHA(tampered-disk) into approval_packet_ref while the approval
+    // decision was for the verified bytes.
+    prehashedBytes: params.packetBytes,
   });
   const createdAt = new Date().toISOString();
   const payload = assertFinalConclusionsValid({

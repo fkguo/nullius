@@ -46,7 +46,13 @@ export async function handleOrchRunApprove(
   if (!fs.existsSync(packetJsonPath)) {
     throw notFound(`approval_packet_v1.json not found at ${packetJsonPath}`);
   }
-  const actualSha256 = createHash('sha256').update(fs.readFileSync(packetJsonPath)).digest('hex');
+  // B-4: SINGLE read into a Buffer; hash AND parse from the same bytes so
+  // a writer racing the approve flow cannot pass integrity with bytes A and
+  // have the consumer see bytes B. Prior to this, approval.ts read the file
+  // for the SHA check and `consumeApprovedFinalConclusions` re-read the file
+  // for JSON.parse — opening a TOCTOU window between the two reads.
+  const packetBytes = fs.readFileSync(packetJsonPath);
+  const actualSha256 = createHash('sha256').update(packetBytes).digest('hex');
   if (actualSha256 !== params.approval_packet_sha256) {
     throw invalidParams('approval_packet_sha256 mismatch — packet may have been tampered with.', {
       expected: params.approval_packet_sha256,
@@ -59,6 +65,7 @@ export async function handleOrchRunApprove(
     const finalConclusions = await consumeApprovedFinalConclusions({
       approvalId: params.approval_id,
       note: params.note,
+      packetBytes,
       packetJsonPath,
       packetPathRel,
       packetSha256: actualSha256,
