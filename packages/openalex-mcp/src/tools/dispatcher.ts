@@ -1,5 +1,5 @@
 import { ZodError } from 'zod';
-import { invalidParams, McpError } from '@autoresearch/shared';
+import { invalidParams, McpError, redact } from '@autoresearch/shared';
 import type { ToolExposureMode } from './registry.js';
 import { getToolSpec, isToolExposed } from './registry.js';
 
@@ -19,12 +19,17 @@ function parseToolArgs<T>(toolName: string, schema: { parse: (input: unknown) =>
 }
 
 function formatToolError(err: unknown): { content: { type: string; text: string }[]; isError: true } {
+  // B-1 defense-in-depth: all tool-result error messages run through redact()
+  // so leaked secrets (api_key, Bearer tokens, etc.) are masked at the
+  // serialization boundary even if upstream layers forget to strip them.
+  // Provider-atom layer (rateLimiter.ts:stripSecretsFromUrl) is the primary
+  // strip; this is the safety net.
   const payload = (() => {
     if (err instanceof McpError) {
       return {
         error: {
           code: err.code,
-          message: err.message,
+          message: redact(err.message),
           data: err.data,
         },
       };
@@ -34,7 +39,7 @@ function formatToolError(err: unknown): { content: { type: string; text: string 
     return {
       error: {
         code: 'INTERNAL_ERROR',
-        message,
+        message: redact(message),
       },
     };
   })();

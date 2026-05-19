@@ -178,3 +178,116 @@ describe('withSlot queue/release semantics', () => {
     expect(fetchSpy.mock.calls).toHaveLength(2);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// B-1 regression — api_key must never appear in any error message
+// Source of bug: rateLimiter.ts:198 used to throw `OpenAlex request timed
+// out: ${url}` where url contained `api_key=<secret>` from buildUrl(). The
+// dispatcher then serialized that into the tool-result JSON without redaction.
+// Two-layer defense:
+//   1. rateLimiter.ts strips api_key from url before throwing (primary)
+//   2. dispatcher.ts runs redact() on error message (defense-in-depth)
+// ─────────────────────────────────────────────────────────────────────────────
+describe('B-1 regression — api_key never leaks into error messages', () => {
+  const fetchSpy = vi.fn();
+  let savedKey: string | undefined;
+  let savedMinInterval: string | undefined;
+  let savedVitest: string | undefined;
+  let savedNodeEnv: string | undefined;
+
+  beforeEach(() => {
+    savedKey = process.env.OPENALEX_API_KEY;
+    savedMinInterval = process.env.OPENALEX_MIN_INTERVAL_MS;
+    savedVitest = process.env.VITEST;
+    savedNodeEnv = process.env.NODE_ENV;
+    process.env.OPENALEX_API_KEY = 'sk-veryLongSecretApiKeyValue1234567890';
+    process.env.OPENALEX_MIN_INTERVAL_MS = '0';
+    process.env.VITEST = '1';
+    vi.stubGlobal('fetch', fetchSpy);
+    vi.resetModules();
+  });
+
+  afterEach(() => {
+    if (savedKey !== undefined) { process.env.OPENALEX_API_KEY = savedKey; } else { delete process.env.OPENALEX_API_KEY; }
+    if (savedMinInterval !== undefined) { process.env.OPENALEX_MIN_INTERVAL_MS = savedMinInterval; } else { delete process.env.OPENALEX_MIN_INTERVAL_MS; }
+    if (savedVitest !== undefined) { process.env.VITEST = savedVitest; } else { delete process.env.VITEST; }
+    if (savedNodeEnv !== undefined) { process.env.NODE_ENV = savedNodeEnv; } else { delete process.env.NODE_ENV; }
+    fetchSpy.mockReset();
+    vi.unstubAllGlobals();
+    vi.resetModules();
+  });
+
+  it('timeout error message does NOT contain api_key= or the secret value', async () => {
+    // Simulate AbortError on fetch (timeout path L196-198 in rateLimiter.ts)
+    const abortErr = new Error('aborted');
+    abortErr.name = 'AbortError';
+    fetchSpy.mockRejectedValue(abortErr);
+
+    const { openalexFetch } = await import('../api/rateLimiter.js');
+
+    let caught: unknown;
+    try {
+      await openalexFetch('/works?search=quantum');
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeDefined();
+    const message = (caught as Error).message;
+    // Primary defense: stripSecretsFromUrl in rateLimiter.ts
+    expect(message).not.toContain('api_key=');
+    expect(message).not.toContain('sk-veryLongSecretApiKeyValue1234567890');
+    // Sanity: timeout message shape preserved
+    expect(message).toMatch(/OpenAlex request timed out/);
+  });
+
+  it('dispatcher redact() masks secret values at tool-result boundary (defense-in-depth)', async () => {
+    const { redact } = await import('@autoresearch/shared');
+
+    // Case 1: secret with sk- prefix. The first redact pattern (sk- prefix)
+    // masks the value to `sk-***`, which also defeats the second pattern's
+    // 16-char min match, so the literal text `api_key=***` does not appear.
+    // What MUST hold: the raw secret value is gone.
+    const sk = 'error at https://api.openalex.org/works?api_key=sk-realSecretValue123456789&q=test';
+    expect(redact(sk)).not.toContain('sk-realSecretValue123456789');
+    expect(redact(sk)).toContain('sk-***');
+
+    // Case 2: secret without prefix — falls through to the generic
+    // `api_key=<16+>` pattern which masks the value to `***`.
+    const noPrefix = 'leak: api_key=abcdefghijklmnopqrstuvwxyz123';
+    expect(redact(noPrefix)).not.toContain('abcdefghijklmnopqrstuvwxyz123');
+    expect(redact(noPrefix)).toContain('api_key=***');
+  });
+
+  it('B1.1 — generic fetch error path strips api_key from undici error message', async () => {
+    // Reviewer-discovered: undici TypeError for malformed URLs includes the
+    // FULL URL (with api_key) in err.message. The catch block's sibling
+    // throw at rateLimiter.ts L200-202 interpolates err.message raw, so the
+    // secret would leak through without `stripSecretsFromMessage`.
+    //
+    // Note: `redact()` regex `[a-zA-Z0-9]{16,}` does NOT cover base64-ish
+    // secrets containing `_-+/=`, so we cannot rely solely on dispatcher-side
+    // redaction. The provider-atom layer MUST strip.
+    const evilSecret = 'base64+token_with-special/chars=padding1234';
+    const undiciErr = new TypeError(
+      `Failed to parse URL from https://api.openalex.org/works?api_key=${evilSecret}&q=test`,
+    );
+    fetchSpy.mockRejectedValue(undiciErr);
+
+    const { openalexFetch } = await import('../api/rateLimiter.js');
+
+    let caught: unknown;
+    try {
+      await openalexFetch('/works');
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeDefined();
+    const message = (caught as Error).message;
+    // The raw secret value must not survive
+    expect(message).not.toContain(evilSecret);
+    // The masked form must be present (proves stripSecretsFromMessage applied)
+    expect(message).toContain('api_key=***');
+    // Sanity: generic-failure message shape preserved
+    expect(message).toMatch(/OpenAlex request failed/);
+  });
+});

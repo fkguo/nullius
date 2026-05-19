@@ -32,6 +32,42 @@ function isTestEnv(): boolean {
   return Boolean(process.env.VITEST ?? process.env.NODE_ENV === 'test');
 }
 
+/**
+ * B-1 defense: never let the api_key query parameter survive into error
+ * messages, log lines, or any user-visible string. `buildUrl()` adds
+ * `api_key=<secret>` to the URL search params; this helper strips it back out
+ * before any url goes into an `upstreamError` / `rateLimit` / log message.
+ *
+ * Defense-in-depth with `dispatcher.ts`'s `redact()` call: even if a URL slips
+ * through here, `redact()` masks `api_key=<value>` patterns at the tool-result
+ * serialization boundary.
+ */
+function stripSecretsFromUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    u.searchParams.delete('api_key');
+    return u.toString();
+  } catch {
+    return '<invalid url>';
+  }
+}
+
+/**
+ * Strip `api_key=<value>` substrings from free-form text.
+ *
+ * Used when upstream throws an Error whose `.message` may contain a URL
+ * fragment with the secret embedded (e.g. undici TypeError on malformed URL
+ * input includes the FULL URL in the message — see B1.1 reviewer finding).
+ *
+ * Stops at common URL/text separators (`&`, `#`, whitespace, quote/paren) so
+ * base64-ish keys with `_ - + / =` are masked correctly (the shared
+ * `redact()` regex only matches `[a-zA-Z0-9]{16,}` which would let such keys
+ * through).
+ */
+function stripSecretsFromMessage(text: string): string {
+  return text.replace(/api_key=[^&\s#"'`)]+/gi, 'api_key=***');
+}
+
 function getApiKey(): string | null {
   return process.env.OPENALEX_API_KEY?.trim() || null;
 }
@@ -195,16 +231,22 @@ class OpenAlexRateLimiter {
       });
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {
-        throw upstreamError(`OpenAlex request timed out: ${url}`);
+        throw upstreamError(`OpenAlex request timed out: ${stripSecretsFromUrl(url)}`);
       }
-      throw upstreamError(
-        `OpenAlex request failed: ${err instanceof Error ? err.message : String(err)}`,
-      );
+      // B1.1: undici TypeError for malformed URL puts the FULL URL (with
+      // api_key) into err.message. Strip secrets from any embedded URL text
+      // before interpolating. `stripSecretsFromMessage` is a regex strip that
+      // handles api_key=<value> substrings anywhere in the text.
+      const rawMessage = err instanceof Error ? err.message : String(err);
+      throw upstreamError(`OpenAlex request failed: ${stripSecretsFromMessage(rawMessage)}`);
     }
 
     // Handle manual redirects to enforce limit
     if (response.status >= 301 && response.status <= 308) {
       if (redirectCount >= MAX_REDIRECTS) {
+        // B1.1 defensive: redirect-limit error today carries no URL, but
+        // future changes might. Keep the message constant; if URL info is
+        // ever added, wrap via stripSecretsFromUrl / stripSecretsFromMessage.
         throw upstreamError(`OpenAlex redirect limit (${MAX_REDIRECTS}) exceeded`);
       }
       const location = response.headers.get('location');
