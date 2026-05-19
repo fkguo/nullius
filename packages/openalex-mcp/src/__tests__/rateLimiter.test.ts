@@ -291,3 +291,170 @@ describe('B-1 regression — api_key never leaks into error messages', () => {
     expect(message).toMatch(/OpenAlex request failed/);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// B-2 regression — redirect Location must be scheme- and host-validated
+// Source of bug: rateLimiter.ts:210-212 used to recurse on raw `Location`
+// without scheme/host validation. A compromised/malicious upstream OR DNS
+// rebinding could redirect to http://169.254.169.254/... (AWS metadata),
+// file://, internal services, etc. Pure SSRF reach.
+//
+// Defense:
+//   1. new URL(location, currentUrl) — resolves relative URLs
+//   2. protocol must be 'https:'
+//   3. hostname must be in {api.openalex.org, content.openalex.org}
+// ─────────────────────────────────────────────────────────────────────────────
+describe('B-2 regression — redirect Location is scheme/host-validated', () => {
+  const fetchSpy = vi.fn();
+  let savedMinInterval: string | undefined;
+  let savedVitest: string | undefined;
+
+  beforeEach(() => {
+    savedMinInterval = process.env.OPENALEX_MIN_INTERVAL_MS;
+    savedVitest = process.env.VITEST;
+    process.env.OPENALEX_MIN_INTERVAL_MS = '0';
+    process.env.VITEST = '1';
+    vi.stubGlobal('fetch', fetchSpy);
+    vi.resetModules();
+  });
+
+  afterEach(() => {
+    if (savedMinInterval !== undefined) { process.env.OPENALEX_MIN_INTERVAL_MS = savedMinInterval; } else { delete process.env.OPENALEX_MIN_INTERVAL_MS; }
+    if (savedVitest !== undefined) { process.env.VITEST = savedVitest; } else { delete process.env.VITEST; }
+    fetchSpy.mockReset();
+    vi.unstubAllGlobals();
+    vi.resetModules();
+  });
+
+  it('rejects redirect to http:// scheme (downgrade)', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      new Response(null, {
+        status: 302,
+        headers: { location: 'http://api.openalex.org/works/W123' },
+      }),
+    );
+
+    const { openalexFetch } = await import('../api/rateLimiter.js');
+
+    await expect(openalexFetch('/works/W123')).rejects.toThrow(/non-https scheme/);
+    // Defensive: fetch was called exactly once — no recursion happened
+    expect(fetchSpy.mock.calls).toHaveLength(1);
+  });
+
+  it('rejects redirect to file:// scheme', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      new Response(null, {
+        status: 302,
+        headers: { location: 'file:///etc/passwd' },
+      }),
+    );
+
+    const { openalexFetch } = await import('../api/rateLimiter.js');
+
+    await expect(openalexFetch('/works/W123')).rejects.toThrow(/non-https scheme/);
+    expect(fetchSpy.mock.calls).toHaveLength(1);
+  });
+
+  it('rejects redirect to AWS metadata service (host not in allow-list)', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      new Response(null, {
+        status: 302,
+        headers: { location: 'https://169.254.169.254/latest/meta-data/iam/security-credentials/' },
+      }),
+    );
+
+    const { openalexFetch } = await import('../api/rateLimiter.js');
+
+    await expect(openalexFetch('/works/W123')).rejects.toThrow(/host not in allow-list/);
+    expect(fetchSpy.mock.calls).toHaveLength(1);
+  });
+
+  it('rejects redirect to attacker-controlled host (host not in allow-list)', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      new Response(null, {
+        status: 302,
+        headers: { location: 'https://evil.example.com/leak?token=abc' },
+      }),
+    );
+
+    const { openalexFetch } = await import('../api/rateLimiter.js');
+
+    await expect(openalexFetch('/works/W123')).rejects.toThrow(/host not in allow-list/);
+    expect(fetchSpy.mock.calls).toHaveLength(1);
+  });
+
+  it('accepts redirect within api.openalex.org (canonical URL change)', async () => {
+    fetchSpy
+      .mockResolvedValueOnce(
+        new Response(null, {
+          status: 301,
+          headers: { location: 'https://api.openalex.org/works/W123_canonical' },
+        }),
+      )
+      .mockResolvedValueOnce(new Response('{}', { status: 200 }));
+
+    const { openalexFetch } = await import('../api/rateLimiter.js');
+
+    const response = await openalexFetch('/works/W123');
+    expect(response.status).toBe(200);
+    expect(fetchSpy.mock.calls).toHaveLength(2);
+    // Second call went to the redirected URL
+    expect(fetchSpy.mock.calls[1][0]).toBe('https://api.openalex.org/works/W123_canonical');
+  });
+
+  it('accepts cross-host redirect within OpenAlex (api.openalex.org → content.openalex.org)', async () => {
+    fetchSpy
+      .mockResolvedValueOnce(
+        new Response(null, {
+          status: 307,
+          headers: { location: 'https://content.openalex.org/pdf/W123.pdf' },
+        }),
+      )
+      .mockResolvedValueOnce(new Response('PDF bytes', { status: 200 }));
+
+    const { openalexFetch } = await import('../api/rateLimiter.js');
+
+    const response = await openalexFetch('/works/W123/download');
+    expect(response.status).toBe(200);
+    expect(fetchSpy.mock.calls).toHaveLength(2);
+    expect(fetchSpy.mock.calls[1][0]).toBe('https://content.openalex.org/pdf/W123.pdf');
+  });
+
+  it('rejects malformed Location header (unparseable URL)', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      new Response(null, {
+        status: 302,
+        // Unclosed IPv6 bracket — definitively throws ERR_INVALID_URL when
+        // resolved against any base, so we hit the `not a parseable URL`
+        // branch deterministically (no host/scheme bypass via relative
+        // resolution).
+        headers: { location: 'http://[invalid' },
+      }),
+    );
+
+    const { openalexFetch } = await import('../api/rateLimiter.js');
+
+    await expect(openalexFetch('/works/W123')).rejects.toThrow(/not a parseable URL/);
+    expect(fetchSpy.mock.calls).toHaveLength(1);
+  });
+
+  it('resolves relative Location against current URL and validates resolved host', async () => {
+    // Relative Location: should resolve against the current url's host
+    // (api.openalex.org), which IS in the allow-list — accept.
+    fetchSpy
+      .mockResolvedValueOnce(
+        new Response(null, {
+          status: 302,
+          headers: { location: '/works/W456' },
+        }),
+      )
+      .mockResolvedValueOnce(new Response('{}', { status: 200 }));
+
+    const { openalexFetch } = await import('../api/rateLimiter.js');
+
+    const response = await openalexFetch('/works/W123');
+    expect(response.status).toBe(200);
+    // Second call resolved relative path against api.openalex.org
+    expect(fetchSpy.mock.calls[1][0]).toBe('https://api.openalex.org/works/W456');
+  });
+});

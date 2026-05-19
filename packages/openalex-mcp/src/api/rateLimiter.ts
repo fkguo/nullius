@@ -15,6 +15,51 @@ const BACKOFF_MAX_MS = 32_000;
 const TOTAL_RETRY_WALL_TIME_MS = 120_000;
 const MAX_REDIRECTS = 5;
 
+/**
+ * B-2 SSRF defense: only follow redirects to known OpenAlex hosts. Without
+ * this, a compromised/malicious upstream OR DNS rebinding could redirect to
+ * `http://169.254.169.254/...` (AWS metadata), `file://`, internal services,
+ * etc. Pure SSRF reach.
+ *
+ * `api.openalex.org` is the API surface (used by `buildUrl()`).
+ * `content.openalex.org` is the full-text content surface (see
+ * `contentDownload.ts:21` `CONTENT_BASE_URL`).
+ */
+const OPENALEX_ALLOWED_REDIRECT_HOSTS: ReadonlySet<string> = new Set([
+  'api.openalex.org',
+  'content.openalex.org',
+]);
+
+/**
+ * Validate a redirect target. Returns the absolute URL string on success, or
+ * throws an upstream error on policy violation.
+ *
+ * Rules (B-2):
+ *   1. Must parse as a URL (relative is resolved against `currentUrl`).
+ *   2. Scheme must be `https:`. No `http:`, `file:`, `data:`, etc.
+ *   3. Hostname must be in `OPENALEX_ALLOWED_REDIRECT_HOSTS`.
+ *
+ * `api_key` re-transfer to cross-host: not a vector today because `buildUrl()`
+ * runs only at entry and the recursion call passes the Location string
+ * directly (no re-build). If `init` ever carries auth headers, this allow-list
+ * also bounds where those go.
+ */
+function validateOpenAlexRedirectTarget(location: string, currentUrl: string): string {
+  let target: URL;
+  try {
+    target = new URL(location, currentUrl);
+  } catch {
+    throw upstreamError(`OpenAlex redirect Location is not a parseable URL: ${location}`);
+  }
+  if (target.protocol !== 'https:') {
+    throw upstreamError(`OpenAlex redirect blocked (non-https scheme): ${target.protocol}`);
+  }
+  if (!OPENALEX_ALLOWED_REDIRECT_HOSTS.has(target.hostname)) {
+    throw upstreamError(`OpenAlex redirect blocked (host not in allow-list): ${target.hostname}`);
+  }
+  return target.toString();
+}
+
 export interface CostSummary {
   cumulative_usd: number;
   remaining_usd: number | null;
@@ -241,7 +286,7 @@ class OpenAlexRateLimiter {
       throw upstreamError(`OpenAlex request failed: ${stripSecretsFromMessage(rawMessage)}`);
     }
 
-    // Handle manual redirects to enforce limit
+    // Handle manual redirects to enforce limit + SSRF defense (B-2)
     if (response.status >= 301 && response.status <= 308) {
       if (redirectCount >= MAX_REDIRECTS) {
         // B1.1 defensive: redirect-limit error today carries no URL, but
@@ -251,7 +296,10 @@ class OpenAlexRateLimiter {
       }
       const location = response.headers.get('location');
       if (!location) throw upstreamError('OpenAlex redirect missing Location header');
-      return this.fetchWithRetry(location, init, signal, attempt, startTime, redirectCount + 1);
+      // B-2: validate scheme + hostname before recursing; reject http://,
+      // file://, internal services, AWS metadata, etc.
+      const safeLocation = validateOpenAlexRedirectTarget(location, url);
+      return this.fetchWithRetry(safeLocation, init, signal, attempt, startTime, redirectCount + 1);
     }
 
     // Budget-exhausted detection (402/403): return partial result signal, not an error
