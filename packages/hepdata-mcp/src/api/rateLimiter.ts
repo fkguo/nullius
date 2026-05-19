@@ -10,9 +10,44 @@ const HEPDATA_BASE_URL = 'https://www.hepdata.net';
 const MIN_INTERVAL_MS = 1000; // 1 req/second (conservative; HEPData limits at 60/min)
 const REQUEST_TIMEOUT_MS = 30000;
 const MAX_RETRIES = 3;
+const MAX_REDIRECTS = 5;
+
+/**
+ * B-3 SSRF defense: only follow redirects to the known HEPData host. Without
+ * this, the default `redirect: 'follow'` lets Node fetch follow up to 20
+ * redirects to any host, allowing a compromised or DNS-rebound upstream to
+ * redirect into `http://169.254.169.254/...` (AWS metadata), `file://`, or
+ * internal services. HEPData only serves `www.hepdata.net`.
+ */
+const HEPDATA_ALLOWED_HOST = 'www.hepdata.net';
 
 function isTestEnv(): boolean {
   return Boolean(process.env.VITEST ?? process.env.NODE_ENV === 'test');
+}
+
+/**
+ * Validate a redirect target. Returns the absolute URL string on success, or
+ * throws an upstream error on policy violation.
+ *
+ * Rules (B-3):
+ *   1. Must parse as a URL (relative is resolved against `currentUrl`).
+ *   2. Scheme must be `https:`.
+ *   3. Hostname must equal `HEPDATA_ALLOWED_HOST`.
+ */
+function validateHepdataRedirectTarget(location: string, currentUrl: string): string {
+  let target: URL;
+  try {
+    target = new URL(location, currentUrl);
+  } catch {
+    throw upstreamError(`HEPData redirect Location is not a parseable URL: ${location}`);
+  }
+  if (target.protocol !== 'https:') {
+    throw upstreamError(`HEPData redirect blocked (non-https scheme): ${target.protocol}`);
+  }
+  if (target.hostname !== HEPDATA_ALLOWED_HOST) {
+    throw upstreamError(`HEPData redirect blocked (host not in allow-list): ${target.hostname}`);
+  }
+  return target.toString();
 }
 
 class HEPDataRateLimiter {
@@ -48,15 +83,27 @@ class HEPDataRateLimiter {
     signal: AbortSignal,
     attempt: number,
     startTime: number,
+    redirectCount = 0,
   ): Promise<Response> {
     let response: Response;
     try {
-      response = await fetch(url, { ...init, signal, redirect: 'follow' });
+      response = await fetch(url, { ...init, signal, redirect: 'manual' });
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {
         throw upstreamError(`HEPData request timed out: ${url}`);
       }
       throw upstreamError(`HEPData request failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+
+    // Handle manual redirects with SSRF defense (B-3)
+    if (response.status >= 301 && response.status <= 308) {
+      if (redirectCount >= MAX_REDIRECTS) {
+        throw upstreamError(`HEPData redirect limit (${MAX_REDIRECTS}) exceeded`);
+      }
+      const location = response.headers.get('location');
+      if (!location) throw upstreamError('HEPData redirect missing Location header');
+      const safeLocation = validateHepdataRedirectTarget(location, url);
+      return this.fetchWithRetry(safeLocation, init, signal, attempt, startTime, redirectCount + 1);
     }
 
     if (response.status === 429 && attempt < MAX_RETRIES) {
@@ -73,7 +120,7 @@ class HEPDataRateLimiter {
           () => upstreamError('HEPData request timed out during retry wait'),
         );
       }
-      return this.fetchWithRetry(url, init, signal, attempt + 1, startTime);
+      return this.fetchWithRetry(url, init, signal, attempt + 1, startTime, redirectCount);
     }
 
     if (response.status === 429) {
