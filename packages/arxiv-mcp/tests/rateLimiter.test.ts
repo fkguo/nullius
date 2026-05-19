@@ -219,3 +219,277 @@ describe('arXiv rate limiter shared interval gating', () => {
     expect(calledAt[0]).toBe(new Date('2026-03-24T03:00:07Z').getTime());
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// H-10 regression — arxivFetch entry guard + redirect Location validation
+// Source of bug:
+//   1. rateLimiter.ts:237-240 used default `redirect: 'follow'` letting Node
+//      follow up to 20 redirects to any host.
+//   2. The exported `arxivFetch(url, options)` accepted arbitrary URLs at
+//      the public surface (used by hep-mcp via @autoresearch/arxiv-mcp/tooling).
+//
+// Defense:
+//   - validateArxivEntryUrl at the public entry point
+//   - validateArxivRedirectTarget on each redirect hop
+//   - MAX_REDIRECTS = 5 cap
+//   - ARXIV_ALLOWED_HOSTS = {export.arxiv.org}
+// ─────────────────────────────────────────────────────────────────────────────
+describe('H-10 regression — entry guard and redirect host allow-list', () => {
+  const fetchSpy = vi.fn();
+
+  beforeEach(() => {
+    vi.stubGlobal('fetch', fetchSpy);
+    vi.resetModules();
+  });
+
+  afterEach(() => {
+    fetchSpy.mockReset();
+    vi.unstubAllGlobals();
+    vi.resetModules();
+  });
+
+  // ── Entry guard (validateArxivEntryUrl) ──────────────────────────────────
+  it('entry guard rejects non-https URL', async () => {
+    const { arxivFetch } = await import('../src/api/rateLimiter.js');
+    await expect(arxivFetch('http://export.arxiv.org/api/query')).rejects.toThrow(
+      /non-https scheme/,
+    );
+    // fetch must NOT be called — guard fires before rate-limiter slot
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('entry guard rejects file:// URL', async () => {
+    const { arxivFetch } = await import('../src/api/rateLimiter.js');
+    await expect(arxivFetch('file:///etc/passwd')).rejects.toThrow(/non-https scheme/);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('entry guard rejects URL with foreign host', async () => {
+    const { arxivFetch } = await import('../src/api/rateLimiter.js');
+    await expect(arxivFetch('https://evil.example.com/data')).rejects.toThrow(
+      /host not in allow-list/,
+    );
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('entry guard rejects URL pointing at AWS metadata', async () => {
+    const { arxivFetch } = await import('../src/api/rateLimiter.js');
+    await expect(arxivFetch('https://169.254.169.254/latest/')).rejects.toThrow(
+      /host not in allow-list/,
+    );
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('entry guard rejects sibling host (arxiv.org, not export.arxiv.org)', async () => {
+    // Only export.arxiv.org is allowed; bare arxiv.org is not fetched today
+    const { arxivFetch } = await import('../src/api/rateLimiter.js');
+    await expect(arxivFetch('https://arxiv.org/pdf/2401.00001v1')).rejects.toThrow(
+      /host not in allow-list/,
+    );
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('entry guard rejects unparseable URL', async () => {
+    const { arxivFetch } = await import('../src/api/rateLimiter.js');
+    await expect(arxivFetch('http://[invalid')).rejects.toThrow(/not a parseable URL/);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('entry guard accepts valid export.arxiv.org URL', async () => {
+    fetchSpy.mockResolvedValueOnce(new Response('{}', { status: 200 }));
+    const { arxivFetch } = await import('../src/api/rateLimiter.js');
+    const response = await arxivFetch('https://export.arxiv.org/api/query?max_results=1');
+    expect(response.status).toBe(200);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  // ── Redirect handler (validateArxivRedirectTarget) ───────────────────────
+  it('rejects redirect to http:// downgrade', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      new Response(null, {
+        status: 302,
+        headers: { location: 'http://export.arxiv.org/pdf/2401.00001' },
+      }),
+    );
+    const { arxivFetch } = await import('../src/api/rateLimiter.js');
+    await expect(
+      arxivFetch('https://export.arxiv.org/pdf/2401.00001'),
+    ).rejects.toThrow(/non-https scheme/);
+    expect(fetchSpy.mock.calls).toHaveLength(1);
+  });
+
+  it('rejects redirect to AWS metadata service', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      new Response(null, {
+        status: 302,
+        headers: { location: 'https://169.254.169.254/latest/meta-data/' },
+      }),
+    );
+    const { arxivFetch } = await import('../src/api/rateLimiter.js');
+    await expect(
+      arxivFetch('https://export.arxiv.org/pdf/2401.00001'),
+    ).rejects.toThrow(/host not in allow-list/);
+    expect(fetchSpy.mock.calls).toHaveLength(1);
+  });
+
+  it('rejects redirect to attacker-controlled host', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      new Response(null, {
+        status: 302,
+        headers: { location: 'https://evil.example.com/leak' },
+      }),
+    );
+    const { arxivFetch } = await import('../src/api/rateLimiter.js');
+    await expect(
+      arxivFetch('https://export.arxiv.org/pdf/2401.00001'),
+    ).rejects.toThrow(/host not in allow-list/);
+    expect(fetchSpy.mock.calls).toHaveLength(1);
+  });
+
+  it('accepts redirect within export.arxiv.org (canonical URL)', async () => {
+    fetchSpy
+      .mockResolvedValueOnce(
+        new Response(null, {
+          status: 301,
+          headers: { location: 'https://export.arxiv.org/pdf/2401.00001v2' },
+        }),
+      )
+      .mockResolvedValueOnce(new Response('PDF', { status: 200 }));
+    const { arxivFetch } = await import('../src/api/rateLimiter.js');
+    const response = await arxivFetch('https://export.arxiv.org/pdf/2401.00001');
+    expect(response.status).toBe(200);
+    expect(fetchSpy.mock.calls[1][0]).toBe('https://export.arxiv.org/pdf/2401.00001v2');
+  });
+
+  it('resolves relative Location against current URL and accepts', async () => {
+    fetchSpy
+      .mockResolvedValueOnce(
+        new Response(null, {
+          status: 302,
+          headers: { location: '/pdf/2401.00001v2' },
+        }),
+      )
+      .mockResolvedValueOnce(new Response('PDF', { status: 200 }));
+    const { arxivFetch } = await import('../src/api/rateLimiter.js');
+    const response = await arxivFetch('https://export.arxiv.org/pdf/2401.00001');
+    expect(response.status).toBe(200);
+    expect(fetchSpy.mock.calls[1][0]).toBe('https://export.arxiv.org/pdf/2401.00001v2');
+  });
+
+  it('enforces MAX_REDIRECTS cap (5 hops)', async () => {
+    for (let i = 0; i < 6; i++) {
+      fetchSpy.mockResolvedValueOnce(
+        new Response(null, {
+          status: 302,
+          headers: { location: `https://export.arxiv.org/hop/${i + 1}` },
+        }),
+      );
+    }
+    const { arxivFetch } = await import('../src/api/rateLimiter.js');
+    await expect(
+      arxivFetch('https://export.arxiv.org/pdf/2401.00001'),
+    ).rejects.toThrow(/redirect limit \(5\) exceeded/);
+    expect(fetchSpy.mock.calls).toHaveLength(6);
+  });
+
+  it('rejects missing Location header on 302', async () => {
+    fetchSpy.mockResolvedValueOnce(new Response(null, { status: 302 }));
+    const { arxivFetch } = await import('../src/api/rateLimiter.js');
+    await expect(
+      arxivFetch('https://export.arxiv.org/pdf/2401.00001'),
+    ).rejects.toThrow(/redirect missing Location header/);
+    expect(fetchSpy.mock.calls).toHaveLength(1);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// H-10 regression — downloadFile size cap (paperFetcher.ts)
+// Bug: downloadFile streamed response body to disk with no size limit.
+// Defense:
+//   - Pre-check Content-Length header against cap
+//   - Stream-side byte counter aborts mid-pipeline if cap exceeded
+//   - Partial file on disk is unlinked on cap-exceeded error
+// ─────────────────────────────────────────────────────────────────────────────
+describe('H-10 regression — downloadFile size cap', () => {
+  const fetchSpy = vi.fn();
+  let tmpDir: string;
+  let savedCapEnv: string | undefined;
+
+  beforeEach(() => {
+    savedCapEnv = process.env.ARXIV_MAX_DOWNLOAD_BYTES;
+    vi.stubGlobal('fetch', fetchSpy);
+    vi.resetModules();
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'arxiv-h10-'));
+  });
+
+  afterEach(() => {
+    if (savedCapEnv !== undefined) {
+      process.env.ARXIV_MAX_DOWNLOAD_BYTES = savedCapEnv;
+    } else {
+      delete process.env.ARXIV_MAX_DOWNLOAD_BYTES;
+    }
+    fetchSpy.mockReset();
+    vi.unstubAllGlobals();
+    vi.resetModules();
+    try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch { /* best effort */ }
+  });
+
+  it('rejects pre-stream via Content-Length when over cap', async () => {
+    // Set a small cap, then return a body with a Content-Length that exceeds it
+    process.env.ARXIV_MAX_DOWNLOAD_BYTES = '1024'; // 1 KB
+    const oversized = Buffer.alloc(2048);
+    fetchSpy.mockResolvedValueOnce(
+      new Response(oversized, {
+        status: 200,
+        headers: { 'content-length': '2048' },
+      }),
+    );
+
+    const { downloadFile } = await import('../src/source/paperFetcher.js');
+    const dest = path.join(tmpDir, 'out.bin');
+
+    await expect(
+      downloadFile('https://export.arxiv.org/pdf/2401.00001', dest),
+    ).rejects.toThrow(/Content-Length 2048 exceeds cap 1024/);
+    // No partial file should remain
+    expect(fs.existsSync(dest)).toBe(false);
+  });
+
+  it('aborts stream when bytes exceed cap (no Content-Length header)', async () => {
+    process.env.ARXIV_MAX_DOWNLOAD_BYTES = '1024'; // 1 KB
+    // 2 KB body, no Content-Length so pre-check cannot fire
+    const oversized = Buffer.alloc(2048);
+    fetchSpy.mockResolvedValueOnce(
+      new Response(oversized, {
+        status: 200,
+        // intentionally NO 'content-length' header
+      }),
+    );
+
+    const { downloadFile } = await import('../src/source/paperFetcher.js');
+    const dest = path.join(tmpDir, 'out.bin');
+
+    await expect(
+      downloadFile('https://export.arxiv.org/pdf/2401.00001', dest),
+    ).rejects.toThrow(/exceeded cap of 1024 bytes/);
+    // Partial file removed on cap-exceeded
+    expect(fs.existsSync(dest)).toBe(false);
+  });
+
+  it('accepts download under cap', async () => {
+    process.env.ARXIV_MAX_DOWNLOAD_BYTES = String(1024 * 1024); // 1 MB
+    const small = Buffer.from('arxiv-paper-body', 'utf-8');
+    fetchSpy.mockResolvedValueOnce(
+      new Response(small, {
+        status: 200,
+        headers: { 'content-length': String(small.length) },
+      }),
+    );
+
+    const { downloadFile } = await import('../src/source/paperFetcher.js');
+    const dest = path.join(tmpDir, 'out.bin');
+
+    await downloadFile('https://export.arxiv.org/pdf/2401.00001', dest);
+    expect(fs.readFileSync(dest, 'utf-8')).toBe('arxiv-paper-body');
+  });
+});

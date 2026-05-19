@@ -26,6 +26,7 @@ const DEFAULT_RETRY_AFTER_MS = 10_000;
 const NETWORK_RETRY_BASE_MS = 1_000;
 const NETWORK_RETRY_MAX_MS = 10_000;
 const MAX_RETRIES = 3;
+const MAX_REDIRECTS = 5;
 const SHARED_GATE_LOCK_POLL_MS = 100;
 const SHARED_GATE_STALE_MS = 60_000;
 const RETRYABLE_NETWORK_ERROR_CODES = new Set([
@@ -39,6 +40,22 @@ const RETRYABLE_NETWORK_ERROR_CODES = new Set([
   'UND_ERR_SOCKET',
 ]);
 
+/**
+ * H-10 SSRF defense: only fetch and only follow redirects to the arXiv
+ * `export.arxiv.org` host. Without this, the default `redirect: 'follow'`
+ * lets Node fetch follow up to 20 redirects to any host, and the exported
+ * `arxivFetch(url)` accepts arbitrary URL strings at the public surface.
+ *
+ * Verified the sole live fetch target is `https://export.arxiv.org` — all
+ * internal callers (paperFetcher.ts, paperContent.ts, arxivSource.ts,
+ * searchClient.ts) build URLs rooted at `ARXIV_EXPORT_BASE`. `arxiv.org`
+ * (e.g. `https://arxiv.org/abs/<id>`) appears only as a tool-output URL
+ * string (downloadUrls.ts) — never fetched by this package today.
+ */
+const ARXIV_ALLOWED_HOSTS: ReadonlySet<string> = new Set([
+  'export.arxiv.org',
+]);
+
 function isTestEnv(): boolean {
   return Boolean(
     process.env.VITEST
@@ -46,6 +63,52 @@ function isTestEnv(): boolean {
       || process.env.VITEST_POOL_ID
       || process.env.NODE_ENV === 'test'
   );
+}
+
+/**
+ * Validate that a URL is safe for arXiv fetch — used at the public
+ * `arxivFetch()` entry point as a defense-in-depth gate against external
+ * callers passing arbitrary URLs.
+ *
+ * Rules (H-10):
+ *   1. URL must parse.
+ *   2. Scheme must be `https:`.
+ *   3. Hostname must be in `ARXIV_ALLOWED_HOSTS`.
+ */
+function validateArxivEntryUrl(url: string): void {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw upstreamError(`arXiv fetch rejected (not a parseable URL): ${url}`);
+  }
+  if (parsed.protocol !== 'https:') {
+    throw upstreamError(`arXiv fetch rejected (non-https scheme): ${parsed.protocol}`);
+  }
+  if (!ARXIV_ALLOWED_HOSTS.has(parsed.hostname)) {
+    throw upstreamError(`arXiv fetch rejected (host not in allow-list): ${parsed.hostname}`);
+  }
+}
+
+/**
+ * Validate a redirect target. Returns the absolute URL string on success, or
+ * throws an upstream error on policy violation. Same shape as the entry
+ * validator but resolves relative URLs against `currentUrl`.
+ */
+function validateArxivRedirectTarget(location: string, currentUrl: string): string {
+  let target: URL;
+  try {
+    target = new URL(location, currentUrl);
+  } catch {
+    throw upstreamError(`arXiv redirect Location is not a parseable URL: ${location}`);
+  }
+  if (target.protocol !== 'https:') {
+    throw upstreamError(`arXiv redirect blocked (non-https scheme): ${target.protocol}`);
+  }
+  if (!ARXIV_ALLOWED_HOSTS.has(target.hostname)) {
+    throw upstreamError(`arXiv redirect blocked (host not in allow-list): ${target.hostname}`);
+  }
+  return target.toString();
 }
 
 function getArxivDataDir(): string {
@@ -233,10 +296,13 @@ class ArxivRateLimiter {
     attempt: number,
     startTime: number,
     enforceTimeoutBudget: boolean,
+    redirectCount = 0,
   ): Promise<Response> {
     let response: Response;
     try {
-      response = await fetch(url, { ...options, signal });
+      // H-10: manual redirect handling so we can validate each hop against
+      // the arXiv host allow-list before following.
+      response = await fetch(url, { ...options, signal, redirect: 'manual' });
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {
         throw upstreamError(`arXiv request aborted: ${url}`);
@@ -260,13 +326,24 @@ class ArxivRateLimiter {
             () => upstreamError('arXiv request aborted during network retry wait'),
           );
         }
-        return this.fetchWithRetry(url, options, signal, attempt + 1, startTime, enforceTimeoutBudget);
+        return this.fetchWithRetry(url, options, signal, attempt + 1, startTime, enforceTimeoutBudget, redirectCount);
       }
       const failure = formatFetchFailure(err);
       throw upstreamError(`arXiv request failed: ${failure.message}`, {
         ...failure.data,
         attempts: attempt + 1,
       });
+    }
+
+    // H-10 SSRF defense: manual redirect handler with cap + host allow-list
+    if (response.status >= 301 && response.status <= 308) {
+      if (redirectCount >= MAX_REDIRECTS) {
+        throw upstreamError(`arXiv redirect limit (${MAX_REDIRECTS}) exceeded`);
+      }
+      const location = response.headers.get('location');
+      if (!location) throw upstreamError('arXiv redirect missing Location header');
+      const safeLocation = validateArxivRedirectTarget(location, url);
+      return this.fetchWithRetry(safeLocation, options, signal, attempt, startTime, enforceTimeoutBudget, redirectCount + 1);
     }
 
     if (response.status === 429 && attempt < MAX_RETRIES) {
@@ -284,7 +361,7 @@ class ArxivRateLimiter {
           () => upstreamError('arXiv request aborted during retry wait'),
         );
       }
-      return this.fetchWithRetry(url, options, signal, attempt + 1, startTime, enforceTimeoutBudget);
+      return this.fetchWithRetry(url, options, signal, attempt + 1, startTime, enforceTimeoutBudget, redirectCount);
     }
 
     if (response.status === 429) {
@@ -307,10 +384,15 @@ const arxivLimiter = new ArxivRateLimiter();
 /**
  * Fetch from arXiv API with rate limiting and timeout.
  * arXiv requires at least 3 seconds between requests.
+ *
+ * H-10: validates URL host before fetching so external callers (this is an
+ * exported symbol consumed by hep-mcp via `@autoresearch/arxiv-mcp/tooling`)
+ * cannot pass arbitrary URLs through the rate-limited surface.
  */
 export async function arxivFetch(
   url: string,
   options?: RequestInit & { signal?: AbortSignal }
 ): Promise<Response> {
+  validateArxivEntryUrl(url);
   return arxivLimiter.fetch(url, options);
 }
