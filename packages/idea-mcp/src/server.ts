@@ -12,7 +12,36 @@ import {
 import { McpError, invalidParams } from '@autoresearch/shared';
 import { IdeaRpcClient } from './rpc-client.js';
 import { zodToMcpInputSchema } from './mcp-input-schema.js';
-import { IDEA_TOOLS } from './tool-registry.js';
+import { CONFIRM_FIELD, IDEA_TOOLS, type IdeaToolDef } from './tool-registry.js';
+
+/**
+ * B-10 testable helper: Zod-parse `rawArgs` against the tool's schema, then
+ * strip the destructive-gate marker before the result is forwarded to the
+ * idea-engine RPC backend.
+ *
+ * Behavior:
+ *   - For destructive tools the schema already requires `_confirm: true`;
+ *     the parse throws on missing/wrong values. After parse, `_confirm` is
+ *     removed so the RPC backend never sees it (the field is part of the
+ *     tool-surface confirmation contract, not the state-machine contract).
+ *   - For non-destructive tools the schema rejects `_confirm` as an
+ *     unknown field via `.strict()`, preserving the existing contract.
+ *
+ * Returns the cleaned args dict suitable for `rpc.call(toolDef.rpcMethod, args)`.
+ *
+ * Exported for direct unit testing (the server's `setRequestHandler` call
+ * graph is awkward to drive in isolation).
+ */
+export function parseAndCleanToolArgs(
+  toolDef: IdeaToolDef,
+  rawArgs: unknown,
+): Record<string, unknown> {
+  const params = toolDef.schema.parse(rawArgs ?? {}) as Record<string, unknown>;
+  if (CONFIRM_FIELD in params) {
+    delete params[CONFIRM_FIELD];
+  }
+  return params;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Main
@@ -97,7 +126,7 @@ export async function startServer(env: NodeJS.ProcessEnv = process.env): Promise
     }
 
     try {
-      const params = toolDef.schema.parse(request.params.arguments ?? {}) as Record<string, unknown>;
+      const params = parseAndCleanToolArgs(toolDef, request.params.arguments);
       const result = await rpc.call(toolDef.rpcMethod, params);
       return {
         content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],

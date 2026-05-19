@@ -102,14 +102,36 @@ const EvaluatorConfigSchema = z.object({
   extensions: LooseObject.optional(),
 }).strict();
 
+/**
+ * Tool risk classification (B-10).
+ *
+ * - `read` — pure query; no state mutation.
+ * - `write` — mutates state but is reversible (e.g. pause is undone by
+ *   resume) OR idempotent via `idempotency_key`. Default classification
+ *   for stateful tools.
+ * - `destructive` — irreversible or high-consequence. Requires the caller
+ *   to pass `_confirm: true` in tool args; the request is rejected
+ *   otherwise. Per MEMORY Batch 9 rule, only mark `destructive` when
+ *   `_confirm` is genuinely needed; downgrade to `write` if the action is
+ *   reversible.
+ */
+export type IdeaToolRiskLevel = 'read' | 'write' | 'destructive';
+
 export interface IdeaToolDef {
   name: string;
   description: string;
   schema: z.ZodTypeAny;
   rpcMethod: string;
+  riskLevel: IdeaToolRiskLevel;
 }
 
-export const IDEA_TOOLS: IdeaToolDef[] = [
+/**
+ * Source-of-truth raw spec list. Destructive entries get their `_confirm`
+ * field injected by `applyRiskLevelToSchema` below so the Zod parse layer
+ * handles both validation (must be `true`) and field acceptance (the
+ * surrounding `.strict()` would otherwise reject `_confirm` as unknown).
+ */
+const RAW_IDEA_TOOLS: IdeaToolDef[] = [
   {
     name: 'idea_campaign_init',
     description: 'Create a new idea campaign using the live charter/seed/budget contract.',
@@ -121,12 +143,15 @@ export const IDEA_TOOLS: IdeaToolDef[] = [
       idempotency_key: NonEmptyString,
     }).strict(),
     rpcMethod: 'campaign.init',
+    // New state but idempotent via `idempotency_key`; not destructive.
+    riskLevel: 'write',
   },
   {
     name: 'idea_campaign_status',
     description: 'Get the current status of an idea campaign.',
     schema: z.object({ campaign_id: UuidString }).strict(),
     rpcMethod: 'campaign.status',
+    riskLevel: 'read',
   },
   {
     name: 'idea_campaign_topup',
@@ -137,6 +162,8 @@ export const IDEA_TOOLS: IdeaToolDef[] = [
       idempotency_key: NonEmptyString,
     }).strict(),
     rpcMethod: 'campaign.topup',
+    // Adds budget; idempotent and not destructive.
+    riskLevel: 'write',
   },
   {
     name: 'idea_campaign_pause',
@@ -146,6 +173,9 @@ export const IDEA_TOOLS: IdeaToolDef[] = [
       idempotency_key: NonEmptyString,
     }).strict(),
     rpcMethod: 'campaign.pause',
+    // Reversible by `idea_campaign_resume` → not destructive per the
+    // MEMORY Batch-9 downgrade rule.
+    riskLevel: 'write',
   },
   {
     name: 'idea_campaign_resume',
@@ -155,6 +185,7 @@ export const IDEA_TOOLS: IdeaToolDef[] = [
       idempotency_key: NonEmptyString,
     }).strict(),
     rpcMethod: 'campaign.resume',
+    riskLevel: 'write',
   },
   {
     name: 'idea_campaign_complete',
@@ -164,6 +195,9 @@ export const IDEA_TOOLS: IdeaToolDef[] = [
       idempotency_key: NonEmptyString,
     }).strict(),
     rpcMethod: 'campaign.complete',
+    // Irreversible terminal state — the description itself says
+    // "close further search mutation". Requires explicit `_confirm: true`.
+    riskLevel: 'destructive',
   },
   {
     name: 'idea_search_step',
@@ -175,6 +209,7 @@ export const IDEA_TOOLS: IdeaToolDef[] = [
       idempotency_key: NonEmptyString,
     }).strict(),
     rpcMethod: 'search.step',
+    riskLevel: 'write',
   },
   {
     name: 'idea_eval_run',
@@ -186,5 +221,51 @@ export const IDEA_TOOLS: IdeaToolDef[] = [
       idempotency_key: NonEmptyString,
     }).strict(),
     rpcMethod: 'eval.run',
+    riskLevel: 'write',
   },
 ];
+
+/**
+ * B-10: marker field name that the server strips after Zod parse.
+ * Exported for the server / test layer to keep both sides in sync.
+ */
+export const CONFIRM_FIELD = '_confirm' as const;
+
+/**
+ * Inject `_confirm: z.literal(true)` into destructive tool schemas. The
+ * surrounding schemas use `.strict()`, so adding `_confirm` via `.extend()`
+ * keeps the strict-unknown contract intact while making `_confirm` an
+ * explicit required field of the validated input.
+ *
+ * Two effects:
+ *   - Validation: `_confirm` must be present and `=== true`, otherwise the
+ *     Zod parse rejects with a structured error.
+ *   - Inventory: the JSON schema exposed via `ListTools` includes
+ *     `_confirm` in `required`, so clients see the gate without needing
+ *     out-of-band documentation.
+ *
+ * The server strips `_confirm` from the parsed params before forwarding to
+ * `rpc.call(...)` (see `server.ts`), so the idea-engine backend does not
+ * observe the confirmation field.
+ */
+function applyRiskLevelToSchema(spec: IdeaToolDef): IdeaToolDef {
+  if (spec.riskLevel !== 'destructive') return spec;
+  if (!(spec.schema instanceof z.ZodObject)) {
+    // All current spec schemas are `z.object(...).strict()`. If a future
+    // schema is not a ZodObject (e.g. a discriminated union), the author
+    // must thread `_confirm` through that schema explicitly.
+    throw new Error(
+      `applyRiskLevelToSchema: destructive tool "${spec.name}" must use a top-level z.object(...) schema`,
+    );
+  }
+  const augmented = (spec.schema as z.ZodObject<Record<string, z.ZodTypeAny>>)
+    .extend({
+      [CONFIRM_FIELD]: z.literal(true, {
+        message: `${spec.name} is a destructive operation; pass _confirm: true to execute.`,
+      }),
+    })
+    .strict();
+  return { ...spec, schema: augmented };
+}
+
+export const IDEA_TOOLS: IdeaToolDef[] = RAW_IDEA_TOOLS.map(applyRiskLevelToSchema);
