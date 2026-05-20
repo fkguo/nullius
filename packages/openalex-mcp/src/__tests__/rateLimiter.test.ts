@@ -458,3 +458,93 @@ describe('B-2 regression — redirect Location is scheme/host-validated', () => 
     expect(fetchSpy.mock.calls[1][0]).toBe('https://api.openalex.org/works/W456');
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// P0-hotfix sibling regression — parseEnvPositiveInt sanitization (openalex)
+//
+// Bug: previous code did `Number(process.env.OPENALEX_MIN_INTERVAL_MS ?? '100')`
+// which silently produced NaN for invalid input (`Number('abc') === NaN`).
+// Then `elapsed < NaN` is always false → gate effectively skipped.
+// Defense: parseEnvPositiveInt rejects NaN/Infinity/≤0/non-numeric and
+// falls back to the documented default.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('P0-hotfix sibling regression — parseEnvPositiveInt sanitization (openalex)', () => {
+  let savedEnv: string | undefined;
+
+  beforeEach(() => {
+    savedEnv = process.env.OPENALEX_TEST_SAMPLE;
+    vi.resetModules();
+  });
+  afterEach(() => {
+    if (savedEnv !== undefined) process.env.OPENALEX_TEST_SAMPLE = savedEnv;
+    else delete process.env.OPENALEX_TEST_SAMPLE;
+    vi.resetModules();
+  });
+
+  it('rejects all adversarial values; accepts positive ints; floors fractions', async () => {
+    const { __testing__ } = await import('../api/rateLimiter.js');
+    const { parseEnvPositiveInt } = __testing__;
+
+    delete process.env.OPENALEX_TEST_SAMPLE;
+    expect(parseEnvPositiveInt('OPENALEX_TEST_SAMPLE', 777)).toBe(777);
+
+    process.env.OPENALEX_TEST_SAMPLE = '';
+    expect(parseEnvPositiveInt('OPENALEX_TEST_SAMPLE', 777)).toBe(777);
+
+    process.env.OPENALEX_TEST_SAMPLE = 'abc';
+    expect(parseEnvPositiveInt('OPENALEX_TEST_SAMPLE', 777)).toBe(777);
+
+    process.env.OPENALEX_TEST_SAMPLE = '-5';
+    expect(parseEnvPositiveInt('OPENALEX_TEST_SAMPLE', 777)).toBe(777);
+
+    process.env.OPENALEX_TEST_SAMPLE = '0';
+    expect(parseEnvPositiveInt('OPENALEX_TEST_SAMPLE', 777)).toBe(777);
+
+    process.env.OPENALEX_TEST_SAMPLE = '1e999';
+    expect(parseEnvPositiveInt('OPENALEX_TEST_SAMPLE', 777)).toBe(777);
+
+    process.env.OPENALEX_TEST_SAMPLE = '5000';
+    expect(parseEnvPositiveInt('OPENALEX_TEST_SAMPLE', 777)).toBe(5000);
+
+    process.env.OPENALEX_TEST_SAMPLE = '2.9';
+    expect(parseEnvPositiveInt('OPENALEX_TEST_SAMPLE', 777)).toBe(2);
+  });
+});
+
+describe('P0-hotfix sibling regression — REQUEST_TIMEOUT_MS env override (openalex)', () => {
+  const fetchSpy = vi.fn();
+  let savedTimeout: string | undefined;
+  let savedInterval: string | undefined;
+
+  beforeEach(() => {
+    savedTimeout = process.env.OPENALEX_REQUEST_TIMEOUT_MS;
+    savedInterval = process.env.OPENALEX_MIN_INTERVAL_MS;
+    process.env.OPENALEX_MIN_INTERVAL_MS = '0';
+    vi.stubGlobal('fetch', fetchSpy);
+    vi.resetModules();
+  });
+
+  afterEach(() => {
+    if (savedTimeout !== undefined) process.env.OPENALEX_REQUEST_TIMEOUT_MS = savedTimeout;
+    else delete process.env.OPENALEX_REQUEST_TIMEOUT_MS;
+    if (savedInterval !== undefined) process.env.OPENALEX_MIN_INTERVAL_MS = savedInterval;
+    else delete process.env.OPENALEX_MIN_INTERVAL_MS;
+    fetchSpy.mockReset();
+    vi.unstubAllGlobals();
+    vi.resetModules();
+  });
+
+  it('default REQUEST_TIMEOUT_MS is 90s (raised from 30s) — 10s retry-after still fits the budget', async () => {
+    delete process.env.OPENALEX_REQUEST_TIMEOUT_MS;
+    vi.resetModules();
+
+    fetchSpy
+      .mockResolvedValueOnce(new Response('', { status: 429, headers: { 'retry-after': '10' } }))
+      .mockResolvedValueOnce(new Response('{}', { status: 200 }));
+
+    const { openalexFetch } = await import('../api/rateLimiter.js');
+    const response = await openalexFetch('/works');
+    expect(response.status).toBe(200);
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+});
