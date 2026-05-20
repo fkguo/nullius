@@ -225,3 +225,77 @@ describe('B-3 regression — redirect Location is scheme/host-validated', () => 
     expect(fetchSpy.mock.calls).toHaveLength(1);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// P0-hotfix sibling regression — parseEnvPositiveInt sanitization (hepdata)
+// Same defense as openalex / arxiv. hepdata previously had ALL knobs hard-
+// coded (no escape hatch under tightened rate-limiting).
+// ─────────────────────────────────────────────────────────────────────────────
+describe('P0-hotfix sibling regression — parseEnvPositiveInt sanitization (hepdata)', () => {
+  let savedEnv: string | undefined;
+
+  beforeEach(() => {
+    savedEnv = process.env.HEPDATA_TEST_SAMPLE;
+    vi.resetModules();
+  });
+  afterEach(() => {
+    if (savedEnv !== undefined) process.env.HEPDATA_TEST_SAMPLE = savedEnv;
+    else delete process.env.HEPDATA_TEST_SAMPLE;
+    vi.resetModules();
+  });
+
+  it('rejects all adversarial values; accepts positive ints; floors fractions', async () => {
+    const { __testing__ } = await import('../src/api/rateLimiter.js');
+    const { parseEnvPositiveInt } = __testing__;
+
+    delete process.env.HEPDATA_TEST_SAMPLE;
+    expect(parseEnvPositiveInt('HEPDATA_TEST_SAMPLE', 555)).toBe(555);
+
+    process.env.HEPDATA_TEST_SAMPLE = '';
+    expect(parseEnvPositiveInt('HEPDATA_TEST_SAMPLE', 555)).toBe(555);
+
+    process.env.HEPDATA_TEST_SAMPLE = 'abc';
+    expect(parseEnvPositiveInt('HEPDATA_TEST_SAMPLE', 555)).toBe(555);
+
+    process.env.HEPDATA_TEST_SAMPLE = '-5';
+    expect(parseEnvPositiveInt('HEPDATA_TEST_SAMPLE', 555)).toBe(555);
+
+    process.env.HEPDATA_TEST_SAMPLE = '0';
+    expect(parseEnvPositiveInt('HEPDATA_TEST_SAMPLE', 555)).toBe(555);
+
+    process.env.HEPDATA_TEST_SAMPLE = '1e999';
+    expect(parseEnvPositiveInt('HEPDATA_TEST_SAMPLE', 555)).toBe(555);
+
+    process.env.HEPDATA_TEST_SAMPLE = '5000';
+    expect(parseEnvPositiveInt('HEPDATA_TEST_SAMPLE', 555)).toBe(5000);
+
+    process.env.HEPDATA_TEST_SAMPLE = '2.9';
+    expect(parseEnvPositiveInt('HEPDATA_TEST_SAMPLE', 555)).toBe(2);
+  });
+});
+
+describe('P0-hotfix sibling regression — REQUEST_TIMEOUT_MS env override (hepdata)', () => {
+  const fetchSpy = vi.fn();
+
+  beforeEach(() => {
+    vi.stubGlobal('fetch', fetchSpy);
+    vi.resetModules();
+  });
+
+  afterEach(() => {
+    fetchSpy.mockReset();
+    vi.unstubAllGlobals();
+    vi.resetModules();
+  });
+
+  it('default REQUEST_TIMEOUT_MS is 90s — 10s retry-after still fits the budget', async () => {
+    fetchSpy
+      .mockResolvedValueOnce(new Response('', { status: 429, headers: { 'retry-after': '10' } }))
+      .mockResolvedValueOnce(new Response('{}', { status: 200 }));
+
+    const { hepdataFetch } = await import('../src/api/rateLimiter.js');
+    const response = await hepdataFetch('/search/?q=test');
+    expect(response.status).toBe(200);
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+});

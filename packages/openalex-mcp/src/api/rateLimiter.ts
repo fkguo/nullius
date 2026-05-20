@@ -6,14 +6,49 @@ import {
   upstreamError,
 } from '@autoresearch/shared';
 
+/**
+ * Parse a positive-integer env var. Falls back to `fallback` when the var
+ * is unset, empty, non-numeric, non-finite, negative, zero, or non-integer.
+ * Returns `Math.floor(parsed)` for fractional values that are otherwise
+ * valid.
+ *
+ * Sibling-lane copy of the same helper in arxiv-mcp's rateLimiter.ts.
+ * Lifting to `@autoresearch/shared` is its own cleanup task — duplicated
+ * here to keep this hotfix narrowly scoped to one package per file.
+ *
+ * Sanitizes against malicious / buggy env (e.g. "abc", "-1", "1e999",
+ * "NaN") so a misconfigured environment cannot disable the rate-limiter
+ * or set absurd timeouts. The old `Number(env ?? default)` pattern silently
+ * produced NaN for invalid input, which then made `elapsed < NaN`
+ * comparisons always false and effectively skipped the gate.
+ */
+function parseEnvPositiveInt(name: string, fallback: number): number {
+  const raw = process.env[name]?.trim();
+  if (!raw) return fallback;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return Math.floor(parsed);
+}
+
 const OPENALEX_BASE_URL = 'https://api.openalex.org';
-const MIN_INTERVAL_MS = Number(process.env.OPENALEX_MIN_INTERVAL_MS ?? '100');
-const REQUEST_TIMEOUT_MS = 30_000;
-const MAX_RETRIES = 3;
+// Env-configurable rate-limit knobs (P0-hotfix sibling lane). Defaults
+// raised where appropriate; sanitized via parseEnvPositiveInt above.
+const MIN_INTERVAL_MS = parseEnvPositiveInt('OPENALEX_MIN_INTERVAL_MS', 100);
+// REQUEST_TIMEOUT_MS default raised 30s -> 90s for the same reason as
+// arxiv-mcp: source/content downloads + retry-after waits can routinely
+// exceed 30s, and a tight budget collides with HTTP 429 retry-after.
+const REQUEST_TIMEOUT_MS = parseEnvPositiveInt('OPENALEX_REQUEST_TIMEOUT_MS', 90_000);
+const MAX_RETRIES = parseEnvPositiveInt('OPENALEX_MAX_RETRIES', 3);
 const BACKOFF_BASE_MS = 1_000;
 const BACKOFF_MAX_MS = 32_000;
 const TOTAL_RETRY_WALL_TIME_MS = 120_000;
 const MAX_REDIRECTS = 5;
+
+// Internal export for direct unit testing — see tests/rateLimiter.test.ts.
+// Not part of the public surface.
+export const __testing__ = {
+  parseEnvPositiveInt,
+};
 
 /**
  * B-2 SSRF defense: only follow redirects to known OpenAlex hosts. Without
