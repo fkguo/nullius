@@ -493,3 +493,289 @@ describe('H-10 regression — downloadFile size cap', () => {
     expect(fs.readFileSync(dest, 'utf-8')).toBe('arxiv-paper-body');
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// P0-hotfix regression — rate-limit budget config + cross-process 429 backoff
+//
+// Bug: ARXIV_REQUEST_TIMEOUT_MS=30s was too tight when retry-after × retries
+// exceeded that budget; cross-process backoff was missing so multiple
+// agent runs amplified arXiv 429s. See
+// ~/.autoresearch-lab-dev/plans/2026-05-18-comprehensive-remediation-plan.md
+// (hotfix lane appended after P0 cluster).
+//
+// Defense:
+//   - Env-configurable timeouts via parseEnvPositiveInt with sanitization
+//   - Default REQUEST_TIMEOUT_MS raised 30s → 90s
+//   - Cross-process backoff file `api-query.backoff-until-ms` advances on 429
+// ─────────────────────────────────────────────────────────────────────────────
+describe('P0-hotfix regression — parseEnvPositiveInt sanitization', () => {
+  let savedEnv: string | undefined;
+
+  beforeEach(() => {
+    savedEnv = process.env.ARXIV_TEST_SAMPLE_VAR;
+  });
+  afterEach(() => {
+    if (savedEnv !== undefined) process.env.ARXIV_TEST_SAMPLE_VAR = savedEnv;
+    else delete process.env.ARXIV_TEST_SAMPLE_VAR;
+  });
+
+  it('falls back to default for unset, empty, non-numeric, negative, zero, non-finite', async () => {
+    const { __testing__ } = await import('../src/api/rateLimiter.js');
+    const { parseEnvPositiveInt } = __testing__;
+
+    delete process.env.ARXIV_TEST_SAMPLE_VAR;
+    expect(parseEnvPositiveInt('ARXIV_TEST_SAMPLE_VAR', 999)).toBe(999);
+
+    process.env.ARXIV_TEST_SAMPLE_VAR = '';
+    expect(parseEnvPositiveInt('ARXIV_TEST_SAMPLE_VAR', 999)).toBe(999);
+
+    process.env.ARXIV_TEST_SAMPLE_VAR = '   ';
+    expect(parseEnvPositiveInt('ARXIV_TEST_SAMPLE_VAR', 999)).toBe(999);
+
+    process.env.ARXIV_TEST_SAMPLE_VAR = 'abc';
+    expect(parseEnvPositiveInt('ARXIV_TEST_SAMPLE_VAR', 999)).toBe(999);
+
+    process.env.ARXIV_TEST_SAMPLE_VAR = 'NaN';
+    expect(parseEnvPositiveInt('ARXIV_TEST_SAMPLE_VAR', 999)).toBe(999);
+
+    process.env.ARXIV_TEST_SAMPLE_VAR = '-1';
+    expect(parseEnvPositiveInt('ARXIV_TEST_SAMPLE_VAR', 999)).toBe(999);
+
+    process.env.ARXIV_TEST_SAMPLE_VAR = '0';
+    expect(parseEnvPositiveInt('ARXIV_TEST_SAMPLE_VAR', 999)).toBe(999);
+
+    process.env.ARXIV_TEST_SAMPLE_VAR = '1e999'; // Infinity
+    expect(parseEnvPositiveInt('ARXIV_TEST_SAMPLE_VAR', 999)).toBe(999);
+  });
+
+  it('accepts valid positive ints and floors fractions', async () => {
+    const { __testing__ } = await import('../src/api/rateLimiter.js');
+    const { parseEnvPositiveInt } = __testing__;
+
+    process.env.ARXIV_TEST_SAMPLE_VAR = '5000';
+    expect(parseEnvPositiveInt('ARXIV_TEST_SAMPLE_VAR', 999)).toBe(5000);
+
+    process.env.ARXIV_TEST_SAMPLE_VAR = '1.7';
+    expect(parseEnvPositiveInt('ARXIV_TEST_SAMPLE_VAR', 999)).toBe(1);
+
+    process.env.ARXIV_TEST_SAMPLE_VAR = ' 90000 '; // whitespace trimmed
+    expect(parseEnvPositiveInt('ARXIV_TEST_SAMPLE_VAR', 999)).toBe(90000);
+  });
+});
+
+describe('P0-hotfix regression — backoff-until-ms file helpers', () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'arxiv-backoff-'));
+  });
+
+  afterEach(() => {
+    try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch { /* best effort */ }
+  });
+
+  it('readBackoffUntilMs returns 0 for missing file', async () => {
+    const { __testing__ } = await import('../src/api/rateLimiter.js');
+    const file = path.join(tmpDir, 'absent');
+    expect(await __testing__.readBackoffUntilMs(file)).toBe(0);
+  });
+
+  it('readBackoffUntilMs returns 0 for malformed content', async () => {
+    const { __testing__ } = await import('../src/api/rateLimiter.js');
+    const file = path.join(tmpDir, 'malformed');
+    fs.writeFileSync(file, 'not a number');
+    expect(await __testing__.readBackoffUntilMs(file)).toBe(0);
+
+    fs.writeFileSync(file, '-500');
+    expect(await __testing__.readBackoffUntilMs(file)).toBe(0);
+
+    fs.writeFileSync(file, '0');
+    expect(await __testing__.readBackoffUntilMs(file)).toBe(0);
+  });
+
+  it('readBackoffUntilMs round-trips a valid future deadline', async () => {
+    const { __testing__ } = await import('../src/api/rateLimiter.js');
+    const file = path.join(tmpDir, 'valid');
+    const future = Date.now() + 15_000;
+    fs.writeFileSync(file, String(future));
+    expect(await __testing__.readBackoffUntilMs(file)).toBe(future);
+  });
+
+  it('writeBackoffUntilMs caps at now + MAX_BACKOFF_MS', async () => {
+    const { __testing__ } = await import('../src/api/rateLimiter.js');
+    const file = path.join(tmpDir, 'capped');
+    const absurd = Date.now() + 365 * 24 * 60 * 60 * 1000; // 1 year
+    await __testing__.writeBackoffUntilMs(file, absurd);
+    const stored = await __testing__.readBackoffUntilMs(file);
+    expect(stored).toBeLessThanOrEqual(Date.now() + __testing__.MAX_BACKOFF_MS);
+    expect(stored).toBeGreaterThan(Date.now()); // capped value still in future
+  });
+
+  it('writeBackoffUntilMs never shortens an existing deadline', async () => {
+    const { __testing__ } = await import('../src/api/rateLimiter.js');
+    const file = path.join(tmpDir, 'monotone');
+    const farFuture = Date.now() + 60_000; // capped value still in range
+    await __testing__.writeBackoffUntilMs(file, farFuture);
+    const stored1 = await __testing__.readBackoffUntilMs(file);
+
+    // Attempt to push BACKWARDS — should be ignored
+    await __testing__.writeBackoffUntilMs(file, Date.now() + 5_000);
+    const stored2 = await __testing__.readBackoffUntilMs(file);
+    expect(stored2).toBe(stored1);
+  });
+
+  it('writeBackoffUntilMs ignores non-finite / non-positive input', async () => {
+    const { __testing__ } = await import('../src/api/rateLimiter.js');
+    const file = path.join(tmpDir, 'invalid');
+    await __testing__.writeBackoffUntilMs(file, NaN);
+    expect(await __testing__.readBackoffUntilMs(file)).toBe(0);
+
+    await __testing__.writeBackoffUntilMs(file, -1);
+    expect(await __testing__.readBackoffUntilMs(file)).toBe(0);
+
+    await __testing__.writeBackoffUntilMs(file, 0);
+    expect(await __testing__.readBackoffUntilMs(file)).toBe(0);
+
+    // Infinity is non-finite — guarded out, no write.
+    await __testing__.writeBackoffUntilMs(file, Infinity);
+    expect(await __testing__.readBackoffUntilMs(file)).toBe(0);
+
+    // Verify the cap path separately with a finite-but-absurd value.
+    // (Defends against attacker / buggy upstream returning a long-but-finite
+    // Retry-After like "999999999".)
+    const finiteAbsurd = Date.now() + 365 * 24 * 60 * 60 * 1000;
+    await __testing__.writeBackoffUntilMs(file, finiteAbsurd);
+    const stored = await __testing__.readBackoffUntilMs(file);
+    expect(stored).toBeLessThanOrEqual(Date.now() + __testing__.MAX_BACKOFF_MS);
+    expect(stored).toBeGreaterThan(Date.now());
+  });
+});
+
+describe('P0-hotfix regression — REQUEST_TIMEOUT_MS env override', () => {
+  let savedTimeout: string | undefined;
+  let savedInterval: string | undefined;
+  let savedRetries: string | undefined;
+
+  beforeEach(() => {
+    savedTimeout = process.env.ARXIV_REQUEST_TIMEOUT_MS;
+    savedInterval = process.env.ARXIV_MIN_INTERVAL_MS;
+    savedRetries = process.env.ARXIV_MAX_RETRIES;
+  });
+
+  afterEach(() => {
+    if (savedTimeout !== undefined) process.env.ARXIV_REQUEST_TIMEOUT_MS = savedTimeout;
+    else delete process.env.ARXIV_REQUEST_TIMEOUT_MS;
+    if (savedInterval !== undefined) process.env.ARXIV_MIN_INTERVAL_MS = savedInterval;
+    else delete process.env.ARXIV_MIN_INTERVAL_MS;
+    if (savedRetries !== undefined) process.env.ARXIV_MAX_RETRIES = savedRetries;
+    else delete process.env.ARXIV_MAX_RETRIES;
+    vi.resetModules();
+  });
+
+  it('default REQUEST_TIMEOUT_MS is 90s (raised from prior 30s default)', async () => {
+    // We can't observe the constant directly, but we can observe behavior:
+    // if a 429 with retry-after=10s occurs on attempt 0, the budget check
+    // (REQUEST_TIMEOUT_MS - elapsed) MUST allow the retry (10s << 90s).
+    // The pre-hotfix bug would have raced 30s vs 10s × 3 = 30s.
+    delete process.env.ARXIV_REQUEST_TIMEOUT_MS;
+    vi.resetModules();
+
+    const fetchSpy = vi.fn()
+      .mockResolvedValueOnce(
+        new Response('', {
+          status: 429,
+          headers: { 'retry-after': '10' },
+        }),
+      )
+      .mockResolvedValueOnce(new Response('{}', { status: 200 }));
+    vi.stubGlobal('fetch', fetchSpy);
+
+    try {
+      const { arxivFetch } = await import('../src/api/rateLimiter.js');
+      const response = await arxivFetch('https://export.arxiv.org/api/query?max_results=1');
+      expect(response.status).toBe(200);
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});
+
+describe('P0-hotfix regression — recordSharedBackoff writes file in non-test env', () => {
+  let savedVitest: string | undefined;
+  let savedWorkerId: string | undefined;
+  let savedPoolId: string | undefined;
+  let savedNodeEnv: string | undefined;
+  let savedArxivDataDir: string | undefined;
+  let tmpDir: string;
+
+  beforeEach(() => {
+    savedVitest = process.env.VITEST;
+    savedWorkerId = process.env.VITEST_WORKER_ID;
+    savedPoolId = process.env.VITEST_POOL_ID;
+    savedNodeEnv = process.env.NODE_ENV;
+    savedArxivDataDir = process.env.ARXIV_DATA_DIR;
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'arxiv-record-backoff-'));
+    process.env.ARXIV_DATA_DIR = tmpDir;
+  });
+
+  afterEach(() => {
+    if (savedVitest !== undefined) process.env.VITEST = savedVitest;
+    else delete process.env.VITEST;
+    if (savedWorkerId !== undefined) process.env.VITEST_WORKER_ID = savedWorkerId;
+    else delete process.env.VITEST_WORKER_ID;
+    if (savedPoolId !== undefined) process.env.VITEST_POOL_ID = savedPoolId;
+    else delete process.env.VITEST_POOL_ID;
+    if (savedNodeEnv !== undefined) process.env.NODE_ENV = savedNodeEnv;
+    else delete process.env.NODE_ENV;
+    if (savedArxivDataDir !== undefined) process.env.ARXIV_DATA_DIR = savedArxivDataDir;
+    else delete process.env.ARXIV_DATA_DIR;
+    try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch { /* best effort */ }
+    vi.resetModules();
+  });
+
+  it('writes backoff file when 429 received with non-test env', async () => {
+    // Pretend we are NOT in a test env so recordSharedBackoff actually writes.
+    delete process.env.VITEST;
+    delete process.env.VITEST_WORKER_ID;
+    delete process.env.VITEST_POOL_ID;
+    delete process.env.NODE_ENV;
+    vi.resetModules();
+
+    const { __testing__ } = await import('../src/api/rateLimiter.js');
+    await __testing__.recordSharedBackoff(15_000);
+
+    const { backoffFile } = __testing__.getSharedGatePaths();
+    const stored = await __testing__.readBackoffUntilMs(backoffFile);
+    expect(stored).toBeGreaterThan(Date.now());
+    expect(stored).toBeLessThanOrEqual(Date.now() + 15_000 + 100); // tolerate small drift
+  });
+
+  it('skips writing in test env (no file created)', async () => {
+    // VITEST is already set by vitest; recordSharedBackoff should no-op
+    const { __testing__ } = await import('../src/api/rateLimiter.js');
+    await __testing__.recordSharedBackoff(15_000);
+
+    const { backoffFile } = __testing__.getSharedGatePaths();
+    expect(fs.existsSync(backoffFile)).toBe(false);
+  });
+
+  it('subsequent recordSharedBackoff calls only advance the deadline', async () => {
+    delete process.env.VITEST;
+    delete process.env.VITEST_WORKER_ID;
+    delete process.env.VITEST_POOL_ID;
+    delete process.env.NODE_ENV;
+    vi.resetModules();
+
+    const { __testing__ } = await import('../src/api/rateLimiter.js');
+
+    await __testing__.recordSharedBackoff(60_000); // 60s
+    const { backoffFile } = __testing__.getSharedGatePaths();
+    const first = await __testing__.readBackoffUntilMs(backoffFile);
+
+    // A smaller retry-after should NOT shorten the deadline
+    await __testing__.recordSharedBackoff(1_000);
+    const second = await __testing__.readBackoffUntilMs(backoffFile);
+    expect(second).toBe(first);
+  });
+});

@@ -17,18 +17,50 @@ import {
  */
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Env-config helpers (must precede const declarations that use them)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Parse a positive-integer env var. Falls back to `fallback` when the var
+ * is unset, empty, non-numeric, non-finite, negative, zero, or non-integer.
+ * Returns `Math.floor(parsed)` for fractional values that are otherwise
+ * valid.
+ *
+ * Sanitizes against malicious / buggy env (e.g. "abc", "-1", "1e999",
+ * "NaN") so a misconfigured environment cannot disable the rate-limiter
+ * or set absurd timeouts.
+ */
+function parseEnvPositiveInt(name: string, fallback: number): number {
+  const raw = process.env[name]?.trim();
+  if (!raw) return fallback;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return Math.floor(parsed);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Constants
 // ─────────────────────────────────────────────────────────────────────────────
 
-const ARXIV_MIN_INTERVAL_MS = 3000;
-const REQUEST_TIMEOUT_MS = 30000;
+// Defaults below are tunable via env. Raised REQUEST_TIMEOUT_MS default from
+// 30s to 90s because source/PDF downloads + retry-after waits routinely
+// exceeded 30s (arXiv tightened rate limits post 2026-02; multi-retry chains
+// with retry-after=10s each blow the old budget). See parseEnvPositiveInt
+// for sanitization rules.
+const ARXIV_MIN_INTERVAL_MS = parseEnvPositiveInt('ARXIV_MIN_INTERVAL_MS', 3000);
+const REQUEST_TIMEOUT_MS = parseEnvPositiveInt('ARXIV_REQUEST_TIMEOUT_MS', 90_000);
 const DEFAULT_RETRY_AFTER_MS = 10_000;
 const NETWORK_RETRY_BASE_MS = 1_000;
 const NETWORK_RETRY_MAX_MS = 10_000;
-const MAX_RETRIES = 3;
+const MAX_RETRIES = parseEnvPositiveInt('ARXIV_MAX_RETRIES', 3);
 const MAX_REDIRECTS = 5;
 const SHARED_GATE_LOCK_POLL_MS = 100;
 const SHARED_GATE_STALE_MS = 60_000;
+// Absolute ceiling on `backoff-until-ms` writes. Prevents a malicious /
+// buggy upstream Retry-After value (e.g. "999999999") from parking the
+// entire pool forever. 10 minutes is generous for transient arXiv throttle
+// while still bounded.
+const MAX_BACKOFF_MS = 10 * 60 * 1000;
 const RETRYABLE_NETWORK_ERROR_CODES = new Set([
   'ECONNRESET',
   'ETIMEDOUT',
@@ -115,12 +147,23 @@ function getArxivDataDir(): string {
   return process.env.ARXIV_DATA_DIR || path.join(os.tmpdir(), 'arxiv-mcp-data');
 }
 
-function getSharedGatePaths(): { stateDir: string; lockDir: string; timestampFile: string } {
+function getSharedGatePaths(): {
+  stateDir: string;
+  lockDir: string;
+  timestampFile: string;
+  backoffFile: string;
+} {
   const stateDir = path.join(getArxivDataDir(), 'rate-limit');
   return {
     stateDir,
     lockDir: path.join(stateDir, 'api-query.lock'),
     timestampFile: path.join(stateDir, 'api-query.last-acquire-ms'),
+    // Cross-process 429 backoff: when any process receives HTTP 429 from
+    // arXiv, it writes `Date.now() + retryAfterMs` here. Other processes
+    // trying to acquire the shared gate wait until this deadline,
+    // preventing the multi-agent amplification pattern where each process
+    // independently burns its retry budget on the same throttle window.
+    backoffFile: path.join(stateDir, 'api-query.backoff-until-ms'),
   };
 }
 
@@ -226,15 +269,58 @@ async function readLastAcquireMs(timestampFile: string): Promise<number> {
   }
 }
 
+/**
+ * Read the cross-process backoff deadline (epoch ms). Returns 0 when the
+ * file is absent or malformed. Returns 0 for past deadlines so callers can
+ * compute `max(0, deadline - now)` without branching.
+ */
+async function readBackoffUntilMs(backoffFile: string): Promise<number> {
+  try {
+    const raw = await fs.readFile(backoffFile, 'utf-8');
+    const parsed = Number(raw.trim());
+    if (!Number.isFinite(parsed) || parsed <= 0) return 0;
+    return parsed;
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return 0;
+    throw err;
+  }
+}
+
+/**
+ * Write a cross-process backoff deadline. Caps at `now + MAX_BACKOFF_MS`
+ * to defend against a hostile / buggy upstream returning an absurd
+ * Retry-After (e.g. "999999999"). Only advances the existing deadline —
+ * never shortens it (a different process's later 429 might already have
+ * pushed the deadline further).
+ */
+async function writeBackoffUntilMs(backoffFile: string, deadlineMs: number): Promise<void> {
+  if (!Number.isFinite(deadlineMs) || deadlineMs <= 0) return;
+  const capped = Math.min(deadlineMs, Date.now() + MAX_BACKOFF_MS);
+  await fs.mkdir(path.dirname(backoffFile), { recursive: true });
+  // Best-effort: read current value, write the max. Race window between
+  // read+write is acceptable (worst case: we under-advance by a few ms; the
+  // other writer's deadline survives because it was just written).
+  const current = await readBackoffUntilMs(backoffFile);
+  const next = Math.max(current, capped);
+  if (next > current) {
+    await fs.writeFile(backoffFile, String(next), 'utf-8');
+  }
+}
+
 async function acquireSharedIntervalGate(signal?: AbortSignal): Promise<void> {
   if (isTestEnv()) return;
 
-  const { timestampFile } = getSharedGatePaths();
+  const { timestampFile, backoffFile } = getSharedGatePaths();
   const releaseLock = await acquireSharedGateLock(signal);
 
   try {
     const lastAcquireMs = await readLastAcquireMs(timestampFile);
-    const waitMs = Math.max(ARXIV_MIN_INTERVAL_MS - (Date.now() - lastAcquireMs), 0);
+    const minIntervalWaitMs = Math.max(ARXIV_MIN_INTERVAL_MS - (Date.now() - lastAcquireMs), 0);
+    // Cross-process 429 backoff: if a peer recently received HTTP 429,
+    // wait until its retry-after deadline before allowing the next fetch.
+    const backoffUntilMs = await readBackoffUntilMs(backoffFile);
+    const backoffWaitMs = Math.max(backoffUntilMs - Date.now(), 0);
+    const waitMs = Math.max(minIntervalWaitMs, backoffWaitMs);
     await waitForDelay(
       waitMs,
       signal,
@@ -243,6 +329,27 @@ async function acquireSharedIntervalGate(signal?: AbortSignal): Promise<void> {
     await fs.writeFile(timestampFile, String(Date.now()), 'utf-8');
   } finally {
     await releaseLock();
+  }
+}
+
+/**
+ * Record a cross-process 429 backoff deadline so subsequent acquires
+ * (from any process) wait at least until `now + retryAfterMs`. Skipped in
+ * test env. Best-effort: failure to write the file is logged via stderr
+ * but does not break the in-flight retry path.
+ */
+async function recordSharedBackoff(retryAfterMs: number): Promise<void> {
+  if (isTestEnv()) return;
+  if (!Number.isFinite(retryAfterMs) || retryAfterMs <= 0) return;
+  const { backoffFile } = getSharedGatePaths();
+  try {
+    await writeBackoffUntilMs(backoffFile, Date.now() + retryAfterMs);
+  } catch (err) {
+    // Best-effort — file-system error here should not turn into a tool
+    // failure. Surface to stderr for operator visibility.
+    process.stderr.write(
+      `[arxiv-mcp] warning: failed to record 429 backoff (${err instanceof Error ? err.message : String(err)})\n`,
+    );
   }
 }
 
@@ -348,6 +455,11 @@ class ArxivRateLimiter {
 
     if (response.status === 429 && attempt < MAX_RETRIES) {
       const retryAfterMs = parseRetryAfterMs(response.headers.get('retry-after')) ?? DEFAULT_RETRY_AFTER_MS;
+      // Cross-process 429 backoff (P0-hotfix): record the retry-after
+      // deadline to the shared file so peer processes wait for it before
+      // their next acquire. Best-effort; failure to write the file is
+      // logged but does not break this retry path.
+      await recordSharedBackoff(retryAfterMs);
       if (!isTestEnv()) {
         if (enforceTimeoutBudget) {
           const remaining = REQUEST_TIMEOUT_MS - (Date.now() - startTime);
@@ -365,10 +477,13 @@ class ArxivRateLimiter {
     }
 
     if (response.status === 429) {
-      throw rateLimit(
-        'arXiv rate limit exceeded',
-        parseRetryAfterMs(response.headers.get('retry-after')),
-      );
+      const retryAfterMs = parseRetryAfterMs(response.headers.get('retry-after'));
+      // Terminal 429: still record the backoff so peers don't immediately
+      // hammer arXiv after this process gives up.
+      if (retryAfterMs !== null && retryAfterMs !== undefined) {
+        await recordSharedBackoff(retryAfterMs);
+      }
+      throw rateLimit('arXiv rate limit exceeded', retryAfterMs);
     }
 
     return response;
@@ -376,6 +491,19 @@ class ArxivRateLimiter {
 }
 
 const arxivLimiter = new ArxivRateLimiter();
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Internal helpers exposed for unit testing (P0-hotfix).
+// Not part of the public package surface; consumers should not import these.
+// ─────────────────────────────────────────────────────────────────────────────
+export const __testing__ = {
+  parseEnvPositiveInt,
+  readBackoffUntilMs,
+  writeBackoffUntilMs,
+  recordSharedBackoff,
+  getSharedGatePaths,
+  MAX_BACKOFF_MS,
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // arxivFetch
