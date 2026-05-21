@@ -16,6 +16,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { randomUUID } from 'crypto';
+import { commitStagedDurable, writeBytesAtomicDurable } from '@autoresearch/shared';
 
 // Security: Maximum stderr/stdout buffer size to prevent memory exhaustion
 const MAX_OUTPUT_SIZE = 64 * 1024; // 64KB
@@ -567,7 +568,7 @@ export async function renderLatexToPng(
     }
 
     // Write LaTeX source
-    fs.writeFileSync(texPath, wrappedSource, 'utf-8');
+    writeBytesAtomicDurable(texPath, wrappedSource);
 
     // Run pdflatex
     const pdflatexResult = await runPdflatex(texPath, tmpDir, timeout);
@@ -713,17 +714,25 @@ async function convertPdfToPngPdftoppm(
     pdftoppm.on('close', (code) => {
       // pdftoppm creates file with .png extension
       const actualOutput = `${outputBase}.png`;
-      
+
       if (code === 0 && fs.existsSync(actualOutput)) {
-        // Rename if needed
+        // Rename if needed. Track the path that actually contains the PNG
+        // so the resolved success matches reality (the previous code
+        // returned `outputPath` unconditionally even when the rename
+        // failed and the file was still at `actualOutput` — that was a
+        // pre-existing inconsistency the comment hinted at).
+        let resolvedOutputPath = outputPath;
         if (actualOutput !== outputPath) {
           try {
-            fs.renameSync(actualOutput, outputPath);
+            // commitStagedDurable adds parent-dir fsync so the renamed PNG
+            // is durably visible to downstream readers.
+            commitStagedDurable(actualOutput, outputPath);
           } catch {
-            // If rename fails, just use the actual output path
+            // If rename fails, fall back to where the file actually is.
+            resolvedOutputPath = actualOutput;
           }
         }
-        resolve({ success: true, outputPath, tool: 'pdftoppm' });
+        resolve({ success: true, outputPath: resolvedOutputPath, tool: 'pdftoppm' });
       } else {
         resolve({
           success: false,

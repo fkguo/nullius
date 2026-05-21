@@ -8,6 +8,7 @@ import * as path from 'path';
 import * as zlib from 'zlib';
 import { createHash } from 'crypto';
 import { promisify } from 'util';
+import { writeBytesAtomicDurable } from '@autoresearch/shared';
 import { getCacheDir } from '../data/dataDir.js';
 
 const gzip = promisify(zlib.gzip);
@@ -126,7 +127,9 @@ export class DiskCache {
       const compressed = await gzip(json);
       const filePath = this.getFilePath(key);
 
-      await fs.promises.writeFile(filePath, compressed);
+      // Durable: file fsync + parent-dir fsync. Sync inside an async
+      // body — caller still awaits the returned Promise.
+      writeBytesAtomicDurable(filePath, compressed);
 
       // Update index
       const size = compressed.length;
@@ -229,7 +232,10 @@ export class DiskCache {
     try {
       await this.ensureCacheDir();
       const indexPath = path.join(this.cacheDir, INDEX_FILE);
-      await fs.promises.writeFile(indexPath, JSON.stringify(this.index));
+      // Durable: prior version did writeFile (no fsync); a crash between
+      // the write and the next sync could corrupt the cache index and
+      // lose LRU bookkeeping for the surviving payload files.
+      writeBytesAtomicDurable(indexPath, JSON.stringify(this.index));
     } catch {
       // Ignore errors
     }

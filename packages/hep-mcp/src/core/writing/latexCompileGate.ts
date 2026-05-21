@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 
-import { invalidParams } from '@autoresearch/shared';
+import { invalidParams, writeBytesAtomicDurable } from '@autoresearch/shared';
 
 import type { RunArtifactRef } from '../runs.js';
 import { getRun } from '../runs.js';
@@ -203,7 +203,7 @@ export async function compileRunLatexOrThrow(params: {
       '',
     ].join('\n');
 
-    fs.writeFileSync(path.join(tmpDir, mainTexName), wrapper, 'utf-8');
+    writeBytesAtomicDurable(path.join(tmpDir, mainTexName), wrapper);
 
     const env: NodeJS.ProcessEnv = {
       ...process.env,
@@ -298,7 +298,9 @@ export async function compileRunLatexOrThrow(params: {
     artifacts.push(makeRunArtifactRef(runId, pdfArtifactName, 'application/pdf'));
 
     const compileMetaName = `latex_compile_${stem}_result_v1.json`;
-    fs.writeFileSync(
+    // Explicit no-trailing-newline stringify preserves byte parity with
+    // the prior `fs.writeFileSync(..., JSON.stringify(..., null, 2))`.
+    writeBytesAtomicDurable(
       getRunArtifactPath(runId, compileMetaName),
       JSON.stringify(
         {
@@ -315,7 +317,6 @@ export async function compileRunLatexOrThrow(params: {
         null,
         2
       ),
-      'utf-8'
     );
     artifacts.push(makeRunArtifactRef(runId, compileMetaName, 'application/json'));
 

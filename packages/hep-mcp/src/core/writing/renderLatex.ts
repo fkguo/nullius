@@ -1,5 +1,5 @@
 import * as fs from 'fs';
-import { invalidParams } from '@autoresearch/shared';
+import { invalidParams, writeBytesAtomicDurable } from '@autoresearch/shared';
 
 import { getRun, type RunArtifactRef, type RunManifest, type RunStep, updateRunManifestAtomic } from '../runs.js';
 import { getRunArtifactPath } from '../paths.js';
@@ -193,7 +193,7 @@ function renderDraft(params: {
 
 function writeRunTextArtifact(runId: string, artifactName: string, content: string, mimeType: string): RunArtifactRef {
   const artifactPath = getRunArtifactPath(runId, artifactName);
-  fs.writeFileSync(artifactPath, content, 'utf-8');
+  writeBytesAtomicDurable(artifactPath, content);
   return createHepRunArtifactRef(runId, artifactName, mimeType);
 }
 

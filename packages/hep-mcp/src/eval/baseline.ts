@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { writeJsonAtomicDurable } from '@autoresearch/shared';
 
 import type { EvalReport } from './runner.js';
 import type { EvalAggregateOutcome } from './outcome.js';
@@ -22,7 +23,6 @@ function baselinePath(evalSetName: string, baselineDir: string): string {
 }
 
 export function saveBaseline(report: EvalReport, baselineDir: string): void {
-  fs.mkdirSync(baselineDir, { recursive: true });
   const record: BaselineRecord = {
     evalSetName: report.evalSetName,
     module: report.module,
@@ -31,11 +31,11 @@ export function saveBaseline(report: EvalReport, baselineDir: string): void {
     aggregateOutcome: report.aggregateOutcome,
     evalSetVersion: report.evalSetVersion,
   };
-  fs.writeFileSync(
-    baselinePath(report.evalSetName, baselineDir),
-    `${JSON.stringify(record, null, 2)}\n`,
-    'utf-8',
-  );
+  // writeJsonAtomicDurable performs mkdir + atomic write + file fsync +
+  // parent-dir fsync. Default stringify emits `indent=2 + trailing newline`
+  // which matches the prior `${JSON.stringify(record, null, 2)}\n` byte-
+  // for-byte.
+  writeJsonAtomicDurable(baselinePath(report.evalSetName, baselineDir), record);
 }
 
 export function loadBaseline(evalSetName: string, baselineDir: string): BaselineRecord | null {

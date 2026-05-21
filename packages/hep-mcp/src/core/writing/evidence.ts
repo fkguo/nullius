@@ -5,6 +5,7 @@ import {
   parseScopedArtifactUri,
   safeParseVerificationCoverageMetaV1,
   safeParseVerificationSubjectVerdictMetaV1,
+  writeBytesAtomicDurable,
   type ArtifactRefV1,
   type EvidenceCatalogItemV1,
   type EvidenceType,
@@ -109,7 +110,7 @@ function writeRunTextArtifact(params: {
   mimeType: string;
 }): RunArtifactRef {
   const artifactPath = getRunArtifactPath(params.runId, params.artifactName);
-  fs.writeFileSync(artifactPath, params.content, 'utf-8');
+  writeBytesAtomicDurable(artifactPath, params.content);
   return createHepRunArtifactRef(params.runId, params.artifactName, params.mimeType);
 }
 

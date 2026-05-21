@@ -29,6 +29,7 @@ import * as crypto from 'node:crypto';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { commitStagedDurable, writeJsonAtomicDurable } from '@autoresearch/shared';
 
 export const HEP_PAPERS_CACHE_DIR_ENV = 'HEP_PAPERS_CACHE_DIR';
 
@@ -181,12 +182,17 @@ export async function materializeCacheEntry(
       main_path: result.main_path,
       cross_refs: result.cross_refs,
     };
-    fs.writeFileSync(path.join(tmpRoot, 'meta.json'), JSON.stringify(meta, null, 2) + '\n', { encoding: 'utf-8' });
+    // Durable meta.json: tmp + rename + file fsync + parent-dir fsync.
+    // Default stringify emits indent=2 + trailing newline; matches the prior
+    // `JSON.stringify(meta, null, 2) + '\n'` byte-for-byte.
+    writeJsonAtomicDurable(path.join(tmpRoot, 'meta.json'), meta);
 
-    // Atomic commit. POSIX rename of one dir onto another fails if target
+    // Atomic dir-commit. POSIX rename of one dir onto another fails if target
     // exists and is non-empty (ENOTEMPTY) — that means we lost the race.
+    // commitStagedDurable adds parent-dir fsync after the rename so the new
+    // cache entry's directory entry is durably visible to subsequent lookups.
     try {
-      fs.renameSync(tmpRoot, paths.root);
+      commitStagedDurable(tmpRoot, paths.root);
       return { key, entryRoot: paths.root, alreadyExisted: false };
     } catch (err) {
       const code = (err as NodeJS.ErrnoException).code;
