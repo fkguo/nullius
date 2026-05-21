@@ -38,3 +38,5 @@ export {
   SerialTaskQueue,
   SerialIntervalGate,
 } from './rateLimit.js';
+
+export { sortKeysRecursive } from './sort-keys.js';

@@ -26,6 +26,10 @@
     "./discovery": {
       "import": "./dist/discovery/index.js",
       "types": "./dist/discovery/index.d.ts"
+    },
+    "./atomic-write": {
+      "import": "./dist/atomic-write.js",
+      "types": "./dist/atomic-write.d.ts"
     }
   },
   "scripts": {
