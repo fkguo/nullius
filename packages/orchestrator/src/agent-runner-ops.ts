@@ -245,8 +245,26 @@ export async function resolveIncompleteToolUses(params: {
   const pendingToolUses = last.content.filter((block): block is ToolUseContent => (block as MessageContent).type === 'tool_use');
   if (pendingToolUses.length === 0) return null;
 
+  // B-8 fix: all-or-nothing batch staging.
+  //
+  // Previously this loop committed cached `tool_result` blocks to the
+  // message thread *eagerly* and only checked for an approval gate on the
+  // fresh tool call. If a batch contained `[cached_block, approval_block]`
+  // the cached result was committed BEFORE the approval gate fired, leaving
+  // the message thread in an inconsistent state on resume (the cached
+  // block looked resolved; the approval block looked unresolved) and
+  // leaking partial state to the model if approval was later denied.
+  //
+  // Fix: stage all events + tool_results locally. If ANY fresh tool call
+  // in the batch raises `requires_approval`, return with the approval
+  // event but discard ALL staged tool_results (`messages: params.messages`
+  // unchanged). The whole batch re-runs after approval, including the
+  // cached lookups (which are idempotent — they just re-emit the same
+  // cached value from the manifest checkpoint).
   const events: AgentEvent[] = [];
-  const toolResults: ToolResultContent[] = [];
+  const stagedToolResults: ToolResultContent[] = [];
+  let approvalRequired: { approvalId: string; packetPath: string } | null = null;
+
   for (const toolUse of pendingToolUses) {
     const checkpoint = params.manifest?.checkpoints.find((item: StepCheckpoint) => item.step_id === toolUse.id);
     const shouldSkip = checkpoint && params.manifest
@@ -255,7 +273,7 @@ export async function resolveIncompleteToolUses(params: {
     if (checkpoint && shouldSkip) {
       const cached = checkpoint.result_summary ?? '';
       events.push({ type: 'tool_call', name: toolUse.name, input: toolUse.input, result: cached });
-      toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, content: cached });
+      stagedToolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, content: cached });
       continue;
     }
     try {
@@ -265,17 +283,28 @@ export async function resolveIncompleteToolUses(params: {
       const json = result.json as Record<string, unknown> | null;
       events.push({ type: 'tool_call', name: toolUse.name, input: toolUse.input, result: resultValue });
       if (json?.['requires_approval'] === true) {
-        events.push({ type: 'approval_required', approvalId: String(json['approval_id'] ?? ''), packetPath: String(json['packet_path'] ?? '') });
-        events.push({ type: 'done', stopReason: 'approval_required', turnCount: 0 });
-        return { events, messages: [...params.messages, { role: 'user', content: toolResults }], done: true };
+        approvalRequired = {
+          approvalId: String(json['approval_id'] ?? ''),
+          packetPath: String(json['packet_path'] ?? ''),
+        };
+        break;
       }
-      toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, content: result.rawText });
+      stagedToolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, content: result.rawText });
     } catch (error) {
       const mcpError = asMcpError(error);
       events.push({ type: 'error', error: mcpError });
-      toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, content: `Error: ${mcpError.message}` });
+      stagedToolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, content: `Error: ${mcpError.message}` });
     }
   }
 
-  return { events, messages: [...params.messages, { role: 'user', content: toolResults }], done: false };
+  if (approvalRequired) {
+    events.push({ type: 'approval_required', approvalId: approvalRequired.approvalId, packetPath: approvalRequired.packetPath });
+    events.push({ type: 'done', stopReason: 'approval_required', turnCount: 0 });
+    // All-or-nothing: discard every staged tool_result; do NOT extend the
+    // message thread. The next resume re-enters this function and re-runs
+    // the whole batch (cached lookups are idempotent).
+    return { events, messages: params.messages, done: true };
+  }
+
+  return { events, messages: [...params.messages, { role: 'user', content: stagedToolResults }], done: false };
 }
