@@ -1341,7 +1341,21 @@ export function readProjectRecentDigestView(projectRoot: string, ledgerSnapshot 
     pushDigestError(errors, seenErrors, error);
   }
 
+  // B-6: digest reliability flag.
+  //
+  // The underlying ledger.jsonl may contain malformed lines from a
+  // torn-stream write that crashed mid-append. The digest is still
+  // derivable from the parseable lines, but downstream consumers must
+  // be told the digest is computed over a partial ledger so they don't
+  // trust e.g. "no recent failure" as authoritative when an unparseable
+  // failure line was silently skipped.
+  //
+  // `reliable === false` <=> at least one ledger line failed to parse.
+  // `invalid_lines` exposes the count for diagnosability.
+  const isReliable = ledgerSnapshot.invalidLines === 0;
   const digest: Record<string, unknown> = {
+    reliable: isReliable,
+    ...(isReliable ? {} : { invalid_lines: ledgerSnapshot.invalidLines }),
     recent_runs: runList.runs.slice(0, PROJECT_RECENT_RUN_LIMIT).map(run => ({
       run_id: run.run_id,
       last_status: run.last_status,
