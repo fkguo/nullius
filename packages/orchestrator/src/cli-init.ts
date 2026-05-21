@@ -1,5 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { writeBytesAtomicDurable, writeJsonAtomicDurable } from '@autoresearch/shared';
 import { resolveLifecycleProjectRoot } from './cli-project-root.js';
 import { ensureAutoresearchHarnessSentinel } from './autoresearch-harness-sentinel.js';
 import { ensureProjectLocalAutoresearchLauncher, projectLocalAutoresearchRelativePath } from './project-local-autoresearch.js';
@@ -85,7 +86,7 @@ export async function runInitCommand(projectRoot: string | null, cwd: string, ar
       },
       notes: 'Default: human-in-the-loop at high-risk steps. Increase budgets or relax approvals only with explicit user consent.',
     };
-    fs.writeFileSync(manager.policyPath, `${JSON.stringify(policy, null, 2)}\n`, 'utf-8');
+    writeJsonAtomicDurable(manager.policyPath, policy);
     io.stdout(`[ok] wrote: ${manager.policyPath}\n`);
   } else {
     io.stdout(`[ok] approval policy present: ${manager.policyPath}\n`);
@@ -93,7 +94,7 @@ export async function runInitCommand(projectRoot: string | null, cwd: string, ar
 
   const markerPath = path.join(runtimeDir, '.initialized');
   if (!fs.existsSync(markerPath)) {
-    fs.writeFileSync(markerPath, `${new Date().toISOString()}\n`, 'utf-8');
+    writeBytesAtomicDurable(markerPath, `${new Date().toISOString()}\n`);
   }
   const launcher = ensureProjectLocalAutoresearchLauncher(repoRoot);
   io.stdout(`[ok] wrote: ${launcher.launcher_path}\n`);

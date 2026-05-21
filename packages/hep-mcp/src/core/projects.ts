@@ -1,8 +1,15 @@
 import * as fs from 'fs';
 import { ensureDir } from '../data/dataDir.js';
-import { notFound } from '@autoresearch/shared';
+import { notFound, writeJsonAtomicDurable } from '@autoresearch/shared';
 import { newProjectId } from './ids.js';
 import { getProjectDir, getProjectJsonPath, getProjectsDir } from './paths.js';
+
+// hep-mcp project/paper JSON convention: no trailing newline (legacy). The
+// default writeJsonAtomicDurable stringify adds '\n' — pass an explicit
+// stringify to preserve byte-for-byte parity with the existing on-disk
+// format and any external readers that compare bytes.
+const stringifyNoTrailingNewline = (payload: unknown): string =>
+  JSON.stringify(payload, null, 2);
 
 export interface HepProject {
   project_id: string;
@@ -24,7 +31,11 @@ export function createProject(params: { name: string; description?: string }): H
 
   const projectDir = getProjectDir(project.project_id);
   ensureDir(projectDir);
-  fs.writeFileSync(getProjectJsonPath(project.project_id), JSON.stringify(project, null, 2), 'utf-8');
+  writeJsonAtomicDurable(
+    getProjectJsonPath(project.project_id),
+    project,
+    stringifyNoTrailingNewline,
+  );
   return project;
 }
 
@@ -39,7 +50,11 @@ export function getProject(projectId: string): HepProject {
 export function updateProjectUpdatedAt(projectId: string): HepProject {
   const project = getProject(projectId);
   const updated: HepProject = { ...project, updated_at: new Date().toISOString() };
-  fs.writeFileSync(getProjectJsonPath(projectId), JSON.stringify(updated, null, 2), 'utf-8');
+  writeJsonAtomicDurable(
+    getProjectJsonPath(projectId),
+    updated,
+    stringifyNoTrailingNewline,
+  );
   return updated;
 }
 

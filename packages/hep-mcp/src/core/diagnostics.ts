@@ -1,8 +1,11 @@
-import * as fs from 'fs';
-
+import { writeJsonAtomicDurable } from '@autoresearch/shared';
 import type { RunArtifactRef } from './runs.js';
 import { getProjectArtifactPath, getRunArtifactPath } from './paths.js';
 import { makeHepRunArtifactUri } from './runArtifactUri.js';
+
+// hep-mcp legacy JSON convention: no trailing newline; preserve byte-equality.
+const stringifyNoTrailingNewline = (payload: unknown): string =>
+  JSON.stringify(payload, null, 2);
 
 export type BudgetDimensionV1 = 'breadth' | 'depth' | 'budget';
 export type BudgetSourceKindV1 = 'tool_args' | 'env' | 'default';
@@ -221,8 +224,8 @@ export function writeRunStepDiagnosticsArtifact(params: {
     },
   };
 
-  fs.writeFileSync(getRunArtifactPath(params.run_id, runArtifactName), JSON.stringify(payload, null, 2), 'utf-8');
-  fs.writeFileSync(getProjectArtifactPath(params.project_id, projectArtifactName), JSON.stringify(payload, null, 2), 'utf-8');
+  writeJsonAtomicDurable(getRunArtifactPath(params.run_id, runArtifactName), payload, stringifyNoTrailingNewline);
+  writeJsonAtomicDurable(getProjectArtifactPath(params.project_id, projectArtifactName), payload, stringifyNoTrailingNewline);
 
   return {
     run: { name: runArtifactName, uri: runUri, mimeType: 'application/json' },
@@ -269,7 +272,7 @@ export function writeProjectDiagnosticsArtifact(params: {
     meta: params.meta,
   };
 
-  fs.writeFileSync(getProjectArtifactPath(params.project_id, params.artifact_name), JSON.stringify(payload, null, 2), 'utf-8');
+  writeJsonAtomicDurable(getProjectArtifactPath(params.project_id, params.artifact_name), payload, stringifyNoTrailingNewline);
   return {
     project: { name: params.artifact_name, uri: projectUri, mimeType: 'application/json' },
     payload,

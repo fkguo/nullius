@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { APPROVAL_GATE_IDS, invalidParams } from '@autoresearch/shared';
+import { APPROVAL_GATE_IDS, invalidParams, writeBytesAtomicDurable } from '@autoresearch/shared';
 import { z } from 'zod';
 import { createStateManager, requireState } from './common.js';
 import { buildRunStatusView, readRunListView } from './run-read-model.js';
@@ -65,7 +65,7 @@ export async function handleOrchRunCreate(
 
   const initializedPath = path.join(path.dirname(manager.statePath), '.initialized');
   if (!fs.existsSync(initializedPath)) {
-    fs.writeFileSync(initializedPath, `${new Date().toISOString()}\n`, 'utf-8');
+    writeBytesAtomicDurable(initializedPath, `${new Date().toISOString()}\n`);
   }
   manager.appendLedger('initialized', {
     run_id: params.run_id,

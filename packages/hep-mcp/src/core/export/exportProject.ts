@@ -1,7 +1,7 @@
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
-import { invalidParams } from '@autoresearch/shared';
+import { invalidParams, writeBytesAtomicDurable } from '@autoresearch/shared';
 import { getDataDir as getPdgDataDir } from '@autoresearch/pdg-mcp/tooling';
 import { strToU8, unzipSync, zipSync } from 'fflate';
 
@@ -49,7 +49,7 @@ function writeRunTextArtifact(params: {
   mimeType: string;
 }): RunArtifactRef {
   const artifactPath = getRunArtifactPath(params.runId, params.artifactName);
-  fs.writeFileSync(artifactPath, params.content, 'utf-8');
+  writeBytesAtomicDurable(artifactPath, params.content);
   return createHepRunArtifactRef(params.runId, params.artifactName, params.mimeType);
 }
 
@@ -60,7 +60,7 @@ function writeRunBinaryArtifact(params: {
   mimeType: string;
 }): RunArtifactRef {
   const artifactPath = getRunArtifactPath(params.runId, params.artifactName);
-  fs.writeFileSync(artifactPath, Buffer.from(params.bytes));
+  writeBytesAtomicDurable(artifactPath, Buffer.from(params.bytes));
   return createHepRunArtifactRef(params.runId, params.artifactName, params.mimeType);
 }
 
@@ -943,13 +943,13 @@ export async function exportProjectForRun(params: {
 
     // Refresh run manifest artifacts and zip to reflect the final (done) manifest.
     const finalRunManifestJson = fs.readFileSync(getRunManifestPath(runId), 'utf-8');
-    fs.writeFileSync(getRunArtifactPath(runId, runManifestArtifactName), finalRunManifestJson, 'utf-8');
-    fs.writeFileSync(getRunArtifactPath(runId, `${notebookPrefix}_run_manifest.json`), finalRunManifestJson, 'utf-8');
+    writeBytesAtomicDurable(getRunArtifactPath(runId, runManifestArtifactName), finalRunManifestJson);
+    writeBytesAtomicDurable(getRunArtifactPath(runId, `${notebookPrefix}_run_manifest.json`), finalRunManifestJson);
 
     zipEntries['run_manifest.json'] = strToU8(finalRunManifestJson);
     zipEntries['notebooklm_pack/run_manifest.json'] = strToU8(finalRunManifestJson);
     const finalZipBytes = zipSync(zipEntries, { level: 0 });
-    fs.writeFileSync(getRunArtifactPath(runId, zipName), Buffer.from(finalZipBytes));
+    writeBytesAtomicDurable(getRunArtifactPath(runId, zipName), Buffer.from(finalZipBytes));
 
     return {
       run_id: runId,

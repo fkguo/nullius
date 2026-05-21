@@ -1,7 +1,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import Ajv2020 from 'ajv/dist/2020.js';
-import type { FleetWorkersV1 } from '@autoresearch/shared';
+import { writeJsonAtomicDurable, type FleetWorkersV1 } from '@autoresearch/shared';
 import fleetWorkersSchema from '../../../../meta/schemas/fleet_workers_v1.schema.json' with { type: 'json' };
 import { utcNowIso } from '../util.js';
 import type { ReadModelError } from './run-read-model.js';
@@ -58,24 +58,11 @@ export function createEmptyFleetWorkers(): FleetWorkersV1 {
 }
 
 function writeFleetWorkersAtomic(filePath: string, payload: FleetWorkersV1): void {
-  const dir = path.dirname(filePath);
-  fs.mkdirSync(dir, { recursive: true });
-  const tmpPath = `${filePath}.tmp`;
-  const content = JSON.stringify(payload, null, 2) + '\n';
-  const fd = fs.openSync(tmpPath, 'w');
-  try {
-    fs.writeSync(fd, content);
-    fs.fsyncSync(fd);
-  } finally {
-    fs.closeSync(fd);
-  }
-  fs.renameSync(tmpPath, filePath);
-  const dirFd = fs.openSync(dir, 'r');
-  try {
-    fs.fsyncSync(dirFd);
-  } finally {
-    fs.closeSync(dirFd);
-  }
+  // Delegate to the shared durable primitive — this used to be a local
+  // 20-line duplicate of the gold-standard fsync sequence. The default
+  // stringify (`indent=2 + trailing newline`) matches the previous output
+  // byte-for-byte.
+  writeJsonAtomicDurable(filePath, payload);
 }
 
 export function readFleetWorkers(projectRoot: string): FleetWorkersReadResult {

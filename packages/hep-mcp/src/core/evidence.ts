@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { createHash } from 'crypto';
 import { latexParser } from 'latex-utensils';
-import { invalidParams, notFound } from '@autoresearch/shared';
+import { invalidParams, notFound, writeBytesAtomicDurable, writeJsonAtomicDurable } from '@autoresearch/shared';
 import pLimit from 'p-limit';
 import { resolvePathWithinParent } from '../data/pathGuard.js';
 import { getProject, updateProjectUpdatedAt } from './projects.js';
@@ -554,10 +554,10 @@ export async function buildProjectEvidenceCatalog(params: {
   const { merged, sourceMap } = mergeProjectContentWithSourceMap(copyResult.destMainTexPath);
 
   const mergedPath = resolvePathWithinParent(latexDir, path.join(latexDir, 'merged.tex'), 'paper_latex_merged');
-  fs.writeFileSync(mergedPath, merged, 'utf-8');
+  writeBytesAtomicDurable(mergedPath, merged);
 
   const sourceMapPath = resolvePathWithinParent(latexDir, path.join(latexDir, 'sourceMap.json'), 'paper_latex_sourcemap');
-  fs.writeFileSync(sourceMapPath, JSON.stringify(sourceMap, null, 2), 'utf-8');
+  writeJsonAtomicDurable(sourceMapPath, sourceMap, (p) => JSON.stringify(p, null, 2));
 
   const ast = parseLatex(merged);
   const fileContentProvider: FileContentProvider = (file: string) => fs.readFileSync(file, 'utf-8');

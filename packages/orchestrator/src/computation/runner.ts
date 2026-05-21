@@ -1,6 +1,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { writeBytesAtomicDurable } from '@autoresearch/shared';
 import { StateManager } from '../state-manager.js';
 import { maybeQueueIdeaEngineComputationFeedback } from './idea-engine-feedback.js';
 import { maybeGenerateSkillProposal } from './skill-proposal-genesis.js';
@@ -50,8 +51,10 @@ function buildStatus(prepared: PreparedManifest): ExecutionStatusFile {
 
 function writeStepLogs(logDir: string, step: StepCommandPlan, output: ReturnType<typeof spawnSync>): void {
   ensureDir(logDir);
-  fs.writeFileSync(path.join(logDir, 'stdout.txt'), output.stdout ?? '', 'utf-8');
-  fs.writeFileSync(path.join(logDir, 'stderr.txt'), output.stderr ?? '', 'utf-8');
+  // stdout/stderr capture must survive crash before the next CLI re-read
+  // (status --json reads these on resume to surface failure context).
+  writeBytesAtomicDurable(path.join(logDir, 'stdout.txt'), output.stdout ?? '');
+  writeBytesAtomicDurable(path.join(logDir, 'stderr.txt'), output.stderr ?? '');
   writeJsonAtomic(path.join(logDir, 'meta.json'), {
     command: step.argv,
     exit_code: output.status,

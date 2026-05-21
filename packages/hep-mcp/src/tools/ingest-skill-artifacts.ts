@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { createHash, randomUUID } from 'crypto';
-import { invalidParams } from '@autoresearch/shared';
+import { appendJsonlDurable, invalidParams } from '@autoresearch/shared';
 import type { ComputationEvidenceCatalogItemV1 } from '@autoresearch/shared';
 import { getRunDir } from '../core/paths.js';
 import { resolvePathWithinParent } from '../data/pathGuard.js';
@@ -105,9 +105,10 @@ export async function ingestSkillArtifacts(
     ...(tags && tags.length > 0 ? { tags: tags as ComputationEvidenceCatalogItemV1['tags'] } : {}),
   };
 
-  // Append to JSONL catalog
+  // Append to JSONL catalog (durable: file fsync + parent-dir fsync per
+  // append so evidence catalog entries survive crash before next syscall).
   const catalogPath = path.join(runDir, 'computation_evidence_catalog_v1.jsonl');
-  fs.appendFileSync(catalogPath, JSON.stringify(entry) + '\n', 'utf-8');
+  appendJsonlDurable(catalogPath, entry);
 
   // Generate catalog entry ID from content hash
   const entryHash = createHash('sha256').update(JSON.stringify(entry)).digest('hex');

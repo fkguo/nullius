@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { writeJsonAtomicDurable } from '@autoresearch/shared';
 
 export type MarkerKind = 'download_dir';
 
@@ -23,7 +24,13 @@ export function writeDirectoryMarker(dirPath: string, kind: MarkerKind): void {
     created_at: new Date().toISOString(),
     version: 1,
   };
-  fs.writeFileSync(getMarkerPath(dirPath), JSON.stringify(marker, null, 2), 'utf-8');
+  // Explicit stringify (no trailing newline) preserves byte parity with
+  // the prior `fs.writeFileSync(..., JSON.stringify(marker, null, 2))`.
+  writeJsonAtomicDurable(
+    getMarkerPath(dirPath),
+    marker,
+    (p) => JSON.stringify(p, null, 2),
+  );
 }
 
 export function isMarkedDirectory(dirPath: string, kind?: MarkerKind): boolean {

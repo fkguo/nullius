@@ -1,5 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { writeJsonAtomicDurable } from '@autoresearch/shared';
 
 const AUTORESEARCH_DIRNAME = '.autoresearch';
 const HARNESS_FILENAME = 'HARNESS';
@@ -56,8 +57,10 @@ function isAutoresearchHarnessSentinelPayload(value: unknown): value is Autorese
 
 export function ensureAutoresearchHarnessSentinel(projectRoot: string): string {
   const sentinelPath = path.join(projectRoot, autoresearchHarnessSentinelRelativePath());
-  fs.mkdirSync(path.dirname(sentinelPath), { recursive: true });
-  fs.writeFileSync(sentinelPath, `${JSON.stringify(autoresearchHarnessSentinelPayload(), null, 2)}\n`, 'utf-8');
+  // writeJsonAtomicDurable performs mkdir + atomic write + file fsync +
+  // parent-dir fsync; eliminates the partial-file window where another
+  // process could read a truncated sentinel between mkdir and write.
+  writeJsonAtomicDurable(sentinelPath, autoresearchHarnessSentinelPayload());
   return sentinelPath;
 }
 

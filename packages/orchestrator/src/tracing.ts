@@ -8,6 +8,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {
+  appendJsonlDurable,
   type Span,
   type SpanStatus,
   generateTraceId,
@@ -76,10 +77,11 @@ export class SpanCollector {
     return new ActiveSpan(span, this);
   }
 
-  /** Append a completed span to the JSONL file. */
+  /** Append a completed span to the JSONL file.
+   *  Durable: file fsync + parent-dir fsync per append, so spans survive
+   *  crash between syscalls (otel-aligned trace continuity). */
   writeSpan(span: Span): void {
     if (!this.outputPath) return;
-    const line = JSON.stringify(span) + '\n';
-    fs.appendFileSync(this.outputPath, line, 'utf-8');
+    appendJsonlDurable(this.outputPath, span);
   }
 }

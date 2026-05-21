@@ -1,8 +1,8 @@
-import * as fs from 'fs';
 import { createHash } from 'crypto';
 import {
   INSPIRE_THEORETICAL_CONFLICTS,
   invalidParams,
+  writeBytesAtomicDurable,
 } from '@autoresearch/shared';
 import type {
   CreateMessageRequestParamsBase,
@@ -221,7 +221,7 @@ function clamp01(n: number): number {
 function writeRunJsonlArtifact(runId: string, artifactName: string, rows: unknown[]): RunArtifactRef {
   const p = getRunArtifactPath(runId, artifactName);
   const lines = rows.map(r => JSON.stringify(r));
-  fs.writeFileSync(p, `${lines.join('\n')}\n`, 'utf-8');
+  writeBytesAtomicDurable(p, `${lines.join('\n')}\n`);
   return createHepRunArtifactRef(runId, artifactName, 'application/x-ndjson');
 }
 

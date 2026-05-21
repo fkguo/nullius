@@ -1,7 +1,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import Ajv2020 from 'ajv/dist/2020.js';
-import type { FleetQueueV1 } from '@autoresearch/shared';
+import { writeJsonAtomicDurable, type FleetQueueV1 } from '@autoresearch/shared';
 import fleetQueueSchema from '../../../../meta/schemas/fleet_queue_v1.schema.json' with { type: 'json' };
 import { utcNowIso } from '../util.js';
 import type { ReadModelError } from './run-read-model.js';
@@ -48,24 +48,10 @@ export function createEmptyFleetQueue(): FleetQueueV1 {
 }
 
 function writeFleetQueueAtomic(filePath: string, payload: FleetQueueV1): void {
-  const dir = path.dirname(filePath);
-  fs.mkdirSync(dir, { recursive: true });
-  const tmpPath = `${filePath}.tmp`;
-  const content = JSON.stringify(payload, null, 2) + '\n';
-  const fd = fs.openSync(tmpPath, 'w');
-  try {
-    fs.writeSync(fd, content);
-    fs.fsyncSync(fd);
-  } finally {
-    fs.closeSync(fd);
-  }
-  fs.renameSync(tmpPath, filePath);
-  const dirFd = fs.openSync(dir, 'r');
-  try {
-    fs.fsyncSync(dirFd);
-  } finally {
-    fs.closeSync(dirFd);
-  }
+  // Delegate to the shared durable primitive — this used to be a local
+  // 20-line duplicate of the gold-standard fsync sequence. Default
+  // stringify matches the previous output byte-for-byte.
+  writeJsonAtomicDurable(filePath, payload);
 }
 
 export function readFleetQueue(projectRoot: string): FleetQueueReadResult {

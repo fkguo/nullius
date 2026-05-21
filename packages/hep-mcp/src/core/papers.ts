@@ -1,7 +1,13 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { notFound } from '@autoresearch/shared';
-import { getProjectDir, getProjectPaperDir, getProjectPaperJsonPath } from './paths.js';
+import { notFound, writeJsonAtomicDurable } from '@autoresearch/shared';
+import { getProjectDir, getProjectPaperJsonPath } from './paths.js';
+
+// hep-mcp project/paper JSON convention: no trailing newline (legacy). Pass
+// an explicit stringify to writeJsonAtomicDurable to preserve byte-for-byte
+// parity with the existing on-disk format.
+const stringifyNoTrailingNewline = (payload: unknown): string =>
+  JSON.stringify(payload, null, 2);
 
 export interface HepPaperArtifactRef {
   uri: string;
@@ -34,9 +40,13 @@ export function getPaper(projectId: string, paperId: string): HepPaper {
 }
 
 export function upsertPaper(paper: HepPaper): HepPaper {
-  const paperDir = getProjectPaperDir(paper.project_id, paper.paper_id);
-  fs.mkdirSync(paperDir, { recursive: true });
-  fs.writeFileSync(getProjectPaperJsonPath(paper.project_id, paper.paper_id), JSON.stringify(paper, null, 2), 'utf-8');
+  // writeJsonAtomicDurable performs mkdir + atomic write + file fsync +
+  // parent-dir fsync; no separate mkdirSync needed.
+  writeJsonAtomicDurable(
+    getProjectPaperJsonPath(paper.project_id, paper.paper_id),
+    paper,
+    stringifyNoTrailingNewline,
+  );
   return paper;
 }
 

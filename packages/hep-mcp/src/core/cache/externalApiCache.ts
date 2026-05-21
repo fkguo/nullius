@@ -1,8 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { createHash, randomUUID } from 'crypto';
+import { createHash } from 'crypto';
 import { pathToFileURL } from 'url';
-import { invalidParams } from '@autoresearch/shared';
+import { invalidParams, writeBytesAtomicDurable } from '@autoresearch/shared';
 
 import { ensureDir, getCacheDir } from '../../data/dataDir.js';
 import { getRun, type RunArtifactRef } from '../runs.js';
@@ -50,20 +50,19 @@ function sha256Hex(text: string): string {
   return createHash('sha256').update(text, 'utf8').digest('hex');
 }
 
-function atomicWriteFile(params: { file_path: string; bytes: Uint8Array }): Promise<void> {
-  const dir = path.dirname(params.file_path);
-  const base = path.basename(params.file_path);
-  const tmpPath = path.join(dir, `.${base}.tmp-${process.pid}-${randomUUID()}`);
-  return fs.promises.writeFile(tmpPath, params.bytes)
-    .then(() => fs.promises.rename(tmpPath, params.file_path))
-    .catch(async err => {
-      try {
-        await fs.promises.unlink(tmpPath);
-      } catch {
-        // ignore tmp cleanup failures
-      }
-      throw err;
-    });
+// Promise-wrapped delegation to the shared durable primitive. The previous
+// implementation did tmp + rename WITHOUT fsync (cache files vulnerable to
+// power-loss truncation between write and the next OS flush). The sync
+// writeBytesAtomicDurable adds file fsync + parent-dir fsync; we keep the
+// async signature so callers don't need to be rewritten.
+//
+// Trade-off vs the prior `fs.promises.writeFile + fs.promises.rename`: the
+// sync primitive blocks the event loop for the write + 2 fsyncs (cache
+// payloads are bounded JSON blobs, so the window is small). A throw inside
+// the async body rejects the returned Promise, so callers' existing
+// try/await/catch continue to observe write failures identically.
+async function atomicWriteFile(params: { file_path: string; bytes: Uint8Array }): Promise<void> {
+  writeBytesAtomicDurable(params.file_path, Buffer.from(params.bytes));
 }
 
 function safeCacheSegment(raw: string, what: string): string {

@@ -1,7 +1,7 @@
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
-import { invalidParams } from '@autoresearch/shared';
+import { invalidParams, writeBytesAtomicDurable } from '@autoresearch/shared';
 import { zipSync } from 'fflate';
 
 import { getRun, type RunArtifactRef, type RunManifest, type RunStep, updateRunManifestAtomic } from '../runs.js';
@@ -50,12 +50,12 @@ function makeRunArtifactRef(runId: string, artifactName: string, mimeType: strin
 }
 
 function writeRunTextArtifact(params: { run_id: string; artifact_name: string; content: string; mimeType: string }): RunArtifactRef {
-  fs.writeFileSync(getRunArtifactPath(params.run_id, params.artifact_name), params.content, 'utf-8');
+  writeBytesAtomicDurable(getRunArtifactPath(params.run_id, params.artifact_name), params.content);
   return makeRunArtifactRef(params.run_id, params.artifact_name, params.mimeType);
 }
 
 function writeRunBinaryArtifact(params: { run_id: string; artifact_name: string; bytes: Uint8Array; mimeType: string }): RunArtifactRef {
-  fs.writeFileSync(getRunArtifactPath(params.run_id, params.artifact_name), Buffer.from(params.bytes));
+  writeBytesAtomicDurable(getRunArtifactPath(params.run_id, params.artifact_name), Buffer.from(params.bytes));
   return makeRunArtifactRef(params.run_id, params.artifact_name, params.mimeType);
 }
 
@@ -276,8 +276,9 @@ function collectStableAssetMarkers(latex: string): { equations: string[]; figure
 }
 
 function writeFileUtf8(filePath: string, content: string): void {
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.writeFileSync(filePath, content, 'utf-8');
+  // writeBytesAtomicDurable performs mkdir + atomic write + file fsync +
+  // parent-dir fsync; no separate mkdirSync needed.
+  writeBytesAtomicDurable(filePath, content);
 }
 
 function failIfContainsHepUri(text: string, what: string, runId: string): void {

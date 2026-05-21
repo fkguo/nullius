@@ -1,5 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { writeJsonAtomicDurable } from '@autoresearch/shared';
 import type { RunManifest } from './run-manifest.js';
 import type {
   DelegatedRuntimeMarkerKind,
@@ -113,7 +114,16 @@ export function writeRuntimeDiagnosticsBridgeArtifact(params: {
     },
   };
 
-  fs.mkdirSync(runDir, { recursive: true });
-  fs.writeFileSync(path.join(runDir, artifactName), JSON.stringify(payload, null, 2), 'utf-8');
+  // writeJsonAtomicDurable: mkdir + atomic write + file fsync + parent-dir
+  // fsync (the bridge artifact gates resume semantics — partial reads here
+  // mislead the operator read-model). Explicit `stringify` argument
+  // (no trailing newline) preserves byte parity with the prior
+  // `fs.writeFileSync(..., JSON.stringify(payload, null, 2), 'utf-8')` —
+  // existing on-disk artifacts don't grow by 1 byte under migration.
+  writeJsonAtomicDurable(
+    path.join(runDir, artifactName),
+    payload,
+    (p) => JSON.stringify(p, null, 2),
+  );
   return { artifactPath, payload };
 }

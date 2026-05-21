@@ -7,6 +7,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as zlib from 'zlib';
+import { writeBytesAtomicDurable } from '@autoresearch/shared';
 
 export { PDF_RESOURCE_LIMITS } from '@autoresearch/shared';
 
@@ -151,6 +152,12 @@ export function safeExtractZip(archivePath: string, destDir: string, opts?: Extr
       throw new ZipSafetyError(`Total uncompressed size exceeds limit: ${maxTotalBytes} bytes`);
     }
 
-    fs.writeFileSync(targetPath, content);
+    // Durable per-entry: each extracted file is atomically written and
+    // file+dir-fsynced before the next entry. This prevents the surface
+    // race where another process reads a half-extracted entry mid-loop.
+    // Cost: ~2 fsyncs per entry — bounded by maxFileCount (default 10k).
+    // For larger archives where extraction throughput matters more than
+    // per-entry mid-loop visibility, future work could batch fsyncs.
+    writeBytesAtomicDurable(targetPath, content);
   }
 }
