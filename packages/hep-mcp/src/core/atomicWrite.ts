@@ -1,37 +1,24 @@
 /**
- * Atomic file write utility (H-07).
+ * Atomic file write utility (H-07; P1-migrated).
  *
- * Strategy: write to temp file → fsync → rename (POSIX atomic on same filesystem).
- * Temp file placed in same directory as target to guarantee same-fs rename.
+ * Strategy: write to temp file → fsync(fd) → close → rename → fsync(dirFd)
+ * for full POSIX durability. The implementation now delegates to
+ * `@autoresearch/shared`'s `writeBytesAtomicDurable` primitive (P1)
+ * which closes the prior parent-dir-fsync gap that left the rename's
+ * directory entry vulnerable to power-loss between rename and the next
+ * OS flush.
+ *
+ * Kept as a thin re-export so existing callers don't need to change.
  */
-import * as fs from 'fs';
-import * as path from 'path';
+import { writeBytesAtomicDurable } from '@autoresearch/shared';
 
 /**
- * Write data atomically to `targetPath`.
+ * Write data atomically + durably to `targetPath`.
  *
- * Uses write-to-temp + fsync + rename to prevent truncated/corrupt artifacts
- * on process crash.
+ * Uses tmp → fsync(fd) → close → rename → fsync(dirFd) to prevent
+ * truncated/corrupt artifacts AND lost directory entries on process
+ * crash or power loss. Tmp file is cleaned up on failure (best-effort).
  */
 export function atomicWriteFileSync(targetPath: string, data: string | Buffer): void {
-  const dir = path.dirname(targetPath);
-  fs.mkdirSync(dir, { recursive: true });
-
-  const tmpPath = `${targetPath}.tmp.${process.pid}`;
-  try {
-    const fd = fs.openSync(tmpPath, 'w');
-    try {
-      // writeFileSync(fd, ...) handles full-write guarantee internally.
-      fs.writeFileSync(fd, data);
-      // fsync on the same writable fd (required on Windows where FlushFileBuffers
-      // needs GENERIC_WRITE access).
-      fs.fsyncSync(fd);
-    } finally {
-      fs.closeSync(fd);
-    }
-    fs.renameSync(tmpPath, targetPath);
-  } catch (err) {
-    try { fs.unlinkSync(tmpPath); } catch { /* best-effort cleanup */ }
-    throw err;
-  }
+  writeBytesAtomicDurable(targetPath, data);
 }
