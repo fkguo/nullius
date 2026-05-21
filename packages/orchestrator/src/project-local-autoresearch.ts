@@ -2,6 +2,7 @@ import { createRequire } from 'node:module';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { writeBytesAtomicDurable } from '@autoresearch/shared';
 
 type ProjectLocalAutoresearchLauncher = {
   argv: string[];
@@ -198,8 +199,10 @@ export function ensureProjectLocalAutoresearchLauncher(projectRoot: string): {
     `exec ${launcher.argv.map(shellQuote).join(' ')} "$@" --project-root "$PROJECT_ROOT"`,
     '',
   ].join('\n');
-  fs.writeFileSync(launcherPath, script, 'utf-8');
-  fs.chmodSync(launcherPath, 0o755);
+  // Durable + race-free: mode is applied at openSync (create-time) AND
+  // enforced via fchmod before fsync, eliminating the chmod-after-write
+  // window where a peer could exec a partial file with default mode.
+  writeBytesAtomicDurable(launcherPath, script, 0o755);
   return {
     launcher_path: launcherPath,
     launcher_mode: launcher.mode,

@@ -491,7 +491,7 @@ export async function consumeApprovedFinalConclusions(params: {
       if (fs.existsSync(finalConclusionsPath)) {
         fs.unlinkSync(finalConclusionsPath);
       }
-      fs.writeFileSync(computationResultPath, originalComputationResultText, 'utf-8');
+      writeTextAtomic(computationResultPath, originalComputationResultText);
     } catch {
       // best-effort rollback only; preserve original error below
     }
@@ -505,7 +505,7 @@ export async function consumeApprovedFinalConclusions(params: {
         if (fs.existsSync(finalConclusionsPath)) {
           fs.unlinkSync(finalConclusionsPath);
         }
-        fs.writeFileSync(computationResultPath, originalComputationResultText, 'utf-8');
+        writeTextAtomic(computationResultPath, originalComputationResultText);
       } catch {
         // best-effort cleanup only; fail-closed state preservation matters more than cleanup reporting
       }
@@ -740,7 +740,7 @@ export async function handleOrchRunRequestFinalConclusions(
       });
     }
   } catch (error) {
-    fs.writeFileSync(computationResultPath, originalComputationResultText, 'utf-8');
+    writeTextAtomic(computationResultPath, originalComputationResultText);
     fs.rmSync(path.dirname(path.join(projectRoot, packet.packetJsonPath)), { recursive: true, force: true });
     throw error;
   }

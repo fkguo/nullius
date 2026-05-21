@@ -1,5 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { writeJsonAtomicDurable } from '@autoresearch/shared';
 import {
   normalizeResearchTaskExecutionRefRegistry,
   type ResearchTaskExecutionRefRegistry,
@@ -16,27 +17,6 @@ export function teamExecutionStatePath(projectRoot: string, runId: string): stri
 
 export function teamExecutionTaskRefRegistryPath(projectRoot: string, runId: string): string {
   return path.join(stateDir(projectRoot, runId), 'team-execution-task-refs.json');
-}
-
-function writeJsonAtomic(filePath: string, payload: unknown): void {
-  const dir = path.dirname(filePath);
-  fs.mkdirSync(dir, { recursive: true });
-  const tmp = `${filePath}.tmp`;
-  const content = JSON.stringify(payload, null, 2) + '\n';
-  const fd = fs.openSync(tmp, 'w');
-  try {
-    fs.writeSync(fd, content);
-    fs.fsyncSync(fd);
-  } finally {
-    fs.closeSync(fd);
-  }
-  fs.renameSync(tmp, filePath);
-  const dirFd = fs.openSync(dir, 'r');
-  try {
-    fs.fsyncSync(dirFd);
-  } finally {
-    fs.closeSync(dirFd);
-  }
 }
 
 export class TeamExecutionStateManager {
@@ -66,10 +46,10 @@ export class TeamExecutionStateManager {
   }
 
   save(state: TeamExecutionState): void {
-    writeJsonAtomic(this.pathFor(state.run_id), state);
+    writeJsonAtomicDurable(this.pathFor(state.run_id), state);
   }
 
   saveTaskRefRegistry(registry: ResearchTaskExecutionRefRegistry): void {
-    writeJsonAtomic(this.taskRefPathFor(registry.run_id), registry);
+    writeJsonAtomicDurable(this.taskRefPathFor(registry.run_id), registry);
   }
 }
