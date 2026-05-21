@@ -782,6 +782,101 @@ describe('final conclusions consumer', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// B-6 regression — digest reliability flag (torn-stream awareness)
+//
+// Source of bug: project_recent_digest is computed by walking
+// ledger.jsonl. If the ledger had partial/torn lines from a crash
+// mid-append, the digest used to be returned as if it were authoritative
+// — even though it was silently skipping unparseable events. Downstream
+// consumers (status, export, memory-graph) had no signal to distinguish
+// a clean digest from one computed over a partial ledger.
+//
+// Fix: digest.reliable === true iff every ledger line parsed cleanly.
+// Otherwise reliable === false and invalid_lines exposes the count.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('B-6 regression — digest reliability flag', () => {
+  it('marks digest.reliable === false when the ledger has malformed lines', async () => {
+    const projectRoot = makeTempProjectRoot();
+    const manager = new StateManager(projectRoot);
+    manager.ensureDirs();
+    const state = manager.readState();
+    state.run_id = 'M-DIGEST-TORN';
+    state.workflow_id = 'computation';
+    manager.saveState(state);
+    // Append a deliberately-malformed line to the ledger to simulate a
+    // torn-stream write (e.g. crash mid-append before the durable write
+    // completed). Direct append is the only realistic way to reproduce
+    // this in-test; the durable primitive's contract is "all-or-nothing
+    // per call" but a crash between two calls leaves a partial file.
+    fs.appendFileSync(manager.ledgerPath, '{ "ts": "torn", malformed-json\n', 'utf-8');
+    // Then append a valid event so the digest still has SOME signal.
+    manager.appendLedger('run_init', {
+      run_id: 'M-DIGEST-TORN',
+      workflow_id: 'computation',
+    });
+
+    const statusView = await handleOrchRunStatus({ project_root: projectRoot }) as Record<string, unknown>;
+
+    expect(statusView.project_recent_digest).toBeTruthy();
+    const digest = statusView.project_recent_digest as Record<string, unknown>;
+    expect(digest.reliable).toBe(false);
+    expect(digest.invalid_lines).toBe(1);
+    // The error path still surfaces the LEDGER_PARSE_ERROR for operators.
+    expect(statusView.project_recent_digest_error).toMatchObject({
+      code: 'PROJECT_RECENT_DIGEST_PARTIAL',
+      read_errors: expect.arrayContaining([
+        expect.objectContaining({ code: 'LEDGER_PARSE_ERROR' }),
+      ]),
+    });
+  });
+
+  it('marks digest.reliable === true and omits invalid_lines for a clean ledger', async () => {
+    const projectRoot = makeTempProjectRoot();
+    const manager = new StateManager(projectRoot);
+    manager.ensureDirs();
+    const state = manager.readState();
+    state.run_id = 'M-DIGEST-CLEAN';
+    state.workflow_id = 'computation';
+    manager.saveState(state);
+    manager.appendLedger('run_init', {
+      run_id: 'M-DIGEST-CLEAN',
+      workflow_id: 'computation',
+    });
+
+    const statusView = await handleOrchRunStatus({ project_root: projectRoot }) as Record<string, unknown>;
+
+    expect(statusView.project_recent_digest).toBeTruthy();
+    const digest = statusView.project_recent_digest as Record<string, unknown>;
+    expect(digest.reliable).toBe(true);
+    // invalid_lines is intentionally omitted when reliable to keep the
+    // happy-path digest shape compact.
+    expect('invalid_lines' in digest).toBe(false);
+  });
+
+  it('marks digest.reliable === false with the correct count when multiple lines are torn', async () => {
+    const projectRoot = makeTempProjectRoot();
+    const manager = new StateManager(projectRoot);
+    manager.ensureDirs();
+    const state = manager.readState();
+    state.run_id = 'M-DIGEST-MULTI-TORN';
+    state.workflow_id = 'computation';
+    manager.saveState(state);
+    // Three torn lines interleaved with two valid events.
+    fs.appendFileSync(manager.ledgerPath, '{ broken-1\n', 'utf-8');
+    manager.appendLedger('run_init', { run_id: 'M-DIGEST-MULTI-TORN', workflow_id: 'computation' });
+    fs.appendFileSync(manager.ledgerPath, 'not even close to json\n', 'utf-8');
+    manager.appendLedger('status_changed', { run_id: 'M-DIGEST-MULTI-TORN', workflow_id: 'computation' });
+    fs.appendFileSync(manager.ledgerPath, '{"ts": "still-broken\n', 'utf-8');
+
+    const statusView = await handleOrchRunStatus({ project_root: projectRoot }) as Record<string, unknown>;
+    const digest = statusView.project_recent_digest as Record<string, unknown>;
+    expect(digest.reliable).toBe(false);
+    expect(digest.invalid_lines).toBe(3);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // B-4 regression — approval SHA-256 TOCTOU
 // Source of bug: handleOrchRunApprove read the approval packet for the
 // SHA-256 integrity check, but consumeApprovedFinalConclusions re-read the
