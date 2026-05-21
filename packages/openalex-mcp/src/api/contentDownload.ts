@@ -12,7 +12,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import type { z } from 'zod';
-import { invalidParams, upstreamError } from '@autoresearch/shared';
+import { commitStagedDurable, invalidParams, upstreamError } from '@autoresearch/shared';
 import type { OpenAlexContentSchema } from '../tools/schemas.js';
 import { openalexFetchFullUrl, getCostSummary, getResponseMeta } from './rateLimiter.js';
 import { getDataDir } from './client.js';
@@ -156,10 +156,8 @@ export async function handleContent(
     }
   }
 
-  // Atomic rename + directory fsync
-  fs.renameSync(tmpPath, destPath);
-  const dirFd = fs.openSync(outDirResolved, 'r');
-  try { fs.fsyncSync(dirFd); } finally { fs.closeSync(dirFd); }
+  // commitStagedDurable: rename + parent-dir fsync.
+  commitStagedDurable(tmpPath, destPath);
 
   const uri = `openalex://content/${workId}/${fileName}`;
 

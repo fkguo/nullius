@@ -33,6 +33,10 @@ jobs:
         if: ${{ matrix.node-version == 22 }}
         run: node scripts/check-shell-boundary-anti-drift.mjs
 
+      - name: Check atomic-write anti-drift (ART-03)
+        if: ${{ matrix.node-version == 22 }}
+        run: node scripts/check-atomic-write-anti-drift.mjs
+
       - name: Check governance sync (AGENTS.md ↔ CLAUDE.md)
         if: ${{ matrix.node-version == 22 }}
         run: node scripts/check-governance-sync.mjs

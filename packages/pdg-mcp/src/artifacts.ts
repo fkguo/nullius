@@ -1,5 +1,5 @@
 import * as crypto from 'crypto';
-import * as fs from 'fs';
+import { writeBytesAtomicDurable } from '@autoresearch/shared';
 import { getArtifactsDir, ensureDir } from './data/dataDir.js';
 import { assertSafePathSegment, resolvePathWithinParent } from './data/pathGuard.js';
 import { cleanupOldPdgArtifacts } from './artifactTtl.js';
@@ -58,7 +58,7 @@ export function writeJsonArtifact(artifactName: string, data: unknown): {
 
   const filePath = resolvePathWithinParent(artifactsDir, artifactName, 'artifact_name');
   const text = JSON.stringify(data, null, 2);
-  fs.writeFileSync(filePath, text, 'utf-8');
+  writeBytesAtomicDurable(filePath, text);
 
   return {
     name: artifactName,
@@ -89,7 +89,7 @@ export function writeJsonlArtifact(artifactName: string, rows: unknown[]): {
   const filePath = resolvePathWithinParent(artifactsDir, artifactName, 'artifact_name');
   const lines = rows.map(r => JSON.stringify(r));
   const text = `${lines.join('\n')}${lines.length > 0 ? '\n' : ''}`;
-  fs.writeFileSync(filePath, text, 'utf-8');
+  writeBytesAtomicDurable(filePath, text);
 
   return {
     name: artifactName,

@@ -8,6 +8,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import { commitStagedDurable } from '@autoresearch/shared';
 import { normalizeArxivId } from './arxivSource.js';
 import { downloadFile, detectSourceType } from './paperFetcher.js';
 import { extractTarGz, extractGz, isTarArchive, findMainTexFile } from './tarExtractor.js';
@@ -168,7 +169,9 @@ async function downloadLatexSource(
         fs.unlinkSync(tempPath);
       } else {
         const texPath = path.join(destDir, 'main.tex');
-        fs.renameSync(tempPath, texPath);
+        // commitStagedDurable: same-parent rename + parent-dir fsync so the
+        // new main.tex is durably visible to downstream readers.
+        commitStagedDurable(tempPath, texPath);
         files = ['main.tex'];
       }
     }

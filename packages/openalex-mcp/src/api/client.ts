@@ -10,7 +10,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import * as crypto from 'crypto';
-import { invalidParams, notFound, upstreamError } from '@autoresearch/shared';
+import { commitStagedDurable, invalidParams, notFound, upstreamError } from '@autoresearch/shared';
 import { openalexFetch, getCostSummary, getResponseMeta, isBudgetExceeded } from './rateLimiter.js';
 import { buildQueryParams } from './paramMapping.js';
 import { augmentSelect } from './selectAugment.js';
@@ -219,10 +219,10 @@ async function paginatedFetch<T>(
     fs.closeSync(fd);
   }
 
-  fs.renameSync(tmpFile, outFile);
-  // fsync parent directory AFTER rename to durably commit the new directory entry
-  const dirFd = fs.openSync(resultsDir, 'r');
-  try { fs.fsyncSync(dirFd); } finally { fs.closeSync(dirFd); }
+  // commitStagedDurable: rename + parent-dir fsync (same gold-standard
+  // sequence the streaming write above already follows for the staged
+  // file).
+  commitStagedDurable(tmpFile, outFile);
 
   return {
     total_count: totalCount,

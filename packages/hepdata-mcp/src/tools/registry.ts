@@ -1,4 +1,3 @@
-import * as fs from 'fs';
 import * as path from 'path';
 import { z } from 'zod';
 import {
@@ -7,6 +6,7 @@ import {
   HEPDATA_GET_TABLE,
   HEPDATA_DOWNLOAD,
   upstreamError,
+  writeBytesAtomicDurable,
 } from '@autoresearch/shared';
 import { zodToMcpInputSchema } from './mcpSchema.js';
 import * as client from '../api/client.js';
@@ -125,15 +125,14 @@ Returns artifact URI, file path, file size, and table count.`,
       ensureDir(submissionDir);
 
       const destPath = path.join(submissionDir, 'hepdata_submission.zip');
-      const tmpPath = `${destPath}.tmp`;
 
       try {
-        fs.writeFileSync(tmpPath, Buffer.from(buffer));
-        fs.renameSync(tmpPath, destPath);
+        // writeBytesAtomicDurable: mkdir + tmp + write + fsync + rename +
+        // parent-dir fsync; tmp-file cleanup is best-effort inside the
+        // primitive, so the outer catch block no longer needs to chase a
+        // stray .tmp sidecar.
+        writeBytesAtomicDurable(destPath, Buffer.from(buffer));
       } catch (err) {
-        try { fs.unlinkSync(tmpPath); } catch (cleanupErr) {
-          process.stderr.write(`[hepdata-mcp] cleanup failed for ${tmpPath}: ${cleanupErr instanceof Error ? cleanupErr.message : String(cleanupErr)}\n`);
-        }
         throw upstreamError(
           `Failed to write HEPData submission: ${err instanceof Error ? err.message : String(err)}`,
         );
