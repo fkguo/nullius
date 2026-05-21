@@ -5,17 +5,50 @@
 import { parseRetryAfterMs } from '@autoresearch/shared';
 import { logger } from '../utils/logger.js';
 
-// INSPIRE API rate limit: 15 requests per 5s window
+/**
+ * Parse a positive-integer env var. Falls back to `fallback` when the var
+ * is unset, empty, non-numeric, non-finite, negative, zero, or non-integer.
+ * Returns `Math.floor(parsed)` for fractional values that are otherwise
+ * valid.
+ *
+ * Fourth copy of the same helper (arxiv-mcp + openalex-mcp + hepdata-mcp +
+ * here). Lifting to `@autoresearch/shared` is its own cleanup task; kept
+ * inline to keep each hotfix narrowly scoped to one package.
+ *
+ * Sanitizes against malicious / buggy env (e.g. "abc", "-1", "1e999",
+ * "NaN") so a misconfigured environment cannot disable the rate-limiter
+ * or set absurd timeouts.
+ */
+function parseEnvPositiveInt(name: string, fallback: number): number {
+  const raw = process.env[name]?.trim();
+  if (!raw) return fallback;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return Math.floor(parsed);
+}
+
+// INSPIRE API rate limit: 15 requests per 5s window (per the official docs)
 // On 429, must wait at least 5 seconds before retrying
 // Reference: https://github.com/inspirehep/rest-api-doc
 export const BACKOFF_BASE_DELAY_MS = 5000;  // 5 seconds (per INSPIRE API docs)
 export const BACKOFF_MAX_DELAY_MS = 30000;
-export const MAX_RETRY_ATTEMPTS = 3;
-export const REQUEST_TIMEOUT_MS = 30000; // 30 second timeout
+export const MAX_RETRY_ATTEMPTS = parseEnvPositiveInt('INSPIRE_MAX_RETRIES', 3);
+// REQUEST_TIMEOUT_MS default raised 30s -> 90s. Same rationale as the
+// arxiv-mcp / openalex-mcp / hepdata-mcp sibling hotfixes (#14 + #15):
+// downloads + retry-after waits can routinely exceed 30s, and a tight
+// budget collides with HTTP 429 retry-after. Env: INSPIRE_REQUEST_TIMEOUT_MS.
+export const REQUEST_TIMEOUT_MS = parseEnvPositiveInt('INSPIRE_REQUEST_TIMEOUT_MS', 90_000);
 
-// Proactive rate limiting (R-002)
-const INSPIRE_RATE_LIMIT = 15;        // Max requests per window
-const INSPIRE_RATE_WINDOW_MS = 5000;  // 5 second window
+// Proactive rate limiting (R-002). Both knobs env-configurable so
+// operators can be more conservative if INSPIRE tightens its limits.
+const INSPIRE_RATE_LIMIT = parseEnvPositiveInt('INSPIRE_RATE_LIMIT', 15);        // Max requests per window
+const INSPIRE_RATE_WINDOW_MS = parseEnvPositiveInt('INSPIRE_RATE_WINDOW_MS', 5000);  // 5 second window
+
+// Internal export for direct unit testing — see tests/api/rateLimiter.test.ts.
+// Not part of the public surface.
+export const __testing__ = {
+  parseEnvPositiveInt,
+};
 
 // Network errors that should trigger retry
 const RETRYABLE_ERROR_CODES = ['ECONNRESET', 'ETIMEDOUT', 'ENOTFOUND', 'EAI_AGAIN', 'ECONNREFUSED'];
