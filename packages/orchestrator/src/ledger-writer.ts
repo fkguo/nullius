@@ -3,6 +3,7 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { appendJsonlDurable, sortKeysRecursive } from '@autoresearch/shared';
 import type { LedgerEvent } from './types.js';
 
 const AUTORESEARCH_DIRNAME = '.autoresearch';
@@ -17,8 +18,6 @@ function ledgerPath(repoRoot: string): string {
   return path.join(dir, LEDGER_FILENAME);
 }
 
-import { sortKeysRecursive } from './util.js';
-
 export class LedgerWriter {
   private readonly filePath: string;
 
@@ -27,14 +26,10 @@ export class LedgerWriter {
   }
 
   /** Append an event to the ledger. Creates the file if it doesn't exist.
-   *  Keys are sorted recursively to match Python json.dumps(sort_keys=True). */
+   *  Keys are sorted recursively to match Python json.dumps(sort_keys=True).
+   *  Durable via appendJsonlDurable: file fsync + parent-dir fsync per append. */
   append(event: LedgerEvent): void {
-    const dir = path.dirname(this.filePath);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    const line = JSON.stringify(sortKeysRecursive(event)) + '\n';
-    fs.appendFileSync(this.filePath, line, 'utf-8');
+    appendJsonlDurable(this.filePath, sortKeysRecursive(event));
   }
 
   /** Convenience: append an event with auto-timestamp. */

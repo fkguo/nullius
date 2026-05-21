@@ -8,7 +8,7 @@ export { McpClient, type McpToolResult, type McpClientOptions } from './mcp-clie
 export { ApprovalGate, approvalPacketSha256, type ApprovalRequest, type ApprovalCheckResult } from './approval-gate.js';
 export { retryWithBackoff, RetryExhaustedError, type RetryAttempt, type RetryResult } from './retry.js';
 export { SpanCollector, ActiveSpan } from './tracing.js';
-export { sortKeysRecursive, utcNowIso } from './util.js';
+export { utcNowIso } from './util.js';
 export {
   AgentRunner,
   _resetLaneQueue,

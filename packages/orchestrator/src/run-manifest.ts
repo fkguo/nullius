@@ -3,6 +3,7 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { writeJsonAtomicDurable } from '@autoresearch/shared';
 import { utcNowIso } from './util.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -75,25 +76,10 @@ export class RunManifestManager {
   }
 
   private writeManifest(manifest: RunManifest): void {
-    const p = this.manifestPath(manifest.run_id);
-    fs.mkdirSync(path.dirname(p), { recursive: true });
-    const tmp = p + '.tmp';
-    const content = JSON.stringify(manifest, null, 2);
-    // fsync before rename for crash durability (required by durable execution contract)
-    const fd = fs.openSync(tmp, 'w');
-    try {
-      fs.writeSync(fd, content);
-      fs.fsyncSync(fd);
-    } finally {
-      fs.closeSync(fd);
-    }
-    fs.renameSync(tmp, p);
-    // fsync the parent directory to persist the directory entry after rename
-    const dirFd = fs.openSync(path.dirname(p), 'r');
-    try {
-      fs.fsyncSync(dirFd);
-    } finally {
-      fs.closeSync(dirFd);
-    }
+    // P1: now delegated to the shared durable primitive. This was the
+    // gold-standard fsync sequence (Batch 8 R2 fix) that the
+    // writeJsonAtomicDurable primitive was lifted from — keeping it as a
+    // local re-implementation would be a drift hazard.
+    writeJsonAtomicDurable(this.manifestPath(manifest.run_id), manifest);
   }
 }

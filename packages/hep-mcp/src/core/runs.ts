@@ -1,11 +1,11 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { randomUUID } from 'crypto';
 import { ensureDir } from '../data/dataDir.js';
 import { HEP_EXPORT_PROJECT, HEP_RUN_CLEAR_MANIFEST_LOCK } from '../tool-names.js';
 import {
   invalidParams,
   notFound,
+  writeJsonAtomicDurable,
   type RunArtifactRef,
   type RunState,
   type RunStepState,
@@ -222,22 +222,6 @@ function lockPathForRun(runId: string): string {
   return path.join(getRunDir(runId), '.manifest.lock');
 }
 
-async function atomicWriteJsonFile(params: { file_path: string; data: unknown }): Promise<void> {
-  const dir = path.dirname(params.file_path);
-  const base = path.basename(params.file_path);
-  const tmpPath = path.join(dir, `.${base}.tmp-${process.pid}-${randomUUID()}`);
-  await fs.promises.writeFile(tmpPath, JSON.stringify(params.data, null, 2), 'utf-8');
-  await fs.promises.rename(tmpPath, params.file_path);
-}
-
-function atomicWriteJsonFileSync(params: { file_path: string; data: unknown }): void {
-  const dir = path.dirname(params.file_path);
-  const base = path.basename(params.file_path);
-  const tmpPath = path.join(dir, `.${base}.tmp-${process.pid}-${randomUUID()}`);
-  fs.writeFileSync(tmpPath, JSON.stringify(params.data, null, 2), 'utf-8');
-  fs.renameSync(tmpPath, params.file_path);
-}
-
 export async function clearRunManifestLock(params: {
   run_id: string;
   force?: boolean;
@@ -390,7 +374,7 @@ export async function updateRunManifestAtomic(params: {
     }
 
     try {
-      await atomicWriteJsonFile({ file_path: manifestPath, data: next });
+      writeJsonAtomicDurable(manifestPath, next);
     } catch (err) {
       throw invalidParams('Failed to write run manifest atomically (fail-fast)', {
         run_id: runId,
@@ -460,23 +444,17 @@ export function createRun(params: {
   getRunArtifactsDir(runId);
   const artifacts: RunArtifactRef[] = [];
 
-  // Example artifact (DoD): args snapshot (may be large → artifact)
+  // Example artifact (DoD): args snapshot (may be large → artifact).
+  // Durable: file fsync + parent-dir fsync so the artifact survives crash
+  // before the manifest is written and any subsequent caller looks it up.
   const argsArtifactName = 'args_snapshot.json';
   const argsArtifactPath = getRunArtifactPath(runId, argsArtifactName);
-  fs.writeFileSync(
-    argsArtifactPath,
-    JSON.stringify(
-      {
-        run_id: runId,
-        project_id: params.project_id,
-        created_at: now,
-        args_snapshot: params.args_snapshot ?? null,
-      },
-      null,
-      2
-    ),
-    'utf-8'
-  );
+  writeJsonAtomicDurable(argsArtifactPath, {
+    run_id: runId,
+    project_id: params.project_id,
+    created_at: now,
+    args_snapshot: params.args_snapshot ?? null,
+  });
 
   const argsArtifactRef: RunArtifactRef = createHepRunArtifactRef(runId, argsArtifactName, 'application/json');
   artifacts.push(argsArtifactRef);
@@ -502,7 +480,7 @@ export function createRun(params: {
 
   const manifestPath = getRunManifestPath(runId);
   try {
-    atomicWriteJsonFileSync({ file_path: manifestPath, data: manifest });
+    writeJsonAtomicDurable(manifestPath, manifest);
   } catch (err) {
     throw invalidParams('Failed to write run manifest (fail-fast)', {
       run_id: runId,

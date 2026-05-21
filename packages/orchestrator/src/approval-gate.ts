@@ -2,6 +2,7 @@
 // Implements approval timeout enforcement and budget limits.
 
 import { createHash } from 'node:crypto';
+import { sortKeysRecursive } from '@autoresearch/shared';
 import type { RunState, ApprovalPolicy, PendingApproval } from './types.js';
 
 export interface ApprovalRequest {
@@ -28,8 +29,6 @@ export function approvalPacketSha256(packet: Record<string, unknown>): string {
   const canonical = JSON.stringify(sortKeysRecursive(packet));
   return createHash('sha256').update(canonical).digest('hex');
 }
-
-import { sortKeysRecursive } from './util.js';
 
 export class ApprovalGate {
   private readonly policy: ApprovalPolicy;

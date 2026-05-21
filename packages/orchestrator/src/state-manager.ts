@@ -1,16 +1,22 @@
 // @autoresearch/orchestrator — lifecycle state manager
 // Read/write/enforcement helpers for the .autoresearch control plane.
-// Atomic writes: .tmp → rename.
+// Durable atomic writes via @autoresearch/shared primitives:
+// file fsync + parent-dir fsync on every persisted change.
 
 import { randomUUID } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {
   APPROVAL_GATE_IDS,
+  appendJsonlDurable,
+  commitStagedDurable,
   getApprovalPolicyKey,
+  sortKeysRecursive,
+  writeBytesAtomicDurable,
+  writeJsonAtomicDurable,
 } from '@autoresearch/shared';
 import type { RunState, RunStatus, ApprovalPolicy, ApprovalHistoryEntry, LedgerEvent } from './types.js';
-import { sortKeysRecursive, utcNowIso } from './util.js';
+import { utcNowIso } from './util.js';
 
 const AUTORESEARCH_DIRNAME = '.autoresearch';
 const AUTORESEARCH_CONTROL_DIR_ENV = 'AUTORESEARCH_CONTROL_DIR';
@@ -464,17 +470,17 @@ function defaultState(): RunState {
   };
 }
 
-/** Atomic JSON write: write to .tmp, then rename.
- *  Matches Python _write_json_atomic: indent=2, sort_keys=True, trailing newline. */
+/** Durable atomic JSON write.
+ *  Matches Python _write_json_atomic: indent=2, sort_keys=True, trailing newline.
+ *  Delegates to @autoresearch/shared.writeJsonAtomicDurable with a custom
+ *  stringify that applies sortKeysRecursive for Python-`sort_keys=True`
+ *  byte-equality. File fsync + parent-dir fsync per write. */
 function writeJsonAtomic(filePath: string, payload: Record<string, unknown>): void {
-  const dir = path.dirname(filePath);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-  const tmp = filePath + '.tmp';
-  const content = JSON.stringify(sortKeysRecursive(payload), null, 2) + '\n';
-  fs.writeFileSync(tmp, content, 'utf-8');
-  fs.renameSync(tmp, filePath);
+  writeJsonAtomicDurable(
+    filePath,
+    payload,
+    p => JSON.stringify(sortKeysRecursive(p), null, 2) + '\n',
+  );
 }
 
 function uniqueSiblingPath(filePath: string, suffix: string): string {
@@ -487,6 +493,19 @@ function isRetryableCommitError(error: unknown): boolean {
   return code === 'ENOENT' || code === 'EEXIST' || code === 'EBUSY' || code === 'EPERM';
 }
 
+/** Durable rename-only commit with retry. Wraps commitStagedDurable
+ *  (rename + parent-dir fsync) with bounded retries for transient errors
+ *  (ENOENT/EEXIST/EBUSY/EPERM) on platforms where renames can momentarily
+ *  fail under contention.
+ *
+ *  Post-rename-fsync edge case: if the renameSync inside commitStagedDurable
+ *  succeeds but the subsequent fsync(dirFd) throws (rare EIO on the parent
+ *  directory), the file IS on disk. We detect this by checking whether the
+ *  final path now exists and the staged path is gone, in which case the
+ *  rename half of the commit completed and we return success (treating the
+ *  failed dir-fsync as a soft warning). Without this check, the caller
+ *  would see `concurrent_state_write_failed` even though the on-disk state
+ *  reflects the new bytes — a confusing semantic mismatch. */
 function commitStagedFileWithRetry(params: {
   stagedPath: string;
   finalPath: string;
@@ -496,9 +515,16 @@ function commitStagedFileWithRetry(params: {
   const maxAttempts = params.maxAttempts ?? 3;
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
-      fs.renameSync(params.stagedPath, params.finalPath);
+      commitStagedDurable(params.stagedPath, params.finalPath);
       return;
     } catch (error) {
+      // If the rename portion of the commit already succeeded (final
+      // exists, staged is gone), the only thing that can have failed is
+      // the parent-dir fsync. Treat that as a soft warning and return —
+      // the new bytes are on disk and visible to subsequent reads.
+      if (!fs.existsSync(params.stagedPath) && fs.existsSync(params.finalPath)) {
+        return;
+      }
       if (!isRetryableCommitError(error) || attempt === maxAttempts) {
         throw new Error(
           `concurrent_state_write_failed: failed to commit ${params.label}; staged=${params.stagedPath}; target=${params.finalPath}; attempts=${attempt}; error=${error instanceof Error ? error.message : String(error)}`,
@@ -508,17 +534,15 @@ function commitStagedFileWithRetry(params: {
   }
 }
 
-/** Append a ledger event line. */
+/** Durable append of a ledger event line.
+ *  Delegates to @autoresearch/shared.appendJsonlDurable: write → fsync(fd)
+ *  → close → fsync(dirFd) so the new bytes survive crash before any
+ *  subsequent syscall. */
 function appendLedgerLine(
   ledgerFilePath: string,
   event: LedgerEvent,
 ): void {
-  const dir = path.dirname(ledgerFilePath);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-  const line = JSON.stringify(sortKeysRecursive(event)) + '\n';
-  fs.appendFileSync(ledgerFilePath, line, 'utf-8');
+  appendJsonlDurable(ledgerFilePath, sortKeysRecursive(event));
 }
 
 /** Valid status transitions. */
@@ -634,7 +658,7 @@ export class StateManager {
       fs.mkdirSync(this.dir, { recursive: true });
     }
     if (!fs.existsSync(this.ledgerPath)) {
-      fs.writeFileSync(this.ledgerPath, '', 'utf-8');
+      writeBytesAtomicDurable(this.ledgerPath, '');
     }
   }
 
@@ -961,9 +985,11 @@ export class StateManager {
     return null;
   }
 
-  /** Write .pause sentinel file at repo root (matching Python cmd_pause L732). */
+  /** Write .pause sentinel file at repo root (matching Python cmd_pause L732).
+   *  Durable: writeBytesAtomicDurable does file fsync + parent-dir fsync so
+   *  the sentinel survives crash between create and the next OS flush. */
   writePauseSentinel(): void {
-    fs.writeFileSync(path.join(this.repoRoot, '.pause'), 'paused\n', 'utf-8');
+    writeBytesAtomicDurable(path.join(this.repoRoot, '.pause'), 'paused\n');
   }
 
   /** Remove .pause sentinel file at repo root (best-effort, matching Python cmd_resume L760-761). */
@@ -1506,16 +1532,20 @@ export class StateManager {
     return lines.join('\n');
   }
 
-  /** Validate plan, render to Markdown, and atomically write to .autoresearch/plan.md.
+  /** Validate plan, render to Markdown, and durably + atomically write
+   *  to .autoresearch/plan.md.
    *  Matches Python write_plan_md (orchestrator_state.py L478-495).
-   *  Returns relative path. */
+   *  Stage 1: writeBytesAtomicDurable persists the staged file with full
+   *  file fsync + parent-dir fsync (so the staged bytes survive a crash
+   *  before the commit). Stage 2: commitStagedFileWithRetry renames into
+   *  place with a final parent-dir fsync. Returns relative path. */
   writePlanMd(plan: Record<string, unknown>, preRenderedContent?: string): string {
     this.validatePlan(plan);
     this.ensureDirs();
     const content = preRenderedContent ?? this.renderPlanMd(plan);
     const p = this.planMdPath;
     const tmp = uniqueSiblingPath(p, 'tmp');
-    fs.writeFileSync(tmp, content, 'utf-8');
+    writeBytesAtomicDurable(tmp, content);
     try {
       commitStagedFileWithRetry({
         stagedPath: tmp,
