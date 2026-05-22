@@ -122,3 +122,13 @@ autoresearch export --run-id <run_id>
 ```
 
 Use the command that matches the project state. If approval is pending, stop at the approval boundary and report the exact approval id and evidence path.
+
+Before invoking `autoresearch approve` for any A1-A5 gate (and before
+folding a result into `research_contract.md` or
+`research_plan.md#Current Status`), run the `research-integrity` skill's
+M1-M7 pre-approval ritual. M1-M7 is the agent-side discipline that
+catches hallucinated citations, hallucinated measurements, shortcut
+graph claims, bugs-as-insights, methodology fabrication, and frame-lock
+before they reach the durable record. The machine gates and the
+`HARNESS_INVOCATION_REQUIRED` anchor remain authoritative; the
+integrity check is owed to the next agent who reads your work.
