@@ -1,6 +1,11 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { APPROVAL_GATE_IDS, invalidParams, writeBytesAtomicDurable } from '@autoresearch/shared';
+import {
+  APPROVAL_GATE_IDS,
+  invalidParams,
+  writeBytesAtomicDurable,
+  writeHarnessInvocationMarker,
+} from '@autoresearch/shared';
 import { z } from 'zod';
 import { createStateManager, requireState } from './common.js';
 import { buildRunStatusView, readRunListView } from './run-read-model.js';
@@ -87,7 +92,14 @@ export async function handleOrchRunStatus(
 ): Promise<unknown> {
   const { manager, projectRoot } = createStateManager(params.project_root);
   const state = requireState(projectRoot, manager);
-  return buildRunStatusView(projectRoot, state);
+  const view = buildRunStatusView(projectRoot, state);
+  // P3-C: refresh the harness invocation marker on every successful status
+  // call. This is the anchor receipt that *-mcp dispatchers verify; the
+  // research-harness skill already invokes `autoresearch status --json` as
+  // its recovery step, so existing skill flow becomes the anchor flow
+  // without a new command surface.
+  writeHarnessInvocationMarker(projectRoot);
+  return view;
 }
 
 export async function handleOrchRunList(

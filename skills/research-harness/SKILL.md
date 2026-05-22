@@ -29,6 +29,14 @@ Work from the external project root, not from the `autoresearch-lab` development
    ```bash
    autoresearch status --json
    ```
+
+A successful `status --json` call also refreshes the session-level anchor
+marker at `.autoresearch/HARNESS_INVOCATION`. Every `*-mcp` dispatcher
+(`arxiv-mcp`, `hep-mcp`, `hepdata-mcp`, `idea-mcp`, `openalex-mcp`,
+`pdg-mcp`, `zotero-mcp`) verifies this marker before dispatching tool calls
+and fails closed with `HARNESS_INVOCATION_REQUIRED` if it is missing or
+older than its TTL (default 1 h). Re-run `status --json` to re-anchor; you
+do not need to invoke a separate "anchor" command.
 4. If `.autoresearch/` exists but `.autoresearch/HARNESS` is missing, or if both entrypoints are unavailable, repair only the runtime handshake and launcher from the
    known development checkout, then retry the project-local CLI:
    ```bash

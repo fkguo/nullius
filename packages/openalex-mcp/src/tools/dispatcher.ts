@@ -1,5 +1,5 @@
 import { ZodError } from 'zod';
-import { invalidParams, McpError, redact } from '@autoresearch/shared';
+import { invalidParams, McpError, redact, verifyHarnessInvocationMarker } from '@autoresearch/shared';
 import type { ToolExposureMode } from './registry.js';
 import { getToolSpec, isToolExposed } from './registry.js';
 
@@ -57,6 +57,8 @@ export async function handleToolCall(
   _ctx?: ToolCallContext,
 ): Promise<{ content: { type: string; text: string }[]; isError?: boolean }> {
   try {
+    // P3-C: harness invocation marker gate (cross-dispatcher anchor enforcement)
+    verifyHarnessInvocationMarker(process.cwd());
     const spec = getToolSpec(name);
     if (!spec) {
       throw invalidParams(`Unknown tool: ${name}`);

@@ -9,7 +9,7 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
-import { McpError, invalidParams } from '@autoresearch/shared';
+import { McpError, invalidParams, verifyHarnessInvocationMarker } from '@autoresearch/shared';
 import { IdeaRpcClient } from './rpc-client.js';
 import { zodToMcpInputSchema } from './mcp-input-schema.js';
 import { CONFIRM_FIELD, IDEA_TOOLS, type IdeaToolDef } from './tool-registry.js';
@@ -126,6 +126,8 @@ export async function startServer(env: NodeJS.ProcessEnv = process.env): Promise
     }
 
     try {
+      // P3-C: harness invocation marker gate (cross-dispatcher anchor enforcement)
+      verifyHarnessInvocationMarker(process.cwd());
       const params = parseAndCleanToolArgs(toolDef, request.params.arguments);
       const result = await rpc.call(toolDef.rpcMethod, params);
       return {

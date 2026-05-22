@@ -12,7 +12,8 @@
     "codegen": "bash meta/scripts/codegen.sh",
     "codegen:check": "bash meta/scripts/codegen.sh && git diff --exit-code -- packages/shared/src/generated meta/generated",
     "check:governance-sync": "node scripts/check-governance-sync.mjs",
-    "check:atomic-write-anti-drift": "node scripts/check-atomic-write-anti-drift.mjs"
+    "check:atomic-write-anti-drift": "node scripts/check-atomic-write-anti-drift.mjs",
+    "check:harness-invocation-anti-drift": "node scripts/check-harness-invocation-anti-drift.mjs"
   },
   "author": "Feng-Kun Guo",
   "license": "MIT",

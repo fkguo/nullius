@@ -23,6 +23,7 @@ import {
   HARD_CAP_RESULT_BYTES,
   PERMISSION_POLICY,
   redact,
+  verifyHarnessInvocationMarker,
 } from '@autoresearch/shared';
 import type { SpanSink } from '@autoresearch/shared';
 import type { PaperSummary } from '@autoresearch/shared';
@@ -567,6 +568,9 @@ export async function handleToolCall(
   ctx?: ToolCallContext
 ): Promise<{ content: ToolResultContentBlock[]; isError?: boolean }> {
   try {
+    // P3-C: anchor verification runs first so all tool calls (regardless of
+    // data root resolution) require a fresh research-harness anchor.
+    verifyHarnessInvocationMarker(process.cwd());
     return await withHepDataRoot(projectRootArg(args), () =>
       withPdgDataDir(resolvedPdgDataDirForCurrentHepRoot(), () =>
         handleToolCallInResolvedDataRoot(name, args, mode, ctx)

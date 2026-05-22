@@ -103,3 +103,18 @@ export {
   unsafeFs,
   blockedCommand,
 } from './errors.js';
+
+// Harness invocation marker (P3-C) — cross-dispatcher anchor enforcement
+export {
+  HARNESS_INVOCATION_FILE,
+  DEFAULT_HARNESS_INVOCATION_TTL_SECONDS,
+  type HarnessInvocationMarker,
+  type HarnessInvocationReason,
+  type VerifyOptions as HarnessInvocationVerifyOptions,
+  type WriteOptions as HarnessInvocationWriteOptions,
+  isHarnessVerifySkipped,
+  harnessInvocationMarkerPath,
+  writeHarnessInvocationMarker,
+  verifyHarnessInvocationMarker,
+  readHarnessInvocationMarker,
+} from './harness-invocation.js';

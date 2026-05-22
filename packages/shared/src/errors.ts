@@ -9,7 +9,8 @@ export type ErrorCode =
   | 'UPSTREAM_ERROR'
   | 'INTERNAL_ERROR'
   | 'UNSAFE_FS'
-  | 'BLOCKED_COMMAND';
+  | 'BLOCKED_COMMAND'
+  | 'HARNESS_INVOCATION_REQUIRED';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // H-01: retryable defaults per ErrorCode
@@ -23,6 +24,7 @@ const RETRYABLE_BY_CODE: Record<ErrorCode, boolean> = {
   INTERNAL_ERROR: false,
   UNSAFE_FS: false,
   BLOCKED_COMMAND: false,
+  HARNESS_INVOCATION_REQUIRED: false,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
