@@ -6,6 +6,7 @@ export const AUTORESEARCH_PUBLIC_COMMAND_INVENTORY = [
   { command: 'proposal-decision', usage: 'autoresearch proposal-decision --proposal-kind <repair|skill|optimize|innovate> --proposal-id <id> --decision <accepted_for_later|dismissed|already_captured> [--note "..."]' },
   { command: 'status', usage: 'autoresearch status [--json]' },
   { command: 'approve', usage: 'autoresearch approve <approval_id> [--note "..."]' },
+  { command: 'integrity-record', usage: 'autoresearch integrity-record --approval-id <id> --modes <M1[,M2,...]> --notes "<summary>" [--skip <Mx:reason>[,Mx:reason]...]' },
   { command: 'pause', usage: 'autoresearch pause [--note "..."]' },
   { command: 'resume', usage: 'autoresearch resume [--note "..."] [--force]' },
   { command: 'export', usage: 'autoresearch export [options]' },

@@ -490,8 +490,8 @@ future work, not part of this skill's initial scope.
 
 ## Recording the check
 
-Do not invent a new schema. Record the check inline in the response
-or notebook entry, in the order:
+For the *narrative* record — read by the next agent or human — record
+the check inline in the response or notebook entry, in the order:
 
 1. Which modes you checked, by `Mx` number.
 2. For each checked mode: the specific disconfirming check you ran
@@ -500,10 +500,43 @@ or notebook entry, in the order:
 3. Modes you explicitly judged not applicable, with a one-sentence
    reason.
 
+For the *machine* record that gates `autoresearch approve` (see below),
+run `autoresearch integrity-record` after the narrative is written:
+
+```bash
+autoresearch integrity-record \
+  --approval-id <approval_id> \
+  --modes M3,M5,M6 \
+  --notes "<terse summary of what was checked and the headline finding>" \
+  --skip M1:no\ code\ change,M2:no\ new\ citations
+```
+
+`--modes` is the comma-separated list of `Mx` you actually walked.
+`--skip` is an optional comma-separated list of `Mx:reason` for modes
+you judged not applicable. `--notes` is short prose (max 500 chars) —
+durable detail still belongs in the narrative record above; the
+receipt is just the boundary-time machine artifact.
+
+The receipt is appended to `.autoresearch/integrity_log.jsonl` and
+checked by `autoresearch approve <approval_id>` (and the `orch_run_approve`
+MCP tool) before granting. Without a matching receipt the approval
+fails closed with `INTEGRITY_RECEIPT_REQUIRED`. This is the same
+fail-closed pattern as the `HARNESS_INVOCATION_REQUIRED` anchor gate —
+the *existence* of the receipt is machine-enforced, the *content* of
+your check is your judgment.
+
+Skip semantics for environments that need to bypass the gate (e.g.
+historical project replay): `AUTORESEARCH_INTEGRITY_VERIFY=skip`.
+`NODE_ENV=test` skips by default to keep existing test suites green.
+
+## Recovery from a caught failure
+
 If a check surfaces a failure, do not cross the boundary. Fix it,
-then re-check the affected modes only. The fix gets a brief note in
-the same record so the next agent can see what was caught and what
-was changed.
+then re-walk the affected modes only. Re-run `autoresearch
+integrity-record` for the same `approval_id` — the latest receipt
+wins, the prior entry stays in the JSONL for audit. The fix gets a
+brief note in the narrative record so the next reader can see what
+was caught and what was changed.
 
 The integrity check is owed to the next agent who will read your
 work — including future-you in a new conversation — not to the

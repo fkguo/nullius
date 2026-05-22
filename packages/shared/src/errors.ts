@@ -10,7 +10,8 @@ export type ErrorCode =
   | 'INTERNAL_ERROR'
   | 'UNSAFE_FS'
   | 'BLOCKED_COMMAND'
-  | 'HARNESS_INVOCATION_REQUIRED';
+  | 'HARNESS_INVOCATION_REQUIRED'
+  | 'INTEGRITY_RECEIPT_REQUIRED';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // H-01: retryable defaults per ErrorCode
@@ -25,6 +26,7 @@ const RETRYABLE_BY_CODE: Record<ErrorCode, boolean> = {
   UNSAFE_FS: false,
   BLOCKED_COMMAND: false,
   HARNESS_INVOCATION_REQUIRED: false,
+  INTEGRITY_RECEIPT_REQUIRED: false,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -2107,6 +2107,61 @@ describe('autoresearch CLI', () => {
     expect(state.approval_history).toHaveLength(1);
   });
 
+  it('integrity-record writes a receipt and approve then succeeds with verify=on (P3-A followup-4)', async () => {
+    // Default NODE_ENV=test skips integrity verify so the existing approval
+    // suite stays green; this regression test forces verify=on to exercise
+    // the new fail-closed code path.
+    const prior = process.env.AUTORESEARCH_INTEGRITY_VERIFY;
+    process.env.AUTORESEARCH_INTEGRITY_VERIFY = 'on';
+    try {
+      const { approvalId, projectRoot } = makeAwaitingApprovalState();
+
+      // Step 1: without a receipt, approve must fail closed with the new
+      // INTEGRITY_RECEIPT_REQUIRED code (surfaced as a thrown error from the
+      // shared handler since the CLI lifecycle re-throws).
+      const noReceiptIo = makeIo(projectRoot);
+      await expect(
+        runCli(['approve', approvalId, '--note', 'ship it'], noReceiptIo.io),
+      ).rejects.toThrow(/integrity receipt/i);
+
+      // Step 2: record the receipt via the new CLI verb. The CLI lives in
+      // the same orchestrator package and writes via the shared primitive,
+      // so this exercises the full end-to-end path the agent would take.
+      const recordIo = makeIo(projectRoot);
+      const recordCode = await runCli([
+        'integrity-record',
+        '--approval-id', approvalId,
+        '--modes', 'M2,M4',
+        '--notes', 'A1 lit pool: openalex_search + arxiv_search cross-verified; inspire_literature graph traced',
+        '--skip', 'M1:no code change,M5:no compute run,M6:no methodology change',
+      ], recordIo.io);
+      expect(recordCode).toBe(0);
+      const recordOut = JSON.parse(recordIo.stdout.join(''));
+      expect(recordOut.recorded).toBe(true);
+      expect(recordOut.approval_id).toBe(approvalId);
+      expect(recordOut.modes_checked).toEqual(['M2', 'M4']);
+      expect(recordOut.modes_skipped).toEqual([
+        { mode: 'M1', reason: 'no code change' },
+        { mode: 'M5', reason: 'no compute run' },
+        { mode: 'M6', reason: 'no methodology change' },
+      ]);
+
+      // Step 3: approve now succeeds because the receipt exists for this
+      // approval_id.
+      const approveIo = makeIo(projectRoot);
+      const approveCode = await runCli(['approve', approvalId, '--note', 'ship it'], approveIo.io);
+      expect(approveCode).toBe(0);
+      expect(approveIo.stdout.join('')).toContain(`approved: ${approvalId}`);
+      const state = new StateManager(projectRoot).readState();
+      expect(state.run_status).toBe('running');
+      expect(state.pending_approval).toBeNull();
+      expect(state.approval_history).toHaveLength(1);
+    } finally {
+      if (prior === undefined) delete process.env.AUTORESEARCH_INTEGRITY_VERIFY;
+      else process.env.AUTORESEARCH_INTEGRITY_VERIFY = prior;
+    }
+  });
+
   it('preserves pause/resume state-manager semantics on the canonical lifecycle surface', async () => {
     const projectRoot = makeTempProjectRoot();
     const manager = new StateManager(projectRoot);

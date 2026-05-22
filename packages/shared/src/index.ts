@@ -118,3 +118,19 @@ export {
   verifyHarnessInvocationMarker,
   readHarnessInvocationMarker,
 } from './harness-invocation.js';
+
+// Integrity receipt (P3-A followup-4) — approval-gate machine check for M1-M7 discipline
+export {
+  INTEGRITY_LOG_FILE,
+  INTEGRITY_MODES,
+  type IntegrityMode,
+  type IntegrityReceipt,
+  type IntegrityReceiptReason,
+  type IntegrityVerifyOptions,
+  type IntegrityWriteOptions,
+  isIntegrityVerifySkipped,
+  integrityLogPath,
+  writeIntegrityReceipt,
+  verifyIntegrityReceipt,
+  readIntegrityReceipts,
+} from './integrity-receipt.js';

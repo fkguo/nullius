@@ -1,6 +1,11 @@
 import { createHash } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import {
+  INTEGRITY_MODES,
+  writeIntegrityReceipt,
+  type IntegrityMode,
+} from '@autoresearch/shared';
 import { handleOrchRunApprove } from './orch-tools/approval.js';
 import { createStateManager, requireState } from './orch-tools/common.js';
 import { handleOrchRunRequestFinalConclusions } from './orch-tools/final-conclusions.js';
@@ -230,6 +235,45 @@ export async function runApproveCommand(
   if (payload.final_conclusions_uri) {
     io.stdout(`final_conclusions_uri: ${String(payload.final_conclusions_uri)}\n`);
   }
+}
+
+export async function runIntegrityRecordCommand(
+  projectRoot: string,
+  parsed: Extract<ParsedCliArgs, { command: 'integrity-record' }>,
+  io: CliIo,
+): Promise<void> {
+  // Validate modes against the canonical INTEGRITY_MODES list. We coerce at
+  // the CLI boundary so the shared primitive's invariant ("modes are M1..M7")
+  // does not need to re-parse free-form strings.
+  const allowed = new Set<string>(INTEGRITY_MODES);
+  const modesChecked: IntegrityMode[] = [];
+  for (const m of parsed.modes) {
+    if (!allowed.has(m)) {
+      throw new Error(`integrity-record --modes value ${JSON.stringify(m)} is not one of ${INTEGRITY_MODES.join(',')}`);
+    }
+    modesChecked.push(m as IntegrityMode);
+  }
+  const skipped: Array<{ mode: IntegrityMode; reason: string }> = [];
+  for (const s of parsed.skipped) {
+    if (!allowed.has(s.mode)) {
+      throw new Error(`integrity-record --skip mode ${JSON.stringify(s.mode)} is not one of ${INTEGRITY_MODES.join(',')}`);
+    }
+    skipped.push({ mode: s.mode as IntegrityMode, reason: s.reason });
+  }
+  const receipt = writeIntegrityReceipt(
+    projectRoot,
+    parsed.approvalId,
+    modesChecked,
+    parsed.notes,
+    skipped,
+  );
+  writeJson(io, {
+    recorded: true,
+    approval_id: receipt.approval_id,
+    modes_checked: receipt.modes_checked,
+    ...(receipt.modes_skipped ? { modes_skipped: receipt.modes_skipped } : {}),
+    timestamp_utc: receipt.timestamp_utc,
+  });
 }
 
 export async function runFinalConclusionsCommand(

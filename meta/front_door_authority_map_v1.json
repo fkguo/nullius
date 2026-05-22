@@ -41,6 +41,10 @@
           "usage": "autoresearch approve <approval_id> [--note \"...\"]"
         },
         {
+          "command": "integrity-record",
+          "usage": "autoresearch integrity-record --approval-id <id> --modes <M1[,M2,...]> --notes \"<summary>\" [--skip <Mx:reason>[,Mx:reason]...]"
+        },
+        {
           "command": "pause",
           "usage": "autoresearch pause [--note \"...\"]"
         },

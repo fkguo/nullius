@@ -38,6 +38,14 @@ export type ParsedCliArgs =
   | { command: 'resume'; projectRoot: string | null; note: string | null; force: boolean }
   | { command: 'approve'; projectRoot: string | null; approvalId: string; note: string | null }
   | {
+    command: 'integrity-record';
+    projectRoot: string | null;
+    approvalId: string;
+    modes: string[];
+    notes: string;
+    skipped: Array<{ mode: string; reason: string }>;
+  }
+  | {
     command: 'workflow-plan';
     projectRoot: string | null;
     recipeId: string;
@@ -129,6 +137,60 @@ function parseResumeArgs(args: string[]): { note: string | null; force: boolean 
     throw new Error(`unknown resume argument: ${arg}`);
   }
   return { note, force };
+}
+
+function parseIntegrityRecordArgs(args: string[]): {
+  approvalId: string;
+  modes: string[];
+  notes: string;
+  skipped: Array<{ mode: string; reason: string }>;
+} {
+  let approvalId: string | null = null;
+  let modesRaw: string | null = null;
+  let notes: string | null = null;
+  let skipRaw: string | null = null;
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index]!;
+    if (arg === '--approval-id') {
+      approvalId = readOptionValue(args, index, '--approval-id');
+      index += 1;
+      continue;
+    }
+    if (arg === '--modes') {
+      modesRaw = readOptionValue(args, index, '--modes');
+      index += 1;
+      continue;
+    }
+    if (arg === '--notes') {
+      notes = readOptionValue(args, index, '--notes');
+      index += 1;
+      continue;
+    }
+    if (arg === '--skip') {
+      skipRaw = readOptionValue(args, index, '--skip');
+      index += 1;
+      continue;
+    }
+    throw new Error(`unknown integrity-record argument: ${arg}`);
+  }
+  if (!approvalId) throw new Error('integrity-record requires --approval-id');
+  if (!modesRaw) throw new Error('integrity-record requires --modes (comma-separated, e.g. M3,M5,M6)');
+  if (notes === null) throw new Error('integrity-record requires --notes "<summary>"');
+  const modes = modesRaw.split(',').map((s) => s.trim()).filter((s) => s.length > 0);
+  if (modes.length === 0) {
+    throw new Error('integrity-record --modes must list at least one mode');
+  }
+  const skipped: Array<{ mode: string; reason: string }> = [];
+  if (skipRaw && skipRaw.trim().length > 0) {
+    for (const part of skipRaw.split(',').map((s) => s.trim()).filter((s) => s.length > 0)) {
+      const colonAt = part.indexOf(':');
+      if (colonAt < 1 || colonAt === part.length - 1) {
+        throw new Error(`integrity-record --skip entry must be "Mx:reason"; got: ${part}`);
+      }
+      skipped.push({ mode: part.slice(0, colonAt).trim(), reason: part.slice(colonAt + 1).trim() });
+    }
+  }
+  return { approvalId, modes, notes, skipped };
 }
 
 function parseApproveArgs(args: string[]): { approvalId: string; note: string | null } {
@@ -466,6 +528,8 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
       return { command: 'resume', projectRoot, ...parseResumeArgs(rest) };
     case 'approve':
       return { command: 'approve', projectRoot, ...parseApproveArgs(rest) };
+    case 'integrity-record':
+      return { command: 'integrity-record', projectRoot, ...parseIntegrityRecordArgs(rest) };
     case 'workflow-plan':
       return { command: 'workflow-plan', projectRoot, ...parseWorkflowPlanArgs(rest) };
     default:

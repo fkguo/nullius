@@ -81,6 +81,11 @@ export async function runCli(argv: string[], io: CliIo = defaultIo()): Promise<n
     await runApproveCommand(projectRoot, parsed.approvalId, parsed.note, io);
     return 0;
   }
+  if (parsed.command === 'integrity-record') {
+    const { runIntegrityRecordCommand } = await import('./cli-lifecycle.js');
+    await runIntegrityRecordCommand(projectRoot, parsed, io);
+    return 0;
+  }
   throw new Error(`unsupported command: ${parsed.command}`);
 }
 
