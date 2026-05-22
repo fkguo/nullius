@@ -41,14 +41,24 @@ is non-optional.
 - Not a substitute for the citation and reference graph verification
   that provider MCP tools perform (`inspire_*`, `openalex_*`,
   `arxiv_*`, `pdg_*`, `hepdata_*`). Those are the **evidence** tools;
-  this is the **discipline** that asks whether the evidence was
-  actually consulted.
+  this is the **discipline** that decides which evidence calls are
+  required per boundary crossing and verifies they were made.
+- Not a re-implementation of any provider tool. When a mode below
+  lists tool names under "Required evidence calls", those names point
+  at existing MCP capabilities; the skill does not duplicate their
+  logic, it only mandates when to call them.
 - Not a structured artifact. There is no `integrity_report.json` schema.
   The check result is recorded inline in the response or notebook entry
   next to the boundary-crossing action.
-- Not domain-specific. Every mode is named in domain-neutral terms.
-  HEP is the current most-mature domain and most examples below use HEP
-  tooling, but each mode applies in any research domain.
+- Not domain-specific. Each mode is genuinely domain-neutral. Resolver
+  and graph tools are routed **by discipline of the cited work**, not
+  by which MCP package they live in. The package name is not a domain
+  label — for example, `inspire_validate_bibliography` lives in
+  `hep-mcp` but its default mode audits *non-INSPIRE* entries, and
+  `inspire_resolve_citekey` takes an INSPIRE `recid` (not a citekey
+  string) and only resolves entries already in INSPIRE-HEP. Always
+  consult the tool's actual schema and handler before reasoning about
+  its scope.
 - Not a replacement for human review. It is a stricter version of the
   agent's own self-review that biases toward finding the failure mode
   rather than confirming the work is fine.
@@ -96,30 +106,66 @@ venue, in the cited year, with the cited claim.
 
 **Signs.**
 - Citation key looks like a templated `{Authors}{Year}{Topic}` slug
-  but no resolver call (`inspire_resolve_citekey`, `inspire_search`,
-  `openalex_search`, etc.) appears in the transcript.
-- "I'm pretty sure paper X says Y" with no `inspire_*`, `openalex_*`,
-  or `arxiv_*` call backing it.
+  but no resolver call appears in the transcript.
+- "I'm pretty sure paper X says Y" with no provider lookup backing it.
 - Citation count, h-index, review status, or seminal-paper claim with
   no provider tool call.
 - Bibliography assembled from web-search snippets alone, never
-  cross-checked against `inspire_resolve_citekey` or
-  `inspire_validate_bibliography`.
+  cross-checked against a bibliography auditor.
+- Citation key in BibTeX form is treated as proof the paper exists,
+  with no identifier (DOI / arXiv id / INSPIRE recid) actually
+  resolved.
 
-**Minimum disconfirming check.** For each non-trivial citation in the
-work crossing the boundary, run at least one of:
-`inspire_resolve_citekey`, `inspire_search`, `openalex_search`, or
-`arxiv_search`. The identifier must round-trip to a real record.
-Then verify the cited claim against the paper itself via
-`inspire_paper_source`, `arxiv_paper_source`, `arxiv_get_metadata`, or
-the corresponding `openalex_get` content payload. Where bibliographies
-are involved, use `inspire_validate_bibliography` to catch malformed
-or non-resolvable entries in bulk.
+**Minimum disconfirming check.** Route by the **discipline of the
+cited work**, not by tool name:
 
-**Tools that help.** `hep-mcp` `inspire_*` family for INSPIRE-indexed
-HEP literature; `openalex_*` family for cross-domain; `arxiv_*` family
-for preprints. The `crossref` skill is the fallback for non-HEP /
-non-arXiv literature.
+1. **Find the paper.** Use the resolver whose underlying data covers
+   the cited work's discipline. If you do not know the discipline,
+   prefer the broadest provider first.
+   - Any DOI →  `openalex_get(id="<doi>")` (cross-domain;
+     OpenAlex indexes ~240M works including HEP, ML, condensed
+     matter, biomedicine, etc.).
+   - Any arXiv ID → `arxiv_get_metadata` or `arxiv_search` (every
+     arXiv category; not HEP-only).
+   - HEP paper without DOI/arXiv → `inspire_search`
+     (INSPIRE-HEP database; HEP-bound by data).
+   - Other discipline (ML / cond-mat / biomed / etc.) without
+     DOI/arXiv → `openalex_search` by title+author.
+   - Anything still missing → `crossref` skill as cross-domain
+     fallback (non-arXiv non-OpenAlex).
+
+2. **Verify the cited claim against the paper itself**, not its
+   abstract or third-party summary.
+   - HEP source paper → `inspire_paper_source`.
+   - Any arXiv preprint → `arxiv_paper_source`.
+   - Anything else → `openalex_get` content payload, or
+     `pdf-mcp` parser on the downloaded PDF.
+
+3. **HEP-only optional finishing step.** Once the paper is confirmed
+   in INSPIRE and you have an INSPIRE `recid`, you may call
+   `inspire_resolve_citekey({recid})` to get the canonical INSPIRE
+   Texkey and BibTeX. **This tool takes a `recid`, not a citekey
+   string**; it does not verify that an existing bibtex key is real.
+   It is irrelevant for non-HEP citations because non-HEP papers are
+   not in INSPIRE.
+
+4. **Bulk bibliography hygiene.** Use
+   `inspire_validate_bibliography` — despite the name, its default
+   mode audits *non-INSPIRE* entries (malformed entries, missing
+   identifiers, suspicious authors); INSPIRE cross-validation is an
+   optional opt-in mode. Apply it to bibliographies of any
+   discipline.
+
+**Required evidence calls.** At least one resolver per cited paper
+(routed as above), and at least one content-verify call per cited
+*claim* (not per paper — a single paper can support many claims, but
+each claim's textual ground must be opened).
+
+**INSPIRE Texkey is INSPIRE-specific.** An entry like `Smith:2023abc`
+is the canonical citekey convention inside INSPIRE-HEP. BibTeX entries
+for non-HEP papers do not use this convention and cannot be resolved
+through INSPIRE; do not treat a missing INSPIRE record as evidence the
+citation is fake when the cited work is outside HEP.
 
 ### M3: hallucinated_measurement_or_result
 
@@ -131,32 +177,56 @@ the cited source's actual table, equation, or figure.
 **Signs.**
 - Value looks "about right" from memory; uncertainty is absent or
   stated with the wrong number of significant digits.
-- HEP-specific: a PDG-tracked quantity (particle mass, lifetime,
-  branching fraction, etc.) is cited but no `pdg_*` call appears in
-  the transcript.
-- A cited measurement does not name the specific table or figure it
-  came from.
+- A cited measurement does not name the specific table, equation, or
+  figure it came from in the source.
+- The cited work has a canonical reference database for this kind of
+  quantity but no call to that database appears in the transcript
+  (HEP particle property → no `pdg_*` call; HEP experiment data point
+  → no `hepdata_*` call; ML benchmark accuracy → no version-pinned
+  dataset reference + metric definition lookup).
 - Two papers' results are compared in prose but never aligned through
-  `inspire_detect_measurement_conflicts` or
-  `hep_project_compare_measurements`.
+  a measurement-conflict check.
 
-**Minimum disconfirming check.** For each cited numeric value, open the
-specific table, equation, or figure that contains it. Quote the value
-and its uncertainty exactly. If the source is PDG-tracked, verify
-against the current PDG record via `pdg_get` /
-`pdg_get_measurements` and record the PDG year/edition that was
-checked. For HEPData submissions, fetch the table via
-`hepdata_get_table`.
+**Minimum disconfirming check.** The general rule is **domain-neutral**:
+for each cited numeric value, open the specific table, equation, or
+figure in the source and quote the value plus its uncertainty exactly.
+The *additional* check depends on whether the cited work's discipline
+has a canonical reference database:
 
-**Tools that help.**
-- `pdg_get`, `pdg_get_measurements`, `pdg_find_particle`,
-  `pdg_get_property`, `pdg_batch` for PDG-tracked quantities.
-- `hepdata_get_table`, `hepdata_get_record`, `hepdata_search` for
-  HEPData submissions.
-- `inspire_paper_source` + the `pdf-mcp` parser for arbitrary paper
-  content extraction.
-- `inspire_detect_measurement_conflicts` for cross-paper tension
-  detection.
+- **HEP particle properties** (mass, lifetime, branching fraction,
+  decay width, etc.) → verify against the current PDG record via
+  `pdg_get` / `pdg_get_measurements` / `pdg_get_property`, and
+  record the PDG year/edition that was checked.
+- **HEP experiment data points** (cross sections, asymmetries, etc.
+  with HEPData submissions) → fetch the table via `hepdata_get_table`
+  and confirm the cited number matches the entry exactly.
+- **ML / DL benchmark results** → verify against the cited paper's
+  specific dataset version, metric definition, evaluation split, and
+  hyperparameter table. There is no centralized canonical reference;
+  the paper's own §experiments / §results section *is* the canonical
+  source.
+- **Astrophysics / cosmology observations** → verify against the
+  cited survey release version (e.g. DR-N), the calibration pipeline
+  version, and the specific catalogue table — the survey
+  documentation, not a third-party summary, is the canonical source.
+- **Condensed-matter / chemistry / biology / etc.** → trace to the
+  paper's specific table or figure; if a community database exists
+  (PDB, ICSD, etc.) verify against it. Treat third-party reviews as
+  candidates, not authority.
+
+**Cross-paper tension detection.** When two HEP papers' results are
+compared, `inspire_detect_measurement_conflicts` and
+`hep_project_compare_measurements` are the HEP-specific tools. For
+non-HEP comparisons the discipline check is the same general rule:
+align units, methodology, and uncertainty conventions before claiming
+agreement or tension.
+
+**Required evidence calls.** For each cited numeric value: the
+content-fetch call appropriate to the paper's discipline (see M2),
+plus the canonical-database call if one applies to that quantity's
+class. PDG / HEPData calls are *only* required when the quantity is
+in their scope; not having one for an ML benchmark is correct, not a
+gap.
 
 ### M4: shortcut_reliance
 
@@ -166,29 +236,61 @@ disagrees with claim V" — made without consulting the citation or
 reference graph.
 
 **Signs.**
-- "Most papers in this area cite X." (no
-  `inspire_literature(mode=get_citations)` or `openalex_citations`
-  call.)
-- "Y is the standard reference." (no review-classification call.)
-- "Z built directly on W's work." (no chronological + citation-edge
-  check.)
-- "These two communities cite each other heavily." (no
-  `inspire_network_analysis` or `inspire_find_crossover_topics`
-  call.)
+- "Most papers in this area cite X." with no citation-graph call.
+- "Y is the standard reference." with no review-classification call.
+- "Z built directly on W's work." with no chronological +
+  citation-edge check.
+- "These two communities cite each other heavily." with no
+  network-analysis call.
 
 **Minimum disconfirming check.** For each relationship claim, trace
 the edge in the citation graph. Web-search snippets are candidates,
 not authorities; they may be derivative summaries of derivative
-summaries. The graph itself is the authority.
+summaries. The graph itself is the authority. Route graph queries by
+the **discipline of the papers in the relationship**, not by tool
+name:
 
-**Tools that help.** `inspire_literature` (modes `get_references` and
-`get_citations`), `inspire_find_connections`,
-`inspire_network_analysis`, `inspire_classify_reviews`,
-`inspire_analyze_citation_stance`, `openalex_references`,
-`openalex_citations`. For broader cross-domain mapping,
-`inspire_find_crossover_topics`.
+- **HEP literature graph** (`hep-ph`, `hep-th`, `hep-ex`, `hep-lat`,
+  HEP collaborations, lattice QCD, phenomenology, etc.) →
+  INSPIRE-HEP citation graph is denser and more complete. Use
+  `inspire_literature(mode=get_citations)` / `(mode=get_references)`,
+  `inspire_find_connections`, `inspire_network_analysis`,
+  `inspire_classify_reviews`, `inspire_analyze_citation_stance`.
+  INSPIRE's review classification is HEP-domain-trained and is
+  the right tool when the relationship is between HEP papers.
+
+- **Non-HEP literature graph** (ML, biomed, cond-mat, math,
+  social science, etc.) → OpenAlex is the cross-domain graph. Use
+  `openalex_citations` / `openalex_references` for direct edges,
+  `openalex_search` + `openalex_filter` for typed queries. The
+  INSPIRE graph will be sparse or empty for these papers and is
+  not the right tool.
+
+- **Cross-discipline relationship** (HEP paper cited by an ML
+  paper, biomed paper using statistical methods from physics, etc.)
+  → query both graphs and reconcile. `inspire_find_crossover_topics`
+  is useful when the *HEP side* of the crossover is the focus; for
+  the reverse direction (non-HEP discipline finding HEP-adjacent
+  work) OpenAlex network queries are typically more complete.
+
+**Required evidence calls.** At least one citation-graph call per
+relationship claim, routed to the appropriate graph by the
+discipline rule above. A graph call to the wrong provider (e.g.
+asking INSPIRE about a NeurIPS ML paper that is not in INSPIRE) is
+not a check — it is a guaranteed miss.
 
 ### M5: bug_as_insight
+
+**In-cycle exemption.** If you are inside an active `research-team`
+cycle and the Reproducibility Capsule (specifically section
+"G) Sweep semantics / parameter dependence") has been filled and
+the convergence gate has accepted this milestone, the per-boundary
+M5 walk reduces to: *verify the capsule's G/H sections are filled
+and validated for this milestone, and verify the cited finding falls
+under the capsule's declared sweep / branch coverage*. Do not
+duplicate the perturbation work the capsule already locked in. If
+you are *not* in a research-team cycle, or the capsule does not
+cover the cited observable, perform the full check below.
 
 **Definition.** Treating an artifact of a code bug, numerical
 instability, plotting mistake, or unit error as a genuine scientific
@@ -224,6 +326,16 @@ investigate.
   point.
 
 ### M6: methodology_fabrication
+
+**In-cycle exemption.** If you are inside an active `research-team`
+cycle and the Reproducibility Capsule has bound this milestone's
+method steps to artifact pointers under `artifacts/runs/<run_id>/`
+(the capsule mandate), the per-boundary M6 walk reduces to:
+*verify the capsule's method-to-artifact bindings cover the
+boundary-crossing claim*. Do not re-trace bindings the capsule
+already locked in. If you are outside a research-team cycle or the
+claim crosses a method step that is not in the capsule's binding
+list, perform the full check below.
 
 **Definition.** Describing an experimental protocol, derivation, or
 training procedure that did not actually run in the form described.
@@ -325,19 +437,38 @@ file.
 
 ## HEP-specific augmentation (future, out of scope here)
 
-This generic skill stays domain-neutral. HEP-specific machine checks
-that genuinely require HEP domain authority — for example a single
-PDG-drift check that flags PDG-tracked quantities whose cited value
-in a draft deviates from the current PDG record beyond combined
-uncertainty — belong as a single tool in `@autoresearch/hep-mcp` and
-are callable from this skill via the host. That tool is not part of
-this skill's initial scope and is tracked separately as future work.
+This generic skill stays domain-neutral. Future machine checks may
+belong inside `@autoresearch/hep-mcp` — but only when the check is
+**genuinely HEP-bound by its core contract**, not merely because it
+involves a tool whose name contains `hep`, `inspire`, or `pdg`.
 
-The split is deliberate: M3 itself is generic (any cited numeric
-value should be traced to its source), and only the PDG-drift
-heuristic is HEP-bound. Putting the heuristic in `hep-mcp` and the
-discipline in this skill keeps both surfaces honest about what they
-are.
+**Criterion for whether a check is truly HEP-bound** (judge by what
+the check *does*, not by the package it would live in):
+
+- A PDG-drift check that compares a cited mass / branching fraction
+  against the current PDG record and flags excess deviation **is**
+  HEP-bound — PDG only tracks HEP particle properties, no equivalent
+  exists in other disciplines.
+- A FeynRules / FeynArts model consistency check **is** HEP-bound —
+  the underlying QFT model formalism is HEP-specific.
+- A lattice ensemble metadata check (action, $\beta$, $a$, $V$,
+  sea-quark content) **is** HEP-bound — the ensemble metadata
+  schema is lattice-QCD-specific.
+- A generic "verify each cited number against its source table"
+  check is **not** HEP-bound — every discipline has tables and
+  numbers; this belongs in this skill (M3), not in `hep-mcp`.
+- A generic "verify each cited paper resolves to a real record"
+  check is **not** HEP-bound — `inspire_validate_bibliography`
+  already audits non-INSPIRE entries by default, and OpenAlex /
+  arXiv resolvers are cross-domain by data. This belongs in this
+  skill (M2), not as a new `hep-mcp` tool.
+
+If a candidate future tool fails the criterion, it does not become
+HEP-bound by being implemented inside `hep-mcp`; it stays a generic
+discipline obligation, captured here as a mode rather than as a tool.
+
+PDG-drift is the leading HEP-bound candidate tracked separately for
+future work, not part of this skill's initial scope.
 
 ## Recording the check
 
