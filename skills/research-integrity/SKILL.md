@@ -95,9 +95,9 @@ exists with the cited identifier, by the cited authors, in the cited
 venue, in the cited year, with the cited claim.
 
 **Signs.**
-- Citation key invented from topic and year, never resolved through a
-  provider graph (`{Authors}{Year}{Topic}` looks plausible but no
-  resolver call exists in the transcript).
+- Citation key looks like a templated `{Authors}{Year}{Topic}` slug
+  but no resolver call (`inspire_resolve_citekey`, `inspire_search`,
+  `openalex_search`, etc.) appears in the transcript.
 - "I'm pretty sure paper X says Y" with no `inspire_*`, `openalex_*`,
   or `arxiv_*` call backing it.
 - Citation count, h-index, review status, or seminal-paper claim with
@@ -305,9 +305,9 @@ file.
 - `research-harness` is the project-state recovery and routing skill.
   It is where M7 (frame_lock) reset typically happens: re-read
   `research_contract.md` and `research_plan.md#Current Status` with
-  fresh eyes. The `HARNESS_INVOCATION_REQUIRED` anchor gate (`P3-C`)
-  ensures `*-mcp` tool calls cannot proceed without re-anchoring;
-  this skill's M7 step is the human-facing complement.
+  fresh eyes. The `HARNESS_INVOCATION_REQUIRED` anchor gate enforced
+  in every `*-mcp` dispatcher ensures tool calls cannot proceed without
+  re-anchoring; this skill's M7 step is the human-facing complement.
 - `research-team` enforces M5 and M6 mechanically via the
   Reproducibility Capsule contract in `research_contract.md`. Inside
   an active research-team cycle, M5 and M6 are partly covered by
@@ -327,12 +327,11 @@ file.
 
 This generic skill stays domain-neutral. HEP-specific machine checks
 that genuinely require HEP domain authority — for example a single
-`hep_pdg_drift_check` tool that flags PDG-tracked quantities whose
-cited value in a draft deviates from the current PDG record beyond
-combined uncertainty — belong as a single tool in
-`@autoresearch/hep-mcp` and are callable from this skill via the
-host. That tool is not part of this skill's initial scope; it is
-tracked in the ARS-borrowed backlog.
+PDG-drift check that flags PDG-tracked quantities whose cited value
+in a draft deviates from the current PDG record beyond combined
+uncertainty — belong as a single tool in `@autoresearch/hep-mcp` and
+are callable from this skill via the host. That tool is not part of
+this skill's initial scope and is tracked separately as future work.
 
 The split is deliberate: M3 itself is generic (any cited numeric
 value should be traced to its source), and only the PDG-drift
