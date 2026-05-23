@@ -19,10 +19,18 @@ The author agent should walk the M1-M7 pre-approval ritual from
 Findings the author could have caught (hallucinated citation, hallucinated
 measurement, methodology-not-in-artifacts, frame-lock, etc.) should not be
 the reviewer's BLOCKING items; this reviewer is for adjudication against
-the packet, not for catching omissions the author skipped. The
-`autoresearch integrity-record` receipt for the relevant A1-A5 gate
-(or `--approval-id manual-<run_id>` if no gate is open) is the canonical
-acknowledgement that the pre-flight ran.
+the packet, not for catching omissions the author skipped.
+
+**Recording the pre-flight depends on whether a gate is open.** When an
+A1-A5 approval gate is open for this work, run `autoresearch integrity-record`
+against that gate's `approval_id`; the receipt is then the canonical
+machine record of the pre-flight and is fail-closed-enforced by
+`autoresearch approve`. When no gate is open (an ad-hoc draft submission),
+the M1-M7 walk should still happen, but recording it via
+`autoresearch integrity-record` is **advisory only**:
+`scripts/run_referee_review.py` does not read
+`.autoresearch/integrity_log.jsonl`, so the receipt for an ad-hoc draft is
+an audit trail for the next agent, not a gate this reviewer enforces.
 
 This reviewer remains generic and non-venue-specific; the pre-flight is
 the author-side discipline, not a venue requirement.
