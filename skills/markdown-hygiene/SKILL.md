@@ -1,6 +1,6 @@
 ---
 name: markdown-hygiene
-description: Check and repair deterministic Markdown hygiene issues in research notes, especially Markdown math escaping, TOC-generated LaTeX escapes, and portable cleanup before research-harness/research-team/research-writer handoff.
+description: Check and repair deterministic Markdown hygiene issues in research notes, especially Markdown math escaping, TOC-generated LaTeX escapes, and portable cleanup before research-harness/research-team/research-writer/research-integrity handoff.
 metadata:
   short-description: Deterministic Markdown math and TOC hygiene
 ---
