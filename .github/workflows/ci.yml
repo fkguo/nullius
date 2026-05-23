@@ -41,6 +41,14 @@ jobs:
         if: ${{ matrix.node-version == 22 }}
         run: node scripts/check-harness-invocation-anti-drift.mjs
 
+      - name: Check integrity-receipt anti-drift (P3-A followup-4)
+        if: ${{ matrix.node-version == 22 }}
+        run: node scripts/check-integrity-receipt-anti-drift.mjs
+
+      - name: Check skill tool-name anti-drift (P3-A followup-1)
+        if: ${{ matrix.node-version == 22 }}
+        run: node scripts/check-skill-tool-name-anti-drift.mjs
+
       - name: Check governance sync (AGENTS.md ↔ CLAUDE.md)
         if: ${{ matrix.node-version == 22 }}
         run: node scripts/check-governance-sync.mjs
