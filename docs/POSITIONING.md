@@ -34,11 +34,13 @@ domain boundary — see §2.
 - **Not HEP-only.** `@autoresearch/hep-mcp` is the current most mature
   domain pack and strongest end-to-end example. **By its
   [`package.json`](../packages/hep-mcp/package.json) dependencies, it
-  is a composite that includes cross-domain providers** —
+  explicitly includes cross-domain providers as workspace deps** —
   `@autoresearch/arxiv-mcp` and `@autoresearch/openalex-mcp` are
-  domain-neutral atoms covering the wider scholarly literature. The
-  control plane and the skills are domain-neutral. "HEP" reflects the
-  maturity of one use case, not the boundary of the system.
+  domain-neutral atoms covering the wider scholarly literature, and
+  `packages/hep-mcp/src/**/*.ts` imports them as runtime collaborators
+  (not just type peers). The control plane and the skills are
+  domain-neutral. "HEP" reflects the maturity of one use case, not
+  the boundary of the system.
 - **Not a re-implementation of provider tools.**
   `inspire_*`, `pdg_*`, `hepdata_*`, `arxiv_*`, `openalex_*`,
   `zotero_*` are *evidence sources*. The discipline this project
@@ -95,7 +97,7 @@ slips. The full inventory, all wired into
 
 | Anti-drift script | What it locks | What it catches |
 | --- | --- | --- |
-| [`check-shell-boundary-anti-drift.mjs`](../scripts/check-shell-boundary-anti-drift.mjs) | front-door entrypoint truth, package first-touch framing, shell-boundary wording | accidental drift in `README.md` / `AGENTS.md` / `CLAUDE.md` |
+| [`check-shell-boundary-anti-drift.mjs`](../scripts/check-shell-boundary-anti-drift.mjs) | front-door entrypoint truth, package first-touch framing, shell-boundary wording | accidental drift in the 10 front-door narrative docs scanned per [`scripts/lib/front-door-boundary-authority.mjs`](../scripts/lib/front-door-boundary-authority.mjs) (`README.md`, `docs/QUICKSTART.md`, `docs/README_zh.md`, `docs/PROJECT_STATUS.md`, `docs/ARCHITECTURE.md`, `docs/TOOL_CATEGORIES.md`, `docs/TESTING_GUIDE.md`, `docs/URI_REGISTRY.md`, `meta/protocols/session_protocol_v1.md`, `meta/docs/orchestrator-mcp-tools-spec.md`). AGENTS.md/CLAUDE.md byte-sync is covered by `check-governance-sync.mjs` (next row), not by this one. |
 | [`check-atomic-write-anti-drift.mjs`](../scripts/check-atomic-write-anti-drift.mjs) | no bare `fs.writeFileSync` / `renameSync` / `appendFileSync` (or `fs.promises.*` variants) in production code | torn-write data loss on crash mid-write |
 | [`check-governance-sync.mjs`](../scripts/check-governance-sync.mjs) | `AGENTS.md` ↔ `CLAUDE.md` governance sections byte-identical | governance drift between mirrored files |
 | [`check-harness-invocation-anti-drift.mjs`](../scripts/check-harness-invocation-anti-drift.mjs) | every `*-mcp` dispatcher imports + calls `verifyHarnessInvocationMarker` | long-conversation drift; new MCP added without anchor enforcement |

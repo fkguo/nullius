@@ -83,7 +83,7 @@ discipline 一旦松动构建就失败。完整清单，全部接入
 
 | Anti-drift 脚本 | 锁住的契约 | 捕获的漂移 |
 | --- | --- | --- |
-| [`check-shell-boundary-anti-drift.mjs`](../scripts/check-shell-boundary-anti-drift.mjs) | front-door 入口真理、包级 first-touch framing、shell 边界用词 | `README.md` / `AGENTS.md` / `CLAUDE.md` 的边界叙述漂移 |
+| [`check-shell-boundary-anti-drift.mjs`](../scripts/check-shell-boundary-anti-drift.mjs) | front-door 入口真理、包级 first-touch framing、shell 边界用词 | [`scripts/lib/front-door-boundary-authority.mjs`](../scripts/lib/front-door-boundary-authority.mjs) 列出的 10 个 front-door 叙述文档（`README.md`、`docs/QUICKSTART.md`、`docs/README_zh.md`、`docs/PROJECT_STATUS.md`、`docs/ARCHITECTURE.md`、`docs/TOOL_CATEGORIES.md`、`docs/TESTING_GUIDE.md`、`docs/URI_REGISTRY.md`、`meta/protocols/session_protocol_v1.md`、`meta/docs/orchestrator-mcp-tools-spec.md`）的边界叙述漂移。AGENTS.md/CLAUDE.md 的 byte-sync 由下一行的 `check-governance-sync.mjs` 负责，**不**由本行负责。 |
 | [`check-atomic-write-anti-drift.mjs`](../scripts/check-atomic-write-anti-drift.mjs) | 生产代码无裸 `fs.writeFileSync` / `renameSync` / `appendFileSync`（含 `fs.promises.*`） | 写到一半 crash 导致的 torn write 数据损失 |
 | [`check-governance-sync.mjs`](../scripts/check-governance-sync.mjs) | `AGENTS.md` ↔ `CLAUDE.md` governance 段 byte-identical | 双镜像文件治理段漂移 |
 | [`check-harness-invocation-anti-drift.mjs`](../scripts/check-harness-invocation-anti-drift.mjs) | 每个 `*-mcp` dispatcher 都 import + 调用 `verifyHarnessInvocationMarker` | 长对话漂移；新 MCP 加进来但没接 anchor enforcement |
