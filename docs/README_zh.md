@@ -50,6 +50,8 @@ Skill 源码面与分发面是分离的：
 - `packages/skills-market` 是 installer / distribution control plane；它不意味着这些 skill 已经预装到某个 client runtime 中。
 - `research-harness` 是已进入 market 的 external research project 薄入口 skill。它故意不对 `research-team`、`markdown-hygiene` 或 `hep-mcp` 声明硬 package 依赖；这些能力仍由 host client 独立提供或安装。
 
+项目的非 surface 层保证 — Autoresearch Lab **不是**什么、它主动防御哪些 agent 失败模式（M1–M7 + 长对话漂移）、这些保证如何被 anti-drift CI 机器强制、以及哪些借鉴概念被考虑后明确丢弃 — 见 [`docs/POSITIONING_zh.md`](./POSITIONING_zh.md)。
+
 ## 4. Files、Artifacts、State 在哪里
 
 ### `hep-mcp` 数据根目录

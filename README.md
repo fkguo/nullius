@@ -49,6 +49,8 @@ Skill source and distribution are separate surfaces:
 - `packages/skills-market` is the installer/distribution control plane; it does not mean those skills are preinstalled in a client runtime.
 - `research-harness` is the market-listed thin entry skill for external research projects. It intentionally has no hard package dependency on `research-team`, `markdown-hygiene`, or `hep-mcp`; those remain separate capabilities that the host client may already provide or install independently.
 
+For the project's non-surface guarantees — what Autoresearch Lab is *not*, which agent failure modes it defends against (M1–M7 + long-conversation drift), how those guarantees are enforced by anti-drift CI, and which borrowed concepts were considered and rejected — see [`docs/POSITIONING.md`](./docs/POSITIONING.md).
+
 ## 4. Where Do Files, Artifacts, and State Live
 
 ### `hep-mcp` data root
