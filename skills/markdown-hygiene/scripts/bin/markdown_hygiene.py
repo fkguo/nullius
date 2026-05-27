@@ -12,6 +12,16 @@ from pathlib import Path
 TOC_START_RE = re.compile(r"^\s*##+\s+(目录|table of contents|contents)\b", re.IGNORECASE)
 HR_RE = re.compile(r"^\s*---\s*$")
 FENCE_RE = re.compile(r"^\s*```")
+DISPLAY_MATH_BRACKET_START_RE = re.compile(r"^\s*\\\[\s*$")
+DISPLAY_MATH_BRACKET_END_RE = re.compile(r"^\s*\\\]\s*$")
+DISPLAY_MATH_DOLLAR_RE = re.compile(r"^\s*\$\$\s*$")
+DISPLAY_MATH_ENV_START_RE = re.compile(
+    r"\\begin\{(?:equation|equation\*|align|align\*|aligned|gather|gather\*|multline|multline\*|split)\}"
+)
+DISPLAY_MATH_ENV_END_RE = re.compile(
+    r"\\end\{(?:equation|equation\*|align|align\*|aligned|gather|gather\*|multline|multline\*|split)\}"
+)
+DISPLAY_MATH_LEADING_CONTINUATION_RE = re.compile(r"^(\s*)([=+-])(.*)$")
 
 SINGLE_DOLLAR_MATH_RE = re.compile(r"(?<!\$)\$(?!\$)(.+?)(?<!\$)\$(?!\$)")
 DOUBLE_DOLLAR_MATH_RE = re.compile(r"\$\$(.+?)\$\$")
@@ -134,6 +144,52 @@ def fix_markdown_math_double_backslash(text: str) -> tuple[str, int]:
     return "".join(out), changes
 
 
+def fix_display_math_leading_continuation_lines(text: str) -> tuple[str, int]:
+    out: list[str] = []
+    changes = 0
+    in_display_math = False
+
+    for line, in_code in split_fenced_lines(text):
+        if in_code:
+            out.append(line)
+            continue
+
+        if DISPLAY_MATH_DOLLAR_RE.match(line):
+            out.append(line)
+            in_display_math = not in_display_math
+            continue
+
+        if DISPLAY_MATH_BRACKET_START_RE.match(line):
+            out.append(line)
+            in_display_math = True
+            continue
+
+        if DISPLAY_MATH_BRACKET_END_RE.match(line):
+            out.append(line)
+            in_display_math = False
+            continue
+
+        starts_env = DISPLAY_MATH_ENV_START_RE.search(line) is not None
+        ends_env = DISPLAY_MATH_ENV_END_RE.search(line) is not None
+        active_for_line = in_display_math or starts_env
+
+        fixed = line
+        if active_for_line:
+            fixed_candidate = DISPLAY_MATH_LEADING_CONTINUATION_RE.sub(r"\1{}\2\3", line, count=1)
+            if fixed_candidate != line:
+                changes += 1
+                fixed = fixed_candidate
+
+        out.append(fixed)
+
+        if starts_env and not ends_env:
+            in_display_math = True
+        if ends_env:
+            in_display_math = False
+
+    return "".join(out), changes
+
+
 def apply_fixers(text: str, fixers: list[Callable[[str], tuple[str, int]]]) -> tuple[str, int]:
     total = 0
     updated = text
@@ -184,9 +240,25 @@ def main(argv: list[str]) -> int:
     args = build_parser().parse_args(argv)
 
     if args.command == "check":
-        return run(args.root, [fix_markdown_math_double_backslash, fix_toc_latex_escapes], check=True)
+        return run(
+            args.root,
+            [
+                fix_markdown_math_double_backslash,
+                fix_toc_latex_escapes,
+                fix_display_math_leading_continuation_lines,
+            ],
+            check=True,
+        )
     if args.command == "fix":
-        return run(args.root, [fix_markdown_math_double_backslash, fix_toc_latex_escapes], check=False)
+        return run(
+            args.root,
+            [
+                fix_markdown_math_double_backslash,
+                fix_toc_latex_escapes,
+                fix_display_math_leading_continuation_lines,
+            ],
+            check=False,
+        )
     if args.command == "fix-toc":
         return run(args.root, [fix_toc_latex_escapes], check=args.check)
 

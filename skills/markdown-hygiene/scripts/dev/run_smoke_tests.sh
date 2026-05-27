@@ -22,6 +22,11 @@ Inline code `$\\Delta$` stays as code.
 ```text
 $\\Delta$ stays as code.
 ```
+
+\[
+V
+=\frac12 C.
+\]
 MD
 
 if python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" check --root "${DOC}"; then
@@ -37,5 +42,59 @@ grep -F '$G_R$ and $k^*$' "${DOC}" >/dev/null
 grep -F 'Body math: $\Delta + \alpha$.' "${DOC}" >/dev/null
 grep -F 'Inline code `$\\Delta$` stays as code.' "${DOC}" >/dev/null
 grep -F '$\\Delta$ stays as code.' "${DOC}" >/dev/null
+grep -F '{}=\frac12 C.' "${DOC}" >/dev/null
+
+BAD_DISPLAY="${TMP_DIR}/bad-display.md"
+cat >"${BAD_DISPLAY}" <<'MD'
+Valid text.
+
+$$
+E
+= mc^2
++ p^2
+- q^2
+$$
+
+```text
+$$
+= code is ignored
++ code is ignored
+- code is ignored
+$$
+```
+MD
+
+if python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" check --root "${BAD_DISPLAY}"; then
+  echo "expected check to fail for display math continuation lines" >&2
+  exit 1
+fi
+
+python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" fix --root "${BAD_DISPLAY}"
+python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" check --root "${BAD_DISPLAY}"
+
+grep -F '{}= mc^2' "${BAD_DISPLAY}" >/dev/null
+grep -F '{}+ p^2' "${BAD_DISPLAY}" >/dev/null
+grep -F '{}- q^2' "${BAD_DISPLAY}" >/dev/null
+grep -F '= code is ignored' "${BAD_DISPLAY}" >/dev/null
+grep -F '+ code is ignored' "${BAD_DISPLAY}" >/dev/null
+grep -F -- '- code is ignored' "${BAD_DISPLAY}" >/dev/null
+
+BAD_PLUS_MINUS="${TMP_DIR}/bad-plus-minus.md"
+cat >"${BAD_PLUS_MINUS}" <<'MD'
+$$
+x
++ y
+- z
+$$
+MD
+
+if python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" check --root "${BAD_PLUS_MINUS}"; then
+  echo "expected check to fail for plus/minus display math continuation lines" >&2
+  exit 1
+fi
+python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" fix --root "${BAD_PLUS_MINUS}"
+python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" check --root "${BAD_PLUS_MINUS}"
+grep -F '{}+ y' "${BAD_PLUS_MINUS}" >/dev/null
+grep -F '{}- z' "${BAD_PLUS_MINUS}" >/dev/null
 
 echo "[ok] markdown-hygiene smoke tests passed"

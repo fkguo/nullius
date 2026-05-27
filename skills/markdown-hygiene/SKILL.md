@@ -15,6 +15,7 @@ The TOC repair is one subcommand of this broader Markdown hygiene surface.
 
 - A generated Markdown table of contents escaped LaTeX inside math, such as `$\\gamma\\_{\\rm lin}$`, `$G\\_R$`, or `$k^\\*$`.
 - Markdown math contains accidental doubled command backslashes such as `$\\Delta$` instead of `$\Delta$`.
+- Display-math blocks contain continuation lines beginning with `=`, `+`, or `-`, which some Markdown renderers can confuse with block syntax.
 - You need a standalone Markdown cleanup/check before invoking `research-harness`, `research-team`, or `research-writer`.
 
 For a full `research-team` project preflight, keep using `research-team`; its team-cycle gates remain the authoritative runtime checks. This skill is the standalone, reusable hygiene entrypoint.
@@ -53,6 +54,7 @@ python3 "$SKILL_DIR/scripts/bin/markdown_hygiene.py" fix-toc --check --root Draf
 - Edits only Markdown files.
 - Skips fenced code blocks.
 - Rewrites only Markdown math regions for LaTeX escaping fixes.
+- In display-math blocks, prefixes line-leading `=`, `+`, or `-` with `{}` as a conservative source-formatting fix.
 - TOC cleanup applies only from a heading beginning with `目录`, `Table of Contents`, or `Contents` until the next `---` horizontal rule.
 - Does not regenerate TOCs, rewrite anchors, or alter non-math link targets.
 
