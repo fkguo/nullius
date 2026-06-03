@@ -298,14 +298,21 @@ export function verifyHarnessInvocationMarker(
   // Skip 1: test / explicit skip.
   if (isHarnessVerifySkipped(env)) return;
 
-  // Skip 2: no autoresearch context at cwd (standalone provider use).
-  // Check directory-ness explicitly (per gpt-5.5 review N1) so a stray
-  // `.autoresearch` regular file does not silently bypass verification.
+  // Skip 2: no autoresearch *directory* at cwd → treat as "no lifecycle
+  // context" and skip verification. A non-directory `.autoresearch`
+  // (regular file, broken symlink, EACCES, etc.) is not a valid
+  // lifecycle root either, so we skip in those cases too — the user's
+  // actual tool calls will fail at the OS level when the dispatcher
+  // tries to write inside a non-directory, surfacing the real
+  // misconfiguration where the user can fix it. We deliberately do not
+  // raise a synthetic "bad harness context" error here because that
+  // would conflate "no autoresearch at all" (the standalone case we
+  // want to support) with "misconfigured autoresearch" (rare).
   try {
     if (!fs.statSync(autoresearchDirPath(cwd)).isDirectory()) return;
   } catch {
-    // ENOENT (the common case) and other stat errors → no lifecycle
-    // context; skip.
+    // ENOENT (the common standalone case) and other stat errors → no
+    // lifecycle context; skip.
     return;
   }
 
