@@ -80,10 +80,29 @@ hooked into the approval gate at
 ### Long-conversation drift: harness invocation anchor
 
 Long agent sessions evict the `research-harness` skill from context;
-project state and the agent's mental model silently desync. Every
-`*-mcp` dispatcher requires a fresh anchor written by
-`autoresearch status`; missing or stale anchor fails closed with
-`HARNESS_INVOCATION_REQUIRED`. Implementation:
+project state and the agent's mental model silently desync. For tool
+calls that **read or write project-keyed state** (classification per
+[each `*-mcp` package's
+`state-touch-classification.ts`](../packages)), every `*-mcp`
+dispatcher verifies that the anchor marker at
+`.autoresearch/HARNESS_INVOCATION` (written by `autoresearch status`)
+is at least as fresh as the most recent change to
+`.autoresearch/state.json` and `.autoresearch/ledger.jsonl`, was
+written for the current project root (identity check), and is not
+timestamped in the future (clock-skew guard). Missing / mismatched /
+future / stale-vs-state anchor fails closed with
+`HARNESS_INVOCATION_REQUIRED`.
+
+The check is **event-driven, not clock-based** (matching the patterns
+used by Codex's `config_lock` content-equality validation and Claude
+Code's `FileEditTool` mtime check — no clock TTL). Skipped for:
+
+- pure read-only provider queries (per the audit-backed
+  `state-touch-classification.ts` in each `*-mcp` package);
+- standalone use where `process.cwd()` has no `.autoresearch/`
+  directory (no lifecycle context).
+
+Implementation:
 [`packages/shared/src/harness-invocation.ts`](../packages/shared/src/harness-invocation.ts);
 the [`research-harness` skill](../skills/research-harness/SKILL.md) is
 the recommended re-anchor flow.

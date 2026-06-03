@@ -121,9 +121,12 @@ function main() {
       process.stderr.write(`  - ${error}\n`);
     }
     process.stderr.write(
-      '\nEvery *-mcp dispatcher must import and call `verifyHarnessInvocationMarker` ' +
-      "from '@autoresearch/shared' at the outermost layer of `handleToolCall` (or " +
-      'equivalent), before any tool work. See packages/hep-mcp/src/tools/dispatcher.ts ' +
+      '\nEvery *-mcp dispatcher must import and call ' +
+      '`verifyHarnessInvocationMarker(process.cwd(), { toolIsStateTouching: ... })` ' +
+      "from '@autoresearch/shared' at the outermost layer of `handleToolCall` " +
+      '(or equivalent), before any tool work. The dispatcher passes a per-tool ' +
+      '`toolIsStateTouching` boolean computed from its package-local ' +
+      '`state-touch-classification.ts` table. See packages/hep-mcp/src/tools/dispatcher.ts ' +
       'for the canonical wiring.\n',
     );
     process.exitCode = 1;

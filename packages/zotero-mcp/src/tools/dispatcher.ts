@@ -2,6 +2,7 @@ import { ZodError } from 'zod';
 import { invalidParams, McpError, verifyHarnessInvocationMarker } from '@autoresearch/shared';
 import type { ToolExposureMode } from './registry.js';
 import { getToolSpec, isToolExposed } from './registry.js';
+import { isStateTouchingZoteroMcp } from './state-touch-classification.js';
 
 export interface ToolCallContext {}
 
@@ -52,8 +53,12 @@ export async function handleToolCall(
   _ctx?: ToolCallContext
 ): Promise<{ content: { type: string; text: string }[]; isError?: boolean }> {
   try {
-    // P3-C: harness invocation marker gate (cross-dispatcher anchor enforcement)
-    verifyHarnessInvocationMarker(process.cwd());
+    // P3-C (redesigned 2026-05-23): event-driven anchor verification.
+    // zotero-mcp standalone classifier: all tools NO_STATE_TOUCH per audit;
+    // short-circuits via skip layer C.
+    verifyHarnessInvocationMarker(process.cwd(), {
+      toolIsStateTouching: isStateTouchingZoteroMcp(name),
+    });
     const spec = getToolSpec(name);
     if (!spec) {
       throw invalidParams(`Unknown tool: ${name}`);
