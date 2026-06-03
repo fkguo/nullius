@@ -104,9 +104,15 @@ export {
   blockedCommand,
 } from './errors.js';
 
-// Harness invocation marker (P3-C) — cross-dispatcher anchor enforcement
+// Harness invocation marker (P3-C, redesigned 2026-05-23) — event-driven
+// cross-dispatcher anchor enforcement (no clock TTL; state.json/ledger.jsonl
+// mtime is the freshness signal). See harness-invocation.ts header comment
+// for the redesign rationale.
 export {
   HARNESS_INVOCATION_FILE,
+  HARNESS_INVOCATION_SCHEMA_VERSION,
+  AUTORESEARCH_STATE_FILE,
+  AUTORESEARCH_LEDGER_FILE,
   DEFAULT_HARNESS_INVOCATION_TTL_SECONDS,
   type HarnessInvocationMarker,
   type HarnessInvocationReason,
@@ -114,6 +120,8 @@ export {
   type WriteOptions as HarnessInvocationWriteOptions,
   isHarnessVerifySkipped,
   harnessInvocationMarkerPath,
+  autoresearchStatePath,
+  autoresearchLedgerPath,
   writeHarnessInvocationMarker,
   verifyHarnessInvocationMarker,
   readHarnessInvocationMarker,

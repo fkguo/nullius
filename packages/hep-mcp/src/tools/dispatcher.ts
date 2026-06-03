@@ -43,6 +43,7 @@ import { getRunManifestPath } from '../core/paths.js';
 import { withPdgDataDir } from '@autoresearch/pdg-mcp/tooling';
 
 import { getToolSpec, isToolExposed, type ToolExposureMode } from './registry.js';
+import { isStateTouchingHepMcp } from './state-touch-classification.js';
 import { recordToolUsage } from './utils/toolUsageTelemetry.js';
 
 export type ToolResultContentBlock = { type: 'text'; text: string };
@@ -568,9 +569,13 @@ export async function handleToolCall(
   ctx?: ToolCallContext
 ): Promise<{ content: ToolResultContentBlock[]; isError?: boolean }> {
   try {
-    // P3-C: anchor verification runs first so all tool calls (regardless of
-    // data root resolution) require a fresh research-harness anchor.
-    verifyHarnessInvocationMarker(process.cwd());
+    // P3-C (redesigned 2026-05-23): event-driven anchor verification before
+    // data root resolution. State-touch classification per audit table in
+    // `state-touch-classification.ts`; the call short-circuits via skip layer C
+    // for read-only provider re-exports and pure HTTP inspire research tools.
+    verifyHarnessInvocationMarker(process.cwd(), {
+      toolIsStateTouching: isStateTouchingHepMcp(name, args),
+    });
     return await withHepDataRoot(projectRootArg(args), () =>
       withPdgDataDir(resolvedPdgDataDirForCurrentHepRoot(), () =>
         handleToolCallInResolvedDataRoot(name, args, mode, ctx)

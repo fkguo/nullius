@@ -33,10 +33,27 @@ Work from the external project root, not from the `autoresearch-lab` development
 A successful `status --json` call also refreshes the session-level anchor
 marker at `.autoresearch/HARNESS_INVOCATION`. Every `*-mcp` dispatcher
 (`arxiv-mcp`, `hep-mcp`, `hepdata-mcp`, `idea-mcp`, `openalex-mcp`,
-`pdg-mcp`, `zotero-mcp`) verifies this marker before dispatching tool calls
-and fails closed with `HARNESS_INVOCATION_REQUIRED` if it is missing or
-older than its TTL (default 1 h). Re-run `status --json` to re-anchor; you
-do not need to invoke a separate "anchor" command.
+`pdg-mcp`, `zotero-mcp`) verifies this marker for state-touching tool
+calls and fails closed with `HARNESS_INVOCATION_REQUIRED` when the marker
+is missing, malformed, or older than the most recent change to
+`.autoresearch/state.json` or `.autoresearch/ledger.jsonl`. The check is
+**event-driven, not clock-based**: once you anchor against current
+project state, the anchor stays valid until project state actually
+changes — long thinking / reading between tool calls does not invalidate
+the anchor. Re-run `status --json` after any lifecycle event (own or
+other-process `autoresearch run`/`approve`/`verify`/...) to re-anchor;
+you do not need to invoke a separate "anchor" command.
+
+The check is also skipped for:
+
+- pure read-only provider queries (`arxiv_search`, `openalex_get`,
+  `pdg_find_particle`, `inspire_resolve_citekey`, `hep_health`, etc.;
+  full classification per dispatcher in each `*-mcp` package's
+  `state-touch-classification.ts`);
+- standalone use where `process.cwd()` has no `.autoresearch/`
+  directory (no lifecycle context to drift from);
+- `AUTORESEARCH_HARNESS_VERIFY=skip` env override (escape hatch) and
+  `NODE_ENV=test` default.
 4. If `.autoresearch/` exists but `.autoresearch/HARNESS` is missing, or if both entrypoints are unavailable, repair only the runtime handshake and launcher from the
    known development checkout, then retry the project-local CLI:
    ```bash

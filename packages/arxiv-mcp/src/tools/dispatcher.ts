@@ -1,5 +1,6 @@
 import { ZodError } from 'zod';
 import { invalidParams, McpError, verifyHarnessInvocationMarker } from '@autoresearch/shared';
+import { isStateTouchingArxivMcp } from './state-touch-classification.js';
 import type { ToolExposureMode } from './registry.js';
 import { getToolSpec, isToolExposed } from './registry.js';
 
@@ -44,8 +45,12 @@ export async function handleToolCall(
   _ctx?: ToolCallContext
 ): Promise<{ content: { type: string; text: string }[]; isError?: boolean }> {
   try {
-    // P3-C: harness invocation marker gate (cross-dispatcher anchor enforcement)
-    verifyHarnessInvocationMarker(process.cwd());
+    // P3-C (redesigned 2026-05-23): event-driven anchor verification.
+    // arxiv-mcp standalone classifier: all tools are NO_STATE_TOUCH per audit,
+    // so this call short-circuits via skip layer C.
+    verifyHarnessInvocationMarker(process.cwd(), {
+      toolIsStateTouching: isStateTouchingArxivMcp(name),
+    });
     const spec = getToolSpec(name);
     if (!spec) {
       throw invalidParams(`Unknown tool: ${name}`);
