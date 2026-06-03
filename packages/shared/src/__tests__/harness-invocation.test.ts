@@ -223,6 +223,108 @@ describe('verifyHarnessInvocationMarker rejection paths', () => {
   });
 });
 
+describe('gpt-5.5 review B1 — future anchored_at rejection (clock-skew guard)', () => {
+  let project: string;
+  beforeEach(() => { project = makeProject(); });
+  afterEach(() => { fs.rmSync(project, { recursive: true, force: true }); });
+
+  it('MARKER_FUTURE when anchored_at is more than 5s in the future relative to now', () => {
+    const fixedNow = new Date('2026-05-22T08:00:00Z');
+    writeHarnessInvocationMarker(project, { now: new Date('2026-05-22T08:01:00Z') });
+    try {
+      verifyHarnessInvocationMarker(project, { env: FORCE_ON_ENV, now: fixedNow });
+      throw new Error('expected throw');
+    } catch (err) {
+      const m = err as McpError;
+      expect(m.code).toBe('HARNESS_INVOCATION_REQUIRED');
+      expect((m.data as { reason: string }).reason).toBe('MARKER_FUTURE');
+    }
+  });
+
+  it('passes when anchored_at is exactly at now (boundary)', () => {
+    const fixedNow = new Date('2026-05-22T08:00:00Z');
+    writeHarnessInvocationMarker(project, { now: fixedNow });
+    expect(() =>
+      verifyHarnessInvocationMarker(project, { env: FORCE_ON_ENV, now: fixedNow }),
+    ).not.toThrow();
+  });
+
+  it('passes when anchored_at is at most 5s ahead of now (skew tolerance)', () => {
+    const fixedNow = new Date('2026-05-22T08:00:00Z');
+    writeHarnessInvocationMarker(project, { now: new Date('2026-05-22T08:00:04Z') });
+    expect(() =>
+      verifyHarnessInvocationMarker(project, { env: FORCE_ON_ENV, now: fixedNow }),
+    ).not.toThrow();
+  });
+
+  it('rejects future-anchor that bypasses state-change check (the actual correctness bug)', () => {
+    // The bug gpt-5.5 caught: if anchored_at is way in the future, then any
+    // realistic state.json mtime is < anchored_at, so STATE_CHANGED_SINCE_ANCHOR
+    // never fires. MARKER_FUTURE must fire instead.
+    const fixedNow = new Date('2026-05-22T08:00:00Z');
+    const farFuture = new Date('2030-01-01T00:00:00Z');
+    writeHarnessInvocationMarker(project, { now: farFuture });
+    // Simulate a state-change AT now (which would normally invalidate the anchor)
+    const statePath = autoresearchStatePath(project);
+    fs.writeFileSync(statePath, '{}', 'utf-8');
+    setMtime(statePath, '2026-05-22T07:30:00Z');
+    try {
+      verifyHarnessInvocationMarker(project, { env: FORCE_ON_ENV, now: fixedNow });
+      throw new Error('expected throw');
+    } catch (err) {
+      const m = err as McpError;
+      expect((m.data as { reason: string }).reason).toBe('MARKER_FUTURE');
+    }
+  });
+});
+
+describe('gpt-5.5 review B2 — project_root identity guard', () => {
+  let projectA: string;
+  let projectB: string;
+  beforeEach(() => {
+    projectA = makeProject();
+    projectB = makeProject();
+  });
+  afterEach(() => {
+    fs.rmSync(projectA, { recursive: true, force: true });
+    fs.rmSync(projectB, { recursive: true, force: true });
+  });
+
+  it('MARKER_PROJECT_MISMATCH when marker was written for a different project', () => {
+    // Write a marker for project A
+    writeHarnessInvocationMarker(projectA, { now: new Date('2026-05-22T08:00:00Z') });
+    // Copy A's marker to B's .autoresearch dir (simulating cross-project marker copy)
+    fs.copyFileSync(
+      harnessInvocationMarkerPath(projectA),
+      harnessInvocationMarkerPath(projectB),
+    );
+    // Verifier at projectB cwd should reject — marker says projectA
+    try {
+      verifyHarnessInvocationMarker(projectB, { env: FORCE_ON_ENV });
+      throw new Error('expected throw');
+    } catch (err) {
+      const m = err as McpError;
+      expect(m.code).toBe('HARNESS_INVOCATION_REQUIRED');
+      expect((m.data as { reason: string }).reason).toBe('MARKER_PROJECT_MISMATCH');
+    }
+  });
+
+  it('passes when project_root in marker matches cwd (round-trip identity)', () => {
+    writeHarnessInvocationMarker(projectA, { now: new Date('2026-05-22T08:00:00Z') });
+    expect(() =>
+      verifyHarnessInvocationMarker(projectA, { env: FORCE_ON_ENV }),
+    ).not.toThrow();
+  });
+
+  it('passes when cwd has trailing slash or different normalization but same realpath', () => {
+    writeHarnessInvocationMarker(projectA, { now: new Date('2026-05-22T08:00:00Z') });
+    // Adding trailing slash; realpath should normalize
+    expect(() =>
+      verifyHarnessInvocationMarker(projectA + '/', { env: FORCE_ON_ENV }),
+    ).not.toThrow();
+  });
+});
+
 describe('verifyHarnessInvocationMarker happy path', () => {
   let project: string;
   beforeEach(() => { project = makeProject(); });

@@ -39,7 +39,7 @@ describe('handleOrchRunStatus — harness invocation anchor', () => {
     fs.rmSync(projectRoot, { recursive: true, force: true });
   });
 
-  it('writes the harness invocation marker on success', async () => {
+  it('writes the schema v2 harness invocation marker on success', async () => {
     const markerPath = path.join(projectRoot, HARNESS_INVOCATION_FILE);
     expect(fs.existsSync(markerPath)).toBe(false);
 
@@ -48,11 +48,14 @@ describe('handleOrchRunStatus — harness invocation anchor', () => {
     expect(fs.existsSync(markerPath)).toBe(true);
     const marker = readHarnessInvocationMarker(projectRoot);
     expect(marker).not.toBeNull();
+    // v2 redesign: schema_version is 2; ttl_seconds is gone
+    expect(marker?.schema_version).toBe(2);
     expect(marker?.kind).toBe('autoresearch_harness_invocation');
     expect(marker?.host_skill).toBe('research-harness');
-    expect(marker?.project_root).toBe(projectRoot);
-    expect(marker?.ttl_seconds).toBeGreaterThan(0);
+    // project_root is persisted as the normalized realpath (gpt-5.5 review B2)
+    expect(marker?.project_root).toBe(fs.realpathSync(projectRoot));
     expect(Date.parse(marker!.anchored_at)).toBeGreaterThan(0);
+    expect(marker?.ttl_seconds).toBeUndefined();
   });
 
   it('refreshes anchored_at on each subsequent status call', async () => {

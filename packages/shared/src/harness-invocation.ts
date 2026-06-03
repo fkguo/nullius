@@ -24,16 +24,16 @@
  * the anchor stays valid until state actually changes. This matches Codex's
  * config_lock and Claude Code's FileEditTool mtime patterns.
  *
- * ## Skip layers (in order)
+ * ## Skip layers (in order they fire in `verifyHarnessInvocationMarker`)
  *
- *   B. `process.cwd()` has no `.autoresearch/` directory → skip (standalone
- *      provider use; no lifecycle context to drift from).
- *   C. Caller (dispatcher) signals `toolIsStateTouching=false` for pure
+ *   1. `AUTORESEARCH_HARNESS_VERIFY=skip` or `NODE_ENV=test` → skip
+ *      (escape hatches; test default keeps suites green).
+ *   2. `process.cwd()` has no `.autoresearch/` directory → skip
+ *      (standalone provider use; no lifecycle context to drift from).
+ *   3. Caller (dispatcher) signals `toolIsStateTouching=false` for pure
  *      read-only provider queries → skip even with a `.autoresearch/` dir
  *      present (classification per dispatcher per audit; see each *-mcp
  *      dispatcher source).
- *   D. `AUTORESEARCH_HARNESS_VERIFY=skip` or `NODE_ENV=test` → skip
- *      (escape hatches; test default keeps suites green).
  *
  * ## Marker schema (v2)
  *
@@ -93,7 +93,17 @@ export type HarnessInvocationMarker = {
 export type HarnessInvocationReason =
   | 'MARKER_MISSING'
   | 'MARKER_INVALID'
+  | 'MARKER_FUTURE'
+  | 'MARKER_PROJECT_MISMATCH'
   | 'STATE_CHANGED_SINCE_ANCHOR';
+
+/**
+ * Clock-skew tolerance when validating that `anchored_at` is not in the
+ * future. Five seconds matches the NTP-realistic skew window for
+ * coordinated dev environments; tighter than this would cause spurious
+ * `MARKER_FUTURE` rejections under normal time-sync wobble.
+ */
+const ANCHOR_FUTURE_TOLERANCE_MS = 5_000;
 
 export type VerifyOptions = {
   /**
@@ -171,6 +181,10 @@ function harnessInvocationError(
         return 'Host agent has not anchored via research-harness for this session.';
       case 'MARKER_INVALID':
         return 'Research-harness anchor marker is malformed; re-anchor to repair.';
+      case 'MARKER_FUTURE':
+        return 'Research-harness anchor marker has an anchored_at timestamp in the future; re-anchor with corrected clock to repair.';
+      case 'MARKER_PROJECT_MISMATCH':
+        return 'Research-harness anchor marker was written for a different project root; re-anchor in the current project to repair.';
       case 'STATE_CHANGED_SINCE_ANCHOR':
         return 'Project state has changed since the last anchor; re-anchor to confirm current state before continuing.';
     }
@@ -212,6 +226,20 @@ function safeMtimeMs(p: string): number | null {
 }
 
 /**
+ * Normalize a project root path for identity comparison between marker and
+ * cwd. Resolves symlinks and removes trailing slash inconsistencies. Falls
+ * back to plain `path.resolve` (no symlink resolution) if `realpathSync`
+ * fails — typically because one of the paths does not exist on disk.
+ */
+function normalizeProjectRoot(p: string): string {
+  try {
+    return fs.realpathSync(p);
+  } catch {
+    return path.resolve(p);
+  }
+}
+
+/**
  * Write the harness invocation marker for the given project root with a
  * fresh `anchored_at` timestamp + current state.json / ledger.jsonl
  * mtimes (for diagnostic surfaces; verifier ignores them and reads from
@@ -225,12 +253,17 @@ export function writeHarnessInvocationMarker(
   const now = opts.now ?? new Date();
   const stateMtimeMs = safeMtimeMs(autoresearchStatePath(projectRoot));
   const ledgerMtimeMs = safeMtimeMs(autoresearchLedgerPath(projectRoot));
+  // Persist the normalized realpath so the verifier's identity check
+  // (gpt-5.5 review B2) sees a canonical form regardless of how the
+  // caller spelled `projectRoot` (symlink vs realpath, trailing slash,
+  // relative path).
+  const projectRootNormalized = normalizeProjectRoot(projectRoot);
   const marker: HarnessInvocationMarker = {
     schema_version: HARNESS_INVOCATION_SCHEMA_VERSION,
     kind: HARNESS_INVOCATION_KIND,
     anchored_at: now.toISOString(),
     host_skill: 'research-harness',
-    project_root: projectRoot,
+    project_root: projectRootNormalized,
     ...(stateMtimeMs !== null ? { state_mtime_at_anchor: new Date(stateMtimeMs).toISOString() } : {}),
     ...(ledgerMtimeMs !== null ? { ledger_mtime_at_anchor: new Date(ledgerMtimeMs).toISOString() } : {}),
   };
@@ -266,7 +299,15 @@ export function verifyHarnessInvocationMarker(
   if (isHarnessVerifySkipped(env)) return;
 
   // Skip 2: no autoresearch context at cwd (standalone provider use).
-  if (!fs.existsSync(autoresearchDirPath(cwd))) return;
+  // Check directory-ness explicitly (per gpt-5.5 review N1) so a stray
+  // `.autoresearch` regular file does not silently bypass verification.
+  try {
+    if (!fs.statSync(autoresearchDirPath(cwd)).isDirectory()) return;
+  } catch {
+    // ENOENT (the common case) and other stat errors → no lifecycle
+    // context; skip.
+    return;
+  }
 
   // Skip 3: dispatcher told us this specific tool doesn't touch project state.
   if (opts.toolIsStateTouching === false) return;
@@ -302,6 +343,33 @@ export function verifyHarnessInvocationMarker(
   if (!Number.isFinite(anchoredAtMs)) {
     throw harnessInvocationError('MARKER_INVALID', cwd, {
       detail: 'anchored_at is not a parseable ISO timestamp',
+    });
+  }
+
+  // Future-anchor guard (gpt-5.5 review B1): an `anchored_at` in the future
+  // would let any state-mtime up to that future timestamp pass the
+  // event-driven freshness check, defeating the invariant. Reject anything
+  // past `now + small clock-skew tolerance`.
+  const nowMs = (opts.now ?? new Date()).getTime();
+  if (anchoredAtMs > nowMs + ANCHOR_FUTURE_TOLERANCE_MS) {
+    throw harnessInvocationError('MARKER_FUTURE', cwd, {
+      anchored_at: parsed.anchored_at,
+      now: new Date(nowMs).toISOString(),
+      tolerance_ms: ANCHOR_FUTURE_TOLERANCE_MS,
+    });
+  }
+
+  // Project identity guard (gpt-5.5 review B2): a marker copied from another
+  // project (or symlinked outside this project root) would otherwise pass
+  // schema validation and freshness check, defeating the per-project anchor
+  // identity. Compare normalized realpaths.
+  const cwdNormalized = normalizeProjectRoot(cwd);
+  const markerProjectNormalized = normalizeProjectRoot(parsed.project_root);
+  if (cwdNormalized !== markerProjectNormalized) {
+    throw harnessInvocationError('MARKER_PROJECT_MISMATCH', cwd, {
+      cwd_normalized: cwdNormalized,
+      marker_project_root_normalized: markerProjectNormalized,
+      marker_project_root: parsed.project_root,
     });
   }
 

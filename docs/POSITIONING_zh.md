@@ -68,12 +68,14 @@ receipt；缺少 receipt 时审批 fail-closed，返回
 ### 长对话漂移：harness invocation 锚点
 
 长 session 会把 `research-harness` skill 挤出 context；项目状态与 agent
-的 mental model 静默 desync。对**会触碰项目状态**的工具调用（分类按每个
-`*-mcp` 包的 `state-touch-classification.ts`），每个 `*-mcp` dispatcher
-都校验 `autoresearch status` 写入的 `.autoresearch/HARNESS_INVOCATION`
-anchor 是否至少跟 `.autoresearch/state.json` / `.autoresearch/ledger.jsonl`
-的最后修改时间一样新。anchor 缺失或比 state 旧 → fail-closed，返回
-`HARNESS_INVOCATION_REQUIRED`。
+的 mental model 静默 desync。对**读或写 project-keyed state** 的工具调用
+（分类按每个 `*-mcp` 包的 `state-touch-classification.ts`），每个 `*-mcp`
+dispatcher 都校验 `autoresearch status` 写入的
+`.autoresearch/HARNESS_INVOCATION` anchor：(a) 比
+`.autoresearch/state.json` / `.autoresearch/ledger.jsonl` 的最后修改时间
+新；(b) 写入时的 project_root 跟当前 cwd 一致（identity check）；(c) anchor
+时间戳不是未来（clock-skew guard）。anchor 缺失/错配/未来/比 state 旧 →
+fail-closed，返回 `HARNESS_INVOCATION_REQUIRED`。
 
 校验是**事件驱动，不是时钟驱动**（与 Codex 的 `config_lock` content-equality
 校验、Claude Code 的 `FileEditTool` mtime 校验同款 — 无 clock TTL）。
