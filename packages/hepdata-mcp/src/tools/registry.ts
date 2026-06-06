@@ -63,7 +63,10 @@ Structured filters (precise; combinable with each other and with query):
 
 Pagination and sorting (modifiers, not standalone conditions):
   { sort_by: "date" }    relevance (default) | collaborations | title | date | latest
-  { page: 2, size: 25 }
+  { page: 2, size: 25 }  single page; size capped at 25
+  { max_results: 100 }   bounded auto-pagination: fetch successive pages until this many
+                         results are collected (or results run out). Omit for single-page
+                         (size). HARD cap 200 — larger values are clamped to 200.
 
 Combining: filters AND-combine with each other and with query:
   { reactions: "E+ E- --> PI+ PI-", cmenergies: "0.0,2.0", sort_by: "date" }
@@ -98,7 +101,9 @@ format="json" (default): structured response with:
   Each row: x[] for independent variables (each entry has value, or low+high for bin edges),
              y[] for dependent variables (each entry has value and errors[]{label, symerror?,
              asymerror?:{plus,minus}}). symerror = symmetric ±; asymerror = asymmetric +/-.
-format="yaml": raw HEPData YAML with full error breakdown; use when you need all error sources.`,
+format="yaml": raw HEPData YAML with full error breakdown; use when you need all error sources.
+format="csv": raw HEPData CSV text for the table.
+For heavy/binary formats (root, yoda, yoda1, yoda.h5) or a whole-submission archive, use hepdata_download.`,
     zodSchema: HepDataGetTableSchema,
     handler: async params => client.getTable(params.table_id, params.format),
   },
@@ -106,15 +111,21 @@ format="yaml": raw HEPData YAML with full error breakdown; use when you need all
   {
     name: HEPDATA_DOWNLOAD,
     exposure: 'standard',
-    description: `Download complete HEPData submission archive (zip) to local artifacts (network, writes files, requires _confirm: true).
+    description: `Download a complete HEPData submission to local artifacts (network, writes files, requires _confirm: true).
 
-Downloads all data tables in YAML and other formats.
+format="original" (default): the full submission zip — all data tables in YAML and other formats.
+format="json": a single submission .json file.
+format ∈ {csv, root, yaml, yoda, yoda1, yoda.h5}: HEPData returns a .tar.gz archive of every table in that format.
+Each format is written to its own file under the submission artifacts dir, so formats do not overwrite each other.
 Returns artifact URI, file path, file size, and table count.`,
     zodSchema: HepDataDownloadSchema,
     handler: async params => {
+      // tables_count stays best-effort and uniform across formats: one cheap
+      // metadata request gives the table count for the returned contract,
+      // matching the historical original/json behavior.
       const record = await client.getRecord(params.hepdata_id);
       const tablesCount = record.data_tables.length;
-      const buffer = await client.downloadSubmission(params.hepdata_id);
+      const buffer = await client.downloadSubmission(params.hepdata_id, params.format);
 
       const dataDir = getDataDir();
       const submissionDir = resolvePathWithinParent(
@@ -124,7 +135,10 @@ Returns artifact URI, file path, file size, and table count.`,
       );
       ensureDir(submissionDir);
 
-      const destPath = path.join(submissionDir, 'hepdata_submission.zip');
+      // Per-format destination filename so multiple downloads of the same
+      // submission coexist. `original` keeps the historical zip name/URI.
+      const fileName = submissionFileName(params.format);
+      const destPath = path.join(submissionDir, fileName);
 
       try {
         // writeBytesAtomicDurable: mkdir + tmp + write + fsync + rename +
@@ -139,7 +153,7 @@ Returns artifact URI, file path, file size, and table count.`,
       }
 
       return {
-        uri: `hepdata://artifacts/submissions/${params.hepdata_id}/hepdata_submission.zip`,
+        uri: `hepdata://artifacts/submissions/${params.hepdata_id}/${fileName}`,
         file_path: destPath,
         size_bytes: buffer.byteLength,
         tables_count: tablesCount,
@@ -147,6 +161,17 @@ Returns artifact URI, file path, file size, and table count.`,
     },
   },
 ];
+
+// Map a download format to its on-disk filename. `original` is the historical
+// submission zip; `json` is a single .json; the science formats arrive as a
+// .tar.gz archive (filename tagged with the format so they never collide).
+function submissionFileName(format: z.infer<typeof HepDataDownloadSchema>['format']): string {
+  if (format === 'original') return 'hepdata_submission.zip';
+  if (format === 'json') return 'hepdata_submission.json';
+  // Sanitize the format token for use in a filename (yoda.h5 -> yoda_h5).
+  const tag = format.replace(/[^a-z0-9]+/gi, '_');
+  return `hepdata_submission_${tag}.tar.gz`;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Registry helpers
