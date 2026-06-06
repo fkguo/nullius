@@ -35,8 +35,17 @@
     "@modelcontextprotocol/sdk": "^1.25.2",
     "zod": "^4.3.5"
   },
+  "peerDependencies": {
+    "playwright": "^1.48.0"
+  },
+  "peerDependenciesMeta": {
+    "playwright": {
+      "optional": true
+    }
+  },
   "devDependencies": {
     "@types/node": "^25.0.3",
+    "playwright": "^1.48.0",
     "tsx": "^4.21.0",
     "typescript": "^5.4.0",
     "vitest": "^4.0.16"
