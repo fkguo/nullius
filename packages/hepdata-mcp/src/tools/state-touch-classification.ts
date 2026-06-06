@@ -5,7 +5,8 @@
  * through the hepdata-mcp standalone dispatcher are NO_STATE_TOUCH:
  *
  *   - search / get_record / get_table → pure HTTP, no fs writes
- *   - download → writes ZIP to `getArtifactsDir()/submissions/<id>/`
+ *   - download → writes submission artifacts (zip/json/tar.gz depending on
+ *     format) to `getArtifactsDir()/submissions/<id>/`
  *     = `~/.hep-mcp/hepdata/artifacts/submissions/` or
  *     `$HEPDATA_DATA_DIR/...` (`src/data/dataDir.ts:8,17-31,44-46`);
  *     generic cache, never project-keyed.

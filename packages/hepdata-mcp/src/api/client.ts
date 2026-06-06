@@ -63,7 +63,12 @@ export interface SearchParams {
   sort_by?: 'relevance' | 'collaborations' | 'title' | 'date' | 'latest';
   page?: number;
   size?: number;
+  max_results?: number;
 }
+
+// HARD upper bound on bounded auto-pagination. Requests above this are clamped
+// down to this value so a single search can never trigger an unbounded crawl.
+export const HEPDATA_MAX_RESULTS_CAP = 200;
 
 function normalizeInspireRecid(value: unknown): number | null {
   if (typeof value === 'number') {
@@ -85,10 +90,20 @@ function normalizeInspireRecid(value: unknown): number | null {
 // API functions
 // ─────────────────────────────────────────────────────────────────────────────
 
-export async function searchRecords(params: SearchParams): Promise<HepDataSearchResult> {
+type RawSearchResult = {
+  id: number;
+  title: string;
+  inspire_id: string | number | null;
+  arxiv_id: string | null;
+  collaborations: string[];
+  total_tables: number;
+  doi: string | null;
+};
+
+function buildSearchQuery(params: SearchParams, page: number, size: number): URLSearchParams {
   const qs = new URLSearchParams({
-    page: String(params.page ?? 1),
-    size: String(Math.min(params.size ?? 10, 25)),
+    page: String(page),
+    size: String(size),
     format: 'json',
   });
 
@@ -110,33 +125,63 @@ export async function searchRecords(params: SearchParams): Promise<HepDataSearch
   if (params.subject_areas != null) qs.set('subject_areas', params.subject_areas);
   if (params.sort_by != null)       qs.set('sort_by', params.sort_by);
 
+  return qs;
+}
+
+function normalizeSearchResult(r: RawSearchResult): HepDataSearchResult['results'][number] {
+  return {
+    hepdata_id: r.id,
+    title: r.title,
+    inspire_recid: normalizeInspireRecid(r.inspire_id),
+    arxiv_id: r.arxiv_id ?? null,
+    collaborations: r.collaborations ?? [],
+    data_tables_count: r.total_tables ?? 0,
+    doi: r.doi ?? null,
+  };
+}
+
+/** Fetch one search page. `total` is HEPData's overall match count for the query. */
+async function fetchSearchPage(
+  params: SearchParams,
+  page: number,
+  size: number,
+): Promise<{ total: number; raw: RawSearchResult[] }> {
+  const qs = buildSearchQuery(params, page, size);
   const response = await hepdataFetch(`/search/?${qs}`);
   if (!response.ok) {
     throw upstreamError(`HEPData search failed: ${response.status} ${response.statusText}`);
   }
+  const data = await response.json() as { total: number; results: RawSearchResult[] };
+  return { total: data.total, raw: data.results ?? [] };
+}
 
-  type RawResult = {
-    id: number;
-    title: string;
-    inspire_id: string | number | null;
-    arxiv_id: string | null;
-    collaborations: string[];
-    total_tables: number;
-    doi: string | null;
-  };
-  const data = await response.json() as { total: number; results: RawResult[] };
+export async function searchRecords(params: SearchParams): Promise<HepDataSearchResult> {
+  const size = Math.min(params.size ?? 10, 25);
+  const startPage = params.page ?? 1;
+
+  // Bounded auto-pagination: when max_results exceeds one page, walk forward
+  // page-by-page (each call naturally rate-limited) accumulating results until
+  // we have enough or a short page tells us HEPData has no more matches.
+  const cap = Math.min(params.max_results ?? size, HEPDATA_MAX_RESULTS_CAP);
+
+  const first = await fetchSearchPage(params, startPage, size);
+  const accumulated: RawSearchResult[] = [...first.raw];
+
+  // Stop conditions: cap reached, the page came back short (no more data), or
+  // the page was empty. The short-page check uses the requested `size`.
+  let page = startPage;
+  let lastPageLen = first.raw.length;
+  while (accumulated.length < cap && lastPageLen >= size && lastPageLen > 0) {
+    page += 1;
+    const next = await fetchSearchPage(params, page, size);
+    lastPageLen = next.raw.length;
+    if (lastPageLen === 0) break;
+    accumulated.push(...next.raw);
+  }
 
   return {
-    total: data.total,
-    results: (data.results ?? []).map(r => ({
-      hepdata_id: r.id,
-      title: r.title,
-      inspire_recid: normalizeInspireRecid(r.inspire_id),
-      arxiv_id: r.arxiv_id ?? null,
-      collaborations: r.collaborations ?? [],
-      data_tables_count: r.total_tables ?? 0,
-      doi: r.doi ?? null,
-    })),
+    total: first.total,
+    results: accumulated.slice(0, cap).map(normalizeSearchResult),
   };
 }
 
@@ -179,12 +224,16 @@ export async function getRecord(hepdataId: number): Promise<HepDataRecord> {
   };
 }
 
-export async function getTable(tableId: number, format: 'json' | 'yaml'): Promise<HepDataTableData | string> {
+export async function getTable(
+  tableId: number,
+  format: 'json' | 'yaml' | 'csv',
+): Promise<HepDataTableData | string> {
   const response = await hepdataFetch(`/download/table/${tableId}/${format}`);
   if (response.status === 404) throw notFound(`HEPData table not found: ${tableId}`);
   if (!response.ok) throw upstreamError(`HEPData table fetch failed: ${response.status}`);
 
-  if (format === 'yaml') return response.text();
+  // Text-renderable non-json formats are returned verbatim.
+  if (format === 'yaml' || format === 'csv') return response.text();
 
   type RawTable = {
     name: string;
@@ -204,8 +253,23 @@ export async function getTable(tableId: number, format: 'json' | 'yaml'): Promis
   };
 }
 
-export async function downloadSubmission(hepdataId: number): Promise<ArrayBuffer> {
-  const response = await hepdataFetch(`/download/submission/${hepdataId}/original`);
+export type HepDataDownloadFormat =
+  | 'original'
+  | 'json'
+  | 'csv'
+  | 'root'
+  | 'yaml'
+  | 'yoda'
+  | 'yoda1'
+  | 'yoda.h5';
+
+export async function downloadSubmission(
+  hepdataId: number,
+  format: HepDataDownloadFormat = 'original',
+): Promise<ArrayBuffer> {
+  // `original` keeps the historical submission-zip path; every other format
+  // is a sibling on the same /download/submission/{id}/{format} endpoint.
+  const response = await hepdataFetch(`/download/submission/${hepdataId}/${format}`);
   if (response.status === 404) throw notFound(`HEPData submission not found: ${hepdataId}`);
   if (!response.ok) throw upstreamError(`HEPData download failed: ${response.status}`);
   return response.arrayBuffer();

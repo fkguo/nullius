@@ -3,7 +3,11 @@ import { describe, it, expect } from 'vitest';
 import { getToolSpecs, getTools, handleToolCall } from '../src/tools/index.js';
 import { zodToMcpInputSchema } from '../src/tools/mcpSchema.js';
 import type { ToolExposureMode, ToolSpec } from '../src/tools/registry.js';
-import { HepDataSearchSchema } from '../src/tools/schemas.js';
+import {
+  HepDataDownloadSchema,
+  HepDataGetTableSchema,
+  HepDataSearchSchema,
+} from '../src/tools/schemas.js';
 
 function stableStringify(value: unknown): string {
   if (value === null || typeof value !== 'object') {
@@ -98,5 +102,31 @@ describe('Tool registry contracts (M0)', () => {
       inspire_recid: -1,
       query: 'LHCb cross section',
     }).success).toBe(false);
+  });
+
+  it('HepDataGetTableSchema accepts json/yaml/csv and defaults to json', () => {
+    expect(HepDataGetTableSchema.parse({ table_id: 1 }).format).toBe('json');
+    for (const format of ['json', 'yaml', 'csv'] as const) {
+      expect(HepDataGetTableSchema.parse({ table_id: 1, format }).format).toBe(format);
+    }
+    expect(HepDataGetTableSchema.safeParse({ table_id: 1, format: 'root' }).success).toBe(false);
+  });
+
+  it('HepDataDownloadSchema defaults format to original and accepts the heavy formats', () => {
+    expect(HepDataDownloadSchema.parse({ hepdata_id: 1, _confirm: true }).format).toBe('original');
+    for (const format of ['original', 'json', 'csv', 'root', 'yaml', 'yoda', 'yoda1', 'yoda.h5'] as const) {
+      expect(HepDataDownloadSchema.parse({ hepdata_id: 1, _confirm: true, format }).format).toBe(format);
+    }
+    expect(HepDataDownloadSchema.safeParse({ hepdata_id: 1, _confirm: true, format: 'pdf' }).success).toBe(false);
+    // _confirm gate is preserved.
+    expect(HepDataDownloadSchema.safeParse({ hepdata_id: 1 }).success).toBe(false);
+  });
+
+  it('HepDataSearchSchema accepts max_results and rejects non-positive values', () => {
+    expect(HepDataSearchSchema.parse({ query: 'x', max_results: 100 }).max_results).toBe(100);
+    // Omitted -> undefined (client falls back to size for single-page behavior).
+    expect(HepDataSearchSchema.parse({ query: 'x' }).max_results).toBeUndefined();
+    // Budget-int drops invalid (<=0) values to undefined rather than throwing.
+    expect(HepDataSearchSchema.parse({ query: 'x', max_results: -5 }).max_results).toBeUndefined();
   });
 });
