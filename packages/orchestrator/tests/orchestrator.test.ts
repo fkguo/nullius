@@ -400,12 +400,265 @@ describe('StateManager', () => {
     sm.saveState(state);
     const launcherPath = path.join(tmpDir, '.autoresearch', 'bin', 'autoresearch');
     fs.mkdirSync(path.dirname(launcherPath), { recursive: true });
+    // New portable format, but the baked fallback target no longer exists on this machine.
     fs.writeFileSync(
       launcherPath,
       [
         '#!/bin/sh',
         'set -eu',
-        `PROJECT_ROOT='${tmpDir}'`,
+        'PROJECT_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)',
+        'RESOLVED_AUTORESEARCH=$(command -v autoresearch 2>/dev/null || true)',
+        'if [ -n "$RESOLVED_AUTORESEARCH" ] && [ ! "$RESOLVED_AUTORESEARCH" -ef "$0" ]; then',
+        '  exec autoresearch "$@" --project-root "$PROJECT_ROOT"',
+        'fi',
+        "exec '/private/tmp/deleted-worktree/packages/orchestrator/dist/cli.js' \"$@\" --project-root \"$PROJECT_ROOT\"",
+        '',
+      ].join('\n'),
+      'utf-8',
+    );
+    fs.chmodSync(launcherPath, 0o755);
+
+    // Force a PATH with no `autoresearch` so the baked-target miss is genuinely fatal.
+    const prevPath = process.env.PATH;
+    process.env.PATH = path.join(tmpDir, 'no-autoresearch-on-path');
+    let view: ReturnType<typeof buildRunStatusView>;
+    try {
+      view = buildRunStatusView(tmpDir, sm.readState());
+    } finally {
+      if (prevPath === undefined) delete process.env.PATH;
+      else process.env.PATH = prevPath;
+    }
+    const recoveryContext = view.recovery_context as Record<string, unknown>;
+    const statusCommands = recoveryContext.status_commands as Record<string, unknown>;
+    const controlFiles = recoveryContext.control_files as Record<string, unknown>;
+    const launcher = controlFiles.project_local_launcher as Record<string, unknown>;
+
+    expect(statusCommands.project_local_fallback).toBeNull();
+    expect(launcher.exists).toBe(true);
+    expect(launcher.healthy).toBe(false);
+    expect(launcher.issue_code).toBe('PROJECT_LOCAL_LAUNCHER_TARGET_MISSING');
+    expect(launcher.repair_command).toBe('autoresearch init --runtime-only');
+    expect(recoveryContext.derivation_warnings).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: 'PROJECT_LOCAL_FALLBACK_UNHEALTHY',
+        repair_command: 'autoresearch init --runtime-only',
+      }),
+    ]));
+  });
+
+  it('treats a project-local launcher with a missing baked target as healthy when autoresearch is on PATH', () => {
+    const state = baseState({
+      run_id: 'test-run-path-launcher',
+      run_status: 'idle',
+    });
+    const sm = new StateManager(tmpDir);
+    sm.saveState(state);
+    const launcherPath = path.join(tmpDir, '.autoresearch', 'bin', 'autoresearch');
+    fs.mkdirSync(path.dirname(launcherPath), { recursive: true });
+    fs.writeFileSync(
+      launcherPath,
+      [
+        '#!/bin/sh',
+        'set -eu',
+        'PROJECT_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)',
+        'RESOLVED_AUTORESEARCH=$(command -v autoresearch 2>/dev/null || true)',
+        'if [ -n "$RESOLVED_AUTORESEARCH" ] && [ ! "$RESOLVED_AUTORESEARCH" -ef "$0" ]; then',
+        '  exec autoresearch "$@" --project-root "$PROJECT_ROOT"',
+        'fi',
+        "exec '/private/tmp/deleted-worktree/packages/orchestrator/dist/cli.js' \"$@\" --project-root \"$PROJECT_ROOT\"",
+        '',
+      ].join('\n'),
+      'utf-8',
+    );
+    fs.chmodSync(launcherPath, 0o755);
+    // Provide an `autoresearch` on PATH so the launcher's PATH-prefer branch is usable
+    // even though the baked fallback target is gone.
+    const fakeBin = path.join(tmpDir, 'fakebin');
+    fs.mkdirSync(fakeBin, { recursive: true });
+    const fakeAutoresearch = path.join(fakeBin, 'autoresearch');
+    fs.writeFileSync(fakeAutoresearch, '#!/bin/sh\nexit 0\n', 'utf-8');
+    fs.chmodSync(fakeAutoresearch, 0o755);
+
+    const prevPath = process.env.PATH;
+    process.env.PATH = `${fakeBin}${path.delimiter}/usr/bin:/bin`;
+    let view: ReturnType<typeof buildRunStatusView>;
+    try {
+      view = buildRunStatusView(tmpDir, sm.readState());
+    } finally {
+      if (prevPath === undefined) delete process.env.PATH;
+      else process.env.PATH = prevPath;
+    }
+    const recoveryContext = view.recovery_context as Record<string, unknown>;
+    const controlFiles = recoveryContext.control_files as Record<string, unknown>;
+    const launcher = controlFiles.project_local_launcher as Record<string, unknown>;
+
+    expect(launcher.exists).toBe(true);
+    expect(launcher.healthy).toBe(true);
+    expect(launcher.issue_code).toBeNull();
+  });
+
+  it('does not treat a directory named autoresearch on PATH as a usable CLI fallback', () => {
+    const state = baseState({
+      run_id: 'test-run-dir-on-path',
+      run_status: 'idle',
+    });
+    const sm = new StateManager(tmpDir);
+    sm.saveState(state);
+    const launcherPath = path.join(tmpDir, '.autoresearch', 'bin', 'autoresearch');
+    fs.mkdirSync(path.dirname(launcherPath), { recursive: true });
+    fs.writeFileSync(
+      launcherPath,
+      [
+        '#!/bin/sh',
+        'set -eu',
+        'PROJECT_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)',
+        'RESOLVED_AUTORESEARCH=$(command -v autoresearch 2>/dev/null || true)',
+        'if [ -n "$RESOLVED_AUTORESEARCH" ] && [ ! "$RESOLVED_AUTORESEARCH" -ef "$0" ]; then',
+        '  exec autoresearch "$@" --project-root "$PROJECT_ROOT"',
+        'fi',
+        "exec '/private/tmp/deleted-worktree/packages/orchestrator/dist/cli.js' \"$@\" --project-root \"$PROJECT_ROOT\"",
+        '',
+      ].join('\n'),
+      'utf-8',
+    );
+    fs.chmodSync(launcherPath, 0o755);
+    // A *directory* named `autoresearch` carries the execute bit but is not a
+    // resolvable command; it must not be counted as a usable PATH fallback.
+    const dirOnPath = path.join(tmpDir, 'dirbin');
+    fs.mkdirSync(path.join(dirOnPath, 'autoresearch'), { recursive: true });
+
+    const prevPath = process.env.PATH;
+    process.env.PATH = `${dirOnPath}${path.delimiter}/usr/bin:/bin`;
+    let view: ReturnType<typeof buildRunStatusView>;
+    try {
+      view = buildRunStatusView(tmpDir, sm.readState());
+    } finally {
+      if (prevPath === undefined) delete process.env.PATH;
+      else process.env.PATH = prevPath;
+    }
+    const recoveryContext = view.recovery_context as Record<string, unknown>;
+    const controlFiles = recoveryContext.control_files as Record<string, unknown>;
+    const launcher = controlFiles.project_local_launcher as Record<string, unknown>;
+
+    expect(launcher.healthy).toBe(false);
+    expect(launcher.issue_code).toBe('PROJECT_LOCAL_LAUNCHER_TARGET_MISSING');
+  });
+
+  it('does not treat the project-local launcher itself on PATH as a usable CLI fallback', () => {
+    const state = baseState({
+      run_id: 'test-run-self-on-path',
+      run_status: 'idle',
+    });
+    const sm = new StateManager(tmpDir);
+    sm.saveState(state);
+    const binDir = path.join(tmpDir, '.autoresearch', 'bin');
+    const launcherPath = path.join(binDir, 'autoresearch');
+    fs.mkdirSync(binDir, { recursive: true });
+    fs.writeFileSync(
+      launcherPath,
+      [
+        '#!/bin/sh',
+        'set -eu',
+        'PROJECT_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)',
+        'RESOLVED_AUTORESEARCH=$(command -v autoresearch 2>/dev/null || true)',
+        'if [ -n "$RESOLVED_AUTORESEARCH" ] && [ ! "$RESOLVED_AUTORESEARCH" -ef "$0" ]; then',
+        '  exec autoresearch "$@" --project-root "$PROJECT_ROOT"',
+        'fi',
+        "exec '/private/tmp/deleted-worktree/packages/orchestrator/dist/cli.js' \"$@\" --project-root \"$PROJECT_ROOT\"",
+        '',
+      ].join('\n'),
+      'utf-8',
+    );
+    fs.chmodSync(launcherPath, 0o755);
+    // PATH contains ONLY the project-local bin (the launcher itself); the launcher
+    // cannot satisfy itself, so health must NOT report it as a usable fallback.
+    const prevPath = process.env.PATH;
+    process.env.PATH = binDir;
+    let view: ReturnType<typeof buildRunStatusView>;
+    try {
+      view = buildRunStatusView(tmpDir, sm.readState());
+    } finally {
+      if (prevPath === undefined) delete process.env.PATH;
+      else process.env.PATH = prevPath;
+    }
+    const recoveryContext = view.recovery_context as Record<string, unknown>;
+    const controlFiles = recoveryContext.control_files as Record<string, unknown>;
+    const launcher = controlFiles.project_local_launcher as Record<string, unknown>;
+
+    expect(launcher.healthy).toBe(false);
+    expect(launcher.issue_code).toBe('PROJECT_LOCAL_LAUNCHER_TARGET_MISSING');
+  });
+
+  it('does not treat a hard link to the launcher on PATH as a usable CLI fallback', () => {
+    const state = baseState({
+      run_id: 'test-run-hardlink-on-path',
+      run_status: 'idle',
+    });
+    const sm = new StateManager(tmpDir);
+    sm.saveState(state);
+    const binDir = path.join(tmpDir, '.autoresearch', 'bin');
+    const launcherPath = path.join(binDir, 'autoresearch');
+    fs.mkdirSync(binDir, { recursive: true });
+    fs.writeFileSync(
+      launcherPath,
+      [
+        '#!/bin/sh',
+        'set -eu',
+        'PROJECT_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)',
+        'RESOLVED_AUTORESEARCH=$(command -v autoresearch 2>/dev/null || true)',
+        'if [ -n "$RESOLVED_AUTORESEARCH" ] && [ ! "$RESOLVED_AUTORESEARCH" -ef "$0" ]; then',
+        '  exec autoresearch "$@" --project-root "$PROJECT_ROOT"',
+        'fi',
+        "exec '/private/tmp/deleted-worktree/packages/orchestrator/dist/cli.js' \"$@\" --project-root \"$PROJECT_ROOT\"",
+        '',
+      ].join('\n'),
+      'utf-8',
+    );
+    fs.chmodSync(launcherPath, 0o755);
+    // A hard link shares the launcher's device+inode; the runtime `-ef` guard treats
+    // it as self, so health must too (realpath alone would miss a hard link).
+    const hardBin = path.join(tmpDir, 'hardbin');
+    fs.mkdirSync(hardBin, { recursive: true });
+    fs.linkSync(launcherPath, path.join(hardBin, 'autoresearch'));
+
+    const prevPath = process.env.PATH;
+    process.env.PATH = `${hardBin}${path.delimiter}/usr/bin:/bin`;
+    let view: ReturnType<typeof buildRunStatusView>;
+    try {
+      view = buildRunStatusView(tmpDir, sm.readState());
+    } finally {
+      if (prevPath === undefined) delete process.env.PATH;
+      else process.env.PATH = prevPath;
+    }
+    const recoveryContext = view.recovery_context as Record<string, unknown>;
+    const controlFiles = recoveryContext.control_files as Record<string, unknown>;
+    const launcher = controlFiles.project_local_launcher as Record<string, unknown>;
+
+    expect(launcher.healthy).toBe(false);
+    expect(launcher.issue_code).toBe('PROJECT_LOCAL_LAUNCHER_TARGET_MISSING');
+  });
+
+  it('flags an old self-recursing launcher shape (no self-identity guard) as unparseable', () => {
+    const state = baseState({
+      run_id: 'test-run-old-launcher-shape',
+      run_status: 'idle',
+    });
+    const sm = new StateManager(tmpDir);
+    sm.saveState(state);
+    const launcherPath = path.join(tmpDir, '.autoresearch', 'bin', 'autoresearch');
+    fs.mkdirSync(path.dirname(launcherPath), { recursive: true });
+    // Old format: self-derived root + UNGUARDED PATH-prefer (would self-recurse if
+    // .autoresearch/bin is first on PATH). It must be reported unparseable so the
+    // owner refreshes it, not advertised as a healthy fallback.
+    fs.writeFileSync(
+      launcherPath,
+      [
+        '#!/bin/sh',
+        'set -eu',
+        'PROJECT_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)',
+        'if command -v autoresearch >/dev/null 2>&1; then',
+        '  exec autoresearch "$@" --project-root "$PROJECT_ROOT"',
+        'fi',
         "exec '/private/tmp/deleted-worktree/packages/orchestrator/dist/cli.js' \"$@\" --project-root \"$PROJECT_ROOT\"",
         '',
       ].join('\n'),
@@ -415,20 +668,11 @@ describe('StateManager', () => {
 
     const view = buildRunStatusView(tmpDir, sm.readState());
     const recoveryContext = view.recovery_context as Record<string, unknown>;
-    const statusCommands = recoveryContext.status_commands as Record<string, unknown>;
     const controlFiles = recoveryContext.control_files as Record<string, unknown>;
     const launcher = controlFiles.project_local_launcher as Record<string, unknown>;
 
-    expect(statusCommands.project_local_fallback).toBeNull();
-    expect(launcher.exists).toBe(true);
     expect(launcher.healthy).toBe(false);
-    expect(launcher.repair_command).toBe('autoresearch init --runtime-only');
-    expect(recoveryContext.derivation_warnings).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        code: 'PROJECT_LOCAL_FALLBACK_UNHEALTHY',
-        repair_command: 'autoresearch init --runtime-only',
-      }),
-    ]));
+    expect(launcher.issue_code).toBe('PROJECT_LOCAL_LAUNCHER_UNPARSEABLE');
   });
 
   it('does not advertise an unparseable project-local launcher as a healthy status fallback', () => {

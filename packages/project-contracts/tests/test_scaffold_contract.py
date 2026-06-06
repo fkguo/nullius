@@ -1,9 +1,11 @@
 import os
+import pathlib
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 def _src_root() -> Path:
@@ -13,7 +15,12 @@ def _src_root() -> Path:
 sys.path.insert(0, str(_src_root()))
 
 from project_contracts.project_scaffold import ensure_project_scaffold
-from project_contracts.project_surface import SCAFFOLD_TEMPLATE_FILES, SCAFFOLD_TEMPLATE_MAP
+from project_contracts.project_surface import (
+    SCAFFOLD_ROOT_FILES,
+    SCAFFOLD_SUPPORT_FILES,
+    SCAFFOLD_TEMPLATE_FILES,
+    SCAFFOLD_TEMPLATE_MAP,
+)
 from project_contracts.research_contract import sync_research_contract
 from project_contracts.scaffold_template_loader import scaffold_template_dir
 
@@ -187,6 +194,7 @@ class TestScaffoldContract(unittest.TestCase):
         self.assertIn("physical quantities, formulas, variables, operators, state vectors, cross sections, S-matrix elements, transfer functions, equations, and assumptions", template)
         self.assertIn("Backticks are only for filenames, commands, literal field or key names, and code identifiers", template)
         self.assertIn("opt-in support layers", template)
+        self.assertIn("autoresearch init --refresh", template)
         self.assertNotIn("run_team_cycle.sh", template)
         self.assertNotIn("prompts/_system_member_a.txt", template)
         self.assertNotIn("research_team_config.json", template)
@@ -430,3 +438,202 @@ class TestScaffoldContract(unittest.TestCase):
         self.assertNotIn("- Current milestone:", template)
         self.assertNotIn("## Derivation Notes", template)
         self.assertNotIn("## Results", template)
+
+
+MANAGED_SUPPORT_FILES = set(SCAFFOLD_SUPPORT_FILES)
+SEED_ROOT_FILES = set(SCAFFOLD_ROOT_FILES)
+RENDER_PLACEHOLDER_TOKENS = ("<PROJECT_NAME>", "<PROJECT_ROOT>", "<PROFILE>", "<YYYY-MM-DD>")
+
+
+class TestScaffoldRefresh(unittest.TestCase):
+    def _init(self, root: Path) -> None:
+        ensure_project_scaffold(
+            repo_root=root,
+            project_name="Refresh Fixture",
+            profile="mixed",
+            project_policy="real_project",
+        )
+
+    def test_refresh_overwrites_changed_managed_files_with_backup(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            self._init(root)
+            (root / "AGENTS.md").write_text("HACKED AGENTS\n", encoding="utf-8")
+            (root / "docs" / "ARTIFACT_CONTRACT.md").write_text("HACKED ARTIFACT\n", encoding="utf-8")
+
+            result = ensure_project_scaffold(repo_root=root, refresh=True, project_policy="real_project")
+
+            self.assertEqual(set(result["refreshed"]), {"AGENTS.md", "docs/ARTIFACT_CONTRACT.md"})
+            self.assertEqual(set(result["backed_up"]), {"AGENTS.md", "docs/ARTIFACT_CONTRACT.md"})
+            self.assertIsNotNone(result["backup_dir"])
+            agents_now = (root / "AGENTS.md").read_text(encoding="utf-8")
+            self.assertIn("This file anchors the workflow", agents_now)
+            self.assertNotIn("HACKED", agents_now)
+            backup_root = root / result["backup_dir"]
+            self.assertEqual((backup_root / "AGENTS.md").read_text(encoding="utf-8"), "HACKED AGENTS\n")
+            # docs/ subpath is preserved inside the backup tree (no flat collision)
+            self.assertEqual(
+                (backup_root / "docs" / "ARTIFACT_CONTRACT.md").read_text(encoding="utf-8"),
+                "HACKED ARTIFACT\n",
+            )
+
+    def test_refresh_leaves_unchanged_managed_files_untouched(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            self._init(root)
+            result = ensure_project_scaffold(repo_root=root, refresh=True, project_policy="real_project")
+            self.assertEqual(set(result["unchanged"]), MANAGED_SUPPORT_FILES)
+            self.assertEqual(result["refreshed"], [])
+            self.assertEqual(result["backed_up"], [])
+            self.assertIsNone(result["backup_dir"])
+            self.assertFalse((root / ".autoresearch" / "backups").exists())
+
+    def test_refresh_creates_missing_managed_file(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            self._init(root)
+            (root / "docs" / "EVAL_GATE_CONTRACT.md").unlink()
+            result = ensure_project_scaffold(repo_root=root, refresh=True, project_policy="real_project")
+            self.assertIn("docs/EVAL_GATE_CONTRACT.md", result["created"])
+            self.assertTrue((root / "docs" / "EVAL_GATE_CONTRACT.md").is_file())
+
+    def test_refresh_preserves_seed_files_and_does_not_sync_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            self._init(root)
+            plan_text = "# research_plan.md\n\nUSER RESEARCH CONTENT\n" * 40
+            (root / "research_plan.md").write_text(plan_text, encoding="utf-8")
+            # contract intentionally missing sync markers: refresh must not read/sync/crash on it
+            contract_text = "# research_contract.md\n\nUSER OWNED, no sync markers here.\n"
+            (root / "research_contract.md").write_text(contract_text, encoding="utf-8")
+
+            result = ensure_project_scaffold(repo_root=root, refresh=True, project_policy="real_project")
+
+            self.assertEqual(set(result["preserved"]), SEED_ROOT_FILES)
+            self.assertEqual((root / "research_plan.md").read_text(encoding="utf-8"), plan_text)
+            self.assertEqual((root / "research_contract.md").read_text(encoding="utf-8"), contract_text)
+
+    def test_refresh_reports_missing_seed_without_creating(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            self._init(root)
+            (root / "research_notebook.md").unlink()
+            result = ensure_project_scaffold(repo_root=root, refresh=True, project_policy="real_project")
+            self.assertIn("research_notebook.md", result["missing"])
+            self.assertNotIn("research_notebook.md", result["preserved"])
+            self.assertFalse((root / "research_notebook.md").exists())
+
+    def test_refresh_dry_run_writes_nothing(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            self._init(root)
+            (root / "AGENTS.md").write_text("HACKED AGENTS\n", encoding="utf-8")
+            result = ensure_project_scaffold(repo_root=root, refresh=True, dry_run=True, project_policy="real_project")
+            self.assertTrue(result["dry_run"])
+            self.assertIn("AGENTS.md", result["refreshed"])
+            self.assertIsNone(result["backup_dir"])
+            self.assertEqual((root / "AGENTS.md").read_text(encoding="utf-8"), "HACKED AGENTS\n")
+            self.assertFalse((root / ".autoresearch" / "backups").exists())
+
+    def test_refresh_is_non_transactional_but_recoverable(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            self._init(root)
+            (root / "AGENTS.md").write_text("TAMPERED-AGENTS\n", encoding="utf-8")
+            (root / "docs" / "APPROVAL_GATES.md").write_text("TAMPERED-AG\n", encoding="utf-8")
+
+            target = root.resolve() / "docs" / "APPROVAL_GATES.md"
+            orig_write = pathlib.Path.write_text
+
+            def flaky_write(self, data, *args, **kwargs):
+                # Fail only the OVERWRITE of the second managed file (template content),
+                # not its backup write (which holds the TAMPERED- text).
+                if self == target and not data.startswith("TAMPERED-"):
+                    raise OSError("simulated write failure")
+                return orig_write(self, data, *args, **kwargs)
+
+            with mock.patch.object(pathlib.Path, "write_text", flaky_write):
+                with self.assertRaises(OSError):
+                    ensure_project_scaffold(repo_root=root, refresh=True, project_policy="real_project")
+
+            # The first managed file's prior content remains recoverable from the backup.
+            backups = list((root / ".autoresearch" / "backups").glob("*/AGENTS.md"))
+            self.assertTrue(backups, "expected a backup of the first managed file before the failure")
+            self.assertEqual(backups[0].read_text(encoding="utf-8"), "TAMPERED-AGENTS\n")
+
+    def test_refresh_backup_is_byte_exact_for_non_utf8_managed_file(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            self._init(root)
+            raw = b"\xff\xfe not valid utf-8 \x00 bytes\n"
+            (root / "AGENTS.md").write_bytes(raw)
+
+            result = ensure_project_scaffold(repo_root=root, refresh=True, project_policy="real_project")
+
+            self.assertIn("AGENTS.md", result["backed_up"])
+            backup = root / result["backup_dir"] / "AGENTS.md"
+            self.assertEqual(backup.read_bytes(), raw)
+            self.assertIn("This file anchors the workflow", (root / "AGENTS.md").read_text(encoding="utf-8"))
+
+    def test_managed_support_templates_have_no_render_placeholders(self) -> None:
+        for rel in SCAFFOLD_SUPPORT_FILES:
+            template = (scaffold_template_dir() / SCAFFOLD_TEMPLATE_MAP[rel]).read_text(encoding="utf-8")
+            for token in RENDER_PLACEHOLDER_TOKENS:
+                self.assertNotIn(
+                    token, template, msg=f"{rel} must stay deterministic boilerplate (found {token})"
+                )
+
+    def test_refresh_and_force_are_mutually_exclusive(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            self._init(root)
+            with self.assertRaisesRegex(ValueError, "mutually exclusive"):
+                ensure_project_scaffold(repo_root=root, refresh=True, force=True, project_policy="real_project")
+
+    def test_dry_run_requires_refresh(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            with self.assertRaisesRegex(ValueError, "only valid together with refresh"):
+                ensure_project_scaffold(repo_root=root, dry_run=True, project_policy="real_project")
+
+
+class TestScaffoldRefreshCli(unittest.TestCase):
+    def _run(self, *args: str) -> subprocess.CompletedProcess:
+        env = {**os.environ, "PYTHONPATH": str(_src_root())}
+        return subprocess.run(
+            [sys.executable, "-m", "project_contracts.project_scaffold_cli", *args],
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+
+    def test_cli_help_lists_refresh_and_dry_run(self) -> None:
+        result = self._run("--help")
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("--refresh", result.stdout)
+        self.assertIn("--dry-run", result.stdout)
+
+    def test_cli_rejects_force_and_refresh_together(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            result = self._run("--root", str(Path(td) / "proj"), "--force", "--refresh")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("not allowed with argument", result.stderr)
+
+    def test_cli_rejects_dry_run_without_refresh(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            result = self._run("--root", str(Path(td) / "proj"), "--dry-run")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("--dry-run is only valid together with --refresh", result.stderr)
+
+    def test_cli_refresh_emits_json_with_refresh_keys(self) -> None:
+        import json
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            ensure_project_scaffold(repo_root=root, project_name="Cli Refresh", project_policy="real_project")
+            result = self._run("--root", str(root), "--refresh")
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        payload = json.loads(result.stdout)
+        for key in ("refreshed", "backed_up", "unchanged", "preserved", "missing", "backup_dir", "dry_run"):
+            self.assertIn(key, payload)

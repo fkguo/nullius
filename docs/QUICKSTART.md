@@ -32,6 +32,11 @@ autoresearch init
 Then read the generated AGENTS.md and run:
 ./.autoresearch/bin/autoresearch status --json
 
+To pull newer managed scaffold docs (AGENTS.md and the docs/ contracts) into an
+already-initialized project without touching your own notes, preview then apply:
+autoresearch init --refresh --dry-run
+autoresearch init --refresh
+
 Use research-harness if your agent supports it. Treat autoresearch as the lifecycle
 authority, research-team as the milestone executor, and fold stable results back into
 research_contract.md, research_plan.md#Current Status, and artifacts/runs/<run_id>/.
