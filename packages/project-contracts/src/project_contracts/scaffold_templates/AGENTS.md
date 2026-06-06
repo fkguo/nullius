@@ -78,6 +78,7 @@ Use it as the restart checklist before any new milestone, context switch, or lon
 Some projects add extra host-local team or automation layers on top of this root.
 Treat those as opt-in support layers, not the default front door.
 When a host-local layer generates or updates this file, it must preserve the `.autoresearch/HARNESS` and `research-harness` reconnect requirements above so continuation starts from project recovery before executor-specific work.
+To pull newer versions of the managed scaffold documents (this file and the `docs/` contracts) into an existing project without disturbing your own work, the project owner can run `autoresearch init --refresh`: it backs up any changed managed file under `.autoresearch/backups/` before overwriting, and never rewrites your `research_plan.md`, `research_notebook.md`, `research_contract.md`, `project_charter.md`, or `project_index.md`. Preview first with `autoresearch init --refresh --dry-run`.
 If this project already has host-local support surfaces, follow the host's local instructions before using them.
 If it does not, keep using the read order above and update `research_plan.md` directly.
 

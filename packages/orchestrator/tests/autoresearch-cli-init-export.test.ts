@@ -215,7 +215,13 @@ describe('autoresearch CLI init/export', () => {
     const harnessPath = path.join(projectRoot, '.autoresearch', 'HARNESS');
     expect(fs.existsSync(harnessPath)).toBe(true);
     const launcherScript = fs.readFileSync(launcherPath, 'utf-8');
-    expect(launcherScript).toContain('project-local autoresearch launcher target is missing');
+    // Portable launcher: self-derives the project root and prefers an autoresearch
+    // on PATH — but never itself — so the project works on another machine.
+    expect(launcherScript).toContain('PROJECT_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)');
+    expect(launcherScript).toContain('command -v autoresearch');
+    expect(launcherScript).toContain('-ef "$0"');
+    expect(launcherScript).toContain('exec autoresearch "$@" --project-root "$PROJECT_ROOT"');
+    expect(launcherScript).not.toContain("PROJECT_ROOT='");
     expect(launcherScript).toContain('autoresearch init --runtime-only');
     expect(fs.existsSync(path.join(projectRoot, 'project_charter.md'))).toBe(false);
 
@@ -249,6 +255,48 @@ describe('autoresearch CLI init/export', () => {
     expect(payload.recovery_context.derivation_warnings).toEqual(expect.arrayContaining([
       expect.objectContaining({ code: 'RECOVERY_GUIDANCE_FILES_UNAVAILABLE' }),
     ]));
+  });
+
+  it('detects its own bin dir on PATH and falls back to the baked CLI without recursing', async () => {
+    const parentDir = makeTempDir('autoresearch-cli-self-path-');
+    const projectRoot = path.join(parentDir, 'project-root');
+    expect(await runCli([`--project-root=${projectRoot}`, 'init'], makeIo(parentDir).io)).toBe(0);
+    const binDir = path.join(projectRoot, '.autoresearch', 'bin');
+    const launcherPath = path.join(binDir, 'autoresearch');
+    // Put the launcher's own dir first on PATH: the self-resolution guard must skip
+    // itself and fall through to the baked CLI instead of recursing forever. The
+    // 20s timeout fails the test (rather than hanging) if recursion regresses.
+    const statusJson = execFileSync(launcherPath, ['status', '--json'], {
+      cwd: projectRoot,
+      encoding: 'utf-8',
+      timeout: 20000,
+      env: { ...process.env, PATH: `${binDir}${path.delimiter}/usr/bin:/bin` },
+    });
+    expect(JSON.parse(statusJson).run_status).toBe('idle');
+  });
+
+  it('treats a PATH symlink back to the launcher as itself and does not self-hop', async () => {
+    const parentDir = makeTempDir('autoresearch-cli-symlink-path-');
+    const projectRoot = path.join(parentDir, 'project-root');
+    expect(await runCli([`--project-root=${projectRoot}`, 'init'], makeIo(parentDir).io)).toBe(0);
+    const launcherPath = path.join(projectRoot, '.autoresearch', 'bin', 'autoresearch');
+    // A symlink named `autoresearch` on PATH pointing back to the launcher must be
+    // recognized as the launcher itself (real file identity via -ef), not exec'd as
+    // an external CLI — otherwise it self-hops and appends a wrong --project-root.
+    const symDir = path.join(parentDir, 'symbin');
+    fs.mkdirSync(symDir, { recursive: true });
+    fs.symlinkSync(launcherPath, path.join(symDir, 'autoresearch'));
+    const statusJson = execFileSync(launcherPath, ['status', '--json'], {
+      cwd: projectRoot,
+      encoding: 'utf-8',
+      timeout: 20000,
+      env: { ...process.env, PATH: `${symDir}${path.delimiter}/usr/bin:/bin` },
+    });
+    const payload = JSON.parse(statusJson);
+    expect(payload.run_status).toBe('idle');
+    // Correct project root used: the real project's HARNESS is present. A self-hop
+    // would have derived the wrong root (the symlink's parent), where no HARNESS exists.
+    expect(payload.recovery_context.control_files.harness.exists).toBe(true);
   });
 
   it('exports run artifacts and optional kb profile files into a zip bundle', async () => {
@@ -307,5 +355,128 @@ describe('autoresearch CLI init/export', () => {
       'EXPORT_PAYLOAD_UNAVAILABLE: no exportable files were found for run M-EMPTY',
     );
     expect(fs.existsSync(outPath)).toBe(false);
+  });
+});
+
+describe('autoresearch CLI init --refresh', () => {
+  it('refreshes changed managed docs with a backup and preserves user seed files', async () => {
+    const parentDir = makeTempDir('autoresearch-cli-refresh-');
+    const projectRoot = path.join(parentDir, 'project-root');
+    expect(await runCli([`--project-root=${projectRoot}`, 'init'], makeIo(parentDir).io)).toBe(0);
+
+    const agentsPath = path.join(projectRoot, 'AGENTS.md');
+    const planPath = path.join(projectRoot, 'research_plan.md');
+    fs.writeFileSync(agentsPath, 'HACKED AGENTS\n', 'utf-8');
+    const userPlan = '# research_plan.md\n\nUSER RESEARCH CONTENT\n'.repeat(20);
+    fs.writeFileSync(planPath, userPlan, 'utf-8');
+
+    const { io, stdout } = makeIo(parentDir);
+    const code = await runCli([`--project-root=${projectRoot}`, 'init', '--refresh'], io);
+
+    expect(code).toBe(0);
+    const out = stdout.join('');
+    expect(out).toContain('scaffold refresh');
+    expect(out).toContain('refreshed: AGENTS.md');
+    expect(out).toContain('backed up');
+    const agentsNow = fs.readFileSync(agentsPath, 'utf-8');
+    expect(agentsNow).toContain('This file anchors the workflow');
+    expect(agentsNow).not.toContain('HACKED');
+    expect(fs.readFileSync(planPath, 'utf-8')).toBe(userPlan);
+
+    const backupsDir = path.join(projectRoot, '.autoresearch', 'backups');
+    expect(fs.existsSync(backupsDir)).toBe(true);
+    const stamp = fs.readdirSync(backupsDir)[0]!;
+    expect(fs.readFileSync(path.join(backupsDir, stamp, 'AGENTS.md'), 'utf-8')).toBe('HACKED AGENTS\n');
+  });
+
+  it('--refresh --dry-run previews without writing anything', async () => {
+    const parentDir = makeTempDir('autoresearch-cli-refresh-dry-');
+    const projectRoot = path.join(parentDir, 'project-root');
+    expect(await runCli([`--project-root=${projectRoot}`, 'init'], makeIo(parentDir).io)).toBe(0);
+
+    const agentsPath = path.join(projectRoot, 'AGENTS.md');
+    fs.writeFileSync(agentsPath, 'HACKED AGENTS\n', 'utf-8');
+
+    const { io, stdout } = makeIo(parentDir);
+    const code = await runCli([`--project-root=${projectRoot}`, 'init', '--refresh', '--dry-run'], io);
+
+    expect(code).toBe(0);
+    expect(stdout.join('')).toContain('--dry-run, no files written');
+    expect(fs.readFileSync(agentsPath, 'utf-8')).toBe('HACKED AGENTS\n');
+    expect(fs.existsSync(path.join(projectRoot, '.autoresearch', 'backups'))).toBe(false);
+  });
+
+  it('--refresh --dry-run on an uninitialized root writes nothing at all', async () => {
+    const parentDir = makeTempDir('autoresearch-cli-refresh-dry-fresh-');
+    const projectRoot = path.join(parentDir, 'project-root');
+
+    const code = await runCli([`--project-root=${projectRoot}`, 'init', '--refresh', '--dry-run'], makeIo(parentDir).io);
+
+    expect(code).toBe(0);
+    expect(fs.existsSync(path.join(projectRoot, '.autoresearch'))).toBe(false);
+    expect(fs.existsSync(path.join(projectRoot, 'artifacts'))).toBe(false);
+    expect(fs.existsSync(path.join(projectRoot, 'docs'))).toBe(false);
+  });
+
+  it('rejects --refresh --force before writing runtime state', async () => {
+    const parentDir = makeTempDir('autoresearch-cli-refresh-force-');
+    const projectRoot = path.join(parentDir, 'project-root');
+    await expect(
+      runCli([`--project-root=${projectRoot}`, 'init', '--refresh', '--force'], makeIo(parentDir).io),
+    ).rejects.toThrow('choose either --refresh or --force');
+    expect(fs.existsSync(path.join(projectRoot, '.autoresearch'))).toBe(false);
+  });
+
+  it('rejects --refresh --runtime-only before writing runtime state', async () => {
+    const parentDir = makeTempDir('autoresearch-cli-refresh-runtime-');
+    const projectRoot = path.join(parentDir, 'project-root');
+    await expect(
+      runCli([`--project-root=${projectRoot}`, 'init', '--refresh', '--runtime-only'], makeIo(parentDir).io),
+    ).rejects.toThrow('--refresh cannot be combined with --runtime-only');
+    expect(fs.existsSync(path.join(projectRoot, '.autoresearch'))).toBe(false);
+  });
+
+  it('rejects --dry-run without --refresh before writing runtime state', async () => {
+    const parentDir = makeTempDir('autoresearch-cli-dry-only-');
+    const projectRoot = path.join(parentDir, 'project-root');
+    await expect(
+      runCli([`--project-root=${projectRoot}`, 'init', '--dry-run'], makeIo(parentDir).io),
+    ).rejects.toThrow('--dry-run is only valid together with --refresh');
+    expect(fs.existsSync(path.join(projectRoot, '.autoresearch'))).toBe(false);
+  });
+
+  it('threads --refresh and --dry-run to the scaffold authority and parses the enriched result', () => {
+    const parentDir = makeTempDir('autoresearch-scaffold-refresh-spawn-');
+    const projectRoot = path.join(parentDir, 'project-root');
+    const argvLog = path.join(parentDir, 'argv.log');
+    const fakePython = path.join(parentDir, 'fake-python.sh');
+    fs.writeFileSync(
+      fakePython,
+      [
+        '#!/bin/sh',
+        `printf '%s\\n' "$@" > ${JSON.stringify(argvLog)}`,
+        'printf \'{"created":[],"skipped":[],"refreshed":["AGENTS.md"],"backed_up":["AGENTS.md"],"unchanged":[],"preserved":["research_plan.md"],"missing":[],"backup_dir":".autoresearch/backups/X","dry_run":true}\\n\'',
+      ].join('\n') + '\n',
+      'utf-8',
+    );
+    fs.chmodSync(fakePython, 0o755);
+    const previous = process.env.AUTORESEARCH_PYTHON;
+    process.env.AUTORESEARCH_PYTHON = fakePython;
+    let result: ReturnType<typeof ensureProjectScaffold>;
+    try {
+      result = ensureProjectScaffold(projectRoot, { refresh: true, dryRun: true });
+    } finally {
+      if (previous === undefined) delete process.env.AUTORESEARCH_PYTHON;
+      else process.env.AUTORESEARCH_PYTHON = previous;
+    }
+
+    const argv = fs.readFileSync(argvLog, 'utf-8').trim().split('\n');
+    expect(argv).toContain('--refresh');
+    expect(argv).toContain('--dry-run');
+    expect(result.refreshed).toEqual(['AGENTS.md']);
+    expect(result.backedUp).toEqual(['AGENTS.md']);
+    expect(result.preserved).toEqual(['research_plan.md']);
+    expect(result.backupDir).toBe('.autoresearch/backups/X');
+    expect(result.dryRun).toBe(true);
   });
 });

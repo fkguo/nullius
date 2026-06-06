@@ -38,6 +38,47 @@ function repairCommand(): string {
   return 'autoresearch init --runtime-only';
 }
 
+const SELF_DERIVE_PROJECT_ROOT_LINE = 'PROJECT_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)';
+const RESOLVE_AUTORESEARCH_LINE = 'RESOLVED_AUTORESEARCH=$(command -v autoresearch 2>/dev/null || true)';
+// `-ef` compares real file identity (device+inode, following symlinks), so a PATH
+// entry that is — or symlinks back to — this launcher is rejected. A plain string
+// compare would miss a symlink-to-self and self-hop, corrupting --project-root.
+const PATH_PREFER_GUARD_LINE = 'if [ -n "$RESOLVED_AUTORESEARCH" ] && [ ! "$RESOLVED_AUTORESEARCH" -ef "$0" ]; then';
+const PATH_PREFER_EXEC_LINE = 'exec autoresearch "$@" --project-root "$PROJECT_ROOT"';
+
+function autoresearchResolvableOnPath(launcherPath: string): boolean {
+  const pathEnv = process.env.PATH;
+  if (!pathEnv) return false;
+  let launcherStat: fs.Stats | null = null;
+  try {
+    launcherStat = fs.statSync(launcherPath);
+  } catch {
+    launcherStat = null;
+  }
+  for (const dir of pathEnv.split(path.delimiter)) {
+    if (!dir) continue;
+    const candidate = path.join(dir, 'autoresearch');
+    try {
+      fs.accessSync(candidate, fs.constants.X_OK);
+      const candidateStat = fs.statSync(candidate);
+      // Mirror the launcher's runtime `command -v autoresearch`: only a regular
+      // executable file counts (a directory named `autoresearch` carries the
+      // execute bit but is not a resolvable command).
+      if (!candidateStat.isFile()) continue;
+      // Mirror the launcher's runtime `-ef` self-check (device+inode, following
+      // symlinks): a symlink OR hard link back to this launcher is the launcher
+      // itself and cannot satisfy itself, so it is not a usable on-PATH autoresearch.
+      if (launcherStat !== null && candidateStat.dev === launcherStat.dev && candidateStat.ino === launcherStat.ino) {
+        continue;
+      }
+      return true;
+    } catch {
+      // not resolvable here; keep scanning PATH
+    }
+  }
+  return false;
+}
+
 function unquoteShellSingleQuoted(value: string): string {
   return value.replace(/'"'"'/g, "'");
 }
@@ -56,11 +97,17 @@ function extractExecQuotedPaths(script: string): string[] {
   return paths;
 }
 
-function hasProjectLocalLauncherShape(script: string, projectRoot: string): boolean {
+function hasProjectLocalLauncherShape(script: string): boolean {
   const lines = script.split(/\r?\n/u);
-  const hasProjectRootAssignment = lines.includes(`PROJECT_ROOT=${shellQuote(projectRoot)}`);
-  const hasProjectRootExec = lines.some(line => /^\s*exec\s+.+\s"\$@"\s+--project-root\s+"\$PROJECT_ROOT"\s*$/u.test(line));
-  return hasProjectRootAssignment && hasProjectRootExec;
+  const hasSelfDerivedRoot = lines.includes(SELF_DERIVE_PROJECT_ROOT_LINE);
+  // Require the self-identity guard: an older unguarded PATH-prefer launcher would
+  // self-recurse, so it must be reported unparseable (→ refresh) rather than healthy.
+  const hasSelfGuard = lines.some(line => line.trim() === PATH_PREFER_GUARD_LINE);
+  const hasPathPreferExec = lines.some(line => line.trim() === PATH_PREFER_EXEC_LINE);
+  const hasFallbackExec = lines.some(line =>
+    /^\s*exec\s+'\/.*\s"\$@"\s+--project-root\s+"\$PROJECT_ROOT"\s*$/u.test(line),
+  );
+  return hasSelfDerivedRoot && hasSelfGuard && hasPathPreferExec && hasFallbackExec;
 }
 
 export function readProjectLocalAutoresearchLauncherHealth(projectRoot: string): ProjectLocalAutoresearchLauncherHealth {
@@ -95,7 +142,7 @@ export function readProjectLocalAutoresearchLauncherHealth(projectRoot: string):
   }
   const script = fs.readFileSync(launcherPath, 'utf-8');
   const checkedPaths = [...new Set(extractExecQuotedPaths(script))];
-  if (!hasProjectLocalLauncherShape(script, projectRoot)) {
+  if (!hasProjectLocalLauncherShape(script)) {
     return {
       ...base,
       exists: true,
@@ -106,8 +153,11 @@ export function readProjectLocalAutoresearchLauncherHealth(projectRoot: string):
       message: `Project-local fallback launcher format is unrecognized; run ${repairCommand()} from the project root to refresh it.`,
     };
   }
+  // The portable launcher prefers an `autoresearch` on PATH and only falls back to
+  // the baked checkout paths. A missing baked target is therefore fatal only when
+  // PATH cannot satisfy the launcher either.
   const missingPaths = checkedPaths.filter(candidate => !fs.existsSync(candidate));
-  if (missingPaths.length > 0) {
+  if (missingPaths.length > 0 && !autoresearchResolvableOnPath(launcherPath)) {
     return {
       ...base,
       exists: true,
@@ -116,7 +166,7 @@ export function readProjectLocalAutoresearchLauncherHealth(projectRoot: string):
       checked_paths: checkedPaths,
       missing_paths: missingPaths,
       issue_code: 'PROJECT_LOCAL_LAUNCHER_TARGET_MISSING',
-      message: `Project-local fallback launcher points at a missing CLI target; run ${repairCommand()} from the project root to refresh it.`,
+      message: `Project-local fallback launcher points at a missing CLI target and no autoresearch is on PATH; run ${repairCommand()} from the project root to refresh it.`,
     };
   }
   return {
@@ -125,6 +175,7 @@ export function readProjectLocalAutoresearchLauncherHealth(projectRoot: string):
     executable,
     healthy: true,
     checked_paths: checkedPaths,
+    missing_paths: missingPaths,
     issue_code: null,
     message: null,
   };
@@ -179,13 +230,13 @@ export function ensureProjectLocalAutoresearchLauncher(projectRoot: string): {
   const launcher = resolveProjectLocalAutoresearchLauncher();
   const launcherPath = path.join(projectRoot, projectLocalAutoresearchRelativePath());
   fs.mkdirSync(path.dirname(launcherPath), { recursive: true });
-  const checks = launcher.argv
+  const fallbackChecks = launcher.argv
     .filter(arg => path.isAbsolute(arg))
     .flatMap(arg => [
       `if [ ! -e ${shellQuote(arg)} ]; then`,
-      "  printf '%s\\n' '[error] project-local autoresearch launcher target is missing; refresh this project-local fallback.' >&2",
+      "  printf '%s\\n' '[error] autoresearch is not on PATH and the project-local fallback target is missing.' >&2",
       `  printf '%s\\n' ${shellQuote(`[error] missing: ${arg}`)} >&2`,
-      `  printf '%s\\n' ${shellQuote(`[error] run: ${repairCommand()}`)} >&2`,
+      `  printf '%s\\n' ${shellQuote(`[error] run on this machine: ${repairCommand()}`)} >&2`,
       '  exit 127',
       'fi',
     ]);
@@ -193,9 +244,19 @@ export function ensureProjectLocalAutoresearchLauncher(projectRoot: string): {
     '#!/bin/sh',
     'set -eu',
     '# Autoresearch project-local fallback launcher.',
-    '# If this checkout was removed, rerun: autoresearch init --runtime-only',
-    `PROJECT_ROOT=${shellQuote(projectRoot)}`,
-    ...checks,
+    '# Portable: the project root is derived from this script location, and an',
+    '# autoresearch on PATH is preferred, so the project keeps working after being',
+    `# moved or copied to another machine. If neither resolves, rerun: ${repairCommand()}`,
+    SELF_DERIVE_PROJECT_ROOT_LINE,
+    '# Prefer an autoresearch on PATH, but never this launcher itself: -ef compares',
+    '# real file identity, so a PATH entry that is (or symlinks back to) this script',
+    '# is rejected. Without it a self-referential PATH would recurse and corrupt',
+    '# --project-root. If no other autoresearch resolves, fall through to the baked CLI.',
+    RESOLVE_AUTORESEARCH_LINE,
+    PATH_PREFER_GUARD_LINE,
+    `  ${PATH_PREFER_EXEC_LINE}`,
+    'fi',
+    ...fallbackChecks,
     `exec ${launcher.argv.map(shellQuote).join(' ')} "$@" --project-root "$PROJECT_ROOT"`,
     '',
   ].join('\n');

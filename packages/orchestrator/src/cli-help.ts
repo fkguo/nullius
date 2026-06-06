@@ -34,9 +34,15 @@ Behavior:
   Always writes the project-local fallback launcher at \`.autoresearch/bin/autoresearch\`.
   That wrapper keeps \`autoresearch status --json\` as the canonical recovery command even when
   \`autoresearch\` is unavailable on PATH for a fresh external project.
+  --refresh re-applies the current managed scaffold docs (AGENTS.md and docs/*.md contracts),
+  backing up any changed file under \`.autoresearch/backups/<timestamp>/\` before overwriting it.
+  Refresh never writes user-owned files (research_plan.md, research_notebook.md,
+  research_contract.md, project_charter.md, project_index.md). Pair with --dry-run to preview.
 
 Pass-through options:
   --force
+  --refresh
+  --dry-run        With --refresh: preview what would change without writing.
   --allow-nested
   --runtime-only
   --checkpoint-interval-seconds <seconds>
