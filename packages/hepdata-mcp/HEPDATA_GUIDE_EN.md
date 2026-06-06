@@ -13,8 +13,8 @@ This guide is for both human users and AI agents.
 |------|---------|---------|
 | `hepdata_search` | Search for records; returns `hepdata_id` list | At least one search condition |
 | `hepdata_get_record` | Get record metadata and table list; returns `table_id` values | `hepdata_id` |
-| `hepdata_get_table` | Fetch numerical data (JSON or YAML) | `table_id` |
-| `hepdata_download` | Download full submission archive (zip) to local disk | `hepdata_id` + `_confirm: true` |
+| `hepdata_get_table` | Fetch numerical data inline (JSON, YAML, or CSV) | `table_id` |
+| `hepdata_download` | Download a full submission to local disk (zip / json / per-format archive) | `hepdata_id` + `_confirm: true` |
 
 **Typical call chain:**
 
@@ -130,8 +130,16 @@ Use INSPIRE/HEPData reaction notation: **ALL CAPS, spaces around `-->`**.
 
 ```json
 { "sort_by": "date" }      // relevance (default) | collaborations | title | date | latest
-{ "page": 2, "size": 25 }  // size max 25
+{ "page": 2, "size": 25 }  // single page; size max 25
+{ "max_results": 100 }     // bounded auto-pagination (see below)
 ```
+
+`max_results` enables **bounded auto-pagination**: the search fetches successive
+pages (each a separate, rate-limited request) and accumulates results until that
+many are collected, or HEPData runs out of matches — whichever comes first. Omit
+it for single-page behavior (effective default = `size`). A **hard cap of 200**
+applies: larger values are clamped down to 200, so a single search can never
+trigger an unbounded crawl of HEPData.
 
 ### Combined examples
 
@@ -165,7 +173,18 @@ Use INSPIRE/HEPData reaction notation: **ALL CAPS, spaces around `-->`**.
 
 ---
 
-## hepdata_get_table — Response Structure (JSON format)
+## hepdata_get_table — Inline Formats
+
+`format` selects how the table is returned inline (no file is written):
+
+- `format: "json"` (default) — parsed and normalized into the structured object below.
+- `format: "yaml"` — raw native HEPData YAML text with the full error breakdown.
+- `format: "csv"` — raw HEPData CSV text for the table.
+
+Heavy/binary formats (`root`, `yoda`, `yoda1`, `yoda.h5`) are **not** available here —
+use `hepdata_download` to write those to disk.
+
+### JSON format — Response Structure
 
 `values` is an array of rows. Each row has `x` (independent variables) and `y` (measured quantities).
 
@@ -203,19 +222,40 @@ Use INSPIRE/HEPData reaction notation: **ALL CAPS, spaces around `-->`**.
 }
 ```
 
-Use `format: "yaml"` for the full native HEPData YAML with complete error breakdown.
+Use `format: "yaml"` for the full native HEPData YAML with complete error breakdown,
+or `format: "csv"` for raw CSV text.
 
 ---
 
 ## hepdata_download — Downloading Submissions
 
-Downloads the complete submission archive (zip) for all tables to local disk.
+Downloads a complete submission for all tables to local disk. Unlike
+`hepdata_get_table` (which returns text-renderable formats inline), this is the
+path for whole-submission archives and heavy/binary formats.
 
 **Requires `_confirm: true`** — this is a safety gate (writes files to disk).
 
 ```json
-{ "hepdata_id": 96268, "_confirm": true }
+{ "hepdata_id": 96268, "_confirm": true }                  // original submission zip
+{ "hepdata_id": 96268, "format": "yoda", "_confirm": true } // per-format archive
 ```
+
+### `format` — what gets downloaded (default `original`)
+
+| `format` | What HEPData returns | On-disk filename |
+|----------|----------------------|------------------|
+| `original` (default) | full submission zip (all tables, all formats) | `hepdata_submission.zip` |
+| `json` | single submission JSON file | `hepdata_submission.json` |
+| `csv` | `.tar.gz` archive of every table as CSV | `hepdata_submission_csv.tar.gz` |
+| `root` | `.tar.gz` archive of every table as ROOT | `hepdata_submission_root.tar.gz` |
+| `yaml` | `.tar.gz` archive of every table as YAML | `hepdata_submission_yaml.tar.gz` |
+| `yoda` | `.tar.gz` archive of every table as YODA | `hepdata_submission_yoda.tar.gz` |
+| `yoda1` | `.tar.gz` archive of every table as YODA1 | `hepdata_submission_yoda1.tar.gz` |
+| `yoda.h5` | `.tar.gz` archive of every table as YODA HDF5 | `hepdata_submission_yoda_h5.tar.gz` |
+
+Each format is written to its **own** file under the submission's artifacts
+directory, so downloading multiple formats of the same submission never
+overwrites a previous one. The returned `uri` mirrors the on-disk filename.
 
 **Response fields:**
 
