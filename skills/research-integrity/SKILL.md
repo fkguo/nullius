@@ -92,8 +92,8 @@ is a signal worth flagging in the response.
   is the recent deletion.
 - A fresh subagent or peer model running an adversarial review of the
   diff in isolation.
-- `gitnexus_impact` and `gitnexus_context` to surface call sites and
-  invariants you may have forgotten existed.
+- Call-graph tracing — grep for call sites, or a code-intelligence tool
+  if one is available — to surface invariants you may have forgotten existed.
 - `pnpm -r build` and the targeted package's `vitest` / `pytest` —
   type-checking and tests catch a subset of M1, but they do not
   substitute for the disconfirming check.

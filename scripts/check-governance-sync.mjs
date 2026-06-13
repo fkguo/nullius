@@ -5,7 +5,8 @@
 // governance sections for tools/prompts that only know CLAUDE.md.
 //
 // The check extracts the region from the first occurrence of `## Read Order`
-// up to (and not including) the GitNexus appendix marker `<!-- gitnexus:start -->`.
+// up to (and not including) the GitNexus appendix marker `<!-- gitnexus:start -->`
+// if that marker is present, otherwise to end of file (the appendix was removed).
 // On mismatch it prints the first divergent line and exits non-zero.
 
 import { readFileSync } from 'node:fs';
@@ -25,10 +26,10 @@ function extractGovernance(relPath) {
   if (startIdx === -1) {
     throw new Error(`${relPath}: missing start marker ${JSON.stringify(START_MARKER)}`);
   }
-  const endIdx = content.indexOf(END_MARKER);
-  if (endIdx === -1) {
-    throw new Error(`${relPath}: missing end marker ${JSON.stringify(END_MARKER)}`);
-  }
+  // The GitNexus appendix marker bounds the region when present; once the
+  // appendix is removed the governance section simply runs to end of file.
+  const markerIdx = content.indexOf(END_MARKER);
+  const endIdx = markerIdx === -1 ? content.length : markerIdx;
   if (startIdx > endIdx) {
     throw new Error(`${relPath}: ${JSON.stringify(START_MARKER)} appears after ${JSON.stringify(END_MARKER)}`);
   }
@@ -64,7 +65,7 @@ if (agentsGov === claudeGov) {
 const diff = firstDifference(agentsGov, claudeGov);
 console.error('DRIFT: AGENTS.md and CLAUDE.md governance sections differ.');
 console.error('');
-console.error(`Region: from "${START_MARKER}" up to "${END_MARKER}" (exclusive).`);
+console.error(`Region: from "${START_MARKER}" up to "${END_MARKER}" (exclusive) or EOF.`);
 console.error(`AGENTS.md governance: ${agentsGov.split('\n').length} lines`);
 console.error(`CLAUDE.md governance: ${claudeGov.split('\n').length} lines`);
 console.error('');
