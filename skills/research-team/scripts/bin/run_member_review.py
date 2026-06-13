@@ -306,7 +306,7 @@ def _run_runner(
     out.parent.mkdir(parents=True, exist_ok=True)
     cmd: list[str] = ["bash", str(runner)]
     supports_retry_flags = False
-    if runner_kind == "claude" and (runner_max_retries is not None or runner_sleep_secs is not None):
+    if runner_kind in ("claude", "codex") and (runner_max_retries is not None or runner_sleep_secs is not None):
         try:
             supports_retry_flags = "--max-retries" in runner.read_text(encoding="utf-8", errors="replace")
         except Exception:
