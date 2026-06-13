@@ -172,7 +172,7 @@ def ensure_project_scaffold(
     created: list[str] = []
     skipped: list[str] = []
 
-    scaffold_dirs = ["artifacts/runs", "docs"]
+    scaffold_dirs = ["artifacts/runs"]
     for rel in scaffold_dirs:
         (repo_root / rel).mkdir(parents=True, exist_ok=True)
 

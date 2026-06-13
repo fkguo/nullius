@@ -18,7 +18,7 @@ Use it as the restart checklist before any new milestone, context switch, or lon
 - Machine contract: `research_contract.md`
 - Evidence-first: every meaningful action writes auditable artifacts under `artifacts/runs/<run_id>/`.
 - `run_id` names the project-local research run. Prefer a safe, sortable, readable shape such as `<YYYYMMDDTHHMMSSZ>-<milestone>-<short-topic>-rN`; do not use bare UUIDs, `run_<uuid>`, path separators, `..`, or low-information generated names as human-facing run IDs.
-- Approval gates A1–A5 stay active unless the project owner explicitly changes policy in `docs/APPROVAL_GATES.md`.
+- Approval gates A1–A5 stay active unless the project owner explicitly changes policy in `.autoresearch/approval_policy.json`.
 - Keep `research_plan.md#Current Status` current enough that a researcher can see the final target, completion state, blocker, next step, and stop condition without reading the full log.
 - Keep the task board in `research_plan.md` current enough that a new agent run can resume without relying on memory.
 - Keep `research_notebook.md` organized by the problem's logic. Do not use it for status tracking. Do not append large dated run logs there; put run logs in `research_plan.md` progress entries or `artifacts/runs/<run_id>/`, then fold durable insights into the relevant notebook sections.
@@ -87,4 +87,4 @@ If it does not, keep using the read order above and update `research_plan.md` di
 - `project_charter.md` declares the goal hierarchy and profile.
 - `research_plan.md` has a short Current Status section plus an actionable Task Board and Progress Log.
 - `research_contract.md` stays in sync with `research_notebook.md`.
-- `docs/ARTIFACT_CONTRACT.md` and `docs/EVAL_GATE_CONTRACT.md` remain the default safety contract for outputs and checks.
+- `research_contract.md` also carries the artifact/provenance, falsification, and final-conclusion contract for outputs and checks.
