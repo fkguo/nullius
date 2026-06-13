@@ -13,8 +13,9 @@
 // quoting the source text that grounds it — that keeps every "grounded" verdict
 // independently re-checkable against the source.
 //
-// Style mirrors the sibling shared runtime parsers (staged-content,
-// writing-review-bridge, verification-lift): hand-rolled safeParse/parse, no zod.
+// Style mirrors staged-content.ts: locally-defined types + a hand-rolled
+// safeParse/parse (no zod) — the same runtime-parser shape used across the shared
+// *-bridge / verification-lift modules.
 
 export type ClaimGroundingVerdict =
   | 'substantiated'
@@ -128,8 +129,11 @@ export function verdictToVerificationStatus(verdict: ClaimGroundingVerdict): Cla
   }
 }
 
-function hasVerbatimSpan(spans: ClaimSupportingSpan[]): boolean {
-  return spans.some(span => typeof span.quote === 'string' && span.quote.trim().length > 0);
+function hasVerbatimSpan(spans: readonly unknown[]): boolean {
+  // Defensive: this runs on already-typed entries (enforceSpanRule) AND on raw parsed
+  // JSON at the contract boundary (validateEntry), where an element may be null/undefined
+  // or a non-object. Guard before dereferencing so safeParse rejects (not throws) on it.
+  return spans.some(span => isObject(span) && typeof span.quote === 'string' && span.quote.trim().length > 0);
 }
 
 function appendNote(existing: string | undefined, addition: string): string {
@@ -305,7 +309,7 @@ function validateEntry(entry: unknown, path: string, issues: ClaimGroundingParse
   if (
     (entry.verdict === 'substantiated' || entry.verdict === 'partial')
     && Array.isArray(entry.supporting_spans)
-    && !hasVerbatimSpan(entry.supporting_spans as ClaimSupportingSpan[])
+    && !hasVerbatimSpan(entry.supporting_spans)
   ) {
     issues.push(issue(`${path}.supporting_spans`, `must contain a verbatim span for verdict '${String(entry.verdict)}'`));
   }
@@ -333,9 +337,17 @@ export function safeParseClaimGroundingReportV1(value: unknown): ParseSuccess | 
   if (!isObject(summary)) {
     issues.push(issue('summary', 'must be an object'));
   } else {
-    if (typeof summary.total !== 'number') issues.push(issue('summary.total', 'must be a number'));
+    if (typeof summary.total !== 'number' || !Number.isInteger(summary.total) || summary.total < 0) {
+      issues.push(issue('summary.total', 'must be a non-negative integer'));
+    }
     if (!isObject(summary.by_verdict)) {
       issues.push(issue('summary.by_verdict', 'must be an object'));
+    } else {
+      for (const verdict of CLAIM_GROUNDING_VERDICTS) {
+        if (typeof summary.by_verdict[verdict] !== 'number') {
+          issues.push(issue(`summary.by_verdict.${verdict}`, 'must be a number'));
+        }
+      }
     }
     if (
       typeof summary.grounding_risk_score !== 'number'

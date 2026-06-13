@@ -190,3 +190,60 @@ describe('applyGroundingToClaims', () => {
     expect(applyGroundingToClaims(claims, report)).toEqual(claims);
   });
 });
+
+describe('robustness against malformed span elements', () => {
+  function reportWithSpans(spans: unknown): unknown {
+    return {
+      version: 1,
+      generated_at: GEN,
+      claims: [{
+        claim_index: 0,
+        claim_text: 'x',
+        support_type: 'literature',
+        evidence_uris: ['u'],
+        domain: 'general',
+        method: 'text_entailment',
+        verdict: 'substantiated',
+        supporting_spans: spans,
+        verification_status: 'verified',
+      }],
+      summary: {
+        total: 1,
+        by_verdict: { substantiated: 1, partial: 0, not_substantiated: 0, conflicting: 0, source_unavailable: 0 },
+        grounding_risk_score: 0,
+      },
+    };
+  }
+
+  // Regression: safeParse must REJECT malformed agent JSON, never throw on it.
+  it('returns {ok:false} (does not throw) for a null span element', () => {
+    expect(() => safeParseClaimGroundingReportV1(reportWithSpans([null]))).not.toThrow();
+    expect(safeParseClaimGroundingReportV1(reportWithSpans([null])).ok).toBe(false);
+  });
+
+  it('returns {ok:false} (does not throw) for an undefined span element', () => {
+    expect(() => safeParseClaimGroundingReportV1(reportWithSpans([undefined]))).not.toThrow();
+    expect(safeParseClaimGroundingReportV1(reportWithSpans([undefined])).ok).toBe(false);
+  });
+
+  it('assemble throws a clean validation Error (not a raw TypeError) on a null span', () => {
+    expect(() => assembleClaimGroundingReport({
+      generated_at: GEN,
+      entries: [entryInput({ verdict: 'substantiated', supporting_spans: [null as unknown as ClaimGroundingEntry['supporting_spans'][number]] })],
+    })).toThrow(/assembled claim_grounding_report failed validation/);
+  });
+});
+
+describe('summary validation', () => {
+  function validReport() {
+    return assembleClaimGroundingReport({ generated_at: GEN, entries: [entryInput()] });
+  }
+  it('rejects a by_verdict missing a verdict key', () => {
+    const bad = { ...validReport(), summary: { ...validReport().summary, by_verdict: { substantiated: 1 } } };
+    expect(safeParseClaimGroundingReportV1(bad).ok).toBe(false);
+  });
+  it('rejects a non-integer total', () => {
+    const bad = { ...validReport(), summary: { ...validReport().summary, total: 1.5 } };
+    expect(safeParseClaimGroundingReportV1(bad).ok).toBe(false);
+  });
+});
