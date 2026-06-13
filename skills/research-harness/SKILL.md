@@ -66,7 +66,7 @@ The check is also skipped for:
    - `research_notebook.md` when it contains substantive project notes
    - the relevant `artifacts/runs/<run_id>/` and `team/runs/` directories
 
-To pull newer managed scaffold docs (`AGENTS.md` and the `docs/` contracts) into an existing project without disturbing user notes, run `autoresearch init --refresh` (preview with `autoresearch init --refresh --dry-run`). It backs up any changed managed file under `.autoresearch/backups/` and never rewrites `research_plan.md`, `research_notebook.md`, `research_contract.md`, `project_charter.md`, or `project_index.md`.
+To pull newer managed scaffold doc (`AGENTS.md`) into an existing project without disturbing user notes, run `autoresearch init --refresh` (preview with `autoresearch init --refresh --dry-run`). It backs up any changed managed file under `.autoresearch/backups/` and never rewrites `research_plan.md`, `research_notebook.md`, `research_contract.md`, `project_charter.md`, or `project_index.md`.
 
 If no project state exists and the user is in a real external research root, initialize with:
 

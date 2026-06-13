@@ -45,7 +45,7 @@
 
 ## Current truthful workflows
 
-- **Generic lifecycle workflow**: `autoresearch init/status/approve/pause/resume/export` (`export` now fails closed when no substantive payload is available); `init --refresh` re-applies the managed scaffold docs (`AGENTS.md` + `docs/` contracts) into an existing project with per-file backups under `.autoresearch/backups/` and never rewrites user-owned seed files (`--dry-run` previews)
+- **Generic lifecycle workflow**: `autoresearch init/status/approve/pause/resume/export` (`export` now fails closed when no substantive payload is available); `init --refresh` re-applies the managed scaffold doc (`AGENTS.md`) into an existing project with per-file backups under `.autoresearch/backups/` and never rewrites user-owned seed files (`--dry-run` previews)
 - **Higher-conclusion boundary workflow**: `autoresearch final-conclusions` / `orch_run_request_final_conclusions` gate A5 on canonical verification truth, and `approve` now consumes A5 into `final_conclusions_v1` on the existing approval/read-model surface rather than creating a second publication runtime
 - **Verification-to-A5 bridge workflow**: `autoresearch verify` / `orch_run_record_verification` is now the single-user local front door that turns verification from pending truth into decisive `passed` / `failed` / `blocked` artifacts before A5 request/approve
 - **Proposal lifecycle workflow**: `autoresearch proposal-decision` / `orch_run_record_proposal_decision` is now the thin local operator path for `accepted_for_later` / `dismissed` / `already_captured`, writing decision memory and dedupe state without turning proposals into a second gate family

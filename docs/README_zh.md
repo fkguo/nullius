@@ -178,7 +178,7 @@ autoresearch init
 Then read the generated AGENTS.md and run:
 ./.autoresearch/bin/autoresearch status --json
 
-To pull newer managed scaffold docs (AGENTS.md and the docs/ contracts) into an
+To pull newer managed scaffold doc (AGENTS.md) into an
 already-initialized project without touching your own notes, preview then apply:
 autoresearch init --refresh --dry-run
 autoresearch init --refresh

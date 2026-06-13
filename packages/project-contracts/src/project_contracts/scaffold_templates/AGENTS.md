@@ -18,7 +18,7 @@ Use it as the restart checklist before any new milestone, context switch, or lon
 - Machine contract: `research_contract.md`
 - Evidence-first: every meaningful action writes auditable artifacts under `artifacts/runs/<run_id>/`.
 - `run_id` names the project-local research run. Prefer a safe, sortable, readable shape such as `<YYYYMMDDTHHMMSSZ>-<milestone>-<short-topic>-rN`; do not use bare UUIDs, `run_<uuid>`, path separators, `..`, or low-information generated names as human-facing run IDs.
-- Approval gates A1–A5 stay active unless the project owner explicitly changes policy in `.autoresearch/approval_policy.json`.
+- Approval gates A1–A5 (broad search, code/logic changes, heavy compute, manuscript edits, final conclusions) stay active unless the project owner explicitly changes policy in `.autoresearch/approval_policy.json`.
 - Keep `research_plan.md#Current Status` current enough that a researcher can see the final target, completion state, blocker, next step, and stop condition without reading the full log.
 - Keep the task board in `research_plan.md` current enough that a new agent run can resume without relying on memory.
 - Keep `research_notebook.md` organized by the problem's logic. Do not use it for status tracking. Do not append large dated run logs there; put run logs in `research_plan.md` progress entries or `artifacts/runs/<run_id>/`, then fold durable insights into the relevant notebook sections.
@@ -78,7 +78,7 @@ Use it as the restart checklist before any new milestone, context switch, or lon
 Some projects add extra host-local team or automation layers on top of this root.
 Treat those as opt-in support layers, not the default front door.
 When a host-local layer generates or updates this file, it must preserve the `.autoresearch/HARNESS` and `research-harness` reconnect requirements above so continuation starts from project recovery before executor-specific work.
-To pull newer versions of the managed scaffold documents (this file and the `docs/` contracts) into an existing project without disturbing your own work, the project owner can run `autoresearch init --refresh`: it backs up any changed managed file under `.autoresearch/backups/` before overwriting, and never rewrites your `research_plan.md`, `research_notebook.md`, `research_contract.md`, `project_charter.md`, or `project_index.md`. Preview first with `autoresearch init --refresh --dry-run`.
+To pull newer versions of the managed scaffold document (this file) into an existing project without disturbing your own work, the project owner can run `autoresearch init --refresh`: it backs up any changed managed file under `.autoresearch/backups/` before overwriting, and never rewrites your `research_plan.md`, `research_notebook.md`, `research_contract.md`, `project_charter.md`, or `project_index.md`. Preview first with `autoresearch init --refresh --dry-run`.
 If this project already has host-local support surfaces, follow the host's local instructions before using them.
 If it does not, keep using the read order above and update `research_plan.md` directly.
 

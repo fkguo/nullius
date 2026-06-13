@@ -20,7 +20,7 @@ chmod +x "$HOME/.local/bin/autoresearch"
 autoresearch --help
 ```
 
-A project-local launcher (`./.autoresearch/bin/autoresearch`) is also written during `autoresearch init` so already-initialized research roots can reconnect without the global wrapper. `autoresearch init --refresh` re-applies the managed scaffold docs (`AGENTS.md` and the `docs/` contracts) with per-file backups under `.autoresearch/backups/`, without touching user-owned seed files.
+A project-local launcher (`./.autoresearch/bin/autoresearch`) is also written during `autoresearch init` so already-initialized research roots can reconnect without the global wrapper. `autoresearch init --refresh` re-applies the managed scaffold doc (`AGENTS.md`) with per-file backups under `.autoresearch/backups/`, without touching user-owned seed files.
 
 ## State and artifacts
 
