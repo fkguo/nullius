@@ -150,7 +150,6 @@ describe('RunManifestManager', () => {
       model: 'claude-opus-4-6',
       runId: 'run-resume',
       mcpClient: mockMcpClient as never,
-      approvalGate: {} as never,
       _messagesCreate: createFn,
     });
 

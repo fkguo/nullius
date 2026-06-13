@@ -78,7 +78,6 @@ describe('team unified runtime stage-gated recovery', () => {
         mcpClient: {
           callTool: vi.fn(async () => ({ ok: true, isError: false, rawText: 'tool-result', json: null, errorCode: null })),
         },
-        approvalGate: { createPending: () => ({}) } as never,
         _messagesCreate: vi.fn(async (params) => {
           const taskId = extractTaskId(params);
           const last = params.messages.at(-1);
@@ -137,7 +136,6 @@ describe('team unified runtime stage-gated recovery', () => {
         tools: [{ name: 'do_thing', input_schema: { type: 'object', properties: {} } }],
         model: 'claude-opus-4-6',
         mcpClient: { callTool: resumedToolCall },
-        approvalGate: { createPending: () => ({}) } as never,
         _messagesCreate: vi.fn(async (params) => {
           const taskId = extractTaskId(params);
           resumedTasks.push(taskId);

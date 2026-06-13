@@ -102,7 +102,6 @@ describe('team unified runtime parallel recovery', () => {
         tools: [{ name: 'do_thing', input_schema: { type: 'object', properties: {} } }],
         model: 'claude-opus-4-6',
         mcpClient: { callTool: firstToolCall },
-        approvalGate: { createPending: () => ({}) } as never,
         _messagesCreate: firstCreateMessage,
       });
 
@@ -148,7 +147,6 @@ describe('team unified runtime parallel recovery', () => {
         tools: [{ name: 'do_thing', input_schema: { type: 'object', properties: {} } }],
         model: 'claude-opus-4-6',
         mcpClient: { callTool: resumedToolCall },
-        approvalGate: { createPending: () => ({}) } as never,
         _messagesCreate: resumedCreateMessage,
       });
 

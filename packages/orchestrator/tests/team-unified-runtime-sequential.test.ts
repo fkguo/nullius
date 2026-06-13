@@ -88,7 +88,6 @@ describe('team unified runtime sequential policy', () => {
         tools: [{ name: 'do_thing', input_schema: { type: 'object', properties: {} } }],
         model: 'claude-opus-4-6',
         mcpClient: { callTool },
-        approvalGate: { createPending: () => ({}) } as never,
         _messagesCreate: createMessage,
       });
 
@@ -130,7 +129,6 @@ describe('team unified runtime sequential policy', () => {
         tools: [],
         model: 'claude-opus-4-6',
         mcpClient: { callTool: vi.fn(async () => ({ ok: true, isError: false, rawText: 'unused', json: null, errorCode: null })) },
-        approvalGate: { createPending: () => ({}) } as never,
         _messagesCreate: vi.fn(async params => {
           const taskId = taskIdFromMessages(params.messages, taskIds);
           if (taskId === 'task-sequential-fail-2') throw new Error('sequential delegate failed');
@@ -167,7 +165,6 @@ describe('team unified runtime sequential policy', () => {
         tools: [],
         model: 'claude-opus-4-6',
         mcpClient: { callTool: vi.fn(async () => ({ ok: true, isError: false, rawText: 'unused', json: null, errorCode: null })) },
-        approvalGate: { createPending: () => ({}) } as never,
         _messagesCreate: vi.fn().mockResolvedValue(textResponse('done')),
       })).rejects.toThrow(/supervised_delegate only supports a single assignment/i);
     } finally {
