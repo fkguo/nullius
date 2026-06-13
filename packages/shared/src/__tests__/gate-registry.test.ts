@@ -71,7 +71,7 @@ describe('GATE_REGISTRY', () => {
     expect(APPROVAL_REQUIRED_DEFAULTS).toEqual({
       mass_search: true,
       code_changes: true,
-      compute_runs: true,
+      compute_runs: false, // A3 is opt-in (default off); enable for unattended runs
       paper_edits: true,
       final_conclusions: true,
     });

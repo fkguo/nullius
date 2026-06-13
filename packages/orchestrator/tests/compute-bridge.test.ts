@@ -172,7 +172,8 @@ describe('compute bridge', () => {
     registerCleanup(projectRoot);
     fs.mkdirSync(path.join(runDir, 'artifacts'), { recursive: true });
     writeJson(path.join(runDir, 'artifacts', 'outline_seed_v1.json'), stagedIdeaSurface().outline);
-    initRunState(projectRoot, runId);
+    const manager = initRunState(projectRoot, runId);
+    fs.writeFileSync(manager.policyPath, JSON.stringify({ require_approval_for: { compute_runs: true } }) + '\n', 'utf-8'); // A3 is opt-in; enable it to exercise the gate
 
     const result = await bridgeStagedIdeaToComputation({
       dryRun: false,
@@ -201,6 +202,7 @@ describe('compute bridge', () => {
     fs.mkdirSync(path.join(runDir, 'artifacts'), { recursive: true });
     writeJson(path.join(runDir, 'artifacts', 'outline_seed_v1.json'), stagedIdeaSurface().outline);
     const manager = initRunState(projectRoot, runId);
+    fs.writeFileSync(manager.policyPath, JSON.stringify({ require_approval_for: { compute_runs: true } }) + '\n', 'utf-8'); // A3 is opt-in; enable it to exercise the gate
     markA3Satisfied(manager, 'A3-0001');
 
     await expect(() =>

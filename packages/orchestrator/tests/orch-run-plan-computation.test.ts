@@ -133,6 +133,7 @@ describe('orch_run_plan_computation tool', () => {
 
     const manager = new StateManager(projectRoot);
     manager.createRun(manager.readState(), 'run-provider-001', 'computation');
+    fs.writeFileSync(manager.policyPath, JSON.stringify({ require_approval_for: { compute_runs: true } }) + '\n', 'utf-8'); // A3 is opt-in; enable it to exercise the gate
 
     const planned = extractPayload(await handleToolCall(
       'orch_run_plan_computation',

@@ -139,9 +139,14 @@ export const APPROVAL_GATE_TO_POLICY_KEY = Object.freeze(
   Object.fromEntries(APPROVAL_GATE_ENTRIES),
 ) as Readonly<Record<ApprovalGateId, ApprovalOperationKey>>;
 
+// A1/A2/A4 (mass_search/code_changes/paper_edits) are advisory checkpoints — they
+// carry no machine enforcement and default to "recommend a human pause here". A3
+// (compute_runs) is the one machine-enforced gate and defaults OFF: interactive
+// human-in-the-loop needs no pause, and unattended runs opt in via compute_runs=true.
+// A5 (final_conclusions) is enforced by the explicit finalize/approve flow regardless.
 export const APPROVAL_REQUIRED_DEFAULTS = Object.freeze(
   Object.fromEntries(
-    APPROVAL_GATE_ENTRIES.map(([, policyKey]) => [policyKey, true] as const),
+    APPROVAL_GATE_ENTRIES.map(([, policyKey]) => [policyKey, policyKey !== 'compute_runs'] as const),
   ),
 ) as Readonly<Record<ApprovalOperationKey, boolean>>;
 

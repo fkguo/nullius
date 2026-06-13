@@ -2290,6 +2290,7 @@ describe('autoresearch CLI', () => {
     manager.ensureDirs();
     manager.saveState(manager.readState());
     const runId = 'M-RUN-A3';
+    fs.writeFileSync(manager.policyPath, JSON.stringify({ require_approval_for: { compute_runs: true } }) + '\n', 'utf-8'); // A3 is opt-in; enable it to exercise the gate
     const { runDir, manifestPath } = createComputationFixture(projectRoot, runId);
     const { io, stdout } = makeIo(projectRoot);
 
@@ -2320,6 +2321,7 @@ describe('autoresearch CLI', () => {
     manager.ensureDirs();
     manager.saveState(manager.readState());
     const runId = 'M-RUN-A3-REPLAY';
+    fs.writeFileSync(manager.policyPath, JSON.stringify({ require_approval_for: { compute_runs: true } }) + '\n', 'utf-8'); // A3 is opt-in; enable it to exercise the gate
     const { runDir, manifestPath } = createComputationFixture(projectRoot, runId);
     const first = makeIo(projectRoot);
 
@@ -2382,6 +2384,7 @@ describe('autoresearch CLI', () => {
     });
     manager.saveState(stale);
     const runId = 'M-RUN-RESET-A3';
+    fs.writeFileSync(manager.policyPath, JSON.stringify({ require_approval_for: { compute_runs: true } }) + '\n', 'utf-8'); // A3 is opt-in; enable it to exercise the gate
     const { runDir, manifestPath } = createComputationFixture(projectRoot, runId);
     const { io, stdout } = makeIo(projectRoot);
 
@@ -2405,10 +2408,40 @@ describe('autoresearch CLI', () => {
     expect(state.approval_history).toHaveLength(0);
   });
 
+  it('runs computation without approval when A3 (compute_runs) is opt-out by default', async () => {
+    const projectRoot = makeTempProjectRoot();
+    const manager = new StateManager(projectRoot);
+    manager.ensureDirs();
+    manager.saveState(manager.readState());
+    const runId = 'M-RUN-A3-OFF';
+    // No approval_policy.json -> compute_runs defaults off -> no A3 gate; compute proceeds.
+    const { runDir, manifestPath } = createComputationFixture(projectRoot, runId);
+    const { io, stdout } = makeIo(projectRoot);
+
+    const code = await runCli([
+      'run',
+      '--workflow-id', 'computation',
+      '--run-id', runId,
+      '--run-dir', runDir,
+      '--manifest', manifestPath,
+    ], io);
+
+    expect(code).toBe(0);
+    expect(JSON.parse(stdout.join(''))).toMatchObject({
+      status: 'completed',
+      ok: true,
+      run_id: runId,
+    });
+    const state2 = manager.readState();
+    expect(state2.pending_approval).toBeNull();
+    expect(state2.run_status).toBe('completed');
+  });
+
   it('executes computation manifests only when A3 is satisfied for the active run', async () => {
     const projectRoot = makeTempProjectRoot();
     const manager = new StateManager(projectRoot);
     manager.ensureDirs();
+    fs.writeFileSync(manager.policyPath, JSON.stringify({ require_approval_for: { compute_runs: true } }) + '\n', 'utf-8'); // A3 is opt-in; enable it to exercise the gate
     const runId = 'M-RUN-OK';
     const state = manager.readState();
     state.run_id = runId;

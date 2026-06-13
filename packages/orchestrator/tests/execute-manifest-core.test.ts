@@ -185,6 +185,7 @@ describe('executeComputationManifest', () => {
     fs.mkdirSync(runDir, { recursive: true });
 
     const manager = initRunState(projectRoot, runId);
+    fs.writeFileSync(manager.policyPath, JSON.stringify({ require_approval_for: { compute_runs: true } }) + '\n', 'utf-8'); // A3 is opt-in; enable it to exercise the gate
 
     createPythonStep(
       runDir,

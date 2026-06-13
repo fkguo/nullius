@@ -111,7 +111,7 @@ export async function runInitCommand(projectRoot: string | null, cwd: string, ar
     const policy = {
       schema_version: 1,
       mode: 'safe',
-      require_approval_for: { mass_search: true, code_changes: true, compute_runs: true, paper_edits: true, final_conclusions: true },
+      require_approval_for: { mass_search: true, code_changes: true, compute_runs: false, paper_edits: true, final_conclusions: true },
       budgets: { max_network_calls: 200, max_runtime_minutes: 60 },
       timeouts: {
         mass_search: { timeout_seconds: 86400, on_timeout: 'block' },
@@ -120,7 +120,7 @@ export async function runInitCommand(projectRoot: string | null, cwd: string, ar
         paper_edits: { timeout_seconds: 604800, on_timeout: 'block' },
         final_conclusions: { timeout_seconds: 604800, on_timeout: 'block' },
       },
-      notes: 'Default: human-in-the-loop at high-risk steps. Increase budgets or relax approvals only with explicit user consent.',
+      notes: 'A1/A2/A4 are advisory checkpoints (no machine pause). A3 (compute_runs) is the one machine-enforced gate and defaults off — set compute_runs=true to require approval before compute, e.g. on unattended runs. A5 finalization always goes through the approve flow.',
     };
     writeJsonAtomicDurable(manager.policyPath, policy);
     io.stdout(`[ok] wrote: ${manager.policyPath}\n`);

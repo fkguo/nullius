@@ -200,7 +200,11 @@ export async function handleOrchPolicyQuery(
       require_approval_for?: Record<string, boolean>;
     }
   ).require_approval_for;
-  result.requires_approval = approvalRequired ? (approvalRequired[params.operation] ?? true) : true;
+  // Undefined key falls back to the per-gate default (APPROVAL_REQUIRED_DEFAULTS),
+  // not a blanket true — so the advisory matches enforcement (e.g. compute_runs/A3
+  // defaults off). Only a genuinely unknown operation falls through to true.
+  const operationDefaults = APPROVAL_REQUIRED_DEFAULTS as Record<string, boolean>;
+  result.requires_approval = approvalRequired?.[params.operation] ?? operationDefaults[params.operation] ?? true;
   if (params.include_history && fs.existsSync(manager.statePath)) {
     const state = manager.readState();
     result.precedents = state.approval_history

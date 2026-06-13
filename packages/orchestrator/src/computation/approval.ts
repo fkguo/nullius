@@ -138,6 +138,11 @@ export function ensureA3Approval(
       next_actions: [{ tool: 'orch_run_create', args: { project_root: projectRoot, run_id: prepared.runId, workflow_id: 'computation' } }],
     });
   }
+  // A3 (compute_runs) is opt-in: only machine-gate compute when the policy explicitly
+  // enables it (default off — interactive use needs no pause; unattended runs opt in).
+  if (stateManager.readPolicy().require_approval_for?.compute_runs !== true) {
+    return null;
+  }
   const satisfiedA3 = typeof state.gate_satisfied.A3 === 'string' ? state.gate_satisfied.A3 : null;
   if (satisfiedA3) {
     return null;

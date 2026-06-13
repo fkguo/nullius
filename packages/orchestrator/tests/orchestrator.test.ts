@@ -2753,7 +2753,7 @@ describe('orch approval/query read models', () => {
       gate_to_policy_key: APPROVAL_GATE_TO_POLICY_KEY,
       policy: { require_approval_for: APPROVAL_REQUIRED_DEFAULTS },
       operation: 'compute_runs',
-      requires_approval: true,
+      requires_approval: false, // compute_runs (A3) now defaults off (opt-in)
     });
     expect((result as Record<string, unknown>).gate_to_policy_key).not.toHaveProperty('A0');
   });
@@ -2794,7 +2794,7 @@ describe('orch approval/query read models', () => {
       approval_required: {
         mass_search: true,
         code_changes: true,
-        compute_runs: false,
+        compute_runs: true,
         paper_edits: true,
         final_conclusions: true,
       },
@@ -2806,8 +2806,10 @@ describe('orch approval/query read models', () => {
       operation: 'compute_runs',
     });
 
+    // The non-canonical `approval_required` key is ignored, so compute_runs falls back
+    // to its default (false) — proving the non-canonical `true` above had no effect.
     expect(result).toMatchObject({
-      requires_approval: true,
+      requires_approval: false,
     });
   });
 
