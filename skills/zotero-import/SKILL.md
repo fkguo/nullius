@@ -123,7 +123,7 @@ zotero_get_selected_collection {}
 zotero_add {
   "source": { "type": "doi", "doi": "10.1063/1.864977" },
   "tags": ["plasma-physics"],
-  "file_path": "/Users/me/Downloads/hasegawa1983.pdf"
+  "file_path": "/path/to/Downloads/hasegawa1983.pdf"
 }
 # -> Returns confirm_token + preview
 

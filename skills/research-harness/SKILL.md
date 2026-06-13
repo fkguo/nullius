@@ -54,11 +54,14 @@ The check is also skipped for:
   directory (no lifecycle context to drift from);
 - `AUTORESEARCH_HARNESS_VERIFY=skip` env override (escape hatch) and
   `NODE_ENV=test` default.
-4. If `.autoresearch/` exists but `.autoresearch/HARNESS` is missing, or if both entrypoints are unavailable, repair only the runtime handshake and launcher from the
-   known development checkout, then retry the project-local CLI:
+4. If `.autoresearch/` exists but `.autoresearch/HARNESS` is missing, or if both entrypoints are unavailable, repair only the runtime handshake and launcher, then retry the project-local CLI:
    ```bash
-   node /home/user/Coding/Agents/autoresearch-lab/packages/orchestrator/dist/cli.js init --runtime-only
+   autoresearch init --runtime-only
    ./.autoresearch/bin/autoresearch status --json
+   ```
+   If `autoresearch` is not on `PATH`, run the same one-time repair through your autoresearch checkout (substitute its absolute path):
+   ```bash
+   node /absolute/path/to/autoresearch-lab/packages/orchestrator/dist/cli.js init --runtime-only
    ```
 5. Read and align the durable project surfaces:
    - `research_plan.md`, especially `# Current Status`
@@ -74,11 +77,11 @@ If no project state exists and the user is in a real external research root, ini
 autoresearch init
 ```
 
-If `autoresearch` is unavailable on `PATH`, use the development checkout
-entrypoint once to create the project-local fallback instead:
+If `autoresearch` is unavailable on `PATH`, run the same one-time setup through your
+autoresearch checkout (substitute its absolute path) to create the project-local fallback:
 
 ```bash
-node /home/user/Coding/Agents/autoresearch-lab/packages/orchestrator/dist/cli.js init --runtime-only
+node /absolute/path/to/autoresearch-lab/packages/orchestrator/dist/cli.js init --runtime-only
 ```
 
 ## Route The Work
