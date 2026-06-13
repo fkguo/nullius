@@ -58,6 +58,9 @@ export * from './verification-lift.js';
 // Claim-grounding contract (ABSORB #2: active statement-support grounding)
 export * from './claim-grounding.js';
 
+// Literature-survey contract (deep literature review synthesis/coverage layer)
+export * from './literature-survey.js';
+
 // Sanitization (H-08)
 export { sanitizePath, sanitizeFilename, sanitizeQueryString } from './sanitize.js';
 
