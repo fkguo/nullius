@@ -19,10 +19,11 @@ research workflow**。control plane（`autoresearch` CLI + `orch_*` MCP）是
 - **不是 SaaS**。状态与 artifact 留在每个外部 research project root 内，
   不放在任何远程服务上。没有订阅、没有共享后端、没有计费。state 落点见
   [`docs/README_zh.md`](./README_zh.md) §4。
-- **不是研究者的替代品**。control plane 强制 A1–A5 审批门（定义见
+- **不是研究者的替代品**。最终结论需经 A5 审批门，并对 integrity receipt
+  fail-closed（gate 定义见
   [`packages/shared/src/gate-registry.ts`](../packages/shared/src/gate-registry.ts)）；
-  agent 走流程；**研究者本人判断结果是否真实**。审批 fail-closed，agent
-  无法绕过自审。
+  重计算审批（A3）为 opt-in，其余检查点（A1/A2/A4）仅为 advisory。
+  agent 走流程；**研究者本人判断结果是否真实**。
 - **不是从一句 prompt 写出论文的工具**。`research-writer` 与 `paper-reviser`
   作用于研究者本人已有的 prose，对已 audit 的 run 收集的 evidence 操作；
   不从一个想法生成草稿。

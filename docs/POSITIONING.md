@@ -22,11 +22,12 @@ domain boundary — see §2.
   project root, not on a remote service. There is no subscription, no
   shared backend, no metering. See [`README.md`](../README.md) §4 for
   where state actually lives.
-- **Not a replacement for the researcher.** The control plane enforces
-  approval gates A1–A5 (defined in
-  [`packages/shared/src/gate-registry.ts`](../packages/shared/src/gate-registry.ts));
-  the agent walks the work; the **researcher decides whether the result
-  is real**. Approvals fail closed; the agent cannot self-approve past.
+- **Not a replacement for the researcher.** Finalizing conclusions is
+  gated (A5) and fails closed against an integrity receipt (gates defined
+  in [`packages/shared/src/gate-registry.ts`](../packages/shared/src/gate-registry.ts));
+  heavy-compute approval (A3) is opt-in, and the remaining checkpoints
+  (A1/A2/A4) are advisory. The agent walks the work; the **researcher
+  decides whether the result is real**.
 - **Not a paper writer from a prompt.** `research-writer` and
   `paper-reviser` operate on prose the researcher already owns, against
   evidence already collected by audited runs. They do not generate

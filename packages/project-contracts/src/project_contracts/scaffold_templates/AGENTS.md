@@ -18,7 +18,7 @@ Use it as the restart checklist before any new milestone, context switch, or lon
 - Machine contract: `research_contract.md`
 - Evidence-first: every meaningful action writes auditable artifacts under `artifacts/runs/<run_id>/`.
 - `run_id` names the project-local research run. Prefer a safe, sortable, readable shape such as `<YYYYMMDDTHHMMSSZ>-<milestone>-<short-topic>-rN`; do not use bare UUIDs, `run_<uuid>`, path separators, `..`, or low-information generated names as human-facing run IDs.
-- Approval gates A1–A5 (broad search, code/logic changes, heavy compute, manuscript edits, final conclusions) stay active unless the project owner explicitly changes policy in `.autoresearch/approval_policy.json`.
+- Approval checkpoints: final-conclusion approval (A5) is always enforced through the finalize flow. Heavy-compute approval (A3) is opt-in — off by default so interactive work is not paused; set `require_approval_for.compute_runs: true` in `.autoresearch/approval_policy.json` to gate unattended runs. A1/A2/A4 (broad search, code/logic changes, manuscript edits) are advisory reminders, not hard blocks.
 - Keep `research_plan.md#Current Status` current enough that a researcher can see the final target, completion state, blocker, next step, and stop condition without reading the full log.
 - Keep the task board in `research_plan.md` current enough that a new agent run can resume without relying on memory.
 - Keep `research_notebook.md` organized by the problem's logic. Do not use it for status tracking. Do not append large dated run logs there; put run logs in `research_plan.md` progress entries or `artifacts/runs/<run_id>/`, then fold durable insights into the relevant notebook sections.
