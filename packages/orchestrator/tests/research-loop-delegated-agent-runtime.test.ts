@@ -4,7 +4,6 @@ import * as path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
-  ApprovalGate,
   executeDelegatedAgentRuntime,
   type MessageParam,
   type Tool,
@@ -76,7 +75,6 @@ describe('executeDelegatedAgentRuntime', () => {
         tools: TOOLS,
         mcpClient: mcpClient.client,
         permissionProfile: directPermissionProfile(),
-        approvalGate: new ApprovalGate({}),
         _messagesCreate: createFn,
       });
 
@@ -137,7 +135,6 @@ describe('executeDelegatedAgentRuntime', () => {
           errorCode: null,
         }).client,
         permissionProfile: directPermissionProfile(),
-        approvalGate: new ApprovalGate({}),
         _messagesCreate: vi.fn()
           .mockResolvedValueOnce(toolUseResponse('tu_resume', 'do_thing'))
           .mockResolvedValueOnce(textResponse('done')),
@@ -163,7 +160,6 @@ describe('executeDelegatedAgentRuntime', () => {
         tools: TOOLS,
         mcpClient: resumedClient.client,
         permissionProfile: directPermissionProfile(),
-        approvalGate: new ApprovalGate({}),
         _messagesCreate: vi.fn().mockResolvedValueOnce(textResponse('resumed')),
       });
 
@@ -241,7 +237,6 @@ describe('executeDelegatedAgentRuntime', () => {
         }).client,
         permissionProfile: directPermissionProfile(),
         delegated_runtime_handle: handle,
-        approvalGate: new ApprovalGate({}),
         _messagesCreate: vi.fn().mockResolvedValueOnce(textResponse('done')),
       });
 
@@ -282,7 +277,6 @@ describe('executeDelegatedAgentRuntime', () => {
         }).client,
         permissionProfile: directPermissionProfile(),
         delegated_runtime_handle: handle,
-        approvalGate: new ApprovalGate({}),
         _messagesCreate: vi.fn().mockResolvedValueOnce(textResponse('done')),
       })).rejects.toThrow('delegated runtime handle run id mismatch');
     } finally {
@@ -307,7 +301,6 @@ describe('executeDelegatedAgentRuntime', () => {
           errorCode: null,
         }).client,
         permissionProfile: directPermissionProfile(),
-        approvalGate: new ApprovalGate({}),
         _messagesCreate: vi.fn()
           .mockResolvedValueOnce(textResponse('partial', 'max_tokens', { input_tokens: 90, output_tokens: 60, total_tokens: 150 }))
           .mockResolvedValueOnce(textResponse('complete')),

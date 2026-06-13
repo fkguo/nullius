@@ -425,7 +425,6 @@ async function executeLaunch(
       mcpClient: input.mcpClient,
       permissionProfile,
       delegated_runtime_handle: launch.handle,
-      approvalGate: input.approvalGate,
       resumeFrom: resolveAssignmentResumeFrom(input, assignment),
       maxTurns: input.maxTurns,
       routingConfig: input.routingConfig,

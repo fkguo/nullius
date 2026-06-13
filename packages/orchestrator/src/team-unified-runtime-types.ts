@@ -15,7 +15,7 @@ import type { TeamLiveStatusView, TeamReplayEntry } from './team-execution-view.
 export interface TeamRuntimeAssignmentInput extends TeamExecutionAssignmentInput {}
 
 export interface ExecuteUnifiedTeamRuntimeInput
-  extends Pick<ExecuteDelegatedAgentRuntimeInput, 'approvalGate' | 'backendFactory' | 'maxTurns' | 'mcpClient' | 'model' | 'projectRoot' | 'routingConfig' | 'runId' | 'spanCollector' | '_messagesCreate'> {
+  extends Pick<ExecuteDelegatedAgentRuntimeInput, 'backendFactory' | 'maxTurns' | 'mcpClient' | 'model' | 'projectRoot' | 'routingConfig' | 'runId' | 'spanCollector' | '_messagesCreate'> {
   workspaceId: string;
   coordinationPolicy: TeamCoordinationPolicy;
   permissions: TeamPermissionMatrix;

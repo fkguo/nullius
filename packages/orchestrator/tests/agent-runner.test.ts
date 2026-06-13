@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { ORCH_RUN_CREATE, ORCH_RUN_LIST, ORCH_RUN_STATUS } from '@autoresearch/shared';
 import { AgentRunner, _resetLaneQueue, type MessageParam, type Tool, type AgentEvent } from '../src/agent-runner.js';
 import type { McpClient, McpToolResult } from '../src/mcp-client.js';
-import type { ApprovalGate } from '../src/approval-gate.js';
 
 // ─── Minimal mocks ────────────────────────────────────────────────────────────
 
@@ -18,10 +17,6 @@ function makeMockMcpClient(
       return typeof val === 'function' ? val() : val;
     }),
   } as unknown as McpClient;
-}
-
-function makeMockApprovalGate(): ApprovalGate {
-  return {} as ApprovalGate;
 }
 
 function textResponse(
@@ -79,7 +74,6 @@ describe('AgentRunner', () => {
       model: 'claude-opus-4-6',
       runId: 'run-1',
       mcpClient: makeMockMcpClient(),
-      approvalGate: makeMockApprovalGate(),
       _messagesCreate: createFn,
     });
 
@@ -131,7 +125,6 @@ describe('AgentRunner', () => {
       model: 'claude-opus-4-6',
       runId: 'run-2',
       mcpClient,
-      approvalGate: makeMockApprovalGate(),
       _messagesCreate: createFn,
     });
 
@@ -198,7 +191,6 @@ describe('AgentRunner', () => {
       model: 'claude-opus-4-6',
       runId: 'run-batch-safe-group',
       mcpClient,
-      approvalGate: makeMockApprovalGate(),
       _messagesCreate: createFn,
     });
     const runtimePromise = collectEvents(runner.run([{ role: 'user', content: 'Inspect the runs' }], [
@@ -249,7 +241,6 @@ describe('AgentRunner', () => {
       model: 'claude-opus-4-6',
       runId: 'run-mixed-grouping',
       mcpClient,
-      approvalGate: makeMockApprovalGate(),
       _messagesCreate: createFn,
     });
     const runtimePromise = collectEvents(runner.run([{ role: 'user', content: 'Do the mixed work' }], [
@@ -273,7 +264,6 @@ describe('AgentRunner', () => {
       model: 'fast',
       runId: 'run-route-direct',
       mcpClient: makeMockMcpClient(),
-      approvalGate: makeMockApprovalGate(),
       routingConfig: {
         version: 1,
         default_route: 'fast',
@@ -302,7 +292,6 @@ describe('AgentRunner', () => {
       model: 'claude-opus-4-6',
       runId: 'run-route-default-budget',
       mcpClient: makeMockMcpClient(),
-      approvalGate: makeMockApprovalGate(),
       _messagesCreate: createFn,
     });
 
@@ -320,7 +309,6 @@ describe('AgentRunner', () => {
       model: 'analysis',
       runId: 'run-route-alias',
       mcpClient: makeMockMcpClient(),
-      approvalGate: makeMockApprovalGate(),
       routingConfig: JSON.stringify({
         version: 1,
         default_route: 'balanced',
@@ -345,7 +333,6 @@ describe('AgentRunner', () => {
       model: 'missing',
       runId: 'run-route-missing',
       mcpClient: makeMockMcpClient(),
-      approvalGate: makeMockApprovalGate(),
       routingConfig: {
         version: 1,
         default_route: 'default',
@@ -363,7 +350,6 @@ describe('AgentRunner', () => {
       model: 'default',
       runId: 'run-route-json',
       mcpClient: makeMockMcpClient(),
-      approvalGate: makeMockApprovalGate(),
       routingConfig: '{bad json',
       _messagesCreate: vi.fn(),
     })).toThrow(/Invalid routing config JSON/);
@@ -372,7 +358,6 @@ describe('AgentRunner', () => {
       model: 'default',
       runId: 'run-route-backend',
       mcpClient: makeMockMcpClient(),
-      approvalGate: makeMockApprovalGate(),
       routingConfig: {
         version: 1,
         default_route: 'default',
@@ -399,7 +384,6 @@ describe('AgentRunner', () => {
           return { ok: true, isError: false, rawText: `result-${callCount}`, json: null, errorCode: null };
         },
       }),
-      approvalGate: makeMockApprovalGate(),
       _messagesCreate: createFn,
     });
 
@@ -424,7 +408,6 @@ describe('AgentRunner', () => {
       maxTurns: 10,
       runId: 'run-diminishing-returns',
       mcpClient,
-      approvalGate: makeMockApprovalGate(),
       _messagesCreate: createFn,
     });
 
@@ -463,7 +446,6 @@ describe('AgentRunner', () => {
       maxTurns: 10,
       runId: 'run-diminishing-returns-all-errors',
       mcpClient,
-      approvalGate: makeMockApprovalGate(),
       _messagesCreate: createFn,
     });
 
@@ -504,7 +486,6 @@ describe('AgentRunner', () => {
       maxTurns: 10,
       runId: 'run-diminishing-returns-reset',
       mcpClient,
-      approvalGate: makeMockApprovalGate(),
       _messagesCreate: createFn,
     });
 
@@ -541,7 +522,6 @@ describe('AgentRunner', () => {
       model: 'claude-opus-4-6',
       runId: 'run-approval',
       mcpClient,
-      approvalGate: makeMockApprovalGate(),
       _messagesCreate: createFn,
     });
 
@@ -590,7 +570,6 @@ describe('AgentRunner', () => {
       model: 'claude-opus-4-6',
       runId: 'run-failfast',
       mcpClient,
-      approvalGate: makeMockApprovalGate(),
       _messagesCreate: createFn,
     });
 
@@ -632,7 +611,6 @@ describe('AgentRunner', () => {
       model: 'claude-opus-4-6',
       runId: 'run-batch-safe-approval-guard',
       mcpClient,
-      approvalGate: makeMockApprovalGate(),
       _messagesCreate: createFn,
     });
 
@@ -671,7 +649,6 @@ describe('AgentRunner', () => {
       model: 'claude-opus-4-6',
       runId: 'run-recovery-apr',
       mcpClient,
-      approvalGate: makeMockApprovalGate(),
       _messagesCreate: createFn,
     });
 
@@ -740,7 +717,6 @@ describe('AgentRunner', () => {
       model: 'claude-opus-4-6',
       runId: 'run-lane',
       mcpClient: makeMockMcpClient(),
-      approvalGate: makeMockApprovalGate(),
       _messagesCreate: createFn,
     });
 
@@ -790,14 +766,12 @@ describe('AgentRunner', () => {
       model: 'claude-opus-4-6',
       runId: 'run-A',
       mcpClient: makeMockMcpClient(),
-      approvalGate: makeMockApprovalGate(),
       _messagesCreate: createA,
     });
     const runnerB = new AgentRunner({
       model: 'claude-opus-4-6',
       runId: 'run-B',
       mcpClient: makeMockMcpClient(),
-      approvalGate: makeMockApprovalGate(),
       _messagesCreate: createB,
     });
 
@@ -822,7 +796,6 @@ describe('AgentRunner', () => {
       model: 'claude-opus-4-6',
       runId: 'run-err',
       mcpClient: makeMockMcpClient(),
-      approvalGate: makeMockApprovalGate(),
       _messagesCreate: createFn,
     });
 
@@ -839,7 +812,6 @@ describe('AgentRunner', () => {
       model: 'claude-opus-4-6',
       runId: 'run-truncation-retry',
       mcpClient: makeMockMcpClient(),
-      approvalGate: makeMockApprovalGate(),
       _messagesCreate: createFn,
     });
 
@@ -872,7 +844,6 @@ describe('AgentRunner', () => {
       model: 'claude-opus-4-6',
       runId: 'run-truncation-exhausted',
       mcpClient: makeMockMcpClient(),
-      approvalGate: makeMockApprovalGate(),
       _messagesCreate: createFn,
     });
 
@@ -894,7 +865,6 @@ describe('AgentRunner', () => {
       model: 'claude-opus-4-6',
       runId: 'run-overflow-retry',
       mcpClient: makeMockMcpClient(),
-      approvalGate: makeMockApprovalGate(),
       _messagesCreate: createFn,
     });
 
@@ -926,7 +896,6 @@ describe('AgentRunner', () => {
       model: 'claude-opus-4-6',
       runId: 'run-unknown-stop-reason',
       mcpClient: makeMockMcpClient(),
-      approvalGate: makeMockApprovalGate(),
       _messagesCreate: createFn,
     });
 

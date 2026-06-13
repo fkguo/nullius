@@ -1,5 +1,4 @@
 import * as path from 'node:path';
-import type { ApprovalGate } from '../approval-gate.js';
 import { AgentRunner, type AgentEvent, type MessageParam, type Tool } from '../agent-runner.js';
 import type { ChatBackendFactory } from '../backends/backend-factory.js';
 import type { MessagesCreateFn, ToolUseContent } from '../backends/chat-backend.js';
@@ -30,7 +29,6 @@ export interface ExecuteDelegatedAgentRuntimeInput {
   mcpClient: ToolCaller;
   permissionProfile: RuntimePermissionProfileV1;
   delegated_runtime_handle?: DelegatedRuntimeHandleV1;
-  approvalGate: ApprovalGate;
   resumeFrom?: string;
   maxTurns?: number;
   routingConfig?: unknown;
@@ -99,7 +97,6 @@ export async function executeDelegatedAgentRuntime(
     maxTurns: input.maxTurns,
     runId: input.runId,
     mcpClient: bindToolPermissionView(input.mcpClient, toolPermissionView),
-    approvalGate: input.approvalGate,
     spanCollector: input.spanCollector,
     routingConfig: input.routingConfig,
     backendFactory: input.backendFactory,

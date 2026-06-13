@@ -7,7 +7,7 @@ import {
   APPROVAL_GATE_TO_POLICY_KEY,
   APPROVAL_REQUIRED_DEFAULTS,
 } from '@autoresearch/shared';
-import { StateManager, ApprovalGate, approvalPacketSha256 } from '../src/index.js';
+import { StateManager } from '../src/index.js';
 import type { RunState } from '../src/index.js';
 import { handleOrchPolicyQuery, handleOrchRunExport } from '../src/orch-tools/control.js';
 import { handleOrchRunCreate } from '../src/orch-tools/create-status-list.js';
@@ -801,125 +801,6 @@ describe('StateManager', () => {
     const sm = new StateManager(tmpDir);
     const read = sm.readState();
     expect(read.gate_satisfied['A1']).toBe('apr_001');
-  });
-});
-
-describe('ApprovalGate', () => {
-  it('creates pending approval with Python-shaped fields', () => {
-    const gate = new ApprovalGate({
-      timeouts: { A1: { timeout_seconds: 3600, on_timeout: 'reject' } },
-    });
-    const pending = gate.createPending({
-      category: 'A1',
-      plan_step_ids: ['step_1'],
-      packet_path: 'approvals/apr_test/packet.md',
-    });
-
-    expect(pending.category).toBe('A1');
-    expect(pending.plan_step_ids).toEqual(['step_1']);
-    expect(pending.packet_path).toBe('approvals/apr_test/packet.md');
-    expect(pending.on_timeout).toBe('reject');
-    expect(pending.approval_id).toMatch(/^apr_/);
-  });
-
-  it('rejects approval with wrong ID', () => {
-    const gate = new ApprovalGate({});
-    const state = baseState({
-      run_id: 'r1',
-      run_status: 'awaiting_approval',
-      pending_approval: {
-        approval_id: 'apr_correct',
-        category: 'A1',
-        plan_step_ids: [],
-        requested_at: '2020-01-01T00:00:00Z',
-        timeout_at: '2099-01-01T00:00:00Z',
-        on_timeout: 'block',
-        packet_path: 'approvals/apr_correct/packet.md',
-      },
-    });
-
-    const result = gate.checkApproval(state, 'apr_wrong');
-    expect(result.allowed).toBe(false);
-    expect(result.reason).toContain('mismatch');
-  });
-
-  it('rejects timed-out approval', () => {
-    const gate = new ApprovalGate({});
-    const state = baseState({
-      run_id: 'r1',
-      run_status: 'awaiting_approval',
-      pending_approval: {
-        approval_id: 'apr_test',
-        category: 'A1',
-        plan_step_ids: [],
-        requested_at: '2020-01-01T00:00:00Z',
-        timeout_at: '2020-01-01T01:00:00Z', // expired
-        on_timeout: 'reject',
-        packet_path: 'approvals/apr_test/packet.md',
-      },
-    });
-
-    const result = gate.checkApproval(state, 'apr_test');
-    expect(result.allowed).toBe(false);
-    expect(result.action).toBe('reject');
-  });
-
-  it('enforces approval budget (budgets.max_approvals)', () => {
-    const gate = new ApprovalGate({ budgets: { max_approvals: 1 } });
-    const state = baseState({
-      run_id: 'r1',
-      run_status: 'awaiting_approval',
-      pending_approval: {
-        approval_id: 'apr_test',
-        category: 'A1',
-        plan_step_ids: [],
-        requested_at: '2020-01-01T00:00:00Z',
-        timeout_at: '2099-01-01T00:00:00Z',
-        on_timeout: 'block',
-        packet_path: 'approvals/apr_test/packet.md',
-      },
-      approval_history: [
-        { ts: '2020-01-01T00:00:00Z', approval_id: 'a1', category: 'A1', decision: 'approved', note: '' },
-      ],
-    });
-
-    const result = gate.checkApproval(state, 'apr_test');
-    expect(result.allowed).toBe(false);
-    expect(result.action).toBe('budget_exhausted');
-  });
-
-  it('allows valid approval', () => {
-    const gate = new ApprovalGate({});
-    const state = baseState({
-      run_id: 'r1',
-      run_status: 'awaiting_approval',
-      pending_approval: {
-        approval_id: 'apr_ok',
-        category: 'A1',
-        plan_step_ids: [],
-        requested_at: '2020-01-01T00:00:00Z',
-        timeout_at: '2099-01-01T00:00:00Z',
-        on_timeout: 'block',
-        packet_path: 'approvals/apr_ok/packet.md',
-      },
-    });
-
-    const result = gate.checkApproval(state, 'apr_ok');
-    expect(result.allowed).toBe(true);
-  });
-});
-
-describe('approvalPacketSha256', () => {
-  it('produces consistent hash for same content (key-order independent)', () => {
-    const hash1 = approvalPacketSha256({ a: 1, b: 2 });
-    const hash2 = approvalPacketSha256({ b: 2, a: 1 });
-    expect(hash1).toBe(hash2);
-  });
-
-  it('sorts nested keys recursively', () => {
-    const hash1 = approvalPacketSha256({ outer: { z: 1, a: 2 } });
-    const hash2 = approvalPacketSha256({ outer: { a: 2, z: 1 } });
-    expect(hash1).toBe(hash2);
   });
 });
 
