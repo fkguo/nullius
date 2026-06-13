@@ -55,6 +55,9 @@ export * from './review-judge-decision.js';
 // Verification lift runtime parser
 export * from './verification-lift.js';
 
+// Claim-grounding contract (ABSORB #2: active statement-support grounding)
+export * from './claim-grounding.js';
+
 // Sanitization (H-08)
 export { sanitizePath, sanitizeFilename, sanitizeQueryString } from './sanitize.js';
 

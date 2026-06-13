@@ -452,6 +452,15 @@ file.
   findings are not symptoms the author could have caught.
 - `paper-reviser` is the right surface for acting on M2/M3/M4/M7
   findings that surface during late-stage drafting.
+- `claim-grounding` is the active execution of the M2/M3 obligations.
+  Where this skill mandates *that* citations and cited numbers be checked
+  against their sources, `claim-grounding` is the generic, domain-routed
+  way to *do* it: for each cited claim it fetches the source and records a
+  span-backed verdict in a `claim_grounding_report_v1` artifact, and a
+  `substantiated` verdict that carries no verbatim source quote is
+  mechanically downgraded. It stays a generic skill plus a
+  `@autoresearch/shared` contract — not a `hep-mcp` tool — consistent with
+  the criterion below.
 
 ## HEP-specific augmentation (future, out of scope here)
 
