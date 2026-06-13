@@ -1,38 +1,32 @@
 {
   "version": "1.0",
-  "notes": "Project-specific scan dependency rules. The engine is generic; customize this file per project.",
+  "notes": "Project-specific scan-dependency rules. The engine is generic; replace the EXAMPLE rule below with your project's real variables and dependencies, or delete the rule entirely if no scan dependencies apply.",
   "aliases": {
-    "m_pi": ["m_pi_gev", "mpi_gev", "pion_mass_gev", "m_pion_gev"],
-    "f_pi": ["f_pi_gev", "fpi_gev", "pion_decay_constant_gev"],
-    "S": ["shear", "shear_rate", "S_star", "S_*"],
-    "kappa": ["kappa", "grad", "drive", "kappa_drive"]
+    "control_param": ["control_parameter", "scanned_input"],
+    "derived_quantity": ["derived_output", "dependent_quantity"]
   },
   "rules": [
     {
-      "id": "example-mpi-requires-fpi",
-      "description": "EXAMPLE: if scanning m_pi, you must include f_pi in the scan outputs and declare fpi_mode in manifest.",
+      "id": "example-control-requires-derived",
+      "description": "EXAMPLE (replace or delete): when a scan varies `control_param`, the dependent `derived_quantity` must be recomputed per point rather than held fixed — it must appear and vary in the scan outputs, and its computation mode must not be pinned to a constant in the manifest.",
       "trigger": {
         "scanned_variable": {
-          "match": "m_pi",
-          "aliases": ["m_pi_gev"]
+          "match": "control_param",
+          "aliases": ["control_parameter"]
         }
       },
       "required_columns": [
         {
-          "name": "f_pi",
-          "condition": "present",
-          "aliases": ["f_pi_gev"]
+          "name": "derived_quantity",
+          "condition": "must_vary",
+          "aliases": ["derived_output"]
         }
       ],
       "required_manifest": [
         {
-          "path": "fpi_mode",
+          "path": "derived_quantity_mode",
           "must_exist": true,
           "forbidden_values": ["fixed", "constant"]
-        },
-        {
-          "path": "derived.f0_gev",
-          "must_exist": false
         }
       ],
       "exemptions": [
@@ -44,31 +38,6 @@
         }
       ],
       "error_message": "[RULE:{id}] scan dependency violation(s):\\n{errors}"
-    },
-    {
-      "id": "example-scan-shear-requires-corrtime",
-      "description": "EXAMPLE: if scanning S, the derived correlation time tau_c(S) must be recomputed and present in CSV as tau_c (varying).",
-      "trigger": {
-        "scanned_variable": {
-          "match": "S",
-          "aliases": ["shear"]
-        }
-      },
-      "required_columns": [
-        {
-          "name": "tau_c",
-          "condition": "must_vary",
-          "aliases": ["tau_c", "corr_time", "correlation_time"]
-        }
-      ],
-      "required_manifest": [
-        {
-          "path": "model",
-          "must_exist": false
-        }
-      ],
-      "error_message": "[RULE:{id}] scan dependency violation(s):\\n{errors}"
     }
   ]
 }
-
