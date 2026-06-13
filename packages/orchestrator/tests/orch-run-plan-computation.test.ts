@@ -175,4 +175,53 @@ describe('orch_run_plan_computation tool', () => {
     expect(executed.status).toBe('completed');
     expect(fs.existsSync(path.join(runDir, 'computation', 'results', 'provider_result.json'))).toBe(true);
   });
+
+  it('returns a ready-to-execute planned result (no approval) when A3 (compute_runs) is opt-out by default', async () => {
+    const projectRoot = makeTmpDir('orch-plan-project-');
+    const runDir = makeTmpDir('orch-plan-run-');
+    CLEANUP_DIRS.push(projectRoot, runDir);
+
+    stageIdeaArtifactsIntoRun({
+      handoffRecord: makeProviderBackedHandoff(),
+      handoffUri: path.join(runDir, 'source-provider-handoff.json'),
+      runDir,
+    });
+
+    const manager = new StateManager(projectRoot);
+    manager.createRun(manager.readState(), 'run-provider-a3off', 'computation');
+    // No approval_policy.json written → compute_runs defaults OFF (A3 opt-out).
+
+    const planned = extractPayload(await handleToolCall(
+      'orch_run_plan_computation',
+      {
+        project_root: projectRoot,
+        run_id: 'run-provider-a3off',
+        run_dir: runDir,
+        dry_run: false,
+      },
+      'full',
+    ));
+
+    // Planning-only bridge: no approval gate, so it returns a staged-and-ready plan.
+    expect(planned.status).toBe('planned');
+    expect(planned.requires_approval).toBe(false);
+    expect(planned.approval_id).toBeUndefined();
+    expect(planned.manifest_path).toBe('computation/manifest.json');
+
+    // No approval was created — the run executes directly via orch_run_execute_manifest.
+    const executed = extractPayload(await handleToolCall(
+      'orch_run_execute_manifest',
+      {
+        _confirm: true,
+        project_root: projectRoot,
+        run_id: 'run-provider-a3off',
+        run_dir: runDir,
+        manifest_path: String(planned.manifest_path),
+      },
+      'full',
+    ));
+
+    expect(executed.status).toBe('completed');
+    expect(fs.existsSync(path.join(runDir, 'computation', 'results', 'provider_result.json'))).toBe(true);
+  });
 });

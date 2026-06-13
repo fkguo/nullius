@@ -77,6 +77,7 @@ describe('generic execute-manifest surface after hep-mcp migration', () => {
 
     const manager = new StateManager(projectRoot);
     manager.createRun(manager.readState(), staged.run_id, 'computation');
+    fs.writeFileSync(manager.policyPath, JSON.stringify({ require_approval_for: { compute_runs: true } }) + '\n', 'utf-8'); // A3 is opt-in; enable it to exercise the approval gate
     const runDir = path.join(hepDataDir, 'runs', staged.run_id);
     const planPayload = extractPayload(await handleOrchToolCall(
       'orch_run_plan_computation',

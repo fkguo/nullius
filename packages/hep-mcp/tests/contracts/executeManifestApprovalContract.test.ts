@@ -72,6 +72,7 @@ describe('orch_run_execute_manifest approval contract', () => {
     const manager = new StateManager(projectRoot);
     const state = manager.readState();
     manager.createRun(state, runId, 'computation');
+    fs.writeFileSync(manager.policyPath, JSON.stringify({ require_approval_for: { compute_runs: true } }) + '\n', 'utf-8'); // A3 is opt-in; enable it to exercise the approval gate
 
     const result = await handleOrchToolCall(
       'orch_run_execute_manifest',
@@ -137,6 +138,7 @@ describe('orch_run_execute_manifest approval contract', () => {
     const manager = new StateManager(projectRoot);
     const state = manager.readState();
     manager.createRun(state, runId, 'computation');
+    fs.writeFileSync(manager.policyPath, JSON.stringify({ require_approval_for: { compute_runs: true } }) + '\n', 'utf-8'); // A3 is opt-in; enable it to exercise the approval gate
 
     const result = await handleOrchToolCall(
       'orch_run_execute_manifest',

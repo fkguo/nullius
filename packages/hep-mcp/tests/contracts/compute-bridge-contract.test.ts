@@ -109,6 +109,8 @@ describe('compute bridge contract', () => {
       },
       'full',
     ));
+    // A3 (compute_runs) approval is opt-in; enable it so the bridge produces an approval request.
+    fs.writeFileSync(path.join(projectRoot, '.autoresearch', 'approval_policy.json'), JSON.stringify({ require_approval_for: { compute_runs: true } }) + '\n', 'utf-8');
 
     const result = await handleOrchToolCall(
       'orch_run_plan_computation',

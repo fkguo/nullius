@@ -194,7 +194,7 @@ describe('compute bridge', () => {
     expect(packet.risks.some(risk => risk.includes('internal fixture manifest'))).toBe(true);
   });
 
-  it('fails closed when A3 is already satisfied and still never executes via the bridge surface', async () => {
+  it('returns a ready-to-execute planned result when A3 is already satisfied and still never executes via the bridge surface', async () => {
     const projectRoot = makeTmpDir();
     const runId = 'run-bridge-approved';
     const runDir = path.join(projectRoot, runId);
@@ -202,25 +202,22 @@ describe('compute bridge', () => {
     fs.mkdirSync(path.join(runDir, 'artifacts'), { recursive: true });
     writeJson(path.join(runDir, 'artifacts', 'outline_seed_v1.json'), stagedIdeaSurface().outline);
     const manager = initRunState(projectRoot, runId);
-    fs.writeFileSync(manager.policyPath, JSON.stringify({ require_approval_for: { compute_runs: true } }) + '\n', 'utf-8'); // A3 is opt-in; enable it to exercise the gate
+    fs.writeFileSync(manager.policyPath, JSON.stringify({ require_approval_for: { compute_runs: true } }) + '\n', 'utf-8'); // gate enabled, but already satisfied below
     markA3Satisfied(manager, 'A3-0001');
 
-    await expect(() =>
-      bridgeStagedIdeaToComputation({
-        dryRun: false,
-        projectRoot,
-        runDir,
-        runId,
-        stagedIdea: stagedIdeaSurface(),
-      }),
-    ).rejects.toMatchObject({
-      code: 'INVALID_PARAMS',
-      data: expect.objectContaining({
-        validation_layer: 'approval_boundary',
-        gate_id: 'A3',
-        manifest_path: 'computation/manifest.json',
-      }),
+    // A3 already satisfied → no new approval pause. The planning-only bridge hands back
+    // the staged manifest (status 'planned') rather than throwing or executing.
+    const planned = await bridgeStagedIdeaToComputation({
+      dryRun: false,
+      projectRoot,
+      runDir,
+      runId,
+      stagedIdea: stagedIdeaSurface(),
     });
+    expect(planned.status).toBe('planned');
+    expect((planned as { requires_approval?: boolean }).requires_approval).toBe(false);
+    expect(planned.manifest_path).toBe('computation/manifest.json');
+    // No new approval request was created, and the bridge never executes.
     expect(fs.existsSync(path.join(projectRoot, 'artifacts', 'runs', runId, 'approvals'))).toBe(false);
     expect(spawnSyncMock).not.toHaveBeenCalled();
   });

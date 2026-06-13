@@ -74,6 +74,8 @@ describe('compute loop contract', () => {
       },
       'full',
     ));
+    // A3 (compute_runs) approval is opt-in; enable it so the loop exercises the gate.
+    fs.writeFileSync(path.join(projectRoot, '.autoresearch', 'approval_policy.json'), JSON.stringify({ require_approval_for: { compute_runs: true } }) + '\n', 'utf-8');
 
     const runDir = staged.run_dir;
 
@@ -157,6 +159,8 @@ describe('compute loop contract', () => {
       },
       'full',
     ));
+    // A3 (compute_runs) approval is opt-in; enable it so the loop exercises the gate.
+    fs.writeFileSync(path.join(projectRoot, '.autoresearch', 'approval_policy.json'), JSON.stringify({ require_approval_for: { compute_runs: true } }) + '\n', 'utf-8');
 
     const runDir = path.join(hepDataDir, 'runs', staged.run_id);
 

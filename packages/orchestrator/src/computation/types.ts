@@ -1,7 +1,7 @@
 import type { ArtifactRefV1, ComputationManifestV1, ComputationResultV1 } from '@autoresearch/shared';
 
 export type ManifestTool = 'mathematica' | 'julia' | 'python' | 'bash';
-export type ExecutionStatus = 'dry_run' | 'requires_approval' | 'completed' | 'failed';
+export type ExecutionStatus = 'dry_run' | 'planned' | 'requires_approval' | 'completed' | 'failed';
 export type StepStatus = 'pending' | 'running' | 'completed' | 'failed';
 
 export interface ExecuteComputationManifestInput {
@@ -57,6 +57,27 @@ export interface DryRunExecutionResult {
     command: string[];
     expected_outputs: string[];
   }>;
+}
+
+/** Planning-only outcome from the bridge when no A3 pause applies (compute_runs
+ *  opt-out — the default — or A3 already satisfied). The manifest is compiled and
+ *  staged; the caller proceeds to orch_run_execute_manifest. The bridge never executes. */
+export interface PlannedExecutionResult {
+  status: 'planned';
+  dry_run: false;
+  requires_approval: false;
+  manifest_path: string;
+  manifest_sha256: string;
+  workspace_dir: string;
+  step_order: string[];
+  steps: Array<{
+    id: string;
+    tool: ManifestTool;
+    script: string;
+    command: string[];
+    expected_outputs: string[];
+  }>;
+  message: string;
 }
 
 export interface ApprovalRequiredExecutionResult {
