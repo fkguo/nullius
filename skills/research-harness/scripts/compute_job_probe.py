@@ -39,11 +39,42 @@ def count_checkpoint_lines(path: Path | None) -> int:
     return n
 
 
+def _self_and_ancestors() -> set[int]:
+    """This process plus all of its ancestors.
+
+    The agent typically launches the probe through a shell whose command line
+    is the full `python3 compute_job_probe.py --pattern <X> ...` — so `<X>`
+    appears in the probe's own and its ancestor shells' argv. BSD `pgrep`
+    excludes ancestors natively, but Linux `pgrep` and the `ps` fallback do
+    not, so exclude the whole ancestor chain ourselves to prevent a self-match.
+    """
+    pids = {os.getpid()}
+    try:
+        out = subprocess.run(["ps", "-A", "-o", "pid=,ppid="], capture_output=True, text=True, check=False).stdout
+    except FileNotFoundError:
+        return {os.getpid(), os.getppid()}
+    parent: dict[int, int] = {}
+    for line in out.splitlines():
+        parts = line.split()
+        if len(parts) >= 2 and parts[0].isdigit() and parts[1].isdigit():
+            parent[int(parts[0])] = int(parts[1])
+    cur = os.getpid()
+    seen: set[int] = set()
+    while cur in parent and cur not in seen:
+        seen.add(cur)
+        cur = parent[cur]
+        if cur <= 1:
+            break
+        pids.add(cur)
+    return pids
+
+
 def job_pids(pattern: str) -> list[int]:
     """PIDs whose full command line matches `pattern`, excluding this probe and
-    its launching shell (so a pattern that also appears in the probe's own argv
-    does not self-match). Captures output rather than piping — SIGPIPE-safe."""
-    exclude = {os.getpid(), os.getppid()}
+    all its ancestors (so a pattern that also appears in the probe's own or a
+    launching shell's argv does not self-match). Captures output rather than
+    piping — SIGPIPE-safe."""
+    exclude = _self_and_ancestors()
     try:
         proc = subprocess.run(["pgrep", "-f", pattern], capture_output=True, text=True, check=False)
         raw = proc.stdout
@@ -68,7 +99,8 @@ def decide(running: bool, count: int, expected: int | None, recent_counts: list[
     `recent_counts` is the checkpoint-count history including the current probe.
     """
     if running:
-        if len(recent_counts) >= stall_window and len(set(recent_counts[-stall_window:])) == 1:
+        # "flat across consecutive probes" needs a window of at least 2.
+        if stall_window >= 2 and len(recent_counts) >= stall_window and len(set(recent_counts[-stall_window:])) == 1:
             return "stalled"
         return "running"
     if expected is not None:
@@ -124,7 +156,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--history", type=Path, default=None,
                    help="probe-history file (default: <checkpoint>.probe, else .compute_job_probe.history in CWD).")
     p.add_argument("--stall-window", type=int, default=3,
-                   help="consecutive equal-count probes that signal a stall/livelock (default 3).")
+                   help="consecutive equal-count probes that signal a stall/livelock (>=2; default 3).")
     args = p.parse_args(argv)
 
     history = args.history

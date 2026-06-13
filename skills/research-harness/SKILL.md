@@ -125,7 +125,7 @@ python3 scripts/compute_job_probe.py --pattern "<job-script-name>" \
     --checkpoint artifacts/runs/<run_id>/<job>.tsv --expected <N>
 ```
 
-It captures `pgrep` (SIGPIPE-safe, never pipes) and prints JSON `{running, checkpoint_count, verdict}` with `verdict ∈ running | stalled | completed | killed_incomplete | stopped`: `killed_incomplete` → relaunch; `completed` → fold back; `stalled` → livelock (below).
+It captures `pgrep` (SIGPIPE-safe, never pipes) and prints JSON `{running, checkpoint_count, verdict}` with `verdict ∈ running | stalled | completed | killed_incomplete | stopped`: `killed_incomplete` → relaunch; `completed` → all expected units are recorded, so scan the checkpoint for any sentinel-failed rows before folding back; `stalled` → livelock (below).
 
 **Detect and break livelock.** If a single unit takes longer than the kill window minus startup overhead, the per-unit checkpoint can never land — the job relaunches forever and the checkpoint count stays flat. The probe reports `stalled` when the count is unchanged across `--stall-window` consecutive checks. Then **stop relaunching** and re-decompose: shrink the unit, or replace it with a finer-grained, **independently cross-validated** cheaper surrogate — never a silently-substituted approximation (that is papering over a result, forbidden). Keep the expensive original in-repo as a record of why.
 
