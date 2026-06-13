@@ -39,6 +39,20 @@ Resolve `literature_landscape` (or `literature_gap_analysis`) and follow it: see
 references → citations, across INSPIRE / arXiv / OpenAlex. Track a candidate pool. Mark
 each kept paper's `role`: `core` (must deep-read), `supporting`, or `background`.
 
+**Paginate to coverage — `size` is a page size, not a result cap.** Every search returns
+a `total` hit count; the default page (`inspire_search` `size` defaults to 25, max 1000)
+is one page, NOT the complete set. If `total` exceeds what you have fetched, you have not
+seen the literature — continue with `inspire_search_next` (follow the returned `next_url`)
+or pass `max_results` to auto-paginate, until the candidate pool is covered (then set
+`coverage.saturation` accordingly; record `coverage_incomplete` as explicit debt, never as
+silent completion). Treating the first page as the answer is the
+`page_size_not_completion_threshold` failure the `SearchDepthContract` exists to prevent.
+
+**Sort caution.** `sort: mostrecent` with a small `size` returns only the newest N and
+silently drops older work — use it for "what's new," never for an exhaustive author or
+topic corpus. For corpus completeness, paginate against `total` (and prefer relevance /
+citation-count sorts so foundational papers are not lost below the page boundary).
+
 ### 2. Deep-read each core paper (depth) — fill the note from the SOURCE
 Fetch the **source, not the abstract** (source-first per `ReadingHandoffContract`:
 `arxiv_latex_source` > `full_text_pdf` > `available_full_text`): `inspire_paper_source` /
