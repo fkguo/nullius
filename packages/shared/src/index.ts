@@ -61,6 +61,9 @@ export * from './claim-grounding.js';
 // Literature-survey contract (deep literature review synthesis/coverage layer)
 export * from './literature-survey.js';
 
+// Failed-approaches log (ABSORB #3: durable do-not-retry record for compute survival)
+export * from './failed-approaches.js';
+
 // Sanitization (H-08)
 export { sanitizePath, sanitizeFilename, sanitizeQueryString } from './sanitize.js';
 
