@@ -1,6 +1,5 @@
 import { parseSamplingMetadata } from '@autoresearch/shared';
 
-import type { LedgerWriter } from './ledger-writer.js';
 import { createChatBackend, type ChatBackendFactory } from './backends/backend-factory.js';
 import type { MessageContent, MessageParam } from './backends/chat-backend.js';
 import { DEFAULT_SAMPLING_MAX_TOKENS, resolveSamplingRoute } from './routing/sampling-loader.js';
@@ -40,10 +39,6 @@ export interface SamplingExecutionResult {
     stopReason?: string;
   };
   audit: SamplingExecutionAudit;
-}
-
-function logEvent(ledger: LedgerWriter | undefined, eventType: string, details: Record<string, unknown>): void {
-  ledger?.log(eventType, { details });
 }
 
 function toTextContent(content: SamplingRequestMessage['content']): string | SamplingTextPart[] {
@@ -89,18 +84,11 @@ export async function executeSamplingRequest(params: {
   request: HostSamplingRequest;
   routingConfig: SamplingRoutingConfig;
   backendFactory?: ChatBackendFactory;
-  ledger?: LedgerWriter;
 }): Promise<SamplingExecutionResult> {
   const metadata = parseSamplingMetadata(params.request.metadata);
   const route = resolveSamplingRoute(params.routingConfig, metadata);
   const messages = toMessageParams(params.request.messages);
   const audit: SamplingExecutionAudit = { metadata, route, attempts: [] };
-  logEvent(params.ledger, 'mcp_client.sampling_route_resolved', {
-    metadata,
-    route_key: route.route_key,
-    selector: route.selector,
-    fallback_chain: route.attempt_route_keys,
-  });
 
   for (const routeKey of route.attempt_route_keys) {
     const attemptRoute = routeForAttempt(params.routingConfig, route, routeKey);
@@ -117,12 +105,6 @@ export async function executeSamplingRequest(params: {
         backend: attemptRoute.backend,
         model: attemptRoute.model,
         success: true,
-      });
-      logEvent(params.ledger, 'mcp_client.sampling_completed', {
-        route_key: routeKey,
-        backend: attemptRoute.backend,
-        model: attemptRoute.model,
-        attempts: audit.attempts,
       });
       return {
         result: {
@@ -142,20 +124,9 @@ export async function executeSamplingRequest(params: {
         success: false,
         error: message,
       });
-      logEvent(params.ledger, 'mcp_client.sampling_attempt_failed', {
-        route_key: routeKey,
-        backend: attemptRoute.backend,
-        model: attemptRoute.model,
-        error: message,
-      });
     }
   }
 
   const failReason = `Sampling request failed after ${audit.attempts.length} attempt(s)`;
-  logEvent(params.ledger, 'mcp_client.sampling_failed', {
-    reason: failReason,
-    attempts: audit.attempts,
-    metadata,
-  });
   throw new Error(failReason);
 }

@@ -1,15 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import * as fs from 'node:fs';
-import * as os from 'node:os';
-import * as path from 'node:path';
 
-import { LedgerWriter } from '../src/ledger-writer.js';
 import { loadSamplingRoutingConfig, resolveSamplingRoute } from '../src/routing/sampling-loader.js';
 import { executeSamplingRequest } from '../src/sampling-handler.js';
-
-function makeTmpDir(): string {
-  return fs.mkdtempSync(path.join(os.tmpdir(), 'orch-sampling-'));
-}
 
 describe('sampling routing', () => {
   it('resolves prompt-version and module overrides before risk/cost fallbacks', () => {
@@ -76,8 +68,6 @@ describe('sampling routing', () => {
   });
 
   it('records fallback attempts and chosen route in audit surface', async () => {
-    const tmpDir = makeTmpDir();
-    const ledger = new LedgerWriter(tmpDir);
     const config = loadSamplingRoutingConfig({
       version: 1,
       default_route: 'balanced',
@@ -119,22 +109,16 @@ describe('sampling routing', () => {
       },
       routingConfig: config,
       backendFactory: () => ({ createMessage }),
-      ledger,
     });
 
     expect(executed.audit.route.route_key).toBe('balanced');
     expect(executed.audit.attempts.map(attempt => attempt.route_key)).toEqual(['balanced', 'careful']);
+    expect(executed.audit.attempts.find(attempt => attempt.route_key === 'balanced')?.success).toBe(false);
+    expect(executed.audit.attempts.find(attempt => attempt.route_key === 'careful')?.success).toBe(true);
     expect(executed.result.model).toBe('claude-opus-4-6');
-
-    const events = ledger.tail(10).filter(event => event.event_type.startsWith('mcp_client.sampling_'));
-    expect(events.some(event => event.event_type === 'mcp_client.sampling_route_resolved')).toBe(true);
-    expect(events.some(event => event.event_type === 'mcp_client.sampling_attempt_failed')).toBe(true);
-    expect(events.some(event => event.event_type === 'mcp_client.sampling_completed')).toBe(true);
   });
 
-  it('fails after exhausting every fallback attempt and records terminal audit', async () => {
-    const tmpDir = makeTmpDir();
-    const ledger = new LedgerWriter(tmpDir);
+  it('fails after exhausting every fallback attempt', async () => {
     const config = loadSamplingRoutingConfig({
       version: 1,
       default_route: 'balanced',
@@ -160,11 +144,6 @@ describe('sampling routing', () => {
       },
       routingConfig: config,
       backendFactory: () => ({ createMessage }),
-      ledger,
     })).rejects.toThrow('Sampling request failed after 2 attempt(s)');
-
-    const events = ledger.tail(10).filter(event => event.event_type.startsWith('mcp_client.sampling_'));
-    expect(events.filter(event => event.event_type === 'mcp_client.sampling_attempt_failed')).toHaveLength(2);
-    expect(events.some(event => event.event_type === 'mcp_client.sampling_failed')).toBe(true);
   });
 });

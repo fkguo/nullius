@@ -2,7 +2,6 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import * as readline from 'node:readline';
 import { DEFAULT_RETRY_POLICY, type RetryPolicy } from '@autoresearch/shared';
 
-import type { LedgerWriter } from './ledger-writer.js';
 import type { ChatBackendFactory } from './backends/backend-factory.js';
 import {
   consumeJsonRpcLine,
@@ -36,7 +35,6 @@ export interface McpClientSamplingOptions {
 }
 
 export interface McpClientOptions {
-  ledger?: LedgerWriter;
   maxReconnects?: number;
   reconnectPolicy?: RetryPolicy;
   sampling?: McpClientSamplingOptions;
@@ -49,7 +47,6 @@ export class McpClient {
   private proc: ChildProcess | null = null;
   private nextId = 1;
   private readonly pending = new Map<JsonRpcId, PendingRequest>();
-  private readonly ledger: LedgerWriter | null;
   private readonly sampling: SamplingRuntime | null;
   private readonly maxReconnects: number;
   private readonly reconnectPolicy: RetryPolicy;
@@ -62,7 +59,6 @@ export class McpClient {
   private closed = false;
 
   constructor(options?: McpClientOptions) {
-    this.ledger = options?.ledger ?? null;
     this.maxReconnects = options?.maxReconnects ?? 3;
     this.reconnectPolicy = options?.reconnectPolicy ?? DEFAULT_RETRY_POLICY;
     this.sampling = options?.sampling
@@ -97,7 +93,6 @@ export class McpClient {
         onServerRequest: message => handleMcpServerRequest({
           message,
           sampling: this.sampling,
-          ledger: this.ledger ?? undefined,
           writeResponse: response => writeJsonRpcMessage(this.proc?.stdin ?? null, response),
         }),
       });
@@ -110,7 +105,7 @@ export class McpClient {
       }
       this.pending.clear();
       if (wasConnected && !this.closed && !this.reconnecting) {
-        this.scheduleReconnect(code);
+        this.scheduleReconnect();
       }
     });
 
@@ -131,23 +126,16 @@ export class McpClient {
     }
     writeJsonRpcMessage(this.proc?.stdin ?? null, { jsonrpc: '2.0', method: 'notifications/initialized' });
     this.initialized = true;
-    this.ledger?.log('mcp_client.started', { details: { command, args, serverInfo: initResponse.result } });
   }
 
-  private scheduleReconnect(exitCode: number | null): void {
+  private scheduleReconnect(): void {
     if (this.reconnectCount >= this.maxReconnects) {
-      this.ledger?.log('mcp_client.reconnect_exhausted', {
-        details: { exitCode, attempts: this.reconnectCount, maxReconnects: this.maxReconnects },
-      });
       return;
     }
     this.reconnecting = true;
     this.reconnectCount += 1;
     const attempt = this.reconnectCount;
     const delay = Math.min(this.reconnectPolicy.baseDelayMs * 2 ** (attempt - 1), this.reconnectPolicy.maxDelayMs);
-    this.ledger?.log('mcp_client.reconnecting', {
-      details: { exitCode, attempt, delay, maxReconnects: this.maxReconnects },
-    });
     setTimeout(async () => {
       if (this.closed) {
         this.reconnecting = false;
@@ -158,14 +146,10 @@ export class McpClient {
         await this.doStart(this.startCommand, this.startArgs, this.startEnv);
         this.reconnectCount = 0;
         this.reconnecting = false;
-        this.ledger?.log('mcp_client.reconnected', { details: { attempt } });
-      } catch (error) {
+      } catch {
         this.reconnecting = false;
-        this.ledger?.log('mcp_client.reconnect_failed', {
-          details: { attempt, error: error instanceof Error ? error.message : String(error) },
-        });
         if (!this.closed) {
-          this.scheduleReconnect(null);
+          this.scheduleReconnect();
         }
       }
     }, delay);
@@ -246,7 +230,6 @@ export class McpClient {
     });
     this.proc = null;
     this.initialized = false;
-    this.ledger?.log('mcp_client.closed');
   }
 }
 

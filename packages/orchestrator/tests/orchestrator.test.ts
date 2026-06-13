@@ -7,7 +7,7 @@ import {
   APPROVAL_GATE_TO_POLICY_KEY,
   APPROVAL_REQUIRED_DEFAULTS,
 } from '@autoresearch/shared';
-import { StateManager, LedgerWriter, ApprovalGate, approvalPacketSha256 } from '../src/index.js';
+import { StateManager, ApprovalGate, approvalPacketSha256 } from '../src/index.js';
 import type { RunState } from '../src/index.js';
 import { handleOrchPolicyQuery, handleOrchRunExport } from '../src/orch-tools/control.js';
 import { handleOrchRunCreate } from '../src/orch-tools/create-status-list.js';
@@ -801,70 +801,6 @@ describe('StateManager', () => {
     const sm = new StateManager(tmpDir);
     const read = sm.readState();
     expect(read.gate_satisfied['A1']).toBe('apr_001');
-  });
-});
-
-describe('LedgerWriter', () => {
-  let tmpDir: string;
-
-  beforeEach(() => {
-    tmpDir = makeTmpDir();
-  });
-
-  afterEach(() => {
-    fs.rmSync(tmpDir, { recursive: true, force: true });
-  });
-
-  it('creates ledger file and appends events with sorted keys', () => {
-    const lw = new LedgerWriter(tmpDir);
-    lw.log('test_event', { details: { key: 'value', nested: { b: 2, a: 1 } } });
-    lw.log('test_event_2');
-
-    const events = lw.tail(10);
-    expect(events).toHaveLength(2);
-    expect(events[0]!.event_type).toBe('test_event');
-    expect(events[1]!.event_type).toBe('test_event_2');
-  });
-
-  it('preserves nested details (no data loss from replacer)', () => {
-    const lw = new LedgerWriter(tmpDir);
-    lw.log('approval_timeout', {
-      details: { approval_id: 'apr_001', policy_action: 'block', timeout_at: '2026-01-01T00:00:00Z' },
-    });
-
-    const events = lw.tail(1);
-    expect(events[0]!.details).toEqual({
-      approval_id: 'apr_001',
-      policy_action: 'block',
-      timeout_at: '2026-01-01T00:00:00Z',
-    });
-  });
-
-  it('sorts keys recursively (Python parity)', () => {
-    const lw = new LedgerWriter(tmpDir);
-    lw.log('test', { details: { z_key: 1, a_key: 2 } });
-
-    // Read raw line to verify sort order
-    const dir = path.join(tmpDir, '.autoresearch');
-    const raw = fs.readFileSync(path.join(dir, 'ledger.jsonl'), 'utf-8').trim();
-    const parsed = JSON.parse(raw);
-    const keys = Object.keys(parsed);
-    // Verify top-level keys are sorted
-    expect(keys).toEqual([...keys].sort());
-    // Verify details keys are sorted
-    const detailKeys = Object.keys(parsed.details);
-    expect(detailKeys).toEqual([...detailKeys].sort());
-  });
-
-  it('tail returns last N events', () => {
-    const lw = new LedgerWriter(tmpDir);
-    for (let i = 0; i < 10; i++) {
-      lw.log(`event_${i}`);
-    }
-
-    const events = lw.tail(3);
-    expect(events).toHaveLength(3);
-    expect(events[0]!.event_type).toBe('event_7');
   });
 });
 

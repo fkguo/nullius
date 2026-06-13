@@ -1,4 +1,3 @@
-import type { LedgerWriter } from './ledger-writer.js';
 import type { ChatBackendFactory } from './backends/backend-factory.js';
 import type { SamplingRoutingConfig } from './routing/sampling-types.js';
 import { executeSamplingRequest, type HostSamplingRequest } from './sampling-handler.js';
@@ -11,7 +10,6 @@ export interface SamplingRuntime {
 export async function handleMcpServerRequest(params: {
   message: Record<string, unknown>;
   sampling: SamplingRuntime | null;
-  ledger?: LedgerWriter;
   writeResponse: (response: Record<string, unknown>) => void;
 }): Promise<void> {
   const id = params.message.id as number | string;
@@ -38,7 +36,6 @@ export async function handleMcpServerRequest(params: {
       request: params.message.params as HostSamplingRequest,
       routingConfig: params.sampling.routingConfig,
       backendFactory: params.sampling.backendFactory,
-      ledger: params.ledger,
     });
     params.writeResponse({ jsonrpc: '2.0', id, result: executed.result });
   } catch (error) {
