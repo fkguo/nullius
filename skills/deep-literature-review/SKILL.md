@@ -48,6 +48,13 @@ or pass `max_results` to auto-paginate, until the candidate pool is covered (the
 silent completion). Treating the first page as the answer is the
 `page_size_not_completion_threshold` failure the `SearchDepthContract` exists to prevent.
 
+A deep survey is **not** 50 papers. The page size (25/50) is fetch granularity, never a
+coverage target: a real topic's `total` is routinely in the hundreds to thousands, the
+candidate pool you screen runs well past one page, and the core set you deep-read is bounded
+by saturation — references and citations of the core set stop yielding new core papers — not
+by any fixed count. A survey that fetched one or two pages and stopped is shallow by
+construction, regardless of how good the notes on those few papers are.
+
 **Sort caution.** `sort: mostrecent` with a small `size` returns only the newest N and
 silently drops older work — use it for "what's new," never for an exhaustive author or
 topic corpus. For corpus completeness, paginate against `total` (and prefer relevance /
