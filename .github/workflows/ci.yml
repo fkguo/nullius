@@ -53,6 +53,10 @@ jobs:
         if: ${{ matrix.node-version == 22 }}
         run: node scripts/check-governance-sync.mjs
 
+      - name: Check portable paths anti-drift (no machine-specific home paths)
+        if: ${{ matrix.node-version == 22 }}
+        run: node scripts/check-portable-paths-anti-drift.mjs
+
       - name: Check codegen drift (meta/schemas ↔ generated)
         if: ${{ matrix.node-version == 22 }}
         run: pnpm codegen:check
