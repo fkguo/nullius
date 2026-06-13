@@ -25,7 +25,11 @@ import { fileURLToPath } from 'node:url';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-const MACHINE_PATH = /(?:\/Users\/|\/home\/|[A-Za-z]:\\Users\\)([A-Za-z0-9._-]+)[/\\]/g;
+// Leading (?<![A-Za-z0-9/]) skips URL path segments (e.g. https://host/Users/bob)
+// and host-glued matches; the trailing lookahead accepts a separator OR a word
+// boundary (quote, space, punctuation, EOL) so bare/last-segment paths like
+// `/home/user`, `"/home/user"`, and `C:\Users\user` are still caught.
+const MACHINE_PATH = /(?<![A-Za-z0-9/])(?:\/Users\/|\/home\/|[A-Za-z]:\\Users\\)([A-Za-z0-9._-]+)(?=[/\\]|["'`\s.,:;)\]]|$)/g;
 
 // Plain-word placeholders that are not real machines (segments with `<>[]` are
 // already excluded by the matcher above).
