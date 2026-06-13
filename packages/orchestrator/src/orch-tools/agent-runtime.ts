@@ -1,6 +1,5 @@
 import { invalidParams } from '@autoresearch/shared';
 import { z } from 'zod';
-import { ApprovalGate } from '../approval-gate.js';
 import type { LlmUsage, MessageContent, MessageParam, MessagesCreateFn } from '../backends/chat-backend.js';
 import type { McpToolResult, ToolCaller } from '../mcp-client.js';
 import { executeDelegatedAgentRuntime } from '../research-loop/delegated-agent-runtime.js';
@@ -149,7 +148,6 @@ export async function handleOrchRunExecuteAgent(
     tools: params.tools,
     mcpClient: createLoopbackToolCaller(ctx.callTool),
     permissionProfile: buildDirectRuntimePermissionProfile({ tools: params.tools }),
-    approvalGate: new ApprovalGate({}),
     resumeFrom: params.resume_from,
     maxTurns: params.max_turns,
     _messagesCreate: createSamplingAdapter(ctx.createMessage),

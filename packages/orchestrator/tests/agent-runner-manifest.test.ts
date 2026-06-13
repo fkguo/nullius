@@ -4,7 +4,6 @@ import * as path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AgentRunner, _resetLaneQueue, type AgentEvent, type MessageParam, type Tool } from '../src/agent-runner.js';
 import { RunManifestManager } from '../src/run-manifest.js';
-import type { ApprovalGate } from '../src/approval-gate.js';
 import type { McpClient, McpToolResult } from '../src/mcp-client.js';
 
 function makeTmpDir(): string {
@@ -15,10 +14,6 @@ function makeMockMcpClient(result: McpToolResult): McpClient {
   return {
     callTool: vi.fn(async () => result),
   } as unknown as McpClient;
-}
-
-function makeMockApprovalGate(): ApprovalGate {
-  return {} as ApprovalGate;
 }
 
 async function collectEvents(gen: AsyncGenerator<AgentEvent>): Promise<AgentEvent[]> {
@@ -72,7 +67,6 @@ describe('AgentRunner durable execution checkpoints', () => {
           json: null,
           errorCode: null,
         }),
-        approvalGate: makeMockApprovalGate(),
         manifestManager,
         _messagesCreate: createFn,
       });
@@ -112,7 +106,6 @@ describe('AgentRunner durable execution checkpoints', () => {
           json: null,
           errorCode: null,
         }),
-        approvalGate: makeMockApprovalGate(),
         manifestManager,
         _messagesCreate: createFn,
       });

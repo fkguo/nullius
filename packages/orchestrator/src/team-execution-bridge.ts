@@ -1,4 +1,3 @@
-import { ApprovalGate } from './approval-gate.js';
 import { createStateManager, requireState } from './orch-tools/common.js';
 import { executeTeamDelegatedRuntime } from './team-execution-runtime.js';
 import { executeUnifiedTeamRuntime } from './team-unified-runtime.js';
@@ -88,7 +87,6 @@ export async function executeTeamRuntimeFromToolParams(
     resumeFrom: params.resume_from,
     maxTurns: params.max_turns,
     mcpClient: createLoopbackToolCaller(ctx),
-    approvalGate: new ApprovalGate({}),
     _messagesCreate: createSamplingAdapter(ctx),
   });
   const primary = unified.assignment_results[0];

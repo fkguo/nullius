@@ -1,8 +1,7 @@
 // @autoresearch/orchestrator — AgentRunner (NEW-RT-01 + NEW-RT-06)
-// Provider-agnostic agent loop: MCP tool dispatch, lane queue, approval gate injection.
+// Provider-agnostic agent loop: MCP tool dispatch, lane queue.
 
 import { generateTraceId } from '@autoresearch/shared';
-import type { ApprovalGate } from './approval-gate.js';
 import { createChatBackend, type ChatBackendFactory } from './backends/backend-factory.js';
 import type { ChatBackend, MessageParam, MessagesCreateFn, Tool } from './backends/chat-backend.js';
 import type { ToolCaller } from './mcp-client.js';
@@ -39,7 +38,6 @@ export interface AgentRunnerOptions {
   maxTurns?: number;
   runId: string;
   mcpClient: ToolCaller;
-  approvalGate: ApprovalGate;
   spanCollector?: SpanCollector;
   routingConfig?: unknown;
   backendFactory?: ChatBackendFactory;
@@ -50,7 +48,6 @@ export interface AgentRunnerOptions {
 export class AgentRunner {
   private readonly maxTurns: number;
   readonly runId: string;
-  readonly approvalGate: ApprovalGate;
   private readonly mcpClient: ToolCaller;
   private readonly spanCollector: SpanCollector | null;
   private readonly manifestManager: RunManifestManager | null;
@@ -62,7 +59,6 @@ export class AgentRunner {
     this.maxTurns = options.maxTurns ?? 50;
     this.runId = options.runId;
     this.mcpClient = options.mcpClient;
-    this.approvalGate = options.approvalGate;
     this.spanCollector = options.spanCollector ?? null;
     this.manifestManager = options.manifestManager ?? null;
     const routingConfig = loadRoutingConfig(options.routingConfig, options.model);
