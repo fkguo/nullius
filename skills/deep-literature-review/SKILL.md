@@ -54,11 +54,17 @@ verbatim quote + a locator (section / equation / table / figure / page):
 - `Limitations / caveats for using this note`
 - `## Summary`, `## Key equations / definitions (copy from source)`, `## Notes / Issues`
 
-Then flip the header: `Verification status: deep-read` and `Evidence readiness: evidence-ready`.
+Then take the note off the auto-generated placeholders: set `Evidence readiness:
+evidence-ready`, and set `Verification status` to an evidence-ready value from the
+controlled vocabulary `unverified | spot-checked | replicated | contradicted` —
+`spot-checked` once you have checked the extracted equations/claims against the source
+(`replicated` / `contradicted` if you actually reproduced or refuted a result). Leaving
+the `metadata-only` / `reading-required` placeholders, or writing a value outside that
+vocabulary, makes the note fail the research-team `knowledge_layers` gate.
 
-**The anti-thin-note rule:** a paper is not `deep_read` until those fields are filled
+**The anti-thin-note rule:** a paper is not deeply read until those fields are filled
 *from the source* with locators. If you only saw the abstract, the note stays
-metadata-only and the paper's `read_status` is `metadata_only` — do not pretend otherwise.
+metadata-only and the paper's survey `read_status` is `metadata_only` — do not pretend otherwise.
 
 ### 3. Synthesize across the read set
 Produce the `literature_survey_v1`:

@@ -148,4 +148,24 @@ describe('safeParseLiteratureSurveyV1', () => {
     expect(safeParseLiteratureSurveyV1({ ...valid(), version: 2 }).ok).toBe(false);
     expect(safeParseLiteratureSurveyV1({ ...valid(), topic: '' }).ok).toBe(false);
   });
+
+  it('rejects a coverage block that overstates depth vs the papers (parse-boundary integrity)', () => {
+    const v = valid();
+    const bad = { ...v, coverage: { ...v.coverage, deep_read: 99, total_papers: 99 } };
+    const parsed = safeParseLiteratureSurveyV1(bad);
+    expect(parsed.ok).toBe(false);
+    if (!parsed.ok) expect(parsed.issues.some(i => i.path === 'coverage.deep_read')).toBe(true);
+  });
+});
+
+describe('crash-safety of the assemble/compute path', () => {
+  it('computeSurveyCoverage does not throw on malformed / non-array papers', () => {
+    expect(() => computeSurveyCoverage([null as never, { ref_key: 'A' } as never])).not.toThrow();
+    expect(() => computeSurveyCoverage(42 as never)).not.toThrow();
+    expect(computeSurveyCoverage(42 as never).total_papers).toBe(0);
+  });
+
+  it('assembleLiteratureSurvey throws a clean validation Error (not a raw TypeError) on a null paper', () => {
+    expect(() => assembleLiteratureSurvey(input({ papers: [null as unknown as SurveyPaper] }))).toThrow(/failed validation/);
+  });
 });

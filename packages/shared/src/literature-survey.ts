@@ -88,10 +88,13 @@ export function computeSurveyCoverage(
   saturation: SaturationStatus = 'unknown',
   notes?: string,
 ): LiteratureSurveyCoverage {
-  const core = papers.filter(p => p.role === 'core');
+  // Defensive: also called from assemble before the parser runs, and reachable with raw
+  // (cast-in) input — filter to objects so a null/non-object element cannot crash here.
+  const list = (Array.isArray(papers) ? papers : []).filter(isObject);
+  const core = list.filter(p => p.role === 'core');
   return {
-    total_papers: papers.length,
-    deep_read: papers.filter(p => p.read_status === 'deep_read').length,
+    total_papers: list.length,
+    deep_read: list.filter(p => p.read_status === 'deep_read').length,
     core_total: core.length,
     core_deep_read: core.filter(p => p.read_status === 'deep_read').length,
     saturation,
@@ -281,6 +284,18 @@ export function safeParseLiteratureSurveyV1(value: unknown): ParseSuccess | Pars
     const dangling = danglingSynthesisRefs(value as unknown as LiteratureSurveyV1);
     if (dangling.length > 0) {
       issues.push(issue('synthesis', `cites ref_keys absent from papers: ${dangling.join(', ')}`));
+    }
+  }
+
+  // Coverage integrity at the boundary: counts must match the papers (depth is not
+  // free-text — the same guarantee assembleLiteratureSurvey enforces, re-asserted here so
+  // a hand-authored survey cannot claim more depth than its papers carry).
+  if (Array.isArray(value.papers) && isObject(value.coverage)) {
+    const expected = computeSurveyCoverage(value.papers as SurveyPaper[]);
+    for (const field of ['total_papers', 'deep_read', 'core_total', 'core_deep_read'] as const) {
+      if (typeof value.coverage[field] === 'number' && value.coverage[field] !== expected[field]) {
+        issues.push(issue(`coverage.${field}`, `must equal the count derived from papers (${expected[field]})`));
+      }
     }
   }
 
