@@ -80,6 +80,7 @@ EXPLORATION_DEBT_JSONL=""
 attempt_logs_dir=""
 member_a_attempt_prefix=""
 member_b_attempt_prefix=""
+member_artifacts_root=""
 
 cleanup() {
   rm -f "${tmp_gemini_prompt:-}" "${tmp_gemini_prompt_c:-}" >/dev/null 2>&1 || true
@@ -87,6 +88,37 @@ cleanup() {
     if [[ ${#sidecar_tmp_prompts[@]} -gt 0 ]]; then
       rm -f "${sidecar_tmp_prompts[@]}" >/dev/null 2>&1 || true
     fi
+  fi
+}
+
+restore_isolated_output_permissions() {
+  # Clean-room review temporarily chmods the other member's outputs to 000.
+  # Always restore user access on script exit so failed/interrupted cycles do
+  # not leave project artifacts or sync-scanned trees unreadable.
+  if [[ -n "${run_dir:-}" && -d "${run_dir:-}" ]]; then
+    chmod -R u+rwX "${run_dir}/member_a" "${run_dir}/member_b" >/dev/null 2>&1 || true
+    chmod u+rw \
+      "${run_dir}/member_a_evidence.json" \
+      "${run_dir}/member_b_evidence.json" \
+      "${run_dir}/${safe_tag:-}_member_a.md" \
+      "${run_dir}/${safe_tag:-}_member_b.md" \
+      "${run_dir}/member_a_audit.jsonl" \
+      "${run_dir}/member_b_audit.jsonl" >/dev/null 2>&1 || true
+
+    if [[ -d "${run_dir}/workspaces" ]]; then
+      for _ws in "${run_dir}/workspaces/member_a_"* "${run_dir}/workspaces/member_b_"*; do
+        [[ -e "${_ws}" ]] && chmod -R u+rwX "${_ws}" >/dev/null 2>&1 || true
+      done
+      chmod u+rwX "${run_dir}/workspaces" >/dev/null 2>&1 || true
+    fi
+  fi
+
+  if [[ -n "${attempt_logs_dir:-}" && -d "${attempt_logs_dir:-}" ]]; then
+    chmod -R u+rwX "${attempt_logs_dir}/member_a" "${attempt_logs_dir}/member_b" >/dev/null 2>&1 || true
+  fi
+
+  if [[ -n "${member_artifacts_root:-}" && -d "${member_artifacts_root:-}" ]]; then
+    chmod -R u+rwX "${member_artifacts_root}/member_a" "${member_artifacts_root}/member_b" >/dev/null 2>&1 || true
   fi
 }
 
@@ -517,6 +549,7 @@ on_exit() {
     fi
   fi
   cycle_state_update "end" "done" "${final_status}" "exit_code=${code}"
+  restore_isolated_output_permissions
   cleanup
   cleanup_workspaces_post_run "${final_status}" "${code}"
 }
