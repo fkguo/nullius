@@ -14,4 +14,4 @@ export {
   handleJsonRpcRequest,
   parseJsonRpcLine,
 } from './rpc/jsonrpc.js';
-export const VERSION = '0.0.1';
+export const VERSION = '0.3.0';

@@ -1,6 +1,6 @@
 {
   "name": "@autoresearch/arxiv-mcp",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "description": "Domain-agnostic arXiv MCP server for paper search, metadata, and source content access",
   "author": "Feng-Kun Guo",
   "type": "module",

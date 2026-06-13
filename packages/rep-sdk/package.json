@@ -1,6 +1,6 @@
 {
   "name": "@autoresearch/rep-sdk",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "description": "Agent-native core Research Evolution Protocol SDK",
   "license": "MIT",
   "type": "module",

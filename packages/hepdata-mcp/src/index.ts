@@ -16,7 +16,7 @@ import { getTools, handleToolCall, type ToolExposureMode } from './tools/index.j
 const TOOL_MODE: ToolExposureMode = process.env.HEPDATA_TOOL_MODE === 'full' ? 'full' : 'standard';
 
 const server = new Server(
-  { name: 'hepdata-mcp', version: '0.1.0' },
+  { name: 'hepdata-mcp', version: '0.3.0' },
   { capabilities: { tools: {} } },
 );
 

@@ -1,5 +1,5 @@
 // @autoresearch/orchestrator — public package exports
-export const VERSION = '0.0.1';
+export const VERSION = '0.3.0';
 
 export * from './types.js';
 export { StateManager } from './state-manager.js';
