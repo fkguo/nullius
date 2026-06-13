@@ -124,6 +124,7 @@ model_build artifacts are under `out_dir/auto_qft/model_build/`.
 - Missing dependencies are never silent: if `auto_qft` or `model_build` cannot run (e.g., missing `wolframscript`, FeynRules, or FeynArts), the stage writes `status.json` with `ERROR` + a `hint` describing what to install/fix.
 - No built-in timeouts. If a kernel hangs, abort the run and inspect `out_dir/logs/*.log` (consider wrapping with an external timeout tool if needed).
 - If a run is externally killed (e.g., via an OS signal or a timeout wrapper), `status.json` for the interrupted stage may be incomplete or missing; use `logs/*.log` to find the last activity.
+- For long, kill-prone runs (jobs that may be killed mid-run by contention or session limits), drive them through the `research-harness` skill's **Long-Running Compute Jobs** protocol: an append-per-unit checkpoint under a managed run dir, a self-re-arming heartbeat, and the SIGPIPE-safe `compute_job_probe.py` for liveness/livelock detection. `hep-calc` runs the kernel; surviving kills is the harness's job.
 - Prefer unique out_dir per run for auditability (reusing an out_dir overwrites artifacts/logs).
 
 ## Prerequisites (env_check)

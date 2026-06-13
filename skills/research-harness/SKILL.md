@@ -1,6 +1,6 @@
 ---
 name: research-harness
-description: Use when working inside an external research project that has or may need autoresearch state, research_plan.md, research_contract.md, artifacts/runs, team/runs, Codex/Claude Code continuation, recovery, verification, approval, export, or handoff.
+description: Use when working inside an external research project that has or may need autoresearch state, research_plan.md, research_contract.md, artifacts/runs, team/runs, Codex/Claude Code continuation, recovery, verification, approval, export, handoff, or surviving long-running / kill-prone compute jobs (checkpoint + heartbeat + resume).
 ---
 
 # Research Harness
@@ -93,6 +93,43 @@ node /home/user/Coding/Agents/autoresearch-lab/packages/orchestrator/dist/cli.js
 - If the task is lifecycle, verification, approval, pause/resume, final conclusions, or export, keep it on `autoresearch`.
 
 Do not invent compatibility commands or fallback entrypoints. Keep lifecycle work on `autoresearch` and route executor or provider work to the relevant skill/tool layer.
+
+## Long-Running Compute Jobs
+
+Real research compute (fits, scans, integrations, derivations) often runs far longer than one agent turn in an environment where the job can be **killed at any time** — contending processes, OS limits, or a closed session. Treat every long job as kill-prone and make it *survive* kills rather than assuming it finishes. The compute runner (`hep-calc` or any executor) runs the kernel; this harness owns the job's survival.
+
+**Launch contract.**
+
+- Write durable state only inside the managed run dir `artifacts/runs/<run_id>/` (human-meaningful tag, never a bare UUID). Never keep durable state in `/tmp`: a kill or a new session loses the results and, if the script also lives there, the code that produced them.
+- Keep the compute script in the repo (committed), not in `/tmp`. Stream stdout to a log *inside the run dir* (`<cmd> 2>&1 | tee artifacts/runs/<run_id>/<job>.log`) for tailing; the log is for eyeballing, the checkpoint is the durable record.
+- Pin a **project-local, lockfile-committed environment** (commit the lockfile — `Manifest.toml` / `uv.lock` / `requirements.lock` / `Cargo.lock` — and run the job explicitly against it). Never run a long job against a shared/global interpreter env: a runtime-version mismatch silently invalidates the compiled cache (every relaunch re-pays full startup) and makes results non-reproducible.
+
+**Checkpoint so a kill costs at most one unit.** Split the work into independent units; have the job **append one line per completed unit** to an append-only checkpoint file in the run dir, keyed by a unique unit id in column 1. On (re)start, read the file into a `done` set and skip any unit already present — so a kill loses at most the one in-flight unit. A unit that legitimately fails is still recorded (a sentinel row) so resume does not retry it forever. Include the per-unit wall-clock seconds in a column — that is what later lets you detect a livelock. Language-neutral shape:
+
+```text
+done = { column-1 keys already in <checkpoint> }   # empty if the file is absent
+for unit in units:
+    if unit.key in done: continue
+    result = compute(unit)                          # the expensive part
+    append one line "<key>\t<fields>\t<seconds>" to <checkpoint>; flush
+```
+
+Resume readers must guard against a missing checkpoint file, and must not trust a partial/stale checkpoint as a final number.
+
+**Survive dropped notifications with a self-re-arming heartbeat.** The host's "job done / killed" signal can be silently dropped, stranding the agent on a dead job. Arm a host-provided wall-clock self-wake (in Claude Code, `ScheduleWakeup`) at a cadence ≈ 2–3× the observed kill interval. Each wake must: (1) re-derive ground truth from the filesystem — checkpoint line count vs expected, and whether the process is still alive — never trusting the notification; (2) if the job was killed mid-run, relaunch it (the checkpoint resumes) **and re-arm the next wake**; (3) if it is done, report + commit + advance, and do **not** re-arm. The self-re-arming chain means one dropped notification can never strand the job. Stop the chain once completion is confirmed — do not leave heartbeats firing forever.
+
+Use the bundled probe instead of brittle `until ! pgrep …; sleep` loops (which burn turn budget, can mis-match the agent's own session, and can SIGPIPE the job via a stray `| head`):
+
+```bash
+python3 scripts/compute_job_probe.py --pattern "<job-script-name>" \
+    --checkpoint artifacts/runs/<run_id>/<job>.tsv --expected <N>
+```
+
+It captures `pgrep` (SIGPIPE-safe, never pipes) and prints JSON `{running, checkpoint_count, verdict}` with `verdict ∈ running | stalled | completed | killed_incomplete | stopped`: `killed_incomplete` → relaunch; `completed` → fold back; `stalled` → livelock (below).
+
+**Detect and break livelock.** If a single unit takes longer than the kill window minus startup overhead, the per-unit checkpoint can never land — the job relaunches forever and the checkpoint count stays flat. The probe reports `stalled` when the count is unchanged across `--stall-window` consecutive checks. Then **stop relaunching** and re-decompose: shrink the unit, or replace it with a finer-grained, **independently cross-validated** cheaper surrogate — never a silently-substituted approximation (that is papering over a result, forbidden). Keep the expensive original in-repo as a record of why.
+
+**Commit each stage as cross-session memory.** A kill loses CPU work; a closed session loses the agent's context. Commit each completed stage immediately with a message recording the result *and the lesson* (what was tried, what failed), and keep a short prose dead-end log in the run dir, so a resumed session does not re-explore known-dead paths. The git log is the durable "what failed" record that survives context loss.
 
 ## Literature Research Gate
 
