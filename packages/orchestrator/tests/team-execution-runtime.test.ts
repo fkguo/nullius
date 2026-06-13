@@ -82,7 +82,6 @@ describe('executeTeamDelegatedRuntime', () => {
         mcpClient: {
           callTool: vi.fn(async () => ({ ok: true, isError: false, rawText: 'tool-result', json: null, errorCode: null })),
         },
-        approvalGate: { createPending: () => ({}) } as never,
         _messagesCreate: vi.fn()
           .mockResolvedValueOnce(toolUseResponse('tu_team', 'do_thing'))
           .mockResolvedValueOnce(textResponse('done')),
@@ -113,7 +112,6 @@ describe('executeTeamDelegatedRuntime', () => {
         tools: TOOLS,
         model: 'claude-opus-4-6',
         mcpClient: resumedClient,
-        approvalGate: { createPending: () => ({}) } as never,
         _messagesCreate: vi.fn().mockResolvedValueOnce(textResponse('resumed')),
       });
 
@@ -147,7 +145,6 @@ describe('executeTeamDelegatedRuntime', () => {
         tools: TOOLS,
         model: 'claude-opus-4-6',
         mcpClient: { callTool: vi.fn(async () => ({ ok: true, isError: false, rawText: 'x', json: null, errorCode: null })) },
-        approvalGate: { createPending: () => ({}) } as never,
         _messagesCreate: vi.fn().mockResolvedValue(textResponse('done')),
       })).rejects.toThrow(/delegation denied/i);
     } finally {
@@ -190,7 +187,6 @@ describe('executeTeamDelegatedRuntime', () => {
         ],
         model: 'claude-opus-4-6',
         mcpClient: { callTool },
-        approvalGate: { createPending: () => ({}) } as never,
         _messagesCreate: createMessage,
       });
 
@@ -248,7 +244,6 @@ describe('executeTeamDelegatedRuntime', () => {
         ],
         model: 'claude-opus-4-6',
         mcpClient: { callTool },
-        approvalGate: { createPending: () => ({}) } as never,
         _messagesCreate: createMessage,
       });
 

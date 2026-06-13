@@ -232,7 +232,6 @@ describe('team unified runtime control paths', () => {
         model: 'claude-opus-4-6',
         maxTurns: 1,
         mcpClient: { callTool: vi.fn(async () => ({ ok: true, isError: false, rawText: 'tool-result', json: null, errorCode: null })) },
-        approvalGate: { createPending: () => ({}) } as never,
         _messagesCreate: vi.fn().mockResolvedValue(toolUseResponse('tu_loop', 'do_thing')),
       });
 
@@ -262,7 +261,6 @@ describe('team unified runtime control paths', () => {
         model: 'claude-opus-4-6',
         maxTurns: 10,
         mcpClient: { callTool: vi.fn(async () => ({ ok: true, isError: false, rawText: 'tool-result', json: null, errorCode: null })) },
-        approvalGate: { createPending: () => ({}) } as never,
         _messagesCreate: vi.fn().mockResolvedValue(toolUseResponse('tu_loop', 'do_thing')),
       });
 
@@ -351,7 +349,6 @@ describe('team unified runtime control paths', () => {
           },
           errorCode: null,
         })) },
-        approvalGate: { createPending: () => ({}) } as never,
         _messagesCreate: vi.fn()
           .mockImplementationOnce(async params => {
             const protocol = extractProtocolText(params);
@@ -455,7 +452,6 @@ describe('team unified runtime control paths', () => {
         tools: [],
         model: 'claude-opus-4-6',
         mcpClient: { callTool: vi.fn(async () => ({ ok: true, isError: false, rawText: 'unused', json: null, errorCode: null })) },
-        approvalGate: { createPending: () => ({}) } as never,
         _messagesCreate: vi.fn().mockResolvedValue(textResponse('done')),
       });
 
@@ -546,7 +542,6 @@ describe('team unified runtime control paths', () => {
             errorCode: null,
           };
         }) },
-        approvalGate: { createPending: () => ({}) } as never,
         _messagesCreate: vi.fn()
           .mockImplementationOnce(async params => {
             const protocol = extractProtocolText(params);
@@ -653,7 +648,6 @@ describe('team unified runtime control paths', () => {
             errorCode: null,
           };
         }) },
-        approvalGate: { createPending: () => ({}) } as never,
         _messagesCreate: vi.fn()
           .mockImplementationOnce(async params => {
             const protocol = extractProtocolText(params);
@@ -766,7 +760,6 @@ describe('team unified runtime control paths', () => {
             errorCode: null,
           };
         }) },
-        approvalGate: { createPending: () => ({}) } as never,
         _messagesCreate: vi.fn()
           .mockImplementationOnce(async () => toolUseResponse('tu_review_report', 'orch_run_stage_content', {
             run_id: runId,
@@ -845,7 +838,6 @@ describe('team unified runtime control paths', () => {
         tools: [],
         model: 'claude-opus-4-6',
         mcpClient: { callTool: vi.fn(async () => ({ ok: true, isError: false, rawText: 'unused', json: null, errorCode: null })) },
-        approvalGate: { createPending: () => ({}) } as never,
         _messagesCreate: vi.fn().mockResolvedValue(textResponse('plain review complete')),
       });
 
@@ -874,7 +866,6 @@ describe('team unified runtime control paths', () => {
         model: 'claude-opus-4-6',
         interventions: [{ kind: 'pause', scope: 'task', actor_role: 'lead', actor_id: 'pi', task_id: 'task-pause' }],
         mcpClient: { callTool: vi.fn(async () => ({ ok: true, isError: false, rawText: 'x', json: null, errorCode: null })) },
-        approvalGate: { createPending: () => ({}) } as never,
         _messagesCreate: vi.fn().mockResolvedValue(textResponse('done')),
       });
       expect(paused.events).toEqual([]);
@@ -896,7 +887,6 @@ describe('team unified runtime control paths', () => {
         model: 'claude-opus-4-6',
         interventions: [{ kind: 'cascade_stop', scope: 'team', actor_role: 'lead', actor_id: 'pi', note: 'stop all delegates' }],
         mcpClient: { callTool: vi.fn(async () => ({ ok: true, isError: false, rawText: 'x', json: null, errorCode: null })) },
-        approvalGate: { createPending: () => ({}) } as never,
         _messagesCreate: vi.fn().mockResolvedValue(textResponse('done')),
       });
 
@@ -935,7 +925,6 @@ describe('team unified runtime control paths', () => {
         tools: [{ name: 'do_thing', input_schema: { type: 'object', properties: {} } }],
         model: 'claude-opus-4-6',
         mcpClient: { callTool: approvalClient },
-        approvalGate: { createPending: () => ({}) } as never,
         _messagesCreate: vi.fn().mockResolvedValue(toolUseResponse('tu_approval', 'do_thing', { task_id: 'task-approval' })),
       });
 
@@ -1000,7 +989,6 @@ describe('team unified runtime control paths', () => {
         tools: [{ name: 'do_thing', input_schema: { type: 'object', properties: {} } }],
         model: 'claude-opus-4-6',
         mcpClient: { callTool: resumedCallTool },
-        approvalGate: { createPending: () => ({}) } as never,
         _messagesCreate: vi.fn().mockResolvedValue(textResponse('approved and resumed')),
       });
 
@@ -1114,7 +1102,6 @@ describe('team unified runtime control paths', () => {
         ],
         model: 'claude-opus-4-6',
         mcpClient: { callTool: vi.fn(async () => ({ ok: true, isError: false, rawText: 'unused', json: null, errorCode: null })) },
-        approvalGate: { createPending: () => ({}) } as never,
         _messagesCreate: createMessage,
       });
 
@@ -1169,7 +1156,6 @@ describe('team unified runtime control paths', () => {
         tools: [],
         model: 'claude-opus-4-6',
         mcpClient: { callTool: vi.fn(async () => ({ ok: true, isError: false, rawText: 'unused', json: null, errorCode: null })) },
-        approvalGate: { createPending: () => ({}) } as never,
         _messagesCreate: createMessage,
       });
 
@@ -1219,7 +1205,6 @@ describe('team unified runtime control paths', () => {
         tools: [],
         model: 'claude-opus-4-6',
         mcpClient: { callTool: vi.fn(async () => ({ ok: true, isError: false, rawText: 'unused', json: null, errorCode: null })) },
-        approvalGate: { createPending: () => ({}) } as never,
         _messagesCreate: createMessage,
       });
 
@@ -1262,7 +1247,6 @@ describe('team unified runtime control paths', () => {
         tools: [],
         model: 'claude-opus-4-6',
         mcpClient: { callTool: vi.fn(async () => ({ ok: true, isError: false, rawText: 'unused', json: null, errorCode: null })) },
-        approvalGate: { createPending: () => ({}) } as never,
         _messagesCreate: createMessage,
       });
 
@@ -1327,7 +1311,6 @@ describe('team unified runtime control paths', () => {
         tools: [{ name: 'do_thing', input_schema: { type: 'object', properties: {} } }],
         model: 'claude-opus-4-6',
         mcpClient: { callTool },
-        approvalGate: { createPending: () => ({}) } as never,
         _messagesCreate: createMessage,
       });
 
@@ -1393,7 +1376,6 @@ describe('team unified runtime control paths', () => {
         tools: [{ name: 'do_thing', input_schema: { type: 'object', properties: {} } }],
         model: 'claude-opus-4-6',
         mcpClient: { callTool: firstToolCall },
-        approvalGate: { createPending: () => ({}) } as never,
         _messagesCreate: firstCreateMessage,
       });
 
@@ -1438,7 +1420,6 @@ describe('team unified runtime control paths', () => {
         tools: [{ name: 'do_thing', input_schema: { type: 'object', properties: {} } }],
         model: 'claude-opus-4-6',
         mcpClient: { callTool: resumedToolCall },
-        approvalGate: { createPending: () => ({}) } as never,
         _messagesCreate: resumedCreateMessage,
       });
 
@@ -1501,7 +1482,6 @@ describe('team unified runtime control paths', () => {
         tools: [{ name: 'do_thing', input_schema: { type: 'object', properties: {} } }],
         model: 'claude-opus-4-6',
         mcpClient: { callTool: toolCall },
-        approvalGate: { createPending: () => ({}) } as never,
         _messagesCreate: createMessage,
       });
 
@@ -1535,7 +1515,6 @@ describe('team unified runtime control paths', () => {
         tools: [],
         model: 'claude-opus-4-6',
         mcpClient: { callTool: vi.fn(async () => ({ ok: true, isError: false, rawText: 'unused', json: null, errorCode: null })) },
-        approvalGate: { createPending: () => ({}) } as never,
         _messagesCreate: createMessage,
       });
 
@@ -1552,7 +1531,6 @@ describe('team unified runtime control paths', () => {
         tools: [],
         model: 'claude-opus-4-6',
         mcpClient: { callTool: vi.fn(async () => ({ ok: true, isError: false, rawText: 'unused', json: null, errorCode: null })) },
-        approvalGate: { createPending: () => ({}) } as never,
         _messagesCreate: createMessage,
       });
 

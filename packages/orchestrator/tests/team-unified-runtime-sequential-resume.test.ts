@@ -66,7 +66,6 @@ describe('team unified runtime sequential resume', () => {
         tools: [{ name: 'do_thing', input_schema: { type: 'object', properties: {} } }],
         model: 'claude-opus-4-6',
         mcpClient: { callTool: vi.fn(async () => ({ ok: true, isError: false, rawText: 'tool-result', json: null, errorCode: null })) },
-        approvalGate: { createPending: () => ({}) } as never,
         _messagesCreate: vi.fn(async params => {
           const taskId = taskIdFromMessages(params.messages, taskIds);
           if (taskId === 'task-sequential-complete-1' || taskId === 'task-sequential-complete-3') {
@@ -113,7 +112,6 @@ describe('team unified runtime sequential resume', () => {
         tools: [{ name: 'do_thing', input_schema: { type: 'object', properties: {} } }],
         model: 'claude-opus-4-6',
         mcpClient: { callTool: resumedCallTool },
-        approvalGate: { createPending: () => ({}) } as never,
         _messagesCreate: resumedCreateMessage,
       });
 

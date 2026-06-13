@@ -103,6 +103,10 @@ describe('autoresearch CLI init/export', () => {
     expect(stdout.join('')).toContain('[ok] runtime dir:');
     expect(fs.existsSync(path.join(projectRoot, '.autoresearch', 'state.json'))).toBe(true);
     expect(fs.existsSync(path.join(projectRoot, '.autoresearch', 'approval_policy.json'))).toBe(true);
+    // A3 (compute_runs) is opt-out by default; A1/A2/A4 advisory + A5 stay on.
+    expect(JSON.parse(fs.readFileSync(path.join(projectRoot, '.autoresearch', 'approval_policy.json'), 'utf-8'))).toMatchObject({
+      require_approval_for: { mass_search: true, code_changes: true, compute_runs: false, paper_edits: true, final_conclusions: true },
+    });
     expect(fs.existsSync(path.join(projectRoot, '.autoresearch', '.initialized'))).toBe(true);
     const harnessPath = path.join(projectRoot, '.autoresearch', 'HARNESS');
     expect(fs.existsSync(harnessPath)).toBe(true);
