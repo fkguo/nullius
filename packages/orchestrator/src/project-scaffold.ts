@@ -32,7 +32,7 @@ export function ensureProjectScaffold(
   repoRoot: string,
   options: { force?: boolean; refresh?: boolean; dryRun?: boolean; profile?: string; projectName?: string } = {},
 ): ProjectScaffoldResult {
-  const python = process.env.AUTORESEARCH_PYTHON || process.env.HEP_AUTORESEARCH_PYTHON || 'python3';
+  const python = process.env.AUTORESEARCH_PYTHON || 'python3';
   const projectName = (options.projectName ?? path.basename(repoRoot) ?? 'Research Project').trim() || 'Research Project';
   const profile = (options.profile ?? 'mixed').trim() || 'mixed';
   const argv = [
