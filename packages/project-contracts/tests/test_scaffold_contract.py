@@ -32,9 +32,6 @@ CANONICAL_SCAFFOLD_FILES = {
     "research_plan.md",
     "research_notebook.md",
     "research_contract.md",
-    "docs/APPROVAL_GATES.md",
-    "docs/ARTIFACT_CONTRACT.md",
-    "docs/EVAL_GATE_CONTRACT.md",
 }
 
 LANGUAGE_DISCIPLINE_SNIPPETS = (
@@ -219,7 +216,6 @@ class TestScaffoldContract(unittest.TestCase):
         contract_template = (template_root / "research_contract.md").read_text(encoding="utf-8")
         notebook_template = (template_root / "research_notebook.md").read_text(encoding="utf-8")
         index_template = (template_root / "project_index.md").read_text(encoding="utf-8")
-        artifact_template = (template_root / "ARTIFACT_CONTRACT.md").read_text(encoding="utf-8")
 
         for template in (agents_template, contract_template, notebook_template):
             self.assertIn("latex_source", template)
@@ -238,8 +234,6 @@ class TestScaffoldContract(unittest.TestCase):
         self.assertIn("If the project creates literature notes", index_template)
         self.assertIn("full-text/source-first reading", index_template)
         self.assertIn("auditable coverage fields", index_template)
-        self.assertIn("Literature access traces, metadata checks, download attempts, and API/tool call logs", artifact_template)
-        self.assertIn("not in literature notes", artifact_template)
 
     def test_canonical_scaffold_creates_only_canonical_files(self) -> None:
         with tempfile.TemporaryDirectory() as td:
@@ -459,23 +453,17 @@ class TestScaffoldRefresh(unittest.TestCase):
             root = Path(td) / "proj"
             self._init(root)
             (root / "AGENTS.md").write_text("HACKED AGENTS\n", encoding="utf-8")
-            (root / "docs" / "ARTIFACT_CONTRACT.md").write_text("HACKED ARTIFACT\n", encoding="utf-8")
 
             result = ensure_project_scaffold(repo_root=root, refresh=True, project_policy="real_project")
 
-            self.assertEqual(set(result["refreshed"]), {"AGENTS.md", "docs/ARTIFACT_CONTRACT.md"})
-            self.assertEqual(set(result["backed_up"]), {"AGENTS.md", "docs/ARTIFACT_CONTRACT.md"})
+            self.assertEqual(set(result["refreshed"]), {"AGENTS.md"})
+            self.assertEqual(set(result["backed_up"]), {"AGENTS.md"})
             self.assertIsNotNone(result["backup_dir"])
             agents_now = (root / "AGENTS.md").read_text(encoding="utf-8")
             self.assertIn("This file anchors the workflow", agents_now)
             self.assertNotIn("HACKED", agents_now)
             backup_root = root / result["backup_dir"]
             self.assertEqual((backup_root / "AGENTS.md").read_text(encoding="utf-8"), "HACKED AGENTS\n")
-            # docs/ subpath is preserved inside the backup tree (no flat collision)
-            self.assertEqual(
-                (backup_root / "docs" / "ARTIFACT_CONTRACT.md").read_text(encoding="utf-8"),
-                "HACKED ARTIFACT\n",
-            )
 
     def test_refresh_leaves_unchanged_managed_files_untouched(self) -> None:
         with tempfile.TemporaryDirectory() as td:
@@ -492,10 +480,10 @@ class TestScaffoldRefresh(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td) / "proj"
             self._init(root)
-            (root / "docs" / "EVAL_GATE_CONTRACT.md").unlink()
+            (root / "AGENTS.md").unlink()
             result = ensure_project_scaffold(repo_root=root, refresh=True, project_policy="real_project")
-            self.assertIn("docs/EVAL_GATE_CONTRACT.md", result["created"])
-            self.assertTrue((root / "docs" / "EVAL_GATE_CONTRACT.md").is_file())
+            self.assertIn("AGENTS.md", result["created"])
+            self.assertTrue((root / "AGENTS.md").is_file())
 
     def test_refresh_preserves_seed_files_and_does_not_sync_contract(self) -> None:
         with tempfile.TemporaryDirectory() as td:
@@ -540,14 +528,13 @@ class TestScaffoldRefresh(unittest.TestCase):
             root = Path(td) / "proj"
             self._init(root)
             (root / "AGENTS.md").write_text("TAMPERED-AGENTS\n", encoding="utf-8")
-            (root / "docs" / "APPROVAL_GATES.md").write_text("TAMPERED-AG\n", encoding="utf-8")
 
-            target = root.resolve() / "docs" / "APPROVAL_GATES.md"
+            target = root.resolve() / "AGENTS.md"
             orig_write = pathlib.Path.write_text
 
             def flaky_write(self, data, *args, **kwargs):
-                # Fail only the OVERWRITE of the second managed file (template content),
-                # not its backup write (which holds the TAMPERED- text).
+                # Fail the OVERWRITE of the managed file (template content),
+                # but allow its backup write (which holds the TAMPERED- text).
                 if self == target and not data.startswith("TAMPERED-"):
                     raise OSError("simulated write failure")
                 return orig_write(self, data, *args, **kwargs)
@@ -556,9 +543,9 @@ class TestScaffoldRefresh(unittest.TestCase):
                 with self.assertRaises(OSError):
                     ensure_project_scaffold(repo_root=root, refresh=True, project_policy="real_project")
 
-            # The first managed file's prior content remains recoverable from the backup.
+            # The managed file's prior content remains recoverable from the backup.
             backups = list((root / ".autoresearch" / "backups").glob("*/AGENTS.md"))
-            self.assertTrue(backups, "expected a backup of the first managed file before the failure")
+            self.assertTrue(backups, "expected a backup of the managed file before the failure")
             self.assertEqual(backups[0].read_text(encoding="utf-8"), "TAMPERED-AGENTS\n")
 
     def test_refresh_backup_is_byte_exact_for_non_utf8_managed_file(self) -> None:

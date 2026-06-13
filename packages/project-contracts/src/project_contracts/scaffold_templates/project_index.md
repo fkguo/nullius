@@ -33,7 +33,6 @@ If `autoresearch` is unavailable on `PATH`, run `.autoresearch/bin/autoresearch 
 - Machine contract: [research_contract.md](research_contract.md)
 - Canonical artifact root: `artifacts/runs/<run_id>/`
 - Run identity rule: use a safe, sortable, readable `run_id` such as `<YYYYMMDDTHHMMSSZ>-<milestone>-<short-topic>-rN`; do not use bare UUIDs or `run_<uuid>` as human-facing research run names.
-- Shared docs: [docs/APPROVAL_GATES.md](docs/APPROVAL_GATES.md), [docs/ARTIFACT_CONTRACT.md](docs/ARTIFACT_CONTRACT.md), [docs/EVAL_GATE_CONTRACT.md](docs/EVAL_GATE_CONTRACT.md)
 
 Keep the top of [research_plan.md](research_plan.md#current-status) readable as the current human status. Keep dated run logs and raw step summaries in [research_plan.md](research_plan.md) below that status section or in `artifacts/runs/<run_id>/`. Keep [research_notebook.md](research_notebook.md) organized by the research problem's logic so it remains readable as the project grows.
 If the project creates literature notes, follow [AGENTS.md](AGENTS.md) for full-text/source-first reading, auditable coverage fields, clickable source links, and LaTeX math notation.

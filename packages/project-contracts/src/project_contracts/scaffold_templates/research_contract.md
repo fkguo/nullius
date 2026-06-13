@@ -52,7 +52,11 @@ Keep narrative reasoning, interpretation, and human-readable notes in [research_
 
 ## Artifact And Provenance Rule
 
-- Store meaningful run outputs under `artifacts/runs/<run_id>/`.
+- Store meaningful run outputs under `artifacts/runs/<run_id>/`. A complete run
+  writes a small machine-readable trio: `manifest.json` (command, parameters,
+  versions, produced files), `summary.json` (derived statistics, definitions, or
+  aggregation rules), and `analysis.json` (headline results plus the pointers
+  that justify them).
 - Choose `run_id` as a project-local research identity, not as an opaque machine
   identity. Prefer `<YYYYMMDDTHHMMSSZ>-<milestone>-<short-topic>-rN`, for
   example `20260502T023000Z-m3-branch-scan-r1`.
