@@ -494,19 +494,31 @@ def _extract_segments_text(
     return segs, evidence_obj
 
 
-def _codex_home() -> Path:
-    env = os.environ.get("CODEX_HOME", "").strip()
-    if env:
-        return Path(env).expanduser().resolve()
-    return (Path.home() / ".codex").resolve()
+def _agent_skills_root() -> Path:
+    """Host-neutral agent skills root holding the sibling runner skills.
+
+    No single host is privileged: honor an explicitly advertised host home
+    (CLAUDE_CONFIG_DIR / CODEX_HOME) when set, else probe the known agent skill
+    homes that actually exist, else fall back to this script's own install
+    location (which also covers hosts not listed here).
+    """
+    for env_var in ("CLAUDE_CONFIG_DIR", "CODEX_HOME"):
+        val = os.environ.get(env_var, "").strip()
+        if val:
+            return (Path(val).expanduser() / "skills").resolve()
+    for home in ("~/.claude", "~/.codex", "~/.config/opencode"):
+        root = Path(home).expanduser() / "skills"
+        if root.is_dir():
+            return root.resolve()
+    return Path(__file__).resolve().parents[3]
 
 
 def _find_runner(kind: str) -> Path:
-    codex = _codex_home()
+    root = _agent_skills_root()
     if kind == "claude":
-        return codex / "skills" / "claude-cli-runner" / "scripts" / "run_claude.sh"
+        return root / "claude-cli-runner" / "scripts" / "run_claude.sh"
     if kind == "gemini":
-        return codex / "skills" / "gemini-cli-runner" / "scripts" / "run_gemini.sh"
+        return root / "gemini-cli-runner" / "scripts" / "run_gemini.sh"
     raise ValueError(kind)
 
 

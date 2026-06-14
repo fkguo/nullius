@@ -16,7 +16,8 @@ Use this skill when you need to invoke `opencode` from shell scripts (review, dr
 ## Recommended: runner script (JSON parsing + fallback + retries)
 
 ```bash
-bash "${CODEX_HOME:-$HOME/.codex}/skills/opencode-cli-runner/scripts/run_opencode.sh" \
+SKILL_DIR="${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode"; do [ -d "$r/skills/opencode-cli-runner" ] && echo "$r/skills/opencode-cli-runner" && break; done)}"
+bash "${SKILL_DIR}/scripts/run_opencode.sh" \
   --model openai/gpt-5 \
   --system-prompt-file /path/to/system.txt \
   --prompt-file /path/to/prompt.txt \
@@ -26,7 +27,8 @@ bash "${CODEX_HOME:-$HOME/.codex}/skills/opencode-cli-runner/scripts/run_opencod
 Dry-run (no `opencode` call):
 
 ```bash
-bash "${CODEX_HOME:-$HOME/.codex}/skills/opencode-cli-runner/scripts/run_opencode.sh" \
+SKILL_DIR="${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode"; do [ -d "$r/skills/opencode-cli-runner" ] && echo "$r/skills/opencode-cli-runner" && break; done)}"
+bash "${SKILL_DIR}/scripts/run_opencode.sh" \
   --model openai/gpt-5 \
   --system-prompt-file /path/to/system.txt \
   --prompt-file /path/to/prompt.txt \

@@ -16,7 +16,8 @@ Use this skill when you need to call the OpenAI Codex agent from the command lin
 ## Recommended: runner script (retries + file inputs)
 
 ```bash
-bash ~/.claude/skills/codex-cli-runner/scripts/run_codex.sh \
+SKILL_DIR="${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode"; do [ -d "$r/skills/codex-cli-runner" ] && echo "$r/skills/codex-cli-runner" && break; done)}"
+bash "${SKILL_DIR}/scripts/run_codex.sh" \
   --system-prompt-file /path/to/system.txt \
   --prompt-file /path/to/prompt.txt \
   --out /path/to/output.txt
@@ -25,7 +26,8 @@ bash ~/.claude/skills/codex-cli-runner/scripts/run_codex.sh \
 With explicit model:
 
 ```bash
-bash ~/.claude/skills/codex-cli-runner/scripts/run_codex.sh \
+SKILL_DIR="${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode"; do [ -d "$r/skills/codex-cli-runner" ] && echo "$r/skills/codex-cli-runner" && break; done)}"
+bash "${SKILL_DIR}/scripts/run_codex.sh" \
   --model o3 \
   --system-prompt-file /path/to/system.txt \
   --prompt-file /path/to/prompt.txt \
@@ -61,7 +63,8 @@ bash ~/.claude/skills/codex-cli-runner/scripts/run_codex.sh \
 ## Dry-run example
 
 ```bash
-bash ~/.claude/skills/codex-cli-runner/scripts/run_codex.sh \
+SKILL_DIR="${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode"; do [ -d "$r/skills/codex-cli-runner" ] && echo "$r/skills/codex-cli-runner" && break; done)}"
+bash "${SKILL_DIR}/scripts/run_codex.sh" \
   --model o3 \
   --prompt-file /path/to/prompt.txt \
   --out /path/to/output.txt \

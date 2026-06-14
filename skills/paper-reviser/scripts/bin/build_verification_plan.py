@@ -44,15 +44,22 @@ def _sha256_file(path: Path) -> str:
     return h.hexdigest()
 
 
-def _codex_home() -> Path:
-    env = os.environ.get("CODEX_HOME", "").strip()
-    if env:
-        return Path(env).expanduser().resolve()
-    return (Path.home() / ".codex").resolve()
-
-
 def _default_skills_dir() -> Path:
-    return _codex_home() / "skills"
+    """Host-neutral agent skills root (no single host privileged).
+
+    Honor an explicitly advertised host home (CLAUDE_CONFIG_DIR / CODEX_HOME) when
+    set, else probe the known agent skill homes that actually exist, else fall back
+    to this script's own install location. `--skills-dir` overrides this entirely.
+    """
+    for env_var in ("CLAUDE_CONFIG_DIR", "CODEX_HOME"):
+        val = os.environ.get(env_var, "").strip()
+        if val:
+            return (Path(val).expanduser() / "skills").resolve()
+    for home in ("~/.claude", "~/.codex", "~/.config/opencode"):
+        root = Path(home).expanduser() / "skills"
+        if root.is_dir():
+            return root.resolve()
+    return Path(__file__).resolve().parents[3]
 
 
 def _default_literature_fetch(skills_dir: Path) -> Path:
@@ -128,7 +135,7 @@ def main() -> int:
         type=Path,
         help="Output plan path (default: <input_dir>/verification_plan.json)",
     )
-    ap.add_argument("--skills-dir", default=None, type=Path, help="Override skills directory (default: $CODEX_HOME/skills)")
+    ap.add_argument("--skills-dir", default=None, type=Path, help="Override skills directory (default: detected agent skills home)")
     ap.add_argument(
         "--literature-fetch",
         default=None,

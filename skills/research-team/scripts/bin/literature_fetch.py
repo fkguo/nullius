@@ -67,6 +67,17 @@ from typing import Any
 from urllib.parse import quote, urlencode, urljoin, urlsplit
 import xml.etree.ElementTree as ET
 
+# Host-neutral skill-dir resolution emitted verbatim in copy-paste hints: prefer an
+# explicit SKILL_DIR, else probe known agent skill homes (no single host privileged).
+_SKILL_DIR_HINT = (
+    '${SKILL_DIR:-$(for r in '
+    '"${CLAUDE_CONFIG_DIR:-$HOME/.claude}" '
+    '"${CODEX_HOME:-$HOME/.codex}" '
+    '"$HOME/.config/opencode"; do '
+    '[ -d "$r/skills/research-team" ] && echo "$r/skills/research-team" && break; '
+    'done)}'
+)
+
 
 def _try_load_bibtex_utils():
     """
@@ -1860,7 +1871,7 @@ def main() -> int:
                 - Copy the central equations/definitions and assumptions into `knowledge_base/literature/<refkey>.md`.
                 - Record what you did not read, project relevance, normalization choices, suspected typos, and remaining limitations before switching the note to `Evidence readiness: evidence-ready`.
                 - Tool-use logs and download attempts belong in methodology traces or run artifacts, not in the literature note.
-                - If those excerpts use paper macros (\\newcommand), you can batch-discover safe 0-arg macro expansions and merge into your JSON config (run from project root): `python3 "${{SKILL_DIR:-${{CODEX_HOME:-$HOME/.codex}}/skills/research-team}}/scripts/bin/discover_latex_zero_arg_macros.py" --root . --update-config`
+                - If those excerpts use paper macros (\\newcommand), you can batch-discover safe 0-arg macro expansions and merge into your JSON config (run from project root): `python3 "{_SKILL_DIR_HINT}/scripts/bin/discover_latex_zero_arg_macros.py" --root . --update-config`
                 """
             ).rstrip()
         )

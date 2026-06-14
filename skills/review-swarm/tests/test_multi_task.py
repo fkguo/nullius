@@ -271,7 +271,7 @@ class MultiTaskTests(unittest.TestCase):
                 "--models",
                 "codex/gpt-5",
             ]
-            with _temp_env(CODEX_HOME=str(fake_codex_home)):
+            with _temp_env(CLAUDE_CONFIG_DIR=str(fake_codex_home), CODEX_HOME=str(fake_codex_home)):
                 code = _run_main_with_argv(self.mod, argv)
 
             self.assertEqual(code, 2)
@@ -308,7 +308,7 @@ class MultiTaskTests(unittest.TestCase):
                 "--models",
                 "claude/default",
             ]
-            with _temp_env(CODEX_HOME=str(fake_codex_home)):
+            with _temp_env(CLAUDE_CONFIG_DIR=str(fake_codex_home), CODEX_HOME=str(fake_codex_home)):
                 code = _run_main_with_argv(self.mod, argv)
 
             self.assertEqual(code, 2)
@@ -935,7 +935,7 @@ TXT
                 "codex/default",
                 "--no-parallel",
             ]
-            with _temp_env(CODEX_HOME=str(fake_codex_home)):
+            with _temp_env(CLAUDE_CONFIG_DIR=str(fake_codex_home), CODEX_HOME=str(fake_codex_home)):
                 code = _run_main_with_argv(self.mod, argv)
 
             self.assertEqual(code, 0)
@@ -983,7 +983,7 @@ class ProjectConfigTests(unittest.TestCase):
                 "--config", str(cfg),
                 "--no-parallel",
             ]
-            with _temp_env(CODEX_HOME=str(fake_codex_home), REVIEW_SWARM_NO_AUTO_CONFIG="1"):
+            with _temp_env(CLAUDE_CONFIG_DIR=str(fake_codex_home), CODEX_HOME=str(fake_codex_home), REVIEW_SWARM_NO_AUTO_CONFIG="1"):
                 code = _run_main_with_argv(self.mod, argv)
 
             self.assertEqual(code, 0)
@@ -1021,7 +1021,7 @@ class ProjectConfigTests(unittest.TestCase):
                 "--models", "codex/cli-override",
                 "--no-parallel",
             ]
-            with _temp_env(CODEX_HOME=str(fake_codex_home), REVIEW_SWARM_NO_AUTO_CONFIG="1"):
+            with _temp_env(CLAUDE_CONFIG_DIR=str(fake_codex_home), CODEX_HOME=str(fake_codex_home), REVIEW_SWARM_NO_AUTO_CONFIG="1"):
                 code = _run_main_with_argv(self.mod, argv)
 
             self.assertEqual(code, 0)
@@ -1062,7 +1062,7 @@ class ProjectConfigTests(unittest.TestCase):
                 "--models", "codex/default,gemini/default",
                 "--no-parallel",
             ]
-            with _temp_env(CODEX_HOME=str(fake_codex_home), REVIEW_SWARM_NO_AUTO_CONFIG="1"):
+            with _temp_env(CLAUDE_CONFIG_DIR=str(fake_codex_home), CODEX_HOME=str(fake_codex_home), REVIEW_SWARM_NO_AUTO_CONFIG="1"):
                 code = _run_main_with_argv(self.mod, argv)
 
             self.assertEqual(code, 0)

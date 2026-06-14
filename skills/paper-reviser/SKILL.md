@@ -63,7 +63,7 @@ The tool auto-detects whether the input is a full LaTeX document:
 Set paths once:
 
 ```bash
-SKILLS_DIR="${CODEX_HOME:-$HOME/.codex}/skills"
+SKILLS_DIR="${SKILLS_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode"; do [ -d "$r/skills" ] && echo "$r/skills" && break; done)}"
 PAPER_REVISER="$SKILLS_DIR/paper-reviser"
 RESEARCH_TEAM="$SKILLS_DIR/research-team"
 ```

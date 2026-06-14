@@ -174,7 +174,7 @@ Offline testing helper:
 
 Prereqs for `--run-models`:
 - `claude` and `gemini` CLIs available in `PATH`
-- Runner skills installed under `$CODEX_HOME/skills/`:
+- Runner skills installed under your agent skills home (e.g. `~/.claude`, `~/.codex`, `~/.config/opencode`):
   - `claude-cli-runner`
   - `gemini-cli-runner`
 

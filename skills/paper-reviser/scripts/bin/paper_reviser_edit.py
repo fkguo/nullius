@@ -116,7 +116,8 @@ def _skill_root() -> Path:
 
 
 def _default_runner_paths() -> tuple[Path | None, Path | None]:
-    # Sibling skills under $CODEX_HOME/skills/
+    # Sibling skills under the same agent skills root where this skill is installed
+    # (host-neutral: derived from this script's own location, no single host hardcoded).
     base = _skill_root().parent
     claude = base / "claude-cli-runner" / "scripts" / "run_claude.sh"
     gemini = base / "gemini-cli-runner" / "scripts" / "run_gemini.sh"

@@ -87,27 +87,40 @@ def _write_json_file(path: Path, payload: dict[str, Any]) -> None:
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
-def _codex_home() -> Path:
-    env = os.environ.get("CODEX_HOME", "").strip()
-    if env:
-        return Path(env).expanduser().resolve()
-    return (Path.home() / ".codex").resolve()
+def _agent_skills_root() -> Path:
+    """Host-neutral agent skills root holding the sibling runner skills.
+
+    No single host is privileged: honor an explicitly advertised host home
+    (CLAUDE_CONFIG_DIR / CODEX_HOME) when set, else probe the known agent skill
+    homes that actually exist, else fall back to this script's own install
+    location (which also covers hosts not listed here). Explicit `--*-runner`
+    flags override the result entirely.
+    """
+    for env_var in ("CLAUDE_CONFIG_DIR", "CODEX_HOME"):
+        val = os.environ.get(env_var, "").strip()
+        if val:
+            return (Path(val).expanduser() / "skills").resolve()
+    for home in ("~/.claude", "~/.codex", "~/.config/opencode"):
+        root = Path(home).expanduser() / "skills"
+        if root.is_dir():
+            return root.resolve()
+    return Path(__file__).resolve().parents[3]
 
 
 def _opencode_runner() -> Path:
-    return _codex_home() / "skills" / "opencode-cli-runner" / "scripts" / "run_opencode.sh"
+    return _agent_skills_root() / "opencode-cli-runner" / "scripts" / "run_opencode.sh"
 
 
 def _claude_runner() -> Path:
-    return _codex_home() / "skills" / "claude-cli-runner" / "scripts" / "run_claude.sh"
+    return _agent_skills_root() / "claude-cli-runner" / "scripts" / "run_claude.sh"
 
 
 def _codex_runner() -> Path:
-    return _codex_home() / "skills" / "codex-cli-runner" / "scripts" / "run_codex.sh"
+    return _agent_skills_root() / "codex-cli-runner" / "scripts" / "run_codex.sh"
 
 
 def _gemini_runner() -> Path:
-    return _codex_home() / "skills" / "gemini-cli-runner" / "scripts" / "run_gemini.sh"
+    return _agent_skills_root() / "gemini-cli-runner" / "scripts" / "run_gemini.sh"
 
 
 def _require_file(p: Path, *, label: str) -> None:

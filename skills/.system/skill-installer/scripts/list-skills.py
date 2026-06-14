@@ -31,12 +31,25 @@ def _request(url: str) -> bytes:
     return github_request(url, "codex-skill-list")
 
 
-def _codex_home() -> str:
-    return os.environ.get("CODEX_HOME", os.path.expanduser("~/.codex"))
+def _agent_skills_root() -> str:
+    """Host-neutral agent skills root (no single host privileged).
+
+    Honor an explicitly advertised host home (CLAUDE_CONFIG_DIR / CODEX_HOME) when
+    set, else probe the known agent skill homes that actually exist.
+    """
+    for env_var in ("CLAUDE_CONFIG_DIR", "CODEX_HOME"):
+        val = os.environ.get(env_var, "").strip()
+        if val:
+            return os.path.join(os.path.expanduser(val), "skills")
+    for home in ("~/.claude", "~/.codex", "~/.config/opencode"):
+        root = os.path.join(os.path.expanduser(home), "skills")
+        if os.path.isdir(root):
+            return root
+    return os.path.join(os.path.expanduser("~/.claude"), "skills")
 
 
 def _installed_skills() -> set[str]:
-    root = os.path.join(_codex_home(), "skills")
+    root = _agent_skills_root()
     if not os.path.isdir(root):
         return set()
     entries = set()

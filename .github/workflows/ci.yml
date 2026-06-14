@@ -65,6 +65,10 @@ jobs:
         if: ${{ matrix.node-version == 22 }}
         run: node scripts/check-scaffold-authority.mjs
 
+      - name: Check host-neutral skill paths anti-drift (no <host>/skills hardcoding)
+        if: ${{ matrix.node-version == 22 }}
+        run: node scripts/check-host-neutral-skill-paths-anti-drift.mjs
+
       - name: Check codegen drift (meta/schemas ↔ generated)
         if: ${{ matrix.node-version == 22 }}
         run: pnpm codegen:check

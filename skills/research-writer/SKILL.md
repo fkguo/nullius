@@ -91,7 +91,7 @@ Outputs are written under `paper/drafts/<run-id>/`:
 
 Advanced flags (optional; see `--help` for full surface):
 - Models: `--writer-model` (default: `opus`), `--auditor-model` (default: `gemini-3-pro-preview`)
-- Runner scripts: `--claude-runner` / `--gemini-runner` point to `run_claude.sh` / `run_gemini.sh` (defaults are auto-detected under `$CODEX_HOME/skills/`)
+- Runner scripts: `--claude-runner` / `--gemini-runner` point to `run_claude.sh` / `run_gemini.sh` (defaults are auto-detected under your agent skills home, e.g. `~/.claude` / `~/.codex` / `~/.config/opencode`)
 - Evidence gate: `--evidence-scan=all|macros` (default `all`); if `macros`, set one or more `--evidence-macro` (e.g. `revadd`)
 - Testing: `--stub-models` (no external calls), `--stub-variant=safe|unsafe` (`unsafe` should fail the evidence gate by design)
 

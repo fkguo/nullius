@@ -4,7 +4,7 @@
 
 Place this skill at:
 
-- `~/.codex/skills/auto-relay/`
+- `<your-agent-skills-home>/skills/auto-relay/` (e.g. under `~/.codex`, `~/.claude`, or `~/.config/opencode`)
 
 Expected key files:
 

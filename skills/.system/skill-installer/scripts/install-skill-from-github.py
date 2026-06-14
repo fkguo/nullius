@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Install a skill from a GitHub repo path into $CODEX_HOME/skills."""
+"""Install a skill from a GitHub repo path into the detected agent skills home."""
 
 from __future__ import annotations
 
@@ -42,8 +42,22 @@ class InstallError(Exception):
     pass
 
 
-def _codex_home() -> str:
-    return os.environ.get("CODEX_HOME", os.path.expanduser("~/.codex"))
+def _agent_skills_root() -> str:
+    """Host-neutral install destination root (no single host privileged).
+
+    Honor an explicitly advertised host home (CLAUDE_CONFIG_DIR / CODEX_HOME) when
+    set, else probe the known agent skill homes that actually exist. Raises if none
+    is detected so the caller can pass an explicit ``--dest``.
+    """
+    for env_var in ("CLAUDE_CONFIG_DIR", "CODEX_HOME"):
+        val = os.environ.get(env_var, "").strip()
+        if val:
+            return os.path.join(os.path.expanduser(val), "skills")
+    for home in ("~/.claude", "~/.codex", "~/.config/opencode"):
+        root = os.path.join(os.path.expanduser(home), "skills")
+        if os.path.isdir(root):
+            return root
+    raise InstallError("Could not detect an agent skills directory; pass --dest /path/to/skills")
 
 
 def _tmp_root() -> str:
@@ -241,7 +255,7 @@ def _resolve_source(args: Args) -> Source:
 
 
 def _default_dest() -> str:
-    return os.path.join(_codex_home(), "skills")
+    return _agent_skills_root()
 
 
 def _parse_args(argv: list[str]) -> Args:

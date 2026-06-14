@@ -10,6 +10,17 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
 
 from team_config import load_team_config  # type: ignore
 
+# Host-neutral skill-dir resolution emitted verbatim in copy-paste hints: prefer an
+# explicit SKILL_DIR, else probe known agent skill homes (no single host privileged).
+_SKILL_DIR_HINT = (
+    '${SKILL_DIR:-$(for r in '
+    '"${CLAUDE_CONFIG_DIR:-$HOME/.claude}" '
+    '"${CODEX_HOME:-$HOME/.codex}" '
+    '"$HOME/.config/opencode"; do '
+    '[ -d "$r/skills/research-team" ] && echo "$r/skills/research-team" && break; '
+    'done)}'
+)
+
 
 def _find_project_root(seed: Path) -> Path:
     cur = seed.resolve()
@@ -43,7 +54,7 @@ def main() -> int:
     if not path.is_file():
         print(f"ERROR: missing project_index.md at project root: {path}")
         print("Fix: run the scaffold or generate one deterministically:")
-        print(f'  python3 "${{SKILL_DIR:-${{CODEX_HOME:-$HOME/.codex}}/skills/research-team}}/scripts/bin/update_project_map.py" --notes {args.notes} --team-dir team')
+        print(f'  python3 "{_SKILL_DIR_HINT}/scripts/bin/update_project_map.py" --notes {args.notes} --team-dir team')
         return 1
 
     text = path.read_text(encoding="utf-8", errors="replace").replace("\r\n", "\n").replace("\r", "\n")
