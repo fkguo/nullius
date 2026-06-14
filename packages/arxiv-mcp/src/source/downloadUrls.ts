@@ -11,7 +11,10 @@ import { normalizeArxivId, checkSourceAvailability } from './arxivSource.js';
 // Constants
 // ─────────────────────────────────────────────────────────────────────────────
 
-const ARXIV_EXPORT_BASE = 'https://export.arxiv.org';
+// Source/PDF download URLs point at the main `arxiv.org` site; the
+// `export.arxiv.org` API mirror truncates large source archives at a ~2 MiB
+// boundary. See rateLimiter ARXIV_ALLOWED_HOSTS.
+const ARXIV_DOWNLOAD_BASE = 'https://arxiv.org';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -57,8 +60,8 @@ export async function getDownloadUrls(
 
   const result: GetDownloadUrlsResult = {
     arxiv_id: arxivId,
-    arxiv_source: `${ARXIV_EXPORT_BASE}/src/${arxivId}`,
-    arxiv_pdf: `${ARXIV_EXPORT_BASE}/pdf/${arxivId}.pdf`,
+    arxiv_source: `${ARXIV_DOWNLOAD_BASE}/e-print/${arxivId}`,
+    arxiv_pdf: `${ARXIV_DOWNLOAD_BASE}/pdf/${arxivId}`,
     arxiv_abs: `https://arxiv.org/abs/${arxivId}`,
     arxiv_html: `https://ar5iv.labs.arxiv.org/html/${arxivId}`,
     has_source: false,

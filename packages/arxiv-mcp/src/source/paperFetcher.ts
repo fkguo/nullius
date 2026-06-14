@@ -11,7 +11,11 @@ import { arxivFetch } from '../api/rateLimiter.js';
 // Constants
 // ─────────────────────────────────────────────────────────────────────────────
 
-const ARXIV_EXPORT_BASE = 'https://export.arxiv.org';
+// Source/PDF downloads (and their HEAD probes) go through the main
+// `arxiv.org` site, NOT the `export.arxiv.org` API mirror — the mirror
+// truncates large source archives at a ~2 MiB boundary. See rateLimiter
+// ARXIV_ALLOWED_HOSTS for the host-role split.
+const ARXIV_DOWNLOAD_BASE = 'https://arxiv.org';
 
 /**
  * H-10 disk-fill defense: arXiv source archives are typically <50 MB; even
@@ -110,7 +114,7 @@ export async function downloadFile(url: string, destPath: string): Promise<void>
  * Detect source file type from arXiv Content-Type header via HEAD request.
  */
 export async function detectSourceType(arxivId: string): Promise<SourceFileType> {
-  const url = `${ARXIV_EXPORT_BASE}/src/${arxivId}`;
+  const url = `${ARXIV_DOWNLOAD_BASE}/e-print/${arxivId}`;
   const response = await arxivFetch(url, { method: 'HEAD' });
 
   if (!response.ok) return 'unknown';

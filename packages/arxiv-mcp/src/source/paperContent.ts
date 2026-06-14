@@ -17,7 +17,10 @@ import { extractTarGz, extractGz, isTarArchive, findMainTexFile } from './tarExt
 // Constants
 // ─────────────────────────────────────────────────────────────────────────────
 
-const ARXIV_EXPORT_BASE = 'https://export.arxiv.org';
+// Downloads go through the main `arxiv.org` site; the `export.arxiv.org`
+// API mirror truncates large source archives at a ~2 MiB boundary. See
+// rateLimiter ARXIV_ALLOWED_HOSTS.
+const ARXIV_DOWNLOAD_BASE = 'https://arxiv.org';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -130,7 +133,7 @@ async function downloadLatexSource(
     };
   }
 
-  const sourceUrl = `${ARXIV_EXPORT_BASE}/src/${arxivId}`;
+  const sourceUrl = `${ARXIV_DOWNLOAD_BASE}/e-print/${arxivId}`;
   const archivePath = path.join(destDir, 'source.tar.gz');
 
   try {
@@ -205,7 +208,7 @@ async function downloadPdf(
   arxivId: string,
   destDir: string
 ): Promise<GetPaperContentResult> {
-  const pdfUrl = `${ARXIV_EXPORT_BASE}/pdf/${arxivId}.pdf`;
+  const pdfUrl = `${ARXIV_DOWNLOAD_BASE}/pdf/${arxivId}`;
   const pdfPath = path.join(destDir, `${arxivId.replace('/', '-')}.pdf`);
 
   try {

@@ -73,19 +73,24 @@ const RETRYABLE_NETWORK_ERROR_CODES = new Set([
 ]);
 
 /**
- * H-10 SSRF defense: only fetch and only follow redirects to the arXiv
- * `export.arxiv.org` host. Without this, the default `redirect: 'follow'`
- * lets Node fetch follow up to 20 redirects to any host, and the exported
- * `arxivFetch(url)` accepts arbitrary URL strings at the public surface.
+ * H-10 SSRF defense: only fetch and only follow redirects to arXiv hosts.
+ * Without this, the default `redirect: 'follow'` lets Node fetch follow up
+ * to 20 redirects to any host, and the exported `arxivFetch(url)` accepts
+ * arbitrary URL strings at the public surface.
  *
- * Verified the sole live fetch target is `https://export.arxiv.org` — all
- * internal callers (paperFetcher.ts, paperContent.ts, arxivSource.ts,
- * searchClient.ts) build URLs rooted at `ARXIV_EXPORT_BASE`. `arxiv.org`
- * (e.g. `https://arxiv.org/abs/<id>`) appears only as a tool-output URL
- * string (downloadUrls.ts) — never fetched by this package today.
+ * Two hosts are allowed, split by role:
+ *   - `export.arxiv.org` — the arXiv API mirror (`/api/query`); searchClient.ts
+ *     uses it for metadata/search only.
+ *   - `arxiv.org` — the main site, used for bulk file downloads
+ *     (`/e-print/<id>` source, `/pdf/<id>`) by paperContent.ts /
+ *     paperFetcher.ts / arxivSource.ts. The `export.arxiv.org` mirror
+ *     truncates large source archives at a ~2 MiB boundary (and rate-limits
+ *     aggressively), so downloads MUST go through `arxiv.org`. Exact-host
+ *     match only — `arxiv.org.evil.com` / `evilarxiv.org` are not matched.
  */
 const ARXIV_ALLOWED_HOSTS: ReadonlySet<string> = new Set([
   'export.arxiv.org',
+  'arxiv.org',
 ]);
 
 function isTestEnv(): boolean {

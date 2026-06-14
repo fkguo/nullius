@@ -43,7 +43,7 @@ describe('L1: compactPaperSummary', () => {
     inspire_url: 'https://inspirehep.net/literature/123456',
     arxiv_url: 'https://arxiv.org/abs/2401.12345',
     doi_url: 'https://doi.org/10.1103/PhysRevLett.130.071801',
-    pdf_url: 'https://arxiv.org/pdf/2401.12345.pdf',
+    pdf_url: 'https://arxiv.org/pdf/2401.12345',
     source_url: 'https://arxiv.org/e-print/2401.12345',
     publication_type: ['review'],
     document_type: ['article'],

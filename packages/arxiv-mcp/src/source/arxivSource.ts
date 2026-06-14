@@ -11,7 +11,10 @@ import { fetchArxivMetadata, type ArxivMetadata } from '../api/searchClient.js';
 // Constants
 // ─────────────────────────────────────────────────────────────────────────────
 
-const ARXIV_EXPORT_BASE = 'https://export.arxiv.org';
+// Source/PDF downloads (and their HEAD availability probes) go through the
+// main `arxiv.org` site; the `export.arxiv.org` API mirror truncates large
+// source archives at a ~2 MiB boundary. See rateLimiter ARXIV_ALLOWED_HOSTS.
+const ARXIV_DOWNLOAD_BASE = 'https://arxiv.org';
 
 /** Shared regex — used by BOTH ArxivIdSchema and normalizeArxivId (SSOT, §3.0) */
 export const ARXIV_ID_REGEX = /^(\d{4}\.\d{4,5}(v\d+)?|[a-z-]+(\.[a-z-]+)?\/\d{7}(v\d+)?)$/i;
@@ -51,8 +54,10 @@ export function normalizeArxivId(id: string): string | null {
     return stripVersion(id);
   }
 
-  // Extract from URL: https://arxiv.org/abs/2301.12345
-  const urlMatch = id.match(/arxiv\.org\/(?:abs|pdf|src)\/([^\s?/]+)/i);
+  // Extract from URL: https://arxiv.org/abs/2301.12345 (also pdf/src/e-print —
+  // `/e-print/` is the canonical source path this package now emits, so the
+  // normalizer must round-trip its own source_url output).
+  const urlMatch = id.match(/arxiv\.org\/(?:abs|pdf|src|e-print)\/([^\s?/]+)/i);
   if (urlMatch) {
     return stripVersion(urlMatch[1]);
   }
@@ -74,7 +79,7 @@ export function normalizeArxivId(id: string): string | null {
  * Check if arXiv source (LaTeX/tar.gz) is available via HEAD request.
  */
 export async function checkSourceAvailability(arxivId: string): Promise<boolean> {
-  const sourceUrl = `${ARXIV_EXPORT_BASE}/src/${arxivId}`;
+  const sourceUrl = `${ARXIV_DOWNLOAD_BASE}/e-print/${arxivId}`;
 
   try {
     const response = await arxivFetch(sourceUrl, { method: 'HEAD' });
@@ -129,8 +134,8 @@ export async function getArxivSource(arxivId: string): Promise<ArxivSourceResult
 
   return {
     metadata,
-    source_url: `${ARXIV_EXPORT_BASE}/src/${arxivId}`,
-    pdf_url: `${ARXIV_EXPORT_BASE}/pdf/${arxivId}.pdf`,
+    source_url: `${ARXIV_DOWNLOAD_BASE}/e-print/${arxivId}`,
+    pdf_url: `${ARXIV_DOWNLOAD_BASE}/pdf/${arxivId}`,
     abs_url: `https://arxiv.org/abs/${arxivId}`,
     html_url: `https://ar5iv.labs.arxiv.org/html/${arxivId}`,
     source_available: sourceAvailable,

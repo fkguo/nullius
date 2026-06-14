@@ -232,7 +232,7 @@ describe('arXiv rate limiter shared interval gating', () => {
 //   - validateArxivEntryUrl at the public entry point
 //   - validateArxivRedirectTarget on each redirect hop
 //   - MAX_REDIRECTS = 5 cap
-//   - ARXIV_ALLOWED_HOSTS = {export.arxiv.org}
+//   - ARXIV_ALLOWED_HOSTS = {export.arxiv.org, arxiv.org}
 // ─────────────────────────────────────────────────────────────────────────────
 describe('H-10 regression — entry guard and redirect host allow-list', () => {
   const fetchSpy = vi.fn();
@@ -280,10 +280,21 @@ describe('H-10 regression — entry guard and redirect host allow-list', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it('entry guard rejects sibling host (arxiv.org, not export.arxiv.org)', async () => {
-    // Only export.arxiv.org is allowed; bare arxiv.org is not fetched today
+  it('entry guard accepts arxiv.org download URL (e-print/pdf)', async () => {
+    // arxiv.org is the bulk-download host (source `/e-print`, `/pdf`); the
+    // export.arxiv.org mirror truncates large source archives at ~2 MiB.
+    fetchSpy.mockResolvedValueOnce(new Response('PDF', { status: 200 }));
     const { arxivFetch } = await import('../src/api/rateLimiter.js');
-    await expect(arxivFetch('https://arxiv.org/pdf/2401.00001v1')).rejects.toThrow(
+    const response = await arxivFetch('https://arxiv.org/e-print/2401.00001v1');
+    expect(response.status).toBe(200);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('entry guard rejects look-alike host (arxiv.org.evil.com)', async () => {
+    // Exact-host match only — a suffix attack on the new arxiv.org entry
+    // must still be rejected.
+    const { arxivFetch } = await import('../src/api/rateLimiter.js');
+    await expect(arxivFetch('https://arxiv.org.evil.com/e-print/2401.00001')).rejects.toThrow(
       /host not in allow-list/,
     );
     expect(fetchSpy).not.toHaveBeenCalled();

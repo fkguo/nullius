@@ -405,8 +405,8 @@ function extractPaperSummary(hit: InspireHit): PaperSummary {
   const publication_summary = buildPublicationSummary(meta.publication_info, arxiv_id, meta.earliest_date);
 
   // Build document access URLs
-  const pdf_url = arxiv_id ? `https://arxiv.org/pdf/${arxiv_id}.pdf` : undefined;
-  const source_url = arxiv_id ? `https://arxiv.org/src/${arxiv_id}` : undefined;
+  const pdf_url = arxiv_id ? `https://arxiv.org/pdf/${arxiv_id}` : undefined;
+  const source_url = arxiv_id ? `https://arxiv.org/e-print/${arxiv_id}` : undefined;
   const collaborations = meta.collaborations?.map((c) => c.value).filter((v): v is string => !!v) || [];
 
   const texkey = Array.isArray(meta.texkeys)
