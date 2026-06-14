@@ -92,6 +92,7 @@ export const HEP_TOOL_RISK_LEVELS: ToolRiskTable = {
   [T.ZOTERO_GET_SELECTED_COLLECTION]: 'read',
   [T.ZOTERO_ADD]: 'write',
   [T.ZOTERO_CONFIRM]: 'write',
+  [T.ZOTERO_DELETE]: 'write',
   [T.HEPDATA_SEARCH]: 'read',
   [T.HEPDATA_GET_RECORD]: 'read',
   [T.HEPDATA_GET_TABLE]: 'read',

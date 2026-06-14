@@ -15,10 +15,21 @@ export interface ZoteroAddConfirmPayloadV1 {
     tags: string[];
     note?: string;
     file_path?: string;
+    /**
+     * How to attach `file_path`. `import` copies the file into Zotero storage and
+     * never mutates the source (safe default, also robust to file-management
+     * plugins like Attanger/ZotFile). `link` references the file in place.
+     */
+    attach_mode: 'import' | 'link';
     dedupe: 'return_existing' | 'update_existing' | 'error_on_existing';
     open_in_zotero: boolean;
   };
   selection?: { kind: 'collection'; collection_key: string; path: string } | { kind: 'library_root'; path: string };
+}
+
+export interface ZoteroDeleteConfirmPayloadV1 {
+  mode: 'trash' | 'erase';
+  items: Array<{ item_key: string; title?: string; item_type?: string; missing?: boolean }>;
 }
 
 export type ConfirmAction =
@@ -26,6 +37,12 @@ export type ConfirmAction =
       kind: 'zotero_add_v1';
       payload: {
         params: ZoteroAddConfirmPayloadV1;
+      };
+    }
+  | {
+      kind: 'zotero_delete_v1';
+      payload: {
+        params: ZoteroDeleteConfirmPayloadV1;
       };
     };
 

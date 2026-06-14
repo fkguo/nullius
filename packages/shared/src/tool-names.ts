@@ -65,6 +65,7 @@ export const ZOTERO_EXPORT_ITEMS = 'zotero_export_items' as const;
 export const ZOTERO_GET_SELECTED_COLLECTION = 'zotero_get_selected_collection' as const;
 export const ZOTERO_ADD = 'zotero_add' as const;
 export const ZOTERO_CONFIRM = 'zotero_confirm' as const;
+export const ZOTERO_DELETE = 'zotero_delete' as const;
 
 // ── Orchestrator Run Tools ──────────────────────────────────────────────────
 

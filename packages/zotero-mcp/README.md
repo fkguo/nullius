@@ -30,13 +30,20 @@ pnpm -C packages/zotero-mcp exec zotero-mcp
 - `ZOTERO_FILE_REDIRECT_ALLOWED_ROOTS` (default: empty) — extra allowed filesystem roots for `file://` redirects (for linked attachments; separated by `:` on macOS/Linux, `;` on Windows).
 - `ZOTERO_CONFIRM_TTL_MS` (default: `600000`, max: `3600000`) — confirmation token TTL for write operations.
 - `ZOTERO_TOOL_MODE` (`standard`/`full`, default: `standard`) — tool exposure mode.
+- `ZOTERO_WRITE_TOKEN` (default: auto-read from the Zotero profile `prefs.js`) — auth token for the zotero-inspire write endpoint used by file attachment and `zotero_delete`. Set this to override automatic detection.
+
+## Writes require the zotero-inspire plugin
+
+The native Zotero Local API is **read-only** (every `POST`/`DELETE` returns `400 "Endpoint does not support method"`). Item/note creation works through the Connector, but **file attachment** (`zotero_add` + `file_path`) and **deletion** (`zotero_delete`) require the **zotero-inspire** plugin (≥ 3.0.3), which registers an authenticated `POST /connector/zinspireWrite` endpoint. If the plugin is absent, the item write still succeeds and the attachment is reported as `file_attached:false` with a structured `attach_error` (never silently dropped).
 
 ## Tool Surface
 
 - `standard`:
   - `zotero_local` (modes: `list_collections`, `list_collection_paths`, `list_items`, `get_item`, `get_item_attachments`, `download_attachment`, `get_attachment_fulltext`, `list_tags`)
   - `zotero_find_items`, `zotero_search_items`, `zotero_get_selected_collection`, `zotero_export_items`
-  - `zotero_add` (preview-only; returns `confirm_token`), `zotero_confirm` (executes confirmed write)
+  - `zotero_add` (preview-only; optional `file_path` with `attach_mode` `import`/`link`; returns `confirm_token`)
+  - `zotero_delete` (preview-only; `mode` `trash`/`erase`; returns `confirm_token`)
+  - `zotero_confirm` (executes a confirmed add or delete)
 - `full`: currently identical to `standard` (reserved for future expansion).
 
 ### `zotero_find_items` vs `zotero_search_items`

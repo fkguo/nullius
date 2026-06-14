@@ -7,6 +7,7 @@ import {
   ZOTERO_GET_SELECTED_COLLECTION,
   ZOTERO_ADD,
   ZOTERO_CONFIRM,
+  ZOTERO_DELETE,
   optionalBudgetInt,
 } from '@autoresearch/shared';
 
@@ -16,6 +17,8 @@ import { consumeConfirmAction } from '../zotero/confirm.js';
 import {
   zoteroAdd,
   zoteroAddConfirm,
+  zoteroDelete,
+  zoteroDeleteConfirm,
   zoteroDownloadAttachment,
   zoteroExportItems,
   zoteroFindItems,
@@ -257,7 +260,10 @@ const ZoteroAddToolSchema = z
     file_path: z.string().optional().refine(
       v => v === undefined || v === '' || (typeof v === 'string' && v.startsWith('/')),
       { message: 'file_path must be an absolute path (starting with /)' }
-    ).describe('Optional absolute file path to attach as a linked file (e.g. a downloaded PDF). Requires Zotero Local API write access.'),
+    ).describe('Optional absolute file path to attach (e.g. a downloaded PDF). Attached via the zotero-inspire write endpoint (the native Zotero Local API is read-only and cannot attach files). See attach_mode.'),
+    attach_mode: z.enum(['import', 'link']).optional().default('import').describe(
+      "How to attach file_path. 'import' (default) copies the file into Zotero storage and never mutates the source. 'link' references it in place (and may be renamed/moved by file-management plugins like Attanger/ZotFile)."
+    ),
     dedupe: z.enum(['return_existing', 'update_existing', 'error_on_existing']).optional().default('return_existing'),
     open_in_zotero: z.boolean().optional().default(true),
   })
@@ -374,6 +380,22 @@ const ZoteroLocalToolSchema = z
     }
   });
 
+const ZoteroDeleteToolSchema = z
+  .object({
+    item_keys: z
+      .array(SafePathSegmentSchema)
+      .min(1)
+      .max(100)
+      .transform(keys => Array.from(new Set(keys)))
+      .describe('Zotero item keys to delete (top-level items; their child attachments/notes are removed with them).'),
+    mode: z
+      .enum(['trash', 'erase'])
+      .optional()
+      .default('trash')
+      .describe("'trash' (default) moves items to the Zotero trash (recoverable). 'erase' permanently deletes them (NOT recoverable)."),
+  })
+  .describe('Preview a Zotero delete (trash/erase) and return a confirm_token; execute via zotero_confirm (local-only write via the zotero-inspire endpoint).');
+
 const ZoteroConfirmToolSchema = z
   .object({
     confirm_token: z.string().trim().min(1).max(200),
@@ -484,6 +506,14 @@ export const TOOL_SPECS: ToolSpec[] = [
     handler: async params => zoteroAdd(params),
   },
   {
+    name: ZOTERO_DELETE,
+    exposure: 'standard',
+    description:
+      'Preview a Zotero delete and return a confirm_token; execute via zotero_confirm (local-only write via the zotero-inspire endpoint, which the native read-only Local API cannot do). mode=trash (default) is recoverable from the Zotero trash; mode=erase is permanent.',
+    zodSchema: ZoteroDeleteToolSchema,
+    handler: async params => zoteroDelete(params),
+  },
+  {
     name: ZOTERO_CONFIRM,
     exposure: 'standard',
     description:
@@ -497,6 +527,16 @@ export const TOOL_SPECS: ToolSpec[] = [
           return {
             status: 'executed',
             tool: ZOTERO_ADD,
+            executed_at: new Date().toISOString(),
+            confirm_token_consumed: stored.token,
+            result,
+          };
+        }
+        case 'zotero_delete_v1': {
+          const result = await zoteroDeleteConfirm(stored.action.payload.params);
+          return {
+            status: 'executed',
+            tool: ZOTERO_DELETE,
             executed_at: new Date().toISOString(),
             confirm_token_consumed: stored.token,
             result,

@@ -1,4 +1,4 @@
-# Tool Categories（standard=74 / full=81）
+# Tool Categories（standard=75 / full=82）
 
 本文件把 `hep-mcp` 的 **standard 暴露**工具按“场景/闭环”分组，目的是让你不必理解全部工具，也能快速完成闭环。它描述的是当前 HEP 领域工具面，不是仓库的 root 产品身份。
 
@@ -124,6 +124,7 @@
 - `zotero_get_selected_collection`
 - `zotero_add`
 - `zotero_confirm`
+- `zotero_delete`
 - `hep_import_from_zotero`（导入到 run 的 mapping）
 
 > 备注：已移除 full-only 的细粒度 `zotero_*` 工具；统一使用 `zotero_local` 的 `mode` 分派。
