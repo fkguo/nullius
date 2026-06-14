@@ -36,8 +36,6 @@ class TestRunArtifactIdentity(unittest.TestCase):
                 "README.md",
                 "references/usage_guide.md",
                 "references/usage_guide.zh.md",
-                "assets/AGENTS_template.md",
-                "assets/research_plan_template.md",
             )
         )
 
@@ -46,19 +44,6 @@ class TestRunArtifactIdentity(unittest.TestCase):
         self.assertIn("20260502T023000Z-m0-topic", docs)
         self.assertIn("Do not use bare UUIDs or `run_<uuid>`", docs)
         self.assertNotIn("M0-r1", docs)
-
-    def test_agents_template_preserves_project_harness_precedence(self) -> None:
-        template = (SKILL_ROOT / "assets/AGENTS_template.md").read_text(encoding="utf-8")
-
-        self.assertIn("## Project-harness precedence", template)
-        self.assertIn(".autoresearch/HARNESS", template)
-        self.assertIn("Before any new session, reconnect, interruption recovery, context reset, handoff, milestone start, or closeout", template)
-        self.assertIn("If the host agent exposes a `research-harness` skill", template)
-        self.assertIn("use that entrypoint first for reconnect, recovery, routing, verification, and handoff", template)
-        self.assertIn("routes lifecycle work to `autoresearch`, milestone execution to this `research-team` workflow", template)
-        self.assertIn("not the root project control plane", template)
-        self.assertIn("preserve this project-harness precedence block", template)
-        self.assertIn("the `.autoresearch/HARNESS` trigger", template)
 
     def test_agents_anchor_gate_requires_harness_precedence_when_runtime_sentinel_exists(self) -> None:
         with tempfile.TemporaryDirectory() as td:
@@ -212,13 +197,19 @@ class TestRunArtifactIdentity(unittest.TestCase):
             )
             self.assertEqual(scaffold.returncode, 0, msg=scaffold.stdout)
             agents = (root / "AGENTS.md").read_text(encoding="utf-8")
+            skill = (SKILL_ROOT / "SKILL.md").read_text(encoding="utf-8")
             kb_readme = (root / "knowledge_base" / "README.md").read_text(encoding="utf-8")
             cfg = json.loads((root / "research_team_config.json").read_text(encoding="utf-8"))
-            self.assertIn("run_team_cycle.sh", agents)
+            # Scaffolded AGENTS.md is now the canonical project-contracts document
+            # (single scaffold authority). The run_team_cycle.sh cycle-trigger
+            # guidance lives in the research-team skill, not the baseline AGENTS.
+            # Anchor on the runnable invocation, not a bare filename mention, so
+            # the assertion locks the actual guidance.
+            self.assertIn('bash "${SKILL_DIR}/scripts/bin/run_team_cycle.sh"', skill)
             self.assertIn("artifacts/runs/<run_id>/", agents)
-            self.assertIn("For important or directly relevant papers, do not stop at the abstract.", agents)
+            self.assertIn("Do not use an abstract-only reading as decisive evidence", agents)
             self.assertIn("If arXiv LaTeX source is available, prefer reading the source", agents)
-            self.assertIn("Tool-use logs belong in methodology traces or run artifacts, not in literature notes.", agents)
+            self.assertIn("Literature notes should record scientific content, not tool-use logs", agents)
             for snippet in LANGUAGE_DISCIPLINE_SNIPPETS:
                 self.assertIn(snippet, agents)
             self.assertIn("Evidence readiness: evidence-ready", kb_readme)

@@ -27,6 +27,9 @@ Keep this section short enough to read in one screen. It is the human status ent
 - Goal:
 - Blocking questions:
 - Exit criteria:
+- Task breakdown (replace the placeholders with the real tasks for this milestone):
+  - [ ] T1: <first concrete task> — record evidence under `artifacts/runs/<run_id>/analysis.json`
+  - [ ] T2: <next concrete task> — record evidence under `artifacts/runs/<run_id>/`
 
 ## Task Board
 

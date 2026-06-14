@@ -16,7 +16,8 @@
     "check:harness-invocation-anti-drift": "node scripts/check-harness-invocation-anti-drift.mjs",
     "check:integrity-receipt-anti-drift": "node scripts/check-integrity-receipt-anti-drift.mjs",
     "check:skill-tool-name-anti-drift": "node scripts/check-skill-tool-name-anti-drift.mjs",
-    "check:portable-paths-anti-drift": "node scripts/check-portable-paths-anti-drift.mjs"
+    "check:portable-paths-anti-drift": "node scripts/check-portable-paths-anti-drift.mjs",
+    "check:scaffold-authority": "node scripts/check-scaffold-authority.mjs"
   },
   "author": "Feng-Kun Guo",
   "license": "MIT",

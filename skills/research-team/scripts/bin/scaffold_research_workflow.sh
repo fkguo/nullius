@@ -9,8 +9,6 @@ SKIP_PREFLIGHT=0
 VARIANT="minimal"
 WITH_HEP_PROVIDER=0
 PROJECT_POLICY="real_project"
-AGENTS_EXISTED_BEFORE=0
-RESEARCH_PLAN_EXISTED_BEFORE=0
 
 usage() {
   cat <<'EOF'
@@ -18,12 +16,12 @@ Usage:
   scaffold_research_workflow.sh --root <project_root> --project <project_name> [--profile PROFILE] [--full] [--with-hep-provider] [--project-policy real_project|maintainer_fixture] [--force] [--skip-prework]
 
 Default behavior creates the canonical minimal project scaffold:
+  - AGENTS.md
   - project_charter.md
   - project_index.md
   - research_plan.md
   - research_notebook.md
   - research_contract.md
-  - .mcp.template.json
 
 Use --full to add research-team host-local surfaces:
   - prompts/
@@ -82,8 +80,7 @@ esac
 copy_template() {
   local src="$1"
   local dst="$2"
-  local overwrite_generated="${3:-0}"
-  if [[ -e "${dst}" && "${FORCE}" -ne 1 && "${overwrite_generated}" -ne 1 ]]; then
+  if [[ -e "${dst}" && "${FORCE}" -ne 1 ]]; then
     echo "[skip] exists: ${dst}"
     return 0
   fi
@@ -106,12 +103,6 @@ PY
 }
 
 echo "[step] render canonical scaffold (${VARIANT})"
-if [[ -e "${ROOT}/AGENTS.md" ]]; then
-  AGENTS_EXISTED_BEFORE=1
-fi
-if [[ -e "${ROOT}/research_plan.md" ]]; then
-  RESEARCH_PLAN_EXISTED_BEFORE=1
-fi
 if [[ -d "${PROJECT_CONTRACTS_SRC}" ]]; then
   PYTHONPATH="${PROJECT_CONTRACTS_SRC}${PYTHONPATH:+:${PYTHONPATH}}" python3 -m project_contracts.project_scaffold_cli \
     --root "${ROOT}" \
@@ -138,17 +129,11 @@ mkdir -p "${ROOT}/references/inspire" "${ROOT}/references/arxiv_src" "${ROOT}/re
 mkdir -p "${ROOT}/knowledge_base/literature" "${ROOT}/knowledge_base/methodology_traces" "${ROOT}/knowledge_base/priors"
 mkdir -p "${ROOT}/knowledge_graph" "${ROOT}/mechanisms"
 
-agents_overwrite_generated=0
-if [[ "${FORCE}" -eq 1 || "${AGENTS_EXISTED_BEFORE}" -eq 0 ]]; then
-  agents_overwrite_generated=1
-fi
-copy_template "${ASSETS_DIR}/AGENTS_template.md" "${ROOT}/AGENTS.md" "${agents_overwrite_generated}"
-
-plan_overwrite_generated=0
-if [[ "${FORCE}" -eq 1 || "${RESEARCH_PLAN_EXISTED_BEFORE}" -eq 0 ]]; then
-  plan_overwrite_generated=1
-fi
-copy_template "${ASSETS_DIR}/research_plan_template.md" "${ROOT}/research_plan.md" "${plan_overwrite_generated}"
+# Baseline AGENTS.md and research_plan.md are owned solely by the canonical
+# project-contracts scaffold (rendered above by project_scaffold_cli). The
+# research-team `--full` overlay adds only its own opt-in feature files below;
+# it must not re-render or override those baseline documents. See
+# scripts/check-scaffold-authority.mjs, which locks this single authority.
 
 if [[ "${WITH_HEP_PROVIDER}" -eq 1 ]]; then
   copy_template "${ASSETS_DIR}/hep_workspace_template.json" "${ROOT}/.hep/workspace.json"
