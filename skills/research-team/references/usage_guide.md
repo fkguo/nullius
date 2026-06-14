@@ -38,7 +38,7 @@ Commands below use `SKILL_DIR` so they stay portable across install locations.
 1) Environment check:
 
 ```bash
-SKILL_DIR="${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode"; do [ -d "$r/skills/research-team" ] && echo "$r/skills/research-team" && break; done)}"
+SKILL_DIR="${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode"; do [ -d "$r/skills/research-team" ] && echo "$r/skills/research-team" && break; done || true)}"
 bash "${SKILL_DIR}/scripts/bin/check_environment.sh" --require-codex
 # or (explicit A=Claude, B=Gemini):
 # bash "${SKILL_DIR}/scripts/bin/check_environment.sh" --require-claude --require-gemini
@@ -47,7 +47,7 @@ bash "${SKILL_DIR}/scripts/bin/check_environment.sh" --require-codex
 2) Scaffold a project:
 
 ```bash
-SKILL_DIR="${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode"; do [ -d "$r/skills/research-team" ] && echo "$r/skills/research-team" && break; done)}"
+SKILL_DIR="${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode"; do [ -d "$r/skills/research-team" ] && echo "$r/skills/research-team" && break; done || true)}"
 bash "${SKILL_DIR}/scripts/bin/scaffold_research_workflow.sh" \
   --root /path/to/project \
   --project "My Project" \
@@ -61,7 +61,7 @@ Use an external project root for real work. Public `research-team` scaffold / co
 ```bash
 cd /path/to/project
 
-SKILL_DIR="${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode"; do [ -d "$r/skills/research-team" ] && echo "$r/skills/research-team" && break; done)}"
+SKILL_DIR="${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode"; do [ -d "$r/skills/research-team" ] && echo "$r/skills/research-team" && break; done || true)}"
 bash "${SKILL_DIR}/scripts/bin/run_team_cycle.sh" \
   --tag 20260502T023000Z-m0-topic \
   --notes research_contract.md \
@@ -90,7 +90,7 @@ Do not use bare UUIDs or `run_<uuid>` as human-facing research tags.
 To run all deterministic gates without calling any external LLMs (this mode also does not require network access):
 
 ```bash
-SKILL_DIR="${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode"; do [ -d "$r/skills/research-team" ] && echo "$r/skills/research-team" && break; done)}"
+SKILL_DIR="${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode"; do [ -d "$r/skills/research-team" ] && echo "$r/skills/research-team" && break; done || true)}"
 bash "${SKILL_DIR}/scripts/bin/run_team_cycle.sh" \
   --tag 20260502T023000Z-m0-topic \
   --notes research_contract.md \
@@ -110,7 +110,7 @@ Configured in `research_team_config.json`:
 - `review_access_mode=full_access`: reviewers still have no direct tools; they request file reads / command runs / network fetches via a leader-run proxy. Every access is logged to `team/runs/<tag>/member_{a,b}_evidence.json` and enforced by deterministic gates.
 
 Third-party validation (offline):
-- `python3 "${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode"; do [ -d "$r/skills/research-team" ] && echo "$r/skills/research-team" && break; done)}/scripts/bin/validate_evidence.py" team/runs/<tag>/member_a_evidence.json`
+- `python3 "${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode"; do [ -d "$r/skills/research-team" ] && echo "$r/skills/research-team" && break; done || true)}/scripts/bin/validate_evidence.py" team/runs/<tag>/member_a_evidence.json`
 
 ## Knowledge base (3 layers)
 

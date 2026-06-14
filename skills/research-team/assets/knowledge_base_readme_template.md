@@ -47,9 +47,9 @@ Skepticism policy (real research):
   - Avoid `\slashed{...}` in Markdown math when possible; prefer a portable fallback like `\not\!` (warn-only by default).
   - In `$$...$$` blocks, no line may start with `+`, `-`, or `=` (prefix with `\quad`).
   - Do not split one multi-line equation into back-to-back `$$` blocks; keep one `$$...$$` block.
-  - Deterministic autofix helper: `python3 "${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode"; do [ -d "$r/skills/research-team" ] && echo "$r/skills/research-team" && break; done)}/scripts/bin/fix_markdown_math_hygiene.py" --root knowledge_base --in-place`
+  - Deterministic autofix helper: `python3 "${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode"; do [ -d "$r/skills/research-team" ] && echo "$r/skills/research-team" && break; done || true)}/scripts/bin/fix_markdown_math_hygiene.py" --root knowledge_base --in-place`
   - Avoid accidental doubled backslashes in math (common LLM/TOC escape artifact), e.g. `\\Delta`, `\\gamma\\_{\\rm lin}`:
-    - Fix helper: `python3 "${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode"; do [ -d "$r/skills/research-team" ] && echo "$r/skills/research-team" && break; done)}/scripts/bin/fix_markdown_double_backslash_math.py" --root knowledge_base --in-place`
+    - Fix helper: `python3 "${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode"; do [ -d "$r/skills/research-team" ] && echo "$r/skills/research-team" && break; done || true)}/scripts/bin/fix_markdown_double_backslash_math.py" --root knowledge_base --in-place`
 
 ## methodology_traces/
 

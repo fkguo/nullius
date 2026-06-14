@@ -18,7 +18,7 @@ _SKILL_DIR_HINT = (
     '"${CODEX_HOME:-$HOME/.codex}" '
     '"$HOME/.config/opencode"; do '
     '[ -d "$r/skills/research-team" ] && echo "$r/skills/research-team" && break; '
-    'done)}'
+    'done || true)}'
 )
 
 

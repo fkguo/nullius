@@ -16,7 +16,7 @@ Use this skill when you need to call the OpenAI Codex agent from the command lin
 ## Recommended: runner script (retries + file inputs)
 
 ```bash
-SKILL_DIR="${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode"; do [ -d "$r/skills/codex-cli-runner" ] && echo "$r/skills/codex-cli-runner" && break; done)}"
+SKILL_DIR="${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode"; do [ -d "$r/skills/codex-cli-runner" ] && echo "$r/skills/codex-cli-runner" && break; done || true)}"
 bash "${SKILL_DIR}/scripts/run_codex.sh" \
   --system-prompt-file /path/to/system.txt \
   --prompt-file /path/to/prompt.txt \
@@ -26,7 +26,7 @@ bash "${SKILL_DIR}/scripts/run_codex.sh" \
 With explicit model:
 
 ```bash
-SKILL_DIR="${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode"; do [ -d "$r/skills/codex-cli-runner" ] && echo "$r/skills/codex-cli-runner" && break; done)}"
+SKILL_DIR="${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode"; do [ -d "$r/skills/codex-cli-runner" ] && echo "$r/skills/codex-cli-runner" && break; done || true)}"
 bash "${SKILL_DIR}/scripts/run_codex.sh" \
   --model o3 \
   --system-prompt-file /path/to/system.txt \
@@ -63,7 +63,7 @@ bash "${SKILL_DIR}/scripts/run_codex.sh" \
 ## Dry-run example
 
 ```bash
-SKILL_DIR="${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode"; do [ -d "$r/skills/codex-cli-runner" ] && echo "$r/skills/codex-cli-runner" && break; done)}"
+SKILL_DIR="${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode"; do [ -d "$r/skills/codex-cli-runner" ] && echo "$r/skills/codex-cli-runner" && break; done || true)}"
 bash "${SKILL_DIR}/scripts/run_codex.sh" \
   --model o3 \
   --prompt-file /path/to/prompt.txt \

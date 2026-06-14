@@ -309,7 +309,7 @@ def main() -> int:
         print(f"[error] Missing literature query trace log: {trace_path}")
         print("[hint] Create it (scaffold creates it automatically), or append a row via:")
         print(
-            '  python3 "${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode"; do [ -d "$r/skills/research-team" ] && echo "$r/skills/research-team" && break; done)}/scripts/bin/literature_fetch.py" trace-add '
+            '  python3 "${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode"; do [ -d "$r/skills/research-team" ] && echo "$r/skills/research-team" && break; done || true)}/scripts/bin/literature_fetch.py" trace-add '
             '--source \"Manual\" --query \"...\" --decision \"...\"'
         )
         return 1

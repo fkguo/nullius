@@ -49,7 +49,7 @@ Goal: make the derivation chain, algorithm-design chain, evidence trail, and wri
 
 ### Writing chain
 
-- Optional draft-cycle entry (agent or manual; materializes the optional draft pointer after it runs): `bash "${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode"; do [ -d "$r/skills/research-team" ] && echo "$r/skills/research-team" && break; done)}/scripts/bin/run_draft_cycle.sh" --tag 20260502T023000Z-d0-draft-r1 --tex main.tex --bib refs.bib --out-dir team`
+- Optional draft-cycle entry (agent or manual; materializes the optional draft pointer after it runs): `bash "${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode"; do [ -d "$r/skills/research-team" ] && echo "$r/skills/research-team" && break; done || true)}/scripts/bin/run_draft_cycle.sh" --tag 20260502T023000Z-d0-draft-r1 --tex main.tex --bib refs.bib --out-dir team`
 - Export bundle: `bash scripts/export_paper_bundle.sh --tag <run_id> --out export`
 
 ---

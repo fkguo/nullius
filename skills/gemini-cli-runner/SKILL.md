@@ -15,7 +15,7 @@ Use this skill when you need to call Gemini from the command line (any task), in
 ## Recommended: runner script (file input + model fallback)
 
 ```bash
-SKILL_DIR="${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode"; do [ -d "$r/skills/gemini-cli-runner" ] && echo "$r/skills/gemini-cli-runner" && break; done)}"
+SKILL_DIR="${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode"; do [ -d "$r/skills/gemini-cli-runner" ] && echo "$r/skills/gemini-cli-runner" && break; done || true)}"
 bash "${SKILL_DIR}/scripts/run_gemini.sh" \
   --model gemini-3.1-pro-preview \
   --system-prompt-file /path/to/system.txt \
@@ -26,7 +26,7 @@ bash "${SKILL_DIR}/scripts/run_gemini.sh" \
 Dry-run (no `gemini` call):
 
 ```bash
-SKILL_DIR="${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode"; do [ -d "$r/skills/gemini-cli-runner" ] && echo "$r/skills/gemini-cli-runner" && break; done)}"
+SKILL_DIR="${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode"; do [ -d "$r/skills/gemini-cli-runner" ] && echo "$r/skills/gemini-cli-runner" && break; done || true)}"
 bash "${SKILL_DIR}/scripts/run_gemini.sh" \
   --model gemini-3.1-pro-preview \
   --system-prompt-file /path/to/system.txt \

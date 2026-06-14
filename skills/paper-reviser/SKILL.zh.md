@@ -59,7 +59,7 @@ metadata:
 先在 shell 里设置路径变量：
 
 ```bash
-SKILLS_DIR="${SKILLS_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode"; do [ -d "$r/skills" ] && echo "$r/skills" && break; done)}"
+SKILLS_DIR="${SKILLS_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode"; do [ -d "$r/skills" ] && echo "$r/skills" && break; done || true)}"
 PAPER_REVISER="$SKILLS_DIR/paper-reviser"
 RESEARCH_TEAM="$SKILLS_DIR/research-team"
 ```

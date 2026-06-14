@@ -60,7 +60,7 @@ test -f /tmp/dl_run/analysis.json
 Once you have a real run tag with artifacts, scaffold a paper with `research-writer`:
 
 ```bash
-SKILL_DIR="${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode"; do [ -d "$r/skills/research-writer" ] && echo "$r/skills/research-writer" && break; done)}"
+SKILL_DIR="${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode"; do [ -d "$r/skills/research-writer" ] && echo "$r/skills/research-writer" && break; done || true)}"
 bash "${SKILL_DIR}/scripts/bin/research_writer_scaffold.sh" \
   --project-root /path/to/new-project \
   --tag M0-demo \

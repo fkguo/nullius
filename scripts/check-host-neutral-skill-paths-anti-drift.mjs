@@ -11,7 +11,7 @@
 //     "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" \
 //     "${CODEX_HOME:-$HOME/.codex}" \
 //     "$HOME/.config/opencode"; do \
-//     [ -d "$r/skills/<skill>" ] && echo "$r/skills/<skill>" && break; done)}"
+//     [ -d "$r/skills/<skill>" ] && echo "$r/skills/<skill>" && break; done || true)}"
 //
 // What is FORBIDDEN is a host home token used DIRECTLY as the skills root — i.e.
 // glued to `/skills`:  `$CODEX_HOME/skills`, `${CODEX_HOME:-$HOME/.codex}/skills`,

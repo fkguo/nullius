@@ -119,7 +119,7 @@ def test_arxiv_source_success_prints_helper_without_name_error(tmp_path: Path) -
     assert proc.returncode == 0, proc.stderr
     assert "[ok] downloaded arXiv source" in proc.stdout
     assert "discover_latex_zero_arg_macros.py" in proc.stdout
-    assert '${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode"; do [ -d "$r/skills/research-team" ] && echo "$r/skills/research-team" && break; done)}' in proc.stdout
+    assert '${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode"; do [ -d "$r/skills/research-team" ] && echo "$r/skills/research-team" && break; done || true)}' in proc.stdout
     assert "Prefer source-first reading: read the extracted LaTeX before relying on an arXiv note as evidence-ready." in proc.stdout
     assert "Record `Source form actually read: latex_source`" in proc.stdout
     assert "Tool-use logs and download attempts belong in methodology traces or run artifacts, not in the literature note." in proc.stdout

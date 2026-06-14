@@ -275,7 +275,7 @@ def main() -> int:
         print(f"- ... ({len(all_changes) - 80} more)")
     print(
         "[hint] To apply fixes (math regions only): "
-        'python3 "${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode"; do [ -d "$r/skills/research-team" ] && echo "$r/skills/research-team" && break; done)}/scripts/bin/fix_markdown_double_backslash_math.py" '
+        'python3 "${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode"; do [ -d "$r/skills/research-team" ] && echo "$r/skills/research-team" && break; done || true)}/scripts/bin/fix_markdown_double_backslash_math.py" '
         "--root <path> --in-place  (or: --notes research_contract.md --in-place)"
     )
     return 1

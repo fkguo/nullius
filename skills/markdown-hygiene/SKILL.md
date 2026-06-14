@@ -25,7 +25,7 @@ For a full `research-team` project preflight, keep using `research-team`; its te
 Set `SKILL_DIR` if the host does not provide it:
 
 ```bash
-SKILL_DIR="${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode"; do [ -d "$r/skills/markdown-hygiene" ] && echo "$r/skills/markdown-hygiene" && break; done)}"
+SKILL_DIR="${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode"; do [ -d "$r/skills/markdown-hygiene" ] && echo "$r/skills/markdown-hygiene" && break; done || true)}"
 ```
 
 Check a file or directory without modifying it:

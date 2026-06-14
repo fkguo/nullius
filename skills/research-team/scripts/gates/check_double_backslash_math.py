@@ -212,7 +212,7 @@ def main() -> int:
             print(f"[error] ... ({len(violations) - 200} more)")
         print(
             "[hint] To apply deterministic fixes (math regions only): "
-            'python3 "${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode"; do [ -d "$r/skills/research-team" ] && echo "$r/skills/research-team" && break; done)}/scripts/bin/fix_markdown_double_backslash_math.py" --notes <research_contract.md> --in-place'
+            'python3 "${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode"; do [ -d "$r/skills/research-team" ] && echo "$r/skills/research-team" && break; done || true)}/scripts/bin/fix_markdown_double_backslash_math.py" --notes <research_contract.md> --in-place'
         )
         return 1
 
