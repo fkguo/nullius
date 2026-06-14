@@ -14,7 +14,7 @@
 - `pnpm -r test` ✅
 - `pnpm -r lint` ✅
 - `pnpm --filter @autoresearch/hep-mcp docs:tool-counts:check` ✅
-- `standard=74`, `full=81`
+- `standard=75`, `full=82`
 - `HEP_ENABLE_ZOTERO=0` → `standard=66`, `full=73`
 
 ## What is live today

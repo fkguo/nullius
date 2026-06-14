@@ -3,7 +3,7 @@ import { createHash, randomUUID } from 'crypto';
 import * as os from 'os';
 import * as path from 'path';
 
-import { invalidParams, McpError, notFound, writeBytesAtomicDurable } from '@autoresearch/shared';
+import { invalidParams, McpError, notFound, upstreamError, writeBytesAtomicDurable } from '@autoresearch/shared';
 
 import type { Paper } from '@autoresearch/shared';
 import * as inspireApi from './inspireClient.js';
@@ -18,7 +18,12 @@ import {
   zoteroPostJson,
   zoteroPutJson,
 } from './client.js';
-import { createConfirmAction, type ZoteroAddConfirmPayloadV1 } from './confirm.js';
+import { zoteroInspireWrite, pingZoteroWriteEndpoint } from '../shared/zotero/writeApi.js';
+import {
+  createConfirmAction,
+  type ZoteroAddConfirmPayloadV1,
+  type ZoteroDeleteConfirmPayloadV1,
+} from './confirm.js';
 import {
   extractZoteroItemIdentifiers,
   type ZoteroItemIdentifiers,
@@ -1741,10 +1746,11 @@ function inferContentType(filePath: string): string {
   }
 }
 
-async function createZoteroLinkedFileAttachment(params: {
+async function createZoteroAttachment(params: {
   parent_item_key: string;
   file_path: string;
-}): Promise<{ attachment_key: string }> {
+  mode: 'import' | 'link';
+}): Promise<{ attachment_key: string; mode: 'import' | 'link'; link_mode_label?: string; path?: string }> {
   if (!path.isAbsolute(params.file_path)) {
     throw invalidParams('file_path must be an absolute path', { file_path: params.file_path });
   }
@@ -1753,29 +1759,32 @@ async function createZoteroLinkedFileAttachment(params: {
     throw invalidParams('file_path does not exist', { file_path: absPath });
   }
 
-  const title = path.basename(absPath);
   const contentType = inferContentType(absPath);
 
-  const payload = [{
-    itemType: 'attachment',
-    parentItem: params.parent_item_key,
-    linkMode: 'linked_file',
-    title,
-    path: absPath,
-    contentType,
-    tags: [],
-    relations: {},
-  }];
+  // The native Zotero Local API is GET-only and cannot create attachments, so we
+  // route through the zotero-inspire write endpoint (POST /connector/zinspireWrite).
+  // `import` copies the file into Zotero storage and never mutates the source;
+  // `link` references it in place (and may be renamed by file-management plugins).
+  const res = await zoteroInspireWrite('attach_file', {
+    parent_item_key: params.parent_item_key,
+    file_path: absPath,
+    mode: params.mode,
+    content_type: contentType,
+  });
 
-  const res = await zoteroPostJson<unknown>('/users/0/items', payload);
-  const key = extractCreatedItemKey(res.data);
+  const key = typeof res.attachment_key === 'string' ? res.attachment_key : '';
   if (!key) {
-    throw invalidParams(
-      'Zotero Local API did not return attachment key. Linked-file attachments require Zotero Local API write access to be enabled.',
-      { parent_item_key: params.parent_item_key, file_path: absPath }
-    );
+    throw upstreamError('Zotero write endpoint did not return an attachment key', {
+      parent_item_key: params.parent_item_key,
+      file_path: absPath,
+    });
   }
-  return { attachment_key: key };
+  return {
+    attachment_key: key,
+    mode: params.mode,
+    link_mode_label: typeof res.link_mode_label === 'string' ? res.link_mode_label : undefined,
+    path: typeof res.path === 'string' ? res.path : undefined,
+  };
 }
 
 async function createZoteroItem(params: {
@@ -2104,6 +2113,7 @@ export async function zoteroAdd(params: {
   tags?: string[];
   note?: string;
   file_path?: string;
+  attach_mode?: 'import' | 'link';
   dedupe?: 'return_existing' | 'update_existing' | 'error_on_existing';
   open_in_zotero?: boolean;
 }): Promise<
@@ -2144,6 +2154,22 @@ export async function zoteroAdd(params: {
   const open = params.open_in_zotero ?? true;
   const note = typeof params.note === 'string' ? params.note : undefined;
   const filePath = typeof params.file_path === 'string' && params.file_path.trim() ? params.file_path.trim() : undefined;
+  const attachMode: 'import' | 'link' = params.attach_mode ?? 'import';
+
+  const attachWarnings: string[] = [];
+  if (filePath) {
+    if (attachMode === 'link') {
+      attachWarnings.push(
+        'attach_mode=link references the file in place; file-management plugins (e.g. Attanger/ZotFile) may rename or move the source file. Use attach_mode=import to copy into Zotero storage and leave the source untouched.'
+      );
+    }
+    const ping = await pingZoteroWriteEndpoint();
+    if (!ping.available) {
+      attachWarnings.push(
+        `Zotero write endpoint unavailable — file_path will NOT be attached on confirm (the item write still proceeds). Install/enable the zotero-inspire plugin (>= 3.0.3). Detail: ${ping.error ?? 'unknown'}`
+      );
+    }
+  }
 
   const requestedCollectionKeys = normalizeCollectionKeys(params.collection_keys);
   const resolvedSelected =
@@ -2205,6 +2231,7 @@ export async function zoteroAdd(params: {
         tags,
         note,
         file_path: filePath,
+        attach_mode: attachMode,
         dedupe,
         open_in_zotero: open,
       },
@@ -2234,7 +2261,7 @@ export async function zoteroAdd(params: {
         item_preview: summarizeZoteroItemData(resolvedSource.data),
         identifiers,
       },
-      warnings: [],
+      warnings: attachWarnings,
     };
   }
 
@@ -2257,6 +2284,7 @@ export async function zoteroAdd(params: {
       tags,
       note,
       file_path: filePath,
+      attach_mode: attachMode,
       dedupe,
       open_in_zotero: open,
     },
@@ -2274,6 +2302,7 @@ export async function zoteroAdd(params: {
       'Multiple collection_keys requested. If Zotero Local API write access is disabled, connector saveItems may not reliably target multiple collections; enable Local API write access or use a single collection.'
     );
   }
+  warnings.push(...attachWarnings);
 
   const token = createConfirmAction({ kind: 'zotero_add_v1', payload: { params: payload } });
 
@@ -2296,6 +2325,35 @@ export async function zoteroAdd(params: {
   };
 }
 
+interface AttachOutcome {
+  file_attached: boolean;
+  attach_mode?: 'import' | 'link';
+  attachment_key?: string;
+  attach_error?: { code?: string; message: string };
+}
+
+/**
+ * Attach `filePath` to `parentKey` via the write endpoint without throwing.
+ * A failure (e.g. the zotero-inspire plugin not installed) is returned as a
+ * structured `attach_error` so the item write itself still reports success —
+ * replacing the previous "silent 0 attachments" failure mode with a loud,
+ * machine-readable signal.
+ */
+async function attachFileSafely(
+  parentKey: string,
+  filePath: string,
+  mode: 'import' | 'link'
+): Promise<AttachOutcome> {
+  try {
+    const r = await createZoteroAttachment({ parent_item_key: parentKey, file_path: filePath, mode });
+    return { file_attached: true, attach_mode: mode, attachment_key: r.attachment_key };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    const code = err instanceof McpError ? err.code : undefined;
+    return { file_attached: false, attach_mode: mode, attach_error: { code, message } };
+  }
+}
+
 export async function zoteroAddConfirm(payload: ZoteroAddConfirmPayloadV1): Promise<{
   status: 'created' | 'existing' | 'updated';
   item_key: string;
@@ -2307,6 +2365,9 @@ export async function zoteroAddConfirm(payload: ZoteroAddConfirmPayloadV1): Prom
     tags_added: number;
     note_added: boolean;
     file_attached?: boolean;
+    attach_mode?: 'import' | 'link';
+    attachment_key?: string;
+    attach_error?: { code?: string; message: string };
   };
 }> {
   const allowLibraryRoot = payload.write.allow_library_root;
@@ -2315,6 +2376,7 @@ export async function zoteroAddConfirm(payload: ZoteroAddConfirmPayloadV1): Prom
   const open = payload.write.open_in_zotero;
   const note = typeof payload.write.note === 'string' ? payload.write.note : undefined;
   const filePath = typeof payload.write.file_path === 'string' && payload.write.file_path.trim() ? payload.write.file_path.trim() : undefined;
+  const attachMode = payload.write.attach_mode;
   const effectiveCollectionKeys = normalizeCollectionKeys(payload.write.effective_collection_keys);
   const identifiers = payload.prepared_item.identifiers;
 
@@ -2327,11 +2389,8 @@ export async function zoteroAddConfirm(payload: ZoteroAddConfirmPayloadV1): Prom
       inspire_recid: identifiers.inspire_recid,
     });
 
-    let fileAttached = false;
-    if (filePath) {
-      await createZoteroLinkedFileAttachment({ parent_item_key: payload.planned.item_key, file_path: filePath });
-      fileAttached = true;
-    }
+    const attach = filePath ? await attachFileSafely(payload.planned.item_key, filePath, attachMode) : undefined;
+    const fileAttached = attach?.file_attached ?? false;
 
     return {
       status: updated.collections_added > 0 || updated.tags_added > 0 || updated.note_added || fileAttached ? 'updated' : 'existing',
@@ -2344,6 +2403,9 @@ export async function zoteroAddConfirm(payload: ZoteroAddConfirmPayloadV1): Prom
         tags_added: updated.tags_added,
         note_added: updated.note_added,
         file_attached: fileAttached || undefined,
+        attach_mode: attach?.attach_mode,
+        attachment_key: attach?.attachment_key,
+        attach_error: attach?.attach_error,
       },
     };
   }
@@ -2386,11 +2448,8 @@ export async function zoteroAddConfirm(payload: ZoteroAddConfirmPayloadV1): Prom
       inspire_recid: identifiers.inspire_recid,
     });
 
-    let fileAttached = false;
-    if (filePath) {
-      await createZoteroLinkedFileAttachment({ parent_item_key: existing.item_key, file_path: filePath });
-      fileAttached = true;
-    }
+    const attach = filePath ? await attachFileSafely(existing.item_key, filePath, attachMode) : undefined;
+    const fileAttached = attach?.file_attached ?? false;
 
     return {
       status: updated.collections_added > 0 || updated.tags_added > 0 || updated.note_added || fileAttached ? 'updated' : 'existing',
@@ -2403,6 +2462,9 @@ export async function zoteroAddConfirm(payload: ZoteroAddConfirmPayloadV1): Prom
         tags_added: updated.tags_added,
         note_added: updated.note_added,
         file_attached: fileAttached || undefined,
+        attach_mode: attach?.attach_mode,
+        attachment_key: attach?.attachment_key,
+        attach_error: attach?.attach_error,
       },
     };
   }
@@ -2415,11 +2477,8 @@ export async function zoteroAddConfirm(payload: ZoteroAddConfirmPayloadV1): Prom
 
   const created = await createZoteroItem({ data: payload.prepared_item.data, collection_keys: effectiveCollectionKeys, tags, note });
 
-  let fileAttached = false;
-  if (filePath) {
-    await createZoteroLinkedFileAttachment({ parent_item_key: created.item_key, file_path: filePath });
-    fileAttached = true;
-  }
+  const attach = filePath ? await attachFileSafely(created.item_key, filePath, attachMode) : undefined;
+  const fileAttached = attach?.file_attached ?? false;
 
   return {
     status: 'created',
@@ -2432,6 +2491,123 @@ export async function zoteroAddConfirm(payload: ZoteroAddConfirmPayloadV1): Prom
       tags_added: tags.length,
       note_added: created.note_added,
       file_attached: fileAttached || undefined,
+      attach_mode: attach?.attach_mode,
+      attachment_key: attach?.attachment_key,
+      attach_error: attach?.attach_error,
     },
+  };
+}
+
+const ZOTERO_KEY_RE = /^[A-Za-z0-9]{1,32}$/;
+
+/**
+ * Preview a Zotero delete (trash or erase) and return a confirm_token. Resolves
+ * each key to its title/type so the caller can review exactly what will be
+ * removed; missing keys are flagged and skipped on execute. Execution happens in
+ * zoteroDeleteConfirm via the zotero-inspire write endpoint (the native Local API
+ * cannot delete). `trash` is recoverable from the Zotero trash; `erase` is not.
+ */
+export async function zoteroDelete(params: {
+  item_keys: string[];
+  mode?: 'trash' | 'erase';
+}): Promise<{
+  status: 'needs_confirm';
+  confirm_token: string;
+  expires_at: string;
+  plan: {
+    will: 'trash' | 'erase';
+    items: Array<{ item_key: string; title?: string; item_type?: string; missing?: boolean }>;
+    count: number;
+    missing_count: number;
+  };
+  warnings: string[];
+}> {
+  const mode = params.mode ?? 'trash';
+  const keys = Array.from(new Set((params.item_keys ?? []).map(k => k.trim()).filter(Boolean)));
+  if (keys.length === 0) {
+    throw invalidParams('item_keys must contain at least one non-empty key');
+  }
+  for (const key of keys) {
+    if (!ZOTERO_KEY_RE.test(key)) {
+      throw invalidParams('Invalid Zotero item key', { item_key: key });
+    }
+  }
+
+  const items: ZoteroDeleteConfirmPayloadV1['items'] = [];
+  for (const key of keys) {
+    const res = await zoteroGetJsonAllow404<{ data?: { title?: string; itemType?: string } }>(
+      `/users/0/items/${encodeURIComponent(key)}`
+    );
+    if ('status' in res && res.status === 404) {
+      items.push({ item_key: key, missing: true });
+      continue;
+    }
+    const data = (res as { data: { data?: { title?: string; itemType?: string } } }).data.data;
+    items.push({
+      item_key: key,
+      title: typeof data?.title === 'string' ? data.title : undefined,
+      item_type: typeof data?.itemType === 'string' ? data.itemType : undefined,
+    });
+  }
+
+  const payload: ZoteroDeleteConfirmPayloadV1 = { mode, items };
+  const token = createConfirmAction({ kind: 'zotero_delete_v1', payload: { params: payload } });
+
+  const missingCount = items.filter(i => i.missing).length;
+  const warnings: string[] = [];
+  if (mode === 'erase') {
+    warnings.push(
+      'mode=erase permanently deletes items and is NOT recoverable from the Zotero trash. Use mode=trash unless permanent deletion is intended.'
+    );
+  }
+  if (missingCount > 0) {
+    warnings.push(`${missingCount} of ${items.length} item_keys were not found and will be skipped on confirm.`);
+  }
+
+  return {
+    status: 'needs_confirm',
+    confirm_token: token.confirm_token,
+    expires_at: token.expires_at,
+    plan: { will: mode, items, count: items.length - missingCount, missing_count: missingCount },
+    warnings,
+  };
+}
+
+/**
+ * Execute a previewed delete: trash or erase each item via the zotero-inspire
+ * write endpoint. Per-item failures are collected (non-fatal) so a partial batch
+ * still reports exactly which keys succeeded, were skipped, or failed.
+ */
+export async function zoteroDeleteConfirm(payload: ZoteroDeleteConfirmPayloadV1): Promise<{
+  status: 'deleted';
+  mode: 'trash' | 'erase';
+  results: Array<{ item_key: string; ok: boolean; skipped?: boolean; error?: string }>;
+  summary: { requested: number; succeeded: number; skipped: number; failed: number };
+}> {
+  const op = payload.mode === 'erase' ? 'erase_item' : 'trash_item';
+  const results: Array<{ item_key: string; ok: boolean; skipped?: boolean; error?: string }> = [];
+
+  for (const item of payload.items) {
+    if (item.missing) {
+      results.push({ item_key: item.item_key, ok: false, skipped: true, error: 'item not found at preview time' });
+      continue;
+    }
+    try {
+      await zoteroInspireWrite(op, { item_key: item.item_key });
+      results.push({ item_key: item.item_key, ok: true });
+    } catch (err) {
+      results.push({ item_key: item.item_key, ok: false, error: err instanceof Error ? err.message : String(err) });
+    }
+  }
+
+  const succeeded = results.filter(r => r.ok).length;
+  const skipped = results.filter(r => r.skipped).length;
+  const failed = results.filter(r => !r.ok && !r.skipped).length;
+
+  return {
+    status: 'deleted',
+    mode: payload.mode,
+    results,
+    summary: { requested: payload.items.length, succeeded, skipped, failed },
   };
 }
