@@ -61,10 +61,10 @@ topic corpus. For corpus completeness, paginate against `total` (and prefer rele
 citation-count sorts so foundational papers are not lost below the page boundary).
 
 ### 2. Deep-read each core paper (depth) — fill the note from the SOURCE
-Fetch the **source, not the abstract** (source-first per `ReadingHandoffContract`:
-`arxiv_latex_source` > `full_text_pdf` > `available_full_text`): `inspire_paper_source` /
-`arxiv_paper_source` / `openalex_content`, plus `inspire_parse_latex` / `pdf_parse` for
-equations. Then fill **every** field the KB note template leaves blank, each backed by a
+Fetch the **source, not the abstract** — source-first per the ReadingHandoffContract
+preference order: arXiv LaTeX source, then full-text PDF, then other available full text.
+Use `inspire_paper_source` / `arxiv_paper_source` / `openalex_content`, plus
+`inspire_parse_latex` / `pdf_parse` for equations. Then fill **every** field the KB note template leaves blank, each backed by a
 verbatim quote + a locator (section / equation / table / figure / page):
 
 - `Source form actually read` (must be a real full-text form, not `abstract_only`)
