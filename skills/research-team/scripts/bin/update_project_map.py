@@ -138,7 +138,6 @@ def _ensure_project_map_exists(project_root: Path) -> Path:
     lines.append("- Machine contract: [research_contract.md](research_contract.md)")
     lines.append("- Canonical artifact root: `artifacts/runs/<run_id>/`")
     lines.append("- Run identity rule: use a safe, sortable, readable `run_id` such as `<YYYYMMDDTHHMMSSZ>-<milestone>-<short-topic>-rN`; do not use bare UUIDs or `run_<uuid>` as human-facing research run names.")
-    lines.append("- Local MCP config template: [.mcp.template.json](.mcp.template.json)")
     lines.append("")
     lines.append("---")
     lines.append("")
