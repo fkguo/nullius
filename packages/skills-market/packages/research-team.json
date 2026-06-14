@@ -10,7 +10,7 @@
     "codex",
     "opencode"
   ],
-  "source_path": "~/.codex/skills/research-team/SKILL.md",
+  "source_path": "skills/research-team/SKILL.md",
   "depends_on": {
     "literature-workflows": ">=0.1.0 <0.2.0"
   },

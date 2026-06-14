@@ -28,7 +28,7 @@ def _skill_package(
         "version": "0.1.0",
         "summary": f"Skill {package_id}",
         "platforms": ["codex"],
-        "source_path": f"~/.codex/skills/{package_id}/SKILL.md",
+        "source_path": f"skills/{package_id}/SKILL.md",
         "source": {
             "repo": "autoresearch-lab/skills",
             "ref": ref,

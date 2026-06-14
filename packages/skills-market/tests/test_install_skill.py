@@ -71,7 +71,7 @@ def _make_market(tmp_path: pathlib.Path, package_id: str, runtime_packages: list
         "version": "0.1.0",
         "summary": "Sample skill",
         "platforms": ["codex"],
-        "source_path": f"~/.codex/skills/{package_id}/SKILL.md",
+        "source_path": f"skills/{package_id}/SKILL.md",
         "source": {
             "repo": "autoresearch-lab/skills",
             "ref": "main",

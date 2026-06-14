@@ -14,7 +14,11 @@ RE_REPO = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 RE_RANGE = re.compile(r"^>=?[0-9]+\.[0-9]+\.[0-9]+(?:\s+<[=]?[0-9]+\.[0-9]+\.[0-9]+)?$")
 RE_SEMVER = re.compile(r"^(?:schemas-)?v?([0-9]+)\.([0-9]+)\.([0-9]+)(?:[-+][A-Za-z0-9.]+)?$")
 RE_NON_PORTABLE_SOURCE = re.compile(r"^(?:/Users/|/home/|[A-Za-z]:\\Users\\)")
-RE_SKILL_SOURCE_PATH = re.compile(r"^~/\.codex/skills/[A-Za-z0-9_.-]+/SKILL\.md$")
+# source_path is the host-neutral, repo-relative source of truth for a skill-pack
+# (the actual install copies from source.subpath in the repo; install destinations
+# are resolved per host by platform_root). It must NOT pin a single host's install
+# location such as ~/.codex/skills/<name>; it names the in-repo source path.
+RE_SKILL_SOURCE_PATH = re.compile(r"^skills/[A-Za-z0-9_.-]+/SKILL\.md$")
 RE_WINDOWS_DRIVE = re.compile(r"^[A-Za-z]:")
 RE_SOURCE_REF = re.compile(r"^(?!/)(?!.*\.\.)(?!.*//)[A-Za-z0-9._/-]+$")
 

@@ -132,7 +132,7 @@ def validate_package(
             if RE_NON_PORTABLE_SOURCE.match(normalized):
                 errs.append(f"{path.name}: source_path must not use host-specific absolute user path: {normalized!r}")
             if package_type == "skill-pack" and not RE_SKILL_SOURCE_PATH.fullmatch(normalized):
-                errs.append(f"{path.name}: source_path for skill-pack must match '~/.codex/skills/<name>/SKILL.md', got {normalized!r}")
+                errs.append(f"{path.name}: source_path for skill-pack must match 'skills/<name>/SKILL.md', got {normalized!r}")
 
     install = data.get("install")
     if install is not None:

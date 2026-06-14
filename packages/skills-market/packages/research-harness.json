@@ -10,7 +10,7 @@
     "codex",
     "opencode"
   ],
-  "source_path": "~/.codex/skills/research-harness/SKILL.md",
+  "source_path": "skills/research-harness/SKILL.md",
   "install": {
     "claude_code": "Packaged install copies this skill into the target Claude Code skills root. Installed copies do not auto-follow repo updates; reinstall or rerun install with --force to refresh. For live repo-tracking development installs, use packages/skills-market/scripts/install_symlink_claude_code.sh against the monorepo skills root; that helper symlinks all market-listed skill-pack entries into the target Claude Code skills root, not only research-harness.",
     "codex": "Packaged install copies this skill into the target Codex skills root. Installed copies do not auto-follow repo updates; reinstall or rerun install with --force to refresh. For live repo-tracking development installs, use packages/skills-market/scripts/install_symlink_codex.sh against the monorepo skills root; that helper symlinks all market-listed skill-pack entries into the target Codex skills root, not only research-harness.",

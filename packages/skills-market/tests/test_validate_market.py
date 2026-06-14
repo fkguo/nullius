@@ -26,7 +26,7 @@ def _base_skill() -> dict[str, object]:
         "version": "0.1.0",
         "summary": "Sample skill",
         "platforms": ["codex", "claude_code", "opencode"],
-        "source_path": "~/.codex/skills/sample-skill/SKILL.md",
+        "source_path": "skills/sample-skill/SKILL.md",
         "install": {"codex": "install"},
         "source": {
             "repo": "autoresearch-lab/skills",

@@ -10,7 +10,7 @@
     "codex",
     "opencode"
   ],
-  "source_path": "~/.codex/skills/codex-cli-runner/SKILL.md",
+  "source_path": "skills/codex-cli-runner/SKILL.md",
   "install_policy": {
     "auto_safe": {
       "human_pre_approved": true

@@ -10,7 +10,7 @@
     "codex",
     "opencode"
   ],
-  "source_path": "~/.codex/skills/paper-reviser/SKILL.md",
+  "source_path": "skills/paper-reviser/SKILL.md",
   "install": {
     "claude_code": "Link into ~/.claude/skills or install via marketplace when available.",
     "codex": "Link into ~/.codex/skills for Codex native discovery.",

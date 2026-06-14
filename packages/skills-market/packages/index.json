@@ -1,6 +1,6 @@
 {
-  "index_version": "1.0.0",
-  "updated_at": "2026-05-22T00:00:00Z",
+  "index_version": "1.1.0",
+  "updated_at": "2026-06-14T00:00:00Z",
   "packages": [
     "auto-relay.json",
     "claude-cli-runner.json",

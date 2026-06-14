@@ -10,7 +10,7 @@
     "codex",
     "opencode"
   ],
-  "source_path": "~/.codex/skills/auto-relay/SKILL.md",
+  "source_path": "skills/auto-relay/SKILL.md",
   "runtime": {
     "python": {
       "mode": "isolated-venv",
