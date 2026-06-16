@@ -397,7 +397,13 @@ function main()
                 fn = get(t, "fn", "")
                 args = get(t, "args", Any[])
                 try
-                    f = getproperty(LoopTools, Symbol(fn))
+                    # World-age safe (Julia >= 1.12 binding partitions): the in-function
+                    # `@eval using LoopTools` above creates the Main.LoopTools binding at a newer world
+                    # age than this running frame, so resolving it from this frame (bare ref or a plain
+                    # getfield) throws UndefVarError(:LoopTools). invokelatest runs getfield at the latest
+                    # world age, where the new binding (and the module's exports) are visible.
+                    ltmod = Base.invokelatest(getfield, Main, :LoopTools)
+                    f = Base.invokelatest(getfield, ltmod, Symbol(fn))
                     # Convert args to Float64 when possible
                     fargs = map(a -> a isa Integer ? float(a) : a, args)
                     val = Base.invokelatest(f, fargs...)
