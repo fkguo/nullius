@@ -94,6 +94,38 @@ python3 scripts/export_artifacts.py --out /path/to/existing_out_dir
 
 **强制披露**：任何 SKIPPED/NOT_RUN 必须在 `report/audit_report.md` 明确出现（本 skill 默认报告已包含）。
 
+## 计算内容约定（`symbolic.json` / `numeric.json`）
+
+对于"compute-only 验证"类 job（Mathematica 入口 + LoopTools.jl 数值交接），真正的结果存在这两个文件里。**注意：**
+它们当前 **只** 出现在 JSON 中——audit 报告里晋升为 PASS/FAIL 的是 TeX-audit 阶段（`tex/comparison.json`），而不是
+`data.checks` 或数值 `results`。请直接读 JSON。
+
+`symbolic/symbolic.json`：
+```json
+{ "schema_version": 1, "generated_at": "...",
+  "data": { "tasks": [ {"id":"...","kind":"looptools","fn":"B0","args":[5.0,1.0,1.0]} ],
+            "checks": { "identity_holds": 1, "anchor_value": 1.6789e-3 },
+            "notes":  [ "..." ] } }
+```
+`data` 是传给 `HepCalcExportSymbolic` 的关联经 **JSON 归一化** 后的结果（JSON 原子/列表/字符串键关联原样保留；
+非字符串键转成字符串；非 JSON 的 Wolfram 值变成 `InputForm` 字符串——见 `references/job_schema.zh.md`）。
+
+`numeric/numeric.json`（由 `scripts/julia/eval_numeric.jl` 从 `data.tasks` 生成）：
+```json
+{ "schema_version": 1, "generated_at": "...",
+  "results": [ {"id":"B0_s5","status":"OK","value":{"re":1.5696,"im":1.4050},"kind":"looptools","fn":"B0","args":[5.0,1.0,1.0]} ],
+  "errors": [] }
+```
+- `results[].status`：`OK` / `ERROR` / `SKIPPED`（逐 task；不支持的 `kind` 记为 `SKIPPED`）。
+- `results[].value`：实数，或复数返回时为 `{re, im}`（如阈上的 LoopTools `B0`）。
+- `numeric/status.json` 的 `status`：
+  - `eval_numeric.jl` 含 task 正常跑完 → `errors` 为空则 `PASS`，否则 `ERROR`。
+  - `eval_numeric.jl` 跑了但无 task / 缺 `symbolic.json` → `SKIPPED`。
+  - runner 在调用 Julia 前 **预跳过**（如 `numeric.enable: false` → `disabled_by_job`、无 task → `no_tasks`、缺
+    `julia` / `LoopTools.jl`）→ 由 `run_hep_calc.sh` 写出 `SKIPPED`/`ERROR`。
+  `counts: {total, ok, error, skipped}` **仅** 在 evaluator 真正运行时存在（正常跑完，或其自身的无-task 跳过）；
+  缺 `symbolic.json` 及上述 shell 预跳过时不含 `counts`。
+
 ## Report / manifest 关键字段（用于下游集成）
 
 `manifest.json` 与 `summary.json`（根目录 SSOT）除了 `overall_status` 外，还会包含以下有用字段（向后兼容，可忽略未知字段）：

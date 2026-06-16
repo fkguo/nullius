@@ -38,6 +38,17 @@ Inspect:
 Common causes:
 - LoopTools.jl not installed or dynamic libraries missing (`using LoopTools` fails)
 - The job emitted unsupported tasks (`kind` is not `looptools` / `julia_expr`)
+- Wrong Julia environment: the numeric stage runs `julia --startup-file=no` with no `--project` and does not clear
+  `JULIA_PROJECT`, so Julia uses its **default active project** (the global env unless `JULIA_PROJECT` is set). If
+  `using LoopTools` only works inside a specific project, `export JULIA_PROJECT=/path/to/project` before
+  `run_hep_calc.sh`.
+- LoopTools task arguments: `args` are passed positionally to the resolved LoopTools function (e.g. `B0`) and follow
+  the LoopTools/PV convention (momentum invariants and masses are **squared**, e.g. `B0(p^2, m1^2, m2^2)`). A wrong
+  arity/ordering surfaces as an `ERROR` result with the Julia exception string in `numeric/numeric.json`.
+- `UndefVarError(:LoopTools)` on every looptools task (Julia ≥ 1.12): a world-age regression fixed in
+  `eval_numeric.jl` (the lazy in-function `using LoopTools` binding was resolved from an older world age). If you see
+  this on an older copy of the script, ensure the module/function are resolved via `Base.invokelatest`, or update the
+  script.
 
 ## 4) LaTeX extraction/comparison issues
 

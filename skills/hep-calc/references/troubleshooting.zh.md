@@ -38,6 +38,15 @@ cat /tmp/hep_calc_env.json
 常见原因：
 - LoopTools.jl 未安装或动态库不可用（`using LoopTools` 失败）
 - job 输出的 tasks 不支持（`kind` 非 `looptools` / `julia_expr`）
+- Julia 环境不对：数值阶段以 `julia --startup-file=no` 运行、不带 `--project`、也不清空 `JULIA_PROJECT`，因此
+  Julia 使用其 **默认 active project**（未设 `JULIA_PROJECT` 时即全局环境）。若 `using LoopTools` 只在某个 project
+  里可用，请在 `run_hep_calc.sh` 前 `export JULIA_PROJECT=/path/to/project`。
+- LoopTools task 参数：`args` 按位置传给被解析出的 LoopTools 函数（如 `B0`），遵循 LoopTools/PV 约定（动量不变量
+  与质量都取 **平方**，如 `B0(p^2, m1^2, m2^2)`）。元数/顺序错误会在 `numeric/numeric.json` 中表现为带 Julia 异常
+  字符串的 `ERROR` 结果。
+- 每个 looptools task 都 `UndefVarError(:LoopTools)`（Julia ≥ 1.12）：`eval_numeric.jl` 中的一个 world-age 回归已修复
+  （函数内惰性 `using LoopTools` 的绑定从较旧 world age 解析不到）。若在旧版脚本上遇到此问题，请用
+  `Base.invokelatest` 解析模块/函数，或更新脚本。
 
 ## 4) LaTeX 抽取/对照异常
 

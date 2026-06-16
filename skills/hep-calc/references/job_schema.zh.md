@@ -203,12 +203,38 @@ mathematica:
 
 执行环境由 `scripts/mma/run_job.wls` 提供：
 - 已尝试加载：FeynCalc / FeynArts / FormCalc
-- 入口脚本可调用：`HepCalcExportSymbolic[...]` 输出 `symbolic/symbolic.json`
+- 入口脚本可调用：`HepCalcExportSymbolic[<|...|>]` 输出 `symbolic/symbolic.json`
 
-`symbolic/symbolic.json` 约定（简化版）：
-- `data.tasks`: list
-  - `kind: looptools` → Julia 会调用 `LoopTools.<fn>(args...)`
-  - `kind: julia_expr` → Julia 会 `eval(Meta.parse(expr))`（危险；仅在你信任 job 时使用）
+#### `symbolic/symbolic.json` 约定（`HepCalcExportSymbolic`）
+
+传给 `HepCalcExportSymbolic[<|...|>]` 的关联会经 **JSON 归一化** 后写入顶层 `data` 键
+（`{schema_version, generated_at, data: <归一化后的关联>}`）。归一化（`scripts/mma/run_job.wls` 的
+`HepCalcNormalizeForJSON`）：JSON 原子值、列表、字符串键的关联会原样保留；非字符串键会被转成字符串；任何
+非 JSON 的 Wolfram 值会变成其 `InputForm` **字符串**。因此请让 `tasks`/`checks`/`notes` 的值保持 JSON 友好
+（数字、字符串、布尔、字符串键的关联、列表）。按约定 `data` 含三个可选键：
+
+- `data.tasks`（list）：交给 Julia 数值阶段（`scripts/julia/eval_numeric.jl`）。每个 task 是带 `id` 和 `kind` 的关联：
+  - `kind: looptools` → Julia 在 `LoopTools` 模块中按名解析 `fn` 并以 `args` 调用之。`fn` 为任意 LoopTools.jl
+    函数名（`B0`、`B0i`、`C0`…）；`args` 为位置参数列表。**LoopTools/Passarino–Veltman 约定：动量不变量与质量都取
+    平方** —— 例如 `B0` 接收 `(p^2, m1^2, m2^2)`。整数参数会自动提升为 `Float64`；复数返回值序列化为
+    `{ "re": ..., "im": ... }`。
+    ```
+    <|"id" -> "B0_s5", "kind" -> "looptools", "fn" -> "B0", "args" -> {5.0, 1.0, 1.0}|>
+    ```
+  - `kind: julia_expr` → Julia 会 `eval(Meta.parse(expr))`（危险；仅在你信任 job 时使用——见文末安全提示）。
+  - 其它 `kind` → 记为 `SKIPPED`（`reason: unsupported_kind`）；不会静默失败。
+- `data.checks`（关联，可选）：你自己的 PASS/FAIL 标志或锚点值（如 `<|"identity_holds" -> 1, "anchor_value" -> 1.6789e-3|>`）。
+  skill **不** 解释它们——只按约定（JSON 归一化后）存于 `data.checks`。`report/audit_report.md` 只显示 symbolic 阶段
+  状态 + 指向 `symbolic.json` 的指针，**不** 显示 check 的具体值；请读 `symbolic.json`。见 `references/output_contract.zh.md` →「计算内容约定」。
+- `data.notes`（字符串列表，可选）：人类可读的推导/出处行，存于 `data.notes`。
+
+若入口脚本运行了但从未调用 `HepCalcExportSymbolic`，runner 仍会写出一个 `data.tasks` 为空并带 note 的
+`symbolic.json`（不静默失败）。
+
+**数值阶段门控（run_hep_calc.sh）：** Julia 阶段仅当 `numeric.enable` 为真（或隐式开启）且 job 含 task 时运行；
+若有 **任何** task，env-check 必须同时找到 `julia` 与 LoopTools.jl，否则整个阶段被阻断（先 `ERROR missing_julia`，
+否则 `missing_looptools_jl`）—— 即使是仅含 `julia_expr` 的 job。阶段真正运行后，`eval_numeric.jl` 仅在存在
+`looptools` task 时才加载 LoopTools，并把任何不支持的 `kind` 记为逐 task 的 `SKIPPED`。
 
 ### `numeric`
 ```yaml

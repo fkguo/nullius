@@ -94,6 +94,39 @@ Each step `status.json` must include at least:
 
 **Required disclosure**: any SKIPPED/NOT_RUN must be explicitly visible in `report/audit_report.md` (the default report includes this).
 
+## Compute content contract (`symbolic.json` / `numeric.json`)
+
+For compute-only verification jobs (Mathematica entry + LoopTools.jl numeric handoff), the actual results live in two
+files. **Note:** these are currently surfaced **only** in the JSON — the audit report promotes PASS/FAIL from the
+TeX-audit stage (`tex/comparison.json`), not from `data.checks` or numeric `results`. Read the JSON directly.
+
+`symbolic/symbolic.json`:
+```json
+{ "schema_version": 1, "generated_at": "...",
+  "data": { "tasks": [ {"id":"...","kind":"looptools","fn":"B0","args":[5.0,1.0,1.0]} ],
+            "checks": { "identity_holds": 1, "anchor_value": 1.6789e-3 },
+            "notes":  [ "..." ] } }
+```
+`data` is the **JSON-normalized** association passed to `HepCalcExportSymbolic` (JSON primitives/lists/string-keyed
+associations preserved; non-string keys stringified; non-JSON Wolfram values become `InputForm` strings — see
+`references/job_schema.md` for the contract).
+
+`numeric/numeric.json` (produced by `scripts/julia/eval_numeric.jl` from `data.tasks`):
+```json
+{ "schema_version": 1, "generated_at": "...",
+  "results": [ {"id":"B0_s5","status":"OK","value":{"re":1.5696,"im":1.4050},"kind":"looptools","fn":"B0","args":[5.0,1.0,1.0]} ],
+  "errors": [] }
+```
+- `results[].status`: `OK` / `ERROR` / `SKIPPED` (per task; `SKIPPED` for an unsupported `kind`).
+- `results[].value`: a real number, or `{re, im}` for a complex return (e.g. LoopTools `B0` above threshold).
+- `numeric/status.json` `status`:
+  - `eval_numeric.jl` runs to completion **with tasks** → `PASS` iff `errors` is empty, else `ERROR`.
+  - `eval_numeric.jl` runs but finds no tasks / a missing `symbolic.json` → `SKIPPED`.
+  - the runner **pre-skips** the stage before invoking Julia (e.g. `numeric.enable: false` → `disabled_by_job`, no
+    tasks → `no_tasks`, or missing `julia` / `LoopTools.jl`) → `SKIPPED`/`ERROR` written by `run_hep_calc.sh`.
+  `counts: {total, ok, error, skipped}` is present **only** when the evaluator runs (normal completion or its own
+  no-tasks skip); it is absent on missing-`symbolic.json` and on the shell pre-skips above.
+
 ## Key fields for downstream integration
 
 `manifest.json` and `summary.json` (root SSOT; downstream may ignore unknown fields) include these useful fields:

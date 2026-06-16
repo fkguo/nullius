@@ -208,12 +208,44 @@ mathematica:
 
 The execution environment is provided by `scripts/mma/run_job.wls`:
 - it attempts to load: FeynCalc / FeynArts / FormCalc
-- your entry can call: `HepCalcExportSymbolic[...]` to write `symbolic/symbolic.json`
+- your entry can call: `HepCalcExportSymbolic[<|...|>]` to write `symbolic/symbolic.json`
 
-`symbolic/symbolic.json` contract (simplified):
-- `data.tasks`: list
-  - `kind: looptools` → Julia calls `LoopTools.<fn>(args...)`
-  - `kind: julia_expr` → Julia executes `eval(Meta.parse(expr))` (dangerous; only use for trusted jobs)
+#### `symbolic/symbolic.json` contract (`HepCalcExportSymbolic`)
+
+The argument you pass to `HepCalcExportSymbolic[<|...|>]` is **JSON-normalized** and stored under the top-level `data`
+key (`{schema_version, generated_at, data: <normalized association>}`). Normalization (`HepCalcNormalizeForJSON` in
+`scripts/mma/run_job.wls`): JSON primitives, lists, and string-keyed associations are preserved; non-string keys are
+stringified; any non-JSON Wolfram value becomes its `InputForm` **string**. So keep `tasks`/`checks`/`notes` values
+JSON-friendly (numbers, strings, booleans, string-keyed associations, lists). By convention `data` carries three
+optional keys:
+
+- `data.tasks` (list): handed to the Julia numeric stage (`scripts/julia/eval_numeric.jl`). Each task is an
+  association with an `id` and a `kind`:
+  - `kind: looptools` → Julia resolves `fn` in the `LoopTools` module and calls it on `args`. `fn` is any LoopTools.jl
+    function name (`B0`, `B0i`, `C0`, …); `args` is a positional list. **LoopTools/Passarino–Veltman convention: the
+    momentum invariants and masses are SQUARED** — e.g. `B0` takes `(p^2, m1^2, m2^2)`. Integer args are auto-promoted
+    to `Float64`. Complex return values are serialized as `{ "re": ..., "im": ... }`.
+    ```
+    <|"id" -> "B0_s5", "kind" -> "looptools", "fn" -> "B0", "args" -> {5.0, 1.0, 1.0}|>
+    ```
+  - `kind: julia_expr` → Julia executes `eval(Meta.parse(expr))` (dangerous; only use for trusted jobs — see the
+    security note at the end of this file).
+  - any other `kind` → recorded as `SKIPPED` (`reason: unsupported_kind`); no silent failure.
+- `data.checks` (association, optional): your own PASS/FAIL flags or anchor values for a verification-style job
+  (e.g. `<|"identity_holds" -> 1, "anchor_value" -> 1.6789e-3|>`). The skill does **not** interpret these — they are a
+  convention for you/tooling, stored (JSON-normalized) under `data.checks`. `report/audit_report.md` shows the symbolic
+  stage status + a pointer to `symbolic.json` but **not** the check values; read `symbolic.json`. See
+  `references/output_contract.md` → "Compute content contract".
+- `data.notes` (list of strings, optional): human-readable derivation/provenance lines, stored under `data.notes`.
+
+If your entry runs but never calls `HepCalcExportSymbolic`, the runner still writes a `symbolic.json` with empty
+`data.tasks` and a note (no silent failure).
+
+**Numeric stage gating (run_hep_calc.sh):** the Julia stage runs only if `numeric.enable` is true (or implied) and the
+job has tasks; if there are **any** tasks, env-check must find both `julia` and LoopTools.jl, or the whole stage is
+blocked (`ERROR missing_julia`, checked first, else `missing_looptools_jl`) — even a `julia_expr`-only job. Once the
+stage runs, `eval_numeric.jl` loads LoopTools only when a `looptools` task is present, and records any unsupported
+`kind` as a per-task `SKIPPED`.
 
 ### `numeric`
 
