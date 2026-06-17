@@ -16,7 +16,16 @@ input and produce this output, so a caller's `claims` port verbatim across execu
       "report_format": "string",// the exact canonical format for the answer (so derivations are comparable),
                                 //   e.g. "a single rational like 2/3", a closed form, or "Θ(n log n)"
       "method0": "string",      // method hint for independent deriver #0 (a distinct route)
-      "method1": "string"       // method hint for independent deriver #1 (a DIFFERENT distinct route)
+      "method1": "string",      // method hint for independent deriver #1 (a DIFFERENT distinct route)
+      "native_derivations": [   // OPTIONAL (Executor 2): host-computed derivations for the host's OWN
+        {                       //   family, so it is included WITHOUT a CLI hop. Executor 2 seeds these
+          "canonical_answer": "string",   // and AUTO-EXCLUDES their family from the CLI backend pool.
+          "family": "string",             // e.g. "claude" — the model family that produced it
+          "checkable_form": "string",     // optional strict-sympy form (enables the CAS path)
+          "derivation_summary": "string", // optional
+          "confidence": "high"            // optional (default high)
+        }
+      ]
     }
   ]
 }
@@ -74,9 +83,10 @@ rather than confirmatory.
 **Executor 2 extends this output (superset; Executor 1 fields all still present).** Each matrix row adds
 `verification` (`"cas"` = decided by deterministic cross-family equivalence, LLM-independent; `"llm"` =
 comparator clustering + veto; `"error"` = claim crashed), `cross_family_confirmations` (# distinct model
-families in the agreeing cluster), `families`, and `adjudicated_matches_majority`; the summary adds
-`dropped_claims` and `family_pool` (distinct families available — `<2` means cross-family convergence is
-structurally impossible). Convergence is **capability-first**: when any answer is CAS-checkable, a claim
+families in the agreeing cluster), `families`, `judges` (comparator-panel size that returned a verdict),
+`native_seeded` (# host-provided `native_derivations` injected without a CLI hop), and
+`adjudicated_matches_majority`; the summary adds `dropped_claims` and `family_pool` (distinct families
+available, incl. native — `<2` means cross-family convergence is structurally impossible). Convergence is **capability-first**: when any answer is CAS-checkable, a claim
 converges iff **>=2 cross-family `checkable_form`s are CAS-verified equal** (the comparator is NOT in the
 gate path, and a CAS refutation overrides a wrong LLM consensus); otherwise it falls back to the LLM path
 (**R1 ∧ R2**: `cross_family_confirmations >= 2` AND `adjudicated_matches_majority`). Both are strictly

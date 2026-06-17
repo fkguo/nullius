@@ -499,6 +499,65 @@ def test_verify_claim_cas_path_end_to_end():
     assert row["cross_family_confirmations"] == 2
 
 
+# ---------------------------------------------------------------- host-provided native derivations
+def test_parse_native_derivation():
+    d = mb.parse_native_derivation({"canonical_answer": "42", "family": "claude", "checkable_form": "42"})
+    assert d == {"canonical_answer": "42", "derivation_summary": "", "confidence": "high",
+                 "checkable_form": "42", "family": "claude"}
+    assert mb.parse_native_derivation({"canonical_answer": "42"}) is None        # no family
+    assert mb.parse_native_derivation({"family": "claude"}) is None              # no answer
+    assert mb.parse_native_derivation("nope") is None
+    assert mb.parse_native_derivation({"canonical_answer": "x", "family": "f", "confidence": "low"})["confidence"] == "low"
+
+
+def test_verify_claim_native_seed_no_self_cli_hop():
+    # Host runs Claude natively and feeds it in; Executor 2 must NOT CLI-run claude (auto-excluded), and
+    # must corroborate with ONE other CLI family -> cross-family CAS verdict, zero self-family hop.
+    calls = []
+
+    def run(spec, system, prompt, tag):
+        calls.append((spec, tag))
+        if "compare" in tag:
+            return json.dumps(dict(mb.SAFE_CMP))
+        return json.dumps({"canonical_answer": "42", "derivation_summary": "s", "confidence": "high",
+                           "checkable_form": "42"})
+
+    claim = {**CLAIM, "native_derivations": [{"canonical_answer": "42", "family": "claude", "checkable_form": "42"}]}
+    row = mb.verify_claim(claim, ctx="ctx", pool=["claude/default", "codex/default", "gemini/default"],
+                          comparators=["codex/default"], max_iter=1, run=run)
+    assert row["native_seeded"] == 1
+    assert row["converged"] is True and row["verification"] == "cas"
+    assert set(row["families"]) == {"claude", "codex"} and row["cross_family_confirmations"] == 2
+    deriver_specs = [s for s, t in calls if "compare" not in t]
+    assert deriver_specs == ["codex/default"]          # exactly one CLI engine; gemini not needed
+    assert not any(s.startswith("claude") for s in deriver_specs)   # the host's own family never CLI-run
+
+
+def test_verify_claim_native_seed_with_single_backend():
+    # native family + a pool of ONE other backend is enough for cross-family (the relaxed-guard case)
+    def run(spec, system, prompt, tag):
+        if "compare" in tag:
+            return json.dumps(dict(mb.SAFE_CMP))
+        return json.dumps({"canonical_answer": "42", "checkable_form": "42", "confidence": "high",
+                           "derivation_summary": "s"})
+
+    claim = {**CLAIM, "native_derivations": [{"canonical_answer": "42", "family": "claude", "checkable_form": "42"}]}
+    out = mb.run_gate({"context": "", "claims": [claim]}, pool=["codex/default"], comparators=["codex/default"], run=run)
+    assert out["converged"] == 1 and out["matrix"][0]["verification"] == "cas"
+    assert out["family_pool"] == ["claude", "codex"]   # native family surfaced in the pool summary
+
+
+def test_verify_claim_invalid_natives_dropped():
+    # malformed native derivations are ignored (not seeded); the gate still runs on CLI families
+    run = _mk_run([{
+        "majority_answer": "42", "majority_size": 2, "majority_indices": [0, 1], "all_equivalent": True,
+        "outliers": "none", "correct_answer_adjudicated": "42", "adjudicated_matches_majority": True,
+    }])
+    claim = {**CLAIM, "native_derivations": [{"canonical_answer": "42"}, "garbage", {"family": "x"}]}
+    row = mb.verify_claim(claim, ctx="ctx", pool=POOL, comparators=["codex/default"], max_iter=1, run=run)
+    assert row["native_seeded"] == 0 and row["converged"] is True   # falls back to pure CLI path
+
+
 # ---------------------------------------------------------------- runner resolution (review-swarm dep)
 def test_resolve_runner_order(tmp_path, monkeypatch):
     explicit = tmp_path / "explicit.py"

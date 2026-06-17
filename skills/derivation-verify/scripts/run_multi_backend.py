@@ -169,6 +169,27 @@ def parse_derivation(text: Optional[str]) -> Optional[dict]:
     }
 
 
+def parse_native_derivation(d) -> Optional[dict]:
+    """Validate a HOST-PROVIDED native derivation — one the host already computed IN-PROCESS for its own
+    model family (no CLI hop). Same verdict shape as a CLI deriver, plus a required `family` tag. Returns
+    the verdict dict with `family` included (the caller pops it into the parallel families list); None if
+    it lacks a non-empty canonical_answer or family."""
+    if not isinstance(d, dict):
+        return None
+    ans, fam = d.get("canonical_answer"), d.get("family")
+    if not isinstance(ans, str) or not ans.strip() or not isinstance(fam, str) or not fam.strip():
+        return None
+    summ, form = d.get("derivation_summary"), d.get("checkable_form")
+    conf = str(d.get("confidence", "")).strip().lower()
+    return {
+        "canonical_answer": ans.strip(),
+        "derivation_summary": summ.strip() if isinstance(summ, str) else "",
+        "confidence": conf if conf in _CONFIDENCE else "high",  # host-native default: high
+        "checkable_form": form.strip() if isinstance(form, str) else "",
+        "family": fam.strip(),
+    }
+
+
 def parse_comparison(text: Optional[str], n_derivations: int) -> Optional[dict]:
     """Validate the comparator JSON, incl. the Executor-2 extensions majority_indices + veto flag."""
     obj = extract_json(text, prefer_keys={"majority_size", "majority_answer"})
@@ -550,15 +571,34 @@ def verify_claim(c: dict, *, ctx: str, pool: list[str], comparators: list, max_i
     families: list[str] = []
     used: list[str] = []
 
-    # Round 0: >=2 independent blind derivers on DISTINCT families, in parallel.
+    # Seed HOST-PROVIDED native derivations first (computed in-host for the host's own family — no CLI
+    # hop). Their families are AUTO-EXCLUDED from the CLI pool below, so we never shell out to a family
+    # the host already ran natively, even if the caller left it in --backends. They participate in the
+    # cross-family gate (CAS + comparator) exactly like CLI derivations.
+    native_families: set = set()
+    for raw in (c.get("native_derivations") or []):
+        nat = parse_native_derivation(raw)
+        if nat:
+            families.append(nat.pop("family"))
+            derivations.append(nat)
+            native_families.add(families[-1])
+    native_seeded = len(derivations)
+    cli_pool = [s for s in pool if family_of(s) not in native_families]
+
+    # Round 0: seed enough DISTINCT new CLI families to reach >=2 total (native + CLI). With no natives
+    # this is the original 2-distinct-family seed; with a native family it is one independent CLI engine
+    # to corroborate it.
+    need_cli = 2 if native_seeded == 0 else max(1, 2 - len(native_families))
     seed_specs: list[str] = []
-    for spec in pool:
-        if family_of(spec) not in [family_of(s) for s in seed_specs]:
+    picked = set(native_families)
+    for spec in cli_pool:
+        if family_of(spec) not in picked:
             seed_specs.append(spec)
-        if len(seed_specs) >= 2:
+            picked.add(family_of(spec))
+        if len(seed_specs) >= need_cli:
             break
-    if len(seed_specs) < 2:  # pool lacks 2 families: fall back to first 2 specs (independence degraded)
-        seed_specs = pool[:2]
+    if native_seeded == 0 and len(seed_specs) < 2:  # pool lacks 2 families (degraded independence)
+        seed_specs = cli_pool[:2]
 
     def _derive(idx_spec):
         i, spec = idx_spec
@@ -577,7 +617,7 @@ def verify_claim(c: dict, *, ctx: str, pool: list[str], comparators: list, max_i
     rounds = 0
     while not converged and rounds < max_iter:
         rounds += 1
-        spec = pick_next_spec(pool, used)
+        spec = pick_next_spec(cli_pool, used)  # tie-break also never re-runs a host-native family
         if spec is None:
             break
         used.append(spec)
@@ -605,6 +645,7 @@ def verify_claim(c: dict, *, ctx: str, pool: list[str], comparators: list, max_i
         "independent_confirmations": independent_confirmations,
         "cross_family_confirmations": xfam,
         "judges": n_judges,  # comparator-panel size that returned a usable verdict (>=2 = de-biased)
+        "native_seeded": native_seeded,  # host-provided derivations injected (no CLI hop)
         "families": sorted(set(families)),
         "total_derivations": len(derivations),
         "iterate_rounds": rounds,
@@ -648,11 +689,16 @@ def run_gate(spec: dict, *, pool: list[str], comparators: list, run: RunFn,
             rows.append({
                 "claim": c.get("id", "?"), "converged": False, "verification": "error",
                 "independent_confirmations": 0,
-                "cross_family_confirmations": 0, "judges": 0, "families": [], "total_derivations": 0,
+                "cross_family_confirmations": 0, "judges": 0, "native_seeded": 0, "families": [],
+                "total_derivations": 0,
                 "iterate_rounds": 0, "agreed_answer": "", "adjudicated_correct": f"(error: {exc})",
                 "adjudicated_matches_majority": False, "outliers": f"claim crashed: {exc}",
             })
-    return _summarize(rows, len(claims), sorted({family_of(s) for s in pool}))
+    native_fams = {str(d.get("family", "")).strip()
+                   for c in claims if isinstance(c, dict)
+                   for d in (c.get("native_derivations") or []) if isinstance(d, dict) and str(d.get("family", "")).strip()}
+    family_pool = sorted({family_of(s) for s in pool} | native_fams)
+    return _summarize(rows, len(claims), family_pool)
 
 
 def main(argv=None) -> int:
@@ -679,11 +725,16 @@ def main(argv=None) -> int:
         print(f"claims file not found: {args.claims}", file=sys.stderr)
         return 2
     spec = json.loads(args.claims.read_text(encoding="utf-8"))
+    has_natives = any(isinstance(c, dict) and c.get("native_derivations") for c in (spec.get("claims") or []))
     pool = [s.strip() for s in args.backends.split(",") if s.strip()]
-    if len(pool) < 2:
-        print("need >=2 backend specs for cross-model independence", file=sys.stderr)
+    if not pool:
+        print("need >=1 backend spec", file=sys.stderr)
         return 2
-    if len({family_of(s) for s in pool}) < 2:
+    if len(pool) < 2 and not has_natives:
+        print("need >=2 backend specs for cross-model independence "
+              "(or supply native_derivations + >=1 backend to remove the host's own CLI hop)", file=sys.stderr)
+        return 2
+    if len({family_of(s) for s in pool}) < 2 and not has_natives:
         print("warning: backend pool has <2 distinct model families; independence is degraded", file=sys.stderr)
     comparators = [s.strip() for s in args.comparators.split(",") if s.strip()] or \
         ([args.comparator.strip()] if args.comparator.strip() else [pool[0]])

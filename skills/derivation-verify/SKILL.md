@@ -169,14 +169,15 @@ capabilities VARY — gate on what your host actually exposes. Route by **model 
   `agent()`; OpenCode subagents) use it for parallel same-family derivations; if it does NOT (e.g. plain
   Claude Desktop, the Gemini CLI), run that family's derivation INLINE in your own loop. Either way don't
   `claude exec` / `codex exec` your own family. For same-model rigor in Claude Code this is just Executor 1.
-- **Cross-family certification → all backends go through the runner (honest caveat).** Executor 2's
-  cross-family convergence (like review-swarm's swarm) launches every deriver in ONE process and
-  aggregates over THEIR outputs. A natively-run Executor 1 result is therefore a SEPARATE same-family
-  result — it is NOT in Executor 2's matrix and does NOT count toward `cross_family_confirmations`. So to
-  get one unified cross-model verdict the Claude deriver does run through the `claude` CLI inside
-  Executor 2; that hop is the price of in-process aggregation, not waste. Use Executor 2 only when you
-  need cross-MODEL certification; for same-model checks stay on Executor 1. (A future Executor 2 input
-  that ingests a host-provided native derivation would remove even that hop.)
+- **Cross-family certification with NO self-family hop → feed your native derivation in.** Executor 2
+  aggregates over the derivers IT launches, so to include a host-native result in the one unified verdict,
+  pass it via each claim's optional **`native_derivations`** (see the contract). Executor 2 seeds those
+  in-process, **auto-excludes their family from the CLI pool** (so it never `claude exec` a family you ran
+  natively, even if it is in `--backends`), and corroborates with one independent CLI engine per other
+  family. So in Claude Code: run the Claude derivation natively, attach it as `native_derivations` with
+  `family: "claude"`, and run Executor 2 with `--backends codex/default,gemini/default` (or even a single
+  other backend) — you get a cross-family CAS/comparator verdict that counts the native Claude in
+  `cross_family_confirmations`, with **zero `claude` CLI hop**. Each row reports `native_seeded`.
 - **Reasoning effort scales with claim difficulty — quality first.** A hard loop integral, a subtle
   sign/branch choice, or a contested closed form warrants your MAXIMUM thinking (extended thinking /
   high–xhigh reasoning effort / a stronger model spec); a trivial anchor does not. Never trade a wrong
