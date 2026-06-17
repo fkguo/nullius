@@ -102,8 +102,14 @@ verbatim from Executor 1.
 ```
 python3 scripts/run_multi_backend.py --claims claims.json \
   --backends claude/default,codex/default,gemini/default,opencode/default \
-  --comparator codex/default --out matrix.json   # add --tools for best-effort CAS/compute modes
+  --comparator codex/default --out matrix.json   # --tools = best-effort backend tool modes
 ```
+
+> `--tools` grants each backend the strongest tool mode `run_multi_task.py` exposes, but for most
+> backends that is **read-only** (claude/gemini `review`; codex default sandbox) — only `opencode`
+> `workspace` can execute code, and even then a CAS is not guaranteed. So derivations are
+> reasoning-first; the deriver prompt asks the model to use a CAS only *if* its CLI actually exposes
+> one, else derive analytically. Treat real code-execution as opportunistic, not assured.
 
 Because same-model agreement is weak evidence (same-model committees exhibit *representational
 collapse*), Executor 2 enforces three SOTA-grounded rules ON TOP of "majority_size >= 2":
