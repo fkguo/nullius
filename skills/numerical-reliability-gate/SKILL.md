@@ -1,6 +1,6 @@
 ---
 name: numerical-reliability-gate
-description: "Convergence/reliability gate for NUMERICAL results in ANY field (fits/optimizations, integrals/quadratures, eigenvalues, roots/poles/zeros, ODE/PDE solutions, Monte-Carlo estimates — domain carried only by the caller's context). Before a computed number is folded into the durable record it must pass: (G1) discretization convergence — the value is stable as every resolution knob (grid, node count, step, contour density) is refined, and a coarse-setting optimum that evaporates at the converged setting is flagged a MIRAGE; (G2) orthogonal-method cross-check — >=2 independent methods agree, disagreement means unreliable not pick-one; (G3) invariant/topological validation where available — prefer a method-agnostic invariant (e.g. an argument-principle winding count for pole/root presence) over a fixed-seed search or a magnitude threshold, which give false positives/negatives; (G4) regression anchor — the default/reference configuration reproduces a KNOWN reference result before any variation is trusted; (G5) degeneracy honesty — in flat-direction fits quote only the observables robust to the degeneracy, not individual parameters; (G6) report only converged values, with their setting recorded. Emits an auditable reliability matrix. Sibling to `derivation-verify` (which re-derives the SYMBOLIC answer) and `julia-perf` (which gates SPEED); this one gates whether a NUMERICAL result is converged and real.\n"
+description: "Convergence/reliability gate for NUMERICAL results in ANY field (fits/optimizations, integrals/quadratures, eigenvalues, roots/poles/zeros, ODE/PDE solutions, Monte-Carlo estimates — domain carried only by the caller's context). Before a computed number is folded into the durable record it must pass: (G1) discretization convergence — the value is stable as every resolution knob (grid, node count, step, contour density) is refined, and a coarse-setting optimum that evaporates at the converged setting is flagged a MIRAGE; (G2) orthogonal-method cross-check — >=2 independent methods agree; disagreement blocks the number (unresolved, not pick-one) until explained; (G3) invariant/topological validation where available — prefer a method-agnostic invariant (e.g. an argument-principle winding number, which counts zeros minus poles inside a contour) over a fixed-seed search or a magnitude threshold, which give false positives/negatives; (G4) regression anchor — the default/reference configuration reproduces a KNOWN reference result before any variation is trusted; (G5) degeneracy honesty — in flat-direction fits quote only the observables robust to the degeneracy, not individual parameters; (G6) report only converged values, with their setting recorded. Emits an auditable reliability matrix. Sibling to `derivation-verify` (which re-derives the SYMBOLIC answer) and `julia-perf` (which gates SPEED); this one gates whether a NUMERICAL result is converged and real.\n"
 ---
 
 # Numerical Reliability Gate
@@ -52,21 +52,35 @@ Each check names its own minimum disconfirming test — never accept a number be
   with the setting recorded. **A candidate optimum found at a coarse setting that does not survive
   re-evaluation at the converged setting is a MIRAGE** — re-evaluate every coarse-grid optimum at the
   converged grid before trusting it. Convergence is a *measured* plateau (e.g. stable to a stated
-  tolerance across a 2–3× range of the knob), never assumed from a single setting.
+  tolerance across a 2–3× range of the knob), never assumed from a single setting. For **sensitive**
+  quantities also escalate floating-point precision and check the residual / backward error / condition
+  number (or use interval / arbitrary-precision arithmetic) — a grid-refined value can still be wrong from
+  cancellation or roundoff. For a **stochastic** estimate (Monte Carlo / sampling), "converged" is not a
+  frozen value but *shrinking uncertainty*: use independent seeds/chains, an effective sample size and
+  autocorrelation check, sensitivity to rare events, and report a confidence/credible interval — not a
+  single point that "stopped moving".
 - **G2 — Orthogonal-method cross-check.** Recompute with `>=2` genuinely independent methods (a
   different algorithm or representation: two quadratures, two rational-continuation schemes, a
   determinant search vs. a topological count). They must **agree** within a stated tolerance.
-  Disagreement means *unreliable* — do **not** silently pick one. Prefer a method that stays well
+  Disagreement means *unresolved* — the value is **unpromotable until the discrepancy is explained**; do
+  **not** silently pick one (a method may be disqualified by an independent conditioning / error analysis,
+  or a single certified-interval / a-posteriori-error method may suffice without a second). Prefer a method that stays well
   conditioned as resolution grows; flag any method known to be fragile beyond a regime (e.g. a
   continued-fraction interpolation that destabilizes past `~N` nodes) and do not report its value past
   that regime without the robust method confirming it.
 - **G3 — Invariant / topological validation (prefer it over heuristics).** For presence/absence and
-  counting (poles, zeros, roots, eigenvalues, modes), prefer a **method-agnostic invariant** — e.g. an
-  argument-principle winding number `(1/2πi)∮ d log F` gives a clean integer count — over a **fixed-seed
-  search** or a **magnitude threshold**, both of which give false negatives (the feature moved away from
-  the seed) and false positives (a coarse-grid floor never reaches the true zero). Validate the
-  invariant's own preconditions (no near-zero on the contour boundary; a valid region/sheet). Treat a
-  seed-based or threshold-based hit as a *candidate* that the invariant then confirms or refutes.
+  counting (zeros, roots, poles, eigenvalues, modes), prefer a **method-agnostic invariant** over a
+  **fixed-seed search** or a **magnitude threshold**, both of which give false negatives (the feature
+  moved away from the seed) and false positives (a coarse-grid floor never reaches the true zero). The
+  canonical example is the **argument principle**: for `F` meromorphic inside and on a positively-oriented
+  simple closed contour `Γ`, with **no zero or pole on `Γ` itself**,
+  `(1/2πi)∮_Γ F'/F dz = Z − P` — the number of **zeros minus poles** inside `Γ`, each with multiplicity
+  (equivalently the winding number of `F(Γ)` about 0). So it counts **zeros** only when `F` is pole-free
+  in the region, and counts **poles** only when applied to a denominator / reciprocal whose zeros encode
+  them. Validate its preconditions before trusting the integer: meromorphicity, no near-zero/near-pole on
+  the contour, the correct Riemann sheet/branch, and that the numerical `∮` rounds to an integer within a
+  stated residual (not e.g. `0.97`). Treat a seed-based or threshold-based hit as a *candidate* that the
+  invariant then confirms or refutes.
 - **G4 — Regression anchor before any variation.** Before trusting a variation — a bug fix, a new
   cutoff/regime, a scheme swap — assert the **default / reference configuration reproduces a KNOWN
   reference result** (a published value, a prior converged anchor). Two corollaries: reproduce the
@@ -75,11 +89,11 @@ Each check names its own minimum disconfirming test — never accept a number be
   stop. (Pairs with `research-harness` "anchor on the final adopted version".)
 - **G5 — Degeneracy honesty.** In a many-parameter fit with flat directions (individual parameters
   unconstrained, the Hessian not positive-definite), do **not** quote individual parameter values or
-  their covariance intervals as if determined. Quote only the observables **robust to the degeneracy**
-  (the χ², the poles, the lineshape, the residues) and mark flat-direction parameters "not individually
-  determined".
+  their covariance intervals as if determined. Quote only the **identifiable combinations / observables
+  robust to the degeneracy** (e.g., in a fit, the χ², a pole position, a lineshape, a residue) and mark
+  flat-direction parameters "not individually determined".
 - **G6 — Report only converged values, with provenance.** Fold into the durable record only values that
-  passed the applicable G1–G3 checks at the converged setting, each tagged with its
+  passed every applicable G1–G6 check at the converged setting, each tagged with its
   grid/node/method/contour. A coarse, intermediate, or non-converged number is **labeled as such or
   discarded** — never silently reused. Check a reused artifact's timestamp against the current code
   version before trusting it (a stale artifact from a since-fixed bug reads as current truth otherwise).
@@ -93,9 +107,13 @@ Each check names its own minimum disconfirming test — never accept a number be
 | "It converged" | a single setting that "looks flat" | a measured plateau across a 2–3× knob range + orthogonal method |
 | Best fit | one optimizer run from one start | multi-start + the converged grid (coarse-grid optima are mirages) |
 
-The principle: a heuristic that depends on a seed, a threshold, or a single discretization can be fooled
-when the feature moves or the resolution is too coarse; a method-agnostic invariant or a measured
-refinement plateau cannot.
+The principle: a heuristic that depends on a seed, a threshold, or a single discretization is easily
+fooled when the feature moves or the resolution is too coarse; a method-agnostic invariant or a measured
+refinement plateau is **much harder to fool — once its preconditions and numerical-error controls are
+validated**. It is not infallible: a common-mode discretization bias, roundoff/cancellation, a false
+plateau, an invalid sheet or near-contour singularity, or a net zero–pole cancellation can still defeat
+it, which is why G3 requires checking the invariant's preconditions and G2 requires a genuinely
+*independent* second method.
 
 ## Output — the reliability matrix
 
@@ -104,8 +122,10 @@ Emit one auditable record per gated quantity, conforming to
 `numerical_reliability_matrix_v1.json` (ART-01) with, per quantity, the refinement ladder (setting →
 value), the orthogonal-method values and whether they agree, any invariant check, the regression-anchor
 result, a degeneracy note, the recorded converged value, and a `verdict ∈ reliable | mirage |
-unconverged | method_disagreement | fragile_method | degenerate`. Only `reliable` rows may be folded
-into the durable record; everything else is a labeled candidate or is discarded.
+unconverged | method_disagreement | fragile_method | anchor_failed | degenerate | stale_artifact`
+(`reliable` requires every *applicable* G1–G6 check to pass — including the G4 anchor and G6 non-staleness,
+not only G1–G3). Only `reliable` rows may be folded into the durable record; everything else is a labeled
+candidate or is discarded.
 
 ## Host-aware execution (quality first)
 
