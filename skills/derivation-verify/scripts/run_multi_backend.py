@@ -229,9 +229,16 @@ try:
     from sympy.parsing.sympy_parser import parse_expr as _parse_expr, standard_transformations
     from sympy.core.function import AppliedUndef as _AppliedUndef
     _SYMPY_OK = True
-    # Restricted eval namespace for parse_expr: sympy names ONLY, builtins stripped — a malicious
-    # checkable_form cannot reach __import__/open/exec/eval during parsing (parse_expr eval()s input).
-    _SYMPY_NS = {k: getattr(_sp, k) for k in dir(_sp) if not k.startswith("_")}
+    # Math-only eval namespace for parse_expr (parse_expr eval()s its input, so a hostile checkable_form
+    # could execute code DURING parsing). builtins blanked -> __import__/open/exec/eval are absent; and
+    # we drop side-effecting callables from sympy's plotting/printing/interactive/utilities modules
+    # (plot()/preview()/pprint()/lambdify() would render, shell out to latex, or pollute stdout when
+    # eval'd) — keeping only the mathematical functions/constants we actually compare.
+    _UNSAFE_MODS = ("plotting", "printing", "interactive", "utilities")
+    _SYMPY_NS = {
+        k: v for k, v in ((n, getattr(_sp, n)) for n in dir(_sp) if not n.startswith("_"))
+        if not (callable(v) and any(m in getattr(v, "__module__", "") for m in _UNSAFE_MODS))
+    }
     _SYMPY_NS["__builtins__"] = {}
 except Exception:  # pragma: no cover - CAS path simply abstains if sympy is unavailable
     _SYMPY_OK = False

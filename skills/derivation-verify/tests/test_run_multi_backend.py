@@ -345,6 +345,26 @@ def test_strict_expr_blocks_sympify_reentry(tmp_path, capsys, monkeypatch):
     assert not sentinel.exists()                  # no file written
 
 
+def test_strict_expr_blocks_side_effecting_sympy_calls(capsys, monkeypatch):
+    # SECURITY (side-effect class, distinct from string re-entry): sympy's own plotting/printing/
+    # interactive/utilities callables (plot/preview/pprint/print_latex/lambdify) have no quotes/dunders
+    # and aren't all denylisted, yet parse_expr(evaluate=True) would CALL them — rendering, shelling out
+    # to latex (preview), or polluting stdout. The math-only namespace (side-effecting modules dropped)
+    # makes them auto-symbolize -> AppliedUndef -> rejected, NEVER executed.
+    import subprocess
+    spawned = []
+
+    def _spy(*a, **k):
+        spawned.append(a[0] if a else k.get("args"))
+        raise OSError("blocked-in-test")
+
+    monkeypatch.setattr(subprocess, "Popen", _spy)
+    for p in ["plot(x)", "pprint(x*2)", "print_latex(x)", "preview(x)", "init_printing()", "lambdify(x, x)"]:
+        assert mb._strict_expr(p) is None
+    assert capsys.readouterr().out == ""   # nothing rendered/printed
+    assert spawned == []                   # no latex/viewer subprocess spawned
+
+
 def test_equivalent_forms_abstains_on_integral_constant():
     # Indefinite integrals differ by +C; must ABSTAIN (-> LLM path), not falsely refute.
     assert mb.equivalent_forms("Integral(2*x, x)", "x**2 + 5") is None
