@@ -105,7 +105,8 @@ verbatim from Executor 1.
 ```
 python3 scripts/run_multi_backend.py --claims claims.json \
   --backends claude/default,codex/default,gemini/default,opencode/default \
-  --comparator codex/default --out matrix.json   # --tools = best-effort backend tool modes
+  --comparator codex/default --out matrix.json   # --tools = best-effort tool modes;
+                                                   # --comparators a,b,c = cross-family judge panel
 ```
 
 > **Requires the [`review-swarm`](../review-swarm/SKILL.md) skill installed alongside this one** —
@@ -134,13 +135,17 @@ collapse*), Executor 2 enforces these SOTA-grounded rules ON TOP of "majority_si
   engine **abstains** on anything not safely checkable (asymptotic notation, sets, prose, undefined
   functions) — abstaining falls back to the LLM path, never a wrong CAS verdict.
 - **R2 adjudicator veto (LLM fallback)** — when no answer is CAS-checkable (`verification: "llm"`), the
-  comparator clusters + independently recomputes; mismatch ⇒ not converged.
+  comparator clusters + independently recomputes; mismatch ⇒ not converged. Pass `--comparators a,b,c`
+  for a **cross-family judge panel**: each judge clusters/recomputes independently and the gate takes the
+  STRICT-MAJORITY consensus (an index must be agreed by a majority of judges; the veto needs a majority)
+  — this de-biases any single anchored judge (SOTA: multiple judges surface judge bias). `judges` in each
+  row reports how many returned a usable verdict; default is one judge (unchanged behaviour).
 - **R3 diversity-first tie-break** — each tie-break round pulls a not-yet-used family first, bounded
   by `max_iter` (adaptive KS/Beta-Binomial stopping is a documented future enhancement).
 
 The output matrix is a SUPERSET of Executor 1's: each row adds `verification` (`cas` | `llm` | `error`),
-`cross_family_confirmations`, `families`, and `adjudicated_matches_majority`; the summary adds
-`dropped_claims` and `family_pool`. Offline unit tests (mock runner + local CAS, no real backends) live
+`cross_family_confirmations`, `families`, `judges` (comparator-panel size that returned a verdict), and
+`adjudicated_matches_majority`; the summary adds `dropped_claims` and `family_pool`. Offline unit tests (mock runner + local CAS, no real backends) live
 in `tests/test_run_multi_backend.py`.
 
 > **Residual limit (honest):** for `verification: "cas"`, CAS proves the cross-family AGREEMENT is real,

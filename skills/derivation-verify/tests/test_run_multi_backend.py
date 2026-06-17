@@ -170,6 +170,69 @@ def test_pick_next_spec_empty_pool_none():
     assert mb.pick_next_spec([], ["claude/default"]) is None
 
 
+# ---------------------------------------------------------------- multi-judge panel aggregation
+def _v(indices, veto, ans="42", alleq=True):
+    return {"majority_answer": ans, "majority_size": len(indices), "majority_indices": indices,
+            "all_equivalent": alleq, "adjudicated_matches_majority": veto,
+            "outliers": "none", "correct_answer_adjudicated": ans}
+
+
+def test_aggregate_judges_single_is_identity():
+    cmp, n = mb._aggregate_judges([_v([0, 1], True)], 2)
+    assert n == 1 and cmp["majority_indices"] == [0, 1] and cmp["adjudicated_matches_majority"] is True
+
+
+def test_aggregate_judges_consensus_majority():
+    # 3 judges: indices agreed by a STRICT majority survive; veto needs a majority too.
+    cmp, n = mb._aggregate_judges([_v([0, 1], True), _v([0, 1], True), _v([0], False)], 3)
+    assert n == 3 and cmp["majority_indices"] == [0, 1]      # idx1 in 2/3 -> kept; idx0 in 3/3
+    assert cmp["adjudicated_matches_majority"] is True       # 2/3 veto-ok
+
+
+def test_aggregate_judges_dissent_de_biases():
+    # one over-eager judge says converged+veto, the other two refuse -> panel does NOT converge.
+    cmp, n = mb._aggregate_judges([_v([0, 1], True), _v([], False), _v([], False)], 2)
+    assert cmp["majority_indices"] == []                     # idx in only 1/3 -> dropped
+    assert cmp["adjudicated_matches_majority"] is False      # 1/3 veto -> rejected
+
+
+def test_aggregate_judges_empty_panel_is_safe():
+    cmp, n = mb._aggregate_judges([None, None], 2)
+    assert n == 0 and cmp["majority_size"] == 0 and cmp["adjudicated_matches_majority"] is False
+
+
+def test_aggregate_judges_marginal_cluster_does_not_converge():
+    # BLOCKING regression (found by BOTH a Claude verifier and codex cross-model review): marginal
+    # per-index voting could synthesize a (cluster, veto) no judge jointly affirmed -> converge what no
+    # single judge did. Cluster-set voting must REFUSE these. Two reproducers:
+    cmp, n = mb._aggregate_judges([_v([0], True), _v([1], True), _v([0, 1], True)], 2)
+    assert cmp["majority_indices"] == [] and cmp["adjudicated_matches_majority"] is False
+    cmp, n = mb._aggregate_judges([_v([0], True), _v([0, 1], False), _v([1], True)], 2)
+    assert cmp["majority_indices"] == [] and cmp["adjudicated_matches_majority"] is False
+
+
+def test_aggregate_judges_joint_cluster_and_veto():
+    # a strict majority must endorse the SAME cluster set AND a majority of those back the veto
+    cmp, n = mb._aggregate_judges([_v([0, 1], True), _v([0, 1], True), _v([0], True)], 2)
+    assert cmp["majority_indices"] == [0, 1] and cmp["adjudicated_matches_majority"] is True
+    # same cluster majority, but veto fails among its backers -> veto False
+    cmp, n = mb._aggregate_judges([_v([0, 1], False), _v([0, 1], False), _v([0], True)], 2)
+    assert cmp["majority_indices"] == [0, 1] and cmp["adjudicated_matches_majority"] is False
+
+
+def test_aggregate_judges_single_identity_exact():
+    only = _v([0, 1], True, ans="42")
+    only["outliers"] = "judgewise note"
+    cmp, n = mb._aggregate_judges([only], 2)
+    assert n == 1 and cmp == only  # byte-for-byte identity, not reconstructed
+
+
+def test_aggregate_judges_drops_failed_judge():
+    # None judges are dropped; remaining two agree on the same cluster+veto -> converge
+    cmp, n = mb._aggregate_judges([_v([0, 1], True), None, _v([0, 1], True)], 2)
+    assert n == 2 and cmp["majority_indices"] == [0, 1] and cmp["adjudicated_matches_majority"] is True
+
+
 # ---------------------------------------------------------------- verify_claim orchestration (mock runner)
 POOL = ["claude/default", "codex/default", "gemini/default"]
 CLAIM = {"id": "T1", "statement": "Compute 17+25.", "report_format": "an integer", "method0": "add", "method1": "regroup"}
@@ -196,11 +259,23 @@ def test_verify_claim_clean_first_pass():
         "majority_answer": "42", "majority_size": 2, "majority_indices": [0, 1], "all_equivalent": True,
         "outliers": "none", "correct_answer_adjudicated": "42", "adjudicated_matches_majority": True,
     }])
-    row = mb.verify_claim(CLAIM, ctx="ctx", pool=POOL, comparator="codex/default", max_iter=3, run=run)
+    row = mb.verify_claim(CLAIM, ctx="ctx", pool=POOL, comparators=["codex/default"], max_iter=3, run=run)
     assert row["converged"] is True
     assert row["iterate_rounds"] == 0
     assert row["cross_family_confirmations"] == 2
     assert set(row["families"]) == {"claude", "codex"}  # first two distinct families seeded
+    assert row["judges"] == 1
+
+
+def test_verify_claim_judge_panel_end_to_end():
+    # a 2-judge cross-family panel runs end-to-end through _compare and reports judges=2.
+    run = _mk_run([{
+        "majority_answer": "42", "majority_size": 2, "majority_indices": [0, 1], "all_equivalent": True,
+        "outliers": "none", "correct_answer_adjudicated": "42", "adjudicated_matches_majority": True,
+    }])
+    row = mb.verify_claim(CLAIM, ctx="ctx", pool=POOL,
+                          comparators=["codex/default", "gemini/default"], max_iter=1, run=run)
+    assert row["judges"] == 2 and row["converged"] is True
 
 
 def test_verify_claim_veto_blocks_convergence():
@@ -211,7 +286,7 @@ def test_verify_claim_veto_blocks_convergence():
         "adjudicated_matches_majority": False,
     }
     run = _mk_run([veto_cmp])
-    row = mb.verify_claim(CLAIM, ctx="ctx", pool=POOL, comparator="codex/default", max_iter=2, run=run)
+    row = mb.verify_claim(CLAIM, ctx="ctx", pool=POOL, comparators=["codex/default"], max_iter=2, run=run)
     assert row["converged"] is False
     assert row["iterate_rounds"] == 2  # exhausted tie-break budget
 
@@ -226,7 +301,7 @@ def test_verify_claim_disagree_then_converge():
         "outliers": "#0 wrong", "correct_answer_adjudicated": "42", "adjudicated_matches_majority": True,
     }
     run = _mk_run([disagree, converge])
-    row = mb.verify_claim(CLAIM, ctx="ctx", pool=POOL, comparator="codex/default", max_iter=3, run=run)
+    row = mb.verify_claim(CLAIM, ctx="ctx", pool=POOL, comparators=["codex/default"], max_iter=3, run=run)
     assert row["converged"] is True
     assert row["iterate_rounds"] == 1
     assert row["total_derivations"] == 3  # 2 seed + 1 tie-break
@@ -240,7 +315,7 @@ def test_verify_claim_independent_confirmations_from_indices_not_inflated():
         "outliers": "none", "correct_answer_adjudicated": "42", "adjudicated_matches_majority": True,
     }
     run = _mk_run([inflated])
-    row = mb.verify_claim(CLAIM, ctx="ctx", pool=POOL, comparator="codex/default", max_iter=1, run=run)
+    row = mb.verify_claim(CLAIM, ctx="ctx", pool=POOL, comparators=["codex/default"], max_iter=1, run=run)
     assert row["independent_confirmations"] == 2  # len(majority_indices), not 99
     assert row["converged"] is True
 
@@ -251,7 +326,7 @@ def test_verify_claim_dead_comparator_degrades_not_crash():
             return None  # comparator backend died
         return json.dumps({"canonical_answer": "42", "derivation_summary": "s", "confidence": "high"})
 
-    row = mb.verify_claim(CLAIM, ctx="ctx", pool=POOL, comparator="codex/default", max_iter=1, run=run)
+    row = mb.verify_claim(CLAIM, ctx="ctx", pool=POOL, comparators=["codex/default"], max_iter=1, run=run)
     assert row["converged"] is False
     assert row["agreed_answer"] == "(comparator unavailable)"
 
@@ -263,7 +338,7 @@ def test_verify_claim_failed_derivers_filtered():
             return None
         return "garbage, not json"
 
-    row = mb.verify_claim(CLAIM, ctx="ctx", pool=POOL, comparator="codex/default", max_iter=1, run=run)
+    row = mb.verify_claim(CLAIM, ctx="ctx", pool=POOL, comparators=["codex/default"], max_iter=1, run=run)
     assert row["converged"] is False
     assert row["total_derivations"] == 0
 
@@ -419,7 +494,7 @@ def test_verify_claim_cas_path_end_to_end():
             return json.dumps(dict(mb.SAFE_CMP))  # comparator contributes nothing
         return json.dumps({"canonical_answer": "42", "derivation_summary": "17+25",
                            "confidence": "high", "checkable_form": "42"})
-    row = mb.verify_claim(CLAIM, ctx="ctx", pool=POOL, comparator="codex/default", max_iter=1, run=run)
+    row = mb.verify_claim(CLAIM, ctx="ctx", pool=POOL, comparators=["codex/default"], max_iter=1, run=run)
     assert row["converged"] is True and row["verification"] == "cas"
     assert row["cross_family_confirmations"] == 2
 
@@ -455,7 +530,7 @@ def test_run_gate_summary_schema_and_skips():
         "majority_answer": "42", "majority_size": 2, "majority_indices": [0, 1], "all_equivalent": True,
         "outliers": "none", "correct_answer_adjudicated": "42", "adjudicated_matches_majority": True,
     }])
-    out = mb.run_gate(spec, pool=POOL, comparator="codex/default", run=run)
+    out = mb.run_gate(spec, pool=POOL, comparators=["codex/default"], run=run)
     assert set(out) == {"total_claims", "converged", "unconverged", "clean_first_pass",
                         "needed_iteration", "dropped_claims", "family_pool", "matrix"}
     assert out["total_claims"] == 1   # 2 malformed claims skipped
@@ -472,7 +547,7 @@ def test_run_gate_max_iter_override_zero_disables_iteration():
         "outliers": "x", "correct_answer_adjudicated": "42", "adjudicated_matches_majority": False,
     }
     run = _mk_run([disagree])
-    out = mb.run_gate({"context": "", "claims": [CLAIM]}, pool=POOL, comparator="codex/default",
+    out = mb.run_gate({"context": "", "claims": [CLAIM]}, pool=POOL, comparators=["codex/default"],
                       run=run, max_iter_override=0)
     assert out["matrix"][0]["iterate_rounds"] == 0
     assert out["converged"] == 0

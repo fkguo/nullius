@@ -481,14 +481,70 @@ class MultiTaskRunner:
 # --------------------------------------------------------------------------------------
 # The gate (per claim) — cross-model derive -> adjudicate -> diversity-first tie-break to converge.
 # --------------------------------------------------------------------------------------
-def _compare(c, ctx, derivations, families, comparator, run: RunFn, *, tag: str) -> dict:
+def _aggregate_judges(verdicts: list, n_derivations: int) -> tuple:
+    """Meta-judge aggregation of a cross-family comparator PANEL into one verdict (SOTA: multiple judges
+    surface single-judge anchoring/bias). Returns (cmp, n_ok). MUST be EQUAL-or-STRICTER than a single
+    judge — never converge what no judge endorsed.
+
+    Votes on the whole NORMALIZED CLUSTER SET (not marginal per-index): a claim's agreeing cluster is the
+    index-set a STRICT MAJORITY of judges proposed *as a set*, and the veto must be JOINTLY attached to
+    THAT cluster by a majority of its backers. (Per-index + per-veto marginal tallies were unsound — two
+    independent reviewers showed they could synthesize a (cluster, veto) pair no judge ever jointly
+    affirmed, making convergence EASIER than one judge; cross-model review caught this.) Single judge ->
+    exact identity. Empty / no-majority-cluster -> SAFE_CMP (unconverged)."""
+    from collections import Counter
+    ok = [v for v in verdicts if v]
+    if not ok:
+        return dict(SAFE_CMP), 0
+    if len(ok) == 1:
+        return dict(ok[0]), 1  # exact single-judge identity (default behaviour unchanged)
+    need = len(ok) // 2 + 1  # strict majority
+
+    def norm(v):
+        return tuple(sorted({i for i in (v.get("majority_indices") or [])
+                             if isinstance(i, int) and 0 <= i < n_derivations}))
+
+    cluster_votes = Counter(n for n in (norm(v) for v in ok) if n)  # ignore empty clusters
+    cluster, votes = cluster_votes.most_common(1)[0] if cluster_votes else ((), 0)
+    if votes < need:  # no cluster a strict majority of judges endorsed AS A SET -> do not converge
+        return ({**dict(SAFE_CMP),
+                 "majority_answer": Counter(v.get("majority_answer", "") for v in ok).most_common(1)[0][0],
+                 "outliers": f"no strict-majority cluster across {len(ok)} judges",
+                 "correct_answer_adjudicated": ok[0].get("correct_answer_adjudicated", "")}, len(ok))
+    backers = [v for v in ok if norm(v) == cluster]
+    cmp = {
+        "majority_answer": Counter(v.get("majority_answer", "") for v in backers).most_common(1)[0][0],
+        "majority_size": len(cluster),
+        "majority_indices": list(cluster),
+        "all_equivalent": sum(1 for v in backers if v.get("all_equivalent")) >= need,
+        # veto JOINTLY attached to THIS cluster by a strict majority (of all judges, not just backers)
+        "adjudicated_matches_majority": sum(1 for v in backers if v.get("adjudicated_matches_majority")) >= need,
+        "outliers": " || ".join(f"judge{j}: {v.get('outliers', '')}" for j, v in enumerate(ok)),
+        "correct_answer_adjudicated": ok[0].get("correct_answer_adjudicated", ""),
+    }
+    return cmp, len(ok)
+
+
+def _compare(c, ctx, derivations, families, comparators: list, run: RunFn, *, tag: str) -> tuple:
+    """Run the comparator PANEL (>=1 model families) in parallel and meta-aggregate. Each judge sees the
+    same derivations and independently clusters + recomputes; the consensus de-biases any single judge."""
     if not derivations:
-        return dict(SAFE_CMP)
-    raw = run(comparator, _COMPARE_SYSTEM, _compare_prompt(ctx, c, derivations, families), tag)
-    return parse_comparison(raw, len(derivations)) or dict(SAFE_CMP)
+        return dict(SAFE_CMP), 0
+    prompt = _compare_prompt(ctx, c, derivations, families)
+
+    def _judge(idx_spec):
+        j, spec = idx_spec
+        try:  # one judge's failure must drop to None, not abort the whole panel (ex.map re-raises)
+            return parse_comparison(run(spec, _COMPARE_SYSTEM, prompt, f"{tag}_j{j}_{family_of(spec)}"), len(derivations))
+        except Exception:
+            return None
+
+    with cf.ThreadPoolExecutor(max_workers=max(1, len(comparators))) as ex:
+        verdicts = list(ex.map(_judge, list(enumerate(comparators))))
+    return _aggregate_judges(verdicts, len(derivations))
 
 
-def verify_claim(c: dict, *, ctx: str, pool: list[str], comparator: str, max_iter: int, run: RunFn) -> dict:
+def verify_claim(c: dict, *, ctx: str, pool: list[str], comparators: list, max_iter: int, run: RunFn) -> dict:
     methods = [c.get("method0", ""), c.get("method1", "")]
     derivations: list[dict] = []
     families: list[str] = []
@@ -516,7 +572,7 @@ def verify_claim(c: dict, *, ctx: str, pool: list[str], comparator: str, max_ite
                 derivations.append(d)
                 families.append(family_of(spec))
 
-    cmp = _compare(c, ctx, derivations, families, comparator, run, tag=f"{c['id']}/compare0")
+    cmp, n_judges = _compare(c, ctx, derivations, families, comparators, run, tag=f"{c['id']}/compare0")
     converged, verification, cas_xfam = claim_status(cmp, derivations, families)
     rounds = 0
     while not converged and rounds < max_iter:
@@ -532,7 +588,7 @@ def verify_claim(c: dict, *, ctx: str, pool: list[str], comparator: str, max_ite
         if d:
             derivations.append(d)
             families.append(family_of(spec))
-        cmp = _compare(c, ctx, derivations, families, comparator, run, tag=f"{c['id']}/compare{rounds}")
+        cmp, n_judges = _compare(c, ctx, derivations, families, comparators, run, tag=f"{c['id']}/compare{rounds}")
         converged, verification, cas_xfam = claim_status(cmp, derivations, families)
 
     # cross_family_confirmations: CAS-verified count when the CAS path decided; else the comparator's.
@@ -548,6 +604,7 @@ def verify_claim(c: dict, *, ctx: str, pool: list[str], comparator: str, max_ite
         "verification": verification,
         "independent_confirmations": independent_confirmations,
         "cross_family_confirmations": xfam,
+        "judges": n_judges,  # comparator-panel size that returned a usable verdict (>=2 = de-biased)
         "families": sorted(set(families)),
         "total_derivations": len(derivations),
         "iterate_rounds": rounds,
@@ -575,7 +632,7 @@ def _summarize(rows: list[dict], n_claims: int, family_pool: list[str]) -> dict:
     }
 
 
-def run_gate(spec: dict, *, pool: list[str], comparator: str, run: RunFn,
+def run_gate(spec: dict, *, pool: list[str], comparators: list, run: RunFn,
              max_iter_override: Optional[int] = None) -> dict:
     ctx = str(spec.get("context", ""))
     claims = spec.get("claims") or []
@@ -586,12 +643,12 @@ def run_gate(spec: dict, *, pool: list[str], comparator: str, run: RunFn,
         if not isinstance(c, dict) or not c.get("id") or not c.get("statement"):
             continue
         try:
-            rows.append(verify_claim(c, ctx=ctx, pool=pool, comparator=comparator, max_iter=max_iter, run=run))
+            rows.append(verify_claim(c, ctx=ctx, pool=pool, comparators=comparators, max_iter=max_iter, run=run))
         except Exception as exc:  # never let one claim crash the whole matrix
             rows.append({
                 "claim": c.get("id", "?"), "converged": False, "verification": "error",
                 "independent_confirmations": 0,
-                "cross_family_confirmations": 0, "families": [], "total_derivations": 0,
+                "cross_family_confirmations": 0, "judges": 0, "families": [], "total_derivations": 0,
                 "iterate_rounds": 0, "agreed_answer": "", "adjudicated_correct": f"(error: {exc})",
                 "adjudicated_matches_majority": False, "outliers": f"claim crashed: {exc}",
             })
@@ -603,7 +660,10 @@ def main(argv=None) -> int:
     ap.add_argument("--claims", required=True, type=Path, help="claims.json (context, max_iter?, claims[])")
     ap.add_argument("--backends", default=_DEFAULT_BACKENDS,
                     help=f"comma model-spec pool for derivers (default: {_DEFAULT_BACKENDS})")
-    ap.add_argument("--comparator", default="", help="model spec for the comparator (default: first backend)")
+    ap.add_argument("--comparator", default="", help="single comparator model spec (default: first backend)")
+    ap.add_argument("--comparators", default="",
+                    help="comma model-spec PANEL of cross-family judges; consensus de-biases any single "
+                         "judge (overrides --comparator). Default: one judge (= --comparator).")
     ap.add_argument("--out", type=Path, default=None, help="write matrix JSON here (default: stdout)")
     ap.add_argument("--work-dir", type=Path, default=None, help="scratch dir (default: a temp dir)")
     ap.add_argument("--timeout-secs", type=int, default=_DEFAULT_TIMEOUT, help="per-backend timeout")
@@ -625,7 +685,8 @@ def main(argv=None) -> int:
         return 2
     if len({family_of(s) for s in pool}) < 2:
         print("warning: backend pool has <2 distinct model families; independence is degraded", file=sys.stderr)
-    comparator = args.comparator.strip() or pool[0]
+    comparators = [s.strip() for s in args.comparators.split(",") if s.strip()] or \
+        ([args.comparator.strip()] if args.comparator.strip() else [pool[0]])
     runner_path = _resolve_runner(args.runner)
     if runner_path is None:
         print(
@@ -646,7 +707,7 @@ def main(argv=None) -> int:
     runner = MultiTaskRunner(runner_path=runner_path, work_dir=work_dir, timeout=args.timeout_secs,
                              tools=args.tools, config=args.config)
     try:
-        result = run_gate(spec, pool=pool, comparator=comparator, run=runner.run,
+        result = run_gate(spec, pool=pool, comparators=comparators, run=runner.run,
                           max_iter_override=args.max_iter)
     finally:
         if tmp is not None:
