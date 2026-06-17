@@ -73,7 +73,7 @@ python3 "$PAPER_REVISER/scripts/bin/paper_reviser_edit.py" \
   --stub-models
 ```
 
-### 2) 实际运行（opus 写手 + gemini-3-pro-preview 审核）
+### 2) 实际运行（opus 写手 + gemini-3.1-pro-preview 审核）
 
 ```bash
 python3 "$PAPER_REVISER/scripts/bin/paper_reviser_edit.py" \
@@ -81,7 +81,7 @@ python3 "$PAPER_REVISER/scripts/bin/paper_reviser_edit.py" \
   --out-dir /tmp/paper_reviser_out \
   --run-models \
   --writer-backend claude --writer-model opus \
-  --auditor-backend gemini --auditor-model gemini-3-pro-preview
+  --auditor-backend gemini --auditor-model gemini-3.1-pro-preview
 ```
 
 常用参数：
@@ -121,7 +121,7 @@ python3 "$PAPER_REVISER/scripts/bin/paper_reviser_edit.py" \
   --out-dir /tmp/paper_reviser_out_r2 \
   --run-models \
   --writer-backend claude --writer-model opus \
-  --auditor-backend gemini --auditor-model gemini-3-pro-preview \
+  --auditor-backend gemini --auditor-model gemini-3.1-pro-preview \
   --context-file /path/to/evidence.md \
   --max-rounds 1
 ```
