@@ -229,25 +229,43 @@ try:
     from sympy.parsing.sympy_parser import parse_expr as _parse_expr, standard_transformations
     from sympy.core.function import AppliedUndef as _AppliedUndef
     _SYMPY_OK = True
+    # Restricted eval namespace for parse_expr: sympy names ONLY, builtins stripped — a malicious
+    # checkable_form cannot reach __import__/open/exec/eval during parsing (parse_expr eval()s input).
+    _SYMPY_NS = {k: getattr(_sp, k) for k in dir(_sp) if not k.startswith("_")}
+    _SYMPY_NS["__builtins__"] = {}
 except Exception:  # pragma: no cover - CAS path simply abstains if sympy is unavailable
     _SYMPY_OK = False
 
+# Pre-parse denylist: code-execution gadgets (dunders / builtins) AND compute-heavy or value-ambiguous
+# sympy heads we refuse to CAS-compare. Defense-in-depth for the restricted namespace (security), and
+# it also fixes indefinite-integral "+C" false-refutation and parse-time DoS (integrate/solve/factor).
+_FORM_DENY = re.compile(
+    r"__|\b(import|lambda|exec|eval|open|getattr|setattr|globals|locals|compile|input|"
+    r"subprocess|system|integrate|solve|factor|diff|limit|series|summation|"
+    r"Integral|Sum|Product|Derivative|Matrix|lambdify)\b"
+)
+
+
 def _strict_expr(form):
-    """Strict-parse a model-declared sympy form (NO implicit multiplication). Return a sympy Expr only
-    if it is a genuine finite algebraic/numeric value we can compare; else None (abstain). Rejects
-    undefined functions (f(...), Θ(...)), big-O/asymptotic, booleans/relations, lists, and non-finite."""
+    """Strict-parse a model-declared sympy form (NO implicit multiplication) inside a builtins-free
+    namespace. Return a sympy Expr only if it is a genuine finite algebraic/numeric value we can
+    compare; else None (abstain). Rejects code-execution gadgets, undefined functions (f(...), Θ(...)),
+    big-O/asymptotic, unevaluated Integral/Sum/Product/Derivative, booleans/relations, lists, non-finite."""
     if not _SYMPY_OK or not isinstance(form, str):
         return None
     s = form.strip().replace("^", "**")
-    if not s or len(s) > 4000:
+    if not s or len(s) > 4000 or _FORM_DENY.search(s):
         return None
     try:
-        e = _parse_expr(s, transformations=standard_transformations, evaluate=True)
+        e = _parse_expr(s, transformations=standard_transformations, evaluate=True,
+                        global_dict=_SYMPY_NS, local_dict={})
     except Exception:
         return None
     if not isinstance(e, _sp.Expr):
         return None
-    if e.atoms(_AppliedUndef) or e.has(_sp.Order) or e.has(_sp.zoo, _sp.nan, _sp.oo):
+    if (e.atoms(_AppliedUndef)
+            or e.has(_sp.Order, _sp.Integral, _sp.Sum, _sp.Product, _sp.Derivative)
+            or e.has(_sp.zoo, _sp.nan, _sp.oo)):
         return None
     return e
 

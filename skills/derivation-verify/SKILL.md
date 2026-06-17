@@ -142,7 +142,9 @@ in `tests/test_run_multi_backend.py`.
 > families AND (for `llm`) the adjudicator share the *same* error (irreducible correlated-error floor of
 > any LLM gate). CAS makes that floor the binding constraint by removing mis-clustering and judge
 > anchoring; it cannot remove shared misconceptions or a mis-stated problem. Non-checkable claims stay
-> fully LLM-bounded.
+> fully LLM-bounded. The CAS check also assumes **no domain restrictions** (complex domain, principal
+> branches): domain-specific identities like `log(x*y) = log x + log y` (true only for `x,y>0`) are
+> *refuted* by CAS and correctly fall through to the LLM path rather than being force-confirmed.
 
 ## Why two executors
 

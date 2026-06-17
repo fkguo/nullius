@@ -303,6 +303,28 @@ def test_equivalent_forms_no_periodic_false_positive():
     assert mb.equivalent_forms("sin(pi*x)", "0") is not True
 
 
+def test_strict_expr_blocks_code_execution(tmp_path):
+    # SECURITY: checkable_form is untrusted cross-model output; parse_expr eval()s it. The restricted
+    # namespace + denylist must reject gadgets AND fire no side effect.
+    sentinel = tmp_path / "pwned.txt"
+    payloads = [
+        f"__import__('os').system('touch {sentinel}')",
+        f"exec(\"open(r'{sentinel}','w').write('x')\")",
+        f"open(r'{sentinel}','w')",
+        "(1).__class__.__mro__[-1].__subclasses__()",
+    ]
+    for p in payloads:
+        assert mb._strict_expr(p) is None
+        assert mb.equivalent_forms(p, "0") is None
+    assert not sentinel.exists()  # no payload executed
+
+
+def test_equivalent_forms_abstains_on_integral_constant():
+    # Indefinite integrals differ by +C; must ABSTAIN (-> LLM path), not falsely refute.
+    assert mb.equivalent_forms("Integral(2*x, x)", "x**2 + 5") is None
+    assert mb.equivalent_forms("Integral(x, x)", "x**2/2") is None
+
+
 def test_verified_cross_family():
     # two families, CAS-equal forms -> xfam 2, decidable
     xfam, decidable = mb.verified_cross_family(["3*x**2", "x*x*3"], ["claude", "codex"])
