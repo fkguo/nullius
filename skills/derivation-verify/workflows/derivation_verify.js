@@ -8,7 +8,7 @@
 // every disagreement to convergence; the leader never self-declares convergence."
 //
 // USAGE (from the Workflow tool):
-//   Workflow({ scriptPath: "tools/workflows/derivation_verify.js", args: {
+//   Workflow({ scriptPath: "skills/derivation-verify/workflows/derivation_verify.js", args: {
 //     context: "shared ground-truth equations / conventions (string, given to every deriver)",
 //     max_iter: 3,                                   // optional, default 3
 //     claims: [ {
@@ -43,7 +43,7 @@ if (typeof A === 'string') { try { A = JSON.parse(A) } catch (e) { A = {} } }
 A = (A && typeof A === 'object') ? A : {}
 const CTX = String(A.context || '')
 const CLAIMS = Array.isArray(A.claims) ? A.claims : []
-const MAX_ITER = Number.isInteger(A.max_iter) ? A.max_iter : 3
+const MAX_ITER = Number.isInteger(A.max_iter) && A.max_iter >= 0 ? A.max_iter : 3 // max_iter:0 disables iteration; negative/non-int -> default 3
 if (CLAIMS.length === 0) {
   log('derivation-verify: no claims supplied in args.claims — nothing to do.')
   return { total_claims: 0, converged: 0, unconverged: [], clean_first_pass: 0, needed_iteration: [], matrix: [] }
@@ -82,21 +82,33 @@ function tiePrompt(c, method, ds) {
   return `${CTX}\nINDEPENDENT TIE-BREAK derivation. Prior attempts disagreed: ${listing}. IGNORE them; derive the claim yourself from scratch, then state your canonical answer.\n${c.statement}\n\n${method || ''}\n\nOUTPUT canonical_answer as: ${c.report_format}\nPlus derivation_summary (show your computation) + confidence.`
 }
 
+// A dead comparator (agent() returns null on a terminal backend error) must degrade to "unconverged
+// for THIS claim", never crash the run — else one failed adjudicator would throw in Synthesize and lose
+// every other claim's verified result. majority_size:0 keeps the claim honestly unconverged (cf.
+// contract.md "transient executor failures must NOT count; report unconverged honestly").
+const SAFE_CMP = {
+  majority_answer: '(comparator unavailable)', majority_size: 0, all_equivalent: false,
+  outliers: 'comparator subagent returned null (terminal backend error)',
+  correct_answer_adjudicated: '(unadjudicated — comparator unavailable)',
+}
+
 phase('Verify')
 const matrix = await parallel(CLAIMS.map(c => async () => {
   let ds = (await parallel([
     () => agent(vPrompt(c, c.method0), { label: `verify:${c.id}#0`, phase: 'Verify', schema: VERDICT }),
     () => agent(vPrompt(c, c.method1), { label: `verify:${c.id}#1`, phase: 'Verify', schema: VERDICT }),
   ])).filter(Boolean)
-  let cmp = await agent(cmpPrompt(c, ds.length ? ds : [{ canonical_answer: '(none)', derivation_summary: 'both verifiers failed' }]),
-    { label: `compare:${c.id}`, phase: 'Verify', schema: COMPARE })
+  let cmp = (await agent(cmpPrompt(c, ds.length ? ds : [{ canonical_answer: '(none)', derivation_summary: 'both verifiers failed' }]),
+    { label: `compare:${c.id}`, phase: 'Verify', schema: COMPARE })) || SAFE_CMP
   let rounds = 0
   while (cmp.majority_size < 2 && rounds < MAX_ITER) {
     rounds++
+    // Tie-break re-uses the two supplied method hints (seed-diverse re-run, not a NEW route) — the
+    // contract carries exactly method0/method1. Independence here is via fresh derivation + ignore-priors.
     const method = rounds % 2 === 1 ? c.method1 : c.method0
     const extra = await agent(tiePrompt(c, method, ds), { label: `tiebreak:${c.id}#r${rounds}`, phase: 'Iterate', schema: VERDICT })
     if (extra) ds.push(extra)
-    cmp = await agent(cmpPrompt(c, ds), { label: `compare:${c.id}#r${rounds}`, phase: 'Iterate', schema: COMPARE })
+    cmp = (await agent(cmpPrompt(c, ds), { label: `compare:${c.id}#r${rounds}`, phase: 'Iterate', schema: COMPARE })) || SAFE_CMP
   }
   return {
     claim: c.id,
@@ -111,14 +123,18 @@ const matrix = await parallel(CLAIMS.map(c => async () => {
 }))
 
 phase('Synthesize')
-const unconverged = matrix.filter(m => !m.converged).map(m => m.claim)
+// Defense in depth: a per-claim thunk that threw resolves to null in the parallel result. Drop such
+// rows (and report the drop) rather than crash on `null.converged` — never silently undercount.
+const rows = matrix.filter(Boolean)
+if (rows.length < CLAIMS.length) log(`derivation-verify: WARNING ${CLAIMS.length - rows.length} claim(s) crashed mid-derivation and were dropped from the matrix.`)
+const unconverged = rows.filter(m => !m.converged).map(m => m.claim)
 const summary = {
-  total_claims: matrix.length,
-  converged: matrix.filter(m => m.converged).length,
+  total_claims: rows.length,
+  converged: rows.filter(m => m.converged).length,
   unconverged,
-  clean_first_pass: matrix.filter(m => m.iterate_rounds === 0 && m.converged).length,
-  needed_iteration: matrix.filter(m => m.iterate_rounds > 0).map(m => ({ claim: m.claim, rounds: m.iterate_rounds })),
-  matrix,
+  clean_first_pass: rows.filter(m => m.iterate_rounds === 0 && m.converged).length,
+  needed_iteration: rows.filter(m => m.iterate_rounds > 0).map(m => ({ claim: m.claim, rounds: m.iterate_rounds })),
+  matrix: rows,
 }
 log(`derivation-verify: ${summary.converged}/${summary.total_claims} claims have >=2 independent agreeing derivations; iteration on ${summary.needed_iteration.length}; unconverged: ${JSON.stringify(unconverged)}`)
 return summary

@@ -13,7 +13,7 @@ Workflow({
 })
 ```
 
-**Expected result** (verified 2026-06-17, run `wf_db340f2b-fca`):
+**Expected result** (re-verified 2026-06-17 on the current executor, run `wf_1cb78385-168`):
 
 ```json
 { "total_claims": 2, "converged": 2, "unconverged": [], "clean_first_pass": 2,

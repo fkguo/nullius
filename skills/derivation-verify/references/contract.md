@@ -8,7 +8,7 @@ input and produce this output, so a caller's `claims` port verbatim across execu
 ```jsonc
 {
   "context": "string",          // shared ground-truth equations / conventions, prepended to EVERY deriver + the comparator
-  "max_iter": 3,                // optional (default 3): tie-break rounds before a claim is left unconverged
+  "max_iter": 3,                // optional (default 3): tie-break rounds before a claim is left unconverged; 0 disables iteration
   "claims": [
     {
       "id": "A1",               // short stable id
@@ -37,7 +37,11 @@ rather than confirmatory.
 3. **Iterate to convergence.** While `majority_size < 2` and `rounds < max_iter`: add ONE fresh
    independent tie-break deriver (told the prior answers disagreed; instructed to ignore them and derive
    from scratch), then re-compare. Never resolve by majority of a single source — convergence requires
-   `>= 2` *independent derivations* that the comparator finds mathematically equivalent.
+   `>= 2` *independent derivations* that the comparator finds mathematically equivalent. The contract
+   carries exactly two method hints, so a tie-break round re-uses `method0`/`method1` (a seed-diverse,
+   ignore-the-priors re-run, not a brand-new route); supply `method0`/`method1` as genuinely distinct
+   routes for the strongest first pass. A dead comparator (transient backend failure) must degrade to an
+   unconverged round, not crash the run.
 4. A claim is **converged** iff `independent_confirmations (= majority_size) >= 2`.
 
 ## Output
