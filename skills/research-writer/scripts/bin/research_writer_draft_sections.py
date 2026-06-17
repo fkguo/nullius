@@ -467,7 +467,7 @@ def main() -> int:
     )
 
     ap.add_argument("--writer-model", type=str, default="opus", help="Claude model alias (default: opus).")
-    ap.add_argument("--auditor-model", type=str, default="gemini-3-pro-preview", help="Gemini model alias.")
+    ap.add_argument("--auditor-model", type=str, default="", help="Gemini model alias. Empty (default) delegates to the gemini CLI's own configured default, so it tracks the latest model you've set instead of pinning a version that goes stale.")
     ap.add_argument("--claude-runner", type=Path, default=None, help="Path to run_claude.sh (optional).")
     ap.add_argument("--gemini-runner", type=Path, default=None, help="Path to run_gemini.sh (optional).")
 
@@ -841,7 +841,7 @@ def main() -> int:
         f"- Sections: {', '.join(sections)}\n"
         f"- Mode: `{run_meta['mode']}`\n"
         f"- Writer model: `{cfg.writer_model}`\n"
-        f"- Auditor model: `{cfg.auditor_model}`\n"
+        f"- Auditor model: `{cfg.auditor_model or 'gemini CLI default'}`\n"
         f"- Evidence scan: `{args.evidence_scan}`\n\n"
         "## Outputs\n"
         + "\n".join(f"- `{name}`" for name in files)
