@@ -1,0 +1,56 @@
+{
+  "package_id": "deep-literature-review",
+  "package_type": "skill-pack",
+  "repo": "autoresearch-lab/skills-market",
+  "channel": "dev",
+  "version": "0.1.0",
+  "summary": "Turn a shallow metadata-only literature pull into a deep, source-grounded review: per-paper deep-read notes, cross-paper synthesis, and a checkable literature_survey artifact.",
+  "platforms": [
+    "claude_code",
+    "codex",
+    "opencode"
+  ],
+  "source_path": "skills/deep-literature-review/SKILL.md",
+  "depends_on": {
+    "literature-workflows": ">=0.1.0 <0.2.0"
+  },
+  "install": {
+    "claude_code": "Link into ~/.claude/skills or install via marketplace when available.",
+    "codex": "Link into ~/.codex/skills for Codex native discovery.",
+    "opencode": "Link into ~/.config/opencode/skills for OpenCode discovery."
+  },
+  "source": {
+    "repo": "autoresearch-lab/skills",
+    "ref": "main",
+    "subpath": "skills/deep-literature-review",
+    "include": [
+      "SKILL.md",
+      "SKILL.zh.md",
+      "README.md",
+      "RUNBOOK.md",
+      "PROJECT_MAP.md",
+      "scripts/**",
+      "assets/**",
+      "references/**",
+      "templates/**",
+      "schemas/**",
+      "agents/**",
+      ".gitignore"
+    ],
+    "exclude": [
+      "**/tests/**",
+      "**/test/**",
+      "**/tmp/**",
+      "**/.pytest_cache/**",
+      "**/__pycache__/**",
+      "**/*.pyc",
+      "**/.DS_Store",
+      "team/*",
+      "team/**/*",
+      "process/*",
+      "process/**/*",
+      ".tmp*/*",
+      ".tmp*/**/*"
+    ]
+  }
+}

@@ -1,0 +1,53 @@
+{
+  "package_id": "review-swarm",
+  "package_type": "skill-pack",
+  "repo": "autoresearch-lab/skills-market",
+  "channel": "dev",
+  "version": "0.1.0",
+  "summary": "Clean-room multi-agent review loops across Claude/Gemini/Codex/OpenCode with strict review-contract checks, fallback policy, and convergence gates.",
+  "platforms": [
+    "claude_code",
+    "codex",
+    "opencode"
+  ],
+  "source_path": "skills/review-swarm/SKILL.md",
+  "install": {
+    "claude_code": "Link into ~/.claude/skills or install via marketplace when available.",
+    "codex": "Link into ~/.codex/skills for Codex native discovery.",
+    "opencode": "Link into ~/.config/opencode/skills for OpenCode discovery."
+  },
+  "source": {
+    "repo": "autoresearch-lab/skills",
+    "ref": "main",
+    "subpath": "skills/review-swarm",
+    "include": [
+      "SKILL.md",
+      "SKILL.zh.md",
+      "README.md",
+      "RUNBOOK.md",
+      "PROJECT_MAP.md",
+      "scripts/**",
+      "assets/**",
+      "references/**",
+      "templates/**",
+      "schemas/**",
+      "agents/**",
+      ".gitignore"
+    ],
+    "exclude": [
+      "**/tests/**",
+      "**/test/**",
+      "**/tmp/**",
+      "**/.pytest_cache/**",
+      "**/__pycache__/**",
+      "**/*.pyc",
+      "**/.DS_Store",
+      "team/*",
+      "team/**/*",
+      "process/*",
+      "process/**/*",
+      ".tmp*/*",
+      ".tmp*/**/*"
+    ]
+  }
+}

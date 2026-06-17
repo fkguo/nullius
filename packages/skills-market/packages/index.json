@@ -1,10 +1,14 @@
 {
-  "index_version": "1.1.0",
-  "updated_at": "2026-06-14T00:00:00Z",
+  "index_version": "1.2.0",
+  "updated_at": "2026-06-17T00:00:00Z",
   "packages": [
     "auto-relay.json",
+    "claim-grounding.json",
     "claude-cli-runner.json",
     "codex-cli-runner.json",
+    "deep-learning-lab.json",
+    "deep-literature-review.json",
+    "derivation-verify.json",
     "gemini-cli-runner.json",
     "hep-calc.json",
     "hep-mcp.json",
@@ -19,6 +23,7 @@
     "research-integrity.json",
     "research-team.json",
     "research-writer.json",
+    "review-swarm.json",
     "skills-market.json",
     "zotero-import.json"
   ]
