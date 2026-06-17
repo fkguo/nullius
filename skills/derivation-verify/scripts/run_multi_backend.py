@@ -40,6 +40,8 @@ from __future__ import annotations
 import argparse
 import concurrent.futures as cf
 import json
+import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -89,20 +91,23 @@ def family_of(spec: str) -> str:
     return "opencode"
 
 
-def extract_json(text: Optional[str]) -> Optional[dict]:
-    """Best-effort: pull the JSON object a CLI model emitted (fenced block, or last balanced {...})."""
+_FENCE_RE = re.compile(r"```(?:json)?\s*\n?(.*?)```", re.DOTALL)
+
+
+def extract_json(text: Optional[str], prefer_keys: Optional[set] = None) -> Optional[dict]:
+    """Pull the intended JSON object a CLI model emitted, robust to surrounding/trailing prose.
+
+    Gathers every parseable dict from (a) fenced ```json blocks (last first — the final answer block),
+    (b) the whole/ fence-stripped string, (c) balanced top-level {...} in document order; then, when
+    ``prefer_keys`` is given, returns the FIRST candidate that contains all required keys (so a real
+    verdict block wins over a stray ``{...}`` in trailing prose — the asymmetry that a naive
+    last-balanced-wins scan got wrong). Falls back to the best partial / first candidate otherwise.
+    """
     if not text:
         return None
     cleaned = normalize_newlines(text)
-    for candidate in (strip_markdown_fences(cleaned), cleaned):
-        try:
-            obj = json.loads(candidate)
-            if isinstance(obj, dict):
-                return obj
-        except (json.JSONDecodeError, ValueError):
-            pass
-    # Fallback: scan for a balanced top-level {...} and try to parse it (last one wins).
-    found: Optional[dict] = None
+    raw_candidates: list[str] = list(reversed(_FENCE_RE.findall(cleaned)))
+    raw_candidates += [strip_markdown_fences(cleaned), cleaned]
     for start in (i for i, ch in enumerate(cleaned) if ch == "{"):
         depth = 0
         for j in range(start, len(cleaned)):
@@ -111,19 +116,29 @@ def extract_json(text: Optional[str]) -> Optional[dict]:
             elif cleaned[j] == "}":
                 depth -= 1
                 if depth == 0:
-                    try:
-                        obj = json.loads(cleaned[start:j + 1])
-                        if isinstance(obj, dict):
-                            found = obj
-                    except (json.JSONDecodeError, ValueError):
-                        pass
+                    raw_candidates.append(cleaned[start:j + 1])
                     break
-    return found
+    parsed: list[dict] = []
+    for cand in raw_candidates:
+        try:
+            obj = json.loads(cand)
+        except (json.JSONDecodeError, ValueError):
+            continue
+        if isinstance(obj, dict):
+            parsed.append(obj)
+    if not parsed:
+        return None
+    if prefer_keys:
+        complete = [o for o in parsed if prefer_keys.issubset(o.keys())]
+        if complete:
+            return complete[0]
+        parsed.sort(key=lambda o: len(prefer_keys & set(o.keys())), reverse=True)
+    return parsed[0]
 
 
 def parse_derivation(text: Optional[str]) -> Optional[dict]:
     """Validate a deriver's JSON verdict {canonical_answer, derivation_summary, confidence}."""
-    obj = extract_json(text)
+    obj = extract_json(text, prefer_keys={"canonical_answer"})
     if not isinstance(obj, dict):
         return None
     ans = obj.get("canonical_answer")
@@ -140,7 +155,7 @@ def parse_derivation(text: Optional[str]) -> Optional[dict]:
 
 def parse_comparison(text: Optional[str], n_derivations: int) -> Optional[dict]:
     """Validate the comparator JSON, incl. the Executor-2 extensions majority_indices + veto flag."""
-    obj = extract_json(text)
+    obj = extract_json(text, prefer_keys={"majority_size", "majority_answer"})
     if not isinstance(obj, dict):
         return None
     try:
@@ -226,8 +241,8 @@ def _derive_prompt(ctx: str, c: dict, method: str) -> str:
         f"{ctx}\n\nBLIND TASK (derive from scratch; the answer is NOT given):\n{c['statement']}\n\n"
         f"Suggested route: {method or '(choose any rigorous route)'}\n\n"
         f"Report canonical_answer in EXACTLY this format: {c['report_format']}\n"
-        "You MAY run python (sympy/mpmath) / julia to verify integrals/algebra/numerics; if you do, "
-        "show the output in derivation_summary."
+        "If your CLI exposes a code-execution / CAS tool (python sympy/mpmath, julia), you MAY use it to "
+        "verify integrals/algebra/numerics and show the output; otherwise derive analytically and say so."
     )
 
 
@@ -288,9 +303,14 @@ class MultiTaskRunner:
             cmd += ["--config", self.config]
         if self.tools and backend in _TOOL_MODES:
             cmd += ["--backend-tool-mode", f"{backend}={_TOOL_MODES[backend]}"]
+        # Hermetic run: the runner otherwise auto-discovers .autoresearch/review-swarm.json up the git
+        # tree (exactly where this skill runs) and would bleed REVIEW config — flipping on the review
+        # contract sanitizers + injecting tool modes — into the derivation pass. Disabling auto-config
+        # makes the gate reproducible and config-independent; an explicit --config is still honored.
+        env = {**os.environ, "REVIEW_SWARM_NO_AUTO_CONFIG": "1"}
         try:
             subprocess.run(cmd, timeout=(self.timeout + 60) if self.timeout else None,
-                           capture_output=True, text=True, check=False)
+                           capture_output=True, text=True, check=False, env=env)
         except (subprocess.TimeoutExpired, OSError):
             return None
         if not outf.exists():
@@ -358,10 +378,14 @@ def verify_claim(c: dict, *, ctx: str, pool: list[str], comparator: str, max_ite
         cmp = _compare(c, ctx, derivations, families, comparator, run, tag=f"{c['id']}/compare{rounds}")
 
     converged = decide_converged(cmp, families)
+    # Honest cluster size: the indices the comparator actually enumerated (never exceeds derivations
+    # that ran); fall back to a clamped self-report only when no indices were given.
+    idx = cmp.get("majority_indices") or []
+    independent_confirmations = len(idx) if idx else min(int(cmp.get("majority_size", 0) or 0), len(derivations))
     return {
         "claim": c["id"],
         "converged": converged,
-        "independent_confirmations": cmp["majority_size"],
+        "independent_confirmations": independent_confirmations,
         "cross_family_confirmations": cross_family_confirmations(cmp, families),
         "families": sorted(set(families)),
         "total_derivations": len(derivations),
@@ -373,7 +397,7 @@ def verify_claim(c: dict, *, ctx: str, pool: list[str], comparator: str, max_ite
     }
 
 
-def _summarize(rows: list[dict], n_claims: int) -> dict:
+def _summarize(rows: list[dict], n_claims: int, family_pool: list[str]) -> dict:
     unconverged = [r["claim"] for r in rows if not r["converged"]]
     return {
         "total_claims": len(rows),
@@ -382,6 +406,10 @@ def _summarize(rows: list[dict], n_claims: int) -> dict:
         "clean_first_pass": sum(1 for r in rows if r["converged"] and r["iterate_rounds"] == 0),
         "needed_iteration": [{"claim": r["claim"], "rounds": r["iterate_rounds"]} for r in rows if r["iterate_rounds"] > 0],
         "dropped_claims": n_claims - len(rows),
+        # Distinct families available to derivers; <2 means R1 (cross-family) is structurally
+        # unsatisfiable and EVERY claim will report converged:false by design — surfaced here so the
+        # matrix is self-explanatory rather than silently all-unconverged.
+        "family_pool": family_pool,
         "matrix": rows,
     }
 
@@ -405,7 +433,7 @@ def run_gate(spec: dict, *, pool: list[str], comparator: str, run: RunFn,
                 "iterate_rounds": 0, "agreed_answer": "", "adjudicated_correct": f"(error: {exc})",
                 "adjudicated_matches_majority": False, "outliers": f"claim crashed: {exc}",
             })
-    return _summarize(rows, len(claims))
+    return _summarize(rows, len(claims), sorted({family_of(s) for s in pool}))
 
 
 def main(argv=None) -> int:

@@ -54,9 +54,14 @@ def test_extract_json_none_on_garbage():
     assert mb.extract_json(None) is None
 
 
-def test_extract_json_last_balanced_wins():
-    # two objects in prose: the LAST balanced one is returned
-    assert mb.extract_json('{"a": 1} then {"canonical_answer": "x"}') == {"canonical_answer": "x"}
+def test_extract_json_prefer_keys_selects_keyed_object():
+    # prefer_keys picks the object carrying the required key, regardless of position (B1 fix):
+    # leading stray dict must not shadow the real verdict...
+    assert mb.extract_json('{"a": 1} then {"canonical_answer": "x"}',
+                           prefer_keys={"canonical_answer"}) == {"canonical_answer": "x"}
+    # ...and a fenced verdict must win over TRAILING prose containing a stray brace.
+    txt = '```json\n{"canonical_answer": "3*x^2"}\n```\nFor reference I also got {"sanity": 999}.'
+    assert mb.extract_json(txt, prefer_keys={"canonical_answer"}) == {"canonical_answer": "3*x^2"}
 
 
 # ---------------------------------------------------------------- parse_derivation
@@ -74,6 +79,15 @@ def test_parse_derivation_missing_answer_is_none():
     assert mb.parse_derivation('{"derivation_summary":"s","confidence":"high"}') is None
     assert mb.parse_derivation('{"canonical_answer":"   ","confidence":"high"}') is None
     assert mb.parse_derivation("not json") is None
+
+
+def test_parse_derivation_survives_trailing_brace_prose():
+    # B1 regression: clean fenced verdict FOLLOWED by prose containing a stray {...} must still parse
+    # to the verdict (a naive last-balanced-wins scan returned the trailing junk -> silent drop).
+    txt = ('```json\n{"canonical_answer":"42","derivation_summary":"17+25","confidence":"high"}\n```\n'
+           'I also double-checked and computed {"check": "ok", "n": 999}.')
+    d = mb.parse_derivation(txt)
+    assert d is not None and d["canonical_answer"] == "42"
 
 
 # ---------------------------------------------------------------- parse_comparison
@@ -213,6 +227,19 @@ def test_verify_claim_disagree_then_converge():
     assert row["total_derivations"] == 3  # 2 seed + 1 tie-break
 
 
+def test_verify_claim_independent_confirmations_from_indices_not_inflated():
+    # N2: a comparator inflating majority_size must NOT inflate the reported confirmation count;
+    # the audited number is the size of the enumerated agreeing cluster (majority_indices).
+    inflated = {
+        "majority_answer": "42", "majority_size": 99, "majority_indices": [0, 1], "all_equivalent": True,
+        "outliers": "none", "correct_answer_adjudicated": "42", "adjudicated_matches_majority": True,
+    }
+    run = _mk_run([inflated])
+    row = mb.verify_claim(CLAIM, ctx="ctx", pool=POOL, comparator="codex/default", max_iter=1, run=run)
+    assert row["independent_confirmations"] == 2  # len(majority_indices), not 99
+    assert row["converged"] is True
+
+
 def test_verify_claim_dead_comparator_degrades_not_crash():
     def run(spec, system, prompt, tag):
         if "compare" in tag:
@@ -253,11 +280,12 @@ def test_run_gate_summary_schema_and_skips():
     }])
     out = mb.run_gate(spec, pool=POOL, comparator="codex/default", run=run)
     assert set(out) == {"total_claims", "converged", "unconverged", "clean_first_pass",
-                        "needed_iteration", "dropped_claims", "matrix"}
+                        "needed_iteration", "dropped_claims", "family_pool", "matrix"}
     assert out["total_claims"] == 1   # 2 malformed claims skipped
     assert out["dropped_claims"] == 2
     assert out["converged"] == 1
     assert out["clean_first_pass"] == 1
+    assert out["family_pool"] == ["claude", "codex", "gemini"]  # N4: pool families surfaced
 
 
 def test_run_gate_max_iter_override_zero_disables_iteration():
