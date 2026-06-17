@@ -158,6 +158,36 @@ in `tests/test_run_multi_backend.py`.
 
 The backend-agnostic contract means claims written for one executor run on the other unchanged.
 
+## Host-aware execution (run your own family natively; quality first)
+
+These executors are consumed by a host agent (Claude Code, Codex, OpenCode, Claude Desktop, …) whose
+capabilities VARY — gate on what your host actually exposes. Route by **model family**, correctness first:
+
+- **Your own family → keep it in-host, never via that family's CLI.** Shelling out to reach a model you
+  are already running as only adds latency, a separate auth/session, and context loss. If your host
+  exposes a native child-agent / sub-agent primitive (Claude Code's Agent/Task tool — Executor 1's
+  `agent()`; OpenCode subagents) use it for parallel same-family derivations; if it does NOT (e.g. plain
+  Claude Desktop, the Gemini CLI), run that family's derivation INLINE in your own loop. Either way don't
+  `claude exec` / `codex exec` your own family. For same-model rigor in Claude Code this is just Executor 1.
+- **Cross-family certification → all backends go through the runner (honest caveat).** Executor 2's
+  cross-family convergence (like review-swarm's swarm) launches every deriver in ONE process and
+  aggregates over THEIR outputs. A natively-run Executor 1 result is therefore a SEPARATE same-family
+  result — it is NOT in Executor 2's matrix and does NOT count toward `cross_family_confirmations`. So to
+  get one unified cross-model verdict the Claude deriver does run through the `claude` CLI inside
+  Executor 2; that hop is the price of in-process aggregation, not waste. Use Executor 2 only when you
+  need cross-MODEL certification; for same-model checks stay on Executor 1. (A future Executor 2 input
+  that ingests a host-provided native derivation would remove even that hop.)
+- **Reasoning effort scales with claim difficulty — quality first.** A hard loop integral, a subtle
+  sign/branch choice, or a contested closed form warrants your MAXIMUM thinking (extended thinking /
+  high–xhigh reasoning effort / a stronger model spec); a trivial anchor does not. Never trade a wrong
+  verdict for cheaper tokens. On the native path you control this directly; on the CLI path pick a capable
+  model spec (e.g. a strong codex/gemini model at high effort) for the hard claims and comparator.
+- **Prefer a steerable background task when the host supports it.** A long/expensive verification (many
+  claims, several tie-break rounds, cross-model) is often better spawned as a background task **chip**
+  (e.g. Claude Code's spawn-task) the user can inspect and adjust mid-run, rather than one blocking call.
+  If the host has no such primitive, run inline and checkpoint. Capability varies by host — degrade
+  gracefully.
+
 ## Provenance
 
 Extracted from the LatticeEFT.jl N²LO chiral-force verification (run `wf_c3e78019-8e9`: 11 atomic

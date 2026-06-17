@@ -7,6 +7,12 @@ description: Run the local `claude` CLI in non-interactive mode (with optional r
 
 Use this skill when you need to call Claude from the command line (any task), independent of the downstream workflow (review, drafting, translation, etc.).
 
+> **If you are already running as Claude, don't use this runner to re-invoke yourself.** Keep the call
+> in-host: a native sub-agent if your host exposes one (Claude Code's Agent/Task tool), else inline in
+> your own loop. The `claude` CLI hop adds latency, a separate auth/session, and context loss for zero
+> gain. This runner is for reaching Claude from a DIFFERENT host (Codex / OpenCode / …) for cross-model
+> work. Pick reasoning effort by task difficulty — quality first, not token thrift.
+
 ## Preconditions
 
 - `claude` is installed: `command -v claude`

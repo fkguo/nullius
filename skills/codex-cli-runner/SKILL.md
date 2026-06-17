@@ -7,6 +7,12 @@ description: Run the local `codex` CLI (OpenAI Codex) in non-interactive mode (`
 
 Use this skill when you need to call the OpenAI Codex agent from the command line (any task), independent of the downstream workflow (review, drafting, computation, etc.).
 
+> **If you are already running as Codex, don't use this runner to re-invoke yourself.** Keep the call
+> in-host: a native sub-agent if your host exposes one, else inline in your own loop. The `codex` CLI hop
+> adds latency, a separate session, and context loss for zero gain. This runner is for reaching Codex from
+> a DIFFERENT host (Claude / OpenCode / …) for cross-model work. Choose `model_reasoning_effort` by task
+> difficulty (quality first, not token thrift) — hard tasks warrant `high`/`xhigh`.
+
 ## Preconditions
 
 - `codex` is installed: `command -v codex`

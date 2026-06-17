@@ -32,6 +32,29 @@ Install runner skills for any backends you plan to use:
 
 CLIs should be available in `PATH` according to the chosen backends.
 
+## Host-aware execution (your own family runs native; quality first)
+
+`run_multi_task.py` shells out to CLIs — that is for CROSS-family reviewers. Host capabilities VARY; gate
+on what your host exposes:
+
+- **Single-family review → keep it in-host, not via that family's CLI.** If you only need YOUR family's
+  reviewer (no cross-family swarm aggregation), run it in-host: use a native child-agent/sub-agent
+  primitive if your host has one (Claude Code's Agent/Task tool; OpenCode subagents), else run it inline
+  in your own loop — don't `claude exec` a model you are already running as (latency, separate
+  auth/session, context loss). Plain Claude Desktop / the Gemini CLI may have no sub-agent primitive →
+  inline.
+- **Cross-family swarm → all reviewers go through `run_multi_task.py` (honest caveat).** Its convergence
+  / contract aggregation is computed over the runner's OWN output files, so a natively-run same-family
+  reviewer would not be in the swarm. Getting one unified multi-backend verdict therefore means your own
+  family also goes through its CLI here — that hop is the price of in-process aggregation. Use the swarm
+  when you need cross-MODEL review; do single-family reviews natively.
+- **Reasoning effort scales with review difficulty — quality first, not token thrift.** High-stakes,
+  cross-package, or security-sensitive reviews warrant maximum thinking (extended thinking / high–xhigh
+  reasoning effort / a stronger model); trivial diffs do not. Never accept a missed defect to save tokens.
+- For a long/expensive swarm, prefer a steerable **background task chip** (e.g. Claude Code spawn-task)
+  the user can inspect and adjust mid-run, when the host supports one; otherwise run inline and
+  checkpoint. Capability varies by host — degrade gracefully.
+
 ## Quick start (multi-agent)
 
 ```bash
@@ -43,6 +66,9 @@ python3 scripts/bin/run_multi_task.py \
 ```
 
 ## Quick start (dual review: Claude + Gemini)
+
+> CLI-only / cross-host example. Inside a Claude host, run the Claude reviewer as a native sub-agent and
+> use the runner only for the non-Claude lane (`--models gemini/default`) — see Host-aware execution above.
 
 ```bash
 python3 scripts/bin/run_multi_task.py \

@@ -7,6 +7,12 @@ description: Run the local `gemini` CLI in one-shot mode for arbitrary prompts; 
 
 Use this skill when you need to call Gemini from the command line (any task), independent of the downstream workflow (review, drafting, etc.).
 
+> **If you are already running as Gemini, don't use this runner to re-invoke yourself.** Run the call
+> in-host — inline in your own loop (the Gemini CLI may expose no native sub-agent primitive). The
+> `gemini` CLI hop adds latency, a separate session, and context loss for zero gain. This runner is for
+> reaching Gemini from a DIFFERENT host (Claude / Codex / OpenCode / …) for cross-model work. Pick the
+> model / reasoning depth by task difficulty (quality first, not token thrift).
+
 ## Preconditions
 
 - `gemini` is installed: `command -v gemini`
