@@ -69,6 +69,8 @@ The check is also skipped for:
    - `research_notebook.md` when it contains substantive project notes
    - the relevant `artifacts/runs/<run_id>/` and `team/runs/` directories
 
+**Anchor on the final adopted version — never build on a superseded one.** A long project accumulates earlier fits, methods, grids, and exploratory scripts; a *newer* adopted result (a better minimum, a more robust method, a finer grid) can silently coexist in the repo with the deprecated ones it replaced. Before extending or varying anything, resolve from the durable record (`research_plan.md#Current Status`, `research_contract.md`, the latest dated `artifacts/runs/<run_id>/`, and any explicit `superseded` / `voided` markers) **which** parameters, method, and configuration are the *current adopted* version — not the first script you happen to open or the most-cited earlier draft. Then **regression-anchor**: run that adopted reference configuration and assert it reproduces its known result (the published χ²/value/pole) *before* trusting any variation built on it. This is the project-state half of the [`numerical-reliability-gate`](../numerical-reliability-gate/SKILL.md) G4 anchor; skipping it is how work silently gets rebuilt on a stale fit or a retired method.
+
 To pull newer managed scaffold doc (`AGENTS.md`) into an existing project without disturbing user notes, run `autoresearch init --refresh` (preview with `autoresearch init --refresh --dry-run`). It backs up any changed managed file under `.autoresearch/backups/` and never rewrites `research_plan.md`, `research_notebook.md`, `research_contract.md`, `project_charter.md`, or `project_index.md`.
 
 If no project state exists and the user is in a real external research root, initialize with:
@@ -166,6 +168,7 @@ If `hep-mcp` or a needed provider is unavailable, state that limitation explicit
 
 After a milestone or run produces a stable result:
 
+- Fold in only numbers that pass the [`numerical-reliability-gate`](../numerical-reliability-gate/SKILL.md) — converged under refinement (no coarse-grid mirage), agreed across `>=2` orthogonal methods, and regression-anchored. A coarse, intermediate, or non-converged value is labeled as such or discarded, never silently promoted.
 - Summarize the durable conclusion in `research_contract.md`.
 - Update `research_plan.md#Current Status` with the current state, next step, blockers, and evidence pointers.
 - Link or copy the relevant run evidence under `artifacts/runs/<run_id>/`.
