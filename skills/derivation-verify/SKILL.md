@@ -115,20 +115,34 @@ python3 scripts/run_multi_backend.py --claims claims.json \
 > one, else derive analytically. Treat real code-execution as opportunistic, not assured.
 
 Because same-model agreement is weak evidence (same-model committees exhibit *representational
-collapse*), Executor 2 enforces three SOTA-grounded rules ON TOP of "majority_size >= 2":
+collapse*), Executor 2 enforces these SOTA-grounded rules ON TOP of "majority_size >= 2":
 
 - **R1 cross-family diversity** — a claim converges only on **>=2 derivations from DISTINCT model
-  families** that the comparator clusters as mathematically equivalent (two answers from the same
-  backend do not count as independent).
-- **R2 adjudicator veto** — the comparator INDEPENDENTLY recomputes the answer; if its recompute does
-  not match the agreeing cluster, the claim does **not** converge (guards a correlated wrong majority,
-  the "consensus trap").
+  families** judged equivalent (two answers from the same backend do not count as independent).
+- **CAS grounding + blind/de-anchored adjudication (capability-first)** — each deriver emits an optional
+  `checkable_form` (its answer as a strict sympy expression). When **>=2 cross-family forms are
+  CAS-verified equal** (symbolic + deterministic random-point identity test), convergence is decided
+  **without the comparator at all** — an LLM-INDEPENDENT verdict (`verification: "cas"`). This is the
+  blind adjudication: the (anchored) comparator that has *seen* the candidate answers is not in the gate
+  path, and a CAS refutation **overrides** a hallucinated LLM consensus (consensus-trap guard). The
+  engine **abstains** on anything not safely checkable (asymptotic notation, sets, prose, undefined
+  functions) — abstaining falls back to the LLM path, never a wrong CAS verdict.
+- **R2 adjudicator veto (LLM fallback)** — when no answer is CAS-checkable (`verification: "llm"`), the
+  comparator clusters + independently recomputes; mismatch ⇒ not converged.
 - **R3 diversity-first tie-break** — each tie-break round pulls a not-yet-used family first, bounded
   by `max_iter` (adaptive KS/Beta-Binomial stopping is a documented future enhancement).
 
-The output matrix is a SUPERSET of Executor 1's: each row adds `cross_family_confirmations`, `families`,
-and `adjudicated_matches_majority`; the summary adds `dropped_claims`. `converged` reflects R1+R2.
-Offline unit tests (mock runner, no real backends) live in `tests/test_run_multi_backend.py`.
+The output matrix is a SUPERSET of Executor 1's: each row adds `verification` (`cas` | `llm` | `error`),
+`cross_family_confirmations`, `families`, and `adjudicated_matches_majority`; the summary adds
+`dropped_claims` and `family_pool`. Offline unit tests (mock runner + local CAS, no real backends) live
+in `tests/test_run_multi_backend.py`.
+
+> **Residual limit (honest):** for `verification: "cas"`, CAS proves the cross-family AGREEMENT is real,
+> not that the agreed answer is CORRECT — a wrong result still slips through only if >=2 independent
+> families AND (for `llm`) the adjudicator share the *same* error (irreducible correlated-error floor of
+> any LLM gate). CAS makes that floor the binding constraint by removing mis-clustering and judge
+> anchoring; it cannot remove shared misconceptions or a mis-stated problem. Non-checkable claims stay
+> fully LLM-bounded.
 
 ## Why two executors
 

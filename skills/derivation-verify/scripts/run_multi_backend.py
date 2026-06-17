@@ -146,10 +146,14 @@ def parse_derivation(text: Optional[str]) -> Optional[dict]:
     conf = str(obj.get("confidence", "")).strip().lower()
     if not isinstance(ans, str) or not ans.strip():
         return None
+    form = obj.get("checkable_form")
     return {
         "canonical_answer": ans.strip(),
         "derivation_summary": summ.strip() if isinstance(summ, str) else "",
         "confidence": conf if conf in _CONFIDENCE else "low",
+        # optional strict-sympy rewrite of the answer for deterministic equivalence; "" if not a
+        # closed-form/number (asymptotic bound, set, prose) -> CAS abstains, gate falls back to LLM.
+        "checkable_form": form.strip() if isinstance(form, str) else "",
     }
 
 
@@ -213,6 +217,105 @@ def pick_next_spec(pool: list[str], used: list[str]) -> Optional[str]:
 
 
 # --------------------------------------------------------------------------------------
+# Capability-first deterministic equivalence (LLM-INDEPENDENT; abstains unless confident).
+# Operates on each deriver's MODEL-DECLARED `checkable_form` (a strict sympy rewrite of its answer) —
+# NOT on the free-text canonical_answer, because naive parsing of free text is unsafe (e.g. implicit
+# multiplication turns "arctan(q/2m)" into a*r*c*t*a*n*..., and "Θ(n log n)" parses to a symbol product).
+# When >=2 cross-family derivations are CAS-verified equal, convergence is decided WITHOUT the
+# (anchored) comparator — the blind/de-anchored adjudication the design targets. Any doubt -> abstain.
+# --------------------------------------------------------------------------------------
+try:
+    import sympy as _sp
+    from sympy.parsing.sympy_parser import parse_expr as _parse_expr, standard_transformations
+    from sympy.core.function import AppliedUndef as _AppliedUndef
+    _SYMPY_OK = True
+except Exception:  # pragma: no cover - CAS path simply abstains if sympy is unavailable
+    _SYMPY_OK = False
+
+def _strict_expr(form):
+    """Strict-parse a model-declared sympy form (NO implicit multiplication). Return a sympy Expr only
+    if it is a genuine finite algebraic/numeric value we can compare; else None (abstain). Rejects
+    undefined functions (f(...), Θ(...)), big-O/asymptotic, booleans/relations, lists, and non-finite."""
+    if not _SYMPY_OK or not isinstance(form, str):
+        return None
+    s = form.strip().replace("^", "**")
+    if not s or len(s) > 4000:
+        return None
+    try:
+        e = _parse_expr(s, transformations=standard_transformations, evaluate=True)
+    except Exception:
+        return None
+    if not isinstance(e, _sp.Expr):
+        return None
+    if e.atoms(_AppliedUndef) or e.has(_sp.Order) or e.has(_sp.zoo, _sp.nan, _sp.oo):
+        return None
+    return e
+
+
+def equivalent_forms(a_form, b_form):
+    """True/False if a CAS can confidently decide a==b; None to abstain (unparseable / undecidable).
+
+    Uses sympy `simplify(a-b)==0` (sound True) then `Expr.equals` (symbolic + internal high-precision
+    random-point testing — True/False/None). We deliberately do NOT roll our own numeric sampling:
+    fixed integer points give false-positives for periodic functions (e.g. sin(pi*x) is 0 at every
+    integer), whereas `.equals` samples generic points and returns False there. Undecided -> abstain;
+    never guess (a wrong CAS verdict is worse than falling back to the LLM path)."""
+    ea, eb = _strict_expr(a_form), _strict_expr(b_form)
+    if ea is None or eb is None or (ea.free_symbols ^ eb.free_symbols):
+        return None
+    try:
+        if _sp.simplify(ea - eb) == 0:
+            return True
+    except Exception:
+        pass
+    try:
+        eq = ea.equals(eb)
+        if eq is True:
+            return True
+        if eq is False:
+            return False
+    except Exception:
+        pass
+    return None
+
+
+def verified_cross_family(forms: list[str], families: list[str]) -> tuple[int, bool]:
+    """Max # of DISTINCT families in any CAS-verified-equal cluster, and whether ANY pair was CAS-decided.
+    decidable=False => CAS abstained entirely (caller should fall back to the LLM clustering path)."""
+    n = len(forms)
+    parent = list(range(n))
+
+    def find(i):
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    decidable = False
+    for i in range(n):
+        for j in range(i + 1, n):
+            r = equivalent_forms(forms[i], forms[j])
+            if r is not None:
+                decidable = True
+            if r is True:
+                parent[find(i)] = find(j)
+    groups: dict[int, set] = {}
+    for i in range(n):
+        groups.setdefault(find(i), set()).add(families[i])
+    xfam = max((len(f) for f in groups.values()), default=0)
+    return xfam, decidable
+
+
+def claim_status(cmp: dict, derivations: list[dict], families: list[str]) -> tuple[bool, str, int]:
+    """Decide convergence capability-first. Returns (converged, verification, cross_family_count).
+    CAS path (LLM-independent) when any answer pair is CAS-decidable; else the LLM clustering path."""
+    cas_xfam, decidable = verified_cross_family([d.get("checkable_form", "") for d in derivations], families)
+    if decidable:
+        return cas_xfam >= 2, "cas", cas_xfam
+    return decide_converged(cmp, families), "llm", cross_family_confirmations(cmp, families)
+
+
+# --------------------------------------------------------------------------------------
 # Prompts (mirror Executor 1's vPrompt/cmpPrompt/tiePrompt; comparator schema extended for R1/R2).
 # --------------------------------------------------------------------------------------
 _DERIVE_SYSTEM = (
@@ -221,7 +324,10 @@ _DERIVE_SYSTEM = (
     "SCRATCH; do not assume any answer. Be rigorous about every step — signs, factors, edge/boundary "
     "cases, and any convention or branch choice. Output ONLY a single fenced ```json block with EXACTLY these keys: "
     '"canonical_answer" (the result in the exact requested format), "derivation_summary" (2-6 sentences '
-    "of the actual steps, incl. any computation you ran and its output), \"confidence\" (high|medium|low). "
+    "of the actual steps, incl. any computation you ran and its output), \"confidence\" (high|medium|low), "
+    'and "checkable_form" (your canonical_answer rewritten as a STRICT sympy-parseable expression — sympy '
+    "function names like atan/asin/exp/log/sqrt, explicit * for multiplication, ** for powers; set it to "
+    '"" if the answer is NOT a closed-form/number, e.g. an asymptotic bound, a set, or prose). '
     "No prose outside the json block."
 )
 _COMPARE_SYSTEM = (
@@ -362,8 +468,9 @@ def verify_claim(c: dict, *, ctx: str, pool: list[str], comparator: str, max_ite
                 families.append(family_of(spec))
 
     cmp = _compare(c, ctx, derivations, families, comparator, run, tag=f"{c['id']}/compare0")
+    converged, verification, cas_xfam = claim_status(cmp, derivations, families)
     rounds = 0
-    while not decide_converged(cmp, families) and rounds < max_iter:
+    while not converged and rounds < max_iter:
         rounds += 1
         spec = pick_next_spec(pool, used)
         if spec is None:
@@ -377,17 +484,21 @@ def verify_claim(c: dict, *, ctx: str, pool: list[str], comparator: str, max_ite
             derivations.append(d)
             families.append(family_of(spec))
         cmp = _compare(c, ctx, derivations, families, comparator, run, tag=f"{c['id']}/compare{rounds}")
+        converged, verification, cas_xfam = claim_status(cmp, derivations, families)
 
-    converged = decide_converged(cmp, families)
-    # Honest cluster size: the indices the comparator actually enumerated (never exceeds derivations
-    # that ran); fall back to a clamped self-report only when no indices were given.
+    # cross_family_confirmations: CAS-verified count when the CAS path decided; else the comparator's.
+    xfam = cas_xfam if verification == "cas" else cross_family_confirmations(cmp, families)
+    # Honest cluster size: indices the comparator enumerated (never exceeds derivations that ran).
     idx = cmp.get("majority_indices") or []
     independent_confirmations = len(idx) if idx else min(int(cmp.get("majority_size", 0) or 0), len(derivations))
     return {
         "claim": c["id"],
         "converged": converged,
+        # how convergence was decided: "cas" = LLM-independent (deterministic equivalence, de-anchored
+        # from the comparator); "llm" = comparator clustering + adjudicator veto (LLM-bounded).
+        "verification": verification,
         "independent_confirmations": independent_confirmations,
-        "cross_family_confirmations": cross_family_confirmations(cmp, families),
+        "cross_family_confirmations": xfam,
         "families": sorted(set(families)),
         "total_derivations": len(derivations),
         "iterate_rounds": rounds,
@@ -429,7 +540,8 @@ def run_gate(spec: dict, *, pool: list[str], comparator: str, run: RunFn,
             rows.append(verify_claim(c, ctx=ctx, pool=pool, comparator=comparator, max_iter=max_iter, run=run))
         except Exception as exc:  # never let one claim crash the whole matrix
             rows.append({
-                "claim": c.get("id", "?"), "converged": False, "independent_confirmations": 0,
+                "claim": c.get("id", "?"), "converged": False, "verification": "error",
+                "independent_confirmations": 0,
                 "cross_family_confirmations": 0, "families": [], "total_derivations": 0,
                 "iterate_rounds": 0, "agreed_answer": "", "adjudicated_correct": f"(error: {exc})",
                 "adjudicated_matches_majority": False, "outliers": f"claim crashed: {exc}",

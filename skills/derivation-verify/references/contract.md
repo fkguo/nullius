@@ -30,7 +30,10 @@ rather than confirmatory.
 
 1. **Derive (>=2, blind, method-diverse).** Spawn deriver #0 with `method0` and #1 with `method1`,
    each producing `{canonical_answer, derivation_summary, confidence}`. Derivers MAY run a CAS / numerics
-   (sympy, mpmath, Julia, Mathematica) and MUST show the computation in `derivation_summary`.
+   (sympy, mpmath, Julia, Mathematica) and MUST show the computation in `derivation_summary`. They MAY
+   also emit an optional `checkable_form` — the answer as a strict, machine-parseable expression (e.g.
+   sympy syntax) — or `""` when the answer is not a closed-form/number; Executor 2 uses it for
+   deterministic, LLM-independent equivalence (Executor 1 ignores it).
 2. **Compare (adjudicate by MATH equivalence, not strings).** An impartial comparator receives all
    derivations and returns `{majority_answer, majority_size, all_equivalent, outliers, correct_answer_adjudicated}`.
    It must treat e.g. `-pi/(4mu)` == `-(1/4)pi/mu`, and `(2m^2-mu^2)` (leading `-`) == `(mu^2-2m^2)`.
@@ -69,11 +72,15 @@ rather than confirmatory.
 ```
 
 **Executor 2 extends this output (superset; Executor 1 fields all still present).** Each matrix row adds
-`cross_family_confirmations` (# distinct model families in the agreeing cluster), `families` (families
-that produced a derivation), and `adjudicated_matches_majority` (the R2 veto flag); the summary adds
-`dropped_claims` (malformed/skipped claims). For Executor 2, `converged` means **R1 ∧ R2**:
-`cross_family_confirmations >= 2` AND `adjudicated_matches_majority == true` — strictly stronger than
-Executor 1's `majority_size >= 2`.
+`verification` (`"cas"` = decided by deterministic cross-family equivalence, LLM-independent; `"llm"` =
+comparator clustering + veto; `"error"` = claim crashed), `cross_family_confirmations` (# distinct model
+families in the agreeing cluster), `families`, and `adjudicated_matches_majority`; the summary adds
+`dropped_claims` and `family_pool` (distinct families available — `<2` means cross-family convergence is
+structurally impossible). Convergence is **capability-first**: when any answer is CAS-checkable, a claim
+converges iff **>=2 cross-family `checkable_form`s are CAS-verified equal** (the comparator is NOT in the
+gate path, and a CAS refutation overrides a wrong LLM consensus); otherwise it falls back to the LLM path
+(**R1 ∧ R2**: `cross_family_confirmations >= 2` AND `adjudicated_matches_majority`). Both are strictly
+stronger than Executor 1's `majority_size >= 2`.
 
 ## Honesty / integrity invariants
 

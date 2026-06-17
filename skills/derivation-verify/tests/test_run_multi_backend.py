@@ -66,8 +66,13 @@ def test_extract_json_prefer_keys_selects_keyed_object():
 
 # ---------------------------------------------------------------- parse_derivation
 def test_parse_derivation_valid():
-    d = mb.parse_derivation('```json\n{"canonical_answer":"42","derivation_summary":"17+25","confidence":"high"}\n```')
-    assert d == {"canonical_answer": "42", "derivation_summary": "17+25", "confidence": "high"}
+    d = mb.parse_derivation('```json\n{"canonical_answer":"42","derivation_summary":"17+25","confidence":"high","checkable_form":"42"}\n```')
+    assert d == {"canonical_answer": "42", "derivation_summary": "17+25", "confidence": "high", "checkable_form": "42"}
+
+
+def test_parse_derivation_checkable_form_optional():
+    d = mb.parse_derivation('{"canonical_answer":"x","derivation_summary":"s","confidence":"high"}')
+    assert d["checkable_form"] == ""  # absent -> "" (CAS abstains, gate uses LLM path)
 
 
 def test_parse_derivation_bad_confidence_coerced():
@@ -261,6 +266,94 @@ def test_verify_claim_failed_derivers_filtered():
     row = mb.verify_claim(CLAIM, ctx="ctx", pool=POOL, comparator="codex/default", max_iter=1, run=run)
     assert row["converged"] is False
     assert row["total_derivations"] == 0
+
+
+# ---------------------------------------------------------------- deterministic equivalence (CAS)
+import pytest
+
+sympy = pytest.importorskip("sympy")  # CAS path tests need sympy; skip cleanly if absent
+
+
+def test_equivalent_forms_decides_true():
+    assert mb.equivalent_forms("3*x**2", "x*x*3") is True
+    assert mb.equivalent_forms("-pi/(4*mu)", "-(1/4)*pi/mu") is True
+    assert mb.equivalent_forms("sqrt(2)/2", "1/sqrt(2)") is True
+    assert mb.equivalent_forms("2/3", "4/6") is True
+
+
+def test_equivalent_forms_decides_false():
+    assert mb.equivalent_forms("42", "43") is False
+    assert mb.equivalent_forms("3*x**2", "2*x**2") is False
+    assert mb.equivalent_forms("-pi/(4*mu)", "pi/(4*mu)") is False
+
+
+def test_equivalent_forms_abstains_on_non_algebraic():
+    # undefined functions / asymptotic notation / non-expressions / prose / mismatched symbols -> None.
+    # A wrong CAS verdict here would be worse than abstaining, so abstention is the contract.
+    for a, b in [("Theta(n*log(n))", "Theta(n*log(n))"), ("O(n**2)", "O(n**2)"),
+                 ("arctan(x)", "arctan(x)"), ("[1,2]", "[1,2]"), ("x>0", "x>0"),
+                 ("the limit is 1", "the limit is 1"), ("", ""), ("x**2", "y**2")]:
+        assert mb.equivalent_forms(a, b) is None
+
+
+def test_equivalent_forms_no_periodic_false_positive():
+    # sin(pi*x) is 0 at every INTEGER but is NOT identically 0; a naive integer-sample numeric test
+    # would wrongly return True. sympy .equals samples generic points -> must NOT say equal.
+    assert mb.equivalent_forms("sin(pi*x)", "0") in (False, None)
+    assert mb.equivalent_forms("sin(pi*x)", "0") is not True
+
+
+def test_verified_cross_family():
+    # two families, CAS-equal forms -> xfam 2, decidable
+    xfam, decidable = mb.verified_cross_family(["3*x**2", "x*x*3"], ["claude", "codex"])
+    assert xfam == 2 and decidable is True
+    # CAS-unequal -> each its own class -> xfam 1, still decidable
+    xfam, decidable = mb.verified_cross_family(["42", "43"], ["claude", "codex"])
+    assert xfam == 1 and decidable is True
+    # non-checkable -> abstain entirely
+    xfam, decidable = mb.verified_cross_family(["Theta(n)", "Theta(n)"], ["claude", "codex"])
+    assert decidable is False
+
+
+def _drv(ans, form, fam_summary="s"):
+    return {"canonical_answer": ans, "derivation_summary": fam_summary, "confidence": "high", "checkable_form": form}
+
+
+def test_claim_status_cas_path_is_llm_independent():
+    # CAS converges on >=2 cross-family equal forms EVEN IF the comparator says nothing (de-anchored).
+    derivations = [_drv("42", "42"), _drv("42", "6*7")]
+    conv, verification, xfam = mb.claim_status(dict(mb.SAFE_CMP), derivations, ["claude", "codex"])
+    assert conv is True and verification == "cas" and xfam == 2
+
+
+def test_claim_status_cas_overrides_wrong_llm_consensus():
+    # Derivers disagree by CAS (42 vs 43) but a hallucinating comparator clusters them as agreeing.
+    # The consensus-trap guard: CAS is authoritative -> NOT converged.
+    derivations = [_drv("42", "42"), _drv("43", "43")]
+    lying_cmp = {**mb.SAFE_CMP, "majority_answer": "42", "majority_size": 2,
+                 "majority_indices": [0, 1], "adjudicated_matches_majority": True}
+    conv, verification, xfam = mb.claim_status(lying_cmp, derivations, ["claude", "codex"])
+    assert conv is False and verification == "cas" and xfam == 1
+
+
+def test_claim_status_falls_back_to_llm_when_not_checkable():
+    derivations = [_drv("Θ(n log n)", ""), _drv("Θ(n log n)", "")]
+    good_cmp = {**mb.SAFE_CMP, "majority_size": 2, "majority_indices": [0, 1],
+                "adjudicated_matches_majority": True}
+    conv, verification, xfam = mb.claim_status(good_cmp, derivations, ["claude", "codex"])
+    assert verification == "llm" and conv is True  # R1+R2 on the LLM path
+
+
+def test_verify_claim_cas_path_end_to_end():
+    # derivers emit checkable_form -> gate converges via CAS independent of the comparator.
+    def run(spec, system, prompt, tag):
+        if "compare" in tag:
+            return json.dumps(dict(mb.SAFE_CMP))  # comparator contributes nothing
+        return json.dumps({"canonical_answer": "42", "derivation_summary": "17+25",
+                           "confidence": "high", "checkable_form": "42"})
+    row = mb.verify_claim(CLAIM, ctx="ctx", pool=POOL, comparator="codex/default", max_iter=1, run=run)
+    assert row["converged"] is True and row["verification"] == "cas"
+    assert row["cross_family_confirmations"] == 2
 
 
 # ---------------------------------------------------------------- run_gate (full input -> summary)
