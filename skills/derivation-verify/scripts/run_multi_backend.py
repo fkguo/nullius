@@ -244,17 +244,29 @@ _FORM_DENY = re.compile(
     r"subprocess|system|integrate|solve|factor|diff|limit|series|summation|"
     r"Integral|Sum|Product|Derivative|Matrix|lambdify)\b"
 )
+# Quote chars get their own structural rule because the restricted namespace does NOT cover the worst
+# vector: a string literal lets the form call S("...")/sympify("...")/parse_expr("..."), which RE-ENTER
+# sympy's parser with its OWN default globals (builtins exposed) and eval the inner payload — bypassing
+# _SYMPY_NS entirely. A genuine math answer is digits/names/operators only and never needs a quote, so
+# any quote/backtick means "not a value, possibly a re-entry payload" -> abstain before parsing.
+_FORM_QUOTES = ("'", '"', "`")
 
 
 def _strict_expr(form):
     """Strict-parse a model-declared sympy form (NO implicit multiplication) inside a builtins-free
     namespace. Return a sympy Expr only if it is a genuine finite algebraic/numeric value we can
-    compare; else None (abstain). Rejects code-execution gadgets, undefined functions (f(...), Θ(...)),
-    big-O/asymptotic, unevaluated Integral/Sum/Product/Derivative, booleans/relations, lists, non-finite."""
+    compare; else None (abstain). Rejects code-execution gadgets, string-literal re-entry, undefined
+    functions (f(...), Θ(...)), big-O/asymptotic, unevaluated Integral/Sum/Product/Derivative,
+    booleans/relations, lists, non-finite.
+
+    SECURITY: `form` is untrusted backend/LLM output and parse_expr eval()s it, so a hostile/hallucinated
+    checkable_form could execute code DURING parsing. Three layers stop it: the structural pre-parse gate
+    here (no quotes -> no S("...")/sympify("...") re-entry; no dunders/builtin names -> no gadget chain),
+    the sympy-only _SYMPY_NS with __builtins__ blanked, and the post-parse type/atom checks below."""
     if not _SYMPY_OK or not isinstance(form, str):
         return None
     s = form.strip().replace("^", "**")
-    if not s or len(s) > 4000 or _FORM_DENY.search(s):
+    if not s or len(s) > 4000 or any(q in s for q in _FORM_QUOTES) or _FORM_DENY.search(s):
         return None
     try:
         e = _parse_expr(s, transformations=standard_transformations, evaluate=True,

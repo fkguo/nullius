@@ -319,6 +319,32 @@ def test_strict_expr_blocks_code_execution(tmp_path):
     assert not sentinel.exists()  # no payload executed
 
 
+def test_strict_expr_blocks_sympify_reentry(tmp_path, capsys, monkeypatch):
+    # SECURITY (re-entry): the builtins-stripped namespace does NOT cover S("...")/sympify("...")/
+    # parse_expr("..."), which RE-PARSE the inner string with sympy's own default (builtins-exposed)
+    # globals. The denylist only catches inner tokens it happens to name (__, open, exec, ...); arbitrary
+    # OTHER builtins still execute through that re-entry — a DoS surface (breakpoint/help) and a
+    # denylist-completeness-dependent RCE surface. The quote rule closes the whole class structurally:
+    # no quote char -> no string literal -> no re-entry. `print`/`breakpoint` are NOT on the denylist, so
+    # these payloads are stopped ONLY by the quote rule (they'd execute under a namespace-only fix).
+    fired = []
+    monkeypatch.setattr("sys.breakpointhook", lambda *a, **k: fired.append("bp"))
+    sentinel = tmp_path / "reentry.txt"
+    payloads = [
+        'S("print(chr(120))")',                       # side-effecting builtin absent from the denylist
+        'sympify("print(chr(121))")',
+        'parse_expr("print(chr(122))")',
+        'S("breakpoint()")',                          # DoS: would drop into pdb under the default hook
+        f'S("open(\'{sentinel}\',\'w\').write(\'x\')")',  # file write via re-entry
+    ]
+    for p in payloads:
+        assert mb._strict_expr(p) is None
+        assert mb.equivalent_forms(p, "0") is None
+    assert capsys.readouterr().out == ""          # no print re-entry executed (channel truly closed)
+    assert fired == []                            # no breakpoint re-entry executed
+    assert not sentinel.exists()                  # no file written
+
+
 def test_equivalent_forms_abstains_on_integral_constant():
     # Indefinite integrals differ by +C; must ABSTAIN (-> LLM path), not falsely refute.
     assert mb.equivalent_forms("Integral(2*x, x)", "x**2 + 5") is None
