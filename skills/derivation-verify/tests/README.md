@@ -30,7 +30,29 @@ Passing `args` as a JSON **string** (the Workflow tool serializes complex args t
 environments) previously yielded `total_claims: 0` with **no agents spawned** — the gate silently did
 nothing. The executor now parses a string `args`; this smoke test fails (0 claims) if that regresses.
 
-## Executor 2 (CLI multi-backend)
+## Executor 2 (CLI multi-backend) — offline unit suite
 
-`scripts/run_multi_backend.py` is a planned stub (raises `NotImplementedError`); no live test yet. When
-implemented it must reproduce the same matrix on `smoke_args.json` using >=2 distinct model backends.
+[`test_run_multi_backend.py`](test_run_multi_backend.py) exercises the gate's PURE logic + orchestration
+with an **injected mock runner** — NO real CLI backends are spawned, so it is fast, deterministic, and
+CI-safe. Run:
+
+```
+python3 -m pytest skills/derivation-verify/tests/test_run_multi_backend.py -q
+```
+
+It locks: cross-family convergence (R1), adjudicator veto (R2), diversity-first tie-break (R3), robust
+JSON extraction from noisy CLI text (incl. Gemini startup noise + JSON-in-prose), and "a dead comparator
+degrades the claim to unconverged, never crashes the matrix".
+
+### Real cross-model smoke (manual; needs authed CLIs, slow/costly — not in CI)
+
+```
+python3 skills/derivation-verify/scripts/run_multi_backend.py \
+  --claims skills/derivation-verify/tests/smoke_args.json \
+  --backends claude/default,codex/default,gemini/default,opencode/default \
+  --comparator codex/default --out /tmp/dv2_matrix.json
+```
+
+Expect `2/2 converged` with each row showing `cross_family_confirmations >= 2`. The mechanical
+subprocess/arg/output-parsing path (everything the unit mock stubs) is validated against a fake runner;
+a real run additionally validates the live model behaviour.

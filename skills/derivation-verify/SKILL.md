@@ -5,9 +5,10 @@ description: >
   algebraic/operator identities, closed forms, sign/branch choices). For each atomic claim it runs
   >=2 INDEPENDENT blind re-derivations, an adversarial comparator that clusters them by MATHEMATICAL
   equivalence, and a tie-break loop that adds fresh independent derivations until >=2 agree — emitting
-  an auditable verification matrix. Backend-agnostic contract; ships a Claude/Workflow-native executor
-  now, with a CLI multi-backend (Claude/Codex/Gemini/OpenCode) executor planned for cross-model
-  independence. Sibling to `review-swarm` (which REVIEWS an artifact); this one RE-DERIVES the answer.
+  an auditable verification matrix. Backend-agnostic contract with TWO executors: a Claude/Workflow-native
+  one (same-model, fast) and a CLI multi-backend one (Claude/Codex/Gemini/OpenCode) that enforces
+  cross-model-FAMILY agreement + an adjudicator veto for the strongest verification. Sibling to
+  `review-swarm` (which REVIEWS an artifact); this one RE-DERIVES the answer.
 ---
 
 # Derivation Verify
@@ -89,21 +90,46 @@ serializes complex args to a string in some environments). Smoke-test fixture:
 > prompts/seeds/methods) — a strong, fast lower bound. The quality ceiling is cross-MODEL independence
 > (Executor 2).
 
-## Executor 2 — CLI multi-backend (planned; cross-model independence)
+## Executor 2 — CLI multi-backend (available; cross-model independence)
 
-`scripts/run_multi_backend.py` (stub) will satisfy the SAME contract using separate CLIs
-(Claude / Codex / Gemini / OpenCode), reusing [`review-swarm`](../review-swarm/SKILL.md)'s
-`scripts/bin/run_multi_task.py` as the multi-backend runner, with the comparator/iteration logic on top.
-This gives **true cross-model independence** — the strongest verification (different engines catch
-different errors), at higher cost. The contract is unchanged, so callers switch executor without
-rewriting their claims.
+`scripts/run_multi_backend.py` satisfies the SAME contract using separate model CLIs, reusing
+[`review-swarm`](../review-swarm/SKILL.md)'s `scripts/bin/run_multi_task.py` as the per-backend
+launcher (each deriver/comparator = one runner invocation pinned to one model spec), with the
+comparator/iteration logic on top. This gives **true cross-model independence** — different engines
+catch different errors — at higher cost. The input contract is unchanged, so a caller's claims port
+verbatim from Executor 1.
+
+```
+python3 scripts/run_multi_backend.py --claims claims.json \
+  --backends claude/default,codex/default,gemini/default,opencode/default \
+  --comparator codex/default --out matrix.json   # add --tools for best-effort CAS/compute modes
+```
+
+Because same-model agreement is weak evidence (same-model committees exhibit *representational
+collapse*), Executor 2 enforces three SOTA-grounded rules ON TOP of "majority_size >= 2":
+
+- **R1 cross-family diversity** — a claim converges only on **>=2 derivations from DISTINCT model
+  families** that the comparator clusters as mathematically equivalent (two answers from the same
+  backend do not count as independent).
+- **R2 adjudicator veto** — the comparator INDEPENDENTLY recomputes the answer; if its recompute does
+  not match the agreeing cluster, the claim does **not** converge (guards a correlated wrong majority,
+  the "consensus trap").
+- **R3 diversity-first tie-break** — each tie-break round pulls a not-yet-used family first, bounded
+  by `max_iter` (adaptive KS/Beta-Binomial stopping is a documented future enhancement).
+
+The output matrix is a SUPERSET of Executor 1's: each row adds `cross_family_confirmations`, `families`,
+and `adjudicated_matches_majority`; the summary adds `dropped_claims`. `converged` reflects R1+R2.
+Offline unit tests (mock runner, no real backends) live in `tests/test_run_multi_backend.py`.
 
 ## Why two executors
 
-Maximize reliability without blocking on multi-backend: **ship Claude-native now** (Executor 1) so the
-gate is usable immediately and squeezes the most out of Claude; **target cross-model** (Executor 2) as
-the reliability ceiling. The backend-agnostic contract means the Claude-native claims port verbatim to
-the multi-backend executor when it lands.
+- **Executor 1 (Claude/Workflow-native)** — same-model, in-process, fast and cheap; a strong lower
+  bound usable immediately inside Claude Code.
+- **Executor 2 (CLI multi-backend)** — cross-model-family, the reliability ceiling; the right choice
+  for results you must certify rigorously. It costs more (multiple CLI engines, slower) but decorrelates
+  errors in a way no single model can.
+
+The backend-agnostic contract means claims written for one executor run on the other unchanged.
 
 ## Provenance
 

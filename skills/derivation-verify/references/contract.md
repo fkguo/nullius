@@ -68,6 +68,13 @@ rather than confirmatory.
 }
 ```
 
+**Executor 2 extends this output (superset; Executor 1 fields all still present).** Each matrix row adds
+`cross_family_confirmations` (# distinct model families in the agreeing cluster), `families` (families
+that produced a derivation), and `adjudicated_matches_majority` (the R2 veto flag); the summary adds
+`dropped_claims` (malformed/skipped claims). For Executor 2, `converged` means **R1 ∧ R2**:
+`cross_family_confirmations >= 2` AND `adjudicated_matches_majority == true` — strictly stronger than
+Executor 1's `majority_size >= 2`.
+
 ## Honesty / integrity invariants
 
 - The leader (caller) does NOT declare convergence — the gate's `converged` flag, derived from >=2
@@ -84,6 +91,13 @@ rather than confirmatory.
 - **Executor 1 (Claude/Workflow-native, `workflows/derivation_verify.js`):** derivers/comparator are
   in-process Claude subagents (`agent()` with a JSON `schema`); "independent" = same model, distinct
   prompts/methods. Strong + fast lower bound on independence.
-- **Executor 2 (CLI multi-backend, `scripts/run_multi_backend.py`, planned):** derivers are separate
-  CLIs (Claude/Codex/Gemini/OpenCode) via review-swarm's `run_multi_task.py`; "independent" = distinct
-  MODELS — the reliability ceiling. Same input/output contract.
+- **Executor 2 (CLI multi-backend, `scripts/run_multi_backend.py`, available):** derivers are separate
+  CLIs (Claude/Codex/Gemini/OpenCode) via review-swarm's `run_multi_task.py` (one runner invocation per
+  deriver/comparator, pinned to one model spec); "independent" = distinct model FAMILIES — the
+  reliability ceiling. Same INPUT contract; output is the superset above. Convergence is stricter:
+  - **R1 cross-family** — needs `>= 2` agreeing derivations from DISTINCT families (same-backend
+    repeats do not count; mitigates same-model *representational collapse*).
+  - **R2 adjudicator veto** — the comparator's independent recompute must match the agreeing cluster
+    (`adjudicated_matches_majority`), else not converged (guards the "consensus trap").
+  - **R3 diversity-first tie-break** — each round pulls an unused family first; bounded by `max_iter`
+    (adaptive KS/Beta-Binomial stopping is a future enhancement).
