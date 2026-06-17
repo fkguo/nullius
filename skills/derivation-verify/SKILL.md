@@ -177,7 +177,9 @@ capabilities VARY — gate on what your host actually exposes. Route by **model 
   family. So in Claude Code: run the Claude derivation natively, attach it as `native_derivations` with
   `family: "claude"`, and run Executor 2 with `--backends codex/default,gemini/default` (or even a single
   other backend) — you get a cross-family CAS/comparator verdict that counts the native Claude in
-  `cross_family_confirmations`, with **zero `claude` CLI hop**. Each row reports `native_seeded`.
+  `cross_family_confirmations`, with **zero `claude` CLI hop** (the comparator panel also skips the native
+  family). A native supplies at most ONE of the `>=2` confirmations — convergence still requires `>=1`
+  independent CLI family, so the host cannot self-certify. Each row reports `native_seeded`.
 - **Reasoning effort scales with claim difficulty — quality first.** A hard loop integral, a subtle
   sign/branch choice, or a contested closed form warrants your MAXIMUM thinking (extended thinking /
   high–xhigh reasoning effort / a stronger model spec); a trivial anchor does not. Never trade a wrong

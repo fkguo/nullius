@@ -103,6 +103,19 @@ def family_of(spec: str) -> str:
     return "opencode"
 
 
+def normalize_family(tag: str) -> str:
+    """Canonicalize a host-declared native `family` tag into the SAME namespace as `family_of` so native
+    and CLI families compare correctly (auto-exclusion + cross-family counting). Accepts a bare family
+    name (`claude`/`Claude`), a full spec (`claude/default`), or any opencode-class provider; everything
+    non-{claude,codex,gemini} folds to `opencode` exactly as `family_of` does for CLI specs."""
+    t = (tag or "").strip().lower()
+    if not t or t == "default":
+        return "opencode"
+    if "/" in t:
+        return family_of(t)
+    return t if t in ("claude", "codex", "gemini") else "opencode"
+
+
 _FENCE_RE = re.compile(r"```(?:json)?\s*\n?(.*?)```", re.DOTALL)
 
 
@@ -186,7 +199,7 @@ def parse_native_derivation(d) -> Optional[dict]:
         "derivation_summary": summ.strip() if isinstance(summ, str) else "",
         "confidence": conf if conf in _CONFIDENCE else "high",  # host-native default: high
         "checkable_form": form.strip() if isinstance(form, str) else "",
-        "family": fam.strip(),
+        "family": normalize_family(fam),  # canonical namespace, so it dedups/excludes vs CLI families
     }
 
 
@@ -231,9 +244,15 @@ def cross_family_confirmations(cmp: dict, families: list[str]) -> int:
     return len(fams)
 
 
-def decide_converged(cmp: dict, families: list[str]) -> bool:
-    """Converged iff >=2 DISTINCT families agree (R1) AND the adjudicator's recompute matches (R2)."""
-    return cross_family_confirmations(cmp, families) >= 2 and bool(cmp.get("adjudicated_matches_majority"))
+def decide_converged(cmp: dict, families: list[str], native_count: int = 0) -> bool:
+    """Converged iff >=2 DISTINCT families agree (R1) AND the adjudicator's recompute matches (R2) AND the
+    agreeing cluster contains >=1 INDEPENDENT (non-native, i.e. CLI-derived) family — host-supplied native
+    derivations (indices < native_count) cannot self-certify without an independent engine corroborating."""
+    idx = [i for i in cmp.get("majority_indices", []) if 0 <= i < len(families)]
+    has_independent = any(i >= native_count for i in idx)
+    return (cross_family_confirmations(cmp, families) >= 2
+            and has_independent
+            and bool(cmp.get("adjudicated_matches_majority")))
 
 
 def pick_next_spec(pool: list[str], used: list[str]) -> Optional[str]:
@@ -349,9 +368,11 @@ def equivalent_forms(a_form, b_form):
     return None
 
 
-def verified_cross_family(forms: list[str], families: list[str]) -> tuple[int, bool]:
-    """Max # of DISTINCT families in any CAS-verified-equal cluster, and whether ANY pair was CAS-decided.
-    decidable=False => CAS abstained entirely (caller should fall back to the LLM clustering path)."""
+def verified_cross_family(forms: list[str], families: list[str], native_count: int = 0) -> tuple[int, bool]:
+    """Max # of DISTINCT families in any CAS-verified-equal cluster THAT CONTAINS >=1 independent (non-
+    native, i.e. CLI-derived) member, and whether ANY pair was CAS-decided. A natives-only cluster (all
+    member indices < native_count) does NOT count — host-supplied derivations cannot self-certify without
+    an independent engine. decidable=False => CAS abstained entirely (fall back to the LLM path)."""
     n = len(forms)
     parent = list(range(n))
 
@@ -369,20 +390,27 @@ def verified_cross_family(forms: list[str], families: list[str]) -> tuple[int, b
                 decidable = True
             if r is True:
                 parent[find(i)] = find(j)
-    groups: dict[int, set] = {}
+    members: dict[int, list] = {}
     for i in range(n):
-        groups.setdefault(find(i), set()).add(families[i])
-    xfam = max((len(f) for f in groups.values()), default=0)
+        members.setdefault(find(i), []).append(i)
+    xfam = 0
+    for idxs in members.values():
+        if any(i >= native_count for i in idxs):  # require >=1 independent CLI member in the cluster
+            xfam = max(xfam, len({families[i] for i in idxs}))
     return xfam, decidable
 
 
-def claim_status(cmp: dict, derivations: list[dict], families: list[str]) -> tuple[bool, str, int]:
+def claim_status(cmp: dict, derivations: list[dict], families: list[str],
+                 native_count: int = 0) -> tuple[bool, str, int]:
     """Decide convergence capability-first. Returns (converged, verification, cross_family_count).
-    CAS path (LLM-independent) when any answer pair is CAS-decidable; else the LLM clustering path."""
-    cas_xfam, decidable = verified_cross_family([d.get("checkable_form", "") for d in derivations], families)
+    CAS path (LLM-independent) when any answer pair is CAS-decidable; else the LLM clustering path.
+    `native_count` host-seeded derivations occupy indices [0, native_count) and cannot, alone, converge a
+    claim — both paths require >=1 independent (CLI) family in the agreeing cluster."""
+    cas_xfam, decidable = verified_cross_family(
+        [d.get("checkable_form", "") for d in derivations], families, native_count)
     if decidable:
         return cas_xfam >= 2, "cas", cas_xfam
-    return decide_converged(cmp, families), "llm", cross_family_confirmations(cmp, families)
+    return decide_converged(cmp, families, native_count), "llm", cross_family_confirmations(cmp, families)
 
 
 # --------------------------------------------------------------------------------------
@@ -600,6 +628,10 @@ def verify_claim(c: dict, *, ctx: str, pool: list[str], comparators: list, max_i
     if native_seeded == 0 and len(seed_specs) < 2:  # pool lacks 2 families (degraded independence)
         seed_specs = cli_pool[:2]
 
+    # The comparator panel also avoids the host's own family — pick non-native judges when any exist, so
+    # even the judge isn't a self-family CLI hop (falls back to the given panel if all are native-family).
+    judges = [cm for cm in comparators if family_of(cm) not in native_families] or comparators
+
     def _derive(idx_spec):
         i, spec = idx_spec
         tag = f"{c['id']}/derive{i}_{family_of(spec)}"
@@ -612,8 +644,8 @@ def verify_claim(c: dict, *, ctx: str, pool: list[str], comparators: list, max_i
                 derivations.append(d)
                 families.append(family_of(spec))
 
-    cmp, n_judges = _compare(c, ctx, derivations, families, comparators, run, tag=f"{c['id']}/compare0")
-    converged, verification, cas_xfam = claim_status(cmp, derivations, families)
+    cmp, n_judges = _compare(c, ctx, derivations, families, judges, run, tag=f"{c['id']}/compare0")
+    converged, verification, cas_xfam = claim_status(cmp, derivations, families, native_seeded)
     rounds = 0
     while not converged and rounds < max_iter:
         rounds += 1
@@ -628,8 +660,8 @@ def verify_claim(c: dict, *, ctx: str, pool: list[str], comparators: list, max_i
         if d:
             derivations.append(d)
             families.append(family_of(spec))
-        cmp, n_judges = _compare(c, ctx, derivations, families, comparators, run, tag=f"{c['id']}/compare{rounds}")
-        converged, verification, cas_xfam = claim_status(cmp, derivations, families)
+        cmp, n_judges = _compare(c, ctx, derivations, families, judges, run, tag=f"{c['id']}/compare{rounds}")
+        converged, verification, cas_xfam = claim_status(cmp, derivations, families, native_seeded)
 
     # cross_family_confirmations: CAS-verified count when the CAS path decided; else the comparator's.
     xfam = cas_xfam if verification == "cas" else cross_family_confirmations(cmp, families)
@@ -694,9 +726,10 @@ def run_gate(spec: dict, *, pool: list[str], comparators: list, run: RunFn,
                 "iterate_rounds": 0, "agreed_answer": "", "adjudicated_correct": f"(error: {exc})",
                 "adjudicated_matches_majority": False, "outliers": f"claim crashed: {exc}",
             })
-    native_fams = {str(d.get("family", "")).strip()
+    native_fams = {nat["family"]
                    for c in claims if isinstance(c, dict)
-                   for d in (c.get("native_derivations") or []) if isinstance(d, dict) and str(d.get("family", "")).strip()}
+                   for nat in (parse_native_derivation(d) for d in (c.get("native_derivations") or []))
+                   if nat}
     family_pool = sorted({family_of(s) for s in pool} | native_fams)
     return _summarize(rows, len(claims), family_pool)
 
@@ -725,7 +758,9 @@ def main(argv=None) -> int:
         print(f"claims file not found: {args.claims}", file=sys.stderr)
         return 2
     spec = json.loads(args.claims.read_text(encoding="utf-8"))
-    has_natives = any(isinstance(c, dict) and c.get("native_derivations") for c in (spec.get("claims") or []))
+    has_natives = any(parse_native_derivation(d)
+                      for c in (spec.get("claims") or []) if isinstance(c, dict)
+                      for d in (c.get("native_derivations") or []))
     pool = [s.strip() for s in args.backends.split(",") if s.strip()]
     if not pool:
         print("need >=1 backend spec", file=sys.stderr)

@@ -558,6 +558,92 @@ def test_verify_claim_invalid_natives_dropped():
     assert row["native_seeded"] == 0 and row["converged"] is True   # falls back to pure CLI path
 
 
+def test_normalize_family():
+    assert mb.normalize_family("Claude") == "claude"
+    assert mb.normalize_family("claude/default") == "claude"   # spec form
+    assert mb.normalize_family("CODEX") == "codex"
+    assert mb.normalize_family("minimax") == "opencode"        # opencode-class provider -> opencode
+    assert mb.normalize_family("minimax/m2") == "opencode"
+    assert mb.normalize_family("default") == "opencode"
+    assert mb.normalize_family("") == "opencode"
+
+
+def _native_run(answer="42"):
+    calls = []
+
+    def run(spec, system, prompt, tag):
+        calls.append((spec, tag))
+        if "compare" in tag:
+            return json.dumps(dict(mb.SAFE_CMP))
+        return json.dumps({"canonical_answer": answer, "checkable_form": answer, "confidence": "high",
+                           "derivation_summary": "s"})
+    return run, calls
+
+
+def test_native_family_tag_normalized_no_self_hop_or_double_count():
+    # BLOCKING regression (both reviewers): a native `family` given as a spec / wrong case / opencode-class
+    # provider must STILL exclude the matching CLI family (no self-hop) and not double-count as cross-family.
+    for fam, pool, expect_fams in [
+        ("claude/default", ["claude/default", "codex/default"], {"claude", "codex"}),
+        ("Claude", ["claude/default", "codex/default"], {"claude", "codex"}),
+        ("minimax", ["minimax/m2", "codex/default"], {"opencode", "codex"}),
+    ]:
+        run, calls = _native_run()
+        claim = {**CLAIM, "native_derivations": [{"canonical_answer": "42", "family": fam, "checkable_form": "42"}]}
+        row = mb.verify_claim(claim, ctx="ctx", pool=pool, comparators=["codex/default"], max_iter=1, run=run)
+        deriver_specs = [s for s, t in calls if "compare" not in t]
+        assert set(row["families"]) == expect_fams, (fam, row["families"])   # no phantom/double family
+        assert row["cross_family_confirmations"] == 2
+        # the family the host ran natively is never CLI-derived
+        assert all(mb.normalize_family(mb.family_of(s)) != mb.normalize_family(fam) for s in deriver_specs)
+
+
+def test_natives_alone_do_not_converge():
+    # BLOCKING regression: >=2 host self-attestations with NO independent CLI engine must NOT converge.
+    def run(spec, system, prompt, tag):
+        return json.dumps(dict(mb.SAFE_CMP)) if "compare" in tag else None  # CLI excluded; nothing else
+    claim = {**CLAIM, "native_derivations": [
+        {"canonical_answer": "42", "family": "claude", "checkable_form": "42"},
+        {"canonical_answer": "42", "family": "codex", "checkable_form": "42"}]}
+    row = mb.verify_claim(claim, ctx="ctx", pool=["claude/default", "codex/default"],
+                          comparators=["codex/default"], max_iter=0, run=run)
+    assert row["native_seeded"] == 2 and row["converged"] is False   # no independent corroboration
+
+
+def test_natives_outvoted_by_dissenting_cli_does_not_converge():
+    # 2 natives say 42, the one independent CLI engine says 999 -> not converged (CAS cluster of natives
+    # has no independent member; the dissenting CLI is alone).
+    def run(spec, system, prompt, tag):
+        if "compare" in tag:
+            return json.dumps(dict(mb.SAFE_CMP))
+        return json.dumps({"canonical_answer": "999", "checkable_form": "999", "confidence": "high",
+                           "derivation_summary": "s"})
+    claim = {**CLAIM, "native_derivations": [
+        {"canonical_answer": "42", "family": "claude", "checkable_form": "42"},
+        {"canonical_answer": "42", "family": "codex", "checkable_form": "42"}]}
+    row = mb.verify_claim(claim, ctx="ctx", pool=["gemini/default"], comparators=["gemini/default"],
+                          max_iter=0, run=run)
+    assert row["converged"] is False
+
+
+def test_native_single_plus_independent_cli_still_converges():
+    # the legitimate case must still work: 1 native + 1 agreeing CLI = genuine cross-family
+    run, _ = _native_run("42")
+    claim = {**CLAIM, "native_derivations": [{"canonical_answer": "42", "family": "claude", "checkable_form": "42"}]}
+    row = mb.verify_claim(claim, ctx="ctx", pool=["codex/default"], comparators=["codex/default"], max_iter=1, run=run)
+    assert row["converged"] is True and row["verification"] == "cas" and set(row["families"]) == {"claude", "codex"}
+
+
+def test_comparator_panel_excludes_native_family():
+    # the judge panel also avoids the host's own family (no self-family hop for the comparator either)
+    run, calls = _native_run("42")
+    claim = {**CLAIM, "native_derivations": [{"canonical_answer": "42", "family": "claude", "checkable_form": "42"}]}
+    mb.verify_claim(claim, ctx="ctx", pool=["codex/default"],
+                    comparators=["claude/default", "codex/default"], max_iter=1, run=run)
+    judge_specs = {s for s, t in calls if "compare" in t}
+    assert "claude/default" not in judge_specs and "codex/default" in judge_specs
+
+
 # ---------------------------------------------------------------- runner resolution (review-swarm dep)
 def test_resolve_runner_order(tmp_path, monkeypatch):
     explicit = tmp_path / "explicit.py"
