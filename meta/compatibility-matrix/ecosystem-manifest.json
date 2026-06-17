@@ -1,6 +1,6 @@
 {
-  "manifest_version": "1.0.0",
-  "updated_at": "2026-05-14T00:00:00Z",
+  "manifest_version": "1.1.0",
+  "updated_at": "2026-06-17T00:00:00Z",
   "org": "autoresearch-lab",
   "channels": ["stable", "beta", "dev"],
   "components": {
@@ -21,21 +21,21 @@
       "type": "skill-pack",
       "channel": "dev",
       "version": "0.1.0",
-      "source_path": "~/.codex/skills/hep-calc/SKILL.md"
+      "source_path": "skills/hep-calc/SKILL.md"
     },
     "paper-reviser": {
       "repo": "autoresearch-lab/skills-market",
       "type": "skill-pack",
       "channel": "dev",
       "version": "0.1.0",
-      "source_path": "~/.codex/skills/paper-reviser/SKILL.md"
+      "source_path": "skills/paper-reviser/SKILL.md"
     },
     "pdg-lookup": {
       "repo": "autoresearch-lab/skills-market",
       "type": "skill-pack",
       "channel": "beta",
       "version": "0.1.0",
-      "source_path": "~/.codex/skills/pdg-lookup/SKILL.md",
+      "source_path": "skills/pdg-lookup/SKILL.md",
       "depends_on": {
         "hep-mcp": ">=0.3.0 <0.4.0"
       }
@@ -45,7 +45,7 @@
       "type": "skill-pack",
       "channel": "dev",
       "version": "0.1.0",
-      "source_path": "~/.codex/skills/julia-perf/SKILL.md"
+      "source_path": "skills/julia-perf/SKILL.md"
     },
     "literature-workflows": {
       "repo": "autoresearch-lab/autoresearch-lab",
@@ -61,21 +61,21 @@
       "type": "skill-pack",
       "channel": "dev",
       "version": "0.1.0",
-      "source_path": "~/.codex/skills/markdown-hygiene/SKILL.md"
+      "source_path": "skills/markdown-hygiene/SKILL.md"
     },
     "research-harness": {
       "repo": "autoresearch-lab/skills-market",
       "type": "skill-pack",
       "channel": "dev",
       "version": "0.1.0",
-      "source_path": "~/.codex/skills/research-harness/SKILL.md"
+      "source_path": "skills/research-harness/SKILL.md"
     },
     "research-team": {
       "repo": "autoresearch-lab/skills-market",
       "type": "skill-pack",
       "channel": "dev",
       "version": "0.1.0",
-      "source_path": "~/.codex/skills/research-team/SKILL.md",
+      "source_path": "skills/research-team/SKILL.md",
       "depends_on": {
         "literature-workflows": ">=0.1.0 <0.2.0"
       }
@@ -85,7 +85,7 @@
       "type": "skill-pack",
       "channel": "dev",
       "version": "0.1.0",
-      "source_path": "~/.codex/skills/research-writer/SKILL.md",
+      "source_path": "skills/research-writer/SKILL.md",
       "depends_on": {
         "research-team": ">=0.1.0 <0.2.0"
       }
@@ -95,7 +95,7 @@
       "type": "skill-pack",
       "channel": "beta",
       "version": "0.1.0",
-      "source_path": "~/.codex/skills/zotero-import/SKILL.md",
+      "source_path": "skills/zotero-import/SKILL.md",
       "depends_on": {
         "hep-mcp": ">=0.3.0 <0.4.0"
       }
@@ -105,42 +105,87 @@
       "type": "skill-pack",
       "channel": "beta",
       "version": "0.1.0",
-      "source_path": "~/.codex/skills/referee-review/SKILL.md"
+      "source_path": "skills/referee-review/SKILL.md"
     },
     "auto-relay": {
       "repo": "autoresearch-lab/skills-market",
       "type": "skill-pack",
       "channel": "dev",
       "version": "0.1.0",
-      "source_path": "~/.codex/skills/auto-relay/SKILL.md"
+      "source_path": "skills/auto-relay/SKILL.md"
     },
     "gemini-cli-runner": {
       "repo": "autoresearch-lab/skills-market",
       "type": "skill-pack",
       "channel": "beta",
       "version": "0.1.0",
-      "source_path": "~/.codex/skills/gemini-cli-runner/SKILL.md"
+      "source_path": "skills/gemini-cli-runner/SKILL.md"
     },
     "claude-cli-runner": {
       "repo": "autoresearch-lab/skills-market",
       "type": "skill-pack",
       "channel": "beta",
       "version": "0.1.0",
-      "source_path": "~/.codex/skills/claude-cli-runner/SKILL.md"
+      "source_path": "skills/claude-cli-runner/SKILL.md"
     },
     "codex-cli-runner": {
       "repo": "autoresearch-lab/skills-market",
       "type": "skill-pack",
       "channel": "beta",
       "version": "0.1.0",
-      "source_path": "~/.codex/skills/codex-cli-runner/SKILL.md"
+      "source_path": "skills/codex-cli-runner/SKILL.md"
     },
     "opencode-cli-runner": {
       "repo": "autoresearch-lab/skills-market",
       "type": "skill-pack",
       "channel": "beta",
       "version": "0.1.0",
-      "source_path": "~/.codex/skills/opencode-cli-runner/SKILL.md"
+      "source_path": "skills/opencode-cli-runner/SKILL.md"
+    },
+    "claim-grounding": {
+      "repo": "autoresearch-lab/skills-market",
+      "type": "skill-pack",
+      "channel": "dev",
+      "version": "0.1.0",
+      "source_path": "skills/claim-grounding/SKILL.md"
+    },
+    "deep-learning-lab": {
+      "repo": "autoresearch-lab/skills-market",
+      "type": "skill-pack",
+      "channel": "dev",
+      "version": "0.1.0",
+      "source_path": "skills/deep-learning-lab/SKILL.md"
+    },
+    "deep-literature-review": {
+      "repo": "autoresearch-lab/skills-market",
+      "type": "skill-pack",
+      "channel": "dev",
+      "version": "0.1.0",
+      "source_path": "skills/deep-literature-review/SKILL.md",
+      "depends_on": {
+        "literature-workflows": ">=0.1.0 <0.2.0"
+      }
+    },
+    "derivation-verify": {
+      "repo": "autoresearch-lab/skills-market",
+      "type": "skill-pack",
+      "channel": "dev",
+      "version": "0.1.0",
+      "source_path": "skills/derivation-verify/SKILL.md"
+    },
+    "research-integrity": {
+      "repo": "autoresearch-lab/skills-market",
+      "type": "skill-pack",
+      "channel": "dev",
+      "version": "0.1.0",
+      "source_path": "skills/research-integrity/SKILL.md"
+    },
+    "review-swarm": {
+      "repo": "autoresearch-lab/skills-market",
+      "type": "skill-pack",
+      "channel": "dev",
+      "version": "0.1.0",
+      "source_path": "skills/review-swarm/SKILL.md"
     }
   },
   "platforms": {
