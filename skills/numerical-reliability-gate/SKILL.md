@@ -71,8 +71,15 @@ Each check names its own minimum disconfirming test — never accept a number be
 - **G3 — Invariant / topological validation (prefer it over heuristics).** For presence/absence and
   counting (zeros, roots, poles, eigenvalues, modes), prefer a **method-agnostic invariant** over a
   **fixed-seed search** or a **magnitude threshold**, both of which give false negatives (the feature
-  moved away from the seed) and false positives (a coarse-grid floor never reaches the true zero). The
-  canonical example is the **argument principle**: for `F` meromorphic inside and on a positively-oriented
+  moved away from the seed) and false positives (a coarse-grid floor never reaches the true zero). Such
+  invariants are field-specific but ubiquitous — a Sturm sequence or Descartes' rule of signs for
+  real-root counts, Gershgorin disks or matrix inertia (Sylvester's law) for how many eigenvalues lie in
+  a region, a conservation law / sum rule for a total that must balance, a degree / winding / topological
+  index for any count that must come out an integer. G3 is that *general* move — replace a seed/threshold
+  guess with a quantity the answer cannot violate — in whatever form your problem admits; it is **not**
+  tied to complex analysis. The fullest worked example below happens to be the **argument principle**
+  (complex-analytic zero/pole counting), used only because it shows every moving part: for `F` meromorphic
+  inside and on a positively-oriented
   simple closed contour `Γ`, with **no zero or pole on `Γ` itself**,
   `(1/2πi)∮_Γ F'/F dz = Z − P` — the number of **zeros minus poles** inside `Γ`, each with multiplicity
   (equivalently the winding number of `F(Γ)` about 0). So it counts **zeros** only when `F` is pole-free

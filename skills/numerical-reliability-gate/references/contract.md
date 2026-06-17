@@ -59,10 +59,10 @@ and MUST equal the filename's `_vN` (ART-02). Write atomically (ART-03).
     {
       // The argument principle certifies a COUNT — this quantity is the count, and it is reliable.
       "id": "pole_count_R1",
-      "quantity": "number of amplitude poles in region R1 (= zeros of the denominator D(s) there)",
+      "quantity": "number of poles of a response/transfer function G(z) in region R1 (= zeros of its denominator D(z) there)",
       "verdict": "reliable",
       "recorded_value": "1",
-      "recorded_setting": "rectangle Re[1.28,1.46] x Im[-0.18,-0.055], V0=-0.3, sheet II",
+      "recorded_setting": "rectangle Re[1.28,1.46] x Im[-0.18,-0.055] on the principal branch",
       "refinement": [
         { "setting": "contour samples = 512", "value": "0.991" },
         { "setting": "contour samples = 2048", "value": "0.998" }
@@ -70,19 +70,19 @@ and MUST equal the filename's `_vN` (ART-02). Write atomically (ART-03).
       "converged": true,
       "mirage": false,
       "cross_method": [
-        { "method": "argument-principle winding of D(s)", "value": "1" },
-        { "method": "determinant sign-change scan of det[1 - V G]", "value": "1" }
+        { "method": "argument-principle winding of D(z)", "value": "1" },
+        { "method": "sign-change scan of the characteristic determinant", "value": "1" }
       ],
       "methods_agree": true,
       "tolerance": "|raw_winding - round| < 0.05",
       // G3 invariant — record the semantics, not just a boolean (an auditor must see WHAT was counted).
       "invariant_check": {
         "kind": "argument-principle winding number",
-        "function": "D(s) — denominator/Jost function; analytic and pole-free in R1, so the winding number equals its zero count",
-        "count_semantics": "zeros_of_D (= amplitude poles); D itself is pole-free (analytic) in R1 so P=0, giving (1/2pi i)∮ D'/D dz = Z. (The integrand D'/D still has simple poles AT the zeros of D, residue = multiplicity — that is exactly what the integral counts.)",
+        "function": "D(z) — the denominator / characteristic function; analytic and pole-free in R1, so the winding number equals its zero count",
+        "count_semantics": "zeros_of_D (= poles of G); D itself is pole-free (analytic) in R1 so P=0, giving (1/2pi i)∮ D'/D dz = Z. (The integrand D'/D still has simple poles AT the zeros of D, residue = multiplicity — that is exactly what the integral counts.)",
         "region": "Re[1.28,1.46] x Im[-0.18,-0.055]",
         "contour": "rectangle, positively oriented (CCW)",
-        "sheet": "second Riemann sheet, continued through the pi-pi cut",
+        "sheet": "principal branch (name the sheet/branch explicitly when the function is multivalued)",
         "preconditions_checked": ["meromorphic in R1", "no zero/pole on the contour (min |D| on Gamma = 0.21)", "correct sheet"],
         "raw_winding": 0.998,
         "rounded_count": 1,
@@ -97,7 +97,7 @@ and MUST equal the filename's `_vN` (ART-02). Write atomically (ART-03).
       // Same feature, different quantity: the argument principle counts but does NOT locate — so the
       // location is NOT reliable just because the count is. This is the row the count must not certify.
       "id": "pole_location_R1",
-      "quantity": "third pole sqrt(s) [MeV] (the LOCATION of the pole counted in pole_count_R1)",
+      "quantity": "the pole's location z* in region R1 (the LOCATION of the pole counted in pole_count_R1)",
       "verdict": "fragile_method",
       "recorded_value": null,
       "recorded_setting": null,
@@ -107,11 +107,11 @@ and MUST equal the filename's `_vN` (ART-02). Write atomically (ART-03).
       "cross_method": [],
       "methods_agree": false,
       "tolerance": null,
-      // null: the winding number is a count, not a locator — no invariant validates the sqrt(s) value here.
+      // null: the winding number is a count, not a locator — no invariant validates the z* value here.
       "invariant_check": null,
       "regression_anchor": null,
       "degeneracy": null,
-      "notes": "pole_count_R1 proves exactly one pole exists in R1 but does NOT locate it. The sqrt(s) value came from a fixed-seed search that is fragile in this regime and is confirmed by no locating invariant — unpromotable until a robust locator agrees (e.g. a contour-moment estimate, or Newton from several seeds converging to the same point)."
+      "notes": "pole_count_R1 proves exactly one pole exists in R1 but does NOT locate it. The z* value came from a fixed-seed search that is fragile in this regime and is confirmed by no locating invariant — unpromotable until a robust locator agrees (e.g. a contour-moment estimate, or Newton from several seeds converging to the same point)."
     }
   ]
 }
