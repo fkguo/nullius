@@ -53,6 +53,18 @@ _SKILLS_ROOT = _THIS.parents[2]  # skills/derivation-verify/scripts/run_multi_ba
 _DEFAULT_RUNNER = _SKILLS_ROOT / "review-swarm" / "scripts" / "bin" / "run_multi_task.py"
 _REVIEW_BIN = _DEFAULT_RUNNER.parent
 
+
+def _resolve_runner(explicit):
+    """Locate review-swarm's run_multi_task.py (Executor 2's per-backend launcher). Order, all
+    host-neutral: explicit --runner > $DERIVATION_VERIFY_RUNNER > the review-swarm skill installed
+    ALONGSIDE this one (the declared market dependency). Returns a Path or None."""
+    for cand in (explicit, os.environ.get("DERIVATION_VERIFY_RUNNER"), _DEFAULT_RUNNER):
+        if cand:
+            p = Path(cand)
+            if p.exists():
+                return p
+    return None
+
 # Reuse review-swarm's output sanitizers (strip Gemini CLI startup noise / markdown fences) — the
 # ONLY review-swarm coupling, and it is generic text cleanup, not the review-specific contract.
 if str(_REVIEW_BIN) not in sys.path:
@@ -596,7 +608,9 @@ def main(argv=None) -> int:
     ap.add_argument("--work-dir", type=Path, default=None, help="scratch dir (default: a temp dir)")
     ap.add_argument("--timeout-secs", type=int, default=_DEFAULT_TIMEOUT, help="per-backend timeout")
     ap.add_argument("--max-iter", type=int, default=None, help="override claims.max_iter")
-    ap.add_argument("--runner", type=Path, default=_DEFAULT_RUNNER, help="path to run_multi_task.py")
+    ap.add_argument("--runner", type=Path, default=None,
+                    help="path to review-swarm's run_multi_task.py (default: $DERIVATION_VERIFY_RUNNER, "
+                         "else the review-swarm skill installed alongside this one)")
     ap.add_argument("--config", default=None, help="run_multi_task project config (optional)")
     ap.add_argument("--tools", action="store_true", help="enable best-effort backend tool/compute modes")
     args = ap.parse_args(argv)
@@ -612,8 +626,15 @@ def main(argv=None) -> int:
     if len({family_of(s) for s in pool}) < 2:
         print("warning: backend pool has <2 distinct model families; independence is degraded", file=sys.stderr)
     comparator = args.comparator.strip() or pool[0]
-    if not args.runner.exists():
-        print(f"run_multi_task.py runner not found: {args.runner} (pass --runner)", file=sys.stderr)
+    runner_path = _resolve_runner(args.runner)
+    if runner_path is None:
+        print(
+            "Executor 2 needs review-swarm's run_multi_task.py and it was not found. The review-swarm "
+            "skill is a declared dependency — install it alongside derivation-verify (e.g. "
+            "`install_skill.py --package derivation-verify` pulls it in), set $DERIVATION_VERIFY_RUNNER, "
+            f"or pass --runner. Looked for: {args.runner or _DEFAULT_RUNNER}",
+            file=sys.stderr,
+        )
         return 2
 
     tmp = None
@@ -622,7 +643,7 @@ def main(argv=None) -> int:
         tmp = tempfile.TemporaryDirectory(prefix="derivverify2_")
         work_dir = Path(tmp.name)
     work_dir.mkdir(parents=True, exist_ok=True)
-    runner = MultiTaskRunner(runner_path=args.runner, work_dir=work_dir, timeout=args.timeout_secs,
+    runner = MultiTaskRunner(runner_path=runner_path, work_dir=work_dir, timeout=args.timeout_secs,
                              tools=args.tools, config=args.config)
     try:
         result = run_gate(spec, pool=pool, comparator=comparator, run=runner.run,

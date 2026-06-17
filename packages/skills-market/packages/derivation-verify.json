@@ -6,11 +6,18 @@
   "version": "0.1.0",
   "summary": "Convergence gate for derivation-heavy results: re-derive each atomic claim >=2 independent blind ways, reconcile by mathematical equivalence, iterate to convergence, emit a verification matrix.",
   "platforms": [
-    "claude_code"
+    "claude_code",
+    "codex",
+    "opencode"
   ],
   "source_path": "skills/derivation-verify/SKILL.md",
+  "depends_on": {
+    "review-swarm": ">=0.1.0 <0.2.0"
+  },
   "install": {
-    "claude_code": "Link into ~/.claude/skills or install via marketplace when available. Executor 1 needs the Claude Code Workflow tool; the cross-model CLI executor (Codex/Gemini/OpenCode) is a planned stub, so only claude_code is supported today."
+    "claude_code": "Link into ~/.claude/skills or install via marketplace when available. Executor 1 (fast, same-model) needs the Claude Code Workflow tool; Executor 2 (cross-model CLI) reuses the review-swarm skill's run_multi_task.py and works on any host.",
+    "codex": "Link into ~/.codex/skills for Codex native discovery. Executor 2 (cross-model CLI) requires the review-swarm dependency; Executor 1 (Workflow) is Claude Code only.",
+    "opencode": "Link into ~/.config/opencode/skills for OpenCode discovery. Executor 2 (cross-model CLI) requires the review-swarm dependency; Executor 1 (Workflow) is Claude Code only."
   },
   "source": {
     "repo": "autoresearch-lab/skills",

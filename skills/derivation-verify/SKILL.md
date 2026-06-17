@@ -108,6 +108,12 @@ python3 scripts/run_multi_backend.py --claims claims.json \
   --comparator codex/default --out matrix.json   # --tools = best-effort backend tool modes
 ```
 
+> **Requires the [`review-swarm`](../review-swarm/SKILL.md) skill installed alongside this one** —
+> Executor 2 reuses its `scripts/bin/run_multi_task.py` as the per-backend launcher. It is a declared
+> market dependency (so installers pull it in automatically); for a non-standard layout, set
+> `$DERIVATION_VERIFY_RUNNER` or pass `--runner /path/to/run_multi_task.py`. Without it, Executor 2
+> exits with an actionable error (Executor 1, the Workflow path, has no such dependency).
+
 > `--tools` grants each backend the strongest tool mode `run_multi_task.py` exposes, but for most
 > backends that is **read-only** (claude/gemini `review`; codex default sandbox) — only `opencode`
 > `workspace` can execute code, and even then a CAS is not guaranteed. So derivations are

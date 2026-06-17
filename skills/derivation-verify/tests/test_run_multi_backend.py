@@ -424,6 +424,22 @@ def test_verify_claim_cas_path_end_to_end():
     assert row["cross_family_confirmations"] == 2
 
 
+# ---------------------------------------------------------------- runner resolution (review-swarm dep)
+def test_resolve_runner_order(tmp_path, monkeypatch):
+    explicit = tmp_path / "explicit.py"
+    envp = tmp_path / "env.py"
+    explicit.write_text("# x")
+    envp.write_text("# x")
+    # explicit --runner wins
+    monkeypatch.setenv("DERIVATION_VERIFY_RUNNER", str(envp))
+    assert mb._resolve_runner(explicit) == explicit
+    # else env var
+    assert mb._resolve_runner(None) == envp
+    # missing explicit + missing env -> None (no sibling in tmp); never crashes
+    monkeypatch.delenv("DERIVATION_VERIFY_RUNNER", raising=False)
+    assert mb._resolve_runner(tmp_path / "nope.py") in (None, mb._DEFAULT_RUNNER if mb._DEFAULT_RUNNER.exists() else None)
+
+
 # ---------------------------------------------------------------- run_gate (full input -> summary)
 def test_run_gate_summary_schema_and_skips():
     spec = {
