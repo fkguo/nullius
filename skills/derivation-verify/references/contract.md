@@ -20,7 +20,11 @@ input and produce this output, so a caller's `claims` port verbatim across execu
       "native_derivations": [   // OPTIONAL (Executor 2): host-computed derivations for the host's OWN
         {                       //   family, so it is included WITHOUT a CLI hop. Executor 2 seeds these
           "canonical_answer": "string",   // and AUTO-EXCLUDES their family from the CLI backend pool.
-          "family": "string",             // e.g. "claude" — the model family that produced it
+          "family": "string",             // the producing family, canonicalized like a backend spec:
+                                          //   "claude"/"codex"/"gemini" (any case), a spec "claude/default",
+                                          //   or any other token -> "opencode". A native family can supply
+                                          //   at most ONE of the >=2 confirmations: convergence still
+                                          //   requires >=1 independent CLI family (no self-certification).
           "checkable_form": "string",     // optional strict-sympy form (enables the CAS path)
           "derivation_summary": "string", // optional
           "confidence": "high"            // optional (default high)
