@@ -634,6 +634,35 @@ def test_native_single_plus_independent_cli_still_converges():
     assert row["converged"] is True and row["verification"] == "cas" and set(row["families"]) == {"claude", "codex"}
 
 
+def test_natives_alone_llm_path_does_not_converge():
+    # B2 on the LLM fallback path (no checkable_form -> CAS abstains): 2 natives a comparator clusters
+    # together WITH veto still must NOT converge — no independent CLI member in the cluster.
+    def run(spec, system, prompt, tag):
+        if "compare" in tag:
+            return json.dumps({"majority_answer": "42", "majority_size": 2, "majority_indices": [0, 1],
+                               "all_equivalent": True, "outliers": "none", "correct_answer_adjudicated": "42",
+                               "adjudicated_matches_majority": True})
+        return None  # both families native -> cli_pool empty -> no deriver
+    claim = {**CLAIM, "native_derivations": [{"canonical_answer": "42", "family": "claude"},
+                                             {"canonical_answer": "42", "family": "codex"}]}
+    row = mb.verify_claim(claim, ctx="ctx", pool=["claude/default", "codex/default"],
+                          comparators=["codex/default"], max_iter=0, run=run)
+    assert row["verification"] == "llm" and row["converged"] is False
+
+
+def test_native_plus_cli_llm_path_converges():
+    # legit LLM-path case: 1 native + 1 agreeing CLI (neither CAS-checkable) -> converges via comparator
+    def run(spec, system, prompt, tag):
+        if "compare" in tag:
+            return json.dumps({"majority_answer": "42", "majority_size": 2, "majority_indices": [0, 1],
+                               "all_equivalent": True, "outliers": "none", "correct_answer_adjudicated": "42",
+                               "adjudicated_matches_majority": True})
+        return json.dumps({"canonical_answer": "42", "confidence": "high", "derivation_summary": "s"})  # no form
+    claim = {**CLAIM, "native_derivations": [{"canonical_answer": "42", "family": "claude"}]}
+    row = mb.verify_claim(claim, ctx="ctx", pool=["codex/default"], comparators=["codex/default"], max_iter=1, run=run)
+    assert row["verification"] == "llm" and row["converged"] is True and set(row["families"]) == {"claude", "codex"}
+
+
 def test_comparator_panel_excludes_native_family():
     # the judge panel also avoids the host's own family (no self-family hop for the comparator either)
     run, calls = _native_run("42")
