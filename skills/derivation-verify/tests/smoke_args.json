@@ -1,0 +1,20 @@
+{
+  "context": "Trivial SMOKE-TEST of the derivation-verify harness (standard arithmetic/calculus; no domain knowledge needed). Derive each claim from scratch and report the canonical answer in the exact requested format.",
+  "max_iter": 2,
+  "claims": [
+    {
+      "id": "T1_sum",
+      "statement": "Compute 17 + 25.",
+      "report_format": "a single integer, e.g. 42",
+      "method0": "add the two numbers directly",
+      "method1": "add by regrouping: 17+25 = 17+3+22 = 20+22"
+    },
+    {
+      "id": "T2_deriv",
+      "statement": "Differentiate f(x)=x^3 with respect to x.",
+      "report_format": "a single expression, e.g. 3*x^2",
+      "method0": "apply the power rule d/dx x^n = n x^(n-1)",
+      "method1": "use the limit definition or a CAS and simplify"
+    }
+  ]
+}
