@@ -71,11 +71,11 @@ const COMPARE = {
 }
 
 function vPrompt(c, method) {
-  return `${CTX}\nBLIND TASK (do NOT assume the answer; derive it from scratch):\n${c.statement}\n\n${method || ''}\n\nOUTPUT: report canonical_answer in EXACTLY this format: ${c.report_format}\nAlso give a short derivation_summary (include any sympy/mpmath/julia output you ran) and your confidence. You MAY use python/julia via Bash to verify integrals/algebra/numerics.`
+  return `${CTX}\nBLIND TASK (do NOT assume the answer; derive it from scratch):\n${c.statement}\n\n${method || ''}\n\nOUTPUT: report canonical_answer in EXACTLY this format: ${c.report_format}\nAlso give a short derivation_summary (include any computation output you ran) and your confidence. You MAY use any CAS/numeric tool (e.g. python sympy/mpmath, julia) via Bash to check the computation.`
 }
 function cmpPrompt(c, ds) {
   const listing = ds.map((d, i) => `[#${i}] canonical_answer="${d.canonical_answer}" | summary: ${d.derivation_summary}`).join('\n')
-  return `${CTX}\nYou are an impartial comparator+adjudicator for the claim:\n${c.statement}\nExpected canonical format: ${c.report_format}\n\n${ds.length} independent derivations:\n${listing}\n\nDecide which are MATHEMATICALLY EQUIVALENT (not just string-equal). Report the largest equivalent cluster (majority_answer, majority_size), whether all agree, the outliers WITH their specific error, and the answer YOU independently adjudicate correct (recompute if needed). Be rigorous about signs and factors.`
+  return `${CTX}\nYou are an impartial comparator+adjudicator for the claim:\n${c.statement}\nExpected canonical format: ${c.report_format}\n\n${ds.length} independent derivations:\n${listing}\n\nDecide which are MATHEMATICALLY EQUIVALENT (not just string-equal). Report the largest equivalent cluster (majority_answer, majority_size), whether all agree, the outliers WITH their specific error, and the answer YOU independently adjudicate correct (recompute if needed). Be rigorous about signs, factors, and conventions.`
 }
 function tiePrompt(c, method, ds) {
   const listing = ds.map((d, i) => `[#${i}] "${d.canonical_answer}"`).join('  ;  ')

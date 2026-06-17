@@ -1,8 +1,9 @@
 ---
 name: derivation-verify
 description: >
-  Convergence-gate harness for DERIVATION-heavy results (loop integrals, spectral densities,
-  algebraic/operator identities, closed forms, sign/branch choices). For each atomic claim it runs
+  Convergence-gate harness for DERIVATION-heavy results in ANY field (closed forms, integrals/sums,
+  algebraic/operator/logical identities, probabilities/estimators, asymptotic/complexity bounds,
+  sign/branch/boundary choices — domain carried only by the caller's context). For each atomic claim it runs
   >=2 INDEPENDENT blind re-derivations, an adversarial comparator that clusters them by MATHEMATICAL
   equivalence, and a tie-break loop that adds fresh independent derivations until >=2 agree — emitting
   an auditable verification matrix. Backend-agnostic contract with TWO executors: a Claude/Workflow-native
@@ -19,11 +20,13 @@ disagreement to convergence; the leader never self-declares convergence.**
 
 ## When to use
 
-Use when you have a **derivation result** to certify and you want independent confirmation + disagreement
-iteration — e.g.:
-- a loop function / loop integral (e.g. `A(q)=arctan(q/2m)/2q` from a Feynman-parameter loop),
-- a spectral density (`rho = -Im X(i mu)`), a coordinate-space transform, a closed form,
-- an operator/algebraic identity, a sign or branch choice, a numeric anchor.
+Use when you have a **derivation result** in **any field** to certify and you want independent
+confirmation + disagreement iteration. The skill is domain-neutral — only the caller-supplied `context`
+and `statement` carry the domain. Example claim types (illustrative, not a fixed list):
+- a closed form / integral / sum (e.g. a loop integral `A(q)=arctan(q/2m)/2q`, or a combinatorial sum),
+- an algebraic / operator / logical identity; a sign, branch, or boundary-case choice,
+- a probability or estimator (e.g. an MLE / variance), an asymptotic or complexity bound (e.g. `Θ(n log n)`),
+- a transform, a limiting value, or a numeric anchor.
 
 Each is phrased as an **atomic claim**: a thing to **DERIVE BLIND** (the answer is NOT given to the
 deriver) and report in a fixed canonical format.

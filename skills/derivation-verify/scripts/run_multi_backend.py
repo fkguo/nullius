@@ -216,9 +216,10 @@ def pick_next_spec(pool: list[str], used: list[str]) -> Optional[str]:
 # Prompts (mirror Executor 1's vPrompt/cmpPrompt/tiePrompt; comparator schema extended for R1/R2).
 # --------------------------------------------------------------------------------------
 _DERIVE_SYSTEM = (
-    "You are an expert mathematician/physicist doing an INDEPENDENT blind re-derivation. "
-    "Derive the requested quantity FROM SCRATCH; do not assume any answer. Be rigorous about signs, "
-    "factors, and branch choices. Output ONLY a single fenced ```json block with EXACTLY these keys: "
+    "You are a careful domain expert doing an INDEPENDENT blind re-derivation (the field is whatever the "
+    "task implies — math, physics, statistics, CS, economics, ...). Derive the requested result FROM "
+    "SCRATCH; do not assume any answer. Be rigorous about every step — signs, factors, edge/boundary "
+    "cases, and any convention or branch choice. Output ONLY a single fenced ```json block with EXACTLY these keys: "
     '"canonical_answer" (the result in the exact requested format), "derivation_summary" (2-6 sentences '
     "of the actual steps, incl. any computation you ran and its output), \"confidence\" (high|medium|low). "
     "No prose outside the json block."

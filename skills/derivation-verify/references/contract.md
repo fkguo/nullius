@@ -14,7 +14,7 @@ input and produce this output, so a caller's `claims` port verbatim across execu
       "id": "A1",               // short stable id
       "statement": "string",    // what to DERIVE BLIND — MUST NOT contain the answer
       "report_format": "string",// the exact canonical format for the answer (so derivations are comparable),
-                                //   e.g. "a single rational like 2/3" or "Im A(i mu) as -pi/(4 mu)"
+                                //   e.g. "a single rational like 2/3", a closed form, or "Θ(n log n)"
       "method0": "string",      // method hint for independent deriver #0 (a distinct route)
       "method1": "string"       // method hint for independent deriver #1 (a DIFFERENT distinct route)
     }
