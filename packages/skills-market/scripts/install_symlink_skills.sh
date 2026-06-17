@@ -51,6 +51,10 @@ ALLOW_MISSING=0
 DRY_RUN=0
 ALLOW_LARGE_ARTIFACTS=0
 MAX_SKILL_MB="${SKILL_SYMLINK_MAX_MB:-25}"
+if ! [[ "${MAX_SKILL_MB}" =~ ^[0-9]+$ ]]; then
+  echo "[error] SKILL_SYMLINK_MAX_MB must be a non-negative integer, got: ${MAX_SKILL_MB}" >&2
+  exit 2
+fi
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -274,7 +278,9 @@ while IFS= read -r skill_id; do
   # allowed. (Clean clones are tiny; this only bites a developer worktree that accumulated artifacts.)
   if [[ "${ALLOW_LARGE_ARTIFACTS}" -eq 0 ]]; then
     dir_mb="$(du -sm "${source_dir}" 2>/dev/null | awk '{print $1}')"
-    if [[ -n "${dir_mb}" && "${dir_mb}" -gt "${MAX_SKILL_MB}" ]]; then
+    # numeric-gate the comparison: a non-numeric/empty du result fails OPEN (links) rather than
+    # erroring under `set -u`, while a real size still triggers the refusal.
+    if [[ "${dir_mb}" =~ ^[0-9]+$ && "${dir_mb}" -gt "${MAX_SKILL_MB}" ]]; then
       echo "[error] ${skill_id} source is ${dir_mb}MB (> ${MAX_SKILL_MB}MB); likely local run artifacts a skill loader could choke on. Clean the worktree, or pass --allow-large-artifacts to link anyway." >&2
       errors=$((errors + 1))
       continue
