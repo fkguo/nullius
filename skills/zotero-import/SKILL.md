@@ -1,8 +1,6 @@
 ---
 name: zotero-import
-description: >
-  Teaches the two-step zotero_add -> zotero_confirm pipeline for importing papers into Zotero,
-  including collection selection, file attachment, dedup handling, and non-HEP DOI support.
+description: "Teaches the two-step zotero_add -> zotero_confirm pipeline for importing papers into Zotero, including collection selection, file attachment, dedup handling, and non-HEP DOI support.\n"
 ---
 
 # Zotero Import Workflow

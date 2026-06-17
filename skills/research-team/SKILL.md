@@ -1,8 +1,6 @@
 ---
 name: research-team
-description: >
-  Milestone-based research-team workflow for theory+computation projects with reproducible artifacts,
-  independent parallel workstreams (default: host-native subagents; configurable), and a strict convergence gate.
+description: "Milestone-based research-team workflow for theory+computation projects with reproducible artifacts, independent parallel workstreams (default: host-native subagents; configurable), and a strict convergence gate.\n"
 ---
 
 # Research Team (Lean Entry)

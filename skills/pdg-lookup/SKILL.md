@@ -1,8 +1,6 @@
 ---
 name: pdg-lookup
-description: >
-  Teaches the PDG (Particle Data Group) tool chain for looking up particle properties,
-  measurements, decays, and references from the local PDG SQLite database.
+description: "Teaches the PDG (Particle Data Group) tool chain for looking up particle properties, measurements, decays, and references from the local PDG SQLite database.\n"
 ---
 
 # PDG Lookup Workflow

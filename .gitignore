@@ -50,6 +50,12 @@ runs/
 evidence/
 paper/
 
+# Vendored host-system skills (codex/openai skill-creator + skill-installer). Kept local-only:
+# they share NAMES with the client's own built-in system skills, so shipping them in clones lets a
+# naive "install every skill from this repo" action collide with / shadow the client's built-ins and
+# corrupt its skill registry. Not consumed by anything tracked in this repo.
+skills/.system/
+
 # Lock files are committed
 # !pnpm-lock.yaml
 .gitnexus

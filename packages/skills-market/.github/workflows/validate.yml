@@ -40,6 +40,12 @@ jobs:
           test -L "$TMP_HOME/.codex/skills/autoresearch-market"
           test -L "$TMP_HOME/.config/opencode/skills/autoresearch-market"
           test -L "$TMP_HOME/.claude/skills/autoresearch-market"
+          # Every directory a host scans as a skill MUST have a SKILL.md, else a strict skill loader
+          # (e.g. OpenCode) can crash on startup. The market root is linked as a skill dir, so it must
+          # carry one. Regression guard for the install-crash remediation.
+          test -f "$TMP_HOME/.codex/skills/autoresearch-market/SKILL.md"
+          test -f "$TMP_HOME/.config/opencode/skills/autoresearch-market/SKILL.md"
+          test -f "$TMP_HOME/.claude/skills/autoresearch-market/SKILL.md"
 
       - name: Smoke test symlink installers (isolated fixtures)
         run: |

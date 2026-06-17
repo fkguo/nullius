@@ -25,6 +25,9 @@ Options:
                              Default: parent of this script
   --target-root DIR          Optional: override target install root
   --allow-missing            Optional: skip missing skill sources with warning
+  --allow-large-artifacts    Optional: link a source dir even if it exceeds the size guard
+                             (default refuses dirs > ${SKILL_SYMLINK_MAX_MB:-25}MB to avoid exposing
+                             local run artifacts that a skill loader could hang/OOM on)
   --dry-run                  Optional: print actions only
   -h, --help                 Show this help
 
@@ -46,6 +49,8 @@ SKILLS_ROOT=""
 TARGET_ROOT=""
 ALLOW_MISSING=0
 DRY_RUN=0
+ALLOW_LARGE_ARTIFACTS=0
+MAX_SKILL_MB="${SKILL_SYMLINK_MAX_MB:-25}"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -83,6 +88,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --allow-missing)
       ALLOW_MISSING=1
+      shift
+      ;;
+    --allow-large-artifacts)
+      ALLOW_LARGE_ARTIFACTS=1
       shift
       ;;
     --dry-run)
@@ -257,6 +266,19 @@ while IFS= read -r skill_id; do
     echo "[error] target exists and is not symlink: ${target}" >&2
     errors=$((errors + 1))
     continue
+  fi
+
+  # A whole-dir symlink exposes the source tree UNFILTERED — including gitignored run artifacts
+  # (e.g. hep-calc/process: 100+ MB) that the package include/exclude would drop. An eager recursive
+  # skill loader can hang/OOM on that, so refuse to link an oversized source dir unless explicitly
+  # allowed. (Clean clones are tiny; this only bites a developer worktree that accumulated artifacts.)
+  if [[ "${ALLOW_LARGE_ARTIFACTS}" -eq 0 ]]; then
+    dir_mb="$(du -sm "${source_dir}" 2>/dev/null | awk '{print $1}')"
+    if [[ -n "${dir_mb}" && "${dir_mb}" -gt "${MAX_SKILL_MB}" ]]; then
+      echo "[error] ${skill_id} source is ${dir_mb}MB (> ${MAX_SKILL_MB}MB); likely local run artifacts a skill loader could choke on. Clean the worktree, or pass --allow-large-artifacts to link anyway." >&2
+      errors=$((errors + 1))
+      continue
+    fi
   fi
 
   if [[ "${DRY_RUN}" -eq 1 ]]; then

@@ -1,11 +1,6 @@
 ---
 name: hep-calc
-description: >
-  General-purpose HEP calculation reproduction/audit runner that orchestrates
-  Mathematica (FeynCalc/FeynArts/FormCalc/LoopTools/FeynRules) and/or Julia (LoopTools.jl).
-  Supports: compute-only runs, LaTeX value auditing, auto-generation of Feynman diagrams + one-loop
-  (unrenormalized) amplitudes (FeynRules→FeynArts→(optional)FormCalc), optional LaTeX-driven model_build
-  scaffolding (agent-provided rewrite rules), and auditable out_dir + optional research-team sync.
+description: "General-purpose HEP calculation reproduction/audit runner that orchestrates Mathematica (FeynCalc/FeynArts/FormCalc/LoopTools/FeynRules) and/or Julia (LoopTools.jl). Supports: compute-only runs, LaTeX value auditing, auto-generation of Feynman diagrams + one-loop (unrenormalized) amplitudes (FeynRules→FeynArts→(optional)FormCalc), optional LaTeX-driven model_build scaffolding (agent-provided rewrite rules), and auditable out_dir + optional research-team sync.\n"
 ---
 
 # hep-calc
