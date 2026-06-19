@@ -62,6 +62,16 @@ def _make_classification(
     }
 
 
+def _cfg(**overrides) -> MembraneConfig:
+    """A fully-configured test config. No provider is hardcoded in production, so a config
+    must supply an endpoint + model (+ key) to exercise the LLM path; an unconfigured config
+    fails SAFE (block-all). Tests that exercise classification use this; tests for the
+    unconfigured/no-key fail-safe override the relevant field."""
+    base = dict(api_key="test-key", api_base_url="https://test.local", model="test-model")
+    base.update(overrides)
+    return MembraneConfig(**base)
+
+
 # ===========================================================================
 # Segment splitting tests (unchanged infrastructure)
 # ===========================================================================
@@ -109,7 +119,7 @@ class TestLLMClassification:
             _make_classification(1, "PASS", pass_type="METHOD", reason="Method suggestion"),
             _make_classification(2, "BLOCK", block_type="NUM_RESULT", reason="Numerical value"),
         ])
-        config = MembraneConfig(api_key="test-key")
+        config = _cfg()
         result = filter_message("\n\n".join(segments), config=config)
 
         assert result.total_segments == 2
@@ -126,7 +136,7 @@ class TestLLMClassification:
             _make_classification(1, "PASS", pass_type="TOOL", reason="Tool rec"),
             _make_classification(2, "PASS", pass_type="PITFALL", reason="Warning"),
         ])
-        config = MembraneConfig(api_key="test-key")
+        config = _cfg()
         result = filter_message("\n\n".join(segments), config=config)
 
         assert result.blocked_count == 0
@@ -141,7 +151,7 @@ class TestLLMClassification:
             _make_classification(1, "BLOCK", block_type="NUM_RESULT", reason="Number"),
             _make_classification(2, "BLOCK", block_type="AGREEMENT", reason="Agreement"),
         ])
-        config = MembraneConfig(api_key="test-key")
+        config = _cfg()
         result = filter_message("\n\n".join(segments), config=config)
 
         assert result.blocked_count == 2
@@ -151,7 +161,7 @@ class TestLLMClassification:
     @patch("information_membrane._call_llm")
     def test_empty_text(self, mock_llm):
         """Empty text → no LLM call, empty result."""
-        config = MembraneConfig(api_key="test-key")
+        config = _cfg()
         result = filter_message("", config=config)
         assert result.total_segments == 0
         assert result.blocked_count == 0
@@ -165,7 +175,7 @@ class TestLLMClassification:
             _make_classification(1, "PASS", pass_type="METHOD", reason="Method"),
             _make_classification(2, "BLOCK", block_type="NUM_RESULT", reason="Number"),
         ])
-        config = MembraneConfig(api_key="test-key")
+        config = _cfg()
         result = filter_message("\n\n".join(segments), config=config)
 
         assert result.total_segments == 2
@@ -179,7 +189,7 @@ class TestLLMClassification:
         mock_llm.return_value = _make_llm_response([
             _make_classification(1, "BLOCK", block_type="VERDICT", reason="Judgment"),
         ])
-        config = MembraneConfig(api_key="test-key")
+        config = _cfg()
         result = filter_message("I agree with your analysis.", config=config)
         assert "VERDICT" in result.passed_text
 
@@ -207,13 +217,13 @@ class TestBlockAllFallback:
     def test_network_error_triggers_fallback(self, mock_llm):
         """Network error → all segments blocked."""
         mock_llm.side_effect = RuntimeError("Connection refused")
-        config = MembraneConfig(api_key="test-key", max_retries=0)
+        config = _cfg(max_retries=0)
         result = filter_message("Some content here.", config=config)
         assert result.blocked_count > 0
 
     def test_no_api_key_triggers_fallback(self):
         """Missing API key → all segments blocked with NO_API_KEY."""
-        config = MembraneConfig(api_key="")
+        config = _cfg(api_key="")
         result = filter_message("Some content here.", config=config)
         assert result.blocked_count > 0
         assert result.blocked_spans[0].block_type == "NO_API_KEY"
@@ -223,7 +233,7 @@ class TestBlockAllFallback:
         """401/403 _NonRetriableError → filter_message returns AUTH_ERROR reason."""
         from information_membrane import _NonRetriableError
         mock_llm.side_effect = _NonRetriableError("HTTP 401 Unauthorized")
-        config = MembraneConfig(api_key="test-key")
+        config = _cfg()
         result = filter_message("Some content here.", config=config)
         assert result.blocked_count > 0
         assert result.blocked_spans[0].block_type == "AUTH_ERROR"
@@ -240,7 +250,7 @@ class TestMalformedResponse:
     def test_garbage_json_triggers_fallback(self, mock_llm):
         """LLM returns non-classification JSON → fallback to BLOCK-ALL."""
         mock_llm.return_value = {"foo": "bar"}
-        config = MembraneConfig(api_key="test-key", max_retries=0)
+        config = _cfg(max_retries=0)
         # _classify_segments will get empty classifications, fill missing with BLOCK
         result = filter_message("Some content.", config=config)
         assert result.blocked_count > 0
@@ -249,7 +259,7 @@ class TestMalformedResponse:
     def test_classifications_not_list(self, mock_llm):
         """LLM returns classifications as string → retries then fallback."""
         mock_llm.side_effect = RuntimeError("'classifications' is not a list")
-        config = MembraneConfig(api_key="test-key", max_retries=0)
+        config = _cfg(max_retries=0)
         result = filter_message("Some content.", config=config)
         assert result.blocked_count > 0
 
@@ -270,7 +280,7 @@ class TestPartialResponse:
             _make_classification(3, "PASS", pass_type="TOOL", reason="ok"),
             _make_classification(5, "BLOCK", block_type="NUM_RESULT", reason="number"),
         ])
-        config = MembraneConfig(api_key="test-key")
+        config = _cfg()
         result = filter_message("\n\n".join(segments), config=config)
 
         assert result.total_segments == 5
@@ -281,7 +291,7 @@ class TestPartialResponse:
     def test_empty_classifications_all_blocked(self, mock_llm):
         """Empty classifications list → all segments defaulted to BLOCK."""
         mock_llm.return_value = _make_llm_response([])
-        config = MembraneConfig(api_key="test-key")
+        config = _cfg()
         result = filter_message("Seg A.\n\nSeg B.", config=config)
         assert result.blocked_count == 2
 
@@ -292,7 +302,7 @@ class TestPartialResponse:
             {"segment_index": 1, "decision": "PASS", "block_type": "NUM_RESULT",
              "pass_type": "METHOD", "reason": "confused LLM"},
         ]}
-        config = MembraneConfig(api_key="test-key")
+        config = _cfg()
         result = filter_message("The cross section is 42 pb.", config=config)
         # Contradictory entry rejected → defaults to BLOCK
         assert result.blocked_count == 1
@@ -309,7 +319,7 @@ class TestPartialResponse:
             {"segment_index": 2, "decision": "PASS", "block_type": "NUM_RESULT",
              "pass_type": "METHOD", "reason": "contradictory"},
         ]}
-        config = MembraneConfig(api_key="test-key")
+        config = _cfg()
         result = _classify_segments(["Seg A", "Seg B", "Seg C"], config=config)
 
         assert result[0]["decision"] == "PASS"  # Valid
@@ -332,7 +342,7 @@ class TestPartialResponse:
             {"segment_index": 2, "decision": "PASS", "pass_type": "TOOL",
              "block_type": None, "reason": "ok"},
         ]}
-        config = MembraneConfig(api_key="test-key")
+        config = _cfg()
         result = _classify_segments(["Seg A", "Seg B"], config=config)
 
         # Segment 1: duplicate → BLOCK (fail-closed)
@@ -351,7 +361,7 @@ class TestPartialResponse:
             {"segment_index": 1, "decision": "PASS", "pass_type": "METHOD",
              "block_type": None, "reason": "oops"},
         ]}
-        config = MembraneConfig(api_key="test-key")
+        config = _cfg()
         result = filter_message("The result is 42 pb.", config=config)
         assert result.blocked_count == 1
         assert "[REDACTED" in result.passed_text
@@ -376,7 +386,7 @@ class TestTierDegradation:
             _make_classification(1, "PASS", pass_type="METHOD", reason="ok"),
         ])
 
-        config = MembraneConfig(api_key="test-key")
+        config = _cfg()
         from information_membrane import _classify_segments
         result = _classify_segments(["Test segment"], config=config)
         assert result[0]["decision"] == "PASS"
@@ -397,7 +407,7 @@ class TestTierDegradation:
             _make_classification(1, "BLOCK", block_type="NUM_RESULT", reason="number"),
         ])
 
-        config = MembraneConfig(api_key="test-key")
+        config = _cfg()
         from information_membrane import _classify_segments
         result = _classify_segments(["Test segment"], config=config)
         assert result[0]["decision"] == "BLOCK"
@@ -416,7 +426,7 @@ class TestTierDegradation:
         mock_t2.side_effect = RuntimeError("Tier 2 failed")
         mock_t3.side_effect = RuntimeError("Tier 3 failed")
 
-        config = MembraneConfig(api_key="test-key")
+        config = _cfg()
         from information_membrane import _classify_segments
         with pytest.raises(RuntimeError, match="3 tier attempts"):
             _classify_segments(["Test segment"], config=config)
@@ -429,7 +439,7 @@ class TestTierDegradation:
         from information_membrane import _NonRetriableError
         mock_t1.side_effect = _NonRetriableError("HTTP 401")
 
-        config = MembraneConfig(api_key="test-key")
+        config = _cfg()
         from information_membrane import _classify_segments
         with pytest.raises(_NonRetriableError):
             _classify_segments(["Test segment"], config=config)
@@ -444,14 +454,17 @@ class TestTierDegradation:
 class TestConfigFromEnv:
     """Test MembraneConfig.from_env()."""
 
-    def test_defaults(self):
-        """Default config values."""
+    def test_defaults_no_provider_hardcoded(self):
+        """With nothing configured, no provider is assumed: endpoint/model/key are empty
+        and the config is not 'configured' (membrane will fail SAFE / block-all). Setting a
+        bare DEEPSEEK_API_KEY does NOT silently activate a DeepSeek default."""
         with patch.dict(os.environ, {}, clear=True):
             os.environ["DEEPSEEK_API_KEY"] = "sk-test"
             config = MembraneConfig.from_env()
-        assert config.api_base_url == "https://api.deepseek.com"
-        assert config.model == "deepseek-chat"
-        assert config.api_key == "sk-test"
+        assert config.api_base_url == ""
+        assert config.model == ""
+        assert config.api_key == ""          # MEMBRANE_API_KEY_ENV unset -> no key picked up
+        assert config.is_configured is False
 
     def test_custom_env_vars(self):
         """Custom env var overrides."""
@@ -466,6 +479,29 @@ class TestConfigFromEnv:
         assert config.api_key == "sk-custom"
         assert config.api_base_url == "https://api.openai.com"
         assert config.model == "gpt-4o-mini"
+        assert config.is_configured is True
+
+    def test_is_configured_requires_key_endpoint_and_model(self):
+        """is_configured is True only when key + endpoint + model are all present."""
+        assert MembraneConfig(api_key="k", api_base_url="https://x", model="m").is_configured is True
+        assert MembraneConfig(api_key="", api_base_url="https://x", model="m").is_configured is False
+        assert MembraneConfig(api_key="k", api_base_url="", model="m").is_configured is False
+        assert MembraneConfig(api_key="k", api_base_url="https://x", model="").is_configured is False
+
+    def test_unconfigured_endpoint_blocks_all(self):
+        """A key but no endpoint/model (no provider hardcoded) -> fail SAFE: block all,
+        reason NOT_CONFIGURED."""
+        config = MembraneConfig(api_key="test-key")  # api_base_url/model default to ""
+        result = filter_message("Some content here.", config=config)
+        assert "[REDACTED" in result.passed_text          # segment redacted
+        assert result.blocked_spans
+        assert result.blocked_spans[0].block_type == "NOT_CONFIGURED"
+
+    def test_empty_base_url_does_not_raise(self):
+        """An unset MEMBRANE_API_BASE_URL must NOT trip the HTTPS check (it fails safe later)."""
+        with patch.dict(os.environ, {}, clear=True):
+            config = MembraneConfig.from_env()  # must not raise
+        assert config.api_base_url == ""
 
     def test_missing_key_env(self):
         """Missing API key env var → empty key."""
@@ -669,7 +705,7 @@ class TestAuditLogging:
         mock_llm.return_value = _make_llm_response([
             _make_classification(1, "BLOCK", block_type="NUM_RESULT", reason="Contains numerical result"),
         ])
-        config = MembraneConfig(api_key="test-key")
+        config = _cfg()
         fr = filter_message(text, config=config)
         rec = build_audit_record(
             filter_result=fr,
@@ -691,7 +727,7 @@ class TestAuditLogging:
         mock_llm.return_value = _make_llm_response([
             _make_classification(1, "BLOCK", block_type="NUM_RESULT", reason="Numerical result"),
         ])
-        config = MembraneConfig(api_key="test-key")
+        config = _cfg()
         fr = filter_message(text, config=config)
         rec = build_audit_record(
             filter_result=fr,
@@ -719,7 +755,7 @@ class TestAuditLogging:
             mock_llm.return_value = _make_llm_response([
                 _make_classification(1, "BLOCK", block_type="NUM_RESULT", reason="Number"),
             ])
-            config = MembraneConfig(api_key="test-key")
+            config = _cfg()
             fr = filter_message(text, config=config)
             rec = build_audit_record(
                 filter_result=fr, input_text=text,
@@ -740,7 +776,7 @@ class TestAuditLogging:
             _make_classification(1, "BLOCK", block_type="NUM_RESULT",
                                  reason="Contains 42.7 pb cross-section value"),
         ])
-        config = MembraneConfig(api_key="test-key")
+        config = _cfg()
         fr = filter_message(text, config=config)
         rec = build_audit_record(
             filter_result=fr, input_text=text,
@@ -769,12 +805,17 @@ class TestGoldenExamples:
 
     Requires:
     - MEMBRANE_RUN_GOLDEN_TESTS=1
-    - DEEPSEEK_API_KEY (or custom via MEMBRANE_API_KEY_ENV)
+    - a configured membrane provider: MEMBRANE_API_KEY_ENV (the env var holding your key)
+      + MEMBRANE_API_BASE_URL + MEMBRANE_MODEL (a local Ollama/LM Studio/vLLM works). No
+      provider is hardcoded, so a bare DEEPSEEK_API_KEY is no longer sufficient.
     """
 
     @pytest.fixture(scope="class")
     def config(self):
-        return MembraneConfig.from_env()
+        cfg = MembraneConfig.from_env()
+        if not cfg.is_configured:
+            pytest.skip("Membrane not configured: set MEMBRANE_API_KEY_ENV + MEMBRANE_API_BASE_URL + MEMBRANE_MODEL")
+        return cfg
 
     @pytest.fixture(scope="class")
     def golden_data(self) -> list[dict]:

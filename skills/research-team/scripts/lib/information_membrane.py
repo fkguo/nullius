@@ -3,7 +3,10 @@
 
 Classifies text segments into PASS (safe to share) or BLOCK (would compromise
 verification independence). V2 uses LLM semantic classification via any
-OpenAI-compatible API (default: DeepSeek).
+OpenAI-compatible API. No provider is hardcoded — the operator chooses one via
+MEMBRANE_API_BASE_URL / MEMBRANE_MODEL / MEMBRANE_API_KEY_ENV (a local
+Ollama / LM Studio / vLLM at http://localhost works). Until configured, the
+membrane fails SAFE: every segment is blocked.
 
 BLOCK always takes priority over PASS (conservative-first).
 On any LLM failure, ALL segments are blocked (fail-closed).
@@ -111,9 +114,9 @@ _RESPONSE_JSON_SCHEMA = {
 @dataclass(frozen=True)
 class MembraneConfig:
     """Configuration for the LLM-based Information Membrane."""
-    api_base_url: str = "https://api.deepseek.com"
+    api_base_url: str = ""
     api_key: str = ""
-    model: str = "deepseek-chat"
+    model: str = ""
     temperature: float = 0.0
     max_retries: int = 2
     timeout_secs: int = 60
@@ -126,24 +129,31 @@ class MembraneConfig:
 
         MEMBRANE_API_KEY_ENV: name of the env var holding the API key
             (indirect expansion — key value never in CLI args)
-        MEMBRANE_API_BASE_URL: API base URL (default: https://api.deepseek.com)
-        MEMBRANE_MODEL: model name (default: deepseek-chat)
+        MEMBRANE_API_BASE_URL: OpenAI-compatible API base URL
+        MEMBRANE_MODEL: model name
+
+        All three are operator-set with NO default provider. If any is unset the
+        membrane is not configured and fails SAFE (blocks every segment).
         """
-        api_key_env = os.environ.get("MEMBRANE_API_KEY_ENV", "DEEPSEEK_API_KEY")
-        api_key = os.environ.get(api_key_env, "")
-        api_base_url = os.environ.get("MEMBRANE_API_BASE_URL", "https://api.deepseek.com")
-        # Require HTTPS unless localhost/loopback (dev)
-        from urllib.parse import urlparse
-        parsed = urlparse(api_base_url)
-        host = (parsed.hostname or "").lower()
-        is_https = parsed.scheme == "https"
-        is_local_http = parsed.scheme == "http" and host in {"localhost", "127.0.0.1", "::1"}
-        if not (is_https or is_local_http):
-            raise ValueError(
-                f"MEMBRANE_API_BASE_URL must use HTTPS (got {api_base_url!r}). "
-                "http://localhost, http://127.0.0.1, and http://[::1] are allowed for local development."
-            )
-        model = os.environ.get("MEMBRANE_MODEL", "deepseek-chat")
+        # No provider is hardcoded: the operator names the key env var, endpoint, and
+        # model. Unset -> empty -> the membrane fails SAFE (block-all) in filter_message.
+        api_key_env = os.environ.get("MEMBRANE_API_KEY_ENV", "")
+        api_key = os.environ.get(api_key_env, "") if api_key_env else ""
+        api_base_url = os.environ.get("MEMBRANE_API_BASE_URL", "")
+        # Require HTTPS unless localhost/loopback (dev). Skip the check when unset —
+        # an unconfigured membrane blocks everything rather than raising.
+        if api_base_url:
+            from urllib.parse import urlparse
+            parsed = urlparse(api_base_url)
+            host = (parsed.hostname or "").lower()
+            is_https = parsed.scheme == "https"
+            is_local_http = parsed.scheme == "http" and host in {"localhost", "127.0.0.1", "::1"}
+            if not (is_https or is_local_http):
+                raise ValueError(
+                    f"MEMBRANE_API_BASE_URL must use HTTPS (got {api_base_url!r}). "
+                    "http://localhost, http://127.0.0.1, and http://[::1] are allowed for local development."
+                )
+        model = os.environ.get("MEMBRANE_MODEL", "")
         prompt_path_str = os.environ.get("MEMBRANE_SYSTEM_PROMPT_PATH", "")
         prompt_path = Path(prompt_path_str) if prompt_path_str else None
         return cls(
@@ -152,6 +162,13 @@ class MembraneConfig:
             model=model,
             system_prompt_path=prompt_path,
         )
+
+    @property
+    def is_configured(self) -> bool:
+        """True only when an operator-chosen provider is fully set (key + endpoint +
+        model). No provider is hardcoded; when this is False the membrane fails SAFE
+        (blocks every segment) — see filter_message."""
+        return bool(self.api_key and self.api_base_url and self.model)
 
 
 # ---------------------------------------------------------------------------
@@ -635,9 +652,14 @@ def filter_message(text: str, *, config: MembraneConfig | None = None) -> Filter
     if not segments:
         return result
 
-    # If no API key, fail-closed immediately
+    # Fail-closed immediately when the membrane is not fully configured. No provider is
+    # hardcoded; the operator must point it at an OpenAI-compatible endpoint
+    # (MEMBRANE_API_BASE_URL / MEMBRANE_MODEL / MEMBRANE_API_KEY_ENV; a local
+    # Ollama / LM Studio / vLLM at http://localhost works).
     if not config.api_key:
         return _block_all_fallback(segments, reason="NO_API_KEY")
+    if not (config.api_base_url and config.model):
+        return _block_all_fallback(segments, reason="NOT_CONFIGURED")
 
     # Attempt LLM classification
     try:

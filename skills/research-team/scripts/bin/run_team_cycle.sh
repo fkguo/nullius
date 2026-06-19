@@ -877,11 +877,17 @@ PACKET_BUILD_SCRIPT="${SCRIPT_DIR}/build_team_packet.py"
 COMPILE_LANDSCAPE_SCRIPT="${SCRIPT_DIR}/compile_method_landscape.py"
 EXTRACT_FLAGS_SCRIPT="${SCRIPT_DIR}/extract_consultation_flags.py"
 FILTER_RESPONSE_SCRIPT="${SCRIPT_DIR}/filter_consultation_response.py"
-# RT-05 V2: Membrane LLM configuration (env vars, indirect key expansion)
-MEMBRANE_API_KEY_ENV="${MEMBRANE_API_KEY_ENV:-DEEPSEEK_API_KEY}"
-MEMBRANE_API_BASE_URL="${MEMBRANE_API_BASE_URL:-https://api.deepseek.com}"
-MEMBRANE_MODEL="${MEMBRANE_MODEL:-deepseek-chat}"
+# RT-05 V2: Membrane LLM configuration (env vars, indirect key expansion).
+# No provider is hardcoded — point these at any OpenAI-compatible endpoint
+# (a local Ollama / LM Studio / vLLM at http://localhost works). Unset => the
+# membrane fails SAFE and blocks ALL cross-team content.
+MEMBRANE_API_KEY_ENV="${MEMBRANE_API_KEY_ENV:-}"
+MEMBRANE_API_BASE_URL="${MEMBRANE_API_BASE_URL:-}"
+MEMBRANE_MODEL="${MEMBRANE_MODEL:-}"
 export MEMBRANE_API_KEY_ENV MEMBRANE_API_BASE_URL MEMBRANE_MODEL
+if [ -z "${MEMBRANE_API_KEY_ENV}" ] || [ -z "${MEMBRANE_API_BASE_URL}" ] || [ -z "${MEMBRANE_MODEL}" ]; then
+  echo "warning: Information Membrane is not configured (set MEMBRANE_API_KEY_ENV / MEMBRANE_API_BASE_URL / MEMBRANE_MODEL to an OpenAI-compatible endpoint; a local model works) — it will block ALL cross-team content (fail-safe) until configured." >&2
+fi
 SYSTEM_ALIGNMENT="${SKILL_ROOT}/assets/system_alignment.txt"
 SYSTEM_CONSULTATION="${SKILL_ROOT}/assets/system_consultation.txt"
 SYSTEM_DIVERGENCE="${SKILL_ROOT}/assets/system_divergence.txt"

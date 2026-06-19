@@ -93,7 +93,7 @@ class TestCompileLandscape:
     @patch("information_membrane._call_llm")
     def test_basic_compilation(self, mock_llm):
         mock_llm.side_effect = _make_pass_all_mock()
-        config = MembraneConfig(api_key="test-key")
+        config = MembraneConfig(api_key="test-key", api_base_url="https://test.local", model="test-model")
         member_a = (
             "## Suggested Method Path\n"
             "Use adaptive integration with Gauss-Kronrod.\n\n"
@@ -118,7 +118,7 @@ class TestCompileLandscape:
     def test_blocks_numerical_results(self, mock_llm):
         """If a member sneaks in numerical results, they get filtered."""
         mock_llm.side_effect = _make_block_all_mock()
-        config = MembraneConfig(api_key="test-key")
+        config = MembraneConfig(api_key="test-key", api_base_url="https://test.local", model="test-model")
         member_a = (
             "## Suggested Method Path\n"
             "Use adaptive integration.\n\n"
@@ -134,7 +134,7 @@ class TestCompileLandscape:
     @patch("information_membrane._call_llm")
     def test_landscape_header(self, mock_llm):
         mock_llm.side_effect = _make_pass_all_mock()
-        config = MembraneConfig(api_key="test-key")
+        config = MembraneConfig(api_key="test-key", api_base_url="https://test.local", model="test-model")
         landscape, _, _ = compile_landscape(
             "## Suggested Method Path\nFoo",
             "## Suggested Method Path\nBar",
@@ -146,7 +146,7 @@ class TestCompileLandscape:
     @patch("information_membrane._call_llm")
     def test_audit_dir(self, mock_llm, tmp_path):
         mock_llm.side_effect = _make_pass_all_mock()
-        config = MembraneConfig(api_key="test-key")
+        config = MembraneConfig(api_key="test-key", api_base_url="https://test.local", model="test-model")
         audit_dir = tmp_path / "membrane_audit"
         member_a = "## Suggested Method Path\nAdaptive integration."
         member_b = "## Suggested Method Path\nMonte Carlo."
@@ -157,7 +157,7 @@ class TestCompileLandscape:
 
     def test_empty_inputs(self):
         """Empty inputs → no segments → no LLM call needed."""
-        config = MembraneConfig(api_key="test-key")
+        config = MembraneConfig(api_key="test-key", api_base_url="https://test.local", model="test-model")
         landscape, fr_a, fr_b = compile_landscape("", "", config=config)
         assert "Method Landscape" in landscape
         assert fr_a.blocked_count == 0

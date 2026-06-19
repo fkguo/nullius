@@ -12,9 +12,9 @@ Usage:
         --source-member B \
         --target-member A \
         [--audit-dir <run_dir>/membrane_audit] \
-        [--membrane-api-key-env DEEPSEEK_API_KEY] \
-        [--membrane-api-base-url https://api.deepseek.com] \
-        [--membrane-model deepseek-chat]
+        [--membrane-api-key-env MY_KEY_VAR] \
+        [--membrane-api-base-url https://your-openai-compatible-endpoint] \
+        [--membrane-model your-model]
 """
 from __future__ import annotations
 
@@ -84,11 +84,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--audit-dir", type=Path, default=None)
     # Membrane V2 LLM config
     parser.add_argument("--membrane-api-key-env", default=None,
-                        help="Env var name holding the API key (default: DEEPSEEK_API_KEY)")
+                        help="Env var name holding the API key (no default provider; required to enable the membrane)")
     parser.add_argument("--membrane-api-base-url", default=None,
-                        help="API base URL (default: https://api.deepseek.com)")
+                        help="OpenAI-compatible API base URL, e.g. a local http://localhost endpoint (no default provider)")
     parser.add_argument("--membrane-model", default=None,
-                        help="Model name (default: deepseek-chat)")
+                        help="Model name (no default provider; unset => membrane blocks all, fail-safe)")
     args = parser.parse_args(argv)
 
     if not args.input.is_file():

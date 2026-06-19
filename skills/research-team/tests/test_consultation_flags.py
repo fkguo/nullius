@@ -152,7 +152,7 @@ class TestFilterResponse:
     @patch("information_membrane._call_llm")
     def test_clean_methodological_answer(self, mock_llm):
         mock_llm.side_effect = _mock_llm_classify(None, pass_indices={1})
-        config = MembraneConfig(api_key="test-key")
+        config = MembraneConfig(api_key="test-key", api_base_url="https://test.local", model="test-model")
         text = "For this type of integral, I recommend Gauss-Kronrod quadrature."
         result = filter_response(text, config=config)
         assert "Gauss-Kronrod" in result
@@ -161,7 +161,7 @@ class TestFilterResponse:
     @patch("information_membrane._call_llm")
     def test_blocks_numerical_result(self, mock_llm):
         mock_llm.side_effect = _mock_llm_classify(None, pass_indices=set())
-        config = MembraneConfig(api_key="test-key")
+        config = MembraneConfig(api_key="test-key", api_base_url="https://test.local", model="test-model")
         text = "The integral gives 3.14159 after numerical evaluation."
         result = filter_response(text, config=config)
         assert "3.14159" not in result
@@ -171,7 +171,7 @@ class TestFilterResponse:
     @patch("information_membrane._call_llm")
     def test_blocks_verdict(self, mock_llm):
         mock_llm.side_effect = _mock_llm_classify(None, pass_indices=set())
-        config = MembraneConfig(api_key="test-key")
+        config = MembraneConfig(api_key="test-key", api_base_url="https://test.local", model="test-model")
         text = "I think your approach is correct and the derivation is valid."
         result = filter_response(text, config=config)
         assert "REDACTED" in result
@@ -179,7 +179,7 @@ class TestFilterResponse:
     @patch("information_membrane._call_llm")
     def test_mixed_response(self, mock_llm):
         mock_llm.side_effect = _mock_llm_classify(None, pass_indices={1})
-        config = MembraneConfig(api_key="test-key")
+        config = MembraneConfig(api_key="test-key", api_base_url="https://test.local", model="test-model")
         text = (
             "I recommend using the Vegas algorithm for this.\n\n"
             "My result for the same integral is sigma = 42 pb."
@@ -191,7 +191,7 @@ class TestFilterResponse:
     @patch("information_membrane._call_llm")
     def test_audit_dir(self, mock_llm, tmp_path):
         mock_llm.side_effect = _mock_llm_classify(None, pass_indices=set())
-        config = MembraneConfig(api_key="test-key")
+        config = MembraneConfig(api_key="test-key", api_base_url="https://test.local", model="test-model")
         audit_dir = tmp_path / "membrane_audit"
         text = "The final result is 3.14."
         filter_response(
