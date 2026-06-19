@@ -1,6 +1,6 @@
 ---
 name: numerical-reliability-gate
-description: "Convergence/reliability gate for NUMERICAL results in ANY field (fits/optimizations, integrals/quadratures, eigenvalues, roots/poles/zeros, ODE/PDE solutions, Monte-Carlo estimates — domain carried only by the caller's context). Before a computed number is folded into the durable record it must pass: (G1) discretization convergence — the value is stable as every resolution knob (grid, node count, step, contour density) is refined, and a coarse-setting optimum that evaporates at the converged setting is flagged a MIRAGE; (G2) orthogonal-method cross-check — >=2 independent methods agree; disagreement blocks the number (unresolved, not pick-one) until explained; (G3) invariant/topological validation where available — prefer a method-agnostic invariant (e.g. an argument-principle winding number, which counts zeros minus poles inside a contour) over a fixed-seed search or a magnitude threshold, which give false positives/negatives; (G4) regression anchor — the default/reference configuration reproduces a KNOWN reference result before any variation is trusted; (G5) degeneracy honesty — in flat-direction fits quote only the observables robust to the degeneracy, not individual parameters; (G6) report only converged values, with their setting recorded. Emits an auditable reliability matrix. Sibling to `derivation-verify` (which re-derives the SYMBOLIC answer) and `julia-perf` (which gates SPEED); this one gates whether a NUMERICAL result is converged and real.\n"
+description: "Convergence/reliability gate for NUMERICAL results in ANY field (fits/optimizations, integrals/quadratures, eigenvalues, roots/poles/zeros, ODE/PDE solutions, Monte-Carlo estimates — domain carried only by the caller's context). Before a computed number is folded into the durable record it must pass: (G1) discretization convergence — the value is stable as every resolution knob (grid, node count, step, contour density) is refined, and a coarse-setting optimum that evaporates at the converged setting is flagged a MIRAGE; (G2) orthogonal-method cross-check — >=2 independent methods agree; disagreement blocks the number (unresolved, not pick-one) until explained; (G3) invariant/topological validation where available — prefer a method-agnostic invariant (e.g. an argument-principle winding number, which counts zeros minus poles inside a contour) over a fixed-seed search or a magnitude threshold, which give false positives/negatives; (G4) regression anchor — the default/reference configuration reproduces a KNOWN reference result before any variation is trusted; (G5) degeneracy honesty — in flat-direction fits quote only the observables robust to the degeneracy, not individual parameters; (G6) report only converged values, with their setting recorded; (G7) method-precondition validity — any structural identity the method's validity rests on (an operator commuting with a projector/symmetrizer, Hermiticity, self-adjointness, variational-subspace invariance) holds at the PRODUCTION setting/configuration, not only the smallest/cheapest, and a value whose precondition fails there is invalid even if G1-converged. Emits an auditable reliability matrix. Sibling to `derivation-verify` (which re-derives the SYMBOLIC answer) and `julia-perf` (which gates SPEED); this one gates whether a NUMERICAL result is converged and real.\n"
 ---
 
 # Numerical Reliability Gate
@@ -46,8 +46,9 @@ Example quantities (illustrative, not a fixed list):
 Apply the checks that fit the quantity; a result is **reliable** only when every applicable one passes.
 Each check names its own minimum disconfirming test — never accept a number because it "looks reasonable".
 
-- **G1 — Discretization convergence (mirage check).** Vary *every* resolution knob independently —
-  integration grid, continuation/interpolation node count, step size, contour density, sample count —
+- **G1 — Discretization convergence (mirage check).** Vary *every* resolution/size knob independently —
+  integration grid, continuation/interpolation node count, step size, contour density, sample count,
+  **domain size / number of grid points / domain extent, truncation order, grid parity (even–odd)** —
   and confirm the value stops moving as you refine. Report the value **only at the converged setting**,
   with the setting recorded. **A candidate optimum found at a coarse setting that does not survive
   re-evaluation at the converged setting is a MIRAGE** — re-evaluate every coarse-grid optimum at the
@@ -61,7 +62,12 @@ Each check names its own minimum disconfirming test — never accept a number be
   single point that "stopped moving".
 - **G2 — Orthogonal-method cross-check.** Recompute with `>=2` genuinely independent methods (a
   different algorithm or representation: two quadratures, two rational-continuation schemes, a
-  determinant search vs. a topological count). They must **agree** within a stated tolerance.
+  determinant search vs. a topological count). They must **agree** within a stated tolerance. **Declare each
+  check's resolution** — the smallest discrepancy it could detect — and *what it cannot resolve*; an
+  agreement within a tolerance **coarser** than the property/effect you are certifying is **non-diagnostic**
+  (record it as "agree, but cannot resolve `<X>`"), not a pass for that property. The same applies to a G3
+  invariant and a G7 precondition residual: a check whose resolution exceeds the effect it must catch is
+  exploratory context, not a gate.
   Disagreement means *unresolved* — the value is **unpromotable until the discrepancy is explained**; do
   **not** silently pick one (a method may be disqualified by an independent conditioning / error analysis,
   or a single certified-interval / a-posteriori-error method may suffice without a second). Prefer a method that stays well
@@ -100,10 +106,22 @@ Each check names its own minimum disconfirming test — never accept a number be
   robust to the degeneracy** (e.g., in a fit, the χ², a pole position, a lineshape, a residue) and mark
   flat-direction parameters "not individually determined".
 - **G6 — Report only converged values, with provenance.** Fold into the durable record only values that
-  passed every applicable G1–G6 check at the converged setting, each tagged with its
+  passed every applicable G1–G7 check at the converged setting, each tagged with its
   grid/node/method/contour. A coarse, intermediate, or non-converged number is **labeled as such or
   discarded** — never silently reused. Check a reused artifact's timestamp against the current code
   version before trusting it (a stale artifact from a since-fixed bug reads as current truth otherwise).
+- **G7 — Method-precondition at the production setting.** When a result's validity rests on a structural
+  property of the operator/method — an operator commuting with a projector or symmetrizer, Hermiticity,
+  self-adjointness, idempotency, unitarity, positivity, a variational/Galerkin subspace being invariant
+  under the operator — record a **disconfirming residual** of that property **evaluated at the exact
+  setting/configuration that produced the recorded value**, not only where it is cheapest. A property that
+  holds at the smallest/cheapest setting can break at the production setting (aliasing, grid parity, and
+  periodic wrapping first appear above the minimal size), so a value can be perfectly G1-converged and
+  still be meaningless because its method precondition fails there. **Corollary** for any eigenvalue /
+  variational result obtained via a projected or effective operator: report the **true-operator residual**
+  `‖Oψ − λψ‖ / ‖Oψ‖` (documented norm; guard a near-zero `‖Oψ‖` with a fixed reference scale) and the
+  variance — not merely that ψ has the assumed symmetry; if the precondition
+  residual is non-negligible the value is `precondition_violated`, labeled **invalid** (not "approximate").
 
 ## Reliable vs. fragile methods (quick reference)
 
@@ -130,7 +148,7 @@ Emit one auditable record per gated quantity, conforming to
 value), the orthogonal-method values and whether they agree, any invariant check, the regression-anchor
 result, a degeneracy note, the recorded converged value, and a `verdict ∈ reliable | mirage |
 unconverged | method_disagreement | fragile_method | anchor_failed | degenerate | stale_artifact`
-(`reliable` requires every *applicable* G1–G6 check to pass — including the G4 anchor and G6 non-staleness,
+(`reliable` requires every *applicable* G1–G7 check to pass — including the G4 anchor, G6 non-staleness, and the G7 production-scale precondition,
 not only G1–G3). Only `reliable` rows may be folded into the durable record; everything else is a labeled
 candidate or is discarded.
 

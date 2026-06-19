@@ -109,11 +109,40 @@ conclusion or flagged a major gap.
    - Numerical sensitivity hotspot analysis (singular integrands, cancellations, stiffness)
    - Explicit error budget tied to required precision
    - Method-independence test (swap integration/ODE/optimizer and compare)
+   - Method-precondition test at the production scale: evaluate the operator/
+     structural identity the method's validity rests on (commutation with a
+     projector/symmetrizer, Hermiticity, self-adjointness, idempotency,
+     variational-subspace invariance) as a disconfirming residual, at the exact
+     size/config that produced the headline number — and for a projected/effective
+     eigensolver report the TRUE-operator residual ‖Oψ−λψ‖/‖Oψ‖, not merely that ψ
+     has the right symmetry
 
-   CAUTION on parameter variation: vary ONLY unphysical scales (mu_F, mu_R,
-   cutoff, regularization) or phenomenological nuisance parameters. NEVER vary
-   fundamental physical constants (particle masses, coupling constants at fixed
-   scale) — that produces unphysical nonsense, not a sensitivity check.
+   CAUTION on parameter variation: do NOT vary the problem's fixed defining
+   constants or externally-measured inputs as if they were tuning knobs — that
+   produces nonsense, not a sensitivity check. You MAY vary genuinely free
+   controls: algorithmic, discretization, regularization/cutoff, nuisance, or
+   environmental parameters (domain-specific examples belong in the project's own
+   prompt, not here).
+   REQUIRED, and SEPARATE from the above: vary every DISCRETIZATION / SIZE /
+   RESOLUTION knob (grid spacing, domain size / extent / number of grid points,
+   node count, truncation order, grid parity [even/odd], periodic-wrap regime)
+   and RE-TEST every claimed invariant or method precondition at the PRODUCTION
+   setting that produced the headline result (and across a scale sweep when
+   scale-invariance is itself claimed) — not only the smallest or cheapest. A structural property
+   (commutation with a projector/symmetrizer, Hermiticity, self-adjointness,
+   idempotency, variational-subspace invariance) verified only at the
+   minimal/cheapest size is NOT verified: aliasing, grid-parity, and periodic-
+   wrapping artifacts first appear above the minimal size — exactly where
+   headline numbers are usually produced.
+
+   PRODUCTION-REGIME ADVERSARY (mandatory WHEN the packet contains any
+   scale-dependent validity check or method precondition; otherwise N/A): if ANY
+   validity check, invariant, or method precondition in the packet was established
+   at a scale/config smaller or cheaper than the one that produced a headline
+   number, you MUST reproduce that check at the production scale/config; if you
+   cannot, escalate it as a Major Gap and choose `needs revision`. A green check at
+   a non-production scale is NOT a pass for a production result. (A packet with no
+   scale-dependent check simply does not trigger this — do not manufacture one.)
 
 3. FALLBACK MODE (when your specialty content is absent):
    - Member B with no numerics/code → pivot to invariants, dimensional analysis,
@@ -129,7 +158,7 @@ conclusion or flagged a major gap.
    Triviality classification: NONTRIVIAL
    Nontriviality reason: <one of: INDEPENDENT_PATH | STABILITY_CONVERGENCE |
      ERROR_BUDGET | INVARIANT_LIMIT | SCHEME_CONVENTION | STATISTICAL_STABILITY |
-     ALT_TOOLCHAIN | OTHER: <describe>>
+     ALT_TOOLCHAIN | PRECONDITION_AT_PRODUCTION_SCALE | OTHER: <describe>>
 
    If Triviality classification is TRIVIAL, only the classification line is needed.
 

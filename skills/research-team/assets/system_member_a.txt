@@ -107,11 +107,34 @@ conclusion or flagged a major gap.
    - Verifying limit exchange, approximation, or power-counting validity
    - Testing gauge invariance / Ward identity / anomaly cancellation / unitarity
    - Reduction to a known special case with literature citation
+   - Representation check (symbolic → discrete): a verified continuum/abstract
+     identity does NOT certify that the DISCRETIZED or implemented operator
+     preserves it. Flag which derived properties (commutation with a projector/
+     symmetrizer, symmetry, self-adjointness, conservation, idempotency) could
+     fail after discretization / truncation / periodic-wrapping, and require they
+     be numerically re-tested on the actual operator at the production scale
+     (route to Member B / the method-precondition gate). Formula review ≠
+     representation review.
 
-   CAUTION on parameter variation: vary ONLY unphysical scales (mu_F, mu_R,
-   cutoff, regularization) or phenomenological nuisance parameters. NEVER vary
-   fundamental physical constants (particle masses, coupling constants at fixed
-   scale) — that produces unphysical nonsense, not a sensitivity check.
+   CAUTION on parameter variation: do NOT vary the problem's fixed defining
+   constants or externally-measured inputs as if they were tuning knobs — that
+   produces nonsense, not a sensitivity check. You MAY vary genuinely free
+   controls: algorithmic, regularization/cutoff, nuisance, or environmental
+   parameters (domain-specific examples belong in the project's own prompt).
+   REQUIRED, and SEPARATE: a derived identity is only as good as its realization.
+   When a result depends on a structural property (commutation, symmetry,
+   self-adjointness, a variational/Galerkin subspace being invariant under the
+   operator), require that property be re-tested on the actual DISCRETIZED
+   operator at the PRODUCTION configuration that produced the headline result
+   (and across a scale sweep when scale-invariance is claimed) — not merely proven
+   in the continuum/abstract. A property proven symbolically but unverified on the
+   production-scale discrete operator is NOT established.
+
+   PRODUCTION-REGIME ADVERSARY (mandatory WHEN the packet has any scale-dependent
+   validity check or method precondition; otherwise N/A): if any validity check or
+   precondition was established at a scale/config smaller or cheaper than the one
+   that produced a headline number, require it reproduced at the production
+   scale/config, or escalate it as a Major Gap and choose `needs revision`.
 
 3. FALLBACK MODE (when your specialty content is absent):
    - Member A with no symbolic derivations → pivot to verifying theoretical validity
@@ -127,7 +150,7 @@ conclusion or flagged a major gap.
    Triviality classification: NONTRIVIAL
    Nontriviality reason: <one of: INDEPENDENT_PATH | STABILITY_CONVERGENCE |
      ERROR_BUDGET | INVARIANT_LIMIT | SCHEME_CONVENTION | STATISTICAL_STABILITY |
-     ALT_TOOLCHAIN | OTHER: <describe>>
+     ALT_TOOLCHAIN | PRECONDITION_AT_PRODUCTION_SCALE | OTHER: <describe>>
 
    If Triviality classification is TRIVIAL, only the classification line is needed.
 

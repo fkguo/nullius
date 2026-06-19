@@ -29,6 +29,13 @@ deriver) and report in a fixed canonical format.
   *Different verb:* review-swarm **critiques an artifact**; derivation-verify **re-derives the answer N
   ways and reconciles by mathematical equivalence** (not text similarity).
 - **A full milestone research cycle** with drafts/gates → use [`research-team`](../research-team/SKILL.md).
+- **A "the discretized / implemented operator preserves property P" or "method precondition X holds at
+  scale S" claim** → NOT a symbolic-derivation claim, and it **cannot** be settled by blind re-derivation:
+  a correct symbolic/continuum identity does not certify that its discrete or implemented realization
+  preserves it. Route such claims to the **numerical method-precondition gate**
+  ([`numerical-reliability-gate`](../numerical-reliability-gate/SKILL.md) G7) and/or the `research-team`
+  §J capsule, which test the disconfirming residual **at the production scale/config**. derivation-verify
+  certifies the abstract identity; it does **not** certify the realization.
 
 ## The contract (backend-agnostic)
 
@@ -59,6 +66,15 @@ Output — a verification matrix:
   matrix:[ { claim, converged, independent_confirmations, total_derivations, iterate_rounds,
              agreed_answer, adjudicated_correct, outliers } ] }
 ```
+
+**Scope of a green matrix (state this with every result).** A converged matrix certifies the **abstract /
+symbolic / continuum** claims listed — that the algebra, closed form, sign/branch, or identity is correct.
+It does **NOT** certify that a *discretization or implementation* of those identities preserves them, nor
+that any downstream solver's method preconditions hold (commutation with a projector/symmetrizer,
+Hermiticity, self-adjointness, variational-subspace invariance) at the production scale. **A green
+derivation-verify matrix is not whole-method validation** — route the realization/precondition layer to
+[`numerical-reliability-gate`](../numerical-reliability-gate/SKILL.md) (G7) / `research-team` §J, and never
+let a green symbolic matrix be read as "the method is verified".
 
 See [`references/contract.md`](references/contract.md) for the full schema (any executor must satisfy it).
 

@@ -54,6 +54,16 @@ and MUST equal the filename's `_vN` (ART-02). Write atomically (ART-03).
       // G5 — degeneracy honesty (null if no flat directions).
       "degeneracy": null,
 
+      // G7 — method-validity precondition at the production setting. null if the method carries no
+      // operator/structural precondition; else REQUIRED for a `reliable` verdict (see the G7 field rule).
+      // When present:
+      // { "property": "operator O commutes with projector/symmetrizer P",
+      //   "residual_def": "‖[P,O]ψ‖/‖Oψ‖ (or true-operator ‖Oψ−λψ‖/‖Oψ‖ for a projected eigenvalue)",
+      //   "production_setting": "<the setting that produced recorded_value>",
+      //   "tested_setting": "<MUST equal production_setting>",
+      //   "residual": 1.3e-14, "threshold": 1e-10, "command": "<one-command repro>", "passed": true }
+      "method_precondition": null,
+
       "notes": ""
     },
     {
@@ -121,7 +131,7 @@ and MUST equal the filename's `_vN` (ART-02). Write atomically (ART-03).
 
 | verdict | meaning | foldable? |
 |---|---|---|
-| `reliable` | passed **every applicable** G1–G6 check at the converged setting — including the G4 anchor and G6 non-staleness, not only G1–G3 | **yes** |
+| `reliable` | passed **every applicable** G1–G7 check at the converged setting — including the G4 anchor, G6 non-staleness, and the G7 production-scale method-precondition, not only G1–G3 | **yes** |
 | `mirage` | a candidate optimum/feature that did not survive G1 refinement | no |
 | `unconverged` | value still moving as the resolution is refined (G1) | no |
 | `method_disagreement` | orthogonal methods (G2) do not agree and the discrepancy is unexplained | no |
@@ -129,14 +139,23 @@ and MUST equal the filename's `_vN` (ART-02). Write atomically (ART-03).
 | `anchor_failed` | the reference/default configuration did not reproduce its known anchor (G4), so no variation built on it can be trusted | no |
 | `degenerate` | a flat-direction parameter quoted as if determined (G5 violation) — report the robust observable instead | no |
 | `stale_artifact` | the record's code/input version or timestamp does not match the current run (G6 provenance) — recompute before trusting | no |
+| `precondition_violated` | a structural property the method's validity rests on (commutation with a projector/symmetrizer, Hermiticity, self-adjointness, idempotency, unitarity, variational/Galerkin-subspace invariance) fails — or was only tested at a smaller/cheaper setting than the value — at the production setting/config (G7); the value is **invalid**, not approximate, even if G1-converged | no |
 
 Only `reliable` rows may be folded into `research_contract.md` / a paper / a conclusion. Every other row
 is a **labeled candidate** kept for follow-up or discarded — never silently promoted.
 
 ## Field rules
 
-- `refinement` MUST contain `>=2` settings spanning at least a 2–3× range of the dominant knob for any
+- `refinement` MUST contain `>=2` settings spanning at least a 2–3× range of the dominant knob (resolution
+  **or** size/extent/parity, whichever the value or its precondition could depend on) for any
   `converged: true`. A single setting can never establish convergence.
+- **G7 method-precondition (when applicable)**: for any `reliable` verdict whose method's validity rests on
+  a structural property (commutation with a projector/symmetrizer, Hermiticity, self-adjointness,
+  idempotency, unitarity, variational-subspace invariance), the matrix MUST record that property's
+  **disconfirming residual evaluated at the production setting/config** — not only at the smallest/cheapest
+  setting; for a projected/effective eigenvalue, record the true-operator residual `‖Oψ − λψ‖/‖Oψ‖` and the
+  variance. A precondition verified only at a smaller/cheaper setting than the recorded value does NOT
+  satisfy G7 (verdict `precondition_violated`).
 - `cross_method` MUST contain `>=2` genuinely independent methods for any `reliable` verdict that depends
   on a continuation/quadrature/search; record both values even when they agree. **Narrow exception**
   (mirrors G2): a single method MAY stand alone iff it carries a *rigorous a-posteriori / certified-interval

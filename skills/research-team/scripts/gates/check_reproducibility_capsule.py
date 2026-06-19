@@ -662,6 +662,55 @@ def _has_branch_contract_stub(capsule: str) -> bool:
     ]
     return all(re.search(pat, sec, flags=re.IGNORECASE | re.MULTILINE) for pat in required)
 
+def _has_method_precondition(capsule: str):
+    """Validate the optional capsule section 'J) Method-validity preconditions'.
+
+    Domain-neutral: when a headline result depends on an implemented/discretized/projected/
+    effective method whose validity rests on an operator-identity precondition (commutation
+    with a projector/symmetrizer, Hermiticity, self-adjointness, idempotency, unitarity,
+    variational-subspace invariance), the section must carry that precondition's disconfirming
+    residual evaluated at the *production* configuration; otherwise an explicit 'not applicable'.
+
+    Returns:
+        None  -- section absent (backward-compatible: the caller warns, or errors only when
+                 the `require_method_precondition` capsule-config flag is enabled);
+        True  -- present and either 'not applicable: <reason>' OR the required production-scale
+                 residual fields are filled with non-placeholder values;
+        False -- present but malformed (neither opt-out nor filled).
+    """
+    sec = _extract_section(capsule, r"J\)\s+Method-validity preconditions")
+    if not sec:
+        return None
+
+    def _stub(v: str) -> bool:
+        """A field value that is empty, a `<placeholder>`, or a non-reason token (TBD/TODO/N/A/...)."""
+        v = (v or "").strip()
+        if not v or v.startswith("<"):
+            return True
+        return bool(re.fullmatch(r"(?i)\s*(?:tbd|todo|fixme|fill[\s_-]?me|xxx|n/?a|none|\.{2,}|-+)\s*", v))
+
+    # A conscious, explicit opt-out is acceptable — but it must carry a CONCRETE reason, not the
+    # verbatim template placeholder ('<reason>') or a non-reason ('n/a', 'none', 'tbd', ...).
+    m_na = re.search(r"^\s*(?:-\s*)?not applicable\s*:\s*(.+)$", sec, flags=re.IGNORECASE | re.MULTILINE)
+    if m_na is not None:
+        reason = m_na.group(1).strip()
+        return (not _stub(reason)) and len(reason) >= 12
+
+    # Otherwise require the full load-bearing field set, each filled with non-stub content — so a
+    # shallow/placeholder stub ('Property...: TBD', 'Residual...: <value>') cannot false-pass.
+    labels = [
+        r"Property the method'?s validity rests on",
+        r"Disconfirming residual[^:]*",
+        r"Configuration that produced the headline number",
+        r"Residual at that production configuration",
+        r"Verdict",
+    ]
+    for lab in labels:
+        m = re.search(rf"^\s*(?:-\s*)?{lab}:\s*(.+)$", sec, flags=re.IGNORECASE | re.MULTILINE)
+        if m is None or _stub(m.group(1)):
+            return False
+    return True
+
 def _resolve_repo_root(start_dir: Path) -> Path | None:
     try:
         out = subprocess.check_output(
@@ -945,6 +994,33 @@ def check_capsule(
         errors.append(
             "Missing branch semantics stub in section H. Require section 'H) Branch Semantics / Multi-root Contract' "
             "with lines 'Multi-root quantities:' and 'Bands shown:'. Use 'Multi-root quantities: none' if not applicable."
+        )
+    # Section J) Method-validity preconditions (domain-neutral). Backward-compatible: an ABSENT §J -> warning
+    # (so existing capsules keep passing), or an error only when the `require_method_precondition` capsule
+    # flag is set and not exploration-minimal. A PRESENT-but-malformed §J -> error in every stage: a botched
+    # mandatory section is a real defect, and its `<placeholder>` values would also trip the global template-
+    # placeholder check below, so warning-vs-error must be consistent between the two (both error).
+    require_mp = bool(capsule_cfg.get("require_method_precondition", False))
+    mp = _has_method_precondition(capsule)
+    if mp is None:
+        msg = (
+            "No '### J) Method-validity preconditions' section. If any headline number depends on an "
+            "implemented/discretized/projected/effective method whose validity rests on an operator-identity "
+            "precondition (commutation with a projector/symmetrizer, Hermiticity, self-adjointness, idempotency, "
+            "unitarity, variational-subspace invariance), add §J with the precondition's disconfirming residual "
+            "evaluated at the production configuration — or state 'not applicable: <reason>'."
+        )
+        if require_mp and not exploration_minimal:
+            errors.append(msg)
+        else:
+            warnings.append(msg)
+    elif mp is False:
+        errors.append(
+            "Section J) Method-validity preconditions is present but malformed: require either a concrete "
+            "'not applicable: <reason>' OR the filled load-bearing fields (Property…, Disconfirming residual…, "
+            "Configuration that produced the headline number…, Residual at that production configuration…, "
+            "Verdict…) with non-placeholder values (no TBD/TODO/<…>; residual measured at the production config). "
+            "(A placeholder-filled §J also trips the global template-placeholder check below — same outcome.)"
         )
     if _has_placeholder_tokens(capsule):
         errors.append("Capsule still contains template placeholders (e.g. <FULL COMMAND LINE>, <path/to/...>). Replace with real values.")

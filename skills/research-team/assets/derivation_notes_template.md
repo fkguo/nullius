@@ -184,6 +184,22 @@ Methodology traces:
 Priors:
 - [notation and normalization](knowledge_base/priors/notation_and_normalization.md)
 
+### J) Method-validity preconditions (MANDATORY when a result depends on an implemented/discretized/projected/effective method precondition; else `not applicable: <reason>`)
+
+Checked by the reproducibility-capsule gate when `require_method_precondition=true` (via `research_team_config.json`).
+Domain-neutral. If the milestone's headline number comes from a method whose validity rests on an
+operator/structural identity (an operator commuting with a projector/symmetrizer, Hermiticity,
+self-adjointness, idempotency, unitarity, a variational/Galerkin subspace being invariant under the
+operator), fill every field; otherwise write a single line `not applicable: <reason>`.
+
+- Property the method's validity rests on: <e.g. operator O commutes with projector/symmetrizer P>
+- Disconfirming residual (definition): <e.g. ‖[P,O]ψ‖/‖Oψ‖ for random ψ; for a projected/effective eigenvalue the true-operator residual ‖Oψ−λψ‖/‖Oψ‖; state the norm and guard a near-zero denominator>
+- Configuration that produced the headline number: <the exact production/converged setting>
+- Residual at that production configuration: <value>  (threshold: <value>)
+- (if scale-invariance is claimed) residual scan across settings: <list>
+- Command / artifact reproducing the residual: <path or one-command repro>
+- Verdict: <pass | precondition_violated>
+
 <!-- REPRO_CAPSULE_END -->
 
 ## 0. Conventions & Assumptions (must be explicit)
