@@ -683,15 +683,18 @@ def _has_method_precondition(capsule: str):
         return None
 
     def _stub(v: str) -> bool:
-        """A field value that is empty, a `<placeholder>`, or a non-reason token (TBD/TODO/N/A/...)."""
+        """A field value that is empty, a `<word>` template placeholder, or a non-reason token
+        (TBD/TODO/N/A/...). A numeric upper bound like `<1e-14` or `<=0.01` is a LEGITIMATE residual
+        value, not a placeholder — only an angle bracket followed by a *word* (`<value>`, `<reason>`,
+        `<the exact …>`) is treated as a stub."""
         v = (v or "").strip()
-        if not v or v.startswith("<"):
+        if not v or re.match(r"<\s*[A-Za-z]", v):
             return True
         return bool(re.fullmatch(r"(?i)\s*(?:tbd|todo|fixme|fill[\s_-]?me|xxx|n/?a|none|\.{2,}|-+)\s*", v))
 
     # A conscious, explicit opt-out is acceptable — but it must carry a CONCRETE reason, not the
     # verbatim template placeholder ('<reason>') or a non-reason ('n/a', 'none', 'tbd', ...).
-    m_na = re.search(r"^\s*(?:-\s*)?not applicable\s*:\s*(.+)$", sec, flags=re.IGNORECASE | re.MULTILINE)
+    m_na = re.search(r"^\s*(?:-\s*)?not applicable\s*:[ \t]*(.+)$", sec, flags=re.IGNORECASE | re.MULTILINE)
     if m_na is not None:
         reason = m_na.group(1).strip()
         return (not _stub(reason)) and len(reason) >= 12
@@ -706,7 +709,7 @@ def _has_method_precondition(capsule: str):
         r"Verdict",
     ]
     for lab in labels:
-        m = re.search(rf"^\s*(?:-\s*)?{lab}:\s*(.+)$", sec, flags=re.IGNORECASE | re.MULTILINE)
+        m = re.search(rf"^\s*(?:-\s*)?{lab}:[ \t]*(.+)$", sec, flags=re.IGNORECASE | re.MULTILINE)
         if m is None or _stub(m.group(1)):
             return False
     return True

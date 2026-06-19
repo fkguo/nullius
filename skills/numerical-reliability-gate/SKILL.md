@@ -25,8 +25,8 @@ Use when a **computed number** is about to be trusted, compared, or written into
 Example quantities (illustrative, not a fixed list):
 
 - a fit result (a χ²/dof, a best-fit parameter, an error bar) from a nonlinear optimization,
-- an integral / quadrature / phase-space sum,
-- an eigenvalue, a resonance pole / root / zero, a threshold / branch point,
+- an integral / quadrature / high-dimensional sum,
+- an eigenvalue, a pole / root / zero, a threshold / branch point,
 - an ODE/PDE solution sampled at a point, a Monte-Carlo estimate, a continuation to a new regime.
 
 ## When NOT to use (use a sibling instead)
@@ -147,7 +147,8 @@ Emit one auditable record per gated quantity, conforming to
 `numerical_reliability_matrix_v1.json` (ART-01) with, per quantity, the refinement ladder (setting →
 value), the orthogonal-method values and whether they agree, any invariant check, the regression-anchor
 result, a degeneracy note, the recorded converged value, and a `verdict ∈ reliable | mirage |
-unconverged | method_disagreement | fragile_method | anchor_failed | degenerate | stale_artifact`
+unconverged | method_disagreement | fragile_method | anchor_failed | degenerate | stale_artifact |
+precondition_violated`
 (`reliable` requires every *applicable* G1–G7 check to pass — including the G4 anchor, G6 non-staleness, and the G7 production-scale precondition,
 not only G1–G3). Only `reliable` rows may be folded into the durable record; everything else is a labeled
 candidate or is discarded.
@@ -166,17 +167,18 @@ here.
 
 ## Provenance
 
-Distilled from the f1(1420) `KK̄π` three-body-unitarity reproduction. Concrete failure modes this gate
-encodes, each caught the hard way:
+Distilled from a real reproduction of a projected/variational multi-channel spectral analysis (a
+multi-parameter fit with analytic continuation to complex poles/eigenvalues; domain carried only by the
+caller's context). Concrete failure modes this gate encodes, each caught the hard way:
 
-- a phase-space grid `(8,6,6,6)` produced "optima" at χ²/dof `1.65–1.97` that evaporated to `2.4–2.6`
-  at the converged grid `(24,16,16,10)` — **G1 mirage**;
+- a multidimensional integration grid `(8,6,6,6)` produced "optima" at χ²/dof `1.65–1.97` that evaporated
+  to `2.4–2.6` at the converged grid `(24,16,16,10)` — **G1 mirage**;
 - a low-node-count AAA rational continuation grew a spurious low-χ² well a fitter exploited (a reported
   `1.588` that jumped to `~2.19` once the node count was converged and a second method agreed) — **G1+G2**;
 - a fixed-seed pole search reported "pole absent" when the pole had merely moved, while an
   argument-principle winding count found exactly one zero there — **G3** (fragile vs. reliable);
-- the same fit's contact couplings were flat directions (Hessian non-convergent) while χ² and the poles
-  were stable to `<2 MeV` across the valley — **G5**;
+- the same fit's near-unconstrained couplings were flat directions (Hessian non-convergent) while χ² and
+  the pole positions were stable across the valley — **G5**;
 - work was twice built on a **superseded** configuration (an earlier χ²≈2.19 fit instead of the adopted
   χ²≈1.9 one; a deprecated continuation method instead of the adopted one) before a regression anchor
   would have caught it — **G4** (and `research-harness` "anchor on the final adopted version").

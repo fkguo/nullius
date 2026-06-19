@@ -182,9 +182,9 @@ citation is fake when the cited work is outside HEP.
 
 ### M3: hallucinated_measurement_or_result
 
-**Definition.** A numerical value — particle mass, branching fraction,
-cross section, fit parameter, benchmark accuracy, sample size,
-p-value, simulation parameter — cited without verifying it against
+**Definition.** A numerical value — a measured constant, a rate or
+ratio, a fit parameter, a benchmark accuracy, a sample size,
+a p-value, a simulation parameter — cited without verifying it against
 the cited source's actual table, equation, or figure.
 
 **Signs.**
@@ -327,7 +327,7 @@ investigating its source.
 - Unexpected feature in output and the response says "this is
   interesting" without first ruling out a code-side cause.
 - Effect disappears or reverses sign when a parameter unrelated to
-  the physics is changed (random seed, batch size, numerical
+  the modeled system is changed (random seed, batch size, numerical
   tolerance, mesh resolution, integration order).
 - Effect cannot be reproduced from a clean checkout with the
   recorded seeds and config.
@@ -364,8 +364,8 @@ than the result is NOT verified.
 - `autoresearch run` with explicit `run_id` for reproducibility.
 - `research-team` Reproducibility Capsule (mandatory section of
   `research_contract.md`).
-- `hep-calc` skill for symbolic re-derivation when an analytic
-  cross-check is available.
+- `derivation-verify` (or a CAS) for an independent symbolic
+  re-derivation when an analytic cross-check is available.
 - `git bisect` when the symptom postdates a known-clean reference
   point.
 
@@ -403,8 +403,8 @@ its execution. If the step is not in the artifact, it did not happen.
 
 **Tools that help.** `autoresearch run` with explicit `run_id`,
 the `artifacts/runs/<run_id>/` manifest, `research-team`
-Reproducibility Capsule, `hep_export_paper_scaffold` for evidence
-binding between manuscript claims and run artifacts.
+Reproducibility Capsule, and an evidence-binding/export step linking
+manuscript claims to `artifacts/runs/<run_id>/`.
 
 ### M7: frame_lock
 

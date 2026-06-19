@@ -55,7 +55,7 @@ the authors' claims through an INDEPENDENT pathway.
    - Explicit error budget
    - Method-independence test
 
-   CAUTION: vary ONLY unphysical scales, NEVER fundamental physical constants.
+   CAUTION: do NOT vary the problem's fixed defining constants / externally-measured inputs as if they were tuning knobs; vary only genuinely free controls (algorithmic, regularization/cutoff, nuisance, environmental).
 
 3. FALLBACK: If no numerics/code → pivot to invariants, dimensional analysis, limits.
 

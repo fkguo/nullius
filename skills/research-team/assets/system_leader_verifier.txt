@@ -60,9 +60,11 @@ the authors' claims through an INDEPENDENT pathway.
    - Explicit error budget tied to required precision
    - Method-independence test (swap integration/ODE/optimizer and compare)
 
-   CAUTION on parameter variation: vary ONLY unphysical scales (mu_F, mu_R,
-   cutoff, regularization) or phenomenological nuisance parameters. NEVER vary
-   fundamental physical constants.
+   CAUTION on parameter variation: do NOT vary the problem's fixed defining
+   constants or externally-measured inputs as if they were tuning knobs — that
+   produces nonsense, not a sensitivity check. You MAY vary genuinely free
+   controls: algorithmic, regularization/cutoff, nuisance, or environmental
+   parameters (domain-specific examples belong in the project's own prompt).
 
 3. FALLBACK MODE: If no numerics/code → pivot to invariants, dimensional analysis, limits, or independent logic checks. State why you pivoted.
 
