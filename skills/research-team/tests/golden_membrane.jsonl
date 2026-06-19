@@ -48,3 +48,15 @@
 {"segment": "Be careful about UV divergences", "expected_decision": "PASS", "expected_type": "PITFALL"}
 {"segment": "a value in the low forties", "expected_decision": "BLOCK", "expected_type": "NUM_RESULT"}
 {"segment": "Refer to Eq.(3.14) in Peskin & Schroeder", "expected_decision": "PASS", "expected_type": "REFERENCE"}
+{"segment": "The model reached 94.2% test accuracy", "expected_decision": "BLOCK", "expected_type": "NUM_RESULT"}
+{"segment": "Our measured reaction yield is 87%", "expected_decision": "BLOCK", "expected_type": "NUM_RESULT"}
+{"segment": "The p-value came out to 0.003", "expected_decision": "BLOCK", "expected_type": "NUM_RESULT"}
+{"segment": "Your proof of the theorem is correct", "expected_decision": "BLOCK", "expected_type": "VERDICT"}
+{"segment": "Our two training runs differ by about 3%", "expected_decision": "BLOCK", "expected_type": "COMPARISON"}
+{"segment": "We arrive at the closed form T(n) = 2T(n/2) + n", "expected_decision": "BLOCK", "expected_type": "SYM_RESULT"}
+{"segment": "I suggest using k-fold cross-validation to tune the hyperparameters", "expected_decision": "PASS", "expected_type": "METHOD"}
+{"segment": "See Cormen et al. for the standard analysis", "expected_decision": "PASS", "expected_type": "REFERENCE"}
+{"segment": "I report all timings in milliseconds", "expected_decision": "PASS", "expected_type": "CONVENTION"}
+{"segment": "Watch out for integer overflow when the input is very large", "expected_decision": "PASS", "expected_type": "PITFALL"}
+{"segment": "Require the validation loss to plateau within 1% before stopping", "expected_decision": "PASS", "expected_type": "CRITERION"}
+{"segment": "I assume the samples are independent and identically distributed", "expected_decision": "PASS", "expected_type": "ASSUMPTION"}
