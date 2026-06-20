@@ -3273,17 +3273,20 @@ if [[ -f "${PROJECT_ROOT}/research_plan.md" ]]; then
     progress_graph_cli="autoresearch"
   fi
   if [[ -n "${progress_graph_cli}" ]]; then
-    # Bound the best-effort emit so a stuck CLI/Graphviz can never hang the cycle
-    # (|| true only catches a nonzero exit, not a hang). timeout is optional/portable.
-    progress_graph_timeout=""
-    if command -v timeout >/dev/null 2>&1; then
-      progress_graph_timeout="timeout 60"
-    elif command -v gtimeout >/dev/null 2>&1; then
-      progress_graph_timeout="gtimeout 60"
-    fi
-    ${progress_graph_timeout} "${progress_graph_cli}" graph --kind progress \
+    # Bound the best-effort emit so a stuck CLI can never hang the cycle (|| true
+    # only catches a nonzero exit, not a hang). Use a pure-bash watchdog rather than
+    # timeout(1) so the bound holds on ANY host — including stock macOS, which ships
+    # neither `timeout` nor `gtimeout`. Run backgrounded, kill after 60s if still
+    # alive, and wait only for this one child (never the whole job table).
+    "${progress_graph_cli}" graph --kind progress \
       --plan "${PROJECT_ROOT}/research_plan.md" \
-      --out-dir "${run_dir_abs}" >/dev/null 2>&1 || true
+      --out-dir "${run_dir_abs}" >/dev/null 2>&1 &
+    progress_graph_pid=$!
+    ( sleep 60; kill "${progress_graph_pid}" >/dev/null 2>&1 ) >/dev/null 2>&1 &
+    progress_graph_watchdog=$!
+    wait "${progress_graph_pid}" >/dev/null 2>&1 || true
+    kill "${progress_graph_watchdog}" >/dev/null 2>&1 || true
+    wait "${progress_graph_watchdog}" >/dev/null 2>&1 || true
   fi
 fi
 
