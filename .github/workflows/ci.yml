@@ -69,6 +69,10 @@ jobs:
         if: ${{ matrix.node-version == 22 }}
         run: node scripts/check-host-neutral-skill-paths-anti-drift.mjs
 
+      - name: Check transcription-fidelity checklist anti-drift (a)–(g) label/range sync
+        if: ${{ matrix.node-version == 22 }}
+        run: node scripts/check-transcription-fidelity-checklist-anti-drift.mjs
+
       - name: Check codegen drift (meta/schemas ↔ generated)
         if: ${{ matrix.node-version == 22 }}
         run: pnpm codegen:check

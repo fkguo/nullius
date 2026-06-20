@@ -18,7 +18,8 @@
     "check:skill-tool-name-anti-drift": "node scripts/check-skill-tool-name-anti-drift.mjs",
     "check:portable-paths-anti-drift": "node scripts/check-portable-paths-anti-drift.mjs",
     "check:scaffold-authority": "node scripts/check-scaffold-authority.mjs",
-    "check:host-neutral-skill-paths-anti-drift": "node scripts/check-host-neutral-skill-paths-anti-drift.mjs"
+    "check:host-neutral-skill-paths-anti-drift": "node scripts/check-host-neutral-skill-paths-anti-drift.mjs",
+    "check:transcription-fidelity-checklist-anti-drift": "node scripts/check-transcription-fidelity-checklist-anti-drift.mjs"
   },
   "author": "Feng-Kun Guo",
   "license": "MIT",
