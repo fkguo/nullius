@@ -236,7 +236,7 @@ def main() -> int:
     lines.append("")
     lines.append("4) Claim graph / knowledge graph (optional but recommended):")
     lines.append("- Maintain `knowledge_graph/claims.jsonl`, `edges.jsonl`, `evidence_manifest.jsonl` as the project evolves.")
-    lines.append("- Render the claim graph (DOT/PNG/SVG) after convergence if enabled.")
+    lines.append("- Render the claim graph with `autoresearch graph --kind claims --claims knowledge_graph/claims.jsonl --edges knowledge_graph/edges.jsonl --out-dir knowledge_graph` (DOT always; PNG/SVG when Graphviz is installed). On a converged cycle this runs automatically as a best-effort step when an `autoresearch` CLI is reachable.")
     lines.append("")
     lines.append("5) Full team cycle (default host-native subagent members; must converge):")
     lines.append("- Prefer the current host agent's native subagent mechanism for Member A/B.")
