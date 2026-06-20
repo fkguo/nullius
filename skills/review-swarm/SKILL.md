@@ -148,6 +148,25 @@ static read can certify code shape; only execution at the production scale can c
 implemented property actually holds — a property can read as correct and still fail numerically above the
 minimal size.)
 
+### Source-fidelity reviewer (mandatory for transcription / source-extraction artifacts)
+
+A **source-extraction / transcription note** — a deep-read / knowledge-base note that transcribes
+equations, numeric values, source locators, and term-by-term mappings onto a consuming artifact from a
+primary source — is a **valid gate target**, not a gate-exempt "reading task." Its primary observable is
+**fidelity to the source**, so the review is a different shape from a code/design review: at least **one
+cross-model-family reviewer must do a LITERAL, line-by-line comparison of the note against the primary
+source with "do not trust the note."** Loose semantic agreement is insufficient — transcription drift (a
+flipped sign, a dropped magnitude factor, a transposed digit, a stale locator, or a stale mapping to the
+consuming artifact) reads as plausible and is caught only by literal comparison. Reviewer model-family
+diversity materially strengthens this gate: a same-family looser read tends to pass exactly the defects it
+is meant to catch.
+
+Give that reviewer the **persisted primary source** (the exact bytes that were transcribed), not the note
+alone, plus the transcription/extraction failure checklist (`research-integrity` → *Extraction /
+transcription fidelity*, items (a)–(g)). Record in `meta.json` whether a literal cross-family source
+comparison was performed; a swarm that only read the note, or stayed within one model family, is **not** a
+fidelity pass and must be labeled as such.
+
 ## Model selection
 
 - `--agents N`: rotate through available OpenCode config models.
@@ -205,6 +224,18 @@ python3 scripts/bin/run_multi_task.py \
   --check-convergence \
   --convergence-threshold 0.8
 ```
+
+### Re-review after every fix (gate-loop discipline)
+
+Convergence is a property of the **reviewers' agreement on the current artifact**, never a
+self-pronouncement after applying a fix. The gate loop is review → fix → **re-run the independent
+reviewers on the fixed artifact** → repeat, and it converges only when the reviewers themselves return
+clean. Re-review after **every** correction round, including ones that look trivial or single-line: a fix
+can introduce a **new** defect — a corrected transcription line that silently drops a magnitude factor, or
+a refactor that re-breaks an invariant — that exists only after the fix and is caught only by the next
+independent round. Skipping the confirmation round because the change "obviously" closed the finding is the
+failure mode this rule exists to stop. The leader integrates and decides, but does **not** declare
+convergence in place of the reviewers.
 
 ## Contract checking (informational)
 

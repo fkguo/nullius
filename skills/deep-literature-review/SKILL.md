@@ -19,6 +19,7 @@ It does **not** start a parallel literature system. It builds on:
 - the research-team KB note template (`knowledge_base/literature/<ref>.md`) — you FILL it, you do not replace it.
 - the provider tools (`inspire_*`, `openalex_*`, `arxiv_*`, `pdf_*`) for fetch + analysis.
 - `markdown-hygiene` for math rendering, and `claim-grounding` for verifying the claims you extract.
+- `review-swarm` as the gate harness for the deep-read note's source-fidelity, and `research-integrity` (*Extraction / transcription fidelity*) for the failure class that gate falsifies.
 
 ## When to use
 
@@ -64,7 +65,15 @@ citation-count sorts so foundational papers are not lost below the page boundary
 Fetch the **source, not the abstract** — source-first per the ReadingHandoffContract
 preference order: arXiv LaTeX source, then full-text PDF, then other available full text.
 Use `inspire_paper_source` / `arxiv_paper_source` / `openalex_content`, plus
-`inspire_parse_latex` / `pdf_parse` for equations. Then fill **every** field the KB note template leaves blank, each backed by a
+`inspire_parse_latex` / `pdf_parse` for equations.
+
+**Persist the source you read.** When a fetch/source tool returns the primary source to an
+ephemeral or temporary path, persist that exact source to a stable, auditable location (e.g.
+alongside the note) so the fidelity gate (step 5) — and any later reviewer — reads exactly the
+bytes you transcribed, not a re-fetch that may have changed. This is a workflow discipline
+(where *you* save the source), not a change to any fetch tool's behavior.
+
+Then fill **every** field the KB note template leaves blank, each backed by a
 verbatim quote + a locator (section / equation / table / figure / page):
 
 - `Source form actually read` (must be a real full-text form, not `abstract_only`)
@@ -110,7 +119,28 @@ Run `markdown-hygiene` on the notes so display math renders:
 (Inside display math, no line may start with `+`/`-`/`=`; copy equations as whole fenced
 display blocks — the note template already warns about this.)
 
-### 5. Ground the claims
+### 5. Gate the note against the primary source (fidelity falsification)
+A filled deep-read note is a **gateable artifact, not a gate-exempt "reading task"** — its
+primary observable is **fidelity to the source**. Before the note is relied on for a central
+claim or folded into a durable artifact, gate it with a **line-by-line comparison against the
+primary source with "do not trust the note"** — a falsification pass, not a confirmation read.
+
+Self-check every transcribed item before handoff: (a) equation misquote, (b) wrong numeric
+value, (c) wrong / stale locator, (d) stale / wrong mapping to the consuming artifact,
+(e) false "verbatim", (f) inference-as-source, (g) silent factor drop (full definitions:
+`research-integrity` → *Extraction / transcription fidelity*).
+
+For a note that will anchor a central claim or be folded into a durable artifact, the gate is
+**independent** (a fresh reader / subagent, not the note's author) and at least one reviewer
+**must** be **cross-model-family** doing a literal comparison — loose semantic agreement is
+insufficient for transcription fidelity. Run it through `review-swarm` (the source-fidelity reviewer role); re-review after
+**every** fix (a correction can introduce a fresh defect) and call convergence only when the
+independent reviewers agree — never self-declare it after applying a fix. (`derivation-verify`
+is a *separate* axis: it re-derives whether a re-derivable result is mathematically correct,
+which does not check whether the note faithfully copied the source — use it in addition to,
+never instead of, the source comparison.)
+
+### 6. Ground the claims
 Hand the claims you extracted (with their `evidence_uris`) to the `claim-grounding` skill:
 it fetches each cited source and records a span-backed verdict, so "this paper says X" is
 verified against the source, not just asserted.

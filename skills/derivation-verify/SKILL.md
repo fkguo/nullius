@@ -28,6 +28,13 @@ deriver) and report in a fixed canonical format.
   [`review-swarm`](../review-swarm/SKILL.md) (clean-room reviewers, review-contract, Jaccard convergence).
   *Different verb:* review-swarm **critiques an artifact**; derivation-verify **re-derives the answer N
   ways and reconciles by mathematical equivalence** (not text similarity).
+- **A source-extraction / transcription fidelity check** — does a deep-read / extraction note faithfully
+  transcribe equations, numeric values, locators, and mappings from its **primary source**? → NOT a blind
+  re-derivation: the answer is not re-derived, it is **compared against an external source**. Route it to
+  [`review-swarm`](../review-swarm/SKILL.md)'s cross-model-family literal source-comparison reviewer (with
+  the `research-integrity` *Extraction / transcription fidelity* checklist). derivation-verify reconciles
+  independent re-derivations by mathematical equivalence; it does not check a note against the bytes it was
+  copied from.
 - **A full milestone research cycle** with drafts/gates → use [`research-team`](../research-team/SKILL.md).
 - **A "the discretized / implemented operator preserves property P" or "method precondition X holds at
   scale S" claim** → NOT a symbolic-derivation claim, and it **cannot** be settled by blind re-derivation:

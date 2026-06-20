@@ -73,6 +73,27 @@ verdict to `not_substantiated`**, and the report parser rejects it otherwise. So
 of "substantiated" with no quote is impossible to ship — by design. Quote the line, the
 equation, or the exact value+uncertainty; do not paraphrase a vibe.
 
+## Transcription fidelity (when the claim was transcribed into a note)
+
+When the claim you are grounding was itself **transcribed into a deep-read / extraction note**
+— it carries a quoted equation, a numeric value + uncertainty, or a source locator copied from
+the cited source — grounding has a second dimension beyond "does the source support the claim":
+**does the note's quoted span / value / locator match the fetched source span?** A claim can be
+*true* yet mis-transcribed (a flipped sign, a transposed digit, a dropped magnitude factor, a
+stale locator, or a quote labeled "verbatim" after silent normalization). Compare the note's
+quote/value/locator against the span you fetched in step 3:
+
+- If the fetched span does **not** match what the note transcribed, the verdict is
+  `not_substantiated` (the source does not ground the note as written), or `conflicting` if the
+  source actively contradicts it — record the **fetched** span verbatim in `supporting_spans`
+  so the drift is auditable, and name the mismatch in `notes`.
+- A `substantiated` / `partial` verdict therefore certifies *both* that the source supports the
+  claim *and* that the note transcribed it faithfully — the quoted span is the same object for
+  both checks.
+
+This is the active execution of the `research-integrity` *Extraction / transcription fidelity*
+checklist (items (a)–(g)); `deep-literature-review` produces the notes this dimension grounds.
+
 ## Output — `claim_grounding_report_v1`
 
 Emit one `claim_grounding_report_v1.json` for the claim set, conforming to the
