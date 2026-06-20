@@ -25,14 +25,24 @@ Relation to the execution layer (Trajectory):
 
 ## Visualization (optional)
 
-- After convergence, `knowledge_graph/claim_graph.dot` may be generated.
-- If Graphviz is installed, `claim_graph.png` or `claim_graph.svg` may be generated.
-- Toggles: `claim_graph_render.enabled`; formats: `claim_graph_render.format = png/svg/both/dot`.
-- Readability: `claim_graph_render.max_label` (0 = no truncation); `claim_graph_render.wrap_width`.
+- Render the Claim DAG through the `autoresearch graph` front door (which consumes the
+  domain-neutral `@autoresearch/shared/graph-viz` engine):
+
+  ```bash
+  autoresearch graph --kind claims \
+    --claims knowledge_graph/claims.jsonl --edges knowledge_graph/edges.jsonl \
+    --out-dir knowledge_graph [--format png|svg] [--legend embedded]
+  ```
+
+- `knowledge_graph/claims.dot` (the portable source of truth) is always written; a
+  `claims.png` / `claims.svg` is produced only when Graphviz `dot` is installed.
+- On a converged team cycle this render runs automatically as a best-effort step when
+  an `autoresearch` CLI is reachable (project-local `.autoresearch/bin/autoresearch` or
+  on `PATH`).
 - Convention:
   - In `edges.jsonl`, `type:"requires"` means “source depends on target (target is a prerequisite)”.
   - `type:"supersedes"` means “source replaces target”.
-  - For workflow-forward readability, rendering may display these as `target -> source` and label them as `enables` / `superseded by`.
+  - For workflow-forward readability, rendering displays these as `target -> source` and labels them as `enables` / `superseded by`.
   - Other edge types render in their original direction.
 
 ## Modeling tips (make the graph represent the real decision tree)

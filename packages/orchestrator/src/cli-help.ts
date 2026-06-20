@@ -233,6 +233,8 @@ Options:
   --out-dir <dir>          Output directory (default: current directory). Writes <kind>.dot (+ .png/.svg).
   --format <dot|png|svg>   Raster/vector format to also emit; DOT is always written. Default: dot.
   --rank-dir <LR|TB>       Graph direction. Default: LR.
+  --legend <auto|embedded|none>
+                           Legend placement; auto embeds for small graphs. Default: auto.
   --no-color               Disable color styling (accessibility encodings remain).
   --json                   Emit graph metadata + DOT as JSON to stdout instead of writing files.
 

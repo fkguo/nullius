@@ -77,10 +77,6 @@ DEFAULT_CONFIG: dict = {
     "claim_graph": {
         "base_dir": "knowledge_graph",
     },
-    "claim_graph_render": {
-        "enabled": False,
-        "format": "png",
-    },
     "pointer_lint": {
         "strategy": "python_import",
         "allow_skip_unimportable": True,

@@ -870,7 +870,6 @@ MD_LINK_HYGIENE_GATE_SCRIPT="${GATES_DIR}/check_markdown_link_hygiene.py"
 LATEX_MACRO_HYGIENE_GATE_SCRIPT="${GATES_DIR}/check_markdown_latex_macro_hygiene.py"
 PLAN_UPDATE_SCRIPT="${SCRIPT_DIR}/update_research_plan_progress.py"
 CLAIM_AUTO_SCRIPT="${SCRIPT_DIR}/auto_enable_claim_gates.py"
-CLAIM_RENDER_SCRIPT="${SCRIPT_DIR}/render_claim_graph.py"
 PACKET_COMPLETENESS_SCRIPT="${GATES_DIR}/check_packet_completeness.py"
 PACKET_BUILD_SCRIPT="${SCRIPT_DIR}/build_team_packet.py"
 # RT-05: Information Membrane / collaboration phase scripts
@@ -1898,6 +1897,24 @@ kill_process_tree() {
   fi
 
   kill -"${sig}" "${pid}" >/dev/null 2>&1 || true
+  return 0
+}
+
+run_bounded_best_effort() {
+  # Run `"$2" ...` bounded to `$1` seconds as a best-effort side job: it never fails
+  # the caller (always returns 0) and a hang can never block past the bound. Uses a
+  # pure-bash watchdog rather than timeout(1) so the bound holds on ANY host (stock
+  # macOS ships neither `timeout` nor `gtimeout`); waits only for this one child, then
+  # kills+reaps the watchdog (and the job's process tree, e.g. a Graphviz child).
+  local secs="${1:-60}"
+  shift
+  "$@" >/dev/null 2>&1 &
+  local job_pid=$!
+  ( sleep "${secs}"; kill_process_tree "${job_pid}" 9 ) >/dev/null 2>&1 &
+  local watchdog_pid=$!
+  wait "${job_pid}" >/dev/null 2>&1 || true
+  kill "${watchdog_pid}" >/dev/null 2>&1 || true
+  wait "${watchdog_pid}" >/dev/null 2>&1 || true
   return 0
 }
 
@@ -3256,37 +3273,29 @@ fi
 if [[ -f "${CLAIM_AUTO_SCRIPT}" ]]; then
   python3 "${CLAIM_AUTO_SCRIPT}" --notes "${NOTEBOOK_PATH}" --status "converged" || true
 fi
-if [[ -f "${CLAIM_RENDER_SCRIPT}" ]]; then
-  python3 "${CLAIM_RENDER_SCRIPT}" --notes "${NOTEBOOK_PATH}" >/dev/null || true
+# At convergence, best-effort render dependency graphs through the `autoresearch graph`
+# front door (SSOT = @autoresearch/shared/graph-viz), replacing the retired Python claim
+# renderer. Both emits are fully optional and bounded (run_bounded_best_effort): skipped
+# silently when no `autoresearch` CLI is reachable, and they never affect convergence.
+graph_cli=""
+if [[ -x "${PROJECT_ROOT}/.autoresearch/bin/autoresearch" ]]; then
+  graph_cli="${PROJECT_ROOT}/.autoresearch/bin/autoresearch"
+elif command -v autoresearch >/dev/null 2>&1; then
+  graph_cli="autoresearch"
 fi
-
-# At convergence, best-effort emit a milestone/task progress dependency-map via the
-# `autoresearch graph` front door (SSOT = @autoresearch/shared/graph-viz). This is
-# the PLANNING view (distinct from the claim DAG above). It is fully optional:
-# skipped silently when research_plan.md is absent or when neither the project-local
-# launcher nor an installed `autoresearch` is on PATH, and never affects convergence.
-if [[ -f "${PROJECT_ROOT}/research_plan.md" ]]; then
-  progress_graph_cli=""
-  if [[ -x "${PROJECT_ROOT}/.autoresearch/bin/autoresearch" ]]; then
-    progress_graph_cli="${PROJECT_ROOT}/.autoresearch/bin/autoresearch"
-  elif command -v autoresearch >/dev/null 2>&1; then
-    progress_graph_cli="autoresearch"
+if [[ -n "${graph_cli}" ]]; then
+  # Claim DAG (what we believe) — the epistemic view, when a claim graph exists.
+  if [[ -f "${PROJECT_ROOT}/knowledge_graph/claims.jsonl" && -f "${PROJECT_ROOT}/knowledge_graph/edges.jsonl" ]]; then
+    run_bounded_best_effort 60 "${graph_cli}" graph --kind claims \
+      --claims "${PROJECT_ROOT}/knowledge_graph/claims.jsonl" \
+      --edges "${PROJECT_ROOT}/knowledge_graph/edges.jsonl" \
+      --out-dir "${PROJECT_ROOT}/knowledge_graph" --legend embedded
   fi
-  if [[ -n "${progress_graph_cli}" ]]; then
-    # Bound the best-effort emit so a stuck CLI can never hang the cycle (|| true
-    # only catches a nonzero exit, not a hang). Use a pure-bash watchdog rather than
-    # timeout(1) so the bound holds on ANY host — including stock macOS, which ships
-    # neither `timeout` nor `gtimeout`. Run backgrounded, kill after 60s if still
-    # alive, and wait only for this one child (never the whole job table).
-    "${progress_graph_cli}" graph --kind progress \
+  # Plan / progress (what we plan) — the planning view, when a research plan exists.
+  if [[ -f "${PROJECT_ROOT}/research_plan.md" ]]; then
+    run_bounded_best_effort 60 "${graph_cli}" graph --kind progress \
       --plan "${PROJECT_ROOT}/research_plan.md" \
-      --out-dir "${run_dir_abs}" >/dev/null 2>&1 &
-    progress_graph_pid=$!
-    ( sleep 60; kill "${progress_graph_pid}" >/dev/null 2>&1 ) >/dev/null 2>&1 &
-    progress_graph_watchdog=$!
-    wait "${progress_graph_pid}" >/dev/null 2>&1 || true
-    kill "${progress_graph_watchdog}" >/dev/null 2>&1 || true
-    wait "${progress_graph_watchdog}" >/dev/null 2>&1 || true
+      --out-dir "${run_dir_abs}"
   fi
 fi
 

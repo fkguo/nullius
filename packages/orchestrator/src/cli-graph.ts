@@ -63,6 +63,7 @@ export async function runGraphCommand(parsed: GraphArgs, io: CliIo): Promise<num
 
   const renderOptions: RenderOptions = {
     rankDir: parsed.rankDir,
+    legend: parsed.legend,
     noColor: parsed.noColor,
   };
   const dot = renderGraph(graph, style, renderOptions);
