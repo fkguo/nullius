@@ -37,7 +37,7 @@ This document explains the current front-door architecture of the monorepo. It i
 
 | Surface | Current authority | Notes |
 | --- | --- | --- |
-| Stateful CLI front door | `autoresearch` | Generic lifecycle state, `workflow-plan`, bounded native TS computation, verification, higher-conclusion gating, and proposal decisions |
+| Stateful CLI front door | `autoresearch` | Generic lifecycle state, `workflow-plan`, bounded native TS computation, verification, higher-conclusion gating, proposal decisions, and `graph` dependency-map rendering (consumes the domain-neutral `@autoresearch/shared/graph-viz` engine: claims / progress / literature) |
 | Control-plane MCP/operator surface | `orch_*` | Canonical public MCP/operator counterpart of the same control plane |
 | Stateful literature planning | `autoresearch workflow-plan` | Checked-in workflow authority resolved via `@autoresearch/literature-workflows`; persists `.autoresearch/state.json#/plan` and derives `.autoresearch/plan.md`. `research_brainstorm` is the lightweight planning-only recipe variant that emits a `next_contract` handoff without starting heavier workflows |
 | Agent project harness skill | `research-harness` | Market-listed thin skill for Codex / Claude Code / OpenCode to recover project truth, route execution to `autoresearch` / `research-team` / `markdown-hygiene` / `hep-mcp`, and close out verification or handoff |

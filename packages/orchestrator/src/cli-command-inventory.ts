@@ -11,6 +11,7 @@ export const AUTORESEARCH_PUBLIC_COMMAND_INVENTORY = [
   { command: 'resume', usage: 'autoresearch resume [--note "..."] [--force]' },
   { command: 'export', usage: 'autoresearch export [options]' },
   { command: 'workflow-plan', usage: 'autoresearch workflow-plan --recipe <recipe_id> [options]' },
+  { command: 'graph', usage: 'autoresearch graph --kind <claims|progress|literature> [--claims <path> --edges <path> | --plan <path> | --input <path>] [--out-dir <dir>] [--format dot|png|svg] [--rank-dir LR|TB] [--no-color] [--json]' },
 ] as const;
 
 export type AutoresearchPublicCommand =

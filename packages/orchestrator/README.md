@@ -2,7 +2,7 @@
 
 Generic lifecycle control plane and bounded workflow CLI for the autoresearch ecosystem. Exposes both:
 
-- the **`autoresearch` CLI** — stateful front door for external project roots (init, status, workflow-plan, verify, final-conclusions, approve, fleet management);
+- the **`autoresearch` CLI** — stateful front door for external project roots (init, status, workflow-plan, verify, final-conclusions, approve, graph, fleet management);
 - the **`orch_*` MCP/operator surface** — the canonical operator/tool counterpart of the same control plane, documented in [meta/docs/orchestrator-mcp-tools-spec.md](../../meta/docs/orchestrator-mcp-tools-spec.md).
 
 ## Layer

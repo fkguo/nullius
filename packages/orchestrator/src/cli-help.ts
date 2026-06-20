@@ -218,6 +218,32 @@ Behavior:
 Output:
   JSON workflow plan is still written to stdout.
 `,
+  graph: `autoresearch graph --kind <claims|progress|literature> [options]
+
+Render a domain-neutral dependency graph from research artifacts via the shared
+graph-viz engine. Output is Graphviz DOT (the portable source of truth) plus an
+optional PNG/SVG when Graphviz \`dot\` is installed.
+
+Kinds and their required inputs:
+  --kind claims      Claim DAG (what we believe): requires --claims <claims.jsonl> --edges <edges.jsonl>
+  --kind progress    Plan / progress dependency graph (milestones + tasks): requires --plan <research_plan.md|progress.json>
+  --kind literature  Citation / reference network: requires --input <records+edges JSON>
+
+Options:
+  --out-dir <dir>          Output directory (default: current directory). Writes <kind>.dot (+ .png/.svg).
+  --format <dot|png|svg>   Raster/vector format to also emit; DOT is always written. Default: dot.
+  --rank-dir <LR|TB>       Graph direction. Default: LR.
+  --no-color               Disable color styling (accessibility encodings remain).
+  --json                   Emit graph metadata + DOT as JSON to stdout instead of writing files.
+
+Behavior:
+  Each kind maps to one adapter in @autoresearch/shared/graph-viz; node fill encodes
+  status and edge style encodes the relationship kind. PNG/SVG are best-effort: when
+  Graphviz is absent the DOT is still written and a warning is printed.
+
+Output:
+  Writes <out-dir>/<kind>.dot (+ optional .png/.svg), or JSON to stdout with --json.
+`,
 };
 
 export function renderHelp(topic: string | null): string {

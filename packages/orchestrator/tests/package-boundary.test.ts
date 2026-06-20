@@ -35,6 +35,14 @@ function collectTsFiles(dirPath: string): string[] {
   return out.sort((left, right) => left.localeCompare(right));
 }
 
+// The boundary is package-level: a specifier is allowed when its workspace
+// PACKAGE (`@scope/name`) is allowed, including a package's sanctioned subpath
+// exports (e.g. `@autoresearch/shared/graph-viz`). The package's own `exports`
+// map still gates which subpaths actually resolve.
+function workspacePackageName(specifier: string): string {
+  return specifier.split('/').slice(0, 2).join('/');
+}
+
 function findWorkspaceImportOffenders(source: string): string[] {
   const offenders: string[] = [];
   const importPattern = /['"](@autoresearch\/[^'"]+)['"]/g;
@@ -43,7 +51,7 @@ function findWorkspaceImportOffenders(source: string): string[] {
     if (!/(?:^\s*import\b|^\s*export\b|\bfrom\s*['"]|\bimport\s*\()/.test(line)) continue;
     importPattern.lastIndex = 0;
     for (const match of line.matchAll(importPattern)) {
-      if (!ALLOWED_WORKSPACE_IMPORTS.has(match[1]!)) {
+      if (!ALLOWED_WORKSPACE_IMPORTS.has(workspacePackageName(match[1]!))) {
         offenders.push(`L${index + 1}:${match[1]}`);
       }
     }

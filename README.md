@@ -19,7 +19,7 @@ Autoresearch Lab is a domain-neutral, evidence-first research monorepo. Today it
 
 | Surface | Canonical entrypoint | What it is for |
 | --- | --- | --- |
-| Stateful CLI front door | `autoresearch` | External project-root lifecycle state, approvals, bounded native TS `run --workflow-id computation`, and stateful `workflow-plan` persistence |
+| Stateful CLI front door | `autoresearch` | External project-root lifecycle state, approvals, bounded native TS `run --workflow-id computation`, stateful `workflow-plan` persistence, and `graph` dependency-map rendering (claims / progress / literature) |
 | Control-plane MCP/operator counterpart | `orch_*` | Host-facing MCP/operator surface for the same lifecycle/control-plane authority |
 | Stateful literature planning | `autoresearch workflow-plan` | Checked-in workflow authority resolved via `@autoresearch/literature-workflows`, persisted to `.autoresearch/state.json#/plan`, and rendered to `.autoresearch/plan.md` |
 | Agent research project harness skill | `research-harness` | Thin client skill for Codex / Claude Code / OpenCode to recover external project state, route work to `autoresearch`, `research-team`, `markdown-hygiene`, and `hep-mcp`, and fold results back into durable project artifacts |

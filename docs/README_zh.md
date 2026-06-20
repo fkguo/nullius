@@ -20,7 +20,7 @@ Autoresearch Lab 是一个面向理论研究的 domain-neutral、evidence-first 
 
 | Surface | Canonical 入口 | 用途 |
 | --- | --- | --- |
-| Stateful CLI front door | `autoresearch` | 外部 project-root lifecycle state、审批、受限原生 TS `run --workflow-id computation`，以及 stateful `workflow-plan` 持久化 |
+| Stateful CLI front door | `autoresearch` | 外部 project-root lifecycle state、审批、受限原生 TS `run --workflow-id computation`、stateful `workflow-plan` 持久化，以及 `graph` 依赖图渲染（claims / progress / literature） |
 | Control-plane MCP/operator counterpart | `orch_*` | 面向 host 的 MCP/operator surface，承载同一套 lifecycle/control-plane authority |
 | Stateful 文献规划入口 | `autoresearch workflow-plan` | 通过 `@autoresearch/literature-workflows` 解析 checked-in workflow authority，并写入 `.autoresearch/state.json#/plan` / `.autoresearch/plan.md` |
 | Agent research project harness skill | `research-harness` | 面向 Codex / Claude Code / OpenCode 的薄客户端 skill，用于恢复外部项目状态、把工作路由到 `autoresearch` / `research-team` / `markdown-hygiene` / `hep-mcp`，并把结果折回长期 artifacts |

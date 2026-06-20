@@ -54,6 +54,17 @@ export type ParsedCliArgs =
     preferredProviders: string[];
     allowedProviders: string[];
     availableTools: string[];
+  }
+  | {
+    command: 'graph';
+    projectRoot: string | null;
+    kind: 'claims' | 'progress' | 'literature';
+    inputs: Record<string, string>;
+    outDir: string | null;
+    format: 'dot' | 'png' | 'svg';
+    rankDir: 'LR' | 'TB';
+    noColor: boolean;
+    json: boolean;
   };
 
 const HELP_FLAGS = new Set(['-h', '--help']);
@@ -491,6 +502,76 @@ function parseWorkflowPlanArgs(args: string[]): Omit<Extract<ParsedCliArgs, { co
   return { recipeId, phase, inputs, preferredProviders, allowedProviders, availableTools };
 }
 
+const GRAPH_KINDS = new Set(['claims', 'progress', 'literature']);
+const GRAPH_FORMATS = new Set(['dot', 'png', 'svg']);
+const GRAPH_RANK_DIRS = new Set(['LR', 'TB']);
+const GRAPH_INPUT_FLAGS = new Set(['--claims', '--edges', '--plan', '--input']);
+
+function parseGraphArgs(args: string[]): Omit<Extract<ParsedCliArgs, { command: 'graph' }>, 'command' | 'projectRoot'> {
+  let kind: 'claims' | 'progress' | 'literature' | null = null;
+  const inputs: Record<string, string> = {};
+  let outDir: string | null = null;
+  let format: 'dot' | 'png' | 'svg' = 'dot';
+  let rankDir: 'LR' | 'TB' = 'LR';
+  let noColor = false;
+  let json = false;
+
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index]!;
+    if (arg === '--kind') {
+      const raw = readOptionValue(args, index, '--kind');
+      if (!GRAPH_KINDS.has(raw)) {
+        throw new Error(`graph requires --kind <claims|progress|literature>; got: ${raw}`);
+      }
+      kind = raw as 'claims' | 'progress' | 'literature';
+      index += 1;
+      continue;
+    }
+    if (arg === '--out-dir') {
+      outDir = readOptionValue(args, index, '--out-dir');
+      index += 1;
+      continue;
+    }
+    if (arg === '--format') {
+      const raw = readOptionValue(args, index, '--format');
+      if (!GRAPH_FORMATS.has(raw)) {
+        throw new Error(`graph requires --format <dot|png|svg>; got: ${raw}`);
+      }
+      format = raw as 'dot' | 'png' | 'svg';
+      index += 1;
+      continue;
+    }
+    if (arg === '--rank-dir') {
+      const raw = readOptionValue(args, index, '--rank-dir');
+      if (!GRAPH_RANK_DIRS.has(raw)) {
+        throw new Error(`graph requires --rank-dir <LR|TB>; got: ${raw}`);
+      }
+      rankDir = raw as 'LR' | 'TB';
+      index += 1;
+      continue;
+    }
+    if (arg === '--no-color') {
+      noColor = true;
+      continue;
+    }
+    if (arg === '--json') {
+      json = true;
+      continue;
+    }
+    if (GRAPH_INPUT_FLAGS.has(arg)) {
+      inputs[arg.slice(2)] = readOptionValue(args, index, arg);
+      index += 1;
+      continue;
+    }
+    throw new Error(`unknown graph argument: ${arg}`);
+  }
+
+  if (!kind) {
+    throw new Error('graph requires --kind <claims|progress|literature>');
+  }
+  return { kind, inputs, outDir, format, rankDir, noColor, json };
+}
+
 export function parseCliArgs(argv: string[]): ParsedCliArgs {
   const { args, projectRoot } = extractProjectRoot(argv);
   if (args.length === 0) {
@@ -532,6 +613,8 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
       return { command: 'integrity-record', projectRoot, ...parseIntegrityRecordArgs(rest) };
     case 'workflow-plan':
       return { command: 'workflow-plan', projectRoot, ...parseWorkflowPlanArgs(rest) };
+    case 'graph':
+      return { command: 'graph', projectRoot, ...parseGraphArgs(rest) };
     default:
       throw new Error(`unknown command: ${command}`);
   }

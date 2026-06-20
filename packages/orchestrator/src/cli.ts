@@ -44,6 +44,10 @@ export async function runCli(argv: string[], io: CliIo = defaultIo()): Promise<n
     const { runCommand } = await import('./cli-run.js');
     return runCommand(parsed, io);
   }
+  if (parsed.command === 'graph') {
+    const { runGraphCommand } = await import('./cli-graph.js');
+    return runGraphCommand(parsed, io);
+  }
 
   const projectRoot = resolveLifecycleProjectRoot(parsed.projectRoot, io.cwd);
   if (parsed.command === 'verify') {
