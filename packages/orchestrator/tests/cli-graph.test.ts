@@ -56,6 +56,24 @@ const LIT_JSON = JSON.stringify({
   edges: [{ citing_recid: '2', cited_recid: '1', relation_type: 'cites' }],
 });
 
+const ROADMAP_SPEC = JSON.stringify({
+  title: 'Roadmap dependency map',
+  goal: 'M_C',
+  nodes: [
+    { id: 'M_A', label: 'Milestone A', status: 'done', effort: '~2 units', critical: true },
+    { id: 'M_B', label: 'Milestone B', status: 'in_progress', critical: true },
+    { id: 'L_X', label: 'Lane X', status: 'candidate' },
+    { id: 'M_C', label: 'Milestone C', status: 'todo', critical: true },
+    { id: 'M_D', label: 'Milestone D', status: 'deferred' },
+  ],
+  edges: [
+    { from: 'M_A', to: 'M_B', kind: 'unlocks', critical: true },
+    { from: 'M_B', to: 'M_C', kind: 'unlocks', critical: true },
+    { from: 'L_X', to: 'M_B', kind: 'feeds_into' },
+    { from: 'M_C', to: 'M_D', kind: 'feeds_into' },
+  ],
+});
+
 describe('autoresearch graph command', () => {
   it('progress: parses a scaffolded research_plan.md into a milestone/task DAG', async () => {
     const dir = makeTempDir();
@@ -174,6 +192,50 @@ describe('autoresearch graph command', () => {
     await expect(
       runCli(['graph', '--kind', 'claims', '--claims', 'claims.jsonl', '--edges', 'edges.jsonl', '--legend', 'bogus'], io),
     ).rejects.toThrow(/--legend/);
+  });
+
+  it('roadmap: encodes planning status, critical path, and the goal shape', async () => {
+    const dir = makeTempDir();
+    fs.writeFileSync(path.join(dir, 'roadmap.json'), ROADMAP_SPEC, 'utf8');
+    const { io } = makeIo(dir);
+
+    const code = await runCli(['graph', '--kind', 'roadmap', '--spec', 'roadmap.json', '--out-dir', 'r'], io);
+
+    expect(code).toBe(0);
+    const dot = fs.readFileSync(path.join(dir, 'r', 'roadmap.dot'), 'utf8');
+    expect(dot).toContain('#e8f5e9'); // done fill
+    expect(dot).toContain('#ede7f6'); // candidate fill
+    expect(dot).toContain('#b71c1c'); // critical path color (nodes + edges)
+    expect(dot).toContain('doubleoctagon'); // goal node shape
+    expect(dot).toContain('penwidth=2.4'); // critical node pen
+    expect(dot).toContain('style=dashed'); // feeds_into edges
+  });
+
+  it('roadmap --json reports node/edge counts', async () => {
+    const dir = makeTempDir();
+    fs.writeFileSync(path.join(dir, 'roadmap.json'), ROADMAP_SPEC, 'utf8');
+    const { io, stdout } = makeIo(dir);
+    const code = await runCli(['graph', '--kind', 'roadmap', '--spec', 'roadmap.json', '--json'], io);
+    expect(code).toBe(0);
+    const payload = JSON.parse(stdout.join(''));
+    expect(payload.kind).toBe('roadmap');
+    expect(payload.node_count).toBe(5);
+    expect(payload.edge_count).toBe(4);
+  });
+
+  it('roadmap: an edge to an undeclared node fails fast (-> exit 2 in production)', async () => {
+    const dir = makeTempDir();
+    fs.writeFileSync(
+      path.join(dir, 'bad.json'),
+      JSON.stringify({ nodes: [{ id: 'A', status: 'todo' }], edges: [{ from: 'A', to: 'GHOST' }] }),
+      'utf8',
+    );
+    const { io } = makeIo(dir);
+    // The adapter throws (validation); runCli propagates it and the CLI entrypoint
+    // maps any throw to exit code 2 (verified separately via the built CLI).
+    await expect(
+      runCli(['graph', '--kind', 'roadmap', '--spec', 'bad.json', '--out-dir', 'x'], io),
+    ).rejects.toThrow(/undeclared node id 'GHOST'/);
   });
 
   it('rejects a missing required input flag', async () => {

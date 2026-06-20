@@ -58,7 +58,7 @@ export type ParsedCliArgs =
   | {
     command: 'graph';
     projectRoot: string | null;
-    kind: 'claims' | 'progress' | 'literature';
+    kind: 'claims' | 'progress' | 'literature' | 'roadmap';
     inputs: Record<string, string>;
     outDir: string | null;
     format: 'dot' | 'png' | 'svg';
@@ -503,14 +503,14 @@ function parseWorkflowPlanArgs(args: string[]): Omit<Extract<ParsedCliArgs, { co
   return { recipeId, phase, inputs, preferredProviders, allowedProviders, availableTools };
 }
 
-const GRAPH_KINDS = new Set(['claims', 'progress', 'literature']);
+const GRAPH_KINDS = new Set(['claims', 'progress', 'literature', 'roadmap']);
 const GRAPH_FORMATS = new Set(['dot', 'png', 'svg']);
 const GRAPH_RANK_DIRS = new Set(['LR', 'TB']);
 const GRAPH_LEGENDS = new Set(['auto', 'embedded', 'none']);
-const GRAPH_INPUT_FLAGS = new Set(['--claims', '--edges', '--plan', '--input']);
+const GRAPH_INPUT_FLAGS = new Set(['--claims', '--edges', '--plan', '--input', '--spec']);
 
 function parseGraphArgs(args: string[]): Omit<Extract<ParsedCliArgs, { command: 'graph' }>, 'command' | 'projectRoot'> {
-  let kind: 'claims' | 'progress' | 'literature' | null = null;
+  let kind: 'claims' | 'progress' | 'literature' | 'roadmap' | null = null;
   const inputs: Record<string, string> = {};
   let outDir: string | null = null;
   let format: 'dot' | 'png' | 'svg' = 'dot';
@@ -524,9 +524,9 @@ function parseGraphArgs(args: string[]): Omit<Extract<ParsedCliArgs, { command: 
     if (arg === '--kind') {
       const raw = readOptionValue(args, index, '--kind');
       if (!GRAPH_KINDS.has(raw)) {
-        throw new Error(`graph requires --kind <claims|progress|literature>; got: ${raw}`);
+        throw new Error(`graph requires --kind <claims|progress|literature|roadmap>; got: ${raw}`);
       }
-      kind = raw as 'claims' | 'progress' | 'literature';
+      kind = raw as 'claims' | 'progress' | 'literature' | 'roadmap';
       index += 1;
       continue;
     }
@@ -579,7 +579,7 @@ function parseGraphArgs(args: string[]): Omit<Extract<ParsedCliArgs, { command: 
   }
 
   if (!kind) {
-    throw new Error('graph requires --kind <claims|progress|literature>');
+    throw new Error('graph requires --kind <claims|progress|literature|roadmap>');
   }
   return { kind, inputs, outDir, format, rankDir, legend, noColor, json };
 }

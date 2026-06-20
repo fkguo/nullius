@@ -62,7 +62,7 @@
         },
         {
           "command": "graph",
-          "usage": "autoresearch graph --kind <claims|progress|literature> [--claims <path> --edges <path> | --plan <path> | --input <path>] [--out-dir <dir>] [--format dot|png|svg] [--rank-dir LR|TB] [--legend auto|embedded|none] [--no-color] [--json]"
+          "usage": "autoresearch graph --kind <claims|progress|literature|roadmap> [--claims <path> --edges <path> | --plan <path> | --input <path> | --spec <path>] [--out-dir <dir>] [--format dot|png|svg] [--rank-dir LR|TB] [--legend auto|embedded|none] [--no-color] [--json]"
         }
       ]
     },

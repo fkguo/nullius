@@ -173,6 +173,7 @@ After a milestone or run produces a stable result:
 - Update `research_plan.md#Current Status` with the current state, next step, blockers, and evidence pointers.
 - Link or copy the relevant run evidence under `artifacts/runs/<run_id>/`.
 - Preserve unresolved questions as explicit blockers rather than burying them in chat or transient team logs.
+- At a milestone handoff or stakeholder plan-summary, produce a **roadmap dependency-map** (summary table + milestone/lane dependency graph + binding-constraint + critical path) via `research-team` (`assets/roadmap_dependency_map_template.md`, rendered with `autoresearch graph --kind roadmap`). It is a planning view — distinct from the Claim DAG and from `research_plan.md#Current Status`, and it makes "what gates what / what caps feasibility / shortest route to the goal" legible to whoever picks up the work next.
 
 ## Closeout
 

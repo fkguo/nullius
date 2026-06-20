@@ -228,6 +228,7 @@ Kinds and their required inputs:
   --kind claims      Claim DAG (what we believe): requires --claims <claims.jsonl> --edges <edges.jsonl>
   --kind progress    Plan / progress dependency graph (milestones + tasks): requires --plan <research_plan.md|progress.json>
   --kind literature  Citation / reference network: requires --input <records+edges JSON>
+  --kind roadmap     Milestone/lane roadmap dependency-map (planning view): requires --spec <roadmap JSON>
 
 Options:
   --out-dir <dir>          Output directory (default: current directory). Writes <kind>.dot (+ .png/.svg).

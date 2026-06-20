@@ -52,6 +52,10 @@ Goal: make the derivation chain, algorithm-design chain, evidence trail, and wri
 - Optional draft-cycle entry (agent or manual; materializes the optional draft pointer after it runs): `bash "${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode"; do [ -d "$r/skills/research-team" ] && echo "$r/skills/research-team" && break; done || true)}/scripts/bin/run_draft_cycle.sh" --tag 20260502T023000Z-d0-draft-r1 --tex main.tex --bib refs.bib --out-dir team`
 - Export bundle: `bash scripts/export_paper_bundle.sh --tag <run_id> --out export`
 
+### Planning / roadmap chain (optional)
+
+- At a plan-summary or milestone-handoff moment, produce a one-page **roadmap dependency-map** (summary table + milestone/lane dependency graph + binding-constraint + critical path) from the research-team template `assets/roadmap_dependency_map_template.md`; render the graph with `autoresearch graph --kind roadmap --spec <roadmap.json>`. This is a planning view — complementary to, and distinct from, the Claim DAG under `knowledge_graph/`.
+
 ---
 
 <!-- PROJECT_INDEX_AUTO_START -->

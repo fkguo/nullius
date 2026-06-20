@@ -14,4 +14,5 @@ export { parseProgressMd } from './parse-progress.js';
 export { claimDagAdapter } from './adapters/claim-dag.js';
 export { progressAdapter } from './adapters/progress.js';
 export { literatureAdapter } from './adapters/literature.js';
+export { roadmapAdapter } from './adapters/roadmap.js';
 export { memoryGraphAdapter } from '../memory-graph/viz-adapter.js';

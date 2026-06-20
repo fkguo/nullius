@@ -199,6 +199,7 @@ In projects scaffolded by `research-team`, use the navigation front door instead
   - Optional deterministic autofill (if enabled by config): `python3 "${SKILL_DIR}/scripts/bin/auto_fill_research_plan.py" --root . --deterministic`.
 - Rerun:
   - Preflight-only command.
+- Plan-summary / milestone-handoff tip: when communicating the plan to a stakeholder, closing out a milestone, or handing off, produce a **roadmap dependency-map** (summary table + milestone/lane dependency graph + binding-constraint + critical path) from [roadmap_dependency_map_template.md](assets/roadmap_dependency_map_template.md); render the graph with `autoresearch graph --kind roadmap --spec <roadmap.json>`. This is a planning view, distinct from the Claim DAG (`knowledge_graph/`).
 
 ### Project charter gate (goal drift prevention)
 

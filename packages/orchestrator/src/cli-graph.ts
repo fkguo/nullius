@@ -7,6 +7,7 @@ import {
   claimDagAdapter,
   progressAdapter,
   literatureAdapter,
+  roadmapAdapter,
   type Adapter,
   type RenderOptions,
 } from '@autoresearch/shared/graph-viz';
@@ -32,6 +33,7 @@ const ADAPTERS: Record<GraphKind, Adapter> = {
   claims: claimDagAdapter,
   progress: progressAdapter,
   literature: literatureAdapter,
+  roadmap: roadmapAdapter,
 };
 
 /** Required `--<flag>` input(s) per kind (validated before the adapter runs so
@@ -40,6 +42,7 @@ const REQUIRED_INPUTS: Record<GraphKind, string[]> = {
   claims: ['claims', 'edges'],
   progress: ['plan'],
   literature: ['input'],
+  roadmap: ['spec'],
 };
 
 export async function runGraphCommand(parsed: GraphArgs, io: CliIo): Promise<number> {

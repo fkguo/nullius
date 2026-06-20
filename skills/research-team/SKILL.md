@@ -156,6 +156,7 @@ a run lives at the run_dir top level (`cycle_state.json`, `<tag>_member_*.md`,
 - **Project kickstart prompt**: `scripts/bin/generate_project_start_prompt.py`.
 - **Deterministic hygiene tools** (as needed): `scripts/bin/fix_markdown_*`, `scripts/bin/fix_bibtex_revtex4_2.py`, `scripts/bin/upgrade_reference_anchors.py`; use the standalone `markdown-hygiene` skill for manual Markdown math/TOC cleanup outside a team-cycle preflight.
 - **Claim DAG & evidence** (optional): render via `autoresearch graph --kind claims` (the domain-neutral `@autoresearch/shared/graph-viz` front door; auto-rendered best-effort to `knowledge_graph/` at convergence when an `autoresearch` CLI is reachable) + gates under `scripts/gates/`.
+- **Roadmap dependency-map (plan-summary / milestone-handoff)**: `assets/roadmap_dependency_map_template.md` + `autoresearch graph --kind roadmap` (a *planning* view of milestones/lanes; complements — does not replace — the Claim DAG, see below).
 - **Exploration stage debt helper**: `scripts/bin/exploration_debt_dashboard.py`.
 - **Scaffold pruning (move/archive optional files)**: `scripts/bin/prune_optional_scaffold.py`.
 - **Environment snapshot**: `scripts/bin/capture_env_snapshot.sh`.
@@ -169,6 +170,28 @@ a run lives at the run_dir top level (`cycle_state.json`, `<tag>_member_*.md`,
   - Adjudication: `scripts/bin/build_adjudication_response.py`
   - Member review (debug): `scripts/bin/run_member_review.py`
   - Internal helpers: `scripts/bin/team_cycle_*.py` (used by `run_team_cycle.sh`; usually not called directly)
+
+## Plan-summary / milestone-handoff: roadmap dependency-map
+
+At a **plan-summary or milestone-handoff moment** (communicating a multi-phase
+plan to a stakeholder, closing out a milestone, or handing off), produce a
+**roadmap dependency-map** from `assets/roadmap_dependency_map_template.md`. It is
+a one-page planning view with five parts: (1) a roadmap summary table (per
+milestone/lane: status · effort estimate with uncertainty · resource/compute
+cost · upstream deps · unlocks); (2) a milestone/lane dependency graph where node
+fill encodes status and edge type encodes dependency kind (solid = hard "unlocks";
+dashed = soft "feeds into"), with the critical path marked; (3) a binding-constraint
+callout (the single hardest resource/feasibility limit, with its scaling); (4) a
+critical-path recommendation (minimal ordered chain + what is parallelizable +
+"later upgrade ≠ prerequisite"); (5) honest estimate discipline (numbers are
+estimates with stated uncertainty, distinct from measurements).
+
+Render the graph through the `autoresearch graph --kind roadmap --spec <roadmap.json>`
+front door (consumes the `@autoresearch/shared/graph-viz` engine: always writes DOT;
+optional PNG/SVG only if Graphviz is installed). This is a **planning** view and is
+intentionally **distinct from the Claim DAG** (`knowledge_graph/`, which encodes
+*what we believe* — claims + evidence): it reuses the Claim DAG's rendering
+conventions but shares no input files and must not be conflated with it.
 
 ## Deep dive (read only when needed)
 
