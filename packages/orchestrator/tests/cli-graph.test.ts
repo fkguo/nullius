@@ -145,6 +145,37 @@ describe('autoresearch graph command', () => {
     expect(svgExists || stdout.join('').includes('not produced')).toBe(true);
   });
 
+  it('legend embedded vs none controls the embedded legend cluster', async () => {
+    const dir = makeTempDir();
+    fs.writeFileSync(path.join(dir, 'claims.jsonl'), CLAIMS_JSONL, 'utf8');
+    fs.writeFileSync(path.join(dir, 'edges.jsonl'), EDGES_JSONL, 'utf8');
+    const { io } = makeIo(dir);
+
+    const embedded = await runCli(
+      ['graph', '--kind', 'claims', '--claims', 'claims.jsonl', '--edges', 'edges.jsonl', '--out-dir', 'e', '--legend', 'embedded'],
+      io,
+    );
+    const none = await runCli(
+      ['graph', '--kind', 'claims', '--claims', 'claims.jsonl', '--edges', 'edges.jsonl', '--out-dir', 'n', '--legend', 'none'],
+      io,
+    );
+
+    expect(embedded).toBe(0);
+    expect(none).toBe(0);
+    expect(fs.readFileSync(path.join(dir, 'e', 'claims.dot'), 'utf8')).toContain('cluster_legend');
+    expect(fs.readFileSync(path.join(dir, 'n', 'claims.dot'), 'utf8')).not.toContain('cluster_legend');
+  });
+
+  it('rejects an invalid --legend value', async () => {
+    const dir = makeTempDir();
+    fs.writeFileSync(path.join(dir, 'claims.jsonl'), CLAIMS_JSONL, 'utf8');
+    fs.writeFileSync(path.join(dir, 'edges.jsonl'), EDGES_JSONL, 'utf8');
+    const { io } = makeIo(dir);
+    await expect(
+      runCli(['graph', '--kind', 'claims', '--claims', 'claims.jsonl', '--edges', 'edges.jsonl', '--legend', 'bogus'], io),
+    ).rejects.toThrow(/--legend/);
+  });
+
   it('rejects a missing required input flag', async () => {
     const dir = makeTempDir();
     const { io } = makeIo(dir);

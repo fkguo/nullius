@@ -25,10 +25,16 @@ Project: <PROJECT_NAME>
 
 ## 可视化（可选）
 
-- 收敛后会生成 `knowledge_graph/claim_graph.dot`。
-- 若安装 Graphviz，还会生成 `claim_graph.png` 或 `claim_graph.svg`。
-- 开关：`claim_graph_render.enabled`；格式：`claim_graph_render.format = png/svg/both/dot`。
-- 可读性：`claim_graph_render.max_label` 控制节点文本截断（`0` 代表不截断）；`claim_graph_render.wrap_width` 控制自动换行。
+- 通过 `autoresearch graph` front door 渲染 Claim DAG（它消费 domain-neutral 的 `@autoresearch/shared/graph-viz` 引擎）：
+
+  ```bash
+  autoresearch graph --kind claims \
+    --claims knowledge_graph/claims.jsonl --edges knowledge_graph/edges.jsonl \
+    --out-dir knowledge_graph [--format png|svg] [--legend embedded]
+  ```
+
+- 始终写出可移植的 `knowledge_graph/claims.dot`；仅当安装了 Graphviz `dot` 时才另外生成 `claims.png` / `claims.svg`。
+- 在收敛的 team cycle 上，只要能找到 `autoresearch` CLI（项目本地 `.autoresearch/bin/autoresearch` 或 `PATH` 上），该渲染会作为 best-effort 步骤自动执行。
 - 约定：`edges.jsonl` 里的 `type:"requires"` / `type:"supersedes"` 语义分别是“source 依赖 target（target 是前置条件）” / “source supersedes target（source 替换 target）”。为更符合 workflow-forward 的阅读方向，渲染时会把这两类边显示为 `target -> source`，并分别标注为 `enables` / `superseded by`。其它边类型按原方向渲染。
 
 ## 建模建议（让图真正表达“问题节点→解决路径”）

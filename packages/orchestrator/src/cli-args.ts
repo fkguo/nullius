@@ -63,6 +63,7 @@ export type ParsedCliArgs =
     outDir: string | null;
     format: 'dot' | 'png' | 'svg';
     rankDir: 'LR' | 'TB';
+    legend: 'auto' | 'embedded' | 'none';
     noColor: boolean;
     json: boolean;
   };
@@ -505,6 +506,7 @@ function parseWorkflowPlanArgs(args: string[]): Omit<Extract<ParsedCliArgs, { co
 const GRAPH_KINDS = new Set(['claims', 'progress', 'literature']);
 const GRAPH_FORMATS = new Set(['dot', 'png', 'svg']);
 const GRAPH_RANK_DIRS = new Set(['LR', 'TB']);
+const GRAPH_LEGENDS = new Set(['auto', 'embedded', 'none']);
 const GRAPH_INPUT_FLAGS = new Set(['--claims', '--edges', '--plan', '--input']);
 
 function parseGraphArgs(args: string[]): Omit<Extract<ParsedCliArgs, { command: 'graph' }>, 'command' | 'projectRoot'> {
@@ -513,6 +515,7 @@ function parseGraphArgs(args: string[]): Omit<Extract<ParsedCliArgs, { command: 
   let outDir: string | null = null;
   let format: 'dot' | 'png' | 'svg' = 'dot';
   let rankDir: 'LR' | 'TB' = 'LR';
+  let legend: 'auto' | 'embedded' | 'none' = 'auto';
   let noColor = false;
   let json = false;
 
@@ -550,6 +553,15 @@ function parseGraphArgs(args: string[]): Omit<Extract<ParsedCliArgs, { command: 
       index += 1;
       continue;
     }
+    if (arg === '--legend') {
+      const raw = readOptionValue(args, index, '--legend');
+      if (!GRAPH_LEGENDS.has(raw)) {
+        throw new Error(`graph requires --legend <auto|embedded|none>; got: ${raw}`);
+      }
+      legend = raw as 'auto' | 'embedded' | 'none';
+      index += 1;
+      continue;
+    }
     if (arg === '--no-color') {
       noColor = true;
       continue;
@@ -569,7 +581,7 @@ function parseGraphArgs(args: string[]): Omit<Extract<ParsedCliArgs, { command: 
   if (!kind) {
     throw new Error('graph requires --kind <claims|progress|literature>');
   }
-  return { kind, inputs, outDir, format, rankDir, noColor, json };
+  return { kind, inputs, outDir, format, rankDir, legend, noColor, json };
 }
 
 export function parseCliArgs(argv: string[]): ParsedCliArgs {

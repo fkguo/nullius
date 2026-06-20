@@ -278,18 +278,6 @@
     "min_evidence": 1,
     "enable_trajectory_gate": false
   },
-  "claim_graph_render": {
-    "_note": "Render Claim DAG after convergence if graphviz is available.",
-    "enabled": true,
-    "format": "png",
-    "_note2": "workflow_forward=true renders requires/supersedes edges prerequisite->dependent; max_label controls label truncation (0 disables); wrap_width wraps node labels; colorize enables status-based node colors and edge styling; legend=auto embeds a legend for small graphs and writes a separate legend file for larger ones.",
-    "workflow_forward": true,
-    "max_label": 80,
-    "wrap_width": 34,
-    "colorize": true,
-    "legend": "auto",
-    "legend_threshold": 30
-  },
   "pointer_lint": {
     "_strategy_options": ["python_import", "file_symbol_grep", "disabled"],
     "_note": "Set strategy to \"\" to use mode default. Otherwise overrides mode.",
