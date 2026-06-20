@@ -5,7 +5,13 @@ set -euo pipefail
 # and exponential backoff.
 #
 # Analogous to run_claude.sh / run_gemini.sh but for the OpenAI Codex CLI.
-# Uses `codex exec` in non-interactive mode with --full-auto and --sandbox.
+# Uses `codex exec` in non-interactive mode. The sandbox is controlled SOLELY by
+# --sandbox (default read-only). The runner intentionally never passes codex's
+# deprecated --full-auto flag: in codex >=0.140 `--full-auto` silently implies
+# `--sandbox workspace-write`, which would OVERRIDE the read-only default and
+# hand a review / text-generation run write access. Non-interactivity is pinned
+# via `-c approval_policy="never"` instead (codex exec has no approval prompts to
+# skip). Request write access explicitly with `--sandbox workspace-write`.
 
 MODEL=""
 SYSTEM_PROMPT_FILE=""
@@ -13,7 +19,6 @@ PROMPT_FILE=""
 OUT=""
 SANDBOX="read-only"
 PROFILE=""
-FULL_AUTO=1
 SKIP_GIT_CHECK=1
 MAX_RETRIES=6
 SLEEP_SECS=10
@@ -37,14 +42,18 @@ Optional:
   --sandbox MODE              read-only | workspace-write | danger-full-access (default: read-only)
   --profile PROFILE           Config profile from config.toml
   --config KEY=VALUE          Repeatable config overrides (-c)
-  --full-auto                 Skip approval prompts (default: enabled)
-  --no-full-auto              Require approval prompts
   --skip-git-repo-check       Run outside git repos (default: enabled)
   --no-skip-git-repo-check    Require git repo
   --max-retries N             Default: 6
   --sleep-secs SECONDS        Base sleep; exponential backoff (default: 10)
   --dry-run                   Print planned command; exit 0 (no Codex call)
   -h, --help                  Show this help
+
+Sandbox safety:
+  Defaults to --sandbox read-only (no file writes), the safe policy for review
+  and text-generation. Pass --sandbox workspace-write to allow writes in the
+  working directory. The runner never sends codex's deprecated --full-auto flag,
+  so the selected sandbox is never silently upgraded to workspace-write.
 EOF
 }
 
@@ -57,8 +66,6 @@ while [[ $# -gt 0 ]]; do
     --sandbox) SANDBOX="$2"; shift 2;;
     --profile) PROFILE="$2"; shift 2;;
     --config) EXTRA_CONFIGS+=("$2"); shift 2;;
-    --full-auto) FULL_AUTO=1; shift 1;;
-    --no-full-auto) FULL_AUTO=0; shift 1;;
     --skip-git-repo-check) SKIP_GIT_CHECK=1; shift 1;;
     --no-skip-git-repo-check) SKIP_GIT_CHECK=0; shift 1;;
     --max-retries) MAX_RETRIES="$2"; shift 2;;
@@ -84,6 +91,13 @@ if [[ -n "${SYSTEM_PROMPT_FILE}" && ! -f "${SYSTEM_PROMPT_FILE}" ]]; then
   echo "System prompt file not found: ${SYSTEM_PROMPT_FILE}" >&2
   exit 2
 fi
+case "${SANDBOX}" in
+  read-only|workspace-write|danger-full-access) ;;
+  *)
+    echo "Invalid --sandbox: ${SANDBOX} (allowed: read-only, workspace-write, danger-full-access)" >&2
+    exit 2
+    ;;
+esac
 
 # --- Helpers ---
 
@@ -146,51 +160,57 @@ build_merged_prompt() {
   echo "${tmp_merged}"
 }
 
-# --- Build command args ---
-
+# --- Build codex exec args (single source of truth for dry-run AND execution) ---
+#
+# Populates the global CMD_ARGS array. Sandbox is whatever --sandbox selected
+# (default read-only); the --sandbox flag is authoritative in codex (it wins over
+# a -c sandbox_mode override), so the runner's sandbox is unambiguous.
+# approval_policy is pinned to "never" so the run stays unattended regardless of
+# config.toml, WITHOUT upgrading the sandbox; a user --config approval_policy=...
+# is appended afterward so it can still override.
+# No --full-auto is ever emitted (it would force workspace-write).
+CMD_ARGS=()
 build_cmd_args() {
-  local args=()
+  CMD_ARGS=()
 
   if [[ -n "${MODEL}" ]]; then
-    args+=(-m "${MODEL}")
+    CMD_ARGS+=(-m "${MODEL}")
   fi
 
-  args+=(--sandbox "${SANDBOX}")
-
-  if [[ "${FULL_AUTO}" -eq 1 ]]; then
-    args+=(--full-auto)
-  fi
+  CMD_ARGS+=(--sandbox "${SANDBOX}")
 
   if [[ "${SKIP_GIT_CHECK}" -eq 1 ]]; then
-    args+=(--skip-git-repo-check)
+    CMD_ARGS+=(--skip-git-repo-check)
   fi
 
   if [[ -n "${PROFILE}" ]]; then
-    args+=(-p "${PROFILE}")
+    CMD_ARGS+=(-p "${PROFILE}")
   fi
 
+  CMD_ARGS+=(-c 'approval_policy="never"')
+
   for cfg in "${EXTRA_CONFIGS[@]+"${EXTRA_CONFIGS[@]}"}"; do
-    args+=(-c "${cfg}")
+    CMD_ARGS+=(-c "${cfg}")
   done
 
-  args+=(-o "${OUT}")
+  CMD_ARGS+=(-o "${OUT}")
 
   # Read prompt from stdin
-  args+=(-)
-
-  printf '%s\n' "${args[@]}"
+  CMD_ARGS+=(-)
 }
 
 # --- Dry run ---
 
 if [[ "${DRY_RUN}" -eq 1 ]]; then
+  build_cmd_args
+
   prompt_size="$(file_size_bytes "${PROMPT_FILE}")"
   prompt_sha="$(file_sha256 "${PROMPT_FILE}")"
 
   echo "DRY RUN (no Codex call)"
   echo "Model: ${MODEL:-"(from config.toml)"}"
   echo "Sandbox: ${SANDBOX}"
-  echo "Full-auto: ${FULL_AUTO}"
+  echo "Approval policy: never (pinned)"
   echo "Skip git check: ${SKIP_GIT_CHECK}"
 
   if [[ -n "${SYSTEM_PROMPT_FILE}" ]]; then
@@ -213,16 +233,18 @@ if [[ "${DRY_RUN}" -eq 1 ]]; then
     done
   fi
 
+  # Print the planned invocation as the exact TOKEN sequence from CMD_ARGS (the
+  # same array execution passes to codex), so --dry-run reflects the real sandbox
+  # and flags. This is a readable token list, not a shell-quoted copy-paste line:
+  # a -c value containing spaces/quotes prints unquoted — the token sequence,
+  # not re-shelling fidelity, is what the safety check relies on.
   echo ""
   echo "Invocation:"
   echo -n "  codex exec"
-  [[ -n "${MODEL}" ]] && echo -n " -m ${MODEL}"
-  echo -n " --sandbox ${SANDBOX}"
-  [[ "${FULL_AUTO}" -eq 1 ]] && echo -n " --full-auto"
-  [[ "${SKIP_GIT_CHECK}" -eq 1 ]] && echo -n " --skip-git-repo-check"
-  [[ -n "${PROFILE}" ]] && echo -n " -p ${PROFILE}"
-  echo -n " -o ${OUT}"
-  echo " - < <merged_prompt>"
+  for arg in "${CMD_ARGS[@]}"; do
+    echo -n " ${arg}"
+  done
+  echo " < <merged_prompt>"
   exit 0
 fi
 
@@ -240,29 +262,9 @@ trap 'rm -f "${MERGED_PROMPT}"' EXIT
 
 # --- Execute with retries ---
 
-# Collect args into array
-CMD_ARGS=()
-if [[ -n "${MODEL}" ]]; then
-  CMD_ARGS+=(-m "${MODEL}")
-fi
-CMD_ARGS+=(--sandbox "${SANDBOX}")
-if [[ "${FULL_AUTO}" -eq 1 ]]; then
-  CMD_ARGS+=(--full-auto)
-fi
-if [[ "${SKIP_GIT_CHECK}" -eq 1 ]]; then
-  CMD_ARGS+=(--skip-git-repo-check)
-fi
-if [[ -n "${PROFILE}" ]]; then
-  CMD_ARGS+=(-p "${PROFILE}")
-fi
-for cfg in "${EXTRA_CONFIGS[@]+"${EXTRA_CONFIGS[@]}"}"; do
-  CMD_ARGS+=(-c "${cfg}")
-done
+build_cmd_args
 
 mkdir -p "$(dirname "${OUT}")"
-
-CMD_ARGS+=(-o "${OUT}")
-CMD_ARGS+=(-)
 
 attempt=1
 while true; do

@@ -42,7 +42,8 @@ bash "${SKILL_DIR}/scripts/run_codex.sh" \
 
 ## Notes
 
-- Uses `codex exec` (non-interactive mode) with `--full-auto` (skip approval prompts) and `--sandbox read-only` (safe default for text-generation tasks).
+- Uses `codex exec` (non-interactive mode) with `--sandbox read-only` (the safe default for review / text-generation tasks). Non-interactivity is pinned via `-c approval_policy="never"`.
+- The runner intentionally does **not** pass codex's deprecated `--full-auto` flag: in codex ≥0.140 `--full-auto` implies `--sandbox workspace-write` and would silently override the read-only default, giving a reviewer write access. To allow writes, request the write sandbox explicitly with `--sandbox workspace-write`.
 - System prompt + user prompt are merged and fed via stdin to avoid ARG_MAX limits with large prompt files.
 - `--output-last-message` (`-o`) captures the agent's final response to the output file.
 - `--skip-git-repo-check` is enabled by default so the runner works from any directory.
@@ -60,7 +61,6 @@ bash "${SKILL_DIR}/scripts/run_codex.sh" \
 | `--sandbox MODE` | `read-only` | Sandbox policy: `read-only`, `workspace-write`, `danger-full-access` |
 | `--profile PROFILE` | (none) | Config profile from config.toml |
 | `--config KEY=VALUE` | (none) | Repeatable `-c` overrides for config.toml values |
-| `--full-auto` | enabled | Skip approval prompts (disable with `--no-full-auto`) |
 | `--skip-git-repo-check` | enabled | Run outside git repos (disable with `--no-skip-git-repo-check`) |
 | `--max-retries N` | 6 | Maximum retry attempts |
 | `--sleep-secs S` | 10 | Base sleep for exponential backoff |
@@ -79,6 +79,6 @@ bash "${SKILL_DIR}/scripts/run_codex.sh" \
 
 ## Sandbox modes
 
-- `read-only` (default): Agent can read files but not modify them. Best for text generation, analysis, review.
+- `read-only` (default): Agent can read files but not modify them. Best for text generation, analysis, review. This default is enforced — the runner never sends `--full-auto`, so it is not silently upgraded to `workspace-write`.
 - `workspace-write`: Agent can modify files in the working directory. Use for code generation tasks.
 - `danger-full-access`: No restrictions. Use only in externally sandboxed environments.
