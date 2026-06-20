@@ -54,10 +54,10 @@ Status vocabulary: `done` · `in_progress` · `todo` · `deferred` · `candidate
 **SOLID = hard dependency ("unlocks")**; **DASHED = soft "feeds into" / optional
 enhancement.** The **critical path** is marked explicitly. Reader's one-line key:
 *node fill = status; solid edge = unlocks (hard); dashed edge = feeds into (soft);
-heavy red outline / heavy edge = critical path; double-octagon = goal.* (The graph
-the renderer emits carries a compact caption — `node fill = status; edge line =
-dependency kind` — and surfaces goal / critical-path / edge-kind as labelled legend
-swatches.)
+heavy red outline / heavy edge = critical path; double-octagon = goal.* (The rendered
+graph carries a compact `Legend` cluster keyed by node status + edge kind; the goal
+node (double-octagon) and the critical path (heavy red border / edge) read directly
+off the graph itself rather than as separate legend swatches.)
 
 ### Zero-tool view (edge list — readable with no renderer)
 
@@ -115,10 +115,10 @@ Convention excerpt (what the renderer emits — node fill by status, solid vs
 dashed edges, critical highlight):
 
 ```dot
-"M_A" [label="M_A\nMilestone A", style="rounded,filled", peripheries="2", penwidth="2.4", fillcolor="#e8f5e9", color="#b71c1c"];  // done + critical
-"L_X" [label="L_X\nLane X",      style="rounded,filled,dashed",          fillcolor="#ede7f6", color="#5e35b1"];                    // candidate
-"M_A" -> "M_B" [label="unlocks",    style="solid",  penwidth=2.2, color="#b71c1c"];   // hard dep, on critical path
-"L_X" -> "M_B" [label="feeds into", style="dashed", color="#8e8e8e"];                 // soft / optional
+"M_A" [label="M_A\nMilestone A", shape=box, style=filled, fillcolor="#e8f5e9", color="#b71c1c", penwidth=2.4, peripheries=2];  // done + critical
+"L_X" [label="L_X\nLane X", shape=box, style="dashed,filled", fillcolor="#ede7f6", color="#5e35b1"];                          // candidate
+"M_A" -> "M_B" [label="unlocks", penwidth=2.2, color="#b71c1c"];   // hard dep, on critical path (solid)
+"L_X" -> "M_B" [label="feeds into", style=dashed, color="#8e8e8e"];   // soft / optional
 ```
 
 ---

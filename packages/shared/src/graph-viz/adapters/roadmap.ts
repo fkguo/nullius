@@ -28,7 +28,7 @@ const STATUS_ALIASES: Record<string, string> = {
 
 const EDGE_ALIASES: Record<string, string> = {
   unlock: 'unlocks', requires: 'unlocks', depends_on: 'unlocks', hard: 'unlocks', blocks: 'unlocks', enables: 'unlocks',
-  'feeds-into': 'feeds_into', feeds: 'feeds_into', soft: 'feeds_into', informs: 'feeds_into', enhances: 'feeds_into',
+  'feeds-into': 'feeds_into', feeds: 'feeds_into', soft: 'feeds_into', informs: 'feeds_into', optional: 'feeds_into', enhances: 'feeds_into',
 };
 
 function normalizeStatus(raw: string): string {

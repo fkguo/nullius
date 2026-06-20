@@ -211,6 +211,24 @@ describe('autoresearch graph command', () => {
     expect(dot).toContain('style=dashed'); // feeds_into edges
   });
 
+  it('roadmap: the `optional` edge kind aliases to a dashed "feeds into" edge', async () => {
+    const dir = makeTempDir();
+    fs.writeFileSync(
+      path.join(dir, 'opt.json'),
+      JSON.stringify({
+        nodes: [{ id: 'A', status: 'done' }, { id: 'B', status: 'todo' }],
+        edges: [{ from: 'A', to: 'B', kind: 'optional' }],
+      }),
+      'utf8',
+    );
+    const { io } = makeIo(dir);
+    const code = await runCli(['graph', '--kind', 'roadmap', '--spec', 'opt.json', '--out-dir', 'o'], io);
+    expect(code).toBe(0);
+    const dot = fs.readFileSync(path.join(dir, 'o', 'roadmap.dot'), 'utf8');
+    expect(dot).toContain('label="feeds into"');
+    expect(dot).toContain('style=dashed');
+  });
+
   it('roadmap --json reports node/edge counts', async () => {
     const dir = makeTempDir();
     fs.writeFileSync(path.join(dir, 'roadmap.json'), ROADMAP_SPEC, 'utf8');

@@ -218,7 +218,7 @@ Behavior:
 Output:
   JSON workflow plan is still written to stdout.
 `,
-  graph: `autoresearch graph --kind <claims|progress|literature> [options]
+  graph: `autoresearch graph --kind <claims|progress|literature|roadmap> [options]
 
 Render a domain-neutral dependency graph from research artifacts via the shared
 graph-viz engine. Output is Graphviz DOT (the portable source of truth) plus an
