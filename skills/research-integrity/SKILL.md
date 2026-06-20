@@ -33,8 +33,9 @@ Run M1–M7 immediately before any of:
   pass.
 
 You may run a smaller subset earlier (for example M2/M4 during a
-literature pull) and a fuller pass at the boundary. The boundary pass
-is non-optional.
+literature pull, or the **Extraction / transcription fidelity** check
+when you transcribe a source into a deep-read / extraction note) and a
+fuller pass at the boundary. The boundary pass is non-optional.
 
 ## What this skill is NOT
 
@@ -437,6 +438,65 @@ it, by re-reading `research_contract.md` and
 `research_plan.md#Current Status` with fresh eyes after the M1–M6
 material checks have been completed.
 
+## Extraction / transcription fidelity (gate it; not a gate-exempt "reading task")
+
+A **source-extraction / transcription note** — a deep-read / knowledge-base note
+that transcribes equations, numeric values, source locators (line / section /
+equation / table / figure / page pointers), and term-by-term mappings onto a
+consuming artifact (code or data) from a primary source — is a **gateable
+artifact**, not a gate-exempt "reading task." Its primary observable is **fidelity
+to the source**: every quoted equation, value, locator, and claimed mapping must
+match the primary source. Relying on such a note for a central claim, or folding it
+into a durable artifact, without gating its fidelity is the failure this guards.
+
+This is **not** a new receipt mode. It is a **cross-cutting fidelity check that
+augments M2 and M3**; record it under the modes it touches — typically **M2**
+(equation / locator / mapping / inference fidelity) and **M3** (numeric value +
+factor fidelity) — so the machine receipt modes stay within `M1`–`M7`, with no new
+mode introduced.
+
+**The transcription / extraction failure checklist.** Walk every item against the
+source, not against the note:
+
+- **(a) equation misquote** — a sign, coefficient, index, operator, or argument has
+  drifted from the source equation.
+- **(b) wrong numeric value** — a transposed digit, the wrong table row / column, or
+  the wrong reported uncertainty.
+- **(c) wrong / stale locator** — a pointer (line / section / equation / page) that
+  does not point to the claimed content.
+- **(d) stale / wrong mapping to the consuming artifact** — the note cites a symbol,
+  function, file, or type in the consuming code / data that is wrong or no longer
+  exists.
+- **(e) false "verbatim"** — a quote labeled verbatim when whitespace, markup, or
+  notation was silently normalized.
+- **(f) inference-as-source** — a cross-source or derived inference presented as a
+  direct statement of the cited source.
+- **(g) silent factor drop** — notation using a reduced / normalized / unit argument
+  where the full object is meant, dropping a magnitude or degree factor.
+
+**Minimum disconfirming check.** Run a **line-by-line comparison of the note against
+the primary source with "do not trust the note"** — a falsification gate, not a
+confirmation read. When the note will carry a central claim or be folded into a
+durable artifact, this check is **independent** (a fresh reader / subagent, not the
+note's author re-reading their own work), and at least one reviewer **must** be
+**cross-model-family** doing a literal (not loose-semantic) comparison — transcription
+fidelity is exactly where a same-family looser read misses sign / factor / locator
+drift. Run it through the gate harness (`review-swarm`'s source-fidelity reviewer),
+**re-reviewing after every fix** because a correction can introduce a fresh defect
+(e.g. a rewritten line that drops a magnitude factor), and declare convergence only
+when the independent reviewers agree — never self-pronounced after applying a fix.
+(`derivation-verify` re-derives whether a re-derivable result is mathematically
+correct — a *separate* axis that does not check fidelity to the source; use it in
+addition to, never instead of, the literal comparison.)
+
+**Tools that help.** `claim-grounding` is the active execution of this check for the
+quote / value / locator items — it fetches the cited source and records a span-backed
+verdict, downgrading any "substantiated" verdict that carries no verbatim source span.
+`deep-literature-review` is the producer discipline that fills the note from the
+source and runs this gate before handoff; persist the fetched primary source to a
+stable, auditable location so the reviewer reads exactly the bytes that were
+transcribed. `review-swarm` is the cross-family literal-comparison harness.
+
 ## Pre-approval ritual
 
 Walk the modes most relevant to the gate before invoking
@@ -484,9 +544,12 @@ file.
   way to *do* it: for each cited claim it fetches the source and records a
   span-backed verdict in a `claim_grounding_report_v1` artifact, and a
   `substantiated` verdict that carries no verbatim source quote is
-  mechanically downgraded. It stays a generic skill plus a
-  `@autoresearch/shared` contract — not a `hep-mcp` tool — consistent with
-  the criterion below.
+  mechanically downgraded. It also carries the transcription-fidelity
+  dimension (does the note's quote / value / locator match the fetched
+  source span, not merely "is the claim true") used by the
+  Extraction / transcription fidelity check above. It stays a generic skill
+  plus a `@autoresearch/shared` contract — not a `hep-mcp` tool — consistent
+  with the criterion below.
 
 ## HEP-specific augmentation (future, out of scope here)
 
