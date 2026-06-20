@@ -209,6 +209,6 @@ capabilities VARY — gate on what your host actually exposes. Route by **model 
 
 ## Provenance
 
-Extracted from the LatticeEFT.jl N²LO chiral-force verification (run `wf_c3e78019-8e9`: 11 atomic
-claims, 11/11 converged; the blind round caught a real `W~_S` +2/3 vs -1/3 split, resolved to +2/3).
+Extracted from a real cross-family derivation-verification run in a projected/variational method:
+N atomic claims, all converged; the blind round caught a genuine sign/coefficient split, resolved.
 The args-as-string parsing was fixed after a smoke-test found it silently dropped claims.
