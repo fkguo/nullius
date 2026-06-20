@@ -125,6 +125,26 @@ describe('autoresearch graph command', () => {
     expect(statuses).toEqual(['seminal', 'standard']);
   });
 
+  it('format svg: always writes DOT and exits 0 (raster is best-effort)', async () => {
+    const dir = makeTempDir();
+    fs.writeFileSync(path.join(dir, 'claims.jsonl'), CLAIMS_JSONL, 'utf8');
+    fs.writeFileSync(path.join(dir, 'edges.jsonl'), EDGES_JSONL, 'utf8');
+    const { io, stdout } = makeIo(dir);
+
+    const code = await runCli(
+      ['graph', '--kind', 'claims', '--claims', 'claims.jsonl', '--edges', 'edges.jsonl', '--out-dir', 'g', '--format', 'svg'],
+      io,
+    );
+
+    // The command never fails on raster availability; the DOT (portable SSOT) is
+    // always written. The .svg is produced only when Graphviz is present — otherwise
+    // a warning is printed and the exit code stays 0.
+    expect(code).toBe(0);
+    expect(fs.existsSync(path.join(dir, 'g', 'claims.dot'))).toBe(true);
+    const svgExists = fs.existsSync(path.join(dir, 'g', 'claims.svg'));
+    expect(svgExists || stdout.join('').includes('not produced')).toBe(true);
+  });
+
   it('rejects a missing required input flag', async () => {
     const dir = makeTempDir();
     const { io } = makeIo(dir);
