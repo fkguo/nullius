@@ -210,6 +210,12 @@ class FilterResult:
     passed_text: str = ""
     blocked_spans: list[BlockedSpan] = field(default_factory=list)
     audit_entries: list[AuditEntry] = field(default_factory=list)
+    # Set to the fail-safe reason (NO_API_KEY / NOT_CONFIGURED / AUTH_ERROR /
+    # LLM_UNAVAILABLE) when the membrane could NOT classify and therefore blocked
+    # EVERY segment. Distinguishes "the membrane failed -> block-all" (a config/runtime
+    # error the caller should FAIL FAST on, not silently emit an all-redacted result)
+    # from a genuine all-BLOCK classification (fallback_reason is None).
+    fallback_reason: str | None = None
 
     @property
     def blocked_count(self) -> int:
@@ -596,9 +602,45 @@ def _classify_segments(
 # Fallback: block everything
 # ---------------------------------------------------------------------------
 
+def fail_safe_block_reason(result: FilterResult) -> str | None:
+    """If the membrane could NOT classify (unconfigured / missing key / auth error /
+    LLM unreachable) it blocks EVERY segment as a fail-safe. Return that reason so a
+    caller can FAIL FAST with a clear, actionable error instead of silently emitting an
+    all-redacted (degenerate) clean-room result. Returns None for a genuine classification."""
+    return result.fallback_reason
+
+
+class MembraneUnavailableError(RuntimeError):
+    """The membrane could not classify and blocked everything as a fail-safe. A clean-room
+    step must NOT proceed with a degenerate all-redacted result, so callers raise this to
+    fail fast rather than write the unfiltered output."""
+
+    def __init__(self, reason: str, where: str = "the membrane"):
+        self.reason = reason
+        self.where = where
+        super().__init__(
+            f"{where}: Information Membrane could not classify ({reason}) and blocked ALL "
+            f"content as a fail-safe. A clean-room cycle must not proceed with an all-redacted "
+            f"(unfiltered-equivalent) result. Configure the membrane — MEMBRANE_API_KEY_ENV + "
+            f"MEMBRANE_API_BASE_URL + MEMBRANE_MODEL, any OpenAI-compatible endpoint (a local "
+            f"Ollama / LM Studio / vLLM works) — and re-run."
+        )
+
+
+def require_membrane_ran(*results: FilterResult, where: str = "the membrane") -> None:
+    """Fail fast (raise MembraneUnavailableError) if any result is a fail-safe block-all,
+    i.e. the membrane could not actually classify. A genuine all-BLOCK classification
+    (fallback_reason is None) does NOT trip this. Call before emitting clean-room output."""
+    for r in results:
+        reason = fail_safe_block_reason(r)
+        if reason:
+            raise MembraneUnavailableError(reason, where)
+
+
 def _block_all_fallback(segments: list[str], reason: str = "LLM_UNAVAILABLE") -> FilterResult:
     """Conservative fallback — BLOCK every segment. Used when LLM is unreachable."""
     result = FilterResult()
+    result.fallback_reason = reason
     parts: list[str] = []
 
     for seg_idx, seg in enumerate(segments, 1):

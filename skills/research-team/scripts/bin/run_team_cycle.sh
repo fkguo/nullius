@@ -886,8 +886,19 @@ MEMBRANE_API_BASE_URL="${MEMBRANE_API_BASE_URL:-}"
 MEMBRANE_MODEL="${MEMBRANE_MODEL:-}"
 export MEMBRANE_API_KEY_ENV MEMBRANE_API_BASE_URL MEMBRANE_MODEL
 if [ -z "${MEMBRANE_API_KEY_ENV}" ] || [ -z "${MEMBRANE_API_BASE_URL}" ] || [ -z "${MEMBRANE_MODEL}" ]; then
-  echo "warning: Information Membrane is not configured (set MEMBRANE_API_KEY_ENV / MEMBRANE_API_BASE_URL / MEMBRANE_MODEL to an OpenAI-compatible endpoint; a local model works) — it will block ALL cross-team content (fail-safe) until configured." >&2
+  echo "warning: Information Membrane is not configured (set MEMBRANE_API_KEY_ENV / MEMBRANE_API_BASE_URL / MEMBRANE_MODEL to an OpenAI-compatible endpoint; a local model works) — clean-room phases that need it will ABORT until configured." >&2
 fi
+
+# A membrane helper that exits 3 means the membrane could not classify (unconfigured /
+# auth / unreachable) and blocked everything as a fail-safe. The clean-room cycle must
+# NOT proceed with all-redacted (degenerate) content, so abort loudly rather than warn
+# and continue. Other non-zero exits keep their existing best-effort handling.
+_membrane_abort_if_unavailable() {
+  if [ "${1:-0}" -eq 3 ]; then
+    echo "[RT-05]   ERROR: Information Membrane unavailable — aborting the clean-room cycle. Configure MEMBRANE_API_KEY_ENV / MEMBRANE_API_BASE_URL / MEMBRANE_MODEL (any OpenAI-compatible endpoint; a local Ollama / LM Studio / vLLM works) and re-run." >&2
+    exit 3
+  fi
+}
 SYSTEM_ALIGNMENT="${SKILL_ROOT}/assets/system_alignment.txt"
 SYSTEM_CONSULTATION="${SKILL_ROOT}/assets/system_consultation.txt"
 SYSTEM_DIVERGENCE="${SKILL_ROOT}/assets/system_divergence.txt"
@@ -2476,6 +2487,7 @@ if has_phase 0; then
   method_landscape_path="${phase0_dir}/method_landscape.md"
   membrane_audit_dir="${run_dir}/membrane_audit"
   echo "[RT-05]   Compiling Method Landscape..."
+  _mb_rc=0
   python3 "${COMPILE_LANDSCAPE_SCRIPT}" \
     --member-a "${method_a_phase0}" \
     --member-b "${method_b_phase0}" \
@@ -2483,10 +2495,12 @@ if has_phase 0; then
     --audit-dir "${membrane_audit_dir}" \
     --membrane-api-key-env "${MEMBRANE_API_KEY_ENV}" \
     --membrane-api-base-url "${MEMBRANE_API_BASE_URL}" \
-    --membrane-model "${MEMBRANE_MODEL}" || {
-      echo "[RT-05]   WARNING: Method Landscape compilation failed (continuing without)" >&2
-      method_landscape_path=""
-    }
+    --membrane-model "${MEMBRANE_MODEL}" || _mb_rc=$?
+  _membrane_abort_if_unavailable "${_mb_rc}"
+  if [ "${_mb_rc}" -ne 0 ]; then
+    echo "[RT-05]   WARNING: Method Landscape compilation failed (continuing without)" >&2
+    method_landscape_path=""
+  fi
 
   # Append Method Landscape to the team packet so Phase 1 members can see it
   if [[ -n "${method_landscape_path}" && -f "${method_landscape_path}" ]]; then
@@ -2934,6 +2948,7 @@ with open(sys.argv[2], 'w') as f:
         fi
 
         # Filter response through Information Membrane
+        _mb_rc=0
         python3 "${FILTER_RESPONSE_SCRIPT}" \
           --input "${raw_response}" \
           --output "${filtered_response}" \
@@ -2943,9 +2958,11 @@ with open(sys.argv[2], 'w') as f:
           --audit-dir "${membrane_audit_dir}" \
           --membrane-api-key-env "${MEMBRANE_API_KEY_ENV}" \
           --membrane-api-base-url "${MEMBRANE_API_BASE_URL}" \
-          --membrane-model "${MEMBRANE_MODEL}" || {
-            echo "[RT-05]   WARNING: Membrane filtering failed for ${responder}'s response" >&2
-          }
+          --membrane-model "${MEMBRANE_MODEL}" || _mb_rc=$?
+        _membrane_abort_if_unavailable "${_mb_rc}"
+        if [ "${_mb_rc}" -ne 0 ]; then
+          echo "[RT-05]   WARNING: Membrane filtering failed for ${responder}'s response" >&2
+        fi
       fi
     done
     echo "[RT-05]   Phase 2 consultation complete."
@@ -3178,6 +3195,7 @@ with open(sys.argv[2], 'w') as f:
         # Filter through Membrane
         if [[ -s "${challenge_raw}" ]]; then
           filtered_challenges="${phase5_dir}/challenges_from_${s_lower}_filtered.md"
+          _mb_rc=0
           python3 "${FILTER_RESPONSE_SCRIPT}" \
             --input "${challenge_raw}" \
             --output "${filtered_challenges}" \
@@ -3187,7 +3205,8 @@ with open(sys.argv[2], 'w') as f:
             --audit-dir "${membrane_audit_dir}" \
             --membrane-api-key-env "${MEMBRANE_API_KEY_ENV}" \
             --membrane-api-base-url "${MEMBRANE_API_BASE_URL}" \
-            --membrane-model "${MEMBRANE_MODEL}" || true
+            --membrane-model "${MEMBRANE_MODEL}" || _mb_rc=$?
+          _membrane_abort_if_unavailable "${_mb_rc}"
           echo "[RT-05]   Filtered challenge reasons from ${source_m} → ${target_m}"
         fi
       done

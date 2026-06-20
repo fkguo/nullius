@@ -26,8 +26,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
 
 from information_membrane import (
     MembraneConfig,
+    MembraneUnavailableError,
     build_audit_record,
     filter_message,
+    require_membrane_ran,
     write_audit_log,
 )
 
@@ -56,6 +58,10 @@ def filter_response(
             target_member=target_member,
         )
         write_audit_log(record, audit_dir)
+
+    # Fail fast if the membrane could not classify (block-all fail-safe): a consultation
+    # response must not be emitted all-redacted as if it were filtered.
+    require_membrane_ran(fr, where="consultation response")
 
     # Rewrite [REDACTED] markers to be more descriptive for consultation context
     filtered = fr.passed_text
@@ -106,14 +112,18 @@ def main(argv: list[str] | None = None) -> int:
     config = MembraneConfig.from_env()
 
     text = args.input.read_text(encoding="utf-8", errors="replace")
-    filtered = filter_response(
-        text,
-        phase=args.phase,
-        source_member=args.source_member,
-        target_member=args.target_member,
-        audit_dir=args.audit_dir,
-        config=config,
-    )
+    try:
+        filtered = filter_response(
+            text,
+            phase=args.phase,
+            source_member=args.source_member,
+            target_member=args.target_member,
+            audit_dir=args.audit_dir,
+            config=config,
+        )
+    except MembraneUnavailableError as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        return 3
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(filtered, encoding="utf-8")

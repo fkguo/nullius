@@ -27,14 +27,18 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts" / "lib
 
 from information_membrane import (
     MEMBRANE_VERSION,
+    FilterResult,
     MembraneConfig,
+    MembraneUnavailableError,
     _block_all_fallback,
     _build_user_message,
     _classify_segments,
     _load_system_prompt,
     _validate_classification,
     build_audit_record,
+    fail_safe_block_reason,
     filter_message,
+    require_membrane_ran,
     split_into_segments,
     write_audit_log,
 )
@@ -70,6 +74,62 @@ def _cfg(**overrides) -> MembraneConfig:
     base = dict(api_key="test-key", api_base_url="https://test.local", model="test-model")
     base.update(overrides)
     return MembraneConfig(**base)
+
+
+# ===========================================================================
+# Fail-fast on membrane-unavailable (no low-quality silent block-all)
+# ===========================================================================
+
+class TestFailFast:
+    """A fail-safe block-all (membrane could not classify) must be distinguishable from a
+    genuine all-BLOCK classification, so callers can FAIL FAST instead of emitting a
+    degenerate all-redacted result."""
+
+    def test_fail_safe_block_reason_on_unconfigured(self):
+        # key present but no endpoint/model -> NOT_CONFIGURED fail-safe block-all.
+        result = filter_message("A computed value is 42.", config=MembraneConfig(api_key="k"))
+        assert result.fallback_reason == "NOT_CONFIGURED"
+        assert fail_safe_block_reason(result) == "NOT_CONFIGURED"
+
+    def test_fail_safe_block_reason_on_no_key(self):
+        result = filter_message("A computed value is 42.", config=_cfg(api_key=""))
+        assert result.fallback_reason == "NO_API_KEY"
+        assert fail_safe_block_reason(result) == "NO_API_KEY"
+
+    @patch("information_membrane._call_llm")
+    def test_genuine_all_block_is_not_a_fail_safe(self, mock_llm):
+        # The LLM legitimately classifies everything BLOCK -> NOT a fail-safe; no fallback_reason.
+        mock_llm.return_value = _make_llm_response([
+            _make_classification(1, "BLOCK", block_type="NUM_RESULT", reason="computed value"),
+        ])
+        result = filter_message("The result is 42.", config=_cfg())
+        assert result.blocked_count == 1
+        assert result.fallback_reason is None
+        assert fail_safe_block_reason(result) is None
+
+    def test_require_membrane_ran_raises_on_fallback(self):
+        result = filter_message("A computed value is 42.", config=MembraneConfig(api_key="k"))
+        with pytest.raises(MembraneUnavailableError) as exc:
+            require_membrane_ran(result, where="unit test")
+        assert "NOT_CONFIGURED" in str(exc.value)
+        assert exc.value.reason == "NOT_CONFIGURED"
+
+    @patch("information_membrane._call_llm")
+    def test_require_membrane_ran_passes_on_genuine_result(self, mock_llm):
+        mock_llm.return_value = _make_llm_response([
+            _make_classification(1, "PASS", pass_type="METHOD", reason="suggestion"),
+        ])
+        result = filter_message("I suggest using Monte Carlo.", config=_cfg())
+        require_membrane_ran(result, where="unit test")  # must NOT raise
+
+    def test_require_membrane_ran_checks_all_results(self):
+        # compile_landscape passes BOTH members; even one fail-safe must abort.
+        genuine = FilterResult()                                # fallback_reason is None
+        bad = filter_message("x = 42.", config=MembraneConfig(api_key="k"))  # NOT_CONFIGURED
+        with pytest.raises(MembraneUnavailableError):
+            require_membrane_ran(genuine, bad, where="unit test")
+        # all-genuine must NOT raise
+        require_membrane_ran(genuine, FilterResult(), where="unit test")
 
 
 # ===========================================================================

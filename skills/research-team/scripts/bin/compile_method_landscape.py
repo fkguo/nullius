@@ -26,8 +26,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
 from information_membrane import (
     FilterResult,
     MembraneConfig,
+    MembraneUnavailableError,
     build_audit_record,
     filter_message,
+    require_membrane_ran,
     write_audit_log,
 )
 
@@ -106,6 +108,10 @@ def compile_landscape(
         )
         write_audit_log(rec_b, audit_dir)
 
+    # Fail fast if the membrane could not classify either member (block-all fail-safe):
+    # a method landscape must not be compiled from all-redacted (degenerate) input.
+    require_membrane_ran(fr_a, fr_b, where="method landscape (phase 0)")
+
     # Extract sections from filtered text
     filtered_a = fr_a.passed_text
     filtered_b = fr_b.passed_text
@@ -174,9 +180,13 @@ def main(argv: list[str] | None = None) -> int:
     text_a = args.member_a.read_text(encoding="utf-8", errors="replace")
     text_b = args.member_b.read_text(encoding="utf-8", errors="replace")
 
-    landscape, fr_a, fr_b = compile_landscape(
-        text_a, text_b, audit_dir=args.audit_dir, config=config,
-    )
+    try:
+        landscape, fr_a, fr_b = compile_landscape(
+            text_a, text_b, audit_dir=args.audit_dir, config=config,
+        )
+    except MembraneUnavailableError as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        return 3
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(landscape, encoding="utf-8")

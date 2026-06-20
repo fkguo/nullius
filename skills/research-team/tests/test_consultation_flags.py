@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts" / "bin"))
 
 from extract_consultation_flags import (
@@ -20,7 +22,7 @@ from extract_consultation_flags import (
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts" / "lib"))
 
 from filter_consultation_response import filter_response
-from information_membrane import MembraneConfig
+from information_membrane import MembraneConfig, MembraneUnavailableError
 
 
 def _mock_llm_classify(segments, pass_indices=None):
@@ -157,6 +159,12 @@ class TestFilterResponse:
         result = filter_response(text, config=config)
         assert "Gauss-Kronrod" in result
         assert "[REDACTED" not in result
+
+    def test_filter_response_fails_fast_when_membrane_unavailable(self):
+        # Unconfigured membrane -> block-all fail-safe -> must NOT emit an all-redacted
+        # consultation response; filter_response raises so the caller can abort.
+        with pytest.raises(MembraneUnavailableError):
+            filter_response("I obtain x = 42.", config=MembraneConfig(api_key="k"))
 
     @patch("information_membrane._call_llm")
     def test_blocks_numerical_result(self, mock_llm):

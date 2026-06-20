@@ -6,6 +6,8 @@ import sys
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts" / "bin"))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts" / "lib"))
 
@@ -14,7 +16,7 @@ from compile_method_landscape import (
     _extract_section,
     compile_landscape,
 )
-from information_membrane import MembraneConfig
+from information_membrane import MembraneConfig, MembraneUnavailableError
 
 
 def _make_pass_all_mock():
@@ -113,6 +115,13 @@ class TestCompileLandscape:
         assert "on-shell" in landscape
         assert fr_a.blocked_count == 0
         assert fr_b.blocked_count == 0
+
+    def test_compile_landscape_fails_fast_when_membrane_unavailable(self):
+        # Unconfigured membrane -> block-all fail-safe -> must NOT compile a degenerate
+        # all-redacted landscape; compile_landscape raises so the caller can abort.
+        unconfigured = MembraneConfig(api_key="k")  # no endpoint/model
+        with pytest.raises(MembraneUnavailableError):
+            compile_landscape("## Goal\nx", "## Goal\ny", config=unconfigured)
 
     @patch("information_membrane._call_llm")
     def test_blocks_numerical_results(self, mock_llm):
