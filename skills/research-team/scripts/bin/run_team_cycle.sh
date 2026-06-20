@@ -3260,6 +3260,25 @@ if [[ -f "${CLAIM_RENDER_SCRIPT}" ]]; then
   python3 "${CLAIM_RENDER_SCRIPT}" --notes "${NOTEBOOK_PATH}" >/dev/null || true
 fi
 
+# At convergence, best-effort emit a milestone/task progress dependency-map via the
+# `autoresearch graph` front door (SSOT = @autoresearch/shared/graph-viz). This is
+# the PLANNING view (distinct from the claim DAG above). It is fully optional:
+# skipped silently when research_plan.md is absent or when neither the project-local
+# launcher nor an installed `autoresearch` is on PATH, and never affects convergence.
+if [[ -f "${PROJECT_ROOT}/research_plan.md" ]]; then
+  progress_graph_cli=""
+  if [[ -x "${PROJECT_ROOT}/.autoresearch/bin/autoresearch" ]]; then
+    progress_graph_cli="${PROJECT_ROOT}/.autoresearch/bin/autoresearch"
+  elif command -v autoresearch >/dev/null 2>&1; then
+    progress_graph_cli="autoresearch"
+  fi
+  if [[ -n "${progress_graph_cli}" ]]; then
+    "${progress_graph_cli}" graph --kind progress \
+      --plan "${PROJECT_ROOT}/research_plan.md" \
+      --out-dir "${run_dir_abs}" >/dev/null 2>&1 || true
+  fi
+fi
+
 if [[ -f "${PROJECT_INDEX_UPDATE_SCRIPT}" ]]; then
   python3 "${PROJECT_INDEX_UPDATE_SCRIPT}" --notes "${NOTEBOOK_PATH}" --team-dir "${OUT_DIR}" --tag "${RESOLVED_TAG}" --status "converged" --run-dir "${run_dir_abs}" >/dev/null 2>&1 || true
 fi

@@ -112,6 +112,7 @@ In projects scaffolded by `research-team`, use the navigation front door instead
 - `team/LATEST.md` is the stable pointer index written by [update_project_map.py](scripts/bin/update_project_map.py).
 - `team/LATEST_TEAM.md`, `team/LATEST_DRAFT.md`, and `artifacts/LATEST.md` appear only after the corresponding live cycle/run has been materialized; older/stale placeholders should not be treated as guaranteed navigation surfaces.
 - Per-run outputs are grouped under `team/runs/<tag>/...` (packet, member reports, gate reports, adjudication).
+- On convergence, when an `autoresearch` CLI is reachable (project-local `.autoresearch/bin/autoresearch` or on `PATH`), a best-effort milestone/task progress dependency-map is rendered to `team/runs/<tag>/progress.dot` via `autoresearch graph --kind progress` (the planning view; distinct from the optional Claim DAG under `knowledge_graph/`). It is skipped silently when the CLI or `research_plan.md` is absent and never affects convergence.
 - Draft-cycle convergence artifacts (when enabled) live under `team/runs/<tag>/...`:
   - `<tag>_draft_convergence_log.md`
   - `<tag>_draft_converged_summary.md`
