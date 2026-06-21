@@ -64,6 +64,16 @@ and MUST equal the filename's `_vN` (ART-02). Write atomically (ART-03).
       //   "residual": 1.3e-14, "threshold": 1e-10, "command": "<one-command repro>", "passed": true }
       "method_precondition": null,
 
+      // G8 — reference-number reproduction. null unless the result CLAIMS to match a published value;
+      // else REQUIRED. When present:
+      // { "published_value": "1.90", "source_locator": "<paper> Table 2",
+      //   "computed_value": "1.92", "comparable_regime": "<the state/regime compared on>",
+      //   "tolerance_or_rule": "abs < 0.05", "ratio_or_signed_diff": "+0.02 (abs)", "matched": true }
+      // matched=false (verdict reference_mismatch) on an order-of-magnitude same-direction or sign gap.
+      // Here it is null because chi2_ref makes no published-value match claim (the populated object above
+      // is illustrative only); its G4 anchor reproduces an internal adopted value, which is NOT a G8 claim.
+      "reference_match": null,
+
       "notes": ""
     },
     {
@@ -131,7 +141,7 @@ and MUST equal the filename's `_vN` (ART-02). Write atomically (ART-03).
 
 | verdict | meaning | foldable? |
 |---|---|---|
-| `reliable` | passed **every applicable** G1–G7 check at the converged setting — including the G4 anchor, G6 non-staleness, and the G7 production-scale method-precondition, not only G1–G3 | **yes** |
+| `reliable` | passed **every applicable** G1–G8 check at the converged setting — including the G4 anchor, G6 non-staleness, the G7 production-scale method-precondition, and the G8 reference-match where a published-value match is claimed, not only G1–G3 | **yes** |
 | `mirage` | a candidate optimum/feature that did not survive G1 refinement | no |
 | `unconverged` | value still moving as the resolution is refined (G1) | no |
 | `method_disagreement` | orthogonal methods (G2) do not agree and the discrepancy is unexplained | no |
@@ -140,6 +150,7 @@ and MUST equal the filename's `_vN` (ART-02). Write atomically (ART-03).
 | `degenerate` | a flat-direction parameter quoted as if determined (G5 violation) — report the robust observable instead | no |
 | `stale_artifact` | the record's code/input version or timestamp does not match the current run (G6 provenance) — recompute before trusting | no |
 | `precondition_violated` | a structural property the method's validity rests on (commutation with a projector/symmetrizer, Hermiticity, self-adjointness, idempotency, unitarity, variational/Galerkin-subspace invariance) fails — or was only tested at a smaller/cheaper setting than the value — at the production setting/config (G7); the value is **invalid**, not approximate, even if G1-converged | no |
+| `reference_mismatch` | the value claims to reproduce/match a **published reference number** but the claimed observable, recomputed on a comparable state/regime and compared numerically (G8), differs by an order of magnitude in the same direction or by a sign — a qualitative "same scale / same sign" assertion, or citing the source, does not discharge G8; the match claim is **overstated**, not established | no |
 
 Only `reliable` rows may be folded into `research_contract.md` / a paper / a conclusion. Every other row
 is a **labeled candidate** kept for follow-up or discarded — never silently promoted.
@@ -157,11 +168,27 @@ is a **labeled candidate** kept for follow-up or discarded — never silently pr
   variance. A precondition verified only at a smaller/cheaper setting than the recorded value does NOT
   satisfy G7 (verdict `precondition_violated`).
 - `cross_method` MUST contain `>=2` genuinely independent methods for any `reliable` verdict that depends
-  on a continuation/quadrature/search; record both values even when they agree. **Narrow exception**
-  (mirrors G2): a single method MAY stand alone iff it carries a *rigorous a-posteriori / certified-interval
-  error bound* that by itself establishes the value — then record that one method with its certificate in
-  `tolerance`/`notes` and state why no second was required. Do not invoke this to excuse an
-  un-cross-checked seed/heuristic search (which has no such bound).
+  on a continuation/quadrature/search; record both values even when they agree. **Independence is
+  structural, not nominal** (mirrors G2): an entry counts toward `methods_agree` only if it evaluates the
+  *same* quantity under the *same* model by a different route. A solver/engine implementing a structurally
+  *different* model, or a check valid only in a degenerate/limit regime, is recorded labeled as a
+  different-model / limit-regime comparison (e.g. in `notes`) and does **not** set `methods_agree`; when no
+  apples-to-apples independent method is reachable, state that absence in `notes` rather than letting an
+  established cross-check silently lapse. **Narrow exception** (mirrors G2): a single method MAY stand
+  alone iff it carries a *rigorous a-posteriori / certified-interval error bound* that by itself establishes
+  the value — then record that one method with its certificate in `tolerance`/`notes` and state why no
+  second was required. Do not invoke this to excuse an un-cross-checked seed/heuristic search (which has no
+  such bound).
+- **G8 reference-match (when applicable)**: for any quantity reported as reproducing/matching a published
+  reference number, record a `reference_match` object — `{ "published_value": …, "source_locator":
+  "<paper + table/eq/figure>", "computed_value": <on the comparable regime>, "comparable_regime":
+  "<the regime compared on, and any gap to the reference's own regime>", "tolerance_or_rule": "<the
+  acceptance criterion: an abs/rel tolerance or the rule for what counts as a match>", "ratio_or_signed_diff":
+  …, "matched": true|false }`. `tolerance_or_rule` is REQUIRED when present (the acceptance rule must be
+  stated, not implied — mirrors `claim-grounding`'s "within the stated tolerance"). `matched` is `false`
+  (verdict `reference_mismatch`) when the computed and published values differ by an order of magnitude in
+  the same direction or by a sign; a qualitative "same scale / same sign" assertion, or merely citing the
+  source, does NOT satisfy G8. The field is `null` only when the result makes no published-value match claim.
 - `invariant_check`, `regression_anchor`, `degeneracy` are `null` when not applicable; when present they
   carry the disconfirming evidence, not a bare boolean.
 - A present `invariant_check` SHOULD record what was actually counted, not only `passed`: the `function`

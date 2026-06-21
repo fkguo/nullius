@@ -33,9 +33,11 @@ Run M1–M7 immediately before any of:
   pass.
 
 You may run a smaller subset earlier (for example M2/M4 during a
-literature pull, or the **Extraction / transcription fidelity** check
-when you transcribe a source into a deep-read / extraction note) and a
-fuller pass at the boundary. The boundary pass is non-optional.
+literature pull, the **Extraction / transcription fidelity** check
+when you transcribe a source into a deep-read / extraction note, or the
+**Reference-reproduction fidelity** check when a result starts claiming
+to match a published value) and a fuller pass at the boundary. The
+boundary pass is non-optional.
 
 ## What this skill is NOT
 
@@ -496,6 +498,52 @@ verdict, downgrading any "substantiated" verdict that carries no verbatim source
 source and runs this gate before handoff; persist the fetched primary source to a
 stable, auditable location so the reviewer reads exactly the bytes that were
 transcribed. `review-swarm` is the cross-family literal-comparison harness.
+
+## Reference-reproduction fidelity (a "matches a published value" claim is computed, not asserted)
+
+A result reported as **reproducing / matching / agreeing with** a published reference
+value is making a **quantitative** claim, not a citation: the deliverable is the
+agreement itself. Two distinct verification dimensions fail silently here even after a
+multi-round correctness / methodology / honesty gate has passed — because that gate
+checks whether the implementation matches the derived **form**, not whether the result's
+**number** matches the literature number it claims:
+
+- **D1 — quantitative reproduction of the reference number.** The failure mode is a
+  match asserted only *qualitatively* — "same order of magnitude", "same sign", "of the
+  right scale" — while the claimed observable was **never computed on a comparable state /
+  regime / configuration and compared to the published value numerically**. *Minimum
+  disconfirming check:* compute the claimed observable on the comparable regime the
+  reference used (or the nearest reachable one, recorded as such) and compare numbers;
+  where the claim is term-level, compare **term by term**, since a net total can agree
+  while individual contributions are suppressed or sign-flipped. **An order-of-magnitude
+  same-direction discrepancy, or a sign reversal, is a finding — not a pass.** A "matches
+  in scale" claim with no computed comparison is ungrounded; treat it as an undisclosed
+  gap, not a confirmation.
+- **D2 — independent cross-check that did not silently lapse.** The failure mode is an
+  established independent cross-validation pattern **silently lapsing**, or a
+  structurally **different-model** engine / a degenerate-or-limit regime being **presented
+  as validation**. *Minimum disconfirming check:* confirm any cross-validation evaluates
+  the *same* model by a different route; if the only reachable alternative engine
+  implements a structurally different model (or the check holds only in a limit), **label
+  it as a different-model / limit-regime comparison and record the absence of an
+  apples-to-apples check as an explicit stated limitation** — never let the prior
+  cross-check pattern quietly disappear and never let the different-model check stand in
+  for it.
+
+This is **not a new receipt mode.** It is a cross-cutting check that **augments M3** (the
+cited / compared number) and **M5b** (when the result's own validity *is* the claimed
+match); record it under those modes so the machine receipt set stays within `M1`–`M7`,
+with no new mode introduced.
+
+**Tools that help.** `numerical-reliability-gate` **G8** is the active gate — compute the
+claimed observable on the comparable regime and compare, with an order-of-magnitude or
+sign discrepancy returning `reference_mismatch`; its **G2** carries the D2
+structural-independence honesty (a different-model or limit-regime check is labeled as
+such or its absence recorded, never a cross-check pass). `claim-grounding` routes a
+"reproduces / matches a published value" claim to that computation rather than grounding
+it by quoting the published number. `review-swarm`'s **reference-reproduction reviewer**
+is the role that recomputes the claimed observable on the comparable state instead of
+statically reading the assertion.
 
 ## Pre-approval ritual
 

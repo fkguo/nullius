@@ -1,6 +1,6 @@
 ---
 name: numerical-reliability-gate
-description: "Convergence/reliability gate for NUMERICAL results in ANY field (fits/optimizations, integrals/quadratures, eigenvalues, roots/poles/zeros, ODE/PDE solutions, Monte-Carlo estimates — domain carried only by the caller's context). Before a computed number is folded into the durable record it must pass: (G1) discretization convergence — the value is stable as every resolution knob (grid, node count, step, contour density) is refined, and a coarse-setting optimum that evaporates at the converged setting is flagged a MIRAGE; (G2) orthogonal-method cross-check — >=2 independent methods agree; disagreement blocks the number (unresolved, not pick-one) until explained; (G3) invariant/topological validation where available — prefer a method-agnostic invariant (e.g. an argument-principle winding number, which counts zeros minus poles inside a contour) over a fixed-seed search or a magnitude threshold, which give false positives/negatives; (G4) regression anchor — the default/reference configuration reproduces a KNOWN reference result before any variation is trusted; (G5) degeneracy honesty — in flat-direction fits quote only the observables robust to the degeneracy, not individual parameters; (G6) report only converged values, with their setting recorded; (G7) method-precondition validity — any structural identity the method's validity rests on (an operator commuting with a projector/symmetrizer, Hermiticity, self-adjointness, variational-subspace invariance) holds at the PRODUCTION setting/configuration, not only the smallest/cheapest, and a value whose precondition fails there is invalid even if G1-converged. Emits an auditable reliability matrix. Sibling to `derivation-verify` (which re-derives the SYMBOLIC answer) and `julia-perf` (which gates SPEED); this one gates whether a NUMERICAL result is converged and real.\n"
+description: "Convergence/reliability gate for NUMERICAL results in ANY field (fits/optimizations, integrals/quadratures, eigenvalues, roots/poles/zeros, ODE/PDE solutions, Monte-Carlo estimates — domain carried only by the caller's context). Before a computed number is folded into the durable record it must pass: (G1) discretization convergence — the value is stable as every resolution knob (grid, node count, step, contour density) is refined, and a coarse-setting optimum that evaporates at the converged setting is flagged a MIRAGE; (G2) orthogonal-method cross-check — >=2 independent methods agree; disagreement blocks the number (unresolved, not pick-one) until explained, and a method counts as independent only if it evaluates the same model by a different route — a structurally-different-model or limit-regime check is labeled as such or its absence recorded, never presented as validation; (G3) invariant/topological validation where available — prefer a method-agnostic invariant (e.g. an argument-principle winding number, which counts zeros minus poles inside a contour) over a fixed-seed search or a magnitude threshold, which give false positives/negatives; (G4) regression anchor — the default/reference configuration reproduces a KNOWN reference result before any variation is trusted; (G5) degeneracy honesty — in flat-direction fits quote only the observables robust to the degeneracy, not individual parameters; (G6) report only converged values, with their setting recorded; (G7) method-precondition validity — any structural identity the method's validity rests on (an operator commuting with a projector/symmetrizer, Hermiticity, self-adjointness, variational-subspace invariance) holds at the PRODUCTION setting/configuration, not only the smallest/cheapest, and a value whose precondition fails there is invalid even if G1-converged; (G8) reference-number reproduction — a result that claims to reproduce/match/agree-with a published reference value is gated by COMPUTING the claimed observable on a comparable state/regime and comparing numerically (term by term where the claim is term-level), never by a qualitative same-scale/same-sign assertion nor by citing the source, and an order-of-magnitude or sign discrepancy is a finding, not a pass. Emits an auditable reliability matrix. Sibling to `derivation-verify` (which re-derives the SYMBOLIC answer) and `julia-perf` (which gates SPEED); this one gates whether a NUMERICAL result is converged and real.\n"
 ---
 
 # Numerical Reliability Gate
@@ -74,6 +74,15 @@ Each check names its own minimum disconfirming test — never accept a number be
   conditioned as resolution grows; flag any method known to be fragile beyond a regime (e.g. a
   continued-fraction interpolation that destabilizes past `~N` nodes) and do not report its value past
   that regime without the robust method confirming it.
+  **Independence is structural, not nominal.** A second computation counts as a cross-check only when it
+  evaluates the *same* quantity under the *same* model by a genuinely different route. A solver/engine that
+  implements a structurally *different* model (a different governing relation, a different approximation, a
+  different set of modeling assumptions), or a check that holds only in a degenerate / limiting regime, is a
+  **different-model (or limit-regime) comparison, not an apples-to-apples cross-check** — record its outcome
+  labeled as such, never as a G2 pass. When *no* apples-to-apples independent method is reachable, record
+  that **absence as an explicit stated limitation**: do not let an established cross-check pattern silently
+  lapse, and do not let a different-model or limit-regime check stand in for the missing one (an
+  unrecorded lapse reads as "cross-checked" when nothing comparable was ever run).
 - **G3 — Invariant / topological validation (prefer it over heuristics).** For presence/absence and
   counting (zeros, roots, poles, eigenvalues, modes), prefer a **method-agnostic invariant** over a
   **fixed-seed search** or a **magnitude threshold**, both of which give false negatives (the feature
@@ -106,7 +115,7 @@ Each check names its own minimum disconfirming test — never accept a number be
   robust to the degeneracy** (e.g., in a fit, the χ², a pole position, a lineshape, a residue) and mark
   flat-direction parameters "not individually determined".
 - **G6 — Report only converged values, with provenance.** Fold into the durable record only values that
-  passed every applicable G1–G7 check at the converged setting, each tagged with its
+  passed every applicable G1–G8 check at the converged setting, each tagged with its
   grid/node/method/contour. A coarse, intermediate, or non-converged number is **labeled as such or
   discarded** — never silently reused. Check a reused artifact's timestamp against the current code
   version before trusting it (a stale artifact from a since-fixed bug reads as current truth otherwise).
@@ -122,6 +131,21 @@ Each check names its own minimum disconfirming test — never accept a number be
   `‖Oψ − λψ‖ / ‖Oψ‖` (documented norm; guard a near-zero `‖Oψ‖` with a fixed reference scale) and the
   variance — not merely that ψ has the assumed symmetry; if the precondition
   residual is non-negligible the value is `precondition_violated`, labeled **invalid** (not "approximate").
+- **G8 — Reference-number reproduction (a claimed match is computed, not asserted).** When a result is
+  reported as *reproducing / matching / agreeing with* a **published reference value**, the gate is to
+  **compute the claimed observable on a comparable state / regime / configuration and compare to the
+  published number numerically** — not to assert a qualitative "same order of magnitude / same sign"
+  agreement, and not to cite the source as if citing it established the match. Reproduce on the same
+  regime the reference used (or the nearest reachable one, recorded as such, with the gap to the
+  reference's regime stated); where the claim is term-by-term, compare term by term, since a net total
+  can agree while individual contributions are suppressed or sign-flipped. **An order-of-magnitude
+  same-direction discrepancy, or a sign reversal, between the computed value and the published one is a
+  finding (`reference_mismatch`), not a pass** — a magnitude or sign gap is exactly what a qualitative
+  "in scale" match conceals. Record the published value with its source locator, the computed value on
+  the comparable regime, and the ratio / signed difference. (Distinct from **G4**: G4 anchors your *own
+  pipeline* on a known result before you trust a variation; G8 tests whether a *headline external-match
+  claim* actually holds when the observable is recomputed on the comparable state — a result can pass
+  G1–G7 and still misstate how it relates to the literature.)
 
 ## Reliable vs. fragile methods (quick reference)
 
@@ -148,8 +172,8 @@ Emit one auditable record per gated quantity, conforming to
 value), the orthogonal-method values and whether they agree, any invariant check, the regression-anchor
 result, a degeneracy note, the recorded converged value, and a `verdict ∈ reliable | mirage |
 unconverged | method_disagreement | fragile_method | anchor_failed | degenerate | stale_artifact |
-precondition_violated`
-(`reliable` requires every *applicable* G1–G7 check to pass — including the G4 anchor, G6 non-staleness, and the G7 production-scale precondition,
+precondition_violated | reference_mismatch`
+(`reliable` requires every *applicable* G1–G8 check to pass — including the G4 anchor, G6 non-staleness, the G7 production-scale precondition, and the G8 reference-match when a published-value match is claimed,
 not only G1–G3). Only `reliable` rows may be folded into the durable record; everything else is a labeled
 candidate or is discarded.
 

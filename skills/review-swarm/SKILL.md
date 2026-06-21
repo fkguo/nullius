@@ -167,6 +167,35 @@ transcription fidelity*, items (a)–(g)). Record in `meta.json` whether a liter
 comparison was performed; a swarm that only read the note, or stayed within one model family, is **not** a
 fidelity pass and must be labeled as such.
 
+### Reference-reproduction reviewer (mandatory for "matches / reproduces a published value" claims)
+
+A claim that a result **reproduces / matches / agrees with a published reference value** is a *quantitative*
+claim a static read cannot certify — reading the prose only confirms the prose. When a packet asserts such a
+match, at least **one reviewer must take a "reference-reproduction" role** and cover two distinct dimensions
+that a correctness / methodology / honesty review routinely passes over:
+
+- **D1 — recompute and compare.** **Compute the claimed observable on a comparable state / regime /
+  configuration and compare to the published number numerically** — do not accept a qualitative "same order
+  of magnitude / same sign / right scale" assertion, and do not accept the citation as if citing the source
+  proved the match. Compare **term by term** where the claim is term-level (a net total can agree while
+  individual contributions are suppressed or sign-flipped). **An order-of-magnitude same-direction
+  discrepancy, or a sign reversal, is a BLOCKING finding, not a pass.** Give this reviewer real execution
+  access (a host-native sub-agent with run/Bash, or an executing sandbox) when the comparison requires
+  computation.
+- **D2 — the independent cross-check did not silently lapse.** Confirm that any cross-validation evaluates
+  the *same* model by a different route. A structurally **different-model** engine, or a check valid only in
+  a degenerate / limit regime, must be **labeled as a different-model / limit-regime comparison, not
+  presented as validation**; and when no apples-to-apples independent check is feasible, the **absence is
+  recorded as an explicit stated limitation** rather than an established cross-check being allowed to
+  silently disappear.
+
+Record in `meta.json` whether a reviewer **computed-and-compared vs. only read** the match assertion; a
+swarm in which *no* reviewer recomputed the claimed observable on the comparable state is a **static-only**
+swarm for that claim and must be labeled as such — it does **not** count as a reference-match pass.
+Cross-model-family diversity strengthens this gate. Pair it with `numerical-reliability-gate` **G8** (the
+compute-and-compare gate, returning `reference_mismatch` on an order-of-magnitude or sign gap) and the
+`research-integrity` *Reference-reproduction fidelity* dimensions.
+
 ## Model selection
 
 - `--agents N`: rotate through available OpenCode config models.

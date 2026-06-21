@@ -73,6 +73,35 @@ verdict to `not_substantiated`**, and the report parser rejects it otherwise. So
 of "substantiated" with no quote is impossible to ship — by design. Quote the line, the
 equation, or the exact value+uncertainty; do not paraphrase a vibe.
 
+## Match claims: "reproduces / matches a published value" is grounded by computing, not quoting
+
+A claim whose assertion is that **[a result] reproduces / matches / agrees with [a published
+numeric value]** is a special case the span rule does **not** discharge. Quoting the published
+number from its source confirms only that the *source* carries that value — it does **not**
+establish that *your* result matches it. A match claim is grounded **only by computing the
+claimed observable on a comparable state / regime / configuration and comparing it to the
+published value numerically**; this routes to the numerical-reproduction path
+(`numerical-reliability-gate` **G8**, the active compute-and-compare gate), not to a
+text-entailment span. So:
+
+- A "reproduces / matches a published value" claim whose *only* support is a span quoting the
+  published number is **`not_substantiated`** — the quote grounds the source's value, not the
+  agreement. A purely qualitative "same order of magnitude / same sign / right scale" claim with
+  no computed comparison is likewise ungrounded.
+- When the comparison **is** computed: a value agreeing within the stated tolerance on the
+  comparable regime is `substantiated`; an **order-of-magnitude same-direction discrepancy, or a
+  sign reversal**, is `conflicting` (the computed result actively contradicts the asserted match),
+  not `substantiated`. A value that disagrees **beyond the stated tolerance but short of an
+  order-of-magnitude or sign gap** is `partial` (the form agrees but the number is outside
+  tolerance) — or `not_substantiated` if the claim asserted a strict match. Record the computed
+  value, the comparable regime, the acceptance tolerance, and the ratio / signed difference in
+  `notes`.
+
+This is the citation-side companion of the `Scope` rule above (a bare `calculation` claim is the
+`research-harness` / numerical path): a match claim wears citation clothing — it carries
+`evidence_uris` to the published source — yet its support is a **computation**, so quoting the
+source is necessary context but never sufficient grounding.
+
 ## Transcription fidelity (when the claim was transcribed into a note)
 
 When the claim you are grounding was itself **transcribed into a deep-read / extraction note**
