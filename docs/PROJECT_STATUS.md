@@ -1,6 +1,6 @@
 # Project Status Report (front-door rebaseline)
 
-**Date**: 2026-05-13
+**Date**: 2026-06-26
 **Status**: Active local-first, evidence-first monorepo
 **Root framing**: Domain-neutral substrate + control plane; HEP is the current most mature provider family, not the root identity
 
@@ -8,8 +8,7 @@
 
 ## QA snapshot
 
-- Closeout baseline: `main` at `fc31bdbd`
-- Latest confirmed idea-engine CI: `25000327821` success
+- Closeout baseline: `main` at `ecd9faa8`
 - `pnpm -r build` ✅
 - `pnpm -r test` ✅
 - `pnpm -r lint` ✅
@@ -28,6 +27,7 @@
 - **Generic follow-up continuation MCP front door**: `orch_run_progress_followups` advances exactly one computation-generated follow-up task through the generic delegated runtime surface; delegated `idea` and `literature` feedback are now live alongside the writer/reviewer path
 - **Runtime decisive verification front door**: `orch_run_record_verification` / `autoresearch verify` now materialize `verification_check_run_v1` plus refreshed verdict/coverage/check-run refs for an existing computation run, making the A5 `pass` path runtime-reachable without REP
 - **First higher-conclusion boundary consumer**: `orch_run_request_final_conclusions` / `autoresearch final-conclusions` now consume canonical `computation_result_v1` verification refs and create an A5 approval request only on decisive `pass`; approving that A5 request writes a local generic `final_conclusions_v1` artifact and leaves the run `completed`
+- **Pre-approval integrity-receipt seam**: `autoresearch integrity-record` records an M1–M7 AI-failure-mode receipt bound to a pending `approval_id`; the `approve` gate is fail-closed on it (`INTEGRITY_RECEIPT_REQUIRED`, skippable only via `AUTORESEARCH_INTEGRITY_VERIFY`), so an A5 final-conclusions approval cannot be resolved without a recorded receipt
 - **Local outcome seam**: `final_conclusions_v1` is now also surfaced through `orch_run_status` / `orch_run_export` as the current run's single-user outcome-facing SSOT; this still does not imply `research_outcome_v1` or REP publish
 - **Local proposal lifecycle seam**: `autoresearch proposal-decision` / `orch_run_record_proposal_decision` now record a minimal local decision for the current run's current repair/skill/optimize/innovate proposal, which also powers duplicate suppression without introducing a new approval family
 - **Project recent digest seam**: `orch_run_status` / `orch_run_export` now also surface a thin project-level `project_recent_digest` with recent runs, the latest readable `final_conclusions_v1`, the latest repair/skill/optimize/innovate proposals, and the latest active team summary without widening `orch_run_list`

@@ -221,6 +221,7 @@ pnpm --filter @autoresearch/hep-mcp docs:tool-counts:check
 1. `autoresearch status --project-root /absolute/path/to/external-project`
 1. 当某个 run 已有证据后，先执行 `autoresearch verify --project-root /absolute/path/to/external-project --run-id <run_id> --status passed --summary "..." --evidence-path <path>`
 1. 再执行 `autoresearch final-conclusions --project-root /absolute/path/to/external-project --run-id <run_id>`
+1. 记录 approve 门要求的 M1–M7 integrity receipt：`autoresearch integrity-record --approval-id <approval_id> --modes M1,M2,M3,M4,M5,M6,M7 --notes "..."`（缺 receipt 时 `approve` 会 fail-closed 报 `INTEGRITY_RECEIPT_REQUIRED`）
 1. 再通过 `autoresearch approve <approval_id>` 消费 A5 request，并写出 `artifacts/runs/<run_id>/final_conclusions_v1.json`
 
 如果你接着想走当前最强的 domain-pack 烟测路径，再把 MCP client 接到 `packages/hep-mcp/dist/index.js` 并执行：

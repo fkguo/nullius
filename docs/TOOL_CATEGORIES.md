@@ -15,6 +15,8 @@
 > ```
 >
 > 备注：`HEP_ENABLE_ZOTERO=0` 会裁剪 Zotero 相关工具，standard/full 数量会减少。
+>
+> 备注：标题里的 standard 计数也包含 `openalex_*` / `arxiv_*` / `hepdata_*` / `hep_admin_*` 等 provider-atom 与 admin 工具；它们按 bounded operator 归类，未在下方 A–H 场景分组里逐一列出，因此逐节枚举会少于标题计数。
 
 ## Decision Matrix
 

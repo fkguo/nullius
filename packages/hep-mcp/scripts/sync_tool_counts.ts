@@ -98,6 +98,23 @@ function syncProjectStatus(source: string, zoteroOn: ToolCounts, zoteroOff: Tool
   return out;
 }
 
+function syncTestingGuide(source: string, counts: ToolCounts): string {
+  let out = source;
+  out = replaceOrThrow(
+    out,
+    /- `standard` 模式工具数为 `\d+`/,
+    `- \`standard\` 模式工具数为 \`${counts.standard}\``,
+    'TESTING_GUIDE standard count'
+  );
+  out = replaceOrThrow(
+    out,
+    /- `full` 模式工具数为 `\d+`/,
+    `- \`full\` 模式工具数为 \`${counts.full}\``,
+    'TESTING_GUIDE full count'
+  );
+  return out;
+}
+
 function syncTarget(target: SyncTarget, checkOnly: boolean): boolean {
   const filePath = resolve(REPO_ROOT, target.relPath);
   const before = readFileSync(filePath, 'utf-8');
@@ -119,6 +136,7 @@ function main(): void {
   const targets: SyncTarget[] = [
     { relPath: 'docs/TOOL_CATEGORIES.md', transform: source => syncToolCategories(source, zoteroOn) },
     { relPath: 'docs/PROJECT_STATUS.md', transform: source => syncProjectStatus(source, zoteroOn, zoteroOff) },
+    { relPath: 'docs/TESTING_GUIDE.md', transform: source => syncTestingGuide(source, zoteroOn) },
   ];
 
   const changedFiles = targets.filter(target => syncTarget(target, checkOnly)).map(target => target.relPath);
