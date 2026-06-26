@@ -186,6 +186,14 @@ The backend-agnostic contract means claims written for one executor run on the o
 These executors are consumed by a host agent (Claude Code, Codex, OpenCode, Claude Desktop, …) whose
 capabilities VARY — gate on what your host actually exposes. Route by **model family**, correctness first:
 
+- **The floor is `>=2` *independent* derivations; multi-model is the ceiling, not the entry fee.** A single
+  model is a first-class path: with one engine, spawn `>=2` independent same-model subagents (distinct
+  prompts/seeds/methods, blind) — that is Executor 1 and a valid converged matrix on its own. **Never block a
+  result on having a second model.** When you DO have `>=2` model families, route one derivation per family
+  (Executor 2) to decorrelate errors — the reliability ceiling — and with both, combine: independent subagents
+  within your family AND `>=1` other family (your family + `>=1` other = `>=2` distinct families). A
+  confirmation is bought by a genuinely different *route*, not a
+  different agent label — two subagents handed the same method are one confirmation, not two.
 - **Your own family → keep it in-host, never via that family's CLI.** Shelling out to reach a model you
   are already running as only adds latency, a separate auth/session, and context loss. If your host
   exposes a native child-agent / sub-agent primitive (Claude Code's Agent/Task tool — Executor 1's
@@ -208,6 +216,17 @@ capabilities VARY — gate on what your host actually exposes. Route by **model 
   high–xhigh reasoning effort / a stronger model spec); a trivial anchor does not. Never trade a wrong
   verdict for cheaper tokens. On the native path you control this directly; on the CLI path pick a capable
   model spec (e.g. a strong codex/gemini model at high effort) for the hard claims and comparator.
+- **For a load-bearing claim, raise the *promotion* bar; the gate's `converged` floor stays `>=2`.** The gate
+  reports `independent_confirmations` (and on Executor 2 `cross_family_confirmations`) and flags `converged`
+  at `>=2` — the bar for a routine claim. For a load-bearing or intricate result (a contested closed form, a
+  subtle sign/branch, a multi-step reduction), treat a bare same-model `converged@2` as **necessary, not
+  sufficient**: the breadth that actually decorrelates error is **cross-family** (require `>=2`, or for the
+  highest stakes `>=3`, DISTINCT families via Executor 2), not raw same-model count — `>=2` same-model
+  derivations sharing a misconception still agree (the correlated-error floor). Whenever the available
+  LLM-family pool falls short of the demanded breadth — a single-LLM host, or a two-family host asked for
+  `>=3` — add more same-model subagents/methods (which catch method-specific slips, not a shared
+  misconception) and **record the cross-family gap as a stated limitation** rather than reading `converged@2`
+  as full certification.
 - **Prefer a steerable background task when the host supports it.** A long/expensive verification (many
   claims, several tie-break rounds, cross-model) is often better spawned as a background task **chip**
   (e.g. Claude Code's spawn-task) the user can inspect and adjust mid-run, rather than one blocking call.

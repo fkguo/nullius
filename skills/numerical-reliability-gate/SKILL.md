@@ -78,11 +78,22 @@ Each check names its own minimum disconfirming test — never accept a number be
   evaluates the *same* quantity under the *same* model by a genuinely different route. A solver/engine that
   implements a structurally *different* model (a different governing relation, a different approximation, a
   different set of modeling assumptions), or a check that holds only in a degenerate / limiting regime, is a
-  **different-model (or limit-regime) comparison, not an apples-to-apples cross-check** — record its outcome
+  **different-scientific-model (or limit-regime) comparison, not an apples-to-apples cross-check** — record its outcome
   labeled as such, never as a G2 pass. When *no* apples-to-apples independent method is reachable, record
   that **absence as an explicit stated limitation**: do not let an established cross-check pattern silently
-  lapse, and do not let a different-model or limit-regime check stand in for the missing one (an
+  lapse, and do not let a different-scientific-model or limit-regime check stand in for the missing one (an
   unrecorded lapse reads as "cross-checked" when nothing comparable was ever run).
+  **Which LLM/engine runs a method is not the cross-check axis — the *route* is.** `>=2` orthogonal methods
+  run by ONE LLM is a valid G2 floor (parallelize them across same-model subagents if useful, one method
+  each — the independence lives in the method, never in the agent label), so a single-LLM host is never
+  blocked here; two subagents (or two LLMs) running the *same* algorithm are one check, not two. A
+  **cross-LLM (different model-family)** independent re-implementation is the *ceiling* — it additionally
+  decorrelates the coding-style, transcription, and library error two methods inside ONE LLM can still share —
+  reached for a load-bearing number when a second LLM family is available, its absence recorded as a stated
+  limitation, not a blocker. **"Different model" here always means a different LLM/engine, never a different
+  scientific model:** recomputing under a different governing relation/approximation is a new scientific
+  question, out of this gate's scope — G2 verifies a result WITHIN its fixed scientific model (same model,
+  different route, per the structural-independence rule above).
 - **G3 — Invariant / topological validation (prefer it over heuristics).** For presence/absence and
   counting (zeros, roots, poles, eigenvalues, modes), prefer a **method-agnostic invariant** over a
   **fixed-seed search** or a **magnitude threshold**, both of which give false negatives (the feature
@@ -183,9 +194,10 @@ The checks are a discipline you apply with whatever your host exposes, not a sin
 inherently model/tool-specific — there is no one generic runner for "refine the grid of arbitrary
 code"). Run the orthogonal methods (G2) and any independent re-computation natively where you can; for
 a cross-*model* independent reproduction of a full numerical result, pair this with an independent
-backend via [`review-swarm`](../review-swarm/SKILL.md). Spend your maximum reasoning on the checks that
-decide a load-bearing number (a contested pole, a χ² that selects a model); a trivial anchor does not
-warrant a tie-break. When the underlying compute is long and kill-prone, run it under
+backend via [`review-swarm`](../review-swarm/SKILL.md). Spend your *maximum* reasoning — and scale the *number* of independent cross-checks — with stakes: a routine
+anchor needs the `>=2`-method floor; a load-bearing number (a contested pole, a χ² that selects a model)
+warrants more orthogonal methods and — when a second LLM family exists — the cross-LLM re-implementation
+ceiling, while a trivial anchor warrants neither a tie-break nor a second engine. When the underlying compute is long and kill-prone, run it under
 [`research-harness`](../research-harness/SKILL.md) (checkpoint/heartbeat/resume) and gate the *results*
 here.
 

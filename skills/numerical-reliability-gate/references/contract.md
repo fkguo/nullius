@@ -168,11 +168,16 @@ is a **labeled candidate** kept for follow-up or discarded — never silently pr
   variance. A precondition verified only at a smaller/cheaper setting than the recorded value does NOT
   satisfy G7 (verdict `precondition_violated`).
 - `cross_method` MUST contain `>=2` genuinely independent methods for any `reliable` verdict that depends
-  on a continuation/quadrature/search; record both values even when they agree. **Independence is
+  on a continuation/quadrature/search; record both values even when they agree. The `>=2` methods MAY run on
+  ONE LLM (parallelize across same-model subagents if useful, one method each) — a single-LLM host is
+  first-class and never blocked; a **cross-LLM (different model-family)** independent re-implementation is the
+  ceiling (it decorrelates the coding-style/transcription/library error two methods in one LLM can still share
+  — distinct from a *different scientific model*, which is a new scientific question, not a cross-check),
+  reached for a load-bearing number when available and its absence stated as a limitation, not a blocker. **Independence is
   structural, not nominal** (mirrors G2): an entry counts toward `methods_agree` only if it evaluates the
   *same* quantity under the *same* model by a different route. A solver/engine implementing a structurally
   *different* model, or a check valid only in a degenerate/limit regime, is recorded labeled as a
-  different-model / limit-regime comparison (e.g. in `notes`) and does **not** set `methods_agree`; when no
+  different-scientific-model / limit-regime comparison (e.g. in `notes`) and does **not** set `methods_agree`; when no
   apples-to-apples independent method is reachable, state that absence in `notes` rather than letting an
   established cross-check silently lapse. **Narrow exception** (mirrors G2): a single method MAY stand
   alone iff it carries a *rigorous a-posteriori / certified-interval error bound* that by itself establishes

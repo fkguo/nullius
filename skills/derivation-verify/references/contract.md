@@ -101,6 +101,13 @@ stronger than Executor 1's `majority_size >= 2`.
 - The leader (caller) does NOT declare convergence — the gate's `converged` flag, derived from >=2
   independent agreeing derivations, is the verdict. (Cf. the project rule "convergence-gate — no
   self-judgment".)
+- The `>=2` floor may be met by `>=2` independent SAME-model derivations (Executor 1): a single-model host
+  is first-class and is never required to add a second model; `>=2` cross-family confirmations (Executor 2)
+  are the stronger ceiling, not the entry bar. Executor 1's `converged` flag stays defined at
+  `independent_confirmations >= 2` (Executor 2's cross-family convergence, R1, is unchanged); for a
+  load-bearing claim the CALLER raises the *promotion* bar (demand more cross-family breadth — the
+  decorrelating lever — and read `cross_family_confirmations`, treating a bare same-model `converged@2` as
+  necessary-not-sufficient), rather than the gate auto-raising a fixed floor.
 - Transient executor failures (rate limits, a crashed backend) must NOT count as a confirmation; the
   tie-break loop adds *successful* independent derivations until >=2 agree. Report unconverged claims
   honestly rather than padding the count.
