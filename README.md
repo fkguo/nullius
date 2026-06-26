@@ -13,7 +13,8 @@ Autoresearch Lab is a domain-neutral, evidence-first research monorepo. Today it
 - `@autoresearch/hep-mcp` remains the current most mature domain pack and strongest end-to-end example, but HEP does not define the root product identity.
 - `research-harness` is the thin Codex / Claude Code / OpenCode skill entrypoint for external research projects: it restores `autoresearch` project state, routes milestone execution to `research-team`, routes Markdown note cleanup to `markdown-hygiene`, routes HEP evidence work to `hep-mcp`, and folds durable results back into project files and artifacts. It is not a new CLI or a second control plane.
 - `research_brainstorm` is a checked-in durable harness recipe under `autoresearch workflow-plan`, not a new top-level CLI command, not the idea-engine, not a full research-team workflow, and not a root front-door expansion.
-- Strict fail-closed research quality remains in force. Project-local durable memory plus `.autoresearch/` state remain the reconnect truth. Optional support surfaces stay opt-in layers.
+- `.autoresearch/HARNESS` is the machine-readable runtime handshake written by `autoresearch init`; when it is present, agents must obtain an `autoresearch status --json` receipt before new work, milestone execution, closeout, or handoff.
+- Strict fail-closed research quality remains in force. `.autoresearch/HARNESS`, project-local durable memory, plus `.autoresearch/` state remain the reconnect truth. Optional support surfaces stay opt-in layers.
 
 ## 2. Current Public Surfaces
 
@@ -99,6 +100,13 @@ For the project's non-surface guarantees — what Autoresearch Lab is *not*, whi
 ```
 
 Approval packets are materialized under the run's `artifacts/runs/<run_id>/approvals/<approval_id>/approval_packet_v1.json` path and consumed through lifecycle commands.
+
+The durable truth here should be understood as two layers that hold together:
+
+- lifecycle / plan / approval state under `.autoresearch/`
+- project-local durable memory such as `research_plan.md`, `research_contract.md`, and `research_notebook.md` once it has substantive content
+
+Surfaces such as `prompts/`, `team/`, `research_team_config.json`, `.mcp.template.json`, and root `specs/plan.schema.json` are opt-in support layers, created later by explicit project need or host-specific tooling rather than the default working front door.
 
 ## 5. How Does a User Connect from MCP Clients / Agent Clients
 
@@ -213,6 +221,7 @@ If you want the generic lifecycle/control-plane smoke path first:
 1. `autoresearch status --project-root /absolute/path/to/external-project`
 1. After a completed run has evidence, `autoresearch verify --project-root /absolute/path/to/external-project --run-id <run_id> --status passed --summary "..." --evidence-path <path>`
 1. Then `autoresearch final-conclusions --project-root /absolute/path/to/external-project --run-id <run_id>`
+1. Record the M1–M7 integrity receipt the approval gate requires: `autoresearch integrity-record --approval-id <approval_id> --modes M1,M2,M3,M4,M5,M6,M7 --notes "..."` (the `approve` gate fail-closes with `INTEGRITY_RECEIPT_REQUIRED` otherwise)
 1. Resolve the pending A5 with `autoresearch approve <approval_id>` to write `artifacts/runs/<run_id>/final_conclusions_v1.json`
 
 If you want the current strongest domain-pack smoke path next, connect your MCP client to `packages/hep-mcp/dist/index.js` and run:

@@ -7,7 +7,7 @@ Draft Path：你在 MCP 外部（本地 LLM / 人工）产出结构化 `ReportDr
 - 适用：你已经有草稿内容（或让外部 LLM 生成内容），需要可复现的渲染/导出闭环。
 - 限制：
   - MCP 不会在本路径里“自动修复”引用/原创性问题；验证失败会直接报错，需要你回到上游修改 JSON。
-  - **事实句（`type: "fact"`）必须提供 `recids`**；否则 verifier 会报 `missing_citation`。
+  - **事实句（`type: "fact"`）必须提供 `recids`**；否则 verifier 会判该句缺引用并计入 `rendered_latex_verification.json` 的 `missing_count`（`pass=false`）。
 - 导出阶段要求 `master.bib` 覆盖 LaTeX 里出现的所有 citekey：若内容里有 `\\cite{...}`，则必须在 `writing_master.bib` 或 `bibliography_raw_v1.json` 中找到对应 BibTeX；**任意缺失都会导致** `hep_export_project` hard fail。
 
 ## 5 步 Recipe（不含一次性环境安装/启动）
@@ -136,9 +136,11 @@ recid token 格式：
 
 ### B) verifier 失败（Step 4：render）
 
-- `missing_citation`：事实句没有 `recids`（或为空）→ 为每个事实句补齐 `recids`（或将该句改为非 grounded 类型）。
-- `unauthorized_citation`：引用不在 allowlist → 把该 recid 加入 `allowed_citations`（或修订文本）。
-- `orphan_citation`：内容里出现 `\\cite{...}` 但 attribution 里没有对应 citation → 不要在 `sentence`/`sentence_latex` 里手写 `\\cite{...}`；让系统根据 `recids` 生成引用。
+verifier 失败时 `rendered_latex_verification.json` 的 `pass=false`，`statistics` 给出 `missing_count` / `unauthorized_count` / `orphan_count` 计数，逐条问题列在 `issues[]`：
+
+- `missing_count`（缺引用 / missing）：事实句没有 `recids`（或为空）→ 为每个事实句补齐 `recids`（或将该句改为非 grounded 类型）。
+- `unauthorized_count`（越权引用 / unauthorized）：引用不在 allowlist → 把该 recid 加入 `allowed_citations`（或修订文本）。
+- `orphan_count`（孤儿引用 / orphan）：内容里出现 `\\cite{...}` 但 attribution 里没有对应 citation → 不要在 `sentence`/`sentence_latex` 里手写 `\\cite{...}`；让系统根据 `recids` 生成引用。
 - `Missing allowed_citations`：run 中缺少 allowlist artifact → 运行 `hep_run_build_citation_mapping` 生成 `allowed_citations_v1.json` 并同步补齐 `bibliography_raw_v1.json` / `writing_master.bib`。
 
 ### C) export 失败（Step 5）

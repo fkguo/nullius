@@ -134,8 +134,7 @@ export const FRONT_DOOR_SNIPPETS = [
       '**Root framing**: Domain-neutral substrate + control plane; HEP is the current most mature provider family, not the root identity',
 	      '**Main generic lifecycle + native TS computation + workflow-plan entrypoint**: `autoresearch` CLI for external project roots and `.autoresearch/` state',
 	      '**Runtime project handshake**: `autoresearch init` writes `.autoresearch/HARNESS`',
-	      '- Closeout baseline: `main` at `fc31bdbd`',
-      '- Latest confirmed idea-engine CI: `25000327821` success',
+	      '- Closeout baseline: `main` at `ecd9faa8`',
       '- **Recommended public stateful literature workflow entrypoint**: `autoresearch workflow-plan` (requires an initialized external project root; resolves recipes directly via `@autoresearch/literature-workflows`; persists `.autoresearch/state.json#/plan` and derives `.autoresearch/plan.md`)',
       '- **Native TS run slice**: `autoresearch run` (requires an initialized external project root; runs prepared `computation/manifest.json` natively for `--workflow-id computation`, and also advances dependency-satisfied persisted workflow-plan steps through the same front door)',
       'the current idea-engine phase is closed; `@autoresearch/idea-mcp` remains campaign/search/eval oriented on explicit external data roots',
@@ -255,7 +254,7 @@ export const FRONT_DOOR_SNIPPETS = [
   {
     relPath: 'docs/URI_REGISTRY.md',
     snippets: [
-      'The current emitted/resolved URI schemes covered by this registry are `hep://`, `pdg://`, `orch://`, `rep://`, `hepdata://`, `openalex://`, and `zotero://`.',
+      'The current emitted/resolved URI schemes covered by this registry are `hep://`, `pdg://`, `orch://`, `rep://`, `hepdata://`, `openalex://`, `zotero://`, and `file://`.',
       'It is not an MCP resources contract; current MCP servers expose tools only.',
       '`hep://` and `orch://` are separate owned namespaces.',
       'There is no implicit `hep://` <-> `orch://` aliasing layer in live authority.',
