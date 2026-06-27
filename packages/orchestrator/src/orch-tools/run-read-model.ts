@@ -89,6 +89,14 @@ const RESEARCH_CONTRACT_RESIDUE_MARKERS = [
   'fix_markdown_double_backslash_math.py --notes research_contract.md --in-place',
   'via [research_team_config.json](research_team_config.json)',
 ] as const;
+const PROJECT_DATE_PATTERN = /(\d{4})-(\d{2})-(\d{2})/;
+const ARTIFACT_RUN_DATE_PATTERN = /^(\d{4})(\d{2})(\d{2})(?:T\d{6}Z)?[-_.]/;
+const RECOVERY_MANIFEST_FILENAMES = [
+  'manifest.json',
+  'summary.json',
+  'final_conclusions_v1.json',
+  'final_conclusions.json',
+] as const;
 
 function readLedgerSnapshotFromPath(ledgerPath: string): LedgerSnapshot {
   if (!fs.existsSync(ledgerPath)) {
@@ -821,6 +829,93 @@ function readWorkflowHandoffContracts(state: RunState): Record<string, unknown> 
   return contracts;
 }
 
+function normalizeProjectDate(raw: string): string | null {
+  const match = raw.match(PROJECT_DATE_PATTERN);
+  return match ? `${match[1]}-${match[2]}-${match[3]}` : null;
+}
+
+function artifactRunDateFromId(runId: string): string | null {
+  const match = runId.match(ARTIFACT_RUN_DATE_PATTERN);
+  return match ? `${match[1]}-${match[2]}-${match[3]}` : null;
+}
+
+function latestIsoDate(values: Array<string | null>): string | null {
+  const dates = values.filter((value): value is string => Boolean(value));
+  return dates.length > 0 ? dates.sort().at(-1) ?? null : null;
+}
+
+function researchPlanLastUpdatedIssue(projectRoot: string): Record<string, unknown> | null {
+  const researchPlanPath = path.join(projectRoot, 'research_plan.md');
+  if (!fs.existsSync(researchPlanPath)) return null;
+  const text = fs.readFileSync(researchPlanPath, 'utf-8');
+  const lastUpdatedLine = text.split('\n').find(line => /^Last updated:/i.test(line.trim()));
+  const lastUpdated = lastUpdatedLine ? normalizeProjectDate(lastUpdatedLine) : null;
+  if (!lastUpdated) return null;
+
+  const progressDates = [...text.matchAll(/^\s*-\s*(\d{4}-\d{2}-\d{2})\b/gm)].map(match => match[1] ?? null);
+  const artifactRunsDir = path.join(projectRoot, 'artifacts', 'runs');
+  const artifactRunIds = fs.existsSync(artifactRunsDir)
+    ? fs.readdirSync(artifactRunsDir, { withFileTypes: true })
+      .filter(entry => entry.isDirectory())
+      .map(entry => entry.name)
+    : [];
+  const latestProgressDate = latestIsoDate(progressDates);
+  const latestArtifactRun = artifactRunIds
+    .map(runId => ({ run_id: runId, date: artifactRunDateFromId(runId) }))
+    .filter((entry): entry is { run_id: string; date: string } => Boolean(entry.date))
+    .sort((a, b) => a.date === b.date ? a.run_id.localeCompare(b.run_id) : a.date.localeCompare(b.date))
+    .at(-1) ?? null;
+  const latestObservedDate = latestIsoDate([latestProgressDate, latestArtifactRun?.date ?? null]);
+  if (!latestObservedDate || latestObservedDate <= lastUpdated) return null;
+
+  return {
+    code: 'RESEARCH_PLAN_LAST_UPDATED_STALE',
+    path: 'research_plan.md',
+    message: 'research_plan.md has a Last updated date older than dated progress or artifact evidence, so reconnecting agents may under-trust or misread the current project state.',
+    recommended_action: 'refresh_current_status_and_last_updated',
+    evidence: {
+      last_updated: lastUpdated,
+      latest_observed_date: latestObservedDate,
+      latest_progress_log_date: latestProgressDate,
+      latest_artifact_run_id: latestArtifactRun?.run_id ?? null,
+    },
+  };
+}
+
+function directoryHasRecoveryManifest(runDir: string): boolean {
+  return RECOVERY_MANIFEST_FILENAMES.some(fileName => fs.existsSync(path.join(runDir, fileName)));
+}
+
+function directoryHasContent(runDir: string): boolean {
+  return fs.readdirSync(runDir).some(entry => !entry.startsWith('.'));
+}
+
+function artifactRunManifestIssue(projectRoot: string): Record<string, unknown> | null {
+  const artifactRunsDir = path.join(projectRoot, 'artifacts', 'runs');
+  if (!fs.existsSync(artifactRunsDir)) return null;
+  const missingManifestRunIds = fs.readdirSync(artifactRunsDir, { withFileTypes: true })
+    .filter(entry => entry.isDirectory())
+    .map(entry => entry.name)
+    .filter(runId => {
+      const runDir = path.join(artifactRunsDir, runId);
+      return directoryHasContent(runDir) && !directoryHasRecoveryManifest(runDir);
+    })
+    .sort();
+  if (missingManifestRunIds.length === 0) return null;
+
+  return {
+    code: 'ARTIFACT_RUNS_MISSING_RECOVERY_MANIFEST',
+    path: 'artifacts/runs',
+    message: 'One or more artifact run directories contain outputs but no manifest.json, summary.json, or final conclusions file, making future recovery depend on ad-hoc file reading.',
+    recommended_action: 'add_minimal_run_manifest_or_summary',
+    evidence: {
+      missing_count: missingManifestRunIds.length,
+      sample_run_ids: missingManifestRunIds.slice(0, 5),
+      accepted_files: [...RECOVERY_MANIFEST_FILENAMES],
+    },
+  };
+}
+
 export function readProjectSurfaceDriftView(projectRoot: string): {
   project_surface_drift: Record<string, unknown> | null;
   project_surface_drift_error: Record<string, unknown> | null;
@@ -896,6 +991,12 @@ export function readProjectSurfaceDriftView(projectRoot: string): {
         });
       }
     }
+
+    const researchPlanIssue = researchPlanLastUpdatedIssue(projectRoot);
+    if (researchPlanIssue) issues.push(researchPlanIssue);
+
+    const artifactManifestIssue = artifactRunManifestIssue(projectRoot);
+    if (artifactManifestIssue) issues.push(artifactManifestIssue);
 
     return {
       project_surface_drift: {
