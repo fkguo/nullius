@@ -1,0 +1,118 @@
+\documentclass[tikz,border=4pt]{standalone}
+\usepackage{amsmath}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,calc,decorations.pathmorphing,positioning}
+\input{../styles/pd_styles.tex}
+
+\newcommand{\sourceDecay}[2]{%
+  \begin{tikzpicture}[baseline=(c.base), line cap=round, line join=round, >=Stealth]
+    \coordinate (c) at (0,0);
+    \node[pdBlock, circle, fill=pdSource, minimum size=8.2mm] (src) at (0,0) {$#1$};
+    \draw[pdSourceLine] (-1.25,0) -- (src.west);
+    \draw[pdParticle] (src.east) ++(0,0.13) to[out=18,in=180] (1.32,0.45);
+    \draw[pdParticle] (src.east) ++(0,-0.13) to[out=-18,in=180] (1.32,-0.45);
+    \draw[pdExchange] (src.east) -- (1.32,0);
+    \node[pdLabel, above=1.1mm] at (0.82,0.47) {$h_1$};
+    \node[pdLabel, below=1.1mm] at (0.82,-0.47) {$h_2$};
+    \if\relax\detokenize{#2}\relax\else
+      \node[pdLabel, right=0.5mm] at (1.32,0) {$#2$};
+    \fi
+  \end{tikzpicture}%
+}
+
+\newcommand{\twoLineBlock}[2]{%
+  \begin{tikzpicture}[baseline=(base.base), line cap=round, line join=round]
+    \coordinate (base) at (0,0);
+    \draw[line width=0.62pt, draw=pdInk] (-1.28,0.34) -- (-0.58,0.34);
+    \draw[line width=0.62pt, draw=pdInk] (0.58,0.34) -- (1.28,0.34);
+    \DimerLineH{-1.28}{-0.34}{-0.58}{pdDimerHeavy}{pdDimerLight}
+    \DimerLineH{0.58}{-0.34}{1.28}{pdDimerHeavy}{pdDimerLight}
+    \node[pdBlock, fill=#2] (op) at (0,0) {$#1$};
+  \end{tikzpicture}%
+}
+
+\newcommand{\kernelTauKernel}{%
+  \begin{tikzpicture}[baseline=(base.base), line cap=round, line join=round]
+    \coordinate (base) at (0,0);
+    \draw[line width=0.62pt, draw=pdInk] (-1.85,0.34) -- (-1.48,0.34);
+    \draw[line width=0.62pt, draw=pdInk] (-0.42,0.34) -- (-0.32,0.34);
+    \draw[line width=0.62pt, draw=pdInk] (0.32,0.34) -- (0.42,0.34);
+    \draw[line width=0.62pt, draw=pdInk] (1.48,0.34) -- (1.85,0.34);
+    \DimerLineH{-1.85}{-0.34}{-1.48}{pdDimerHeavy}{pdDimerLight}
+    \DimerLineH{-0.42}{-0.34}{0.42}{pdDimerHeavy}{pdDimerLight}
+    \DimerLineH{1.48}{-0.34}{1.85}{pdDimerHeavy}{pdDimerLight}
+    \node[pdBlock, fill=pdRose] (kL) at (-0.95,0) {$K$};
+    \node[pdBlock, fill=pdGreen, circle, minimum size=5.4mm, inner sep=0pt] (tau) at (0,0.34) {$\tau$};
+    \node[pdBlock, fill=pdRose] (kR) at (0.95,0) {$K$};
+  \end{tikzpicture}%
+}
+
+\newcommand{\exchangeKernel}{%
+  \begin{tikzpicture}[baseline=(base.base), line cap=round, line join=round]
+    \coordinate (base) at (0,0);
+    \coordinate (vL) at (-0.45,0);
+    \coordinate (vR) at (0.45,0);
+    \fill[pdInk] (vL) circle (1.35pt);
+    \fill[pdInk] (vR) circle (1.35pt);
+    \draw[line width=0.62pt, draw=pdInk] (-1.35,0.42) -- (vL);
+    \draw[pdDimerHeavy] ($(-1.35,-0.42)+(0,0.045)$) -- ($(vL)+(0,0.045)$);
+    \draw[pdDimerLight] ($(-1.35,-0.42)+(0,-0.045)$) -- ($(vL)+(0,-0.045)$);
+    \draw[line width=0.62pt, draw=pdInk] (vR) -- (1.35,0.42);
+    \draw[pdDimerHeavy] ($(vR)+(0,0.045)$) -- ($(1.35,-0.42)+(0,0.045)$);
+    \draw[pdDimerLight] ($(vR)+(0,-0.045)$) -- ($(1.35,-0.42)+(0,-0.045)$);
+    \draw[pdTripleLine] (vL) -- (vR);
+  \end{tikzpicture}%
+}
+
+\begin{document}
+\begin{tikzpicture}[line cap=round, line join=round, >=Stealth]
+  \node (topA) at (0,0) {\sourceDecay{\Gamma}{\pi}};
+  \node at (2.20,0) {$=$};
+  \node (topB) at (4.35,0) {\sourceDecay{D}{\pi}};
+  \node at (6.55,0) {$+$};
+  \node (topC) at (8.78,0) {\sourceDecay{\widetilde{\Gamma}}{\pi}};
+
+  \node[pdPanelBox, anchor=west] (boxG) at (0.25,-2.70) {
+    \sourceDecay{\widetilde{\Gamma}}{}
+    $\quad=\quad$
+    \begin{tikzpicture}[baseline=(base.base), line cap=round, line join=round]
+      \coordinate (base) at (0,0);
+      \draw[pdSourceLine] (-1.25,0) -- (-0.48,0);
+      \draw[line width=0.62pt, draw=pdInk] (0.48,0.34) -- (0.54,0.34);
+      \draw[line width=0.62pt, draw=pdInk] (1.10,0.34) -- (1.22,0.34);
+      \DimerLineH{0.48}{-0.34}{1.22}{pdDimerHeavy}{pdDimerLight}
+      \draw[line width=0.62pt, draw=pdInk] (2.22,0.34) -- (2.50,0.34);
+      \DimerLineH{2.22}{-0.34}{2.50}{pdDimerHeavy}{pdDimerLight}
+      \node[pdBlock, circle, fill=pdSource, minimum size=8.2mm] (d) at (0,0) {$D$};
+      \node[pdBlock, fill=pdGreen, circle, minimum size=5.4mm, inner sep=0pt] (tau) at (0.82,0.34) {$\tau$};
+      \node[pdBlock, fill=pdBlue] (t) at (1.72,0) {$T$};
+    \end{tikzpicture}
+  };
+
+  \node[pdPanelBox, fill=pdBlue!45, anchor=west] (boxT) at (0,-5.05) {
+    \twoLineBlock{T}{pdBlue}
+    $\quad=\quad$
+    \twoLineBlock{K}{pdRose}
+    $\quad+\quad$
+    \kernelTauKernel
+    $\quad+\cdots$
+  };
+
+  \node[pdPanelBox, fill=pdRose!40, anchor=west] (boxK) at (1.52,-7.28) {
+    \twoLineBlock{K}{pdRose}
+    $\quad=\quad$
+    \exchangeKernel
+    $\quad+\quad$
+    \twoLineBlock{C}{pdGreen}
+  };
+
+  \coordinate (routeTop) at ($(topC.east)+(0.95,0)$);
+  \coordinate (routeSide) at (routeTop |- boxG.east);
+  \draw[pdArrow] ($(topC.east)+(0.15,0)$) -- (routeTop) -- (routeSide) -- (boxG.east);
+  \draw[pdArrow] ($(boxG.south west)+(0.35,0)$) -- ++(0,-0.35)
+    -| ($(boxT.north west)+(0.35,0)$);
+  \draw[pdArrow] ($(boxT.south west)+(0.35,0)$) -- ++(0,-0.35)
+    -| ($(boxK.north west)+(0.35,0)$);
+\end{tikzpicture}
+\end{document}

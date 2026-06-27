@@ -1,0 +1,4 @@
+interface:
+  display_name: "Physics Diagrams"
+  short_description: "Publish-grade physics and Feynman diagrams"
+  default_prompt: "Use $physics-diagrams to draw a publication-ready Feynman or integral-equation diagram as vector PDF for LaTeX."

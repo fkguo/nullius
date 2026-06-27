@@ -1,0 +1,48 @@
+\documentclass[tikz,border=7pt]{standalone}
+\usepackage{amsmath}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,calc,decorations.pathmorphing}
+\input{../styles/pd_styles.tex}
+
+\begin{document}
+  \begin{tikzpicture}[line cap=round, line join=round, >=Stealth]
+  \coordinate (src) at (0,0);
+  \coordinate (v) at (1.64,0);
+  \coordinate (top) at (3.06,0.88);
+  \coordinate (mid) at (3.04,0);
+  \coordinate (bot) at (3.06,-0.88);
+  \path[use as bounding box] (-1.12,-1.12) rectangle (3.55,1.12);
+
+  \node[
+    draw=pdInk,
+    fill=pdSource,
+    circle,
+    line width=0.45pt,
+    minimum size=8.8mm,
+    inner sep=0pt
+  ] (srcNode) at (src) {$\Gamma$};
+
+  \draw[pdSourceLine] (-1.05,0) -- (srcNode.west);
+  \draw[line width=0.65pt, draw=pdInk] (srcNode.east) -- (v);
+  \draw[pdParticle] (v) -- (top);
+  \draw[pdParticle] (v) -- (bot);
+  \draw[pdExchange] (v) -- (mid);
+
+  % Incident lines meet at the vertex center; the filled vertex is drawn last
+  % to hide the unphysical line pieces inside the blob.
+  \node[
+    draw=pdInk,
+    fill=pdVertex,
+    circle,
+    line width=0.45pt,
+    minimum size=4.1mm,
+    inner sep=0pt
+  ] at (v) {};
+
+  \node[pdLabel] at (2.48,0.82) {$h_1$};
+  \node[pdLabel] at (2.48,-0.82) {$h_2$};
+  \node[pdLabel, right=0.65mm] at (mid) {$\pi$};
+  \node[pdLabel, above=0.45mm] at ($(srcNode.east)!0.56!(v)$) {$D$};
+\end{tikzpicture}
+\end{document}

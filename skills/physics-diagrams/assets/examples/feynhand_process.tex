@@ -1,0 +1,56 @@
+\documentclass[tikz,border=7pt]{standalone}
+\usepackage{amsmath}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usepackage[compat=1.1.0]{tikz-feynman}
+\usepackage[compat=1.1.0]{tikz-feynhand}
+\usetikzlibrary{arrows.meta,calc,decorations.pathmorphing,positioning}
+\tikzfeynmanset{warn luatex=false}
+\input{../styles/pd_styles.tex}
+
+\begin{document}
+\begin{tikzpicture}[line cap=round, line join=round]
+  \begin{feynman}
+    \begin{feynhand}
+      \vertex (in) at (-1.10,0) {};
+      \vertex (src) at (0,0) {};
+      \vertex (v) at (1.64,0) {};
+      \vertex (top) at (3.06,0.88) {};
+      \vertex (mid) at (3.04,0) {};
+      \vertex (bot) at (3.06,-0.88) {};
+      \path[use as bounding box] (-1.12,-1.12) rectangle (3.55,1.12);
+
+      \propag[pho] (in) to (src);
+      \propag[thick] (src) to (v);
+      \propag[thick] (v) to (top);
+      \propag[sca] (v) to (mid);
+      \propag[thick] (v) to (bot);
+    \end{feynhand}
+  \end{feynman}
+
+  \node[
+    draw=pdInk,
+    fill=pdSource,
+    circle,
+    line width=0.45pt,
+    minimum size=8.8mm,
+    inner sep=0pt
+  ] (srcNode) at (src) {$\Gamma$};
+
+  % Feynhand draws incident propagators to (v); the filled vertex masks the
+  % unphysical pieces inside the interaction blob.
+  \node[
+    draw=pdInk,
+    fill=pdVertex,
+    circle,
+    line width=0.45pt,
+    minimum size=4.1mm,
+    inner sep=0pt
+  ] at (v) {};
+
+  \node[pdLabel] at (2.48,0.82) {$h_1$};
+  \node[pdLabel] at (2.48,-0.82) {$h_2$};
+  \node[pdLabel, right=0.65mm] at (mid) {$\pi$};
+  \node[pdLabel, above=0.45mm] at ($(srcNode.east)!0.56!(v)$) {$D$};
+\end{tikzpicture}
+\end{document}
