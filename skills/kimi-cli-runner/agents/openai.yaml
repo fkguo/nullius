@@ -1,0 +1,4 @@
+interface:
+  display_name: "Kimi CLI Runner"
+  short_description: "Run kimi CLI headless with prompt files."
+  default_prompt: "Run Kimi Code non-interactively for this prompt packet and save the parsed assistant text output to a file."

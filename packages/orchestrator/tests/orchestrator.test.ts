@@ -381,7 +381,7 @@ describe('StateManager', () => {
 
     expect(statusView.project_surface_drift).toMatchObject({
       status: 'warning_only',
-      warning_count: 3,
+      warning_count: 4,
     });
     expect(exportView.project_surface_drift).toEqual(statusView.project_surface_drift);
     expect(exportView.project_surface_drift_error).toEqual(statusView.project_surface_drift_error);
