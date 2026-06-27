@@ -1,6 +1,6 @@
 ---
 name: numerical-reliability-gate
-description: "Convergence/reliability gate for NUMERICAL results in ANY field (fits/optimizations, integrals/quadratures, eigenvalues, roots/poles/zeros, ODE/PDE solutions, Monte-Carlo estimates — domain carried only by the caller's context). Before a computed number is folded into the durable record it must pass: (G1) discretization convergence — the value is stable as every resolution knob (grid, node count, step, contour density) is refined, and a coarse-setting optimum that evaporates at the converged setting is flagged a MIRAGE; (G2) orthogonal-method cross-check — >=2 independent methods agree; disagreement blocks the number (unresolved, not pick-one) until explained, and a method counts as independent only if it evaluates the same model by a different route — a structurally-different-model or limit-regime check is labeled as such or its absence recorded, never presented as validation; (G3) invariant/topological validation where available — prefer a method-agnostic invariant (e.g. an argument-principle winding number, which counts zeros minus poles inside a contour) over a fixed-seed search or a magnitude threshold, which give false positives/negatives; (G4) regression anchor — the default/reference configuration reproduces a KNOWN reference result before any variation is trusted; (G5) degeneracy honesty — in flat-direction fits quote only the observables robust to the degeneracy, not individual parameters; (G6) report only converged values, with their setting recorded; (G7) method-precondition validity — any structural identity the method's validity rests on (an operator commuting with a projector/symmetrizer, Hermiticity, self-adjointness, variational-subspace invariance) holds at the PRODUCTION setting/configuration, not only the smallest/cheapest, and a value whose precondition fails there is invalid even if G1-converged; (G8) reference-number reproduction — a result that claims to reproduce/match/agree-with a published reference value is gated by COMPUTING the claimed observable on a comparable state/regime and comparing numerically (term by term where the claim is term-level), never by a qualitative same-scale/same-sign assertion nor by citing the source, and an order-of-magnitude or sign discrepancy is a finding, not a pass. Emits an auditable reliability matrix. Sibling to `derivation-verify` (which re-derives the SYMBOLIC answer) and `julia-perf` (which gates SPEED); this one gates whether a NUMERICAL result is converged and real.\n"
+description: "Convergence and reliability gate for NUMERICAL results in any field, including fits, optimizations, integrals, eigenvalues, roots, poles, zeros, ODE/PDE solutions, Monte-Carlo estimates, and downstream feature extraction. Use before trusting, comparing, publishing, or folding a computed number into durable research artifacts. Requires resolution convergence, independent-method checks, regression anchors, method-precondition checks, configuration-threading audits, and honest uncertainty/reporting. Emits an auditable reliability matrix. Sibling to derivation-verify for symbolic claims and julia-perf for speed claims."
 ---
 
 # Numerical Reliability Gate
@@ -218,3 +218,41 @@ caller's context). Concrete failure modes this gate encodes, each caught the har
 - work was twice built on a **superseded** configuration (an earlier χ²≈2.19 fit instead of the adopted
   χ²≈1.9 one; a deprecated continuation method instead of the adopted one) before a regression anchor
   would have caught it — **G4** (and `research-harness` "anchor on the final adopted version").
+
+Further failure modes from a second reproduction (a composite kernel assembled from several parts,
+feeding a downstream feature extraction — a root / mode / peak located by fitting or continuation; domain
+carried only by the caller's context), each a way an agreement-based check gave false confidence:
+
+- a composite term assembled by a **positional shortcut** (grouping its factors by their *slot* — which
+  position they occupy — rather than by their *actual role*) was **bit-identically correct for the
+  symmetric/dominant components**, where the shortcut coincides with the role-correct assignment, and wrong
+  only for the single asymmetric, least-exercised component; two re-implementations that both inherited the
+  shortcut agreed to machine precision and "passed". **G2/G7** — a structure verified only on the
+  symmetric/dominant cases is unverified: exercise the case whose roles *differ* from the shortcut's
+  assumption, and test the *premise* (the assembled term equals its first-principles form) directly per
+  component, not via cross-implementation numerical agreement;
+- a **"bit-identical" cross-implementation (even cross-model) agreement** proved only that both invoked the
+  same code/idea, not that the idea was correct; the error surfaced only when a re-derivation was
+  **forbidden to inherit the suspect kernel** and rebuilt the component from first principles, after which
+  the discrepancy was *traced* (not voted) to the exact structural step. **G2** — for a load-bearing
+  structure require a from-scratch re-derivation barred from inheriting it; kernel-sharing agreement (and
+  bit-identical agreement most of all) is co-invocation, not independence;
+- an independent-verifier brief that **stated the expected answer/structure** produced conformity; the same
+  verifiers re-dispatched **blind** (given only the claim and the code — no answer, no suspected mechanism,
+  no analysis window) independently recovered the result, its mechanism, and its root cause. **G2** — blind
+  the dispatch (withhold the expected value, the suspected mechanism, and the window); an anchored agreement
+  can be a shared error rubber-stamped;
+- a **configuration knob** (a cutoff / resolution) was not threaded into a sub-stage, which **silently fell
+  back to its own default**, so the value was G1-converged but computed at the *wrong configuration* with no
+  error raised — caught only by tracing a few-percent gap to a reference. **G6/G7** — thread configuration
+  explicitly and assert end-to-end that the requested setting actually reaches every stage; a silent default
+  is a converged-but-wrong trap;
+- a feature's width/strength was **extracted from a window/region that did not contain the feature's
+  peak/root**, so shoulder/background data fed the extractor and several methods produced a wide,
+  method-dependent spread later reported as a genuine width; **locating the feature first** (and bracketing
+  it) collapsed the spread onto the true value. **G1/G3** — locate the feature before extracting from it and
+  confirm the window brackets it; a method-spread on mis-located data is an artifact, not an uncertainty;
+- a spread of extraction methods **targeting one observable was relabeled as a different observable** that
+  was never measured directly (the directly-computed second observable lay far from the relabeled number).
+  **G8** — report an extraction under the observable it actually targets; never relabel the method-spread of
+  an extraction for one quantity as the value of another.
