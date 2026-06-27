@@ -103,12 +103,13 @@ describe('Tool registry contracts (M2)', () => {
     expect((tool?.inputSchema as any).properties.max_results.default).toBe(100);
   });
 
-  it('inspire_literature metadata documents tolerated lookup_by_id size compatibility', () => {
+  it('inspire_literature metadata documents tolerated singleton-mode size compatibility', () => {
     const tool = getTools('standard').find(t => t.name === 'inspire_literature');
     expect(tool).toBeDefined();
     expect(tool?.description).toContain('get_paper: { recid } only. Do not pass size, page, or options.');
     expect(tool?.description).toContain('lookup_by_id: { identifier } only. Do not pass size, sort, page, or options; accidental size is ignored.');
-    expect((tool?.inputSchema as any).properties.size.description).toContain('Ignored by lookup_by_id');
+    expect(tool?.description).toContain('get_author: { identifier } only. Do not pass size, sort, page, or options; accidental size is ignored.');
+    expect((tool?.inputSchema as any).properties.size.description).toContain('Ignored by lookup_by_id, get_paper, and get_author');
     expect((tool?.inputSchema as any).properties.identifier.description).toContain('size is tolerated and ignored');
   });
 

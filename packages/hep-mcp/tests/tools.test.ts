@@ -578,6 +578,18 @@ describe('Tool Handlers (current exposure)', () => {
     expect(api.getAuthor).toHaveBeenCalledWith('E.Witten.1');
   });
 
+  it('inspire_literature(get_author) should tolerate and ignore size for agent-call compatibility', async () => {
+    vi.mocked(api.getAuthor).mockResolvedValueOnce({ bai: 'Feng.Kun.Guo.1' } as any);
+    const result = await handleToolCall('inspire_literature', {
+      mode: 'get_author',
+      identifier: 'Guo, Feng-Kun',
+      size: 25,
+    } as any);
+
+    expect(result.isError).toBeFalsy();
+    expect(api.getAuthor).toHaveBeenCalledWith('Guo, Feng-Kun');
+  });
+
   it('inspire_resolve_citekey should resolve citekey + bibtex for a single recid', async () => {
     const recid = '2968660';
     const bibtex = '@article{Diefenbacher:2025zzn,\n  title={Agents of Discovery}\n}\n';

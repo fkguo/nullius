@@ -425,6 +425,7 @@ EOF
 - 返回单篇论文的结构化元信息
 - `get_paper` 不需要 `size`
 - `lookup_by_id` 语义上只传 `identifier`；agent 误带的 `size` 会被忽略，但不要主动附带
+- `get_author` 语义上只传 `identifier`；agent 误带的 `size` 会被忽略，但不要主动附带
 
 ### 5.3 `inspire_topic_analysis`
 

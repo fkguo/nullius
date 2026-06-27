@@ -155,7 +155,7 @@ Modes + required args:
 - get_citations: { recid, size?, sort? } // IMPORTANT: use recid (not identifier); use size (not options.limit)
 - search_affiliation: { affiliation, size?, sort? }
 - get_bibtex: { recids }
-- get_author: { identifier } // identifier can be INSPIRE BAI (e.g. E.Witten.1), ORCID, or a name query; returns \`bai\` for disambiguation.
+- get_author: { identifier } only. Do not pass size, sort, page, or options; accidental size is ignored. identifier can be INSPIRE BAI (e.g. E.Witten.1), ORCID, or a name query; returns \`bai\` for disambiguation.
 
 Examples:
 - get_paper: \`{ mode: "get_paper", recid: "854586" }\`
