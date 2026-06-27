@@ -1911,6 +1911,97 @@ describe('autoresearch CLI', () => {
     });
   });
 
+  it('warns when research_plan Last updated predates dated progress evidence', async () => {
+    const projectRoot = makeTempProjectRoot();
+    const manager = new StateManager(projectRoot);
+    manager.ensureDirs();
+    const state = manager.readState() as RunState;
+    state.run_id = 'M-DRIFT-PLAN-DATE';
+    state.run_status = 'idle';
+    manager.saveState(state);
+    writeProjectSurfaceGuidanceFiles(projectRoot);
+    fs.writeFileSync(
+      path.join(projectRoot, 'research_plan.md'),
+      [
+        '# research_plan.md',
+        '',
+        'Last updated: 2026-06-04',
+        '',
+        '## Current Status',
+        '',
+        '| Field | Current value |',
+        '|---|---|',
+        '| Current phase | M1 |',
+        '',
+        '## Progress log',
+        '',
+        '- 2026-06-05: Completed the first checked refit.',
+        '',
+      ].join('\n'),
+      'utf-8',
+    );
+
+    const { io, stdout } = makeIo(projectRoot);
+    const code = await runCli(['status', '--json'], io);
+
+    expect(code).toBe(0);
+    expect(JSON.parse(stdout.join(''))).toMatchObject({
+      project_surface_drift: {
+        status: 'warning_only',
+        warning_count: 1,
+        issues: [
+          {
+            code: 'RESEARCH_PLAN_LAST_UPDATED_STALE',
+            path: 'research_plan.md',
+            evidence: {
+              last_updated: '2026-06-04',
+              latest_observed_date: '2026-06-05',
+              latest_progress_log_date: '2026-06-05',
+            },
+          },
+        ],
+      },
+    });
+  });
+
+  it('warns when artifact run directories have outputs but no recovery manifest', async () => {
+    const projectRoot = makeTempProjectRoot();
+    const manager = new StateManager(projectRoot);
+    manager.ensureDirs();
+    const state = manager.readState() as RunState;
+    state.run_id = 'M-DRIFT-RUN-MANIFEST';
+    state.run_status = 'idle';
+    manager.saveState(state);
+    writeProjectSurfaceGuidanceFiles(projectRoot);
+    const missingManifestDir = path.join(projectRoot, 'artifacts', 'runs', '20260605-m3-refit-fixed-r1');
+    const healthyDir = path.join(projectRoot, 'artifacts', 'runs', '20260606-m4-verified-r1');
+    fs.mkdirSync(missingManifestDir, { recursive: true });
+    fs.mkdirSync(healthyDir, { recursive: true });
+    fs.writeFileSync(path.join(missingManifestDir, 'final_table.txt'), 'chi2/dof = 2.19\n', 'utf-8');
+    fs.writeFileSync(path.join(healthyDir, 'summary.json'), '{}\n', 'utf-8');
+
+    const { io, stdout } = makeIo(projectRoot);
+    const code = await runCli(['status', '--json'], io);
+
+    expect(code).toBe(0);
+    expect(JSON.parse(stdout.join(''))).toMatchObject({
+      project_surface_drift: {
+        status: 'warning_only',
+        warning_count: 1,
+        issues: [
+          {
+            code: 'ARTIFACT_RUNS_MISSING_RECOVERY_MANIFEST',
+            path: 'artifacts/runs',
+            evidence: {
+              missing_count: 1,
+              sample_run_ids: ['20260605-m3-refit-fixed-r1'],
+            },
+          },
+        ],
+      },
+    });
+  });
+
   it('reports current_run_workflow_outputs_error when a curated workflow output is malformed', async () => {
     const projectRoot = makeTempProjectRoot();
     const manager = new StateManager(projectRoot);
