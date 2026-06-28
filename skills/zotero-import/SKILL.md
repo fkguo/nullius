@@ -1,6 +1,6 @@
 ---
 name: zotero-import
-description: "Teaches the two-step zotero_add -> zotero_confirm pipeline for importing papers into Zotero, including collection selection, file attachment, dedup handling, and non-HEP DOI support.\n"
+description: "Teaches the two-step zotero_add then zotero_confirm pipeline for importing papers into Zotero, including collection selection, file attachment, dedup handling, and non-HEP DOI support.\n"
 ---
 
 # Zotero Import Workflow
@@ -65,6 +65,12 @@ If `collection_keys` is omitted, the tool writes to whichever collection is curr
 zotero_get_selected_collection {}
 ```
 
+Before any write, verify that the selected collection is intended for this task. Do not write to
+personal, reserved, archival, or project-excluded collections just because they happen to be selected
+in the Zotero UI. If the collection name suggests it is reserved, or if the user has named a collection
+that must not receive imported papers, stop and ask for an explicit collection key or a different UI
+selection. A read-only lookup does not require collection confirmation; a write does.
+
 ### Option B: Explicit collection key
 ```json
 { "source": {...}, "collection_keys": ["ABCD1234"] }
@@ -75,6 +81,14 @@ By default, writing to the library root (no collection) is rejected. Override wi
 ```json
 { "source": {...}, "allow_library_root": true }
 ```
+
+## Existing Zotero Items
+
+When the user provides a Zotero select URI such as `zotero://select/library/items/ABCD1234`,
+prefer a read-only inspection of that existing item and its attachments before attempting an import.
+Use the item key with `zotero_local`, `zotero_find_items`, `zotero_search_items`, or
+`zotero_export_items` as appropriate. Do not create a duplicate item from DOI/arXiv metadata unless the
+user explicitly asks to import another copy or the existing item is confirmed unsuitable.
 
 ## File Attachment
 

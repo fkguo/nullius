@@ -41,6 +41,17 @@ Ground claims whose support rests on a citation:
 - `calculation` → not here; numerical reproduction is the `research-harness` / numerical-grounding path.
 - `llm_inference`, `assumption` → not a citation; these need their `verification_plan` executed, not a source fetched.
 
+For literature-graph artifacts, treat the following as claim-like objects when they carry
+interpretive content:
+
+- edge explanations, such as "paper A extends method B" or "result X contrasts with result Y";
+- figure-candidate relevance statements, such as "this extracted figure shows the effect summarized in the note";
+- connected-literature sidebar summaries that assert lineage, contrast, application, or source support.
+
+The grounding target is the statement behind the graph element, not the visual element itself.
+If the edge or figure has no source locator or evidence URI, record it as ungrounded rather
+than inferring support from graph proximity.
+
 ## Procedure (per in-scope claim)
 
 1. **Route by domain.** HEP sources (`inspirehep.net`, `hep-ph/ex/th/lat`, INSPIRE recids)
@@ -59,6 +70,10 @@ Ground claims whose support rests on a citation:
    table / figure) that bears on the claim and decide whether it substantiates the claim.
 5. **Record a verdict** from: `substantiated`, `partial`, `not_substantiated`, `conflicting`,
    `source_unavailable`.
+
+For graph figure candidates, do not use a title page, abstract, or filename as evidence that
+the image is relevant. The supporting span must identify the actual result, table, figure,
+equation, or discussion that the rendered asset is meant to carry.
 
 ## The non-negotiable rule: quote the span
 

@@ -97,4 +97,24 @@ python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" check --root "${BAD_PLUS_
 grep -F '{}+ y' "${BAD_PLUS_MINUS}" >/dev/null
 grep -F '{}- z' "${BAD_PLUS_MINUS}" >/dev/null
 
+LINKS_DIR="${TMP_DIR}/links"
+mkdir -p "${LINKS_DIR}/notes"
+printf '# Linked note\n' >"${LINKS_DIR}/notes/source.md"
+cat >"${LINKS_DIR}/good-links.md" <<'MD'
+[source note](notes/source.md)
+MD
+python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" check --root "${LINKS_DIR}" --check-local-links --check-bare-md-paths
+
+cat >"${LINKS_DIR}/bad-links.md" <<'MD'
+[missing note](notes/missing.md)
+[absolute note](/tmp/not-portable.md)
+`notes/source.md`
+plain raw token: RAW_MATH_TOKEN
+MD
+
+if python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" check --root "${LINKS_DIR}" --check-local-links --check-bare-md-paths --raw-token 'RAW_MATH_TOKEN'; then
+  echo "expected check to fail for bad local links, bare Markdown path, and raw token" >&2
+  exit 1
+fi
+
 echo "[ok] markdown-hygiene smoke tests passed"

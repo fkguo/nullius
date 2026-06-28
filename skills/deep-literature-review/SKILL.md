@@ -20,6 +20,7 @@ It does **not** start a parallel literature system. It builds on:
 - the provider tools (`inspire_*`, `openalex_*`, `arxiv_*`, `pdf_*`) for fetch + analysis.
 - `markdown-hygiene` for math rendering, and `claim-grounding` for verifying the claims you extract.
 - `review-swarm` as the gate harness for the deep-read note's source-fidelity, and `research-integrity` (*Extraction / transcription fidelity*) for the failure class that gate falsifies.
+- `literature-graph-builder` for the downstream graph artifact contract, validation, portable links, figure embedding, math rendering checks, and browser QA.
 
 ## When to use
 
@@ -113,13 +114,32 @@ report more depth than you did. Set `saturation` honestly (`saturated` only when
 references + citations of the core set stop yielding new core papers; otherwise
 `coverage_incomplete` as declared debt, or `unknown`).
 
-### 4. Render the math
+### 4. Prepare an optional graph-ready export
+When the user asks for a literature graph, interactive notes, or graph-backed slides, export a
+graph-ready layer after the survey synthesis. Read `literature-graph-builder`'s
+`references/graph-ready-contract.md` for the exact shape.
+
+The deep-review side owns the content provenance:
+
+- stable paper, method, topic, result, and synthesis node ids;
+- one note path per node whenever the node carries content;
+- source locators for equations, numeric values, tables, figures, and important assertions;
+- relation labels for reference chains, method lineage, applications, contrasts, same-work aliases, and synthesis links;
+- figure-candidate metadata with a real source locator, a content reason, and a path to the extracted or converted asset when available.
+
+Do not stop at keyword search or the seed paper's bibliography. For graph completeness, track both backward references and forward citations from each core paper until no new core nodes appear, or record the remaining gap as coverage debt. Do not include off-topic citation drift merely because it is adjacent in a citation graph.
+
+The graph export is not the renderer. Hand the JSON, notes, and figure assets to
+`literature-graph-builder` for path validation, note embedding, MathJax/KaTeX checks,
+image checks, layout/interaction QA, and browser verification.
+
+### 5. Render the math
 Run `markdown-hygiene` on the notes so display math renders:
 `python3 <markdown-hygiene>/scripts/bin/markdown_hygiene.py fix --root knowledge_base/literature/`.
 (Inside display math, no line may start with `+`/`-`/`=`; copy equations as whole fenced
 display blocks — the note template already warns about this.)
 
-### 5. Gate the note against the primary source (fidelity falsification)
+### 6. Gate the note against the primary source (fidelity falsification)
 A filled deep-read note is a **gateable artifact, not a gate-exempt "reading task"** — its
 primary observable is **fidelity to the source**. Before the note is relied on for a central
 claim or folded into a durable artifact, gate it with a **line-by-line comparison against the
@@ -140,7 +160,7 @@ is a *separate* axis: it re-derives whether a re-derivable result is mathematica
 which does not check whether the note faithfully copied the source — use it in addition to,
 never instead of, the source comparison.)
 
-### 6. Ground the claims
+### 7. Ground the claims
 Hand the claims you extracted (with their `evidence_uris`) to the `claim-grounding` skill:
 it fetches each cited source and records a span-backed verdict, so "this paper says X" is
 verified against the source, not just asserted.

@@ -6,7 +6,9 @@ import argparse
 import re
 import sys
 from collections.abc import Callable, Iterable
+from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import unquote, urlparse
 
 
 TOC_START_RE = re.compile(r"^\s*##+\s+(目录|table of contents|contents)\b", re.IGNORECASE)
@@ -25,6 +27,35 @@ DISPLAY_MATH_LEADING_CONTINUATION_RE = re.compile(r"^(\s*)([=+-])(.*)$")
 
 SINGLE_DOLLAR_MATH_RE = re.compile(r"(?<!\$)\$(?!\$)(.+?)(?<!\$)\$(?!\$)")
 DOUBLE_DOLLAR_MATH_RE = re.compile(r"\$\$(.+?)\$\$")
+MARKDOWN_LINK_RE = re.compile(r"!?\[[^\]\n]*\]\(([^)\n]+)\)")
+CODE_SPAN_MD_PATH_RE = re.compile(r"`([^`\n]*\.m(?:ark)?d(?:#[^`\s]+)?[^`\n]*)`", re.IGNORECASE)
+
+DEFAULT_BARE_MD_PATH_PREFIXES = (
+    "notes",
+    "knowledge_base",
+    "literature",
+    "papers",
+    "figures",
+    "slides",
+    "assets",
+)
+EXTERNAL_SCHEMES = {
+    "arxiv",
+    "data",
+    "doi",
+    "ftp",
+    "http",
+    "https",
+    "mailto",
+    "zotero",
+}
+
+
+@dataclass
+class HygieneIssue:
+    path: Path
+    line: int
+    message: str
 
 
 def iter_markdown_files(root: Path) -> Iterable[Path]:
@@ -69,6 +100,105 @@ def split_inline_code_segments(line: str) -> Iterable[tuple[str, bool]]:
         end += tick_count
         yield line[start:end], True
         cursor = end
+
+
+def normalize_markdown_link_target(raw_target: str) -> str:
+    target = raw_target.strip()
+    if target.startswith("<") and ">" in target:
+        target = target[1 : target.index(">")]
+    else:
+        target = target.split(None, 1)[0]
+    return target.strip()
+
+
+def is_external_target(target: str) -> bool:
+    if target.startswith("#"):
+        return True
+    parsed = urlparse(target)
+    if parsed.scheme == "file":
+        return False
+    return parsed.scheme in EXTERNAL_SCHEMES
+
+
+def strip_target_fragment(target: str) -> str:
+    return target.split("#", 1)[0]
+
+
+def check_local_links_in_file(path: Path, project_root: Path, text: str) -> list[HygieneIssue]:
+    issues: list[HygieneIssue] = []
+    project_root = project_root.resolve()
+
+    for line_number, (line, in_code_block) in enumerate(split_fenced_lines(text), start=1):
+        if in_code_block:
+            continue
+        for segment, is_inline_code in split_inline_code_segments(line):
+            if is_inline_code:
+                continue
+            for match in MARKDOWN_LINK_RE.finditer(segment):
+                target = normalize_markdown_link_target(match.group(1))
+                if not target or is_external_target(target):
+                    continue
+                if urlparse(target).scheme == "file":
+                    issues.append(HygieneIssue(path, line_number, f"file URL is not portable: {target}"))
+                    continue
+
+                without_fragment = unquote(strip_target_fragment(target))
+                if not without_fragment:
+                    continue
+                target_path = Path(without_fragment)
+                if target_path.is_absolute():
+                    issues.append(HygieneIssue(path, line_number, f"absolute local link is not portable: {target}"))
+                    continue
+
+                resolved = (path.parent / target_path).resolve()
+                try:
+                    resolved.relative_to(project_root)
+                except ValueError:
+                    issues.append(HygieneIssue(path, line_number, f"local link escapes the checked root: {target}"))
+                    continue
+                if not resolved.exists():
+                    issues.append(HygieneIssue(path, line_number, f"local link target does not exist: {target}"))
+
+    return issues
+
+
+def looks_like_prefixed_markdown_path(value: str, prefixes: tuple[str, ...]) -> bool:
+    normalized = value.strip().strip("'\"")
+    if normalized.startswith(("./", "../")):
+        normalized = normalized[2:] if normalized.startswith("./") else normalized
+    if not re.search(r"\.m(?:ark)?d(?:#|\s|$)", normalized, re.IGNORECASE):
+        return False
+    return any(normalized == prefix or normalized.startswith(prefix + "/") for prefix in prefixes)
+
+
+def check_bare_markdown_paths_in_file(path: Path, text: str, prefixes: tuple[str, ...]) -> list[HygieneIssue]:
+    issues: list[HygieneIssue] = []
+    for line_number, (line, in_code_block) in enumerate(split_fenced_lines(text), start=1):
+        if in_code_block:
+            continue
+        for match in CODE_SPAN_MD_PATH_RE.finditer(line):
+            candidate = match.group(1)
+            if looks_like_prefixed_markdown_path(candidate, prefixes):
+                issues.append(
+                    HygieneIssue(
+                        path,
+                        line_number,
+                        f"Markdown path is shown as code instead of a link: {candidate}",
+                    )
+                )
+    return issues
+
+
+def check_raw_tokens_in_file(path: Path, text: str, raw_tokens: tuple[str, ...]) -> list[HygieneIssue]:
+    issues: list[HygieneIssue] = []
+    compiled = [(token, re.compile(token)) for token in raw_tokens]
+    for line_number, (line, in_code_block) in enumerate(split_fenced_lines(text), start=1):
+        if in_code_block:
+            continue
+        for token, pattern in compiled:
+            if pattern.search(line):
+                issues.append(HygieneIssue(path, line_number, f"raw token matched configurable pattern: {token}"))
+    return issues
 
 
 def fix_toc_math(expr: str) -> str:
@@ -223,6 +353,37 @@ def run(root: Path, fixers: list[Callable[[str], tuple[str, int]]], check: bool)
     return 1 if check and total > 0 else 0
 
 
+def run_extra_checks(
+    root: Path,
+    *,
+    check_local_links: bool,
+    check_bare_md_paths: bool,
+    path_prefixes: tuple[str, ...],
+    raw_tokens: tuple[str, ...],
+) -> int:
+    if not (check_local_links or check_bare_md_paths or raw_tokens):
+        return 0
+
+    paths = list(iter_markdown_files(root))
+    if not paths:
+        return 0
+
+    project_root = root.resolve() if root.is_dir() else root.parent.resolve()
+    issues: list[HygieneIssue] = []
+    for path in paths:
+        text = path.read_text(encoding="utf-8")
+        if check_local_links:
+            issues.extend(check_local_links_in_file(path, project_root, text))
+        if check_bare_md_paths:
+            issues.extend(check_bare_markdown_paths_in_file(path, text, path_prefixes))
+        if raw_tokens:
+            issues.extend(check_raw_tokens_in_file(path, text, raw_tokens))
+
+    for issue in issues:
+        print(f"{issue.path}:{issue.line}: {issue.message}", file=sys.stderr)
+    return 1 if issues else 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Check or fix deterministic Markdown hygiene issues.")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -230,6 +391,29 @@ def build_parser() -> argparse.ArgumentParser:
     for name in ("check", "fix", "fix-toc"):
         subparser = subparsers.add_parser(name)
         subparser.add_argument("--root", type=Path, required=True, help="Markdown file or directory to process.")
+        if name == "check":
+            subparser.add_argument(
+                "--check-local-links",
+                action="store_true",
+                help="Fail on broken, absolute, file://, or root-escaping local Markdown links.",
+            )
+            subparser.add_argument(
+                "--check-bare-md-paths",
+                action="store_true",
+                help="Fail when likely note paths are shown as inline code instead of Markdown links.",
+            )
+            subparser.add_argument(
+                "--path-prefix",
+                action="append",
+                default=[],
+                help="Additional relative path prefix for --check-bare-md-paths.",
+            )
+            subparser.add_argument(
+                "--raw-token",
+                action="append",
+                default=[],
+                help="Regex pattern that must not appear outside fenced code blocks.",
+            )
         if name == "fix-toc":
             subparser.add_argument("--check", action="store_true", help="Do not write; exit 1 if changes would be made.")
 
@@ -240,7 +424,7 @@ def main(argv: list[str]) -> int:
     args = build_parser().parse_args(argv)
 
     if args.command == "check":
-        return run(
+        fix_exit = run(
             args.root,
             [
                 fix_markdown_math_double_backslash,
@@ -249,6 +433,14 @@ def main(argv: list[str]) -> int:
             ],
             check=True,
         )
+        extra_exit = run_extra_checks(
+            args.root,
+            check_local_links=args.check_local_links,
+            check_bare_md_paths=args.check_bare_md_paths,
+            path_prefixes=tuple(DEFAULT_BARE_MD_PATH_PREFIXES + tuple(args.path_prefix)),
+            raw_tokens=tuple(args.raw_token),
+        )
+        return 1 if fix_exit or extra_exit else 0
     if args.command == "fix":
         return run(
             args.root,

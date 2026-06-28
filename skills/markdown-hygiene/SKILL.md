@@ -17,6 +17,7 @@ The TOC repair is one subcommand of this broader Markdown hygiene surface.
 - Markdown math contains accidental doubled command backslashes such as `$\\Delta$` instead of `$\Delta$`.
 - Display-math blocks contain continuation lines beginning with `=`, `+`, or `-`, which some Markdown renderers can confuse with block syntax.
 - You need a standalone Markdown cleanup/check before invoking `research-harness`, `research-team`, or `research-writer`.
+- You need to verify rendered-note portability for graph or slide artifacts: local Markdown links resolve, absolute local paths are absent, likely note paths are real links rather than code spans, and project-configured raw math/text tokens are gone.
 
 For a full `research-team` project preflight, keep using `research-team`; its team-cycle gates remain the authoritative runtime checks. This skill is the standalone, reusable hygiene entrypoint.
 
@@ -34,6 +35,18 @@ Check a file or directory without modifying it:
 python3 "$SKILL_DIR/scripts/bin/markdown_hygiene.py" check --root research_contract.md
 python3 "$SKILL_DIR/scripts/bin/markdown_hygiene.py" check --root .
 ```
+
+Check graph/slide-facing note portability:
+
+```bash
+python3 "$SKILL_DIR/scripts/bin/markdown_hygiene.py" check \
+  --root notes \
+  --check-local-links \
+  --check-bare-md-paths \
+  --raw-token 'PROJECT_SPECIFIC_RAW_PATTERN'
+```
+
+Use `--raw-token` only with project-provided regex patterns for expressions that should have been converted into rendered math or ordinary prose. Repeat `--raw-token` for multiple patterns. Use `--path-prefix` to add project-specific relative note roots to the bare-path detector.
 
 Apply the deterministic fixes in place:
 
@@ -57,5 +70,7 @@ python3 "$SKILL_DIR/scripts/bin/markdown_hygiene.py" fix-toc --check --root Draf
 - In display-math blocks, prefixes line-leading `=`, `+`, or `-` with `{}` as a conservative source-formatting fix.
 - TOC cleanup applies only from a heading beginning with `目录`, `Table of Contents`, or `Contents` until the next `---` horizontal rule.
 - Does not regenerate TOCs, rewrite anchors, or alter non-math link targets.
+- Optional `check`-only link checks do not rewrite files. They fail on broken local links, `file://` links, absolute local paths, and local links escaping the checked root.
+- Optional bare-path checks flag likely note paths displayed as inline code instead of Markdown links; fix them by writing normal links with relative targets.
 
 After applying fixes, inspect `git diff` and then run the nearest project gate, for example `research-team` preflight or `research-writer` validation.

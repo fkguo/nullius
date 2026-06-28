@@ -167,6 +167,20 @@ transcription fidelity*, items (a)–(g)). Record in `meta.json` whether a liter
 comparison was performed; a swarm that only read the note, or stayed within one model family, is **not** a
 fidelity pass and must be labeled as such.
 
+### Artifact-integration reviewer (for rendered research artifacts)
+
+When a workflow turns source-read notes into a rendered artifact — for example an interactive literature
+graph, slide deck, dashboard, or browsable note bundle — include at least one reviewer whose task is to
+inspect the **current rendered artifact and its source files**, not merely the synthesis prose. This reviewer
+checks integration failures that source-fidelity review alone cannot see: broken relative links, missing
+images, unrendered math, non-clickable connected references, stale note paths, layout collisions, and a
+renderer that displays placeholders or filenames instead of the intended evidence.
+
+Write reusable workflows in terms of reviewer roles and capabilities, not specific model names. A concrete
+run may choose particular models, but the skill or project contract should say "independent cross-model
+artifact reviewer" or "source-fidelity reviewer" unless a user explicitly pins a model for that run.
+After any artifact fix, rerun the reviewers on the fixed artifact before calling convergence.
+
 ### Reference-reproduction reviewer (mandatory for "matches / reproduces a published value" claims)
 
 A claim that a result **reproduces / matches / agrees with a published reference value** is a *quantitative*
