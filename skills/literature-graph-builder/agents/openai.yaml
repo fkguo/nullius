@@ -1,0 +1,4 @@
+interface:
+  display_name: "Literature Graph Builder"
+  short_description: "Build auditable literature-note graphs"
+  default_prompt: "Use $literature-graph-builder to validate and render an auditable literature graph from deep-read notes."
