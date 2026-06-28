@@ -247,9 +247,12 @@ def check_raw_tokens_in_file(path: Path, text: str, raw_patterns: tuple[tuple[st
     for line_number, (line, in_code_block) in enumerate(split_fenced_lines(text), start=1):
         if in_code_block:
             continue
-        for token, pattern in raw_patterns:
-            if pattern.search(line):
-                issues.append(HygieneIssue(path, line_number, f"raw token matched configurable pattern: {token}"))
+        for segment, is_inline_code in split_inline_code_segments(line):
+            if is_inline_code:
+                continue
+            for token, pattern in raw_patterns:
+                if pattern.search(segment):
+                    issues.append(HygieneIssue(path, line_number, f"raw token matched configurable pattern: {token}"))
     return issues
 
 

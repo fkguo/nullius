@@ -98,6 +98,8 @@ cat >"${TMP_DIR}/bad.json" <<'JSON'
 JSON
 
 expect_fail_matching "${TMP_DIR}/bad.json" "target references missing node id"
+expect_fail_matching "${TMP_DIR}/bad.json" "note_path must not be an absolute path"
+expect_fail_matching "${TMP_DIR}/bad.json" "non-renderable EPS/PS source"
 
 cat >"${TMP_DIR}/bad-file-url.json" <<'JSON'
 {
@@ -143,6 +145,36 @@ cat >"${TMP_DIR}/bad-source-uri.json" <<'JSON'
 }
 JSON
 expect_fail_matching "${TMP_DIR}/bad-source-uri.json" "source_uri must be a non-empty string"
+
+cat >"${TMP_DIR}/bad-source-uri-file.json" <<'JSON'
+{
+  "version": "literature_graph_v1",
+  "nodes": [
+    {
+      "id": "paper-a",
+      "label": "Paper A",
+      "kind": "paper",
+      "note_path": "notes/papers/paper-a.md",
+      "source_uris": ["file:///tmp/not-portable.pdf"]
+    },
+    {
+      "id": "method-a",
+      "label": "Method A",
+      "kind": "method",
+      "note_path": "notes/papers/paper-a.md"
+    }
+  ],
+  "edges": [
+    {
+      "source": "paper-a",
+      "target": "method-a",
+      "relation": "uses-method",
+      "source_uri": "file:///tmp/not-portable.pdf"
+    }
+  ]
+}
+JSON
+expect_fail_matching "${TMP_DIR}/bad-source-uri-file.json" "source_uri must not use a file:// URL"
 
 cat >"${TMP_DIR}/bad-version.json" <<'JSON'
 {

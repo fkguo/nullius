@@ -165,4 +165,9 @@ if python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" check --root "${LINKS_
   exit 1
 fi
 
+cat >"${LINKS_DIR}/raw-math-inline-code-ok.md" <<'MD'
+Inline code `a -> b` and `m^2` should not trigger raw-math checks.
+MD
+python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" check --root "${LINKS_DIR}/raw-math-inline-code-ok.md" --raw-math-preset ascii-math
+
 echo "[ok] markdown-hygiene smoke tests passed"
