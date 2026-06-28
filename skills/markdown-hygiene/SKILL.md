@@ -43,10 +43,11 @@ python3 "$SKILL_DIR/scripts/bin/markdown_hygiene.py" check \
   --root notes \
   --check-local-links \
   --check-bare-md-paths \
+  --raw-math-preset ascii-math \
   --raw-token 'PROJECT_SPECIFIC_RAW_PATTERN'
 ```
 
-Use `--raw-token` only with project-provided regex patterns for expressions that should have been converted into rendered math or ordinary prose. Repeat `--raw-token` for multiple patterns. Use `--path-prefix` to add project-specific relative note roots to the bare-path detector.
+Use `--raw-math-preset ascii-math` to catch common plain-text math artifacts such as ASCII arrows and caret powers outside fenced code. Use `--raw-token` with project-provided regex patterns for domain-specific symbols, reactions, variable names, or formula fragments that should have been converted into rendered math or ordinary prose. Repeat `--raw-token` for multiple patterns. Use `--path-prefix` to add project-specific relative note roots to the bare-path detector.
 
 Apply the deterministic fixes in place:
 
@@ -72,5 +73,6 @@ python3 "$SKILL_DIR/scripts/bin/markdown_hygiene.py" fix-toc --check --root Draf
 - Does not regenerate TOCs, rewrite anchors, or alter non-math link targets.
 - Optional `check`-only link checks do not rewrite files. They fail on broken local links, `file://` links, absolute local paths, and local links escaping the checked root.
 - Optional bare-path checks flag likely note paths displayed as inline code instead of Markdown links; fix them by writing normal links with relative targets.
+- Optional raw-token and raw-math-preset checks are fail-only guards for rendered artifacts; tune them per project so they catch unrendered formula text without becoming a generic prose linter.
 
 After applying fixes, inspect `git diff` and then run the nearest project gate, for example `research-team` preflight or `research-writer` validation.

@@ -102,18 +102,66 @@ mkdir -p "${LINKS_DIR}/notes"
 printf '# Linked note\n' >"${LINKS_DIR}/notes/source.md"
 cat >"${LINKS_DIR}/good-links.md" <<'MD'
 [source note](notes/source.md)
+[source note with parentheses](notes/source(1).md)
+<a href="notes/source.md">source note</a>
+[reference link][source-ref]
+
+[source-ref]: notes/source.md
 MD
+printf '# Linked note with parentheses\n' >"${LINKS_DIR}/notes/source(1).md"
 python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" check --root "${LINKS_DIR}" --check-local-links --check-bare-md-paths
 
-cat >"${LINKS_DIR}/bad-links.md" <<'MD'
+cat >"${LINKS_DIR}/bad-missing-link.md" <<'MD'
 [missing note](notes/missing.md)
+MD
+if python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" check --root "${LINKS_DIR}/bad-missing-link.md" --check-local-links; then
+  echo "expected check to fail for a missing local link" >&2
+  exit 1
+fi
+
+cat >"${LINKS_DIR}/bad-absolute-link.md" <<'MD'
 [absolute note](/tmp/not-portable.md)
+MD
+if python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" check --root "${LINKS_DIR}/bad-absolute-link.md" --check-local-links; then
+  echo "expected check to fail for an absolute local link" >&2
+  exit 1
+fi
+
+cat >"${LINKS_DIR}/bad-file-url.md" <<'MD'
+<a href="file:///tmp/not-portable.md">not portable</a>
+MD
+if python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" check --root "${LINKS_DIR}/bad-file-url.md" --check-local-links; then
+  echo "expected check to fail for a file URL" >&2
+  exit 1
+fi
+
+cat >"${LINKS_DIR}/bad-bare-path.md" <<'MD'
 `notes/source.md`
+`../notes/source.md`
+MD
+if python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" check --root "${LINKS_DIR}/bad-bare-path.md" --check-bare-md-paths; then
+  echo "expected check to fail for a bare Markdown path" >&2
+  exit 1
+fi
+
+cat >"${LINKS_DIR}/bad-raw-token.md" <<'MD'
 plain raw token: RAW_MATH_TOKEN
 MD
+if python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" check --root "${LINKS_DIR}/bad-raw-token.md" --raw-token 'RAW_MATH_TOKEN'; then
+  echo "expected check to fail for a configured raw token" >&2
+  exit 1
+fi
 
-if python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" check --root "${LINKS_DIR}" --check-local-links --check-bare-md-paths --raw-token 'RAW_MATH_TOKEN'; then
-  echo "expected check to fail for bad local links, bare Markdown path, and raw token" >&2
+cat >"${LINKS_DIR}/bad-raw-math.md" <<'MD'
+The process a -> b depends on m^2.
+
+```text
+code -> ignored
+code^2 ignored
+```
+MD
+if python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" check --root "${LINKS_DIR}/bad-raw-math.md" --raw-math-preset ascii-math; then
+  echo "expected check to fail for ASCII raw-math patterns" >&2
   exit 1
 fi
 

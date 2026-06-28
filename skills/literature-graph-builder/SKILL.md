@@ -1,6 +1,6 @@
 ---
 name: literature-graph-builder
-description: Build, validate, and QA auditable literature graphs from deep-read notes and survey artifacts. Use when Codex needs to turn a literature review into an interactive graph with paper/method/topic nodes, source-backed edges, embedded notes, portable relative links, rendered math, verified figures, and browser-tested interactions.
+description: Build, validate, and QA auditable literature graphs from deep-read notes and survey artifacts. Use when an agent needs to turn a literature review into an interactive graph with paper/method/topic nodes, source-backed edges, embedded notes, portable relative links, rendered math, verified figures, and browser-tested interactions.
 ---
 
 # Literature Graph Builder
@@ -27,7 +27,7 @@ python3 "$SKILL_DIR/scripts/bin/validate_literature_graph.py" --graph path/to/li
 
 4. Render the graph as a portable local artifact. Keep local paths relative to the graph HTML file or project root; do not emit machine-specific absolute paths.
 5. Embed note content in the page or route note links through a local renderer. Clicking a node must open the rendered note on the first click, not only after a layout jitter.
-6. Render math with a real math renderer such as MathJax or KaTeX. Do not leave mathematical expressions as raw plain text or code spans in notes, tables, sidebars, or tooltips.
+6. Render math with a real math renderer such as MathJax or KaTeX. Do not leave mathematical expressions as raw plain text or code spans in notes, tables, sidebars, or tooltips. Before browser QA, run `markdown-hygiene` with `--raw-math-preset ascii-math` and any project-supplied `--raw-token` patterns that catch domain-specific symbols or reactions.
 7. Display real figure assets, not filenames, paper front pages, or title-page screenshots. Convert EPS/PS sources to PNG/PDF before linking them.
 8. Browser-test the graph: first-click behavior, node dragging, collision/label overlap, viewport fit, side-panel links, raw-note links, image loading, and math rendering.
 

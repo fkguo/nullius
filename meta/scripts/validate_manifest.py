@@ -33,8 +33,9 @@ RE_VERSION = re.compile(r"^(v?[0-9]+\.[0-9]+\.[0-9]+(?:[-+][A-Za-z0-9.]+)?|schem
 RE_RANGE = re.compile(r"^>=?[0-9]+\.[0-9]+\.[0-9]+(?:\s+<[=]?[0-9]+\.[0-9]+\.[0-9]+)?$")
 RE_SEMVER = re.compile(r"^(?:schemas-)?v?([0-9]+)\.([0-9]+)\.([0-9]+)(?:[-+][A-Za-z0-9.]+)?$")
 RE_NON_PORTABLE_SOURCE = re.compile(r"^(?:/Users/|/home/|[A-Za-z]:\\Users\\)")
-# Keep "~" literal here because source_path metadata is normalized to "~/.codex/skills/...".
-RE_SKILL_SOURCE_PATH = re.compile(r"^~/\.codex/skills/[A-Za-z0-9_.-]+/SKILL\.md$")
+# Keep "~" literal for install-root metadata, but also allow the repo-relative
+# source paths used by the checked-in skills-market packages.
+RE_SKILL_SOURCE_PATH = re.compile(r"^(?:~/\.codex/skills/[A-Za-z0-9_.-]+/SKILL\.md|skills/[A-Za-z0-9_.-]+/SKILL\.md)$")
 
 
 def load_json(path: pathlib.Path) -> dict[str, Any]:
@@ -301,7 +302,7 @@ def main() -> int:
                     errs.append(f"component {name}: source_path must not use host-specific absolute user path: {normalized!r}")
                 if ctype == "skill-pack" and not RE_SKILL_SOURCE_PATH.fullmatch(normalized):
                     errs.append(
-                        f"component {name}: source_path for skill-pack must match '~/.codex/skills/<name>/SKILL.md', got {normalized!r}"
+                        f"component {name}: source_path for skill-pack must match 'skills/<name>/SKILL.md' or '~/.codex/skills/<name>/SKILL.md', got {normalized!r}"
                     )
 
     for name, meta in comps.items():

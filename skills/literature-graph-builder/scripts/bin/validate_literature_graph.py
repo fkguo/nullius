@@ -60,6 +60,10 @@ def is_url(value: str) -> bool:
     return parsed.scheme in {"http", "https", "doi", "arxiv", "zotero"}
 
 
+def is_file_url(value: str) -> bool:
+    return urlparse(value).scheme == "file"
+
+
 def strip_fragment(value: str) -> str:
     return value.split("#", 1)[0]
 
@@ -79,6 +83,10 @@ def check_relative_path(
         return None, issues
 
     raw = value.strip()
+    if is_file_url(raw):
+        issues.append(Issue("error", item_path, f"{field} must not use a file:// URL: {raw}"))
+        return None, issues
+
     if is_url(raw):
         if allow_url:
             return None, issues
@@ -101,17 +109,48 @@ def check_relative_path(
         issues.append(Issue("error", item_path, f"{field} resolves outside project root: {raw}"))
         return None, issues
 
-    if must_exist and not resolved.exists():
-        issues.append(Issue("error", item_path, f"{field} target does not exist: {raw}"))
+    if must_exist:
+        if not resolved.exists():
+            issues.append(Issue("error", item_path, f"{field} target does not exist: {raw}"))
+        elif not resolved.is_file():
+            issues.append(Issue("error", item_path, f"{field} target is not a file: {raw}"))
     return resolved, issues
 
 
-def as_list(value: Any) -> list[Any]:
-    if value is None:
-        return []
-    if isinstance(value, list):
-        return value
-    return [value]
+def has_nonempty_string(value: Any) -> bool:
+    return isinstance(value, str) and bool(value.strip())
+
+
+def validate_source_uri_fields(container: dict[str, Any], item_path: str) -> list[Issue]:
+    issues: list[Issue] = []
+
+    source_uri = container.get("source_uri")
+    if source_uri is not None and not has_nonempty_string(source_uri):
+        issues.append(Issue("error", f"{item_path}.source_uri", "source_uri must be a non-empty string when present"))
+
+    source_uris = container.get("source_uris")
+    if source_uris is not None:
+        if not isinstance(source_uris, list):
+            issues.append(Issue("error", f"{item_path}.source_uris", "source_uris must be an array when present"))
+        else:
+            for source_index, uri in enumerate(source_uris):
+                if not has_nonempty_string(uri):
+                    issues.append(
+                        Issue(
+                            "error",
+                            f"{item_path}.source_uris[{source_index}]",
+                            "source URI must be a non-empty string",
+                        )
+                    )
+
+    return issues
+
+
+def has_edge_support(edge: dict[str, Any]) -> bool:
+    if any(has_nonempty_string(edge.get(field)) for field in ("evidence", "locator", "note_path", "source_uri")):
+        return True
+    source_uris = edge.get("source_uris")
+    return isinstance(source_uris, list) and any(has_nonempty_string(uri) for uri in source_uris)
 
 
 def validate_node(
@@ -155,9 +194,7 @@ def validate_node(
     if resolved_note is not None and resolved_note.exists() and resolved_note.stat().st_size == 0:
         issues.append(Issue("error", item_path, f"note_path is empty: {note_path}"))
 
-    for source_index, source_uri in enumerate(as_list(node.get("source_uris"))):
-        if not isinstance(source_uri, str) or not source_uri.strip():
-            issues.append(Issue("error", f"{item_path}.source_uris[{source_index}]", "source URI must be a non-empty string"))
+    issues.extend(validate_source_uri_fields(node, item_path))
 
     return node_id if isinstance(node_id, str) else None, issues
 
@@ -188,8 +225,7 @@ def validate_edge(
     elif relation not in allowed_relations:
         issues.append(Issue("error", item_path, f"unknown relation {relation!r}; pass --allow-relation to permit it"))
 
-    has_support = any(edge.get(field) for field in ("evidence", "locator", "note_path", "source_uri", "source_uris"))
-    if not has_support:
+    if not has_edge_support(edge):
         issues.append(
             Issue(
                 "error",
@@ -211,9 +247,7 @@ def validate_edge(
         if field in edge and edge[field] is not None and not isinstance(edge[field], str):
             issues.append(Issue("error", item_path, f"{field} must be a string when present"))
 
-    for source_index, source_uri in enumerate(as_list(edge.get("source_uris"))):
-        if not isinstance(source_uri, str) or not source_uri.strip():
-            issues.append(Issue("error", f"{item_path}.source_uris[{source_index}]", "source URI must be a non-empty string"))
+    issues.extend(validate_source_uri_fields(edge, item_path))
 
     return issues
 
@@ -290,7 +324,7 @@ def validate_graph(
         return [Issue("error", "$", "graph must be a JSON object")]
 
     version = graph.get("version")
-    if version not in {"literature_graph_v1", 1}:
+    if version != "literature_graph_v1":
         issues.append(Issue("error", "$.version", "version must be 'literature_graph_v1'"))
 
     nodes = graph.get("nodes")

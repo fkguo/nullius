@@ -27,8 +27,15 @@ DISPLAY_MATH_LEADING_CONTINUATION_RE = re.compile(r"^(\s*)([=+-])(.*)$")
 
 SINGLE_DOLLAR_MATH_RE = re.compile(r"(?<!\$)\$(?!\$)(.+?)(?<!\$)\$(?!\$)")
 DOUBLE_DOLLAR_MATH_RE = re.compile(r"\$\$(.+?)\$\$")
-MARKDOWN_LINK_RE = re.compile(r"!?\[[^\]\n]*\]\(([^)\n]+)\)")
+HTML_LINK_RE = re.compile(r"<a\s+[^>]*href=[\"']([^\"']+)[\"']", re.IGNORECASE)
+REFERENCE_LINK_DEF_RE = re.compile(r"^\s{0,3}\[[^\]\n]+]:\s+(\S+|<[^>\n]+>)")
 CODE_SPAN_MD_PATH_RE = re.compile(r"`([^`\n]*\.m(?:ark)?d(?:#[^`\s]+)?[^`\n]*)`", re.IGNORECASE)
+RAW_MATH_PRESETS = {
+    "ascii-math": (
+        r"(?<![-<=>])(?:<->|->|<-|<=>|=>)(?![-<=>])",
+        r"\b[A-Za-z][A-Za-z0-9_]*\^[A-Za-z0-9+-]+\b",
+    )
+}
 
 DEFAULT_BARE_MD_PATH_PREFIXES = (
     "notes",
@@ -111,6 +118,50 @@ def normalize_markdown_link_target(raw_target: str) -> str:
     return target.strip()
 
 
+def iter_inline_markdown_link_targets(segment: str) -> Iterable[str]:
+    cursor = 0
+    while cursor < len(segment):
+        close_label = segment.find("](", cursor)
+        if close_label < 0:
+            return
+
+        target_start = close_label + 2
+        depth = 1
+        escaped = False
+        in_angle = False
+        pos = target_start
+        while pos < len(segment):
+            ch = segment[pos]
+            if escaped:
+                escaped = False
+            elif ch == "\\":
+                escaped = True
+            elif ch == "<":
+                in_angle = True
+            elif ch == ">" and in_angle:
+                in_angle = False
+            elif ch == "(" and not in_angle:
+                depth += 1
+            elif ch == ")" and not in_angle:
+                depth -= 1
+                if depth == 0:
+                    yield segment[target_start:pos]
+                    cursor = pos + 1
+                    break
+            pos += 1
+        else:
+            return
+
+
+def iter_link_targets(segment: str) -> Iterable[str]:
+    yield from iter_inline_markdown_link_targets(segment)
+    for match in HTML_LINK_RE.finditer(segment):
+        yield match.group(1)
+    reference_definition = REFERENCE_LINK_DEF_RE.match(segment)
+    if reference_definition:
+        yield reference_definition.group(1)
+
+
 def is_external_target(target: str) -> bool:
     if target.startswith("#"):
         return True
@@ -134,8 +185,8 @@ def check_local_links_in_file(path: Path, project_root: Path, text: str) -> list
         for segment, is_inline_code in split_inline_code_segments(line):
             if is_inline_code:
                 continue
-            for match in MARKDOWN_LINK_RE.finditer(segment):
-                target = normalize_markdown_link_target(match.group(1))
+            for raw_target in iter_link_targets(segment):
+                target = normalize_markdown_link_target(raw_target)
                 if not target or is_external_target(target):
                     continue
                 if urlparse(target).scheme == "file":
@@ -164,8 +215,10 @@ def check_local_links_in_file(path: Path, project_root: Path, text: str) -> list
 
 def looks_like_prefixed_markdown_path(value: str, prefixes: tuple[str, ...]) -> bool:
     normalized = value.strip().strip("'\"")
-    if normalized.startswith(("./", "../")):
-        normalized = normalized[2:] if normalized.startswith("./") else normalized
+    while normalized.startswith("./"):
+        normalized = normalized[2:]
+    while normalized.startswith("../"):
+        normalized = normalized[3:]
     if not re.search(r"\.m(?:ark)?d(?:#|\s|$)", normalized, re.IGNORECASE):
         return False
     return any(normalized == prefix or normalized.startswith(prefix + "/") for prefix in prefixes)
@@ -189,13 +242,12 @@ def check_bare_markdown_paths_in_file(path: Path, text: str, prefixes: tuple[str
     return issues
 
 
-def check_raw_tokens_in_file(path: Path, text: str, raw_tokens: tuple[str, ...]) -> list[HygieneIssue]:
+def check_raw_tokens_in_file(path: Path, text: str, raw_patterns: tuple[tuple[str, re.Pattern[str]], ...]) -> list[HygieneIssue]:
     issues: list[HygieneIssue] = []
-    compiled = [(token, re.compile(token)) for token in raw_tokens]
     for line_number, (line, in_code_block) in enumerate(split_fenced_lines(text), start=1):
         if in_code_block:
             continue
-        for token, pattern in compiled:
+        for token, pattern in raw_patterns:
             if pattern.search(line):
                 issues.append(HygieneIssue(path, line_number, f"raw token matched configurable pattern: {token}"))
     return issues
@@ -369,6 +421,7 @@ def run_extra_checks(
         return 0
 
     project_root = root.resolve() if root.is_dir() else root.parent.resolve()
+    raw_patterns = tuple((token, re.compile(token)) for token in raw_tokens)
     issues: list[HygieneIssue] = []
     for path in paths:
         text = path.read_text(encoding="utf-8")
@@ -376,8 +429,8 @@ def run_extra_checks(
             issues.extend(check_local_links_in_file(path, project_root, text))
         if check_bare_md_paths:
             issues.extend(check_bare_markdown_paths_in_file(path, text, path_prefixes))
-        if raw_tokens:
-            issues.extend(check_raw_tokens_in_file(path, text, raw_tokens))
+        if raw_patterns:
+            issues.extend(check_raw_tokens_in_file(path, text, raw_patterns))
 
     for issue in issues:
         print(f"{issue.path}:{issue.line}: {issue.message}", file=sys.stderr)
@@ -414,6 +467,13 @@ def build_parser() -> argparse.ArgumentParser:
                 default=[],
                 help="Regex pattern that must not appear outside fenced code blocks.",
             )
+            subparser.add_argument(
+                "--raw-math-preset",
+                choices=sorted(RAW_MATH_PRESETS),
+                action="append",
+                default=[],
+                help="Named raw-math regex preset to add to --raw-token checks.",
+            )
         if name == "fix-toc":
             subparser.add_argument("--check", action="store_true", help="Do not write; exit 1 if changes would be made.")
 
@@ -433,12 +493,16 @@ def main(argv: list[str]) -> int:
             ],
             check=True,
         )
+        preset_tokens: list[str] = []
+        for preset_name in args.raw_math_preset:
+            preset_tokens.extend(RAW_MATH_PRESETS[preset_name])
+
         extra_exit = run_extra_checks(
             args.root,
             check_local_links=args.check_local_links,
             check_bare_md_paths=args.check_bare_md_paths,
             path_prefixes=tuple(DEFAULT_BARE_MD_PATH_PREFIXES + tuple(args.path_prefix)),
-            raw_tokens=tuple(args.raw_token),
+            raw_tokens=tuple(args.raw_token + preset_tokens),
         )
         return 1 if fix_exit or extra_exit else 0
     if args.command == "fix":

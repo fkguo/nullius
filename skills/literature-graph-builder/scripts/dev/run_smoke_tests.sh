@@ -6,6 +6,21 @@ SKILL_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
+expect_fail_matching() {
+  local graph_file="$1"
+  local expected="$2"
+  local out_file="${TMP_DIR}/$(basename "${graph_file}").err"
+  if python3 "${SKILL_DIR}/scripts/bin/validate_literature_graph.py" --graph "${graph_file}" --project-root "${TMP_DIR}" 2>"${out_file}"; then
+    echo "expected ${graph_file} validation to fail" >&2
+    exit 1
+  fi
+  if ! grep -F "${expected}" "${out_file}" >/dev/null; then
+    echo "expected ${graph_file} error output to contain: ${expected}" >&2
+    cat "${out_file}" >&2
+    exit 1
+  fi
+}
+
 mkdir -p "${TMP_DIR}/notes/papers" "${TMP_DIR}/figures/paper-a" "${TMP_DIR}/sources/paper-a"
 printf '# Paper A\n\nSubstantive note.\n' >"${TMP_DIR}/notes/papers/paper-a.md"
 printf 'fake image bytes\n' >"${TMP_DIR}/figures/paper-a/result.png"
@@ -82,9 +97,67 @@ cat >"${TMP_DIR}/bad.json" <<'JSON'
 }
 JSON
 
-if python3 "${SKILL_DIR}/scripts/bin/validate_literature_graph.py" --graph "${TMP_DIR}/bad.json" --project-root "${TMP_DIR}"; then
-  echo "expected bad graph validation to fail" >&2
-  exit 1
-fi
+expect_fail_matching "${TMP_DIR}/bad.json" "target references missing node id"
+
+cat >"${TMP_DIR}/bad-file-url.json" <<'JSON'
+{
+  "version": "literature_graph_v1",
+  "nodes": [
+    {
+      "id": "paper-a",
+      "label": "Paper A",
+      "kind": "paper",
+      "note_path": "file:///tmp/not-portable.md"
+    }
+  ],
+  "edges": []
+}
+JSON
+expect_fail_matching "${TMP_DIR}/bad-file-url.json" "must not use a file:// URL"
+
+cat >"${TMP_DIR}/bad-source-uri.json" <<'JSON'
+{
+  "version": "literature_graph_v1",
+  "nodes": [
+    {
+      "id": "paper-a",
+      "label": "Paper A",
+      "kind": "paper",
+      "note_path": "notes/papers/paper-a.md"
+    },
+    {
+      "id": "method-a",
+      "label": "Method A",
+      "kind": "method",
+      "note_path": "notes/papers/paper-a.md"
+    }
+  ],
+  "edges": [
+    {
+      "source": "paper-a",
+      "target": "method-a",
+      "relation": "uses-method",
+      "source_uri": 42
+    }
+  ]
+}
+JSON
+expect_fail_matching "${TMP_DIR}/bad-source-uri.json" "source_uri must be a non-empty string"
+
+cat >"${TMP_DIR}/bad-version.json" <<'JSON'
+{
+  "version": 1,
+  "nodes": [
+    {
+      "id": "paper-a",
+      "label": "Paper A",
+      "kind": "paper",
+      "note_path": "notes/papers/paper-a.md"
+    }
+  ],
+  "edges": []
+}
+JSON
+expect_fail_matching "${TMP_DIR}/bad-version.json" "version must be 'literature_graph_v1'"
 
 echo "[ok] literature-graph-builder smoke tests passed"
