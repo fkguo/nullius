@@ -121,15 +121,38 @@ def has_nonempty_string(value: Any) -> bool:
     return isinstance(value, str) and bool(value.strip())
 
 
+def validate_source_uri_value(value: Any, item_path: str) -> list[Issue]:
+    if not has_nonempty_string(value):
+        return [Issue("error", item_path, "source_uri must be a non-empty string when present")]
+
+    raw = value.strip()
+    if is_file_url(raw):
+        return [Issue("error", item_path, f"source_uri must not use a file:// URL: {raw}")]
+
+    if re.match(r"^[A-Za-z]:[\\/]", raw):
+        return [Issue("error", item_path, f"source_uri must not use a host-specific absolute path: {raw}")]
+    if raw.startswith("~"):
+        return [Issue("error", item_path, f"source_uri must not use a home-relative path: {raw}")]
+
+    parsed = urlparse(raw)
+    if parsed.scheme:
+        return []
+
+    without_fragment = unquote(strip_fragment(raw))
+    path = Path(without_fragment)
+    if path.is_absolute():
+        return [Issue("error", item_path, f"source_uri must not be an absolute path: {raw}")]
+    if any(part == ".." for part in path.parts):
+        return [Issue("error", item_path, f"source_uri must not escape the project root: {raw}")]
+    return []
+
+
 def validate_source_uri_fields(container: dict[str, Any], item_path: str) -> list[Issue]:
     issues: list[Issue] = []
 
     source_uri = container.get("source_uri")
     if source_uri is not None:
-        if not has_nonempty_string(source_uri):
-            issues.append(Issue("error", f"{item_path}.source_uri", "source_uri must be a non-empty string when present"))
-        elif is_file_url(source_uri):
-            issues.append(Issue("error", f"{item_path}.source_uri", f"source_uri must not use a file:// URL: {source_uri}"))
+        issues.extend(validate_source_uri_value(source_uri, f"{item_path}.source_uri"))
 
     source_uris = container.get("source_uris")
     if source_uris is not None:
@@ -137,22 +160,7 @@ def validate_source_uri_fields(container: dict[str, Any], item_path: str) -> lis
             issues.append(Issue("error", f"{item_path}.source_uris", "source_uris must be an array when present"))
         else:
             for source_index, uri in enumerate(source_uris):
-                if not has_nonempty_string(uri):
-                    issues.append(
-                        Issue(
-                            "error",
-                            f"{item_path}.source_uris[{source_index}]",
-                            "source URI must be a non-empty string",
-                        )
-                    )
-                elif is_file_url(uri):
-                    issues.append(
-                        Issue(
-                            "error",
-                            f"{item_path}.source_uris[{source_index}]",
-                            f"source URI must not use a file:// URL: {uri}",
-                        )
-                    )
+                issues.extend(validate_source_uri_value(uri, f"{item_path}.source_uris[{source_index}]"))
 
     return issues
 

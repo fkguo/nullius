@@ -100,13 +100,16 @@ grep -F '{}- z' "${BAD_PLUS_MINUS}" >/dev/null
 LINKS_DIR="${TMP_DIR}/links"
 mkdir -p "${LINKS_DIR}/notes"
 printf '# Linked note\n' >"${LINKS_DIR}/notes/source.md"
+printf '# Linked note with spaces\n' >"${LINKS_DIR}/notes/source with spaces.md"
 cat >"${LINKS_DIR}/good-links.md" <<'MD'
 [source note](notes/source.md)
 [source note with parentheses](notes/source(1).md)
 <a href="notes/source.md">source note</a>
 [reference link][source-ref]
+[reference link with spaces][source-space-ref]
 
 [source-ref]: notes/source.md
+[source-space-ref]: <notes/source with spaces.md>
 MD
 printf '# Linked note with parentheses\n' >"${LINKS_DIR}/notes/source(1).md"
 python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" check --root "${LINKS_DIR}" --check-local-links --check-bare-md-paths

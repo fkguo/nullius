@@ -176,6 +176,42 @@ cat >"${TMP_DIR}/bad-source-uri-file.json" <<'JSON'
 JSON
 expect_fail_matching "${TMP_DIR}/bad-source-uri-file.json" "source_uri must not use a file:// URL"
 
+cat >"${TMP_DIR}/bad-source-uri-local-paths.json" <<'JSON'
+{
+  "version": "literature_graph_v1",
+  "nodes": [
+    {
+      "id": "paper-a",
+      "label": "Paper A",
+      "kind": "paper",
+      "note_path": "notes/papers/paper-a.md"
+    },
+    {
+      "id": "method-a",
+      "label": "Method A",
+      "kind": "method",
+      "note_path": "notes/papers/paper-a.md"
+    }
+  ],
+  "edges": [
+    {
+      "source": "paper-a",
+      "target": "method-a",
+      "relation": "uses-method",
+      "source_uri": "/Users/example/private/source.pdf"
+    },
+    {
+      "source": "method-a",
+      "target": "paper-a",
+      "relation": "source-support",
+      "source_uris": ["../outside/source.pdf"]
+    }
+  ]
+}
+JSON
+expect_fail_matching "${TMP_DIR}/bad-source-uri-local-paths.json" "source_uri must not be an absolute path"
+expect_fail_matching "${TMP_DIR}/bad-source-uri-local-paths.json" "source_uri must not escape the project root"
+
 cat >"${TMP_DIR}/bad-version.json" <<'JSON'
 {
   "version": 1,

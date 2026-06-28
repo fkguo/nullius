@@ -28,7 +28,7 @@ DISPLAY_MATH_LEADING_CONTINUATION_RE = re.compile(r"^(\s*)([=+-])(.*)$")
 SINGLE_DOLLAR_MATH_RE = re.compile(r"(?<!\$)\$(?!\$)(.+?)(?<!\$)\$(?!\$)")
 DOUBLE_DOLLAR_MATH_RE = re.compile(r"\$\$(.+?)\$\$")
 HTML_LINK_RE = re.compile(r"<a\s+[^>]*href=[\"']([^\"']+)[\"']", re.IGNORECASE)
-REFERENCE_LINK_DEF_RE = re.compile(r"^\s{0,3}\[[^\]\n]+]:\s+(\S+|<[^>\n]+>)")
+REFERENCE_LINK_DEF_RE = re.compile(r"^\s{0,3}\[[^\]\n]+]:\s+(<[^>\n]+>|\S+)")
 CODE_SPAN_MD_PATH_RE = re.compile(r"`([^`\n]*\.m(?:ark)?d(?:#[^`\s]+)?[^`\n]*)`", re.IGNORECASE)
 RAW_MATH_PRESETS = {
     "ascii-math": (
