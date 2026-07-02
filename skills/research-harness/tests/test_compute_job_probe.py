@@ -43,6 +43,23 @@ def test_decide_stopped_when_no_expected_target():
     assert cjp.decide(False, 4, None, [4], 3) == "stopped"
 
 
+def test_decide_deadline_reached_is_not_a_crash():
+    # marker + stopped-incomplete -> deadline_reached, with or without an expected target
+    assert cjp.decide(False, 4, 10, [3, 4], 3, deadline_fired=True) == "deadline_reached"
+    assert cjp.decide(False, 4, None, [4], 3, deadline_fired=True) == "deadline_reached"
+
+
+def test_decide_completed_wins_over_stale_deadline_marker():
+    # all expected units landed -> completed, even if the marker was left behind
+    assert cjp.decide(False, 10, 10, [10], 3, deadline_fired=True) == "completed"
+
+
+def test_decide_running_verdicts_ignore_deadline_marker():
+    # a demonstrably alive job stays running/stalled; a leftover marker is stale
+    assert cjp.decide(True, 5, 10, [3, 4, 5], 3, deadline_fired=True) == "running"
+    assert cjp.decide(True, 5, 10, [5, 5, 5], 3, deadline_fired=True) == "stalled"
+
+
 # --- checkpoint counting ---
 
 def test_count_checkpoint_lines(tmp_path):
@@ -64,6 +81,23 @@ def test_probe_not_running_is_killed_incomplete(tmp_path):
     assert r["checkpoint_count"] == 2
     assert r["verdict"] == "killed_incomplete"
     assert hist.exists()
+
+
+def test_probe_deadline_marker_turns_stop_into_deadline_reached(tmp_path):
+    ck = tmp_path / "ck.tsv"
+    ck.write_text("u1\t1\nu2\t2\n", encoding="utf-8")
+    marker = tmp_path / "ck.tsv.deadline"
+    marker.write_text("", encoding="utf-8")
+    hist = tmp_path / "h.probe"
+    r = cjp.probe("no_such_job_pattern_zzz_unlikely_xyz", ck, 5, hist, 3, now=1000.0,
+                  deadline_marker=marker)
+    assert r["deadline_fired"] is True
+    assert r["verdict"] == "deadline_reached"
+    # absent marker path -> unchanged killed_incomplete
+    r2 = cjp.probe("no_such_job_pattern_zzz_unlikely_xyz", ck, 5, hist, 3, now=1001.0,
+                   deadline_marker=tmp_path / "missing.deadline")
+    assert r2["deadline_fired"] is False
+    assert r2["verdict"] == "killed_incomplete"
 
 
 # --- probe integration: detect running, stall, then kill ---
@@ -99,12 +133,65 @@ def test_decide_outputs_are_in_verdicts_enum():
         (False, 10, 10, [10], 3),
         (False, 4, 10, [4], 3),
         (False, 4, None, [4], 3),
+        (False, 4, 10, [4], 3, True),   # deadline marker present
+        (False, 4, None, [4], 3, True),
     ]
     for c in cases:
         assert cjp.decide(*c) in cjp.VERDICTS, c
     # degenerate stall-window must not raise or falsely stall
     assert cjp.decide(True, 5, 10, [5], 1) == "running"
     assert cjp.decide(True, 5, 10, [5, 5], 0) == "running"
+
+
+def test_cli_derives_default_deadline_marker_from_checkpoint(tmp_path):
+    ck = tmp_path / "ck.tsv"
+    ck.write_text("u1\t1\n", encoding="utf-8")
+    (tmp_path / "ck.tsv.deadline").write_text("", encoding="utf-8")
+    proc = subprocess.run(
+        [sys.executable, str(_MOD), "--pattern", "no_such_job_pattern_zzz_unlikely_xyz",
+         "--checkpoint", str(ck), "--expected", "5",
+         "--history", str(tmp_path / "h.probe")],
+        capture_output=True, text=True, check=True,
+    )
+    data = json.loads(proc.stdout)
+    assert data["deadline_marker"] == str(tmp_path / "ck.tsv.deadline")
+    assert data["deadline_fired"] is True
+    assert data["verdict"] == "deadline_reached"
+
+
+def test_cli_explicit_deadline_marker_wins_over_derivation(tmp_path):
+    ck = tmp_path / "ck.tsv"
+    ck.write_text("u1\t1\n", encoding="utf-8")
+    custom = tmp_path / "custom.dl"
+    custom.write_text("", encoding="utf-8")  # only the EXPLICIT marker exists, not ck.tsv.deadline
+    proc = subprocess.run(
+        [sys.executable, str(_MOD), "--pattern", "no_such_job_pattern_zzz_unlikely_xyz",
+         "--checkpoint", str(ck), "--expected", "5",
+         "--history", str(tmp_path / "h.probe"),
+         "--deadline-marker", str(custom)],
+        capture_output=True, text=True, check=True,
+    )
+    data = json.loads(proc.stdout)
+    assert data["deadline_marker"] == str(custom)
+    assert data["deadline_fired"] is True
+    assert data["verdict"] == "deadline_reached"
+
+
+def test_cli_empty_deadline_marker_disables_deadline_probing(tmp_path):
+    ck = tmp_path / "ck.tsv"
+    ck.write_text("u1\t1\n", encoding="utf-8")
+    (tmp_path / "ck.tsv.deadline").write_text("", encoding="utf-8")  # would fire if derivation ran
+    proc = subprocess.run(
+        [sys.executable, str(_MOD), "--pattern", "no_such_job_pattern_zzz_unlikely_xyz",
+         "--checkpoint", str(ck), "--expected", "5",
+         "--history", str(tmp_path / "h.probe"),
+         "--deadline-marker", ""],
+        capture_output=True, text=True, check=True,
+    )
+    data = json.loads(proc.stdout)
+    assert data["deadline_marker"] is None
+    assert data["deadline_fired"] is False
+    assert data["verdict"] == "killed_incomplete"
 
 
 def test_cli_self_match_excludes_own_process(tmp_path):

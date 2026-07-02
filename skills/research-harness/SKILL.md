@@ -1,6 +1,6 @@
 ---
 name: research-harness
-description: Use when working inside an external research project that has or may need autoresearch state, research_plan.md, research_contract.md, artifacts/runs, team/runs, Codex/Claude Code continuation, recovery, verification, approval, export, handoff, or surviving long-running / kill-prone compute jobs (checkpoint + heartbeat + resume).
+description: Use when working inside an external research project that has or may need autoresearch state, research_plan.md, research_contract.md, artifacts/runs, team/runs, Codex/Claude Code continuation, recovery, verification, approval, export, handoff, compute environment/tool readiness validation (import + seeded witness + agent-follows-doc), or surviving long-running / kill-prone compute jobs (checkpoint + heartbeat + deadline + resume).
 ---
 
 # Research Harness
@@ -93,6 +93,7 @@ node /absolute/path/to/autoresearch-lab/packages/orchestrator/dist/cli.js init -
   autoresearch workflow-plan --recipe research_brainstorm
   ```
 - If the user needs milestone execution, invoke `research-team` and keep the milestone boundary explicit.
+- If a compute environment, tool build, or documented invocation is new, rebuilt, or reconfigured, pass the three-layer readiness validation (under Long-Running Compute Jobs below) before routing real work onto it.
 - If the task is Markdown formatting, Markdown math escaping, generated TOC LaTeX cleanup, link/citation clickability, or pre-handoff note hygiene, invoke `markdown-hygiene` first, then rerun the relevant project gate.
 - If the task is physics or adjacent scientific literature research, evidence, INSPIRE/arXiv/OpenAlex provider lookup, source reading, bibliography, or export support, use `hep-mcp`. Web search may supplement broad discovery, but it does not replace the provider citation graph gate below.
 - If the task is lifecycle, verification, approval, pause/resume, final conclusions, or export, keep it on `autoresearch`.
@@ -101,7 +102,15 @@ Do not invent compatibility commands or fallback entrypoints. Keep lifecycle wor
 
 ## Long-Running Compute Jobs
 
-Real research compute (fits, scans, integrations, derivations) often runs far longer than one agent turn in an environment where the job can be **killed at any time** — contending processes, OS limits, or a closed session. Treat every long job as kill-prone and make it *survive* kills rather than assuming it finishes. The compute runner (`hep-calc` or any executor) runs the kernel; this harness owns the job's survival.
+Real research compute (fits, scans, integrations, derivations) often runs far longer than one agent turn in an environment where the job can be **killed at any time** — contending processes, OS limits, or a closed session. Treat every long job as kill-prone and make it *survive* kills rather than assuming it finishes. The compute runner (`hep-calc` or any executor) runs the computation itself; this harness owns the job's survival.
+
+**Validate readiness in three layers before the first real launch.** "Did you test it?" is not a yes/no answer — name which layer you validated. Before trusting a compute environment, a rebuilt tool, or a documented invocation enough to carry real work, pass three tiers:
+
+1. **Load/import succeeds.** Necessary, cheap, and catches almost nothing interesting.
+2. **Seeded witness run.** A tiny, seeded execution that exercises the real computation path and prints a sentinel — output shape/size plus a non-emptiness check. This catches what an import cannot: the tool loads but the computation under test fails at runtime, writes to a read-only location, or silently produces empty output. Record the witness invocation alongside the environment so the identical probe reruns on every rebuild.
+3. **Agent follows the doc verbatim.** Spawn a sub-agent that reads the tool's own documented invocation, runs it exactly as documented, and diffs what the doc claims against what actually happened. This is where the documented flag or path turns out to be wrong — it routinely finds blocking bugs on tools whose import-level checks have been green for weeks.
+
+Run the witness on every build; reserve the expensive agent-follows-doc pass for the two moments doc and tool drift apart — after any rebuild/reconfiguration or doc edit, and before declaring the tool ready. Complementary to the [`numerical-reliability-gate`](../numerical-reliability-gate/SKILL.md): that gate certifies the *numbers* a run produces; this ladder certifies the tool/environment actually runs and its documentation matches reality.
 
 **Launch contract.**
 
@@ -130,9 +139,11 @@ python3 scripts/compute_job_probe.py --pattern "<job-script-name>" \
     --checkpoint artifacts/runs/<run_id>/<job>.tsv --expected <N>
 ```
 
-It captures `pgrep` (SIGPIPE-safe, never pipes) and prints JSON `{running, checkpoint_count, verdict}` with `verdict ∈ running | stalled | completed | killed_incomplete | stopped`: `killed_incomplete` → relaunch; `completed` → all expected units are recorded, so scan the checkpoint for any sentinel-failed rows before folding back; `stalled` → livelock (below).
+It captures `pgrep` (SIGPIPE-safe, never pipes) and prints JSON `{running, checkpoint_count, deadline_fired, verdict}` with `verdict ∈ running | stalled | completed | deadline_reached | killed_incomplete | stopped`: `killed_incomplete` → relaunch; `completed` → all expected units are recorded, so scan the checkpoint for any sentinel-failed rows before folding back; `stalled` → livelock (below); `deadline_reached` → the task's own time budget expired, not a crash (below).
 
 **Detect and break livelock.** If a single unit takes longer than the kill window minus startup overhead, the per-unit checkpoint can never land — the job relaunches forever and the checkpoint count stays flat. The probe reports `stalled` when the count is unchanged across `--stall-window` consecutive checks. Then **stop relaunching** and re-decompose: shrink the unit, or replace it with a finer-grained, **independently cross-validated** cheaper surrogate — never a silently-substituted approximation (that is papering over a result, forbidden). Keep the expensive original in-repo as a record of why.
+
+**Give each task its own deadline, and keep "deadline reached" distinct from "crashed".** A host kill is involuntary and strikes mid-unit; a per-task deadline is a time budget you set — below the host kill window — so the task stops deliberately, at a point the session can still act on. Arrange the launch so that when the budget expires, the job or its wrapper writes a deadline marker file next to the checkpoint (the probe's default is `<checkpoint>.deadline`; e.g. map a `timeout` wrapper's expiry exit status to writing the marker, or have the job's own elapsed-time check write it and exit at a unit boundary). The probe then reports `deadline_reached` instead of `killed_incomplete`: a time boundary, not a failure — so do not reflexively relaunch. Choose deliberately: resume from the checkpoint with a larger budget, resubmit where the time window is longer, or re-decompose into smaller units. Consume (delete) the marker as part of acting on it, so the next probe reads clean. Without the distinct signal, every time boundary is misread as a crash and blindly relaunched — burning the budget again to hit the same wall.
 
 **Commit each stage as cross-session memory.** A kill loses CPU work; a closed session loses the agent's context. Commit each completed stage immediately with a message recording the result *and the lesson*; the git log is a durable record that survives context loss.
 

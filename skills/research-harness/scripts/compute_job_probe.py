@@ -8,6 +8,13 @@ checkpoint count flat across several consecutive probes, which is the
 livelock signal (a single work unit longer than the kill window can never
 land, so relaunching forever makes no progress).
 
+A stopped-incomplete job is further split by a deadline marker file: when the
+job (or its launch wrapper) writes the marker on expiry of its OWN per-task
+time budget, the verdict is DEADLINE_REACHED — a deliberate time boundary the
+caller should answer with resume-with-more-budget / resubmit / re-decompose —
+instead of KILLED_INCOMPLETE (host kill or crash, answered by relaunching).
+The handler consumes (deletes) the marker when acting on it.
+
 Domain- and language-agnostic: it knows nothing about what the job computes,
 only (a) a `pgrep -f` pattern that identifies the job process and (b) the
 job's append-one-line-per-completed-unit checkpoint file. It NEVER pipes to
@@ -25,7 +32,7 @@ import subprocess
 import time
 from pathlib import Path
 
-VERDICTS = ("running", "stalled", "completed", "killed_incomplete", "stopped")
+VERDICTS = ("running", "stalled", "completed", "deadline_reached", "killed_incomplete", "stopped")
 
 
 def count_checkpoint_lines(path: Path | None) -> int:
@@ -93,18 +100,29 @@ def job_pids(pattern: str) -> list[int]:
     return [p for p in pids if p not in exclude]
 
 
-def decide(running: bool, count: int, expected: int | None, recent_counts: list[int], stall_window: int) -> str:
+def decide(running: bool, count: int, expected: int | None, recent_counts: list[int], stall_window: int,
+           deadline_fired: bool = False) -> str:
     """Pure verdict logic (unit-testable, no I/O).
 
     `recent_counts` is the checkpoint-count history including the current probe.
+    `deadline_fired` is whether the job's own per-task time budget expired (the
+    deadline marker file exists). Precedence on a stopped job: completed (all
+    expected units landed, marker or not) > deadline_reached (time boundary,
+    needs no expected target) > killed_incomplete / stopped (host kill or crash).
+    A running job stays running/stalled — a leftover marker there is stale and
+    is only surfaced through the JSON `deadline_fired` field.
     """
     if running:
         # "flat across consecutive probes" needs a window of at least 2.
         if stall_window >= 2 and len(recent_counts) >= stall_window and len(set(recent_counts[-stall_window:])) == 1:
             return "stalled"
         return "running"
+    if expected is not None and count >= expected:
+        return "completed"
+    if deadline_fired:
+        return "deadline_reached"
     if expected is not None:
-        return "completed" if count >= expected else "killed_incomplete"
+        return "killed_incomplete"
     return "stopped"
 
 
@@ -120,10 +138,12 @@ def _read_recent_counts(history: Path) -> list[int]:
 
 
 def probe(pattern: str, checkpoint: Path | None, expected: int | None,
-          history: Path, stall_window: int, now: float) -> dict:
+          history: Path, stall_window: int, now: float,
+          deadline_marker: Path | None = None) -> dict:
     pids = job_pids(pattern)
     running = bool(pids)
     count = count_checkpoint_lines(checkpoint)
+    deadline_fired = deadline_marker is not None and deadline_marker.exists()
 
     recent_counts = _read_recent_counts(history)
     history.parent.mkdir(parents=True, exist_ok=True)
@@ -131,7 +151,7 @@ def probe(pattern: str, checkpoint: Path | None, expected: int | None,
         fh.write(f"{now:.0f}\t{count}\t{'run' if running else 'stop'}\n")
     recent_counts.append(count)
 
-    verdict = decide(running, count, expected, recent_counts, stall_window)
+    verdict = decide(running, count, expected, recent_counts, stall_window, deadline_fired)
     return {
         "pattern": pattern,
         "running": running,
@@ -140,6 +160,8 @@ def probe(pattern: str, checkpoint: Path | None, expected: int | None,
         "checkpoint_count": count,
         "expected": expected,
         "stall_window": stall_window,
+        "deadline_marker": str(deadline_marker) if deadline_marker else None,
+        "deadline_fired": deadline_fired,
         "stalled": verdict == "stalled",
         "verdict": verdict,
     }
@@ -157,6 +179,11 @@ def main(argv: list[str] | None = None) -> int:
                    help="probe-history file (default: <checkpoint>.probe, else .compute_job_probe.history in CWD).")
     p.add_argument("--stall-window", type=int, default=3,
                    help="consecutive equal-count probes that signal a stall/livelock (>=2; default 3).")
+    p.add_argument("--deadline-marker", type=Path, default=None,
+                   help="marker file the job/wrapper writes when its OWN per-task time budget expires; "
+                        "if it exists, a stopped-incomplete job is reported as deadline_reached instead of "
+                        "killed_incomplete (default: <checkpoint>.deadline when --checkpoint is given; "
+                        "pass an empty value to disable).")
     args = p.parse_args(argv)
 
     history = args.history
@@ -164,7 +191,16 @@ def main(argv: list[str] | None = None) -> int:
         history = (args.checkpoint.with_suffix(args.checkpoint.suffix + ".probe")
                    if args.checkpoint else Path(".compute_job_probe.history"))
 
-    result = probe(args.pattern, args.checkpoint, args.expected, history, args.stall_window, time.time())
+    deadline_marker = args.deadline_marker
+    if deadline_marker is not None and str(deadline_marker) in ("", "."):
+        # An empty value (e.g. an unset shell variable) disables deadline probing;
+        # Path("") resolves to Path(".") which always exists and would spuriously fire.
+        deadline_marker = None
+    elif deadline_marker is None and args.checkpoint is not None:
+        deadline_marker = args.checkpoint.with_suffix(args.checkpoint.suffix + ".deadline")
+
+    result = probe(args.pattern, args.checkpoint, args.expected, history, args.stall_window, time.time(),
+                   deadline_marker)
     print(json.dumps(result, ensure_ascii=False))
     return 0
 

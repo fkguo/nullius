@@ -40,6 +40,9 @@ Example quantities (illustrative, not a fixed list):
   [`review-swarm`](../review-swarm/SKILL.md).
 - **Surviving the long, kill-prone COMPUTE that produces the numbers** (checkpoint / heartbeat / resume)
   → [`research-harness`](../research-harness/SKILL.md) owns that. This gate runs *after* the numbers exist.
+- **Verifying the TOOL/ENV itself runs and its docs match reality** → the three-layer readiness
+  validation (import → seeded witness → agent-follows-doc) under Long-Running Compute Jobs in
+  [`research-harness`](../research-harness/SKILL.md); this gate then certifies the numbers it produces.
 
 ## The gate
 
