@@ -23,7 +23,9 @@ source and PDF.
    vector PDF output.
 4. **Existing data plotted as a figure**: this skill may help with visual styling, labels, vector
    export, and QA, but it does not compute the numerical data. Use the project's own computation
-   pipeline for physics results.
+   pipeline for physics results, and use the sibling `figure-hygiene` skill for data/results-plot
+   correctness and legibility (data fidelity, chart choice by data shape, label economy, colour
+   threading, render-then-verify).
 5. **FeynArts/QGRAF**: use only upstream to enumerate or check model-generated topologies. Redraw
    selected publication figures in TikZ/feynhand or another final-layout backend.
 6. **Inkscape**: use only for optional finishing, imported SVG cleanup, or manual repair. It is not
@@ -149,6 +151,10 @@ Use [references/quality-gate.md](references/quality-gate.md) for the full checkl
 
 ## Pattern References
 
+- Universal presentation rules shared with data/results figures — colour threading, CVD safety,
+  label economy floor and ceiling, role-mapped typography, render-then-verify — live in the sibling
+  `figure-hygiene` skill and apply to schematics too; this skill stays scoped to
+  schematic/topological content.
 - TikZ/feynhand templates and idioms: [references/tikz-patterns.md](references/tikz-patterns.md).
 - Python/Matplotlib geometry schematics and existing-data figure styling: [references/python-geometry.md](references/python-geometry.md).
 - Tool choice and non-default backends: [references/tool-selection.md](references/tool-selection.md).

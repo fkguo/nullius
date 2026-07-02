@@ -1,6 +1,6 @@
 {
-  "index_version": "1.3.1",
-  "updated_at": "2026-06-28T00:00:00Z",
+  "index_version": "1.3.2",
+  "updated_at": "2026-07-02T00:00:00Z",
   "packages": [
     "auto-relay.json",
     "claim-grounding.json",
@@ -9,6 +9,7 @@
     "deep-learning-lab.json",
     "deep-literature-review.json",
     "derivation-verify.json",
+    "figure-hygiene.json",
     "gemini-cli-runner.json",
     "hep-calc.json",
     "hep-mcp.json",

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Figure Hygiene"
+  short_description: "Data/results figure correctness checklist"
+  default_prompt: "Use $figure-hygiene to check a data/results figure for data fidelity, label economy, CVD-safe colour threading, and render-then-verify QA before delivering it."
