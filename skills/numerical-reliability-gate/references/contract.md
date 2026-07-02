@@ -74,6 +74,17 @@ and MUST equal the filename's `_vN` (ART-02). Write atomically (ART-03).
       // is illustrative only); its G4 anchor reproduces an internal adopted value, which is NOT a G8 claim.
       "reference_match": null,
 
+      // G9 — gate discrimination. null unless the value's trust rests on a purpose-built consistency
+      // gate / validation chain (a "reduces to a known object" / "matches the reference implementation" /
+      // "validated N-way" argument) rather than only on G1-G8 above. When present:
+      // { "reference_provenance": "<how the gate's reference was derived — must be independent of the assumption under test>",
+      //   "reference_independent": true,
+      //   "disputed_dof_retained": true,   // the comparison mode does NOT project out the structure under test
+      //   "negative_controls": [ { "variant": "<a known-wrong alternative>", "rejected": true, "margin": "<failure size>" } ],
+      //   "production_path": true,         // the gate runs on/against the code path that produced recorded_value
+      //   "covers": "<which quantity/layer this validation certifies — it does not transfer to orthogonal layers>" }
+      "gate_validity": null,
+
       "notes": ""
     },
     {
@@ -141,7 +152,7 @@ and MUST equal the filename's `_vN` (ART-02). Write atomically (ART-03).
 
 | verdict | meaning | foldable? |
 |---|---|---|
-| `reliable` | passed **every applicable** G1–G8 check at the converged setting — including the G4 anchor, G6 non-staleness, the G7 production-scale method-precondition, and the G8 reference-match where a published-value match is claimed, not only G1–G3 | **yes** |
+| `reliable` | passed **every applicable** G1–G9 check at the converged setting — including the G4 anchor, G6 non-staleness, the G7 production-scale method-precondition, the G8 reference-match where a published-value match is claimed, and the G9 gate-discrimination audit where trust rests on a purpose-built validation chain, not only G1–G3 | **yes** |
 | `mirage` | a candidate optimum/feature that did not survive G1 refinement | no |
 | `unconverged` | value still moving as the resolution is refined (G1) | no |
 | `method_disagreement` | orthogonal methods (G2) do not agree and the discrepancy is unexplained | no |
@@ -151,6 +162,7 @@ and MUST equal the filename's `_vN` (ART-02). Write atomically (ART-03).
 | `stale_artifact` | the record's code/input version or timestamp does not match the current run (G6 provenance) — recompute before trusting | no |
 | `precondition_violated` | a structural property the method's validity rests on (commutation with a projector/symmetrizer, Hermiticity, self-adjointness, idempotency, unitarity, variational/Galerkin-subspace invariance) fails — or was only tested at a smaller/cheaper setting than the value — at the production setting/config (G7); the value is **invalid**, not approximate, even if G1-converged | no |
 | `reference_mismatch` | the value claims to reproduce/match a **published reference number** but the claimed observable, recomputed on a comparable state/regime and compared numerically (G8), differs by an order of magnitude in the same direction or by a sign — a qualitative "same scale / same sign" assertion, or citing the source, does not discharge G8; the match claim is **overstated**, not established | no |
+| `circular_validation` | the validation chain invoked to trust the value fails the G9 audit: its reference was co-derived with (or reverse-engineered from) the assumption under test, its comparison mode projects out the disputed structure, it has never rejected a known-wrong variant (no negative control), or it certifies a different layer / code path than the recorded value's — the "validated" status is **void** (the gate carried no information about the disputed structure) and the value reverts to a labeled candidate | no |
 
 Only `reliable` rows may be folded into `research_contract.md` / a paper / a conclusion. Every other row
 is a **labeled candidate** kept for follow-up or discarded — never silently promoted.
@@ -194,6 +206,14 @@ is a **labeled candidate** kept for follow-up or discarded — never silently pr
   (verdict `reference_mismatch`) when the computed and published values differ by an order of magnitude in
   the same direction or by a sign; a qualitative "same scale / same sign" assertion, or merely citing the
   source, does NOT satisfy G8. The field is `null` only when the result makes no published-value match claim.
+- **G9 gate-validity (when applicable)**: for any `reliable` verdict whose trust rests on a purpose-built
+  consistency gate / validation chain (rather than only on the G1–G8 evidence in the row itself), record a
+  `gate_validity` object with the reference's provenance (and why it is independent of the assumption under
+  test), whether the comparison retains the disputed degree of freedom, at least one **negative control**
+  (a known-wrong variant the gate demonstrably rejects, with margin), whether the gate runs on/against the
+  production code path, and which quantity/layer the validation covers. A missing negative control, a
+  co-derived reference, a stripped comparison mode, or a sibling-path-only validation is verdict
+  `circular_validation`. The field is `null` when the row's trust rests only on the G1–G8 evidence itself.
 - `invariant_check`, `regression_anchor`, `degeneracy` are `null` when not applicable; when present they
   carry the disconfirming evidence, not a bare boolean.
 - A present `invariant_check` SHOULD record what was actually counted, not only `passed`: the `function`

@@ -1,6 +1,6 @@
 ---
 name: numerical-reliability-gate
-description: "Convergence and reliability gate for NUMERICAL results in any field, including fits, optimizations, integrals, eigenvalues, roots, poles, zeros, ODE/PDE solutions, Monte-Carlo estimates, and downstream feature extraction. Use before trusting, comparing, publishing, or folding a computed number into durable research artifacts. Requires resolution convergence, independent-method checks, regression anchors, method-precondition checks, configuration-threading audits, and honest uncertainty/reporting. Emits an auditable reliability matrix. Sibling to derivation-verify for symbolic claims and julia-perf for speed claims."
+description: "Convergence and reliability gate for NUMERICAL results in any field, including fits, optimizations, integrals, eigenvalues, roots, poles, zeros, ODE/PDE solutions, Monte-Carlo estimates, and downstream feature extraction. Use before trusting, comparing, publishing, or folding a computed number into durable research artifacts. Requires resolution convergence, independent-method checks, regression anchors, method-precondition checks, configuration-threading audits, gate-discrimination (negative-control) audits of purpose-built validation chains, and honest uncertainty/reporting. Emits an auditable reliability matrix. Sibling to derivation-verify for symbolic claims and julia-perf for speed claims."
 ---
 
 # Numerical Reliability Gate
@@ -161,6 +161,36 @@ Each check names its own minimum disconfirming test — never accept a number be
   claim* actually holds when the observable is recomputed on the comparable state — a result can pass
   G1–G7 and still misstate how it relates to the literature.)
 
+- **G9 — Gate discrimination: a validation must be able to fail (independent reference, negative
+  controls).** When a value's trust rests on a purpose-built consistency check — "it reduces to a
+  known object", "it matches the reference implementation", "it was validated N-way" — audit the
+  gate itself before crediting the pass. Four requirements:
+  **(i) Reference independence.** The reference the gate compares against must have been derived
+  independently of the assumption under test. A reference that was reverse-engineered to reproduce
+  the object it now validates, or that was built under the same structural assumption (the same
+  operator/numerator form, the same approximation, the same convention), makes the gate a tautology
+  — A-against-A: it can pass indefinitely while the shared assumption is wrong. (The sharpest form
+  of G2's "co-invocation is not independence", lifted from shared *code* to shared *assumptions*.)
+  **(ii) Disputed structure left in.** The comparison must run in a mode that retains the degree of
+  freedom in dispute. A stripped/simplified comparison limit in which all competing hypotheses
+  collapse to the same object (a limit that projects out the disputed operator / structure / term
+  before comparing) is structurally non-discriminating regardless of how precisely it agrees —
+  record such a check as skeleton-only, never as a validation of the disputed structure. (The
+  structural analogue of G2's non-diagnostic tolerance: there the check is too *coarse* to see the
+  effect; here it is *blind* to it by construction.)
+  **(iii) Negative controls.** Demonstrate — never assume — that the gate rejects the known-wrong
+  alternatives: run the gate on each rejected/competing variant and record its failure margin. A
+  gate that has never rejected anything is unproven; the pass of the adopted variant is meaningful
+  exactly in proportion to how loudly the wrong variants fail. As a bonus, the failure *pattern* of
+  the negative controls localizes errors that symbolic review cannot.
+  **(iv) Production path, and no validation transfer.** The gate must run on (or directly against)
+  the code path and configuration that actually produce the recorded value — validating a
+  sibling/reference implementation that the production path never invokes validates nothing about
+  the production path (the path-level analogue of G7's production-*setting* rule). And a validation
+  certifies only the quantity/layer it actually compared (e.g. the denominator/singularity skeleton
+  of an integral, not its numerator/operator structure): annotate every "validated" claim with the
+  layer it covers, and never let it transfer to an orthogonal layer.
+
 ## Reliable vs. fragile methods (quick reference)
 
 | Task | Fragile (false ±) | Reliable |
@@ -186,8 +216,8 @@ Emit one auditable record per gated quantity, conforming to
 value), the orthogonal-method values and whether they agree, any invariant check, the regression-anchor
 result, a degeneracy note, the recorded converged value, and a `verdict ∈ reliable | mirage |
 unconverged | method_disagreement | fragile_method | anchor_failed | degenerate | stale_artifact |
-precondition_violated | reference_mismatch`
-(`reliable` requires every *applicable* G1–G8 check to pass — including the G4 anchor, G6 non-staleness, the G7 production-scale precondition, and the G8 reference-match when a published-value match is claimed,
+precondition_violated | reference_mismatch | circular_validation`
+(`reliable` requires every *applicable* G1–G9 check to pass — including the G4 anchor, G6 non-staleness, the G7 production-scale precondition, the G8 reference-match when a published-value match is claimed, and the G9 gate-discrimination audit when trust rests on a purpose-built validation chain,
 not only G1–G3). Only `reliable` rows may be folded into the durable record; everything else is a labeled
 candidate or is discarded.
 
@@ -259,3 +289,26 @@ carried only by the caller's context), each a way an agreement-based check gave 
   was never measured directly (the directly-computed second observable lay far from the relabeled number).
   **G8** — report an extraction under the observable it actually targets; never relabel the method-spread of
   an extraction for one quantity as the value of another.
+
+Further failure modes from a third reproduction (a loop-integral source amplitude whose
+operator-valued numerator was disputed between competing structural hypotheses; domain carried only
+by the caller's context) — the episode that created **G9**:
+
+- the adopted numerator had been "validated" by a **reduce-to-a-known-object gate whose reference was
+  later *measured* to be exactly the assumed-form object** (the reference had been reverse-engineered
+  under the same structural assumption), and the gate's comparison limit additionally **collapsed every
+  competing numerator to the same scalar** before comparing — the gate passed at the sub-percent level
+  throughout while **three independent structural errors** persisted in the production path. **G9(i)+(ii)**
+  — a co-derived reference plus a stripped comparison mode is a tautology, not a test; the pass carried
+  zero information about the disputed structure;
+- an N-way, ~1e-5-level external-library validation of the **scalar skeleton** of the same integral was
+  repeatedly cited as support for the **numerator/operator layer it never touched**, and the audited
+  implementation was a **sibling reference path the production engine never invoked**. **G9(iv)** —
+  validation transfers neither across layers nor across code paths; annotate what each validation covers;
+- the replacement gate (an independent external-library evaluation of the **full object with the disputed
+  structure left in**, at the production configuration) **rejected both known-wrong variants at O(1)
+  margins**, confirmed the corrected structure at the expected truncation floor, and *additionally
+  surfaced a third, unsuspected defect* (a dropped frame/recoil term in an internal kinematic variable)
+  that several independent symbolic derivations and cross-model reviews had all missed. **G9(iii)** —
+  negative controls both prove the gate's discriminating power and, through their failure pattern,
+  localize errors that symbolic review alone does not reach.

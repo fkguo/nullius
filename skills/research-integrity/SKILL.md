@@ -545,6 +545,35 @@ it by quoting the published number. `review-swarm`'s **reference-reproduction re
 is the role that recomputes the claimed observable on the comparable state instead of
 statically reading the assertion.
 
+## Validation-chain validity (a "validated" claim names its reference, its layer, and a rejected alternative)
+
+A result defended as "validated" / "cross-checked" / "reduces to a known object" is only as good as
+the gate that says so. Three failure shapes pass silently, each observed in practice:
+
+- **(a) circular reference** — the gate's reference object was derived under (or reverse-engineered
+  from) the very assumption the gate is now trusted to test; the comparison is A-against-A and
+  passes indefinitely while the shared assumption is wrong.
+- **(b) stripped comparison** — the check compares in a simplified limit/mode in which all competing
+  hypotheses collapse to the same object, so it cannot discriminate the disputed structure no matter
+  how precisely it agrees.
+- **(c) layer / path transfer** — a validation of one layer (e.g. a denominator/singularity
+  skeleton) or of a sibling reference implementation is cited as support for an orthogonal layer
+  (an operator/numerator structure) or for a production path that never invokes the validated code.
+
+**Minimum disconfirming check.** For each load-bearing "validated" claim crossing the boundary,
+record: (1) the provenance of the gate's reference and why it is independent of the assumption
+under test; (2) that the comparison retains the disputed degree of freedom; (3) at least one
+**negative control** — a known-wrong variant the gate demonstrably rejects, with its failure margin
+(a gate that has never rejected anything is unproven); (4) which layer and which code path the
+validation covers, stated next to the claim. A gate failing any of these does not discharge the
+check — the "validated" status is void and the result reverts to a labeled candidate.
+
+This is **not a new receipt mode**: record it under **M1** (the gate is code/reasoning that passed
+its author's self-review) and **M5** (a gate-pass artifact treated as a genuine confirmation). The
+active gate is `numerical-reliability-gate` **G9** (verdict `circular_validation`), which also
+carries the negative-control bonus: the failure *pattern* of the wrong variants localizes errors
+that symbolic review alone does not reach.
+
 ## Pre-approval ritual
 
 Walk the modes most relevant to the gate before invoking
