@@ -30,7 +30,11 @@
  *   - **(b) wrong numeric value** — a transposed digit, ...
  *   ...
  *
- * The bold span immediately after the "(x)" marker is the short label.
+ * The bold span immediately after the "(x)" marker is the short label. The
+ * parse is scoped to the "Extraction / transcription fidelity" section: the
+ * same file also carries other lettered bullet lists (e.g. "Validation-chain
+ * validity" with its own (a)/(b)/(c)), which are unrelated and must not be read
+ * as canonical.
  *
  * ## KNOWN LIMITATIONS
  *
@@ -89,9 +93,28 @@ function readRepoFile(relPath) {
 // Canonical bullet-list parse
 // ─────────────────────────────────────────────────────────────────────────────
 
+// The canonical checklist lives under the "Extraction / transcription fidelity"
+// section heading. Scope the parse to that section so that OTHER lettered bullet
+// lists elsewhere in the same file — e.g. the "Validation-chain validity"
+// section, whose own "- **(a) …**" / "- **(b) …**" / "- **(c) …**" items are a
+// different, unrelated enumeration — cannot overwrite the canonical (a)–(g)
+// labels in the flat scan.
+const CANONICAL_SECTION_RE = /^##\s+Extraction\s*\/\s*transcription\s+fidelity\b/i;
+const SECTION_HEADING_RE = /^##\s+/;
+
 function parseCanonical(text) {
   const map = new Map();
+  let inSection = false;
   for (const line of text.split('\n')) {
+    if (CANONICAL_SECTION_RE.test(line)) {
+      inSection = true;
+      continue;
+    }
+    if (inSection && SECTION_HEADING_RE.test(line)) {
+      // Reached the next "## " heading — the canonical list has ended.
+      break;
+    }
+    if (!inSection) continue;
     const m = CANONICAL_ITEM_RE.exec(line);
     if (!m) continue;
     const [, letter, label] = m;
