@@ -45,6 +45,15 @@ It applies performance-first coding discipline continuously, and it can escalate
 ### Level 1: Default coding guardrails (always on)
 
 Use these in every Julia numerical coding task:
+- **Compute only what you need** — the highest-value guardrail and the easiest to miss. Before reaching
+  for a general routine, ask *"do I need the WHOLE result, or a part?"* Reaching for the full
+  computation when a part suffices is the recurring, order-of-magnitude waste: the full
+  eigendecomposition when only a few extremal eigenvalues are wanted (use an index-range or iterative
+  solver), a full sort for a min/max (use a partial select), re-forming a matrix factorization on every
+  call instead of once and reusing it across right-hand sides, or materializing a whole array only to
+  reduce it. This is an ALGORITHMIC win, so it dwarfs the micro-guardrails below — and, unlike them, it
+  is INVISIBLE to a passing test suite (a slow-but-correct call fails nothing), so audit for it
+  explicitly on every core operation rather than trusting green tests to surface it.
 - Prefer concrete types and type-stable function boundaries.
 - Avoid abstract containers in hotpaths.
 - Avoid global-state driven hot loops.
