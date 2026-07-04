@@ -1,6 +1,6 @@
 ---
 name: numerical-reliability-gate
-description: "Convergence and reliability gate for NUMERICAL results in any field, including fits, optimizations, integrals, eigenvalues, roots, poles, zeros, ODE/PDE solutions, Monte-Carlo estimates, and downstream feature extraction. Use before trusting, comparing, publishing, or folding a computed number into durable research artifacts. Requires resolution convergence, independent-method checks, regression anchors, method-precondition checks, configuration-threading audits, gate-discrimination (negative-control) audits of purpose-built validation chains, and honest uncertainty/reporting. Emits an auditable reliability matrix. Sibling to derivation-verify for symbolic claims and julia-perf for speed claims."
+description: "Convergence and reliability gate for NUMERICAL results in any field, including fits, optimizations, integrals, eigenvalues, roots, poles, zeros, ODE/PDE solutions, Monte-Carlo estimates, and downstream feature extraction. Use before trusting, comparing, publishing, or folding a computed number into durable research artifacts. Requires resolution convergence, independent-method checks, regression anchors, method-precondition checks, configuration-threading audits, gate-discrimination (negative-control) audits of purpose-built validation chains, accelerated/heuristic fast-path scoping (no false guarantee, unconditional escape hatch, production-validated precondition), and honest uncertainty/reporting. Emits an auditable reliability matrix. Sibling to derivation-verify for symbolic claims and julia-perf for speed claims."
 ---
 
 # Numerical Reliability Gate
@@ -196,6 +196,78 @@ Each check names its own minimum disconfirming test — never accept a number be
   of an integral, not its numerator/operator structure): annotate every "validated" claim with the
   layer it covers, and never let it transfer to an orthogonal layer.
 
+- **G10 — Accelerated / heuristic fast path: scope the guarantee, keep the unconditional escape hatch.**
+  When a fast path is a **heuristic** whose *local* success certificate does not entail the *global*
+  answer — the archetype is a fixed-start Krylov/subspace iteration (e.g. a restarted Arnoldi) for a
+  dominant eigenvalue/quantity, where a small residual certifies *an* eigenpair (a local optimum),
+  **not** that it is the dominant one, so a target mode nearly orthogonal to the deterministic start is
+  silently missed — its output is correct only under a **precondition**, and the gate is to make that
+  precondition explicit, validated, and escapable, never to assert a correctness the method does not
+  carry. Five obligations, each with its disconfirming test:
+  **(i) No false guarantee.** Do **not** write into a docstring / comment / README a guarantee the method
+  does not deliver ("never returns a wrong value", "always finds the dominant mode"). Overclaiming the
+  method's scope is a **scientific-integrity defect in its own right — even if the wrong output never
+  arises in the actual production use** — because the claim is false as written and a later caller will
+  lean on it in a regime where it fails. *Test:* try to construct one input that breaks the stated
+  guarantee; for a fixed-start heuristic you almost always can, which proves the guarantee false and
+  forces it to be narrowed to the precondition under which it actually holds.
+  **(ii) Document the precondition and its failure mode.** State the condition under which the fast path
+  is correct (the sought mode has nonzero, bounded-below overlap with the start; the search begins in the
+  correct basin) **and** the blind spot when it is violated — that it can return a *wrong* value, and how
+  a defeating input is constructed (a target eigenvector orthogonal to every deterministic start). A
+  precondition recorded without its failure mode is half the truth. *Test:* grep the docstring / comment /
+  README (and the reliability-matrix note) for BOTH the precondition and the constructed failure mode;
+  either absent → fail.
+  **(iii) Keep the unconditional path, auto-selected where cheap.** Retain the slow-but-provably-correct
+  routine (a dense/direct solve, an exhaustive enumeration) and route to it automatically wherever it is
+  affordable — e.g. below a size threshold — so the heuristic runs only where the exact path is genuinely
+  too expensive. A fast path with no unconditional fallback is a single point of silent failure. *Test:*
+  confirm the unconditional routine exists in the code and is actually selected below the stated size/cost
+  threshold; if none exists, or the heuristic runs unconditionally, → fail.
+  **(iv) Validate — do not assert — the precondition at (or as near as feasible to) the production
+  setting.** Prove or empirically demonstrate that the *actual* operator/input meets the precondition. If
+  the unconditional path is affordable at the production value, run the fast-path ≡ unconditional-path
+  cross-check *there*, to a stated tolerance (and if it is cheap enough, obligation (iii) already routes
+  you to the exact value directly). If the unconditional path is infeasible at production scale, the
+  load-bearing evidence is a **structural argument** that the precondition holds for the real operator at
+  production scale (e.g. a positivity / Perron-type structure forcing the dominant mode to keep a
+  bounded-below overlap with the start) **plus, as corroboration only**, a fast ≡ exact cross-check on **at
+  least one — ideally the largest — affordable case in the production regime**, with the extrapolation gap
+  to the true production scale recorded — a smaller-scale cross-check never substitutes for the
+  production-scale structural argument, and a structural argument with *zero* affordable cross-check
+  available is **uncorroborated** — record that absence explicitly rather than treat the structural
+  argument as numerically confirmed. "It surely holds
+  here" is exactly the gap this closes — this is G2's independent cross-check and G7's production-setting
+  rule applied to the fast/exact split: validate where the value is produced, or as near as feasible with
+  the gap stated, never only where it is cheapest.
+  **(v) An adversarial counterexample tests the CLAIM, not the use — answer with honest scoping.** A
+  reviewer who constructs an input that breaks the fast path but **never arises in the production use** is
+  refuting the *stated guarantee* (i), not the *production result* (iv). The correct response is (i)–(iv)
+  — narrow the claim, document the blind spot, keep the escape hatch, validate the real use — **not** (a)
+  rewording to fake a guarantee, (b) tuning a seed/parameter to hide that one case, nor (c) chasing an
+  impossible cheap *universal* guarantee (e.g. reimplementing a heavy general-purpose library to defend
+  against an adversarial-only input). *Test:* inspect the change made in response to the counterexample
+  and confirm it (1) **narrowed the public/stated guarantee** rather than reworded it to still overclaim,
+  (2) did **not** merely tune a seed/parameter so that one case passes while the blind spot survives, and
+  (3) left the unconditional escape hatch and the production-precondition evidence intact — a response
+  that fails any of these has *hidden* the defect, not scoped it. Where a **fundamental limit** exists,
+  state it: e.g. no fixed-start Krylov/subspace method certifies global dominance (the genuine limit), so a
+  global guarantee requires a whole-operator routine — canonically a full dense eigensolve, or another
+  globally certified path (a dense/direct solve, an exhaustive enumeration, a certified enclosure) — and
+  the honest artifact is "heuristic + validated precondition + exact escape hatch", not a universal
+  guarantee that cannot exist.
+  **Complements G3, does not repeat it:** where replacing the heuristic with a method-agnostic
+  invariant / robust method is affordable, G3 says prefer it; **G10 governs the case where the heuristic
+  is deliberately kept as a performance-motivated fast path** and must be scoped honestly rather than
+  papered over. Verdict `overclaimed_heuristic` when a fast/accelerated path is folded in as if
+  unconditional while its stated guarantee claims correctness beyond the validated precondition, its
+  failure mode / unconditional escape hatch is absent, or its **fast-vs-exact agreement precondition** (start-overlap /
+  basin membership) was asserted rather than validated at the production setting. **Precedence vs G7:** a
+  structural property that makes the *method itself* valid (commutation with a projector/symmetrizer,
+  Hermiticity, …) failing is `precondition_violated` (G7); the *fast-vs-exact agreement* precondition
+  failing, or a guarantee / escape-hatch defect, is `overclaimed_heuristic` (G10) — there the exact method
+  stays valid and only its acceleration is in doubt.
+
 ## Reliable vs. fragile methods (quick reference)
 
 | Task | Fragile (false ±) | Reliable |
@@ -204,6 +276,7 @@ Each check names its own minimum disconfirming test — never accept a number be
 | Analytic continuation | a continuation unstable past `~N` nodes | a continuation well conditioned as nodes grow + cross-check |
 | "It converged" | a single setting that "looks flat" | a measured plateau across a 2–3× knob range + orthogonal method |
 | Best fit | one optimizer run from one start | multi-start + the converged grid (coarse-grid optima are mirages) |
+| Dominant eigenvalue/quantity (fast path) | a fixed-start Krylov/subspace iteration sold as a "never wrong" guarantee | the same heuristic scoped to its overlap precondition + an unconditional dense solve as escape hatch (validated ≡ at production scale) |
 
 The principle: a heuristic that depends on a seed, a threshold, or a single discretization is easily
 fooled when the feature moves or the resolution is too coarse; a method-agnostic invariant or a measured
@@ -211,7 +284,11 @@ refinement plateau is **much harder to fool — once its preconditions and numer
 validated**. It is not infallible: a common-mode discretization bias, roundoff/cancellation, a false
 plateau, an invalid sheet or near-contour singularity, or a net zero–pole cancellation can still defeat
 it, which is why G3 requires checking the invariant's preconditions and G2 requires a genuinely
-*independent* second method.
+*independent* second method. And when such a heuristic is nonetheless *kept* — because it is the
+performance-motivated fast path and the robust method is too expensive to run everywhere — G10 governs
+how to keep it honestly: scope the guarantee to its precondition, document the blind spot, validate the
+precondition at production scale, and keep the unconditional path as an auto-selected escape hatch,
+rather than paper the blind spot over with a guarantee the method cannot deliver.
 
 ## Output — the reliability matrix
 
@@ -221,8 +298,8 @@ Emit one auditable record per gated quantity, conforming to
 value), the orthogonal-method values and whether they agree, any invariant check, the regression-anchor
 result, a degeneracy note, the recorded converged value, and a `verdict ∈ reliable | mirage |
 unconverged | method_disagreement | fragile_method | anchor_failed | degenerate | stale_artifact |
-precondition_violated | reference_mismatch | circular_validation`
-(`reliable` requires every *applicable* G1–G9 check to pass — including the G4 anchor, G6 non-staleness, the G7 production-scale precondition, the G8 reference-match when a published-value match is claimed, and the G9 gate-discrimination audit when trust rests on a purpose-built validation chain,
+precondition_violated | reference_mismatch | circular_validation | overclaimed_heuristic`
+(`reliable` requires every *applicable* G1–G10 check to pass — including the G4 anchor, G6 non-staleness, the G7 production-scale precondition, the G8 reference-match when a published-value match is claimed, the G9 gate-discrimination audit when trust rests on a purpose-built validation chain, and the G10 fast-path scoping when the value comes from an accelerated/heuristic path,
 not only G1–G3). Only `reliable` rows may be folded into the durable record; everything else is a labeled
 candidate or is discarded.
 
@@ -317,3 +394,24 @@ by the caller's context) — the episode that created **G9**:
   that several independent symbolic derivations and cross-model reviews had all missed. **G9(iii)** —
   negative controls both prove the gate's discriminating power and, through their failure pattern,
   localize errors that symbolic review alone does not reach.
+
+Further failure modes from a fourth reproduction (a hand-rolled iterative accelerator for a dominant
+eigenvalue/quantity inside a larger solver — its fast path a fixed-start subspace iteration; domain
+carried only by the caller's context) — the episode that created **G10**:
+
+- the accelerator's docstring **claimed it "never returns a wrong value"**, an unconditional guarantee a
+  fixed-start Krylov/subspace method cannot deliver; an adversarial reviewer built a small operator —
+  its dimension just above the number of deterministic starts — whose dominant eigenvector was
+  orthogonal to *every* start, so the fast path silently returned a sub-dominant value, refuting the
+  *stated guarantee* even though that input never arises in the production use. **G10(i)+(v)** — the false guarantee was itself the defect (the wrong
+  output never surfaced in production), and the reviewer's counterexample was testing the *claim*, not
+  the *use*: the fix owed was honest scoping, not a reworded guarantee nor a parameter tweak to hide the
+  case;
+- it was resolved exactly as (i)–(iv) prescribe: the false claim was **removed**, the fast path
+  **documented as a heuristic with an explicit "orthogonal-to-every-start" blind spot**, the
+  **unconditional dense solve kept as an escape hatch** (auto-selected below a size threshold), and the
+  production precondition — that the *real* (positivity / Perron-structured) operator's dominant mode
+  keeps a bounded-below overlap with the start — **validated to ~1e-14** by a fast-path ≡ dense-path
+  cross-check at production scale. **G10(ii)–(iv)** — since no fixed-start method certifies global
+  dominance universally, the honest deliverable is "heuristic + validated precondition + exact escape
+  hatch", never a universal guarantee that cannot exist.

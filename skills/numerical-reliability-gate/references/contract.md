@@ -85,6 +85,21 @@ and MUST equal the filename's `_vN` (ART-02). Write atomically (ART-03).
       //   "covers": "<which quantity/layer this validation certifies — it does not transfer to orthogonal layers>" }
       "gate_validity": null,
 
+      // G10 — accelerated / heuristic fast-path scoping. null unless recorded_value comes from a fast
+      // path that is a HEURISTIC (a local certificate that does not entail the global answer — e.g. a
+      // fixed-start Krylov/subspace iteration for a dominant eigenvalue/quantity). When present:
+      // { "fast_path": "<the accelerated/heuristic routine, e.g. fixed-start restarted Arnoldi>",
+      //   "guarantee_scoped": true,        // docstring/comment states the precondition + failure mode, NOT a false universal guarantee ("never wrong")
+      //   "precondition": "<the condition under which the fast path equals the unconditional answer, e.g. sought mode has bounded-below overlap with the start>",
+      //   "failure_mode": "<how a defeating input is constructed, e.g. a target eigenvector orthogonal to every deterministic start>",
+      //   "unconditional_path": "<the slow but provably-correct routine kept as escape hatch, e.g. a dense eig solve>",
+      //   "auto_selected_when_cheap": true,   // exact path auto-chosen below a size/cost threshold
+      //   "precondition_validated": {         // validated at the production setting, not asserted
+      //     "structural_argument": "<e.g. positivity/Perron structure forces bounded-below overlap>",
+      //     "cross_check": "fast-path ≡ unconditional-path at the production setting, OR on the largest affordable production-regime cases with the extrapolation gap recorded",
+      //     "residual": 1e-14, "threshold": 1e-10, "passed": true } }
+      "heuristic_scoping": null,
+
       "notes": ""
     },
     {
@@ -152,7 +167,7 @@ and MUST equal the filename's `_vN` (ART-02). Write atomically (ART-03).
 
 | verdict | meaning | foldable? |
 |---|---|---|
-| `reliable` | passed **every applicable** G1–G9 check at the converged setting — including the G4 anchor, G6 non-staleness, the G7 production-scale method-precondition, the G8 reference-match where a published-value match is claimed, and the G9 gate-discrimination audit where trust rests on a purpose-built validation chain, not only G1–G3 | **yes** |
+| `reliable` | passed **every applicable** G1–G10 check at the converged setting — including the G4 anchor, G6 non-staleness, the G7 production-scale method-precondition, the G8 reference-match where a published-value match is claimed, the G9 gate-discrimination audit where trust rests on a purpose-built validation chain, and the G10 fast-path scoping where the value comes from an accelerated/heuristic path, not only G1–G3 | **yes** |
 | `mirage` | a candidate optimum/feature that did not survive G1 refinement | no |
 | `unconverged` | value still moving as the resolution is refined (G1) | no |
 | `method_disagreement` | orthogonal methods (G2) do not agree and the discrepancy is unexplained | no |
@@ -163,6 +178,7 @@ and MUST equal the filename's `_vN` (ART-02). Write atomically (ART-03).
 | `precondition_violated` | a structural property the method's validity rests on (commutation with a projector/symmetrizer, Hermiticity, self-adjointness, idempotency, unitarity, variational/Galerkin-subspace invariance) fails — or was only tested at a smaller/cheaper setting than the value — at the production setting/config (G7); the value is **invalid**, not approximate, even if G1-converged | no |
 | `reference_mismatch` | the value claims to reproduce/match a **published reference number** but the claimed observable, recomputed on a comparable state/regime and compared numerically (G8), differs by an order of magnitude in the same direction or by a sign — a qualitative "same scale / same sign" assertion, or citing the source, does not discharge G8; the match claim is **overstated**, not established | no |
 | `circular_validation` | the validation chain invoked to trust the value fails the G9 audit: its reference was co-derived with (or reverse-engineered from) the assumption under test, its comparison mode projects out the disputed structure, it has never rejected a known-wrong variant (no negative control), or it certifies a different layer / code path than the recorded value's — the "validated" status is **void** (the gate carried no information about the disputed structure) and the value reverts to a labeled candidate | no |
+| `overclaimed_heuristic` | the value comes from an accelerated / heuristic fast path (a local certificate that does not entail the global answer, e.g. a fixed-start Krylov/subspace iteration for a dominant eigenvalue/quantity) that fails the G10 scoping audit: its docstring/comment states a guarantee the method does not deliver ("never wrong"), or its **fast-vs-exact agreement precondition** (start-overlap / basin membership) was **asserted rather than validated at the production setting**, or no unconditional escape hatch (a dense/direct solve) is retained — the fast path is trusted **beyond its validated precondition**; a false guarantee is a defect even when the wrong output never arises in the production use. **Precedence vs `precondition_violated`/G7:** a structural property that makes the *method itself* valid failing is `precondition_violated`; the *fast-vs-exact agreement* precondition failing, or a guarantee/escape-hatch defect, is `overclaimed_heuristic` (the exact method stays valid; only its acceleration is in doubt) | no |
 
 Only `reliable` rows may be folded into `research_contract.md` / a paper / a conclusion. Every other row
 is a **labeled candidate** kept for follow-up or discarded — never silently promoted.
@@ -214,6 +230,29 @@ is a **labeled candidate** kept for follow-up or discarded — never silently pr
   production code path, and which quantity/layer the validation covers. A missing negative control, a
   co-derived reference, a stripped comparison mode, or a sibling-path-only validation is verdict
   `circular_validation`. The field is `null` when the row's trust rests only on the G1–G8 evidence itself.
+- **G10 heuristic-scoping (when applicable)**: for any `reliable` verdict whose `recorded_value` comes from
+  an accelerated / heuristic **fast path** — one whose *local* success certificate does not entail the
+  *global* answer (a fixed-start Krylov/subspace iteration for a dominant eigenvalue/quantity is the
+  archetype), record a `heuristic_scoping` object showing that (a) the stated guarantee is **scoped to its
+  precondition, not overclaimed** (`guarantee_scoped: true` — no "never returns a wrong value" in any
+  docstring/comment/README), (b) the `precondition` and its `failure_mode` are documented (how a defeating
+  input is constructed), (c) an `unconditional_path` (a dense/direct solve) is retained and
+  `auto_selected_when_cheap`, and (d) `precondition_validated` demonstrates — not asserted — that the
+  actual operator/input meets the precondition: a structural argument **plus** a fast-path ≡
+  unconditional-path cross-check with a recorded residual/threshold, run **at the production setting** if
+  the unconditional path is affordable there, else on the **largest affordable production-regime cases
+  with the extrapolation gap recorded** (mirrors the G7 production-setting rule and the G8 "nearest
+  reachable regime, gap stated" rule; uses the G2 cross-check). An overclaimed guarantee, an asserted-not-validated
+  precondition, or a missing unconditional escape hatch is verdict `overclaimed_heuristic` — a false
+  guarantee is a defect even when the wrong output never arises in the production use. The field is `null`
+  when `recorded_value` comes from the unconditional path directly, or the method carries no fast/heuristic
+  split. (Distinct from **G7**: G7 records a structural property that makes the *method* valid at the
+  production setting; G10 records that a *fast approximation* to a valid method agrees with the exact one
+  there, plus the guarantee-integrity and escape-hatch obligations G7 does not carry. **Precedence when
+  both could seem to apply:** a method-validity structural property failing → `precondition_violated`; the
+  fast-vs-exact agreement precondition, or a guarantee/escape-hatch defect → `overclaimed_heuristic`.
+  Distinct from **G3**: G3 says prefer a robust invariant *instead of* the heuristic; G10 governs a
+  heuristic deliberately kept as a performance fast path.)
 - `invariant_check`, `regression_anchor`, `degeneracy` are `null` when not applicable; when present they
   carry the disconfirming evidence, not a bare boolean.
 - A present `invariant_check` SHOULD record what was actually counted, not only `passed`: the `function`
