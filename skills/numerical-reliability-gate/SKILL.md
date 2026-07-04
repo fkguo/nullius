@@ -35,7 +35,12 @@ Example quantities (illustrative, not a fixed list):
   [`derivation-verify`](../derivation-verify/SKILL.md). *Different verb:* it re-derives the answer `N`
   ways and reconciles by mathematical equivalence; this gate proves a *number* is converged and real.
 - **Proving SPEED / detecting a performance regression** → [`julia-perf`](../julia-perf/SKILL.md)
-  (benchmark evidence gate). Speed and reliability are orthogonal: a fast wrong number still fails here.
+  (benchmark evidence gate). Speed and reliability are orthogonal in BOTH directions: a fast wrong number
+  still fails here, and — the easy trap — a CORRECT-but-wasteful number PASSES every check here (this gate
+  does not surface performance waste: a value can be right and still computed orders of magnitude more
+  expensively than needed, e.g. the whole result formed when only a part was used). So treat efficiency as
+  a first-class deliverable gated by `julia-perf`, not an afterthought bolted on once the number is
+  "reliable" — a green reliability matrix says nothing about whether the computation was efficient.
 - **Reviewing an existing artifact** (a diff, a draft) against a contract →
   [`review-swarm`](../review-swarm/SKILL.md).
 - **Surviving the long, kill-prone COMPUTE that produces the numbers** (checkpoint / heartbeat / resume)
