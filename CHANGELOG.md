@@ -10,6 +10,29 @@ version is the lockstep number below.
 ## [Unreleased]
 
 ### Added
+- **`research-writer`: manuscript result-traceability gate.** `check_result_traceability.py`
+  binds every included figure and every origin-anchored result number in a manuscript to a
+  traceability manifest entry carrying `run_id`, `code_rev` and `env_fingerprint`, with
+  checksum verification and manuscript-root containment. Fails closed; exemptions are
+  per-id only; structural failures are never exemptible. `figure-hygiene` cross-references
+  the manifest as the figure-side instance of its reproduction bundle.
+- **`research-harness`: opt-in independent reproduction check.** A manifest-declared entry
+  command is re-run in a pristine checkout (worktree-first isolation) and declared expected
+  values are compared under explicit tolerances; only full reproduction exits zero. Closes
+  the accidental-contamination channels (uncommitted manifests, stale artifacts, environment
+  leakage of original-tree code, escaping symlinks) and declares its threat model — accidental
+  contamination, not adversarial manifests — on all limitation surfaces. Cross-referenced from
+  `numerical-reliability-gate` G8 as that gate's strongest execution form.
+- **`review-swarm`: opt-in two-phase review protocol.** With `--two-phase`, each reviewer
+  first sees only a scope packet (no diff) and commits a declared-review-criteria block, then
+  reviews the full diff against its own commitment; the contract checker requires every
+  BLOCKING finding to land in a declared category or carry an explicit criteria-revision
+  declaration. CLI-flag-only (project config cannot silently enable it); the single-phase
+  default path is unchanged.
+- **`citation-triangulation` skill.** Offline deterministic comparator for one citation's
+  canonical metadata across two or more scholarly indexes (title folding across LaTeX/Unicode,
+  author family-name sequences, year, normalized DOI); verdicts consistent / conflicted /
+  insufficient_sources fail closed. Registered in the skills-market index and ecosystem manifest.
 - **`numerical-reliability-gate` skill.** A convergence/reliability gate for numerical results (fits,
   integrals, eigenvalues, roots/poles): fold only values stable under refinement (G1, with coarse-grid
   mirage detection), agreed across `>=2` orthogonal methods (G2), validated by a method-agnostic
@@ -19,6 +42,19 @@ version is the lockstep number below.
   (speed); registered in the skills-market index. Distilled from the f1(1420) three-body reproduction.
 
 ### Changed
+- **`literature-survey` contract: saturation is now evidence-backed, not asserted.**
+  `coverage.saturation = "saturated"` is only legal when recorded expansion rounds support it
+  (final round screened at least one candidate and admitted zero new core papers); assemble and
+  parse both mechanically downgrade unsupported claims to `coverage_incomplete` with a visible
+  reason. `deep-literature-review` documents the per-round measurement procedure and lists
+  fabricated round data as an integrity violation.
+- **`claim-grounding` contract: `numeric_match` is now executable.** New
+  `compareNumericClaim` helper (absolute / relative / uncertainty-multiple tolerance policies);
+  a tolerance wider than the combined stated uncertainties yields `incomparable`, never
+  `within_tolerance` (a falsification-gate instance). The stored `numeric_comparison` verdict is
+  recomputed from recorded inputs on both assemble and parse; a computed mismatch mechanically
+  downgrades the grounding verdict to `conflicting`; silently omitting uncertainties requires an
+  explicit auditable attestation; stored numeric scalars must be finite.
 - **`research-harness`: "anchor on the final adopted version" + reliability-gated fold-back.** Recovery
   First now resolves the *current adopted* parameters/method/configuration from the durable record (and
   any `superseded`/`voided` markers) and regression-anchors — the reference reproduces its known result —
