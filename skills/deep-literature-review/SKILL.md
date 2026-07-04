@@ -57,6 +57,17 @@ by saturation — references and citations of the core set stop yielding new cor
 by any fixed count. A survey that fetched one or two pages and stopped is shallow by
 construction, regardless of how good the notes on those few papers are.
 
+**Measure saturation as you expand — two integers per round.** Core-set expansion runs in
+rounds: screen the references and citations (the frontier) of the current core set, admit
+what qualifies, repeat on the newly admitted papers' frontier. At the end of every round
+record, in the survey's `coverage.saturation_evidence`, how many expansion candidates you
+actually examined and dispositioned this round (`expansion_candidates_screened` — kept in
+any role, rejected as off-topic, or discarded as already-known duplicates all count: it
+measures screening work) and how many papers the round added to the survey's final core
+set (`new_core_papers` — a paper later demoted out of `core` does not count, and each core
+paper is credited to at most one round). These two numbers per round are the measurement
+that backs — or falsifies — the saturation status you set in step 3.
+
 **Sort caution.** `sort: mostrecent` with a small `size` returns only the newest N and
 silently drops older work — use it for "what's new," never for an exhaustive author or
 topic corpus. For corpus completeness, paginate against `total` (and prefer relevance /
@@ -110,9 +121,21 @@ you did not include — `assembleLiteratureSurvey` / the parser reject dangling 
 
 **Coverage is computed, not claimed:** `coverage` (`total_papers`, `deep_read`,
 `core_total`, `core_deep_read`) is derived from `papers[]` by the contract, so you cannot
-report more depth than you did. Set `saturation` honestly (`saturated` only when
-references + citations of the core set stop yielding new core papers; otherwise
-`coverage_incomplete` as declared debt, or `unknown`).
+report more depth than you did.
+
+**Saturation is machine-gated, not asserted:** `saturated` is legal only when
+`coverage.saturation_evidence` carries the expansion rounds recorded in step 1 and the
+last round did real screening work (`expansion_candidates_screened` > 0) yet admitted
+zero `new_core_papers`. A `saturated` without that support — no recorded rounds, a last
+round that still yielded new core papers, or a zero-work last round — is mechanically
+downgraded to `coverage_incomplete` by `assembleLiteratureSurvey` (with the reason
+appended to `coverage.notes`) and rejected by the parser; the downgrade is always
+visible, never a silent value change. Do not react to the gate by inventing numbers:
+fabricating or retro-fitting round counts that were never measured is an integrity
+violation of the same class as `research-integrity`'s *hallucinated measurement / result*
+and *methodology fabrication*. The honest moves are to run and record a real further
+expansion round, or to ship `coverage_incomplete` as declared debt (or `unknown` when
+saturation was not measured).
 
 ### 4. Prepare an optional graph-ready export
 When the user asks for a literature graph, interactive notes, or graph-backed slides, export a
