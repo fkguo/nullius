@@ -64,6 +64,9 @@ export * from './literature-survey.js';
 // Failed-approaches log (ABSORB #3: durable do-not-retry record for compute survival)
 export * from './failed-approaches.js';
 
+// Numeric claim comparison (claim-grounding numeric_match execution semantics)
+export * from './numeric-claim-match.js';
+
 // Sanitization (H-08)
 export { sanitizePath, sanitizeFilename, sanitizeQueryString } from './sanitize.js';
 

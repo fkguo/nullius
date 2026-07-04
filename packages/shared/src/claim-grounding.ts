@@ -13,9 +13,42 @@
 // quoting the source text that grounds it — that keeps every "grounded" verdict
 // independently re-checkable against the source.
 //
+// Numeric-match invariant (enforceNumericMatchRule; execution semantics in
+// numeric-claim-match.ts): a `numeric_match` entry claiming support
+// (substantiated/partial) must carry a recorded `numeric_comparison`, and the
+// comparison verdict is DERIVED — recomputed from the recorded comparison
+// input, never trusted as supplied (mirror of the verification_status rule).
+// Coupling is mechanical on both sides (assemble downgrades; parse rejects):
+//   - comparison `mismatch`      → the grounding verdict cannot be
+//     substantiated/partial (downgraded to `conflicting`: the source value
+//     actively contradicts the claimed value);
+//   - comparison `incomparable`  → the grounding verdict cannot be
+//     `substantiated` (downgraded to `not_substantiated`);
+//   - method `numeric_match` with a substantiated/partial verdict but NO
+//     recorded comparison → downgraded to `not_substantiated` (same shape as
+//     the span rule: a numeric match you did not compute does not exist).
+// The span rule applies to `numeric_match` entries unchanged — the source
+// value's verbatim context still has to be quoted.
+// Comparison verdict + decision_path are the load-bearing recomputed outcome;
+// the numeric detail fields (deviation, tolerance, sigma distance) are an
+// ADVISORY audit trail, validated for type/finiteness only (cross-language JSON
+// writers may re-serialize floats) — never trust a detail magnitude that the
+// recorded input does not reproduce.
+//
 // Style mirrors staged-content.ts: locally-defined types + a hand-rolled
 // safeParse/parse (no zod) — the same runtime-parser shape used across the shared
 // *-bridge / verification-lift modules.
+
+import {
+  compareNumericClaim,
+  NUMERIC_COMPARISON_DECISION_PATHS,
+  NUMERIC_COMPARISON_VERDICTS,
+  NUMERIC_TOLERANCE_KINDS,
+  type NumericClaimComparisonDetails,
+  type NumericClaimComparisonInput,
+  type NumericComparisonDecisionPath,
+  type NumericComparisonVerdict,
+} from './numeric-claim-match.js';
 
 export type ClaimGroundingVerdict =
   | 'substantiated'
@@ -39,6 +72,25 @@ export type ClaimSupportingSpan = {
   locator?: string;
 };
 
+/** Recorded numeric comparison for a `numeric_match` entry. The `input` is what
+ *  the agent compared (claimed vs. source value, in the SAME units/conventions —
+ *  see numeric-claim-match.ts); `verdict` and `details` are DERIVED from it via
+ *  `compareNumericClaim` (assemble recomputes them; parse rejects a recorded
+ *  verdict/decision_path that the recorded input does not reproduce). */
+export type ClaimNumericComparison = {
+  input: NumericClaimComparisonInput;
+  verdict: NumericComparisonVerdict;
+  details: NumericClaimComparisonDetails;
+};
+
+/** Assemble-side input form of ClaimNumericComparison: only the comparison input
+ *  is load-bearing; any supplied verdict/details are ignored and recomputed. */
+export type ClaimNumericComparisonInputRecord = {
+  input: NumericClaimComparisonInput;
+  verdict?: NumericComparisonVerdict;
+  details?: NumericClaimComparisonDetails;
+};
+
 export type ClaimGroundingEntry = {
   /** Index into the source claims[] this entry grounds. */
   claim_index: number;
@@ -54,6 +106,9 @@ export type ClaimGroundingEntry = {
   supporting_spans: ClaimSupportingSpan[];
   /** Derived from verdict — never agent-supplied (single source of truth). */
   verification_status: ClaimVerificationStatus;
+  /** Only allowed (and, for substantiated/partial, REQUIRED) when method is
+   *  'numeric_match'. Couples the grounding verdict to the computed comparison. */
+  numeric_comparison?: ClaimNumericComparison;
   notes?: string;
 };
 
@@ -154,6 +209,90 @@ export function enforceSpanRule(entry: ClaimGroundingEntry): ClaimGroundingEntry
   return entry;
 }
 
+/** Entry shape accepted by enforceNumericMatchRule: a full entry whose
+ *  numeric_comparison may still be the loose input record (a fully-derived
+ *  ClaimGroundingEntry is assignable to this, so the rule also runs on
+ *  already-normalized entries). */
+type NumericMatchRuleInput = Omit<ClaimGroundingEntry, 'numeric_comparison'> & {
+  numeric_comparison?: ClaimNumericComparisonInputRecord;
+};
+
+/** Numeric-match anti-fakery invariant (mirror of enforceSpanRule; see the
+ *  header comment for the full rule set). For method === 'numeric_match':
+ *   - the recorded comparison's verdict/details are RECOMPUTED from its input
+ *     (a supplied verdict is never trusted; a differing one is noted);
+ *   - comparison `mismatch` forces a substantiated/partial grounding verdict
+ *     down to `conflicting` (the computed comparison actively contradicts the
+ *     asserted match);
+ *   - comparison `incomparable` forces `substantiated` down to
+ *     `not_substantiated` (an incomparable check cannot confirm anything;
+ *     `partial` stays available for e.g. a source that discusses the quantity
+ *     without a comparable value);
+ *   - a substantiated/partial verdict with NO recorded comparison is downgraded
+ *     to `not_substantiated` — a numeric match that was not computed does not
+ *     exist.
+ *  Downgrades only — this rule never upgrades a verdict (positive verdicts stay
+ *  the agent's judgment; the machine only vetoes). Non-numeric_match entries
+ *  pass through untouched: a stray numeric_comparison on them is a labeling
+ *  error the validators reject loudly rather than silently strip. */
+export function enforceNumericMatchRule(entry: NumericMatchRuleInput): ClaimGroundingEntry {
+  if (entry.method !== 'numeric_match') {
+    // Runtime-safe: if a loose record is attached here, validation rejects the
+    // entry before it can leave assemble/parse (numeric_comparison is only
+    // allowed for method 'numeric_match').
+    return entry as ClaimGroundingEntry;
+  }
+  const record = entry.numeric_comparison;
+  if (record === undefined) {
+    if (entry.verdict === 'substantiated' || entry.verdict === 'partial') {
+      return {
+        ...(entry as ClaimGroundingEntry),
+        verdict: 'not_substantiated',
+        verification_status: verdictToVerificationStatus('not_substantiated'),
+        notes: appendNote(
+          entry.notes,
+          "downgraded to not_substantiated: method is 'numeric_match' but no numeric_comparison was recorded",
+        ),
+      };
+    }
+    return entry as ClaimGroundingEntry;
+  }
+  const recomputed = compareNumericClaim(record.input);
+  const recomputeNote =
+    record.verdict !== undefined && record.verdict !== recomputed.verdict
+      ? `numeric_comparison verdict recomputed from its input: supplied '${record.verdict}', computed '${recomputed.verdict}'`
+      : undefined;
+  const baseNotes = recomputeNote ? appendNote(entry.notes, recomputeNote) : entry.notes;
+  const base: ClaimGroundingEntry = {
+    ...entry,
+    numeric_comparison: { input: record.input, verdict: recomputed.verdict, details: recomputed.details },
+    ...(baseNotes !== undefined ? { notes: baseNotes } : {}),
+  };
+  if (recomputed.verdict === 'mismatch' && (base.verdict === 'substantiated' || base.verdict === 'partial')) {
+    return {
+      ...base,
+      verdict: 'conflicting',
+      verification_status: verdictToVerificationStatus('conflicting'),
+      notes: appendNote(
+        base.notes,
+        'downgraded to conflicting: numeric comparison found a mismatch between the claimed value and the source value',
+      ),
+    };
+  }
+  if (recomputed.verdict === 'incomparable' && base.verdict === 'substantiated') {
+    return {
+      ...base,
+      verdict: 'not_substantiated',
+      verification_status: verdictToVerificationStatus('not_substantiated'),
+      notes: appendNote(
+        base.notes,
+        `downgraded to not_substantiated: numeric comparison is incomparable (${recomputed.details.decision_path})`,
+      ),
+    };
+  }
+  return base;
+}
+
 function round4(value: number): number {
   return Math.round(value * 10000) / 10000;
 }
@@ -176,14 +315,21 @@ function tallyByVerdict(entries: Pick<ClaimGroundingEntry, 'verdict'>[]): Record
   return counts;
 }
 
-export type ClaimGroundingEntryInput = Omit<ClaimGroundingEntry, 'verification_status'> & {
+export type ClaimGroundingEntryInput = Omit<ClaimGroundingEntry, 'verification_status' | 'numeric_comparison'> & {
   verification_status?: ClaimVerificationStatus;
+  numeric_comparison?: ClaimNumericComparisonInputRecord;
 };
 
 /** Build a validated report from per-claim entries.
  *  - verification_status is ALWAYS derived from verdict (any supplied value is ignored);
+ *  - the numeric-match rule is enforced (comparison verdict recomputed from its
+ *    input; mismatch/incomparable/missing-comparison downgrades applied);
  *  - the span rule is enforced (substantiated/partial without a span → not_substantiated);
  *  - summary counts + grounding_risk_score are computed from the final verdicts.
+ *  Rule order matters: the numeric-match rule runs FIRST so a computed mismatch
+ *  lands on `conflicting` even when the entry also lacks a span (an active
+ *  contradiction outranks a missing quote); the span rule then still applies to
+ *  whatever survives as substantiated/partial.
  *  Throws if the assembled report fails schema validation. */
 export function assembleClaimGroundingReport(input: {
   generated_at: string;
@@ -191,7 +337,9 @@ export function assembleClaimGroundingReport(input: {
   entries: ClaimGroundingEntryInput[];
 }): ClaimGroundingReportV1 {
   const claims = input.entries.map(entry =>
-    enforceSpanRule({ ...entry, verification_status: verdictToVerificationStatus(entry.verdict) }),
+    enforceSpanRule(
+      enforceNumericMatchRule({ ...entry, verification_status: verdictToVerificationStatus(entry.verdict) }),
+    ),
   );
   const report: ClaimGroundingReportV1 = {
     version: 1,
@@ -275,6 +423,132 @@ function validateSpan(span: unknown, path: string, issues: ClaimGroundingParseIs
   }
 }
 
+function isFiniteNumberValue(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+function validateToleranceShape(value: unknown, path: string, issues: ClaimGroundingParseIssue[]): boolean {
+  if (!isObject(value)) {
+    issues.push(issue(path, 'must be an object'));
+    return false;
+  }
+  const kind = value.kind;
+  if (kind === 'absolute' || kind === 'relative') {
+    if (!isFiniteNumberValue(value.value)) {
+      issues.push(issue(`${path}.value`, `must be a finite number for kind '${kind}'`));
+      return false;
+    }
+    return true;
+  }
+  if (kind === 'uncertainty_multiple') {
+    if (!isFiniteNumberValue(value.multiple)) {
+      issues.push(issue(`${path}.multiple`, "must be a finite number for kind 'uncertainty_multiple'"));
+      return false;
+    }
+    return true;
+  }
+  issues.push(issue(`${path}.kind`, `must be one of ${NUMERIC_TOLERANCE_KINDS.join(', ')}`));
+  return false;
+}
+
+/** Structural validation of the comparison input as STORED in the report. Every
+ *  numeric scalar must be FINITE: the report is a JSON artifact and NaN/Infinity
+ *  do not survive JSON serialization (JSON.stringify turns them into null), so
+ *  accepting them in-memory would break the round-trip invariant that a report
+ *  which validates still validates after stringify/parse. A comparison whose
+ *  input is not JSON-faithful must not be stored at all (compareNumericClaim
+ *  still handles such values defensively for direct callers). Value-level
+ *  semantics beyond finiteness (non-positive uncertainty, contradictory
+ *  attestation, ...) stay owned by compareNumericClaim, whose recomputation the
+ *  consistency check below compares against. Returns whether the shape is sound
+ *  enough to recompute. */
+function validateNumericComparisonInputShape(
+  value: unknown,
+  path: string,
+  issues: ClaimGroundingParseIssue[],
+): boolean {
+  if (!isObject(value)) {
+    issues.push(issue(path, 'must be an object'));
+    return false;
+  }
+  let sound = true;
+  for (const field of ['claimed_value', 'source_value'] as const) {
+    if (!isFiniteNumberValue(value[field])) {
+      issues.push(issue(`${path}.${field}`, 'must be a finite number (NaN/Infinity do not survive JSON)'));
+      sound = false;
+    }
+  }
+  for (const field of ['claimed_uncertainty', 'source_uncertainty'] as const) {
+    if (value[field] !== undefined && !isFiniteNumberValue(value[field])) {
+      issues.push(issue(`${path}.${field}`, 'must be a finite number when provided (omit the field when absent)'));
+      sound = false;
+    }
+  }
+  if (value.no_stated_uncertainty !== undefined && typeof value.no_stated_uncertainty !== 'boolean') {
+    issues.push(issue(`${path}.no_stated_uncertainty`, 'must be a boolean when provided'));
+    sound = false;
+  }
+  if (!validateToleranceShape(value.tolerance, `${path}.tolerance`, issues)) sound = false;
+  return sound;
+}
+
+const NUMERIC_DETAIL_NUMBER_FIELDS = [
+  'signed_difference',
+  'absolute_difference',
+  'relative_difference',
+  'combined_uncertainty',
+  'sigma_distance',
+  'tolerance_used',
+] as const;
+
+function validateNumericComparison(value: unknown, path: string, issues: ClaimGroundingParseIssue[]): void {
+  if (!isObject(value)) {
+    issues.push(issue(path, 'must be an object'));
+    return;
+  }
+  const inputSound = validateNumericComparisonInputShape(value.input, `${path}.input`, issues);
+  if (!NUMERIC_COMPARISON_VERDICTS.includes(value.verdict as NumericComparisonVerdict)) {
+    issues.push(issue(`${path}.verdict`, `must be one of ${NUMERIC_COMPARISON_VERDICTS.join(', ')}`));
+  }
+  const details = value.details;
+  if (!isObject(details)) {
+    issues.push(issue(`${path}.details`, 'must be an object'));
+  } else {
+    for (const field of NUMERIC_DETAIL_NUMBER_FIELDS) {
+      const v = details[field];
+      if (!(v === null || (typeof v === 'number' && Number.isFinite(v)))) {
+        issues.push(issue(`${path}.details.${field}`, 'must be a finite number or null'));
+      }
+    }
+    if (!NUMERIC_COMPARISON_DECISION_PATHS.includes(details.decision_path as NumericComparisonDecisionPath)) {
+      issues.push(issue(`${path}.details.decision_path`, `must be one of ${NUMERIC_COMPARISON_DECISION_PATHS.join(', ')}`));
+    }
+    if (!isNonEmptyString(details.reason)) {
+      issues.push(issue(`${path}.details.reason`, 'must be a non-empty string'));
+    }
+  }
+  // Anti-fakery at the contract boundary: the recorded verdict/decision_path must
+  // be reproducible from the recorded input (compareNumericClaim is pure, so the
+  // recomputation is exact). The numeric detail fields are validated for type only
+  // — cross-language JSON writers may re-serialize floats, and verdict +
+  // decision_path are the load-bearing outcome.
+  if (inputSound) {
+    const recomputed = compareNumericClaim(value.input as NumericClaimComparisonInput);
+    if (value.verdict !== recomputed.verdict) {
+      issues.push(issue(
+        `${path}.verdict`,
+        `must equal the verdict recomputed from input ('${recomputed.verdict}')`,
+      ));
+    }
+    if (isObject(details) && details.decision_path !== recomputed.details.decision_path) {
+      issues.push(issue(
+        `${path}.details.decision_path`,
+        `must equal the decision path recomputed from input ('${recomputed.details.decision_path}')`,
+      ));
+    }
+  }
+}
+
 function validateEntry(entry: unknown, path: string, issues: ClaimGroundingParseIssue[]): void {
   if (!isObject(entry)) {
     issues.push(issue(path, 'must be an object'));
@@ -304,6 +578,17 @@ function validateEntry(entry: unknown, path: string, issues: ClaimGroundingParse
   }
   if (!VERIFICATION_STATUSES.includes(entry.verification_status as ClaimVerificationStatus)) {
     issues.push(issue(`${path}.verification_status`, `must be one of ${VERIFICATION_STATUSES.join(', ')}`));
+  } else if (
+    CLAIM_GROUNDING_VERDICTS.includes(entry.verdict as ClaimGroundingVerdict)
+    && entry.verification_status !== verdictToVerificationStatus(entry.verdict as ClaimGroundingVerdict)
+  ) {
+    // verification_status is DERIVED from verdict (single source of truth) —
+    // reject a hand-edited status that the verdict does not reproduce, exactly
+    // as assemble would have overwritten it.
+    issues.push(issue(
+      `${path}.verification_status`,
+      `must equal the status derived from verdict ('${verdictToVerificationStatus(entry.verdict as ClaimGroundingVerdict)}')`,
+    ));
   }
   // Re-assert the anti-fakery invariant at the contract boundary.
   if (
@@ -312,6 +597,37 @@ function validateEntry(entry: unknown, path: string, issues: ClaimGroundingParse
     && !hasVerbatimSpan(entry.supporting_spans)
   ) {
     issues.push(issue(`${path}.supporting_spans`, `must contain a verbatim span for verdict '${String(entry.verdict)}'`));
+  }
+  // Re-assert the numeric-match invariants at the contract boundary (parse-side
+  // mirror of enforceNumericMatchRule — reject what assemble would have altered).
+  if (entry.numeric_comparison !== undefined) {
+    if (entry.method !== 'numeric_match') {
+      issues.push(issue(`${path}.numeric_comparison`, "only allowed when method is 'numeric_match'"));
+    }
+    validateNumericComparison(entry.numeric_comparison, `${path}.numeric_comparison`, issues);
+    if (isObject(entry.numeric_comparison)) {
+      const comparisonVerdict = entry.numeric_comparison.verdict;
+      if (comparisonVerdict === 'mismatch' && (entry.verdict === 'substantiated' || entry.verdict === 'partial')) {
+        issues.push(issue(
+          `${path}.verdict`,
+          `must not be '${String(entry.verdict)}' when numeric_comparison.verdict is 'mismatch'`,
+        ));
+      }
+      if (comparisonVerdict === 'incomparable' && entry.verdict === 'substantiated') {
+        issues.push(issue(
+          `${path}.verdict`,
+          "must not be 'substantiated' when numeric_comparison.verdict is 'incomparable'",
+        ));
+      }
+    }
+  } else if (
+    entry.method === 'numeric_match'
+    && (entry.verdict === 'substantiated' || entry.verdict === 'partial')
+  ) {
+    issues.push(issue(
+      `${path}.numeric_comparison`,
+      `required when method is 'numeric_match' and verdict is '${String(entry.verdict)}'`,
+    ));
   }
   if (entry.notes !== undefined && typeof entry.notes !== 'string') {
     issues.push(issue(`${path}.notes`, 'must be a string when provided'));
@@ -355,6 +671,51 @@ export function safeParseClaimGroundingReportV1(value: unknown): ParseSuccess | 
       || summary.grounding_risk_score > 1
     ) {
       issues.push(issue('summary.grounding_risk_score', 'must be a number in [0, 1]'));
+    }
+    // Summary is DERIVED from the claims — reject a tampered tally/score exactly
+    // as assemble would have recomputed it. Only checked when every entry verdict
+    // is structurally valid (otherwise the recomputation is undefined and the
+    // per-entry issues already reject the report). The risk score allows a 1e-6
+    // slack — generous against honest cross-language double representation of the
+    // same 4-decimal value (that differs at the ULP scale, ~1e-16) while far below
+    // the 1e-4 rounding step, so a tamper of one rounding step is detected. An
+    // implementation whose HALF-rounding mode disagrees at an exact .5 boundary is
+    // an implementation-semantics mismatch to fix there, not slack to absorb here
+    // (a slack as wide as the effect it must catch would itself be non-diagnostic).
+    if (
+      Array.isArray(value.claims)
+      && value.claims.every(entry =>
+        isObject(entry) && CLAIM_GROUNDING_VERDICTS.includes(entry.verdict as ClaimGroundingVerdict))
+    ) {
+      const entries = value.claims.map(entry => ({
+        verdict: (entry as Record<string, unknown>).verdict as ClaimGroundingVerdict,
+      }));
+      if (typeof summary.total === 'number' && summary.total !== entries.length) {
+        issues.push(issue('summary.total', `must equal the number of claims (${entries.length})`));
+      }
+      if (isObject(summary.by_verdict)) {
+        const tally = tallyByVerdict(entries);
+        for (const verdict of CLAIM_GROUNDING_VERDICTS) {
+          if (
+            typeof summary.by_verdict[verdict] === 'number'
+            && summary.by_verdict[verdict] !== tally[verdict]
+          ) {
+            issues.push(issue(
+              `summary.by_verdict.${verdict}`,
+              `must equal the count derived from claims (${tally[verdict]})`,
+            ));
+          }
+        }
+      }
+      if (typeof summary.grounding_risk_score === 'number') {
+        const recomputedRisk = groundingRiskScore(entries);
+        if (Math.abs(summary.grounding_risk_score - recomputedRisk) > 1e-6) {
+          issues.push(issue(
+            'summary.grounding_risk_score',
+            `must equal the score derived from claims (${recomputedRisk})`,
+          ));
+        }
+      }
     }
   }
   if (issues.length > 0) return { ok: false, issues };
