@@ -86,13 +86,19 @@ bash "${SKILL_DIR}/scripts/run_kimi.sh" \
 - `--yolo` — pass Kimi `-y` (auto-approve all actions). Needed for headless agentic tasks whose
   tool actions would otherwise wait for an interactive approval and stall the run.
 - `--resume-session ID` — resume a specific recorded Kimi session (`kimi -S ID`); the prompt
-  becomes that session's next turn. (Flag delivery to the real invocation is verified: a bogus id
-  fails with `Session ... not found`.)
+  becomes that session's next turn. **The id REQUIRES the `session_` prefix** (live-caught: a bare
+  UUID fails with `Session ... not found`; `session_<uuid>` resumed correctly). Discover ids in
+  `~/.kimi-code/session_index.jsonl` (field `sessionId`) or under
+  `~/.kimi-code/sessions/wd_<dir-hash>/session_<uuid>/`.
 - `--continue-work-dir` — continue the previous session OF THE WORKING DIRECTORY (`kimi -c`). Kimi
-  scopes `-c` per working directory, so this is non-racy across parallel runs in different
+  scopes `-c` per working directory — confirmed both by the CLI help and by the on-disk
+  `sessions/wd_<dir-hash>/` layout — so this is non-racy across parallel runs in different
   directories. Requires `--work-dir DIR` pointing at the prior run's directory (the runner's
   default isolated fresh temp dir has no previous session): run 1 with `--work-dir D`, run 2 with
   `--work-dir D --continue-work-dir`.
+
+Both continuation forms are live-validated END-TO-END: a fact planted in run 1 was recalled by the
+`--continue-work-dir` run and again by the `--resume-session session_<uuid>` run.
 
 ## Options
 
