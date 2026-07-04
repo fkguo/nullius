@@ -574,6 +574,52 @@ active gate is `numerical-reliability-gate` **G9** (verdict `circular_validation
 carries the negative-control bonus: the failure *pattern* of the wrong variants localizes errors
 that symbolic review alone does not reach.
 
+## Accelerated / heuristic fast-path honesty (a fast path that can be wrong is scoped, not guaranteed)
+
+A **fast / optimized computational path** that is a *heuristic* — one whose *local* success certificate
+does not entail the *global* answer (the archetype: a fixed-start Krylov/subspace iteration for a
+dominant eigenvalue/quantity, where a small residual certifies *an* eigenpair, **not** that it is the
+dominant one, so a target mode nearly orthogonal to the deterministic start is silently missed) — is
+correct only under a **precondition**, and three failures pass silently even after a correctness /
+methodology gate has accepted the implementation:
+
+- **(a) false guarantee** — a docstring / comment / README states a correctness the method does not
+  deliver ("never returns a wrong value", "always finds the dominant mode"). The claim is false as
+  written **even if the wrong output never arises in the actual production use**, and a later caller will
+  lean on it in a regime where it fails.
+- **(b) asserted, not validated, precondition** — the condition under which the fast path equals the
+  unconditional answer is *assumed* to hold for the production input rather than *demonstrated* there (a
+  structural argument plus a fast ≡ exact cross-check — at the production setting if affordable, else on
+  the largest affordable production-regime cases with the extrapolation gap recorded).
+- **(c) no escape hatch** — the slow-but-provably-correct path (a dense/direct solve, an exhaustive
+  enumeration) is not retained and auto-selected where it is cheap, so there is no unconditional fallback.
+
+**Minimum disconfirming check.** For each load-bearing fast / heuristic path crossing the boundary: (1)
+*try to construct one input that breaks its stated guarantee* — if you can (for a fixed-start heuristic
+you almost always can), narrow the guarantee to the precondition that actually holds and document the
+failure mode (that it can return a wrong value, and how such an input is built); (2) confirm the
+precondition is **validated at (or as near as feasible to) the production setting**, not asserted; (3) confirm the unconditional path
+exists and is auto-selected where affordable. An adversarial counterexample that never arises in the
+production use is refuting the **claim**, not the result — answer with honest scoping (narrow the claim,
+document the blind spot, keep the escape hatch, validate the real use), never by rewording to fake a
+guarantee, tuning a seed/parameter to hide the case, or chasing an impossible cheap *universal* guarantee.
+Where a fundamental limit exists (e.g. no fixed-start Krylov/subspace method certifies global dominance —
+so a global guarantee needs a whole-operator routine, canonically a full dense eigensolve or another
+globally certified path), state it rather than pretend it away.
+
+This is **not a new receipt mode**: record the false guarantee (a) under **M1** (here M1 covers a stated
+guarantee / documentation claim, not only a code bug — code, reasoning, or a claimed guarantee that passed
+its author's self-review) and the production-setting precondition (b) under **M5b** — with M5b's
+production-scale requirement discharged by the **structural argument about the real (production)
+operator**, the fast ≡ exact cross-check on smaller affordable cases serving only as *corroboration* (gap
+recorded), never as the smaller-scale-only evidence M5b rightly rejects (absent a production-scale
+structural argument, an exact-infeasible precondition is simply **unvalidated** → `overclaimed_heuristic`).
+The missing-escape-hatch failure (c) has no M-mode analogue and is carried by the active gate
+`numerical-reliability-gate` **G10** (verdict `overclaimed_heuristic`) directly. G10 complements
+`numerical-reliability-gate` **G3**, which says to prefer a robust invariant *instead of* the heuristic
+where that is affordable — G10 governs the case where the heuristic is deliberately kept as a performance
+fast path.
+
 ## Pre-approval ritual
 
 Walk the modes most relevant to the gate before invoking
