@@ -81,6 +81,19 @@ bash "${SKILL_DIR}/scripts/run_kimi.sh" \
 - Use `kimi provider list --json` to inspect the model aliases configured on the current machine before setting `--model`.
 - Use `--dry-run` for offline validation. It prints paths, sizes, hashes, and planned flags, but never prints the full prompt.
 
+## Headless approval and session continuation
+
+- `--yolo` — pass Kimi `-y` (auto-approve all actions). Needed for headless agentic tasks whose
+  tool actions would otherwise wait for an interactive approval and stall the run.
+- `--resume-session ID` — resume a specific recorded Kimi session (`kimi -S ID`); the prompt
+  becomes that session's next turn. (Flag delivery to the real invocation is verified: a bogus id
+  fails with `Session ... not found`.)
+- `--continue-work-dir` — continue the previous session OF THE WORKING DIRECTORY (`kimi -c`). Kimi
+  scopes `-c` per working directory, so this is non-racy across parallel runs in different
+  directories. Requires `--work-dir DIR` pointing at the prior run's directory (the runner's
+  default isolated fresh temp dir has no previous session): run 1 with `--work-dir D`, run 2 with
+  `--work-dir D --continue-work-dir`.
+
 ## Options
 
 | Flag | Default | Description |
@@ -99,4 +112,7 @@ bash "${SKILL_DIR}/scripts/run_kimi.sh" \
 | `--max-retries N` | 3 | Deprecated alias for `--max-attempts` |
 | `--sleep-secs S` | 5 | Base exponential backoff |
 | `--no-fallback` | off | Do not retry without `--model` after model-not-found errors |
+| `--yolo` | off | Pass Kimi `-y` (auto-approve all actions) for headless agentic tasks |
+| `--resume-session ID` | (none) | Resume a specific recorded Kimi session (`kimi -S ID`) |
+| `--continue-work-dir` | off | Continue the working directory's previous session (`kimi -c`; requires `--work-dir`) |
 | `--dry-run` | off | Print planned invocation without calling Kimi |

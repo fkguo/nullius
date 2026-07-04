@@ -19,6 +19,9 @@ TOOLS=""
 TOOLS_EXPLICIT=0
 STRICT_MCP_CONFIG=1
 DRY_RUN=0
+PERSIST_SESSION=0
+SESSION_ID_FILE=""
+RESUME_SESSION=""
 
 usage() {
   cat <<'EOF'
@@ -39,6 +42,15 @@ Options:
   --dry-run                Print invocation details and exit 0 (no Claude call)
   --max-retries N          Default: 6
   --sleep-secs SECONDS     Default: 10 (base; exponential backoff)
+
+Session continuation (OPT-IN; the default stays a clean-room one-shot with --no-session-persistence):
+  --persist-session        Record this conversation so a later invocation can resume it.
+  --session-id-file FILE   Also capture the new session id to FILE (implies --persist-session).
+                           Internally switches to --output-format json; OUT then receives ONLY the
+                           final result text (parsed from the JSON envelope), not raw stdout+stderr.
+  --resume-session ID      Send this prompt as the NEXT turn of a previously persisted session
+                           (claude --resume ID; implies --persist-session). Chain multi-turn
+                           workflows: run 1 with --session-id-file, run 2 with --resume-session.
 EOF
 }
 
@@ -55,6 +67,9 @@ while [[ $# -gt 0 ]]; do
     --dry-run) DRY_RUN=1; shift 1;;
     --max-retries) MAX_RETRIES="$2"; shift 2;;
     --sleep-secs) SLEEP_SECS="$2"; shift 2;;
+    --persist-session) PERSIST_SESSION=1; shift 1;;
+    --session-id-file) SESSION_ID_FILE="$2"; shift 2;;
+    --resume-session) RESUME_SESSION="$2"; shift 2;;
     -h|--help) usage; exit 0;;
     *) echo "Unknown arg: $1" >&2; usage; exit 2;;
   esac
@@ -94,6 +109,25 @@ esac
 STRICT_ARG=()
 if [[ "${STRICT_MCP_CONFIG}" -eq 1 ]]; then
   STRICT_ARG=(--strict-mcp-config)
+fi
+
+# Session semantics: the runner's default contract is a CLEAN-ROOM one-shot (claude
+# --no-session-persistence — nothing recorded, nothing resumable). Session features are opt-in and
+# any of them implies persistence; --session-id-file additionally switches the claude output to the
+# JSON envelope so the new session id can be extracted programmatically.
+if [[ -n "${SESSION_ID_FILE}" || -n "${RESUME_SESSION}" ]]; then
+  PERSIST_SESSION=1
+fi
+SESSION_ARGS=()
+if [[ "${PERSIST_SESSION}" -ne 1 ]]; then
+  SESSION_ARGS+=(--no-session-persistence)
+fi
+if [[ -n "${RESUME_SESSION}" ]]; then
+  SESSION_ARGS+=(--resume "${RESUME_SESSION}")
+fi
+FORMAT_ARGS=()
+if [[ -n "${SESSION_ID_FILE}" ]]; then
+  FORMAT_ARGS=(--output-format json)
 fi
 
 file_sha256() {
@@ -158,8 +192,25 @@ if [[ "${DRY_RUN}" -eq 1 ]]; then
   echo "System prompt file: ${SYSTEM_PROMPT_FILE} (bytes=${sys_size}, sha256=${sys_sha})"
   echo "Prompt file (stdin): ${PROMPT_FILE} (bytes=${prompt_size}, sha256=${prompt_sha})"
   echo "Output (stdout+stderr): ${OUT}"
+  if [[ "${PERSIST_SESSION}" -eq 1 ]]; then
+    echo -n "Session: persisted"
+    [[ -n "${RESUME_SESSION}" ]] && echo -n ", resuming ${RESUME_SESSION}"
+    [[ -n "${SESSION_ID_FILE}" ]] && echo -n ", id -> ${SESSION_ID_FILE}"
+    echo ""
+  fi
   echo "Invocation:"
-  echo -n "  claude --print --no-session-persistence"
+  # NOTE: this display is built SEPARATELY from the real invocation in the retry loop below — when
+  # adding flags, update BOTH (a display-only edit silently diverges from what actually runs).
+  echo -n "  claude --print"
+  if [[ "${PERSIST_SESSION}" -ne 1 ]]; then
+    echo -n " --no-session-persistence"
+  fi
+  if [[ -n "${RESUME_SESSION}" ]]; then
+    echo -n " --resume ${RESUME_SESSION}"
+  fi
+  if [[ -n "${SESSION_ID_FILE}" ]]; then
+    echo -n " --output-format json"
+  fi
   if [[ "${STRICT_MCP_CONFIG}" -eq 1 ]]; then
     echo -n " --strict-mcp-config"
   fi
@@ -263,14 +314,38 @@ while true; do
   : >"${tmp_stdout}"
   : >"${tmp_stderr}"
   set +e
-  claude --print --no-session-persistence "${STRICT_ARG[@]}" "${MODEL_ARG[@]+"${MODEL_ARG[@]}"}" --tools "${TOOLS}" \
+  claude --print "${SESSION_ARGS[@]+"${SESSION_ARGS[@]}"}" "${FORMAT_ARGS[@]+"${FORMAT_ARGS[@]}"}" "${STRICT_ARG[@]}" "${MODEL_ARG[@]+"${MODEL_ARG[@]}"}" --tools "${TOOLS}" \
     --input-format text \
     --system-prompt "${SYSTEM_PROMPT}" \
     <"${PROMPT_FILE}" >"${tmp_stdout}" 2>"${tmp_stderr}"
   code=$?
   set -e
 
-  cat "${tmp_stdout}" "${tmp_stderr}" >"${tmp_out}" || true
+  if [[ $code -eq 0 && -n "${SESSION_ID_FILE}" ]]; then
+    # JSON-envelope mode: OUT receives only the final result text; the new session id goes to its
+    # own file so a later invocation can chain with --resume-session.
+    if python3 - "${tmp_stdout}" "${tmp_out}" "${SESSION_ID_FILE}" <<'PY'
+import json
+import sys
+
+raw = open(sys.argv[1], encoding="utf-8", errors="replace").read()
+obj = json.loads(raw)
+result = obj.get("result")
+sid = obj.get("session_id")
+if not isinstance(result, str) or not isinstance(sid, str) or not sid:
+    raise SystemExit(1)
+open(sys.argv[2], "w", encoding="utf-8").write(result)
+open(sys.argv[3], "w", encoding="utf-8").write(sid + "\n")
+PY
+    then
+      :
+    else
+      echo "Warning: could not parse the claude JSON envelope; OUT falls back to raw stdout+stderr and NO session id was captured." >&2
+      cat "${tmp_stdout}" "${tmp_stderr}" >"${tmp_out}" || true
+    fi
+  else
+    cat "${tmp_stdout}" "${tmp_stderr}" >"${tmp_out}" || true
+  fi
 
   sleep_for=0
   if [[ $attempt -lt $MAX_RETRIES ]]; then

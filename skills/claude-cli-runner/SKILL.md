@@ -39,6 +39,23 @@ Notes:
 - It feeds the user prompt via stdin (`--input-format text` + `< --prompt-file`) to avoid macOS/Linux `ARG_MAX` limits (fixes `Argument list too long` with 1–5MB prompt packets).
 - For offline/CI validation, use `--dry-run` to print the planned invocation without calling Claude (prints only paths + size + sha256; never the full prompt).
 
+## Session continuation (OPT-IN; the default stays a clean-room one-shot)
+
+By default the runner passes `--no-session-persistence`: nothing is recorded, nothing resumable —
+the right contract for independent reviews. Session features are opt-in (any of them implies
+persistence; all live-validated):
+
+- `--persist-session` — record the conversation so a later invocation can resume it.
+- `--session-id-file FILE` — also capture the new session id to FILE. Internally switches claude to
+  `--output-format json`; `--out` then receives ONLY the final result text (parsed from the JSON
+  envelope), not raw stdout+stderr.
+- `--resume-session ID` — send this prompt as the NEXT turn of a previously persisted session
+  (`claude --resume ID`). Chain multi-turn workflows: run 1 with `--session-id-file sid.txt`, run 2
+  with `--resume-session "$(cat sid.txt)"`. Non-racy: the id is explicit.
+
+Do NOT persist/resume sessions for clean-room review rounds whose independence matters — a resumed
+round sees the earlier turns.
+
 ## Troubleshooting: 400 Error with Custom API Gateway
 
 ### Symptom

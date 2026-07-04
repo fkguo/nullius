@@ -50,6 +50,29 @@ bash "${SKILL_DIR}/scripts/run_codex.sh" \
 - Retries on failure with exponential backoff (useful for transient API errors).
 - For offline/CI validation, use `--dry-run` to print the planned invocation without calling Codex.
 
+## Session continuation (multi-turn / crash recovery)
+
+`codex exec` records every run as a session (a rollout file under `~/.codex/sessions`), and
+`codex exec resume` continues one. The runner exposes this three ways (all live-validated):
+
+- `--resume-session ID` — send this prompt as the NEXT turn of a named session. The explicit,
+  non-racy form for chaining multi-turn workflows across runner invocations (each run's banner
+  prints `session id: <uuid>`; capture it from your log).
+- `--resume-last` — resume the most recently STARTED session, resolved from the session-start
+  timestamp embedded in the rollout FILENAME (deliberately NOT the file mtime — mtimes get
+  refreshed by unrelated touches and were observed live to select the wrong session). Still RACY if
+  other codex runs start sessions concurrently; prefer `--resume-session ID` in parallel workflows.
+- `--resume-on-retry` — opt-in crash recovery: when an attempt fails, the runner extracts THIS
+  run's session id from the codex banner, and every subsequent retry RESUMES that session with a
+  short auto-continue prompt instead of restarting the whole task from scratch — a long run keeps
+  its partial progress across transient failures. Falls back to the normal fresh restart when no
+  id was captured.
+
+Caveats: the `resume` subcommand does not accept `--sandbox` or `--profile` — the runner preserves
+the sandbox via the equivalent `-c sandbox_mode="..."` config override and DROPS a `--profile` with
+a warning. A resumed turn appends to the session permanently; do not resume clean-room review
+sessions whose independence you need to preserve.
+
 ## Options
 
 | Flag | Default | Description |
@@ -64,6 +87,9 @@ bash "${SKILL_DIR}/scripts/run_codex.sh" \
 | `--skip-git-repo-check` | enabled | Run outside git repos (disable with `--no-skip-git-repo-check`) |
 | `--max-retries N` | 6 | Maximum retry attempts |
 | `--sleep-secs S` | 10 | Base sleep for exponential backoff |
+| `--resume-session ID` | (none) | Send the prompt as the next turn of a named codex session |
+| `--resume-last` | off | Resume the most recently started session (filename-timestamp resolution; racy under concurrency) |
+| `--resume-on-retry` | off | On a failed attempt, resume this run's own session on retries instead of restarting |
 | `--dry-run` | off | Print planned command without executing |
 
 ## Dry-run example
