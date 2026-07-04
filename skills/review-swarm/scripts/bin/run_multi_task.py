@@ -25,6 +25,7 @@ import signal
 import shutil
 import subprocess
 import sys
+import tempfile
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
@@ -58,6 +59,9 @@ if str(_SCRIPT_DIR) not in sys.path:
 
 from review_contract import (
     check_review_contract_file,
+    check_two_phase_conformance,
+    declared_criteria_categories,
+    extract_review_criteria_block,
     first_verdict,
     sanitize_contract_output,
     sanitize_gemini_output,
@@ -85,6 +89,20 @@ def _write_meta_json(path: Path, payload: dict[str, Any]) -> None:
 def _write_json_file(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def _atomic_write_text(path: Path, text: str) -> None:
+    """Write *text* to *path* atomically (temp file in the same dir + rename)."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(dir=str(path.parent), prefix=f"{path.name}.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(text)
+        os.replace(tmp_name, path)
+    except Exception:
+        with contextlib.suppress(OSError):
+            os.unlink(tmp_name)
+        raise
 
 
 def _agent_skills_root() -> Path:
@@ -807,6 +825,7 @@ def _run_one(
     gemini_review_profile: Optional[dict[str, Any]],
     timeout_secs: int,
     output_path: Optional[Path] = None,
+    trace_phase: Optional[str] = None,
 ) -> dict[str, Any]:
     out_path = output_path or (out_dir / f"{output_prefix}_{plan.index + 1}_{_model_slug(plan.requested_model)}.txt")
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -822,17 +841,17 @@ def _run_one(
         gemini_cli_home=gemini_cli_home,
     )
 
-    _append_jsonl(
-        trace_path,
-        {
-            "ts": _utc_now(),
-            "event": f"agent_{plan.index}_start",
-            "index": plan.index,
-            "backend": plan.backend,
-            "model": plan.requested_model,
-            "cmd": cmd,
-        },
-    )
+    start_event: dict[str, Any] = {
+        "ts": _utc_now(),
+        "event": f"agent_{plan.index}_start",
+        "index": plan.index,
+        "backend": plan.backend,
+        "model": plan.requested_model,
+        "cmd": cmd,
+    }
+    if trace_phase is not None:
+        start_event["phase"] = trace_phase
+    _append_jsonl(trace_path, start_event)
     if gemini_review_profile is not None:
         _append_jsonl(
             trace_path,
@@ -869,6 +888,8 @@ def _run_one(
             "exit_code": proc["exit_code"],
             "timed_out": bool(proc["timed_out"]),
         }
+        if trace_phase is not None:
+            event["phase"] = trace_phase
         if proc["stdout"]:
             event["stdout_preview"] = proc["stdout"][:800]
         if proc["stderr"]:
@@ -876,17 +897,17 @@ def _run_one(
         _append_jsonl(trace_path, event)
         return result
     except Exception as exc:
-        _append_jsonl(
-            trace_path,
-            {
-                "ts": _utc_now(),
-                "event": f"agent_{plan.index}_error",
-                "index": plan.index,
-                "backend": plan.backend,
-                "model": plan.requested_model,
-                "error": str(exc),
-            },
-        )
+        error_event: dict[str, Any] = {
+            "ts": _utc_now(),
+            "event": f"agent_{plan.index}_error",
+            "index": plan.index,
+            "backend": plan.backend,
+            "model": plan.requested_model,
+            "error": str(exc),
+        }
+        if trace_phase is not None:
+            error_event["phase"] = trace_phase
+        _append_jsonl(trace_path, error_event)
         return {
             "index": plan.index,
             "backend": plan.backend,
@@ -929,6 +950,236 @@ def _effective_prompt_path(
     prompt_overrides: dict[str, Path],
 ) -> Path:
     return prompt_overrides.get(backend, default_prompt)
+
+
+# --- Two-phase review protocol (opt-in via --two-phase) ---
+#
+# Phase 1 sends the scope packet only (no diff) and requires a declared-review-
+# criteria commitment; phase 2 sends the full packet plus the reviewer's own
+# phase-1 criteria block, verbatim. Conformance of phase-2 BLOCKING findings to
+# the phase-1 commitment is machine-checked after the run (informational, same
+# handling as the single-phase review-contract check).
+
+_TWO_PHASE_DIR_NAME = "two_phase"
+
+_TWO_PHASE_PHASE1_INSTRUCTIONS = """\
+=== TWO-PHASE REVIEW - PHASE 1: CRITERIA COMMITMENT ===
+
+You are one reviewer in a two-phase review protocol. In this phase you see ONLY
+the change scope below (title, intent, changed-file list). The diff is
+deliberately withheld until phase 2.
+
+Declare, in advance, the review criteria you commit to applying when you later
+see the diff. Output exactly one block delimited by these two sentinel lines,
+each alone on its own line:
+
+<review_criteria>
+{
+  "categories": [
+    {"name": "<short category id>", "blocking_criteria": "<one sentence: what makes a finding BLOCKING in this category>"}
+  ],
+  "severity_scale": "<one sentence: the severity scale you commit to>"
+}
+</review_criteria>
+
+Rules:
+- "categories" must be a non-empty array; every entry needs a non-empty "name"
+  and a non-empty "blocking_criteria".
+- "severity_scale" must be a non-empty string.
+- Base the categories on the declared scope only. Do not guess diff content,
+  do not review anything yet, and do not ask for the diff.
+- Brief reasoning outside the block is fine; the content between the two
+  sentinel lines must be a single valid JSON object.
+
+=== CHANGE SCOPE (no diff) ===
+
+"""
+
+_TWO_PHASE_PHASE2_INSTRUCTIONS = """\
+=== TWO-PHASE REVIEW - PHASE 2: REVIEW PER YOUR DECLARED CRITERIA ===
+
+You previously committed to the review criteria below (your own phase-1
+declaration, verbatim). Review the change packet against those criteria.
+
+Rules:
+- Tag every BLOCKING finding with one of your declared category names: in
+  Markdown output start each bullet under "## Blockers" with "[<category>]";
+  in JSON output prefix each "blocking_issues" string entry with "[<category>]"
+  (or give the entry object a "category" field).
+- If the diff reveals a problem class your declared criteria did not
+  anticipate, you MAY add a category, but you MUST declare the revision
+  explicitly in the review body (after the verdict line): in Markdown output
+  add a line "CRITERIA_REVISION: <category>: <one-line reason>"; in JSON
+  output add "criteria_revisions": [{"category": "...", "reason": "..."}].
+- A BLOCKING finding whose category is neither declared in phase 1 nor covered
+  by a criteria revision declaration fails the machine conformance check.
+- Do not weaken or reinterpret your phase-1 blocking criteria.
+
+"""
+
+_TWO_PHASE_CRITERIA_HEADER = "=== YOUR PHASE-1 DECLARED REVIEW CRITERIA (verbatim) ===\n\n"
+_TWO_PHASE_CRITERIA_FOOTER = "\n\n=== END OF DECLARED CRITERIA ===\n\n=== REVIEW PACKET ===\n\n"
+
+
+def _phase1_output_path(final_out: Path) -> Path:
+    return final_out.with_name(f"{final_out.stem}.phase1{final_out.suffix or '.txt'}")
+
+
+def _run_two_phase_one(
+    *,
+    plan: AgentPlan,
+    out_dir: Path,
+    output_prefix: str,
+    system: Optional[Path],
+    prompt: Path,
+    trace_path: Path,
+    opencode_agent: Optional[str],
+    opencode_variant: Optional[str],
+    backend_tool_modes: dict[str, str],
+    review_workspace_dir: Path,
+    gemini_cli_home: Optional[str],
+    gemini_review_profile: Optional[dict[str, Any]],
+    timeout_secs: int,
+    output_path: Optional[Path] = None,
+    scope_prompt: Path,
+) -> dict[str, Any]:
+    """Run one reviewer through the two-phase commit-then-review protocol.
+
+    Phase 1 (scope packet, no diff) must yield a declared-review-criteria block;
+    phase 2 (full packet + that block verbatim) writes the final output at the
+    same path a single-phase run would use. Phase-1 failures skip phase 2 and
+    mark the agent failed via ``two_phase.failure``.
+    """
+    final_out = output_path or _default_output_path(plan=plan, out_dir=out_dir, output_prefix=output_prefix)
+    phase1_out = _phase1_output_path(final_out)
+    slug = _model_slug(plan.requested_model)
+    stage_dir = out_dir / _TWO_PHASE_DIR_NAME
+    phase1_prompt_path = stage_dir / f"phase1_prompt_agent_{plan.index + 1}_{slug}.md"
+    phase2_prompt_path = stage_dir / f"phase2_prompt_agent_{plan.index + 1}_{slug}.md"
+
+    info: dict[str, Any] = {
+        "enabled": True,
+        "phase1_prompt": str(phase1_prompt_path),
+        "phase1_out": str(phase1_out),
+        "phase2_prompt": None,
+        "phase1_exit_code": None,
+        "phase1_timed_out": False,
+        "criteria_ok": None,
+        "criteria_errors": [],
+        "declared_categories": [],
+        "conformance_ok": None,
+        "conformance_errors": [],
+        "failure": None,
+    }
+
+    common: dict[str, Any] = dict(
+        plan=plan,
+        out_dir=out_dir,
+        output_prefix=output_prefix,
+        system=system,
+        trace_path=trace_path,
+        opencode_agent=opencode_agent,
+        opencode_variant=opencode_variant,
+        backend_tool_modes=backend_tool_modes,
+        review_workspace_dir=review_workspace_dir,
+        gemini_cli_home=gemini_cli_home,
+        gemini_review_profile=gemini_review_profile,
+        timeout_secs=timeout_secs,
+    )
+
+    def _phase_failure(base: dict[str, Any], failure: str) -> dict[str, Any]:
+        info["failure"] = failure
+        result = dict(base)
+        result["out"] = str(final_out)
+        result["success"] = False
+        result["two_phase"] = info
+        return result
+
+    # Fresh-run hygiene for the two output files this protocol owns: a reused
+    # out-dir must not let a stale phase-2 output from a previous run leak into
+    # verdict/contract fields when this run's phase 2 is skipped.
+    for stale in (phase1_out, final_out):
+        with contextlib.suppress(FileNotFoundError):
+            stale.unlink()
+
+    scope_text = scope_prompt.read_text(encoding="utf-8", errors="replace")
+    _atomic_write_text(phase1_prompt_path, _TWO_PHASE_PHASE1_INSTRUCTIONS + scope_text)
+
+    r1 = _run_one(prompt=phase1_prompt_path, output_path=phase1_out, trace_phase="phase1", **common)
+    info["phase1_exit_code"] = r1.get("exit_code")
+    info["phase1_timed_out"] = bool(r1.get("timed_out"))
+
+    if not r1.get("success"):
+        return _phase_failure(r1, "phase1_command_failed")
+    if _is_blank_file(phase1_out):
+        return _phase_failure(r1, "phase1_empty_output")
+
+    phase1_text = phase1_out.read_text(encoding="utf-8", errors="replace")
+    criteria_block, criteria_obj, criteria_errors = extract_review_criteria_block(phase1_text)
+    info["criteria_ok"] = len(criteria_errors) == 0
+    info["criteria_errors"] = criteria_errors
+    if criteria_obj is not None:
+        info["declared_categories"] = declared_criteria_categories(criteria_obj)
+    if criteria_errors or criteria_block is None:
+        return _phase_failure(r1, "phase1_criteria_invalid")
+
+    diff_text = prompt.read_text(encoding="utf-8", errors="replace")
+    _atomic_write_text(
+        phase2_prompt_path,
+        _TWO_PHASE_PHASE2_INSTRUCTIONS
+        + _TWO_PHASE_CRITERIA_HEADER
+        + criteria_block.strip("\n")
+        + _TWO_PHASE_CRITERIA_FOOTER
+        + diff_text,
+    )
+    info["phase2_prompt"] = str(phase2_prompt_path)
+
+    r2 = _run_one(prompt=phase2_prompt_path, output_path=final_out, trace_phase="phase2", **common)
+    r2["two_phase"] = info
+    return r2
+
+
+def _finalize_two_phase_result(result: dict[str, Any], *, trace_path: Path) -> None:
+    """Post-process one two-phase agent result (after _postprocess_result).
+
+    Phase-1 failures override the generic failure_reason; successful runs get
+    the phase-2 conformance check. Conformance failures are informational only
+    (recorded in meta, never a fallback trigger), mirroring the single-phase
+    review-contract check.
+    """
+    info = result.get("two_phase")
+    if not isinstance(info, dict):
+        return
+    failure = info.get("failure")
+    if failure:
+        result["failure_reason"] = failure
+        result["success"] = False
+    elif result.get("success"):
+        phase1_path = Path(str(info.get("phase1_out", "")))
+        phase2_path = Path(str(result.get("out", "")))
+        try:
+            phase1_text = phase1_path.read_text(encoding="utf-8", errors="replace")
+            phase2_text = phase2_path.read_text(encoding="utf-8", errors="replace")
+        except Exception as exc:
+            info["conformance_ok"] = False
+            info["conformance_errors"] = [f"failed to read phase outputs: {exc}"]
+        else:
+            conformance_errors = check_two_phase_conformance(phase1_text, phase2_text)
+            info["conformance_ok"] = len(conformance_errors) == 0
+            info["conformance_errors"] = conformance_errors
+    _append_jsonl(
+        trace_path,
+        {
+            "ts": _utc_now(),
+            "event": f"agent_{result.get('index')}_two_phase",
+            "index": result.get("index"),
+            "criteria_ok": info.get("criteria_ok"),
+            "criteria_errors": info.get("criteria_errors"),
+            "conformance_ok": info.get("conformance_ok"),
+            "conformance_errors": info.get("conformance_errors"),
+            "failure": info.get("failure"),
+        },
+    )
 
 
 def _postprocess_result(
@@ -1036,6 +1287,10 @@ _CONFIG_SIMPLE_KEYS: dict[str, str] = {
     "max_prompt_overflow": "max_prompt_overflow",
     "gemini_cli_home": "gemini_cli_home",
     "timeout_secs": "timeout_secs",
+    # NOTE: two_phase / scope_prompt are deliberately NOT config-mergeable.
+    # The two-phase protocol is a per-invocation, explicit CLI opt-in; a
+    # project config must never silently flip a default run into two-phase
+    # (or break plain runs via a dangling scope_prompt).
 }
 
 
@@ -1274,6 +1529,24 @@ def _parse_args() -> argparse.Namespace:
         help="Validate strict review contract on each agent output after sanitization.",
     )
     ap.add_argument(
+        "--two-phase",
+        action="store_true",
+        help=(
+            "Opt-in two-phase review protocol: phase 1 sends the scope packet "
+            "(--scope-prompt, no diff) and requires a declared-review-criteria block; "
+            "phase 2 sends the full prompt plus the reviewer's own phase-1 criteria. "
+            "Default single-phase behavior is unchanged when this flag is absent."
+        ),
+    )
+    ap.add_argument(
+        "--scope-prompt",
+        default="",
+        help=(
+            "Scope packet file for two-phase phase 1 (change title, intent, "
+            "changed-file list; no diff). Required with --two-phase."
+        ),
+    )
+    ap.add_argument(
         "--fallback-mode",
         choices=["off", "ask", "auto"],
         default="off",
@@ -1351,6 +1624,7 @@ def main() -> int:
     backend_system_overrides: dict[str, Optional[Path]] = {}
     backend_output_overrides: dict[str, Path] = {}
     backend_tool_modes: dict[str, str] = {}
+    scope_prompt: Optional[Path] = None
     review_workspace_dir = Path.cwd().resolve()
 
     try:
@@ -1370,6 +1644,19 @@ def main() -> int:
         unknown_targets = [b for b in fallback_targets if b not in allowed_backends]
         if unknown_targets:
             raise ValueError(f"Unknown fallback target backend(s): {','.join(unknown_targets)}")
+
+        if args.two_phase:
+            if not str(args.scope_prompt or "").strip():
+                raise ValueError("--two-phase requires --scope-prompt (scope packet without the diff)")
+            if args.fallback_mode != "off":
+                raise ValueError(
+                    "--two-phase does not support --fallback-mode ask/auto; "
+                    "rerun the failed reviewer same-model instead"
+                )
+            scope_prompt = Path(str(args.scope_prompt)).expanduser().resolve()
+            _require_file(scope_prompt, label="Scope prompt")
+        elif str(args.scope_prompt or "").strip():
+            raise ValueError("--scope-prompt requires --two-phase")
 
         prompt_entries, prompt_json_system_entries, prompt_json_output_entries = _expand_backend_prompt_json_entries(
             args.backend_prompt
@@ -1504,6 +1791,16 @@ def main() -> int:
                 max_chars=args.max_prompt_chars,
                 overflow=args.max_prompt_overflow,
             )
+            if scope_prompt is not None:
+                scope_prompt = _apply_prompt_limit(
+                    scope_prompt,
+                    label="scope",
+                    out_dir=inputs_dir,
+                    trace_path=trace_path,
+                    max_bytes=args.max_prompt_bytes,
+                    max_chars=args.max_prompt_chars,
+                    overflow=args.max_prompt_overflow,
+                )
             for backend, override_prompt in list(backend_prompt_overrides.items()):
                 backend_prompt_overrides[backend] = _apply_prompt_limit(
                     override_prompt,
@@ -1574,47 +1871,53 @@ def main() -> int:
             )
         )
 
-    _append_jsonl(
-        trace_path,
-        {
-            "ts": _utc_now(),
-            "event": "config",
-            "n_agents": len(plans),
-            "models": [p.requested_model for p in plans],
-            "backends": [p.backend for p in plans],
-            "agent_name": args.agent or None,
-            "variant": args.variant or None,
-            "parallel": bool(args.parallel),
-            "timeout_secs": int(args.timeout_secs),
-            "check_review_contract": bool(args.check_review_contract),
-            "fallback_mode": args.fallback_mode,
-            "fallback_order": fallback_order,
-            "fallback_targets": sorted(fallback_targets),
-            "backend_prompt_overrides": {k: str(v) for k, v in backend_prompt_overrides.items()},
-            "backend_system_overrides": {k: (str(v) if v is not None else None) for k, v in backend_system_overrides.items()},
-            "backend_output_overrides": {k: str(v) for k, v in backend_output_overrides.items()},
-            "backend_tool_modes": {
-                backend: _resolve_backend_tool_mode(backend, backend_tool_modes)
-                for backend in sorted({plan.backend for plan in plans} & set(_DEFAULT_BACKEND_TOOL_MODES))
-            },
-            "gemini_review_profiles": [
-                {
-                    "index": plan.index,
-                    "requested_model": plan.requested_model,
-                    **profile,
-                }
-                for plan, _, _, _, _, profile in run_specs
-                if plan.backend == "gemini" and profile is not None
-            ],
+    config_event: dict[str, Any] = {
+        "ts": _utc_now(),
+        "event": "config",
+        "n_agents": len(plans),
+        "models": [p.requested_model for p in plans],
+        "backends": [p.backend for p in plans],
+        "agent_name": args.agent or None,
+        "variant": args.variant or None,
+        "parallel": bool(args.parallel),
+        "timeout_secs": int(args.timeout_secs),
+        "check_review_contract": bool(args.check_review_contract),
+        "fallback_mode": args.fallback_mode,
+        "fallback_order": fallback_order,
+        "fallback_targets": sorted(fallback_targets),
+        "backend_prompt_overrides": {k: str(v) for k, v in backend_prompt_overrides.items()},
+        "backend_system_overrides": {k: (str(v) if v is not None else None) for k, v in backend_system_overrides.items()},
+        "backend_output_overrides": {k: str(v) for k, v in backend_output_overrides.items()},
+        "backend_tool_modes": {
+            backend: _resolve_backend_tool_mode(backend, backend_tool_modes)
+            for backend in sorted({plan.backend for plan in plans} & set(_DEFAULT_BACKEND_TOOL_MODES))
         },
-    )
+        "gemini_review_profiles": [
+            {
+                "index": plan.index,
+                "requested_model": plan.requested_model,
+                **profile,
+            }
+            for plan, _, _, _, _, profile in run_specs
+            if plan.backend == "gemini" and profile is not None
+        ],
+    }
+    if args.two_phase:
+        config_event["two_phase"] = True
+        config_event["scope_prompt"] = str(scope_prompt)
+    _append_jsonl(trace_path, config_event)
+
+    # Two-phase mode swaps the per-agent entrypoint; the single-phase call is
+    # byte-for-byte identical to the historical behavior (empty extra kwargs).
+    agent_fn = _run_two_phase_one if args.two_phase else _run_one
+    two_phase_extra: dict[str, Any] = {"scope_prompt": scope_prompt} if args.two_phase else {}
 
     if args.parallel:
         max_workers = min(len(plans), 32)
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = {
                 executor.submit(
-                    _run_one,
+                    agent_fn,
                     plan=plan,
                     out_dir=out_dir,
                     output_prefix=args.output_prefix,
@@ -1629,6 +1932,7 @@ def main() -> int:
                     gemini_review_profile=plan_gemini_review_profile,
                     timeout_secs=int(args.timeout_secs),
                     output_path=plan_out,
+                    **two_phase_extra,
                 ): (plan, plan_out)
                 for plan, plan_system, plan_prompt, plan_out, plan_gemini_cli_home, plan_gemini_review_profile in run_specs
             }
@@ -1663,7 +1967,7 @@ def main() -> int:
     else:
         for plan, plan_system, plan_prompt, plan_out, plan_gemini_cli_home, plan_gemini_review_profile in run_specs:
             results.append(
-                _run_one(
+                agent_fn(
                     plan=plan,
                     out_dir=out_dir,
                     output_prefix=args.output_prefix,
@@ -1678,6 +1982,7 @@ def main() -> int:
                     gemini_review_profile=plan_gemini_review_profile,
                     timeout_secs=int(args.timeout_secs),
                     output_path=plan_out,
+                    **two_phase_extra,
                 )
             )
 
@@ -1691,6 +1996,10 @@ def main() -> int:
         r["fallback_reason"] = None
         r["command_success"] = bool(r.get("success", False))
         _postprocess_result(r, check_review_contract=bool(args.check_review_contract))
+
+    if args.two_phase:
+        for r in results:
+            _finalize_two_phase_result(r, trace_path=trace_path)
 
     fallback_candidates = [
         r for r in results if r.get("failure_reason") and str((r.get("requested") or {}).get("backend")) in fallback_targets
@@ -1846,6 +2155,11 @@ def main() -> int:
     }
     if convergence_info is not None:
         meta["convergence"] = convergence_info
+    if args.two_phase:
+        meta["two_phase"] = {
+            "enabled": True,
+            "scope_prompt": str(scope_prompt),
+        }
     dual_summary = _dual_review_summary(results)
     if dual_summary is not None:
         meta.update(dual_summary)
