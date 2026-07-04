@@ -127,7 +127,7 @@ A durable or submission-bound figure must re-render from recorded inputs. Bind t
 }
 ```
 
-Anyone (including a later agent) must be able to re-run the command and diff the output against the checksum. If the regenerated figure differs beyond recorded nondeterminism, the figure and its numbers are out of sync: stop and reconcile before the figure is used anywhere. This bundle is what makes the checklist enforceable — a figure that cannot be regenerated cannot be re-verified.
+Anyone (including a later agent) must be able to re-run the command and diff the output against the checksum. If the regenerated figure differs beyond recorded nondeterminism, the figure and its numbers are out of sync: stop and reconcile before the figure is used anywhere. This bundle is what makes the checklist enforceable — a figure that cannot be regenerated cannot be re-verified. When the figure enters a manuscript gated by the research-writer skill, this bundle is the figure-side instantiation of that skill's traceability manifest: mirror the figure's checksum into the manifest entry so the manuscript-side result-traceability gate verifies the same bytes.
 
 ## Review Gate
 
