@@ -1,6 +1,6 @@
 {
-  "manifest_version": "1.1.3",
-  "updated_at": "2026-07-02T00:00:00Z",
+  "manifest_version": "1.1.4",
+  "updated_at": "2026-07-05T00:00:00Z",
   "org": "autoresearch-lab",
   "channels": ["stable", "beta", "dev"],
   "components": {
@@ -161,6 +161,13 @@
       "channel": "beta",
       "version": "0.1.0",
       "source_path": "skills/opencode-cli-runner/SKILL.md"
+    },
+    "citation-triangulation": {
+      "repo": "autoresearch-lab/skills-market",
+      "type": "skill-pack",
+      "channel": "dev",
+      "version": "0.1.0",
+      "source_path": "skills/citation-triangulation/SKILL.md"
     },
     "claim-grounding": {
       "repo": "autoresearch-lab/skills-market",

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Citation Triangulation"
+  short_description: "Cross-index citation metadata agreement check"
+  default_prompt: "Use $citation-triangulation to fetch the same citation's canonical metadata from two or more bibliographic indexes, write per-provider JSON blocks, and run the offline comparator for a fail-closed consistency verdict."
