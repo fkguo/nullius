@@ -360,8 +360,66 @@ Minimum expectations for provenance:
 - Double-backslash math check/fix (Markdown math only): see `scripts/bin/check_md_double_backslash.sh` and `scripts/bin/fix_md_double_backslash_math.py`.
 - Broader Markdown math/TOC cleanup before paper scaffolding: use the standalone `markdown-hygiene` skill.
 - Evidence-gate checker (revision additions via `\revadd{...}`, or full-text via `--scan-all`): see `scripts/bin/check_latex_evidence_gate.py`.
+- Result-traceability gate (delivered figures/result numbers must trace to a run): see `scripts/bin/check_result_traceability.py` and the "Result traceability" section below.
 - BibTeX RevTeX 4.2 hygiene: see `scripts/bin/fix_bibtex_revtex4_2.py`.
 - BibTeX fetch trace (when `--fetch-bibtex` is used): see `paper/bibtex_trace.jsonl`.
+
+## Result traceability (results and figures traceable to runs)
+
+Complementary to the evidence gate, not overlapping with it: the evidence gate checks that risky *claims* carry a literature/evidence anchor; this gate checks that every *result figure and annotated result number* in the manuscript is machine-traceable to the run that produced it (run id, code revision, environment fingerprint). One binds prose to sources; the other binds deliverables to runs.
+
+Workflow position:
+1. When a run produces a manuscript figure or a headline number, register it in `paper/traceability_manifest.json` **at that moment** (not at delivery time), copying `run_id`, `code_rev` (e.g. the analysis-code commit), and `env_fingerprint` (e.g. a lockfile or container digest) from the run's manifest / reproducibility capsule.
+2. Before delivering a draft, run the gate over the whole paper directory:
+
+```bash
+python3 scripts/bin/check_result_traceability.py --root paper/ --report paper/result_traceability_report.md
+```
+
+Manifest shape (domain-neutral; one entry per bound figure or number):
+
+```json
+{
+  "version": 1,
+  "entries": [
+    {
+      "id": "fig:scan-summary",
+      "kind": "figure",
+      "artifact": "figures/scan_summary.pdf",
+      "run_id": "M3-r2",
+      "code_rev": "a1b2c3d",
+      "env_fingerprint": "lockfile-sha256:<hex>",
+      "checksum": "sha256:<hex>",
+      "notes": "optional"
+    },
+    {
+      "id": "num:fitted-width",
+      "kind": "number",
+      "run_id": "M3-r2",
+      "code_rev": "a1b2c3d",
+      "env_fingerprint": "lockfile-sha256:<hex>",
+      "notes": "e.g. a fitted parameter quoted in the results section"
+    }
+  ]
+}
+```
+
+Author-side annotation for result numbers is a LaTeX comment anchor placed adjacent to the value, whose id **is** the manifest entry id:
+
+```latex
+The fitted width is 12.3(4) units. % origin: num:fitted-width
+```
+
+Why a comment anchor rather than a wrapper macro such as `\resultnum{<id>}{<value>}`: a comment is zero-intrusion (no preamble macro definition, no change to the compiled document, nothing unfamiliar in the submitted source) and parses deterministically with the same escaped-percent rule the evidence gate already uses — no brace nesting or macro-expansion concerns. The accepted trade-off: anchor-to-value adjacency is an authoring convention the checker cannot verify; reviewers check placement, the gate checks the binding.
+
+Gate semantics (deterministic, fail-closed — deliberately stricter than the evidence gate's warn-by-default):
+- Every `\includegraphics` target must match a figure entry (path as written, extension-optional; for a dotted basename write the extension explicitly in the manuscript); a recorded checksum must match the file on disk. Artifact paths must stay inside the paper directory — absolute paths and paths with a parent-directory segment are rejected and never bind, artifacts resolve against the manuscript root (not the manifest's location), and a file that resolves outside that root (e.g. a symlink target elsewhere) fails the gate: at delivery time the paper directory must carry the real bytes.
+- Every origin anchor must match a number entry; anchors binding to a figure entry are a kind mismatch.
+- Every matched entry must carry non-empty `run_id`, `code_rev`, and `env_fingerprint` — all three, no partial credit.
+- In `--root` mode (the delivery invocation), manifest entries that bind to nothing in the manuscript are stale and fail the gate; in partial `--tex` scans they downgrade to warnings.
+- Any violation means non-zero exit plus a NOT_READY report. There is no warn-only mode. The only escape hatch for incremental adoption on legacy manuscripts is an explicit exemption list (`--exempt-id` / `--exempt-file`) keyed by manifest entry id — or, for a figure that has no manifest entry yet, by the figure path as written in the manuscript. Wildcard tokens are rejected, and structural failures (a missing or invalid manifest, an anchor with a missing or malformed id) are never exemptible.
+
+What the gate deliberately does not do: it cannot detect result numbers that were never anchored — "every reported result value gets an anchor" is authoring discipline enforced in review. On the figure side, the figure-reproduction bundle defined in the figure-hygiene skill is the figure-side instantiation of this manifest: reuse its checksum here so the manuscript gate and the figure re-render check verify the same bytes.
 
 ## Research and manuscript guardrails
 

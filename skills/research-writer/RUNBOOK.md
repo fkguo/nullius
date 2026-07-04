@@ -101,6 +101,20 @@ bash scripts/bin/research_writer_draft_sections.sh \
 
 Outputs land under `paper/drafts/<run-id>/` (plus `run.json` + `trace.jsonl`).
 
+### 4d) Result-traceability gate (before delivering a draft)
+
+Every `\includegraphics` figure and every annotated result number must trace to the run that produced it via `paper/traceability_manifest.json` (see the "Result traceability" section in `SKILL.md` for the manifest shape and the `% origin: <id>` comment anchor):
+
+```bash
+python3 scripts/bin/check_result_traceability.py --root paper --report paper/result_traceability_report.md
+```
+
+Fail-closed: any violation exits non-zero with a NOT_READY report (no warn-only mode). For incremental adoption on a legacy manuscript, exempt specific manifest entry ids — or, for a figure with no manifest entry yet, the figure path as written — one per line; wildcards are rejected:
+
+```bash
+python3 scripts/bin/check_result_traceability.py --root paper --exempt-file paper/traceability_exemptions.txt
+```
+
 ### 5) Optional: build an exemplar corpus for deep reading (INSPIRE → arXiv sources)
 
 Use this to collect arXiv LaTeX sources from exemplar papers so you can extract **general physics discussion logic** (argument flow, diagnostics, uncertainty narration). This is not about superficial PRL formatting.
