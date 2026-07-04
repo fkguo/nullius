@@ -13,6 +13,12 @@ Use this skill when you need to call Gemini from the command line (any task), in
 > reaching Gemini from a DIFFERENT host (Claude / Codex / OpenCode / …) for cross-model work. Pick the
 > model / reasoning depth by task difficulty (quality first, not token thrift).
 
+> **Session continuation is deliberately NOT wired into this runner** (unlike the codex / claude /
+> kimi runners, which expose explicit-session resume). The upstream `gemini` CLI only offers
+> `-r latest` / `-r <index>` — resolution by recency or list position, which is RACY across parallel
+> runs (no explicit session-id form) — and this runner's direct-API fallback path cannot resume a CLI
+> session at all. For multi-turn cross-model workflows, use a runner with explicit-session support.
+
 ## Preconditions
 
 - `gemini` is installed: `command -v gemini`

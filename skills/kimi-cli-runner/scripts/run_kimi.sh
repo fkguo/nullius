@@ -23,6 +23,9 @@ MAX_BACKOFF_SECS=300
 NO_FALLBACK=0
 DRY_RUN=0
 LAST_MODEL_NOT_FOUND=0
+YOLO=0
+RESUME_SESSION=""
+CONTINUE_WORK_DIR=0
 
 usage() {
   cat <<'EOF'
@@ -49,6 +52,15 @@ Options:
   --max-retries N         Deprecated alias of --max-attempts
   --sleep-secs SECONDS    Exponential backoff base seconds (default: 5)
   --no-fallback           Do not retry without -m when a model run fails as model-not-found.
+  --yolo                  Pass Kimi -y (auto-approve all actions). Needed for headless agentic
+                          tasks whose tool actions would otherwise wait for interactive approval.
+  --resume-session ID     Resume a specific recorded Kimi session (kimi -S ID); the prompt is the
+                          session's next turn.
+  --continue-work-dir     Continue the previous session OF THE WORKING DIRECTORY (kimi -c).
+                          Requires --work-dir DIR pointing at the prior run's directory — Kimi
+                          scopes -c per working directory, so this is non-racy across parallel
+                          runs in different directories (the default isolated fresh temp dir has
+                          no previous session to continue).
   --dry-run               Print invocation details and exit 0.
 
 Important:
@@ -364,6 +376,13 @@ while [[ $# -gt 0 ]]; do
       shift 2
       ;;
     --no-fallback) NO_FALLBACK=1; shift 1;;
+    --yolo) YOLO=1; shift 1;;
+    --resume-session)
+      require_value "$1" "${2-}"
+      RESUME_SESSION="$2"
+      shift 2
+      ;;
+    --continue-work-dir) CONTINUE_WORK_DIR=1; shift 1;;
     --dry-run) DRY_RUN=1; shift 1;;
     -h|--help) usage; exit 0;;
     *) echo "Unknown arg: $1" >&2; usage; exit 2;;
@@ -401,6 +420,14 @@ if ! [[ "${SLEEP_SECS}" =~ ^[0-9]+$ ]] || [[ "${SLEEP_SECS}" -lt 1 ]]; then
 fi
 if [[ "${SLEEP_SECS}" -gt "${MAX_BACKOFF_SECS}" ]]; then
   echo "--sleep-secs must be <= ${MAX_BACKOFF_SECS}" >&2
+  exit 2
+fi
+if [[ -n "${RESUME_SESSION}" && "${CONTINUE_WORK_DIR}" -eq 1 ]]; then
+  echo "--resume-session and --continue-work-dir are mutually exclusive." >&2
+  exit 2
+fi
+if [[ "${CONTINUE_WORK_DIR}" -eq 1 && -z "${WORK_DIR}" ]]; then
+  echo "--continue-work-dir requires --work-dir DIR: kimi -c continues the previous session OF THE WORKING DIRECTORY, and the default isolated fresh temp dir has none." >&2
   exit 2
 fi
 case "${TOOL_MODE}" in
@@ -489,11 +516,21 @@ if [[ "${DRY_RUN}" -eq 1 ]]; then
   echo "Output: ${OUT}"
   echo "Invocation:"
   echo -n "  "
+  # NOTE: this dry-run display array is built SEPARATELY from run_once() below — when adding flags,
+  # update BOTH (a display-only edit silently diverges from what actually runs).
   cmd=("${KIMI_BIN}")
   if [[ -n "${MODEL}" ]]; then
     cmd+=(-m "${MODEL}")
   fi
   cmd+=(--output-format stream-json)
+  if [[ "${YOLO}" -eq 1 ]]; then
+    cmd+=(-y)
+  fi
+  if [[ -n "${RESUME_SESSION}" ]]; then
+    cmd+=(-S "${RESUME_SESSION}")
+  elif [[ "${CONTINUE_WORK_DIR}" -eq 1 ]]; then
+    cmd+=(-c)
+  fi
   for dir in "${SKILLS_DIRS[@]+"${SKILLS_DIRS[@]}"}"; do
     cmd+=(--skills-dir "${dir}")
   done
@@ -560,11 +597,20 @@ run_once() {
   prompt_text="$(cat "${MERGED_PROMPT}"; printf '__KIMI_RUNNER_PROMPT_EOF__')"
   prompt_text="${prompt_text%__KIMI_RUNNER_PROMPT_EOF__}"
 
+  # NOTE: keep in sync with the dry-run display array above (dual-site: display vs execution).
   local cmd=("${KIMI_BIN}")
   if [[ "${use_model}" -eq 1 && -n "${MODEL}" ]]; then
     cmd+=(-m "${MODEL}")
   fi
   cmd+=(--output-format stream-json)
+  if [[ "${YOLO}" -eq 1 ]]; then
+    cmd+=(-y)
+  fi
+  if [[ -n "${RESUME_SESSION}" ]]; then
+    cmd+=(-S "${RESUME_SESSION}")
+  elif [[ "${CONTINUE_WORK_DIR}" -eq 1 ]]; then
+    cmd+=(-c)
+  fi
   for dir in "${SKILLS_DIRS[@]+"${SKILLS_DIRS[@]}"}"; do
     cmd+=(--skills-dir "$(abs_dir "${dir}")")
   done

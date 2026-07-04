@@ -24,6 +24,9 @@ MAX_RETRIES=6
 SLEEP_SECS=10
 DRY_RUN=0
 EXTRA_CONFIGS=()
+RESUME_SESSION=""
+RESUME_LAST=0
+RESUME_ON_RETRY=0
 
 usage() {
   cat <<'EOF'
@@ -46,6 +49,18 @@ Optional:
   --no-skip-git-repo-check    Require git repo
   --max-retries N             Default: 6
   --sleep-secs SECONDS        Base sleep; exponential backoff (default: 10)
+  --resume-session ID         Resume a recorded codex session (`codex exec resume ID`); the prompt
+                              file is sent as the NEXT turn of that session. Enables explicit
+                              multi-turn workflows across runner invocations (non-racy: you name
+                              the session).
+  --resume-last               Resume the most recent recorded session (resolved deterministically
+                              from the newest rollout file under ~/.codex/sessions). RACY when
+                              other codex runs happen concurrently — prefer --resume-session ID.
+  --resume-on-retry           On a failed attempt, capture THIS run's session id from the codex
+                              banner and make every subsequent retry RESUME that session with a
+                              short auto-continue prompt, instead of restarting from scratch — a
+                              long run keeps its partial progress across transient failures.
+                              Falls back to the normal fresh restart when no id was captured.
   --dry-run                   Print planned command; exit 0 (no Codex call)
   -h, --help                  Show this help
 
@@ -70,6 +85,9 @@ while [[ $# -gt 0 ]]; do
     --no-skip-git-repo-check) SKIP_GIT_CHECK=0; shift 1;;
     --max-retries) MAX_RETRIES="$2"; shift 2;;
     --sleep-secs) SLEEP_SECS="$2"; shift 2;;
+    --resume-session) RESUME_SESSION="$2"; shift 2;;
+    --resume-last) RESUME_LAST=1; shift 1;;
+    --resume-on-retry) RESUME_ON_RETRY=1; shift 1;;
     --dry-run) DRY_RUN=1; shift 1;;
     -h|--help) usage; exit 0;;
     *) echo "Unknown arg: $1" >&2; usage; exit 2;;
@@ -160,6 +178,53 @@ build_merged_prompt() {
   echo "${tmp_merged}"
 }
 
+if [[ -n "${RESUME_SESSION}" && "${RESUME_LAST}" -eq 1 ]]; then
+  echo "--resume-session and --resume-last are mutually exclusive." >&2
+  exit 2
+fi
+
+# Resolve the most recent recorded codex session id DETERMINISTICALLY from the rollout files under
+# ~/.codex/sessions. Ordering key = the session START TIMESTAMP embedded in the FILENAME
+# (rollout-YYYY-MM-DDTHH-MM-SS-<uuid>.jsonl, zero-padded so lexicographic == chronological) — NOT the
+# file mtime: mtimes get refreshed by unrelated touches (observed live: an old session's mtime beat a
+# newer one and a resume appended to the WRONG session). This avoids the CLI's `resume --last`
+# positional ambiguity with a stdin prompt and makes the choice inspectable. Still RACY if other codex
+# runs START sessions concurrently — an explicit --resume-session ID is the safe form.
+latest_codex_session_id() {
+  python3 - <<'PY'
+import glob
+import os
+import re
+import sys
+
+root = os.path.expanduser("~/.codex/sessions")
+files = glob.glob(os.path.join(root, "**", "rollout-*.jsonl"), recursive=True)
+best_key = ""
+best_sid = ""
+pat = re.compile(
+    r"rollout-(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2})-"
+    r"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.jsonl$"
+)
+for f in files:
+    m = pat.search(os.path.basename(f))
+    if not m:
+        continue
+    if m.group(1) > best_key:                    # zero-padded timestamp: lexicographic == chronological
+        best_key, best_sid = m.group(1), m.group(2)
+if not best_sid:
+    sys.exit(1)
+print(best_sid)
+PY
+}
+
+RESUME_TARGET="${RESUME_SESSION}"
+if [[ "${RESUME_LAST}" -eq 1 ]]; then
+  if ! RESUME_TARGET="$(latest_codex_session_id)"; then
+    echo "--resume-last: no recorded codex session found under ~/.codex/sessions" >&2
+    exit 2
+  fi
+fi
+
 # --- Build codex exec args (single source of truth for dry-run AND execution) ---
 #
 # Populates the global CMD_ARGS array. Sandbox is whatever --sandbox selected
@@ -171,20 +236,33 @@ build_merged_prompt() {
 # No --full-auto is ever emitted (it would force workspace-write).
 CMD_ARGS=()
 build_cmd_args() {
+  # $1 = "exec" (default) or "resume". The `codex exec resume` subcommand does NOT accept --sandbox
+  # or -p/--profile (verified against `codex exec resume --help`): the sandbox is preserved through
+  # the equivalent config override `-c sandbox_mode="..."`, and a --profile is dropped with a warning
+  # (resume has no profile mechanism).
+  local mode="${1:-exec}"
   CMD_ARGS=()
 
   if [[ -n "${MODEL}" ]]; then
     CMD_ARGS+=(-m "${MODEL}")
   fi
 
-  CMD_ARGS+=(--sandbox "${SANDBOX}")
+  if [[ "${mode}" == "resume" ]]; then
+    CMD_ARGS+=(-c "sandbox_mode=\"${SANDBOX}\"")
+  else
+    CMD_ARGS+=(--sandbox "${SANDBOX}")
+  fi
 
   if [[ "${SKIP_GIT_CHECK}" -eq 1 ]]; then
     CMD_ARGS+=(--skip-git-repo-check)
   fi
 
   if [[ -n "${PROFILE}" ]]; then
-    CMD_ARGS+=(-p "${PROFILE}")
+    if [[ "${mode}" == "resume" ]]; then
+      echo "Warning: codex exec resume does not accept --profile; dropping profile '${PROFILE}' for the resume invocation." >&2
+    else
+      CMD_ARGS+=(-p "${PROFILE}")
+    fi
   fi
 
   CMD_ARGS+=(-c 'approval_policy="never"')
@@ -202,7 +280,11 @@ build_cmd_args() {
 # --- Dry run ---
 
 if [[ "${DRY_RUN}" -eq 1 ]]; then
-  build_cmd_args
+  if [[ -n "${RESUME_TARGET}" ]]; then
+    build_cmd_args resume
+  else
+    build_cmd_args exec
+  fi
 
   prompt_size="$(file_size_bytes "${PROMPT_FILE}")"
   prompt_sha="$(file_sha256 "${PROMPT_FILE}")"
@@ -212,6 +294,10 @@ if [[ "${DRY_RUN}" -eq 1 ]]; then
   echo "Sandbox: ${SANDBOX}"
   echo "Approval policy: never (pinned)"
   echo "Skip git check: ${SKIP_GIT_CHECK}"
+  if [[ -n "${RESUME_TARGET}" ]]; then
+    echo "Resume session: ${RESUME_TARGET}$( [[ ${RESUME_LAST} -eq 1 ]] && echo ' (resolved via --resume-last)' )"
+  fi
+  echo "Resume on retry: ${RESUME_ON_RETRY}"
 
   if [[ -n "${SYSTEM_PROMPT_FILE}" ]]; then
     sys_size="$(file_size_bytes "${SYSTEM_PROMPT_FILE}")"
@@ -240,7 +326,11 @@ if [[ "${DRY_RUN}" -eq 1 ]]; then
   # not re-shelling fidelity, is what the safety check relies on.
   echo ""
   echo "Invocation:"
-  echo -n "  codex exec"
+  if [[ -n "${RESUME_TARGET}" ]]; then
+    echo -n "  codex exec resume ${RESUME_TARGET}"
+  else
+    echo -n "  codex exec"
+  fi
   for arg in "${CMD_ARGS[@]}"; do
     echo -n " ${arg}"
   done
@@ -258,20 +348,54 @@ fi
 # --- Build merged prompt ---
 
 MERGED_PROMPT="$(build_merged_prompt)"
-trap 'rm -f "${MERGED_PROMPT}"' EXIT
+ATTEMPT_LOG="$(mktemp)"
+CONTINUE_PROMPT_FILE=""
+trap 'rm -f "${MERGED_PROMPT}" "${ATTEMPT_LOG}" ${CONTINUE_PROMPT_FILE:+"${CONTINUE_PROMPT_FILE}"}' EXIT
 
 # --- Execute with retries ---
 
-build_cmd_args
-
 mkdir -p "$(dirname "${OUT}")"
+
+# PROMPT_SOURCE is what stdin feeds this attempt: the merged prompt normally; after --resume-on-retry
+# captures a session id, subsequent attempts resume that session, so they get a short continue nudge
+# instead (the original prompt already lives in the resumed session).
+PROMPT_SOURCE="${MERGED_PROMPT}"
 
 attempt=1
 while true; do
+  # Rebuild the args each attempt: --resume-on-retry can switch the mode from a fresh `exec` to a
+  # `resume` mid-loop, and the two modes take different sandbox/profile arguments.
+  if [[ -n "${RESUME_TARGET}" ]]; then
+    build_cmd_args resume
+  else
+    build_cmd_args exec
+  fi
+  # Capture the combined output per attempt (tee: still streams to stdout as before). The codex
+  # banner prints `session id: <uuid>`, which --resume-on-retry extracts on failure.
   set +e
-  codex exec "${CMD_ARGS[@]}" <"${MERGED_PROMPT}" 2>&1
-  code=$?
+  if [[ -n "${RESUME_TARGET}" ]]; then
+    # `codex exec resume <id> [flags] -` : positional 1 = session id, positional 2 = `-` (stdin
+    # prompt, already the last CMD_ARGS token). The prompt becomes the session's next turn.
+    codex exec resume "${RESUME_TARGET}" "${CMD_ARGS[@]}" <"${PROMPT_SOURCE}" 2>&1 | tee "${ATTEMPT_LOG}"
+    code=${PIPESTATUS[0]}
+  else
+    codex exec "${CMD_ARGS[@]}" <"${PROMPT_SOURCE}" 2>&1 | tee "${ATTEMPT_LOG}"
+    code=${PIPESTATUS[0]}
+  fi
   set -e
+
+  # After a FAILED fresh attempt, optionally lock onto this run's session so the retry resumes it
+  # (keeping any partial progress) instead of restarting the whole task from scratch.
+  if [[ $code -ne 0 && "${RESUME_ON_RETRY}" -eq 1 && -z "${RESUME_TARGET}" ]]; then
+    sid="$(grep -oE 'session id: [0-9a-f-]{36}' "${ATTEMPT_LOG}" | head -n 1 | awk '{print $3}')" || true
+    if [[ -n "${sid}" ]]; then
+      RESUME_TARGET="${sid}"
+      CONTINUE_PROMPT_FILE="$(mktemp)"
+      printf 'Continue exactly where you left off and finish the task; produce the final answer as originally instructed.\n' >"${CONTINUE_PROMPT_FILE}"
+      PROMPT_SOURCE="${CONTINUE_PROMPT_FILE}"
+      echo "resume-on-retry: captured session id ${sid}; retries will resume it." >&2
+    fi
+  fi
 
   if [[ $code -eq 0 ]]; then
     if [[ -s "${OUT}" ]]; then
