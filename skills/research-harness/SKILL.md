@@ -1,6 +1,6 @@
 ---
 name: research-harness
-description: Use when working inside an external research project that has or may need autoresearch state, research_plan.md, research_contract.md, artifacts/runs, team/runs, Codex/Claude Code continuation, recovery, verification, approval, export, handoff, compute environment/tool readiness validation (import + seeded witness + agent-follows-doc), or surviving long-running / kill-prone compute jobs (checkpoint + heartbeat + deadline + resume).
+description: Use when working inside an external research project that has or may need autoresearch state, research_plan.md, research_contract.md, artifacts/runs, team/runs, Codex/Claude Code continuation, recovery, verification, approval, export, handoff, compute environment/tool readiness validation (import + seeded witness + agent-follows-doc), surviving long-running / kill-prone compute jobs (checkpoint + heartbeat + deadline + resume), or an opt-in independent reproduction check (fresh-checkout rerun compared against declared expected values).
 ---
 
 # Research Harness
@@ -148,6 +148,51 @@ It captures `pgrep` (SIGPIPE-safe, never pipes) and prints JSON `{running, check
 **Commit each stage as cross-session memory.** A kill loses CPU work; a closed session loses the agent's context. Commit each completed stage immediately with a message recording the result *and the lesson*; the git log is a durable record that survives context loss.
 
 **Log dead-ends structurally so a resumed or fresh agent never repeats one.** Append each failed approach to `artifacts/runs/<run_id>/failed_approaches_v1.json`, per the `@autoresearch/shared` `failed_approaches_v1` contract — `{ approach, why_failed, signal (error|stall|wrong_result|too_expensive|dead_end|superseded), at, evidence_ref?, do_not_retry }`. **`why_failed` is mandatory**: a dead-end recorded without why it failed is not a reusable lesson, and the contract rejects it. **Before starting any new approach, read this log and skip every `do_not_retry` entry** — that is the point, turning "what we already ruled out" from buried git archaeology into a record the next session (or a fresh agent) actually consults. A free-text note is the fallback only when structured logging is unavailable.
+
+## Independent Reproduction Check (Opt-in)
+
+A result that only reproduces inside the working directory that produced it — uncommitted edits, leftover artifacts, stale caches — is not reproducible yet; the 2026 reproduction evaluations (PaperBench, NatureBench, ReplicationBench) all made *fresh-state reruns* the hard criterion. This protocol is that rerun, run locally and **opt-in: it changes no default workflow and wires no mandatory gate**. Adopt it per project when a headline number is worth a clean-state rerun — before an approval gate, a handoff, or an export is a natural moment.
+
+The project declares a reproduction manifest (JSON, domain-neutral), recommended at `artifacts/runs/<run_id>/reproduction_manifest.json` and committed like any other run evidence. Worktree mode enforces this: an untracked manifest, or one carrying uncommitted edits, fails the check — the claim under test (entry command, expected values, tolerances) must itself be part of the committed state.
+
+```json
+{
+  "manifest_version": 1,
+  "entry_command": "python3 scripts/reproduce_headline.py",
+  "working_inputs": ["scripts", "data/inputs.csv"],
+  "timeout_seconds": 900,
+  "environment_note": "python3 + packages from the committed lockfile; no network",
+  "expected": [
+    {"id": "fit_quality", "artifact_path": "out/result.json", "json_path": "fit.quality",
+     "value": 1.23, "tolerance": {"kind": "absolute", "value": 0.01}},
+    {"id": "lowest_eigenvalue", "stdout_pattern": "lowest eigenvalue = ([-+0-9.eE]+)",
+     "value": -2.502, "tolerance": {"kind": "relative", "value": 1e-4}, "unit_note": "model units"}
+  ]
+}
+```
+
+- `entry_command` runs via the shell from the isolated project root; everything it needs must be committed (or listed in `working_inputs` for the copy fallback).
+- Each `expected` entry declares exactly one deterministic extraction mechanism — a produced JSON artifact (`artifact_path` plus dotted `json_path`; digit segments index lists) or a `stdout_pattern` regex with exactly one capture group (last match wins) — a declared value, and an **explicit** `tolerance` (`absolute` or `relative`; relative requires a nonzero declared value). There is no default tolerance and no order-of-magnitude pass.
+- `working_inputs` is a whitelist of project-root-relative paths, used only by the copy fallback.
+
+Run the bundled checker:
+
+```bash
+python3 scripts/independent_reproduction_check.py \
+    --manifest artifacts/runs/<run_id>/reproduction_manifest.json
+```
+
+Semantics, fail-closed by design:
+
+- **Fresh isolation.** The preferred mode checks out committed `HEAD` into a new git worktree and reruns the entry there — whatever is not committed does not exist for the rerun, *by design*: not committed means not reproducible. The fallback (non-git projects, `--isolation copy`) copies the declared `working_inputs` whitelist into a fresh directory; copy mode is strictly weaker — it copies filesystem state as-is, uncommitted edits included, and refuses symlinked inputs. The original working tree is never modified; worktree mode records only removable git bookkeeping metadata (the report carries the exact removal command).
+- **No vacuous pass.** Declared artifact paths already present in the fresh checkout (e.g. committed stale outputs) are deleted before the entry runs, so only what the rerun actually regenerates can satisfy the comparison; artifact paths must not be symlinks and must resolve inside the isolated run root. Committed symlinks that resolve outside the fresh checkout are refused outright (checkout-internal relative links are fine). Keep output artifacts gitignored as usual.
+- **Default-deny verdict** in `reproduced | mismatch | incomplete | environment_failed`: any expected value outside its tolerance → `mismatch`; entry non-zero exit, timeout, or any value that cannot be extracted → `incomplete`; manifest invalid, manifest not committed clean (worktree mode), or isolation not preparable → `environment_failed`; precedence `environment_failed` over `incomplete` over `mismatch`. The exit code is `0` only for `reproduced`.
+- **Tolerance honesty.** The report records, per value, the signed deviation and the deviation-to-tolerance ratio — an agreement is exactly as strong as its declared tolerance, never "same ballpark".
+- **Inspection over disposal.** The isolated checkout, entry stdout/stderr logs, and the JSON + Markdown reports are kept under the check's work directory (paths in the report); pass `--cleanup` to remove the checkout once inspected. Copy the two reports into `artifacts/runs/<run_id>/` when folding the outcome back.
+- **Environment scrub, then honest limits.** Environment entries that reference the original project tree — textually, through a symlink alias, or through a relative traversal from the run root (a `PYTHONPATH`, `PATH`, or `TMPDIR` component, a venv, and similar) — are dropped from the entry's environment and recorded in the report, so the rerun cannot import uncommitted state through the environment; the check's own work directory (including a `TMPDIR` default) must lie outside the project; on macOS the path comparison is case-folded to match its default case-insensitive filesystem. Beyond that, isolation is checkout-level, not container-level: the entry inherits the rest of the invoking environment and is not sandboxed against absolute-path writes. POSIX (macOS/Linux) only. Declare interpreter/library/data expectations in `environment_note`; the report restates this limitation.
+- **Threat model.** The check defends against *accidental* contamination — a result that inadvertently depends on uncommitted edits, stale artifacts, or original-tree code leaking in through the environment. It does not defend against a deliberately adversarial manifest author: the manifest already controls an arbitrary shell entry command, so a deliberately constructed escape is equivalent to fabricating the result itself — that is a `research-integrity` concern, not an isolation concern — and container-level sandboxing is out of scope by design.
+
+This is the execution arm of the [`numerical-reliability-gate`](../numerical-reliability-gate/SKILL.md) reproduction discipline: its G8 demands that a claimed match to a reference number be *computed, not asserted* — the fresh-checkout rerun is that computation in its strongest form — and its G7 production-setting rule applies to the manifest itself: declare the entry and configuration that produce the recorded values at their production setting, not a cheaper stand-in.
 
 ## Literature Research Gate
 

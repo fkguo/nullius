@@ -164,7 +164,12 @@ Each check names its own minimum disconfirming test — never accept a number be
   the comparable regime, and the ratio / signed difference. (Distinct from **G4**: G4 anchors your *own
   pipeline* on a known result before you trust a variation; G8 tests whether a *headline external-match
   claim* actually holds when the observable is recomputed on the comparable state — a result can pass
-  G1–G7 and still misstate how it relates to the literature.)
+  G1–G7 and still misstate how it relates to the literature.) The **strongest execution form** of this
+  gate is the opt-in independent reproduction check in
+  [`research-harness`](../research-harness/SKILL.md): it reruns the project's declared reproduction
+  entry in a fresh, isolated checkout of committed state and machine-compares each declared expected
+  value under an explicit absolute/relative tolerance, default-deny. It is adopted per project and
+  changes no default workflow.
 
 - **G9 — Gate discrimination: a validation must be able to fail (independent reference, negative
   controls).** When a value's trust rests on a purpose-built consistency check — "it reduces to a
