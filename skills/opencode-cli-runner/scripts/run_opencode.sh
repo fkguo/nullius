@@ -13,6 +13,7 @@ VARIANT=""
 ATTACH_URL=""
 TOOL_MODE="none"
 WORKSPACE_DIR=""
+SKIP_PERMS=0
 THINKING=0
 DRY_RUN=0
 NO_FALLBACK=0
@@ -41,6 +42,11 @@ Options:
   --server-port PORT      Port for --start-server (default: auto-selected free port)
   --tool-mode MODE        Default: none. Choices: none, workspace.
   --workspace-dir DIR     Optional workspace path used when --tool-mode workspace (default: current cwd).
+  --skip-permissions      Pass --dangerously-skip-permissions to opencode run, auto-approving tool
+                          calls. REQUIRED for headless agentic tasks that must WRITE/EDIT/run in the
+                          workspace: --tool-mode workspace alone only sets --dir (the agent sees the
+                          dir but its file-write tool calls are not auto-approved, so nothing is
+                          written). Combine with --tool-mode workspace for autonomous write tasks.
   --thinking              Show thinking blocks in OpenCode output events
   --system-prompt-file F  Optional. Prepended to stdin before prompt file.
   --prompt-file FILE      Required
@@ -277,6 +283,10 @@ while [[ $# -gt 0 ]]; do
       WORKSPACE_DIR="$2"
       shift 2
       ;;
+    --skip-permissions)
+      SKIP_PERMS=1
+      shift
+      ;;
     --thinking) THINKING=1; shift 1;;
     --system-prompt-file)
       require_value "$1" "${2-}"
@@ -446,6 +456,7 @@ if [[ "${DRY_RUN}" -eq 1 ]]; then
   fi
   echo "thinking: ${THINKING}"
   echo "no_fallback: ${NO_FALLBACK}"
+  echo "skip_permissions: ${SKIP_PERMS}"
 
   cmd=(opencode run --format json)
   if [[ -n "${MODEL}" ]]; then
@@ -470,6 +481,9 @@ if [[ "${DRY_RUN}" -eq 1 ]]; then
     fi
   else
     cmd+=(--dir "<isolated-temp-dir>")
+  fi
+  if [[ "${SKIP_PERMS}" -eq 1 ]]; then
+    cmd+=(--dangerously-skip-permissions)
   fi
   if [[ "${THINKING}" -eq 1 ]]; then
     cmd+=(--thinking)
@@ -496,6 +510,9 @@ if [[ "${DRY_RUN}" -eq 1 ]]; then
       fi
     else
       fallback_cmd+=(--dir "<isolated-temp-dir>")
+    fi
+    if [[ "${SKIP_PERMS}" -eq 1 ]]; then
+      fallback_cmd+=(--dangerously-skip-permissions)
     fi
     if [[ "${THINKING}" -eq 1 ]]; then
       fallback_cmd+=(--thinking)

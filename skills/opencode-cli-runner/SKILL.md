@@ -51,7 +51,8 @@ bash "${SKILL_DIR}/scripts/run_opencode.sh" \
 - If `--system-prompt-file` is provided, it is prepended to stdin before `--prompt-file` (separated by a blank line).
 - Workspace visibility is now explicit:
   - Default is `--tool-mode none`, which runs OpenCode in an isolated temp directory.
-  - Use `--tool-mode workspace` to expose a workspace via `--workspace-dir DIR` (defaults to the current cwd).
+  - Use `--tool-mode workspace` to expose a workspace via `--workspace-dir DIR` (defaults to the current cwd). This only sets `opencode run --dir DIR`; the agent can SEE the directory but, under the current OpenCode permission model, its file-write/edit/run tool calls are NOT auto-approved. In a headless (non-interactive) run those tool calls silently do nothing, so the agent produces no files and often no final text (`No text events found`).
+  - For a headless AGENTIC task that must WRITE/EDIT/run in the workspace, ALSO pass `--skip-permissions`, which adds `opencode run --dangerously-skip-permissions` (auto-approve tool calls). Typical write task: `--tool-mode workspace --workspace-dir DIR --skip-permissions`. Have the agent write its deliverable to a file in DIR and read that file back — do not rely on stdout capture. Omit `--skip-permissions` for read-only / text-only runs.
 - `--start-server` is useful when repeated one-shot runs would otherwise keep paying OpenCode backend/MCP cold-start costs; it follows the official `serve` + `run --attach` pattern.
 - The runner parses JSON events and writes only assistant text (`type=text`) to `--out`.
 - The runner treats JSON `type=error` events as failures even when `opencode` exits with code `0`.
