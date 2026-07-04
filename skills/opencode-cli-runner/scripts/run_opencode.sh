@@ -14,6 +14,7 @@ ATTACH_URL=""
 TOOL_MODE="none"
 WORKSPACE_DIR=""
 SKIP_PERMS=0
+CONTINUE_ON_LENGTH=2
 THINKING=0
 DRY_RUN=0
 NO_FALLBACK=0
@@ -47,6 +48,12 @@ Options:
                           workspace: --tool-mode workspace alone only sets --dir (the agent sees the
                           dir but its file-write tool calls are not auto-approved, so nothing is
                           written). Combine with --tool-mode workspace for autonomous write tasks.
+  --continue-on-length N  Auto-continue a response cut by the PER-RESPONSE output/reasoning token cap
+                          (last step_finish reason "length"): resume the SAME opencode session with
+                          -s <sessionID> up to N times (default: 2; 0 disables). Reasoning-heavy
+                          models can burn the whole budget before emitting text or writing files;
+                          the session carries the full state across the cut, so this is the headless
+                          analog of an interactive "continue".
   --thinking              Show thinking blocks in OpenCode output events
   --system-prompt-file F  Optional. Prepended to stdin before prompt file.
   --prompt-file FILE      Required
@@ -287,6 +294,15 @@ while [[ $# -gt 0 ]]; do
       SKIP_PERMS=1
       shift
       ;;
+    --continue-on-length)
+      require_value "$1" "${2-}"
+      if ! [[ "$2" =~ ^[0-9]+$ ]]; then
+        echo "--continue-on-length must be a non-negative integer (got '$2')" >&2
+        exit 2
+      fi
+      CONTINUE_ON_LENGTH="$2"
+      shift 2
+      ;;
     --thinking) THINKING=1; shift 1;;
     --system-prompt-file)
       require_value "$1" "${2-}"
@@ -457,6 +473,7 @@ if [[ "${DRY_RUN}" -eq 1 ]]; then
   echo "thinking: ${THINKING}"
   echo "no_fallback: ${NO_FALLBACK}"
   echo "skip_permissions: ${SKIP_PERMS}"
+  echo "continue_on_length: ${CONTINUE_ON_LENGTH}"
 
   cmd=(opencode run --format json)
   if [[ -n "${MODEL}" ]]; then
@@ -599,6 +616,38 @@ if [[ "${START_SERVER}" -eq 1 ]]; then
   ATTACH_URL="http://${SERVER_HOSTNAME}:${SERVER_PORT}"
 fi
 
+# Detect a response cut by the PER-RESPONSE output/reasoning token cap: prints the sessionID when the
+# LAST step_finish event in the raw JSON stream has part.reason == "length" (prints nothing otherwise).
+# Reasoning-heavy models can burn the whole budget "thinking" before emitting text or writing files.
+detect_length_cut() {
+  python3 - "$1" <<'PY'
+import json
+import sys
+
+sid = ""
+last_reason = ""
+for line in open(sys.argv[1], encoding="utf-8", errors="replace"):
+    line = line.strip()
+    if not line:
+        continue
+    try:
+        obj = json.loads(line)
+    except Exception:
+        continue
+    if not isinstance(obj, dict):
+        continue
+    if isinstance(obj.get("sessionID"), str):
+        sid = obj["sessionID"]
+    part = obj.get("part")
+    if obj.get("type") == "step_finish" and isinstance(part, dict):
+        reason = part.get("reason")
+        if isinstance(reason, str):
+            last_reason = reason
+if sid and last_reason == "length":
+    print(sid)
+PY
+}
+
 run_once() {
   local use_model="$1"
   local raw_file="$2"
@@ -623,6 +672,9 @@ run_once() {
     cmd+=(--attach "${ATTACH_URL}")
   fi
   cmd+=(--dir "${run_dir}")
+  if [[ "${SKIP_PERMS}" -eq 1 ]]; then
+    cmd+=(--dangerously-skip-permissions)
+  fi
   if [[ "${THINKING}" -eq 1 ]]; then
     cmd+=(--thinking)
   fi
@@ -631,6 +683,40 @@ run_once() {
   "${cmd[@]}" <"${stdin_file}" >"${raw_file}" 2>"${stderr_file}"
   cmd_code=$?
   set -e
+
+  # Auto-continue on a length-cut response: a reasoning-heavy model can exhaust the per-response
+  # output/reasoning token budget (the last step_finish carries reason "length") BEFORE emitting its
+  # text or writing its file deliverable. opencode sessions keep the full state, so resuming the same
+  # session with `-s <sessionID>` continues exactly where the cut happened — the headless analog of an
+  # interactive "continue". Bounded by --continue-on-length (0 disables).
+  if [[ "${CONTINUE_ON_LENGTH}" -gt 0 && "${cmd_code}" -eq 0 ]]; then
+    local cont=0 sid=""
+    while (( cont < CONTINUE_ON_LENGTH )); do
+      sid="$(detect_length_cut "${raw_file}")"
+      [[ -n "${sid}" ]] || break
+      local -a cont_cmd=(opencode run --format json -s "${sid}")
+      if [[ "${use_model}" -eq 1 && -n "${MODEL}" ]]; then
+        cont_cmd+=(-m "${MODEL}")
+      fi
+      if [[ -n "${VARIANT}" ]]; then
+        cont_cmd+=(--variant "${VARIANT}")
+      fi
+      if [[ -n "${ATTACH_URL}" ]]; then
+        cont_cmd+=(--attach "${ATTACH_URL}")
+      fi
+      cont_cmd+=(--dir "${run_dir}")
+      if [[ "${SKIP_PERMS}" -eq 1 ]]; then
+        cont_cmd+=(--dangerously-skip-permissions)
+      fi
+      set +e
+      printf 'Continue exactly where you left off. If a file deliverable was requested, write/finish it now, then stop.' \
+        | "${cont_cmd[@]}" >>"${raw_file}" 2>>"${stderr_file}"
+      cmd_code=$?
+      set -e
+      cont=$((cont + 1))
+      [[ "${cmd_code}" -eq 0 ]] || break
+    done
+  fi
 
   parse_opencode_json "${raw_file}" "${text_file}" "${err_file}" || parse_code=$?
 
