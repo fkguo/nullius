@@ -2,6 +2,7 @@ import { existsSync } from 'fs';
 import { IdeaEngineStore } from '../store/engine-store.js';
 import { budgetSnapshot } from './budget-snapshot.js';
 import { RpcError } from './errors.js';
+import { nodeLifecycleState } from './node-shared.js';
 
 interface IdempotencyResponse {
   kind: 'error' | 'result';
@@ -80,15 +81,30 @@ function preparedSideEffectsCommitted(store: IdeaEngineStore, method: string, re
     }
     const summary = nodeSummary as Record<string, unknown>;
     const nodeId = summary.node_id;
-    const expectedRevision = summary.revision;
-    if (typeof nodeId !== 'string' || typeof expectedRevision !== 'number') {
+    if (typeof nodeId !== 'string' || typeof summary.updated_at !== 'string') {
       return false;
     }
     const nodes = store.loadNodes<Record<string, unknown>>(campaignId);
     const node = nodes[nodeId];
-    // The prepared response is only committed once the node mutation
-    // reached the store; a later revision also counts as committed.
-    return !!node && Number(node.revision ?? 0) >= expectedRevision;
+    if (!node) {
+      return false;
+    }
+    // The node revision is a shared monotonic counter that every mutation
+    // advances, so `revision >= recorded` gives false positives: a crash
+    // before saveNodes, followed by an unrelated mutation reaching the same
+    // revision, would replay a posterior/lifecycle side effect that never
+    // landed. Confirm instead that the stored node still carries the exact
+    // state this operation produced — its unique updated_at stamp plus the
+    // recorded side-effect payload — the same value-equality probe the
+    // campaign.* branches above use (recorded status/budget vs a counter).
+    if (String(node.updated_at ?? '') !== summary.updated_at) {
+      return false;
+    }
+    if (method === 'node.set_posterior') {
+      return JSON.stringify(node.posterior ?? null) === JSON.stringify(summary.posterior ?? null);
+    }
+    return nodeLifecycleState(node) === summary.lifecycle_state
+      && JSON.stringify(node.activation_condition ?? null) === JSON.stringify(summary.activation_condition ?? null);
   }
   return false;
 }

@@ -20,12 +20,9 @@
             "params": {
               "charter": {
                 "campaign_name": "write-side-fixture",
-                "domain": "hep-ph",
+                "domain": "test-domain",
                 "scope": "write-side happy path fixture scope",
-                "approval_gate_ref": "gate://a0.1",
-                "extensions": {
-                  "initial_island_count": 2
-                }
+                "approval_gate_ref": "gate://a0.1"
               },
               "seed_pack": {
                 "seeds": [
@@ -71,7 +68,7 @@
               "idempotency": {
                 "idempotency_key": "write-init-happy",
                 "is_replay": false,
-                "payload_hash": "sha256:80213df002e01183c8ee9e98953e772f49d6468f62601bd5602f512a18e594a9"
+                "payload_hash": "sha256:256336ebb6b530f9467c357dc7f776da4f1a182e41189405aa1328b391be9824"
               }
             }
           }
@@ -84,12 +81,9 @@
             "params": {
               "charter": {
                 "campaign_name": "write-side-fixture",
-                "domain": "hep-ph",
+                "domain": "test-domain",
                 "scope": "write-side happy path fixture scope",
-                "approval_gate_ref": "gate://a0.1",
-                "extensions": {
-                  "initial_island_count": 2
-                }
+                "approval_gate_ref": "gate://a0.1"
               },
               "seed_pack": {
                 "seeds": [
@@ -135,7 +129,7 @@
               "idempotency": {
                 "idempotency_key": "write-init-happy",
                 "is_replay": true,
-                "payload_hash": "sha256:80213df002e01183c8ee9e98953e772f49d6468f62601bd5602f512a18e594a9"
+                "payload_hash": "sha256:256336ebb6b530f9467c357dc7f776da4f1a182e41189405aa1328b391be9824"
               }
             }
           }
@@ -146,12 +140,9 @@
           "campaign_id": "11111111-1111-4111-8111-111111111111",
           "charter": {
             "campaign_name": "write-side-fixture",
-            "domain": "hep-ph",
+            "domain": "test-domain",
             "scope": "write-side happy path fixture scope",
-            "approval_gate_ref": "gate://a0.1",
-            "extensions": {
-              "initial_island_count": 2
-            }
+            "approval_gate_ref": "gate://a0.1"
           },
           "seed_pack": {
             "seeds": [
@@ -526,7 +517,7 @@
         ],
         "global/idempotency_store.json": {
           "campaign.init:write-init-happy": {
-            "payload_hash": "sha256:80213df002e01183c8ee9e98953e772f49d6468f62601bd5602f512a18e594a9",
+            "payload_hash": "sha256:256336ebb6b530f9467c357dc7f776da4f1a182e41189405aa1328b391be9824",
             "created_at": "2026-03-14T12:00:00Z",
             "state": "committed",
             "response": {
@@ -550,7 +541,7 @@
                 "idempotency": {
                   "idempotency_key": "write-init-happy",
                   "is_replay": false,
-                  "payload_hash": "sha256:80213df002e01183c8ee9e98953e772f49d6468f62601bd5602f512a18e594a9"
+                  "payload_hash": "sha256:256336ebb6b530f9467c357dc7f776da4f1a182e41189405aa1328b391be9824"
                 }
               }
             }
@@ -576,7 +567,7 @@
             "params": {
               "charter": {
                 "campaign_name": "write-side-fixture",
-                "domain": "hep-ph",
+                "domain": "test-domain",
                 "scope": "write-side conflict baseline scope",
                 "approval_gate_ref": "gate://a0.1"
               },
@@ -620,7 +611,7 @@
               "idempotency": {
                 "idempotency_key": "write-init-conflict",
                 "is_replay": false,
-                "payload_hash": "sha256:a9c480da6a14a930de7fa3b7b26276ce8d5692ce71caf8d5dc38ea4d315a479f"
+                "payload_hash": "sha256:5e34ae746285f1a75e48848f32015fda639566bf20563581496867fdbe3e9ff4"
               }
             }
           }
@@ -633,7 +624,7 @@
             "params": {
               "charter": {
                 "campaign_name": "write-side-fixture",
-                "domain": "hep-ph",
+                "domain": "test-domain",
                 "scope": "write-side conflict DIFFERENT scope",
                 "approval_gate_ref": "gate://a0.1"
               },
@@ -664,9 +655,9 @@
               "data": {
                 "reason": "idempotency_key_conflict",
                 "idempotency_key": "write-init-conflict",
-                "payload_hash": "sha256:56f378ad328f6914309c89b32dd1fe10bfc50a81bcb31acba759861ee9151811",
+                "payload_hash": "sha256:bc36044d35e2cd101fc0d570362a6f08c6b94008f8e5141d4085bd966aa7d245",
                 "details": {
-                  "stored_payload_hash": "sha256:a9c480da6a14a930de7fa3b7b26276ce8d5692ce71caf8d5dc38ea4d315a479f"
+                  "stored_payload_hash": "sha256:5e34ae746285f1a75e48848f32015fda639566bf20563581496867fdbe3e9ff4"
                 }
               }
             }
@@ -678,7 +669,7 @@
           "campaign_id": "66666666-6666-4666-8666-666666666666",
           "charter": {
             "campaign_name": "write-side-fixture",
-            "domain": "hep-ph",
+            "domain": "test-domain",
             "scope": "write-side conflict baseline scope",
             "approval_gate_ref": "gate://a0.1"
           },
@@ -882,7 +873,7 @@
         ],
         "global/idempotency_store.json": {
           "campaign.init:write-init-conflict": {
-            "payload_hash": "sha256:a9c480da6a14a930de7fa3b7b26276ce8d5692ce71caf8d5dc38ea4d315a479f",
+            "payload_hash": "sha256:5e34ae746285f1a75e48848f32015fda639566bf20563581496867fdbe3e9ff4",
             "created_at": "2026-03-14T12:05:00Z",
             "state": "committed",
             "response": {
@@ -906,7 +897,7 @@
                 "idempotency": {
                   "idempotency_key": "write-init-conflict",
                   "is_replay": false,
-                  "payload_hash": "sha256:a9c480da6a14a930de7fa3b7b26276ce8d5692ce71caf8d5dc38ea4d315a479f"
+                  "payload_hash": "sha256:5e34ae746285f1a75e48848f32015fda639566bf20563581496867fdbe3e9ff4"
                 }
               }
             }
@@ -946,16 +937,6 @@
                   "nodes_used": 1,
                   "nodes_remaining": 9
                 },
-                "island_states": [
-                  {
-                    "island_id": "island-0",
-                    "state": "SEEDING",
-                    "population_size": 1,
-                    "stagnation_counter": 0,
-                    "repopulation_count": 0,
-                    "best_score": null
-                  }
-                ],
                 "idempotency": {
                   "idempotency_key": "write-init-recovery",
                   "is_replay": false,
@@ -975,7 +956,7 @@
             "params": {
               "charter": {
                 "campaign_name": "write-side-fixture",
-                "domain": "hep-ph",
+                "domain": "test-domain",
                 "scope": "write-side prepared recovery scope",
                 "approval_gate_ref": "gate://a0.1"
               },
@@ -1000,249 +981,33 @@
           "response": {
             "jsonrpc": "2.0",
             "id": "write-init-recovery",
-            "result": {
-              "campaign_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-              "status": "running",
-              "created_at": "2026-03-14T12:10:00Z",
-              "budget_snapshot": {
-                "tokens_used": 0,
-                "tokens_remaining": 100000,
-                "cost_usd_used": 0,
-                "cost_usd_remaining": 100,
-                "wall_clock_s_elapsed": 0,
-                "wall_clock_s_remaining": 100000,
-                "steps_used": 0,
-                "steps_remaining": 50,
-                "nodes_used": 1,
-                "nodes_remaining": 9
-              },
-              "idempotency": {
+            "error": {
+              "code": -32002,
+              "message": "schema_validation_failed",
+              "data": {
+                "reason": "idempotency_key_conflict",
                 "idempotency_key": "write-init-recovery",
-                "is_replay": false,
-                "payload_hash": "sha256:9a29d34f1ecf5a76aa69451e423faead818b3aba120f75896e5a82ee6f0a2a2e"
+                "payload_hash": "sha256:2c39da5c7ae3efb7b31e41fc2f6f47e0c014e9c240c7b6075d05d4be4b4f3e3d",
+                "details": {
+                  "stored_payload_hash": "sha256:9a29d34f1ecf5a76aa69451e423faead818b3aba120f75896e5a82ee6f0a2a2e"
+                }
               }
             }
           }
         }
       ],
       "expected_store": {
-        "campaigns/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/campaign.json": {
-          "campaign_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-          "charter": {
-            "campaign_name": "write-side-fixture",
-            "domain": "hep-ph",
-            "scope": "write-side prepared recovery scope",
-            "approval_gate_ref": "gate://a0.1"
-          },
-          "seed_pack": {
-            "seeds": [
-              {
-                "seed_type": "text",
-                "content": "seed-1"
-              }
-            ]
-          },
-          "budget": {
-            "max_tokens": 100000,
-            "max_cost_usd": 100,
-            "max_wall_clock_s": 100000,
-            "max_steps": 50,
-            "max_nodes": 10
-          },
-          "status": "running",
-          "created_at": "2026-03-14T12:10:00Z",
-          "usage": {
-            "tokens_used": 0,
-            "cost_usd_used": 0,
-            "wall_clock_s_elapsed": 0,
-            "steps_used": 0,
-            "nodes_used": 1
-          }
-        },
-        "campaigns/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/nodes_latest.json": {
-          "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb": {
-            "campaign_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-            "idea_id": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
-            "node_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
-            "revision": 1,
-            "parent_node_ids": [],
-            "operator_id": "seed.import",
-            "operator_family": "Seed",
-            "origin": {
-              "model": "seed_pack",
-              "temperature": 0,
-              "prompt_hash": "sha256:0eb026731d9ea3f870511f8c18daeb814eaa2c9e276082b204f2a962212fb5bd",
-              "timestamp": "2026-03-14T12:10:00Z",
-              "role": "SeedImporter"
-            },
-            "operator_trace": {
-              "inputs": {
-                "seed_type": "text",
-                "seed_index": 0
-              },
-              "params": {
-                "formalization": {
-                  "mode": "explain_then_formalize_deterministic_v1",
-                  "source_artifact": "rationale_draft",
-                  "rationale_hash": "sha256:d89201d86f05305fd32165f207bb83726c48c0724e273fb7b0990d38196e475f",
-                  "input_fields": [
-                    "title",
-                    "rationale",
-                    "risks",
-                    "kill_criteria"
-                  ],
-                  "risk_count": 1,
-                  "kill_criteria_count": 1
-                }
-              },
-              "evidence_uris_used": [
-                "https://example.org/reference"
-              ]
-            },
-            "rationale_draft": {
-              "title": "Seed 1",
-              "rationale": "seed-1",
-              "risks": [
-                "unverified hypothesis"
-              ],
-              "kill_criteria": [
-                "fails basic consistency checks"
-              ]
-            },
-            "idea_card": {
-              "thesis_statement": "Seed 1: seed-1 This rationale requires formal validation before promotion.",
-              "testable_hypotheses": [
-                "Hypothesis from seed 1"
-              ],
-              "required_observables": [
-                "observable-1"
-              ],
-              "minimal_compute_plan": [
-                {
-                  "step": "construct toy estimate",
-                  "method": "toy estimate",
-                  "estimated_difficulty": "moderate"
-                }
-              ],
-              "claims": [
-                {
-                  "claim_text": "Seed-derived claim: seed-1",
-                  "support_type": "literature",
-                  "evidence_uris": [
-                    "https://example.org/reference"
-                  ]
-                }
-              ]
-            },
-            "lifecycle_state": "active",
-            "posterior": null,
-            "activation_condition": null,
-            "grounding_audit": null,
-            "reduction_report": null,
-            "reduction_audit": null,
-            "created_at": "2026-03-14T12:10:00Z"
-          }
-        },
-        "campaigns/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/nodes_log.jsonl": [
-          {
-            "mutation": "create",
-            "node_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
-            "revision": 1,
-            "node": {
-              "campaign_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-              "idea_id": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
-              "node_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
-              "revision": 1,
-              "parent_node_ids": [],
-              "operator_id": "seed.import",
-              "operator_family": "Seed",
-              "origin": {
-                "model": "seed_pack",
-                "temperature": 0,
-                "prompt_hash": "sha256:0eb026731d9ea3f870511f8c18daeb814eaa2c9e276082b204f2a962212fb5bd",
-                "timestamp": "2026-03-14T12:10:00Z",
-                "role": "SeedImporter"
-              },
-              "operator_trace": {
-                "inputs": {
-                  "seed_type": "text",
-                  "seed_index": 0
-                },
-                "params": {
-                  "formalization": {
-                    "mode": "explain_then_formalize_deterministic_v1",
-                    "source_artifact": "rationale_draft",
-                    "rationale_hash": "sha256:d89201d86f05305fd32165f207bb83726c48c0724e273fb7b0990d38196e475f",
-                    "input_fields": [
-                      "title",
-                      "rationale",
-                      "risks",
-                      "kill_criteria"
-                    ],
-                    "risk_count": 1,
-                    "kill_criteria_count": 1
-                  }
-                },
-                "evidence_uris_used": [
-                  "https://example.org/reference"
-                ]
-              },
-              "rationale_draft": {
-                "title": "Seed 1",
-                "rationale": "seed-1",
-                "risks": [
-                  "unverified hypothesis"
-                ],
-                "kill_criteria": [
-                  "fails basic consistency checks"
-                ]
-              },
-              "idea_card": {
-                "thesis_statement": "Seed 1: seed-1 This rationale requires formal validation before promotion.",
-                "testable_hypotheses": [
-                  "Hypothesis from seed 1"
-                ],
-                "required_observables": [
-                  "observable-1"
-                ],
-                "minimal_compute_plan": [
-                  {
-                    "step": "construct toy estimate",
-                    "method": "toy estimate",
-                    "estimated_difficulty": "moderate"
-                  }
-                ],
-                "claims": [
-                  {
-                    "claim_text": "Seed-derived claim: seed-1",
-                    "support_type": "literature",
-                    "evidence_uris": [
-                      "https://example.org/reference"
-                    ]
-                  }
-                ]
-              },
-              "lifecycle_state": "active",
-              "posterior": null,
-              "activation_condition": null,
-              "grounding_audit": null,
-              "reduction_report": null,
-              "reduction_audit": null,
-              "created_at": "2026-03-14T12:10:00Z"
-            }
-          }
-        ],
         "global/idempotency_store.json": {
           "campaign.init:write-init-recovery": {
             "payload_hash": "sha256:9a29d34f1ecf5a76aa69451e423faead818b3aba120f75896e5a82ee6f0a2a2e",
-            "created_at": "2026-03-14T12:10:00Z",
-            "state": "committed",
+            "created_at": "2026-03-14T12:09:00Z",
+            "state": "prepared",
             "response": {
               "kind": "result",
               "payload": {
-                "campaign_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+                "campaign_id": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
                 "status": "running",
-                "created_at": "2026-03-14T12:10:00Z",
+                "created_at": "2026-03-14T12:09:00Z",
                 "budget_snapshot": {
                   "tokens_used": 0,
                   "tokens_remaining": 100000,

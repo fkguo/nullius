@@ -61,8 +61,8 @@ describe('store substrate', () => {
 
     const artifactRef = store.writeArtifact(
       '11111111-1111-4111-8111-111111111111',
-      'scorecards',
-      'scorecards.json',
+      'handoff',
+      'handoff.json',
       { ok: true },
     );
     expect(artifactRef.startsWith('file://')).toBe(true);
@@ -119,7 +119,7 @@ describe('store substrate', () => {
     const missingRef = pathToFileURL(
       store.artifactPath(
         '11111111-1111-4111-8111-111111111111',
-        'scorecards',
+        'handoff',
         'missing.json',
       ),
     ).href;

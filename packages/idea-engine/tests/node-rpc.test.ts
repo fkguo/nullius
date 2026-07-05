@@ -4,6 +4,7 @@ import { join } from 'path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { IdeaEngineRpcService } from '../src/service/rpc-service.js';
 import { RpcError } from '../src/service/errors.js';
+import { recordOrReplay } from '../src/service/idempotency.js';
 
 function initCampaign(
   service: IdeaEngineRpcService,
@@ -488,5 +489,104 @@ describe('node-side RPC surface (posterior portfolio)', () => {
       idempotency_key: 'rank-paused',
       method: 'posterior',
     }), -32015, 'campaign_not_active');
+  });
+
+  it('re-executes a prepared set_posterior whose write never landed, even when an unrelated mutation reached the recorded revision', () => {
+    const service = freshService('idea-engine-idem-crash-');
+    const campaignId = initCampaign(service);
+    const [nodeId] = allNodeIds(service, campaignId);
+    const store = service.read.store;
+
+    const before = store.loadNodes<Record<string, unknown>>(campaignId)[nodeId!]!;
+    const baseRevision = Number(before.revision);
+
+    // A prepared set_posterior record whose node write never reached the store
+    // (crash before saveNodes): it claims revision baseRevision+1 and a
+    // posterior the stored node does not have.
+    const payloadHash = 'sha256:crash-recovery-fixture';
+    const crashedAt = '2000-01-01T00:00:00.000Z';
+    const idem = store.loadIdempotency<Record<string, unknown>>(campaignId);
+    idem['node.set_posterior:crashed-key'] = {
+      created_at: crashedAt,
+      payload_hash: payloadHash,
+      state: 'prepared',
+      response: {
+        kind: 'result',
+        payload: {
+          campaign_id: campaignId,
+          node: {
+            activation_condition: null,
+            idea_id: String(before.idea_id),
+            lifecycle_state: 'active',
+            node_id: nodeId,
+            posterior: { evidence_count: 5, updated_at: crashedAt, value: 0.9 },
+            revision: baseRevision + 1,
+            updated_at: crashedAt,
+          },
+        },
+      },
+    };
+    store.saveIdempotency(campaignId, idem);
+
+    // An unrelated mutation advances the node revision to the recorded revision
+    // with a different updated_at; the crashed posterior write stays absent.
+    service.handle('node.set_lifecycle', {
+      campaign_id: campaignId,
+      idempotency_key: 'unrelated-lifecycle',
+      lifecycle_state: 'archived',
+      node_id: nodeId,
+    });
+    const bumped = store.loadNodes<Record<string, unknown>>(campaignId)[nodeId!]!;
+    expect(Number(bumped.revision)).toBe(baseRevision + 1);
+    expect(bumped.posterior ?? null).toBeNull();
+
+    // The prepared op must not be treated as committed: its side effect never
+    // landed, so recovery returns null and the caller re-executes rather than
+    // replaying a cached response for a write that did not happen.
+    const replay = recordOrReplay({
+      campaignId,
+      idempotencyKeyValue: 'crashed-key',
+      method: 'node.set_posterior',
+      payloadHash,
+      store,
+    });
+    expect(replay).toBeNull();
+  });
+
+  it('replays a prepared set_posterior whose write did land (matching updated_at and posterior)', () => {
+    const service = freshService('idea-engine-idem-landed-');
+    const campaignId = initCampaign(service);
+    const [nodeId] = allNodeIds(service, campaignId);
+    const store = service.read.store;
+
+    const result = setPosterior(service, campaignId, nodeId!, 'sp-landed', 0.5, 2);
+    const summary = result.node as Record<string, unknown>;
+
+    // Simulate a crash after saveNodes but before the committed marker was
+    // written: flip the record back to prepared. Recovery must recognize the
+    // write landed (the node carries the recorded updated_at and posterior) and
+    // replay the response, marking the record committed.
+    const key = 'node.set_posterior:sp-landed';
+    const idem = store.loadIdempotency<Record<string, unknown>>(campaignId);
+    const record = idem[key]!;
+    const payloadHash = String(record.payload_hash);
+    record.state = 'prepared';
+    idem[key] = record;
+    store.saveIdempotency(campaignId, idem);
+
+    const replay = recordOrReplay({
+      campaignId,
+      idempotencyKeyValue: 'sp-landed',
+      method: 'node.set_posterior',
+      payloadHash,
+      store,
+    });
+    expect(replay).not.toBeNull();
+    expect(replay!.kind).toBe('result');
+    expect((replay!.payload.node as Record<string, unknown>).posterior).toEqual(summary.posterior);
+    expect((replay!.payload.idempotency as Record<string, unknown>).is_replay).toBe(true);
+
+    const after = store.loadIdempotency<Record<string, unknown>>(campaignId);
+    expect((after[key] as Record<string, unknown>).state).toBe('committed');
   });
 });
