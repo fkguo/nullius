@@ -141,6 +141,10 @@ def _gemini_runner() -> Path:
     return _agent_skills_root() / "gemini-cli-runner" / "scripts" / "run_gemini.sh"
 
 
+def _kimi_runner() -> Path:
+    return _agent_skills_root() / "kimi-cli-runner" / "scripts" / "run_kimi.sh"
+
+
 def _require_file(p: Path, *, label: str) -> None:
     if not p.is_file():
         raise FileNotFoundError(f"{label} not found: {p}")
@@ -620,6 +624,11 @@ def _classify_model(model: str) -> tuple[str, Optional[str]]:
         if not runner_model or runner_model == "default":
             return "gemini", None
         return "gemini", runner_model
+    if m.startswith("kimi/"):
+        runner_model = m.split("/", 1)[1].strip()
+        if not runner_model or runner_model == "default":
+            return "kimi", None
+        return "kimi", runner_model
     return "opencode", m
 
 
@@ -650,6 +659,7 @@ def _build_plans(
     claude_runner: Path,
     codex_runner: Path,
     gemini_runner: Path,
+    kimi_runner: Path,
 ) -> list[AgentPlan]:
     plans: list[AgentPlan] = []
     for i, model in enumerate(models):
@@ -660,6 +670,8 @@ def _build_plans(
             runner_path = claude_runner
         elif backend == "codex":
             runner_path = codex_runner
+        elif backend == "kimi":
+            runner_path = kimi_runner
         else:
             runner_path = gemini_runner
         plans.append(
@@ -681,6 +693,7 @@ def _validate_runners(plans: list[AgentPlan]) -> None:
         "claude": "Claude runner",
         "codex": "Codex runner",
         "gemini": "Gemini runner",
+        "kimi": "Kimi runner",
     }
     for plan in plans:
         if plan.runner_path in checked:
@@ -1412,6 +1425,12 @@ def _parse_args() -> argparse.Namespace:
         type=Path,
         help="Optional override path to the Gemini runner script.",
     )
+    ap.add_argument(
+        "--kimi-runner",
+        default=None,
+        type=Path,
+        help="Optional override path to the Kimi runner script.",
+    )
     ap.add_argument("--system", required=True, type=Path, help="System prompt file.")
     ap.add_argument("--prompt", required=True, type=Path, help="User prompt file.")
 
@@ -1609,6 +1628,7 @@ def main() -> int:
     claude_runner = args.claude_runner.expanduser().resolve() if args.claude_runner else _claude_runner()
     codex_runner = args.codex_runner.expanduser().resolve() if args.codex_runner else _codex_runner()
     gemini_runner = args.gemini_runner.expanduser().resolve() if args.gemini_runner else _gemini_runner()
+    kimi_runner = args.kimi_runner.expanduser().resolve() if args.kimi_runner else _kimi_runner()
 
     system_prompt = args.system.expanduser().resolve()
     user_prompt = args.prompt.expanduser().resolve()
@@ -1619,7 +1639,7 @@ def main() -> int:
     fallback_targets = set(_split_csv(args.fallback_target_backends))
     fallback_codex_model = _normalize_model_arg(args.fallback_codex_model)
     fallback_claude_model = _normalize_model_arg(args.fallback_claude_model)
-    allowed_backends = {"opencode", "claude", "codex", "gemini"}
+    allowed_backends = {"opencode", "claude", "codex", "gemini", "kimi"}
     backend_prompt_overrides: dict[str, Path] = {}
     backend_system_overrides: dict[str, Optional[Path]] = {}
     backend_output_overrides: dict[str, Path] = {}
@@ -1723,6 +1743,7 @@ def main() -> int:
             claude_runner=claude_runner,
             codex_runner=codex_runner,
             gemini_runner=gemini_runner,
+            kimi_runner=kimi_runner,
         )
         backend_counts: dict[str, int] = {}
         for plan in plans:
@@ -1740,6 +1761,7 @@ def main() -> int:
                 "claude": (claude_runner, "Claude runner"),
                 "codex": (codex_runner, "Codex runner"),
                 "gemini": (gemini_runner, "Gemini runner"),
+                "kimi": (kimi_runner, "Kimi runner"),
             }
             for b in fallback_order:
                 p, label = runner_checks[b]
@@ -2024,6 +2046,7 @@ def main() -> int:
                 "claude": claude_runner,
                 "codex": codex_runner,
                 "gemini": gemini_runner,
+                "kimi": kimi_runner,
             }
             for r in fallback_candidates:
                 original_reason = r.get("failure_reason")
@@ -2042,6 +2065,9 @@ def main() -> int:
                     elif backend == "gemini":
                         model = None
                         requested_model = "gemini/default"
+                    elif backend == "kimi":
+                        model = None
+                        requested_model = "kimi/default"
                     else:
                         _append_jsonl(trace_path, {"ts": _utc_now(), "event": "fallback_backend_unknown", "backend": backend})
                         continue

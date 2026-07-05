@@ -1,6 +1,6 @@
 ---
 name: review-swarm
-description: Run clean-room multi-agent loops across Claude/Gemini/Codex/OpenCode with strict review-contract checks, fallback policy, and convergence gates.
+description: Run clean-room multi-agent loops across Claude/Gemini/Codex/OpenCode/Kimi with strict review-contract checks, fallback policy, and convergence gates.
 ---
 
 # Review Swarm (multi-backend)
@@ -9,7 +9,7 @@ This skill provides a reusable clean-room swarm harness for independent reviewer
 
 Core capabilities:
 - Run **N agents** with `run_multi_task.py`.
-- Mix backends: OpenCode, Claude CLI, Codex CLI, Gemini CLI.
+- Mix backends: OpenCode, Claude CLI, Codex CLI, Gemini CLI, Kimi CLI.
 - Enforce strict review output contract (optional).
 - Opt-in two-phase commit-then-review protocol (`--two-phase`).
 - Apply fallback policy when a target backend fails/returns invalid output.
@@ -30,13 +30,16 @@ Install runner skills for any backends you plan to use:
 - `claude-cli-runner` (for `claude/...` models)
 - `codex-cli-runner` (for `codex/...` models)
 - `gemini-cli-runner` (for `gemini/...` models)
+- `kimi-cli-runner` (for `kimi/...` models)
 
 CLIs should be available in `PATH` according to the chosen backends.
 
 ## Host-aware execution (your own family runs native; quality first)
 
-`run_multi_task.py` shells out to CLIs — that is for CROSS-family reviewers. Host capabilities VARY; gate
-on what your host exposes:
+`run_multi_task.py` shells out to CLIs — that is for CROSS-family reviewers: the families you list in
+`--models` should be families OTHER than the one you (the driving agent) run as, so every reviewer is
+genuinely independent of you. Your own family reviews natively in-host, not through its own CLI — never list
+your own family in `--models` just to aggregate. Host capabilities VARY; gate on what your host exposes:
 
 - **Single-family review → keep it in-host, not via that family's CLI.** If you only need YOUR family's
   reviewer (no cross-family swarm aggregation), run it in-host: use a native child-agent/sub-agent
@@ -66,22 +69,25 @@ python3 scripts/bin/run_multi_task.py \
   --agents 3
 ```
 
-## Quick start (dual review: Claude + Gemini)
+## Quick start (cross-family review: families other than your own)
 
-> CLI-only / cross-host example. Inside a Claude host, run the Claude reviewer as a native sub-agent and
-> use the runner only for the non-Claude lane (`--models gemini/default`) — see Host-aware execution above.
+The swarm exists to add reviewers from model families OTHER than the one you run as. List only the OTHER
+families in `--models`; run your own family natively in-host (see Host-aware execution above). Choose the
+list by your host — currently wired backends are `claude/...`, `codex/...`, `gemini/...`, `kimi/...`, and any OpenCode
+`provider/model` (e.g. `zhipuai-coding-plan/glm-5.2` for GLM):
+
+- From a **Claude** host → `codex/...`, `gemini/...`, `zhipuai-coding-plan/glm-5.2` (not `claude/...`).
+- From a **Codex** host → `claude/...`, `gemini/...`, `zhipuai-coding-plan/glm-5.2` (not `codex/...`).
+- From an **OpenCode/GLM** host → `claude/...`, `codex/...`, `gemini/...` (not the OpenCode lane).
+
+Example, driven from a Claude host (three non-Claude reviewers):
 
 ```bash
 python3 scripts/bin/run_multi_task.py \
-  --out-dir /tmp/dual_review \
-  --system /path/to/reviewer_system_claude.md \
+  --out-dir /tmp/cross_family_review \
+  --system /path/to/reviewer_system.md \
   --prompt /path/to/packet.md \
-  --models claude/default,gemini/default \
-  --backend-tool-mode claude=review \
-  --backend-tool-mode gemini=review \
-  --backend-prompt gemini=/path/to/gemini_prompt.txt \
-  --backend-output claude=claude_output.md \
-  --backend-output gemini=gemini_output.md \
+  --models codex/default,gemini/default,zhipuai-coding-plan/glm-5.2 \
   --check-review-contract
 ```
 
@@ -216,7 +222,7 @@ compute-and-compare gate, returning `reference_mismatch` on an order-of-magnitud
 - `--agents N`: rotate through available OpenCode config models.
 - `--models a,b,c`: explicit model specs.
 - `--model default`: one OpenCode agent, CLI default model.
-- Mixed backends supported: `claude/...`, `codex/...`, `gemini/...`, OpenCode `provider/model`.
+- Mixed backends supported: `claude/...`, `codex/...`, `gemini/...`, `kimi/...`, OpenCode `provider/model`.
 
 ### Default-model policy (hard rule)
 
@@ -228,6 +234,7 @@ This rule applies to all backends:
 - Claude CLI
 - Codex CLI
 - Gemini CLI
+- Kimi CLI
 
 ## Fallback policy
 
@@ -241,10 +248,10 @@ Example:
 
 ```bash
 python3 scripts/bin/run_multi_task.py \
-  --out-dir /tmp/dual_review \
+  --out-dir /tmp/cross_family_review \
   --system /path/to/system.md \
   --prompt /path/to/prompt.md \
-  --models claude/default,gemini/default \
+  --models codex/default,gemini/default,zhipuai-coding-plan/glm-5.2 \
   --check-review-contract \
   --fallback-mode auto \
   --fallback-order codex,claude
@@ -264,7 +271,7 @@ python3 scripts/bin/run_multi_task.py \
   --out-dir /tmp/multi_review \
   --system /path/to/system.md \
   --prompt /path/to/task.md \
-  --models claude/opus,gemini/default \
+  --models codex/default,gemini/default,zhipuai-coding-plan/glm-5.2 \
   --check-convergence \
   --convergence-threshold 0.8
 ```
@@ -350,7 +357,7 @@ python3 scripts/bin/run_multi_task.py \
   --system /path/to/reviewer_system.md \
   --scope-prompt /path/to/scope_packet.md \
   --prompt /path/to/diff_packet.md \
-  --models claude/default,codex/default \
+  --models codex/default,gemini/default,zhipuai-coding-plan/glm-5.2 \
   --two-phase \
   --check-review-contract
 ```
@@ -392,8 +399,9 @@ All backends now receive the system prompt by default. However, the delivery mec
 | codex-cli-runner | Merged into stdin (`=== System Instructions ===` + `=== Task ===`) | No — prepended to user message |
 | gemini-cli-runner | Concatenated into stdin (`system + \n\n + prompt`) | No — prepended to stdin |
 | opencode-cli-runner | Concatenated into stdin (same as gemini) | No — prepended to stdin |
+| kimi-cli-runner | `--system-prompt-file` prepended to the prompt file | No — prepended to user message |
 
-Only Claude CLI uses a true system role with elevated priority. The other three runners prepend the system prompt as a user-message prefix. This is a CLI limitation, not a bug.
+Only Claude CLI uses a true system role with elevated priority. The other four runners prepend the system prompt as a user-message prefix. This is a CLI limitation, not a bug.
 
 ### File access
 

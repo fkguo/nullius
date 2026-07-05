@@ -942,6 +942,99 @@ TXT
             meta = json.loads((out_dir / "meta.json").read_text(encoding="utf-8"))
             self.assertEqual(meta["success_count"], 1)
 
+    def test_kimi_models_classify_and_dispatch_to_kimi_runner(self):
+        # Classification: both kimi/default and kimi/<model> map to backend "kimi".
+        self.assertEqual(self.mod._classify_model("kimi/default"), ("kimi", None))
+        self.assertEqual(self.mod._classify_model("kimi/k2-turbo"), ("kimi", "k2-turbo"))
+
+        # Dispatch: both specs run the kimi runner (recorded via agent_N_start cmd),
+        # kimi/default omits --model, kimi/<model> forwards it.
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            out_dir = td_path / "out"
+            sys_prompt = td_path / "system.md"
+            user_prompt = td_path / "prompt.md"
+            opencode_runner = td_path / "run_opencode.sh"
+            kimi_runner = td_path / "run_kimi.sh"
+            _write_stub_runner(opencode_runner)
+            _write_stub_runner(kimi_runner)
+            sys_prompt.write_text("SYSTEM\n", encoding="utf-8")
+            user_prompt.write_text("USER\n", encoding="utf-8")
+
+            argv = [
+                "run_multi_task.py",
+                "--out-dir",
+                str(out_dir),
+                "--opencode-runner",
+                str(opencode_runner),
+                "--kimi-runner",
+                str(kimi_runner),
+                "--system",
+                str(sys_prompt),
+                "--prompt",
+                str(user_prompt),
+                "--models",
+                "kimi/default,kimi/k2-turbo",
+                "--no-parallel",
+            ]
+            code = _run_main_with_argv(self.mod, argv)
+            self.assertEqual(code, 0)
+
+            events = _read_trace_events(out_dir / "trace.jsonl")
+            config_event = next(e for e in events if e.get("event") == "config")
+            self.assertEqual(config_event["backends"], ["kimi", "kimi"])
+
+            start_events = [e for e in events if e.get("event", "").endswith("_start")]
+            self.assertEqual({e["backend"] for e in start_events}, {"kimi"})
+            # main() resolves the --kimi-runner override (symlink-normalized).
+            resolved_kimi_runner = str(kimi_runner.resolve())
+            for e in start_events:
+                # cmd is ["bash", <runner_path>, ...]; dispatch must resolve the kimi runner.
+                self.assertEqual(e["cmd"][1], resolved_kimi_runner)
+
+            cmd_by_model = {e["model"]: e["cmd"] for e in start_events}
+            self.assertNotIn("--model", cmd_by_model["kimi/default"])
+            self.assertIn("--model", cmd_by_model["kimi/k2-turbo"])
+            model_idx = cmd_by_model["kimi/k2-turbo"].index("--model")
+            self.assertEqual(cmd_by_model["kimi/k2-turbo"][model_idx + 1], "k2-turbo")
+
+    def test_missing_kimi_runner_is_detected_before_execution(self):
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            out_dir = td_path / "out"
+            trace = out_dir / "trace.jsonl"
+            sys_prompt = td_path / "system.md"
+            user_prompt = td_path / "prompt.md"
+            opencode_runner = td_path / "run_opencode.sh"
+            _write_stub_runner(opencode_runner)
+            sys_prompt.write_text("SYSTEM\n", encoding="utf-8")
+            user_prompt.write_text("USER\n", encoding="utf-8")
+
+            fake_home = td_path / ".config-home"
+            fake_home.mkdir(parents=True, exist_ok=True)
+
+            argv = [
+                "run_multi_task.py",
+                "--out-dir",
+                str(out_dir),
+                "--opencode-runner",
+                str(opencode_runner),
+                "--system",
+                str(sys_prompt),
+                "--prompt",
+                str(user_prompt),
+                "--models",
+                "kimi/default",
+            ]
+            with _temp_env(CLAUDE_CONFIG_DIR=str(fake_home), CODEX_HOME=str(fake_home)):
+                code = _run_main_with_argv(self.mod, argv)
+
+            self.assertEqual(code, 2)
+            events = _read_trace_events(trace)
+            input_errors = [e for e in events if e.get("event") == "input_error"]
+            self.assertTrue(input_errors)
+            self.assertIn("Kimi runner", input_errors[-1].get("error", ""))
+
 
 class ProjectConfigTests(unittest.TestCase):
     """Tests for review-swarm project config support."""

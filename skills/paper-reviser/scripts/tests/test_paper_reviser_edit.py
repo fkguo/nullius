@@ -603,6 +603,150 @@ class PaperReviserEditTests(unittest.TestCase):
             self.assertEqual(run["auditor_verdict"], "NOT_READY")
             self.assertFalse((out_dir / "tracked.tex").exists())
 
+    def test_backend_families_cover_all_five_cli_runners(self) -> None:
+        self.assertEqual(
+            set(paper_reviser_edit.BACKEND_FAMILIES),
+            {"claude", "gemini", "codex", "opencode", "kimi"},
+        )
+
+    def test_resolve_family_runner_maps_family_to_run_script(self) -> None:
+        base = paper_reviser_edit._skill_root().parent
+        for family in paper_reviser_edit.BACKEND_FAMILIES:
+            expected = base / f"{family}-cli-runner" / "scripts" / f"run_{family}.sh"
+            resolved = paper_reviser_edit._resolve_family_runner(family)
+            # Resolver returns the exact family path when present, else None.
+            if resolved is not None:
+                self.assertEqual(resolved, expected)
+
+    def test_run_backend_dispatches_generically_with_core_flags(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            captured: dict[str, list[str]] = {}
+
+            def fake_run_cmd(cmd: list[str], *, trace_path: Path, stage: str) -> int:
+                captured["cmd"] = cmd
+                return 0
+
+            for family in ("codex", "opencode", "kimi"):
+                runner = tmp / f"run_{family}.sh"
+                runner.write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8")
+                sys_f = tmp / "sys.txt"
+                usr_f = tmp / "usr.txt"
+                out_f = tmp / "out.txt"
+                sys_f.write_text("sys", encoding="utf-8")
+                usr_f.write_text("usr", encoding="utf-8")
+                with mock.patch.object(paper_reviser_edit, "_run_cmd", side_effect=fake_run_cmd):
+                    code = paper_reviser_edit._run_backend(
+                        backend=family,
+                        runners={family: runner},
+                        model="some-model",
+                        system_prompt_file=sys_f,
+                        prompt_file=usr_f,
+                        out_file=out_f,
+                        trace_path=tmp / "trace.jsonl",
+                        stage="stage",
+                    )
+                self.assertEqual(code, 0)
+                cmd = captured["cmd"]
+                self.assertEqual(cmd[:2], ["bash", str(runner)])
+                # Uniform four core flags for every family.
+                self.assertIn("--model", cmd)
+                self.assertEqual(cmd[cmd.index("--model") + 1], "some-model")
+                self.assertEqual(cmd[cmd.index("--system-prompt-file") + 1], str(sys_f))
+                self.assertEqual(cmd[cmd.index("--prompt-file") + 1], str(usr_f))
+                self.assertEqual(cmd[cmd.index("--out") + 1], str(out_f))
+
+    def test_run_backend_rejects_unresolved_backend(self) -> None:
+        with self.assertRaises(ValueError):
+            paper_reviser_edit._run_backend(
+                backend="codex",
+                runners={"claude": Path("/nope")},
+                model="m",
+                system_prompt_file=Path("/s"),
+                prompt_file=Path("/u"),
+                out_file=Path("/o"),
+                trace_path=Path("/t"),
+                stage="stage",
+            )
+
+    def test_main_accepts_cross_family_writer_and_auditor(self) -> None:
+        # A genuinely cross-family writer/auditor pair (codex writer, kimi auditor)
+        # runs end-to-end in stub mode once their runners are resolvable.
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            input_tex = tmp / "fragment.tex"
+            input_tex.write_text("\\section{Intro}\nOld.\n", encoding="utf-8")
+            out_dir = tmp / "out"
+            claude_runner = tmp / "claude.sh"
+            gemini_runner = tmp / "gemini.sh"
+            self._write_stub_runner(claude_runner)
+            self._write_stub_runner(gemini_runner)
+
+            # codex + kimi runners resolved via the generic sibling-skills probe.
+            codex_runner = tmp / "run_codex.sh"
+            kimi_runner = tmp / "run_kimi.sh"
+            self._write_stub_runner(codex_runner)
+            self._write_stub_runner(kimi_runner)
+
+            def fake_resolve(family: str) -> Path | None:
+                return {"codex": codex_runner, "kimi": kimi_runner}.get(family)
+
+            argv = [
+                "paper_reviser_edit.py",
+                "--in",
+                str(input_tex),
+                "--out-dir",
+                str(out_dir),
+                "--stub-models",
+                "--writer-backend",
+                "codex",
+                "--auditor-backend",
+                "kimi",
+                "--claude-runner",
+                str(claude_runner),
+                "--gemini-runner",
+                str(gemini_runner),
+            ]
+            with mock.patch.object(sys, "argv", argv):
+                with mock.patch.object(paper_reviser_edit, "_resolve_family_runner", side_effect=fake_resolve):
+                    rc = paper_reviser_edit.main()
+
+            self.assertEqual(rc, 0)
+            run = json.loads((out_dir / "run.json").read_text(encoding="utf-8"))
+            self.assertEqual(run["models"]["writer"]["backend"], "codex")
+            self.assertEqual(run["models"]["auditor"]["backend"], "kimi")
+
+    def test_main_errors_when_selected_family_runner_missing(self) -> None:
+        # Selecting a family whose runner cannot be resolved fails closed.
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            input_tex = tmp / "fragment.tex"
+            input_tex.write_text("\\section{Intro}\nOld.\n", encoding="utf-8")
+            out_dir = tmp / "out"
+            claude_runner = tmp / "claude.sh"
+            gemini_runner = tmp / "gemini.sh"
+            self._write_stub_runner(claude_runner)
+            self._write_stub_runner(gemini_runner)
+
+            argv = [
+                "paper_reviser_edit.py",
+                "--in",
+                str(input_tex),
+                "--out-dir",
+                str(out_dir),
+                "--stub-models",
+                "--auditor-backend",
+                "opencode",
+                "--claude-runner",
+                str(claude_runner),
+                "--gemini-runner",
+                str(gemini_runner),
+            ]
+            with mock.patch.object(sys, "argv", argv):
+                with mock.patch.object(paper_reviser_edit, "_resolve_family_runner", return_value=None):
+                    rc = paper_reviser_edit.main()
+            self.assertEqual(rc, 2)
+
     def test_skill_docs_and_marketplace_describe_new_contracts(self) -> None:
         skill_dir = Path(__file__).resolve().parents[2]
         md = (skill_dir / "SKILL.md").read_text(encoding="utf-8")

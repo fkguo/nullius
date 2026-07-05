@@ -24,6 +24,7 @@ def test_family_of():
     assert mb.family_of("claude/default") == "claude"
     assert mb.family_of("codex/gpt-5.3") == "codex"
     assert mb.family_of("gemini/default") == "gemini"
+    assert mb.family_of("kimi/default") == "kimi"   # distinct family (mirrors run_multi_task); not opencode
     assert mb.family_of("default") == "opencode"
     assert mb.family_of("") == "opencode"
     assert mb.family_of("minimax/MiniMax-M2.5") == "opencode"
@@ -562,6 +563,8 @@ def test_normalize_family():
     assert mb.normalize_family("Claude") == "claude"
     assert mb.normalize_family("claude/default") == "claude"   # spec form
     assert mb.normalize_family("CODEX") == "codex"
+    assert mb.normalize_family("Kimi") == "kimi"               # distinct family, bare tag
+    assert mb.normalize_family("kimi/default") == "kimi"       # spec form
     assert mb.normalize_family("minimax") == "opencode"        # opencode-class provider -> opencode
     assert mb.normalize_family("minimax/m2") == "opencode"
     assert mb.normalize_family("default") == "opencode"

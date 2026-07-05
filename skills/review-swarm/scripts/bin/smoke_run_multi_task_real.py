@@ -128,6 +128,7 @@ def _build_cmd(
     claude_model: str,
     codex_model: str,
     gemini_model: str,
+    kimi_model: str,
 ) -> list[str]:
     cmd = [
         sys.executable,
@@ -148,6 +149,8 @@ def _build_cmd(
         cmd.extend(["--models", f"codex/{_normalize_codex_model(codex_model)}"])
     elif backend == "gemini":
         cmd.extend(["--models", f"gemini/{_normalize_gemini_model(gemini_model)}"])
+    elif backend == "kimi":
+        cmd.extend(["--models", f"kimi/{kimi_model.strip() or 'default'}"])
     else:
         raise ValueError(f"Unsupported backend: {backend}")
     return cmd
@@ -155,7 +158,7 @@ def _build_cmd(
 
 def _parse_backends(raw: str) -> list[str]:
     items = [x.strip().lower() for x in raw.split(",") if x.strip()]
-    allowed = {"opencode", "claude", "codex", "gemini"}
+    allowed = {"opencode", "claude", "codex", "gemini", "kimi"}
     for item in items:
         if item not in allowed:
             raise ValueError(f"Unknown backend: {item}")
@@ -185,8 +188,8 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument(
         "--backends",
-        default="opencode,claude,codex,gemini",
-        help="Comma-separated backends to test (opencode,claude,codex,gemini).",
+        default="opencode,claude,codex,gemini,kimi",
+        help="Comma-separated backends to test (opencode,claude,codex,gemini,kimi).",
     )
     ap.add_argument(
         "--timeout-secs",
@@ -213,6 +216,11 @@ def main() -> int:
         "--gemini-model",
         default="default",
         help="Gemini model name without prefix (default: default).",
+    )
+    ap.add_argument(
+        "--kimi-model",
+        default="default",
+        help="Kimi model name without prefix (default: default).",
     )
     ap.add_argument(
         "--keep-temp",
@@ -269,6 +277,7 @@ def main() -> int:
             claude_model=args.claude_model,
             codex_model=args.codex_model,
             gemini_model=args.gemini_model,
+            kimi_model=args.kimi_model,
         )
 
         result = _run_with_timeout(cmd, timeout_sec=args.timeout_secs)

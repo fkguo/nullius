@@ -115,13 +115,26 @@ def _skill_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
 
-def _default_runner_paths() -> tuple[Path | None, Path | None]:
-    # Sibling skills under the same agent skills root where this skill is installed
-    # (host-neutral: derived from this script's own location, no single host hardcoded).
+# All cli-runner families accept the same core flags
+# (--model / --system-prompt-file / --prompt-file / --out); their extra flags are
+# optional with sane defaults, so a single generic dispatch covers every family.
+BACKEND_FAMILIES: tuple[str, ...] = ("claude", "gemini", "codex", "opencode", "kimi")
+
+
+def _resolve_family_runner(family: str) -> Path | None:
+    """
+    Resolve `<family>-cli-runner/scripts/run_<family>.sh` under the sibling skills
+    root where this skill is installed (host-neutral: derived from this script's own
+    location, no single host hardcoded). Returns None if the runner is absent.
+    """
     base = _skill_root().parent
-    claude = base / "claude-cli-runner" / "scripts" / "run_claude.sh"
-    gemini = base / "gemini-cli-runner" / "scripts" / "run_gemini.sh"
-    return (claude if claude.is_file() else None, gemini if gemini.is_file() else None)
+    runner = base / f"{family}-cli-runner" / "scripts" / f"run_{family}.sh"
+    return runner if runner.is_file() else None
+
+
+def _default_runner_paths() -> tuple[Path | None, Path | None]:
+    # Back-compat helper for the claude/gemini default runners.
+    return (_resolve_family_runner("claude"), _resolve_family_runner("gemini"))
 
 
 def _estimate_tokens_est(text: str) -> int:
@@ -353,13 +366,23 @@ class ModelConfig:
     writer_model: str
     auditor_backend: str
     auditor_model: str
-    claude_runner: Path
-    gemini_runner: Path
+    # Resolved runner path per backend family (only the families that were found /
+    # explicitly overridden are present). Back-compat: claude_runner / gemini_runner
+    # remain available as convenience accessors.
+    runners: dict[str, Path]
     fallback_auditor: str
     fallback_auditor_model: str
     codex_model: str
     codex_verify: bool
     codex_config_overrides: tuple[str, ...]
+
+    @property
+    def claude_runner(self) -> Path:
+        return self.runners["claude"]
+
+    @property
+    def gemini_runner(self) -> Path:
+        return self.runners["gemini"]
 
 
 def _run_cmd(cmd: list[str], *, trace_path: Path, stage: str) -> int:
@@ -387,7 +410,7 @@ def _run_cmd_with_stdin_file(cmd: list[str], *, stdin_path: Path, trace_path: Pa
     return proc.returncode
 
 
-def _run_claude(
+def _run_family_runner(
     *,
     runner: Path,
     model: str,
@@ -397,6 +420,13 @@ def _run_claude(
     trace_path: Path,
     stage: str,
 ) -> int:
+    """
+    Invoke any `<family>-cli-runner/scripts/run_<family>.sh` with the uniform four
+    core flags shared by every family (claude/gemini/codex/opencode/kimi). Each
+    runner's extra flags (codex --sandbox/--skip-git-repo-check,
+    opencode/kimi --tool-mode/--workspace-dir, gemini --tool-mode) are optional and
+    default sanely, so this single call covers all of them.
+    """
     cmd = [
         "bash",
         str(runner),
@@ -411,36 +441,11 @@ def _run_claude(
     ]
     return _run_cmd(cmd, trace_path=trace_path, stage=stage)
 
-
-def _run_gemini(
-    *,
-    runner: Path,
-    model: str,
-    system_prompt_file: Path,
-    prompt_file: Path,
-    out_file: Path,
-    trace_path: Path,
-    stage: str,
-) -> int:
-    cmd = [
-        "bash",
-        str(runner),
-        "--model",
-        model,
-        "--system-prompt-file",
-        str(system_prompt_file),
-        "--prompt-file",
-        str(prompt_file),
-        "--out",
-        str(out_file),
-    ]
-    return _run_cmd(cmd, trace_path=trace_path, stage=stage)
 
 def _run_backend(
     *,
     backend: str,
-    claude_runner: Path,
-    gemini_runner: Path,
+    runners: dict[str, Path],
     model: str,
     system_prompt_file: Path,
     prompt_file: Path,
@@ -448,27 +453,18 @@ def _run_backend(
     trace_path: Path,
     stage: str,
 ) -> int:
-    if backend == "claude":
-        return _run_claude(
-            runner=claude_runner,
-            model=model,
-            system_prompt_file=system_prompt_file,
-            prompt_file=prompt_file,
-            out_file=out_file,
-            trace_path=trace_path,
-            stage=stage,
-        )
-    if backend == "gemini":
-        return _run_gemini(
-            runner=gemini_runner,
-            model=model,
-            system_prompt_file=system_prompt_file,
-            prompt_file=prompt_file,
-            out_file=out_file,
-            trace_path=trace_path,
-            stage=stage,
-        )
-    raise ValueError(f"unknown backend: {backend!r}")
+    runner = runners.get(backend)
+    if runner is None:
+        raise ValueError(f"no resolved runner for backend: {backend!r}")
+    return _run_family_runner(
+        runner=runner,
+        model=model,
+        system_prompt_file=system_prompt_file,
+        prompt_file=prompt_file,
+        out_file=out_file,
+        trace_path=trace_path,
+        stage=stage,
+    )
 
 
 def _unified_diff(original: str, clean: str) -> str:
@@ -1192,16 +1188,16 @@ def main() -> int:
     ap.add_argument("--stub-models", action="store_true", help="Use deterministic stubs (no external model calls)")
     ap.add_argument("--dry-run", action="store_true", help="Write run.json + deterministic checks only; do not call models")
 
-    ap.add_argument("--writer-backend", choices=["claude", "gemini"], default="claude", help="Backend for writer/read-through (default: claude)")
+    ap.add_argument("--writer-backend", choices=list(BACKEND_FAMILIES), default="claude", help="Backend for writer/read-through (default: claude)")
     ap.add_argument("--writer-model", type=str, default="", help="Model name/alias for the writer backend (required with --run-models)")
-    ap.add_argument("--auditor-backend", choices=["claude", "gemini"], default="gemini", help="Backend for auditor (default: gemini)")
+    ap.add_argument("--auditor-backend", choices=list(BACKEND_FAMILIES), default="gemini", help="Backend for auditor, independent of the writer (default: gemini)")
     ap.add_argument("--auditor-model", type=str, default="", help="Model name/alias for the auditor backend (required with --run-models)")
-    ap.add_argument("--fallback-auditor", choices=["off", "claude"], default="off")
+    ap.add_argument("--fallback-auditor", choices=["off", *BACKEND_FAMILIES], default="off", help="Optional fallback auditor backend if the primary auditor returns malformed/empty output (default: off)")
     ap.add_argument(
         "--fallback-auditor-model",
         type=str,
         default="",
-        help="Claude model to use if --fallback-auditor=claude triggers (default: --writer-model when --writer-backend=claude)",
+        help="Model to use if --fallback-auditor triggers (default: --writer-model when --fallback-auditor matches --writer-backend, e.g. both claude)",
     )
 
     ap.set_defaults(codex_verify=True)
@@ -1240,7 +1236,7 @@ def main() -> int:
     )
     ap.add_argument(
         "--secondary-deep-verify-backend",
-        choices=["off", "claude", "gemini"],
+        choices=["off", *BACKEND_FAMILIES],
         default="off",
         help="Optional secondary deep verifier backend (default: off)",
     )
@@ -1451,23 +1447,42 @@ def main() -> int:
             )
             return 2
 
-    default_claude_runner, default_gemini_runner = _default_runner_paths()
-    claude_runner = (args.claude_runner.expanduser().resolve() if args.claude_runner else default_claude_runner)
-    gemini_runner = (args.gemini_runner.expanduser().resolve() if args.gemini_runner else default_gemini_runner)
-    if claude_runner is None or not claude_runner.is_file():
-        print("ERROR: claude runner not found; set --claude-runner", file=sys.stderr)
-        return 2
-    if gemini_runner is None or not gemini_runner.is_file():
-        print("ERROR: gemini runner not found; set --gemini-runner", file=sys.stderr)
-        return 2
+    # Resolve one runner per backend family. claude/gemini keep dedicated override
+    # flags (--claude-runner/--gemini-runner) for back-compat; every other family is
+    # auto-detected via the same sibling-skills probe. Explicit overrides win.
+    runner_overrides: dict[str, Path | None] = {
+        "claude": (args.claude_runner.expanduser().resolve() if args.claude_runner else _resolve_family_runner("claude")),
+        "gemini": (args.gemini_runner.expanduser().resolve() if args.gemini_runner else _resolve_family_runner("gemini")),
+    }
+
+    # claude + gemini remain always-required (the default writer/auditor pair, and
+    # the historical contract), plus any additional family actually selected by the
+    # chosen writer/auditor/fallback/secondary backends.
+    required_families: set[str] = {"claude", "gemini"}
+    required_families.add(str(args.writer_backend))
+    required_families.add(str(args.auditor_backend))
+    if str(args.fallback_auditor) != "off":
+        required_families.add(str(args.fallback_auditor))
+    if str(args.secondary_deep_verify_backend) != "off":
+        required_families.add(str(args.secondary_deep_verify_backend))
+
+    runners: dict[str, Path] = {}
+    for family in sorted(required_families):
+        resolved = runner_overrides.get(family)
+        if resolved is None:
+            resolved = _resolve_family_runner(family)
+        if resolved is None or not resolved.is_file():
+            hint = f"; set --{family}-runner" if family in ("claude", "gemini") else ""
+            print(f"ERROR: {family} runner not found{hint}", file=sys.stderr)
+            return 2
+        runners[family] = resolved
 
     cfg = ModelConfig(
         writer_backend=str(args.writer_backend),
         writer_model=str(args.writer_model),
         auditor_backend=str(args.auditor_backend),
         auditor_model=str(args.auditor_model),
-        claude_runner=claude_runner,
-        gemini_runner=gemini_runner,
+        runners=runners,
         fallback_auditor=str(args.fallback_auditor),
         fallback_auditor_model=str(args.fallback_auditor_model),
         codex_model=str(args.codex_model),
@@ -1565,8 +1580,7 @@ def main() -> int:
         out_raw = raw_dir / f"{stage}_{cfg.writer_backend}.txt"
         code = _run_backend(
             backend=cfg.writer_backend,
-            claude_runner=cfg.claude_runner,
-            gemini_runner=cfg.gemini_runner,
+            runners=cfg.runners,
             model=cfg.writer_model,
             system_prompt_file=sys_path,
             prompt_file=user_path,
@@ -1695,8 +1709,7 @@ def main() -> int:
         out_raw = raw_dir / f"{stage}_{cfg.writer_backend}.txt"
         code = _run_backend(
             backend=cfg.writer_backend,
-            claude_runner=cfg.claude_runner,
-            gemini_runner=cfg.gemini_runner,
+            runners=cfg.runners,
             model=cfg.writer_model,
             system_prompt_file=sys_path,
             prompt_file=user_path,
@@ -1999,28 +2012,16 @@ def main() -> int:
         def run_auditor_once(*, backend: str, model: str, stage_name: str, user_txt: str) -> tuple[int, str]:
             sys_path_local, user_path_local = write_prompt(stage_name, system=sys_txt, user=user_txt)
             out_raw_local = raw_dir / f"{stage_name}_{backend}.txt"
-            if backend == "gemini":
-                code = _run_gemini(
-                    runner=cfg.gemini_runner,
-                    model=model,
-                    system_prompt_file=sys_path_local,
-                    prompt_file=user_path_local,
-                    out_file=out_raw_local,
-                    trace_path=trace_path,
-                    stage=stage_name,
-                )
-            elif backend == "claude":
-                code = _run_claude(
-                    runner=cfg.claude_runner,
-                    model=model,
-                    system_prompt_file=sys_path_local,
-                    prompt_file=user_path_local,
-                    out_file=out_raw_local,
-                    trace_path=trace_path,
-                    stage=stage_name,
-                )
-            else:
-                raise ValueError(f"unexpected auditor backend: {backend}")
+            code = _run_backend(
+                backend=backend,
+                runners=cfg.runners,
+                model=model,
+                system_prompt_file=sys_path_local,
+                prompt_file=user_path_local,
+                out_file=out_raw_local,
+                trace_path=trace_path,
+                stage=stage_name,
+            )
             raw_text_local = out_raw_local.read_text(encoding="utf-8", errors="replace") if out_raw_local.is_file() else ""
             return code, raw_text_local
 
@@ -2028,11 +2029,20 @@ def main() -> int:
             fallback_model = str(cfg.fallback_auditor_model).strip()
             if fallback_model:
                 return fallback_model
-            if cfg.writer_backend != "claude":
-                raise RuntimeError("fallback auditor requires --fallback-auditor-model when --writer-backend is not claude")
+            # No explicit fallback model: reuse the writer model only when the
+            # fallback backend matches the writer backend (same family/aliases).
+            if cfg.fallback_auditor != cfg.writer_backend:
+                raise RuntimeError(
+                    "fallback auditor requires --fallback-auditor-model when "
+                    "--fallback-auditor differs from --writer-backend"
+                )
             return cfg.writer_model
 
-        if cfg.auditor_backend == "gemini":
+        # Non-claude auditor backends get a marker-recovery retry loop (their CLI
+        # output can drop/duplicate the tagged-block markers) plus an optional
+        # cross-family fallback auditor. The claude backend keeps its single-shot path.
+        if cfg.auditor_backend != "claude":
+            auditor_backend = cfg.auditor_backend
             last_code = 1
             last_parse_error: Exception | None = None
 
@@ -2046,30 +2056,31 @@ def main() -> int:
                         "Return ONLY tagged blocks, include every required BEGIN/END marker exactly once.\n"
                     )
                 last_code, raw_text = run_auditor_once(
-                    backend="gemini",
+                    backend=auditor_backend,
                     model=cfg.auditor_model,
                     stage_name=stage_name,
                     user_txt=user_txt,
                 )
                 if not raw_text.strip():
                     if attempt == 0:
-                        warnings.append(f"gemini auditor failed or empty output (exit {last_code}); retrying once")
+                        warnings.append(f"{auditor_backend} auditor failed or empty output (exit {last_code}); retrying once")
                     continue
                 try:
                     return parse_auditor_payload(raw_text)
                 except Exception as exc:
                     last_parse_error = exc
                     if attempt == 0:
-                        warnings.append(f"gemini auditor returned malformed blocks; retrying once: {exc}")
+                        warnings.append(f"{auditor_backend} auditor returned malformed blocks; retrying once: {exc}")
                         continue
 
-            if cfg.fallback_auditor == "claude":
-                warnings.append("gemini auditor malformed/empty after retry; falling back to claude auditor")
+            if cfg.fallback_auditor != "off":
+                fallback_backend = cfg.fallback_auditor
+                warnings.append(f"{auditor_backend} auditor malformed/empty after retry; falling back to {fallback_backend} auditor")
                 fallback_model = resolve_fallback_model()
                 fb_code, fb_raw = run_auditor_once(
-                    backend="claude",
+                    backend=fallback_backend,
                     model=fallback_model,
-                    stage_name=stage + "_fallback_claude",
+                    stage_name=f"{stage}_fallback_{fallback_backend}",
                     user_txt=base_user_txt,
                 )
                 if not fb_raw.strip():
@@ -2084,7 +2095,7 @@ def main() -> int:
             raise RuntimeError(f"auditor failed (exit {last_code})")
 
         code, raw_text = run_auditor_once(
-            backend="claude",
+            backend=cfg.auditor_backend,
             model=cfg.auditor_model,
             stage_name=stage,
             user_txt=base_user_txt,
@@ -2282,14 +2293,13 @@ def main() -> int:
         sys_path, user_path = write_prompt(stage, system=sys_txt, user=user_txt)
         out_raw = raw_dir / f"{stage}_{backend}.txt"
 
-        # Retry once on failure for Gemini, similar to the auditor path.
+        # Retry once on failure for non-claude backends, similar to the auditor path.
         last_code = 1
-        attempts = 2 if backend == "gemini" else 1
+        attempts = 1 if backend == "claude" else 2
         for attempt in range(attempts):
             last_code = _run_backend(
                 backend=backend,
-                claude_runner=cfg.claude_runner,
-                gemini_runner=cfg.gemini_runner,
+                runners=cfg.runners,
                 model=str(args.secondary_deep_verify_model),
                 system_prompt_file=sys_path,
                 prompt_file=user_path,
@@ -2299,8 +2309,8 @@ def main() -> int:
             )
             if out_raw.is_file() and out_raw.read_text(encoding="utf-8", errors="replace").strip():
                 break
-            if attempt == 0 and backend == "gemini":
-                warnings.append(f"secondary deep verifier (gemini) failed (exit {last_code}); retrying once")
+            if attempt == 0 and attempts > 1:
+                warnings.append(f"secondary deep verifier ({backend}) failed (exit {last_code}); retrying once")
 
         raw_text = out_raw.read_text(encoding="utf-8", errors="replace") if out_raw.exists() else ""
         if not raw_text.strip():

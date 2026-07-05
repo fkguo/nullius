@@ -77,7 +77,7 @@ python3 "$PAPER_REVISER/scripts/bin/paper_reviser_edit.py" \
   --stub-models
 ```
 
-### 2) Real run (opus writer + gemini-3.1-pro-preview auditor)
+### 2) Real run (opus writer + independent Gemini auditor)
 
 ```bash
 python3 "$PAPER_REVISER/scripts/bin/paper_reviser_edit.py" \
@@ -85,8 +85,10 @@ python3 "$PAPER_REVISER/scripts/bin/paper_reviser_edit.py" \
   --out-dir /tmp/paper_reviser_out \
   --run-models \
   --writer-backend claude --writer-model opus \
-  --auditor-backend gemini --auditor-model gemini-3.1-pro-preview
+  --auditor-backend gemini --auditor-model <GEMINI_MODEL>
 ```
+
+Writer/auditor backends: `--writer-backend` / `--auditor-backend` accept any of `{claude, gemini, codex, opencode, kimi}` (defaults writer=`claude`, auditor=`gemini`). The auditor pass is independent — prefer a family OTHER than the writer's for genuine cross-family review. `--fallback-auditor` and `--secondary-deep-verify-backend` accept the same set. Each backend auto-resolves its `<family>-cli-runner`; `--auditor-model <GEMINI_MODEL>` is a placeholder — omit it to track the backend CLI's configured default.
 
 Common optional flags:
 - `--max-rounds 2` (allow one repair cycle after the first audit)
@@ -127,7 +129,7 @@ python3 "$PAPER_REVISER/scripts/bin/paper_reviser_edit.py" \
   --out-dir /tmp/paper_reviser_out_r2 \
   --run-models \
   --writer-backend claude --writer-model opus \
-  --auditor-backend gemini --auditor-model gemini-3.1-pro-preview \
+  --auditor-backend gemini --auditor-model <GEMINI_MODEL> \
   --context-file /path/to/evidence.md \
   --max-rounds 1
 ```

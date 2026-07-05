@@ -4,7 +4,7 @@ derivation-verify — Executor 2 (CLI multi-backend) — cross-model convergence
 
 Satisfies the SAME backend-agnostic contract as the Claude/Workflow-native executor
 (../workflows/derivation_verify.js; see ../references/contract.md), but runs the >=2 INDEPENDENT
-blind re-derivations across SEPARATE model CLIs (Claude / Codex / Gemini / OpenCode) for TRUE
+blind re-derivations across SEPARATE model CLIs (Claude / Codex / Gemini / OpenCode / Kimi) for TRUE
 cross-model independence — the reliability ceiling per the SOTA on multi-agent verification.
 
 Why cross-model (not same-model self-consistency): same-model "committees" demonstrably suffer
@@ -97,7 +97,7 @@ def family_of(spec: str) -> str:
     m = (spec or "").strip()
     if not m or m == "default":
         return "opencode"
-    for fam in ("claude", "codex", "gemini"):
+    for fam in ("claude", "codex", "gemini", "kimi"):
         if m.startswith(fam + "/"):
             return fam
     return "opencode"
@@ -107,13 +107,13 @@ def normalize_family(tag: str) -> str:
     """Canonicalize a host-declared native `family` tag into the SAME namespace as `family_of` so native
     and CLI families compare correctly (auto-exclusion + cross-family counting). Accepts a bare family
     name (`claude`/`Claude`), a full spec (`claude/default`), or any opencode-class provider; everything
-    non-{claude,codex,gemini} folds to `opencode` exactly as `family_of` does for CLI specs."""
+    non-{claude,codex,gemini,kimi} folds to `opencode` exactly as `family_of` does for CLI specs."""
     t = (tag or "").strip().lower()
     if not t or t == "default":
         return "opencode"
     if "/" in t:
         return family_of(t)
-    return t if t in ("claude", "codex", "gemini") else "opencode"
+    return t if t in ("claude", "codex", "gemini", "kimi") else "opencode"
 
 
 _FENCE_RE = re.compile(r"```(?:json)?\s*\n?(.*?)```", re.DOTALL)

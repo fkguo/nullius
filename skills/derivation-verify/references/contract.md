@@ -21,7 +21,7 @@ input and produce this output, so a caller's `claims` port verbatim across execu
         {                       //   family, so it is included WITHOUT a CLI hop. Executor 2 seeds these
           "canonical_answer": "string",   // and AUTO-EXCLUDES their family from the CLI backend pool.
           "family": "string",             // the producing family, canonicalized like a backend spec:
-                                          //   "claude"/"codex"/"gemini" (any case), a spec "claude/default",
+                                          //   "claude"/"codex"/"gemini"/"kimi" (any case), a spec "claude/default",
                                           //   or any other token -> "opencode". A native family can supply
                                           //   at most ONE of the >=2 confirmations: convergence still
                                           //   requires >=1 independent CLI family (no self-certification).
@@ -120,7 +120,7 @@ stronger than Executor 1's `majority_size >= 2`.
   in-process Claude subagents (`agent()` with a JSON `schema`); "independent" = same model, distinct
   prompts/methods. Strong + fast lower bound on independence.
 - **Executor 2 (CLI multi-backend, `scripts/run_multi_backend.py`, available):** derivers are separate
-  CLIs (Claude/Codex/Gemini/OpenCode) via review-swarm's `run_multi_task.py` (one runner invocation per
+  CLIs (Claude/Codex/Gemini/OpenCode/Kimi) via review-swarm's `run_multi_task.py` (one runner invocation per
   deriver/comparator, pinned to one model spec); "independent" = distinct model FAMILIES — the
   reliability ceiling. Same INPUT contract; output is the superset above. Convergence is stricter:
   - **R1 cross-family** — needs `>= 2` agreeing derivations from DISTINCT families (same-backend

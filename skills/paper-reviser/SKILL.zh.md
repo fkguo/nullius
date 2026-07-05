@@ -73,7 +73,7 @@ python3 "$PAPER_REVISER/scripts/bin/paper_reviser_edit.py" \
   --stub-models
 ```
 
-### 2) 实际运行（opus 写手 + gemini-3.1-pro-preview 审核）
+### 2) 实际运行（opus 写手 + 独立 Gemini 审核）
 
 ```bash
 python3 "$PAPER_REVISER/scripts/bin/paper_reviser_edit.py" \
@@ -81,8 +81,10 @@ python3 "$PAPER_REVISER/scripts/bin/paper_reviser_edit.py" \
   --out-dir /tmp/paper_reviser_out \
   --run-models \
   --writer-backend claude --writer-model opus \
-  --auditor-backend gemini --auditor-model gemini-3.1-pro-preview
+  --auditor-backend gemini --auditor-model <GEMINI_MODEL>
 ```
+
+写手/审核后端：`--writer-backend` / `--auditor-backend` 可取 `{claude, gemini, codex, opencode, kimi}` 中任一（默认 writer=`claude`、auditor=`gemini`）。审核是独立环节——优先选与写手**不同家族**以获得真正的跨家族评审；`--fallback-auditor`、`--secondary-deep-verify-backend` 同此集合。各后端自动解析对应 `<family>-cli-runner`；`--auditor-model <GEMINI_MODEL>` 是占位符,省略则用该后端 CLI 的默认模型。
 
 常用参数：
 - `--max-rounds 2`：允许 1 次“审核→修复→复审”的回合
@@ -121,7 +123,7 @@ python3 "$PAPER_REVISER/scripts/bin/paper_reviser_edit.py" \
   --out-dir /tmp/paper_reviser_out_r2 \
   --run-models \
   --writer-backend claude --writer-model opus \
-  --auditor-backend gemini --auditor-model gemini-3.1-pro-preview \
+  --auditor-backend gemini --auditor-model <GEMINI_MODEL> \
   --context-file /path/to/evidence.md \
   --max-rounds 1
 ```
