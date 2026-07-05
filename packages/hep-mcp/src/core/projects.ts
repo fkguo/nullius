@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import { ensureDir } from '../data/dataDir.js';
-import { notFound, writeJsonAtomicDurable } from '@autoresearch/shared';
+import { notFound, writeJsonAtomicDurable } from '@nullius/shared';
 import { newProjectId } from './ids.js';
 import { getProjectDir, getProjectJsonPath, getProjectsDir } from './paths.js';
 

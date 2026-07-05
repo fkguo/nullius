@@ -86,7 +86,7 @@ describe('orch_fleet_worker_poll', () => {
       accepts_claims: true,
       note: 'primary worker',
     });
-    expect(fs.readFileSync(path.join(projectRoot, '.autoresearch', 'ledger.jsonl'), 'utf-8')).toContain('"event_type":"fleet_claimed"');
+    expect(fs.readFileSync(path.join(projectRoot, '.nullius', 'ledger.jsonl'), 'utf-8')).toContain('"event_type":"fleet_claimed"');
   });
 
   it('returns deterministic non-errors for no queued item and at-capacity without changing queue ownership', async () => {
@@ -293,7 +293,7 @@ describe('orch_fleet_worker_poll', () => {
       worker_id: 'worker-1',
     }))).rejects.toMatchObject({
       code: 'INVALID_PARAMS',
-      data: { fleet_workers_path: path.join(invalidWorkersProjectRoot, '.autoresearch', 'fleet_workers.json') },
+      data: { fleet_workers_path: path.join(invalidWorkersProjectRoot, '.nullius', 'fleet_workers.json') },
     });
 
     const schemaInvalidWorkersProjectRoot = makeTmpDir();
@@ -309,7 +309,7 @@ describe('orch_fleet_worker_poll', () => {
     }))).rejects.toMatchObject({
       code: 'INVALID_PARAMS',
       data: {
-        fleet_workers_path: path.join(schemaInvalidWorkersProjectRoot, '.autoresearch', 'fleet_workers.json'),
+        fleet_workers_path: path.join(schemaInvalidWorkersProjectRoot, '.nullius', 'fleet_workers.json'),
         errors: [{ code: 'FLEET_WORKERS_SCHEMA_ERROR' }],
       },
     });
@@ -322,7 +322,7 @@ describe('orch_fleet_worker_poll', () => {
       worker_id: 'worker-1',
     }))).rejects.toMatchObject({
       code: 'INVALID_PARAMS',
-      data: { fleet_queue_path: `${invalidQueueProjectRoot}/.autoresearch/fleet_queue.json` },
+      data: { fleet_queue_path: `${invalidQueueProjectRoot}/.nullius/fleet_queue.json` },
     });
   });
 
@@ -395,7 +395,7 @@ describe('orch_fleet_worker_poll', () => {
     }).lease_expires_at);
     expect(autoReleasedItem).toMatchObject({ status: 'queued', attempt_count: 3 });
     expect(autoReleasedItem?.claim).toBeUndefined();
-    const ledger = fs.readFileSync(path.join(projectRoot, '.autoresearch', 'ledger.jsonl'), 'utf-8');
+    const ledger = fs.readFileSync(path.join(projectRoot, '.nullius', 'ledger.jsonl'), 'utf-8');
     expect(ledger).toContain('"event_type":"fleet_claim_auto_released"');
     expect(ledger).toContain('"reason":"LEASE_EXPIRED"');
   });

@@ -1,10 +1,10 @@
 {
   "package_id": "research-harness",
   "package_type": "skill-pack",
-  "repo": "autoresearch-lab/skills-market",
+  "repo": "nullius/skills-market",
   "channel": "dev",
   "version": "0.1.0",
-  "summary": "Thin research project harness entry skill for autoresearch state recovery, routing, verification, and handoff.",
+  "summary": "Thin research project harness entry skill for nullius state recovery, routing, verification, and handoff.",
   "platforms": [
     "claude_code",
     "codex",
@@ -17,7 +17,7 @@
     "opencode": "Packaged install copies this skill into the target OpenCode skills root. Installed copies do not auto-follow repo updates; reinstall or rerun install with --force to refresh. For live repo-tracking development installs, use packages/skills-market/scripts/install_symlink_opencode.sh against the monorepo skills root; that helper symlinks all market-listed skill-pack entries into the target OpenCode skills root, not only research-harness."
   },
   "source": {
-    "repo": "autoresearch-lab/skills",
+    "repo": "nullius/skills",
     "ref": "main",
     "subpath": "skills/research-harness",
     "include": [

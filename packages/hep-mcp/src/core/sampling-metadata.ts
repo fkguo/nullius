@@ -4,7 +4,7 @@ import {
   type SamplingMetadata,
   type SamplingMetadataContext,
   type ToolRiskLevel,
-} from '@autoresearch/shared';
+} from '@nullius/shared';
 
 export function buildToolSamplingMetadata(params: {
   tool: string;

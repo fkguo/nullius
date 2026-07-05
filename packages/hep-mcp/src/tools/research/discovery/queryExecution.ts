@@ -9,7 +9,7 @@ import {
   type DiscoveryDedupArtifact,
   type DiscoveryPlan,
   type DiscoveryQueryIntent,
-} from '@autoresearch/shared';
+} from '@nullius/shared';
 
 const DISCOVERY_PROVIDERS = ['inspire', 'openalex', 'arxiv'] as const;
 type DiscoveryProviderId = (typeof DISCOVERY_PROVIDERS)[number];

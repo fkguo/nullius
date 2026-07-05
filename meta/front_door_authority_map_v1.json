@@ -1,11 +1,11 @@
 {
   "version": 1,
-  "note": "Classification and docs/tests consumption layer only. `autoresearch` stays the stateful CLI front door, `orch_*` stays the control-plane MCP/operator counterpart, and provider surfaces stay bounded atomic MCP operators. Exact inventories remain owned by their source surfaces and must be kept in sync by fail-closed tests.",
+  "note": "Classification and docs/tests consumption layer only. `nullius` stays the stateful CLI front door, `orch_*` stays the control-plane MCP/operator counterpart, and provider surfaces stay bounded atomic MCP operators. Exact inventories remain owned by their source surfaces and must be kept in sync by fail-closed tests.",
   "surfaces": {
-    "autoresearch_cli": {
+    "nullius_cli": {
       "classification": "canonical_public",
       "surface_kind": "cli_command_inventory",
-      "owner": "@autoresearch/orchestrator",
+      "owner": "@nullius/orchestrator",
       "notes": [
         "Canonical stateful CLI front door for initialized external project roots.",
         "Owns lifecycle state, workflow-plan, bounded execution, verification, higher-conclusion gating, and proposal decisions."
@@ -14,68 +14,68 @@
       "commands": [
         {
           "command": "init",
-          "usage": "autoresearch init [options]"
+          "usage": "nullius init [options]"
         },
         {
           "command": "run",
-          "usage": "autoresearch run --workflow-id <id> [options]"
+          "usage": "nullius run --workflow-id <id> [options]"
         },
         {
           "command": "verify",
-          "usage": "autoresearch verify --run-id <id> --status <passed|failed|blocked> --summary \"...\" --evidence-path <path> [--evidence-path <path> ...]"
+          "usage": "nullius verify --run-id <id> --status <passed|failed|blocked> --summary \"...\" --evidence-path <path> [--evidence-path <path> ...]"
         },
         {
           "command": "final-conclusions",
-          "usage": "autoresearch final-conclusions --run-id <id> [--note \"...\"]"
+          "usage": "nullius final-conclusions --run-id <id> [--note \"...\"]"
         },
         {
           "command": "proposal-decision",
-          "usage": "autoresearch proposal-decision --proposal-kind <repair|skill|optimize|innovate> --proposal-id <id> --decision <accepted_for_later|dismissed|already_captured> [--note \"...\"]"
+          "usage": "nullius proposal-decision --proposal-kind <repair|skill|optimize|innovate> --proposal-id <id> --decision <accepted_for_later|dismissed|already_captured> [--note \"...\"]"
         },
         {
           "command": "status",
-          "usage": "autoresearch status [--json]"
+          "usage": "nullius status [--json]"
         },
         {
           "command": "approve",
-          "usage": "autoresearch approve <approval_id> [--note \"...\"]"
+          "usage": "nullius approve <approval_id> [--note \"...\"]"
         },
         {
           "command": "integrity-record",
-          "usage": "autoresearch integrity-record --approval-id <id> --modes <M1[,M2,...]> --notes \"<summary>\" [--skip <Mx:reason>[,Mx:reason]...]"
+          "usage": "nullius integrity-record --approval-id <id> --modes <M1[,M2,...]> --notes \"<summary>\" [--skip <Mx:reason>[,Mx:reason]...]"
         },
         {
           "command": "pause",
-          "usage": "autoresearch pause [--note \"...\"]"
+          "usage": "nullius pause [--note \"...\"]"
         },
         {
           "command": "resume",
-          "usage": "autoresearch resume [--note \"...\"] [--force]"
+          "usage": "nullius resume [--note \"...\"] [--force]"
         },
         {
           "command": "export",
-          "usage": "autoresearch export [options]"
+          "usage": "nullius export [options]"
         },
         {
           "command": "workflow-plan",
-          "usage": "autoresearch workflow-plan --recipe <recipe_id> [options]"
+          "usage": "nullius workflow-plan --recipe <recipe_id> [options]"
         },
         {
           "command": "graph",
-          "usage": "autoresearch graph --kind <claims|progress|literature|roadmap> [--claims <path> --edges <path> | --plan <path> | --input <path> | --spec <path>] [--out-dir <dir>] [--format dot|png|svg] [--rank-dir LR|TB] [--legend auto|embedded|none] [--no-color] [--json]"
+          "usage": "nullius graph --kind <claims|progress|literature|roadmap> [--claims <path> --edges <path> | --plan <path> | --input <path> | --spec <path>] [--out-dir <dir>] [--format dot|png|svg] [--rank-dir LR|TB] [--legend auto|embedded|none] [--no-color] [--json]"
         }
       ]
     },
     "orchestrator_mcp_tools_spec": {
       "classification": "canonical_public",
       "surface_kind": "exact_doc_inventory",
-      "owner": "@autoresearch/orchestrator",
+      "owner": "@nullius/orchestrator",
       "notes": [
-        "Canonical MCP/operator counterpart of the same control plane surfaced by `autoresearch`.",
+        "Canonical MCP/operator counterpart of the same control plane surfaced by `nullius`.",
         "Not a competing root product identity and not a provider-local workflow shell."
       ],
       "exact_inventory_source": "meta/docs/orchestrator-mcp-tools-spec.md",
-      "live_registry_source": "packages/orchestrator/src/orch-tools/index.ts / @autoresearch/orchestrator exported ORCH_TOOL_SPECS",
+      "live_registry_source": "packages/orchestrator/src/orch-tools/index.ts / @nullius/orchestrator exported ORCH_TOOL_SPECS",
       "drift_test_source": "packages/orchestrator/tests/orchestrator-mcp-tools-spec.test.ts",
       "namespace_families": [
         "orch_run_*",
@@ -86,7 +86,7 @@
     "idea_mcp": {
       "classification": "canonical_public",
       "surface_kind": "mcp_tool_inventory",
-      "owner": "@autoresearch/idea-mcp",
+      "owner": "@nullius/idea-mcp",
       "notes": [
         "Experimental runtime bridge for idea search/eval loops.",
         "Not a root front door and intentionally narrower than the full `idea-engine` runtime contract."

@@ -3,7 +3,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 
-import { notFound, upstreamError } from '@autoresearch/shared';
+import { notFound, upstreamError } from '@nullius/shared';
 
 import { getZoteroConfig } from './config.js';
 

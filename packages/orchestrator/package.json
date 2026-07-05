@@ -1,18 +1,18 @@
 {
-  "name": "@autoresearch/orchestrator",
-  "version": "0.3.0",
+  "name": "@nullius/orchestrator",
+  "version": "0.4.0",
   "private": true,
   "description": "Generic lifecycle control plane and bounded workflow CLI",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
-    "autoresearch": "dist/cli.js"
+    "nullius": "dist/cli.js"
   },
   "scripts": {
-    "prebuild": "node ../../scripts/ensure-workspace-package-artifacts.mjs @autoresearch/shared @autoresearch/literature-workflows",
+    "prebuild": "node ../../scripts/ensure-workspace-package-artifacts.mjs @nullius/shared @nullius/literature-workflows",
     "build": "tsc --build",
-    "pretest": "node ../../scripts/ensure-workspace-package-artifacts.mjs @autoresearch/shared @autoresearch/literature-workflows",
+    "pretest": "node ../../scripts/ensure-workspace-package-artifacts.mjs @nullius/shared @nullius/literature-workflows",
     "test": "vitest run",
     "lint": "echo \"no lint yet\"",
     "clean": "rm -rf dist tsconfig.tsbuildinfo"
@@ -24,8 +24,8 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
-    "@autoresearch/literature-workflows": "workspace:^",
-    "@autoresearch/shared": "workspace:^",
+    "@nullius/literature-workflows": "workspace:^",
+    "@nullius/shared": "workspace:^",
     "ajv": "^8.18.0",
     "zod": "^4.3.5"
   }

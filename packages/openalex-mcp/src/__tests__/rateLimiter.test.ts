@@ -241,7 +241,7 @@ describe('B-1 regression — api_key never leaks into error messages', () => {
   });
 
   it('dispatcher redact() masks secret values at tool-result boundary (defense-in-depth)', async () => {
-    const { redact } = await import('@autoresearch/shared');
+    const { redact } = await import('@nullius/shared');
 
     // Case 1: secret with sk- prefix. The first redact pattern (sk- prefix)
     // masks the value to `sk-***`, which also defeats the second pattern's

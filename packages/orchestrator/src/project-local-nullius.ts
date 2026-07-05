@@ -2,14 +2,14 @@ import { createRequire } from 'node:module';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { writeBytesAtomicDurable } from '@autoresearch/shared';
+import { writeBytesAtomicDurable } from '@nullius/shared';
 
-type ProjectLocalAutoresearchLauncher = {
+type ProjectLocalNulliusLauncher = {
   argv: string[];
   mode: 'dist' | 'tsx';
 };
 
-export type ProjectLocalAutoresearchLauncherHealth = {
+export type ProjectLocalNulliusLauncherHealth = {
   path: string;
   exists: boolean;
   executable: boolean;
@@ -30,23 +30,23 @@ function packageRoot(): string {
   return path.resolve(moduleDir, '..');
 }
 
-export function projectLocalAutoresearchRelativePath(): string {
-  return path.join('.autoresearch', 'bin', 'autoresearch');
+export function projectLocalNulliusRelativePath(): string {
+  return path.join('.nullius', 'bin', 'nullius');
 }
 
 function repairCommand(): string {
-  return 'autoresearch init --runtime-only';
+  return 'nullius init --runtime-only';
 }
 
 const SELF_DERIVE_PROJECT_ROOT_LINE = 'PROJECT_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)';
-const RESOLVE_AUTORESEARCH_LINE = 'RESOLVED_AUTORESEARCH=$(command -v autoresearch 2>/dev/null || true)';
+const RESOLVE_NULLIUS_LINE = 'RESOLVED_NULLIUS=$(command -v nullius 2>/dev/null || true)';
 // `-ef` compares real file identity (device+inode, following symlinks), so a PATH
 // entry that is — or symlinks back to — this launcher is rejected. A plain string
 // compare would miss a symlink-to-self and self-hop, corrupting --project-root.
-const PATH_PREFER_GUARD_LINE = 'if [ -n "$RESOLVED_AUTORESEARCH" ] && [ ! "$RESOLVED_AUTORESEARCH" -ef "$0" ]; then';
-const PATH_PREFER_EXEC_LINE = 'exec autoresearch "$@" --project-root "$PROJECT_ROOT"';
+const PATH_PREFER_GUARD_LINE = 'if [ -n "$RESOLVED_NULLIUS" ] && [ ! "$RESOLVED_NULLIUS" -ef "$0" ]; then';
+const PATH_PREFER_EXEC_LINE = 'exec nullius "$@" --project-root "$PROJECT_ROOT"';
 
-function autoresearchResolvableOnPath(launcherPath: string): boolean {
+function nulliusResolvableOnPath(launcherPath: string): boolean {
   const pathEnv = process.env.PATH;
   if (!pathEnv) return false;
   let launcherStat: fs.Stats | null = null;
@@ -57,17 +57,17 @@ function autoresearchResolvableOnPath(launcherPath: string): boolean {
   }
   for (const dir of pathEnv.split(path.delimiter)) {
     if (!dir) continue;
-    const candidate = path.join(dir, 'autoresearch');
+    const candidate = path.join(dir, 'nullius');
     try {
       fs.accessSync(candidate, fs.constants.X_OK);
       const candidateStat = fs.statSync(candidate);
-      // Mirror the launcher's runtime `command -v autoresearch`: only a regular
-      // executable file counts (a directory named `autoresearch` carries the
+      // Mirror the launcher's runtime `command -v nullius`: only a regular
+      // executable file counts (a directory named `nullius` carries the
       // execute bit but is not a resolvable command).
       if (!candidateStat.isFile()) continue;
       // Mirror the launcher's runtime `-ef` self-check (device+inode, following
       // symlinks): a symlink OR hard link back to this launcher is the launcher
-      // itself and cannot satisfy itself, so it is not a usable on-PATH autoresearch.
+      // itself and cannot satisfy itself, so it is not a usable on-PATH nullius.
       if (launcherStat !== null && candidateStat.dev === launcherStat.dev && candidateStat.ino === launcherStat.ino) {
         continue;
       }
@@ -110,8 +110,8 @@ function hasProjectLocalLauncherShape(script: string): boolean {
   return hasSelfDerivedRoot && hasSelfGuard && hasPathPreferExec && hasFallbackExec;
 }
 
-export function readProjectLocalAutoresearchLauncherHealth(projectRoot: string): ProjectLocalAutoresearchLauncherHealth {
-  const relativePath = projectLocalAutoresearchRelativePath().split(path.sep).join('/');
+export function readProjectLocalNulliusLauncherHealth(projectRoot: string): ProjectLocalNulliusLauncherHealth {
+  const relativePath = projectLocalNulliusRelativePath().split(path.sep).join('/');
   const launcherPath = path.join(projectRoot, relativePath);
   const base = {
     path: relativePath,
@@ -153,11 +153,11 @@ export function readProjectLocalAutoresearchLauncherHealth(projectRoot: string):
       message: `Project-local fallback launcher format is unrecognized; run ${repairCommand()} from the project root to refresh it.`,
     };
   }
-  // The portable launcher prefers an `autoresearch` on PATH and only falls back to
+  // The portable launcher prefers an `nullius` on PATH and only falls back to
   // the baked checkout paths. A missing baked target is therefore fatal only when
   // PATH cannot satisfy the launcher either.
   const missingPaths = checkedPaths.filter(candidate => !fs.existsSync(candidate));
-  if (missingPaths.length > 0 && !autoresearchResolvableOnPath(launcherPath)) {
+  if (missingPaths.length > 0 && !nulliusResolvableOnPath(launcherPath)) {
     return {
       ...base,
       exists: true,
@@ -166,7 +166,7 @@ export function readProjectLocalAutoresearchLauncherHealth(projectRoot: string):
       checked_paths: checkedPaths,
       missing_paths: missingPaths,
       issue_code: 'PROJECT_LOCAL_LAUNCHER_TARGET_MISSING',
-      message: `Project-local fallback launcher points at a missing CLI target and no autoresearch is on PATH; run ${repairCommand()} from the project root to refresh it.`,
+      message: `Project-local fallback launcher points at a missing CLI target and no nullius is on PATH; run ${repairCommand()} from the project root to refresh it.`,
     };
   }
   return {
@@ -181,7 +181,7 @@ export function readProjectLocalAutoresearchLauncherHealth(projectRoot: string):
   };
 }
 
-export function resolveProjectLocalAutoresearchLauncher(): ProjectLocalAutoresearchLauncher {
+export function resolveProjectLocalNulliusLauncher(): ProjectLocalNulliusLauncher {
   const pkgRoot = packageRoot();
   const distCliPath = path.join(pkgRoot, 'dist', 'cli.js');
   if (fs.existsSync(distCliPath)) {
@@ -219,22 +219,22 @@ export function resolveProjectLocalAutoresearchLauncher(): ProjectLocalAutoresea
   }
 
   throw new Error(
-    'could not resolve the canonical autoresearch CLI entrypoint; expected packages/orchestrator/dist/cli.js or repo-local tsx + packages/orchestrator/src/cli.ts',
+    'could not resolve the canonical nullius CLI entrypoint; expected packages/orchestrator/dist/cli.js or repo-local tsx + packages/orchestrator/src/cli.ts',
   );
 }
 
-export function ensureProjectLocalAutoresearchLauncher(projectRoot: string): {
+export function ensureProjectLocalNulliusLauncher(projectRoot: string): {
   launcher_path: string;
   launcher_mode: 'dist' | 'tsx';
 } {
-  const launcher = resolveProjectLocalAutoresearchLauncher();
-  const launcherPath = path.join(projectRoot, projectLocalAutoresearchRelativePath());
+  const launcher = resolveProjectLocalNulliusLauncher();
+  const launcherPath = path.join(projectRoot, projectLocalNulliusRelativePath());
   fs.mkdirSync(path.dirname(launcherPath), { recursive: true });
   const fallbackChecks = launcher.argv
     .filter(arg => path.isAbsolute(arg))
     .flatMap(arg => [
       `if [ ! -e ${shellQuote(arg)} ]; then`,
-      "  printf '%s\\n' '[error] autoresearch is not on PATH and the project-local fallback target is missing.' >&2",
+      "  printf '%s\\n' '[error] nullius is not on PATH and the project-local fallback target is missing.' >&2",
       `  printf '%s\\n' ${shellQuote(`[error] missing: ${arg}`)} >&2`,
       `  printf '%s\\n' ${shellQuote(`[error] run on this machine: ${repairCommand()}`)} >&2`,
       '  exit 127',
@@ -243,16 +243,16 @@ export function ensureProjectLocalAutoresearchLauncher(projectRoot: string): {
   const script = [
     '#!/bin/sh',
     'set -eu',
-    '# Autoresearch project-local fallback launcher.',
+    '# Nullius project-local fallback launcher.',
     '# Portable: the project root is derived from this script location, and an',
-    '# autoresearch on PATH is preferred, so the project keeps working after being',
+    '# nullius on PATH is preferred, so the project keeps working after being',
     `# moved or copied to another machine. If neither resolves, rerun: ${repairCommand()}`,
     SELF_DERIVE_PROJECT_ROOT_LINE,
-    '# Prefer an autoresearch on PATH, but never this launcher itself: -ef compares',
+    '# Prefer an nullius on PATH, but never this launcher itself: -ef compares',
     '# real file identity, so a PATH entry that is (or symlinks back to) this script',
     '# is rejected. Without it a self-referential PATH would recurse and corrupt',
-    '# --project-root. If no other autoresearch resolves, fall through to the baked CLI.',
-    RESOLVE_AUTORESEARCH_LINE,
+    '# --project-root. If no other nullius resolves, fall through to the baked CLI.',
+    RESOLVE_NULLIUS_LINE,
     PATH_PREFER_GUARD_LINE,
     `  ${PATH_PREFER_EXEC_LINE}`,
     'fi',

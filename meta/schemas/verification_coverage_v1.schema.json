@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://autoresearch.dev/schemas/verification_coverage_v1.schema.json",
+  "$id": "https://nullius.dev/schemas/verification_coverage_v1.schema.json",
   "title": "VerificationCoverage V1",
   "description": "Provider-neutral run-level coverage summary over verification subjects and subject verdicts. This artifact tracks what is covered, what remains open, and which decisive checks are still missing without reusing computation-only reproducibility contracts as generic verification authority.",
   "type": "object",
@@ -34,13 +34,13 @@
     "subject_refs": {
       "type": "array",
       "items": {
-        "$ref": "https://autoresearch.dev/schemas/artifact_ref_v1.schema.json"
+        "$ref": "https://nullius.dev/schemas/artifact_ref_v1.schema.json"
       }
     },
     "subject_verdict_refs": {
       "type": "array",
       "items": {
-        "$ref": "https://autoresearch.dev/schemas/artifact_ref_v1.schema.json"
+        "$ref": "https://nullius.dev/schemas/artifact_ref_v1.schema.json"
       }
     },
     "summary": {
@@ -90,7 +90,7 @@
           "minLength": 1
         },
         "subject_ref": {
-          "$ref": "https://autoresearch.dev/schemas/artifact_ref_v1.schema.json"
+          "$ref": "https://nullius.dev/schemas/artifact_ref_v1.schema.json"
         },
         "check_kind": {
           "type": "string",

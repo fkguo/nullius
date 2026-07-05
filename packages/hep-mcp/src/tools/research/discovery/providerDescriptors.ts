@@ -1,9 +1,9 @@
 import {
   DiscoveryProviderDescriptorSchema,
   type DiscoveryProviderDescriptor,
-} from '@autoresearch/shared';
-import { ARXIV_DISCOVERY_DESCRIPTOR } from '@autoresearch/arxiv-mcp/tooling';
-import { OPENALEX_DISCOVERY_DESCRIPTOR } from '@autoresearch/openalex-mcp/tooling';
+} from '@nullius/shared';
+import { ARXIV_DISCOVERY_DESCRIPTOR } from '@nullius/arxiv-mcp/tooling';
+import { OPENALEX_DISCOVERY_DESCRIPTOR } from '@nullius/openalex-mcp/tooling';
 
 export const INSPIRE_DISCOVERY_DESCRIPTOR: DiscoveryProviderDescriptor = DiscoveryProviderDescriptorSchema.parse({
   provider: 'inspire',

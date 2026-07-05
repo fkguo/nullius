@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://autoresearch.dev/schemas/rep_envelope_v1.schema.json",
+  "$id": "https://nullius.dev/schemas/rep_envelope_v1.schema.json",
   "title": "REP Envelope V1",
   "description": "Wire protocol envelope for the Research Evolution Protocol (REP). Adapted from GEP a2aProtocol.js envelope format. All REP messages are wrapped in this envelope.",
   "type": "object",

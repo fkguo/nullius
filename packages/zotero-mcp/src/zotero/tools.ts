@@ -3,9 +3,9 @@ import { createHash, randomUUID } from 'crypto';
 import * as os from 'os';
 import * as path from 'path';
 
-import { invalidParams, McpError, notFound, upstreamError, writeBytesAtomicDurable } from '@autoresearch/shared';
+import { invalidParams, McpError, notFound, upstreamError, writeBytesAtomicDurable } from '@nullius/shared';
 
-import type { Paper } from '@autoresearch/shared';
+import type { Paper } from '@nullius/shared';
 import * as inspireApi from './inspireClient.js';
 import * as crossrefApi from './crossrefClient.js';
 import {

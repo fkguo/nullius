@@ -1,6 +1,6 @@
 {
-  "name": "@autoresearch/zotero-mcp",
-  "version": "0.3.0",
+  "name": "@nullius/zotero-mcp",
+  "version": "0.4.0",
   "description": "Zotero (Local API) MCP server for local library management and integration",
   "author": "Feng-Kun Guo",
   "type": "module",
@@ -28,7 +28,7 @@
     "zotero-mcp": "./bin/zotero-mcp.js"
   },
   "scripts": {
-    "pretest": "node ../../scripts/ensure-workspace-package-artifacts.mjs @autoresearch/shared",
+    "pretest": "node ../../scripts/ensure-workspace-package-artifacts.mjs @nullius/shared",
     "build": "tsc --build",
     "clean": "rm -rf dist tsconfig.tsbuildinfo",
     "lint": "tsc --noEmit",
@@ -40,7 +40,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@autoresearch/shared": "workspace:*",
+    "@nullius/shared": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.25.2",
     "zod": "^4.3.5"
   },

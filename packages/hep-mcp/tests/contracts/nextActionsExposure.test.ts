@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-import { getToolSpecs as getOrchestratorToolSpecs } from '@autoresearch/orchestrator';
+import { getToolSpecs as getOrchestratorToolSpecs } from '@nullius/orchestrator';
 import { getToolSpecs } from '../../src/tools/index.js';
 
 function repoRootFromThisFile(): string {

@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 
-import type { EvidenceType } from '@autoresearch/shared';
+import type { EvidenceType } from '@nullius/shared';
 
 import { createProject } from '../../src/core/projects.js';
 import { createRun } from '../../src/core/runs.js';

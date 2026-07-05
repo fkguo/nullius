@@ -8,7 +8,7 @@
 
 import {
   HEPDATA_SEARCH,
-} from '@autoresearch/shared';
+} from '@nullius/shared';
 
 interface NextAction {
   tool: string;

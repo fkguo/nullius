@@ -14,7 +14,7 @@
  * ## Current design (schema v2)
  *
  * Anchor is valid iff:
- *   1. `.autoresearch/HARNESS_INVOCATION` exists and is well-formed.
+ *   1. `.nullius/HARNESS_INVOCATION` exists and is well-formed.
  *   2. `marker.anchored_at >= max(state.json mtime, ledger.jsonl mtime)` —
  *      i.e. no lifecycle event has happened on the project since the agent
  *      last anchored. State mutations bump the marker stale; pure thinking /
@@ -26,12 +26,12 @@
  *
  * ## Skip layers (in order they fire in `verifyHarnessInvocationMarker`)
  *
- *   1. `AUTORESEARCH_HARNESS_VERIFY=skip` or `NODE_ENV=test` → skip
+ *   1. `NULLIUS_HARNESS_VERIFY=skip` or `NODE_ENV=test` → skip
  *      (escape hatches; test default keeps suites green).
- *   2. `process.cwd()` has no `.autoresearch/` directory → skip
+ *   2. `process.cwd()` has no `.nullius/` directory → skip
  *      (standalone provider use; no lifecycle context to drift from).
  *   3. Caller (dispatcher) signals `toolIsStateTouching=false` for pure
- *      read-only provider queries → skip even with a `.autoresearch/` dir
+ *      read-only provider queries → skip even with a `.nullius/` dir
  *      present (classification per dispatcher per audit; see each *-mcp
  *      dispatcher source).
  *
@@ -40,7 +40,7 @@
  * ```jsonc
  * {
  *   "schema_version": 2,
- *   "kind": "autoresearch_harness_invocation",
+ *   "kind": "nullius_harness_invocation",
  *   "anchored_at": "2026-05-22T08:30:00Z",
  *   "host_skill": "research-harness",
  *   "project_root": "/abs/path",
@@ -52,17 +52,17 @@
  * v1 markers (with `ttl_seconds`) are accepted backward-compat for one
  * release: their `anchored_at` is checked against current state.json /
  * ledger.jsonl mtime exactly like v2, with the legacy `ttl_seconds` field
- * ignored. `autoresearch status` writes v2 going forward.
+ * ignored. `nullius status` writes v2 going forward.
  */
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { McpError, type ErrorCode } from './errors.js';
 import { writeJsonAtomicDurable } from './atomic-write.js';
 
-export const HARNESS_INVOCATION_FILE = '.autoresearch/HARNESS_INVOCATION';
-export const AUTORESEARCH_STATE_FILE = '.autoresearch/state.json';
-export const AUTORESEARCH_LEDGER_FILE = '.autoresearch/ledger.jsonl';
-const HARNESS_INVOCATION_KIND = 'autoresearch_harness_invocation' as const;
+export const HARNESS_INVOCATION_FILE = '.nullius/HARNESS_INVOCATION';
+export const NULLIUS_STATE_FILE = '.nullius/state.json';
+export const NULLIUS_LEDGER_FILE = '.nullius/ledger.jsonl';
+const HARNESS_INVOCATION_KIND = 'nullius_harness_invocation' as const;
 export const HARNESS_INVOCATION_SCHEMA_VERSION = 2 as const;
 
 /**
@@ -70,7 +70,7 @@ export const HARNESS_INVOCATION_SCHEMA_VERSION = 2 as const;
  * v2 markers do not use it. Verifier ignores it on v1 markers too.
  *
  * @deprecated kept exported so dependent packages compiling against an
- *   older `@autoresearch/shared` do not break at import time.
+ *   older `@nullius/shared` do not break at import time.
  */
 export const DEFAULT_HARNESS_INVOCATION_TTL_SECONDS = 3600;
 
@@ -84,9 +84,9 @@ export type HarnessInvocationMarker = {
   ttl_seconds?: number;
   host_skill: 'research-harness';
   project_root: string;
-  /** ISO mtime of `.autoresearch/state.json` at anchor time, if it existed. v2 only. */
+  /** ISO mtime of `.nullius/state.json` at anchor time, if it existed. v2 only. */
   state_mtime_at_anchor?: string;
-  /** ISO mtime of `.autoresearch/ledger.jsonl` at anchor time, if it existed. v2 only. */
+  /** ISO mtime of `.nullius/ledger.jsonl` at anchor time, if it existed. v2 only. */
   ledger_mtime_at_anchor?: string;
 };
 
@@ -146,8 +146,8 @@ export type WriteOptions = {
 };
 
 export function isHarnessVerifySkipped(env: NodeJS.ProcessEnv = process.env): boolean {
-  const explicit = typeof env.AUTORESEARCH_HARNESS_VERIFY === 'string'
-    ? env.AUTORESEARCH_HARNESS_VERIFY.trim().toLowerCase()
+  const explicit = typeof env.NULLIUS_HARNESS_VERIFY === 'string'
+    ? env.NULLIUS_HARNESS_VERIFY.trim().toLowerCase()
     : '';
   if (explicit === 'skip') return true;
   if (explicit === 'on') return false;
@@ -158,16 +158,16 @@ export function harnessInvocationMarkerPath(projectRoot: string): string {
   return path.join(projectRoot, HARNESS_INVOCATION_FILE);
 }
 
-export function autoresearchStatePath(projectRoot: string): string {
-  return path.join(projectRoot, AUTORESEARCH_STATE_FILE);
+export function nulliusStatePath(projectRoot: string): string {
+  return path.join(projectRoot, NULLIUS_STATE_FILE);
 }
 
-export function autoresearchLedgerPath(projectRoot: string): string {
-  return path.join(projectRoot, AUTORESEARCH_LEDGER_FILE);
+export function nulliusLedgerPath(projectRoot: string): string {
+  return path.join(projectRoot, NULLIUS_LEDGER_FILE);
 }
 
-function autoresearchDirPath(projectRoot: string): string {
-  return path.join(projectRoot, '.autoresearch');
+function nulliusDirPath(projectRoot: string): string {
+  return path.join(projectRoot, '.nullius');
 }
 
 function harnessInvocationError(
@@ -194,7 +194,7 @@ function harnessInvocationError(
     project_root: projectRoot,
     marker_path: HARNESS_INVOCATION_FILE,
     remediation:
-      'Invoke the research-harness skill, or run `autoresearch status --json` from the project root, to refresh the anchor marker.',
+      'Invoke the research-harness skill, or run `nullius status --json` from the project root, to refresh the anchor marker.',
     ...extra,
   });
 }
@@ -243,7 +243,7 @@ function normalizeProjectRoot(p: string): string {
  * Write the harness invocation marker for the given project root with a
  * fresh `anchored_at` timestamp + current state.json / ledger.jsonl
  * mtimes (for diagnostic surfaces; verifier ignores them and reads from
- * disk). Called by `autoresearch status` on the success path; safe to
+ * disk). Called by `nullius status` on the success path; safe to
  * call repeatedly (atomic rewrite).
  */
 export function writeHarnessInvocationMarker(
@@ -251,8 +251,8 @@ export function writeHarnessInvocationMarker(
   opts: WriteOptions = {},
 ): HarnessInvocationMarker {
   const now = opts.now ?? new Date();
-  const stateMtimeMs = safeMtimeMs(autoresearchStatePath(projectRoot));
-  const ledgerMtimeMs = safeMtimeMs(autoresearchLedgerPath(projectRoot));
+  const stateMtimeMs = safeMtimeMs(nulliusStatePath(projectRoot));
+  const ledgerMtimeMs = safeMtimeMs(nulliusLedgerPath(projectRoot));
   // Persist the normalized realpath so the verifier's identity check
   // (gpt-5.5 review B2) sees a canonical form regardless of how the
   // caller spelled `projectRoot` (symlink vs realpath, trailing slash,
@@ -275,15 +275,15 @@ export function writeHarnessInvocationMarker(
  * Verify the harness invocation marker for the project rooted at `cwd`.
  *
  * Skip layers (in order):
- *   1. Test / explicit-skip env (`AUTORESEARCH_HARNESS_VERIFY=skip` or
+ *   1. Test / explicit-skip env (`NULLIUS_HARNESS_VERIFY=skip` or
  *      `NODE_ENV=test` without explicit `on`).
- *   2. `cwd` has no `.autoresearch/` directory (B — standalone provider
+ *   2. `cwd` has no `.nullius/` directory (B — standalone provider
  *      use; no lifecycle context to drift from).
  *   3. Caller passed `toolIsStateTouching=false` (C — read-only provider
  *      queries do not need to anchor against project state).
  *
  * If none of those apply, verify:
- *   - Marker exists at `<cwd>/.autoresearch/HARNESS_INVOCATION` and
+ *   - Marker exists at `<cwd>/.nullius/HARNESS_INVOCATION` and
  *     parses as a v1 or v2 marker.
  *   - `marker.anchored_at >= max(state.json mtime, ledger.jsonl mtime)`.
  *
@@ -298,18 +298,18 @@ export function verifyHarnessInvocationMarker(
   // Skip 1: test / explicit skip.
   if (isHarnessVerifySkipped(env)) return;
 
-  // Skip 2: no autoresearch *directory* at cwd → treat as "no lifecycle
-  // context" and skip verification. A non-directory `.autoresearch`
+  // Skip 2: no nullius *directory* at cwd → treat as "no lifecycle
+  // context" and skip verification. A non-directory `.nullius`
   // (regular file, broken symlink, EACCES, etc.) is not a valid
   // lifecycle root either, so we skip in those cases too — the user's
   // actual tool calls will fail at the OS level when the dispatcher
   // tries to write inside a non-directory, surfacing the real
   // misconfiguration where the user can fix it. We deliberately do not
   // raise a synthetic "bad harness context" error here because that
-  // would conflate "no autoresearch at all" (the standalone case we
-  // want to support) with "misconfigured autoresearch" (rare).
+  // would conflate "no nullius at all" (the standalone case we
+  // want to support) with "misconfigured nullius" (rare).
   try {
-    if (!fs.statSync(autoresearchDirPath(cwd)).isDirectory()) return;
+    if (!fs.statSync(nulliusDirPath(cwd)).isDirectory()) return;
   } catch {
     // ENOENT (the common standalone case) and other stat errors → no
     // lifecycle context; skip.
@@ -382,8 +382,8 @@ export function verifyHarnessInvocationMarker(
 
   // Event-driven freshness: anchor must be >= max(state.json mtime, ledger mtime).
   // If neither file exists yet (fresh project), anchor passes trivially.
-  const stateMtimeMs = safeMtimeMs(autoresearchStatePath(cwd));
-  const ledgerMtimeMs = safeMtimeMs(autoresearchLedgerPath(cwd));
+  const stateMtimeMs = safeMtimeMs(nulliusStatePath(cwd));
+  const ledgerMtimeMs = safeMtimeMs(nulliusLedgerPath(cwd));
   const latestStateChangeMs = Math.max(
     stateMtimeMs ?? Number.NEGATIVE_INFINITY,
     ledgerMtimeMs ?? Number.NEGATIVE_INFINITY,
@@ -401,7 +401,7 @@ export function verifyHarnessInvocationMarker(
 
 /**
  * Read the marker without verifying freshness. Used by diagnostic
- * surfaces (e.g. `autoresearch status`) that want to report anchor state
+ * surfaces (e.g. `nullius status`) that want to report anchor state
  * without forcing a rejection. Returns null on any read or parse failure.
  */
 export function readHarnessInvocationMarker(projectRoot: string): HarnessInvocationMarker | null {

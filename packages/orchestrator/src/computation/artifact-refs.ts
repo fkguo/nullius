@@ -1,5 +1,5 @@
 import * as fs from 'node:fs';
-import { createArtifactRefV1, makeScopedArtifactUri, type ArtifactRefV1 } from '@autoresearch/shared';
+import { createArtifactRefV1, makeScopedArtifactUri, type ArtifactRefV1 } from '@nullius/shared';
 import { sha256File, toPosixRelative } from './io.js';
 
 export function makeRunArtifactUri(runId: string, runRelativePath: string): string {
@@ -24,6 +24,6 @@ export function createRunArtifactRef(
     sha256: sha256File(filePath),
     kind,
     size_bytes: stat.size,
-    produced_by: '@autoresearch/orchestrator',
+    produced_by: '@nullius/orchestrator',
   });
 }

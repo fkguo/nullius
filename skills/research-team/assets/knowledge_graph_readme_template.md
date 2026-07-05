@@ -25,11 +25,11 @@ Relation to the execution layer (Trajectory):
 
 ## Visualization (optional)
 
-- Render the Claim DAG through the `autoresearch graph` front door (which consumes the
-  domain-neutral `@autoresearch/shared/graph-viz` engine):
+- Render the Claim DAG through the `nullius graph` front door (which consumes the
+  domain-neutral `@nullius/shared/graph-viz` engine):
 
   ```bash
-  autoresearch graph --kind claims \
+  nullius graph --kind claims \
     --claims knowledge_graph/claims.jsonl --edges knowledge_graph/edges.jsonl \
     --out-dir knowledge_graph [--format png|svg] [--legend embedded]
   ```
@@ -37,7 +37,7 @@ Relation to the execution layer (Trajectory):
 - `knowledge_graph/claims.dot` (the portable source of truth) is always written; a
   `claims.png` / `claims.svg` is produced only when Graphviz `dot` is installed.
 - On a converged team cycle this render runs automatically as a best-effort step when
-  an `autoresearch` CLI is reachable (project-local `.autoresearch/bin/autoresearch` or
+  an `nullius` CLI is reachable (project-local `.nullius/bin/nullius` or
   on `PATH`).
 - Convention:
   - In `edges.jsonl`, `type:"requires"` means “source depends on target (target is a prerequisite)”.

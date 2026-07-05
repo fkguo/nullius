@@ -6,10 +6,10 @@ import type {
   VerificationSubjectV1,
   VerificationSubjectVerdictV1,
   WritingReviewBridgeV1,
-} from '@autoresearch/shared';
+} from '@nullius/shared';
 import {
   evaluateVerificationKernelGateV1,
-} from '@autoresearch/shared';
+} from '@nullius/shared';
 
 export type ReviewFollowupGateDecision = 'pass' | 'block' | 'advisory_only' | 'unavailable';
 

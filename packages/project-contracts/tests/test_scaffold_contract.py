@@ -122,9 +122,9 @@ class TestScaffoldContract(unittest.TestCase):
 
     def test_scaffold_and_contract_sync_default_to_real_project_policy(self) -> None:
         repo_root = Path(__file__).resolve().parents[3]
-        with self.assertRaisesRegex(ValueError, "must resolve outside the autoresearch-lab dev repo"):
+        with self.assertRaisesRegex(ValueError, "must resolve outside the nullius dev repo"):
             ensure_project_scaffold(repo_root=repo_root, project_name="Repo Internal")
-        with self.assertRaisesRegex(ValueError, "must resolve outside the autoresearch-lab dev repo"):
+        with self.assertRaisesRegex(ValueError, "must resolve outside the nullius dev repo"):
             sync_research_contract(repo_root=repo_root, create_missing=False)
 
     def test_scaffold_agents_template_includes_markdown_link_rules(self) -> None:
@@ -138,13 +138,13 @@ class TestScaffoldContract(unittest.TestCase):
         self.assertIn("Only inside multi-line display math blocks", template)
         self.assertIn("External references must use clickable stable links when available.", template)
         self.assertIn("new session", template)
-        self.assertIn(".autoresearch/HARNESS", template)
+        self.assertIn(".nullius/HARNESS", template)
         self.assertIn("Before any new session, reconnect, interruption recovery, context reset, handoff, milestone start, or closeout", template)
-        self.assertIn("autoresearch status --json", template)
+        self.assertIn("nullius status --json", template)
         self.assertIn("If the host agent exposes a `research-harness` skill", template)
         self.assertIn("use that entrypoint first for reconnect, recovery, routing, verification, and handoff", template)
-        self.assertIn("routes lifecycle work to `autoresearch`, milestone execution to `research-team`", template)
-        self.assertIn("must preserve the `.autoresearch/HARNESS` and `research-harness` reconnect requirements", template)
+        self.assertIn("routes lifecycle work to `nullius`, milestone execution to `research-team`", template)
+        self.assertIn("must preserve the `.nullius/HARNESS` and `research-harness` reconnect requirements", template)
         self.assertIn("1) [project_index.md](project_index.md)", template)
         self.assertIn("2) [AGENTS.md](AGENTS.md)", template)
         self.assertIn("Keep `research_notebook.md` organized by the problem's logic", template)
@@ -191,7 +191,7 @@ class TestScaffoldContract(unittest.TestCase):
         self.assertIn("physical quantities, formulas, variables, operators, state vectors, cross sections, S-matrix elements, transfer functions, equations, and assumptions", template)
         self.assertIn("Backticks are only for filenames, commands, literal field or key names, and code identifiers", template)
         self.assertIn("opt-in support layers", template)
-        self.assertIn("autoresearch init --refresh", template)
+        self.assertIn("nullius init --refresh", template)
         self.assertNotIn("run_team_cycle.sh", template)
         self.assertNotIn("prompts/_system_member_a.txt", template)
         self.assertNotIn("research_team_config.json", template)
@@ -300,15 +300,15 @@ class TestScaffoldContract(unittest.TestCase):
             contract_template,
         ]
         for template in templates:
-            self.assertIn("autoresearch status --json", template)
-            self.assertIn(".autoresearch/bin/autoresearch status --json", template)
+            self.assertIn("nullius status --json", template)
+            self.assertIn(".nullius/bin/nullius status --json", template)
             self.assertIn("authoritative recovery briefing", template)
             self.assertIn("research_notebook.md", template)
-        self.assertIn(".autoresearch/HARNESS", agents_template)
+        self.assertIn(".nullius/HARNESS", agents_template)
         self.assertIn("1) [project_index.md](project_index.md) — checked-in front door for restart and navigation", index_template)
         self.assertIn("2) [AGENTS.md](AGENTS.md) — workflow anchor, reconnect discipline, and output rules", index_template)
-        self.assertIn("If `.autoresearch/HARNESS` exists, start by running `.autoresearch/bin/autoresearch status --json`", index_template)
-        self.assertIn("repair the runtime handshake with `autoresearch init --runtime-only`", index_template)
+        self.assertIn("If `.nullius/HARNESS` exists, start by running `.nullius/bin/nullius status --json`", index_template)
+        self.assertIn("repair the runtime handshake with `nullius init --runtime-only`", index_template)
         self.assertIn("# project_index.md\n", index_template)
         self.assertNotIn("# project_index.md (Template)", index_template)
         self.assertIn("organized by the research problem's logic", index_template)
@@ -329,9 +329,9 @@ class TestScaffoldContract(unittest.TestCase):
         ]:
             self.assertIn(field, plan_template)
         self.assertIn("not by appending a dated run log", plan_template)
-        self.assertIn("If `.autoresearch/HARNESS` exists, run `.autoresearch/bin/autoresearch status --json` first", plan_template)
-        self.assertIn("repair the runtime handshake with `autoresearch init --runtime-only`", plan_template)
-        self.assertIn("If `.autoresearch/HARNESS` exists, run `.autoresearch/bin/autoresearch status --json` before continuing", contract_template)
+        self.assertIn("If `.nullius/HARNESS` exists, run `.nullius/bin/nullius status --json` first", plan_template)
+        self.assertIn("repair the runtime handshake with `nullius init --runtime-only`", plan_template)
+        self.assertIn("If `.nullius/HARNESS` exists, run `.nullius/bin/nullius status --json` before continuing", contract_template)
         self.assertIn("opt-in support layers", index_template)
         self.assertNotIn("[prompts/](prompts/)", index_template)
         self.assertNotIn("[team/](team/)", index_template)
@@ -347,7 +347,7 @@ class TestScaffoldContract(unittest.TestCase):
         }
 
         for name, template in templates.items():
-            self.assertIn("`autoresearch`", template, msg=name)
+            self.assertIn("`nullius`", template, msg=name)
             self.assertIn("guaranteed root entrypoint", template, msg=name)
             self.assertIn("orchestration or MCP control-plane commands such as `orch_*`", template, msg=name)
             self.assertIn("do not assume a literal `orch_*` command exists", template, msg=name)
@@ -474,7 +474,7 @@ class TestScaffoldRefresh(unittest.TestCase):
             self.assertEqual(result["refreshed"], [])
             self.assertEqual(result["backed_up"], [])
             self.assertIsNone(result["backup_dir"])
-            self.assertFalse((root / ".autoresearch" / "backups").exists())
+            self.assertFalse((root / ".nullius" / "backups").exists())
 
     def test_refresh_creates_missing_managed_file(self) -> None:
         with tempfile.TemporaryDirectory() as td:
@@ -521,7 +521,7 @@ class TestScaffoldRefresh(unittest.TestCase):
             self.assertIn("AGENTS.md", result["refreshed"])
             self.assertIsNone(result["backup_dir"])
             self.assertEqual((root / "AGENTS.md").read_text(encoding="utf-8"), "HACKED AGENTS\n")
-            self.assertFalse((root / ".autoresearch" / "backups").exists())
+            self.assertFalse((root / ".nullius" / "backups").exists())
 
     def test_refresh_is_non_transactional_but_recoverable(self) -> None:
         with tempfile.TemporaryDirectory() as td:
@@ -544,7 +544,7 @@ class TestScaffoldRefresh(unittest.TestCase):
                     ensure_project_scaffold(repo_root=root, refresh=True, project_policy="real_project")
 
             # The managed file's prior content remains recoverable from the backup.
-            backups = list((root / ".autoresearch" / "backups").glob("*/AGENTS.md"))
+            backups = list((root / ".nullius" / "backups").glob("*/AGENTS.md"))
             self.assertTrue(backups, "expected a backup of the managed file before the failure")
             self.assertEqual(backups[0].read_text(encoding="utf-8"), "TAMPERED-AGENTS\n")
 

@@ -1,32 +1,32 @@
-# Autoresearch Lab
+# Nullius
 
 English | [中文](./docs/README_zh.md)
 
-Autoresearch Lab is a domain-neutral, evidence-first research monorepo. Today it combines a generic lifecycle/control-plane package, local MCP provider packages, and checked-in workflow recipes that can be consumed through `autoresearch workflow-plan` or internal agent clients. HEP is the current most mature provider family and the strongest end-to-end workflow example in the repo, but it is not the root product identity.
+Nullius is a domain-neutral, evidence-first research monorepo. Today it combines a generic lifecycle/control-plane package, local MCP provider packages, and checked-in workflow recipes that can be consumed through `nullius workflow-plan` or internal agent clients. HEP is the current most mature provider family and the strongest end-to-end workflow example in the repo, but it is not the root product identity.
 
 ## 1. Surface Policy
 
-- `autoresearch` remains the stateful CLI front door for initialized external project roots. Use it for lifecycle state, bounded execution, `workflow-plan`, verification, higher-conclusion gating, and proposal decisions.
+- `nullius` remains the stateful CLI front door for initialized external project roots. Use it for lifecycle state, bounded execution, `workflow-plan`, verification, higher-conclusion gating, and proposal decisions.
 - `orch_*` remains the MCP/operator counterpart of that same control plane. It is a host-facing bridge for the control plane, not a competing product identity and not a replacement for the CLI.
 - `openalex_*`, `arxiv_*`, `hepdata_*`, `pdg_*`, and `zotero_*` remain bounded atomic MCP operators. They stay MCP-first because they are schema-driven provider atoms, not stateful workflow shells that need mass CLI mirroring.
 - `idea-mcp` remains an experimental runtime bridge. It is not a root front door, and its MCP surface is intentionally narrower than the full `idea-engine` runtime contract. The current idea-engine phase is closed; do not treat it as a default capability-expansion lane.
-- `@autoresearch/hep-mcp` remains the current most mature domain pack and strongest end-to-end example, but HEP does not define the root product identity.
-- `research-harness` is the thin Codex / Claude Code / OpenCode skill entrypoint for external research projects: it restores `autoresearch` project state, routes milestone execution to `research-team`, routes Markdown note cleanup to `markdown-hygiene`, routes HEP evidence work to `hep-mcp`, and folds durable results back into project files and artifacts. It is not a new CLI or a second control plane.
-- `research_brainstorm` is a checked-in durable harness recipe under `autoresearch workflow-plan`, not a new top-level CLI command, not the idea-engine, not a full research-team workflow, and not a root front-door expansion.
-- `.autoresearch/HARNESS` is the machine-readable runtime handshake written by `autoresearch init`; when it is present, agents must obtain an `autoresearch status --json` receipt before new work, milestone execution, closeout, or handoff.
-- Strict fail-closed research quality remains in force. `.autoresearch/HARNESS`, project-local durable memory, plus `.autoresearch/` state remain the reconnect truth. Optional support surfaces stay opt-in layers.
+- `@nullius/hep-mcp` remains the current most mature domain pack and strongest end-to-end example, but HEP does not define the root product identity.
+- `research-harness` is the thin Codex / Claude Code / OpenCode skill entrypoint for external research projects: it restores `nullius` project state, routes milestone execution to `research-team`, routes Markdown note cleanup to `markdown-hygiene`, routes HEP evidence work to `hep-mcp`, and folds durable results back into project files and artifacts. It is not a new CLI or a second control plane.
+- `research_brainstorm` is a checked-in durable harness recipe under `nullius workflow-plan`, not a new top-level CLI command, not the idea-engine, not a full research-team workflow, and not a root front-door expansion.
+- `.nullius/HARNESS` is the machine-readable runtime handshake written by `nullius init`; when it is present, agents must obtain an `nullius status --json` receipt before new work, milestone execution, closeout, or handoff.
+- Strict fail-closed research quality remains in force. `.nullius/HARNESS`, project-local durable memory, plus `.nullius/` state remain the reconnect truth. Optional support surfaces stay opt-in layers.
 
 ## 2. Current Public Surfaces
 
 | Surface | Canonical entrypoint | What it is for |
 | --- | --- | --- |
-| Stateful CLI front door | `autoresearch` | External project-root lifecycle state, approvals, bounded native TS `run --workflow-id computation`, stateful `workflow-plan` persistence, and `graph` dependency-map rendering (claims / progress / literature / roadmap) |
+| Stateful CLI front door | `nullius` | External project-root lifecycle state, approvals, bounded native TS `run --workflow-id computation`, stateful `workflow-plan` persistence, and `graph` dependency-map rendering (claims / progress / literature / roadmap) |
 | Control-plane MCP/operator counterpart | `orch_*` | Host-facing MCP/operator surface for the same lifecycle/control-plane authority |
-| Stateful literature planning | `autoresearch workflow-plan` | Checked-in workflow authority resolved via `@autoresearch/literature-workflows`, persisted to `.autoresearch/state.json#/plan`, and rendered to `.autoresearch/plan.md` |
-| Agent research project harness skill | `research-harness` | Thin client skill for Codex / Claude Code / OpenCode to recover external project state, route work to `autoresearch`, `research-team`, `markdown-hygiene`, and `hep-mcp`, and fold results back into durable project artifacts |
-| Experimental idea runtime bridge | `node /absolute/path/to/autoresearch-lab/packages/idea-mcp/dist/server.js` | TS-hosted campaign runtime bridge for `idea_campaign_*`, `idea_search_step`, and `idea_eval_run` on explicit external data roots; post-search rank/promote and bounded negative failure-library reflection remain `idea-engine` runtime-contract truth, not a root front door |
-| Current most mature domain MCP front door | `node /absolute/path/to/autoresearch-lab/packages/hep-mcp/dist/index.js` | HEP domain MCP server for research, evidence, writing, export, and provider-local composition |
-| Bounded provider MCP operators | `@autoresearch/openalex-mcp`, `@autoresearch/arxiv-mcp`, `@autoresearch/hepdata-mcp`, `@autoresearch/pdg-mcp`, `@autoresearch/zotero-mcp` | Atomic literature, data, reference, and evidence operators that stay MCP-first |
+| Stateful literature planning | `nullius workflow-plan` | Checked-in workflow authority resolved via `@nullius/literature-workflows`, persisted to `.nullius/state.json#/plan`, and rendered to `.nullius/plan.md` |
+| Agent research project harness skill | `research-harness` | Thin client skill for Codex / Claude Code / OpenCode to recover external project state, route work to `nullius`, `research-team`, `markdown-hygiene`, and `hep-mcp`, and fold results back into durable project artifacts |
+| Experimental idea runtime bridge | `node /absolute/path/to/nullius/packages/idea-mcp/dist/server.js` | TS-hosted campaign runtime bridge for `idea_campaign_*`, `idea_search_step`, and `idea_eval_run` on explicit external data roots; post-search rank/promote and bounded negative failure-library reflection remain `idea-engine` runtime-contract truth, not a root front door |
+| Current most mature domain MCP front door | `node /absolute/path/to/nullius/packages/hep-mcp/dist/index.js` | HEP domain MCP server for research, evidence, writing, export, and provider-local composition |
+| Bounded provider MCP operators | `@nullius/openalex-mcp`, `@nullius/arxiv-mcp`, `@nullius/hepdata-mcp`, `@nullius/pdg-mcp`, `@nullius/zotero-mcp` | Atomic literature, data, reference, and evidence operators that stay MCP-first |
 
 The live HEP tool inventory is code-owned and mode-filtered by `HEP_TOOL_MODE`; keep exact counts in the generated category/status docs rather than this README.
 
@@ -34,13 +34,13 @@ The live HEP tool inventory is code-owned and mode-filtered by `HEP_TOOL_MODE`; 
 
 | Layer | Current authority | Why it stays here |
 | --- | --- | --- |
-| Workflow authority | checked-in recipes consumed by `autoresearch workflow-plan` | High-level workflow meaning lives above provider packs |
-| Stateful control plane | `autoresearch` plus `orch_*` | Persistent project/run state, approvals, bounded execution, verification, and read models belong to one shared control plane |
+| Workflow authority | checked-in recipes consumed by `nullius workflow-plan` | High-level workflow meaning lives above provider packs |
+| Stateful control plane | `nullius` plus `orch_*` | Persistent project/run state, approvals, bounded execution, verification, and read models belong to one shared control plane |
 | Agent project harness | `research-harness` skill | Host-client guidance for recovery, routing, verification, and handoff; it delegates execution to the control plane and domain/executor layers |
 | Experimental runtime bridge | `idea-mcp` | Runtime bridge stays explicit and narrower than the full engine contract |
-| Domain workflow pack | `@autoresearch/hep-mcp`, `hep_*` | Current strongest end-to-end example without becoming root identity |
+| Domain workflow pack | `@nullius/hep-mcp`, `hep_*` | Current strongest end-to-end example without becoming root identity |
 | Provider atoms | `openalex_*`, `arxiv_*`, `hepdata_*`, `pdg_*`, `zotero_*` | Bounded, schema-driven MCP operators are easier to compose than provider-local CLI mirrors |
-| Project-local truth | `.autoresearch/` plus durable memory files | Reconnect truth stays with the external project root, not the development repo |
+| Project-local truth | `.nullius/` plus durable memory files | Reconnect truth stays with the external project root, not the development repo |
 
 Within project-local truth, `research_plan.md#Current Status` is the human status entry: keep the final target, current phase, completion state, blocker, next step, stop condition, and evidence pointers readable before the longer task board and log. `research_notebook.md` is the human-facing logical narrative: organize it by the evolving research problem, derivations, claims, and uncertainties, not by status tracking. Literature notes for important sources must be full-text/source-first with auditable section/page/equation/figure coverage and LaTeX math notation. Keep dated run logs, raw workflow summaries, and tool-use traces in `research_plan.md` progress entries or `artifacts/runs/<run_id>/`, then fold durable insights back into the notebook. Human-facing `run_id` values should be safe, sortable, readable research identifiers such as `20260502T023000Z-m3-branch-scan-r1`; provider UUIDs or `run_<uuid>` values are machine/provider provenance, not recommended project artifact roots.
 
@@ -50,13 +50,13 @@ Skill source and distribution are separate surfaces:
 - `packages/skills-market` is the installer/distribution control plane; it does not mean those skills are preinstalled in a client runtime.
 - `research-harness` is the market-listed thin entry skill for external research projects. It intentionally has no hard package dependency on `research-team`, `markdown-hygiene`, or `hep-mcp`; those remain separate capabilities that the host client may already provide or install independently.
 
-For the project's non-surface guarantees — what Autoresearch Lab is *not*, which agent failure modes it defends against (M1–M7 + long-conversation drift), how those guarantees are enforced by anti-drift CI, and which borrowed concepts were considered and rejected — see [`docs/POSITIONING.md`](./docs/POSITIONING.md).
+For the project's non-surface guarantees — what Nullius is *not*, which agent failure modes it defends against (M1–M7 + long-conversation drift), how those guarantees are enforced by anti-drift CI, and which borrowed concepts were considered and rejected — see [`docs/POSITIONING.md`](./docs/POSITIONING.md).
 
 ## 4. Where Do Files, Artifacts, and State Live
 
 ### `hep-mcp` data root
 
-`@autoresearch/hep-mcp` resolves its data root per tool call. If a tool call includes `project_root` for an initialized autoresearch project, HEP state is stored under `<project_root>/artifacts/hep-mcp`. Otherwise it uses `HEP_DATA_DIR` when set, then falls back to `~/.autoresearch/hep-mcp` for scratch/temporary checks.
+`@nullius/hep-mcp` resolves its data root per tool call. If a tool call includes `project_root` for an initialized nullius project, HEP state is stored under `<project_root>/artifacts/hep-mcp`. Otherwise it uses `HEP_DATA_DIR` when set, then falls back to `~/.nullius/hep-mcp` for scratch/temporary checks.
 
 ```text
 <resolved HEP data root>/
@@ -81,11 +81,11 @@ For the project's non-surface guarantees — what Autoresearch Lab is *not*, whi
 
 ### Generic lifecycle state
 
-`autoresearch init` bootstraps a real external project root and creates `.autoresearch/HARNESS` plus `.autoresearch/` there. The current lifecycle package reads and writes:
+`nullius init` bootstraps a real external project root and creates `.nullius/HARNESS` plus `.nullius/` there. The current lifecycle package reads and writes:
 
 ```text
 <project_root>/
-  .autoresearch/
+  .nullius/
     HARNESS
     state.json
     ledger.jsonl
@@ -103,14 +103,14 @@ Approval packets are materialized under the run's `artifacts/runs/<run_id>/appro
 
 The durable truth here should be understood as two layers that hold together:
 
-- lifecycle / plan / approval state under `.autoresearch/`
+- lifecycle / plan / approval state under `.nullius/`
 - project-local durable memory such as `research_plan.md`, `research_contract.md`, and `research_notebook.md` once it has substantive content
 
 Surfaces such as `prompts/`, `team/`, `research_team_config.json`, `.mcp.template.json`, and root `specs/plan.schema.json` are opt-in support layers, created later by explicit project need or host-specific tooling rather than the default working front door.
 
 ## 5. How Does a User Connect from MCP Clients / Agent Clients
 
-The current MCP connection story is local stdio only. There is not yet a single monolithic generic root MCP server binary; today the most mature domain MCP entrypoint is `hep-mcp`, while the generic control plane is split across the `autoresearch` CLI and the canonical public `orch_*` MCP/operator surface described in [`meta/docs/orchestrator-mcp-tools-spec.md`](./meta/docs/orchestrator-mcp-tools-spec.md). In other words, generic lifecycle/control-plane work is no longer CLI-only even though it does not ship as a separate root MCP server process.
+The current MCP connection story is local stdio only. There is not yet a single monolithic generic root MCP server binary; today the most mature domain MCP entrypoint is `hep-mcp`, while the generic control plane is split across the `nullius` CLI and the canonical public `orch_*` MCP/operator surface described in [`meta/docs/orchestrator-mcp-tools-spec.md`](./meta/docs/orchestrator-mcp-tools-spec.md). In other words, generic lifecycle/control-plane work is no longer CLI-only even though it does not ship as a separate root MCP server process.
 
 Current public MCP contract: local stdio process launch, tool `inputSchema`, compact JSON/text tool results, and no prompts. Research material placement is filesystem-first: transient fetches stay in local temp, while material needed for verification or continuation becomes a project/run artifact. `orch_*` is an operator/tool inventory exposed by the orchestrator package; it is not a separately packaged root MCP server. Remote MCP transports, OAuth, and registry publishing remain future deployment work outside the current local-stdio contract.
 
@@ -122,10 +122,10 @@ Universal MCP config pattern:
     "hep-mcp": {
       "command": "node",
       "args": [
-        "/absolute/path/to/autoresearch-lab/packages/hep-mcp/dist/index.js"
+        "/absolute/path/to/nullius/packages/hep-mcp/dist/index.js"
       ],
       "env": {
-        "HEP_DATA_DIR": "~/.autoresearch/hep-mcp",
+        "HEP_DATA_DIR": "~/.nullius/hep-mcp",
         "HEP_TOOL_MODE": "standard",
         "ZOTERO_BASE_URL": "http://127.0.0.1:23119"
       }
@@ -137,63 +137,63 @@ Universal MCP config pattern:
 Notes:
 
 - Build first: `pnpm -r build`.
-- MCP environment paths are filesystem roots, not URI/protocol settings. For durable autoresearch project work, pass the initialized `project_root` in HEP tool calls so artifacts go under `<project_root>/artifacts/hep-mcp`. Keep `HEP_DATA_DIR` as a scratch fallback or explicit override for one-off checks, CI, and migrations.
-- If `autoresearch` is not on `PATH`, create a local wrapper after building:
+- MCP environment paths are filesystem roots, not URI/protocol settings. For durable nullius project work, pass the initialized `project_root` in HEP tool calls so artifacts go under `<project_root>/artifacts/hep-mcp`. Keep `HEP_DATA_DIR` as a scratch fallback or explicit override for one-off checks, CI, and migrations.
+- If `nullius` is not on `PATH`, create a local wrapper after building:
 
 ```bash
 mkdir -p "$HOME/.local/bin"
-ln -sf /absolute/path/to/autoresearch-lab/packages/orchestrator/dist/cli.js "$HOME/.local/bin/autoresearch"
-chmod +x "$HOME/.local/bin/autoresearch"
-autoresearch --help
+ln -sf /absolute/path/to/nullius/packages/orchestrator/dist/cli.js "$HOME/.local/bin/nullius"
+chmod +x "$HOME/.local/bin/nullius"
+nullius --help
 ```
 
-  This repository is currently a local workspace, not a published global npm CLI. The wrapper above is the normal source-checkout install path for agent clients that can execute shell commands. A project-local launcher is also written during `autoresearch init`, so already-initialized research folders can continue with `./.autoresearch/bin/autoresearch status --json` even when the global wrapper is absent.
+  This repository is currently a local workspace, not a published global npm CLI. The wrapper above is the normal source-checkout install path for agent clients that can execute shell commands. A project-local launcher is also written during `nullius init`, so already-initialized research folders can continue with `./.nullius/bin/nullius status --json` even when the global wrapper is absent.
 - GUI apps sometimes need an absolute Node path instead of bare `node`.
 - Some clients namespace tool names as `mcp__<serverAlias>__<toolName>`. Always call the exact tool name shown by the client.
 - Typical MCP-compatible clients include Cursor, Claude Desktop, Claude Code CLI, Chatbox, Cherry Studio, Continue, Cline, and Zed.
 - The lifecycle CLI is separate from MCP client setup:
 
 ```bash
-autoresearch init --project-root /absolute/path/to/external-project
-autoresearch status --project-root /absolute/path/to/external-project
+nullius init --project-root /absolute/path/to/external-project
+nullius status --project-root /absolute/path/to/external-project
 ```
 
 - For Codex, Claude Code, OpenCode, Cursor, Kimi-code, or similar agent clients, use one idempotent startup instruction for both first use and later recovery:
 
 ```text
-You are in a folder that should be managed by autoresearch.
+You are in a folder that should be managed by nullius.
 First determine whether it is already initialized.
 
-If .autoresearch/HARNESS exists, obtain a status receipt before doing any work:
-./.autoresearch/bin/autoresearch status --json
+If .nullius/HARNESS exists, obtain a status receipt before doing any work:
+./.nullius/bin/nullius status --json
 If the project-local launcher is unavailable, run:
-autoresearch status --json
+nullius status --json
 
-If .autoresearch/ exists but .autoresearch/HARNESS is missing, run status first if possible,
+If .nullius/ exists but .nullius/HARNESS is missing, run status first if possible,
 then repair the runtime handshake with:
-autoresearch init --runtime-only
+nullius init --runtime-only
 
-If AGENTS.md and .autoresearch/HARNESS are both missing, initialize the project:
-autoresearch init
+If AGENTS.md and .nullius/HARNESS are both missing, initialize the project:
+nullius init
 Then read the generated AGENTS.md and run:
-./.autoresearch/bin/autoresearch status --json
+./.nullius/bin/nullius status --json
 
 To pull newer managed scaffold doc (AGENTS.md) into an
 already-initialized project without touching your own notes, preview then apply:
-autoresearch init --refresh --dry-run
-autoresearch init --refresh
+nullius init --refresh --dry-run
+nullius init --refresh
 
-If `autoresearch` is not available, first prepare the CLI from the source checkout
+If `nullius` is not available, first prepare the CLI from the source checkout
 as described in this README, then retry the same startup sequence.
 
-Use research-harness if your agent supports it. Treat autoresearch as the lifecycle
+Use research-harness if your agent supports it. Treat nullius as the lifecycle
 authority, research-team as the milestone executor, and fold stable results back into
 research_contract.md, research_plan.md#Current Status, and artifacts/runs/<run_id>/.
 ```
 
-  Once initialized, reconnect is local-first: `.autoresearch/HARNESS`, `.autoresearch/bin/autoresearch`, `AGENTS.md`, `research_plan.md`, `research_contract.md`, and `artifacts/runs/<run_id>/` are enough for an agent to recover the project state after a closed session or a network outage. Network access is only needed for tasks that actually fetch external sources.
+  Once initialized, reconnect is local-first: `.nullius/HARNESS`, `.nullius/bin/nullius`, `AGENTS.md`, `research_plan.md`, `research_contract.md`, and `artifacts/runs/<run_id>/` are enough for an agent to recover the project state after a closed session or a network outage. Network access is only needed for tasks that actually fetch external sources.
 
-- For stateful literature workflows, first initialize the target external project root with `autoresearch init`, then use `autoresearch workflow-plan` from that root or with `--project-root`. It resolves recipes directly via `@autoresearch/literature-workflows`, persists `.autoresearch/state.json#/plan`, and derives `.autoresearch/plan.md`. Pass an explicit `--run-id` for meaningful external research runs; if omitted, the derived `<recipe>-<phase>` id is only a planning placeholder. `research_brainstorm` is the lightweight planning-only durable harness form: `autoresearch workflow-plan --recipe research_brainstorm --run-id 20260502T023000Z-m0-topic-r1 --topic "<topic>"` records brainstorm context, candidate angles, screening, one recommendation, and a `next_contract` handoff. `.autoresearch/plan.md` is a human read model rather than machine orchestration SSOT. The contract may suggest a heavier follow-up recipe such as `literature_landscape`, `literature_gap_analysis`, `derivation_cycle`, or `review_cycle`, but it does not start that recipe automatically and it does not depend on any host-native thinking process. The persisted `research_brainstorm.*` step tools are handoff authority, not built-in runtime tools, unless a future external tool caller explicitly implements them. Any checked-in Python workflow consumers remain maintainer/eval proof only and are not a second front-door shell.
+- For stateful literature workflows, first initialize the target external project root with `nullius init`, then use `nullius workflow-plan` from that root or with `--project-root`. It resolves recipes directly via `@nullius/literature-workflows`, persists `.nullius/state.json#/plan`, and derives `.nullius/plan.md`. Pass an explicit `--run-id` for meaningful external research runs; if omitted, the derived `<recipe>-<phase>` id is only a planning placeholder. `research_brainstorm` is the lightweight planning-only durable harness form: `nullius workflow-plan --recipe research_brainstorm --run-id 20260502T023000Z-m0-topic-r1 --topic "<topic>"` records brainstorm context, candidate angles, screening, one recommendation, and a `next_contract` handoff. `.nullius/plan.md` is a human read model rather than machine orchestration SSOT. The contract may suggest a heavier follow-up recipe such as `literature_landscape`, `literature_gap_analysis`, `derivation_cycle`, or `review_cycle`, but it does not start that recipe automatically and it does not depend on any host-native thinking process. The persisted `research_brainstorm.*` step tools are handoff authority, not built-in runtime tools, unless a future external tool caller explicitly implements them. Any checked-in Python workflow consumers remain maintainer/eval proof only and are not a second front-door shell.
 
 ## 6. Where Are Deeper Architecture / Governance Docs
 
@@ -212,17 +212,17 @@ Maintainer-only redesign plans, remediation trackers, execution prompts, and loc
 ```bash
 pnpm install
 pnpm -r build
-pnpm --filter @autoresearch/hep-mcp docs:tool-counts:check
+pnpm --filter @nullius/hep-mcp docs:tool-counts:check
 ```
 
 If you want the generic lifecycle/control-plane smoke path first:
 
-1. `autoresearch init --project-root /absolute/path/to/external-project`
-1. `autoresearch status --project-root /absolute/path/to/external-project`
-1. After a completed run has evidence, `autoresearch verify --project-root /absolute/path/to/external-project --run-id <run_id> --status passed --summary "..." --evidence-path <path>`
-1. Then `autoresearch final-conclusions --project-root /absolute/path/to/external-project --run-id <run_id>`
-1. Record the M1–M7 integrity receipt the approval gate requires: `autoresearch integrity-record --approval-id <approval_id> --modes M1,M2,M3,M4,M5,M6,M7 --notes "..."` (the `approve` gate fail-closes with `INTEGRITY_RECEIPT_REQUIRED` otherwise)
-1. Resolve the pending A5 with `autoresearch approve <approval_id>` to write `artifacts/runs/<run_id>/final_conclusions_v1.json`
+1. `nullius init --project-root /absolute/path/to/external-project`
+1. `nullius status --project-root /absolute/path/to/external-project`
+1. After a completed run has evidence, `nullius verify --project-root /absolute/path/to/external-project --run-id <run_id> --status passed --summary "..." --evidence-path <path>`
+1. Then `nullius final-conclusions --project-root /absolute/path/to/external-project --run-id <run_id>`
+1. Record the M1–M7 integrity receipt the approval gate requires: `nullius integrity-record --approval-id <approval_id> --modes M1,M2,M3,M4,M5,M6,M7 --notes "..."` (the `approve` gate fail-closes with `INTEGRITY_RECEIPT_REQUIRED` otherwise)
+1. Resolve the pending A5 with `nullius approve <approval_id>` to write `artifacts/runs/<run_id>/final_conclusions_v1.json`
 
 If you want the current strongest domain-pack smoke path next, connect your MCP client to `packages/hep-mcp/dist/index.js` and run:
 
@@ -265,8 +265,8 @@ HEP does not define the root docs as:
 For front-door drift, start with:
 
 - `packages/hep-mcp/tests/docs/docToolDrift.test.ts`
-- `pnpm --filter @autoresearch/hep-mcp docs:tool-counts:check`
-- `pnpm --filter @autoresearch/hep-mcp test -- tests/docs/docToolDrift.test.ts`
+- `pnpm --filter @nullius/hep-mcp docs:tool-counts:check`
+- `pnpm --filter @nullius/hep-mcp test -- tests/docs/docToolDrift.test.ts`
 
 ## License
 

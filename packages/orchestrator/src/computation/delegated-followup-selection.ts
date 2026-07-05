@@ -1,4 +1,4 @@
-import type { ComputationResultV1 } from '@autoresearch/shared';
+import type { ComputationResultV1 } from '@nullius/shared';
 import type { TeamExecutionState } from '../team-execution-types.js';
 import type { ResearchTaskExecutionRefRegistry } from '../research-task-execution-ref.js';
 

@@ -6,7 +6,7 @@ import {
   type ArtifactRefV1,
   type ComputationResultV1,
   type WritingReviewBridgeV1,
-} from '@autoresearch/shared';
+} from '@nullius/shared';
 import type { ReviewHandoff, ResearchEdge, ResearchNode, ResearchTaskInput, WritingHandoff } from '../research-loop/index.js';
 import { createRunArtifactRef, makeRunArtifactUri } from './artifact-refs.js';
 import { loopNodeIdsFor } from './feedback-lowering.js';

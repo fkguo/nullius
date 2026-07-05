@@ -1,6 +1,6 @@
-// @autoresearch/orchestrator — lifecycle state manager
-// Read/write/enforcement helpers for the .autoresearch control plane.
-// Durable atomic writes via @autoresearch/shared primitives:
+// @nullius/orchestrator — lifecycle state manager
+// Read/write/enforcement helpers for the .nullius control plane.
+// Durable atomic writes via @nullius/shared primitives:
 // file fsync + parent-dir fsync on every persisted change.
 
 import { randomUUID } from 'node:crypto';
@@ -14,12 +14,12 @@ import {
   sortKeysRecursive,
   writeBytesAtomicDurable,
   writeJsonAtomicDurable,
-} from '@autoresearch/shared';
+} from '@nullius/shared';
 import type { RunState, RunStatus, ApprovalPolicy, ApprovalHistoryEntry, LedgerEvent } from './types.js';
 import { utcNowIso } from './util.js';
 
-const AUTORESEARCH_DIRNAME = '.autoresearch';
-const AUTORESEARCH_CONTROL_DIR_ENV = 'AUTORESEARCH_CONTROL_DIR';
+const NULLIUS_DIRNAME = '.nullius';
+const NULLIUS_CONTROL_DIR_ENV = 'NULLIUS_CONTROL_DIR';
 const STATE_FILENAME = 'state.json';
 const LEDGER_FILENAME = 'ledger.jsonl';
 const APPROVAL_POLICY_FILENAME = 'approval_policy.json';
@@ -442,12 +442,12 @@ function approvalSequenceTemplate(): Record<string, number> {
   ) as Record<string, number>;
 }
 
-function autoresearchDir(repoRoot: string): string {
-  const override = process.env[AUTORESEARCH_CONTROL_DIR_ENV];
+function nulliusDir(repoRoot: string): string {
+  const override = process.env[NULLIUS_CONTROL_DIR_ENV];
   if (override) {
     return path.isAbsolute(override) ? override : path.join(repoRoot, override);
   }
-  return path.join(repoRoot, AUTORESEARCH_DIRNAME);
+  return path.join(repoRoot, NULLIUS_DIRNAME);
 }
 
 function defaultState(): RunState {
@@ -472,7 +472,7 @@ function defaultState(): RunState {
 
 /** Durable atomic JSON write.
  *  Matches Python _write_json_atomic: indent=2, sort_keys=True, trailing newline.
- *  Delegates to @autoresearch/shared.writeJsonAtomicDurable with a custom
+ *  Delegates to @nullius/shared.writeJsonAtomicDurable with a custom
  *  stringify that applies sortKeysRecursive for Python-`sort_keys=True`
  *  byte-equality. File fsync + parent-dir fsync per write. */
 function writeJsonAtomic(filePath: string, payload: Record<string, unknown>): void {
@@ -535,7 +535,7 @@ function commitStagedFileWithRetry(params: {
 }
 
 /** Durable append of a ledger event line.
- *  Delegates to @autoresearch/shared.appendJsonlDurable: write → fsync(fd)
+ *  Delegates to @nullius/shared.appendJsonlDurable: write → fsync(fd)
  *  → close → fsync(dirFd) so the new bytes survive crash before any
  *  subsequent syscall. */
 function appendLedgerLine(
@@ -564,7 +564,7 @@ export class StateManager {
 
   constructor(repoRoot: string) {
     this.repoRoot = repoRoot;
-    this.dir = autoresearchDir(repoRoot);
+    this.dir = nulliusDir(repoRoot);
   }
 
   get statePath(): string {
@@ -1208,13 +1208,13 @@ export class StateManager {
 
   // ─── Plan validation + derivation (Stage 3c) ───
 
-  /** Path to plan.md within .autoresearch dir. */
+  /** Path to plan.md within .nullius dir. */
   get planMdPath(): string {
     return path.join(this.dir, PLAN_MD_FILENAME);
   }
 
   /** Relative path to plan.md from repoRoot (matching Python plan_md_path().relative_to(repo_root)).
-   *  Falls back to absolute path if plan.md is outside repoRoot (e.g. AUTORESEARCH_CONTROL_DIR override). */
+   *  Falls back to absolute path if plan.md is outside repoRoot (e.g. NULLIUS_CONTROL_DIR override). */
   get planMdRelativePath(): string {
     const p = this.planMdPath;
     const rel = path.relative(this.repoRoot, p);
@@ -1399,7 +1399,7 @@ export class StateManager {
       lines.push(`- Updated: ${updatedAt}`);
     }
     lines.push('');
-    lines.push('SSOT: `.autoresearch/state.json#/plan`');
+    lines.push('SSOT: `.nullius/state.json#/plan`');
     lines.push('');
     lines.push('## Steps');
     lines.push('');
@@ -1533,7 +1533,7 @@ export class StateManager {
   }
 
   /** Validate plan, render to Markdown, and durably + atomically write
-   *  to .autoresearch/plan.md.
+   *  to .nullius/plan.md.
    *  Matches Python write_plan_md (orchestrator_state.py L478-495).
    *  Stage 1: writeBytesAtomicDurable persists the staged file with full
    *  file fsync + parent-dir fsync (so the staged bytes survive a crash

@@ -2,13 +2,13 @@
  * Core Zotero tools — thin adapter layer.
  *
  * NEW-R04: Deduplication — canonical Zotero tool implementations live in
- * `@autoresearch/zotero-mcp/src/zotero/tools.ts`.  This file only contains
+ * `@nullius/zotero-mcp/src/zotero/tools.ts`.  This file only contains
  * `hepImportFromZotero` (the sole run-aware Zotero function exposed via
  * MCP registry) and imports shared helpers from the canonical package.
  */
 
-import { invalidParams } from '@autoresearch/shared';
-import type { Paper } from '@autoresearch/shared';
+import { invalidParams } from '@nullius/shared';
+import type { Paper } from '@nullius/shared';
 import pLimit from 'p-limit';
 
 import * as inspireApi from '../../api/client.js';
@@ -25,7 +25,7 @@ import {
   normalizeZoteroKey,
   parseAttachmentSummaries,
   isPdfAttachment,
-} from '@autoresearch/zotero-mcp/shared/zotero';
+} from '@nullius/zotero-mcp/shared/zotero';
 import { completeRunStep, startRunStep } from './runSteps.js';
 
 export async function hepImportFromZotero(params: {

@@ -2,7 +2,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
-import type { ComputationResultV1 } from '@autoresearch/shared';
+import type { ComputationResultV1 } from '@nullius/shared';
 
 import {
   executeComputationManifest,

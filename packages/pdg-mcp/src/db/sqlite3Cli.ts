@@ -1,5 +1,5 @@
 import { spawn } from 'child_process';
-import { invalidParams, upstreamError } from '@autoresearch/shared';
+import { invalidParams, upstreamError } from '@nullius/shared';
 
 export function sqlStringLiteral(value: string): string {
   return `'${value.replaceAll("'", "''")}'`;

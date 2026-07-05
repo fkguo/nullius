@@ -46,13 +46,13 @@ const USAGE = `Usage:
   link-kb-notes --project-root <abs-path> [options]
 
 Required:
-  --project-root PATH     absolute path to the autoresearch project root.
+  --project-root PATH     absolute path to the nullius project root.
 
 Options:
   --hep-data-root PATH    override <project_root>/artifacts/hep-mcp/
   --kb-dir PATH           override the knowledge_base directory (absolute).
                           Default: auto-detect under project_root, probing
-                          .autoresearch/knowledge_base, knowledge_base/literature,
+                          .nullius/knowledge_base, knowledge_base/literature,
                           then knowledge_base in that order.
   --json                  emit JSON instead of human-readable report.
   -h, --help              show this help.

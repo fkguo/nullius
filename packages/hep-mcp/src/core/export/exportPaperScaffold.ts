@@ -1,7 +1,7 @@
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
-import { invalidParams, writeBytesAtomicDurable } from '@autoresearch/shared';
+import { invalidParams, writeBytesAtomicDurable } from '@nullius/shared';
 import { zipSync } from 'fflate';
 
 import { getRun, type RunArtifactRef, type RunManifest, type RunStep, updateRunManifestAtomic } from '../runs.js';

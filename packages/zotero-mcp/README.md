@@ -54,4 +54,4 @@ The native Zotero Local API is **read-only** (every `POST`/`DELETE` returns `400
 
 ## Integration with `hep-mcp`
 
-In this monorepo, `@autoresearch/hep-mcp` aggregates `zotero-mcp` tools by default. Set `HEP_ENABLE_ZOTERO=0` to hide Zotero tools in `hep-mcp` (including `hep_import_from_zotero`).
+In this monorepo, `@nullius/hep-mcp` aggregates `zotero-mcp` tools by default. Set `HEP_ENABLE_ZOTERO=0` to hide Zotero tools in `hep-mcp` (including `hep_import_from_zotero`).

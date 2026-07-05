@@ -9,7 +9,7 @@
  *
  * Bulk JSONL writes (from search/filter/citations in `paginatedFetch` mode)
  * go to `getDataDir() + '/results/<uuid>.jsonl'` (default
- * `~/.autoresearch/openalex/`), and `openalex_content` writes to
+ * `~/.nullius/openalex/`), and `openalex_content` writes to
  * `getDataDir()/content/`. Both are generic cache locations
  * (`src/api/client.ts:35-41,159-162`, `src/api/contentDownload.ts:68-138`),
  * never project-keyed.

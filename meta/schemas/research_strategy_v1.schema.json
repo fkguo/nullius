@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://autoresearch.dev/schemas/research_strategy_v1.schema.json",
+  "$id": "https://nullius.dev/schemas/research_strategy_v1.schema.json",
   "title": "ResearchStrategy V1",
   "description": "A reusable research strategy template defining methodology, constraints, and validation criteria. Content-addressed via SHA-256 of RFC 8785 (JCS) canonical JSON.",
   "type": "object",

@@ -1,4 +1,4 @@
-import { isAutoresearchPublicCommand } from './cli-command-inventory.js';
+import { isNulliusPublicCommand } from './cli-command-inventory.js';
 
 export type ParsedCliArgs =
   | { command: 'help'; projectRoot: string | null; topic: string | null }
@@ -101,7 +101,7 @@ function extractProjectRoot(argv: string[]): { args: string[]; projectRoot: stri
 }
 
 function ensureKnownCommand(command: string): void {
-  if (!isAutoresearchPublicCommand(command)) {
+  if (!isNulliusPublicCommand(command)) {
     throw new Error(`unknown command: ${command}`);
   }
 }

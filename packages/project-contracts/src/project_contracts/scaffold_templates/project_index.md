@@ -15,10 +15,10 @@ Use it to find the human notebook, the machine contract, and the current plan wi
 5) [research_contract.md](research_contract.md) — machine-stable contract for gates, packets, and revision
 6) [research_notebook.md](research_notebook.md) — human-readable problem logic, derivations, interpretation, and figures, when it already contains substantive content
 
-If `.autoresearch/HARNESS` exists, start by running `.autoresearch/bin/autoresearch status --json` before continuing work.
-If `.autoresearch/` exists but `.autoresearch/HARNESS` is missing, run `autoresearch status --json` first, then repair the runtime handshake with `autoresearch init --runtime-only`.
-If `autoresearch` is unavailable on `PATH`, run `.autoresearch/bin/autoresearch status --json` instead.
-- Treat `autoresearch` as the guaranteed root entrypoint for this scaffold.
+If `.nullius/HARNESS` exists, start by running `.nullius/bin/nullius status --json` before continuing work.
+If `.nullius/` exists but `.nullius/HARNESS` is missing, run `nullius status --json` first, then repair the runtime handshake with `nullius init --runtime-only`.
+If `nullius` is unavailable on `PATH`, run `.nullius/bin/nullius status --json` instead.
+- Treat `nullius` as the guaranteed root entrypoint for this scaffold.
 - Treat that status output as the authoritative recovery briefing.
 - When the host exposes orchestration or MCP control-plane commands such as `orch_*`, those host-local surfaces may be used as optional control planes; do not assume a literal `orch_*` command exists in every scaffolded project.
 - Provider/domain MCP tools are capability sources, not root authority; do not treat provider MCPs such as `hep-mcp` as the generic root authority.

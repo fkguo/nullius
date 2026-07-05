@@ -1,7 +1,7 @@
 import * as path from 'path';
 import { ensureDir, getDataDir } from '../data/dataDir.js';
 import { resolvePathWithinParent } from '../data/pathGuard.js';
-import { invalidParams } from '@autoresearch/shared';
+import { invalidParams } from '@nullius/shared';
 
 function ensureSubdir(name: string): string {
   const dataDir = getDataDir();

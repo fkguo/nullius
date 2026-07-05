@@ -42,9 +42,9 @@ describe('orchestrator MCP tools spec drift guard', () => {
     expect(getFrontDoorAuthoritySurface('orchestrator_mcp_tools_spec')).toMatchObject({
       classification: 'canonical_public',
       surface_kind: 'exact_doc_inventory',
-      owner: '@autoresearch/orchestrator',
+      owner: '@nullius/orchestrator',
       exact_inventory_source: 'meta/docs/orchestrator-mcp-tools-spec.md',
-      live_registry_source: 'packages/orchestrator/src/orch-tools/index.ts / @autoresearch/orchestrator exported ORCH_TOOL_SPECS',
+      live_registry_source: 'packages/orchestrator/src/orch-tools/index.ts / @nullius/orchestrator exported ORCH_TOOL_SPECS',
       drift_test_source: 'packages/orchestrator/tests/orchestrator-mcp-tools-spec.test.ts',
     });
   });
@@ -68,7 +68,7 @@ describe('orchestrator MCP tools spec drift guard', () => {
       md,
       [
         '**Rule**: `orch_*` owns lifecycle state, approvals, queueing, and orchestration policy.',
-        '5. `autoresearch` remains the generic front door for lifecycle / workflow-plan / bounded computation; `orch_*` is the MCP/operator counterpart of that control plane rather than a competing product identity.',
+        '5. `nullius` remains the generic front door for lifecycle / workflow-plan / bounded computation; `orch_*` is the MCP/operator counterpart of that control plane rather than a competing product identity.',
         '`hep://` and `orch://` are intentionally separate owned namespaces. Cross-scheme correlation must be carried explicitly by workflow metadata or operator context, not by implicit aliasing.',
         '2. The provider-local Python parser package has been retired. Do not recreate provider-local Python control-plane authority.',
         'packages/orchestrator/tests/orchestrator-mcp-tools-spec.test.ts',

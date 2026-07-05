@@ -3,7 +3,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { StateManager, handleToolCall as handleOrchToolCall } from '@autoresearch/orchestrator';
+import { StateManager, handleToolCall as handleOrchToolCall } from '@nullius/orchestrator';
 
 function makeTmpDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'execute-manifest-approval-'));

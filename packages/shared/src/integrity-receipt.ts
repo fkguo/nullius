@@ -16,7 +16,7 @@
  *
  * ## File format
  *
- * Append-only JSONL at `.autoresearch/integrity_log.jsonl`. Each line is one
+ * Append-only JSONL at `.nullius/integrity_log.jsonl`. Each line is one
  * receipt, written via `appendJsonlDurable` to survive crash between
  * syscalls. We never rewrite past lines; the file grows monotonically with
  * approval history.
@@ -26,7 +26,7 @@
  * ```jsonc
  * {
  *   "schema_version": 1,
- *   "kind": "autoresearch_integrity_receipt",
+ *   "kind": "nullius_integrity_receipt",
  *   "approval_id": "A3-20260522T080000Z-...",
  *   "timestamp_utc": "2026-05-22T08:30:00Z",
  *   "modes_checked": ["M3", "M5", "M6"],          // at least one
@@ -44,8 +44,8 @@
  *
  * ## Skip semantics
  *
- *   - `process.env.AUTORESEARCH_INTEGRITY_VERIFY === 'skip'` → skip
- *   - `process.env.AUTORESEARCH_INTEGRITY_VERIFY === 'on'`   → force verify
+ *   - `process.env.NULLIUS_INTEGRITY_VERIFY === 'skip'` → skip
+ *   - `process.env.NULLIUS_INTEGRITY_VERIFY === 'on'`   → force verify
  *   - else `process.env.NODE_ENV === 'test'`                 → skip (vitest)
  *   - else                                                   → verify
  *
@@ -68,8 +68,8 @@ import * as path from 'node:path';
 import { McpError, type ErrorCode } from './errors.js';
 import { appendJsonlDurable } from './atomic-write.js';
 
-export const INTEGRITY_LOG_FILE = '.autoresearch/integrity_log.jsonl';
-const INTEGRITY_RECEIPT_KIND = 'autoresearch_integrity_receipt' as const;
+export const INTEGRITY_LOG_FILE = '.nullius/integrity_log.jsonl';
+const INTEGRITY_RECEIPT_KIND = 'nullius_integrity_receipt' as const;
 
 const INTEGRITY_RECEIPT_REQUIRED_CODE = 'INTEGRITY_RECEIPT_REQUIRED' satisfies ErrorCode;
 
@@ -104,8 +104,8 @@ export type IntegrityWriteOptions = {
 const NOTES_MAX_LEN = 500;
 
 export function isIntegrityVerifySkipped(env: NodeJS.ProcessEnv = process.env): boolean {
-  const explicit = typeof env.AUTORESEARCH_INTEGRITY_VERIFY === 'string'
-    ? env.AUTORESEARCH_INTEGRITY_VERIFY.trim().toLowerCase()
+  const explicit = typeof env.NULLIUS_INTEGRITY_VERIFY === 'string'
+    ? env.NULLIUS_INTEGRITY_VERIFY.trim().toLowerCase()
     : '';
   if (explicit === 'skip') return true;
   if (explicit === 'on') return false;
@@ -125,9 +125,9 @@ function integrityReceiptError(
   const message = (() => {
     switch (reason) {
       case 'LOG_MISSING':
-        return `No integrity receipt log found for project (.autoresearch/integrity_log.jsonl). Run \`autoresearch integrity-record\` for approval ${approvalId} before approving.`;
+        return `No integrity receipt log found for project (.nullius/integrity_log.jsonl). Run \`nullius integrity-record\` for approval ${approvalId} before approving.`;
       case 'RECEIPT_MISSING':
-        return `No integrity receipt found for approval ${approvalId}. Walk the M1-M7 ritual from skills/research-integrity/SKILL.md and record it via \`autoresearch integrity-record\` before approving.`;
+        return `No integrity receipt found for approval ${approvalId}. Walk the M1-M7 ritual from skills/research-integrity/SKILL.md and record it via \`nullius integrity-record\` before approving.`;
       case 'RECEIPT_INVALID':
         return `Integrity receipt for approval ${approvalId} is malformed; re-record before approving.`;
     }
@@ -138,7 +138,7 @@ function integrityReceiptError(
     approval_id: approvalId,
     log_path: INTEGRITY_LOG_FILE,
     remediation:
-      'Run `autoresearch integrity-record --approval-id <id> --modes <Mx,My,...> --notes "<summary>"` after walking the M1-M7 ritual; see skills/research-integrity/SKILL.md.',
+      'Run `nullius integrity-record --approval-id <id> --modes <Mx,My,...> --notes "<summary>"` after walking the M1-M7 ritual; see skills/research-integrity/SKILL.md.',
     ...extra,
   });
 }
@@ -324,7 +324,7 @@ export function verifyIntegrityReceipt(
 
 /**
  * Read all receipts in the log without enforcing freshness or matching. Used
- * by diagnostic surfaces (e.g. `autoresearch status`) that want to report
+ * by diagnostic surfaces (e.g. `nullius status`) that want to report
  * the integrity history without forcing a rejection.
  *
  * Malformed lines are skipped (not thrown) so a corrupted line cannot make

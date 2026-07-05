@@ -1,5 +1,5 @@
 import * as crypto from 'crypto';
-import { writeBytesAtomicDurable } from '@autoresearch/shared';
+import { writeBytesAtomicDurable } from '@nullius/shared';
 import { getArtifactsDir, ensureDir } from './data/dataDir.js';
 import { assertSafePathSegment, resolvePathWithinParent } from './data/pathGuard.js';
 import { cleanupOldPdgArtifacts } from './artifactTtl.js';

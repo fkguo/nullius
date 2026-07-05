@@ -1,11 +1,11 @@
 ---
-name: autoresearch-market
-description: Browse and install Autoresearch Lab skills. This directory is the skills-market catalog (package metadata + installers), not a runnable task skill; use it to discover available skills and install specific ones into your skills home.
+name: nullius-market
+description: Browse and install Nullius skills. This directory is the skills-market catalog (package metadata + installers), not a runnable task skill; use it to discover available skills and install specific ones into your skills home.
 ---
 
-# Autoresearch Skills Market
+# Nullius Skills Market
 
-This is the **catalog/installer control plane** for Autoresearch Lab skills — it is intentionally a
+This is the **catalog/installer control plane** for Nullius skills — it is intentionally a
 metadata + installer package, not a task skill. A host that linked the whole market root here (via
 `scripts/install_codex.sh` / `install_opencode.sh` / `install_claude_code.sh`) sees this `SKILL.md` so
 the directory is a well-formed, inert catalog entry rather than a `SKILL.md`-less directory that a strict

@@ -26,9 +26,9 @@ function collectTsFiles(dirPath: string): string[] {
 
 function findWorkspaceImports(source: string): string[] {
   const offenders: string[] = [];
-  const importPattern = /['"](@autoresearch\/[^'"]+)['"]/g;
+  const importPattern = /['"](@nullius\/[^'"]+)['"]/g;
   for (const [index, line] of source.split('\n').entries()) {
-    if (!line.includes('@autoresearch/')) continue;
+    if (!line.includes('@nullius/')) continue;
     importPattern.lastIndex = 0;
     for (const match of line.matchAll(importPattern)) {
       offenders.push(`L${index + 1}:${match[1]}`);
@@ -45,7 +45,7 @@ function workspaceDependencies(packageJsonPath: string): string[] {
     const entries = packageJson[group];
     if (!entries || typeof entries !== 'object' || Array.isArray(entries)) continue;
     for (const name of Object.keys(entries)) {
-      if (name.startsWith('@autoresearch/')) {
+      if (name.startsWith('@nullius/')) {
         offenders.push(`${group}:${name}`);
       }
     }

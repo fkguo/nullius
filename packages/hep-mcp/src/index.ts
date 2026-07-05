@@ -22,7 +22,7 @@ import { ensureDir, getDataDir, getDownloadsDir } from './data/dataDir.js';
 import { cleanupRegisteredDownloadDirs } from './data/downloadSession.js';
 import { isMarkedDirectory } from './data/markers.js';
 import { cleanupOldDiscoveryArtifacts } from './tools/research/discovery/ttlCleanup.js';
-import { cleanupOldPdgArtifacts } from '@autoresearch/pdg-mcp/tooling';
+import { cleanupOldPdgArtifacts } from '@nullius/pdg-mcp/tooling';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
@@ -155,7 +155,7 @@ function cleanupOldDownloads(): void {
 const server = new Server(
   {
     name: 'hep-mcp',
-    version: '0.3.0',
+    version: '0.4.0',
   },
   {
     capabilities: {

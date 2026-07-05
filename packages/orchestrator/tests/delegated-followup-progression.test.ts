@@ -1,7 +1,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { ComputationResultV1 } from '@autoresearch/shared';
+import type { ComputationResultV1 } from '@nullius/shared';
 import {
   progressDelegatedComputationFollowups,
   type DelegatedComputationFollowupLaunchResult,

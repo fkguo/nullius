@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import type { EvidenceType, LatexLocatorV1, PdfLocatorV1 } from '@autoresearch/shared';
+import type { EvidenceType, LatexLocatorV1, PdfLocatorV1 } from '@nullius/shared';
 
 import {
   buildEvidenceLocalization,

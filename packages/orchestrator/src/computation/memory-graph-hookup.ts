@@ -1,14 +1,14 @@
 import * as path from 'node:path';
-import type { ComputationManifestV1, ComputationResultV1 } from '@autoresearch/shared';
+import type { ComputationManifestV1, ComputationResultV1 } from '@nullius/shared';
 import {
   computeSignalKey,
   createMemoryGraph,
-} from '@autoresearch/shared';
+} from '@nullius/shared';
 import { makeRunArtifactUri } from './artifact-refs.js';
 import { maybeGenerateRepairProposal } from './repair-gene-library.js';
 
 function memoryGraphDbPath(projectRoot: string): string {
-  return path.join(projectRoot, '.autoresearch', 'memory-graph.sqlite');
+  return path.join(projectRoot, '.nullius', 'memory-graph.sqlite');
 }
 
 function dependencySignals(manifest: ComputationManifestV1): string[] {

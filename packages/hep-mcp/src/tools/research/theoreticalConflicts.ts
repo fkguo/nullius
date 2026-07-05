@@ -3,7 +3,7 @@ import {
   INSPIRE_THEORETICAL_CONFLICTS,
   invalidParams,
   writeBytesAtomicDurable,
-} from '@autoresearch/shared';
+} from '@nullius/shared';
 import type {
   CreateMessageRequestParamsBase,
   CreateMessageResult,

@@ -79,4 +79,4 @@ def test_market_root_has_valid_catalog_skill_md():
     skill_md = _MARKET_ROOT / "SKILL.md"
     assert skill_md.is_file()
     text = skill_md.read_text(encoding="utf-8")
-    assert text.startswith("---\n") and "name: autoresearch-market" in text.split("---", 2)[1]
+    assert text.startswith("---\n") and "name: nullius-market" in text.split("---", 2)[1]

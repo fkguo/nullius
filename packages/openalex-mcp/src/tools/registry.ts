@@ -13,7 +13,7 @@ import {
   OPENALEX_RATE_LIMIT,
   DiscoveryProviderDescriptorSchema,
   type DiscoveryProviderDescriptor,
-} from '@autoresearch/shared';
+} from '@nullius/shared';
 import { zodToMcpInputSchema } from './mcpSchema.js';
 import {
   OpenAlexSearchSchema,

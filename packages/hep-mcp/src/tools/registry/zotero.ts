@@ -1,7 +1,7 @@
-import { TOOL_SPECS as ZOTERO_MCP_TOOL_SPECS } from '@autoresearch/zotero-mcp/tooling';
+import { TOOL_SPECS as ZOTERO_MCP_TOOL_SPECS } from '@nullius/zotero-mcp/tooling';
 import {
   invalidParams,
-} from '@autoresearch/shared';
+} from '@nullius/shared';
 import { hepImportFromZotero } from '../../core/zotero/tools.js';
 import { HEP_IMPORT_FROM_ZOTERO } from '../../tool-names.js';
 import { getHepToolRiskLevel } from '../../tool-risk.js';

@@ -7,9 +7,9 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as zlib from 'zlib';
-import { writeBytesAtomicDurable } from '@autoresearch/shared';
+import { writeBytesAtomicDurable } from '@nullius/shared';
 
-export { PDF_RESOURCE_LIMITS } from '@autoresearch/shared';
+export { PDF_RESOURCE_LIMITS } from '@nullius/shared';
 
 // ── Types ────────────────────────────────────────────────────────────────
 

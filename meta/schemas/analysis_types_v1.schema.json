@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://autoresearch.dev/schemas/analysis_types_v1.schema.json",
+  "$id": "https://nullius.dev/schemas/analysis_types_v1.schema.json",
   "title": "Analysis Types V1",
   "description": "Consolidated analysis parameter and result types for HEP research tools. Replaces 7 versioned analysis-params/results files.",
   "type": "object",

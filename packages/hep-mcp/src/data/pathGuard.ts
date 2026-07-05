@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { unsafeFs } from '@autoresearch/shared';
+import { unsafeFs } from '@nullius/shared';
 
 function isOutsideOf(parentDir: string, candidatePath: string): boolean {
   const relative = path.relative(parentDir, candidatePath);

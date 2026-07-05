@@ -1,4 +1,4 @@
-import type { ComputationResultV1 } from '@autoresearch/shared';
+import type { ComputationResultV1 } from '@nullius/shared';
 import { createTeamExecutionState } from '../team-execution-state.js';
 import type { TeamExecutionState } from '../team-execution-types.js';
 import { TeamExecutionStateManager } from '../team-execution-storage.js';

@@ -25,9 +25,9 @@ import * as path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   HARNESS_INVOCATION_FILE,
-  AUTORESEARCH_STATE_FILE,
+  NULLIUS_STATE_FILE,
   writeHarnessInvocationMarker,
-} from '@autoresearch/shared';
+} from '@nullius/shared';
 import { handleToolCall } from '../../src/tools/dispatcher.js';
 
 describe('Contract: dispatcher harness-invocation anchor gate', () => {
@@ -37,21 +37,21 @@ describe('Contract: dispatcher harness-invocation anchor gate', () => {
 
   beforeEach(() => {
     prevCwd = process.cwd();
-    prevVerify = process.env.AUTORESEARCH_HARNESS_VERIFY;
+    prevVerify = process.env.NULLIUS_HARNESS_VERIFY;
     project = fs.mkdtempSync(path.join(os.tmpdir(), 'hep-disp-harness-'));
-    // Create .autoresearch/ so skip-layer B does not fire (this is an
+    // Create .nullius/ so skip-layer B does not fire (this is an
     // in-lifecycle scenario, not standalone).
-    fs.mkdirSync(path.join(project, '.autoresearch'), { recursive: true });
+    fs.mkdirSync(path.join(project, '.nullius'), { recursive: true });
     process.chdir(project);
-    process.env.AUTORESEARCH_HARNESS_VERIFY = 'on';
+    process.env.NULLIUS_HARNESS_VERIFY = 'on';
   });
 
   afterEach(() => {
     process.chdir(prevCwd);
     if (prevVerify === undefined) {
-      delete process.env.AUTORESEARCH_HARNESS_VERIFY;
+      delete process.env.NULLIUS_HARNESS_VERIFY;
     } else {
-      process.env.AUTORESEARCH_HARNESS_VERIFY = prevVerify;
+      process.env.NULLIUS_HARNESS_VERIFY = prevVerify;
     }
     fs.rmSync(project, { recursive: true, force: true });
   });
@@ -65,7 +65,7 @@ describe('Contract: dispatcher harness-invocation anchor gate', () => {
     const payload = JSON.parse(result.content[0]?.text ?? '{}');
     expect(payload.error?.code).toBe('HARNESS_INVOCATION_REQUIRED');
     expect(payload.error?.data?.reason).toBe('MARKER_MISSING');
-    expect(payload.error?.data?.remediation).toMatch(/research-harness|autoresearch status/);
+    expect(payload.error?.data?.remediation).toMatch(/research-harness|nullius status/);
     expect(payload.error?.data?.marker_path).toBe(HARNESS_INVOCATION_FILE);
   });
 
@@ -74,7 +74,7 @@ describe('Contract: dispatcher harness-invocation anchor gate', () => {
     // an out-of-band lifecycle event.
     const anchored = new Date('2026-05-22T08:00:00Z');
     writeHarnessInvocationMarker(project, { now: anchored });
-    const statePath = path.join(project, AUTORESEARCH_STATE_FILE);
+    const statePath = path.join(project, NULLIUS_STATE_FILE);
     fs.writeFileSync(statePath, '{}', 'utf-8');
     const futureStateTime = new Date('2026-05-22T09:00:00Z');
     fs.utimesSync(statePath, futureStateTime.getTime() / 1000, futureStateTime.getTime() / 1000);
@@ -101,7 +101,7 @@ describe('Contract: dispatcher harness-invocation anchor gate', () => {
     expect(fs.existsSync(path.join(project, HARNESS_INVOCATION_FILE))).toBe(false);
 
     // hep_health is NO_STATE_TOUCH per audit → skip layer C fires;
-    // anchor not required even though .autoresearch/ exists.
+    // anchor not required even though .nullius/ exists.
     const result = await handleToolCall('hep_health', {});
     const payload = JSON.parse(result.content[0]?.text ?? '{}');
     expect(payload.error?.code).not.toBe('HARNESS_INVOCATION_REQUIRED');

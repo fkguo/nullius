@@ -1,20 +1,20 @@
-# @autoresearch/shared
+# @nullius/shared
 
-Provider-neutral types, schemas, and utilities consumed across the autoresearch monorepo. This is the **shared contracts layer** — every package that crosses a contract boundary (control plane, domain packs, provider atoms) imports from here rather than redefining the type.
+Provider-neutral types, schemas, and utilities consumed across the nullius monorepo. This is the **shared contracts layer** — every package that crosses a contract boundary (control plane, domain packs, provider atoms) imports from here rather than redefining the type.
 
 ## Layer
 
-Shared contracts layer (cross-cutting). Sits between the control plane (`@autoresearch/orchestrator`) and the domain/provider packages. Not itself a runtime entrypoint.
+Shared contracts layer (cross-cutting). Sits between the control plane (`@nullius/orchestrator`) and the domain/provider packages. Not itself a runtime entrypoint.
 
 ## Subpath exports
 
 | Entry | What lives there |
 | --- | --- |
-| `@autoresearch/shared` | Top-level barrel including all sub-exports plus `./generated` types |
-| `@autoresearch/shared/types` | Hand-written domain-neutral TypeScript types |
-| `@autoresearch/shared/utils` | Helpers (path/sha256/clock/etc.) used by control plane and domain packs |
-| `@autoresearch/shared/graph-viz` | Memory-graph visualization helpers |
-| `@autoresearch/shared/discovery` | Discovery-pipeline contracts (capabilities, ranking, dedup) |
+| `@nullius/shared` | Top-level barrel including all sub-exports plus `./generated` types |
+| `@nullius/shared/types` | Hand-written domain-neutral TypeScript types |
+| `@nullius/shared/utils` | Helpers (path/sha256/clock/etc.) used by control plane and domain packs |
+| `@nullius/shared/graph-viz` | Memory-graph visualization helpers |
+| `@nullius/shared/discovery` | Discovery-pipeline contracts (capabilities, ranking, dedup) |
 
 ## Generated contracts
 

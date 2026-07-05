@@ -9,7 +9,7 @@ import {
   type TopicEvolutionParams,
   TopicEvolutionParamsSchema,
   TopicEvolutionSchema,
-} from '@autoresearch/shared';
+} from '@nullius/shared';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types derived from the shared analysis-types authority

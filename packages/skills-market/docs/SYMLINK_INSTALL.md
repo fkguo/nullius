@@ -22,14 +22,14 @@ Use the Python installer (`scripts/install_skill.py`) when you want:
   - metadata (`packages/*.json`)
   - validators
   - install scripts
-- `skills` (private, recommended: `autoresearch-lab/skills`):
+- `skills` (private, recommended: `nullius/skills`):
   - runtime skill source directories
   - expected layout: `skills/<skill-id>/SKILL.md`
 
 ## 3) Prerequisites
 
 - `git` installed
-- Access to private GitHub org/repo (`autoresearch-lab/skills`)
+- Access to private GitHub org/repo (`nullius/skills`)
 - Local clone of:
   - `skills-market`
   - `skills` repo
@@ -37,7 +37,7 @@ Use the Python installer (`scripts/install_skill.py`) when you want:
 ## 4) Local Layout (Recommended)
 
 ```text
-~/Coding/Agents/Autoresearch/
+~/Coding/Agents/Nullius/
   skills-market/
   skills/
     skills/
@@ -54,28 +54,28 @@ Notes:
 From `skills-market` repo root:
 
 ```bash
-cd ~/Coding/Agents/Autoresearch/skills-market
+cd ~/Coding/Agents/Nullius/skills-market
 ```
 
 ### 5.1 Codex
 
 ```bash
 bash scripts/install_symlink_codex.sh \
-  --skills-root ~/Coding/Agents/Autoresearch/skills
+  --skills-root ~/Coding/Agents/Nullius/skills
 ```
 
 ### 5.2 Claude Code
 
 ```bash
 bash scripts/install_symlink_claude_code.sh \
-  --skills-root ~/Coding/Agents/Autoresearch/skills
+  --skills-root ~/Coding/Agents/Nullius/skills
 ```
 
 ### 5.3 OpenCode
 
 ```bash
 bash scripts/install_symlink_opencode.sh \
-  --skills-root ~/Coding/Agents/Autoresearch/skills
+  --skills-root ~/Coding/Agents/Nullius/skills
 ```
 
 ## 6) Target Paths
@@ -99,7 +99,7 @@ Example:
 
 ```bash
 bash scripts/install_symlink_codex.sh \
-  --skills-root ~/Coding/Agents/Autoresearch/skills \
+  --skills-root ~/Coding/Agents/Nullius/skills \
   --dry-run
 ```
 
@@ -108,7 +108,7 @@ bash scripts/install_symlink_codex.sh \
 When `skills` repo updates:
 
 ```bash
-cd ~/Coding/Agents/Autoresearch/skills
+cd ~/Coding/Agents/Nullius/skills
 git pull
 ```
 

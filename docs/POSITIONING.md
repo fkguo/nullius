@@ -1,22 +1,22 @@
-# Autoresearch Lab — Positioning
+# Nullius — Positioning
 
-This document states what Autoresearch Lab **is**, **is not**, which **agent
+This document states what Nullius **is**, **is not**, which **agent
 failure modes** the project actively defends against, and **how the
 discipline is enforced**. It complements the surface taxonomy in
 [`README.md`](../README.md) §1–§3 with the non-surface guarantees.
 
 English | [中文](./POSITIONING_zh.md)
 
-## 1. What Autoresearch Lab is
+## 1. What Nullius is
 
 A domain-neutral, evidence-first research monorepo for **agent-assisted
-research workflows**. The control plane (`autoresearch` CLI + `orch_*`
+research workflows**. The control plane (`nullius` CLI + `orch_*`
 MCP) is the durable lifecycle authority for external project roots;
 provider packages and skills are bounded operators that the control
 plane composes. HEP is the current most mature use case, not the
 domain boundary — see §2.
 
-## 2. What Autoresearch Lab is NOT
+## 2. What Nullius is NOT
 
 - **Not a SaaS.** State and artifacts live inside each external research
   project root, not on a remote service. There is no subscription, no
@@ -32,11 +32,11 @@ domain boundary — see §2.
   `paper-reviser` operate on prose the researcher already owns, against
   evidence already collected by audited runs. They do not generate
   draft papers from an idea.
-- **Not HEP-only.** `@autoresearch/hep-mcp` is the current most mature
+- **Not HEP-only.** `@nullius/hep-mcp` is the current most mature
   domain pack and strongest end-to-end example. **By its
   [`package.json`](../packages/hep-mcp/package.json) dependencies, it
   explicitly includes cross-domain providers as workspace deps** —
-  `@autoresearch/arxiv-mcp` and `@autoresearch/openalex-mcp` are
+  `@nullius/arxiv-mcp` and `@nullius/openalex-mcp` are
   domain-neutral atoms covering the wider scholarly literature, and
   `packages/hep-mcp/src/**/*.ts` imports them as runtime collaborators
   (not just type peers). The control plane and the skills are
@@ -71,8 +71,8 @@ Seven recurring AI research failure modes documented at
 
 The skill is prompt-level discipline. Its receipt is **machine-enforced
 at the approval gate**: writing a receipt with
-`autoresearch integrity-record --approval-id <id> --modes <Mx,...>` is
-a precondition for `autoresearch approve`. Missing the receipt fails
+`nullius integrity-record --approval-id <id> --modes <Mx,...>` is
+a precondition for `nullius approve`. Missing the receipt fails
 closed with `INTEGRITY_RECEIPT_REQUIRED`. Implementation:
 [`packages/shared/src/integrity-receipt.ts`](../packages/shared/src/integrity-receipt.ts),
 hooked into the approval gate at
@@ -86,9 +86,9 @@ calls that **read or write project-keyed state** (classification per
 [each `*-mcp` package's
 `state-touch-classification.ts`](../packages)), every `*-mcp`
 dispatcher verifies that the anchor marker at
-`.autoresearch/HARNESS_INVOCATION` (written by `autoresearch status`)
+`.nullius/HARNESS_INVOCATION` (written by `nullius status`)
 is at least as fresh as the most recent change to
-`.autoresearch/state.json` and `.autoresearch/ledger.jsonl`, was
+`.nullius/state.json` and `.nullius/ledger.jsonl`, was
 written for the current project root (identity check), and is not
 timestamped in the future (clock-skew guard). Missing / mismatched /
 future / stale-vs-state anchor fails closed with
@@ -100,7 +100,7 @@ Code's `FileEditTool` mtime check — no clock TTL). Skipped for:
 
 - pure read-only provider queries (per the audit-backed
   `state-touch-classification.ts` in each `*-mcp` package);
-- standalone use where `process.cwd()` has no `.autoresearch/`
+- standalone use where `process.cwd()` has no `.nullius/`
   directory (no lifecycle context).
 
 Implementation:
@@ -139,7 +139,7 @@ on an external project root:
   asserting what a package does. Likewise for tool names: open the
   handler before deciding what the tool routes.
 - **Walk M1–M7 before approval.** Skipping the walk means
-  `.autoresearch/integrity_log.jsonl` is missing a matching receipt,
+  `.nullius/integrity_log.jsonl` is missing a matching receipt,
   and the approval gate will fail closed. Recovery is to re-walk and
   re-record; the latest receipt wins.
 - **Treat anti-drift CI failures as discipline failures.** Fixing the
@@ -161,7 +161,7 @@ not silently re-propose them:
   `hep-mcp` is composite by design (depends on `arxiv-mcp` and
   `openalex-mcp`, see §2). Primitives such as the external-API cache
   and the budget/warning diagnostics support that composite role and
-  do not get moved to `@autoresearch/shared` until a real second
+  do not get moved to `@nullius/shared` until a real second
   consumer requests them. Speculative "move it just in case" is not
   done.
 

@@ -4,7 +4,7 @@ import * as fs from 'fs';
 import {
   EvidenceLocalizationStatusSchema,
   SemanticAssessmentStatusSchema,
-} from '@autoresearch/shared';
+} from '@nullius/shared';
 
 import { parseProvenanceMatchingResponse } from '../../src/tools/research/provenanceMatchingSampling.js';
 import { parseKeyEquationSamplingResponse } from '../../src/tools/research/latex/keyEquationSampling.js';

@@ -8,7 +8,7 @@
  *     → read-only SQLite queries, no fs writes
  *   - get / get_decays / get_measurements / batch
  *     → write JSON/JSONL artifacts via `writeJsonArtifact` /
- *       `writeJsonlArtifact` to `getArtifactsDir()` = `~/.autoresearch/hep-mcp/pdg/artifacts/`
+ *       `writeJsonlArtifact` to `getArtifactsDir()` = `~/.nullius/hep-mcp/pdg/artifacts/`
  *       or `$PDG_DATA_DIR/artifacts` (`src/data/dataDir.ts:10,20-38,55-59`);
  *       generic cache, never project-keyed.
  *

@@ -1,4 +1,4 @@
-import { invalidParams } from '@autoresearch/shared';
+import { invalidParams } from '@nullius/shared';
 import { ORCH_TOOL_SPECS } from './orch-tools/index.js';
 import type { AgentToolHandlerContext } from './orch-tools/agent-runtime.js';
 

@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import type { GeneV1, MutationProposalV1 } from '@autoresearch/shared';
-import { createMemoryGraph } from '@autoresearch/shared';
-import type { ComputationResultV1 } from '@autoresearch/shared';
+import type { GeneV1, MutationProposalV1 } from '@nullius/shared';
+import { createMemoryGraph } from '@nullius/shared';
+import type { ComputationResultV1 } from '@nullius/shared';
 import { writeJsonAtomic } from './io.js';
 import { mutationProposalFingerprint, shouldSuppressProposal } from '../proposal-decisions.js';
 
@@ -13,7 +13,7 @@ interface GeneLibraryV1 {
 }
 
 function geneLibraryPath(projectRoot: string): string {
-  return path.join(projectRoot, '.autoresearch', 'gene_library_v1.json');
+  return path.join(projectRoot, '.nullius', 'gene_library_v1.json');
 }
 
 function defaultGeneLibrary(): GeneLibraryV1 {
@@ -99,7 +99,7 @@ export async function maybeGenerateRepairProposal(params: {
     return null;
   }
 
-  const graph = createMemoryGraph({ dbPath: path.join(params.projectRoot, '.autoresearch', 'memory-graph.sqlite') });
+  const graph = createMemoryGraph({ dbPath: path.join(params.projectRoot, '.nullius', 'memory-graph.sqlite') });
   const recent = await graph.getRecentEvents(200);
   const occurrenceCount = recent.filter(
     (event) => event.event_type === 'signal'

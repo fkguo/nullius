@@ -8,7 +8,7 @@ import type {
   CreateMessageRequestParamsBase,
   CreateMessageResult,
 } from '@modelcontextprotocol/sdk/types.js';
-import { INSPIRE_PARSE_LATEX } from '@autoresearch/shared';
+import { INSPIRE_PARSE_LATEX } from '@nullius/shared';
 import { getPaperContent } from '../../utils/arxivCompat.js';
 import {
   parseTexFile,

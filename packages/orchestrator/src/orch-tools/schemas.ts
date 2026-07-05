@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { type StagedContentType } from '@autoresearch/shared';
+import { type StagedContentType } from '@nullius/shared';
 import { type ApprovalGateFilter } from './common.js';
 import { APPROVAL_GATE_FILTER_VALUES, isApprovalGateFilter } from './common.js';
 import { ProposalDecisionSchema, ProposalKindSchema } from './proposal-decision.js';
@@ -8,7 +8,7 @@ import { TeamExecutionConfigSchema } from './team-schemas.js';
 const ProjectRootSchema = z
   .string()
   .min(1)
-  .describe('Absolute (or tilde-prefixed) path to the autoresearch project root directory (contains .autoresearch/)');
+  .describe('Absolute (or tilde-prefixed) path to the nullius project root directory (contains .nullius/)');
 const RunDirSchema = z
   .string()
   .min(1)
@@ -206,7 +206,7 @@ export const OrchRunRejectSchema = z.object({
 export const OrchRunExportSchema = z.object({
   project_root: ProjectRootSchema,
   _confirm: z.literal(true).describe('Must be true to acknowledge the export (potentially destructive).'),
-  include_state: z.boolean().optional().default(true).describe('Include .autoresearch/state.json in summary.'),
+  include_state: z.boolean().optional().default(true).describe('Include .nullius/state.json in summary.'),
   include_artifacts: z.boolean().optional().default(true).describe('List artifact paths.'),
 });
 

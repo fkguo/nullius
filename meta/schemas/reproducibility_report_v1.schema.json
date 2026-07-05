@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://autoresearch.dev/schemas/reproducibility_report_v1.schema.json",
+  "$id": "https://nullius.dev/schemas/reproducibility_report_v1.schema.json",
   "title": "ReproducibilityReport V1 (DeviationReport)",
   "description": "Report comparing an original computation result with an independent re-computation. Used by EVO-07 reproducibility verification pipeline. Content-addressed via SHA-256 of RFC 8785 (JCS) canonical JSON. Scope: numerical/computational verification only. For formal verification methods (formal_proof_check, mechanized_verification), outcomes use reproducibility_status='not_applicable' in the ResearchOutcome schema; proof artifacts are tracked by the Domain Pack, not this report.",
   "type": "object",

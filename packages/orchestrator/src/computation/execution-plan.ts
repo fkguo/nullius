@@ -1,5 +1,5 @@
 import Ajv2020 from 'ajv/dist/2020.js';
-import { invalidParams, type ExecutionPlanV1 } from '@autoresearch/shared';
+import { invalidParams, type ExecutionPlanV1 } from '@nullius/shared';
 import executionPlanSchema from '../../../../meta/schemas/execution_plan_v1.schema.json' with { type: 'json' };
 import { utcNowIso } from '../util.js';
 

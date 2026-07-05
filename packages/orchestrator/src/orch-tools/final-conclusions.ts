@@ -9,14 +9,14 @@ import type {
   VerificationCoverageV1,
   VerificationSubjectV1,
   VerificationSubjectVerdictV1,
-} from '@autoresearch/shared';
+} from '@nullius/shared';
 import {
   createArtifactRefV1,
   evaluateVerificationKernelGateV1,
   invalidParams,
   makeScopedArtifactUri,
   notFound,
-} from '@autoresearch/shared';
+} from '@nullius/shared';
 import Ajv2020 from 'ajv/dist/2020.js';
 import { z } from 'zod';
 import { createRunArtifactRef } from '../computation/artifact-refs.js';
@@ -51,7 +51,7 @@ const ajv = new (Ajv2020 as unknown as AjvConstructor)({
 
 ajv.addSchema?.(
   artifactRefSchema as Record<string, unknown>,
-  'https://autoresearch.dev/schemas/artifact_ref_v1.schema.json',
+  'https://nullius.dev/schemas/artifact_ref_v1.schema.json',
 );
 
 const finalConclusionsValidator = ajv.compile(finalConclusionsSchema as Record<string, unknown>);
@@ -222,7 +222,7 @@ function createControlPlaneArtifactRef(params: {
     sha256,
     kind: params.kind,
     size_bytes,
-    produced_by: '@autoresearch/orchestrator',
+    produced_by: '@nullius/orchestrator',
   });
 }
 
@@ -464,7 +464,7 @@ export async function consumeApprovedFinalConclusions(params: {
     summary: `A5 final conclusions were approved for ${runId}: ${computationResult.summary}`,
     created_at: createdAt,
     provenance: {
-      orchestrator_component: '@autoresearch/orchestrator',
+      orchestrator_component: '@nullius/orchestrator',
       trigger_surface: 'post_a5_approval_consumer',
       approved_via: 'orch_run_approve',
       ...(params.note ? { note: params.note } : {}),

@@ -1,4 +1,4 @@
-import { internalError } from '@autoresearch/shared';
+import { internalError } from '@nullius/shared';
 
 export type NormalizedStopReason = 'tool_use' | 'end_turn' | 'stop_sequence' | 'max_tokens';
 export type StopReasonKind = 'tool_use' | 'completion' | 'truncation';

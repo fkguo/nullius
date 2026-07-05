@@ -9,7 +9,7 @@ import {
   ZOTERO_CONFIRM,
   ZOTERO_DELETE,
   optionalBudgetInt,
-} from '@autoresearch/shared';
+} from '@nullius/shared';
 
 import { zodToMcpInputSchema } from './mcpSchema.js';
 import { normalizeZoteroArxivId, normalizeZoteroDoi } from '../zotero/identifiers.js';

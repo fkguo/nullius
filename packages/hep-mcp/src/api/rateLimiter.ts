@@ -2,7 +2,7 @@
 // Rate Limiter Constants
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { parseRetryAfterMs } from '@autoresearch/shared';
+import { parseRetryAfterMs } from '@nullius/shared';
 import { logger } from '../utils/logger.js';
 
 /**
@@ -12,7 +12,7 @@ import { logger } from '../utils/logger.js';
  * valid.
  *
  * Fourth copy of the same helper (arxiv-mcp + openalex-mcp + hepdata-mcp +
- * here). Lifting to `@autoresearch/shared` is its own cleanup task; kept
+ * here). Lifting to `@nullius/shared` is its own cleanup task; kept
  * inline to keep each hotfix narrowly scoped to one package.
  *
  * Sanitizes against malicious / buggy env (e.g. "abc", "-1", "1e999",

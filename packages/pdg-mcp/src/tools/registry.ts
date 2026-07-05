@@ -26,7 +26,7 @@ import {
   PDG_GET_DECAYS,
   PDG_GET_MEASUREMENTS,
   PDG_BATCH,
-} from '@autoresearch/shared';
+} from '@nullius/shared';
 import { sqlite3JsonQuery, sqlStringLiteral } from '../db/sqlite3Cli.js';
 import { defaultArtifactName, writeJsonArtifact, writeJsonlArtifact } from '../artifacts.js';
 import { requireUniqueBaseParticle } from './resolveParticle.js';
@@ -249,7 +249,7 @@ export const TOOL_SPECS: ToolSpec[] = [
       const dbPath = getPdgDbPathFromEnv();
       if (!dbPath) {
         return {
-          server: { name: 'pdg-mcp', version: '0.3.0' },
+          server: { name: 'pdg-mcp', version: '0.4.0' },
           db: {
             configured: false,
             reason: 'PDG_DB_PATH not set',
@@ -269,7 +269,7 @@ export const TOOL_SPECS: ToolSpec[] = [
       };
 
       return {
-        server: { name: 'pdg-mcp', version: '0.3.0' },
+        server: { name: 'pdg-mcp', version: '0.4.0' },
         db: {
           configured: true,
           db_path: dbPath,

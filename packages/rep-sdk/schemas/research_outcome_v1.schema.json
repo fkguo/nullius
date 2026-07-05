@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://autoresearch.dev/schemas/research_outcome_v1.schema.json",
+  "$id": "https://nullius.dev/schemas/research_outcome_v1.schema.json",
   "title": "ResearchOutcome V1",
   "description": "A verified research result produced by applying a ResearchStrategy. Content-addressed via SHA-256 of RFC 8785 (JCS) canonical JSON.",
   "type": "object",
@@ -73,7 +73,7 @@
     "artifacts": {
       "type": "array",
       "items": {
-        "$ref": "https://autoresearch.dev/schemas/artifact_ref_v1.schema.json"
+        "$ref": "https://nullius.dev/schemas/artifact_ref_v1.schema.json"
       },
       "description": "Evidence pointers to computation artifacts (ArtifactRef V1)."
     },

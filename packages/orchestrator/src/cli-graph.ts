@@ -10,7 +10,7 @@ import {
   roadmapAdapter,
   type Adapter,
   type RenderOptions,
-} from '@autoresearch/shared/graph-viz';
+} from '@nullius/shared/graph-viz';
 
 import type { ParsedCliArgs } from './cli-args.js';
 
@@ -25,7 +25,7 @@ type GraphKind = GraphArgs['kind'];
 
 /**
  * The `graph` command is the front-door consumer of the domain-neutral
- * `@autoresearch/shared/graph-viz` engine. Each kind maps to one already-built
+ * `@nullius/shared/graph-viz` engine. Each kind maps to one already-built
  * adapter; the renderer turns the resulting UniversalGraph into Graphviz DOT
  * (the portable source of truth) plus optional PNG/SVG when Graphviz is present.
  */

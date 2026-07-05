@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { optionalBudgetInt } from '@autoresearch/shared';
+import { optionalBudgetInt } from '@nullius/shared';
 import { ReportDraftSchema, SectionDraftSchema } from '../../core/writing/draftSchemas.js';
 
 const SortSchema = z.enum(['mostrecent', 'mostcited']);

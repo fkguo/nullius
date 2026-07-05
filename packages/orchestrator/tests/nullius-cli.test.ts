@@ -3,8 +3,8 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import {
-  AUTORESEARCH_PUBLIC_COMMANDS,
-  AUTORESEARCH_PUBLIC_COMMAND_INVENTORY,
+  NULLIUS_PUBLIC_COMMANDS,
+  NULLIUS_PUBLIC_COMMAND_INVENTORY,
 } from '../src/cli-command-inventory.js';
 import { StateManager } from '../src/state-manager.js';
 import { createTeamExecutionState } from '../src/team-execution-state.js';
@@ -16,7 +16,7 @@ import { handleOrchRunExport } from '../src/orch-tools/control.js';
 import { getFrontDoorAuthoritySurface } from '../../../scripts/lib/front-door-authority-map.mjs';
 
 function makeTempProjectRoot(): string {
-  return fs.mkdtempSync(path.join(os.tmpdir(), 'autoresearch-cli-'));
+  return fs.mkdtempSync(path.join(os.tmpdir(), 'nullius-cli-'));
 }
 
 function makeIo(cwd: string) {
@@ -36,7 +36,7 @@ function makeIo(cwd: string) {
 function extractTopLevelCommands(helpText: string): string[] {
   return helpText
     .split('\n')
-    .map(line => line.match(/^\s+autoresearch\s+([a-z-]+)\b/)?.[1] ?? null)
+    .map(line => line.match(/^\s+nullius\s+([a-z-]+)\b/)?.[1] ?? null)
     .filter((value): value is string => value !== null);
 }
 
@@ -139,7 +139,7 @@ function writeProjectSurfaceGuidanceFiles(
         '> If doubled backslashes appear inside math, fix them with `python3 ~/.codex/skills/research-team/scripts/bin/fix_markdown_double_backslash_math.py --notes research_contract.md --in-place`.',
         'This section is checked by the knowledge layers gate when `knowledge_layers_gate=true` (via [research_team_config.json](research_team_config.json)).',
       ].join('\n')
-    : 'Host-local automation may add extra support layers, but this contract and `.autoresearch/` state remain the durable restart truth.';
+    : 'Host-local automation may add extra support layers, but this contract and `.nullius/` state remain the durable restart truth.';
 
   fs.writeFileSync(
     path.join(projectRoot, 'AGENTS.md'),
@@ -148,7 +148,7 @@ function writeProjectSurfaceGuidanceFiles(
       '',
       '## Reconnect discipline',
       '',
-      '- If `.autoresearch/` exists, run `autoresearch status --json` before continuing.',
+      '- If `.nullius/` exists, run `nullius status --json` before continuing.',
       `- ${optionalHostText}`,
       '',
     ].join('\n'),
@@ -176,7 +176,7 @@ function writeProjectSurfaceGuidanceFiles(
       '## Restart checklist',
       '',
       '- Read `AGENTS.md`, then `project_charter.md`, then this file.',
-      '- Keep `research_plan.md` and `.autoresearch/state.json` current enough for the next reconnect.',
+      '- Keep `research_plan.md` and `.nullius/state.json` current enough for the next reconnect.',
       '',
     ].join('\n'),
     'utf-8',
@@ -198,15 +198,15 @@ function writeProjectSurfaceGuidanceFiles(
   );
 }
 
-describe('autoresearch CLI', () => {
+describe('nullius CLI', () => {
   it('renders top-level help with the canonical lifecycle scope', async () => {
     const { io, stdout } = makeIo(process.cwd());
     const code = await runCli(['--help'], io);
     const helpText = stdout.join('');
     const requiredSnippets = [
       'Canonical generic lifecycle and workflow-plan entrypoint',
-      'autoresearch run --workflow-id <id> [options]',
-      'autoresearch workflow-plan --recipe <recipe_id> [options]',
+      'nullius run --workflow-id <id> [options]',
+      'nullius workflow-plan --recipe <recipe_id> [options]',
       '`run` remains the only execution front door',
       'Pipeline A parser support commands `doctor`, `bridge`, and `literature-gap` are deleted.',
       'Retired-public maintainer helpers `method-design` and `run-card` are deleted; only `branch` remains on the provider-local internal parser.',
@@ -225,7 +225,7 @@ describe('autoresearch CLI', () => {
       expect(helpText).not.toContain(snippet);
     }
     const topLevelCommands = extractTopLevelCommands(helpText);
-    expect(topLevelCommands).toEqual([...AUTORESEARCH_PUBLIC_COMMANDS]);
+    expect(topLevelCommands).toEqual([...NULLIUS_PUBLIC_COMMANDS]);
     expect(topLevelCommands).not.toContain('doctor');
     expect(topLevelCommands).not.toContain('bridge');
     expect(topLevelCommands).not.toContain('literature-gap');
@@ -234,13 +234,13 @@ describe('autoresearch CLI', () => {
     expect(topLevelCommands).not.toContain('branch');
   });
 
-  it('front-door authority map keeps the canonical autoresearch inventory exact', () => {
-    const surface = getFrontDoorAuthoritySurface('autoresearch_cli');
+  it('front-door authority map keeps the canonical nullius inventory exact', () => {
+    const surface = getFrontDoorAuthoritySurface('nullius_cli');
 
     expect(surface.classification).toBe('canonical_public');
     expect(surface.surface_kind).toBe('cli_command_inventory');
     expect(surface.exact_inventory_source).toBe('packages/orchestrator/src/cli-command-inventory.ts');
-    expect(surface.commands).toEqual([...AUTORESEARCH_PUBLIC_COMMAND_INVENTORY]);
+    expect(surface.commands).toEqual([...NULLIUS_PUBLIC_COMMAND_INVENTORY]);
   });
 
   it('records decisive verification through the canonical public CLI inventory', async () => {
@@ -360,7 +360,7 @@ describe('autoresearch CLI', () => {
     });
   });
 
-  it('resolves public stateful workflow plans through the canonical autoresearch front door', async () => {
+  it('resolves public stateful workflow plans through the canonical nullius front door', async () => {
     const projectRoot = makeTempProjectRoot();
     const manager = new StateManager(projectRoot);
     manager.ensureDirs();
@@ -431,7 +431,7 @@ describe('autoresearch CLI', () => {
       run_id: 'M-LIT-1',
       workflow_id: 'literature_landscape',
       run_status: 'idle',
-      plan_md_path: '.autoresearch/plan.md',
+      plan_md_path: '.nullius/plan.md',
       plan: {
         plan_id: 'M-LIT-1:literature_landscape',
       },
@@ -511,8 +511,8 @@ describe('autoresearch CLI', () => {
         },
       },
     });
-    const planMd = fs.readFileSync(path.join(projectRoot, '.autoresearch', 'plan.md'), 'utf-8');
-    expect(planMd).toContain('SSOT: `.autoresearch/state.json#/plan`');
+    const planMd = fs.readFileSync(path.join(projectRoot, '.nullius', 'plan.md'), 'utf-8');
+    expect(planMd).toContain('SSOT: `.nullius/state.json#/plan`');
     expect(planMd).toContain('seed_search');
     expect(planMd).toContain('execution_tool: openalex_search');
 
@@ -666,7 +666,7 @@ describe('autoresearch CLI', () => {
       run_id: 'RB-CLI-1',
       workflow_id: 'research_brainstorm',
       run_status: 'idle',
-      plan_md_path: '.autoresearch/plan.md',
+      plan_md_path: '.nullius/plan.md',
       plan: {
         plan_id: 'RB-CLI-1:research_brainstorm',
         workflow_id: 'research_brainstorm',
@@ -731,8 +731,8 @@ describe('autoresearch CLI', () => {
       },
     });
 
-    const planMd = fs.readFileSync(path.join(projectRoot, '.autoresearch', 'plan.md'), 'utf-8');
-    expect(planMd).toContain('SSOT: `.autoresearch/state.json#/plan`');
+    const planMd = fs.readFileSync(path.join(projectRoot, '.nullius', 'plan.md'), 'utf-8');
+    expect(planMd).toContain('SSOT: `.nullius/state.json#/plan`');
     expect(planMd).toContain('open_brainstorm_context');
     expect(planMd).toContain('emit_next_contract');
     expect(planMd).toContain('execution_tool: research_brainstorm.emit_next_contract');
@@ -760,7 +760,7 @@ describe('autoresearch CLI', () => {
     });
   });
 
-  it('persists literature gap analysis plans through the canonical autoresearch front door', async () => {
+  it('persists literature gap analysis plans through the canonical nullius front door', async () => {
     const projectRoot = makeTempProjectRoot();
     const manager = new StateManager(projectRoot);
     manager.ensureDirs();
@@ -810,7 +810,7 @@ describe('autoresearch CLI', () => {
       run_id: 'M-LIT-GAP-1',
       workflow_id: 'literature_gap_analysis',
       run_status: 'idle',
-      plan_md_path: '.autoresearch/plan.md',
+      plan_md_path: '.nullius/plan.md',
       plan: {
         plan_id: 'M-LIT-GAP-1:literature_gap_analysis',
       },
@@ -857,7 +857,7 @@ describe('autoresearch CLI', () => {
         task_kind: 'finding',
       },
     });
-    const planMd = fs.readFileSync(path.join(projectRoot, '.autoresearch', 'plan.md'), 'utf-8');
+    const planMd = fs.readFileSync(path.join(projectRoot, '.nullius', 'plan.md'), 'utf-8');
     expect(planMd).toContain('topic_scan');
     expect(planMd).toContain('connection_scan');
     expect(planMd).toContain('execution_tool: inspire_topic_analysis');
@@ -1007,7 +1007,7 @@ describe('autoresearch CLI', () => {
       'workflow-plan',
       '--recipe', 'literature_landscape',
       '--query', 'bootstrap amplitudes',
-    ], io)).rejects.toThrow(`project root is not initialized: ${projectRoot}; run autoresearch init first`);
+    ], io)).rejects.toThrow(`project root is not initialized: ${projectRoot}; run nullius init first`);
   });
 
   it('rejects workflow-plan replacement while a run is active', async () => {
@@ -1134,7 +1134,7 @@ describe('autoresearch CLI', () => {
       ],
     };
     manager.saveState(state);
-    fs.unlinkSync(path.join(projectRoot, '.autoresearch', 'plan.md'));
+    fs.unlinkSync(path.join(projectRoot, '.nullius', 'plan.md'));
 
     const { io, stdout } = makeIo(projectRoot);
     const code = await runCli(['status', '--json'], io);
@@ -1145,7 +1145,7 @@ describe('autoresearch CLI', () => {
       run_id: 'M-PLAN-1',
       current_step: null,
       resume_context: {
-        status_command: 'autoresearch status --json',
+        status_command: 'nullius status --json',
         current_run_id: 'M-PLAN-1',
         run_status: 'idle',
         human_status_entry: 'research_plan.md#Current Status',
@@ -1160,7 +1160,7 @@ describe('autoresearch CLI', () => {
       },
       recovery_context: {
         status_commands: {
-          canonical: 'autoresearch status --json',
+          canonical: 'nullius status --json',
           project_local_fallback: null,
         },
         human_status_entry: 'research_plan.md#Current Status',
@@ -1182,9 +1182,9 @@ describe('autoresearch CLI', () => {
 
   it('reconstructs recovery_context from legacy state, plan.md, and ledger.jsonl without changing resume_context', async () => {
     const projectRoot = makeTempProjectRoot();
-    fs.mkdirSync(path.join(projectRoot, '.autoresearch'), { recursive: true });
+    fs.mkdirSync(path.join(projectRoot, '.nullius'), { recursive: true });
     fs.writeFileSync(
-      path.join(projectRoot, '.autoresearch', 'state.json'),
+      path.join(projectRoot, '.nullius', 'state.json'),
       JSON.stringify({
         schema_version: 1,
         run_id: 'M-LEGACY-1',
@@ -1195,14 +1195,14 @@ describe('autoresearch CLI', () => {
       'utf-8',
     );
     fs.writeFileSync(
-      path.join(projectRoot, '.autoresearch', 'plan.md'),
+      path.join(projectRoot, '.nullius', 'plan.md'),
       [
         '# Plan (derived view)',
         '',
         '- Run: M-LEGACY-1',
         '- Workflow: legacy_review',
         '',
-        'SSOT: `.autoresearch/state.json#/plan`',
+        'SSOT: `.nullius/state.json#/plan`',
         '',
         '## Steps',
         '',
@@ -1215,7 +1215,7 @@ describe('autoresearch CLI', () => {
       'utf-8',
     );
     fs.writeFileSync(
-      path.join(projectRoot, '.autoresearch', 'ledger.jsonl'),
+      path.join(projectRoot, '.nullius', 'ledger.jsonl'),
       [
         JSON.stringify({
           ts: '2026-04-15T00:00:00Z',
@@ -1241,19 +1241,19 @@ describe('autoresearch CLI', () => {
     expect(code).toBe(0);
     const payload = JSON.parse(stdout.join(''));
     expect(payload.resume_context).toMatchObject({
-      status_command: 'autoresearch status --json',
+      status_command: 'nullius status --json',
       current_run_id: 'M-LEGACY-1',
     });
     expect(payload.recovery_context).toMatchObject({
       status_commands: {
-        canonical: 'autoresearch status --json',
+        canonical: 'nullius status --json',
         project_local_fallback: null,
       },
       control_files: {
-        state_json: { path: '.autoresearch/state.json', exists: true },
-        plan_md: { path: '.autoresearch/plan.md', exists: true },
-        ledger_jsonl: { path: '.autoresearch/ledger.jsonl', exists: true },
-        project_local_launcher: { path: '.autoresearch/bin/autoresearch', exists: false },
+        state_json: { path: '.nullius/state.json', exists: true },
+        plan_md: { path: '.nullius/plan.md', exists: true },
+        ledger_jsonl: { path: '.nullius/ledger.jsonl', exists: true },
+        project_local_launcher: { path: '.nullius/bin/nullius', exists: false },
       },
       current_run: {
         run_id: 'M-LEGACY-1',
@@ -1338,7 +1338,7 @@ describe('autoresearch CLI', () => {
       },
       current_run_workflow_outputs_source: 'state',
       resume_context: {
-        status_command: 'autoresearch status --json',
+        status_command: 'nullius status --json',
         current_run_id: 'M-OUT-1',
         run_status: 'completed',
         curated_workflow_output_keys: ['topic_analysis', 'critical_analysis', 'network_analysis', 'connection_scan'],
@@ -2202,8 +2202,8 @@ describe('autoresearch CLI', () => {
     // Default NODE_ENV=test skips integrity verify so the existing approval
     // suite stays green; this regression test forces verify=on to exercise
     // the new fail-closed code path.
-    const prior = process.env.AUTORESEARCH_INTEGRITY_VERIFY;
-    process.env.AUTORESEARCH_INTEGRITY_VERIFY = 'on';
+    const prior = process.env.NULLIUS_INTEGRITY_VERIFY;
+    process.env.NULLIUS_INTEGRITY_VERIFY = 'on';
     try {
       const { approvalId, projectRoot } = makeAwaitingApprovalState();
 
@@ -2248,8 +2248,8 @@ describe('autoresearch CLI', () => {
       expect(state.pending_approval).toBeNull();
       expect(state.approval_history).toHaveLength(1);
     } finally {
-      if (prior === undefined) delete process.env.AUTORESEARCH_INTEGRITY_VERIFY;
-      else process.env.AUTORESEARCH_INTEGRITY_VERIFY = prior;
+      if (prior === undefined) delete process.env.NULLIUS_INTEGRITY_VERIFY;
+      else process.env.NULLIUS_INTEGRITY_VERIFY = prior;
     }
   });
 
@@ -2328,7 +2328,7 @@ describe('autoresearch CLI', () => {
     const { io } = makeIo(projectRoot);
     await expect(
       runCli(['run', '--workflow-id', 'computation', '--run-id', 'M-RUN-UNINIT'], io),
-    ).rejects.toThrow(`project root is not initialized: ${projectRoot}; run autoresearch init first`);
+    ).rejects.toThrow(`project root is not initialized: ${projectRoot}; run nullius init first`);
   });
 
   it('dry-runs the next persisted workflow-plan step through the canonical run front door', async () => {

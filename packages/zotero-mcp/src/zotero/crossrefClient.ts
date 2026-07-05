@@ -1,10 +1,10 @@
-import { upstreamError, type Paper } from '@autoresearch/shared';
+import { upstreamError, type Paper } from '@nullius/shared';
 
 const CROSSREF_API_URL = 'https://api.crossref.org';
 const MIN_REQUEST_INTERVAL_MS = 500;
 
-const CROSSREF_MAILTO = process.env.CROSSREF_MAILTO || 'autoresearch@users.noreply.github.com';
-const CROSSREF_USER_AGENT = `autoresearch-zotero-mcp/1.0 (https://github.com/fkg/autoresearch-lab; mailto:${CROSSREF_MAILTO})`;
+const CROSSREF_MAILTO = process.env.CROSSREF_MAILTO || 'nullius@users.noreply.github.com';
+const CROSSREF_USER_AGENT = `nullius-zotero-mcp/1.0 (https://github.com/fkguo/nullius; mailto:${CROSSREF_MAILTO})`;
 
 // Serialized throttle: chains promises to ensure sequential spacing even under concurrent calls
 let throttleChain = Promise.resolve();

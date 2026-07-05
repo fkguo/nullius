@@ -42,10 +42,10 @@ describe('linkKbNotes', () => {
   });
 
   describe('kb_dir resolution', () => {
-    it('auto-detects .autoresearch/knowledge_base when present', async () => {
-      fs.mkdirSync(path.join(tmpProject, '.autoresearch', 'knowledge_base'), { recursive: true });
+    it('auto-detects .nullius/knowledge_base when present', async () => {
+      fs.mkdirSync(path.join(tmpProject, '.nullius', 'knowledge_base'), { recursive: true });
       const r = await linkKbNotes({ project_root: tmpProject });
-      expect(r.kb_dir).toBe(path.join(tmpProject, '.autoresearch', 'knowledge_base'));
+      expect(r.kb_dir).toBe(path.join(tmpProject, '.nullius', 'knowledge_base'));
       expect(r.kb_dir_source).toBe('auto_detected');
     });
 
@@ -66,7 +66,7 @@ describe('linkKbNotes', () => {
     it('marks kb_dir_source=missing when no candidate exists', async () => {
       const r = await linkKbNotes({ project_root: tmpProject });
       // Should still report the highest-priority candidate path.
-      expect(r.kb_dir).toBe(path.join(tmpProject, '.autoresearch', 'knowledge_base'));
+      expect(r.kb_dir).toBe(path.join(tmpProject, '.nullius', 'knowledge_base'));
       expect(r.kb_dir_source).toBe('missing');
     });
 

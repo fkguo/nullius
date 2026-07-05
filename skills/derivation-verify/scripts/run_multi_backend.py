@@ -508,7 +508,7 @@ class MultiTaskRunner:
             cmd += ["--config", self.config]
         if self.tools and backend in _TOOL_MODES:
             cmd += ["--backend-tool-mode", f"{backend}={_TOOL_MODES[backend]}"]
-        # Hermetic run: the runner otherwise auto-discovers .autoresearch/review-swarm.json up the git
+        # Hermetic run: the runner otherwise auto-discovers .nullius/review-swarm.json up the git
         # tree (exactly where this skill runs) and would bleed REVIEW config — flipping on the review
         # contract sanitizers + injecting tool modes — into the derivation pass. Disabling auto-config
         # makes the gate reproducible and config-independent; an explicit --config is still honored.

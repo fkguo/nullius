@@ -16,7 +16,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { randomUUID } from 'crypto';
-import { commitStagedDurable, writeBytesAtomicDurable } from '@autoresearch/shared';
+import { commitStagedDurable, writeBytesAtomicDurable } from '@nullius/shared';
 
 // Security: Maximum stderr/stdout buffer size to prevent memory exhaustion
 const MAX_OUTPUT_SIZE = 64 * 1024; // 64KB

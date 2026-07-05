@@ -22,7 +22,7 @@ bash "${SKILL_DIR}/scripts/bin/scaffold_research_workflow.sh" \
   --full
 ```
 
-Use an external project root for real work. Public `research-team` scaffold / contract-refresh / team-cycle flows now fail closed if the project root or real-project intermediate outputs resolve back into the autoresearch-lab development repo checkout.
+Use an external project root for real work. Public `research-team` scaffold / contract-refresh / team-cycle flows now fail closed if the project root or real-project intermediate outputs resolve back into the nullius development repo checkout.
 
 If the project will actually use the HEP provider bundle, add `--with-hep-provider`; otherwise the default full scaffold stays host-local and does not precreate `.hep/` or enable the HEP workspace gate.
 

@@ -3,7 +3,7 @@
  * Extracted from zotero-mcp/src/zotero/tools.ts (NEW-R04 dedup).
  */
 
-import { invalidParams } from '@autoresearch/shared';
+import { invalidParams } from '@nullius/shared';
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);

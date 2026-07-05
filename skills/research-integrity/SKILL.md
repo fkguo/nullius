@@ -11,7 +11,7 @@ AI research failure modes before the work crosses an approval boundary
 or gets folded into durable project artifacts.
 
 The skill does not replace the machine-enforced gates that already live
-in the control plane (`autoresearch` A1–A5 approval gates,
+in the control plane (`nullius` A1–A5 approval gates,
 `HARNESS_INVOCATION_REQUIRED` anchor gate, `quality_compile`,
 `quality_originality`, and convergence gates). It is the agent-side
 check that runs **before** those gates fire — so the gate hearing is
@@ -21,14 +21,14 @@ fair and the durable record actually reflects work that was done.
 
 Run M1–M7 immediately before any of:
 
-- Calling `autoresearch approve <approval_id>` for an A1, A2, A3, A4, or
+- Calling `nullius approve <approval_id>` for an A1, A2, A3, A4, or
   A5 gate.
 - Folding a result into `research_contract.md` or
   `research_plan.md#Current Status`.
 - Handing off to another agent or human via the `research-harness`
   "Fold Results Back" step.
 - Marking a `research-team` cycle as converged.
-- Requesting `autoresearch final-conclusions` on a run.
+- Requesting `nullius final-conclusions` on a run.
 - Posting a draft to `research-writer` or invoking a `referee-review`
   pass.
 
@@ -364,7 +364,7 @@ symmetry. A precondition verified only at a smaller/cheaper scale
 than the result is NOT verified.
 
 **Tools that help.**
-- `autoresearch run` with explicit `run_id` for reproducibility.
+- `nullius run` with explicit `run_id` for reproducibility.
 - `research-team` Reproducibility Capsule (mandatory section of
   `research_contract.md`).
 - `derivation-verify` (or a CAS) for an independent symbolic
@@ -404,7 +404,7 @@ work crossing the boundary, produce the exact code path or command,
 plus the run artifact under `artifacts/runs/<run_id>/` that records
 its execution. If the step is not in the artifact, it did not happen.
 
-**Tools that help.** `autoresearch run` with explicit `run_id`,
+**Tools that help.** `nullius run` with explicit `run_id`,
 the `artifacts/runs/<run_id>/` manifest, `research-team`
 Reproducibility Capsule, and an evidence-binding/export step linking
 manuscript claims to `artifacts/runs/<run_id>/`.
@@ -623,7 +623,7 @@ fast path.
 ## Pre-approval ritual
 
 Walk the modes most relevant to the gate before invoking
-`autoresearch approve <approval_id>`. The check is owed to the next
+`nullius approve <approval_id>`. The check is owed to the next
 agent who will read the durable record, not to the current task's
 deadline.
 
@@ -671,13 +671,13 @@ file.
   dimension (does the note's quote / value / locator match the fetched
   source span, not merely "is the claim true") used by the
   Extraction / transcription fidelity check above. It stays a generic skill
-  plus a `@autoresearch/shared` contract — not a `hep-mcp` tool — consistent
+  plus a `@nullius/shared` contract — not a `hep-mcp` tool — consistent
   with the criterion below.
 
 ## HEP-specific augmentation (future, out of scope here)
 
 This generic skill stays domain-neutral. Future machine checks may
-belong inside `@autoresearch/hep-mcp` — but only when the check is
+belong inside `@nullius/hep-mcp` — but only when the check is
 **genuinely HEP-bound by its core contract**, not merely because it
 involves a tool whose name contains `hep`, `inspire`, or `pdg`.
 
@@ -721,11 +721,11 @@ the check inline in the response or notebook entry, in the order:
 3. Modes you explicitly judged not applicable, with a one-sentence
    reason.
 
-For the *machine* record that gates `autoresearch approve` (see below),
-run `autoresearch integrity-record` after the narrative is written:
+For the *machine* record that gates `nullius approve` (see below),
+run `nullius integrity-record` after the narrative is written:
 
 ```bash
-autoresearch integrity-record \
+nullius integrity-record \
   --approval-id <approval_id> \
   --modes M3,M5,M6 \
   --notes "<terse summary of what was checked and the headline finding>" \
@@ -738,8 +738,8 @@ you judged not applicable. `--notes` is short prose (max 500 chars) —
 durable detail still belongs in the narrative record above; the
 receipt is just the boundary-time machine artifact.
 
-The receipt is appended to `.autoresearch/integrity_log.jsonl` and
-checked by `autoresearch approve <approval_id>` (and the `orch_run_approve`
+The receipt is appended to `.nullius/integrity_log.jsonl` and
+checked by `nullius approve <approval_id>` (and the `orch_run_approve`
 MCP tool) before granting. Without a matching receipt the approval
 fails closed with `INTEGRITY_RECEIPT_REQUIRED`. This is the same
 fail-closed pattern as the `HARNESS_INVOCATION_REQUIRED` anchor gate —
@@ -747,13 +747,13 @@ the *existence* of the receipt is machine-enforced, the *content* of
 your check is your judgment.
 
 Skip semantics for environments that need to bypass the gate (e.g.
-historical project replay): `AUTORESEARCH_INTEGRITY_VERIFY=skip`.
+historical project replay): `NULLIUS_INTEGRITY_VERIFY=skip`.
 `NODE_ENV=test` skips by default to keep existing test suites green.
 
 ## Recovery from a caught failure
 
 If a check surfaces a failure, do not cross the boundary. Fix it,
-then re-walk the affected modes only. Re-run `autoresearch
+then re-walk the affected modes only. Re-run `nullius
 integrity-record` for the same `approval_id` — the latest receipt
 wins, the prior entry stays in the JSONL for audit. The fix gets a
 brief note in the narrative record so the next reader can see what

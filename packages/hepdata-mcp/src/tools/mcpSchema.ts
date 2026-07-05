@@ -1,1 +1,1 @@
-export { zodToMcpInputSchema } from '@autoresearch/shared';
+export { zodToMcpInputSchema } from '@nullius/shared';

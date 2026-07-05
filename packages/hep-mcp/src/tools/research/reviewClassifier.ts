@@ -1,5 +1,5 @@
 import type { CreateMessageRequestParamsBase, CreateMessageResult } from '@modelcontextprotocol/sdk/types.js';
-import { INSPIRE_CLASSIFY_REVIEWS } from '@autoresearch/shared';
+import { INSPIRE_CLASSIFY_REVIEWS } from '@nullius/shared';
 import * as api from '../../api/client.js';
 import { buildToolSamplingMetadata } from '../../core/sampling-metadata.js';
 import { validateRecids } from './config.js';

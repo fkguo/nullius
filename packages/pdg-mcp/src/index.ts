@@ -19,7 +19,7 @@ const TOOL_MODE: ToolExposureMode = process.env.PDG_TOOL_MODE === 'full' ? 'full
 const server = new Server(
   {
     name: 'pdg-mcp',
-    version: '0.3.0',
+    version: '0.4.0',
   },
   {
     capabilities: {

@@ -1,4 +1,4 @@
-import type { ComputationResultV1 } from '@autoresearch/shared';
+import type { ComputationResultV1 } from '@nullius/shared';
 
 export type FeedbackLowering = ComputationResultV1['feedback_lowering'];
 

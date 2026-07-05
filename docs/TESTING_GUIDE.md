@@ -1,6 +1,6 @@
 # 功能测试指南（front-door 当前真相）
 
-本指南面向手工验收当前 front-door truth。`autoresearch` 是 generic lifecycle + workflow-plan front door；`@autoresearch/hep-mcp` 是当前最成熟的 domain MCP front door，提供 Project/Run、evidence、writing/export、literature/data、Zotero、PDG 能力。本页重点覆盖两者的衔接，而不是把 `hep-mcp` 重新写成 root 产品身份。
+本指南面向手工验收当前 front-door truth。`nullius` 是 generic lifecycle + workflow-plan front door；`@nullius/hep-mcp` 是当前最成熟的 domain MCP front door，提供 Project/Run、evidence、writing/export、literature/data、Zotero、PDG 能力。本页重点覆盖两者的衔接，而不是把 `hep-mcp` 重新写成 root 产品身份。
 
 > 说明
 >
@@ -14,15 +14,15 @@
 
 ### 0.0 先确认 front-door 角色
 
-- `autoresearch` = generic lifecycle + workflow-plan front door
-- `research-harness` = Codex / Claude Code / OpenCode 的薄 external project skill；它只负责恢复项目真相、路由到 `autoresearch` / `research-team` / `markdown-hygiene` / `hep-mcp`、并要求结果折回 durable artifacts，不是新的 CLI 或第二套 control plane
-- `.autoresearch/HARNESS` = `autoresearch init` 写入的机器可读 runtime handshake；存在时 agent 必须先取得 `autoresearch status --json` receipt，再开始新工作、milestone 执行、closeout 或 handoff
+- `nullius` = generic lifecycle + workflow-plan front door
+- `research-harness` = Codex / Claude Code / OpenCode 的薄 external project skill；它只负责恢复项目真相、路由到 `nullius` / `research-team` / `markdown-hygiene` / `hep-mcp`、并要求结果折回 durable artifacts，不是新的 CLI 或第二套 control plane
+- `.nullius/HARNESS` = `nullius init` 写入的机器可读 runtime handshake；存在时 agent 必须先取得 `nullius status --json` receipt，再开始新工作、milestone 执行、closeout 或 handoff
 - `orch_*` = 同一 control plane 的 MCP/operator counterpart，不是第二个产品前门
-- `@autoresearch/hep-mcp` = 当前最成熟的 domain MCP front door
+- `@nullius/hep-mcp` = 当前最成熟的 domain MCP front door
 - legacy Python CLI 不再属于公开 front-door；如仍需覆盖，只作为 maintainer/eval/regression-only 内部路径测试
-- `autoresearch init` 使用 canonical generic scaffold；`.mcp.template.json`、根级 `specs/plan.schema.json`、`prompts/`、`team/`、`research_team_config.json` 等 optional support surfaces 只应由明确项目需要或 host-specific tooling 后续创建
-- `autoresearch init --refresh` 把更新后的 managed scaffold 文档（`AGENTS.md`）重新落到已生成项目：覆盖前会把变更文件备份到 `.autoresearch/backups/`，且绝不改写 `research_plan.md`、`research_notebook.md`、`research_contract.md`、`project_charter.md`、`project_index.md` 等用户 seed 文件；`--dry-run` 可先预览。测试它时用开发仓外的临时 root，断言“变更 managed 文件被备份并刷新、seed 文件原样保留、`--dry-run` 零写入”
-- reconnect 时应优先读取 `.autoresearch/HARNESS`、`.autoresearch/` state 与 project-local durable memory，例如 `research_plan.md`、`research_contract.md`、以及已有实质内容的 `research_notebook.md`
+- `nullius init` 使用 canonical generic scaffold；`.mcp.template.json`、根级 `specs/plan.schema.json`、`prompts/`、`team/`、`research_team_config.json` 等 optional support surfaces 只应由明确项目需要或 host-specific tooling 后续创建
+- `nullius init --refresh` 把更新后的 managed scaffold 文档（`AGENTS.md`）重新落到已生成项目：覆盖前会把变更文件备份到 `.nullius/backups/`，且绝不改写 `research_plan.md`、`research_notebook.md`、`research_contract.md`、`project_charter.md`、`project_index.md` 等用户 seed 文件；`--dry-run` 可先预览。测试它时用开发仓外的临时 root，断言“变更 managed 文件被备份并刷新、seed 文件原样保留、`--dry-run` 零写入”
+- reconnect 时应优先读取 `.nullius/HARNESS`、`.nullius/` state 与 project-local durable memory，例如 `research_plan.md`、`research_contract.md`、以及已有实质内容的 `research_notebook.md`
 - `research_plan.md#Current Status` 是给人的当前状态入口；测试 scaffold/read-model 时要保证它被作为恢复指引暴露，同时不新增单独状态文档
 - `research_notebook.md` 是问题逻辑主线，不是日期 run log，也不承载状态追踪；重要文献 note 必须记录全文/source-first 阅读、section/page/equation/figure 覆盖，并用 LaTeX math 写科学记号；测试 scaffold/read-model 时要保证空模板不会被误判为 substantive，同时真实逻辑内容会进入 reconnect recommended files
 - `team/runs/` 只作为 `research-team` 执行与 reviewer packet/log surface；验收外部项目恢复/交接时，稳定结论必须能从 `research_contract.md`、`research_plan.md#Current Status` 或 `artifacts/runs/<run_id>/` 找回
@@ -32,7 +32,7 @@
 ```bash
 pnpm install
 pnpm -r build
-pnpm --filter @autoresearch/hep-mcp docs:tool-counts:check
+pnpm --filter @nullius/hep-mcp docs:tool-counts:check
 ```
 
 可选：跑自动化测试。
@@ -49,7 +49,7 @@ HEP_LIVE_SMOKE=1 pnpm -r test
 
 ### 0.2 准备一个干净的数据目录
 
-建议每次验收使用隔离的数据根。一次性检查可设置新的 `HEP_DATA_DIR` 或使用默认 scratch；如果结果需要后续验证或接续，应在工具调用中传入已初始化 autoresearch 项目的 `project_root`，使数据写入该 project root 的 artifact 子目录。
+建议每次验收使用隔离的数据根。一次性检查可设置新的 `HEP_DATA_DIR` 或使用默认 scratch；如果结果需要后续验证或接续，应在工具调用中传入已初始化 nullius 项目的 `project_root`，使数据写入该 project root 的 artifact 子目录。
 
 - `/Users/<you>/tmp/hep_data_test_001`
 - `project_root=/absolute/path/to/external-project` -> `/absolute/path/to/external-project/artifacts/hep-mcp`
@@ -66,13 +66,13 @@ HEP_LIVE_SMOKE=1 pnpm -r test
     "hep-mcp": {
       "command": "node",
       "args": [
-        "/absolute/path/to/autoresearch-lab/packages/hep-mcp/dist/index.js"
+        "/absolute/path/to/nullius/packages/hep-mcp/dist/index.js"
       ],
       "env": {
-        "HEP_DATA_DIR": "~/.autoresearch/hep-mcp",
+        "HEP_DATA_DIR": "~/.nullius/hep-mcp",
         "HEP_TOOL_MODE": "standard",
-        "HEP_DOWNLOAD_DIR": "~/.autoresearch/hep-mcp/downloads",
-        "WRITING_PROGRESS_DIR": "~/.autoresearch/hep-mcp/writing_progress"
+        "HEP_DOWNLOAD_DIR": "~/.nullius/hep-mcp/downloads",
+        "WRITING_PROGRESS_DIR": "~/.nullius/hep-mcp/writing_progress"
       }
     }
   }
@@ -90,7 +90,7 @@ HEP_LIVE_SMOKE=1 pnpm -r test
 当客户端看不到工具时，优先检查 `listTools` 是否返回合法 schema：
 
 ```bash
-cd /absolute/path/to/autoresearch-lab/packages/hep-mcp
+cd /absolute/path/to/nullius/packages/hep-mcp
 node --input-type=module - <<'EOF'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
@@ -246,7 +246,7 @@ EOF
 ```json
 {
   "project_id": "<project_id>",
-  "main_tex_path": "/absolute/path/to/autoresearch-lab/packages/hep-mcp/tests/fixtures/latex/multifile/main.tex",
+  "main_tex_path": "/absolute/path/to/nullius/packages/hep-mcp/tests/fixtures/latex/multifile/main.tex",
   "paper_id": "fixture-paper"
 }
 ```
@@ -265,7 +265,7 @@ EOF
   "run_id": "<run_id>",
   "latex_sources": [
     {
-      "main_tex_path": "/absolute/path/to/autoresearch-lab/packages/hep-mcp/tests/fixtures/latex/multifile/main.tex",
+      "main_tex_path": "/absolute/path/to/nullius/packages/hep-mcp/tests/fixtures/latex/multifile/main.tex",
       "include_cross_refs": true
     }
   ]
@@ -444,37 +444,37 @@ EOF
 这部分不是 MCP 工具，而是当前真实存在的高层 workflow consumers：
 
 ```bash
-autoresearch workflow-plan \
+nullius workflow-plan \
   --recipe literature_landscape \
   --phase prework \
   --run-id 20260502T023000Z-m0-bootstrap-prework-r1 \
   --query "bootstrap amplitudes" \
   --topic "bootstrap amplitudes"
 ```
-先在目标外部 project root 执行 `autoresearch init`，然后在该 root 内或通过 `--project-root` 调用。这个推荐的公开 stateful front door 会直接通过 `@autoresearch/literature-workflows` 解析 checked-in workflow authority，并写入 `.autoresearch/state.json#/plan` / `.autoresearch/plan.md`。有意义的外部研究运行应显式传入 safe、sortable、readable 的 `--run-id`；如果省略，派生的 `<recipe>-<phase>` 只作为 planning placeholder。
+先在目标外部 project root 执行 `nullius init`，然后在该 root 内或通过 `--project-root` 调用。这个推荐的公开 stateful front door 会直接通过 `@nullius/literature-workflows` 解析 checked-in workflow authority，并写入 `.nullius/state.json#/plan` / `.nullius/plan.md`。有意义的外部研究运行应显式传入 safe、sortable、readable 的 `--run-id`；如果省略，派生的 `<recipe>-<phase>` 只作为 planning placeholder。
 
 轻量研究头脑风暴/收敛入口使用同一 front door：
 
 ```bash
-autoresearch workflow-plan \
+nullius workflow-plan \
   --recipe research_brainstorm \
   --run-id 20260502T023000Z-m0-bootstrap-r1 \
   --topic "bootstrap amplitudes"
 ```
 
-`research_brainstorm` durable harness 持久化 brainstorm context、candidate angles、screening matrix、single recommendation 与 `next_contract` artifact hints。`.autoresearch/state.json#/plan` 是机器 SSOT，`.autoresearch/plan.md` 只是派生 read model；`next_contract` 可以建议后续 recipe，但不会自动启动重流程，也不依赖 host-native thinking process。它是 planning-only harness：持久化的 `research_brainstorm.*` step tools 是 handoff authority，不是内置 runnable tool chain。它不是 idea-engine、不是 full research-team、不是新的 root front door。
+`research_brainstorm` durable harness 持久化 brainstorm context、candidate angles、screening matrix、single recommendation 与 `next_contract` artifact hints。`.nullius/state.json#/plan` 是机器 SSOT，`.nullius/plan.md` 只是派生 read model；`next_contract` 可以建议后续 recipe，但不会自动启动重流程，也不依赖 host-native thinking process。它是 planning-only harness：持久化的 `research_brainstorm.*` step tools 是 handoff authority，不是内置 runnable tool chain。它不是 idea-engine、不是 full research-team、不是新的 root front door。
 
 > Maintainer / eval / regression only:
 >
 > 旧的 provider-local Python parser 已删除；maintainer/eval/regression proof 现在改由 lower-level checked-in coverage 提供：
 >
-> `pnpm --filter @autoresearch/literature-workflows test -- tests/resolve.test.ts`
+> `pnpm --filter @nullius/literature-workflows test -- tests/resolve.test.ts`
 >
-> `pnpm --filter @autoresearch/orchestrator test -- tests/autoresearch-cli.test.ts`
+> `pnpm --filter @nullius/orchestrator test -- tests/nullius-cli.test.ts`
 
 **预期**
 
-- `autoresearch workflow-plan` 仍是唯一 installable public high-level literature entrypoint
+- `nullius workflow-plan` 仍是唯一 installable public high-level literature entrypoint
 - lower-level checked-in runner / resolver / front-door coverage 仍能证明 `literature_gap_analysis` recipe、seed-search 解析、analyze-step wiring 与 live CLI truth
 - `research_brainstorm` durable harness 通过同一个 entrypoint 验证 harness-step 解析、artifact hints、state plan 与 read-model 恢复；它输出后续 handoff contract，但不自动启动重流程
 
@@ -525,7 +525,7 @@ autoresearch workflow-plan \
 - 工具看不到：先做 `pnpm -r build`，再跑上面的 `listTools` sanity check
 - 找不到 manifest 或 artifact：先确认 tool call 是否传入 `project_root`。有 `project_root` 时检查 `<project_root>/artifacts/hep-mcp`；没有时检查本轮 `HEP_DATA_DIR` 或默认 scratch 根。`HEP_DOWNLOAD_DIR` 和 `WRITING_PROGRESS_DIR` 只对非 `project_root` scratch/override 模式生效，且必须位于 HEP data root 之内
 - GUI 客户端找不到 Node：把 `command` 换成 Node 的绝对路径
-- 想看 generic lifecycle state：不要从 `hep-mcp` 猜，直接使用 `autoresearch status --project-root ...`
+- 想看 generic lifecycle state：不要从 `hep-mcp` 猜，直接使用 `nullius status --project-root ...`
 
 ---
 

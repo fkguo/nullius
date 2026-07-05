@@ -15,7 +15,7 @@ import type { RunState } from '../src/types.js';
 import { readRunListView } from '../src/orch-tools/run-read-model.js';
 
 function makeTempProjectRoot(): string {
-  return fs.mkdtempSync(path.join(os.tmpdir(), 'autoresearch-final-conclusions-'));
+  return fs.mkdtempSync(path.join(os.tmpdir(), 'nullius-final-conclusions-'));
 }
 
 function makeIo(cwd: string) {
@@ -445,7 +445,7 @@ describe('final conclusions consumer', () => {
         decision: 'pass',
       },
       provenance: {
-        orchestrator_component: '@autoresearch/orchestrator',
+        orchestrator_component: '@nullius/orchestrator',
         trigger_surface: 'post_a5_approval_consumer',
         approved_via: 'orch_run_approve',
       },

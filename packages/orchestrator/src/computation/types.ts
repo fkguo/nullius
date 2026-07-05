@@ -1,4 +1,4 @@
-import type { ArtifactRefV1, ComputationManifestV1, ComputationResultV1 } from '@autoresearch/shared';
+import type { ArtifactRefV1, ComputationManifestV1, ComputationResultV1 } from '@nullius/shared';
 
 export type ManifestTool = 'mathematica' | 'julia' | 'python' | 'bash';
 export type ExecutionStatus = 'dry_run' | 'planned' | 'requires_approval' | 'completed' | 'failed';

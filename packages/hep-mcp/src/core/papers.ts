@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { notFound, writeJsonAtomicDurable } from '@autoresearch/shared';
+import { notFound, writeJsonAtomicDurable } from '@nullius/shared';
 import { getProjectDir, getProjectPaperJsonPath } from './paths.js';
 
 // hep-mcp project/paper JSON convention: no trailing newline (legacy). Pass

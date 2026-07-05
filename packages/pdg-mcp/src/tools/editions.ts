@@ -1,4 +1,4 @@
-import { invalidParams } from '@autoresearch/shared';
+import { invalidParams } from '@nullius/shared';
 
 export function chooseEdition(options: {
   preferredEdition?: string;

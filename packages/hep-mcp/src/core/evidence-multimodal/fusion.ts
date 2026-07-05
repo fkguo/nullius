@@ -1,4 +1,4 @@
-import type { EvidenceLocalizationUnit, EvidenceMultimodalArtifact } from '@autoresearch/shared';
+import type { EvidenceLocalizationUnit, EvidenceMultimodalArtifact } from '@nullius/shared';
 
 import type { LocalizationCandidate, LocalizationCatalogItem } from '../evidence-localization/localize.js';
 import { inferCatalogItemLocalizationUnit } from '../evidence-localization/units.js';

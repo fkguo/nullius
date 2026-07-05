@@ -1,4 +1,4 @@
-import { internalError } from '@autoresearch/shared';
+import { internalError } from '@nullius/shared';
 import type { LlmUsage, MessageContent, MessageParam } from './backends/chat-backend.js';
 import { compactMessagesForOverflow } from './agent-runner-history-compaction.js';
 

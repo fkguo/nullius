@@ -4,7 +4,7 @@ import * as path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { handleToolCall as handleOrchToolCall } from '@autoresearch/orchestrator';
+import { handleToolCall as handleOrchToolCall } from '@nullius/orchestrator';
 import { createFromIdea } from '../../src/tools/create-from-idea.js';
 
 function makeTmpDir(prefix: string): string {
@@ -110,7 +110,7 @@ describe('compute bridge contract', () => {
       'full',
     ));
     // A3 (compute_runs) approval is opt-in; enable it so the bridge produces an approval request.
-    fs.writeFileSync(path.join(projectRoot, '.autoresearch', 'approval_policy.json'), JSON.stringify({ require_approval_for: { compute_runs: true } }) + '\n', 'utf-8');
+    fs.writeFileSync(path.join(projectRoot, '.nullius', 'approval_policy.json'), JSON.stringify({ require_approval_for: { compute_runs: true } }) + '\n', 'utf-8');
 
     const result = await handleOrchToolCall(
       'orch_run_plan_computation',

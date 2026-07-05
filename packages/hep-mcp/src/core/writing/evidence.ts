@@ -12,7 +12,7 @@ import {
   type VerificationCoverageV1,
   type VerificationSubjectVerdictV1,
   type WritingReviewBridgeV1,
-} from '@autoresearch/shared';
+} from '@nullius/shared';
 
 import { getRun, type RunArtifactRef, type RunManifest, type RunStep, updateRunManifestAtomic } from '../runs.js';
 import { getProjectPaperEvidenceCatalogPath, getRunArtifactPath } from '../paths.js';

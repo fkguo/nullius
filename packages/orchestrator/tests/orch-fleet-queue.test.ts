@@ -136,7 +136,7 @@ describe('orch_fleet_enqueue', () => {
     expect(payload.queue_item.priority).toBe(7);
     expect(payload.queue_item.note).toBe('first pass');
     expect(readQueue(projectRoot).items).toHaveLength(1);
-    expect(fs.readFileSync(path.join(projectRoot, '.autoresearch', 'ledger.jsonl'), 'utf-8')).toContain('"event_type":"fleet_enqueued"');
+    expect(fs.readFileSync(path.join(projectRoot, '.nullius', 'ledger.jsonl'), 'utf-8')).toContain('"event_type":"fleet_enqueued"');
 
     await expect(handleOrchFleetEnqueue(OrchFleetEnqueueSchema.parse({
       project_root: projectRoot,

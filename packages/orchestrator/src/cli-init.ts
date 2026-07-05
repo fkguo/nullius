@@ -1,9 +1,9 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { writeBytesAtomicDurable, writeJsonAtomicDurable } from '@autoresearch/shared';
+import { writeBytesAtomicDurable, writeJsonAtomicDurable } from '@nullius/shared';
 import { resolveLifecycleProjectRoot } from './cli-project-root.js';
-import { ensureAutoresearchHarnessSentinel } from './autoresearch-harness-sentinel.js';
-import { ensureProjectLocalAutoresearchLauncher, projectLocalAutoresearchRelativePath } from './project-local-autoresearch.js';
+import { ensureNulliusHarnessSentinel } from './nullius-harness-sentinel.js';
+import { ensureProjectLocalNulliusLauncher, projectLocalNulliusRelativePath } from './project-local-nullius.js';
 import { ensureProjectScaffold, type ProjectScaffoldResult } from './project-scaffold.js';
 import { type CliIo } from './cli-lifecycle.js';
 import { StateManager } from './state-manager.js';
@@ -58,7 +58,7 @@ function emitRefreshSummary(io: CliIo, scaffold: ProjectScaffoldResult, dryRun: 
   for (const rel of scaffold.refreshed) lines.push(`- ${verb}: ${rel}`);
   for (const rel of scaffold.unchanged) lines.push(`- unchanged: ${rel}`);
   for (const rel of scaffold.preserved) lines.push(`- preserved (user-owned, untouched): ${rel}`);
-  for (const rel of scaffold.missing) lines.push(`- missing (run \`autoresearch init\` to recreate): ${rel}`);
+  for (const rel of scaffold.missing) lines.push(`- missing (run \`nullius init\` to recreate): ${rel}`);
   for (const line of lines.slice(0, 50)) io.stdout(`${line}\n`);
   if (lines.length > 50) io.stdout(`- ... (${lines.length - 50} more)\n`);
   if (scaffold.backedUp.length > 0) {
@@ -66,7 +66,7 @@ function emitRefreshSummary(io: CliIo, scaffold: ProjectScaffoldResult, dryRun: 
       io.stdout(`[ok] would back up ${scaffold.backedUp.length} changed managed file(s) before overwriting.\n`);
     } else {
       io.stdout(
-        `[ok] backed up ${scaffold.backedUp.length} changed managed file(s) to ${scaffold.backupDir ?? '.autoresearch/backups/'} — review to re-apply any host customizations.\n`,
+        `[ok] backed up ${scaffold.backedUp.length} changed managed file(s) to ${scaffold.backupDir ?? '.nullius/backups/'} — review to re-apply any host customizations.\n`,
       );
     }
   }
@@ -76,8 +76,8 @@ export async function runInitCommand(projectRoot: string | null, cwd: string, ar
   const options = parseInitArgs(args);
   const repoRoot = projectRoot ? resolveUserPath(projectRoot, cwd) : path.resolve(cwd);
   assertProjectRootAllowed(repoRoot);
-  if (path.basename(repoRoot) === '.autoresearch') {
-    throw new Error('refusing init inside .autoresearch/ (run init at the project root, or use --project-root)');
+  if (path.basename(repoRoot) === '.nullius') {
+    throw new Error('refusing init inside .nullius/ (run init at the project root, or use --project-root)');
   }
   const parentRoot = findParentProjectRoot(path.dirname(repoRoot));
   if (parentRoot && parentRoot !== repoRoot && !options.allowNested) {
@@ -132,13 +132,13 @@ export async function runInitCommand(projectRoot: string | null, cwd: string, ar
   if (!fs.existsSync(markerPath)) {
     writeBytesAtomicDurable(markerPath, `${new Date().toISOString()}\n`);
   }
-  const launcher = ensureProjectLocalAutoresearchLauncher(repoRoot);
+  const launcher = ensureProjectLocalNulliusLauncher(repoRoot);
   io.stdout(`[ok] wrote: ${launcher.launcher_path}\n`);
-  const harnessSentinelPath = ensureAutoresearchHarnessSentinel(repoRoot);
+  const harnessSentinelPath = ensureNulliusHarnessSentinel(repoRoot);
   io.stdout(`[ok] wrote: ${harnessSentinelPath}\n`);
   io.stdout(`[ok] runtime dir: ${runtimeDir}\n`);
   if (options.runtimeOnly) {
-    io.stdout(`[ok] project-local fallback launcher ready: ${projectLocalAutoresearchRelativePath()} (${launcher.launcher_mode})\n`);
+    io.stdout(`[ok] project-local fallback launcher ready: ${projectLocalNulliusRelativePath()} (${launcher.launcher_mode})\n`);
     io.stdout('[ok] project scaffold skipped (--runtime-only)\n');
     return;
   }
@@ -153,5 +153,5 @@ export async function runInitCommand(projectRoot: string | null, cwd: string, ar
       io.stdout(`- ... (${scaffold.created.length - 50} more)\n`);
     }
   }
-  io.stdout(`[ok] project-local fallback launcher ready: ${projectLocalAutoresearchRelativePath()} (${launcher.launcher_mode})\n`);
+  io.stdout(`[ok] project-local fallback launcher ready: ${projectLocalNulliusRelativePath()} (${launcher.launcher_mode})\n`);
 }

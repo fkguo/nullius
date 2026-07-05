@@ -1,4 +1,4 @@
-import type { CanonicalPaper } from '@autoresearch/shared';
+import type { CanonicalPaper } from '@nullius/shared';
 
 export function buildPaperRerankerPrompt(params: {
   promptVersion: string;

@@ -79,7 +79,7 @@ describe('orch_fleet_adjudicate_stale_claim', () => {
       attempt_count: 3,
     });
     expect(readQueue(projectRoot).items[0]?.claim).toBeUndefined();
-    const ledgerLines = fs.readFileSync(path.join(projectRoot, '.autoresearch', 'ledger.jsonl'), 'utf-8').trim().split('\n');
+    const ledgerLines = fs.readFileSync(path.join(projectRoot, '.nullius', 'ledger.jsonl'), 'utf-8').trim().split('\n');
     const adjudicationEvent = JSON.parse(ledgerLines.at(-1) ?? '{}') as {
       event_type?: string;
       details?: Record<string, unknown>;
@@ -200,7 +200,7 @@ describe('orch_fleet_adjudicate_stale_claim', () => {
       disposition: 'requeue',
       note: 'operator attempted to adjudicate a missing claim',
     }))).rejects.toMatchObject({ code: 'NOT_FOUND' });
-    expect(fs.existsSync(path.join(missingProjectRoot, '.autoresearch', 'fleet_queue.json'))).toBe(false);
+    expect(fs.existsSync(path.join(missingProjectRoot, '.nullius', 'fleet_queue.json'))).toBe(false);
 
     const unclaimedProjectRoot = makeTmpDir();
     writeProject(unclaimedProjectRoot);
@@ -241,7 +241,7 @@ describe('orch_fleet_adjudicate_stale_claim', () => {
     }))).rejects.toMatchObject({
       code: 'INVALID_PARAMS',
       data: expect.objectContaining({
-        fleet_queue_path: `${invalidQueueProjectRoot}/.autoresearch/fleet_queue.json`,
+        fleet_queue_path: `${invalidQueueProjectRoot}/.nullius/fleet_queue.json`,
       }),
     });
   });

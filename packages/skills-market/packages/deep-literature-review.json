@@ -1,7 +1,7 @@
 {
   "package_id": "deep-literature-review",
   "package_type": "skill-pack",
-  "repo": "autoresearch-lab/skills-market",
+  "repo": "nullius/skills-market",
   "channel": "dev",
   "version": "0.1.0",
   "summary": "Turn a shallow metadata-only literature pull into a deep, source-grounded review: per-paper deep-read notes, cross-paper synthesis, and a checkable literature_survey artifact.",
@@ -20,7 +20,7 @@
     "opencode": "Link into ~/.config/opencode/skills for OpenCode discovery."
   },
   "source": {
-    "repo": "autoresearch-lab/skills",
+    "repo": "nullius/skills",
     "ref": "main",
     "subpath": "skills/deep-literature-review",
     "include": [

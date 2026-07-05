@@ -30,7 +30,7 @@ def _workspace_root_from_install_record(current: Path) -> Path | None:
         if workspace_root is None:
             raise RuntimeError(
                 "skills-market install provenance source_workspace_root does not point to an "
-                f"autoresearch workspace containing pnpm-workspace.yaml: {source_root}"
+                f"nullius workspace containing pnpm-workspace.yaml: {source_root}"
             )
         return workspace_root
     return None
@@ -38,12 +38,12 @@ def _workspace_root_from_install_record(current: Path) -> Path | None:
 
 def _workspace_root() -> Path:
     current = Path(__file__).resolve()
-    env_root = os.environ.get("AUTORESEARCH_WORKSPACE_ROOT", "").strip()
+    env_root = os.environ.get("NULLIUS_WORKSPACE_ROOT", "").strip()
     if env_root:
         workspace_root = _valid_workspace_root(Path(env_root))
         if workspace_root is None:
             raise RuntimeError(
-                "AUTORESEARCH_WORKSPACE_ROOT does not point to an autoresearch workspace "
+                "NULLIUS_WORKSPACE_ROOT does not point to an nullius workspace "
                 f"containing pnpm-workspace.yaml: {env_root}"
             )
         return workspace_root
@@ -57,9 +57,9 @@ def _workspace_root() -> Path:
         if workspace_root is not None:
             return workspace_root
     raise RuntimeError(
-        "Unable to locate autoresearch workspace root for literature workflow launcher. "
+        "Unable to locate nullius workspace root for literature workflow launcher. "
         "Copied skills-market installs require source_workspace_root install provenance or "
-        "AUTORESEARCH_WORKSPACE_ROOT pointing to a checkout containing pnpm-workspace.yaml."
+        "NULLIUS_WORKSPACE_ROOT pointing to a checkout containing pnpm-workspace.yaml."
     )
 
 
@@ -87,7 +87,7 @@ process.stdin.on('end', () => {
         "--dir",
         str(workspace_root),
         "--filter",
-        "@autoresearch/literature-workflows",
+        "@nullius/literature-workflows",
         "exec",
         "node",
         "--import",

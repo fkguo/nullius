@@ -10,7 +10,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import * as crypto from 'crypto';
-import { commitStagedDurable, invalidParams, notFound, upstreamError } from '@autoresearch/shared';
+import { commitStagedDurable, invalidParams, notFound, upstreamError } from '@nullius/shared';
 import { openalexFetch, getCostSummary, getResponseMeta, isBudgetExceeded } from './rateLimiter.js';
 import { buildQueryParams } from './paramMapping.js';
 import { augmentSelect } from './selectAugment.js';
@@ -37,7 +37,7 @@ export function getDataDir(): string {
   if (explicit?.trim().length) return path.resolve(expandTilde(explicit));
   const hepDataDir = process.env.HEP_DATA_DIR;
   if (hepDataDir?.trim().length) return path.resolve(path.join(expandTilde(hepDataDir), 'openalex'));
-  return path.resolve(path.join(os.homedir(), '.autoresearch', 'openalex'));
+  return path.resolve(path.join(os.homedir(), '.nullius', 'openalex'));
 }
 
 function ensureDir(dir: string): void {

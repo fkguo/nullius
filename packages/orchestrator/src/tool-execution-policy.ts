@@ -28,7 +28,7 @@ import {
   ORCH_RUN_STAGE_CONTENT,
   ORCH_RUN_STAGE_IDEA,
   ORCH_RUN_STATUS,
-} from '@autoresearch/shared';
+} from '@nullius/shared';
 
 import type { Tool } from './backends/chat-backend.js';
 import type { RuntimePermissionProfileV1 } from './runtime-permission-profile.js';

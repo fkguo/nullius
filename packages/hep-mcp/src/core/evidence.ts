@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { createHash } from 'crypto';
 import { latexParser } from 'latex-utensils';
-import { invalidParams, notFound, writeBytesAtomicDurable, writeJsonAtomicDurable } from '@autoresearch/shared';
+import { invalidParams, notFound, writeBytesAtomicDurable, writeJsonAtomicDurable } from '@nullius/shared';
 import pLimit from 'p-limit';
 import { resolvePathWithinParent } from '../data/pathGuard.js';
 import { getProject, updateProjectUpdatedAt } from './projects.js';
@@ -36,7 +36,7 @@ import {
   type SourceMap,
 } from '../tools/research/latex/index.js';
 import { ensureDir } from '../data/dataDir.js';
-import { ARXIV_ID_REGEX } from '@autoresearch/arxiv-mcp/tooling';
+import { ARXIV_ID_REGEX } from '@nullius/arxiv-mcp/tooling';
 import { ensureInCache } from '../data/papersCacheFetch.js';
 import { readMetaJson } from '../data/papersCache.js';
 import { BudgetTrackerV1, writeProjectDiagnosticsArtifact } from './diagnostics.js';
@@ -50,7 +50,7 @@ import type {
   LatexLocatorV1,
   PdfLocatorV1,
   EvidenceCatalogItemV1,
-} from '@autoresearch/shared';
+} from '@nullius/shared';
 
 // Re-export for consumers that import from this module
 export type { EvidenceType, LatexLocatorV1, PdfLocatorV1, EvidenceCatalogItemV1 };
@@ -387,7 +387,7 @@ function canonicalizeIdentifier(raw: string): string {
  * On the new cache path:
  *   1. Canonicalize identifier (e.g. "2401.09012v3" -> "arxiv:2401.09012v3")
  *   2. ensureInCache atomically materializes the paper under
- *      ~/.autoresearch/hep-mcp/papers_cache/<sha>/content/latex/extracted/
+ *      ~/.nullius/hep-mcp/papers_cache/<sha>/content/latex/extracted/
  *   3. Symlink projects/<pid>/papers/<paper_id>/sources/latex/extracted ->
  *      the cache content dir. The symlink is created (or refreshed if the
  *      target differs) per build call.

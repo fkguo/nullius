@@ -1,7 +1,7 @@
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
-import { invalidParams } from '@autoresearch/shared';
+import { invalidParams } from '@nullius/shared';
 
 export const PDG_DB_PATH_ENV = 'PDG_DB_PATH';
 

@@ -3,7 +3,7 @@ import type {
   EvidenceMultimodalArtifact,
   EvidenceMultimodalReasonCode,
   EvidenceType,
-} from '@autoresearch/shared';
+} from '@nullius/shared';
 
 import type { LocalizationCatalogItem } from '../evidence-localization/localize.js';
 import { inferRequestedLocalizationUnit } from '../evidence-localization/localize.js';

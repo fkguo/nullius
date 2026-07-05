@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://autoresearch.dev/schemas/fleet_workers_v1.schema.json",
+  "$id": "https://nullius.dev/schemas/fleet_workers_v1.schema.json",
   "title": "FleetWorkers V1",
   "description": "Provider-neutral per-project fleet worker registry. Records worker liveness and resource-slot truth only; queue ownership stays in fleet_queue_v1 and scheduler decisions remain transient.",
   "type": "object",

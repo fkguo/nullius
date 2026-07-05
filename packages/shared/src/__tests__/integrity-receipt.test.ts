@@ -2,7 +2,7 @@
  * P3-A followup-4: integrity receipt primitive tests.
  *
  * Covers:
- *   - skip semantics (NODE_ENV=test, AUTORESEARCH_INTEGRITY_VERIFY env values)
+ *   - skip semantics (NODE_ENV=test, NULLIUS_INTEGRITY_VERIFY env values)
  *   - writeIntegrityReceipt input validation (empty modes, invalid mode names,
  *     malformed modes_skipped, notes too long, non-string notes)
  *   - verifyIntegrityReceipt happy path: receipt for approval_id matches
@@ -28,24 +28,24 @@ import {
 } from '../integrity-receipt.js';
 import { McpError } from '../errors.js';
 
-const FORCE_ON_ENV = { AUTORESEARCH_INTEGRITY_VERIFY: 'on' } as NodeJS.ProcessEnv;
+const FORCE_ON_ENV = { NULLIUS_INTEGRITY_VERIFY: 'on' } as NodeJS.ProcessEnv;
 
 function makeProject(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'integrity-receipt-'));
 }
 
 describe('isIntegrityVerifySkipped', () => {
-  it('skips when AUTORESEARCH_INTEGRITY_VERIFY=skip regardless of NODE_ENV', () => {
-    expect(isIntegrityVerifySkipped({ AUTORESEARCH_INTEGRITY_VERIFY: 'skip' } as NodeJS.ProcessEnv)).toBe(true);
+  it('skips when NULLIUS_INTEGRITY_VERIFY=skip regardless of NODE_ENV', () => {
+    expect(isIntegrityVerifySkipped({ NULLIUS_INTEGRITY_VERIFY: 'skip' } as NodeJS.ProcessEnv)).toBe(true);
     expect(isIntegrityVerifySkipped({
-      AUTORESEARCH_INTEGRITY_VERIFY: 'skip',
+      NULLIUS_INTEGRITY_VERIFY: 'skip',
       NODE_ENV: 'production',
     } as NodeJS.ProcessEnv)).toBe(true);
   });
 
-  it('force-on when AUTORESEARCH_INTEGRITY_VERIFY=on even in test', () => {
+  it('force-on when NULLIUS_INTEGRITY_VERIFY=on even in test', () => {
     expect(isIntegrityVerifySkipped({
-      AUTORESEARCH_INTEGRITY_VERIFY: 'on',
+      NULLIUS_INTEGRITY_VERIFY: 'on',
       NODE_ENV: 'test',
     } as NodeJS.ProcessEnv)).toBe(false);
   });
@@ -61,7 +61,7 @@ describe('isIntegrityVerifySkipped', () => {
 
   it('treats unknown explicit values as default (no skip) when NODE_ENV is not test', () => {
     expect(isIntegrityVerifySkipped({
-      AUTORESEARCH_INTEGRITY_VERIFY: 'maybe',
+      NULLIUS_INTEGRITY_VERIFY: 'maybe',
       NODE_ENV: 'production',
     } as NodeJS.ProcessEnv)).toBe(false);
   });
@@ -170,7 +170,7 @@ describe('writeIntegrityReceipt happy path', () => {
       [{ mode: 'M1', reason: 'no code change' }],
     );
     expect(written.approval_id).toBe('A3-2026');
-    expect(written.kind).toBe('autoresearch_integrity_receipt');
+    expect(written.kind).toBe('nullius_integrity_receipt');
     expect(written.schema_version).toBe(1);
     expect(written.modes_checked).toEqual(['M3', 'M5', 'M6']);
     expect(written.modes_skipped).toEqual([{ mode: 'M1', reason: 'no code change' }]);
@@ -269,7 +269,7 @@ describe('verifyIntegrityReceipt skip semantics', () => {
 
   it('returns a synthetic receipt without touching disk when skipped', () => {
     const v = verifyIntegrityReceipt(project, 'A1-noop', {
-      env: { AUTORESEARCH_INTEGRITY_VERIFY: 'skip' } as NodeJS.ProcessEnv,
+      env: { NULLIUS_INTEGRITY_VERIFY: 'skip' } as NodeJS.ProcessEnv,
     });
     expect(v.approval_id).toBe('A1-noop');
     expect(v.notes).toContain('skip-mode');

@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { invalidParams, type ComputationManifestV1, type ExecutionPlanV1 } from '@autoresearch/shared';
+import { invalidParams, type ComputationManifestV1, type ExecutionPlanV1 } from '@nullius/shared';
 import { utcNowIso } from '../util.js';
 import { sanitizeRelativePath } from './path-safety.js';
 import { ensureDir, toPosixRelative, writeJsonAtomic, writeTextAtomic } from './io.js';

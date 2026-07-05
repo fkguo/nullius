@@ -17,7 +17,7 @@
  * is no apply path, no deletion, no rewrite. Curators reconcile by hand.
  *
  * Conventions in the wild (observed across real projects under
- * `<project_root>/.autoresearch/...` and `<project_root>/knowledge_base/`):
+ * `<project_root>/.nullius/...` and `<project_root>/knowledge_base/`):
  *   - KB note filename: `arxiv-<id>.md`, `doi-<doi-sanitized>.md`, or arbitrary
  *     `<slug>.md` with the canonical id only in frontmatter
  *   - KB note frontmatter exposes one or more of:
@@ -41,7 +41,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
-import { ARXIV_ID_REGEX } from '@autoresearch/arxiv-mcp/tooling';
+import { ARXIV_ID_REGEX } from '@nullius/arxiv-mcp/tooling';
 
 export const KB_LINK_REPORT_SCHEMA_VERSION = 1 as const;
 
@@ -112,7 +112,7 @@ export interface KbLinkReport {
 }
 
 export interface KbLinkOptions {
-  /** Absolute path to the autoresearch project root. */
+  /** Absolute path to the nullius project root. */
   project_root: string;
   /**
    * Optional override for the Tier 2 root; defaults to
@@ -132,12 +132,12 @@ export interface KbLinkOptions {
 /**
  * Ordered list of candidate KB-note directories, relative to project_root.
  * The first existing entry wins. Order reflects observed conventions in the
- * wild: dotted ".autoresearch/knowledge_base" first (current convention in
+ * wild: dotted ".nullius/knowledge_base" first (current convention in
  * real projects), then the original 5-step-plan slot, then a plain root-level
  * "knowledge_base/" fallback.
  */
 const KB_DIR_CANDIDATES = [
-  '.autoresearch/knowledge_base',
+  '.nullius/knowledge_base',
   'knowledge_base/literature',
   'knowledge_base',
 ] as const;

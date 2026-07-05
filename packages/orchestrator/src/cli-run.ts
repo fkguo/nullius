@@ -229,7 +229,7 @@ function resolveRunInput(input: RunCommandInput, io: CliIo): AnyResolvedRunInput
   const projectRoot = resolveLifecycleProjectRoot(input.projectRoot, io.cwd);
   const manager = new StateManager(projectRoot);
   if (!fs.existsSync(manager.statePath)) {
-    throw new Error(`project root is not initialized: ${projectRoot}; run autoresearch init first`);
+    throw new Error(`project root is not initialized: ${projectRoot}; run nullius init first`);
   }
   const state = manager.readState();
   const workflowIdRaw = (input.workflowId ?? state.workflow_id ?? 'computation').trim();

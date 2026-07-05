@@ -3,6 +3,16 @@
 > This tracked Serena memory stores only stable, cross-session architecture decisions.
 > Detailed closeout evidence, review rounds, exact validation commands, and item history live in checked-in closeout docs plus the current source/tests/front-door docs; do not rely on deleted tracker/plan paths as authority.
 
+### [2026-07-05] Project renamed: `autoresearch-lab` → `nullius` (0.4.0); historical entries below keep the old name verbatim
+
+**Decision**:
+- The repository, package scope, CLI front door, state directory, env prefix, and schema `$id` namespace were renamed in one mechanical 0.4.0 change: `autoresearch-lab` → `nullius`, `@autoresearch/*` → `@nullius/*`, `autoresearch` CLI → `nullius`, `.autoresearch/` → `.nullius/`, `AUTORESEARCH_*` → `NULLIUS_*`, `https://autoresearch.dev/schemas/...` → `https://nullius.dev/schemas/...` (name taken from the Royal Society motto *Nullius in verba*).
+- No compatibility layer exists anywhere: the pre-release no-backward-compatibility invariant applies in full. `v0.3.0` is the last pre-rename tag and a supported resting point for external projects; migration = rename the project state directory, rebuild the launcher via `nullius init --runtime-only`, refresh managed scaffold docs via `nullius init --refresh`.
+- The GitHub repository was renamed in place (old URLs redirect); history, tags, and CI lineage are unchanged.
+- Historical entries in this file, in `CHANGELOG.md`, and in git history are never rewritten: wherever an older entry says `autoresearch`, `@autoresearch/*`, or `.autoresearch/`, it refers to the same entities now named `nullius`, `@nullius/*`, `.nullius/`.
+
+**Why**: The old name was generic and collision-prone; the new name binds the repo identity to its core discipline (verify, don't take on authority). Renaming pre-1.0 with zero compatibility shims keeps exactly one naming authority alive — the alternative (aliases, dual state-dir probing, dual env prefixes) would recreate the hidden-support-surface drift this repo has repeatedly paid to remove.
+
 ### [2026-04-09] Workflow-front-door invariant: `autoresearch workflow-plan` is the only installable high-level literature entrypoint
 
 **Decision**:

@@ -4,7 +4,7 @@ import {
   INSPIRE_SEARCH_NEXT,
   INSPIRE_LITERATURE,
   INSPIRE_RESOLVE_CITEKEY,
-} from '@autoresearch/shared';
+} from '@nullius/shared';
 import { hepInspireSearchExport } from '../../core/inspire/searchExport.js';
 import * as api from '../../api/client.js';
 import { extractKeyFromBibtex } from '../../utils/bibtex.js';

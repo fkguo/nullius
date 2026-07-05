@@ -67,13 +67,13 @@ def main() -> int:
     # Minimal semantic anchor: file should mention the canonical notebook and at least one trigger command.
     required_all = ["research_contract.md"]
     required_any = ["run_team_cycle.sh", "run_autopilot.sh"]
-    harness = root / ".autoresearch" / "HARNESS"
+    harness = root / ".nullius" / "HARNESS"
     if harness.exists():
         required_all.extend(
             [
-                ".autoresearch/HARNESS",
+                ".nullius/HARNESS",
                 "research-harness",
-                ".autoresearch/bin/autoresearch status --json",
+                ".nullius/bin/nullius status --json",
             ]
         )
     missing_all = [t for t in required_all if t not in txt]

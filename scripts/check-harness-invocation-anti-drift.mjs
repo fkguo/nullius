@@ -4,7 +4,7 @@
  * P3-C: harness-invocation anti-drift CI check.
  *
  * Locks the contract that every `*-mcp` package's outermost dispatch
- * function calls `verifyHarnessInvocationMarker` from `@autoresearch/shared`
+ * function calls `verifyHarnessInvocationMarker` from `@nullius/shared`
  * before performing tool work. This catches:
  *   - A new `*-mcp` package added without wiring the verifier.
  *   - An existing dispatcher refactor that drops the call.
@@ -12,7 +12,7 @@
  *     skipped conditional) — we look for the bare function call.
  *
  * The check is a structural grep: each tracked dispatcher entry-point file
- * must (a) import `verifyHarnessInvocationMarker` from `@autoresearch/shared`
+ * must (a) import `verifyHarnessInvocationMarker` from `@nullius/shared`
  * and (b) reference it at least once in the file body.
  *
  * Adding a new `*-mcp` package: register its dispatcher entry-point in
@@ -29,7 +29,7 @@ import { fileURLToPath } from 'node:url';
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 // Tracked dispatcher entry-point files. Each MUST import + reference
-// `verifyHarnessInvocationMarker` from `@autoresearch/shared`.
+// `verifyHarnessInvocationMarker` from `@nullius/shared`.
 const DISPATCHER_ENTRYPOINTS = [
   'packages/arxiv-mcp/src/tools/dispatcher.ts',
   'packages/hep-mcp/src/tools/dispatcher.ts',
@@ -45,7 +45,7 @@ const DISPATCHER_ENTRYPOINTS = [
 const CANDIDATE_ENTRY_RELS = ['src/tools/dispatcher.ts', 'src/server.ts', 'src/dispatcher.ts'];
 const MCP_PACKAGE_NAME_RE = /^[a-z][a-z0-9-]*-mcp$/;
 
-const IMPORT_PATTERN = /verifyHarnessInvocationMarker[^;]*from\s+['"]@autoresearch\/shared['"]/;
+const IMPORT_PATTERN = /verifyHarnessInvocationMarker[^;]*from\s+['"]@nullius\/shared['"]/;
 const USAGE_PATTERN = /\bverifyHarnessInvocationMarker\s*\(/;
 
 function discoverMcpPackages() {
@@ -74,7 +74,7 @@ function checkDispatcher(relPath, errors) {
   const content = readFileSync(absPath, 'utf-8');
   if (!IMPORT_PATTERN.test(content)) {
     errors.push(
-      `${relPath}: missing import of \`verifyHarnessInvocationMarker\` from '@autoresearch/shared'.`,
+      `${relPath}: missing import of \`verifyHarnessInvocationMarker\` from '@nullius/shared'.`,
     );
   }
   if (!USAGE_PATTERN.test(content)) {
@@ -123,7 +123,7 @@ function main() {
     process.stderr.write(
       '\nEvery *-mcp dispatcher must import and call ' +
       '`verifyHarnessInvocationMarker(process.cwd(), { toolIsStateTouching: ... })` ' +
-      "from '@autoresearch/shared' at the outermost layer of `handleToolCall` " +
+      "from '@nullius/shared' at the outermost layer of `handleToolCall` " +
       '(or equivalent), before any tool work. The dispatcher passes a per-tool ' +
       '`toolIsStateTouching` boolean computed from its package-local ' +
       '`state-touch-classification.ts` table. See packages/hep-mcp/src/tools/dispatcher.ts ' +
@@ -133,7 +133,7 @@ function main() {
     return;
   }
 
-  process.stdout.write('[ok] all *-mcp dispatchers wire `verifyHarnessInvocationMarker` from @autoresearch/shared.\n');
+  process.stdout.write('[ok] all *-mcp dispatchers wire `verifyHarnessInvocationMarker` from @nullius/shared.\n');
 }
 
 main();

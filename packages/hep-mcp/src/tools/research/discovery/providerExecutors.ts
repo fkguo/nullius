@@ -9,9 +9,9 @@ import {
   type DiscoveryPlan,
   invalidParams,
   type PaperSummary,
-} from '@autoresearch/shared';
-import { getToolSpec as getArxivToolSpec } from '@autoresearch/arxiv-mcp/tooling';
-import { getToolSpecs as getOpenAlexToolSpecs } from '@autoresearch/openalex-mcp/tooling';
+} from '@nullius/shared';
+import { getToolSpec as getArxivToolSpec } from '@nullius/arxiv-mcp/tooling';
+import { getToolSpecs as getOpenAlexToolSpecs } from '@nullius/openalex-mcp/tooling';
 import { getByArxiv, getByDoi, getPaper, search } from '../../../api/client.js';
 import { fromArxivMetadata, fromOpenAlexWork, fromPaperSummary } from './candidateAdapters.js';
 import { extractQueryIdentifiers, hasStructuredIdentifier } from './queryIdentifiers.js';
@@ -123,7 +123,7 @@ async function runArxiv(plan: DiscoveryPlan, limit: number): Promise<DiscoveryCa
   }
 
   if (ids.arxiv_id) {
-    const metadata = await getTool.handler({ arxiv_id: ids.arxiv_id } as never, {}) as import('@autoresearch/arxiv-mcp/tooling').ArxivMetadata;
+    const metadata = await getTool.handler({ arxiv_id: ids.arxiv_id } as never, {}) as import('@nullius/arxiv-mcp/tooling').ArxivMetadata;
     batches.push(makeBatch({
       provider: 'arxiv',
       channel: 'identifier_lookup',
@@ -136,7 +136,7 @@ async function runArxiv(plan: DiscoveryPlan, limit: number): Promise<DiscoveryCa
     batches.push(skippedBatch('arxiv', 'identifier_lookup', 'no_supported_identifier_detected'));
   }
 
-  const keyword = await searchTool.handler({ query: plan.normalized_query, max_results: limit, start: 0, sort_by: 'relevance' } as never, {}) as { entries?: import('@autoresearch/arxiv-mcp/tooling').ArxivMetadata[] };
+  const keyword = await searchTool.handler({ query: plan.normalized_query, max_results: limit, start: 0, sort_by: 'relevance' } as never, {}) as { entries?: import('@nullius/arxiv-mcp/tooling').ArxivMetadata[] };
   batches.push(makeBatch({
     provider: 'arxiv',
     channel: 'keyword_search',

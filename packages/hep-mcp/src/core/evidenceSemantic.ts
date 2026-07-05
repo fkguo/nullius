@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import { createHash } from 'crypto';
-import { invalidParams, type EvidenceMultimodalArtifact } from '@autoresearch/shared';
+import { invalidParams, type EvidenceMultimodalArtifact } from '@nullius/shared';
 
 import { getRun, type RunArtifactRef } from './runs.js';
 import { getRunArtifactPath } from './paths.js';

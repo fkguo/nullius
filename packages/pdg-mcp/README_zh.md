@@ -20,7 +20,7 @@
 
 ### 可选
 
-- `PDG_DATA_DIR`：本地数据目录（默认：若设置了 `HEP_DATA_DIR` 则为 `<HEP_DATA_DIR>/pdg`；否则 `~/.autoresearch/hep-mcp/pdg`）
+- `PDG_DATA_DIR`：本地数据目录（默认：若设置了 `HEP_DATA_DIR` 则为 `<HEP_DATA_DIR>/pdg`；否则 `~/.nullius/hep-mcp/pdg`）
   - artifacts 目录为：`$PDG_DATA_DIR/artifacts`
 - `PDG_ARTIFACT_TTL_HOURS`：PDG artifacts 缓存 TTL（小时；`0/off` 禁用；启动时 + 周期性清理；默认 24）
 - `PDG_TOOL_MODE`：工具暴露模式（`standard` 默认；`full` 时可暴露更多工具，若未来添加）
@@ -153,7 +153,7 @@
 输出要点：
 
 - `references[]`：`id/document_id/publication_name/publication_year/doi/inspire_id/title`
-- `references[].inspire_lookup_by_id`：可直接喂给 `@autoresearch/hep-mcp` 的 `inspire_literature`（mode=`lookup_by_id`）
+- `references[].inspire_lookup_by_id`：可直接喂给 `@nullius/hep-mcp` 的 `inspire_literature`（mode=`lookup_by_id`）
   - 若 `doi` 以 `10.` 开头 → 追加 DOI
   - 若 `inspire_id` 为纯数字 → 追加 INSPIRE recid
 
@@ -258,7 +258,7 @@
 
 ## 与 `hep-mcp` 的衔接（Reference Bridge）
 
-当 `pdg-mcp` 被聚合进 `@autoresearch/hep-mcp`（单一 MCP server）时：
+当 `pdg-mcp` 被聚合进 `@nullius/hep-mcp`（单一 MCP server）时：
 
 - 所有 `pdg_*` tools 在同一 server 中可用
 - `pdg_find_reference` / `pdg_get_reference` / `pdg_get_measurements` 输出的 `references[].inspire_lookup_by_id` 可直接喂给 `inspire_literature`（mode=`lookup_by_id`）

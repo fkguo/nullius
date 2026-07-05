@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { ARXIV_GET_METADATA, ARXIV_SEARCH, OPENALEX_GET, OPENALEX_SEARCH, OPENALEX_SEMANTIC_SEARCH, type DiscoveryPlan } from '@autoresearch/shared';
+import { ARXIV_GET_METADATA, ARXIV_SEARCH, OPENALEX_GET, OPENALEX_SEARCH, OPENALEX_SEMANTIC_SEARCH, type DiscoveryPlan } from '@nullius/shared';
 
 const search = vi.fn();
 const getByDoi = vi.fn();
@@ -13,14 +13,14 @@ const arxivGet = vi.fn();
 const arxivSearch = vi.fn();
 
 vi.mock('../../src/api/client.js', () => ({ search, getByDoi, getByArxiv, getPaper }));
-vi.mock('@autoresearch/openalex-mcp/tooling', () => ({
+vi.mock('@nullius/openalex-mcp/tooling', () => ({
   getToolSpecs: () => [
     { name: OPENALEX_GET, handler: openAlexGet },
     { name: OPENALEX_SEARCH, handler: openAlexSearch },
     { name: OPENALEX_SEMANTIC_SEARCH, handler: openAlexSemantic },
   ],
 }));
-vi.mock('@autoresearch/arxiv-mcp/tooling', () => ({
+vi.mock('@nullius/arxiv-mcp/tooling', () => ({
   normalizeArxivId: (id: string) => id,
   getToolSpec: (name: string) => ({ name, handler: name === ARXIV_GET_METADATA ? arxivGet : arxivSearch }),
 }));

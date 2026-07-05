@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://autoresearch.dev/schemas/memory_graph_event_v1.schema.json",
+  "$id": "https://nullius.dev/schemas/memory_graph_event_v1.schema.json",
   "title": "MemoryGraphEvent V1",
   "description": "Append-only event in the Cross-Cycle Memory Graph. Ported from Evolver memoryGraph.js (MIT, AutoGame Limited).",
   "type": "object",

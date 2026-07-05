@@ -25,16 +25,16 @@ Project: <PROJECT_NAME>
 
 ## 可视化（可选）
 
-- 通过 `autoresearch graph` front door 渲染 Claim DAG（它消费 domain-neutral 的 `@autoresearch/shared/graph-viz` 引擎）：
+- 通过 `nullius graph` front door 渲染 Claim DAG（它消费 domain-neutral 的 `@nullius/shared/graph-viz` 引擎）：
 
   ```bash
-  autoresearch graph --kind claims \
+  nullius graph --kind claims \
     --claims knowledge_graph/claims.jsonl --edges knowledge_graph/edges.jsonl \
     --out-dir knowledge_graph [--format png|svg] [--legend embedded]
   ```
 
 - 始终写出可移植的 `knowledge_graph/claims.dot`；仅当安装了 Graphviz `dot` 时才另外生成 `claims.png` / `claims.svg`。
-- 在收敛的 team cycle 上，只要能找到 `autoresearch` CLI（项目本地 `.autoresearch/bin/autoresearch` 或 `PATH` 上），该渲染会作为 best-effort 步骤自动执行。
+- 在收敛的 team cycle 上，只要能找到 `nullius` CLI（项目本地 `.nullius/bin/nullius` 或 `PATH` 上），该渲染会作为 best-effort 步骤自动执行。
 - 约定：`edges.jsonl` 里的 `type:"requires"` / `type:"supersedes"` 语义分别是“source 依赖 target（target 是前置条件）” / “source supersedes target（source 替换 target）”。为更符合 workflow-forward 的阅读方向，渲染时会把这两类边显示为 `target -> source`，并分别标注为 `enables` / `superseded by`。其它边类型按原方向渲染。
 
 ## 建模建议（让图真正表达“问题节点→解决路径”）

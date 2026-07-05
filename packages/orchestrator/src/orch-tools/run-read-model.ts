@@ -1,17 +1,17 @@
 import { createHash } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import type { FinalConclusionsV1, MutationProposalV1, SkillProposalV2 } from '@autoresearch/shared';
-import { invalidParams } from '@autoresearch/shared';
+import type { FinalConclusionsV1, MutationProposalV1, SkillProposalV2 } from '@nullius/shared';
+import { invalidParams } from '@nullius/shared';
 import { readFinalConclusionsView, readResearchOutcomeProjectionView } from './final-conclusions.js';
 import { readLearningSummaryView } from './learning-summary.js';
 import { readInnovateProposalView, readOptimizeProposalView, readRepairProposalView } from './repair-proposal.js';
 import { readSkillProposalView } from './skill-proposal.js';
 import { readTeamSummaryView } from './team-summary.js';
 import { deriveLedgerStatusFromOperatorEvent } from '../operator-read-model-summary.js';
-import { readAutoresearchHarnessSentinelHealth } from '../autoresearch-harness-sentinel.js';
+import { readNulliusHarnessSentinelHealth } from '../nullius-harness-sentinel.js';
 import { decisionOverlayForFingerprint, mutationProposalFingerprint, skillProposalFingerprint } from '../proposal-decisions.js';
-import { readProjectLocalAutoresearchLauncherHealth } from '../project-local-autoresearch.js';
+import { readProjectLocalNulliusLauncherHealth } from '../project-local-nullius.js';
 import type { RunState } from '../types.js';
 import { StateManager } from '../state-manager.js';
 import { pauseFilePath, readJson, type ApprovalGateFilter } from './common.js';
@@ -260,7 +260,7 @@ function selectPlanFocusFromStatePlan(plan: Record<string, unknown>): RecoveryPl
 }
 
 function selectPlanFocusFromPlanMd(projectRoot: string): RecoveryPlanFocus | null {
-  const planMdPath = path.join(projectRoot, '.autoresearch', 'plan.md');
+  const planMdPath = path.join(projectRoot, '.nullius', 'plan.md');
   if (!fs.existsSync(planMdPath)) return null;
   const stepPattern = /^\d+\.\s+\[([^\]]+)\]\s+(.+?)\s+[—-]\s+(.*)$/u;
   try {
@@ -333,7 +333,7 @@ function readLatestLedgerEvent(projectRoot: string, preferredRunId: string | nul
     warnings.push({
       code: 'RECOVERY_LEDGER_PARSE_ERROR',
       message: `Skipped ${ledgerSnapshot.invalidLines} invalid ledger line(s) while deriving recovery_context.`,
-      ledger_path: path.join('.autoresearch', 'ledger.jsonl'),
+      ledger_path: path.join('.nullius', 'ledger.jsonl'),
     });
   }
   return {
@@ -344,23 +344,23 @@ function readLatestLedgerEvent(projectRoot: string, preferredRunId: string | nul
 
 function readRecoveryContextView(projectRoot: string, state: RunState, ledgerSnapshot = readLedgerSnapshot(projectRoot)): Record<string, unknown> {
   const rawState = stateRecord(state);
-  const launcherHealth = readProjectLocalAutoresearchLauncherHealth(projectRoot);
-  const harnessSentinel = readAutoresearchHarnessSentinelHealth(projectRoot);
+  const launcherHealth = readProjectLocalNulliusLauncherHealth(projectRoot);
+  const harnessSentinel = readNulliusHarnessSentinelHealth(projectRoot);
   const controlFiles = {
     harness: {
       ...harnessSentinel,
     },
     state_json: {
-      path: path.join('.autoresearch', 'state.json').split(path.sep).join('/'),
-      exists: fs.existsSync(path.join(projectRoot, '.autoresearch', 'state.json')),
+      path: path.join('.nullius', 'state.json').split(path.sep).join('/'),
+      exists: fs.existsSync(path.join(projectRoot, '.nullius', 'state.json')),
     },
     plan_md: {
-      path: path.join('.autoresearch', 'plan.md').split(path.sep).join('/'),
-      exists: fs.existsSync(path.join(projectRoot, '.autoresearch', 'plan.md')),
+      path: path.join('.nullius', 'plan.md').split(path.sep).join('/'),
+      exists: fs.existsSync(path.join(projectRoot, '.nullius', 'plan.md')),
     },
     ledger_jsonl: {
-      path: path.join('.autoresearch', 'ledger.jsonl').split(path.sep).join('/'),
-      exists: fs.existsSync(path.join(projectRoot, '.autoresearch', 'ledger.jsonl')),
+      path: path.join('.nullius', 'ledger.jsonl').split(path.sep).join('/'),
+      exists: fs.existsSync(path.join(projectRoot, '.nullius', 'ledger.jsonl')),
     },
     project_local_launcher: {
       ...launcherHealth,
@@ -378,10 +378,10 @@ function readRecoveryContextView(projectRoot: string, state: RunState, ledgerSna
   }
   if (harnessSentinel.exists && !harnessSentinel.valid) {
     warnings.push({
-      code: 'AUTORESEARCH_HARNESS_SENTINEL_INVALID',
+      code: 'NULLIUS_HARNESS_SENTINEL_INVALID',
       message: harnessSentinel.message,
       issue_code: harnessSentinel.issue_code,
-      repair_command: 'autoresearch init --runtime-only',
+      repair_command: 'nullius init --runtime-only',
     });
   }
   const stateRunId = typeof rawState.run_id === 'string' ? rawState.run_id : null;
@@ -441,13 +441,13 @@ function readRecoveryContextView(projectRoot: string, state: RunState, ledgerSna
     if (planFocus) {
       warnings.push({
         code: 'RECOVERY_PLAN_FOCUS_FROM_PLAN_MD',
-        message: 'recovery_context.plan_focus was derived from .autoresearch/plan.md because state.plan is unavailable or incomplete.',
+        message: 'recovery_context.plan_focus was derived from .nullius/plan.md because state.plan is unavailable or incomplete.',
         plan_md_path: controlFiles.plan_md.path,
       });
     } else if (!statePlan) {
       warnings.push({
         code: 'RECOVERY_PLAN_FOCUS_UNAVAILABLE',
-        message: 'recovery_context.plan_focus could not be derived from state.plan or .autoresearch/plan.md.',
+        message: 'recovery_context.plan_focus could not be derived from state.plan or .nullius/plan.md.',
       });
     }
   }
@@ -461,7 +461,7 @@ function readRecoveryContextView(projectRoot: string, state: RunState, ledgerSna
 
   return {
     status_commands: {
-      canonical: 'autoresearch status --json',
+      canonical: 'nullius status --json',
       project_local_fallback: launcherHealth.healthy ? `${launcherHealth.path} status --json` : null,
       harness_entrypoint: harnessSentinel.valid && harnessSentinel.payload
         ? harnessSentinel.payload.project_local_status_command
@@ -775,7 +775,7 @@ function readResumeContextView(projectRoot: string, state: RunState, workflowOut
   });
   return {
     read_order: readOrder,
-    status_command: 'autoresearch status --json',
+    status_command: 'nullius status --json',
     current_run_id: state.run_id,
     run_status: state.run_status,
     plan_md_path: state.plan_md_path,

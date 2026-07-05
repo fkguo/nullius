@@ -4,7 +4,7 @@ import * as path from 'path';
 import * as os from 'os';
 import * as zlib from 'zlib';
 import { safeExtractZip, ZipSafetyError } from '../../src/core/sandbox.js';
-import { PDF_RESOURCE_LIMITS } from '@autoresearch/shared';
+import { PDF_RESOURCE_LIMITS } from '@nullius/shared';
 
 // ── ZIP builder helpers ──────────────────────────────────────────────────
 
@@ -196,7 +196,7 @@ describe('safeExtractZip (H-12)', () => {
 });
 
 describe('PDF_RESOURCE_LIMITS (H-12)', () => {
-  it('is importable from @autoresearch/shared', () => {
+  it('is importable from @nullius/shared', () => {
     expect(PDF_RESOURCE_LIMITS.maxPageCount).toBe(800);
     expect(PDF_RESOURCE_LIMITS.maxFileSizeMB).toBe(100);
     expect(PDF_RESOURCE_LIMITS.timeoutMs).toBe(60_000);

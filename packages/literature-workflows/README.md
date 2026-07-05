@@ -1,10 +1,10 @@
-# @autoresearch/literature-workflows
+# @nullius/literature-workflows
 
-Checked-in literature-workflow recipes plus the provider/capability resolver consumed by `autoresearch workflow-plan`. Library-only — no CLI or MCP entrypoint of its own.
+Checked-in literature-workflow recipes plus the provider/capability resolver consumed by `nullius workflow-plan`. Library-only — no CLI or MCP entrypoint of its own.
 
 ## Layer
 
-Workflow authority. Holds the high-level workflow meaning that sits **above** provider packs. The `autoresearch` CLI resolves recipes here, persists `.autoresearch/state.json#/plan`, and derives `.autoresearch/plan.md` from the result. See root [README.md](../../README.md) §3 Layer Model.
+Workflow authority. Holds the high-level workflow meaning that sits **above** provider packs. The `nullius` CLI resolves recipes here, persists `.nullius/state.json#/plan`, and derives `.nullius/plan.md` from the result. See root [README.md](../../README.md) §3 Layer Model.
 
 ## What lives here
 
@@ -15,13 +15,13 @@ Workflow authority. Holds the high-level workflow meaning that sits **above** pr
 ## How it is consumed
 
 ```bash
-autoresearch workflow-plan \
+nullius workflow-plan \
   --recipe literature_landscape \
   --project-root /absolute/path/to/external-project \
   --run-id 20260502T023000Z-m1-landscape-r1
 ```
 
-The orchestrator imports `@autoresearch/literature-workflows` directly; users do not call this package.
+The orchestrator imports `@nullius/literature-workflows` directly; users do not call this package.
 
 ## Build & test
 

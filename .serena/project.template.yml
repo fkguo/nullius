@@ -3,7 +3,7 @@
 # `.serena/project.yml` is intentionally untracked because it is machine/worktree-specific.
 
 # the name by which the project can be referenced within Serena
-project_name: "autoresearch-lab"
+project_name: "nullius"
 
 
 # list of languages for which language servers are started; choose from:

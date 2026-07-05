@@ -1,5 +1,5 @@
 import * as path from 'node:path';
-import { blockedCommand, unsafeFs } from '@autoresearch/shared';
+import { blockedCommand, unsafeFs } from '@nullius/shared';
 import type { ManifestTool } from './types.js';
 
 const BLOCKED_COMMAND_PATTERNS = [

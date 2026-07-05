@@ -1,4 +1,4 @@
-import { notFound, upstreamError } from '@autoresearch/shared';
+import { notFound, upstreamError } from '@nullius/shared';
 import { hepdataFetch } from './rateLimiter.js';
 
 // ─────────────────────────────────────────────────────────────────────────────

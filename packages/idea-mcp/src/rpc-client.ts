@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import { resolve } from 'path';
-import { IdeaEngineRpcService, handleJsonRpcRequest } from '@autoresearch/idea-engine';
-import { internalError } from '@autoresearch/shared';
+import { IdeaEngineRpcService, handleJsonRpcRequest } from '@nullius/idea-engine';
+import { internalError } from '@nullius/shared';
 import { mapRpcError } from './rpc-error-mapping.js';
 
 // ─────────────────────────────────────────────────────────────────────────────

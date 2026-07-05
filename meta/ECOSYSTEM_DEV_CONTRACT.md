@@ -1,4 +1,4 @@
-# Autoresearch 生态圈开发规范 (Ecosystem Development Contract)
+# Nullius 生态圈开发规范 (Ecosystem Development Contract)
 
 > **版本**: 1.3.0-draft (R2: +SEC-03/SYNC-05/REL-01, CI upgrade path, M-19 severity; R3: SEC-03 staged fail-closed, +GATE-05/REL-02, SYNC-02 determinism; R5: +CODE-01 模块化与反模式强制, CI 脚本修正 + diff-scoped 分阶段执行; R6: CFG-01 修正 HEP_DATA_DIR 默认值, +CODE-01 治理提案 AMEND-01)
 > **日期**: 2026-04-08
@@ -36,10 +36,10 @@
 
 **CI 验证**:
 ```bash
-# lint: 检查所有 throw/raise 语句是否使用 AutoresearchError 工厂
+# lint: 检查所有 throw/raise 语句是否使用 NulliusError 工厂
 grep -rn 'throw new Error\|raise Exception' --include='*.ts' --include='*.py' \
   | grep -v 'node_modules\|__pycache__\|test' \
-  | grep -v 'AutoresearchError\|McpError\|RpcError' && exit 1 || exit 0
+  | grep -v 'NulliusError\|McpError\|RpcError' && exit 1 || exit 0
 ```
 
 **违规行为**: **fail-closed** — 裸 `throw new Error()` 或 `raise Exception()` 阻断 CI
@@ -63,7 +63,7 @@ grep -rn 'throw new Error\|raise Exception' --include='*.ts' --include='*.py' \
 ```bash
 # 当前没有独立的 repo-local 错误码注册表 checker。
 # 先由 package-local contract tests 覆盖错误码 / retryability truth。
-pnpm --filter @autoresearch/hep-mcp test -- tests/toolContracts.test.ts
+pnpm --filter @nullius/hep-mcp test -- tests/toolContracts.test.ts
 ```
 
 **违规行为**: **fail-closed** — 未注册的错误码阻断 CI
@@ -75,7 +75,7 @@ pnpm --filter @autoresearch/hep-mcp test -- tests/toolContracts.test.ts
 **CI 验证**:
 ```bash
 # 契约测试: 模拟 MCP 错误响应 → 验证 result.error_code 被保留
-pnpm --filter @autoresearch/orchestrator test -- tests/orchestrator-mcp-tools-spec.test.ts
+pnpm --filter @nullius/orchestrator test -- tests/orchestrator-mcp-tools-spec.test.ts
 ```
 
 **违规行为**: **fail-closed** — 错误码丢失导致调用方无法区分可重试/不可重试错误
@@ -88,7 +88,7 @@ pnpm --filter @autoresearch/orchestrator test -- tests/orchestrator-mcp-tools-sp
 ```bash
 # 当前没有独立的 repo-local run_id 错误信封 checker。
 # 至少保持 orchestrator package 的 run-state / CLI tests 通过。
-pnpm --filter @autoresearch/orchestrator test -- tests/autoresearch-cli.test.ts
+pnpm --filter @nullius/orchestrator test -- tests/nullius-cli.test.ts
 ```
 
 **违规行为**: **fail-open** (警告) — 存量代码渐进修复，新代码强制
@@ -157,7 +157,7 @@ pnpm --filter @autoresearch/orchestrator test -- tests/autoresearch-cli.test.ts
 ```bash
 # 当前没有独立的 repo-local ArtifactRef validator。
 # 至少保持 artifact / URI authority 相关 contract tests 通过。
-pnpm --filter @autoresearch/hep-mcp test -- tests/contracts/runArtifactUriAuthority.test.ts
+pnpm --filter @nullius/hep-mcp test -- tests/contracts/runArtifactUriAuthority.test.ts
 ```
 
 **违规行为**: **fail-closed** — 缺少完整性字段的 artifact 引用阻断 CI
@@ -173,7 +173,7 @@ pnpm --filter @autoresearch/hep-mcp test -- tests/contracts/runArtifactUriAuthor
 **CI 验证**:
 ```bash
 # runtime-default authority must stay package-local to idea-engine
-pnpm --filter @autoresearch/idea-engine test -- tests/runtime-asset-authority.test.ts
+pnpm --filter @nullius/idea-engine test -- tests/runtime-asset-authority.test.ts
 ```
 
 **违规行为**: **fail-closed** — 指纹不匹配阻断 CI 和 commit
@@ -185,7 +185,7 @@ pnpm --filter @autoresearch/idea-engine test -- tests/runtime-asset-authority.te
 **CI 验证**:
 ```bash
 # package-local tool catalog 必须可重生成且与 checked-in JSON 一致
-pnpm --filter @autoresearch/hep-mcp catalog
+pnpm --filter @nullius/hep-mcp catalog
 git diff --exit-code packages/hep-mcp/tool_catalog.standard.json packages/hep-mcp/tool_catalog.full.json
 ```
 
@@ -198,7 +198,7 @@ git diff --exit-code packages/hep-mcp/tool_catalog.standard.json packages/hep-mc
 **CI 验证**:
 ```bash
 # lint: 检查 call_tool_json() 调用是否使用常量
-pnpm --filter @autoresearch/hep-mcp test -- tests/docs/docToolDrift.test.ts
+pnpm --filter @nullius/hep-mcp test -- tests/docs/docToolDrift.test.ts
 ```
 
 **违规行为**: **fail-closed** — 裸字符串工具名阻断 CI
@@ -212,8 +212,8 @@ pnpm --filter @autoresearch/hep-mcp test -- tests/docs/docToolDrift.test.ts
 **CI 验证**:
 ```bash
 # lower-level MCP contract + inventory verification
-pnpm --filter @autoresearch/hep-mcp test -- tests/toolContracts.test.ts
-pnpm --filter @autoresearch/hep-mcp docs:tool-counts:check
+pnpm --filter @nullius/hep-mcp test -- tests/toolContracts.test.ts
+pnpm --filter @nullius/hep-mcp docs:tool-counts:check
 ```
 
 **违规行为**: **fail-open** (警告 + 降级运行) — hash 不匹配时警告但允许继续（避免升级死锁）
@@ -225,8 +225,8 @@ pnpm --filter @autoresearch/hep-mcp docs:tool-counts:check
 **CI 验证**:
 ```bash
 # standard/full tool inventory + contract verification
-pnpm --filter @autoresearch/hep-mcp docs:tool-counts:check
-pnpm --filter @autoresearch/hep-mcp test -- tests/tools.test.ts tests/toolContracts.test.ts
+pnpm --filter @nullius/hep-mcp docs:tool-counts:check
+pnpm --filter @nullius/hep-mcp test -- tests/tools.test.ts tests/toolContracts.test.ts
 ```
 
 **违规行为**: **fail-closed** — 冒烟测试失败阻断 CI
@@ -261,7 +261,7 @@ make codegen-check  # 重新生成 → git diff --exit-code */generated/
 ```bash
 # 当前没有独立的 repo-local config-key linter。
 # 先由 checked-in config docs + package-local config tests 保持该约束。
-pnpm --filter @autoresearch/hep-mcp test -- tests/research/config.test.ts
+pnpm --filter @nullius/hep-mcp test -- tests/research/config.test.ts
 ```
 
 **违规行为**: **fail-closed** — 未注册的配置键阻断 CI
@@ -274,7 +274,7 @@ pnpm --filter @autoresearch/hep-mcp test -- tests/research/config.test.ts
 ```bash
 # 当前没有独立的 repo-local .env integration test。
 # 至少保持 package-local tool inventory truth 通过。
-pnpm --filter @autoresearch/hep-mcp docs:tool-counts:check
+pnpm --filter @nullius/hep-mcp docs:tool-counts:check
 ```
 
 **违规行为**: **fail-closed** — 配置不一致导致"shell 中正常，编排器中失败"
@@ -287,7 +287,7 @@ pnpm --filter @autoresearch/hep-mcp docs:tool-counts:check
 ```bash
 # 当前没有独立的 repo-local env-whitelist validator。
 # 先由边界/配置 tests 覆盖该约束。
-pnpm --filter @autoresearch/hep-mcp test -- tests/docs/docToolDrift.test.ts
+pnpm --filter @nullius/hep-mcp test -- tests/docs/docToolDrift.test.ts
 ```
 
 **违规行为**: **fail-closed** — 配置键未传播阻断 CI
@@ -299,7 +299,7 @@ pnpm --filter @autoresearch/hep-mcp test -- tests/docs/docToolDrift.test.ts
 **CI 验证**:
 ```bash
 # lower-level diagnostics / contract verification
-pnpm --filter @autoresearch/hep-mcp test -- tests/toolContracts.test.ts
+pnpm --filter @nullius/hep-mcp test -- tests/toolContracts.test.ts
 ```
 
 **违规行为**: **fail-open** (警告) — 缺少回显不阻断但降低可调试性
@@ -326,7 +326,7 @@ pnpm --filter @autoresearch/hep-mcp test -- tests/toolContracts.test.ts
 ```bash
 # 当前没有独立的 repo-local gate-registry linter。
 # 至少保持 orchestrator / hep-mcp gate contract tests 通过。
-pnpm --filter @autoresearch/hep-mcp test -- tests/contracts/executeManifestApprovalContract.test.ts
+pnpm --filter @nullius/hep-mcp test -- tests/contracts/executeManifestApprovalContract.test.ts
 ```
 
 **违规行为**: **fail-closed** — 未注册 gate 在编译期（run_card 验证）即报错，不等到运行期
@@ -361,7 +361,7 @@ make codegen-check
 **CI 验证**:
 ```bash
 # 单元测试: 设置过期 timeout_at → 验证 watchdog 触发
-pnpm --filter @autoresearch/orchestrator test -- tests/autoresearch-cli.test.ts
+pnpm --filter @nullius/orchestrator test -- tests/nullius-cli.test.ts
 ```
 
 **违规行为**: **fail-closed** — 超时未执行策略视为治理绕过
@@ -373,7 +373,7 @@ pnpm --filter @autoresearch/orchestrator test -- tests/autoresearch-cli.test.ts
 **CI 验证**:
 ```bash
 # 当前审批预算 coverage 保持在 package-local approval packet tests 内。
-pnpm --filter @autoresearch/orchestrator test -- tests/autoresearch-cli.test.ts
+pnpm --filter @nullius/orchestrator test -- tests/nullius-cli.test.ts
 ```
 
 **违规行为**: **fail-closed** — 预算绕过视为治理失效
@@ -385,7 +385,7 @@ pnpm --filter @autoresearch/orchestrator test -- tests/autoresearch-cli.test.ts
 **CI 验证**:
 ```bash
 # 集成测试: 触发审批 → 验证审批产物存在且结构通过 package-local checks
-pnpm --filter @autoresearch/orchestrator test -- tests/autoresearch-cli.test.ts
+pnpm --filter @nullius/orchestrator test -- tests/nullius-cli.test.ts
 ```
 
 **违规行为**: **fail-closed** — 不完整的审批产物阻断审批流程
@@ -407,7 +407,7 @@ pnpm --filter @autoresearch/orchestrator test -- tests/autoresearch-cli.test.ts
 **CI 验证**:
 ```bash
 # 检查 computation 入口的日志输出可被 jq 解析
-autoresearch run --workflow-id computation --dry-run 2>&1 | grep '^{' | jq -e '.ts and .level and .component' > /dev/null
+nullius run --workflow-id computation --dry-run 2>&1 | grep '^{' | jq -e '.ts and .level and .component' > /dev/null
 ```
 
 **违规行为**: **fail-open** (警告) — 渐进迁移，新组件强制
@@ -419,8 +419,8 @@ autoresearch run --workflow-id computation --dry-run 2>&1 | grep '^{' | jq -e '.
 **CI 验证**:
 ```bash
 # 跨组件 trace_id 透传至少要由 package-local logging/boundary tests 覆盖。
-pnpm --filter @autoresearch/orchestrator test -- tests/autoresearch-cli.test.ts
-pnpm --filter @autoresearch/hep-mcp test -- tests/docs/docToolDrift.test.ts
+pnpm --filter @nullius/orchestrator test -- tests/nullius-cli.test.ts
+pnpm --filter @nullius/hep-mcp test -- tests/docs/docToolDrift.test.ts
 ```
 
 **违规行为**: **fail-open** (警告) — 缺少 trace_id 不阻断但降低可观测性
@@ -439,7 +439,7 @@ state_transition, error, checkpoint
 ```bash
 # 当前没有独立的 repo-local ledger-event linter。
 # 先由 orchestrator state/ledger tests 覆盖该约束。
-pnpm --filter @autoresearch/orchestrator test -- tests/orchestrator.test.ts
+pnpm --filter @nullius/orchestrator test -- tests/orchestrator.test.ts
 ```
 
 **违规行为**: **fail-closed** — 非枚举 event_type 写入时抛出 ValueError
@@ -458,7 +458,7 @@ Bearer:      Bearer [a-zA-Z0-9._-]+
 **CI 验证**:
 ```bash
 # 契约测试: JSONL 日志输出必须脱敏敏感参数
-pnpm --filter @autoresearch/hep-mcp test -- tests/contracts/jsonlStderrLogging.test.ts
+pnpm --filter @nullius/hep-mcp test -- tests/contracts/jsonlStderrLogging.test.ts
 ```
 
 **违规行为**: **fail-closed** — 日志含 secrets 模式阻断 CI
@@ -535,7 +535,7 @@ grep -rn 'writeFile\|writeFileSync' packages/hep-mcp/src/ \
 **CI 验证**:
 ```bash
 # 契约测试: 超限 payload 必须转成 artifact/backpressure path
-pnpm --filter @autoresearch/hep-mcp test -- tests/contracts/payloadBackpressure.test.ts
+pnpm --filter @nullius/hep-mcp test -- tests/contracts/payloadBackpressure.test.ts
 ```
 
 **违规行为**: **fail-closed** — 超限未截断的 tool result 阻断（运行时拦截）
@@ -547,7 +547,7 @@ pnpm --filter @autoresearch/hep-mcp test -- tests/contracts/payloadBackpressure.
 **CI 验证**:
 ```bash
 # 契约测试: 篡改 artifact 内容 → 验证 submit 拒绝
-pnpm --filter @autoresearch/hep-mcp test -- tests/core/writingEvidence.test.ts
+pnpm --filter @nullius/hep-mcp test -- tests/core/writingEvidence.test.ts
 ```
 
 **违规行为**: **fail-closed** — 完整性校验失败拒绝处理
@@ -562,7 +562,7 @@ pnpm --filter @autoresearch/hep-mcp test -- tests/core/writingEvidence.test.ts
 
 **CI 验证**:
 ```bash
-pnpm --filter @autoresearch/orchestrator test -- tests/autoresearch-cli.test.ts
+pnpm --filter @nullius/orchestrator test -- tests/nullius-cli.test.ts
 ```
 
 **违规行为**: **fail-closed** — 未隔离的执行适配器阻断 CI
@@ -573,7 +573,7 @@ pnpm --filter @autoresearch/orchestrator test -- tests/autoresearch-cli.test.ts
 
 **CI 验证**:
 ```bash
-pnpm --filter @autoresearch/hep-mcp test -- tests/core/sandbox.test.ts
+pnpm --filter @nullius/hep-mcp test -- tests/core/sandbox.test.ts
 ```
 
 **违规行为**: **fail-closed** — 未沙箱化的摄入路径阻断 CI
@@ -585,7 +585,7 @@ pnpm --filter @autoresearch/hep-mcp test -- tests/core/sandbox.test.ts
 **CI 验证**:
 ```bash
 # 至少保持 tool risk / sampling surface tests 通过
-pnpm --filter @autoresearch/orchestrator test -- tests/mcp-client-sampling.test.ts
+pnpm --filter @nullius/orchestrator test -- tests/mcp-client-sampling.test.ts
 ```
 
 **违规行为**: **staged fail-closed** (R3 升级) — 新增工具必须声明 `risk_level`，否则 CI 阻断；存量未标注工具 fail-open（警告），按 REDESIGN_PLAN H-11a 分阶段补齐。`_confirm` 机制待 H-11b 组合策略统一设计后全面启用。
@@ -618,7 +618,7 @@ pnpm --filter @autoresearch/orchestrator test -- tests/mcp-client-sampling.test.
 
 **CI 验证**:
 ```bash
-pnpm --filter @autoresearch/orchestrator test -- tests/retry.test.ts
+pnpm --filter @nullius/orchestrator test -- tests/retry.test.ts
 ```
 
 **违规行为**: **fail-closed** — 无界重试或缺少退避的重试逻辑阻断 CI
@@ -787,16 +787,16 @@ grep -rPn '[\x{4e00}-\x{9fff}]' --include='*.ts' --include='*.py' src/ \
 
 ### PLUG-01: 独立发布能力
 
-**规则**: 以下核心组件必须设计为可独立发布的 npm package，零 Autoresearch 内部依赖：
+**规则**: 以下核心组件必须设计为可独立发布的 npm package，零 Nullius 内部依赖：
 
 | 组件 | npm scope | 对标 | 独立价值 |
 |---|---|---|---|
-| **REP SDK** | `@autoresearch/rep-sdk` | `@modelcontextprotocol/sdk` | 任何 AI 研究平台可用的研究进化协议 |
-| **PDG MCP** | `@autoresearch/pdg-mcp` | 已独立 | 粒子数据查询 |
-| **Zotero MCP** | `@autoresearch/zotero-mcp` | 已独立 | 文献管理集成 |
+| **REP SDK** | `@nullius/rep-sdk` | `@modelcontextprotocol/sdk` | 任何 AI 研究平台可用的研究进化协议 |
+| **PDG MCP** | `@nullius/pdg-mcp` | 已独立 | 粒子数据查询 |
+| **Zotero MCP** | `@nullius/zotero-mcp` | 已独立 | 文献管理集成 |
 
 **约束**:
-1. 可独立发布组件的 `package.json` 中 `dependencies` 不得包含 `@autoresearch/*` 内部包 (shared types 通过 `peerDependencies` 或内联)
+1. 可独立发布组件的 `package.json` 中 `dependencies` 不得包含 `@nullius/*` 内部包 (shared types 通过 `peerDependencies` 或内联)
 2. 必须有独立的 `README.md` (英文) + 独立的 CI test target
 3. 导出结构遵循 MCP SDK 模式: root / client / server / transport / validation 子路径
 
@@ -806,7 +806,7 @@ grep -rPn '[\x{4e00}-\x{9fff}]' --include='*.ts' --include='*.py' src/ \
 node -e "
 const pkg = require('./packages/rep-sdk/package.json');
 const deps = Object.keys(pkg.dependencies || {});
-const internal = deps.filter(d => d.startsWith('@autoresearch/'));
+const internal = deps.filter(d => d.startsWith('@nullius/'));
 if (internal.length) { console.error('PLUG-01:', internal); process.exit(1); }
 "
 ```

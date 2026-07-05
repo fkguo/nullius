@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { optionalBudgetInt } from '@autoresearch/shared';
+import { optionalBudgetInt } from '@nullius/shared';
 
 export const HepDataSearchSchema = z.object({
   inspire_recid: z.number().int().positive().optional(),

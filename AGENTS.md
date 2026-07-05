@@ -1,4 +1,4 @@
-# Autoresearch Ecosystem — Agent Context
+# Nullius Ecosystem — Agent Context
 
 > 本文件是公开仓库中的根级 agent 规则 SSOT。更细的 maintainer 运营手册、tracker、review packet、执行 prompt 与并行排期材料仅保留在本地，不作为 GitHub 公开面的一部分。
 
@@ -10,7 +10,7 @@
 
 ## Stable Public Invariants
 
-- `autoresearch` 是 generic front door 与长期 control plane；HEP 是当前最成熟的 domain pack，不是根产品身份。
+- `nullius` 是 generic front door 与长期 control plane；HEP 是当前最成熟的 domain pack，不是根产品身份。
 - 不考虑向后兼容负担。项目尚未正式发布，默认允许直接 breaking change；不要为了旧 shell、旧 schema、旧数据或旧 prompt 保留 fallback、shim、compatibility backend。
 - 已退役的 provider-local Python parser/package 不得重新获得 generic authority。
 - 真实研究项目必须使用开发仓外部的绝对 `project root`；开发仓本身不是 real-project authority。
@@ -50,16 +50,16 @@
   - 若改动触及 `meta/schemas/`，必须运行 `pnpm codegen:check` 验证 `packages/shared/src/generated/` 与 `meta/generated/` 没有 drift；该检查需要本地已通过 `python3 -m pip install -r meta/scripts/codegen-requirements.txt` 安装 pinned `datamodel-code-generator` 与 `ruff`，加上 `pnpm install` 完成的 TS 依赖；CI 由 `.github/workflows/ci.yml` 装同一个 requirements 文件确保版本一致，否则不同 datamodel-codegen 版本会对同一 schema 产生 drift 的 Python
   - 若改动触及 `AGENTS.md` 或 `CLAUDE.md` 的 governance 段，必须运行 `pnpm check:governance-sync`（或 `node scripts/check-governance-sync.mjs`）确认两文件 governance 区段仍 byte-for-byte 一致
 - 若改动触及 public CLI/help/docs truth，默认还要检查：
-  - `packages/orchestrator/tests/autoresearch-cli.test.ts`
+  - `packages/orchestrator/tests/nullius-cli.test.ts`
   - `packages/hep-mcp/tests/docs/docToolDrift.test.ts`
 
 ## Developer Runtime Refresh Rules
 
-- 每个开发阶段完成后都必须至少重新构建并验证当前 CLI 入口：`pnpm -r build`，然后运行 `autoresearch --help`。本仓当前的常见本机安装形态是 `~/.local/bin/autoresearch` 指向 `packages/orchestrator/dist/cli.js`；只要 wrapper 目标未变，重新 build 后即可生效，不需要重新安装。
-- 若改动影响 CLI 源码、CLI help、status/read-model、workflow-plan、orchestrator runtime 或 public front-door 行为，closeout 还必须用一个开发仓外的临时 project root 跑 `autoresearch init` 与 `autoresearch status --json` 烟测，并确认 `.autoresearch/HARNESS` 与 `.autoresearch/bin/autoresearch` 仍可用。
-- 若改动影响 `~/.local/bin/autoresearch` wrapper 目标、repo 路径、Node 路径、package `bin`、或安装说明，必须刷新本机 wrapper 并重新运行 `autoresearch --help`；不要假设旧 PATH 入口仍指向当前 checkout。
+- 每个开发阶段完成后都必须至少重新构建并验证当前 CLI 入口：`pnpm -r build`，然后运行 `nullius --help`。本仓当前的常见本机安装形态是 `~/.local/bin/nullius` 指向 `packages/orchestrator/dist/cli.js`；只要 wrapper 目标未变，重新 build 后即可生效，不需要重新安装。
+- 若改动影响 CLI 源码、CLI help、status/read-model、workflow-plan、orchestrator runtime 或 public front-door 行为，closeout 还必须用一个开发仓外的临时 project root 跑 `nullius init` 与 `nullius status --json` 烟测，并确认 `.nullius/HARNESS` 与 `.nullius/bin/nullius` 仍可用。
+- 若改动影响 `~/.local/bin/nullius` wrapper 目标、repo 路径、Node 路径、package `bin`、或安装说明，必须刷新本机 wrapper 并重新运行 `nullius --help`；不要假设旧 PATH 入口仍指向当前 checkout。
 - 若改动影响 `research-harness`、`research-team`、`markdown-hygiene`、`hep-mcp` 等 agent-facing skill source 或 skill metadata，必须区分安装方式：symlink 安装通常只需 `readlink` 验证仍指向本仓源文件；copy 安装必须重新安装/复制后再验证。不要把 Codex/Claude/OpenCode/Kimi/Cursor 中的旧 skill copy 当作已更新。
-- 若改动影响 project-local launcher、`.autoresearch/HARNESS`、runtime-only init、或外部项目 reconnect 语义，必须在一个已有外部项目或临时 fixture 中运行 `autoresearch init --runtime-only`，再运行 `./.autoresearch/bin/autoresearch status --json` 验证接续路径。
+- 若改动影响 project-local launcher、`.nullius/HARNESS`、runtime-only init、或外部项目 reconnect 语义，必须在一个已有外部项目或临时 fixture 中运行 `nullius init --runtime-only`，再运行 `./.nullius/bin/nullius status --json` 验证接续路径。
 - 若改动影响 scaffold templates，记住已生成的外部项目不会自动更新 `AGENTS.md`、`project_index.md`、`research_plan.md` 或 `research_contract.md`；需要迁移既有项目时，必须显式说明或执行迁移/refresh 步骤，不能只依赖新模板。
 
 ## Key Checked-in Authority
@@ -83,4 +83,4 @@
 
 - 本仓的本地 maintainer 材料可以存在于 gitignored 目录或仓外备份，但不要把它们重新纳入公开 Git 跟踪。
 - 若某项工作需要更细粒度的 lane plan、formal review packet、closeout tracker 或 branch/worktree queue，请在本地维护，不要把这些材料重新当作 public product docs。
-- 从 public repo 移除的开发过程文件，默认迁到 `~/.autoresearch-lab-dev/`，优先按 `trackers/`、`plans/`、`reviews/`、`prompts/`、`closeouts/`、`archives/` 分区维护。
+- 从 public repo 移除的开发过程文件，默认迁到 `~/.nullius-dev/`，优先按 `trackers/`、`plans/`、`reviews/`、`prompts/`、`closeouts/`、`archives/` 分区维护。

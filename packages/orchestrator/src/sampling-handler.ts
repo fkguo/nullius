@@ -1,4 +1,4 @@
-import { parseSamplingMetadata } from '@autoresearch/shared';
+import { parseSamplingMetadata } from '@nullius/shared';
 
 import { createChatBackend, type ChatBackendFactory } from './backends/backend-factory.js';
 import type { MessageContent, MessageParam } from './backends/chat-backend.js';

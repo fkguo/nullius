@@ -1,22 +1,22 @@
-# @autoresearch/rep-sdk
+# @nullius/rep-sdk
 
 Agent-native core SDK for the Research Evolution Protocol (REP). Library-only; modular sub-exports for client, server, transport, validation, discovery, and signals.
 
 ## Layer
 
-Independent protocol substrate. Sits alongside the shared contracts layer rather than under the control plane — REP is a separate protocol concern and does not flow through `@autoresearch/orchestrator` state. See root [AGENTS.md](../../AGENTS.md) §Key Checked-in Authority.
+Independent protocol substrate. Sits alongside the shared contracts layer rather than under the control plane — REP is a separate protocol concern and does not flow through `@nullius/orchestrator` state. See root [AGENTS.md](../../AGENTS.md) §Key Checked-in Authority.
 
 ## Subpath exports
 
 | Entry | Use for |
 | --- | --- |
-| `@autoresearch/rep-sdk` | Top-level barrel |
-| `@autoresearch/rep-sdk/client` | REP client primitives |
-| `@autoresearch/rep-sdk/server` | REP server primitives |
-| `@autoresearch/rep-sdk/transport` | Transport adapters |
-| `@autoresearch/rep-sdk/validation` | Envelope and signal validation |
-| `@autoresearch/rep-sdk/discovery` | Discovery contracts |
-| `@autoresearch/rep-sdk/signals` | Signal types and helpers |
+| `@nullius/rep-sdk` | Top-level barrel |
+| `@nullius/rep-sdk/client` | REP client primitives |
+| `@nullius/rep-sdk/server` | REP server primitives |
+| `@nullius/rep-sdk/transport` | Transport adapters |
+| `@nullius/rep-sdk/validation` | Envelope and signal validation |
+| `@nullius/rep-sdk/discovery` | Discovery contracts |
+| `@nullius/rep-sdk/signals` | Signal types and helpers |
 
 ## Build & test
 

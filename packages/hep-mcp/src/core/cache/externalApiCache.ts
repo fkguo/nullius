@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { createHash } from 'crypto';
 import { pathToFileURL } from 'url';
-import { invalidParams, writeBytesAtomicDurable } from '@autoresearch/shared';
+import { invalidParams, writeBytesAtomicDurable } from '@nullius/shared';
 
 import { ensureDir, getCacheDir } from '../../data/dataDir.js';
 import { getRun, type RunArtifactRef } from '../runs.js';

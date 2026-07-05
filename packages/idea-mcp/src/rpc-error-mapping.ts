@@ -1,4 +1,4 @@
-import { internalError, invalidParams, notFound } from '@autoresearch/shared';
+import { internalError, invalidParams, notFound } from '@nullius/shared';
 
 const INVALID_PARAMS_RPC_CODES = new Set([
   -32602,

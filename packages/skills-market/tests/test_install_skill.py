@@ -66,14 +66,14 @@ def _make_market(tmp_path: pathlib.Path, package_id: str, runtime_packages: list
     package = {
         "package_id": package_id,
         "package_type": "skill-pack",
-        "repo": "autoresearch-lab/skills-market",
+        "repo": "nullius/skills-market",
         "channel": "dev",
         "version": "0.1.0",
         "summary": "Sample skill",
         "platforms": ["codex"],
         "source_path": f"skills/{package_id}/SKILL.md",
         "source": {
-            "repo": "autoresearch-lab/skills",
+            "repo": "nullius/skills",
             "ref": "main",
             "subpath": f"skills/{package_id}",
             "include": ["SKILL.md", "run.py"],

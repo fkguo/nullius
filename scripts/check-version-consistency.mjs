@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Version-consistency anti-drift.
 //
-// The repo ships as a single unit (the `autoresearch` front door + its workspace
+// The repo ships as a single unit (the `nullius` front door + its workspace
 // packages) and is pre-1.0, so all workspace package versions move in LOCKSTEP. This
 // check fails CI if they drift — the historical failure was an ad-hoc spread of
 // 0.0.1 / 0.1.0 / 0.3.0 with the front-door orchestrator stuck at 0.0.1, looking

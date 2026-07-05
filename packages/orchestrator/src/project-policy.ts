@@ -24,7 +24,7 @@ function maintainerFixtureRoots(repoRoot: string): string[] {
 
 function policyViolationMessage(label: string, candidate: string, repoRoot: string, policy: string): string {
   if (policy === PROJECT_POLICY_REAL_PROJECT) {
-    return `${label} must resolve outside the autoresearch-lab dev repo for real projects.\npath=${candidate}\nrepo_root=${repoRoot}`;
+    return `${label} must resolve outside the nullius dev repo for real projects.\npath=${candidate}\nrepo_root=${repoRoot}`;
   }
   const allowed = maintainerFixtureRoots(repoRoot).join(', ');
   return `${label} is repo-internal but not under an allowed maintainer_fixture directory.\npath=${candidate}\nrepo_root=${repoRoot}\nallowed=${allowed}`;

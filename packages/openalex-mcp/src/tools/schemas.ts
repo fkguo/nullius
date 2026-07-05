@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { optionalBudgetInt, optionalBudgetNumber } from '@autoresearch/shared';
+import { optionalBudgetInt, optionalBudgetNumber } from '@nullius/shared';
 
 // ── Entity enum (shared across tools) ────────────────────────────────────────
 

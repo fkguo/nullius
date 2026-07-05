@@ -9,7 +9,7 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
-import { McpError, invalidParams, verifyHarnessInvocationMarker } from '@autoresearch/shared';
+import { McpError, invalidParams, verifyHarnessInvocationMarker } from '@nullius/shared';
 import { isStateTouchingIdeaMcp } from './state-touch-classification.js';
 import { IdeaRpcClient } from './rpc-client.js';
 import { zodToMcpInputSchema } from './mcp-input-schema.js';
@@ -100,7 +100,7 @@ export async function startServer(env: NodeJS.ProcessEnv = process.env): Promise
   const rpc = createIdeaRpcClient(env);
 
   const server = new Server(
-    { name: 'idea-mcp', version: '0.3.0' },
+    { name: 'idea-mcp', version: '0.4.0' },
     { capabilities: { tools: {} } },
   );
 

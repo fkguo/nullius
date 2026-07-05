@@ -4,14 +4,14 @@ import {
   SerialIntervalGate,
   sleepWithAbort,
   upstreamError,
-} from '@autoresearch/shared';
+} from '@nullius/shared';
 
 /**
  * Parse a positive-integer env var. Falls back to `fallback` when the var
  * is unset, empty, non-numeric, non-finite, negative, zero, or non-integer.
  *
  * Sibling-lane copy of the same helper in arxiv-mcp and openalex-mcp.
- * Lifting to `@autoresearch/shared` is its own cleanup task — duplicated
+ * Lifting to `@nullius/shared` is its own cleanup task — duplicated
  * here to keep this hotfix narrowly scoped to one package per file.
  */
 function parseEnvPositiveInt(name: string, fallback: number): number {

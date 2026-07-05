@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import { createHash } from 'crypto';
-import { invalidParams, type EvidenceCatalogItemV1, type EvidenceType, type LatexLocatorV1 } from '@autoresearch/shared';
+import { invalidParams, type EvidenceCatalogItemV1, type EvidenceType, type LatexLocatorV1 } from '@nullius/shared';
 
 import type { RunArtifactRef } from '../runs.js';
 import { getRun } from '../runs.js';

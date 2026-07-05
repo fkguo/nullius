@@ -8,13 +8,13 @@ vi.mock('../../src/tools/research/measurementExtractor.js', () => ({
   extractMeasurements: vi.fn(),
 }));
 
-vi.mock('@autoresearch/pdg-mcp/tooling', () => ({
+vi.mock('@nullius/pdg-mcp/tooling', () => ({
   getToolSpec: vi.fn(),
 }));
 
 const api = await import('../../src/api/client.js');
 const measurementExtractor = await import('../../src/tools/research/measurementExtractor.js');
-const pdgTooling = await import('@autoresearch/pdg-mcp/tooling');
+const pdgTooling = await import('@nullius/pdg-mcp/tooling');
 const { detectConflicts } = await import('../../src/tools/research/conflictDetector.js');
 
 describe('detectConflicts: PDG baseline (m_W)', () => {

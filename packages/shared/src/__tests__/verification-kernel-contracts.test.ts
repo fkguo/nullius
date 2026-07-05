@@ -61,9 +61,9 @@ describe('verification kernel schema foundation', () => {
 
     expect(requiredFields(checkRunSchema)).toContain('subject_ref');
     expect(requiredFields(checkRunSchema)).toContain('evidence_refs');
-    expect(subjectRef.$ref).toBe('https://autoresearch.dev/schemas/artifact_ref_v1.schema.json');
+    expect(subjectRef.$ref).toBe('https://nullius.dev/schemas/artifact_ref_v1.schema.json');
     expect(evidenceRefs.minItems).toBe(1);
-    expect(evidenceRefs.items?.$ref).toBe('https://autoresearch.dev/schemas/artifact_ref_v1.schema.json');
+    expect(evidenceRefs.items?.$ref).toBe('https://nullius.dev/schemas/artifact_ref_v1.schema.json');
   });
 
   it('adds optional verification ref hooks to computation and writing-review bridge contracts', () => {

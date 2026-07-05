@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://autoresearch.dev/schemas/gene_v1.schema.json",
+  "$id": "https://nullius.dev/schemas/gene_v1.schema.json",
   "title": "Gene V1",
   "description": "Reusable repair/optimization/innovation strategy template. Ported from Evolver GEP Gene model (MIT, AutoGame Limited).",
   "type": "object",

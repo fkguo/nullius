@@ -15,7 +15,7 @@ set**. That is this skill.
 
 It does **not** start a parallel literature system. It builds on:
 
-- `literature-workflows` recipes (`literature_landscape`, `literature_gap_analysis`) for the multi-hop search/traversal plan — resolve them via `autoresearch workflow-plan`; do not hand-roll traversal.
+- `literature-workflows` recipes (`literature_landscape`, `literature_gap_analysis`) for the multi-hop search/traversal plan — resolve them via `nullius workflow-plan`; do not hand-roll traversal.
 - the research-team KB note template (`knowledge_base/literature/<ref>.md`) — you FILL it, you do not replace it.
 - the provider tools (`inspire_*`, `openalex_*`, `arxiv_*`, `pdf_*`) for fetch + analysis.
 - `markdown-hygiene` for math rendering, and `claim-grounding` for verifying the claims you extract.

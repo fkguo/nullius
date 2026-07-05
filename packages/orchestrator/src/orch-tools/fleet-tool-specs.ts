@@ -10,7 +10,7 @@ import {
   ORCH_FLEET_WORKER_POLL,
   ORCH_FLEET_WORKER_SET_CLAIM_ACCEPTANCE,
   ORCH_FLEET_WORKER_UNREGISTER,
-} from '@autoresearch/shared';
+} from '@nullius/shared';
 import {
   handleOrchFleetAdjudicateStaleClaim,
   handleOrchFleetClaim,

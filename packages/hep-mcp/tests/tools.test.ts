@@ -7,7 +7,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { TopicEvolutionSchema } from '@autoresearch/shared';
+import { TopicEvolutionSchema } from '@nullius/shared';
 
 // Mock the API client
 vi.mock('../src/api/client.js', () => ({
@@ -62,8 +62,8 @@ vi.mock('../src/utils/resolveArxivId.js', () => ({
   resolveArxivId: vi.fn().mockResolvedValue('2301.12345'),
 }));
 
-vi.mock('@autoresearch/arxiv-mcp/tooling', async () => {
-  const actual = await vi.importActual('@autoresearch/arxiv-mcp/tooling');
+vi.mock('@nullius/arxiv-mcp/tooling', async () => {
+  const actual = await vi.importActual('@nullius/arxiv-mcp/tooling');
   return {
     ...actual,
     accessPaperSource: vi.fn(),
@@ -123,7 +123,7 @@ const conflictDetector = await import('../src/tools/research/conflictDetector.js
 const criticalAnalysis = await import('../src/tools/research/criticalAnalysis.js');
 const reviewClassifier = await import('../src/tools/research/reviewClassifier.js');
 const theoreticalConflicts = await import('../src/tools/research/theoreticalConflicts.js');
-const arxivTooling = await import('@autoresearch/arxiv-mcp/tooling');
+const arxivTooling = await import('@nullius/arxiv-mcp/tooling');
 const parseLatexContent = await import('../src/tools/research/parseLatexContent.js');
 const findConnections = await import('../src/tools/research/findConnections.js');
 const traceSource = await import('../src/tools/research/traceSource.js');

@@ -6,7 +6,7 @@
  * the computed backoff delay.
  */
 
-import { McpError, type RetryPolicy, DEFAULT_RETRY_POLICY } from '@autoresearch/shared';
+import { McpError, type RetryPolicy, DEFAULT_RETRY_POLICY } from '@nullius/shared';
 
 export interface RetryAttempt {
   attempt: number;

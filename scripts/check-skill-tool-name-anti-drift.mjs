@@ -21,7 +21,7 @@
  *   - packages/hep-mcp/src/tool-names.ts (hep-mcp-local; ~29 hep_* tools).
  *
  * No other *-mcp package has a local tool-names.ts as of 2026-05-22; they
- * all consume from @autoresearch/shared. If a future *-mcp adds its own
+ * all consume from @nullius/shared. If a future *-mcp adds its own
  * local registry, add it to TOOL_NAME_SOURCES below.
  *
  * ## What is checked

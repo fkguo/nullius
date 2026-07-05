@@ -6,7 +6,7 @@ import type { RunState } from '../src/index.js';
 let tmpDirs: string[] = [];
 
 function controlDir(projectRoot: string): string {
-  return path.join(projectRoot, '.autoresearch');
+  return path.join(projectRoot, '.nullius');
 }
 
 export function makeTmpDir(prefix = 'orch-fleet-', parent = os.tmpdir()): string {

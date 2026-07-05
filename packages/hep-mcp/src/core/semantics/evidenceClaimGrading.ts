@@ -1,6 +1,6 @@
 import { createHash } from 'crypto';
 import type { CreateMessageRequestParamsBase, CreateMessageResult } from '@modelcontextprotocol/sdk/types.js';
-import { INSPIRE_GRADE_EVIDENCE } from '@autoresearch/shared';
+import { INSPIRE_GRADE_EVIDENCE } from '@nullius/shared';
 import { adjudicateClaimBundle } from './claimBundleAdjudicator.js';
 import { buildClaimAssessmentPrompt, extractSamplingText, parseClaimAssessmentResponse } from './claimSampling.js';
 import { buildToolSamplingMetadata } from '../sampling-metadata.js';

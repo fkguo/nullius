@@ -1,7 +1,7 @@
 {
   "package_id": "derivation-verify",
   "package_type": "skill-pack",
-  "repo": "autoresearch-lab/skills-market",
+  "repo": "nullius/skills-market",
   "channel": "dev",
   "version": "0.1.0",
   "summary": "Convergence gate for derivation-heavy results: re-derive each atomic claim >=2 independent blind ways, reconcile by mathematical equivalence, iterate to convergence, emit a verification matrix.",
@@ -20,7 +20,7 @@
     "opencode": "Link into ~/.config/opencode/skills for OpenCode discovery. Executor 2 (cross-model CLI) requires the review-swarm dependency; Executor 1 (Workflow) is Claude Code only."
   },
   "source": {
-    "repo": "autoresearch-lab/skills",
+    "repo": "nullius/skills",
     "ref": "main",
     "subpath": "skills/derivation-verify",
     "include": [

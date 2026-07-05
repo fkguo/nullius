@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://autoresearch.dev/schemas/execution_plan_v1.schema.json",
+  "$id": "https://nullius.dev/schemas/execution_plan_v1.schema.json",
   "title": "ExecutionPlan V1",
   "description": "Provider-neutral audited IR for bridging staged idea surfaces into a materialized computation manifest. Captures provenance, task-level capability needs, and expected artifacts without fixing provider routing as long-term authority.",
   "type": "object",

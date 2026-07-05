@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 
 describe('package contract', () => {
-  it('keeps runtime dependencies free of internal autoresearch packages', async () => {
+  it('keeps runtime dependencies free of internal nullius packages', async () => {
     const packageJson = JSON.parse(
       await readFile(new URL('../package.json', import.meta.url), 'utf8'),
     ) as {
@@ -11,7 +11,7 @@ describe('package contract', () => {
     };
 
     expect(Object.keys(packageJson.dependencies ?? {})).not.toContainEqual(
-      expect.stringMatching(/^@autoresearch\//),
+      expect.stringMatching(/^@nullius\//),
     );
     expect(Object.keys(packageJson.exports).sort()).toEqual([
       '.',

@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { invalidParams, notFound } from '@autoresearch/shared';
+import { invalidParams, notFound } from '@nullius/shared';
 
 import { getRunArtifactPath } from './paths.js';
 import { makeHepRunArtifactUri } from './runArtifactUri.js';

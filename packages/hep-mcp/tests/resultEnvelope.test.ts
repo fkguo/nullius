@@ -6,7 +6,7 @@ import { compactPaperSummary, compactPapersInResult, type CompactPaperSummary } 
 import {
   MAX_INLINE_RESULT_BYTES,
   HARD_CAP_RESULT_BYTES,
-} from '@autoresearch/shared';
+} from '@nullius/shared';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // L0: Compact serialization

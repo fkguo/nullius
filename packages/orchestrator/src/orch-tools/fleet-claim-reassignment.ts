@@ -4,7 +4,7 @@ import {
   notFound,
   type FleetQueueV1,
   type FleetWorkersV1,
-} from '@autoresearch/shared';
+} from '@nullius/shared';
 import { utcNowIso } from '../util.js';
 import { createStateManager } from './common.js';
 import { buildFleetLeaseClaim } from './fleet-lease.js';

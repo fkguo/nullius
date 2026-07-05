@@ -5,7 +5,7 @@ import type {
   CreateMessageResult,
   CreateMessageResultWithTools,
 } from '@modelcontextprotocol/sdk/types.js';
-import type { ToolRiskLevel } from '@autoresearch/shared';
+import type { ToolRiskLevel } from '@nullius/shared';
 
 export type ToolExposureMode = 'standard' | 'full';
 export type ToolExposure = 'standard' | 'full';

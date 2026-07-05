@@ -2,10 +2,10 @@ import {
   getToolRiskLevel,
   type ToolRiskLevel,
   type ToolRiskTable,
-} from '@autoresearch/shared';
+} from '@nullius/shared';
 import * as T from './tool-names.js';
 
-export type { ToolRiskLevel } from '@autoresearch/shared';
+export type { ToolRiskLevel } from '@nullius/shared';
 
 /**
  * hep-mcp owns the concrete risk authority for the tool catalog it exposes,

@@ -1,5 +1,5 @@
 import { ZodError } from 'zod';
-import { invalidParams, McpError, verifyHarnessInvocationMarker } from '@autoresearch/shared';
+import { invalidParams, McpError, verifyHarnessInvocationMarker } from '@nullius/shared';
 import { isStateTouchingArxivMcp } from './state-touch-classification.js';
 import type { ToolExposureMode } from './registry.js';
 import { getToolSpec, isToolExposed } from './registry.js';

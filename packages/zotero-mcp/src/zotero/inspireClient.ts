@@ -10,7 +10,7 @@ import {
   upstreamError,
   type Paper,
   type PublicationInfo,
-} from '@autoresearch/shared';
+} from '@nullius/shared';
 
 type InspireHit = {
   metadata?: {

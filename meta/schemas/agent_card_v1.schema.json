@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://autoresearch.dev/schemas/agent_card_v1.schema.json",
+  "$id": "https://nullius.dev/schemas/agent_card_v1.schema.json",
   "title": "AgentCardV1",
   "type": "object",
   "required": [

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://autoresearch.dev/schemas/computation_evidence_catalog_item_v1.schema.json",
+  "$id": "https://nullius.dev/schemas/computation_evidence_catalog_item_v1.schema.json",
   "title": "ComputationEvidenceCatalogItemV1",
   "description": "A single entry in computation_evidence_catalog_v1.jsonl. Records the outputs of a hep-calc skill run, keyed by source identifiers. Intentionally distinct from EvidenceCatalogItemV1 (which requires paper_id + LatexLocatorV1 and is LaTeX-only). Computation evidence does not have a paper_id and uses artifact paths + SHA-256 instead of LaTeX locators.",
   "type": "object",

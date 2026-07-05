@@ -1,6 +1,6 @@
 import { mrrAtK, ndcgAtK, recallAtK, type EvalResult } from '../../src/eval/index.js';
 import type { FederatedDiscoveryResult, DiscoveryProviderExecutors } from '../../src/tools/research/federatedDiscovery.js';
-import type { CanonicalCandidate, DiscoveryProviderId, DiscoveryQueryIntent } from '@autoresearch/shared';
+import type { CanonicalCandidate, DiscoveryProviderId, DiscoveryQueryIntent } from '@nullius/shared';
 
 export type FixtureCandidate = {
   title: string;

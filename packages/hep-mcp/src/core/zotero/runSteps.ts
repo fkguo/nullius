@@ -1,4 +1,4 @@
-import { invalidParams } from '@autoresearch/shared';
+import { invalidParams } from '@nullius/shared';
 
 import type { RunArtifactRef, RunManifest, RunStep } from '../runs.js';
 import { updateRunManifestAtomic } from '../runs.js';

@@ -1,4 +1,4 @@
-import { invalidParams } from '@autoresearch/shared';
+import { invalidParams } from '@nullius/shared';
 import {
   HEP_PROJECT_CREATE,
   HEP_PROJECT_GET,

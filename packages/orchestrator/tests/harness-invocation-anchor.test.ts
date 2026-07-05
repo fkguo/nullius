@@ -1,7 +1,7 @@
 /**
  * P3-C: orchestrator status writes the harness invocation marker.
  *
- * The research-harness skill already invokes `autoresearch status --json`
+ * The research-harness skill already invokes `nullius status --json`
  * during recovery. After P3-C, that same call also refreshes the anchor
  * marker that *-mcp dispatchers verify. This test locks the contract:
  * a successful status call leaves a valid marker on disk.
@@ -13,12 +13,12 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   HARNESS_INVOCATION_FILE,
   readHarnessInvocationMarker,
-} from '@autoresearch/shared';
+} from '@nullius/shared';
 import { handleOrchRunStatus } from '../src/orch-tools/create-status-list.js';
 import { runInitCommand } from '../src/cli-init.js';
 
 function makeTempProjectRoot(): string {
-  return fs.mkdtempSync(path.join(os.tmpdir(), 'autoresearch-harness-anchor-'));
+  return fs.mkdtempSync(path.join(os.tmpdir(), 'nullius-harness-anchor-'));
 }
 
 function silentIo(cwd: string) {
@@ -50,7 +50,7 @@ describe('handleOrchRunStatus — harness invocation anchor', () => {
     expect(marker).not.toBeNull();
     // v2 redesign: schema_version is 2; ttl_seconds is gone
     expect(marker?.schema_version).toBe(2);
-    expect(marker?.kind).toBe('autoresearch_harness_invocation');
+    expect(marker?.kind).toBe('nullius_harness_invocation');
     expect(marker?.host_skill).toBe('research-harness');
     // project_root is persisted as the normalized realpath (gpt-5.5 review B2)
     expect(marker?.project_root).toBe(fs.realpathSync(projectRoot));

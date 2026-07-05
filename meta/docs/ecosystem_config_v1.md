@@ -48,11 +48,11 @@ Note: host-side sampling and orchestration now own writing/model decisions. This
 | `PDG_SQLITE_CONCURRENCY` | int | `4` | Max concurrent sqlite3 operations | pdg-mcp |
 | `PDG_ARTIFACT_DELETE_AFTER_READ` | boolean | (unset) | Delete artifacts after reading | pdg-mcp |
 
-### TypeScript Orchestrator (`@autoresearch/orchestrator`)
+### TypeScript Orchestrator (`@nullius/orchestrator`)
 
 | Key | Type | Default | Description | Read by |
 |-----|------|---------|-------------|---------|
-| `AUTORESEARCH_CONTROL_DIR` | path | derived | Control-plane state directory for `.autoresearch` ledger/state/plan files | orchestrator, hep-mcp |
+| `NULLIUS_CONTROL_DIR` | path | derived | Control-plane state directory for `.nullius` ledger/state/plan files | orchestrator, hep-mcp |
 
 ### MCP Subprocess Environment Allowlist
 
@@ -71,4 +71,4 @@ HEP_TOOL_MODE, PDG_DB_PATH, PDG_ARTIFACT_TTL_HOURS
 - **Zotero** is restricted to localhost only — no Zotero Web API support.
 - **PDG database** path must be absolute and existing.
 - **`HEP_DATA_DIR`** and **`PDG_DATA_DIR`** support `~` expansion for the home directory.
-- Public/default guidance should point users to `autoresearch` and the MCP package READMEs; internal Python residue variables are listed here only so CI/dev contract checks have one truthful registry.
+- Public/default guidance should point users to `nullius` and the MCP package READMEs; internal Python residue variables are listed here only so CI/dev contract checks have one truthful registry.

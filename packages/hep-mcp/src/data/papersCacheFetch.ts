@@ -19,7 +19,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
-import { ARXIV_ID_REGEX } from '@autoresearch/arxiv-mcp/tooling';
+import { ARXIV_ID_REGEX } from '@nullius/arxiv-mcp/tooling';
 
 import { getPaperContent } from '../utils/arxivCompat.js';
 import { resolveArxivId } from '../utils/resolveArxivId.js';

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://autoresearch.dev/schemas/integrity_report_v1.schema.json",
+  "$id": "https://nullius.dev/schemas/integrity_report_v1.schema.json",
   "title": "IntegrityReport V1",
   "description": "Scientific integrity assessment report. Aggregates results from multiple IntegrityChecks. Content-addressed via SHA-256 of RFC 8785 (JCS) canonical JSON. Used by RDI fail-closed gate to block publication of unverified assets.",
   "type": "object",

@@ -59,7 +59,7 @@ def _fake_create_isolated_venv(skill_root: pathlib.Path, packages: list[str]) ->
 def test_real_packages_are_pinned_for_auto_safe(package_id: str) -> None:
     package = _load_package(package_id)
     assert package["install_policy"] == {"auto_safe": {"human_pre_approved": True}}
-    assert package["source"]["repo"] == "autoresearch-lab/skills"
+    assert package["source"]["repo"] == "nullius/skills"
     assert package["source"]["ref"] == IMMUTABLE_REF
 
 

@@ -19,7 +19,7 @@
         "execution_contract": {
           "mode": "planning_only",
           "built_in_runtime": false,
-          "run_behavior": "do not call autoresearch run for this harness unless an external tool caller implements the research_brainstorm tools"
+          "run_behavior": "do not call nullius run for this harness unless an external tool caller implements the research_brainstorm tools"
         },
         "artifact_contract": {
           "artifact": "brainstorm_context",
@@ -59,7 +59,7 @@
         "execution_contract": {
           "mode": "planning_only",
           "built_in_runtime": false,
-          "run_behavior": "do not call autoresearch run for this harness unless an external tool caller implements the research_brainstorm tools"
+          "run_behavior": "do not call nullius run for this harness unless an external tool caller implements the research_brainstorm tools"
         },
         "artifact_contract": {
           "artifact": "candidate_angles",
@@ -92,7 +92,7 @@
         "execution_contract": {
           "mode": "planning_only",
           "built_in_runtime": false,
-          "run_behavior": "do not call autoresearch run for this harness unless an external tool caller implements the research_brainstorm tools"
+          "run_behavior": "do not call nullius run for this harness unless an external tool caller implements the research_brainstorm tools"
         },
         "artifact_contract": {
           "artifact": "screening_matrix",
@@ -130,7 +130,7 @@
         "execution_contract": {
           "mode": "planning_only",
           "built_in_runtime": false,
-          "run_behavior": "do not call autoresearch run for this harness unless an external tool caller implements the research_brainstorm tools"
+          "run_behavior": "do not call nullius run for this harness unless an external tool caller implements the research_brainstorm tools"
         },
         "artifact_contract": {
           "artifact": "single_recommendation",
@@ -162,7 +162,7 @@
         "execution_contract": {
           "mode": "planning_only",
           "built_in_runtime": false,
-          "run_behavior": "do not call autoresearch run for this harness unless an external tool caller implements the research_brainstorm tools"
+          "run_behavior": "do not call nullius run for this harness unless an external tool caller implements the research_brainstorm tools"
         },
         "artifact_contract": {
           "artifact": "next_contract",

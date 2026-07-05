@@ -6,7 +6,7 @@ import {
   isApprovalGateId,
   notFound,
   type ApprovalGateId,
-} from '@autoresearch/shared';
+} from '@nullius/shared';
 import { StateManager } from '../state-manager.js';
 
 export type ApprovalGateFilter = ApprovalGateId | 'all';

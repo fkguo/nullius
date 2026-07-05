@@ -174,7 +174,7 @@ describe('orch_fleet_reassign_claim fail-closed target validation', () => {
       note: 'registry is broken',
     }))).rejects.toMatchObject({
       code: 'INVALID_PARAMS',
-      data: { fleet_workers_path: path.join(invalidWorkersRoot, '.autoresearch', 'fleet_workers.json') },
+      data: { fleet_workers_path: path.join(invalidWorkersRoot, '.nullius', 'fleet_workers.json') },
     });
   });
 });

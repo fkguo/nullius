@@ -1,4 +1,4 @@
-import { SemanticAssessmentProvenanceSchema } from '@autoresearch/shared';
+import { SemanticAssessmentProvenanceSchema } from '@nullius/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../src/api/client.js', () => ({

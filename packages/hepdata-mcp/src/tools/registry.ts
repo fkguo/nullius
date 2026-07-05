@@ -7,7 +7,7 @@ import {
   HEPDATA_DOWNLOAD,
   upstreamError,
   writeBytesAtomicDurable,
-} from '@autoresearch/shared';
+} from '@nullius/shared';
 import { zodToMcpInputSchema } from './mcpSchema.js';
 import * as client from '../api/client.js';
 import { getArtifactsDir, getDataDir, ensureDir } from '../data/dataDir.js';

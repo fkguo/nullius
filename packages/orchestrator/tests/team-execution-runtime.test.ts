@@ -2,7 +2,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ORCH_RUN_LIST, ORCH_RUN_STATUS } from '@autoresearch/shared';
+import { ORCH_RUN_LIST, ORCH_RUN_STATUS } from '@nullius/shared';
 
 import { executeTeamDelegatedRuntime, type MessageParam, type Tool, type TeamPermissionMatrix } from '../src/index.js';
 

@@ -7,7 +7,7 @@ import { resolvePathWithinParent } from './pathGuard.js';
 export const PDG_DATA_DIR_ENV = 'PDG_DATA_DIR';
 const HEP_DATA_DIR_ENV = 'HEP_DATA_DIR';
 
-const DEFAULT_DATA_DIR = path.join(os.homedir(), '.autoresearch', 'hep-mcp', 'pdg');
+const DEFAULT_DATA_DIR = path.join(os.homedir(), '.nullius', 'hep-mcp', 'pdg');
 const pdgDataDirScope = new AsyncLocalStorage<string>();
 
 function expandTilde(p: string): string {

@@ -8,7 +8,7 @@ import { handleOrchRunStatus } from '../src/orch-tools/create-status-list.js';
 import { StateManager } from '../src/state-manager.js';
 
 function makeTempProjectRoot(): string {
-  return fs.mkdtempSync(path.join(os.tmpdir(), 'autoresearch-run-workflow-'));
+  return fs.mkdtempSync(path.join(os.tmpdir(), 'nullius-run-workflow-'));
 }
 
 function makeIo(cwd: string) {
@@ -263,7 +263,7 @@ describe('workflow run consumer', () => {
       },
       current_run_workflow_outputs_source: 'state',
       resume_context: {
-        status_command: 'autoresearch status --json',
+        status_command: 'nullius status --json',
         current_run_id: 'M-WF-1',
         run_status: 'completed',
         curated_workflow_output_keys: ['topic_analysis', 'critical_analysis', 'network_analysis', 'connection_scan'],
@@ -288,7 +288,7 @@ describe('workflow run consumer', () => {
       },
       current_run_workflow_outputs_source: 'state',
       current_run_resume_context: {
-        status_command: 'autoresearch status --json',
+        status_command: 'nullius status --json',
         current_run_id: 'M-WF-1',
       },
       current_run_recovery_context: {
@@ -297,7 +297,7 @@ describe('workflow run consumer', () => {
           run_status: 'completed',
         },
         status_commands: {
-          canonical: 'autoresearch status --json',
+          canonical: 'nullius status --json',
         },
       },
     });
@@ -602,9 +602,9 @@ describe('workflow run consumer', () => {
     const { io, stdout } = makeIo(projectRoot);
 
     await withEnv({
-      AUTORESEARCH_RUN_MCP_COMMAND: undefined,
-      AUTORESEARCH_RUN_MCP_ARGS_JSON: undefined,
-      AUTORESEARCH_RUN_MCP_ENV_JSON: undefined,
+      NULLIUS_RUN_MCP_COMMAND: undefined,
+      NULLIUS_RUN_MCP_ARGS_JSON: undefined,
+      NULLIUS_RUN_MCP_ENV_JSON: undefined,
     }, async () => {
       await expect(runCommand(makeRunInput(projectRoot, 'review_cycle', 'M-WF-1'), io)).resolves.toBe(1);
     });
@@ -858,9 +858,9 @@ describe('workflow run consumer', () => {
     const { io, stdout } = makeIo(projectRoot);
 
     await withEnv({
-      AUTORESEARCH_RUN_MCP_COMMAND: undefined,
-      AUTORESEARCH_RUN_MCP_ARGS_JSON: undefined,
-      AUTORESEARCH_RUN_MCP_ENV_JSON: undefined,
+      NULLIUS_RUN_MCP_COMMAND: undefined,
+      NULLIUS_RUN_MCP_ARGS_JSON: undefined,
+      NULLIUS_RUN_MCP_ENV_JSON: undefined,
     }, async () => {
       await expect(runCommand(makeRunInput(projectRoot, 'review_cycle', 'M-WF-1'), io)).resolves.toBe(1);
       expect(JSON.parse(stdout.join(''))).toMatchObject({
@@ -868,7 +868,7 @@ describe('workflow run consumer', () => {
         ok: false,
         step_id: 'critical_review',
         error:
-        'workflow step execution requires a configured MCP tool server; set AUTORESEARCH_RUN_MCP_COMMAND and optional AUTORESEARCH_RUN_MCP_ARGS_JSON/AUTORESEARCH_RUN_MCP_ENV_JSON',
+        'workflow step execution requires a configured MCP tool server; set NULLIUS_RUN_MCP_COMMAND and optional NULLIUS_RUN_MCP_ARGS_JSON/NULLIUS_RUN_MCP_ENV_JSON',
       });
     });
   });
@@ -885,9 +885,9 @@ describe('workflow run consumer', () => {
     const { io, stdout } = makeIo(projectRoot);
 
     await withEnv({
-      AUTORESEARCH_RUN_MCP_COMMAND: undefined,
-      AUTORESEARCH_RUN_MCP_ARGS_JSON: undefined,
-      AUTORESEARCH_RUN_MCP_ENV_JSON: undefined,
+      NULLIUS_RUN_MCP_COMMAND: undefined,
+      NULLIUS_RUN_MCP_ARGS_JSON: undefined,
+      NULLIUS_RUN_MCP_ENV_JSON: undefined,
     }, async () => {
       await expect(runCommand(makeRunInput(projectRoot, 'review_cycle', 'M-WF-1'), io)).resolves.toBe(1);
       expect(JSON.parse(stdout.join(''))).toMatchObject({
@@ -898,7 +898,7 @@ describe('workflow run consumer', () => {
           {
             code: 'no_mcp_tool_server',
             message:
-              'workflow step execution requires a configured MCP tool server; set AUTORESEARCH_RUN_MCP_COMMAND and optional AUTORESEARCH_RUN_MCP_ARGS_JSON/AUTORESEARCH_RUN_MCP_ENV_JSON',
+              'workflow step execution requires a configured MCP tool server; set NULLIUS_RUN_MCP_COMMAND and optional NULLIUS_RUN_MCP_ARGS_JSON/NULLIUS_RUN_MCP_ENV_JSON',
           },
         ],
       });
@@ -918,16 +918,16 @@ describe('workflow run consumer', () => {
     const { io, stdout } = makeIo(projectRoot);
 
     await withEnv({
-      AUTORESEARCH_RUN_MCP_COMMAND: 'mock-mcp',
-      AUTORESEARCH_RUN_MCP_ARGS_JSON: '{not-json',
-      AUTORESEARCH_RUN_MCP_ENV_JSON: undefined,
+      NULLIUS_RUN_MCP_COMMAND: 'mock-mcp',
+      NULLIUS_RUN_MCP_ARGS_JSON: '{not-json',
+      NULLIUS_RUN_MCP_ENV_JSON: undefined,
     }, async () => {
       await expect(runCommand(makeRunInput(projectRoot, 'review_cycle', 'M-WF-1'), io)).resolves.toBe(1);
       expect(JSON.parse(stdout.join(''))).toMatchObject({
         status: 'failed',
         ok: false,
         step_id: 'critical_review',
-        error: 'AUTORESEARCH_RUN_MCP_ARGS_JSON must decode to a JSON string array',
+        error: 'NULLIUS_RUN_MCP_ARGS_JSON must decode to a JSON string array',
       });
     });
   });

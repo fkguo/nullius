@@ -1,4 +1,4 @@
-import type { EvidenceLocalizationUnit, EvidenceType } from '@autoresearch/shared';
+import type { EvidenceLocalizationUnit, EvidenceType } from '@nullius/shared';
 import { normalizeTextPreserveUnits } from '../../utils/textNormalization.js';
 
 export const EXACT_UNIT_BOOST = 0.2;

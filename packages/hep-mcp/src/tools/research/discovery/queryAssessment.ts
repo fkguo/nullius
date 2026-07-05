@@ -9,7 +9,7 @@ import {
   type DiscoveryQueryProbe,
   type DiscoveryRerankedPaper,
   type DiscoveryRiskLevel,
-} from '@autoresearch/shared';
+} from '@nullius/shared';
 import { extractQueryIdentifiers, hasStructuredIdentifier } from './queryIdentifiers.js';
 
 const STOPWORDS = new Set(['the', 'and', 'for', 'with', 'from', 'that', 'this', 'into', 'over', 'under', 'about']);

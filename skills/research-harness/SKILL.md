@@ -1,6 +1,6 @@
 ---
 name: research-harness
-description: Use when working inside an external research project that has or may need autoresearch state, research_plan.md, research_contract.md, artifacts/runs, team/runs, Codex/Claude Code continuation, recovery, verification, approval, export, handoff, compute environment/tool readiness validation (import + seeded witness + agent-follows-doc), surviving long-running / kill-prone compute jobs (checkpoint + heartbeat + deadline + resume), or an opt-in independent reproduction check (fresh-checkout rerun compared against declared expected values).
+description: Use when working inside an external research project that has or may need nullius state, research_plan.md, research_contract.md, artifacts/runs, team/runs, Codex/Claude Code continuation, recovery, verification, approval, export, handoff, compute environment/tool readiness validation (import + seeded witness + agent-follows-doc), surviving long-running / kill-prone compute jobs (checkpoint + heartbeat + deadline + resume), or an opt-in independent reproduction check (fresh-checkout rerun compared against declared expected values).
 ---
 
 # Research Harness
@@ -11,37 +11,37 @@ It does not replace the research executors. It restores the project state, route
 
 ## Authority Map
 
-- `autoresearch`: generic TS CLI and project lifecycle control plane.
+- `nullius`: generic TS CLI and project lifecycle control plane.
 - `research-team`: milestone execution and multi-agent research progress.
 - `markdown-hygiene`: standalone Markdown math, TOC, and formatting cleanup before research handoff.
 - `hep-mcp`: HEP literature, evidence, INSPIRE/arXiv, bibliography, and export tooling.
 
 ## Recovery First
 
-Work from the external project root, not from the `autoresearch-lab` development repo.
+Work from the external project root, not from the `nullius` development repo.
 
-1. If `.autoresearch/HARNESS` exists, treat it as the machine-readable runtime handshake: a status receipt is required before new work, milestone execution, closeout, or handoff.
+1. If `.nullius/HARNESS` exists, treat it as the machine-readable runtime handshake: a status receipt is required before new work, milestone execution, closeout, or handoff.
 2. Prefer the project-local CLI when it exists:
    ```bash
-   ./.autoresearch/bin/autoresearch status --json
+   ./.nullius/bin/nullius status --json
    ```
 3. Otherwise use the installed CLI:
    ```bash
-   autoresearch status --json
+   nullius status --json
    ```
 
 A successful `status --json` call also refreshes the session-level anchor
-marker at `.autoresearch/HARNESS_INVOCATION`. Every `*-mcp` dispatcher
+marker at `.nullius/HARNESS_INVOCATION`. Every `*-mcp` dispatcher
 (`arxiv-mcp`, `hep-mcp`, `hepdata-mcp`, `idea-mcp`, `openalex-mcp`,
 `pdg-mcp`, `zotero-mcp`) verifies this marker for state-touching tool
 calls and fails closed with `HARNESS_INVOCATION_REQUIRED` when the marker
 is missing, malformed, or older than the most recent change to
-`.autoresearch/state.json` or `.autoresearch/ledger.jsonl`. The check is
+`.nullius/state.json` or `.nullius/ledger.jsonl`. The check is
 **event-driven, not clock-based**: once you anchor against current
 project state, the anchor stays valid until project state actually
 changes — long thinking / reading between tool calls does not invalidate
 the anchor. Re-run `status --json` after any lifecycle event (own or
-other-process `autoresearch run`/`approve`/`verify`/...) to re-anchor;
+other-process `nullius run`/`approve`/`verify`/...) to re-anchor;
 you do not need to invoke a separate "anchor" command.
 
 The check is also skipped for:
@@ -50,18 +50,18 @@ The check is also skipped for:
   `pdg_find_particle`, `inspire_resolve_citekey`, `hep_health`, etc.;
   full classification per dispatcher in each `*-mcp` package's
   `state-touch-classification.ts`);
-- standalone use where `process.cwd()` has no `.autoresearch/`
+- standalone use where `process.cwd()` has no `.nullius/`
   directory (no lifecycle context to drift from);
-- `AUTORESEARCH_HARNESS_VERIFY=skip` env override (escape hatch) and
+- `NULLIUS_HARNESS_VERIFY=skip` env override (escape hatch) and
   `NODE_ENV=test` default.
-4. If `.autoresearch/` exists but `.autoresearch/HARNESS` is missing, or if both entrypoints are unavailable, repair only the runtime handshake and launcher, then retry the project-local CLI:
+4. If `.nullius/` exists but `.nullius/HARNESS` is missing, or if both entrypoints are unavailable, repair only the runtime handshake and launcher, then retry the project-local CLI:
    ```bash
-   autoresearch init --runtime-only
-   ./.autoresearch/bin/autoresearch status --json
+   nullius init --runtime-only
+   ./.nullius/bin/nullius status --json
    ```
-   If `autoresearch` is not on `PATH`, run the same one-time repair through your autoresearch checkout (substitute its absolute path):
+   If `nullius` is not on `PATH`, run the same one-time repair through your nullius checkout (substitute its absolute path):
    ```bash
-   node /absolute/path/to/autoresearch-lab/packages/orchestrator/dist/cli.js init --runtime-only
+   node /absolute/path/to/nullius/packages/orchestrator/dist/cli.js init --runtime-only
    ```
 5. Read and align the durable project surfaces:
    - `research_plan.md`, especially `# Current Status`
@@ -71,34 +71,34 @@ The check is also skipped for:
 
 **Anchor on the final adopted version — never build on a superseded one.** A long project accumulates earlier fits, methods, grids, and exploratory scripts; a *newer* adopted result (a better minimum, a more robust method, a finer grid) can silently coexist in the repo with the deprecated ones it replaced. Before extending or varying anything, resolve from the durable record (`research_plan.md#Current Status`, `research_contract.md`, the latest dated `artifacts/runs/<run_id>/`, and any explicit `superseded` / `voided` markers) **which** parameters, method, and configuration are the *current adopted* version — not the first script you happen to open or the most-cited earlier draft. Then **regression-anchor**: run that adopted reference configuration and assert it reproduces its known result (the published χ²/value/pole) *before* trusting any variation built on it. This is the project-state half of the [`numerical-reliability-gate`](../numerical-reliability-gate/SKILL.md) G4 anchor; skipping it is how work silently gets rebuilt on a stale fit or a retired method.
 
-To pull newer managed scaffold doc (`AGENTS.md`) into an existing project without disturbing user notes, run `autoresearch init --refresh` (preview with `autoresearch init --refresh --dry-run`). It backs up any changed managed file under `.autoresearch/backups/` and never rewrites `research_plan.md`, `research_notebook.md`, `research_contract.md`, `project_charter.md`, or `project_index.md`.
+To pull newer managed scaffold doc (`AGENTS.md`) into an existing project without disturbing user notes, run `nullius init --refresh` (preview with `nullius init --refresh --dry-run`). It backs up any changed managed file under `.nullius/backups/` and never rewrites `research_plan.md`, `research_notebook.md`, `research_contract.md`, `project_charter.md`, or `project_index.md`.
 
 If no project state exists and the user is in a real external research root, initialize with:
 
 ```bash
-autoresearch init
+nullius init
 ```
 
-If `autoresearch` is unavailable on `PATH`, run the same one-time setup through your
-autoresearch checkout (substitute its absolute path) to create the project-local fallback:
+If `nullius` is unavailable on `PATH`, run the same one-time setup through your
+nullius checkout (substitute its absolute path) to create the project-local fallback:
 
 ```bash
-node /absolute/path/to/autoresearch-lab/packages/orchestrator/dist/cli.js init --runtime-only
+node /absolute/path/to/nullius/packages/orchestrator/dist/cli.js init --runtime-only
 ```
 
 ## Route The Work
 
 - If the research question is still not scoped, create a plan with:
   ```bash
-  autoresearch workflow-plan --recipe research_brainstorm
+  nullius workflow-plan --recipe research_brainstorm
   ```
 - If the user needs milestone execution, invoke `research-team` and keep the milestone boundary explicit.
 - If a compute environment, tool build, or documented invocation is new, rebuilt, or reconfigured, pass the three-layer readiness validation (under Long-Running Compute Jobs below) before routing real work onto it.
 - If the task is Markdown formatting, Markdown math escaping, generated TOC LaTeX cleanup, link/citation clickability, or pre-handoff note hygiene, invoke `markdown-hygiene` first, then rerun the relevant project gate.
 - If the task is physics or adjacent scientific literature research, evidence, INSPIRE/arXiv/OpenAlex provider lookup, source reading, bibliography, or export support, use `hep-mcp`. Web search may supplement broad discovery, but it does not replace the provider citation graph gate below.
-- If the task is lifecycle, verification, approval, pause/resume, final conclusions, or export, keep it on `autoresearch`.
+- If the task is lifecycle, verification, approval, pause/resume, final conclusions, or export, keep it on `nullius`.
 
-Do not invent compatibility commands or fallback entrypoints. Keep lifecycle work on `autoresearch` and route executor or provider work to the relevant skill/tool layer.
+Do not invent compatibility commands or fallback entrypoints. Keep lifecycle work on `nullius` and route executor or provider work to the relevant skill/tool layer.
 
 ## Long-Running Compute Jobs
 
@@ -147,7 +147,7 @@ It captures `pgrep` (SIGPIPE-safe, never pipes) and prints JSON `{running, check
 
 **Commit each stage as cross-session memory.** A kill loses CPU work; a closed session loses the agent's context. Commit each completed stage immediately with a message recording the result *and the lesson*; the git log is a durable record that survives context loss.
 
-**Log dead-ends structurally so a resumed or fresh agent never repeats one.** Append each failed approach to `artifacts/runs/<run_id>/failed_approaches_v1.json`, per the `@autoresearch/shared` `failed_approaches_v1` contract — `{ approach, why_failed, signal (error|stall|wrong_result|too_expensive|dead_end|superseded), at, evidence_ref?, do_not_retry }`. **`why_failed` is mandatory**: a dead-end recorded without why it failed is not a reusable lesson, and the contract rejects it. **Before starting any new approach, read this log and skip every `do_not_retry` entry** — that is the point, turning "what we already ruled out" from buried git archaeology into a record the next session (or a fresh agent) actually consults. A free-text note is the fallback only when structured logging is unavailable.
+**Log dead-ends structurally so a resumed or fresh agent never repeats one.** Append each failed approach to `artifacts/runs/<run_id>/failed_approaches_v1.json`, per the `@nullius/shared` `failed_approaches_v1` contract — `{ approach, why_failed, signal (error|stall|wrong_result|too_expensive|dead_end|superseded), at, evidence_ref?, do_not_retry }`. **`why_failed` is mandatory**: a dead-end recorded without why it failed is not a reusable lesson, and the contract rejects it. **Before starting any new approach, read this log and skip every `do_not_retry` entry** — that is the point, turning "what we already ruled out" from buried git archaeology into a record the next session (or a fresh agent) actually consults. A free-text note is the fallback only when structured logging is unavailable.
 
 ## Independent Reproduction Check (Opt-in)
 
@@ -229,22 +229,22 @@ After a milestone or run produces a stable result:
 - Update `research_plan.md#Current Status` with the current state, next step, blockers, and evidence pointers.
 - Link or copy the relevant run evidence under `artifacts/runs/<run_id>/`.
 - Preserve unresolved questions as explicit blockers rather than burying them in chat or transient team logs.
-- At a milestone handoff or stakeholder plan-summary, produce a **roadmap dependency-map** (summary table + milestone/lane dependency graph + binding-constraint + critical path) via `research-team` (`assets/roadmap_dependency_map_template.md`, rendered with `autoresearch graph --kind roadmap`). It is a planning view — distinct from the Claim DAG and from `research_plan.md#Current Status`, and it makes "what gates what / what caps feasibility / shortest route to the goal" legible to whoever picks up the work next.
+- At a milestone handoff or stakeholder plan-summary, produce a **roadmap dependency-map** (summary table + milestone/lane dependency graph + binding-constraint + critical path) via `research-team` (`assets/roadmap_dependency_map_template.md`, rendered with `nullius graph --kind roadmap`). It is a planning view — distinct from the Claim DAG and from `research_plan.md#Current Status`, and it makes "what gates what / what caps feasibility / shortest route to the goal" legible to whoever picks up the work next.
 
 ## Closeout
 
 Before handing off or claiming completion, run the narrowest applicable closeout command:
 
 ```bash
-autoresearch verify
-autoresearch final-conclusions
-autoresearch approve <approval_id>
-autoresearch export --run-id <run_id>
+nullius verify
+nullius final-conclusions
+nullius approve <approval_id>
+nullius export --run-id <run_id>
 ```
 
 Use the command that matches the project state. If approval is pending, stop at the approval boundary and report the exact approval id and evidence path.
 
-Before invoking `autoresearch approve` for any A1-A5 gate (and before
+Before invoking `nullius approve` for any A1-A5 gate (and before
 folding a result into `research_contract.md` or
 `research_plan.md#Current Status`), run the `research-integrity` skill's
 M1-M7 pre-approval ritual. M1-M7 is the agent-side discipline that

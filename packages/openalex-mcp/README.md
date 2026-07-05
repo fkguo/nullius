@@ -1,4 +1,4 @@
-# @autoresearch/openalex-mcp
+# @nullius/openalex-mcp
 
 OpenAlex scholarly knowledge graph MCP server — work/author/institution/concept search, citation graph traversal, and paginated metadata retrieval over local stdio.
 
@@ -20,7 +20,7 @@ Or wire into an MCP client:
   "mcpServers": {
     "openalex-mcp": {
       "command": "node",
-      "args": ["/absolute/path/to/autoresearch-lab/packages/openalex-mcp/dist/index.js"]
+      "args": ["/absolute/path/to/nullius/packages/openalex-mcp/dist/index.js"]
     }
   }
 }
@@ -33,7 +33,7 @@ Or wire into an MCP client:
 
 ## Composition
 
-`@autoresearch/hep-mcp` aggregates openalex-mcp's tools via `packages/hep-mcp/src/tools/registry/shared.ts` so they appear in the HEP MCP tool list when the HEP server runs. There is no per-provider opt-out env var for openalex aggregation — it is always present in the HEP composition.
+`@nullius/hep-mcp` aggregates openalex-mcp's tools via `packages/hep-mcp/src/tools/registry/shared.ts` so they appear in the HEP MCP tool list when the HEP server runs. There is no per-provider opt-out env var for openalex aggregation — it is always present in the HEP composition.
 
 ## Build & test
 

@@ -1,6 +1,6 @@
 {
-  "name": "@autoresearch/arxiv-mcp",
-  "version": "0.3.0",
+  "name": "@nullius/arxiv-mcp",
+  "version": "0.4.0",
   "description": "Domain-agnostic arXiv MCP server for paper search, metadata, and source content access",
   "author": "Feng-Kun Guo",
   "type": "module",
@@ -20,7 +20,7 @@
     "arxiv-mcp": "./bin/arxiv-mcp.js"
   },
   "scripts": {
-    "pretest": "node ../../scripts/ensure-workspace-package-artifacts.mjs @autoresearch/shared",
+    "pretest": "node ../../scripts/ensure-workspace-package-artifacts.mjs @nullius/shared",
     "build": "tsc --build",
     "clean": "rm -rf dist tsconfig.tsbuildinfo",
     "lint": "tsc --noEmit",
@@ -30,7 +30,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@autoresearch/shared": "workspace:*",
+    "@nullius/shared": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.25.2",
     "tar": "^7.4.3",
     "zod": "^4.3.5"

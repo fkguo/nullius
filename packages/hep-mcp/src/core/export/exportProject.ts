@@ -1,8 +1,8 @@
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
-import { invalidParams, writeBytesAtomicDurable } from '@autoresearch/shared';
-import { getDataDir as getPdgDataDir } from '@autoresearch/pdg-mcp/tooling';
+import { invalidParams, writeBytesAtomicDurable } from '@nullius/shared';
+import { getDataDir as getPdgDataDir } from '@nullius/pdg-mcp/tooling';
 import { strToU8, unzipSync, zipSync } from 'fflate';
 
 import { getRun, type RunArtifactRef, type RunManifest, type RunStep, updateRunManifestAtomic } from '../runs.js';

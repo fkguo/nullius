@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 
-import type { EvidenceType } from '@autoresearch/shared';
+import type { EvidenceType } from '@nullius/shared';
 
 import { getRunArtifactPath } from '../../src/core/paths.js';
 

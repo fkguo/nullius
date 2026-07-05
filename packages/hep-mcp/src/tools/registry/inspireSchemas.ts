@@ -1,6 +1,6 @@
 import { createHash } from 'crypto';
 import { z } from 'zod';
-import { optionalBudgetInt, FindConnectionsParamsSchema } from '@autoresearch/shared';
+import { optionalBudgetInt, FindConnectionsParamsSchema } from '@nullius/shared';
 import {
   TimeRangeSchema,
   NetworkAnalysisToolSchema,

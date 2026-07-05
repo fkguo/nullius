@@ -8,7 +8,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { commitStagedDurable } from '@autoresearch/shared';
+import { commitStagedDurable } from '@nullius/shared';
 import { normalizeArxivId } from './arxivSource.js';
 import { downloadFile, detectSourceType } from './paperFetcher.js';
 import { extractTarGz, extractGz, isTarArchive, findMainTexFile } from './tarExtractor.js';

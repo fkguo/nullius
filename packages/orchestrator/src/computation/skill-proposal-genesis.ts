@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import type { ComputationManifestV1, ComputationResultV1, SkillProposalV2 } from '@autoresearch/shared';
+import type { ComputationManifestV1, ComputationResultV1, SkillProposalV2 } from '@nullius/shared';
 import { writeJsonAtomic } from './io.js';
 import { shouldSuppressProposal, skillProposalFingerprint } from '../proposal-decisions.js';
 
@@ -55,7 +55,7 @@ function matchingSuccessfulRuns(params: {
   for (const runId of fs.readdirSync(runsRoot).sort()) {
     const runDir = path.join(params.projectRoot, runId);
     if (!fs.existsSync(runDir) || !fs.statSync(runDir).isDirectory()) continue;
-    if (runId === '.autoresearch' || runId === 'artifacts' || runId.startsWith('.')) continue;
+    if (runId === '.nullius' || runId === 'artifacts' || runId.startsWith('.')) continue;
     const resultPath = path.join(runDir, 'artifacts', 'computation_result_v1.json');
     const result = readJsonIfExists<ComputationResultV1>(resultPath);
     if (!result || result.execution_status !== 'completed') continue;

@@ -21,7 +21,7 @@ def _base_skill() -> dict[str, object]:
     return {
         "package_id": "sample-skill",
         "package_type": "skill-pack",
-        "repo": "autoresearch-lab/skills-market",
+        "repo": "nullius/skills-market",
         "channel": "dev",
         "version": "0.1.0",
         "summary": "Sample skill",
@@ -29,7 +29,7 @@ def _base_skill() -> dict[str, object]:
         "source_path": "skills/sample-skill/SKILL.md",
         "install": {"codex": "install"},
         "source": {
-            "repo": "autoresearch-lab/skills",
+            "repo": "nullius/skills",
             "ref": "main",
             "subpath": "skills/sample-skill",
             "include": ["SKILL.md"],

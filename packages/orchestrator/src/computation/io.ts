@@ -4,7 +4,7 @@ import * as path from 'node:path';
 import {
   writeBytesAtomicDurable,
   writeJsonAtomicDurable,
-} from '@autoresearch/shared';
+} from '@nullius/shared';
 
 export function sha256File(filePath: string): string {
   return createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');

@@ -1107,13 +1107,13 @@ class ProjectConfigTests(unittest.TestCase):
             config_evt = next(e for e in trace if e.get("event") == "config")
             self.assertEqual(config_evt["backend_tool_modes"]["claude"], "review")
 
-    def test_auto_discovery_finds_autoresearch_dir(self):
-        """Auto-discovery finds .autoresearch/review-swarm.json at git root."""
+    def test_auto_discovery_finds_nullius_dir(self):
+        """Auto-discovery finds .nullius/review-swarm.json at git root."""
         with tempfile.TemporaryDirectory() as td:
             td_path = Path(td)
             # Fake git root
             (td_path / ".git").mkdir()
-            cfg_dir = td_path / ".autoresearch"
+            cfg_dir = td_path / ".nullius"
             cfg_dir.mkdir()
             cfg = cfg_dir / "review-swarm.json"
             cfg.write_text(json.dumps({"models": "codex/test"}), encoding="utf-8")
@@ -1126,7 +1126,7 @@ class ProjectConfigTests(unittest.TestCase):
             self.assertEqual(result.resolve(), cfg.resolve())
 
     def test_auto_discovery_ignores_retired_meta_config(self):
-        """Auto-discovery ignores retired meta/ config and uses .autoresearch/."""
+        """Auto-discovery ignores retired meta/ config and uses .nullius/."""
         with tempfile.TemporaryDirectory() as td:
             td_path = Path(td)
             (td_path / ".git").mkdir()
@@ -1135,10 +1135,10 @@ class ProjectConfigTests(unittest.TestCase):
             (meta_dir / "review-swarm.json").write_text(
                 json.dumps({"models": "from-meta"}), encoding="utf-8"
             )
-            autoresearch_dir = td_path / ".autoresearch"
-            autoresearch_dir.mkdir()
-            cfg = autoresearch_dir / "review-swarm.json"
-            cfg.write_text(json.dumps({"models": "from-autoresearch"}), encoding="utf-8")
+            nullius_dir = td_path / ".nullius"
+            nullius_dir.mkdir()
+            cfg = nullius_dir / "review-swarm.json"
+            cfg.write_text(json.dumps({"models": "from-nullius"}), encoding="utf-8")
 
             with _temp_env(REVIEW_SWARM_NO_AUTO_CONFIG=""):
                 os.environ.pop("REVIEW_SWARM_NO_AUTO_CONFIG", None)

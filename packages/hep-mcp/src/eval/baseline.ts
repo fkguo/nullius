@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { writeJsonAtomicDurable } from '@autoresearch/shared';
+import { writeJsonAtomicDurable } from '@nullius/shared';
 
 import type { EvalReport } from './runner.js';
 import type { EvalAggregateOutcome } from './outcome.js';

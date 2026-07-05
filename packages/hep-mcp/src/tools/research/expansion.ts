@@ -9,7 +9,7 @@ import {
   type ResearchExpansionParams,
   type ExpansionResult,
   ResearchExpansionParamsSchema,
-} from '@autoresearch/shared';
+} from '@nullius/shared';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types

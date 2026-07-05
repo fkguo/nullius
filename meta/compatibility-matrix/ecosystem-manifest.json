@@ -1,70 +1,70 @@
 {
   "manifest_version": "1.1.4",
   "updated_at": "2026-07-05T00:00:00Z",
-  "org": "autoresearch-lab",
+  "org": "nullius",
   "channels": ["stable", "beta", "dev"],
   "components": {
     "hep-mcp": {
-      "repo": "autoresearch-lab/autoresearch-lab",
+      "repo": "nullius/nullius",
       "type": "tool-pack",
       "channel": "beta",
-      "version": "0.3.0"
+      "version": "0.4.0"
     },
     "skills-market": {
-      "repo": "autoresearch-lab/skills-market",
+      "repo": "nullius/skills-market",
       "type": "skill-pack-index",
       "channel": "beta",
       "version": "0.1.0"
     },
     "hep-calc": {
-      "repo": "autoresearch-lab/skills-market",
+      "repo": "nullius/skills-market",
       "type": "skill-pack",
       "channel": "dev",
       "version": "0.1.0",
       "source_path": "skills/hep-calc/SKILL.md"
     },
     "numerical-reliability-gate": {
-      "repo": "autoresearch-lab/skills-market",
+      "repo": "nullius/skills-market",
       "type": "skill-pack",
       "channel": "dev",
       "version": "0.1.0",
       "source_path": "skills/numerical-reliability-gate/SKILL.md"
     },
     "paper-reviser": {
-      "repo": "autoresearch-lab/skills-market",
+      "repo": "nullius/skills-market",
       "type": "skill-pack",
       "channel": "dev",
       "version": "0.1.0",
       "source_path": "skills/paper-reviser/SKILL.md"
     },
     "pdg-lookup": {
-      "repo": "autoresearch-lab/skills-market",
+      "repo": "nullius/skills-market",
       "type": "skill-pack",
       "channel": "beta",
       "version": "0.1.0",
       "source_path": "skills/pdg-lookup/SKILL.md",
       "depends_on": {
-        "hep-mcp": ">=0.3.0 <0.4.0"
+        "hep-mcp": ">=0.4.0 <0.5.0"
       }
     },
     "julia-perf": {
-      "repo": "autoresearch-lab/skills-market",
+      "repo": "nullius/skills-market",
       "type": "skill-pack",
       "channel": "dev",
       "version": "0.1.0",
       "source_path": "skills/julia-perf/SKILL.md"
     },
     "literature-workflows": {
-      "repo": "autoresearch-lab/autoresearch-lab",
+      "repo": "nullius/nullius",
       "type": "workflow-pack",
       "channel": "dev",
       "version": "0.1.0",
       "depends_on": {
-        "hep-mcp": ">=0.3.0 <0.4.0"
+        "hep-mcp": ">=0.4.0 <0.5.0"
       }
     },
     "literature-graph-builder": {
-      "repo": "autoresearch-lab/skills-market",
+      "repo": "nullius/skills-market",
       "type": "skill-pack",
       "channel": "dev",
       "version": "0.1.0",
@@ -77,21 +77,21 @@
       }
     },
     "markdown-hygiene": {
-      "repo": "autoresearch-lab/skills-market",
+      "repo": "nullius/skills-market",
       "type": "skill-pack",
       "channel": "dev",
       "version": "0.1.0",
       "source_path": "skills/markdown-hygiene/SKILL.md"
     },
     "research-harness": {
-      "repo": "autoresearch-lab/skills-market",
+      "repo": "nullius/skills-market",
       "type": "skill-pack",
       "channel": "dev",
       "version": "0.1.0",
       "source_path": "skills/research-harness/SKILL.md"
     },
     "research-team": {
-      "repo": "autoresearch-lab/skills-market",
+      "repo": "nullius/skills-market",
       "type": "skill-pack",
       "channel": "dev",
       "version": "0.1.0",
@@ -101,7 +101,7 @@
       }
     },
     "research-writer": {
-      "repo": "autoresearch-lab/skills-market",
+      "repo": "nullius/skills-market",
       "type": "skill-pack",
       "channel": "dev",
       "version": "0.1.0",
@@ -111,80 +111,80 @@
       }
     },
     "zotero-import": {
-      "repo": "autoresearch-lab/skills-market",
+      "repo": "nullius/skills-market",
       "type": "skill-pack",
       "channel": "beta",
       "version": "0.1.0",
       "source_path": "skills/zotero-import/SKILL.md",
       "depends_on": {
-        "hep-mcp": ">=0.3.0 <0.4.0"
+        "hep-mcp": ">=0.4.0 <0.5.0"
       }
     },
     "referee-review": {
-      "repo": "autoresearch-lab/skills-market",
+      "repo": "nullius/skills-market",
       "type": "skill-pack",
       "channel": "beta",
       "version": "0.1.0",
       "source_path": "skills/referee-review/SKILL.md"
     },
     "auto-relay": {
-      "repo": "autoresearch-lab/skills-market",
+      "repo": "nullius/skills-market",
       "type": "skill-pack",
       "channel": "dev",
       "version": "0.1.0",
       "source_path": "skills/auto-relay/SKILL.md"
     },
     "gemini-cli-runner": {
-      "repo": "autoresearch-lab/skills-market",
+      "repo": "nullius/skills-market",
       "type": "skill-pack",
       "channel": "beta",
       "version": "0.1.0",
       "source_path": "skills/gemini-cli-runner/SKILL.md"
     },
     "claude-cli-runner": {
-      "repo": "autoresearch-lab/skills-market",
+      "repo": "nullius/skills-market",
       "type": "skill-pack",
       "channel": "beta",
       "version": "0.1.0",
       "source_path": "skills/claude-cli-runner/SKILL.md"
     },
     "codex-cli-runner": {
-      "repo": "autoresearch-lab/skills-market",
+      "repo": "nullius/skills-market",
       "type": "skill-pack",
       "channel": "beta",
       "version": "0.1.0",
       "source_path": "skills/codex-cli-runner/SKILL.md"
     },
     "opencode-cli-runner": {
-      "repo": "autoresearch-lab/skills-market",
+      "repo": "nullius/skills-market",
       "type": "skill-pack",
       "channel": "beta",
       "version": "0.1.0",
       "source_path": "skills/opencode-cli-runner/SKILL.md"
     },
     "citation-triangulation": {
-      "repo": "autoresearch-lab/skills-market",
+      "repo": "nullius/skills-market",
       "type": "skill-pack",
       "channel": "dev",
       "version": "0.1.0",
       "source_path": "skills/citation-triangulation/SKILL.md"
     },
     "claim-grounding": {
-      "repo": "autoresearch-lab/skills-market",
+      "repo": "nullius/skills-market",
       "type": "skill-pack",
       "channel": "dev",
       "version": "0.1.0",
       "source_path": "skills/claim-grounding/SKILL.md"
     },
     "deep-learning-lab": {
-      "repo": "autoresearch-lab/skills-market",
+      "repo": "nullius/skills-market",
       "type": "skill-pack",
       "channel": "dev",
       "version": "0.1.0",
       "source_path": "skills/deep-learning-lab/SKILL.md"
     },
     "deep-literature-review": {
-      "repo": "autoresearch-lab/skills-market",
+      "repo": "nullius/skills-market",
       "type": "skill-pack",
       "channel": "dev",
       "version": "0.1.0",
@@ -194,28 +194,28 @@
       }
     },
     "derivation-verify": {
-      "repo": "autoresearch-lab/skills-market",
+      "repo": "nullius/skills-market",
       "type": "skill-pack",
       "channel": "dev",
       "version": "0.1.0",
       "source_path": "skills/derivation-verify/SKILL.md"
     },
     "figure-hygiene": {
-      "repo": "autoresearch-lab/skills-market",
+      "repo": "nullius/skills-market",
       "type": "skill-pack",
       "channel": "dev",
       "version": "0.1.0",
       "source_path": "skills/figure-hygiene/SKILL.md"
     },
     "research-integrity": {
-      "repo": "autoresearch-lab/skills-market",
+      "repo": "nullius/skills-market",
       "type": "skill-pack",
       "channel": "dev",
       "version": "0.1.0",
       "source_path": "skills/research-integrity/SKILL.md"
     },
     "review-swarm": {
-      "repo": "autoresearch-lab/skills-market",
+      "repo": "nullius/skills-market",
       "type": "skill-pack",
       "channel": "dev",
       "version": "0.1.0",

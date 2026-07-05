@@ -10,7 +10,7 @@
  */
 
 import { buildResearchTimeline, type TimelineResult } from './timeline.js';
-import type { TopicEvolution, TopicEvolutionParams as SharedTopicEvolutionParams } from '@autoresearch/shared';
+import type { TopicEvolution, TopicEvolutionParams as SharedTopicEvolutionParams } from '@nullius/shared';
 import { analyzeTopicEvolution } from './topicEvolution.js';
 import { findEmergingPapers, type FindEmergingResult } from './emergingPapers.js';
 

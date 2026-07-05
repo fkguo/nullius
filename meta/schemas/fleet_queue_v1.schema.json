@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://autoresearch.dev/schemas/fleet_queue_v1.schema.json",
+  "$id": "https://nullius.dev/schemas/fleet_queue_v1.schema.json",
   "title": "FleetQueue V1",
   "description": "Provider-neutral per-project fleet queue substrate. Records queue truth, including explicit claim lease authority; scheduler and global health remain later layers.",
   "type": "object",

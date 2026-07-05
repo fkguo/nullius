@@ -1,6 +1,6 @@
 {
-  "name": "@autoresearch/hepdata-mcp",
-  "version": "0.3.0",
+  "name": "@nullius/hepdata-mcp",
+  "version": "0.4.0",
   "description": "HEPData MCP server for experimental HEP measurement data",
   "author": "Feng-Kun Guo",
   "type": "module",
@@ -31,7 +31,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@autoresearch/shared": "workspace:*",
+    "@nullius/shared": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.25.2",
     "zod": "^4.3.5"
   },

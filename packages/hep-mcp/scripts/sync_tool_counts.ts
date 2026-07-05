@@ -145,7 +145,7 @@ function main(): void {
     for (const file of changedFiles) {
       console.error(`  - ${file}`);
     }
-    console.error('Run: pnpm --filter @autoresearch/hep-mcp docs:tool-counts:sync');
+    console.error('Run: pnpm --filter @nullius/hep-mcp docs:tool-counts:sync');
     process.exit(1);
   }
 

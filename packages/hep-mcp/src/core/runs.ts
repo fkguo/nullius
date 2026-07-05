@@ -9,7 +9,7 @@ import {
   type RunArtifactRef,
   type RunState,
   type RunStepState,
-} from '@autoresearch/shared';
+} from '@nullius/shared';
 import { newRunId } from './ids.js';
 import { getRunArtifactsDir, getRunArtifactPath, getRunDir, getRunManifestPath, getRunsDir } from './paths.js';
 import { getProject, updateProjectUpdatedAt } from './projects.js';

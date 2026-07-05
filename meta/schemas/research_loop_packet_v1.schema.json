@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://autoresearch.dev/schemas/research_loop_packet_v1.schema.json",
+  "$id": "https://nullius.dev/schemas/research_loop_packet_v1.schema.json",
   "title": "ResearchLoopPacket V1",
   "description": "Single-project contract that makes research-loop objective, mutable surfaces, immutable authority references, gate seams, advancement, rollback, and stop semantics explicit without replacing the underlying workspace/task/event/checkpoint/handoff substrate.",
   "type": "object",
@@ -236,7 +236,7 @@
               "const": "artifact"
             },
             "artifact_ref": {
-              "$ref": "https://autoresearch.dev/schemas/artifact_ref_v1.schema.json"
+              "$ref": "https://nullius.dev/schemas/artifact_ref_v1.schema.json"
             }
           },
           "additionalProperties": false
@@ -323,7 +323,7 @@
               "const": "artifact_available"
             },
             "artifact_ref": {
-              "$ref": "https://autoresearch.dev/schemas/artifact_ref_v1.schema.json"
+              "$ref": "https://nullius.dev/schemas/artifact_ref_v1.schema.json"
             }
           },
           "additionalProperties": false

@@ -8,7 +8,7 @@ import {
 } from '../../src/eval/index.js';
 import { BASELINES_DIR, readEvalSetFixture } from './evalSnapshots.js';
 import { runFederatedDiscovery, type DiscoveryProviderExecutors } from '../../src/tools/research/federatedDiscovery.js';
-import type { CanonicalCandidate, DiscoveryProviderId, DiscoveryQueryIntent } from '@autoresearch/shared';
+import type { CanonicalCandidate, DiscoveryProviderId, DiscoveryQueryIntent } from '@nullius/shared';
 
 type Disc01Input = {
   query: string;

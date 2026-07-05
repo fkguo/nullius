@@ -1,5 +1,5 @@
 import type { CreateMessageRequestParamsBase, CreateMessageResult } from '@modelcontextprotocol/sdk/types.js';
-import { INSPIRE_CRITICAL_ANALYSIS } from '@autoresearch/shared';
+import { INSPIRE_CRITICAL_ANALYSIS } from '@nullius/shared';
 import * as api from '../../api/client.js';
 import { buildToolSamplingMetadata } from '../../core/sampling-metadata.js';
 import { getConfig, validateMaxDepth, validateRecid } from './config.js';

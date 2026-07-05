@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://autoresearch.dev/schemas/convergence_gate_result_v1.schema.json",
+  "$id": "https://nullius.dev/schemas/convergence_gate_result_v1.schema.json",
   "title": "Convergence Gate Result V1",
   "description": "Structured machine-readable output contract for research-team convergence gates.",
   "type": "object",

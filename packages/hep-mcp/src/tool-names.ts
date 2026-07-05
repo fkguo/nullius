@@ -97,4 +97,4 @@ export {
   ZOTERO_GET_SELECTED_COLLECTION,
   ZOTERO_LOCAL,
   ZOTERO_SEARCH_ITEMS,
-} from '@autoresearch/shared';
+} from '@nullius/shared';

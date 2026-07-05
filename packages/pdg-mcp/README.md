@@ -20,7 +20,7 @@ Design principles:
 
 ### Optional
 
-- `PDG_DATA_DIR`: local data directory (default: `<HEP_DATA_DIR>/pdg` when `HEP_DATA_DIR` is set; otherwise `~/.autoresearch/hep-mcp/pdg`)
+- `PDG_DATA_DIR`: local data directory (default: `<HEP_DATA_DIR>/pdg` when `HEP_DATA_DIR` is set; otherwise `~/.nullius/hep-mcp/pdg`)
   - artifacts directory: `$PDG_DATA_DIR/artifacts`
 - `PDG_ARTIFACT_TTL_HOURS`: PDG artifact cache TTL in hours (`0/off` disables; cleaned on startup and periodically; default 24)
 - `PDG_TOOL_MODE`: tool exposure mode (`standard` by default; `full` may expose more tools in the future)
@@ -153,7 +153,7 @@ Common parameters:
 Key outputs:
 
 - `references[]`: `id/document_id/publication_name/publication_year/doi/inspire_id/title`
-- `references[].inspire_lookup_by_id`: identifiers directly usable by `@autoresearch/hep-mcp`’s `inspire_literature` (mode=`lookup_by_id`)
+- `references[].inspire_lookup_by_id`: identifiers directly usable by `@nullius/hep-mcp`’s `inspire_literature` (mode=`lookup_by_id`)
   - include DOI if it starts with `10.`
   - include INSPIRE recid if `inspire_id` is all digits
 
@@ -258,7 +258,7 @@ Key outputs:
 
 ## Bridge to `hep-mcp` (Reference workflow)
 
-When `pdg-mcp` is aggregated into `@autoresearch/hep-mcp` (single MCP server):
+When `pdg-mcp` is aggregated into `@nullius/hep-mcp` (single MCP server):
 
 - all `pdg_*` tools are available on the same server
 - `inspire_literature` (mode=`lookup_by_id`) can directly consume `references[].inspire_lookup_by_id` produced by:

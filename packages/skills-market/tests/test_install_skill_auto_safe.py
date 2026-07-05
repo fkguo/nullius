@@ -23,14 +23,14 @@ def _skill_package(
     package: dict[str, object] = {
         "package_id": package_id,
         "package_type": "skill-pack",
-        "repo": "autoresearch-lab/skills-market",
+        "repo": "nullius/skills-market",
         "channel": "dev",
         "version": "0.1.0",
         "summary": f"Skill {package_id}",
         "platforms": ["codex"],
         "source_path": f"skills/{package_id}/SKILL.md",
         "source": {
-            "repo": "autoresearch-lab/skills",
+            "repo": "nullius/skills",
             "ref": ref,
             "subpath": f"skills/{package_id}",
             "include": ["SKILL.md", "run.py"],
@@ -97,7 +97,7 @@ def test_auto_safe_rejects_non_skill_dependencies(capsys, tmp_path: pathlib.Path
     workflow_pack = {
         "package_id": "tooling-bundle",
         "package_type": "workflow-pack",
-        "repo": "autoresearch-lab/skills-market",
+        "repo": "nullius/skills-market",
         "channel": "dev",
         "version": "0.1.0",
         "summary": "Workflow dependency",

@@ -2,7 +2,7 @@ import { z } from 'zod';
 import {
   DiscoveryCapabilityNameSchema,
   WorkflowTaskKindSchema,
-} from '@autoresearch/shared';
+} from '@nullius/shared';
 
 export const WorkflowProviderIdSchema = z.enum([
   'inspire',

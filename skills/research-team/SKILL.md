@@ -20,7 +20,7 @@ Use `research-team` when you want a project workflow with:
 
 ## Workflow authority boundary
 
-- Generic literature workflow authority does **not** live inside `research-team`; it lives in the checked-in `literature-workflows` workflow-pack (`packages/literature-workflows/recipes/` + session protocol) and the checked-in public stateful `autoresearch workflow-plan` front door.
+- Generic literature workflow authority does **not** live inside `research-team`; it lives in the checked-in `literature-workflows` workflow-pack (`packages/literature-workflows/recipes/` + session protocol) and the checked-in public stateful `nullius workflow-plan` front door.
 - `research-team` consumes that authority during prework / KB building and later evidence-oriented stages; it should not redefine provider-neutral literature workflow truth.
 - `scripts/bin/literature_fetch.py` is a source-adapter helper for INSPIRE/arXiv/Crossref/DataCite/GitHub/DOI and local KB preparation; when it needs workflow truth, it must call the checked-in front door or lower-level consumer path rather than restating recipe semantics locally.
 - When a literature pull is too shallow (KB notes left metadata-only, no cross-paper synthesis), the `deep-literature-review` skill is the right surface: it consumes the same recipes, deep-reads sources to fill this skill's KB note template (with locators), synthesizes consensus/tensions/gaps into a checkable `literature_survey_v1`, and hands the extracted claims to `claim-grounding`.
@@ -77,7 +77,7 @@ bash "${SKILL_DIR}/scripts/bin/scaffold_research_workflow.sh" \
 
 Scaffold creates `prompts/_system_member_a.txt` and `prompts/_system_member_b.txt` (note the leading underscore; they are copied from the skill assets `system_member_a.txt` / `system_member_b.txt`).
 Use `--full` when you want those research-team host-local assets immediately; the default scaffold stays minimal.
-The public scaffold and contract-refresh entrypoints now run in `real_project` mode: use an external project root, and keep real-project run/intermediate outputs outside the autoresearch-lab development repo. Internal maintainer fixtures remain a lower-level contract mode only, not part of the public workflow.
+The public scaffold and contract-refresh entrypoints now run in `real_project` mode: use an external project root, and keep real-project run/intermediate outputs outside the nullius development repo. Internal maintainer fixtures remain a lower-level contract mode only, not part of the public workflow.
 
 3) Run a team cycle from the project root:
 
@@ -156,8 +156,8 @@ a run lives at the run_dir top level (`cycle_state.json`, `<tag>_member_*.md`,
 - **Demo generation**: `scripts/bin/generate_demo_milestone.sh`.
 - **Project kickstart prompt**: `scripts/bin/generate_project_start_prompt.py`.
 - **Deterministic hygiene tools** (as needed): `scripts/bin/fix_markdown_*`, `scripts/bin/fix_bibtex_revtex4_2.py`, `scripts/bin/upgrade_reference_anchors.py`; use the standalone `markdown-hygiene` skill for manual Markdown math/TOC cleanup outside a team-cycle preflight.
-- **Claim DAG & evidence** (optional): render via `autoresearch graph --kind claims` (the domain-neutral `@autoresearch/shared/graph-viz` front door; auto-rendered best-effort to `knowledge_graph/` at convergence when an `autoresearch` CLI is reachable) + gates under `scripts/gates/`.
-- **Roadmap dependency-map (plan-summary / milestone-handoff)**: `assets/roadmap_dependency_map_template.md` + `autoresearch graph --kind roadmap` (a *planning* view of milestones/lanes; complements — does not replace — the Claim DAG, see below).
+- **Claim DAG & evidence** (optional): render via `nullius graph --kind claims` (the domain-neutral `@nullius/shared/graph-viz` front door; auto-rendered best-effort to `knowledge_graph/` at convergence when an `nullius` CLI is reachable) + gates under `scripts/gates/`.
+- **Roadmap dependency-map (plan-summary / milestone-handoff)**: `assets/roadmap_dependency_map_template.md` + `nullius graph --kind roadmap` (a *planning* view of milestones/lanes; complements — does not replace — the Claim DAG, see below).
 - **Exploration stage debt helper**: `scripts/bin/exploration_debt_dashboard.py`.
 - **Scaffold pruning (move/archive optional files)**: `scripts/bin/prune_optional_scaffold.py`.
 - **Environment snapshot**: `scripts/bin/capture_env_snapshot.sh`.
@@ -187,8 +187,8 @@ critical-path recommendation (minimal ordered chain + what is parallelizable +
 "later upgrade ≠ prerequisite"); (5) honest estimate discipline (numbers are
 estimates with stated uncertainty, distinct from measurements).
 
-Render the graph through the `autoresearch graph --kind roadmap --spec <roadmap.json>`
-front door (consumes the `@autoresearch/shared/graph-viz` engine: always writes DOT;
+Render the graph through the `nullius graph --kind roadmap --spec <roadmap.json>`
+front door (consumes the `@nullius/shared/graph-viz` engine: always writes DOT;
 optional PNG/SVG only if Graphviz is installed). This is a **planning** view and is
 intentionally **distinct from the Claim DAG** (`knowledge_graph/`, which encodes
 *what we believe* — claims + evidence): it reuses the Claim DAG's rendering
