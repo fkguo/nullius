@@ -49,7 +49,10 @@ def _find_entry(text: str, at: int) -> tuple[int, int, str, str, int] | None:
     open_ch = m.group(2)
     close_ch = "}" if open_ch == "{" else ")"
 
-    i = at + m.end()
+    # re.Pattern.match(text, at) returns a match whose .end() is an ABSOLUTE index
+    # into text (already offset by at); adding at again double-counts and corrupts
+    # every entry after the first. Use m.end() directly.
+    i = m.end()
     n = len(text)
     while i < n and text[i].isspace():
         i += 1
@@ -62,7 +65,7 @@ def _find_entry(text: str, at: int) -> tuple[int, int, str, str, int] | None:
 
     level = 1
     in_quote = False
-    j = at + m.end()
+    j = m.end()
     while j < n:
         ch = text[j]
         if ch == '"' and (j == 0 or text[j - 1] != "\\"):
@@ -149,19 +152,25 @@ def normalize_revtex4_2_bibtex(text: str) -> tuple[str, list[Patch]]:
             continue
         start, end, entry_type, key, body_start = found
         entry = text[start:end]
+        # _find_entry returns body_start as an ABSOLUTE offset into `text`; rebase it
+        # to an index within `entry` (which begins at `start`) once, and use that
+        # everywhere. Slicing `entry` with the absolute offset truncated the body of
+        # every non-first entry, so a real top-level journal went undetected and a
+        # duplicate journal="" was inserted into already-complete published entries.
+        body_rel = body_start - start
         if entry_type != "article":
             out_parts.append(entry)
             i = end
             continue
 
-        body = entry[body_start : len(entry) - 1]
+        body = entry[body_rel : len(entry) - 1]
         if _has_top_level_journal(body):
             out_parts.append(entry)
             i = end
             continue
 
         patches.append(Patch(key=key or "<unknown>"))
-        out_parts.append(_insert_journal(entry, body_start=body_start - start, entry_end=len(entry) - 1))
+        out_parts.append(_insert_journal(entry, body_start=body_rel, entry_end=len(entry) - 1))
         out_parts.append(entry[-1])  # closing delimiter
         i = end
 
