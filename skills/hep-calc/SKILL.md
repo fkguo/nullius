@@ -278,7 +278,8 @@ For full schema/options: see `references/job_schema.md` and `assets/job_schema.j
   - summary: `out_dir/auto_qft/model_build/summary.json`
   - generated snippet: `out_dir/auto_qft/model_build/generated_lagrangian.fr`
   - TeX preprocess: `out_dir/auto_qft/model_build/tex_preprocess/blocks_selected.json`
-  - rewrite template: `assets/model_build/rewrite_template.wls`
+
+  Input/template (not a produced artifact): `assets/model_build/rewrite_template.wls` is a template/example, user-provided input — supply your own via `model_build.rewrite_wls: path/to/rewrite.wls` in the job config.
 
 ## Stage IDs (status.json debugging)
 

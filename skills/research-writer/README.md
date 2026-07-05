@@ -1,4 +1,4 @@
-# research-writer (Codex skill)
+# research-writer (agent skill)
 
 `research-writer` scaffolds an arXiv-ready paper draft from a `research-team` project:
 - RevTeX4-2, `12pt`, `onecolumn`

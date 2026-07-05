@@ -43,7 +43,7 @@ Given `draft.tex`, the tool writes a run directory containing:
 1) **Read-through (no rewriting)**: understand the draft globally and identify risk points.
 2) **Writer line edit**: produce an evidence-calibrated rewrite with global coherence.
 3) **Auditor pass** (independent): critique correctness/evidence/LaTeX safety; run claim-strength audit, literature/novelty gate, and response-localization checks; emit verification requests.
-4) **Deep verification (Codex)**: step-by-step derivation/maths checks based on `verification_requests.md`.
+4) **Deep verification (Codex CLI by default; pluggable backend)**: step-by-step derivation/maths checks based on `verification_requests.md`. The `codex` CLI is the default backend; switch it with `--secondary-deep-verify-backend gemini` (or the `claude` fallback).
    - Optional: run a **secondary** deep verifier (Gemini/Claude) for redundancy via `--secondary-deep-verify-*`.
 5) **Optional repair loop**: apply reviewer feedback (audit + deep verification), re-audit and re-verify (bounded by `--max-rounds`).
 

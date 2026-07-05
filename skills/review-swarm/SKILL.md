@@ -40,7 +40,7 @@ on what your host exposes:
 
 - **Single-family review → keep it in-host, not via that family's CLI.** If you only need YOUR family's
   reviewer (no cross-family swarm aggregation), run it in-host: use a native child-agent/sub-agent
-  primitive if your host has one (Claude Code's Agent/Task tool; OpenCode subagents), else run it inline
+  primitive if your host has one (your host's sub-agent / Agent-Task mechanism; OpenCode subagents), else run it inline
   in your own loop — don't `claude exec` a model you are already running as (latency, separate
   auth/session, context loss). Plain Claude Desktop / the Gemini CLI may have no sub-agent primitive →
   inline.
@@ -52,7 +52,7 @@ on what your host exposes:
 - **Reasoning effort scales with review difficulty — quality first, not token thrift.** High-stakes,
   cross-package, or security-sensitive reviews warrant maximum thinking (extended thinking / high–xhigh
   reasoning effort / a stronger model); trivial diffs do not. Never accept a missed defect to save tokens.
-- For a long/expensive swarm, prefer a steerable **background task chip** (e.g. Claude Code spawn-task)
+- For a long/expensive swarm, prefer a steerable **background task chip** (e.g. your host's spawn-task / sub-agent launch)
   the user can inspect and adjust mid-run, when the host supports one; otherwise run inline and
   checkpoint. Capability varies by host — degrade gracefully.
 

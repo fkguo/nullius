@@ -53,12 +53,13 @@ Use `research-team` when you want a project workflow with:
 
 ## Quick Start (3 commands)
 
-> Commands below stay install-location-portable by resolving the skill via `SKILL_DIR`, with a host-neutral fallback that probes known agent skill homes (`~/.claude`, `~/.codex`, `~/.config/opencode`).
+> Commands below stay install-location-portable by resolving the skill via `SKILL_DIR`, with a host-neutral fallback that probes known agent skill homes (`~/.claude`, `~/.codex`, `~/.config/opencode`). These paths are portable skill-discovery locations across different agent hosts, not a menu of host options — the same skill installs and runs under any of them.
 
-1) Environment check (optional flags shown):
+1) Environment check (optional flags shown). The CLI runner backends (Codex / Claude / Gemini) are interchangeable options — pick whichever you have; `--require-codex` below is only one example, not a default or preferred backend:
 
 ```bash
 SKILL_DIR="${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode"; do [ -d "$r/skills/research-team" ] && echo "$r/skills/research-team" && break; done || true)}"
+# e.g. require an explicit Codex CLI runner:
 bash "${SKILL_DIR}/scripts/bin/check_environment.sh" --require-codex
 # or (if you explicitly want A=Claude, B=Gemini):
 # bash "${SKILL_DIR}/scripts/bin/check_environment.sh" --require-claude --require-gemini

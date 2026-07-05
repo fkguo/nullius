@@ -1,4 +1,4 @@
-# research-writer（Codex skill）
+# research-writer（agent skill）
 
 `research-writer` 用于从 `research-team` 项目脚手架生成一份可用于 arXiv 的论文目录：
 - RevTeX4-2，`12pt`，`onecolumn`

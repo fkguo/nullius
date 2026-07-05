@@ -407,10 +407,10 @@ In projects scaffolded by `research-team`, use the navigation front door instead
 
 - Symptom: `[error] member runner failed (member-a=..., member-b=...)`
 - Fix:
-  - Check environment:
+  - Check environment (the explicit CLI runners below — Codex, Claude, Gemini — are interchangeable options; none is a default or preferred backend, so choose whichever you have):
     - Host-native default: use the current agent's official subagent mechanism when available.
-    - Explicit Codex CLI runner: `bash "${SKILL_DIR}/scripts/bin/check_environment.sh" --require-codex`
-    - Explicit Claude/Gemini split: `bash "${SKILL_DIR}/scripts/bin/check_environment.sh" --require-claude --require-gemini`
+    - Explicit Codex CLI runner (one option): `bash "${SKILL_DIR}/scripts/bin/check_environment.sh" --require-codex`
+    - Explicit Claude/Gemini split (another option): `bash "${SKILL_DIR}/scripts/bin/check_environment.sh" --require-claude --require-gemini`
   - Ensure `prompts/_system_member_a.txt` and `prompts/_system_member_b.txt` exist.
   - If you have project-local runners, confirm `scripts/run_codex.sh`, `scripts/run_claude.sh`, and `scripts/run_gemini.sh` are executable as needed.
   - If Gemini CLI returns a blank response (common after CLI upgrades / auth drift), `run_team_cycle.sh` fails closed. Choose a provider explicitly before rerunning:
