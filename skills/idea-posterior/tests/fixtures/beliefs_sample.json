@@ -1,0 +1,35 @@
+{
+  "beliefs": [
+    {
+      "belief": 0.5,
+      "knowledge_id": "github:trial_idea::_anon_000",
+      "label": null
+    },
+    {
+      "belief": 0.9992687218591589,
+      "knowledge_id": "github:trial_idea::ev_cost",
+      "label": "ev_cost"
+    },
+    {
+      "belief": 0.9992687218591589,
+      "knowledge_id": "github:trial_idea::ev_tension",
+      "label": "ev_tension"
+    },
+    {
+      "belief": 0.9374212719738726,
+      "knowledge_id": "github:trial_idea::tension_resolution",
+      "label": "tension_resolution"
+    },
+    {
+      "belief": 0.9374212719738726,
+      "knowledge_id": "github:trial_idea::verification_cost",
+      "label": "verification_cost"
+    },
+    {
+      "belief": 0.8499370175790979,
+      "knowledge_id": "github:trial_idea::worth",
+      "label": "worth"
+    }
+  ],
+  "diagnostics": {}
+}
