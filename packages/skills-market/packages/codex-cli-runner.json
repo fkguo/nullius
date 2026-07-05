@@ -11,11 +11,6 @@
     "opencode"
   ],
   "source_path": "skills/codex-cli-runner/SKILL.md",
-  "install_policy": {
-    "auto_safe": {
-      "human_pre_approved": true
-    }
-  },
   "install": {
     "claude_code": "Link into ~/.claude/skills or install via marketplace when available.",
     "codex": "Link into ~/.codex/skills for Codex native discovery.",
@@ -23,7 +18,7 @@
   },
   "source": {
     "repo": "nullius/skills",
-    "ref": "52956e32da7fa9c8c523a22736081d2ac91d92e2",
+    "ref": "main",
     "subpath": "skills/codex-cli-runner",
     "include": [
       "SKILL.md",
