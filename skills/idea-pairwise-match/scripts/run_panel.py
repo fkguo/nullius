@@ -459,9 +459,15 @@ def statement_node_line(text):
 # ---------------------------------------------------------------------------
 
 def fill_template(template, replacements):
-    filled = template
-    for key, value in replacements.items():
-        filled = filled.replace("{{" + key + "}}", value)
+    # Single pass over the template: a substituted value is never rescanned, so
+    # a placeholder token embedded inside a value -- e.g. a reconstructed
+    # advocacy line that carries the literal {{STATEMENT_B}} -- is left intact
+    # rather than re-expanded into the other side's content. The leftover check
+    # then rejects the match, exactly as for any other unfilled placeholder.
+    def _sub(match):
+        return replacements.get(match.group(1), match.group(0))
+
+    filled = re.sub(r"\{\{([A-Z_]+)\}\}", _sub, template)
     leftover = re.search(r"\{\{[A-Z_]+\}\}", filled)
     if leftover:
         raise PanelError("unfilled template placeholder: %s" % leftover.group(0))
