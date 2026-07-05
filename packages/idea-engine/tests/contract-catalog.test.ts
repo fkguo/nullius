@@ -102,6 +102,21 @@ describe('contract catalog: decision-layer schemas', () => {
     )).not.toThrow();
   });
 
+  it('accepts a pairwise_match_v1 record with statement_binding and rationale (real assembler output)', () => {
+    const sha = `sha256:${'a'.repeat(64)}`;
+    const withBinding = structuredClone(VALID_PAIRWISE_MATCH) as Record<string, unknown>;
+    withBinding.statement_binding = {
+      a: { idea_node_id: VALID_PAIRWISE_MATCH.idea_a_node_id, content_sha256: sha },
+      b: { idea_node_id: VALID_PAIRWISE_MATCH.idea_b_node_id, content_sha256: sha },
+    };
+    withBinding.rationale = 'rematch: a new measurement changed the comparison';
+    expect(() => catalog.validateAgainstRef(
+      './pairwise_match_v1.schema.json',
+      withBinding,
+      'test/pairwise_match/with-binding',
+    )).not.toThrow();
+  });
+
   it('rejects pairwise_match_v1 records with a malformed commitment hash or empty panel', () => {
     const badHash = structuredClone(VALID_PAIRWISE_MATCH);
     badHash.criteria_commitment.commitment_hash = 'sha256:not-hex';
@@ -133,6 +148,26 @@ describe('contract catalog: decision-layer schemas', () => {
       './allocation_decision_v1.schema.json',
       VALID_ALLOCATION_DECISION,
       'test/allocation_decision/valid',
+    )).not.toThrow();
+  });
+
+  it('accepts a cold-start allocation_decision_v1 record with null posterior fields', () => {
+    const coldStart = structuredClone(VALID_ALLOCATION_DECISION) as Record<string, unknown>;
+    coldStart.candidates = [
+      {
+        node_id: '33333333-3333-4333-8333-333333333333',
+        posterior_value: null,
+        evidence_count: null,
+        sampled_value: null,
+        allocation: 'reconnaissance',
+        budget_note: 'no posterior yet -- needs belief graph first',
+      },
+    ];
+    (coldStart.waiting_activation as Array<Record<string, unknown>>)[0]!.last_checked_at = null;
+    expect(() => catalog.validateAgainstRef(
+      './allocation_decision_v1.schema.json',
+      coldStart,
+      'test/allocation_decision/cold-start',
     )).not.toThrow();
   });
 
