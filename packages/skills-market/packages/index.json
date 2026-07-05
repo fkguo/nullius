@@ -2,7 +2,6 @@
   "index_version": "1.3.3",
   "updated_at": "2026-07-05T00:00:00Z",
   "packages": [
-    "auto-relay.json",
     "citation-triangulation.json",
     "claim-grounding.json",
     "claude-cli-runner.json",

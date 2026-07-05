@@ -82,7 +82,7 @@ python3 scripts/install_skill.py \
   - requires `source.ref` to be an immutable 40-character git SHA
   - fails closed if any dependency in the requested closure is not an eligible `skill-pack`
 - `--auto-safe` writes install provenance into `.market_install.json` and a deterministic target-root audit file at `.auto_safe_install_audit.json`
-- The current checked-in catalog has a limited real `--auto-safe` rollout for `codex-cli-runner` and `auto-relay`; the rest of the catalog is not yet onboarded to this authority
+- The current checked-in catalog has a limited real `--auto-safe` rollout for `codex-cli-runner`; the rest of the catalog is not yet onboarded to this authority
 - This slice is local to `skills-market` installer behavior only; compatibility/export mirror updates are intentionally deferred
 
 Example auto-safe invocation:
@@ -115,7 +115,6 @@ This first slice adds Python-only dependency isolation for selected skill-packs.
 - Supported now: installer-managed `.venv` inside the installed skill directory
 - Not included in this slice: Node/TS runtime isolation
 - Initial rollout:
-  - `auto-relay` installs required `PyYAML` into a skill-local `.venv`
   - `hep-calc` gets a skill-local `.venv` boundary even with an empty package list
 
 When a skill opts in via `runtime.python`, the installed payload records `python_runtime` in `.market_install.json` and annotates the installed `SKILL.md` with a runtime note pointing agents/users to the skill-local interpreter.

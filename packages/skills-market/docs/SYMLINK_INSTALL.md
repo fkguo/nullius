@@ -120,10 +120,9 @@ If market metadata changes (new/removed skill ids), rerun platform installer scr
 
 The symlink route does not create skill-local Python environments.
 
-If you need a skill-local `.venv` for an opted-in skill such as `auto-relay` or `hep-calc`, use the Python installer route instead:
+If you need a skill-local `.venv` for an opted-in skill such as `hep-calc`, use the Python installer route instead:
 
 ```bash
-python3 scripts/install_skill.py --platform codex --package auto-relay
 python3 scripts/install_skill.py --platform codex --package hep-calc
 ```
 

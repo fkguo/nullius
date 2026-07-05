@@ -2,7 +2,11 @@
   "manifest_version": "1.1.4",
   "updated_at": "2026-07-05T00:00:00Z",
   "org": "nullius",
-  "channels": ["stable", "beta", "dev"],
+  "channels": [
+    "stable",
+    "beta",
+    "dev"
+  ],
   "components": {
     "hep-mcp": {
       "repo": "nullius/nullius",
@@ -126,13 +130,6 @@
       "channel": "beta",
       "version": "0.1.0",
       "source_path": "skills/referee-review/SKILL.md"
-    },
-    "auto-relay": {
-      "repo": "nullius/skills-market",
-      "type": "skill-pack",
-      "channel": "dev",
-      "version": "0.1.0",
-      "source_path": "skills/auto-relay/SKILL.md"
     },
     "gemini-cli-runner": {
       "repo": "nullius/skills-market",
