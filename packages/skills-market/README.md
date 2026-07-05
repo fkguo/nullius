@@ -1,10 +1,30 @@
 # skills-market
 
-Private-first marketplace index and installers for the Nullius ecosystem.
+Cross-host skill distribution catalog and copy-installer for the Nullius ecosystem.
+
+## Status: designed, currently dormant
+
+This package is a **fully-designed but currently dormant** distribution surface.
+It is the ecosystem's only real cross-host distribution mechanism — a package
+catalog (`packages/*.json`) plus a copy-installer (`install_skill.py`) with a
+per-package publish allowlist/denylist (`source.include` / `source.exclude`) — but
+nothing depends on it today:
+
+- **Real distribution currently runs through direct symlinks**: hosts link the
+  in-repo `skills/` directory straight into their skills home (see the
+  `install_symlink_*.sh` scripts and `docs/SYMLINK_INSTALL.md`). No package
+  consumes the copy-installer catalog yet.
+- The copy-installer + catalog exist to distribute skills **to hosts that do not
+  have a local checkout of this monorepo** — that use case is not live yet.
+- The former GitHub mirror is retired (see Notes); the checked-in catalog and
+  manifest are the only live copies.
+
+Keep it slim and honest rather than pretending it is a running marketplace.
 
 ## Scope
 
-This repository is the distribution control plane for skill/tool package metadata and platform installers.
+This package holds the cross-host distribution control plane: skill package
+metadata and the platform copy/symlink installers.
 
 Supported platforms:
 - Claude Code
@@ -81,32 +101,44 @@ python3 scripts/install_skill.py \
   - requires `install_policy.auto_safe.human_pre_approved: true`
   - requires `source.ref` to be an immutable 40-character git SHA
   - fails closed if any dependency in the requested closure is not an eligible `skill-pack`
-- `--auto-safe` writes install provenance into `.market_install.json` and a deterministic target-root audit file at `.auto_safe_install_audit.json`
-- The current checked-in catalog has a limited real `--auto-safe` rollout for `codex-cli-runner`; the rest of the catalog is not yet onboarded to this authority
-- This slice is local to `skills-market` installer behavior only; compatibility/export mirror updates are intentionally deferred
+- `--auto-safe` writes install traceability into `.market_install.json` and a deterministic target-root audit file at `.auto_safe_install_audit.json`
+- **No package is currently onboarded to `--auto-safe`.** The authority and its
+  fail-closed policy live in the code (and are covered by mechanism tests), but no
+  catalog entry carries `install_policy.auto_safe` today. Onboarding requires a real
+  external publish target — a standalone skills repo whose pinned 40-character SHA
+  actually resolves — so that the immutable `source.ref` recorded into
+  `.market_install.json` is a truthful origin rather than a fabricated pin. Until
+  such a target exists, every skill-pack ships with `source.ref: main` against the
+  in-repo source and installs through the normal (copy or symlink) route.
 
-Example auto-safe invocation:
+To onboard a package once a real pinned publish target exists, add an
+`install_policy.auto_safe.human_pre_approved: true` block to its package file and set
+its `source.ref` to the resolvable 40-character SHA, then install with:
 
 ```bash
 python3 scripts/install_skill.py \
   --platform codex \
-  --package codex-cli-runner \
+  --package <onboarded-skill> \
   --auto-safe
 ```
 
 `--auto-safe` does not apply to the symlink installer scripts. The Git clone + symlink route remains a separate install surface documented in `docs/SYMLINK_INSTALL.md`.
 
-## Source Publishing Model (Private)
+## Source Publishing Model (planned target)
 
-Skill runtime source should live in a separate private repo, referenced by package metadata:
-- target repo: `nullius/skills` (private)
-- each `skill-pack` points to:
-  - `source.repo`
-  - `source.ref`
-  - `source.subpath`
-  - `source.include` / `source.exclude`
+The copy-installer resolves each skill-pack's payload from a `source` block:
+- `source.repo` — the intended standalone publish repo (`nullius/skills`). This
+  external repo is **not live yet**; today the installer is driven with
+  `--source-root <monorepo>` so it copies from the in-repo `skills/` directory, and
+  `source.ref` is `main` (no external SHA is pinned).
+- `source.subpath`
+- `source.include` / `source.exclude`
 
-Only allowlisted files are installed, which keeps installation payload minimal and avoids leaking development/review process files.
+Only allowlisted files are installed, which keeps the installation payload minimal
+and avoids leaking development/review process files. When a real standalone
+`nullius/skills` repo is published (with resolvable pinned SHAs), the same catalog
+drives clone-based installs and `--auto-safe` onboarding without further code
+changes.
 
 ## Python Runtime Isolation (M-15 first slice)
 
@@ -121,7 +153,11 @@ When a skill opts in via `runtime.python`, the installed payload records `python
 
 ## Notes
 
-- This repo is public but still pre-release; installer/runtime truth should follow checked-in manifests rather than private rollout assumptions.
+- This distribution surface is dormant, not published: no external marketplace or
+  mirror is live. Installer/runtime truth follows the checked-in catalog and
+  manifest in this monorepo, not any external or private rollout assumption.
 - Runtime compatibility SSOT:
-  - Checked-in manifest in this repo: `meta/compatibility-matrix/ecosystem-manifest.json`
+  - Checked-in manifest: `meta/compatibility-matrix/ecosystem-manifest.json`, whose
+    `components` block is generated from this catalog (`packages/*.json`) — see that
+    directory's README for the generator/check workflow.
   - The former GitHub mirror (`https://github.com/autoresearch-lab/autoresearch-meta`, pre-rename) is retired and no longer synced; the checked-in manifest above is the only live copy.

@@ -11,6 +11,10 @@ metadata + installer package, not a task skill. A host that linked the whole mar
 the directory is a well-formed, inert catalog entry rather than a `SKILL.md`-less directory that a strict
 skill loader could reject.
 
+This cross-host copy-installer is currently **dormant**: real distribution runs through
+direct in-repo symlinks today, and this catalog exists to serve hosts without a local
+monorepo checkout once that route goes live. See `README.md` for the full status.
+
 ## Install specific skills (recommended)
 
 Install only what you need (skill-pack dependencies are pulled in automatically):
