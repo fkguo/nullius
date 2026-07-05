@@ -36,7 +36,10 @@ Supported platforms:
 - `packages/`: package metadata (`*.json`)
 - `schemas/`: metadata schema
 - `scripts/`: install/validation scripts
-- `.github/workflows/`: CI checks
+
+These checks (catalog validation, manifest-drift, installer smoke, and the
+skills-market test suite) run in the monorepo's root CI
+(`.github/workflows/ci.yml`, the `skills-market-checks` job).
 
 ## Quick Start
 
@@ -52,20 +55,20 @@ Installers:
 - OpenCode: `bash scripts/install_opencode.sh`
 - Claude Code (local skills link fallback): `bash scripts/install_claude_code.sh`
 
-Superpowers-style full symlink install (Git clone + links):
+Full symlink install (link the in-repo `skills/` into a host, superpowers-style):
 
 ```bash
 # Codex full install (all market skill-pack entries)
 bash scripts/install_symlink_codex.sh \
-  --skills-root ~/Coding/Agents/Nullius/skills
+  --skills-root ~/Coding/Agents/nullius/skills
 
 # Claude Code full install
 bash scripts/install_symlink_claude_code.sh \
-  --skills-root ~/Coding/Agents/Nullius/skills
+  --skills-root ~/Coding/Agents/nullius/skills
 
 # OpenCode full install
 bash scripts/install_symlink_opencode.sh \
-  --skills-root ~/Coding/Agents/Nullius/skills
+  --skills-root ~/Coding/Agents/nullius/skills
 ```
 
 Detailed guide:

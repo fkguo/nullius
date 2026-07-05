@@ -109,3 +109,71 @@ jobs:
         run: |
           python -m pip install pytest
           python -m pytest packages/project-contracts/tests -q
+
+  skills-market-checks:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/skills-market
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Manifest components generated from catalog (fail on drift)
+        run: python3 scripts/generate_manifest_components.py --check
+
+      - name: Validate market metadata + cross-repo manifest alignment
+        run: python3 scripts/validate_market.py
+
+      - name: skills-market tests (install authority, manifest, runtime)
+        run: |
+          python3 -m pip install pytest
+          python3 -m pytest tests -q
+
+      - name: Verify installer scripts parse
+        run: |
+          bash -n scripts/install_codex.sh
+          bash -n scripts/install_opencode.sh
+          bash -n scripts/install_claude_code.sh
+          bash -n scripts/install_symlink_skills.sh
+          bash -n scripts/install_symlink_codex.sh
+          bash -n scripts/install_symlink_claude_code.sh
+          bash -n scripts/install_symlink_opencode.sh
+          python3 scripts/install_skill.py --help >/dev/null
+
+      - name: Smoke test installer scripts (isolated HOME)
+        run: |
+          TMP_HOME="$(mktemp -d)"
+          HOME="$TMP_HOME" bash scripts/install_codex.sh "$(pwd)"
+          HOME="$TMP_HOME" bash scripts/install_opencode.sh "$(pwd)"
+          HOME="$TMP_HOME" bash scripts/install_claude_code.sh "$(pwd)"
+          test -L "$TMP_HOME/.codex/skills/nullius-market"
+          test -L "$TMP_HOME/.config/opencode/skills/nullius-market"
+          test -L "$TMP_HOME/.claude/skills/nullius-market"
+          # Every directory a host scans as a skill MUST have a SKILL.md, else a strict skill loader
+          # (e.g. OpenCode) can crash on startup. The market root is linked as a skill dir, so it must
+          # carry one. Regression guard for the install-crash remediation.
+          test -f "$TMP_HOME/.codex/skills/nullius-market/SKILL.md"
+          test -f "$TMP_HOME/.config/opencode/skills/nullius-market/SKILL.md"
+          test -f "$TMP_HOME/.claude/skills/nullius-market/SKILL.md"
+
+      - name: Smoke test symlink installers (isolated fixtures)
+        run: |
+          TMP_HOME="$(mktemp -d)"
+          TMP_MARKET="$(mktemp -d)"
+          TMP_SKILLS="$(mktemp -d)"
+          mkdir -p "$TMP_MARKET/packages" "$TMP_SKILLS/sample-skill"
+          cat >"$TMP_MARKET/packages/sample-skill.json" <<'JSON'
+          {"package_type":"skill-pack"}
+          JSON
+          cat >"$TMP_SKILLS/sample-skill/SKILL.md" <<'MD'
+          # sample
+          MD
+          HOME="$TMP_HOME" bash scripts/install_symlink_codex.sh \
+            --skills-root "$TMP_SKILLS" \
+            --market-root "$TMP_MARKET" \
+            --target-root "$TMP_HOME/.codex/skills"
+          test -L "$TMP_HOME/.codex/skills/sample-skill"

@@ -23,4 +23,4 @@ fi
 ln -sfn "$MARKET_ROOT" "$TARGET_DIR"
 
 echo "[ok] linked skills-market to $TARGET_DIR"
-echo "If using Claude plugin marketplace, keep this as local/private fallback."
+echo "If using the Claude plugin marketplace, keep this local symlink as a fallback."

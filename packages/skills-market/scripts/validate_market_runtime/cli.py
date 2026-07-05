@@ -15,7 +15,7 @@ def main() -> int:
     pkg_dir = root / "packages"
     schema_path = root / "schemas" / "market-package.schema.json"
     index_path = pkg_dir / "index.json"
-    meta_root = pathlib.Path(os.environ.get("NULLIUS_META_ROOT", str(root.parent / "nullius-meta"))).expanduser()
+    meta_root = pathlib.Path(os.environ.get("NULLIUS_META_ROOT", str(root.parent.parent / "meta"))).expanduser()
     manifest_path = pathlib.Path(
         os.environ.get(
             "NULLIUS_META_MANIFEST",

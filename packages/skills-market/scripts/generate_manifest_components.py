@@ -13,9 +13,9 @@ Usage:
   # Fail (exit 1) if the manifest components differ from the catalog projection:
   python3 scripts/generate_manifest_components.py --check
 
-The manifest path defaults to the sibling meta repo layout and can be overridden
-with --manifest or the NULLIUS_META_MANIFEST / NULLIUS_META_ROOT env vars (same
-resolution as the market validator).
+The manifest path defaults to the in-repo ``meta/compatibility-matrix`` layout and
+can be overridden with --manifest or the NULLIUS_META_MANIFEST / NULLIUS_META_ROOT
+env vars (same resolution as the market validator).
 """
 
 from __future__ import annotations

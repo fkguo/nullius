@@ -3,7 +3,8 @@ set -euo pipefail
 
 # Superpowers-style installer:
 # - discover skill-pack package ids from skills-market metadata
-# - symlink all skill directories from a local skills source repository
+# - symlink all skill directories from a local skills source directory
+#   (the monorepo's in-repo skills/ directory)
 # - target one platform root at a time
 
 usage() {
@@ -13,15 +14,15 @@ install_symlink_skills.sh
 Install all market-listed skill-pack skills as symlinks (superpowers-style).
 
 Usage:
-  install_symlink_skills.sh --platform codex --skills-root /path/to/skills-repo
+  install_symlink_skills.sh --platform codex --skills-root ~/Coding/Agents/nullius/skills
 
 Options:
   --platform PLATFORM        Required: codex | claude_code | opencode
-  --skills-root DIR          Required: local skills source repo root
+  --skills-root DIR          Required: local skills source directory root
                              Expected layout:
                                - DIR/skills/<skill-id>/SKILL.md  (preferred)
                                - DIR/<skill-id>/SKILL.md         (fallback)
-  --market-root DIR          Optional: skills-market repo root
+  --market-root DIR          Optional: skills-market package root
                              Default: parent of this script
   --target-root DIR          Optional: override target install root
   --allow-missing            Optional: skip missing skill sources with warning

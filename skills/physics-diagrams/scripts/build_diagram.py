@@ -2,8 +2,8 @@
 """Build and preview standalone physics diagram sources.
 
 This script is intentionally small and local-only. It compiles a standalone TeX
-diagram to vector PDF, renders a PNG preview, and writes a JSON report that a
-Codex agent can use for the publication-quality gate.
+diagram to vector PDF, renders a PNG preview, and writes a JSON report that an
+agent can use for the publication-quality gate.
 """
 
 from __future__ import annotations
