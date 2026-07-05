@@ -29,7 +29,7 @@ version is the lockstep number below.
   migrate, rename the state directory (`mv .autoresearch .nullius`), delete the old
   launcher, run `nullius init --runtime-only` then `nullius init --refresh` from the
   project root; lifecycle state (`state.json`, `ledger.jsonl`) carries over unchanged.
-  See the migration guide in `docs/`.
+  See `docs/MIGRATION.md`.
 - **`kimi-cli-runner`: long-verification hardening.** New `--timeout-secs` per-attempt
   hard timeout (default 900 s, `0` disables) and `--raw-out` / `--stderr-out` options
   that preserve the last attempt's raw stdout/stderr for an auditable trace of tool
