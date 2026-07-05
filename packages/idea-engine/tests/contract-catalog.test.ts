@@ -43,8 +43,10 @@ const VALID_PAIRWISE_MATCH = {
     },
   ],
   outcome: {
+    // claude='a', codex='tie', opencode='a' -> votes_a=2, votes_b=0, ties=1
+    // winner='a', vote_margin = |2-0|/3 = 2/3, matching validate_pairwise_match's recompute.
     winner: 'a',
-    vote_margin: 0.6667,
+    vote_margin: 0.6666666666666666,
     decided_at: '2026-07-05T01:00:00Z',
   },
   observation_write: {

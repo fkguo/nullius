@@ -61,7 +61,7 @@
     },
     "panel": {
       "type": "array",
-      "description": "One entry per judge vote. A valid match holds at least three votes from DISTINCT model families; this schema enforces the count floor (minItems: 3), while the family-distinctness rule — which JSON Schema cannot express directly — is enforced by validate_pairwise_match in the idea-pairwise-match skill, the authoritative judge of panel validity.",
+      "description": "One entry per judge vote. A valid match holds at least three votes from DISTINCT model families. JSON Schema cannot express \"families must be distinct\", so minItems: 3 here is only the closest schema-expressible floor; the authoritative check on family diversity and the three-distinct-families rule is the Python validator validate_pairwise_match in skills/idea-pairwise-match/scripts/assemble_match.py.",
       "minItems": 3,
       "items": {
         "type": "object",
