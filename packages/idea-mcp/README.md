@@ -4,7 +4,7 @@ Narrow stdio MCP surface for the TypeScript idea campaign runtime. Bridges `idea
 
 ## Layer
 
-Experimental runtime bridge (MCP side). The idea-engine search/eval runtime is **archived**; contracts + store are retained, and scoring consumes an external belief-graph posterior (pinned tool, current pin gaia-lang==0.5.0a4). This surface stays explicit and **narrower** than the full engine runtime contract. Not a root front door. See root [README.md](../../README.md) §1 Surface Policy.
+Experimental runtime bridge (MCP side) onto the **probability-managed idea portfolio** engine (restarted in 0.5.0). The idea-engine search/eval runtime is **archived**; contracts + store are retained, and scoring consumes an external belief-graph posterior (pinned tool, current pin gaia-lang==0.5.0a4). This surface stays explicit and **narrower** than the full engine runtime contract. Not a root front door. See root [README.md](../../README.md) §1 Surface Policy.
 
 ## What it does NOT expose
 

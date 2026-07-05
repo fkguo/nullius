@@ -4,7 +4,7 @@ TypeScript idea-campaign runtime and contract authority. Library-only — no CLI
 
 ## Layer
 
-Experimental runtime bridge (engine side). The idea-engine search/eval runtime is **archived**; contracts + store are retained, and scoring consumes an external belief-graph posterior (pinned tool, current pin gaia-lang==0.5.0a4). This is not a default capability-expansion lane and not a root front door. See root [README.md](../../README.md) §1 Surface Policy and §3 Layer Model.
+Experimental runtime bridge (engine side) for the **probability-managed idea portfolio** — restarted in 0.5.0 from island-evolution search + heuristic scoring. The idea-engine search/eval runtime is **archived**; contracts + store are retained, and scoring consumes an external belief-graph posterior (pinned tool, current pin gaia-lang==0.5.0a4). Being restarted into a portfolio engine does not make it a front door: it stays opt-in — not a default capability-expansion lane and not a root front door. See root [README.md](../../README.md) §1 Surface Policy and §3 Layer Model.
 
 ## Portfolio model
 
