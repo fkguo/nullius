@@ -67,6 +67,23 @@ def _strip_latex_comments(text: str) -> str:
     return "\n".join(out_lines) + ("\n" if text.endswith("\n") else "")
 
 
+def _preceding_backslashes_odd(text: str, idx: int) -> bool:
+    """True iff the char at ``idx`` is backslash-escaped.
+
+    A char is escaped only when an ODD number of backslashes immediately precede
+    it. A literal backslash is ``\\\\`` (two chars) => even => a following ``{`` or
+    ``}`` is a real brace, not an escaped one. The naive ``text[idx-1] == '\\\\'``
+    test mishandles ``\\\\{`` and lets a claim after a literal backslash escape the
+    brace scan; this matches the odd-parity rule used in ``_strip_latex_comments``.
+    """
+    n = 0
+    k = idx - 1
+    while k >= 0 and text[k] == "\\":
+        n += 1
+        k -= 1
+    return n % 2 == 1
+
+
 def _line_from_index(text: str, idx: int) -> int:
     if idx <= 0:
         return 1
@@ -169,12 +186,12 @@ def _extract_macro_blocks(text: str, *, macros: list[str]) -> list[tuple[str, in
         while j < len(text) and depth > 0:
             ch = text[j]
             if ch == "{":
-                if j > 0 and text[j - 1] == "\\":
+                if _preceding_backslashes_odd(text, j):
                     j += 1
                     continue
                 depth += 1
             elif ch == "}":
-                if j > 0 and text[j - 1] == "\\":
+                if _preceding_backslashes_odd(text, j):
                     j += 1
                     continue
                 depth -= 1

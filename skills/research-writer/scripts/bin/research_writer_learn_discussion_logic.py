@@ -513,12 +513,18 @@ def _agent_skills_root() -> Path:
     return Path(__file__).resolve().parents[3]
 
 
+# The five cli-runner families share the same layout under the agent skills
+# root: `<family>-cli-runner/scripts/run_<family>.sh`, and all accept the same
+# core flags (--model / --system-prompt-file / --prompt-file / --out). The
+# distiller that consumes these outputs computes cross-model agreement/asymmetry,
+# so it must not be frozen to the claude+gemini pair.
+_RUNNER_FAMILIES: tuple[str, ...] = ("claude", "codex", "gemini", "opencode", "kimi")
+
+
 def _find_runner(kind: str) -> Path:
     root = _agent_skills_root()
-    if kind == "claude":
-        return root / "claude-cli-runner" / "scripts" / "run_claude.sh"
-    if kind == "gemini":
-        return root / "gemini-cli-runner" / "scripts" / "run_gemini.sh"
+    if kind in _RUNNER_FAMILIES:
+        return root / f"{kind}-cli-runner" / "scripts" / f"run_{kind}.sh"
     raise ValueError(kind)
 
 
@@ -609,6 +615,42 @@ def _write_pack(out_path: Path, *, rec: dict[str, Any], segs: list[Segment]) -> 
     out_path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
 
 
+def _stub_output_for_family(family: str) -> str:
+    """Deterministic offline stub for an extra cli-runner family.
+
+    Shape matches `_model_output_ok` (## Moves / ## Diagnostics / ## Reusable) so
+    the --stub-models path exercises the same completeness check as real outputs.
+    """
+    return "\n".join(
+        [
+            "## Argument Map (Mermaid)",
+            "",
+            "```mermaid",
+            "flowchart TD",
+            f'  Q["Question / observable"] --> M["Mechanism / constraints"]',
+            f'  M --> R["Results (numbers + uncertainties)"]',
+            f'  R --> O["Outlook / tests"]',
+            "```",
+            "",
+            "## Moves (Bullets)",
+            f"- MOVE: Define the observable and conventions | Evidence: Abstract ({family} stub)",
+            "- MOVE: Motivate via a discrepancy/gap and a precision target | Evidence: Introduction opening",
+            "- MOVE: State the controlling mechanism/constraint first | Evidence: Introduction opening",
+            "- MOVE: Quote the headline result with uncertainty and meaning | Evidence: Results",
+            "- MOVE: State limitations and what remains unverified | Evidence: Conclusions",
+            "",
+            "## Diagnostics & Uncertainties",
+            "- Check stability under parameter variations and treat residual dependence as systematic.",
+            "- Distinguish raw data from model-dependent extraction when interpreting comparisons.",
+            "",
+            "## Reusable General Lessons",
+            "- Separate data/inputs from extraction assumptions; localize disagreements.",
+            "- Sensitivity-first: identify which inputs dominate and which improvement is highest leverage.",
+            "",
+        ]
+    )
+
+
 def _run_models_for_pack(
     *,
     out_dir: Path,
@@ -622,6 +664,8 @@ def _run_models_for_pack(
     gemini_timeout_s: int,
     stub_models: bool,
     trace: Path,
+    extra_families: list[str] | None = None,
+    extra_timeout_s: int = 1800,
 ) -> dict[str, Any]:
     if stub_models:
         arxiv_id = out_dir.name
@@ -701,13 +745,18 @@ def _run_models_for_pack(
             )
             _append_jsonl(trace, {"ts": _utc_now(), "event": "gemini_stub_end", "arxiv_id": arxiv_id})
             out["gemini_ok"] = True
+        for family in extra_families or []:
+            _append_jsonl(trace, {"ts": _utc_now(), "event": f"{family}_stub_start", "arxiv_id": arxiv_id})
+            (out_dir / f"{family}.md").write_text(_stub_output_for_family(family), encoding="utf-8")
+            _append_jsonl(trace, {"ts": _utc_now(), "event": f"{family}_stub_end", "arxiv_id": arxiv_id})
+            out[f"{family}_ok"] = True
         return out
 
     claude_runner = _find_runner("claude")
     gemini_runner = _find_runner("gemini")
-    if not claude_runner.is_file():
+    if run_claude and not claude_runner.is_file():
         raise FileNotFoundError(f"claude runner not found: {claude_runner}")
-    if not gemini_runner.is_file():
+    if run_gemini and not gemini_runner.is_file():
         raise FileNotFoundError(f"gemini runner not found: {gemini_runner}")
 
     claude_out = out_dir / "claude.md"
@@ -760,6 +809,35 @@ def _run_models_for_pack(
             _append_jsonl(trace, {"ts": _utc_now(), "event": "gemini_timeout", "timeout_s": int(gemini_timeout_s)})
         _append_jsonl(trace, {"ts": _utc_now(), "event": "gemini_end", "exit_code": code_b})
         out["gemini_ok"] = code_b == 0
+
+    # Additional cli-runner families (codex / opencode / kimi, and claude/gemini
+    # when requested beyond the default pair) share the same core-flag contract:
+    #   --model / --system-prompt-file / --prompt-file / --out
+    # Each writes <family>.md; an empty model lets the runner use its CLI default
+    # (tracking the latest), matching the gemini default rationale above.
+    for family in extra_families or []:
+        family_runner = _find_runner(family)
+        if not family_runner.is_file():
+            raise FileNotFoundError(f"{family} runner not found: {family_runner}")
+        family_out = out_dir / f"{family}.md"
+        family_cmd = [
+            "bash",
+            str(family_runner),
+            "--system-prompt-file",
+            str(system_prompt_path),
+            "--prompt-file",
+            str(pack_path),
+            "--out",
+            str(family_out),
+        ]
+        _append_jsonl(trace, {"ts": _utc_now(), "event": f"{family}_start", "cmd": family_cmd})
+        try:
+            code_x = subprocess.run(family_cmd, check=False, timeout=max(1, int(extra_timeout_s))).returncode
+        except subprocess.TimeoutExpired:
+            code_x = 124
+            _append_jsonl(trace, {"ts": _utc_now(), "event": f"{family}_timeout", "timeout_s": int(extra_timeout_s)})
+        _append_jsonl(trace, {"ts": _utc_now(), "event": f"{family}_end", "exit_code": code_x})
+        out[f"{family}_ok"] = code_x == 0
 
     return out
 
@@ -839,13 +917,16 @@ def _iter_corpus_order(corpus_dir: Path, *, trace: Path | None = None) -> list[d
     return []
 
 
-def _pack_status(pack_dir: Path) -> dict[str, bool]:
+def _pack_status(pack_dir: Path, *, extra_families: list[str] | None = None) -> dict[str, bool]:
     pack_complete = (pack_dir / "pack.md").is_file() and (pack_dir / "flattened_main.tex").is_file() and (pack_dir / "evidence.json").is_file()
-    return {
+    status: dict[str, bool] = {
         "pack": bool(pack_complete),
         "claude": _model_output_ok(pack_dir / "claude.md"),
         "gemini": _model_output_ok(pack_dir / "gemini.md"),
     }
+    for family in extra_families or []:
+        status[family] = _model_output_ok(pack_dir / f"{family}.md")
+    return status
 
 
 def _truncate_one_line(s: str, *, max_chars: int) -> str:
@@ -855,30 +936,41 @@ def _truncate_one_line(s: str, *, max_chars: int) -> str:
     return s[: max_chars - 1].rstrip() + "…"
 
 
-def _write_progress(out_dir: Path, *, corpus_dir: Path, run_claude: bool, run_gemini: bool, trace: Path) -> dict[str, Any]:
+def _write_progress(
+    out_dir: Path,
+    *,
+    corpus_dir: Path,
+    run_claude: bool,
+    run_gemini: bool,
+    trace: Path,
+    extra_families: list[str] | None = None,
+) -> dict[str, Any]:
     """
     Write a small deterministic progress snapshot for long-running corpus jobs.
     """
     packs_dir = out_dir / "packs"
     order = _iter_corpus_order(corpus_dir, trace=trace)
     total = len(order)
+    extra_families = list(extra_families or [])
 
     rows: list[dict[str, Any]] = []
     missing_claude: list[str] = []
     missing_gemini: list[str] = []
     missing_both: list[str] = []
+    missing_extra: dict[str, list[str]] = {f: [] for f in extra_families}
     packs_present = 0
     dual_done = 0
 
     for e in order:
         sid = e["safe_id"]
-        st = _pack_status(packs_dir / sid)
+        st = _pack_status(packs_dir / sid, extra_families=extra_families)
         packs_present += 1 if st["pack"] else 0
         want_claude = bool(run_claude)
         want_gemini = bool(run_gemini)
         have_claude = st["claude"] if want_claude else True
         have_gemini = st["gemini"] if want_gemini else True
-        done = bool(st["pack"]) and bool(have_claude) and bool(have_gemini)
+        have_extra = all(st.get(f, False) for f in extra_families)
+        done = bool(st["pack"]) and bool(have_claude) and bool(have_gemini) and bool(have_extra)
         dual_done += 1 if done else 0
 
         if st["pack"]:
@@ -888,19 +980,23 @@ def _write_progress(out_dir: Path, *, corpus_dir: Path, run_claude: bool, run_ge
                 missing_gemini.append(sid)
             if want_claude and want_gemini and (not st["claude"]) and (not st["gemini"]):
                 missing_both.append(sid)
+            for f in extra_families:
+                if not st.get(f, False):
+                    missing_extra[f].append(sid)
 
-        rows.append(
-            {
-                "rank": e.get("rank"),
-                "safe_id": sid,
-                "year": e.get("year", ""),
-                "title": e.get("title", ""),
-                "pack": st["pack"],
-                "claude": st["claude"],
-                "gemini": st["gemini"],
-                "done": done,
-            }
-        )
+        row = {
+            "rank": e.get("rank"),
+            "safe_id": sid,
+            "year": e.get("year", ""),
+            "title": e.get("title", ""),
+            "pack": st["pack"],
+            "claude": st["claude"],
+            "gemini": st["gemini"],
+            "done": done,
+        }
+        for f in extra_families:
+            row[f] = st.get(f, False)
+        rows.append(row)
 
     # Batch summary (10 papers per batch).
     batch_size = 10
@@ -973,9 +1069,11 @@ def _write_progress(out_dir: Path, *, corpus_dir: Path, run_claude: bool, run_ge
         "dual_model_complete": dual_done,
         "run_claude": bool(run_claude),
         "run_gemini": bool(run_gemini),
+        "extra_families": extra_families,
         "missing_claude": missing_claude,
         "missing_gemini": missing_gemini,
         "missing_both": missing_both,
+        "missing_extra": missing_extra,
         "batches": batches,
         "next_up": [{"rank": r["rank"], "safe_id": r["safe_id"], "year": r["year"]} for r in next_up],
         "last_run": {
@@ -1054,6 +1152,11 @@ def _write_progress(out_dir: Path, *, corpus_dir: Path, run_claude: bool, run_ge
         lines.append(f"- Missing both: {len(missing_both)}")
         if missing_both:
             lines.append(f"  - `{', '.join(missing_both[:25])}`" + (" …" if len(missing_both) > 25 else ""))
+    for f in extra_families:
+        miss_f = missing_extra.get(f) or []
+        lines.append(f"- Missing {f}: {len(miss_f)}")
+        if miss_f:
+            lines.append(f"  - `{', '.join(miss_f[:25])}`" + (" …" if len(miss_f) > 25 else ""))
     lines.append("")
 
     lines.append("## Next up (first 10 not complete)")
@@ -1122,12 +1225,17 @@ def main() -> int:
         default=None,
         help="Optional directory of per-paper semantic selection JSON files named <arxiv_id>.json.",
     )
-    ap.add_argument("--run-models", action="store_true", help="Run Claude+Gemini on each pack (clean-room, tools disabled).")
+    ap.add_argument("--run-models", action="store_true", help="Run the default model pair (claude,gemini) on each pack (clean-room, tools disabled). Use --models to pick a different family subset.")
     ap.add_argument("--stub-models", action="store_true", help="Offline testing: do not call external model CLIs; write deterministic stub outputs.")
     ap.add_argument(
         "--models",
         default="",
-        help="Optional comma-separated subset of models to run: claude,gemini. Overrides --run-models default.",
+        help=(
+            "Optional comma-separated subset of cli-runner families to run "
+            "(any of: " + ",".join(_RUNNER_FAMILIES) + "). "
+            "Overrides --run-models default. When empty, --run-models runs the "
+            "back-compat default pair claude,gemini."
+        ),
     )
     ap.add_argument("--claude-model", default="opus")
     ap.add_argument("--gemini-model", default="", help="Gemini model alias; empty (default) uses the gemini CLI's own configured default, tracking the latest instead of pinning a stale version.")
@@ -1172,9 +1280,31 @@ def main() -> int:
         print(f"ERROR: system prompt not found: {system_prompt}", file=sys.stderr)
         return 2
 
-    model_set = {m.strip().lower() for m in args.models.split(",") if m.strip()} if args.models.strip() else set()
+    # Parse --models as an ordered, de-duplicated list of cli-runner families.
+    # Preserve caller order (first occurrence wins) so dispatch/progress are stable.
+    requested_families: list[str] = []
+    for m in args.models.split(","):
+        fam = m.strip().lower()
+        if fam and fam not in requested_families:
+            requested_families.append(fam)
+    unknown = [f for f in requested_families if f not in _RUNNER_FAMILIES]
+    if unknown:
+        # Fail-closed: reject an unrecognized family rather than silently running
+        # nothing (a typo like "gemeni" should error, not degrade to a no-op).
+        print(
+            f"ERROR: unknown --models family/families: {', '.join(unknown)}; "
+            f"valid families are: {', '.join(_RUNNER_FAMILIES)}",
+            file=sys.stderr,
+        )
+        return 2
+    model_set = set(requested_families)
+    # Back-compat spine: the claude/gemini slots keep their dedicated dispatch,
+    # stub content, gemini output sanitization, and progress fields. When --models
+    # is empty, --run-models runs the default pair (claude, gemini).
     run_claude = ("claude" in model_set) if model_set else bool(args.run_models)
     run_gemini = ("gemini" in model_set) if model_set else bool(args.run_models)
+    # Any selected family beyond the two dedicated slots dispatches generically.
+    extra_families = [f for f in requested_families if f not in ("claude", "gemini")]
 
     meta = {
         "created_at": _utc_now(),
@@ -1188,7 +1318,8 @@ def main() -> int:
         "stub_models": bool(args.stub_models),
         "run_claude": bool(run_claude),
         "run_gemini": bool(run_gemini),
-        "models": sorted(model_set) if model_set else [],
+        "models": requested_families,
+        "extra_families": extra_families,
         "claude_model": args.claude_model,
         "gemini_model": args.gemini_model,
         "claude_timeout_s": int(args.claude_timeout_s),
@@ -1210,15 +1341,21 @@ def main() -> int:
         evidence_path = pack_dir / "evidence.json"
         claude_out = pack_dir / "claude.md"
         gemini_out = pack_dir / "gemini.md"
+        extra_outs = {f: pack_dir / f"{f}.md" for f in extra_families}
 
         pack_complete = pack_path.is_file() and flat_path.is_file() and evidence_path.is_file()
-        models_complete = (not run_claude or _model_output_ok(claude_out)) and (not run_gemini or _model_output_ok(gemini_out))
+        any_model_requested = bool(run_claude or run_gemini or extra_families)
+        models_complete = (
+            (not run_claude or _model_output_ok(claude_out))
+            and (not run_gemini or _model_output_ok(gemini_out))
+            and all(_model_output_ok(p) for p in extra_outs.values())
+        )
 
         if args.mode == "new" and pack_complete:
             # In --run-models mode, treat packs as "existing" only when the requested model
             # outputs are also present. This prevents silent partial batches when a runner
-            # exhausts retries (claude/gemini exit non-zero) but pack files exist.
-            if args.resume and (not (run_claude or run_gemini) or models_complete):
+            # exhausts retries (claude/gemini/extra family exit non-zero) but pack files exist.
+            if args.resume and (not any_model_requested or models_complete):
                 skipped_existing += 1
                 continue
 
@@ -1291,7 +1428,8 @@ def main() -> int:
 
             run_claude_needed = bool(run_claude) and not _model_output_ok(claude_out)
             run_gemini_needed = bool(run_gemini) and not _model_output_ok(gemini_out)
-            if (run_claude_needed or run_gemini_needed):
+            extra_needed = [f for f in extra_families if not _model_output_ok(extra_outs[f])]
+            if (run_claude_needed or run_gemini_needed or extra_needed):
                 _run_models_for_pack(
                     out_dir=pack_dir,
                     pack_path=pack_path,
@@ -1304,6 +1442,8 @@ def main() -> int:
                     gemini_timeout_s=int(args.gemini_timeout_s),
                     stub_models=bool(args.stub_models),
                     trace=trace,
+                    extra_families=extra_needed,
+                    extra_timeout_s=int(args.claude_timeout_s),
                 )
                 if run_gemini_needed:
                     _sanitize_gemini_output(gemini_out)
@@ -1327,7 +1467,7 @@ def main() -> int:
     )
     progress_obj: dict[str, Any] | None = None
     try:
-        progress_obj = _write_progress(out_dir, corpus_dir=corpus_dir, run_claude=bool(run_claude), run_gemini=bool(run_gemini), trace=trace)
+        progress_obj = _write_progress(out_dir, corpus_dir=corpus_dir, run_claude=bool(run_claude), run_gemini=bool(run_gemini), trace=trace, extra_families=extra_families)
     except Exception as exc:
         _append_jsonl(trace, {"ts": _utc_now(), "event": "progress_write_error", "error": str(exc)})
     print("[ok] discussion-logic packs prepared")
@@ -1343,7 +1483,11 @@ def main() -> int:
             dual_done = int(progress_obj.get("dual_model_complete") or 0)
             miss_c = len(progress_obj.get("missing_claude") or []) if bool(progress_obj.get("run_claude")) else 0
             miss_g = len(progress_obj.get("missing_gemini") or []) if bool(progress_obj.get("run_gemini")) else 0
-            print(f"[summary] packs={packs_present}/{total} dual={dual_done}/{total} missing: claude={miss_c} gemini={miss_g}")
+            missing_line = f"[summary] packs={packs_present}/{total} dual={dual_done}/{total} missing: claude={miss_c} gemini={miss_g}"
+            missing_extra = progress_obj.get("missing_extra") or {}
+            for fam in progress_obj.get("extra_families") or []:
+                missing_line += f" {fam}={len(missing_extra.get(fam) or [])}"
+            print(missing_line)
             print(f"[summary] progress: {out_dir / 'PROGRESS.md'}")
         except Exception:
             pass

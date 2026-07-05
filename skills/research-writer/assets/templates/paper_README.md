@@ -18,4 +18,4 @@ latexmk -pdf main.tex
 ## Scaffold level
 
 - M1: minimal compilable skeleton (section TODOs remain).
-- M2: populate TODOs from `Draft_Derivation.md` and `artifacts/` manifests/summaries.
+- M2: populate TODOs from `research_notebook.md` / `research_contract.md` (legacy: `Draft_Derivation.md`) and `artifacts/` manifests/summaries.

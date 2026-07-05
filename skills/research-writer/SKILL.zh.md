@@ -7,7 +7,7 @@ description: （中文说明 / translation）从 `research-team` 项目脚手架
 
 > 说明：本文件是 `SKILL.md` 的中文翻译/释义，可能会滞后。**调用契约 SSOT 以 `SKILL.md` 为准。**
 
-面向 agent 的 skill：给定一个 `research-team` 项目根目录（包含 `Draft_Derivation.md`、`knowledge_base/`、`artifacts/`），生成一份**结构自洽、可审计、可迭代**的论文目录，并提供确定性的卫生检查工具。
+面向 agent 的 skill：给定一个 `research-team` 项目根目录（包含 `research_notebook.md` + `research_contract.md`，旧项目为 `Draft_Derivation.md`；以及 `knowledge_base/`、`artifacts/`），生成一份**结构自洽、可审计、可迭代**的论文目录，并提供确定性的卫生检查工具。
 
 主要入口：
 - `scripts/bin/research_writer_scaffold.sh`：从 `research-team` 项目脚手架生成 `paper/`（默认确定性；可选网络：`--fetch-bibtex`）。

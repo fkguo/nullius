@@ -193,9 +193,26 @@ def _read_bib_keys(path: Path) -> list[str]:
     return out
 
 
+SOURCE_NOTEBOOK_CANDIDATES = ("research_notebook.md", "research_contract.md", "Draft_Derivation.md")
+
+
+def _resolve_source_notebook(project_root: Path) -> Path | None:
+    """First existing source-derivation notebook under the project root.
+
+    Upstream research-team now emits research_notebook.md + research_contract.md; older
+    projects used Draft_Derivation.md. Probe in that order so the draft is enriched from
+    the real source rather than degrading to an empty outline.
+    """
+    for name in SOURCE_NOTEBOOK_CANDIDATES:
+        candidate = project_root / name
+        if candidate.is_file():
+            return candidate
+    return None
+
+
 def _read_derivation_outline(project_root: Path, *, max_headings: int = 40) -> list[str]:
-    md = project_root / "Draft_Derivation.md"
-    if not md.is_file():
+    md = _resolve_source_notebook(project_root)
+    if md is None:
         return []
     out: list[str] = []
     for ln in _read_text(md).splitlines():
@@ -215,12 +232,22 @@ def _resolve_default_paper_dir(project_root: Path) -> Path | None:
     return cand if cand.is_dir() else None
 
 
-def _default_runner_paths() -> tuple[Path | None, Path | None]:
-    # Prefer runner skills if installed alongside this skill.
+# Supported CLI-runner families. All five sibling runners accept the same four
+# core flags (--model / --system-prompt-file / --prompt-file / --out); their
+# extra flags are optional with sane defaults, so the same dispatch works for all.
+BACKEND_FAMILIES = ("claude", "gemini", "codex", "opencode", "kimi")
+
+
+def _family_runner_path(family: str) -> Path | None:
+    """Resolve `<family>-cli-runner/scripts/run_<family>.sh` next to this skill.
+
+    Runner skills are installed as siblings of this skill under the agent skills
+    home (the same layout the old claude/gemini auto-detection assumed). Returns
+    the path if the runner script exists, else None.
+    """
     base = _skill_root().parent
-    claude = base / "claude-cli-runner" / "scripts" / "run_claude.sh"
-    gemini = base / "gemini-cli-runner" / "scripts" / "run_gemini.sh"
-    return (claude if claude.is_file() else None, gemini if gemini.is_file() else None)
+    runner = base / f"{family}-cli-runner" / "scripts" / f"run_{family}.sh"
+    return runner if runner.is_file() else None
 
 
 def _strip_code_fences(text: str) -> str:
@@ -270,10 +297,12 @@ def _sanitize_model_output(text: str, *, section_title: str) -> str:
 
 @dataclass(frozen=True)
 class ModelConfig:
+    writer_backend: str
+    auditor_backend: str
     writer_model: str
     auditor_model: str
-    claude_runner: Path | None
-    gemini_runner: Path | None
+    writer_runner: Path | None
+    auditor_runner: Path | None
 
 
 def _load_system_prompt(path: Path) -> str:
@@ -282,37 +311,29 @@ def _load_system_prompt(path: Path) -> str:
     return _read_text(path).strip() + "\n"
 
 
-def _run_claude(
-    *,
-    runner: Path,
-    model: str,
-    system_prompt_file: Path,
-    prompt_file: Path,
-    out_file: Path,
-) -> None:
-    cmd = [
-        "bash",
-        str(runner),
-        "--model",
-        model,
-        "--system-prompt-file",
-        str(system_prompt_file),
-        "--prompt-file",
-        str(prompt_file),
-        "--out",
-        str(out_file),
-    ]
-    subprocess.run(cmd, check=True)
-
-
-def _run_gemini(
+def _run_backend(
     *,
     runner: Path,
     model: str,
     prompt_file: Path,
     out_file: Path,
+    system_prompt_file: Path | None = None,
 ) -> None:
+    """Invoke any `<family>-cli-runner/scripts/run_<family>.sh` via its shared core flags.
+
+    All five runners accept `--model / --system-prompt-file / --prompt-file / --out`;
+    their family-specific extras are optional with sane defaults, so this one dispatch
+    works for claude, gemini, codex, opencode, and kimi alike.
+
+    An empty `model` is omitted so the runner falls back to the CLI's own configured
+    default (this preserves the historical auditor behavior of tracking the latest
+    configured model instead of pinning a version that goes stale). `system_prompt_file`
+    is likewise optional: the auditor folds its system prompt into the user prompt, so
+    it is passed inline rather than via `--system-prompt-file`.
+    """
     cmd = ["bash", str(runner), "--prompt-file", str(prompt_file), "--out", str(out_file)]
+    if system_prompt_file is not None:
+        cmd.extend(["--system-prompt-file", str(system_prompt_file)])
     if model.strip():
         cmd.extend(["--model", model])
     subprocess.run(cmd, check=True)
@@ -357,7 +378,7 @@ def _writer_prompt(
         "## Allowed citation keys (from the provided BibTeX)\n"
         f"{cites}\n"
         "\n"
-        "## Draft_Derivation outline (headings only)\n"
+        "## Source notebook outline (headings only)\n"
         f"{outline}\n"
         f"{artifacts_hint}\n"
         "## Current section skeleton (if present)\n"
@@ -365,7 +386,7 @@ def _writer_prompt(
         "\n"
         "## Project paths (for TODO sources)\n"
         f"- Project root: `{project_root}`\n"
-        "- Derivation notebook: `Draft_Derivation.md`\n"
+        "- Derivation notebook: `research_notebook.md` (or legacy `Draft_Derivation.md`)\n"
         "- Knowledge base: `knowledge_base/`\n"
         "- Artifacts: `artifacts/`\n"
     )
@@ -457,7 +478,7 @@ def main() -> int:
     ap.add_argument("--dry-run", action="store_true", help="Write prompts/trace only; do not call models.")
     ap.add_argument("--run-card", type=Path, default=None, help="Optional run-card JSON to copy into drafts/ for traceability.")
 
-    ap.add_argument("--run-models", action="store_true", help="Call local Claude+Gemini CLIs via runner scripts.")
+    ap.add_argument("--run-models", action="store_true", help="Call local CLI backends via runner scripts (default writer=claude, auditor=gemini).")
     ap.add_argument("--stub-models", action="store_true", help="Use deterministic stub model outputs (for tests).")
     ap.add_argument(
         "--stub-variant",
@@ -466,10 +487,24 @@ def main() -> int:
         help="Stub behavior: safe passes evidence gate; unsafe should fail it.",
     )
 
-    ap.add_argument("--writer-model", type=str, default="opus", help="Claude model alias (default: opus).")
-    ap.add_argument("--auditor-model", type=str, default="", help="Gemini model alias. Empty (default) delegates to the gemini CLI's own configured default, so it tracks the latest model you've set instead of pinning a version that goes stale.")
-    ap.add_argument("--claude-runner", type=Path, default=None, help="Path to run_claude.sh (optional).")
-    ap.add_argument("--gemini-runner", type=Path, default=None, help="Path to run_gemini.sh (optional).")
+    ap.add_argument(
+        "--writer-backend",
+        choices=list(BACKEND_FAMILIES),
+        default="claude",
+        help="CLI-runner family for the writer (default: claude).",
+    )
+    ap.add_argument(
+        "--auditor-backend",
+        choices=list(BACKEND_FAMILIES),
+        default="gemini",
+        help="CLI-runner family for the auditor (default: gemini).",
+    )
+    ap.add_argument("--writer-model", type=str, default="opus", help="Writer model alias (default: opus; passed to the writer backend's --model).")
+    ap.add_argument("--auditor-model", type=str, default="", help="Auditor model alias. Empty (default) delegates to the auditor CLI's own configured default, so it tracks the latest model you've set instead of pinning a version that goes stale.")
+    ap.add_argument("--writer-runner", type=Path, default=None, help="Explicit path to the writer runner script (overrides auto-detection for --writer-backend).")
+    ap.add_argument("--auditor-runner", type=Path, default=None, help="Explicit path to the auditor runner script (overrides auto-detection for --auditor-backend).")
+    ap.add_argument("--claude-runner", type=Path, default=None, help="Path override for the claude runner (used when the relevant backend is claude; --writer-runner/--auditor-runner take precedence).")
+    ap.add_argument("--gemini-runner", type=Path, default=None, help="Path override for the gemini runner (used when the relevant backend is gemini; --writer-runner/--auditor-runner take precedence).")
 
     ap.add_argument(
         "--evidence-scan",
@@ -552,13 +587,32 @@ def main() -> int:
         "conclusions": "Conclusions",
     }
 
-    # Model runner config.
-    default_claude, default_gemini = _default_runner_paths()
+    # Model runner config. Resolve one runner per role from the chosen backend
+    # family, honoring explicit overrides. Precedence for each role:
+    #   1. generic --writer-runner / --auditor-runner
+    #   2. family-specific --claude-runner / --gemini-runner (only when that
+    #      role's backend is claude / gemini) — kept for back-compat
+    #   3. auto-detected `<family>-cli-runner/scripts/run_<family>.sh`
+    family_runner_overrides: dict[str, Path] = {}
+    if args.claude_runner:
+        family_runner_overrides["claude"] = args.claude_runner.expanduser().resolve()
+    if args.gemini_runner:
+        family_runner_overrides["gemini"] = args.gemini_runner.expanduser().resolve()
+
+    def _resolve_role_runner(backend: str, explicit: Path | None) -> Path | None:
+        if explicit:
+            return explicit.expanduser().resolve()
+        if backend in family_runner_overrides:
+            return family_runner_overrides[backend]
+        return _family_runner_path(backend)
+
     cfg = ModelConfig(
+        writer_backend=args.writer_backend,
+        auditor_backend=args.auditor_backend,
         writer_model=args.writer_model,
         auditor_model=args.auditor_model,
-        claude_runner=(args.claude_runner.expanduser().resolve() if args.claude_runner else default_claude),
-        gemini_runner=(args.gemini_runner.expanduser().resolve() if args.gemini_runner else default_gemini),
+        writer_runner=_resolve_role_runner(args.writer_backend, args.writer_runner),
+        auditor_runner=_resolve_role_runner(args.auditor_backend, args.auditor_runner),
     )
 
     # System prompts (auditable assets).
@@ -578,6 +632,8 @@ def main() -> int:
         "run_card": run_card_info,
         "sections": sections,
         "mode": "dry-run" if args.dry_run else ("stub-models" if args.stub_models else ("run-models" if args.run_models else "none")),
+        "writer_backend": cfg.writer_backend,
+        "auditor_backend": cfg.auditor_backend,
         "writer_model": cfg.writer_model,
         "auditor_model": cfg.auditor_model,
         "writer_system_prompt": str(writer_sys_path),
@@ -664,8 +720,12 @@ def main() -> int:
                 },
             )
         else:
-            if cfg.claude_runner is None or not cfg.claude_runner.is_file():
-                print("ERROR: Claude runner not found (set --claude-runner or install claude-cli-runner)", file=sys.stderr)
+            if cfg.writer_runner is None or not cfg.writer_runner.is_file():
+                print(
+                    f"ERROR: writer runner for backend '{cfg.writer_backend}' not found "
+                    f"(set --writer-runner or install {cfg.writer_backend}-cli-runner)",
+                    file=sys.stderr,
+                )
                 return 2
             _append_jsonl(
                 trace_path,
@@ -673,12 +733,13 @@ def main() -> int:
                     "event": "writer_model_call",
                     "utc": _utc_now(),
                     "section": title,
-                    "runner": str(cfg.claude_runner),
+                    "backend": cfg.writer_backend,
+                    "runner": str(cfg.writer_runner),
                     "model": cfg.writer_model,
                 },
             )
-            _run_claude(
-                runner=cfg.claude_runner,
+            _run_backend(
+                runner=cfg.writer_runner,
                 model=cfg.writer_model,
                 system_prompt_file=prompts_dir / "writer_system.txt",
                 prompt_file=writer_prompt_path,
@@ -737,8 +798,12 @@ def main() -> int:
                 },
             )
         else:
-            if cfg.gemini_runner is None or not cfg.gemini_runner.is_file():
-                print("ERROR: Gemini runner not found (set --gemini-runner or install gemini-cli-runner)", file=sys.stderr)
+            if cfg.auditor_runner is None or not cfg.auditor_runner.is_file():
+                print(
+                    f"ERROR: auditor runner for backend '{cfg.auditor_backend}' not found "
+                    f"(set --auditor-runner or install {cfg.auditor_backend}-cli-runner)",
+                    file=sys.stderr,
+                )
                 return 2
             _append_jsonl(
                 trace_path,
@@ -746,12 +811,15 @@ def main() -> int:
                     "event": "auditor_model_call",
                     "utc": _utc_now(),
                     "section": title,
-                    "runner": str(cfg.gemini_runner),
+                    "backend": cfg.auditor_backend,
+                    "runner": str(cfg.auditor_runner),
                     "model": cfg.auditor_model,
                 },
             )
-            _run_gemini(
-                runner=cfg.gemini_runner,
+            # The auditor system prompt is folded into auditor_prompt_path, so it is
+            # passed inline (no separate --system-prompt-file), matching prior behavior.
+            _run_backend(
+                runner=cfg.auditor_runner,
                 model=cfg.auditor_model,
                 prompt_file=auditor_prompt_path,
                 out_file=auditor_raw_path,
@@ -840,8 +908,8 @@ def main() -> int:
         f"{run_card_line}"
         f"- Sections: {', '.join(sections)}\n"
         f"- Mode: `{run_meta['mode']}`\n"
-        f"- Writer model: `{cfg.writer_model}`\n"
-        f"- Auditor model: `{cfg.auditor_model or 'gemini CLI default'}`\n"
+        f"- Writer: `{cfg.writer_backend}` (model `{cfg.writer_model}`)\n"
+        f"- Auditor: `{cfg.auditor_backend}` (model `{cfg.auditor_model or cfg.auditor_backend + ' CLI default'}`)\n"
         f"- Evidence scan: `{args.evidence_scan}`\n\n"
         "## Outputs\n"
         + "\n".join(f"- `{name}`" for name in files)

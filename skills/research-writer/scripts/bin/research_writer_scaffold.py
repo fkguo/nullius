@@ -216,9 +216,27 @@ def _choose_figure(outputs: list[Path]) -> Path | None:
     return None
 
 
+SOURCE_NOTEBOOK_CANDIDATES = ("research_notebook.md", "research_contract.md", "Draft_Derivation.md")
+
+
+def _resolve_source_notebook(project_root: Path) -> Path | None:
+    """First existing source-derivation notebook under the project root.
+
+    Upstream research-team now emits research_notebook.md (human) + research_contract.md
+    (machine pointers); older projects used Draft_Derivation.md. Probe in that order so
+    current and legacy projects both enrich the scaffold instead of silently degrading
+    to a template-only skeleton.
+    """
+    for name in SOURCE_NOTEBOOK_CANDIDATES:
+        candidate = project_root / name
+        if candidate.is_file():
+            return candidate
+    return None
+
+
 def _read_draft_outline(project_root: Path) -> list[str]:
-    notes = project_root / "Draft_Derivation.md"
-    if not notes.is_file():
+    notes = _resolve_source_notebook(project_root)
+    if notes is None:
         return []
     text = notes.read_text(encoding="utf-8", errors="replace").replace("\r\n", "\n").replace("\r", "\n")
     headings: list[str] = []
@@ -238,8 +256,8 @@ def _first_display_math_block(project_root: Path) -> str:
     """
     Return the first $$...$$ display-math block (content only), or "".
     """
-    notes = project_root / "Draft_Derivation.md"
-    if not notes.is_file():
+    notes = _resolve_source_notebook(project_root)
+    if notes is None:
         return ""
     text = notes.read_text(encoding="utf-8", errors="replace").replace("\r\n", "\n").replace("\r", "\n")
     lines = text.splitlines()
@@ -448,8 +466,13 @@ def main() -> int:
         print(f"ERROR: unsafe --tag value: {args.tag!r} (allowed: [A-Za-z0-9][A-Za-z0-9._-]*)", file=sys.stderr)
         return 2
 
-    if not (project_root / "Draft_Derivation.md").is_file():
-        print("[warn] Draft_Derivation.md not found under project root (scaffold will be a template-only skeleton).", file=sys.stderr)
+    if _resolve_source_notebook(project_root) is None:
+        print(
+            "[warn] no source notebook found under project root "
+            "(looked for: research_notebook.md, research_contract.md, Draft_Derivation.md); "
+            "scaffold will be a template-only skeleton.",
+            file=sys.stderr,
+        )
 
     out_dir = Path(args.out).expanduser().resolve()
     if out_dir.exists():
@@ -565,12 +588,12 @@ def main() -> int:
     # Main TeX from template with deterministic insertion points.
     main_tex = _render_main_tex(_read_text(main_tpl), title=title, authors=authors, project_root=project_root, tag=tag)
     if draft_outline:
-        outline_lines = ["% Draft_Derivation.md outline (for drafting; not compiled):"]
+        outline_lines = ["% source notebook outline (for drafting; not compiled):"]
         outline_lines.extend([f"% - {h}" for h in draft_outline])
         main_tex = "\n".join(outline_lines) + "\n" + main_tex
     if first_math.strip() and "\\begin{" not in first_math:
         excerpt = []
-        excerpt.append("% Excerpted from Draft_Derivation.md (first $$...$$ block; verify in context):")
+        excerpt.append("% Excerpted from source notebook (first $$...$$ block; verify in context):")
         excerpt.append("\\begin{equation}")
         excerpt.append(first_math.strip())
         excerpt.append("\\end{equation}")

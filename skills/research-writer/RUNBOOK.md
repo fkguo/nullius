@@ -211,6 +211,118 @@ Outputs are written under `<out-dir>/distill/`:
 Then (agent/human step): manually merge selected high-confidence patterns into:
 - `assets/style/physics_discussion_logic_playbook.md`
 
+### 9) Evidence-grounded writing via hep-mcp (detailed tool-call recipes)
+
+Full payloads for the four-step evidence-grounded workflow summarized in `SKILL.md`.
+Prereqs: a hep-mcp project with at least one paper's LaTeX source ingested, and a run
+with evidence artifacts (catalog + embeddings) built.
+
+**Step 1 — Build evidence corpus** (produces `latex_evidence_catalog.jsonl`, `latex_evidence_embeddings.jsonl`, `latex_evidence_enrichment.jsonl`):
+
+```
+hep_run_build_writing_evidence({
+  run_id: "<run_id>",
+  latex_sources: [
+    { identifier: "<arXiv_id_or_DOI>", include_inline_math: true, include_cross_refs: false }
+  ],
+  latex_types: ["paragraph", "equation", "figure", "table", "citation_context"],
+  max_evidence_items: 2000,
+  embedding_dim: 256,
+  continue_on_error: false
+})
+```
+
+**Step 2 — Build citation mapping** (produces `citekey_to_inspire_v1.json`, used later by `hep_render_latex`):
+
+```
+hep_run_build_citation_mapping({
+  run_id: "<run_id>",
+  identifier: "<arXiv_id_or_DOI>",
+  allowed_citations_primary: [],
+  include_mapped_references: true
+})
+```
+
+**Step 3 — Section-by-section drafting with evidence retrieval.** For each outline section, before writing prose, query evidence (lexical or, for concept-level queries, semantic):
+
+```
+hep_project_query_evidence({
+  project_id: "<project_id>",
+  query: "<section topic keywords>",
+  mode: "lexical",         // or "semantic" (requires run_id)
+  run_id: "<run_id>",      // required for semantic mode
+  types: ["paragraph", "equation", "citation_context"],
+  limit: 10
+})
+```
+
+```
+hep_project_query_evidence_semantic({
+  run_id: "<run_id>",
+  project_id: "<project_id>",
+  query: "<conceptual description of section content>",
+  types: ["paragraph", "equation"],
+  limit: 10
+})
+```
+
+Ground each claim-bearing sentence with `evidence_ids` (catalog items used), `recids` (INSPIRE ids), and `is_grounded: true`, structured as a SectionDraft:
+
+```json
+{
+  "version": 1,
+  "title": "Section Title",
+  "paragraphs": [
+    {
+      "sentences": [
+        {
+          "sentence": "Plain text sentence.",
+          "sentence_latex": "LaTeX-formatted sentence with $\\alpha_s$.",
+          "type": "fact",
+          "is_grounded": true,
+          "claim_ids": [],
+          "evidence_ids": ["ev_abc123"],
+          "recids": ["1234567"]
+        }
+      ]
+    }
+  ]
+}
+```
+
+**Step 4 — Render + export.** Render the structured draft to LaTeX with citations, then export the research pack:
+
+```
+hep_render_latex({
+  run_id: "<run_id>",
+  draft: <ReportDraft>,
+  cite_mapping: <citekey_to_inspire_v1.json contents>,
+  latex_artifact_name: "rendered_latex.tex",
+  section_output_artifact_name: "rendered_section_output.json"
+})
+```
+
+```
+hep_export_project({
+  run_id: "<run_id>",
+  rendered_latex_artifact_name: "rendered_latex.tex",
+  include_evidence_digests: true,
+  _confirm: true
+})
+```
+
+`hep_export_project` produces `master.bib`, `report.tex`, `report.md`, `research_pack.zip`, and NotebookLM-friendly chunks.
+
+End-to-end flow:
+
+```
+evidence catalog ──→ evidence query (per section) ──→ grounded draft ──→ render LaTeX ──→ export
+      ↑                                                     │
+      │                                                     ↓
+  source papers                                    citation mapping
+  (arXiv LaTeX)                                   (INSPIRE recids)
+```
+
 ## Debugging
 
 ### “No artifacts found for tag”

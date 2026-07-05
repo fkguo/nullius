@@ -64,7 +64,7 @@ To keep the paper arXiv-ready and auditable when generated from a `research-team
 
 - Any number quoted in the paper must have a **provenance pointer** (artifact path + key within JSON/CSV).
 - Any external claim used in core reasoning must be either:
-  - **validated** (derivation/check performed in `Draft_Derivation.md` or an artifact), or
+  - **validated** (derivation/check performed in `research_notebook.md` / `research_contract.md`, legacy `Draft_Derivation.md`, or an artifact), or
   - marked **UNVERIFIED** with:
     - a validation plan (what to compute/check),
     - and a kill criterion (what failure would invalidate the claim).
