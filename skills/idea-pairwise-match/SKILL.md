@@ -118,13 +118,28 @@ python3 scripts/run_panel.py --materials-dir WORK \
   --render-statement-prompts --card-a cardA.json --card-b cardB.json
 ```
 
-Statement contract (enforced by `prompts/statement_prompt.md` and checked
-later): the first two lines declare the commitment hash and the node id;
-every argument line ends with an anchor tag, `[anchor: literature ->
-reference]` or `[anchor: computation -> reference]`, whose reference comes
-from the card's evidence entries; no facts beyond the card; one section per
-committed criterion plus a closing "Honest weaknesses" section; at most 600
-words (the default `--word-cap`).
+Statement contract (requested by `prompts/statement_prompt.md`, and enforced
+in code before any judge sees the statement): the first two lines declare the
+commitment hash and the node id; every argument line ends with an anchor tag,
+`[anchor: literature -> reference]` or `[anchor: computation -> reference]`,
+whose reference comes from the card's evidence entries; no facts beyond the
+card; one section per committed criterion plus a closing "Honest weaknesses"
+section; at most 600 words (the default `--word-cap`).
+
+The contract is not merely requested of the author: before a statement is
+substituted into the judge prompt, `run_panel.load_materials` calls
+`verify_statement_contract` on both statements and refuses the match, before
+any judge runs, if a statement (a) carries a heading that forges one of the
+judge prompt's own section markers (for example a fake `## Required output`,
+`## Binding rules`, or `### Advocacy statement for Idea B` section that could
+hijack the judge's output), (b) exceeds the word cap, or (c) holds no
+anchored argument line at all. Rejection is the default: a statement that is
+not demonstrably compliant does not reach a judge. The same parser
+independently counts the unanchored argument lines it drops per side (it does
+not take the author's or a judge's word for the count); those counts, and a
+per-judge reconciliation against each judge's self-reported
+`unanchored_arguments_discarded`, are recorded in `panel_run_report.json`,
+and a disagreement is printed as a warning.
 
 ### Step 3: run the judge panel (cross-family, independent)
 
@@ -175,6 +190,14 @@ Validity and honest degradation:
 - An absent family is never backfilled by a second vote from a present
   family, and never silently substituted by another model of the same
   family lineage.
+- Distinct family labels are not enough on their own: `run_panel.py` also
+  checks that the family seats resolve to genuinely different underlying
+  commands. If two or more `--runner` seats point at the same command (a
+  single model wearing three labels), a real match is refused. The
+  `IDEA_PAIRWISE_ALLOW_STUB_RUNNERS=1` escape hatch exists only for tests and
+  single-model dry runs; when it is used, the run report is stamped
+  `independent_runners = false`, so a stub-backed panel can never be mistaken
+  for an independent cross-family one.
 
 ### Step 4: tally the votes and write the artifact
 
@@ -190,14 +213,25 @@ The winner is the side with more votes; equal counts make the outcome a tie.
 `vote_margin` is the absolute vote difference divided by the number of votes
 cast (tie votes included in the denominator). Before writing anything,
 `assemble_match.py` re-verifies the commitment hash on every vote, the vote
-timestamps, family uniqueness, the three-family floor, and (with
-`--materials-dir`) the statements' declared hash and node ids; it then
-validates the assembled artifact field by field and writes it with
+timestamps, family uniqueness, and the three-family floor; it then validates
+the assembled artifact field by field and writes it with
 `observation_write.written = false`.
+
+`--materials-dir` is required, not optional. Assembly cross-checks both
+statements' declared hash and node ids against the commitment and the pair
+being assembled, and binds a `statement_binding` block into the artifact: for
+each side, the node id and a sha256 over the exact statement content the
+judges saw. This makes "the votes correspond to the criteria-bound advocacy
+statements" an auditable line in the artifact, not just a check that ran once
+and left no trace.
 
 Rematch guard: if the campaign already holds a match for the same unordered
 pair, assembly refuses unless `--rationale` states the new evidence that
-justifies rerunning; the rationale is recorded in the artifact.
+justifies rerunning; the rationale is recorded in the artifact. A rerun
+produces a second, independent artifact for the pair; this skill does not
+deduplicate or supersede the earlier one. Reconciling multiple matches for a
+pair (which to weigh, how to age the older observation) is the belief layer's
+job (skill `idea-posterior`), not this skill's.
 
 ### Step 5: feed the outcome to the belief layer
 
@@ -284,7 +318,7 @@ Example:
       "testability and timing",
       "verification cost"
     ],
-    "commitment_hash": "sha256:9d1c7e2b8a4f6350e1d2c3b4a5968778695a4b3c2d1e0f9a8b7c6d5e4f3a2b1c"
+    "commitment_hash": "sha256:a1e10a3bbabf4338396bbbc361aa9accc504f03221f2b12998b707772854fcd4"
   },
   "panel": [
     {
@@ -313,10 +347,22 @@ Example:
 ```
 
 (The example shows one panel entry for brevity; a real valid artifact holds
-at least three.) A machine-readable schema for this artifact lives with the
-campaign engine's contracts; the validator in `scripts/assemble_match.py` is
-a standalone field-by-field check so a match can be verified without any
-package installed.
+at least three, from three distinct families. An artifact assembled with the
+required `--materials-dir` also carries a top-level `statement_binding` block
+— per-side node id and a sha256 of the statement content — omitted here for
+brevity.)
+
+The authoritative check on an assembled match is `validate_pairwise_match` in
+`scripts/assemble_match.py`: a standalone, field-by-field check that a match
+can be verified against without any package installed. It is the binding
+judge of panel validity, including the rule that the panel holds at least
+three DISTINCT families — a constraint a JSON Schema cannot express directly.
+A machine-readable `pairwise_match_v1` JSON Schema also lives with the
+campaign engine's contracts for downstream consumers; because a schema cannot
+require distinct families, its `panel` array must set `minItems: 3` (not 1)
+and its description must defer to `validate_pairwise_match` as the
+authoritative family-diversity check, so a schema-only consumer cannot accept
+a sub-three-family artifact that the Python validator would reject.
 
 ## Scripts
 
@@ -324,15 +370,20 @@ All three are standard-library-only Python (3.9 or newer):
 
 - `scripts/commit_criteria.py`: canonicalize, hash, and write the criteria
   commitment. Refuses overwrites.
-- `scripts/run_panel.py`: verify materials, render the judge prompt, run the
-  four family seats (with the rendering modes shown above), collect and
-  validate votes, write `panel_run_report.json`. `--runner
-  FAMILY=COMMAND` replaces a family's runner with a command template
-  (`{prompt}` and `{system}` expand to the rendered prompt paths; stdout is
-  taken as the judge's raw reply); this hook exists for tests and custom
-  runners, and a real match must use the real families.
+- `scripts/run_panel.py`: verify materials (including the statement contract,
+  enforced before any judge runs), render the judge prompt, run the four
+  family seats (with the rendering modes shown above), collect and validate
+  votes, write `panel_run_report.json`. `--runner FAMILY=COMMAND` replaces a
+  family's runner with a command template (`{prompt}` and `{system}` expand to
+  the rendered prompt paths; stdout is taken as the judge's raw reply); this
+  hook exists for tests and custom runners, and a real match must use the real
+  families. Pointing several seats at the same command is refused unless
+  `IDEA_PAIRWISE_ALLOW_STUB_RUNNERS=1` is set, which stamps the run report
+  `independent_runners = false`.
 - `scripts/assemble_match.py`: re-verify the integrity thread, tally, map
   the outcome to the observation tier, validate, and write the artifact.
+  Requires `--materials-dir` and binds a per-side statement digest into the
+  artifact.
 
 ## Tests
 
@@ -343,8 +394,15 @@ python3 -m pytest skills/idea-pairwise-match/tests/
 The tests cover hash stability, stage-order enforcement (sentinel proof that
 no runner executes when materials fail verification), tally and mapping
 edges, artifact validation field by field, the rematch guard, and a mocked
-end-to-end panel. Mocked judges appear only in tests; any real match must
-collect real cross-family votes or honestly record the absent families.
+end-to-end panel. The adversarial cases pin the statement-contract wall:
+a forged judge-prompt heading, a zero-anchor statement, and an over-length
+statement each stop the match before any judge runs; an unanchored flood is
+counted by the parser and flagged against the judges' self-reports; a shared
+`--runner` command is refused without the escape hatch; a claimless idea card
+is rejected on both the summary and statement paths; and a symmetry test
+checks that content-identical statements render a symmetric judge prompt.
+Mocked judges appear only in tests; any real match must collect real
+cross-family votes or honestly record the absent families.
 
 ## Honest limits
 
@@ -355,6 +413,16 @@ collect real cross-family votes or honestly record the absent families.
 - Judges do not fetch anchor references during a match; anchor content is
   vetted upstream. A match with unvetted claims measures rhetoric, not
   merit, and should not be run.
+- The `unanchored_arguments_discarded` count stored in each panel entry of the
+  artifact is what that judge self-reported. The mechanism does not depend on
+  it: `run_panel.py` parses each statement itself, drops and counts the
+  unanchored argument lines independently, and records that authoritative
+  count (plus a per-judge agreement flag) in `panel_run_report.json`. The
+  self-reported number is retained as a cross-check, not as the source of
+  truth.
 - Idea A and Idea B keep fixed presentation positions; position effects are
   not randomized away. If a position effect is suspected, rerun with swapped
-  labels under the rematch guard with that stated rationale.
+  labels under the rematch guard with that stated rationale. A symmetry test
+  (`test_symmetry_identical_content_differs_only_by_node_id`) pins that two
+  content-identical statements render a structurally symmetric judge prompt,
+  so the fixed positions add no asymmetry of their own.

@@ -131,7 +131,7 @@ def test_tier_undefined_below_min_families():
 
 
 # ---------------------------------------------------------------------------
-# Assembly happy flow
+# Assembly end-to-end
 # ---------------------------------------------------------------------------
 
 def test_assemble_writes_valid_artifact(tmp_path):
@@ -424,15 +424,63 @@ def test_validator_accepts_written_observation(valid_artifact):
     assert assemble_match.validate_pairwise_match(done) == []
 
 
+def _binding(node_a, node_b):
+    return {
+        "a": {"idea_node_id": node_a, "content_sha256": "sha256:" + "a" * 64},
+        "b": {"idea_node_id": node_b, "content_sha256": "sha256:" + "b" * 64},
+    }
+
+
+def test_validator_accepts_correct_statement_binding(valid_artifact):
+    ok = copy.deepcopy(valid_artifact)
+    ok["statement_binding"] = _binding(IDEA_A, IDEA_B)
+    assert assemble_match.validate_pairwise_match(ok) == []
+
+
+def test_validator_rejects_statement_binding_wrong_node(valid_artifact):
+    bad = copy.deepcopy(valid_artifact)
+    bad["statement_binding"] = _binding(IDEA_B, IDEA_B)  # side a points at B
+    problems = assemble_match.validate_pairwise_match(bad)
+    assert any("statement_binding.a.idea_node_id" in p for p in problems)
+
+
+def test_validator_rejects_statement_binding_bad_hash(valid_artifact):
+    bad = copy.deepcopy(valid_artifact)
+    binding = _binding(IDEA_A, IDEA_B)
+    binding["a"]["content_sha256"] = "not-a-hash"
+    bad["statement_binding"] = binding
+    problems = assemble_match.validate_pairwise_match(bad)
+    assert any("content_sha256 must be sha256" in p for p in problems)
+
+
 # ---------------------------------------------------------------------------
 # CLI smoke
 # ---------------------------------------------------------------------------
+
+def write_materials(materials_dir, commitment):
+    """Write the two statements assemble_match needs for its mandatory
+    materials cross-check and statement binding."""
+    materials_dir.mkdir(parents=True, exist_ok=True)
+    for side, node in (("a", IDEA_A), ("b", IDEA_B)):
+        text = (
+            "criteria_commitment: %s\n"
+            "idea_node_id: %s\n\n"
+            "# Advocacy statement: Idea %s\n\n"
+            "## tension resolution\n\n"
+            "Resolves the standing tension. "
+            "[anchor: literature -> https://example.org/reference]\n"
+            % (commitment["commitment_hash"], node, side.upper())
+        )
+        (materials_dir / ("statement_%s.md" % side)).write_text(text, encoding="utf-8")
+    return materials_dir
+
 
 def test_cli_smoke(tmp_path):
     commitment_path, commitment, votes_dir, campaign = standard_setup(
         tmp_path,
         [("claude", "a"), ("codex", "a"), ("opencode", "b"), ("kimi", "tie")],
     )
+    materials = write_materials(tmp_path / "materials", commitment)
     result = subprocess.run(
         [
             sys.executable,
@@ -449,6 +497,8 @@ def test_cli_smoke(tmp_path):
             IDEA_A,
             "--idea-b",
             IDEA_B,
+            "--materials-dir",
+            str(materials),
         ],
         capture_output=True,
         text=True,
@@ -458,3 +508,32 @@ def test_cli_smoke(tmp_path):
     assert "split win" in result.stdout
     matches = list((campaign / "artifacts" / "matches").glob("match-*.json"))
     assert len(matches) == 1
+    artifact = json.loads(matches[0].read_text(encoding="utf-8"))
+    # The mandatory materials binding is embedded and auditable.
+    assert artifact["statement_binding"]["a"]["idea_node_id"] == IDEA_A
+    assert artifact["statement_binding"]["b"]["idea_node_id"] == IDEA_B
+    assert artifact["statement_binding"]["a"]["content_sha256"].startswith("sha256:")
+
+
+def test_cli_requires_materials_dir(tmp_path):
+    commitment_path, commitment, votes_dir, campaign = standard_setup(
+        tmp_path,
+        [("claude", "a"), ("codex", "a"), ("opencode", "b")],
+    )
+    result = subprocess.run(
+        [
+            sys.executable, str(SCRIPT),
+            "--commitment", str(commitment_path),
+            "--votes-dir", str(votes_dir),
+            "--campaign-dir", str(campaign),
+            "--campaign-id", CAMPAIGN_ID,
+            "--idea-a", IDEA_A,
+            "--idea-b", IDEA_B,
+        ],
+        capture_output=True,
+        text=True,
+    )
+    # argparse refuses the run: no artifact can be written without the
+    # statement binding proof.
+    assert result.returncode == 2
+    assert "materials-dir" in result.stderr
