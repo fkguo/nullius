@@ -87,6 +87,7 @@ TOP_REQUIRED_KEYS = {
     "idea_b_node_id",
     "criteria_commitment",
     "panel",
+    "independent_runners",
     "outcome",
     "observation_write",
 }
@@ -276,6 +277,9 @@ def validate_pairwise_match(obj):
                     "least %d" % (len(seen_families), MIN_FAMILIES)
                 )
 
+    if "independent_runners" in obj and not isinstance(obj["independent_runners"], bool):
+        errors.append("independent_runners must be a boolean")
+
     decided_at = None
     if "outcome" in obj:
         outcome = obj["outcome"]
@@ -443,7 +447,9 @@ def load_vote_records(votes_dir, commitment):
 def cross_check_materials(materials_dir, commitment, idea_a, idea_b):
     """Verify each statement carries the committed hash and the node id it
     argues for, and return the statement binding: per-side node id and a
-    sha256 over the exact statement content the judges saw. The binding is
+    sha256 over the on-disk statement content. That content is the sole source
+    from which run_panel deterministically rebuilds the text the judges read,
+    so hashing it pins the judge input to an auditable origin. The binding is
     embedded in the artifact so the judge inputs are an auditable part of the
     record, not just a check that happened at assembly time and left no trace.
     """
@@ -480,6 +486,39 @@ def cross_check_materials(materials_dir, commitment, idea_a, idea_b):
     return {"a": binding["a"], "b": binding["b"]}
 
 
+def read_independent_runners(votes_dir):
+    """Read independent_runners from the panel run report next to the votes.
+
+    run_panel.py writes panel_run_report.json in the panel directory (the
+    parent of votes/), stamping independent_runners = false when a stub-backed
+    or single-model panel was run under the escape hatch. Carrying that flag
+    into the artifact makes a low-diversity panel visible in the artifact
+    itself, so the belief layer can weight the observation's diversity from the
+    record rather than only from a side file. The flag is required: a report
+    that is missing or does not carry a boolean flag stops assembly, because an
+    artifact that silently omitted it could hide a stub-backed panel.
+    """
+    report_path = Path(votes_dir).parent / "panel_run_report.json"
+    if not report_path.is_file():
+        raise MatchError(
+            "panel run report not found next to the votes (%s); it carries the "
+            "independent_runners flag that must be recorded in the artifact"
+            % report_path
+        )
+    try:
+        report = json.loads(report_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise MatchError("%s is not valid JSON: %s" % (report_path, exc))
+    flag = report.get("independent_runners")
+    if not isinstance(flag, bool):
+        raise MatchError(
+            "%s has no boolean independent_runners flag; the panel run report "
+            "must record whether the family seats were genuinely independent"
+            % report_path
+        )
+    return flag
+
+
 def find_existing_match(campaign_dir, idea_a, idea_b):
     """Return the path of an existing artifact for the same unordered pair."""
     matches_dir = Path(campaign_dir) / "artifacts" / "matches"
@@ -514,11 +553,16 @@ def assemble(
     rationale=None,
     materials_dir=None,
     decided_at=None,
+    independent_runners=None,
 ):
     """Assemble, validate, and write the pairwise_match_v1 artifact.
 
     Returns (artifact_path, artifact, tier, tier_label).
     Raises MatchError on any protocol violation.
+
+    independent_runners is recorded as a required top-level field. When not
+    passed explicitly it is read from panel_run_report.json next to the votes;
+    a caller (a test) may pass a boolean to bypass that lookup.
     """
     commitment = json.loads(Path(commitment_path).read_text(encoding="utf-8"))
     problems = commit_criteria.validate_commitment(commitment)
@@ -543,6 +587,11 @@ def assemble(
         )
 
     records = load_vote_records(votes_dir, commitment)
+
+    if independent_runners is None:
+        independent_runners = read_independent_runners(votes_dir)
+    elif not isinstance(independent_runners, bool):
+        raise MatchError("independent_runners must be a boolean")
 
     existing = find_existing_match(campaign_dir, idea_a, idea_b)
     if existing is not None and not rationale:
@@ -573,6 +622,7 @@ def assemble(
         "idea_b_node_id": idea_b,
         "criteria_commitment": commitment,
         "panel": panel,
+        "independent_runners": independent_runners,
         "outcome": {
             "winner": tally["winner"],
             "vote_margin": tally["vote_margin"],

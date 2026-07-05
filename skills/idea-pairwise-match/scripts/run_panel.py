@@ -16,6 +16,15 @@ Stage order is enforced, not assumed: the commitment file must validate
 run the panel. Every collected vote record is stamped with the commitment
 hash and a collection timestamp, which assemble_match.py re-checks.
 
+The statement a judge reads is REBUILT from verified elements, never passed
+through verbatim: after NFKC normalization only headings that name a committed
+criterion or the weaknesses section, argument lines whose anchor reference
+cross-matches the side's card evidence, and weakness admissions survive into
+the rebuilt text (see load_materials / analyze_statement / reconstruct_
+statement). This gives the panel a clean, criteria-organized, anchor-checked
+input; it is a signal-quality rebuild for pipeline-authored statements, not a
+sandbox against a third-party adversary (see SKILL.md "Scope of the rebuild").
+
 Judge execution:
 
   claude    host-subagent vote injected via --claude-vote FILE (preferred),
@@ -53,6 +62,7 @@ import re
 import shlex
 import subprocess
 import sys
+import unicodedata
 from pathlib import Path
 
 _SCRIPTS_DIR = Path(__file__).resolve().parent
@@ -112,35 +122,26 @@ DEFAULT_WORD_CAP = 600
 # "[anchor: computation -> ref]". This is the ONLY line shape that counts as a
 # merit argument; every other non-heading prose line is an unanchored argument
 # and is dropped. Parsed independently of anything the judge reports.
+#
+# The reference must look like a URI or an artifact path, not an arbitrary
+# scrap of text: it either carries a scheme ("something://" or "something:")
+# or is a slash-bearing path. This rejects a tag whose "reference" is a stray
+# word or punctuation, which could not correspond to a real card evidence
+# entry anyway. Cross-matching against the card's evidence set (below) is the
+# binding check; this pattern only screens the tag's surface shape.
+ANCHOR_REF_RE = re.compile(r"^(?:[A-Za-z][A-Za-z0-9+.-]*:\S+|\S*/\S+)$")
 ANCHOR_TAG_RE = re.compile(
     r"\[anchor:\s*(literature|computation)\s*->\s*(\S[^\]]*?)\s*\]\s*$"
 )
 
-# A markdown heading in a statement is legitimate when it titles a committed
-# criterion or the mandated weaknesses section. A heading is a forgery attempt
-# when its normalized text reproduces one of the judge prompt's own structural
-# section markers: such a heading opens a fake "Required output" / "Binding
-# rules" / "Advocacy statement for Idea B" / "Materials" section inside the
-# judge's view and can hijack the vote. These markers are the literal section
-# titles that appear in prompts/judge_prompt.md and prompts/judge_system.md;
-# they are matched against the statement's own headings after normalization.
-# Matching is exact-or-prefix on the normalized text, so "Required output" and
-# "Required output (revised)" are both caught, while a statement's own
-# legitimate top heading "Advocacy statement: Idea A" (colon, no "for") and the
-# per-criterion headings are left untouched.
-FORBIDDEN_HEADING_MARKERS = (
-    "committed criteria (binding)",
-    "committed criteria",
-    "binding rules",
-    "materials",
-    "idea a: card summary",
-    "idea b: card summary",
-    "advocacy statement for idea a",
-    "advocacy statement for idea b",
-    "required output",
-    "pairwise idea match: judge instructions",
-    "shape example",
-)
+# Only ATX headings ("# ...", "## ...") are recognized as structure. A heading
+# is kept in the rebuilt statement only when its normalized text names a
+# committed criterion (see reconstruct_statement) or the mandated weaknesses
+# section; every other heading is dropped rather than passed through. There is
+# no blacklist of forbidden heading text: the statement the judge reads is
+# assembled from verified elements only, so a heading that matches nothing
+# simply never appears, whatever encoding variant it was written in.
+WEAKNESS_HEADING = "honest weaknesses"
 HEADING_LINE_RE = re.compile(r"^(#{1,6})\s+(.*?)\s*#*\s*$")
 
 
@@ -156,12 +157,16 @@ def load_materials(materials_dir, word_cap=DEFAULT_WORD_CAP):
     """Load and verify the five materials files; return a dict of texts plus
     the parsed commitment. Raises PanelError on any contract violation.
 
-    The two advocacy statements are both hash-bound to the commitment AND
-    contract-checked (verify_statement_contract) before this function returns,
-    so a statement can never reach the judge prompt until its contract holds.
-    The parsed per-side unanchored-argument counts are stored under the
-    "_discarded_a"/"_discarded_b" keys of the returned texts dict for later
-    reconciliation against the judges' self-reported counts.
+    The two advocacy statements are hash-bound to the commitment and then
+    REBUILT from verified elements before this function returns: the text
+    stored under "statement_a"/"statement_b" is the rebuilt statement, which is
+    what render_judge_prompt substitutes into the judge prompt. The author's
+    original free prose is never passed to a judge verbatim; only headings that
+    name a committed criterion or the weaknesses section, argument lines whose
+    anchor reference cross-matches the side's card evidence, and weakness
+    admissions survive into the rebuilt text. The count of unanchored argument
+    lines dropped per side is stored under "_discarded_a"/"_discarded_b" for
+    later reconciliation against the judges' self-reported counts.
     """
     materials_dir = Path(materials_dir)
     texts = {}
@@ -181,6 +186,7 @@ def load_materials(materials_dir, word_cap=DEFAULT_WORD_CAP):
             "commitment.json failed validation: " + "; ".join(problems)
         )
 
+    criteria = commitment["criteria"]
     for label in ("statement_a", "statement_b"):
         declared = statement_hash_line(texts[label])
         if declared is None:
@@ -195,10 +201,20 @@ def load_materials(materials_dir, word_cap=DEFAULT_WORD_CAP):
                 "run a panel over mismatched materials"
                 % (REQUIRED_MATERIALS[label], declared, commitment["commitment_hash"])
             )
-        # Enforce the statement contract BEFORE the text is ever substituted
-        # into the judge prompt. A violating statement stops the match here,
-        # with no judge run, exactly like a hash mismatch.
-        discarded = verify_statement_contract(label, texts[label], word_cap)
+        # The set of anchor references the statement is allowed to use is the
+        # side's own card evidence, taken from the deterministically rendered
+        # card summary. An argument line whose reference is not in this set is
+        # unanchored as far as the panel is concerned, and is dropped.
+        summary_label = "card_summary_" + label[-1]
+        allowed_evidence = card_summary_evidence(texts[summary_label])
+        # Rebuild the statement from verified elements BEFORE it is ever
+        # substituted into the judge prompt. A statement that yields no anchored
+        # argument, or overflows the word cap, stops the match here with no
+        # judge run, exactly like a hash mismatch.
+        rebuilt, discarded = verify_statement_contract(
+            label, texts[label], criteria, allowed_evidence, word_cap
+        )
+        texts[label] = rebuilt
         texts["_discarded_" + label[-1]] = discarded
 
     return texts, commitment
@@ -215,109 +231,227 @@ def statement_hash_line(text):
     return None
 
 
+def card_summary_evidence(summary_text):
+    """Return the set of evidence references named in a rendered card summary.
+
+    render_card_summary emits each claim as
+    "N. text [support: type; evidence: uri1, uri2]"; the evidence URIs come
+    verbatim from the card's evidence_uris. Pulling them back out here gives
+    the exact set of references a statement for this side is permitted to
+    anchor to, without threading the raw card JSON through load_materials.
+    """
+    evidence = set()
+    for match in re.finditer(r"\[support:[^\];]*;\s*evidence:\s*([^\]]*)\]", summary_text):
+        for ref in match.group(1).split(","):
+            ref = ref.strip()
+            if ref:
+                evidence.add(ref)
+    return evidence
+
+
 def _normalized_heading(text):
-    """Lowercase, whitespace-collapsed heading text for marker comparison."""
-    return " ".join(text.strip().lower().split())
+    """NFKC-normalized, lowercased, whitespace-collapsed text for heading and
+    criterion comparison. Both sides pass through here, so a heading matches a
+    criterion under one shared normalization rather than by raw code points."""
+    return " ".join(unicodedata.normalize("NFKC", text).strip().lower().split())
 
 
-def analyze_statement(text):
-    """Parse a statement into the fields the contract check needs, without
-    trusting anything the author or a judge reports.
+def analyze_statement(text, criteria, allowed_evidence):
+    """Parse a statement into a controlled structure the judge prompt is
+    rebuilt from, trusting nothing the author or a judge reports.
+
+    NFKC-normalize the whole statement first, then walk it line by line. The
+    only elements admitted into the structure are:
+
+      - a heading whose normalized text names a committed criterion or the
+        "Honest weaknesses" section (ATX headings only);
+      - under a criterion heading, an argument line ending in a valid anchor
+        tag whose reference cross-matches the side's card evidence set;
+      - under the weaknesses heading, each non-empty line, kept as a weakness
+        item.
+
+    Everything else -- headings that name nothing committed, argument lines
+    with a missing/malformed/unmatched anchor, stray prose outside any section
+    -- is discarded. There is no blacklist: content the judge should not see is
+    simply never rebuilt.
 
     Returns a dict with:
-      word_count            total words in the statement body
-      forbidden_headings    headings whose text forges a judge-prompt marker
-      anchored_arguments    non-heading lines that end with a valid anchor tag
-      unanchored_arguments  non-heading, non-boilerplate lines that make a
-                            claim but carry no valid anchor tag (these are the
-                            lines a judge is told to discard; counted here so
-                            the drop is mechanism-enforced, not self-reported)
+      criteria_sections   ordered list of (criterion, [anchored-arg dicts]),
+                          one per committed criterion, in committed order
+      weaknesses          list of weakness item strings, in order
+      unanchored_arguments   argument lines dropped for want of a valid,
+                          card-matched anchor (counted, not passed through)
 
-    The two leading control lines (criteria_commitment:, idea_node_id:) and the
-    mandated "Honest weaknesses" section are excluded from the argument counts:
-    weakness admissions are not merit claims, and the control lines are not
-    prose. Headings themselves are never arguments.
+    Each anchored-arg dict is {"text", "anchor_type", "anchor_ref"} where
+    "text" is the argument prose with its anchor tag stripped, so the rebuilt
+    line is reassembled from parts rather than echoed. The word cap is checked
+    by the caller against the actual rebuilt text, not estimated here.
     """
-    lines = text.splitlines()
-    word_count = 0
-    forbidden_headings = []
-    anchored = []
+    text = unicodedata.normalize("NFKC", text)
+    criteria_lookup = {_normalized_heading(c): c for c in criteria}
+    sections = {c: [] for c in criteria}
+    weaknesses = []
     unanchored = []
-    in_weaknesses = False
-    for line in lines:
-        stripped = line.strip()
-        word_count += len(stripped.split())
+    current = None  # a committed criterion, WEAKNESS_HEADING, or None
+    for raw_line in text.splitlines():
+        stripped = raw_line.strip()
         if not stripped:
             continue
         heading = HEADING_LINE_RE.match(stripped)
         if heading:
             title = _normalized_heading(heading.group(2))
-            # A heading is a weakness section iff its text starts with the
-            # mandated marker; weakness lines below it are not merit claims.
-            in_weaknesses = title.startswith("honest weakness")
-            for marker in FORBIDDEN_HEADING_MARKERS:
-                if title == marker or title.startswith(marker + " ") or title.startswith(marker + ":"):
-                    forbidden_headings.append(heading.group(2).strip())
-                    break
+            if title in criteria_lookup:
+                current = criteria_lookup[title]
+            elif title == WEAKNESS_HEADING:
+                current = WEAKNESS_HEADING
+            else:
+                # A heading that names nothing committed opens no section; any
+                # lines beneath it fall outside every section and are dropped.
+                current = None
             continue
-        # The two control lines are protocol scaffolding, not arguments.
+        # Protocol scaffolding lines are neither arguments nor weaknesses.
         if STATEMENT_HASH_LINE_RE.match(stripped) or STATEMENT_NODE_LINE_RE.match(stripped):
             continue
-        if in_weaknesses:
+        if current == WEAKNESS_HEADING:
+            weaknesses.append(stripped)
             continue
-        # The single sanctioned "nothing to say here" line is neither an
-        # anchored nor an unanchored merit claim.
+        # The single sanctioned "nothing to say here" line is not a claim.
         if stripped == "No anchored argument under this criterion.":
             continue
-        if ANCHOR_TAG_RE.search(stripped):
-            anchored.append(stripped)
-        else:
+        if current is None:
+            # Prose outside every committed section: dropped, and counted as an
+            # unanchored argument line so the drop is visible in the report.
             unanchored.append(stripped)
+            continue
+        parsed = parse_anchored_line(stripped, allowed_evidence)
+        if parsed is None:
+            unanchored.append(stripped)
+        else:
+            sections[current].append(parsed)
+
+    criteria_sections = [(c, sections[c]) for c in criteria]
     return {
-        "word_count": word_count,
-        "forbidden_headings": forbidden_headings,
-        "anchored_arguments": anchored,
+        "criteria_sections": criteria_sections,
+        "weaknesses": weaknesses,
         "unanchored_arguments": unanchored,
     }
 
 
-def verify_statement_contract(label, text, word_cap):
-    """Enforce the advocacy-statement contract before the statement is trusted
-    into the judge prompt. Refuses (raises PanelError) on any violation, so a
-    non-compliant statement can never reach a judge.
+def parse_anchored_line(stripped, allowed_evidence):
+    """Return {"text", "anchor_type", "anchor_ref"} for a valid anchored
+    argument line, or None when the line has no anchor tag, a malformed
+    reference, or a reference the side's card does not carry.
 
-    Returns the count of unanchored argument lines this parser dropped, so the
-    caller can reconcile it against a judge's self-reported discard count.
+    The reference must look like a URI/artifact path AND appear verbatim in
+    allowed_evidence; a well-formed tag pointing at a reference the card never
+    declared is treated as unanchored (the statement_prompt.md requirement that
+    the reference be a card evidence entry, now enforced, not just requested).
+    """
+    match = ANCHOR_TAG_RE.search(stripped)
+    if not match:
+        return None
+    anchor_type = match.group(1)
+    anchor_ref = match.group(2).strip()
+    if not ANCHOR_REF_RE.match(anchor_ref):
+        return None
+    if anchor_ref not in allowed_evidence:
+        return None
+    body = stripped[: match.start()].rstrip()
+    if not body:
+        return None
+    return {"text": body, "anchor_type": anchor_type, "anchor_ref": anchor_ref}
 
-    Rejection is the default: a statement passes only when it carries no forged
-    judge-prompt heading, stays within the word cap, and holds at least one
-    genuinely anchored argument line. This closes the channel by which an
-    author could smuggle a fake "## Required output" section, attack the other
-    idea, overflow the cap, or flood the prompt with unanchored rhetoric.
+
+def reconstruct_statement(label, node_id, commitment_hash, analysis):
+    """Rebuild the statement a judge sees from the controlled structure in
+    analysis. Every line is emitted from verified parts, in committed-criterion
+    order, so the judge's view contains nothing the parser did not validate.
+    """
+    lines = [
+        "criteria_commitment: %s" % commitment_hash,
+        "idea_node_id: %s" % node_id,
+        "",
+        "# Advocacy statement: Idea %s" % label[-1].upper(),
+        "",
+    ]
+    for criterion, args in analysis["criteria_sections"]:
+        lines.append("## %s" % criterion)
+        lines.append("")
+        if args:
+            for arg in args:
+                lines.append(
+                    "%s [anchor: %s -> %s]"
+                    % (arg["text"], arg["anchor_type"], arg["anchor_ref"])
+                )
+        else:
+            lines.append("No anchored argument under this criterion.")
+        lines.append("")
+    lines.append("## Honest weaknesses")
+    lines.append("")
+    if analysis["weaknesses"]:
+        for item in analysis["weaknesses"]:
+            lines.append("- %s" % item)
+    else:
+        lines.append("- None stated.")
+    lines.append("")
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def verify_statement_contract(label, text, criteria, allowed_evidence, word_cap):
+    """Rebuild the statement from verified elements and enforce the two
+    remaining hard limits on the rebuilt result. Refuses (raises PanelError)
+    when the rebuilt statement overflows the word cap or holds no anchored
+    argument at all, so such a statement never reaches a judge.
+
+    Returns (rebuilt_text, discarded_count): the text the judge should see and
+    the number of unanchored argument lines the parser dropped, for
+    reconciliation against a judge's self-reported count.
+
+    Rejection is the default at the element level: anything not validated is
+    dropped during the rebuild rather than passed through. The word cap and the
+    at-least-one-anchor floor are the only conditions that stop the whole
+    match, because a rebuilt statement that is empty of anchored merit, or
+    over-long, cannot serve as advocacy under the committed criteria.
     """
     name = REQUIRED_MATERIALS[label]
-    analysis = analyze_statement(text)
-    if analysis["forbidden_headings"]:
+    node_id = statement_node_line(text)
+    if node_id is None:
         raise PanelError(
-            "%s carries a heading that forges a judge-prompt structural marker "
-            "(%s); such a statement could hijack the judge's output and is "
-            "refused before any judge runs"
-            % (name, "; ".join(analysis["forbidden_headings"]))
+            "%s does not carry an 'idea_node_id:' line; the statement cannot be "
+            "bound to an idea node" % name
         )
-    if analysis["word_count"] > word_cap:
+    analysis = analyze_statement(text, criteria, allowed_evidence)
+    total_anchored = sum(len(args) for _c, args in analysis["criteria_sections"])
+    if total_anchored == 0:
         raise PanelError(
-            "%s is %d words, over the %d-word cap; an over-length statement is "
-            "refused before any judge runs"
-            % (name, analysis["word_count"], word_cap)
+            "%s has no anchored argument line that matches the card's evidence "
+            "('... [anchor: literature -> ref]' or "
+            "'... [anchor: computation -> ref]', ref taken from the card); a "
+            "statement with zero card-anchored merit claims cannot enter the "
+            "panel" % name
         )
-    if not analysis["anchored_arguments"]:
+    hash_line = statement_hash_line(text)
+    rebuilt = reconstruct_statement(label, node_id, hash_line, analysis)
+    # The cap is checked against the rebuilt text the judge actually reads, not
+    # the author's original, so padding that gets dropped in the rebuild does
+    # not count and content that survives does.
+    rebuilt_words = len(rebuilt.split())
+    if rebuilt_words > word_cap:
         raise PanelError(
-            "%s has no anchored argument line ('... [anchor: literature -> ref]' "
-            "or '... [anchor: computation -> ref]'); a statement with zero "
-            "anchored merit claims cannot enter the panel"
-            % name
+            "%s rebuilds to %d words, over the %d-word cap; an over-length "
+            "statement is refused before any judge runs"
+            % (name, rebuilt_words, word_cap)
         )
-    return len(analysis["unanchored_arguments"])
+    return rebuilt, len(analysis["unanchored_arguments"])
+
+
+def statement_node_line(text):
+    """Return the idea_node_id declared in the statement, or None if absent."""
+    for line in text.splitlines():
+        match = STATEMENT_NODE_LINE_RE.match(line.strip())
+        if match:
+            return match.group(1)
+    return None
 
 
 # ---------------------------------------------------------------------------
