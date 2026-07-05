@@ -1,0 +1,39 @@
+{
+  "package_id": "idea-pairwise-match",
+  "package_type": "skill-pack",
+  "repo": "nullius/skills-market",
+  "channel": "dev",
+  "version": "0.1.0",
+  "summary": "Criteria-committed, cross-family judged pairwise comparison between two idea nodes: commit the comparison criteria (sha256) before any advocacy, rebuild the judge input from validated anchored structure only (never verbatim author prose), collect a panel of at least three distinct model families, and write a pairwise_match_v1 artifact whose outcome enters the belief layer as one capped, non-eliminating observation.",
+  "platforms": [
+    "claude_code",
+    "codex",
+    "opencode"
+  ],
+  "source_path": "skills/idea-pairwise-match/SKILL.md",
+  "install": {
+    "claude_code": "Link into ~/.claude/skills or install via marketplace when available.",
+    "codex": "Link into ~/.codex/skills for Codex native discovery.",
+    "opencode": "Link into ~/.config/opencode/skills for OpenCode discovery."
+  },
+  "source": {
+    "repo": "nullius/skills",
+    "ref": "main",
+    "subpath": "skills/idea-pairwise-match",
+    "include": [
+      "SKILL.md",
+      "scripts/**",
+      "prompts/**",
+      "examples/**"
+    ],
+    "exclude": [
+      "**/tests/**",
+      "**/test/**",
+      "**/tmp/**",
+      "**/.pytest_cache/**",
+      "**/__pycache__/**",
+      "**/*.pyc",
+      "**/.DS_Store"
+    ]
+  }
+}

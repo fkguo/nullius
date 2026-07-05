@@ -1,0 +1,37 @@
+{
+  "package_id": "idea-posterior",
+  "package_type": "skill-pack",
+  "repo": "nullius/skills-market",
+  "channel": "dev",
+  "version": "0.1.0",
+  "summary": "Turn a research idea into an auditable posterior for the idea portfolio: run an admission gate, decompose the idea into source-grounded sub-criteria, encode a Gaia argument graph (gaia-lang 0.5.0a4), run exact inference, and write the posterior back to the idea store, under a parameter-honesty discipline (three fixed likelihood grades, a mandatory anchor on every number, MaxEnt fallback when an anchor fails review).",
+  "platforms": [
+    "claude_code",
+    "codex",
+    "opencode"
+  ],
+  "source_path": "skills/idea-posterior/SKILL.md",
+  "install": {
+    "claude_code": "Link into ~/.claude/skills or install via marketplace when available.",
+    "codex": "Link into ~/.codex/skills for Codex native discovery.",
+    "opencode": "Link into ~/.config/opencode/skills for OpenCode discovery."
+  },
+  "source": {
+    "repo": "nullius/skills",
+    "ref": "main",
+    "subpath": "skills/idea-posterior",
+    "include": [
+      "SKILL.md",
+      "scripts/**"
+    ],
+    "exclude": [
+      "**/tests/**",
+      "**/test/**",
+      "**/tmp/**",
+      "**/.pytest_cache/**",
+      "**/__pycache__/**",
+      "**/*.pyc",
+      "**/.DS_Store"
+    ]
+  }
+}
