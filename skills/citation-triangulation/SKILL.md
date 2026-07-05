@@ -1,6 +1,6 @@
 ---
 name: citation-triangulation
-description: Cross-index triangulation of citation metadata. For a citation entry under test, fetch canonical metadata for the same work from two or more independent bibliographic indexes, write one JSON block per provider, and run a deterministic offline comparator that emits a per-field agree/disagree/missing matrix with a fail-closed verdict (consistent / conflicted / insufficient_sources). Catches wrong-version, wrong-author, spliced, and fabricated citation entries whose metadata cannot agree across indexes. Run before freezing a bibliography, during referee spot-checks, or when admitting papers into a literature-review core set.
+description: Cross-index triangulation of citation metadata. For a citation entry under test, fetch canonical metadata for the same work from two or more independent bibliographic indexes, write one JSON block per provider, and run a deterministic offline comparator that emits a per-field agree/disagree/missing matrix with a fail-closed verdict (consistent / conflicted / insufficient_sources). Catches wrong-version, wrong-author, spliced, and hallucinated citation entries whose metadata cannot agree across indexes. Run before freezing a bibliography, during referee spot-checks, or when admitting papers into a literature-review core set.
 ---
 
 # Citation Triangulation (cross-index metadata agreement)

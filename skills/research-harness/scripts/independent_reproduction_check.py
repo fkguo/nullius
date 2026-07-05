@@ -58,11 +58,11 @@ code leaking in through the environment. It does NOT verify that the
 entry command computes the right thing: the manifest's entry command and
 extraction rules are trusted input, so an entry that reads absolute
 paths into the original tree, or that emits numbers without computing
-them, is not caught here. Whether the computation itself is correct is
-established by the numerical-reliability-gate checks (convergence,
-orthogonal cross-checks, invariants) and by human review of the entry
-command recorded in every report; container-level sandboxing is
-explicitly out of scope by design.
+them, is not caught here. Correctness of the computation itself rests
+with the numerical-reliability-gate checks (convergence, orthogonal
+cross-checks, invariants) and with human review of the entry command
+recorded in every report; container-level sandboxing is explicitly out
+of scope by design.
 Honest limitations, restated in every report: isolation is checkout-level,
 not container-level — beyond the targeted scrub the entry command inherits
 the invoking environment and is not sandboxed against absolute-path
@@ -119,9 +119,9 @@ LIMITATION_NOTE = (
     "scrub, the entry command inherits the invoking process environment and is not "
     "sandboxed against absolute-path writes. The check catches accidental contamination "
     "by uncommitted or original-tree state; it does not verify that the entry command "
-    "computes the right thing — the entry command (recorded in this report) is trusted "
-    "input, and correctness of the computation itself is established by "
-    "convergence/cross-method checks and human review."
+    "computes the right thing — the entry command and extraction rules (recorded in "
+    "this report) are trusted input, and correctness of the computation itself rests "
+    "with convergence/cross-method checks and human review."
 )
 
 
