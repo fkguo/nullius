@@ -102,17 +102,21 @@ DOMAINS_CLAUSE_RE = re.compile(r"domains:\s*([^\n]+)")
 def has_domains_clause(text: str) -> bool:
     """True when the text carries a domains clause with >= 3 entries.
 
-    The trailing anchor note is not a domain: everything from "anchor:"
-    onward is cut before counting, so "domains: one; two; anchor: ref"
-    counts two entries, not three.
+    The domains clause must sit BEFORE the trailing anchor note, as SKILL.md
+    requires. Everything from the first "anchor:" onward is the anchor note
+    (a reference, which may itself contain the word "domains"), so it is cut
+    away before the clause is located. Consequences: "domains: one; two;
+    anchor: ref" counts two entries, not three; and "anchor: ref; domains:
+    one; two; three" carries NO valid clause at all, because its "domains:"
+    lives inside the anchor note, not before it.
     """
-    match = DOMAINS_CLAUSE_RE.search(text)
+    before_anchor = re.split(r"anchor:", text, maxsplit=1)[0]
+    match = DOMAINS_CLAUSE_RE.search(before_anchor)
     if not match:
         return False
-    clause = re.split(r"anchor:", match.group(1))[0]
     entries = [
         entry.strip()
-        for entry in re.split(r"[;|]", clause)
+        for entry in re.split(r"[;|]", match.group(1))
         if entry.strip()
     ]
     return len(entries) >= 3
@@ -136,12 +140,21 @@ def scan_discipline(source: str) -> tuple[list[str], list[str]]:
 
     Statement names are resolved through import aliases
     (`from gaia.engine.lang import infer as i`, `import gaia.engine.lang
-    as g; g.infer(...)`). Wrapper functions that forward arguments are
-    caught by the literality rule: the forwarded arguments inside the
-    wrapper are non-literal. The scan guards against ordinary authoring
-    and casual workarounds; deliberately obfuscated authoring (exec,
-    computed attributes) is out of scope and belongs to review and
-    version-controlled history.
+    as g; g.infer(...)`), and re-binding a statement outside a direct call
+    is itself a violation whether the reference is a bare name (`i = infer`)
+    or a module attribute (`i = lang.infer`). A `downstream_reach` update is
+    identified by the claim's `title="downstream_reach"`, not merely by the
+    variable name, so renaming the variable does not skip the domain gate.
+    Wrapper functions that forward arguments are caught by the literality
+    rule: the forwarded arguments inside the wrapper are non-literal.
+
+    The scan guards against ordinary authoring and casual workarounds,
+    including the near variants above; it is a review aid, not a security
+    boundary. Deliberately obfuscated authoring — exec/eval, computed or
+    dynamically built attribute names, a wrapper re-bound through a non-Load
+    context, runtime dispatch — can defeat any static reader and is out of
+    the scan's guarantee by design; those cases belong to the human reviewer
+    and version-controlled history. See "Scan boundary" in SKILL.md.
     """
     try:
         tree = ast.parse(source)
@@ -174,11 +187,56 @@ def scan_discipline(source: str) -> tuple[list[str], list[str]]:
             return func.attr
         return None
 
-    # Any reference to a scanned statement name OUTSIDE a direct call —
-    # assignment aliasing (`i = infer`), passing it as an argument,
-    # storing it in a container — defeats the line-by-line audit and is a
-    # violation in itself. This closes assignment aliases and every
-    # re-binding route in one rule.
+    # Map each plain variable that a claim() call binds to the title it
+    # declares, so a downstream_reach identity can be recognised by its
+    # claim title (`reach = claim(..., title="downstream_reach")`) and not
+    # only by the variable name. Reassignment makes the identity ambiguous;
+    # record that so the reach check stays conservative.
+    claim_title_by_var: dict[str, str] = {}
+    reassigned_vars: set[str] = set()
+    for node in ast.walk(tree):
+        if not (isinstance(node, ast.Assign) and len(node.targets) == 1):
+            continue
+        target = node.targets[0]
+        if not isinstance(target, ast.Name):
+            continue
+        if target.id in claim_title_by_var or target.id in reassigned_vars:
+            reassigned_vars.add(target.id)
+            claim_title_by_var.pop(target.id, None)
+            continue
+        value = node.value
+        if (
+            isinstance(value, ast.Call)
+            and (
+                (isinstance(value.func, ast.Name) and value.func.id == "claim")
+                or (
+                    isinstance(value.func, ast.Attribute)
+                    and value.func.attr == "claim"
+                )
+            )
+        ):
+            title = next(
+                (
+                    kw.value.value
+                    for kw in value.keywords
+                    if kw.arg == "title"
+                    and isinstance(kw.value, ast.Constant)
+                    and isinstance(kw.value.value, str)
+                ),
+                None,
+            )
+            if title is not None:
+                claim_title_by_var[target.id] = title
+
+    # Any reference to a scanned statement OUTSIDE a direct call —
+    # assignment aliasing (`i = infer`, `i = lang.infer`), passing it as an
+    # argument, storing it in a container — defeats the line-by-line audit
+    # and is a violation in itself. Both the bare-name route (`ast.Name`
+    # resolving to a scanned statement) and the module-attribute route
+    # (`ast.Attribute` such as `lang.infer`) are closed here: a scanned
+    # statement referenced anywhere that is not the function position of a
+    # call is flagged. Legitimate calls (`lang.infer(...)`) put that
+    # attribute in the call's function position, so they are exempt.
     call_func_nodes = {
         id(call.func)
         for call in ast.walk(tree)
@@ -186,18 +244,42 @@ def scan_discipline(source: str) -> tuple[list[str], list[str]]:
     }
     scanned_or_aliased = scanned | set(name_aliases)
     for node in ast.walk(tree):
+        if id(node) in call_func_nodes:
+            continue
+        flagged_name: str | None = None
         if (
             isinstance(node, ast.Name)
             and isinstance(node.ctx, ast.Load)
             and node.id in scanned_or_aliased
-            and id(node) not in call_func_nodes
         ):
+            flagged_name = node.id
+        elif (
+            isinstance(node, ast.Attribute)
+            and isinstance(node.ctx, ast.Load)
+            and node.attr in scanned
+        ):
+            flagged_name = node.attr
+        if flagged_name is not None:
             violations.append(
-                f"line {node.lineno}: {node.id} is referenced without "
+                f"line {node.lineno}: {flagged_name} is referenced without "
                 "being called (aliasing or indirection); call "
                 "observe/infer/register_prior directly so every statement "
                 "is auditable in place"
             )
+
+    def is_downstream_reach(hyp: ast.Name) -> bool:
+        """True when the hypothesis variable IS the downstream_reach claim.
+
+        Identity is the claim's title, not the variable spelling: a claim
+        bound as `reach = claim(..., title="downstream_reach")` is the reach
+        claim even under a different variable name. The variable name
+        `downstream_reach` is also honoured directly, covering the ordinary
+        case where the variable and the title coincide.
+        """
+        return (
+            hyp.id == "downstream_reach"
+            or claim_title_by_var.get(hyp.id) == "downstream_reach"
+        )
 
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
@@ -231,7 +313,7 @@ def scan_discipline(source: str) -> tuple[list[str], list[str]]:
                             "claim variable; anything less is not "
                             "auditable at the strongest grade"
                         )
-                    elif hyp.id == "downstream_reach":
+                    elif is_downstream_reach(hyp):
                         note_text = (
                             note.value
                             if isinstance(note, ast.Constant)

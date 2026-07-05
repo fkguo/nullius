@@ -278,6 +278,102 @@ def test_discipline_scan_covers_generated_template() -> None:
     assert extract.scan_discipline(scaffold.render_template("x-idea")) == ([], [])
 
 
+# --- Regressions for the round-5 static-scan bypasses -----------------------
+#
+# Each of the three cases below leaked before the fix (the scan returned no
+# violation) and must now be caught. Each is paired with a legitimate variant
+# that must stay clean, so the fix binds to the whole bypass class and not to
+# one literal string.
+
+
+def test_scan_rejects_module_attribute_assignment_alias() -> None:
+    # Bypass 1: an alias built from a module attribute (`i = lang.infer`) let
+    # an off-grade, unanchored call through, because the reference lived in an
+    # ast.Attribute rather than a scanned bare name.
+    source = (
+        "import gaia.engine.lang as lang\n"
+        "h = lang.claim('H.', title='h')\n"
+        "e = lang.claim('E.', title='e')\n"
+        "i = lang.infer\n"
+        "i(e, hypothesis=h, p_e_given_h=0.85, p_e_given_not_h=0.15,\n"
+        "  rationale='off grade no anchor')\n"
+    )
+    violations, _ = extract.scan_discipline(source)
+    assert any("without being called" in v for v in violations)
+
+
+def test_scan_still_allows_direct_module_attribute_call() -> None:
+    # The fix must not flag a legitimate direct call through a module alias:
+    # there the attribute sits in the call's function position.
+    source = (
+        "import gaia.engine.lang as lang\n"
+        "h = lang.claim('H.', title='h')\n"
+        "e = lang.observe('Fact.', rationale='ctx. anchor: x')\n"
+        "lang.infer(e, hypothesis=h, p_e_given_h=0.90, p_e_given_not_h=0.09,\n"
+        "           rationale='ctx. anchor: x')\n"
+    )
+    assert extract.scan_discipline(source) == ([], [])
+
+
+def test_strong_reach_identified_by_claim_title_needs_domains() -> None:
+    # Bypass 2: naming the claim variable anything but downstream_reach
+    # (`reach = claim(..., title="downstream_reach")`) skipped the >= 3-domain
+    # gate, which keyed only on the variable name. Identity is the title.
+    source = (
+        "from gaia.engine.lang import claim, infer, observe\n"
+        "worth = claim('Worth.', title='worth')\n"
+        "reach = claim('Reach.', title='downstream_reach')\n"
+        "ev = observe('Chains.', rationale='ctx. anchor: idea card')\n"
+        "infer(ev, hypothesis=reach, p_e_given_h=0.90, p_e_given_not_h=0.03,\n"
+        "      rationale='broad reach. anchor: idea card')\n"
+    )
+    violations, _ = extract.scan_discipline(source)
+    assert any("downstream_reach update without" in v for v in violations)
+
+
+def test_strong_reach_by_title_with_domains_passes() -> None:
+    # Same title-based identity, but now with a proper domains clause: it is a
+    # genuine three-domain reach update and must pass.
+    source = (
+        "from gaia.engine.lang import claim, infer, observe\n"
+        "worth = claim('Worth.', title='worth')\n"
+        "reach = claim('Reach.', title='downstream_reach')\n"
+        "ev = observe('Chains.', rationale='ctx. anchor: idea card')\n"
+        "infer(ev, hypothesis=reach, p_e_given_h=0.90, p_e_given_not_h=0.03,\n"
+        "      rationale='domains: first; second; third. anchor: idea card')\n"
+    )
+    assert extract.scan_discipline(source) == ([], [])
+
+
+def test_domains_clause_inside_anchor_note_does_not_count() -> None:
+    # Bypass 3: SKILL.md requires the domains clause BEFORE the trailing
+    # anchor note. A domains clause embedded inside the anchor note must not
+    # satisfy the gate.
+    assert not extract.has_domains_clause(
+        "broad reach. anchor: idea card; domains: first; second; third"
+    )
+    # A clause that genuinely precedes the anchor note still counts.
+    assert extract.has_domains_clause(
+        "domains: first; second; third. anchor: idea card"
+    )
+
+
+def test_strong_reach_with_domains_hidden_in_anchor_is_rejected() -> None:
+    # The same bypass exercised through the full scan: hiding the domains
+    # inside the anchor note leaves the strong reach update unsupported.
+    source = (
+        "from gaia.engine.lang import claim, infer, observe\n"
+        "worth = claim('Worth.', title='worth')\n"
+        "downstream_reach = claim('Reach.', title='downstream_reach')\n"
+        "ev = observe('Chains.', rationale='ctx. anchor: idea card')\n"
+        "infer(ev, hypothesis=downstream_reach, p_e_given_h=0.90,\n"
+        "      p_e_given_not_h=0.03,\n"
+        "      rationale='reach. anchor: idea card; domains: a; b; c')\n"
+    )
+    violations, _ = extract.scan_discipline(source)
+    assert any("downstream_reach update without" in v for v in violations)
+
+
 def write_fake_gaia(tmp_path, fixtures_dir=None):
     """Stub gaia: correct version banner; optionally fakes `run infer` by
     copying fixture artifacts into the package's .gaia directory."""
