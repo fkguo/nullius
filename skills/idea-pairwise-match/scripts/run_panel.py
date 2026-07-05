@@ -65,6 +65,17 @@ FAMILIES = ("claude", "codex", "opencode", "kimi")
 MIN_FAMILIES = 3
 MAX_ATTEMPTS = 2
 
+# The --runner override lets a caller replace a family's runner with a command
+# template. It is intended for tests and custom runners. Left unguarded, a
+# caller could point several family seats at the SAME underlying command and
+# manufacture a "cross-family" panel from a single model, defeating the whole
+# point of MIN_FAMILIES. So a real match refuses when two or more seats resolve
+# to the same underlying command. Setting this environment variable to "1"
+# opens an explicit escape hatch for tests and single-model dry runs; when it
+# is used, the panel run report is stamped independent_runners = false so a
+# stub-backed panel is unmistakable to auditors and to the belief layer.
+ALLOW_SHARED_RUNNERS_ENV = "IDEA_PAIRWISE_ALLOW_STUB_RUNNERS"
+
 SKILL_DIR = _SCRIPTS_DIR.parent
 PROMPTS_DIR = SKILL_DIR / "prompts"
 SKILLS_ROOT = SKILL_DIR.parent
@@ -92,8 +103,45 @@ REQUIRED_MATERIALS = {
 }
 
 STATEMENT_HASH_LINE_RE = re.compile(r"^criteria_commitment:\s*(sha256:[0-9a-f]{64})\s*$")
+STATEMENT_NODE_LINE_RE = re.compile(r"^idea_node_id:\s*(\S+)\s*$")
 FENCE_RE = re.compile(r"```(?:json)?[ \t]*\n(.*?)\n?```", re.DOTALL)
 DEFAULT_WORD_CAP = 600
+
+# An anchored argument line ends with a tag naming one of the allowed anchor
+# kinds and a reference: "[anchor: literature -> ref]" or
+# "[anchor: computation -> ref]". This is the ONLY line shape that counts as a
+# merit argument; every other non-heading prose line is an unanchored argument
+# and is dropped. Parsed independently of anything the judge reports.
+ANCHOR_TAG_RE = re.compile(
+    r"\[anchor:\s*(literature|computation)\s*->\s*(\S[^\]]*?)\s*\]\s*$"
+)
+
+# A markdown heading in a statement is legitimate when it titles a committed
+# criterion or the mandated weaknesses section. A heading is a forgery attempt
+# when its normalized text reproduces one of the judge prompt's own structural
+# section markers: such a heading opens a fake "Required output" / "Binding
+# rules" / "Advocacy statement for Idea B" / "Materials" section inside the
+# judge's view and can hijack the vote. These markers are the literal section
+# titles that appear in prompts/judge_prompt.md and prompts/judge_system.md;
+# they are matched against the statement's own headings after normalization.
+# Matching is exact-or-prefix on the normalized text, so "Required output" and
+# "Required output (revised)" are both caught, while a statement's own
+# legitimate top heading "Advocacy statement: Idea A" (colon, no "for") and the
+# per-criterion headings are left untouched.
+FORBIDDEN_HEADING_MARKERS = (
+    "committed criteria (binding)",
+    "committed criteria",
+    "binding rules",
+    "materials",
+    "idea a: card summary",
+    "idea b: card summary",
+    "advocacy statement for idea a",
+    "advocacy statement for idea b",
+    "required output",
+    "pairwise idea match: judge instructions",
+    "shape example",
+)
+HEADING_LINE_RE = re.compile(r"^(#{1,6})\s+(.*?)\s*#*\s*$")
 
 
 class PanelError(RuntimeError):
@@ -104,9 +152,17 @@ class PanelError(RuntimeError):
 # Materials
 # ---------------------------------------------------------------------------
 
-def load_materials(materials_dir):
+def load_materials(materials_dir, word_cap=DEFAULT_WORD_CAP):
     """Load and verify the five materials files; return a dict of texts plus
-    the parsed commitment. Raises PanelError on any contract violation."""
+    the parsed commitment. Raises PanelError on any contract violation.
+
+    The two advocacy statements are both hash-bound to the commitment AND
+    contract-checked (verify_statement_contract) before this function returns,
+    so a statement can never reach the judge prompt until its contract holds.
+    The parsed per-side unanchored-argument counts are stored under the
+    "_discarded_a"/"_discarded_b" keys of the returned texts dict for later
+    reconciliation against the judges' self-reported counts.
+    """
     materials_dir = Path(materials_dir)
     texts = {}
     for label, name in REQUIRED_MATERIALS.items():
@@ -139,6 +195,11 @@ def load_materials(materials_dir):
                 "run a panel over mismatched materials"
                 % (REQUIRED_MATERIALS[label], declared, commitment["commitment_hash"])
             )
+        # Enforce the statement contract BEFORE the text is ever substituted
+        # into the judge prompt. A violating statement stops the match here,
+        # with no judge run, exactly like a hash mismatch.
+        discarded = verify_statement_contract(label, texts[label], word_cap)
+        texts["_discarded_" + label[-1]] = discarded
 
     return texts, commitment
 
@@ -152,6 +213,111 @@ def statement_hash_line(text):
         match = STATEMENT_HASH_LINE_RE.match(line.strip())
         return match.group(1) if match else None
     return None
+
+
+def _normalized_heading(text):
+    """Lowercase, whitespace-collapsed heading text for marker comparison."""
+    return " ".join(text.strip().lower().split())
+
+
+def analyze_statement(text):
+    """Parse a statement into the fields the contract check needs, without
+    trusting anything the author or a judge reports.
+
+    Returns a dict with:
+      word_count            total words in the statement body
+      forbidden_headings    headings whose text forges a judge-prompt marker
+      anchored_arguments    non-heading lines that end with a valid anchor tag
+      unanchored_arguments  non-heading, non-boilerplate lines that make a
+                            claim but carry no valid anchor tag (these are the
+                            lines a judge is told to discard; counted here so
+                            the drop is mechanism-enforced, not self-reported)
+
+    The two leading control lines (criteria_commitment:, idea_node_id:) and the
+    mandated "Honest weaknesses" section are excluded from the argument counts:
+    weakness admissions are not merit claims, and the control lines are not
+    prose. Headings themselves are never arguments.
+    """
+    lines = text.splitlines()
+    word_count = 0
+    forbidden_headings = []
+    anchored = []
+    unanchored = []
+    in_weaknesses = False
+    for line in lines:
+        stripped = line.strip()
+        word_count += len(stripped.split())
+        if not stripped:
+            continue
+        heading = HEADING_LINE_RE.match(stripped)
+        if heading:
+            title = _normalized_heading(heading.group(2))
+            # A heading is a weakness section iff its text starts with the
+            # mandated marker; weakness lines below it are not merit claims.
+            in_weaknesses = title.startswith("honest weakness")
+            for marker in FORBIDDEN_HEADING_MARKERS:
+                if title == marker or title.startswith(marker + " ") or title.startswith(marker + ":"):
+                    forbidden_headings.append(heading.group(2).strip())
+                    break
+            continue
+        # The two control lines are protocol scaffolding, not arguments.
+        if STATEMENT_HASH_LINE_RE.match(stripped) or STATEMENT_NODE_LINE_RE.match(stripped):
+            continue
+        if in_weaknesses:
+            continue
+        # The single sanctioned "nothing to say here" line is neither an
+        # anchored nor an unanchored merit claim.
+        if stripped == "No anchored argument under this criterion.":
+            continue
+        if ANCHOR_TAG_RE.search(stripped):
+            anchored.append(stripped)
+        else:
+            unanchored.append(stripped)
+    return {
+        "word_count": word_count,
+        "forbidden_headings": forbidden_headings,
+        "anchored_arguments": anchored,
+        "unanchored_arguments": unanchored,
+    }
+
+
+def verify_statement_contract(label, text, word_cap):
+    """Enforce the advocacy-statement contract before the statement is trusted
+    into the judge prompt. Refuses (raises PanelError) on any violation, so a
+    non-compliant statement can never reach a judge.
+
+    Returns the count of unanchored argument lines this parser dropped, so the
+    caller can reconcile it against a judge's self-reported discard count.
+
+    Rejection is the default: a statement passes only when it carries no forged
+    judge-prompt heading, stays within the word cap, and holds at least one
+    genuinely anchored argument line. This closes the channel by which an
+    author could smuggle a fake "## Required output" section, attack the other
+    idea, overflow the cap, or flood the prompt with unanchored rhetoric.
+    """
+    name = REQUIRED_MATERIALS[label]
+    analysis = analyze_statement(text)
+    if analysis["forbidden_headings"]:
+        raise PanelError(
+            "%s carries a heading that forges a judge-prompt structural marker "
+            "(%s); such a statement could hijack the judge's output and is "
+            "refused before any judge runs"
+            % (name, "; ".join(analysis["forbidden_headings"]))
+        )
+    if analysis["word_count"] > word_cap:
+        raise PanelError(
+            "%s is %d words, over the %d-word cap; an over-length statement is "
+            "refused before any judge runs"
+            % (name, analysis["word_count"], word_cap)
+        )
+    if not analysis["anchored_arguments"]:
+        raise PanelError(
+            "%s has no anchored argument line ('... [anchor: literature -> ref]' "
+            "or '... [anchor: computation -> ref]'); a statement with zero "
+            "anchored merit claims cannot enter the panel"
+            % name
+        )
+    return len(analysis["unanchored_arguments"])
 
 
 # ---------------------------------------------------------------------------
@@ -189,6 +355,13 @@ def render_statement_prompt(label, card_json_text, commitment, word_cap):
     node_id = card.get("node_id")
     if not isinstance(node_id, str) or not node_id:
         raise PanelError("idea card for %s has no node_id" % label)
+    # A card with no claims cannot be argued for: every argument must anchor to
+    # a card claim's evidence. The card-summary path already rejects this; the
+    # statement path must too, or a claimless card would silently produce a
+    # request for an unanchorable statement.
+    claims = card.get("claims")
+    if not isinstance(claims, list) or not claims:
+        raise PanelError("idea card for %s has no claims" % label)
     return fill_template(
         template,
         {
@@ -477,6 +650,48 @@ def collect_injected_vote(vote_file):
 # Main flow
 # ---------------------------------------------------------------------------
 
+def runner_command_signature(command):
+    """Reduce a --runner command template to a signature that identifies the
+    underlying command it invokes, ignoring the {prompt}/{system} argument
+    placeholders. Two seats with the same signature call the same command."""
+    tokens = []
+    for token in shlex.split(command):
+        # Drop the per-attempt prompt/system paths; keep everything else
+        # (interpreter, script path, mode arguments) so that two genuinely
+        # different runners are not collapsed together.
+        if "{prompt}" in token or "{system}" in token:
+            continue
+        tokens.append(token)
+    return tuple(tokens)
+
+
+def check_runner_independence(overrides, allow_shared):
+    """Return (independent, groups). Raise PanelError when two or more family
+    seats resolve to the same underlying command and the escape hatch is off.
+
+    groups maps each shared command signature to the families that use it.
+    """
+    signatures = {}
+    for family, command in overrides.items():
+        signatures.setdefault(runner_command_signature(command), []).append(family)
+    shared = {
+        sig: sorted(fams) for sig, fams in signatures.items() if len(fams) > 1
+    }
+    independent = not shared
+    if shared and not allow_shared:
+        collisions = "; ".join(
+            "%s share one command" % ", ".join(fams) for fams in shared.values()
+        )
+        raise PanelError(
+            "these family seats point at the same underlying command (%s); a "
+            "real match needs genuinely different family runners. Set %s=1 to "
+            "override for a test or single-model dry run, which stamps the "
+            "panel report independent_runners = false"
+            % (collisions, ALLOW_SHARED_RUNNERS_ENV)
+        )
+    return independent, shared
+
+
 def parse_kv_list(pairs, what, allowed_keys):
     out = {}
     for pair in pairs or []:
@@ -584,6 +799,8 @@ def _run(args):
     specs.update(parse_kv_list(args.model_spec, "--model-spec", set(FAMILIES)))
     labels = parse_kv_list(args.model_label, "--model-label", set(FAMILIES))
     overrides = parse_kv_list(args.runner, "--runner", set(FAMILIES))
+    allow_shared = os.environ.get(ALLOW_SHARED_RUNNERS_ENV) == "1"
+    independent_runners, _shared = check_runner_independence(overrides, allow_shared)
 
     materials_dir = Path(args.materials_dir)
 
@@ -620,7 +837,11 @@ def _run(args):
                 print("rendered %s" % out)
         return 0
 
-    texts, commitment = load_materials(materials_dir)
+    texts, commitment = load_materials(materials_dir, word_cap=args.word_cap)
+    parsed_discarded = {
+        "statement_a": texts.get("_discarded_a", 0),
+        "statement_b": texts.get("_discarded_b", 0),
+    }
 
     if args.out_dir is None:
         raise PanelError("--out-dir is required to render the judge prompt or run the panel")
@@ -713,6 +934,23 @@ def _run(args):
                 handle_result(family, payload, model_label, failure, detail)
 
     panel_valid = len(votes) >= MIN_FAMILIES
+    # The parser's own count of unanchored argument lines it dropped, per side
+    # and in total. This is the authoritative discard count; each judge also
+    # self-reports one, and we flag any judge whose number disagrees so the two
+    # can be reconciled by an auditor.
+    parsed_total = parsed_discarded["statement_a"] + parsed_discarded["statement_b"]
+    discard_reconciliation = []
+    for family in sorted(votes):
+        record = json.loads((votes_dir / ("%s.json" % family)).read_text(encoding="utf-8"))
+        reported = record.get("unanchored_arguments_discarded")
+        discard_reconciliation.append(
+            {
+                "family": family,
+                "judge_reported": reported,
+                "parser_counted": parsed_total,
+                "agree": reported == parsed_total,
+            }
+        )
     report = {
         "families_requested": families,
         "votes_collected": {f: votes[f] for f in sorted(votes)},
@@ -720,6 +958,13 @@ def _run(args):
         "commitment_hash": commitment["commitment_hash"],
         "min_families": MIN_FAMILIES,
         "panel_valid": panel_valid,
+        "independent_runners": independent_runners,
+        "unanchored_arguments_discarded_by_parser": {
+            "statement_a": parsed_discarded["statement_a"],
+            "statement_b": parsed_discarded["statement_b"],
+            "total": parsed_total,
+        },
+        "discard_reconciliation": discard_reconciliation,
         "started_at": started_at,
         "finished_at": commit_criteria.utc_now_iso(),
     }
@@ -727,6 +972,13 @@ def _run(args):
 
     for family in sorted(votes):
         print("vote collected: %s -> %s" % (family, votes[family]))
+    for item in discard_reconciliation:
+        if not item["agree"]:
+            print(
+                "warning: %s reported %s unanchored discards; the parser counted "
+                "%d (self-report and mechanism disagree)"
+                % (item["family"], item["judge_reported"], item["parser_counted"])
+            )
     for item in report["absent"]:
         print("family absent: %s (%s)" % (item["family"], item["reason"]))
     if not panel_valid:

@@ -25,6 +25,7 @@ Standard library only. Python >= 3.9.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import sys
@@ -89,7 +90,8 @@ TOP_REQUIRED_KEYS = {
     "outcome",
     "observation_write",
 }
-TOP_OPTIONAL_KEYS = {"rationale"}
+TOP_OPTIONAL_KEYS = {"rationale", "statement_binding"}
+STATEMENT_BINDING_SIDE_KEYS = {"idea_node_id", "content_sha256"}
 
 MARGIN_TOLERANCE = 1e-9
 
@@ -339,6 +341,43 @@ def validate_pairwise_match(obj):
         if not isinstance(rationale, str) or not rationale.strip():
             errors.append("rationale, when present, must be a non-empty string")
 
+    if "statement_binding" in obj:
+        binding = obj["statement_binding"]
+        if not isinstance(binding, dict):
+            errors.append("statement_binding is not an object")
+        else:
+            unknown_sides = sorted(set(binding) - {"a", "b"})
+            if unknown_sides:
+                errors.append(
+                    "statement_binding has unknown sides: %s" % ", ".join(unknown_sides)
+                )
+            for side, expected_node_key in (("a", "idea_a_node_id"), ("b", "idea_b_node_id")):
+                if side not in binding:
+                    errors.append("statement_binding is missing side %r" % side)
+                    continue
+                entry = binding[side]
+                if not isinstance(entry, dict):
+                    errors.append("statement_binding.%s is not an object" % side)
+                    continue
+                unknown_bk = sorted(set(entry) - STATEMENT_BINDING_SIDE_KEYS)
+                if unknown_bk:
+                    errors.append(
+                        "statement_binding.%s has unknown keys: %s"
+                        % (side, ", ".join(unknown_bk))
+                    )
+                node = entry.get("idea_node_id")
+                if node != obj.get(expected_node_key):
+                    errors.append(
+                        "statement_binding.%s.idea_node_id %r does not match %s"
+                        % (side, node, expected_node_key)
+                    )
+                sha = entry.get("content_sha256")
+                if not isinstance(sha, str) or not re.match(r"^sha256:[0-9a-f]{64}$", sha or ""):
+                    errors.append(
+                        "statement_binding.%s.content_sha256 must be sha256:<64 hex>"
+                        % side
+                    )
+
     return errors
 
 
@@ -402,10 +441,15 @@ def load_vote_records(votes_dir, commitment):
 
 
 def cross_check_materials(materials_dir, commitment, idea_a, idea_b):
-    """Optional extra thread: statements carry the committed hash and the
-    node ids they argue for; verify both against the assembly arguments."""
+    """Verify each statement carries the committed hash and the node id it
+    argues for, and return the statement binding: per-side node id and a
+    sha256 over the exact statement content the judges saw. The binding is
+    embedded in the artifact so the judge inputs are an auditable part of the
+    record, not just a check that happened at assembly time and left no trace.
+    """
     materials_dir = Path(materials_dir)
     node_line_re = re.compile(r"^idea_node_id:\s*(\S+)\s*$")
+    binding = {}
     for side, expected_node in (("a", idea_a), ("b", idea_b)):
         path = materials_dir / ("statement_%s.md" % side)
         if not path.is_file():
@@ -428,6 +472,12 @@ def cross_check_materials(materials_dir, commitment, idea_a, idea_b):
                 "materials cross-check: %s argues for node %r, but the match "
                 "is being assembled for %r" % (path, node_id, expected_node)
             )
+        content_sha = hashlib.sha256(text.encode("utf-8")).hexdigest()
+        binding[side] = {
+            "idea_node_id": node_id,
+            "content_sha256": "sha256:" + content_sha,
+        }
+    return {"a": binding["a"], "b": binding["b"]}
 
 
 def find_existing_match(campaign_dir, idea_a, idea_b):
@@ -486,8 +536,11 @@ def assemble(
     elif not _is_uuid(match_id):
         raise MatchError("match_id is not a lowercase dashed uuid: %r" % match_id)
 
+    statement_binding = None
     if materials_dir is not None:
-        cross_check_materials(materials_dir, commitment, idea_a, idea_b)
+        statement_binding = cross_check_materials(
+            materials_dir, commitment, idea_a, idea_b
+        )
 
     records = load_vote_records(votes_dir, commitment)
 
@@ -527,6 +580,8 @@ def assemble(
         },
         "observation_write": {"written": False},
     }
+    if statement_binding is not None:
+        artifact["statement_binding"] = statement_binding
     if rationale:
         artifact["rationale"] = rationale
 
@@ -564,8 +619,11 @@ def main(argv=None):
     parser.add_argument(
         "--materials-dir",
         type=Path,
-        default=None,
-        help="Optional: cross-check statement hash lines and node ids.",
+        required=True,
+        help="Required: cross-check the two advocacy statements against the "
+        "commitment and the assembled node ids, and bind a sha256 of each "
+        "statement's content into the artifact so the judge inputs are "
+        "auditable.",
     )
     args = parser.parse_args(argv)
 
