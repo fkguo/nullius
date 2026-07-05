@@ -1,10 +1,10 @@
+import { PLACEHOLDER_EVIDENCE_URI } from './node-shared.js';
 import { sha256Hex } from './sha256-hex.js';
 
 interface SeedNodeOptions {
   campaignId: string;
   createId: () => string;
   index: number;
-  islandId: string;
   now: string;
   seed: Record<string, unknown>;
 }
@@ -30,7 +30,7 @@ function sanitizeTextList(value: unknown, fallback: string[]): string[] {
 
 export function sanitizeEvidenceUris(value: unknown): string[] {
   const cleaned = sanitizeTextList(value, []);
-  return cleaned.length > 0 ? cleaned : ['https://example.org/reference'];
+  return cleaned.length > 0 ? cleaned : [PLACEHOLDER_EVIDENCE_URI];
 }
 
 function rationaleHashForTrace(rationaleDraft: Record<string, unknown>): string {
@@ -118,7 +118,6 @@ export function buildSeedNode(options: SeedNodeOptions): Record<string, unknown>
     node_id: nodeId,
     revision: 1,
     parent_node_ids: [],
-    island_id: options.islandId,
     operator_id: 'seed.import',
     operator_family: 'Seed',
     origin: {
@@ -135,7 +134,9 @@ export function buildSeedNode(options: SeedNodeOptions): Record<string, unknown>
     },
     rationale_draft: rationaleDraft,
     idea_card: ideaCard,
-    eval_info: null,
+    lifecycle_state: 'active',
+    posterior: null,
+    activation_condition: null,
     grounding_audit: null,
     reduction_report: null,
     reduction_audit: null,

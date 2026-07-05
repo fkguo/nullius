@@ -9,7 +9,6 @@ const FILTER_KEYS = new Set([
   'island_id',
   'operator_id',
   'has_idea_card',
-  'has_eval_info',
   'has_reduction_report',
   'grounding_status',
 ]);
@@ -61,7 +60,6 @@ function validateFilter(filter: unknown): NodeListFilter | undefined {
   if (filter.island_id !== undefined && typeof filter.island_id !== 'string') throw schemaValidationError('filter.island_id must be a string');
   if (filter.operator_id !== undefined && typeof filter.operator_id !== 'string') throw schemaValidationError('filter.operator_id must be a string');
   if (filter.has_idea_card !== undefined && typeof filter.has_idea_card !== 'boolean') throw schemaValidationError('filter.has_idea_card must be a boolean');
-  if (filter.has_eval_info !== undefined && typeof filter.has_eval_info !== 'boolean') throw schemaValidationError('filter.has_eval_info must be a boolean');
   if (filter.has_reduction_report !== undefined && typeof filter.has_reduction_report !== 'boolean') throw schemaValidationError('filter.has_reduction_report must be a boolean');
   if (filter.grounding_status !== undefined && !['pass', 'fail', 'partial'].includes(String(filter.grounding_status))) {
     throw schemaValidationError('filter.grounding_status must be one of pass, fail, partial');

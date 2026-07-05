@@ -3,7 +3,8 @@ export interface NodeRecord extends Record<string, unknown> {
   node_id: string;
   created_at?: string;
   idea_card?: unknown;
-  eval_info?: unknown;
+  posterior?: unknown;
+  lifecycle_state?: unknown;
   reduction_report?: unknown;
   grounding_audit?: { status?: string } | null;
 }
@@ -14,7 +15,6 @@ export interface NodeListFilter {
   island_id?: string;
   operator_id?: string;
   has_idea_card?: boolean;
-  has_eval_info?: boolean;
   has_reduction_report?: boolean;
   grounding_status?: 'pass' | 'fail' | 'partial';
 }
@@ -33,7 +33,6 @@ export function filterNodes(
     if (filter.island_id !== undefined && node.island_id !== filter.island_id) return false;
     if (filter.operator_id !== undefined && node.operator_id !== filter.operator_id) return false;
     if (filter.has_idea_card !== undefined && (node.idea_card !== null && node.idea_card !== undefined) !== filter.has_idea_card) return false;
-    if (filter.has_eval_info !== undefined && (node.eval_info !== null && node.eval_info !== undefined) !== filter.has_eval_info) return false;
     if (
       filter.has_reduction_report !== undefined
       && (node.reduction_report !== null && node.reduction_report !== undefined) !== filter.has_reduction_report

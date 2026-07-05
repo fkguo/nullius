@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "idea_node_v1.schema.json",
   "title": "IdeaNode v1",
-  "description": "A single candidate node in the ideation search space, with lineage, traces, diagnostics, and optional formalized IdeaCard.\n\nMutability contract (audit-first): Fields campaign_id, idea_id, node_id, parent_node_ids, island_id, operator_id, operator_family, origin, operator_trace, rationale_draft, created_at are IMMUTABLE after creation. Fields revision, idea_card, eval_info, grounding_audit, reduction_report, reduction_audit, updated_at are MUTABLE (append/replace semantics; prior values should be preserved in the ledger or history artifacts). revision is engine-managed: initialized to 1 at creation and incremented on each mutation.",
+  "description": "A single candidate idea node in a campaign portfolio, with lineage, traces, diagnostics, an optional formalized IdeaCard, and an externally computed belief posterior.\n\nMutability contract (audit-first): Fields campaign_id, idea_id, node_id, parent_node_ids, island_id, operator_id, operator_family, origin, operator_trace, rationale_draft, created_at are IMMUTABLE after creation. Fields revision, idea_card, grounding_audit, reduction_report, reduction_audit, posterior, lifecycle_state, activation_condition, updated_at are MUTABLE (append/replace semantics; prior values should be preserved in the ledger or history artifacts). revision is engine-managed: initialized to 1 at creation and incremented on each mutation.",
   "type": "object",
   "required": [
     "campaign_id",
@@ -10,7 +10,6 @@
     "node_id",
     "revision",
     "parent_node_ids",
-    "island_id",
     "operator_id",
     "origin",
     "operator_trace",
@@ -33,7 +32,7 @@
     "revision": {
       "type": "integer",
       "minimum": 1,
-      "description": "Monotonically increasing revision counter. Incremented on each mutation (eval_info, grounding_audit, idea_card update). Enables stale-read detection and future optimistic concurrency."
+      "description": "Monotonically increasing revision counter. Incremented on each mutation (posterior update, lifecycle change, grounding_audit, idea_card update). Enables stale-read detection and future optimistic concurrency."
     },
     "parent_node_ids": {
       "type": "array",
@@ -44,16 +43,18 @@
     },
     "island_id": {
       "type": "string",
-      "minLength": 1
+      "minLength": 1,
+      "description": "Historical origin/lineage tag recorded at creation (population partition of earlier campaign runs). Immutable; not interpreted by the current runtime. New nodes may omit it."
     },
     "operator_id": {
       "type": "string",
-      "minLength": 1
+      "minLength": 1,
+      "description": "Origin/lineage tag: identifier of the procedure that created this node (e.g., seed.import). Immutable."
     },
     "operator_family": {
       "type": "string",
       "minLength": 1,
-      "description": "Operator family (stable tag for audits/gates; recommended but not strictly required in v0.2)."
+      "description": "Origin/lineage tag: family of the creating procedure (stable tag for audits). Immutable; recommended but not required."
     },
     "rationale_draft": {
       "$ref": "./rationale_draft_v1.schema.json"
@@ -97,7 +98,7 @@
         "role": {
           "type": "string",
           "minLength": 1,
-          "description": "Physicist role/persona that produced this node (e.g., Ideator, Librarian, Formalizer, Derivation, Checker, Referee, Editor)."
+          "description": "Agent role/persona that produced this node (e.g., Ideator, Librarian, Formalizer, Checker)."
         }
       },
       "additionalProperties": false
@@ -133,7 +134,15 @@
       },
       "additionalProperties": false
     },
-    "eval_info": {
+    "lifecycle_state": {
+      "enum": [
+        "active",
+        "waiting_activation",
+        "archived"
+      ],
+      "description": "Portfolio lifecycle state. Absent means active (validator-side default). waiting_activation nodes carry an activation_condition and are excluded from ranking; archived nodes are retained as an idea archive and are excluded from ranking and promotion."
+    },
+    "posterior": {
       "oneOf": [
         {
           "type": "null"
@@ -141,80 +150,71 @@
         {
           "type": "object",
           "required": [
-            "scores",
-            "fix_suggestions",
-            "failure_modes"
+            "value",
+            "evidence_count",
+            "updated_at"
           ],
           "properties": {
-            "scores": {
-              "type": "object",
-              "description": "Aggregated per-dimension scores for this node (from the latest eval snapshot). Keys should match EvaluatorConfig.dimensions.",
-              "additionalProperties": {
-                "type": "number"
-              }
+            "value": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "description": "Posterior belief in the idea's significance, computed by an external belief-graph tool from source-grounded sub-criteria."
             },
-            "novelty_delta_table": {
-              "$ref": "./novelty_delta_table_v1.schema.json"
+            "evidence_count": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Number of independent observations in the belief graph backing this posterior (effective sample size)."
             },
-            "fix_suggestions": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "required": [
-                  "failure_mode",
-                  "suggested_action",
-                  "target_field",
-                  "priority"
-                ],
-                "properties": {
-                  "failure_mode": {
-                    "enum": [
-                      "missing_evidence",
-                      "too_similar",
-                      "physics_inconsistency",
-                      "not_computable",
-                      "folklore_overlap",
-                      "untestable"
-                    ]
-                  },
-                  "suggested_action": {
-                    "type": "string",
-                    "minLength": 1
-                  },
-                  "target_field": {
-                    "type": "string",
-                    "minLength": 1
-                  },
-                  "operator_hint": {
-                    "type": "string"
-                  },
-                  "priority": {
-                    "enum": [
-                      "critical",
-                      "major",
-                      "minor"
-                    ]
-                  }
-                },
-                "additionalProperties": false
-              }
+            "updated_at": {
+              "type": "string",
+              "format": "date-time",
+              "description": "Engine-stamped time of the last posterior write."
             },
-            "failure_modes": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              },
-              "description": "Superset of failure modes (may include free-text diagnostics beyond the fix_suggestions enum). Structured actionable failures should appear in fix_suggestions; this field captures all detected issues including informational ones."
-            },
-            "promotion_scorecards_artifact_ref": {
+            "gaia_package_ref": {
               "type": "string",
               "format": "uri",
-              "description": "Internal node-scoped pointer to the latest grounding-eval scorecards artifact considered by promotion. Promotion uses this instead of campaign-global latest scorecards and still fail-closes if the referenced scorecard is unsupported."
+              "description": "Optional URI of the belief-graph package (inside the external project) that produced this posterior."
             }
           },
           "additionalProperties": false
         }
       ]
+    },
+    "activation_condition": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind",
+            "description",
+            "satisfied"
+          ],
+          "properties": {
+            "kind": {
+              "enum": [
+                "tool_readiness",
+                "data_release",
+                "stage_reached",
+                "exploratory_computation",
+                "other"
+              ]
+            },
+            "description": {
+              "type": "string",
+              "minLength": 1
+            },
+            "satisfied": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false
+        }
+      ],
+      "description": "Present when lifecycle_state is waiting_activation: the condition under which the idea becomes actionable."
     },
     "grounding_audit": {
       "oneOf": [
@@ -284,7 +284,7 @@
     "updated_at": {
       "type": "string",
       "format": "date-time",
-      "description": "Timestamp of last mutation (e.g., eval_info update, grounding re-audit)."
+      "description": "Timestamp of last mutation (e.g., posterior update, lifecycle change, grounding re-audit)."
     }
   },
   "additionalProperties": false

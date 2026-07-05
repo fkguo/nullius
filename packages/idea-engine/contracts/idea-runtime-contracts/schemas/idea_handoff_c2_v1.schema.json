@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "idea_handoff_c2_v1.schema.json",
   "title": "IdeaHandoffC2 v1",
-  "description": "C2 intake handoff artifact produced by node.promote. This is the only allowed entry into C2: must be schema-valid and grounded (pass).",
+  "description": "C2 intake handoff artifact produced by node.promote. This is the only allowed entry into C2: must be schema-valid and grounded (pass). The promoted node also carries a non-null posterior at promotion time (readable via node.get); the handoff itself stays a self-contained idea package.",
   "type": "object",
   "required": [
     "campaign_id",
@@ -58,70 +58,6 @@
         "timestamp": {
           "type": "string",
           "format": "date-time"
-        }
-      },
-      "additionalProperties": false
-    },
-    "evidence_support": {
-      "type": "object",
-      "required": [
-        "support_status",
-        "scorecard_status",
-        "scorecards_artifact_ref",
-        "supported_dimensions",
-        "unsupported_dimensions",
-        "evidence_uris",
-        "failure_modes"
-      ],
-      "properties": {
-        "support_status": {
-          "enum": [
-            "supported",
-            "partially_supported"
-          ],
-          "description": "Internal carry-through marker for evidence-backed support coverage. This is not a research-quality or authority score."
-        },
-        "scorecard_status": {
-          "enum": [
-            "complete",
-            "partial"
-          ]
-        },
-        "scorecards_artifact_ref": {
-          "type": "string",
-          "format": "uri"
-        },
-        "supported_dimensions": {
-          "type": "array",
-          "minItems": 1,
-          "items": {
-            "type": "string",
-            "minLength": 1
-          }
-        },
-        "unsupported_dimensions": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "minLength": 1
-          }
-        },
-        "evidence_uris": {
-          "type": "array",
-          "minItems": 1,
-          "items": {
-            "type": "string",
-            "format": "uri",
-            "not": {
-              "const": "https://example.org/reference"
-            }
-          }
-        },
-        "failure_modes": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
         }
       },
       "additionalProperties": false

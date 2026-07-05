@@ -10,7 +10,6 @@ interface CampaignRecord extends Record<string, unknown> {
   created_at: string;
   budget: Record<string, number | null>;
   usage: Record<string, number>;
-  island_states: unknown[];
   early_stop_reason?: string;
 }
 
@@ -60,7 +59,6 @@ export class IdeaEngineReadService {
         status: campaign.status,
         created_at: campaign.created_at,
         budget_snapshot: budgetSnapshot(campaign),
-        island_states: campaign.island_states,
         node_count: Object.keys(nodes).length,
       };
       if (campaign.status === 'early_stopped') {

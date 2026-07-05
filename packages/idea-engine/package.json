@@ -6,6 +6,9 @@
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "bin": {
+    "idea-rpc": "bin/idea-rpc.mjs"
+  },
   "scripts": {
     "build": "tsc",
     "test": "vitest run",
