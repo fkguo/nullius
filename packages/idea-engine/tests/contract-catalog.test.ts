@@ -34,10 +34,17 @@ const VALID_PAIRWISE_MATCH = {
       anchored_arguments: [],
       unanchored_arguments_discarded: 0,
     },
+    {
+      reviewer_family: 'opencode',
+      model: 'glm-5.2',
+      vote: 'a',
+      anchored_arguments: [],
+      unanchored_arguments_discarded: 0,
+    },
   ],
   outcome: {
     winner: 'a',
-    vote_margin: 0.5,
+    vote_margin: 0.6667,
     decided_at: '2026-07-05T01:00:00Z',
   },
   observation_write: {
