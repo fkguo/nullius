@@ -69,7 +69,7 @@
     },
     "reduction_type_valid": {
       "type": "boolean",
-      "description": "Whether the abstract problem type is registered in the DomainPack abstract_problem_registry."
+      "description": "Whether the abstract problem type is registered in the campaign's caller-provided abstract_problem_registry."
     },
     "failures": {
       "type": "array",

@@ -1,0 +1,133 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "allocation_decision_v1.schema.json",
+  "title": "AllocationDecision v1",
+  "description": "Record of one investment-allocation decision over the idea portfolio, produced by the decision layer via Thompson sampling from the node posteriors. Nodes in waiting_activation are listed separately with their activation conditions.",
+  "type": "object",
+  "required": [
+    "decision_id",
+    "campaign_id",
+    "generated_at",
+    "method",
+    "random_seed",
+    "candidates",
+    "waiting_activation"
+  ],
+  "properties": {
+    "decision_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "campaign_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "method": {
+      "const": "thompson_sampling"
+    },
+    "random_seed": {
+      "type": "integer",
+      "description": "Seed of the sampling draw, recorded so the decision is reproducible."
+    },
+    "candidates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "node_id",
+          "posterior_value",
+          "evidence_count",
+          "sampled_value",
+          "allocation",
+          "budget_note"
+        ],
+        "properties": {
+          "node_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "posterior_value": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "evidence_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "sampled_value": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "The Thompson draw for this node in this decision round."
+          },
+          "allocation": {
+            "enum": [
+              "deep_investment",
+              "reconnaissance",
+              "hold"
+            ]
+          },
+          "budget_note": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "waiting_activation": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "node_id",
+          "activation_condition",
+          "last_checked_at"
+        ],
+        "properties": {
+          "node_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "activation_condition": {
+            "type": "object",
+            "required": [
+              "kind",
+              "description",
+              "satisfied"
+            ],
+            "properties": {
+              "kind": {
+                "enum": [
+                  "tool_readiness",
+                  "data_release",
+                  "stage_reached",
+                  "exploratory_computation",
+                  "other"
+                ]
+              },
+              "description": {
+                "type": "string",
+                "minLength": 1
+              },
+              "satisfied": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false
+          },
+          "last_checked_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

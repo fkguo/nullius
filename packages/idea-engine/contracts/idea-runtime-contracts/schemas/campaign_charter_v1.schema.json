@@ -17,7 +17,7 @@
     "domain": {
       "type": "string",
       "minLength": 1,
-      "description": "Primary target domain for evaluation/constraints. Not a hard lock: cross-domain method/analogy operators may consult other domains as configured (typically via extensions), but must still satisfy target-domain constraints and grounding."
+      "description": "Primary target domain for evaluation/constraints. Not a hard lock: cross-domain material may inform ideas, but claims must still satisfy target-domain constraints and grounding."
     },
     "scope": {
       "type": "string",
@@ -42,48 +42,12 @@
         "minLength": 1
       }
     },
-    "search_policy_id": {
-      "type": "string",
-      "minLength": 1
-    },
-    "team_policy_id": {
-      "type": "string",
-      "minLength": 1
-    },
-    "distributor": {
-      "type": "object",
-      "description": "Distributor/BanditPolicy campaign-level configuration (auditable; must remain stable within a campaign).",
-      "properties": {
-        "policy_id": {
-          "type": "string",
-          "minLength": 1
-        },
-        "factorization": {
-          "enum": [
-            "joint",
-            "factorized"
-          ],
-          "default": "factorized"
-        },
-        "policy_config_ref": {
-          "type": "string",
-          "format": "uri"
-        },
-        "notes": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "factorization"
-      ]
-    },
     "notes": {
       "type": "string"
     },
     "extensions": {
       "type": "object",
-      "description": "DomainPack-specific knobs (kept out of the stable surface). Recommended keys: folklore_risk_threshold (number in [0,1], default 0.7; if folklore_risk_score >= threshold then require A0-folklore human gate).",
+      "description": "Domain-specific knobs (kept out of the stable surface).",
       "additionalProperties": true
     }
   },

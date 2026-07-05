@@ -2,49 +2,45 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "ranking_result_v1.schema.json",
   "title": "RankingResult v1",
-  "description": "Result of rank.compute (Pareto or Elo).",
+  "description": "Result of rank.compute: nodes ordered by their externally computed belief posterior (descending; ties by evidence_count descending, then stable input order). Nodes excluded from the ordering are reported explicitly in skipped_nodes.",
   "type": "object",
-  "required": ["campaign_id", "method", "effective_dimensions", "scorecards_artifact_ref", "ranked_nodes", "budget_snapshot", "idempotency", "ranking_artifact_ref"],
+  "required": ["campaign_id", "method", "generated_at", "ranked_nodes", "skipped_nodes", "budget_snapshot", "idempotency", "ranking_artifact_ref"],
   "properties": {
     "campaign_id": { "type": "string", "format": "uuid" },
-    "method": { "enum": ["pareto", "elo"] },
-    "effective_dimensions": {
-      "type": "array",
-      "minItems": 1,
-      "uniqueItems": true,
-      "items": { "enum": ["novelty", "feasibility", "impact", "tractability", "grounding"] },
-      "description": "The dimensions actually used for ranking (intersection of requested dimensions and observed scorecard keys)."
-    },
-    "scorecards_artifact_ref": {
-      "type": "string",
-      "format": "uri",
-      "description": "Reference to the scorecards snapshot used for this ranking computation."
-    },
+    "method": { "const": "posterior" },
+    "generated_at": { "type": "string", "format": "date-time" },
     "ranked_nodes": {
       "type": "array",
-      "minItems": 1,
       "items": {
         "type": "object",
-        "required": ["node_id", "rank"],
+        "required": ["node_id", "idea_id", "rank", "posterior_value", "evidence_count"],
         "properties": {
           "node_id": { "type": "string", "format": "uuid" },
           "idea_id": { "type": "string", "format": "uuid" },
           "rank": { "type": "integer", "minimum": 1 },
-          "pareto_front": { "type": "boolean" },
-          "elo_rating": { "type": "number" }
+          "posterior_value": { "type": "number", "minimum": 0, "maximum": 1 },
+          "evidence_count": { "type": "integer", "minimum": 0 }
         },
         "additionalProperties": false
-      }
+      },
+      "description": "May be empty when no node carries a posterior yet."
+    },
+    "skipped_nodes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["node_id", "reason"],
+        "properties": {
+          "node_id": { "type": "string", "format": "uuid" },
+          "reason": { "enum": ["no_posterior", "waiting_activation", "archived"] }
+        },
+        "additionalProperties": false
+      },
+      "description": "Nodes excluded from the ordering, reported explicitly instead of being silently dropped."
     },
     "budget_snapshot": { "$ref": "./budget_snapshot_v1.schema.json" },
     "idempotency": { "$ref": "./idempotency_meta_v1.schema.json" },
     "ranking_artifact_ref": { "type": "string", "format": "uri" }
   },
-  "allOf": [
-    {
-      "if": { "properties": { "method": { "const": "elo" } }, "required": ["method"] },
-      "then": { "properties": { "ranked_nodes": { "minItems": 2 } } }
-    }
-  ],
   "additionalProperties": false
 }

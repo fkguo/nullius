@@ -9,7 +9,7 @@
     "reason": {
       "type": "string",
       "minLength": 1,
-      "description": "Machine-readable sub-reason (string). Example values include: schema_invalid, idempotency_key_conflict, elo_config_required, elo_config_unexpected."
+      "description": "Machine-readable sub-reason (string). Example values include: schema_invalid, idempotency_key_conflict, activation_condition_required, posterior_missing."
     },
     "campaign_id": {
       "type": "string",

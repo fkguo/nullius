@@ -15,7 +15,7 @@ function initParams(campaignName: string, maxSteps = 5) {
     charter: {
       approval_gate_ref: 'gate://idea.ts-only',
       campaign_name: campaignName,
-      domain: 'hep-ph',
+      domain: 'test-domain',
       scope: 'idea-mcp ts-only regression',
     },
     idempotency_key: `${campaignName}-init`,
@@ -97,7 +97,7 @@ describe('IdeaRpcClient', () => {
     }
   });
 
-  it('maps search.step budget_exhausted to INVALID_PARAMS', async () => {
+  it('maps rank.compute budget_exhausted to INVALID_PARAMS', async () => {
     const { client, rootDir } = createClient('idea-mcp-ts-budget-');
     tempDirs.push(rootDir);
 
@@ -107,16 +107,18 @@ describe('IdeaRpcClient', () => {
         initParams('ts-budget-exhausted', 1),
       ) as Record<string, unknown>;
 
-      await client.call('search.step', {
+      // Consumes the single budgeted step (an empty ranking is a valid
+      // result) and drives the campaign into the exhausted state.
+      await client.call('rank.compute', {
         campaign_id: initResult.campaign_id,
-        idempotency_key: 'search-budget-first',
-        n_steps: 5,
+        idempotency_key: 'rank-budget-first',
+        method: 'posterior',
       });
 
-      await expect(client.call('search.step', {
+      await expect(client.call('rank.compute', {
         campaign_id: initResult.campaign_id,
-        idempotency_key: 'search-budget-second',
-        n_steps: 1,
+        idempotency_key: 'rank-budget-second',
+        method: 'posterior',
       })).rejects.toMatchObject({
         code: 'INVALID_PARAMS',
         retryable: false,

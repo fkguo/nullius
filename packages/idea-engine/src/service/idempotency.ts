@@ -2,6 +2,7 @@ import { existsSync } from 'fs';
 import { IdeaEngineStore } from '../store/engine-store.js';
 import { budgetSnapshot } from './budget-snapshot.js';
 import { RpcError } from './errors.js';
+import { nodeLifecycleState } from './node-shared.js';
 
 interface IdempotencyResponse {
   kind: 'error' | 'result';
@@ -35,30 +36,6 @@ function preparedSideEffectsCommitted(store: IdeaEngineStore, method: string, re
   if (record.response.kind !== 'result') {
     return true;
   }
-  if (method === 'search.step') {
-    const campaignId = record.response.payload.campaign_id;
-    const stepId = record.response.payload.step_id;
-    if (typeof campaignId !== 'string' || typeof stepId !== 'string') {
-      return false;
-    }
-    const campaign = store.loadCampaign<Record<string, unknown>>(campaignId);
-    if (!campaign || campaign.last_step_id !== stepId) {
-      return false;
-    }
-    if (!existsSync(store.artifactPath(campaignId, 'search_steps', `${stepId}.json`))) {
-      return false;
-    }
-    const newNodeIds = Array.isArray(record.response.payload.new_node_ids) ? record.response.payload.new_node_ids : [];
-    if (newNodeIds.length === 0) {
-      return true;
-    }
-    const newNodesRef = record.response.payload.new_nodes_artifact_ref;
-    if (typeof newNodesRef !== 'string' || !newNodesRef.startsWith('file://')) {
-      return false;
-    }
-    const nodes = store.loadNodes<Record<string, unknown>>(campaignId);
-    return newNodeIds.every(nodeId => typeof nodeId === 'string' && nodeId in nodes);
-  }
   if (method === 'campaign.init') {
     const campaignId = record.response.payload.campaign_id;
     return typeof campaignId === 'string' && existsSync(store.campaignManifestPath(campaignId));
@@ -88,10 +65,6 @@ function preparedSideEffectsCommitted(store: IdeaEngineStore, method: string, re
     return JSON.stringify(budgetSnapshot(campaign as { budget: Record<string, number | null>; usage: Record<string, number> }))
       === JSON.stringify(expected.budget_snapshot);
   }
-  if (method === 'eval.run') {
-    const scorecardsRef = record.response.payload.scorecards_artifact_ref;
-    return typeof scorecardsRef === 'string' && scorecardsRef.startsWith('file://') && existsSync(scorecardsRef.slice(7));
-  }
   if (method === 'rank.compute') {
     const rankingRef = record.response.payload.ranking_artifact_ref;
     return typeof rankingRef === 'string' && rankingRef.startsWith('file://') && existsSync(rankingRef.slice(7));
@@ -99,6 +72,39 @@ function preparedSideEffectsCommitted(store: IdeaEngineStore, method: string, re
   if (method === 'node.promote') {
     const handoffRef = record.response.payload.handoff_artifact_ref;
     return typeof handoffRef === 'string' && handoffRef.startsWith('file://') && existsSync(handoffRef.slice(7));
+  }
+  if (method === 'node.set_posterior' || method === 'node.set_lifecycle') {
+    const campaignId = record.response.payload.campaign_id;
+    const nodeSummary = record.response.payload.node;
+    if (typeof campaignId !== 'string' || !nodeSummary || typeof nodeSummary !== 'object' || Array.isArray(nodeSummary)) {
+      return false;
+    }
+    const summary = nodeSummary as Record<string, unknown>;
+    const nodeId = summary.node_id;
+    if (typeof nodeId !== 'string' || typeof summary.updated_at !== 'string') {
+      return false;
+    }
+    const nodes = store.loadNodes<Record<string, unknown>>(campaignId);
+    const node = nodes[nodeId];
+    if (!node) {
+      return false;
+    }
+    // The node revision is a shared monotonic counter that every mutation
+    // advances, so `revision >= recorded` gives false positives: a crash
+    // before saveNodes, followed by an unrelated mutation reaching the same
+    // revision, would replay a posterior/lifecycle side effect that never
+    // landed. Confirm instead that the stored node still carries the exact
+    // state this operation produced — its unique updated_at stamp plus the
+    // recorded side-effect payload — the same value-equality probe the
+    // campaign.* branches above use (recorded status/budget vs a counter).
+    if (String(node.updated_at ?? '') !== summary.updated_at) {
+      return false;
+    }
+    if (method === 'node.set_posterior') {
+      return JSON.stringify(node.posterior ?? null) === JSON.stringify(summary.posterior ?? null);
+    }
+    return nodeLifecycleState(node) === summary.lifecycle_state
+      && JSON.stringify(node.activation_condition ?? null) === JSON.stringify(summary.activation_condition ?? null);
   }
   return false;
 }

@@ -1,0 +1,133 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "node_update_result_v1.schema.json",
+  "title": "NodeUpdateResult v1",
+  "description": "Result of a side-effecting node mutation (node.set_posterior / node.set_lifecycle): updated node summary plus idempotency metadata and the current budget snapshot.",
+  "type": "object",
+  "required": [
+    "campaign_id",
+    "node",
+    "budget_snapshot",
+    "idempotency"
+  ],
+  "properties": {
+    "campaign_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "node": {
+      "type": "object",
+      "required": [
+        "node_id",
+        "idea_id",
+        "revision",
+        "lifecycle_state",
+        "posterior",
+        "activation_condition",
+        "updated_at"
+      ],
+      "properties": {
+        "node_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "idea_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "lifecycle_state": {
+          "enum": [
+            "active",
+            "waiting_activation",
+            "archived"
+          ]
+        },
+        "posterior": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "required": [
+                "value",
+                "evidence_count",
+                "updated_at"
+              ],
+              "properties": {
+                "value": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "evidence_count": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "updated_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "gaia_package_ref": {
+                  "type": "string",
+                  "format": "uri"
+                }
+              },
+              "additionalProperties": false
+            }
+          ]
+        },
+        "activation_condition": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "required": [
+                "kind",
+                "description",
+                "satisfied"
+              ],
+              "properties": {
+                "kind": {
+                  "enum": [
+                    "tool_readiness",
+                    "data_release",
+                    "stage_reached",
+                    "exploratory_computation",
+                    "other"
+                  ]
+                },
+                "description": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "satisfied": {
+                  "type": "boolean"
+                }
+              },
+              "additionalProperties": false
+            }
+          ]
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": false
+    },
+    "budget_snapshot": {
+      "$ref": "./budget_snapshot_v1.schema.json"
+    },
+    "idempotency": {
+      "$ref": "./idempotency_meta_v1.schema.json"
+    }
+  },
+  "additionalProperties": false
+}
