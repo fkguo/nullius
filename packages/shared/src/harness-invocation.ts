@@ -70,7 +70,7 @@ export const HARNESS_INVOCATION_SCHEMA_VERSION = 2 as const;
  * v2 markers do not use it. Verifier ignores it on v1 markers too.
  *
  * @deprecated kept exported so dependent packages compiling against an
- *   older `@nullius/shared` do not break at import time.
+ *   older version of this shared package do not break at import time.
  */
 export const DEFAULT_HARNESS_INVOCATION_TTL_SECONDS = 3600;
 
