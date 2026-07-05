@@ -1,0 +1,92 @@
+{
+  "campaign_id": "0f3c2c8e-5df1-4a3a-9b6e-2f1a7c9d4e10",
+  "nodes": [
+    {
+      "node_id": "idea-alpha",
+      "lifecycle_state": "active",
+      "posterior": {
+        "value": 0.85,
+        "evidence_count": 40,
+        "updated_at": "2026-07-01T09:00:00Z",
+        "gaia_package_ref": "packages/idea-alpha/posterior-040"
+      }
+    },
+    {
+      "node_id": "idea-beta",
+      "lifecycle_state": "active",
+      "posterior": {
+        "value": 0.2,
+        "evidence_count": 3,
+        "updated_at": "2026-07-02T10:30:00Z"
+      }
+    },
+    {
+      "node_id": "idea-eta",
+      "posterior": {
+        "value": 0.55,
+        "evidence_count": 12,
+        "updated_at": "2026-07-03T08:15:00Z"
+      }
+    },
+    {
+      "node_id": "idea-gamma",
+      "lifecycle_state": "active"
+    },
+    {
+      "node_id": "idea-delta",
+      "lifecycle_state": "waiting_activation",
+      "activation_condition": {
+        "kind": "tool_readiness",
+        "description": "solver toolchain passes its seeded smoke run on the shared machine",
+        "satisfied": false,
+        "last_checked_at": "2026-06-28T16:00:00Z"
+      }
+    },
+    {
+      "node_id": "idea-epsilon",
+      "lifecycle_state": "waiting_activation",
+      "activation_condition": {
+        "kind": "data_release",
+        "description": "public release of the season-2 catalogue by the survey consortium",
+        "satisfied": true,
+        "last_checked_at": "2026-07-04T12:00:00Z"
+      }
+    },
+    {
+      "node_id": "idea-iota",
+      "lifecycle_state": "waiting_activation",
+      "activation_condition": {
+        "kind": "stage_reached",
+        "description": "campaign reaches the calibration-complete milestone",
+        "satisfied": false
+      }
+    },
+    {
+      "node_id": "idea-kappa",
+      "lifecycle_state": "waiting_activation",
+      "activation_condition": {
+        "kind": "exploratory_computation",
+        "description": "small-scale feasibility estimate finished and passed the numerical reliability checks",
+        "satisfied": false
+      }
+    },
+    {
+      "node_id": "idea-lambda",
+      "lifecycle_state": "waiting_activation",
+      "activation_condition": {
+        "kind": "other",
+        "description": "collaborator confirms access to the shared instrument logbook",
+        "satisfied": false
+      }
+    },
+    {
+      "node_id": "idea-zeta",
+      "lifecycle_state": "archived",
+      "posterior": {
+        "value": 0.1,
+        "evidence_count": 25,
+        "updated_at": "2026-05-20T11:00:00Z"
+      }
+    }
+  ]
+}
