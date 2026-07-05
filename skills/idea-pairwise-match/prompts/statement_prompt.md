@@ -32,7 +32,9 @@ Commitment hash: {{COMMITMENT_HASH}}
 - Every argument line MUST end with an anchor tag:
   "[anchor: literature -> reference]" or "[anchor: computation -> reference]".
   The reference must be one of the card's evidence entries (a URI or artifact
-  path taken verbatim from the card).
+  path taken verbatim from the card). A tag whose reference is not a card
+  evidence entry is treated as unanchored: the line is dropped from what the
+  judges see and counted, exactly as if it had no tag.
 - Organize the statement as one short section per committed criterion, in
   the committed order. A criterion the card cannot speak to gets the single
   line "No anchored argument under this criterion." rather than padding.

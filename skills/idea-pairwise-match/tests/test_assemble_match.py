@@ -46,11 +46,17 @@ def make_vote(family, vote, commitment, collected_at=None, discarded=0):
     }
 
 
-def write_votes(votes_dir, votes, names=None):
+def write_votes(votes_dir, votes, names=None, independent_runners=True):
     votes_dir.mkdir(parents=True, exist_ok=True)
     for index, vote in enumerate(votes):
         name = (names or {}).get(index, "%s.json" % vote["reviewer_family"])
         commit_criteria.write_json_atomic(votes_dir / name, vote)
+    # assemble() reads independent_runners from the panel run report next to the
+    # votes; write a minimal report so the read path is exercised by default.
+    commit_criteria.write_json_atomic(
+        votes_dir.parent / "panel_run_report.json",
+        {"independent_runners": independent_runners},
+    )
 
 
 def standard_setup(tmp_path, votes_spec):
@@ -151,11 +157,53 @@ def test_assemble_writes_valid_artifact(tmp_path):
     assert tier == 3
     families = [entry["reviewer_family"] for entry in artifact["panel"]]
     assert families == ["claude", "codex", "opencode", "kimi"]
+    # The panel run report's independent_runners flag is carried into the
+    # artifact, so a low-diversity panel is visible in the artifact itself.
+    assert artifact["independent_runners"] is True
     assert artifact["observation_write"] == {"written": False}
     for entry in artifact["panel"]:
         assert set(entry) == assemble_match.PANEL_ENTRY_KEYS
     on_disk = json.loads(artifact_path.read_text(encoding="utf-8"))
     assert on_disk == artifact
+
+
+def test_stub_backed_panel_flag_is_carried_into_artifact(tmp_path):
+    # A panel run under the stub/single-model escape hatch stamps
+    # independent_runners = false in its report; assembly must carry that flag
+    # into the artifact so the belief layer sees the low diversity.
+    commitment_path, commitment = make_commitment(tmp_path)
+    votes = [
+        make_vote(family, "a", commitment)
+        for family in ("claude", "codex", "opencode")
+    ]
+    votes_dir = tmp_path / "votes"
+    write_votes(votes_dir, votes, independent_runners=False)
+    campaign = tmp_path / "campaign"
+    campaign.mkdir()
+    _, artifact, _, _ = assemble_match.assemble(
+        commitment_path, votes_dir, campaign, CAMPAIGN_ID, IDEA_A, IDEA_B
+    )
+    assert artifact["independent_runners"] is False
+    assert not assemble_match.validate_pairwise_match(artifact)
+
+
+def test_assemble_refuses_when_panel_report_missing(tmp_path):
+    # No panel_run_report.json next to the votes: assembly refuses rather than
+    # silently omitting the independent_runners flag.
+    commitment_path, commitment = make_commitment(tmp_path)
+    votes = [
+        make_vote(family, "a", commitment)
+        for family in ("claude", "codex", "opencode")
+    ]
+    votes_dir = tmp_path / "votes"
+    write_votes(votes_dir, votes)
+    (votes_dir.parent / "panel_run_report.json").unlink()
+    campaign = tmp_path / "campaign"
+    campaign.mkdir()
+    with pytest.raises(assemble_match.MatchError, match="panel run report not found"):
+        assemble_match.assemble(
+            commitment_path, votes_dir, campaign, CAMPAIGN_ID, IDEA_A, IDEA_B
+        )
 
 
 def test_assemble_rejects_fewer_than_three_families(tmp_path):
@@ -408,6 +456,8 @@ def test_validator_accepts_the_assembled_artifact(valid_artifact):
         ),
         (lambda a: a.__setitem__("rationale", "   "), "non-empty string"),
         (lambda a: a.__setitem__("panel", a["panel"][:2]), "at least 3"),
+        (lambda a: a.pop("independent_runners"), "missing top-level key: independent_runners"),
+        (lambda a: a.__setitem__("independent_runners", "yes"), "independent_runners must be a boolean"),
     ],
 )
 def test_validator_catches_mutations(valid_artifact, mutate, expected):
