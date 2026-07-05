@@ -88,7 +88,7 @@
       "surface_kind": "mcp_tool_inventory",
       "owner": "@nullius/idea-mcp",
       "notes": [
-        "Experimental runtime bridge for idea campaign lifecycle management.",
+        "Experimental runtime bridge for the probability-managed idea portfolio (idea campaign lifecycle management).",
         "Not a root front door and intentionally narrower than the full `idea-engine` runtime contract (node posterior/lifecycle/rank/promote methods stay engine-side)."
       ],
       "exact_inventory_source": "packages/idea-mcp/src/tool-registry.ts",
