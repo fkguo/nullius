@@ -7,6 +7,36 @@ occur in any `0.x` release, and there is no API-stability promise yet. Dated, ta
 releases begin at the first published release; until then the current development
 version is the lockstep number below.
 
+## [0.5.0] - 2026-07-05
+
+### Changed
+- **idea-engine restarted from island-evolution search + heuristic scoring to a
+  probability-managed idea portfolio.** The search/eval runtime is archived (the
+  `search.step` / `eval.run` executors, the built-in DomainPack subsystem, and the
+  island / distributor / failure-library machinery are removed); the idea contracts
+  and store are retained and evolved. `idea_node_v1` gains `posterior`,
+  `lifecycle_state`, and `activation_condition` and drops `eval_info`; the
+  abstract-problem registry is now caller-provided at `campaign.init` (no built-in
+  domain packs); `rank.compute` ranks by an externally computed belief-graph
+  posterior instead of the heuristic multi-dimensional score.
+- **`idea-mcp` narrowed to the six `idea_campaign_*` lifecycle tools**, aligned to
+  the restarted runtime surface.
+
+### Added
+- **skill `idea-posterior`** — decompose a research idea into source-grounded
+  sub-criteria, encode a Gaia argument graph (`gaia-lang==0.5.0a4`), run exact
+  inference, and write the posterior back to the idea store, under a
+  parameter-honesty discipline (three fixed likelihood grades, a mandatory anchor
+  on every number, MaxEnt fallback when an anchor fails review).
+- **skill `idea-pairwise-match`** — criteria-committed, cross-family judged pairwise
+  comparison between two idea nodes; the outcome enters the belief layer as one
+  capped, non-eliminating observation. Judge input is rebuilt from validated
+  structure only (anchored arguments under committed-criteria headings), never from
+  verbatim author prose.
+- **skill `idea-allocation`** — Thompson-sampling investment allocation from the
+  posterior, plus activation-condition monitoring for waiting-activation ideas.
+- **contracts** — `pairwise_match_v1` and `allocation_decision_v1` schemas.
+
 ## [0.4.0] - 2026-07-05
 
 ### Changed

@@ -1,6 +1,6 @@
 {
   "name": "@nullius/hep-mcp",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Current HEP MCP domain pack for project/run artifacts, evidence, data, and writing surfaces",
   "author": "Feng-Kun Guo",
   "type": "module",

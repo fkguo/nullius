@@ -18,7 +18,7 @@ const TOOL_MODE: ToolExposureMode = process.env.ARXIV_TOOL_MODE === 'full' ? 'fu
 const server = new Server(
   {
     name: 'arxiv-mcp',
-    version: '0.4.0',
+    version: '0.5.0',
   },
   {
     capabilities: {

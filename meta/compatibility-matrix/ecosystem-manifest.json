@@ -8,7 +8,7 @@
       "repo": "nullius/nullius",
       "type": "tool-pack",
       "channel": "beta",
-      "version": "0.4.0"
+      "version": "0.5.0"
     },
     "skills-market": {
       "repo": "nullius/skills-market",
@@ -44,7 +44,7 @@
       "version": "0.1.0",
       "source_path": "skills/pdg-lookup/SKILL.md",
       "depends_on": {
-        "hep-mcp": ">=0.4.0 <0.5.0"
+        "hep-mcp": ">=0.5.0 <0.6.0"
       }
     },
     "julia-perf": {
@@ -60,7 +60,7 @@
       "channel": "dev",
       "version": "0.1.0",
       "depends_on": {
-        "hep-mcp": ">=0.4.0 <0.5.0"
+        "hep-mcp": ">=0.5.0 <0.6.0"
       }
     },
     "literature-graph-builder": {
@@ -117,7 +117,7 @@
       "version": "0.1.0",
       "source_path": "skills/zotero-import/SKILL.md",
       "depends_on": {
-        "hep-mcp": ">=0.4.0 <0.5.0"
+        "hep-mcp": ">=0.5.0 <0.6.0"
       }
     },
     "referee-review": {

@@ -1,5 +1,5 @@
 // @nullius/orchestrator — public package exports
-export const VERSION = '0.4.0';
+export const VERSION = '0.5.0';
 
 export * from './types.js';
 export { StateManager } from './state-manager.js';

@@ -16,7 +16,7 @@ import { getTools, handleToolCall, type ToolExposureMode } from './tools/index.j
 const TOOL_MODE: ToolExposureMode = process.env.OPENALEX_TOOL_MODE === 'full' ? 'full' : 'standard';
 
 const server = new Server(
-  { name: 'openalex-mcp', version: '0.4.0' },
+  { name: 'openalex-mcp', version: '0.5.0' },
   { capabilities: { tools: {} } },
 );
 

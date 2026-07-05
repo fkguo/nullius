@@ -1,6 +1,6 @@
 {
   "name": "@nullius/rep-sdk",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Agent-native core Research Evolution Protocol SDK",
   "license": "MIT",
   "type": "module",

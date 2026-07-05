@@ -18,7 +18,7 @@ const TOOL_MODE: ToolExposureMode = process.env.ZOTERO_TOOL_MODE === 'full' ? 'f
 const server = new Server(
   {
     name: 'zotero-mcp',
-    version: '0.4.0',
+    version: '0.5.0',
   },
   {
     capabilities: {

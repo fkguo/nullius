@@ -112,7 +112,7 @@ export class McpClient {
     const initResponse = await this.request('initialize', {
       protocolVersion: MCP_PREFERRED_PROTOCOL_VERSION,
       capabilities: this.sampling ? { sampling: {} } : {},
-      clientInfo: { name: '@nullius/orchestrator', version: '0.4.0' },
+      clientInfo: { name: '@nullius/orchestrator', version: '0.5.0' },
     });
     const negotiated = (initResponse.result as Record<string, unknown> | undefined)?.protocolVersion;
     if (typeof negotiated !== 'string' || negotiated.trim() === '') {

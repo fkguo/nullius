@@ -17,7 +17,7 @@
     "opencode": "Link into ~/.config/opencode/skills for OpenCode discovery."
   },
   "depends_on": {
-    "hep-mcp": ">=0.4.0 <0.5.0"
+    "hep-mcp": ">=0.5.0 <0.6.0"
   },
   "source": {
     "repo": "nullius/skills",

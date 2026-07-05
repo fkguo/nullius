@@ -249,7 +249,7 @@ export const TOOL_SPECS: ToolSpec[] = [
       const dbPath = getPdgDbPathFromEnv();
       if (!dbPath) {
         return {
-          server: { name: 'pdg-mcp', version: '0.4.0' },
+          server: { name: 'pdg-mcp', version: '0.5.0' },
           db: {
             configured: false,
             reason: 'PDG_DB_PATH not set',
@@ -269,7 +269,7 @@ export const TOOL_SPECS: ToolSpec[] = [
       };
 
       return {
-        server: { name: 'pdg-mcp', version: '0.4.0' },
+        server: { name: 'pdg-mcp', version: '0.5.0' },
         db: {
           configured: true,
           db_path: dbPath,

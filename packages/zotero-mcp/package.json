@@ -1,6 +1,6 @@
 {
   "name": "@nullius/zotero-mcp",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Zotero (Local API) MCP server for local library management and integration",
   "author": "Feng-Kun Guo",
   "type": "module",

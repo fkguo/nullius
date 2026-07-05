@@ -289,7 +289,7 @@ class OpenAlexRateLimiter {
 
   private getHeaders(): Record<string, string> {
     const mailto = getMailto();
-    const ua = `openalex-mcp/0.4.0${mailto ? ` (mailto:${mailto})` : ''}`;
+    const ua = `openalex-mcp/0.5.0${mailto ? ` (mailto:${mailto})` : ''}`;
     return { 'User-Agent': ua, 'Accept': 'application/json' };
   }
 
