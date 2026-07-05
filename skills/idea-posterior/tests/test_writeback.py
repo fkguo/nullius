@@ -12,7 +12,10 @@ import posterior_writeback as writeback
 POSTERIOR = {
     "value": 0.8499370175790979,
     "evidence_count": 2,
-    "gaia_package_ref": "/tmp/example-idea-gaia#sha256:abc123",
+    "gaia_package_ref": (
+        "/tmp/example-idea-gaia#sha256:"
+        "e314d88c63c80b8845d2c1347e0f20b77db5825076d847ecd1c143a925afc676"
+    ),
 }
 
 
@@ -73,6 +76,29 @@ def test_idempotency_key_is_deterministic_and_sensitive() -> None:
     changed = dict(POSTERIOR, value=0.5)
     assert writeback.derive_idempotency_key("c", "n", changed) != key_a
     assert writeback.derive_idempotency_key("c2", "n", POSTERIOR) != key_a
+
+
+def test_idempotency_key_distinguishes_any_two_float_values() -> None:
+    # repr() is the shortest round-trip float representation: even values
+    # differing in the last bit must yield different keys.
+    close_a = dict(POSTERIOR, value=0.5)
+    close_b = dict(POSTERIOR, value=0.5000000000000001)
+    assert close_a["value"] != close_b["value"]
+    assert writeback.derive_idempotency_key(
+        "c", "n", close_a
+    ) != writeback.derive_idempotency_key("c", "n", close_b)
+
+
+def test_validate_posterior_requires_pinned_ref() -> None:
+    for bad_ref in (
+        "/tmp/example-idea-gaia",  # no hash at all
+        "/tmp/example-idea-gaia#sha256:abc123",  # hash too short
+        "/tmp/example-idea-gaia#md5:" + "a" * 32,  # wrong algorithm tag
+    ):
+        with pytest.raises(ValueError, match="pin the compiled graph"):
+            writeback.validate_posterior(
+                dict(POSTERIOR, gaia_package_ref=bad_ref)
+            )
 
 
 def test_validate_posterior_rejects_bad_payloads() -> None:

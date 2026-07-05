@@ -53,8 +53,11 @@ Authoring rules (see the idea-posterior skill for the full discipline):
   "anchor: a projected/variational method paper, DOI:...".
   A number whose anchor does not survive review is deleted, and the claim
   falls back to MaxEnt. That fallback is the correct failure mode.
-- The worth claim gets NO register_prior unless a real external prior exists
-  (cite its source in the justification). No prior means MaxEnt, by design.
+- No claim gets register_prior unless a real external prior exists. A
+  register_prior justification follows the same anchor discipline as every
+  other number: it ends with "anchor: <artifact reference or URI>", and a
+  prior whose anchor fails review is deleted (the claim reverts to MaxEnt).
+  No prior means MaxEnt, by design.
 - Mutual exclusivity among three or more rival hypotheses must be expanded
   into pairwise exclusive() calls: exclusive() takes exactly two claims in
   gaia-lang {gaia_pin}.
@@ -197,9 +200,11 @@ def check_gaia_version(gaia_bin: str) -> None:
         raise SystemExit(2) from exc
     first_line = (out.stdout or out.stderr).strip().splitlines()
     banner = first_line[0] if first_line else ""
-    if GAIA_PIN not in banner:
+    # Exact token match: a banner like "gaia-lang 0.5.0a41" must NOT pass
+    # a pin of 0.5.0a4, so substring matching is not acceptable.
+    if GAIA_PIN not in banner.replace(",", " ").split():
         sys.stderr.write(
-            f"error: gaia version mismatch: expected {GAIA_PIN}, got "
+            f"error: gaia version mismatch: expected exactly {GAIA_PIN}, got "
             f"{banner!r}. The pin is explicit; do not silently upgrade or "
             "downgrade.\n" + PIN_INSTALL_HINT + "\n"
         )
@@ -262,14 +267,23 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 2
 
-    init = subprocess.run(
-        [gaia_bin, "build", "init", package_name],
-        cwd=dest,
-        capture_output=True,
-        text=True,
-        timeout=300,
-        check=False,
-    )
+    try:
+        init = subprocess.run(
+            [gaia_bin, "build", "init", package_name],
+            cwd=dest,
+            capture_output=True,
+            text=True,
+            timeout=300,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        sys.stderr.write(
+            f"error: `gaia build init {package_name}` timed out after 300 s. "
+            "Package creation normally finishes in seconds; inspect the Gaia "
+            "installation and remove any partially created directory before "
+            "retrying.\n"
+        )
+        return 2
     if init.returncode != 0:
         sys.stderr.write(
             f"error: `gaia build init {package_name}` failed "

@@ -35,8 +35,8 @@ def detect_gaia() -> tuple[str | None, str | None]:
         return None, f"could not run {candidate!r}: {exc}"
     lines = (out.stdout or out.stderr).strip().splitlines()
     banner = lines[0] if lines else ""
-    if GAIA_PIN not in banner:
-        return None, f"version mismatch: got {banner!r}, need {GAIA_PIN}"
+    if GAIA_PIN not in banner.replace(",", " ").split():
+        return None, f"version mismatch: got {banner!r}, need exactly {GAIA_PIN}"
     return candidate, None
 
 

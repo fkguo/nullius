@@ -108,10 +108,14 @@ Record the verdict as a `gate_result` in the idea's artifact directory:
 }
 ```
 
-Framework-route ideas may enter with a low initial posterior: the equivalence
-obligation is proven at the gate, while generative evidence accumulates over
-time through appended observations (see revival semantics below). Admission
-says the idea deserves a graph, not that the graph starts high.
+Framework-route ideas may enter with a low initial posterior. Both
+obligations are still checked at the gate — equivalence by actual
+reproduction, the generative obligation by its trial demonstration. What
+accumulates afterwards is *further* generative evidence beyond that first
+demonstration, entering as appended observations (see revival semantics
+below). Admission says the idea deserves a graph, not that the graph starts
+high; an idea with neither reproduction nor a trial demonstration is not a
+low-posterior admit, it is a rejection.
 
 ## Sub-criterion decomposition
 
@@ -170,11 +174,14 @@ invented numbers is worse than no posterior: it looks like knowledge.
   unanchored domain does not count.
 
 - **Utility and cost never enter the graph.** Beliefs and decisions are
-  separate layers. The `verification_cost` claim carries evidence about
-  feasibility; the budget decision reads the posterior downstream. If a
-  statement mentions money, hours, or hardware as a *reason to prefer* the
-  idea rather than as *evidence about a belief*, it does not belong in the
-  graph.
+  separate layers. No quantity of money, hours, or hardware ever appears in
+  the graph — not as a claim, not in a rationale, not as a likelihood
+  choice. What the `verification_cost` claim holds is a *belief about a
+  fact*: that a bounded, decisive first check exists, anchored by a written
+  compute plan or a passed trial run. The budget decision that consumes the
+  posterior happens downstream, outside the graph. Test for violations by
+  asking: does this statement give a *reason to prefer* the idea (utility —
+  out), or *evidence that a checkable fact is true* (belief — in)?
 
 - **Lindley–Jeffreys trap.** Testing a point hypothesis against a diffuse
   alternative manufactures enormous Bayes factors — a single observation
@@ -195,8 +202,11 @@ invented numbers is worse than no posterior: it looks like knowledge.
 
 - **The top-level claim is named `worth` and gets no prior.** The module
   variable name must be `worth` (extraction keys on that label). Do not
-  `register_prior` it unless a genuine external prior exists, in which case
-  the justification cites its source. No prior means MaxEnt, by design.
+  `register_prior` it — or any claim — unless a genuine external prior
+  exists. A `register_prior` justification follows the same anchor
+  discipline as every other number: it ends with `anchor: <artifact
+  reference or resolvable URI>`, and a prior whose anchor fails review is
+  deleted so the claim reverts to MaxEnt. No prior means MaxEnt, by design.
 
 - **Standard wiring per sub-criterion.** Anchored facts enter as
   `observe()`; an `infer()` updates the sub-criterion claim from each

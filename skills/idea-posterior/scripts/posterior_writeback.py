@@ -25,11 +25,15 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
 
 REQUIRED_POSTERIOR_FIELDS = ("value", "evidence_count", "gaia_package_ref")
+
+# The package reference must pin the compiled graph state via its IR hash.
+REF_PIN_RE = re.compile(r"#sha256:[0-9a-f]{16,}$")
 
 
 def validate_posterior(posterior: dict) -> dict:
@@ -57,6 +61,12 @@ def validate_posterior(posterior: dict) -> dict:
     ref = posterior["gaia_package_ref"]
     if not isinstance(ref, str) or not ref.strip():
         raise ValueError("gaia_package_ref must be a non-empty string")
+    if not REF_PIN_RE.search(ref):
+        raise ValueError(
+            "gaia_package_ref must pin the compiled graph as "
+            f"<package path>#sha256:<hex>, got {ref!r}; use the reference "
+            "produced by run_infer_and_extract.py, which embeds the IR hash"
+        )
     return {
         "value": float(value),
         "evidence_count": evidence_count,
@@ -65,13 +75,17 @@ def validate_posterior(posterior: dict) -> dict:
 
 
 def derive_idempotency_key(campaign_id: str, node_id: str, posterior: dict) -> str:
-    """Deterministic key: same posterior write -> same key."""
+    """Deterministic key: same posterior write -> same key.
+
+    The value enters via ``repr``, the shortest round-trip representation of
+    a Python float: any two distinct float values produce distinct digests.
+    """
     basis = "\n".join(
         [
             campaign_id,
             node_id,
             posterior["gaia_package_ref"],
-            f"{posterior['value']:.12g}",
+            repr(posterior["value"]),
             str(posterior["evidence_count"]),
         ]
     )

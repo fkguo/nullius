@@ -69,9 +69,11 @@ def check_gaia_version(gaia_bin: str) -> None:
         raise SystemExit(2) from exc
     first_line = (out.stdout or out.stderr).strip().splitlines()
     banner = first_line[0] if first_line else ""
-    if GAIA_PIN not in banner:
+    # Exact token match: a banner like "gaia-lang 0.5.0a41" must NOT pass
+    # a pin of 0.5.0a4, so substring matching is not acceptable.
+    if GAIA_PIN not in banner.replace(",", " ").split():
         sys.stderr.write(
-            f"error: gaia version mismatch: expected {GAIA_PIN}, got "
+            f"error: gaia version mismatch: expected exactly {GAIA_PIN}, got "
             f"{banner!r}. The pin is explicit; do not silently upgrade or "
             "downgrade.\n" + PIN_INSTALL_HINT + "\n"
         )
@@ -81,9 +83,17 @@ def check_gaia_version(gaia_bin: str) -> None:
 def run_stage(gaia_bin: str, stage: list[str], package_dir: Path) -> None:
     """Run one gaia CLI stage; on failure print a readable diagnosis."""
     cmd = [gaia_bin, *stage, str(package_dir)]
-    result = subprocess.run(
-        cmd, capture_output=True, text=True, timeout=600, check=False
-    )
+    try:
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=600, check=False
+        )
+    except subprocess.TimeoutExpired as exc:
+        sys.stderr.write(
+            f"error: `{' '.join(cmd)}` timed out after 600 s. A healthy "
+            "package of this kind finishes in seconds; inspect the package "
+            "or the Gaia installation before retrying.\n"
+        )
+        raise SystemExit(2) from exc
     if result.returncode != 0:
         sys.stderr.write(
             f"error: `{' '.join(cmd)}` failed (exit {result.returncode}).\n"
