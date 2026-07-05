@@ -12,7 +12,8 @@
     "criteria_commitment",
     "panel",
     "outcome",
-    "observation_write"
+    "observation_write",
+    "independent_runners"
   ],
   "properties": {
     "match_id": {
@@ -170,6 +171,10 @@
         }
       },
       "additionalProperties": false
+    },
+    "independent_runners": {
+      "type": "boolean",
+      "description": "Whether the panel seats resolved to genuinely distinct underlying runner commands. False marks a stub-backed or single-command panel whose votes carry no real cross-family diversity, so the belief layer can weight the observation accordingly. Read from the panel run report at assembly time."
     }
   },
   "additionalProperties": false
