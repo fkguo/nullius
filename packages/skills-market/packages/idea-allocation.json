@@ -1,0 +1,37 @@
+{
+  "package_id": "idea-allocation",
+  "package_type": "skill-pack",
+  "repo": "nullius/skills-market",
+  "channel": "dev",
+  "version": "0.1.0",
+  "summary": "Decision layer for the idea portfolio: Thompson-sampling investment allocation from node posteriors (with a cold-start reconnaissance branch for nodes that have no posterior yet) plus activation-condition monitoring for waiting-activation ideas. Utility and cost stay out of the belief graph; allocation reads the posterior, it does not set it.",
+  "platforms": [
+    "claude_code",
+    "codex",
+    "opencode"
+  ],
+  "source_path": "skills/idea-allocation/SKILL.md",
+  "install": {
+    "claude_code": "Link into ~/.claude/skills or install via marketplace when available.",
+    "codex": "Link into ~/.codex/skills for Codex native discovery.",
+    "opencode": "Link into ~/.config/opencode/skills for OpenCode discovery."
+  },
+  "source": {
+    "repo": "nullius/skills",
+    "ref": "main",
+    "subpath": "skills/idea-allocation",
+    "include": [
+      "SKILL.md",
+      "scripts/**"
+    ],
+    "exclude": [
+      "**/tests/**",
+      "**/test/**",
+      "**/tmp/**",
+      "**/.pytest_cache/**",
+      "**/__pycache__/**",
+      "**/*.pyc",
+      "**/.DS_Store"
+    ]
+  }
+}

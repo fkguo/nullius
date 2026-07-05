@@ -217,6 +217,27 @@
       "channel": "dev",
       "version": "0.1.0",
       "source_path": "skills/review-swarm/SKILL.md"
+    },
+    "idea-posterior": {
+      "repo": "nullius/skills-market",
+      "type": "skill-pack",
+      "channel": "dev",
+      "version": "0.1.0",
+      "source_path": "skills/idea-posterior/SKILL.md"
+    },
+    "idea-pairwise-match": {
+      "repo": "nullius/skills-market",
+      "type": "skill-pack",
+      "channel": "dev",
+      "version": "0.1.0",
+      "source_path": "skills/idea-pairwise-match/SKILL.md"
+    },
+    "idea-allocation": {
+      "repo": "nullius/skills-market",
+      "type": "skill-pack",
+      "channel": "dev",
+      "version": "0.1.0",
+      "source_path": "skills/idea-allocation/SKILL.md"
     }
   },
   "platforms": {
