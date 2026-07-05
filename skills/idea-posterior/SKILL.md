@@ -320,10 +320,10 @@ readable diagnosis (including the pinned install recipe) when a stage fails.
    `--allow-discipline-warnings` downgrades violations as an explicit,
    logged exception for deliberate exploration, but the extracted
    reference is then prefixed `exploration-only:` and the writeback
-   script refuses to store it. The scan guards against ordinary
-   authoring and casual workarounds; deliberately obfuscated authoring is
-   review's business, and review stays the authority on substance either
-   way. Then runs `gaia build compile`, `gaia build check`,
+   script refuses to store it. What the scan does and does not promise is
+   stated plainly under "Scan boundary" below; deliberately obfuscated
+   authoring is review's business, and review stays the authority on
+   substance either way. Then runs `gaia build compile`, `gaia build check`,
    `gaia run infer`, parses `.gaia/beliefs.json` (the entry labelled
    `worth`) and `.gaia/ir.json` (observation supports, one per
    `observe()` statement), and prints:
@@ -364,6 +364,25 @@ inputs. The extraction script's static scan stops mechanical slips
 (off-grade pairs, missing trailing anchor notes) before a posterior can be
 extracted at all; everything it cannot decide statically it hands to the
 reviewer.
+
+**Scan boundary.** The static scan is a review aid, not a security
+boundary. It is designed to catch accidental and casual discipline breaks —
+an off-grade likelihood pair, a missing anchor note, a grade written through
+a variable, a statement aliased and called indirectly, a strong-grade
+`downstream_reach` update missing its domain list — including the near
+variants of those (an alias built from a module attribute such as
+`i = lang.infer`, a reach claim identified by its `title="downstream_reach"`
+rather than its variable name, a domains clause pushed inside the trailing
+anchor note). It does **not** promise to catch deliberately obfuscated
+authoring: code that hides a statement behind `exec`/`eval`, computed or
+dynamically built attribute names, a wrapper re-bound through a non-Load
+context, or runtime dispatch can defeat any static reader and is out of the
+scan's guarantee by design. Those cases are the human reviewer's
+responsibility, backed by version-controlled history. Chasing ever-deeper
+static evasions is unbounded and is not attempted; the scan is held to the
+accidental-and-casual bar above, and substance — whether an anchor is true,
+a grade appropriate, a set of domains genuinely independent — is always the
+reviewer's call.
 
 - Run `gaia review calibration`: it ranks claims by the shift between prior
   and posterior. Large-shift claims are where wrong grades do the most
