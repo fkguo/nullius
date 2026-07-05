@@ -32,8 +32,10 @@ from pathlib import Path
 
 REQUIRED_POSTERIOR_FIELDS = ("value", "evidence_count", "gaia_package_ref")
 
-# The package reference must pin the compiled graph state via its IR hash.
-REF_PIN_RE = re.compile(r"#sha256:[0-9a-fA-F]{16,}$")
+# The package reference must name a package path AND pin the compiled graph
+# state via its IR hash: <package path>#sha256:<hex>. Full-string match so a
+# bare hash with no path is rejected.
+REF_PIN_RE = re.compile(r"\S.*#sha256:[0-9a-fA-F]{16,}$")
 
 
 def validate_posterior(posterior: dict) -> dict:
@@ -61,7 +63,7 @@ def validate_posterior(posterior: dict) -> dict:
     ref = posterior["gaia_package_ref"]
     if not isinstance(ref, str) or not ref.strip():
         raise ValueError("gaia_package_ref must be a non-empty string")
-    if not REF_PIN_RE.search(ref):
+    if not REF_PIN_RE.fullmatch(ref):
         raise ValueError(
             "gaia_package_ref must pin the compiled graph as "
             f"<package path>#sha256:<hex>, got {ref!r}; use the reference "
@@ -77,17 +79,22 @@ def validate_posterior(posterior: dict) -> dict:
 def derive_idempotency_key(campaign_id: str, node_id: str, posterior: dict) -> str:
     """Deterministic key: same posterior write -> same key.
 
-    The value enters via ``repr``, the shortest round-trip representation of
-    a Python float: any two distinct float values produce distinct digests.
+    The basis is a JSON array, an unambiguous encoding: no choice of
+    delimiter characters inside the fields (newlines included) can make two
+    different (campaign, node, posterior) triples collide. The value enters
+    via ``repr``, the shortest round-trip representation of a Python float,
+    so any two distinct float values produce distinct digests.
     """
-    basis = "\n".join(
+    basis = json.dumps(
         [
             campaign_id,
             node_id,
             posterior["gaia_package_ref"],
             repr(posterior["value"]),
-            str(posterior["evidence_count"]),
-        ]
+            posterior["evidence_count"],
+        ],
+        ensure_ascii=True,
+        separators=(",", ":"),
     )
     digest = hashlib.sha256(basis.encode("utf-8")).hexdigest()[:32]
     return f"idea-posterior-{digest}"

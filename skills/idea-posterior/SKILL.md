@@ -295,15 +295,19 @@ readable diagnosis (including the pinned install recipe) when a stage fails.
      --package <project_root>/ideas/gaia/my-idea-gaia
    ```
 
-   First runs a static discipline scan over the authored modules: `infer()`
-   probability pairs outside the three grades, and missing or anchor-less
-   rationales (including `register_prior` justifications), are reported as
-   warnings on stderr. The scan is best-effort — non-literal arguments are
-   flagged for review rather than judged — and never blocks; the review
-   below stays the authority. Then runs `gaia build compile`, `gaia build
-   check`, `gaia run infer`, parses `.gaia/beliefs.json` (the entry
-   labelled `worth`) and `.gaia/ir.json` (observation supports, one per
-   `observe()` statement), and prints:
+   First runs a static discipline scan over the authored modules.
+   Statically certain violations — an `infer()` probability pair outside
+   the three grades, or a literal rationale or `register_prior`
+   justification that is missing or does not end with an
+   `anchor: <reference>` note — make the script refuse to extract a
+   posterior (better to reject a sound graph than to pass an unsound one);
+   `--allow-discipline-warnings` downgrades them to warnings as an
+   explicit, logged exception for deliberate exploration. Non-literal
+   arguments cannot be judged statically and are flagged for the reviewer
+   instead; the review below stays the authority on substance. Then runs
+   `gaia build compile`, `gaia build check`, `gaia run infer`, parses
+   `.gaia/beliefs.json` (the entry labelled `worth`) and `.gaia/ir.json`
+   (observation supports, one per `observe()` statement), and prints:
 
    ```json
    {
@@ -337,9 +341,10 @@ readable diagnosis (including the pinned install recipe) when a stage fails.
 ## Review: audit anchors, not scores
 
 A graph review never argues with the posterior directly; it attacks the
-inputs. The extraction script's static scan catches mechanical slips
-(off-grade pairs, missing anchor notes) before review starts; everything it
-cannot decide statically it hands to the reviewer.
+inputs. The extraction script's static scan stops mechanical slips
+(off-grade pairs, missing trailing anchor notes) before a posterior can be
+extracted at all; everything it cannot decide statically it hands to the
+reviewer.
 
 - Run `gaia review calibration`: it ranks claims by the shift between prior
   and posterior. Large-shift claims are where wrong grades do the most

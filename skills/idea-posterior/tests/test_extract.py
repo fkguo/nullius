@@ -95,13 +95,13 @@ register_prior(sub, value=0.7,
 
 
 def test_discipline_scan_passes_clean_module() -> None:
-    assert extract.scan_discipline(CLEAN_MODULE) == []
+    assert extract.scan_discipline(CLEAN_MODULE) == ([], [])
 
 
 def test_discipline_scan_flags_off_grade_pair() -> None:
     source = CLEAN_MODULE.replace("p_e_given_h=0.90", "p_e_given_h=0.85")
-    findings = extract.scan_discipline(source)
-    assert any("off-grade pair" in f for f in findings)
+    violations, _ = extract.scan_discipline(source)
+    assert any("off-grade pair" in v for v in violations)
 
 
 def test_discipline_scan_flags_missing_anchor_note() -> None:
@@ -109,8 +109,20 @@ def test_discipline_scan_flags_missing_anchor_note() -> None:
         'rationale="context. anchor: survey artifact"',
         'rationale="context with no note"',
     )
-    findings = extract.scan_discipline(source)
-    assert any("lacks an 'anchor:' note" in f for f in findings)
+    violations, _ = extract.scan_discipline(source)
+    assert any("does not end with an 'anchor:" in v for v in violations)
+
+
+def test_discipline_scan_requires_anchor_on_the_last_line() -> None:
+    # An anchor note followed by a further line is statically decidable as
+    # non-trailing (same-line trailing words are indistinguishable from a
+    # multi-word reference and stay a reviewer question).
+    source = CLEAN_MODULE.replace(
+        'rationale="context. anchor: survey artifact"',
+        'rationale="anchor: survey artifact\\nplus a second line of prose"',
+    )
+    violations, _ = extract.scan_discipline(source)
+    assert any("does not end with an 'anchor:" in v for v in violations)
 
 
 def test_discipline_scan_flags_missing_justification_anchor() -> None:
@@ -118,16 +130,17 @@ def test_discipline_scan_flags_missing_justification_anchor() -> None:
         'justification="external estimate. anchor: cited source"',
         'justification="just a feeling"',
     )
-    findings = extract.scan_discipline(source)
+    violations, _ = extract.scan_discipline(source)
     assert any(
-        "register_prior" in f and "anchor" in f for f in findings
+        "register_prior" in v and "anchor" in v for v in violations
     )
 
 
 def test_discipline_scan_surfaces_non_literal_arguments() -> None:
     source = CLEAN_MODULE + "\nnote = 'anchor: x'\nobserve('More.', rationale=note)\n"
-    findings = extract.scan_discipline(source)
-    assert any("flag for review" in f for f in findings)
+    violations, review_flags = extract.scan_discipline(source)
+    assert any("flag for review" in f for f in review_flags)
+    assert not any("More." in v for v in violations)
 
 
 def test_discipline_scan_accepts_reversed_grades() -> None:
@@ -135,13 +148,64 @@ def test_discipline_scan_accepts_reversed_grades() -> None:
         "p_e_given_h=0.90, p_e_given_not_h=0.09",
         "p_e_given_h=0.09, p_e_given_not_h=0.90",
     )
-    assert extract.scan_discipline(source) == []
+    assert extract.scan_discipline(source) == ([], [])
 
 
 def test_discipline_scan_covers_generated_template() -> None:
     import gaia_package_scaffold as scaffold
 
-    assert extract.scan_discipline(scaffold.render_template("x-idea")) == []
+    assert extract.scan_discipline(scaffold.render_template("x-idea")) == ([], [])
+
+
+def write_fake_gaia(tmp_path):
+    fake = tmp_path / "fake-gaia"
+    fake.write_text(
+        '#!/bin/sh\nif [ "$1" = "--version" ]; then echo "gaia-lang 0.5.0a4"; fi\nexit 0\n',
+        encoding="utf-8",
+    )
+    fake.chmod(0o755)
+    return fake
+
+
+def write_violating_package(tmp_path):
+    module = tmp_path / "pkg" / "src" / "bad_idea"
+    module.mkdir(parents=True)
+    (module / "__init__.py").write_text(
+        CLEAN_MODULE.replace("p_e_given_h=0.90", "p_e_given_h=0.85"),
+        encoding="utf-8",
+    )
+    return tmp_path / "pkg"
+
+
+def test_main_refuses_on_discipline_violation(tmp_path, capsys) -> None:
+    package = write_violating_package(tmp_path)
+    fake_gaia = write_fake_gaia(tmp_path)
+    code = extract.main(
+        ["--package", str(package), "--gaia-bin", str(fake_gaia)]
+    )
+    assert code == 2
+    err = capsys.readouterr().err
+    assert "discipline violation" in err
+    assert "Refusing to extract" in err
+    assert "ok: build compile" not in err  # stopped before any gaia stage
+
+
+def test_main_explicit_exception_downgrades_to_warning(tmp_path, capsys) -> None:
+    package = write_violating_package(tmp_path)
+    fake_gaia = write_fake_gaia(tmp_path)
+    code = extract.main(
+        [
+            "--package", str(package),
+            "--gaia-bin", str(fake_gaia),
+            "--allow-discipline-warnings",
+        ]
+    )
+    err = capsys.readouterr().err
+    assert "allowed by --allow-discipline-warnings" in err
+    # The scan let the run proceed to the gaia stages; with the stub gaia
+    # it then fails on missing inference artifacts, not on discipline.
+    assert code == 2
+    assert "run the inference stages" in err
 
 
 def test_extract_posterior_requires_ir_hash(tmp_path, fixtures_dir) -> None:

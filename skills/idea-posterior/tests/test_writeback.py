@@ -94,11 +94,20 @@ def test_validate_posterior_requires_pinned_ref() -> None:
         "/tmp/example-idea-gaia",  # no hash at all
         "/tmp/example-idea-gaia#sha256:abc123",  # hash too short
         "/tmp/example-idea-gaia#md5:" + "a" * 32,  # wrong algorithm tag
+        "#sha256:" + "a" * 64,  # hash with no package path
     ):
         with pytest.raises(ValueError, match="pin the compiled graph"):
             writeback.validate_posterior(
                 dict(POSTERIOR, gaia_package_ref=bad_ref)
             )
+
+
+def test_idempotency_key_immune_to_delimiter_injection() -> None:
+    # A newline inside one field must not be confusable with the field
+    # boundary: ("a\nb", "c") and ("a", "b\nc") are different writes.
+    key_one = writeback.derive_idempotency_key("a\nb", "c", POSTERIOR)
+    key_two = writeback.derive_idempotency_key("a", "b\nc", POSTERIOR)
+    assert key_one != key_two
 
 
 def test_validate_posterior_rejects_bad_payloads() -> None:

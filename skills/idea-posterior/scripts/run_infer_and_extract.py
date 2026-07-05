@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import ast
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -88,20 +89,27 @@ def check_gaia_version(gaia_bin: str) -> None:
         raise SystemExit(2)
 
 
-def scan_discipline(source: str) -> list[str]:
-    """Best-effort static scan for the grade and anchor discipline.
+# A rationale/justification must END with an anchor note: "anchor:" followed
+# by a non-empty reference, as the last thing in the string.
+TRAILING_ANCHOR_RE = re.compile(r"anchor:\s*\S[^\n]*$")
 
-    Warnings only: review remains the authority. Flags infer() probability
-    pairs outside the three grades, and observe/infer rationales (or
-    register_prior justifications) that are missing or lack a trailing
-    "anchor:" note. Non-literal arguments cannot be checked statically and
-    are surfaced for review instead.
+
+def scan_discipline(source: str) -> tuple[list[str], list[str]]:
+    """Static scan for the grade and anchor discipline.
+
+    Returns (violations, review_flags). Violations are statically certain
+    breaches of the discipline: an infer() probability pair outside the
+    three grades, or a literal rationale/justification that is missing or
+    does not END with an "anchor: <reference>" note. Review flags are
+    statements the scan cannot decide (non-literal arguments); they go to
+    the reviewer instead. Review remains the authority either way.
     """
     try:
         tree = ast.parse(source)
     except SyntaxError as exc:
-        return [f"module does not parse: {exc}"]
-    findings: list[str] = []
+        return [f"module does not parse: {exc}"], []
+    violations: list[str] = []
+    review_flags: list[str] = []
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
@@ -120,13 +128,13 @@ def scan_discipline(source: str) -> list[str]:
             if isinstance(h, ast.Constant) and isinstance(nh, ast.Constant):
                 pair = (h.value, nh.value)
                 if pair not in GRADE_PAIRS:
-                    findings.append(
+                    violations.append(
                         f"line {node.lineno}: infer uses off-grade pair "
                         f"{pair}; allowed grades are 3 (0.75/0.25), "
                         "10 (0.90/0.09), 30 (0.90/0.03), or their reversals"
                     )
             elif h is not None or nh is not None:
-                findings.append(
+                review_flags.append(
                     f"line {node.lineno}: infer probabilities are not "
                     "literal numbers; the static scan cannot check the "
                     "grade - flag for review"
@@ -134,32 +142,37 @@ def scan_discipline(source: str) -> list[str]:
         note_name = "justification" if name == "register_prior" else "rationale"
         note = kwargs.get(note_name)
         if note is None:
-            findings.append(f"line {node.lineno}: {name} has no {note_name}")
+            violations.append(f"line {node.lineno}: {name} has no {note_name}")
         elif isinstance(note, ast.Constant) and isinstance(note.value, str):
-            if "anchor:" not in note.value:
-                findings.append(
-                    f"line {node.lineno}: {name} {note_name} lacks an "
-                    "'anchor:' note"
+            if not TRAILING_ANCHOR_RE.search(note.value.rstrip()):
+                violations.append(
+                    f"line {node.lineno}: {name} {note_name} does not end "
+                    "with an 'anchor: <reference>' note"
                 )
         else:
-            findings.append(
+            review_flags.append(
                 f"line {node.lineno}: {name} {note_name} is not a literal "
                 "string; the static scan cannot check the anchor - flag "
                 "for review"
             )
-    return findings
+    return violations, review_flags
 
 
-def scan_package_discipline(package_dir: Path) -> list[str]:
+def scan_package_discipline(package_dir: Path) -> tuple[list[str], list[str]]:
     """Run the static discipline scan over every module under src/."""
-    findings: list[str] = []
+    violations: list[str] = []
+    review_flags: list[str] = []
     src = package_dir / "src"
     if not src.is_dir():
-        return findings
+        return violations, review_flags
     for module in sorted(src.rglob("*.py")):
-        for finding in scan_discipline(module.read_text(encoding="utf-8")):
-            findings.append(f"{module.relative_to(package_dir)}: {finding}")
-    return findings
+        got_violations, got_flags = scan_discipline(
+            module.read_text(encoding="utf-8")
+        )
+        rel = module.relative_to(package_dir)
+        violations.extend(f"{rel}: {v}" for v in got_violations)
+        review_flags.extend(f"{rel}: {f}" for f in got_flags)
+    return violations, review_flags
 
 
 def run_stage(gaia_bin: str, stage: list[str], package_dir: Path) -> None:
@@ -260,6 +273,14 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="optional file to write the posterior JSON to (stdout always)",
     )
+    parser.add_argument(
+        "--allow-discipline-warnings",
+        action="store_true",
+        help="downgrade statically certain discipline violations "
+        "(off-grade pairs, missing trailing anchor notes) from a refusal "
+        "to warnings; an explicit, logged exception for deliberate "
+        "exploration only",
+    )
     args = parser.parse_args(argv)
 
     package_dir = Path(args.package).resolve()
@@ -270,13 +291,25 @@ def main(argv: list[str] | None = None) -> int:
     gaia_bin = resolve_gaia_bin(args.gaia_bin)
     check_gaia_version(gaia_bin)
 
-    discipline = scan_package_discipline(package_dir)
-    for finding in discipline:
-        sys.stderr.write(f"discipline warning: {finding}\n")
-    if discipline:
+    violations, review_flags = scan_package_discipline(package_dir)
+    for finding in review_flags:
+        sys.stderr.write(f"discipline review flag: {finding}\n")
+    for finding in violations:
+        sys.stderr.write(f"discipline violation: {finding}\n")
+    if violations and not args.allow_discipline_warnings:
         sys.stderr.write(
-            f"{len(discipline)} discipline warning(s): grades or anchor "
-            "notes need review before the posterior is trusted.\n"
+            f"{len(violations)} discipline violation(s): fix the grades "
+            "and anchor notes, or re-run with "
+            "--allow-discipline-warnings for a deliberate, logged "
+            "exception. Refusing to extract a posterior from a graph "
+            "that breaks the discipline.\n"
+        )
+        return 2
+    if violations:
+        sys.stderr.write(
+            f"{len(violations)} discipline violation(s) allowed by "
+            "--allow-discipline-warnings; the posterior needs review "
+            "before it is trusted.\n"
         )
 
     run_stage(gaia_bin, ["build", "compile"], package_dir)
