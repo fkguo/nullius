@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://autoresearch.dev/schemas/research_event_v1.schema.json",
+  "$id": "https://nullius.dev/schemas/research_event_v1.schema.json",
   "title": "ResearchEvent V1",
   "description": "An audit record of a research process event. Events form the input stream for the REP Signal Engine (EVO-18).",
   "type": "object",

@@ -1,4 +1,4 @@
-# @autoresearch/arxiv-mcp
+# @nullius/arxiv-mcp
 
 Domain-agnostic arXiv MCP server: paper search, metadata lookup, and source/PDF content access over local stdio.
 
@@ -20,7 +20,7 @@ Or wire into an MCP client:
   "mcpServers": {
     "arxiv-mcp": {
       "command": "node",
-      "args": ["/absolute/path/to/autoresearch-lab/packages/arxiv-mcp/dist/index.js"]
+      "args": ["/absolute/path/to/nullius/packages/arxiv-mcp/dist/index.js"]
     }
   }
 }
@@ -28,7 +28,7 @@ Or wire into an MCP client:
 
 ## Composition
 
-`@autoresearch/hep-mcp` aggregates arxiv-mcp's tools via `packages/hep-mcp/src/tools/registry/projectExtensions.ts` so they appear in the HEP MCP tool list when the HEP server runs. There is no per-provider opt-out env var for arxiv aggregation — it is always present in the HEP composition.
+`@nullius/hep-mcp` aggregates arxiv-mcp's tools via `packages/hep-mcp/src/tools/registry/projectExtensions.ts` so they appear in the HEP MCP tool list when the HEP server runs. There is no per-provider opt-out env var for arxiv aggregation — it is always present in the HEP composition.
 
 ## Build & test
 

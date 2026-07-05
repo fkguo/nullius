@@ -66,7 +66,7 @@ export {
 export {
   type TopicEvolutionParams,
   type TopicEvolution as TopicEvolutionResult,
-} from '@autoresearch/shared';
+} from '@nullius/shared';
 
 export {
   buildCollaborationNetwork,
@@ -81,21 +81,21 @@ export {
   getArxivSource,
   type ArxivSourceResult,
   type ArxivMetadata,
-} from '@autoresearch/arxiv-mcp/tooling';
+} from '@nullius/arxiv-mcp/tooling';
 
 // Phase 5 Download Tools
 export {
   getDownloadUrls,
   type GetDownloadUrlsParams,
   type GetDownloadUrlsResult,
-} from '@autoresearch/arxiv-mcp/tooling';
+} from '@nullius/arxiv-mcp/tooling';
 
 export {
   getPaperContent,
   type GetPaperContentParams,
 } from '../../utils/arxivCompat.js';
 
-export type { GetPaperContentResult } from '@autoresearch/arxiv-mcp/tooling';
+export type { GetPaperContentResult } from '@nullius/arxiv-mcp/tooling';
 
 // Paper classification
 export {
@@ -303,7 +303,7 @@ export type {
   SourceOptions,
   PaperSourceResult,
   SourceMode,
-} from '@autoresearch/arxiv-mcp/tooling';
+} from '@nullius/arxiv-mcp/tooling';
 
 // Stance Detection (Phase 2)
 export {

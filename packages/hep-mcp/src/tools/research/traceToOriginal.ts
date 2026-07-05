@@ -2,7 +2,7 @@ import type {
   CreateMessageRequestParamsBase,
   CreateMessageResult,
 } from '@modelcontextprotocol/sdk/types.js';
-import { INSPIRE_TRACE_ORIGINAL_SOURCE, type PaperSummary } from '@autoresearch/shared';
+import { INSPIRE_TRACE_ORIGINAL_SOURCE, type PaperSummary } from '@nullius/shared';
 import * as api from '../../api/client.js';
 import { buildToolSamplingMetadata } from '../../core/sampling-metadata.js';
 import { extractSamplingText } from '../../core/semantics/quantitySampling.js';

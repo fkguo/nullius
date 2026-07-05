@@ -25,30 +25,30 @@ export const FRONT_DOOR_AUTHORITY_CLASSIFICATIONS = Object.freeze([
   'canonical_public',
 ]);
 
-export const AUTORESEARCH_FRONT_DOOR_REL_PATH = 'packages/orchestrator/src/cli-command-inventory.ts';
+export const NULLIUS_FRONT_DOOR_REL_PATH = 'packages/orchestrator/src/cli-command-inventory.ts';
 export const ORCH_EXACT_SPEC_REL_PATH = 'meta/docs/orchestrator-mcp-tools-spec.md';
 export const IDEA_MCP_TOOL_REGISTRY_REL_PATH = 'packages/idea-mcp/src/tool-registry.ts';
 export const FRONT_DOOR_AUTHORITY_JSON_REL_PATH = 'meta/front_door_authority_map_v1.json';
 
-export const AUTORESEARCH_FRONT_DOOR_COMMANDS = extractTsCommandInventory(AUTORESEARCH_FRONT_DOOR_REL_PATH);
+export const NULLIUS_FRONT_DOOR_COMMANDS = extractTsCommandInventory(NULLIUS_FRONT_DOOR_REL_PATH);
 
-export const AUTORESEARCH_FRONT_DOOR_COMMANDS_MARKDOWN = AUTORESEARCH_FRONT_DOOR_COMMANDS
+export const NULLIUS_FRONT_DOOR_COMMANDS_MARKDOWN = NULLIUS_FRONT_DOOR_COMMANDS
   .map(command => `\`${command}\``)
   .join(', ');
 
 export const FRONT_DOOR_AUTHORITY_MAP = Object.freeze([
   Object.freeze({
-    surface: 'autoresearch_cli',
+    surface: 'nullius_cli',
     classification: 'canonical_public',
-    owner: '@autoresearch/orchestrator',
-    relPath: AUTORESEARCH_FRONT_DOOR_REL_PATH,
+    owner: '@nullius/orchestrator',
+    relPath: NULLIUS_FRONT_DOOR_REL_PATH,
     exactInventoryKind: 'ts_command_inventory',
-    commands: freezeCommands(AUTORESEARCH_FRONT_DOOR_COMMANDS),
+    commands: freezeCommands(NULLIUS_FRONT_DOOR_COMMANDS),
   }),
   Object.freeze({
     surface: 'orchestrator_mcp_tools_spec',
     classification: 'canonical_public',
-    owner: '@autoresearch/orchestrator',
+    owner: '@nullius/orchestrator',
     relPath: ORCH_EXACT_SPEC_REL_PATH,
     exactInventoryKind: 'exact_spec_doc',
     toolPrefix: 'orch_',
@@ -57,7 +57,7 @@ export const FRONT_DOOR_AUTHORITY_MAP = Object.freeze([
   Object.freeze({
     surface: 'idea_mcp',
     classification: 'canonical_public',
-    owner: '@autoresearch/idea-mcp',
+    owner: '@nullius/idea-mcp',
     relPath: IDEA_MCP_TOOL_REGISTRY_REL_PATH,
     exactInventoryKind: 'mcp_tool_inventory',
   }),

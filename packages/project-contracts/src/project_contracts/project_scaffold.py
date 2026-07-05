@@ -91,7 +91,7 @@ def _refresh_project_scaffold(
     # Microsecond precision so two refreshes in the same second cannot share a
     # backup directory and clobber an earlier managed-file backup.
     backup_stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S_%fZ")
-    backup_root = repo_root / ".autoresearch" / "backups" / backup_stamp
+    backup_root = repo_root / ".nullius" / "backups" / backup_stamp
 
     created: list[str] = []
     refreshed: list[str] = []

@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { createHash } from 'crypto';
-import { invalidParams, notFound } from '@autoresearch/shared';
+import { invalidParams, notFound } from '@nullius/shared';
 import { getProject, listProjects } from './projects.js';
 import { listRuns } from './runs.js';
 import { getProjectArtifactPath, getProjectPaperEvidenceCatalogPath, getRunArtifactPath, getRunManifestPath } from './paths.js';

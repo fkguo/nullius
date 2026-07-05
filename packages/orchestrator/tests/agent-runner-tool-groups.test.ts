@@ -6,7 +6,7 @@ import {
   ORCH_RUN_CREATE,
   ORCH_RUN_LIST,
   ORCH_RUN_STATUS,
-} from '@autoresearch/shared';
+} from '@nullius/shared';
 
 import type { ToolUseContent } from '../src/backends/chat-backend.js';
 import { groupToolUsesForExecution } from '../src/agent-runner-tool-groups.js';

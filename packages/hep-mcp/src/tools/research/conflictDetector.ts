@@ -11,10 +11,10 @@
 import * as api from '../../api/client.js';
 import { extractMeasurements, type Measurement } from './measurementExtractor.js';
 import { getConfig, validateRecids, getConversionFactor, areUnitsCompatible } from './config.js';
-import { getToolSpec as getPdgToolSpec } from '@autoresearch/pdg-mcp/tooling';
+import { getToolSpec as getPdgToolSpec } from '@nullius/pdg-mcp/tooling';
 import {
   PDG_GET_PROPERTY,
-} from '@autoresearch/shared';
+} from '@nullius/shared';
 import { clusterByQuantity } from '../../core/semantics/quantityClustering.js';
 import type { QuantitySamplingContext } from '../../core/semantics/quantityAdjudicator.js';
 

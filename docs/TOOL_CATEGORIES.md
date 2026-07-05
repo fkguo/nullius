@@ -4,7 +4,7 @@
 
 先选对层，再选工具：
 
-- `autoresearch` = stateful CLI front door
+- `nullius` = stateful CLI front door
 - `orch_*` = 同一 control plane 的 MCP/operator counterpart
 - provider tools = bounded atomic MCP operators，而不是一套待补齐的 provider CLI
 
@@ -22,13 +22,13 @@
 
 | 用户意图 | 推荐工具 | 备注 |
 |----------|---------|------|
-| 轻量研究头脑风暴并收敛一个后续 contract | `autoresearch workflow-plan --recipe research_brainstorm --run-id 20260502T023000Z-m0-topic-r1 --topic "<topic>"` | planning-only durable harness recipe；写入 `.autoresearch/state.json#/plan` 并派生 `.autoresearch/plan.md` read model；显式 `--run-id` 应是 safe、sortable、readable 的研究标识；若省略，`<recipe>-<phase>` 只作为 planning placeholder；输出 `next_contract` handoff，但不自动启动 heavier recipe；`research_brainstorm.*` step tools 不是内置 runnable tool chain，不依赖 host-native thinking process，也不是 idea-engine / full research-team / 新 root front door |
+| 轻量研究头脑风暴并收敛一个后续 contract | `nullius workflow-plan --recipe research_brainstorm --run-id 20260502T023000Z-m0-topic-r1 --topic "<topic>"` | planning-only durable harness recipe；写入 `.nullius/state.json#/plan` 并派生 `.nullius/plan.md` read model；显式 `--run-id` 应是 safe、sortable、readable 的研究标识；若省略，`<recipe>-<phase>` 只作为 planning placeholder；输出 `next_contract` handoff，但不自动启动 heavier recipe；`research_brainstorm.*` step tools 不是内置 runnable tool chain，不依赖 host-native thinking process，也不是 idea-engine / full research-team / 新 root front door |
 | 快速搜索论文 | `inspire_search` | 分页；用 `inspire_search_next` 翻页 |
 | 获取单篇论文元数据/引用/被引 | `inspire_literature` | 原子化访问 |
 | 深度分析论文集 | `inspire_critical_analysis` / `inspire_classify_reviews` | 高层 workflow 先经 stateful front-door consumer；这里保留的是 bounded atomic operators |
-| 文献综述 | `autoresearch workflow-plan --recipe literature_to_evidence` | 推荐的公开 stateful front door，需先 `autoresearch init`；直接通过 `@autoresearch/literature-workflows` 解析 recipe，并写入 `.autoresearch/state.json#/plan` / `.autoresearch/plan.md`。可再配合 `hep_run_build_writing_evidence` / `inspire_critical_analysis` / `inspire_classify_reviews` |
-| 发现奠基性/相关论文 | `autoresearch workflow-plan --recipe literature_landscape` | 由公开的 stateful front door 解析后，再下沉到 `inspire_search` / provenance / network operators |
-| 物理学家式文献调研 | `autoresearch workflow-plan --recipe literature_gap_analysis` | 不再通过 provider-specific high-level MCP facade |
+| 文献综述 | `nullius workflow-plan --recipe literature_to_evidence` | 推荐的公开 stateful front door，需先 `nullius init`；直接通过 `@nullius/literature-workflows` 解析 recipe，并写入 `.nullius/state.json#/plan` / `.nullius/plan.md`。可再配合 `hep_run_build_writing_evidence` / `inspire_critical_analysis` / `inspire_classify_reviews` |
+| 发现奠基性/相关论文 | `nullius workflow-plan --recipe literature_landscape` | 由公开的 stateful front door 解析后，再下沉到 `inspire_search` / provenance / network operators |
+| 物理学家式文献调研 | `nullius workflow-plan --recipe literature_gap_analysis` | 不再通过 provider-specific high-level MCP facade |
 | 主题时间线/趋势/新兴方向 | `inspire_topic_analysis` | 模式: `timeline/evolution/emerging/all` |
 | 引用/合作网络分析 | `inspire_network_analysis` | 模式: `citation/collaboration` |
 | 发现跨论文关联 | `inspire_find_connections` | 输入 `recids`；可选 external hubs。若上游 workflow 的 paper set 为空，高层 consumer 会跳过该步并写出结构化 no-op 结果，而不会放宽原子工具契约 |
@@ -44,9 +44,9 @@
 ### 常见任务路径
 
 **"我想写一篇关于 X 的综述论文"**
-1. 先 `autoresearch init`
-2. 若研究问题还未收敛，运行 `autoresearch workflow-plan --recipe research_brainstorm --run-id 20260502T023000Z-m0-topic-r1 --topic "<topic>"` 生成 `next_contract` handoff；它只规划，不自动升级到重流程
-3. 运行 `autoresearch workflow-plan --recipe literature_landscape` 解析文献工作流（直接通过 `@autoresearch/literature-workflows` 解析并写入 `.autoresearch/state.json#/plan` / `.autoresearch/plan.md` read model）
+1. 先 `nullius init`
+2. 若研究问题还未收敛，运行 `nullius workflow-plan --recipe research_brainstorm --run-id 20260502T023000Z-m0-topic-r1 --topic "<topic>"` 生成 `next_contract` handoff；它只规划，不自动升级到重流程
+3. 运行 `nullius workflow-plan --recipe literature_landscape` 解析文献工作流（直接通过 `@nullius/literature-workflows` 解析并写入 `.nullius/state.json#/plan` / `.nullius/plan.md` read model）
 4. `inspire_search` + `inspire_topic_analysis` + `inspire_network_analysis` 做原子调研
 5. `hep_project_create` + `hep_run_create`
 6. `hep_run_build_writing_evidence` 构建证据
@@ -83,10 +83,10 @@
 
 **generic lifecycle / staging / execution 已迁回 orchestrator**
 - HEP 包不再默认暴露 generic staging / computation planning / manifest execution authority。
-- 需要 stateful control-plane 流程时，先用 HEP 领域能力创建或读取 run，再切回 `autoresearch` / `orch_*`：
+- 需要 stateful control-plane 流程时，先用 HEP 领域能力创建或读取 run，再切回 `nullius` / `orch_*`：
   - staging / planning / execution: `orch_run_stage_idea` / `orch_run_stage_content` / `orch_run_plan_computation` / `orch_run_execute_manifest` / `orch_run_progress_followups`
-  - verification / higher-conclusion gate: `autoresearch verify` / `orch_run_record_verification`，以及 `autoresearch final-conclusions` / `orch_run_request_final_conclusions`
-  - proposal decisions / read models: `autoresearch proposal-decision`、`autoresearch status --json`、`orch_run_status`、`orch_run_export`
+  - verification / higher-conclusion gate: `nullius verify` / `orch_run_record_verification`，以及 `nullius final-conclusions` / `orch_run_request_final_conclusions`
+  - proposal decisions / read models: `nullius proposal-decision`、`nullius status --json`、`orch_run_status`、`orch_run_export`
 - `hep_run_stage_content` 仍保留，但它只是 HEP run-artifact substrate adapter，不代表 generic 写作/评审 staging authority。
 
 ## B) Evidence 构建（写作/检索/回放的输入资产）
@@ -133,7 +133,7 @@
 
 ## G) INSPIRE（网络原子工具：检索/分析）
 
-> 备注：高层 literature workflow 现由公开的 stateful `autoresearch workflow-plan` 前门承载，需先 `autoresearch init` 并且会直接通过 `@autoresearch/literature-workflows` 解析后写入 `.autoresearch/state.json#/plan` / `.autoresearch/plan.md`。这里列的是仍可直接调用的 INSPIRE 原子工具；Project/Run artifacts 主要用于 evidence-first 本地工作流（`hep_*`）。
+> 备注：高层 literature workflow 现由公开的 stateful `nullius workflow-plan` 前门承载，需先 `nullius init` 并且会直接通过 `@nullius/literature-workflows` 解析后写入 `.nullius/state.json#/plan` / `.nullius/plan.md`。这里列的是仍可直接调用的 INSPIRE 原子工具；Project/Run artifacts 主要用于 evidence-first 本地工作流（`hep_*`）。
 
 - `inspire_search`
 - `inspire_search_next`

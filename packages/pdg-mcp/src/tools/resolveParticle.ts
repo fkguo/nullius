@@ -1,4 +1,4 @@
-import { invalidParams, notFound } from '@autoresearch/shared';
+import { invalidParams, notFound } from '@nullius/shared';
 import {
   findPdgParticlesByMcid,
   findPdgParticlesByName,

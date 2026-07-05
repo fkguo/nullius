@@ -13,7 +13,7 @@ import {
   DiscoveryProviderDescriptorSchema,
   type DiscoveryProviderDescriptor,
   optionalBudgetInt,
-} from '@autoresearch/shared';
+} from '@nullius/shared';
 import { ARXIV_ID_REGEX, normalizeArxivId } from '../source/arxivSource.js';
 import { searchArxiv, fetchArxivMetadata } from '../api/searchClient.js';
 import { accessPaperSource } from '../source/paperSource.js';

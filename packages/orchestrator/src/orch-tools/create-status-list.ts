@@ -5,7 +5,7 @@ import {
   invalidParams,
   writeBytesAtomicDurable,
   writeHarnessInvocationMarker,
-} from '@autoresearch/shared';
+} from '@nullius/shared';
 import { z } from 'zod';
 import { createStateManager, requireState } from './common.js';
 import { buildRunStatusView, readRunListView } from './run-read-model.js';
@@ -95,7 +95,7 @@ export async function handleOrchRunStatus(
   const view = buildRunStatusView(projectRoot, state);
   // P3-C: refresh the harness invocation marker on every successful status
   // call. This is the anchor receipt that *-mcp dispatchers verify; the
-  // research-harness skill already invokes `autoresearch status --json` as
+  // research-harness skill already invokes `nullius status --json` as
   // its recovery step, so existing skill flow becomes the anchor flow
   // without a new command surface.
   writeHarnessInvocationMarker(projectRoot);

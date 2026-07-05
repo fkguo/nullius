@@ -1,4 +1,4 @@
-import { writeJsonAtomicDurable } from '@autoresearch/shared';
+import { writeJsonAtomicDurable } from '@nullius/shared';
 import type { RunArtifactRef } from './runs.js';
 import { getProjectArtifactPath, getRunArtifactPath } from './paths.js';
 import { makeHepRunArtifactUri } from './runArtifactUri.js';

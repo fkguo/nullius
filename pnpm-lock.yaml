@@ -23,12 +23,12 @@ importers:
 
   packages/arxiv-mcp:
     dependencies:
-      '@autoresearch/shared':
-        specifier: workspace:*
-        version: link:../shared
       '@modelcontextprotocol/sdk':
         specifier: ^1.25.2
         version: 1.27.0(zod@4.3.6)
+      '@nullius/shared':
+        specifier: workspace:*
+        version: link:../shared
       tar:
         specifier: ^7.4.3
         version: 7.5.9
@@ -51,33 +51,33 @@ importers:
 
   packages/hep-mcp:
     dependencies:
-      '@autoresearch/arxiv-mcp':
-        specifier: workspace:*
-        version: link:../arxiv-mcp
-      '@autoresearch/hepdata-mcp':
-        specifier: workspace:*
-        version: link:../hepdata-mcp
-      '@autoresearch/openalex-mcp':
-        specifier: workspace:*
-        version: link:../openalex-mcp
-      '@autoresearch/orchestrator':
-        specifier: workspace:*
-        version: link:../orchestrator
-      '@autoresearch/pdg-mcp':
-        specifier: workspace:*
-        version: link:../pdg-mcp
-      '@autoresearch/shared':
-        specifier: workspace:*
-        version: link:../shared
-      '@autoresearch/zotero-mcp':
-        specifier: workspace:*
-        version: link:../zotero-mcp
       '@modelcontextprotocol/sdk':
         specifier: ^1.25.2
         version: 1.27.0(zod@4.3.6)
       '@napi-rs/canvas':
         specifier: ^0.1.80
         version: 0.1.94
+      '@nullius/arxiv-mcp':
+        specifier: workspace:*
+        version: link:../arxiv-mcp
+      '@nullius/hepdata-mcp':
+        specifier: workspace:*
+        version: link:../hepdata-mcp
+      '@nullius/openalex-mcp':
+        specifier: workspace:*
+        version: link:../openalex-mcp
+      '@nullius/orchestrator':
+        specifier: workspace:*
+        version: link:../orchestrator
+      '@nullius/pdg-mcp':
+        specifier: workspace:*
+        version: link:../pdg-mcp
+      '@nullius/shared':
+        specifier: workspace:*
+        version: link:../shared
+      '@nullius/zotero-mcp':
+        specifier: workspace:*
+        version: link:../zotero-mcp
       dotenv:
         specifier: ^17.3.1
         version: 17.3.1
@@ -121,12 +121,12 @@ importers:
 
   packages/hepdata-mcp:
     dependencies:
-      '@autoresearch/shared':
-        specifier: workspace:*
-        version: link:../shared
       '@modelcontextprotocol/sdk':
         specifier: ^1.25.2
         version: 1.27.0(zod@4.3.6)
+      '@nullius/shared':
+        specifier: workspace:*
+        version: link:../shared
       zod:
         specifier: ^4.3.5
         version: 4.3.6
@@ -165,15 +165,15 @@ importers:
 
   packages/idea-mcp:
     dependencies:
-      '@autoresearch/idea-engine':
-        specifier: workspace:^
-        version: link:../idea-engine
-      '@autoresearch/shared':
-        specifier: workspace:^
-        version: link:../shared
       '@modelcontextprotocol/sdk':
         specifier: ^1.25.2
         version: 1.27.0(zod@4.3.6)
+      '@nullius/idea-engine':
+        specifier: workspace:^
+        version: link:../idea-engine
+      '@nullius/shared':
+        specifier: workspace:^
+        version: link:../shared
       zod:
         specifier: ^4.3.5
         version: 4.3.6
@@ -190,13 +190,13 @@ importers:
 
   packages/literature-workflows:
     dependencies:
-      '@autoresearch/arxiv-mcp':
+      '@nullius/arxiv-mcp':
         specifier: workspace:*
         version: link:../arxiv-mcp
-      '@autoresearch/openalex-mcp':
+      '@nullius/openalex-mcp':
         specifier: workspace:*
         version: link:../openalex-mcp
-      '@autoresearch/shared':
+      '@nullius/shared':
         specifier: workspace:*
         version: link:../shared
       zod:
@@ -218,12 +218,12 @@ importers:
 
   packages/openalex-mcp:
     dependencies:
-      '@autoresearch/shared':
-        specifier: workspace:*
-        version: link:../shared
       '@modelcontextprotocol/sdk':
         specifier: ^1.25.2
         version: 1.27.0(zod@4.3.6)
+      '@nullius/shared':
+        specifier: workspace:*
+        version: link:../shared
       zod:
         specifier: ^4.3.5
         version: 4.3.6
@@ -246,10 +246,10 @@ importers:
       '@anthropic-ai/sdk':
         specifier: ^0.78.0
         version: 0.78.0(zod@4.3.6)
-      '@autoresearch/literature-workflows':
+      '@nullius/literature-workflows':
         specifier: workspace:^
         version: link:../literature-workflows
-      '@autoresearch/shared':
+      '@nullius/shared':
         specifier: workspace:^
         version: link:../shared
       ajv:
@@ -271,12 +271,12 @@ importers:
 
   packages/pdg-mcp:
     dependencies:
-      '@autoresearch/shared':
-        specifier: workspace:*
-        version: link:../shared
       '@modelcontextprotocol/sdk':
         specifier: ^1.25.2
         version: 1.27.0(zod@4.3.6)
+      '@nullius/shared':
+        specifier: workspace:*
+        version: link:../shared
       zod:
         specifier: ^4.3.5
         version: 4.3.6
@@ -340,12 +340,12 @@ importers:
 
   packages/zotero-mcp:
     dependencies:
-      '@autoresearch/shared':
-        specifier: workspace:*
-        version: link:../shared
       '@modelcontextprotocol/sdk':
         specifier: ^1.25.2
         version: 1.27.0(zod@4.3.6)
+      '@nullius/shared':
+        specifier: workspace:*
+        version: link:../shared
       zod:
         specifier: ^4.3.5
         version: 4.3.6

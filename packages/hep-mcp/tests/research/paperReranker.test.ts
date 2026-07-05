@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import type { CanonicalPaper } from '@autoresearch/shared';
+import type { CanonicalPaper } from '@nullius/shared';
 import { rerankCanonicalPapers } from '../../src/tools/research/discovery/paperReranker.js';
 
 function makePaper(input: Partial<CanonicalPaper> & Pick<CanonicalPaper, 'canonical_key' | 'title'>): CanonicalPaper {

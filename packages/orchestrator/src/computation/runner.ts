@@ -1,7 +1,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { writeBytesAtomicDurable } from '@autoresearch/shared';
+import { writeBytesAtomicDurable } from '@nullius/shared';
 import { StateManager } from '../state-manager.js';
 import { maybeQueueIdeaEngineComputationFeedback } from './idea-engine-feedback.js';
 import { maybeGenerateSkillProposal } from './skill-proposal-genesis.js';

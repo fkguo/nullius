@@ -8,7 +8,7 @@
  * `fs.renameSync`, `fs.appendFileSync`, `fs.promises.writeFile`,
  * `fs.promises.rename`, or `fs.promises.appendFile`. Every artifact write
  * in production paths must go through the durable primitives in
- * `@autoresearch/shared` (`writeBytesAtomicDurable`, `writeJsonAtomicDurable`,
+ * `@nullius/shared` (`writeBytesAtomicDurable`, `writeJsonAtomicDurable`,
  * `appendJsonlDurable`, `writeExecutableAtomicDurable`, `commitStagedDurable`).
  *
  * Why this matters:
@@ -197,7 +197,7 @@ function main() {
       process.stderr.write(`  ${error}\n`);
     }
     process.stderr.write(
-      '\nUse one of the durable primitives from @autoresearch/shared instead:\n' +
+      '\nUse one of the durable primitives from @nullius/shared instead:\n' +
       '  - writeBytesAtomicDurable(filePath, bytes, mode?)\n' +
       '  - writeJsonAtomicDurable(filePath, payload, stringify?)\n' +
       '  - appendJsonlDurable(filePath, lineObject)\n' +

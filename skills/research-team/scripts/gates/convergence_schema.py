@@ -48,7 +48,7 @@ def _load_convergence_result_schema_authority() -> tuple[frozenset[str], str, in
             0,
             "shared convergence schema SSOT not found (expected meta/schemas/"
             f"{_CONVERGENCE_RESULT_SCHEMA_BASENAME} reachable from this skill install); "
-            "install `research-team` via a symlink into an autoresearch-lab worktree (not a copy-only install).",
+            "install `research-team` via a symlink into an nullius worktree (not a copy-only install).",
         )
 
     try:

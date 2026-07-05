@@ -54,7 +54,7 @@ Goal: make the derivation chain, algorithm-design chain, evidence trail, and wri
 
 ### Planning / roadmap chain (optional)
 
-- At a plan-summary or milestone-handoff moment, produce a one-page **roadmap dependency-map** (summary table + milestone/lane dependency graph + binding-constraint + critical path) from the research-team template `assets/roadmap_dependency_map_template.md`; render the graph with `autoresearch graph --kind roadmap --spec <roadmap.json>`. This is a planning view — complementary to, and distinct from, the Claim DAG under `knowledge_graph/`.
+- At a plan-summary or milestone-handoff moment, produce a one-page **roadmap dependency-map** (summary table + milestone/lane dependency graph + binding-constraint + critical path) from the research-team template `assets/roadmap_dependency_map_template.md`; render the graph with `nullius graph --kind roadmap --spec <roadmap.json>`. This is a planning view — complementary to, and distinct from, the Claim DAG under `knowledge_graph/`.
 
 ---
 

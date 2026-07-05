@@ -1,8 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { createHash, randomUUID } from 'crypto';
-import { appendJsonlDurable, invalidParams } from '@autoresearch/shared';
-import type { ComputationEvidenceCatalogItemV1 } from '@autoresearch/shared';
+import { appendJsonlDurable, invalidParams } from '@nullius/shared';
+import type { ComputationEvidenceCatalogItemV1 } from '@nullius/shared';
 import { getRunDir } from '../core/paths.js';
 import { resolvePathWithinParent } from '../data/pathGuard.js';
 import { getRun } from '../core/runs.js';

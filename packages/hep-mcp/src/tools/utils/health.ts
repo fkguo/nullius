@@ -4,7 +4,7 @@ import * as path from 'path';
 import { createHash } from 'crypto';
 import { fileURLToPath } from 'url';
 
-import { INSPIRE_API_URL } from '@autoresearch/shared';
+import { INSPIRE_API_URL } from '@nullius/shared';
 
 import { getDataDir, getDataRootInfo, getDownloadsDir } from '../../data/dataDir.js';
 import { getToolUsageSnapshot } from './toolUsageTelemetry.js';

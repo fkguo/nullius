@@ -43,7 +43,7 @@ const USAGE = `Usage:
   migrate-papers-cache --project-root <abs-path> [options]
 
 Options:
-  --project-root PATH    (required) absolute path to the autoresearch project root
+  --project-root PATH    (required) absolute path to the nullius project root
   --hep-data-root PATH   override <project_root>/artifacts/hep-mcp/
   --apply                actually move/swap files (default: dry-run)
   --json                 emit JSON instead of human-readable report

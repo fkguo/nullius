@@ -50,7 +50,7 @@ function printUsage() {
       '[--package-dir <dir>] [--src-root <dir>] [--dist-root <dir>] [--package-label <label>]\n'
   );
   process.stderr.write(
-    'Defaults to @autoresearch/orchestrator when no package-dir/src-root/dist-root is provided.\n'
+    'Defaults to @nullius/orchestrator when no package-dir/src-root/dist-root is provided.\n'
   );
 }
 
@@ -73,7 +73,7 @@ function finalizeOptions(options) {
     && finalized.distRoot === null;
   finalized.srcRoot ??= path.join(repoRoot, 'packages', 'orchestrator', 'src');
   finalized.distRoot ??= path.join(repoRoot, 'packages', 'orchestrator', 'dist');
-  finalized.packageLabel ??= '@autoresearch/orchestrator';
+  finalized.packageLabel ??= '@nullius/orchestrator';
   if (usingDefaultOrchestratorPaths) {
     finalized.buildInfoPath ??= path.join(repoRoot, 'packages', 'orchestrator', 'tsconfig.tsbuildinfo');
   }

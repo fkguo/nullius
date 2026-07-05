@@ -53,8 +53,8 @@ class TestRunArtifactIdentity(unittest.TestCase):
                 encoding="utf-8",
             )
             (root / "research_contract.md").write_text("# contract\n", encoding="utf-8")
-            (root / ".autoresearch").mkdir()
-            (root / ".autoresearch" / "HARNESS").write_text('{"schema_version":1}\n', encoding="utf-8")
+            (root / ".nullius").mkdir()
+            (root / ".nullius" / "HARNESS").write_text('{"schema_version":1}\n', encoding="utf-8")
             (root / "AGENTS.md").write_text(
                 "\n".join(
                     [
@@ -83,9 +83,9 @@ class TestRunArtifactIdentity(unittest.TestCase):
             )
 
         self.assertEqual(result.returncode, 1, msg=result.stdout)
-        self.assertIn(".autoresearch/HARNESS", result.stdout)
+        self.assertIn(".nullius/HARNESS", result.stdout)
         self.assertIn("research-harness", result.stdout)
-        self.assertIn(".autoresearch/bin/autoresearch status --json", result.stdout)
+        self.assertIn(".nullius/bin/nullius status --json", result.stdout)
 
     def test_next_team_tag_preserves_meaningful_base(self) -> None:
         with tempfile.TemporaryDirectory() as td:

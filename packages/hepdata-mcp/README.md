@@ -1,10 +1,10 @@
-# @autoresearch/hepdata-mcp
+# @nullius/hepdata-mcp
 
 HEPData MCP server for experimental HEP measurement data — submission discovery, table retrieval, and measurement extraction over local stdio.
 
 ## Layer
 
-Atomic provider operator. Bounded schema-driven MCP atom — narrower than `@autoresearch/hep-mcp`, focused on HEPData as a data source. See root [README.md](../../README.md) §3 Layer Model.
+Atomic provider operator. Bounded schema-driven MCP atom — narrower than `@nullius/hep-mcp`, focused on HEPData as a data source. See root [README.md](../../README.md) §3 Layer Model.
 
 ## Run
 
@@ -20,7 +20,7 @@ Or wire into an MCP client:
   "mcpServers": {
     "hepdata-mcp": {
       "command": "node",
-      "args": ["/absolute/path/to/autoresearch-lab/packages/hepdata-mcp/dist/index.js"]
+      "args": ["/absolute/path/to/nullius/packages/hepdata-mcp/dist/index.js"]
     }
   }
 }
@@ -28,7 +28,7 @@ Or wire into an MCP client:
 
 ## Composition
 
-`@autoresearch/hep-mcp` aggregates hepdata-mcp's tools via `packages/hep-mcp/src/tools/registry/projectExtensions.ts` so they appear in the HEP MCP tool list when the HEP server runs. There is no per-provider opt-out env var for hepdata aggregation — it is always present in the HEP composition.
+`@nullius/hep-mcp` aggregates hepdata-mcp's tools via `packages/hep-mcp/src/tools/registry/projectExtensions.ts` so they appear in the HEP MCP tool list when the HEP server runs. There is no per-provider opt-out env var for hepdata aggregation — it is always present in the HEP composition.
 
 ## Build & test
 

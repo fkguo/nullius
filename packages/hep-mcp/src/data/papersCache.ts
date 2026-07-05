@@ -1,7 +1,7 @@
 /**
  * papersCache — content-addressable, user-global paper cache.
  *
- * The cache lives at `~/.autoresearch/hep-mcp/papers_cache/` (overridable via
+ * The cache lives at `~/.nullius/hep-mcp/papers_cache/` (overridable via
  * HEP_PAPERS_CACHE_DIR) and is INDEPENDENT of HEP_DATA_DIR resolution.
  *
  * Per the Tier 1/2/3 storage model in docs/ARCHITECTURE.md:
@@ -29,7 +29,7 @@ import * as crypto from 'node:crypto';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { commitStagedDurable, writeJsonAtomicDurable } from '@autoresearch/shared';
+import { commitStagedDurable, writeJsonAtomicDurable } from '@nullius/shared';
 
 export const HEP_PAPERS_CACHE_DIR_ENV = 'HEP_PAPERS_CACHE_DIR';
 
@@ -65,18 +65,18 @@ export interface CacheEntryPaths {
  *
  * Resolution order:
  *   1. HEP_PAPERS_CACHE_DIR env (must be an absolute path)
- *   2. <home>/.autoresearch/hep-mcp/papers_cache
+ *   2. <home>/.nullius/hep-mcp/papers_cache
  *
  * This is INDEPENDENT of HEP_DATA_DIR / project_root — the cache is always
  * user-global so the same paper is dedup'd across projects, worktrees, and
- * autoresearch sub-projects.
+ * nullius sub-projects.
  */
 export function getPapersCacheRoot(): string {
   const override = process.env[HEP_PAPERS_CACHE_DIR_ENV];
   if (override && override.trim().length > 0) {
     return path.resolve(override.trim());
   }
-  return path.join(os.homedir(), '.autoresearch', 'hep-mcp', 'papers_cache');
+  return path.join(os.homedir(), '.nullius', 'hep-mcp', 'papers_cache');
 }
 
 /**

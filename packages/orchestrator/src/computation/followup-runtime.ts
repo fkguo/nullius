@@ -1,4 +1,4 @@
-import { ORCH_RUN_STAGE_CONTENT } from '@autoresearch/shared';
+import { ORCH_RUN_STAGE_CONTENT } from '@nullius/shared';
 
 export const DEFAULT_FOLLOWUP_RUNTIME_MODEL = 'claude-opus-4-6';
 

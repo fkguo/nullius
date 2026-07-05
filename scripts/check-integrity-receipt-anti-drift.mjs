@@ -4,7 +4,7 @@
  * P3-A followup-4: integrity-receipt anti-drift CI check.
  *
  * Locks the contract that every approval-gate code path in the orchestrator
- * calls `verifyIntegrityReceipt` from `@autoresearch/shared` before granting
+ * calls `verifyIntegrityReceipt` from `@nullius/shared` before granting
  * the approval. This catches:
  *   - A refactor that moves the approve handler to a new file without
  *     carrying the verifier call along.
@@ -28,7 +28,7 @@ import { fileURLToPath } from 'node:url';
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 // Tracked approval-gate handler files. Each MUST import + reference
-// `verifyIntegrityReceipt` from `@autoresearch/shared`.
+// `verifyIntegrityReceipt` from `@nullius/shared`.
 const APPROVAL_GATE_HANDLERS = [
   'packages/orchestrator/src/orch-tools/approval.ts',
 ];
@@ -41,7 +41,7 @@ const APPROVAL_GATE_HANDLERS = [
 const APPROVE_HANDLER_SYMBOL_RE = /export\s+(?:async\s+function|const)\s+handleOrchRunApprove\b/;
 const ORCHESTRATOR_SRC_REL = 'packages/orchestrator/src';
 
-const IMPORT_PATTERN = /verifyIntegrityReceipt[^;]*from\s+['"]@autoresearch\/shared['"]/;
+const IMPORT_PATTERN = /verifyIntegrityReceipt[^;]*from\s+['"]@nullius\/shared['"]/;
 const USAGE_PATTERN = /\bverifyIntegrityReceipt\s*\(/;
 
 async function walkTsAsync(dir) {
@@ -75,7 +75,7 @@ function checkHandlerFile(relPath, errors) {
   }
   if (!IMPORT_PATTERN.test(content)) {
     errors.push(
-      `${relPath}: missing import of \`verifyIntegrityReceipt\` from '@autoresearch/shared'.`,
+      `${relPath}: missing import of \`verifyIntegrityReceipt\` from '@nullius/shared'.`,
     );
   }
   if (!USAGE_PATTERN.test(content)) {
@@ -122,14 +122,14 @@ async function main() {
     }
     process.stderr.write(
       '\nEvery approval-gate handler must import and call `verifyIntegrityReceipt` ' +
-      "from '@autoresearch/shared' before granting an A1-A5 approval. See " +
+      "from '@nullius/shared' before granting an A1-A5 approval. See " +
       'packages/orchestrator/src/orch-tools/approval.ts for the canonical wiring.\n',
     );
     process.exitCode = 1;
     return;
   }
 
-  process.stdout.write('[ok] all approval-gate handlers wire `verifyIntegrityReceipt` from @autoresearch/shared.\n');
+  process.stdout.write('[ok] all approval-gate handlers wire `verifyIntegrityReceipt` from @nullius/shared.\n');
 }
 
 await main();

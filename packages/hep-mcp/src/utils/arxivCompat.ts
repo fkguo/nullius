@@ -1,14 +1,14 @@
 /**
- * arxivCompat — INSPIRE-aware wrappers around @autoresearch/arxiv-mcp functions
+ * arxivCompat — INSPIRE-aware wrappers around @nullius/arxiv-mcp functions
  *
  * hep-mcp callers that receive mixed identifiers (recid/DOI/arXiv ID) use these
  * wrappers instead of importing directly from arxiv-mcp.
  */
 
-import { getPaperContent as _getPaperContent } from '@autoresearch/arxiv-mcp/tooling';
-import { accessPaperSource as _accessPaperSource } from '@autoresearch/arxiv-mcp/tooling';
-import type { GetPaperContentParams } from '@autoresearch/arxiv-mcp/tooling';
-import type { PaperSourceParams as ArxivPaperSourceParams } from '@autoresearch/arxiv-mcp/tooling';
+import { getPaperContent as _getPaperContent } from '@nullius/arxiv-mcp/tooling';
+import { accessPaperSource as _accessPaperSource } from '@nullius/arxiv-mcp/tooling';
+import type { GetPaperContentParams } from '@nullius/arxiv-mcp/tooling';
+import type { PaperSourceParams as ArxivPaperSourceParams } from '@nullius/arxiv-mcp/tooling';
 import { resolveArxivId } from './resolveArxivId.js';
 
 /** hep-mcp extends arxiv-mcp's PaperSourceParams with INSPIRE-specific options */

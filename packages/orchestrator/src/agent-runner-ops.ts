@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { McpError, internalError } from '@autoresearch/shared';
+import { McpError, internalError } from '@nullius/shared';
 import type { MessageContent, MessageParam, ToolResultContent, ToolUseContent } from './backends/chat-backend.js';
 import { normalizeStopReason } from './agent-runner-stop-reasons.js';
 import {

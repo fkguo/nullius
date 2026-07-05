@@ -1,8 +1,8 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { RunState } from '../types.js';
-import type { SkillProposalV2 } from '@autoresearch/shared';
-import { invalidParams } from '@autoresearch/shared';
+import type { SkillProposalV2 } from '@nullius/shared';
+import { invalidParams } from '@nullius/shared';
 import { decisionOverlayForFingerprint, skillProposalFingerprint } from '../proposal-decisions.js';
 
 function readSkillProposalPointer(state: RunState): string | null {

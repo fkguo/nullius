@@ -1,4 +1,4 @@
-import { invalidParams } from '@autoresearch/shared';
+import { invalidParams } from '@nullius/shared';
 import { z } from 'zod';
 import type { LlmUsage, MessageContent, MessageParam, MessagesCreateFn } from '../backends/chat-backend.js';
 import type { McpToolResult, ToolCaller } from '../mcp-client.js';

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { McpError } from '@autoresearch/shared';
+import { McpError } from '@nullius/shared';
 
 import { assertSafePathSegment, resolvePathWithinParent } from '../src/data/pathGuard.js';
 

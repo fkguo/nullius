@@ -1,4 +1,4 @@
-import { parseSamplingMetadata, type SamplingMetadata } from '@autoresearch/shared';
+import { parseSamplingMetadata, type SamplingMetadata } from '@nullius/shared';
 
 import { SamplingRoutingConfigSchema } from './sampling-schema.js';
 import type { ResolvedSamplingRoute, SamplingRouteSelectorMatch, SamplingRoutingConfig } from './sampling-types.js';

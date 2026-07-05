@@ -1,5 +1,5 @@
 import type { CreateMessageRequestParamsBase, CreateMessageResult } from '@modelcontextprotocol/sdk/types.js';
-import { INSPIRE_GRADE_EVIDENCE } from '@autoresearch/shared';
+import { INSPIRE_GRADE_EVIDENCE } from '@nullius/shared';
 
 import { buildClaimBundleAssessmentPrompt, parseClaimBundleAssessmentResponse } from './claimBundleSampling.js';
 import { extractSamplingText } from './claimSampling.js';

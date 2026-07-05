@@ -1,6 +1,6 @@
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { invalidParams, McpError } from '@autoresearch/shared';
+import { invalidParams, McpError } from '@nullius/shared';
 import { parseHepRunArtifactUriOrThrow } from '../core/runArtifactUri.js';
 import { getDataDir } from '../data/dataDir.js';
 import { resolvePathWithinParent } from '../data/pathGuard.js';

@@ -220,16 +220,16 @@ describe('workflow runtime diagnostics', () => {
 
   it('classifies malformed MCP env as structured diagnostics', async () => {
     await withEnv({
-      AUTORESEARCH_RUN_MCP_COMMAND: 'mock-mcp',
-      AUTORESEARCH_RUN_MCP_ARGS_JSON: '{not-json',
-      AUTORESEARCH_RUN_MCP_ENV_JSON: undefined,
+      NULLIUS_RUN_MCP_COMMAND: 'mock-mcp',
+      NULLIUS_RUN_MCP_ARGS_JSON: '{not-json',
+      NULLIUS_RUN_MCP_ENV_JSON: undefined,
     }, async () => {
       const result = await executeWorkflowRuntimeRequest(makeRequest());
       expect(result.status).toBe('failed');
       expect(result.diagnostics).toEqual([
         expect.objectContaining({
           code: 'malformed_mcp_env',
-          message: 'AUTORESEARCH_RUN_MCP_ARGS_JSON must decode to a JSON string array',
+          message: 'NULLIUS_RUN_MCP_ARGS_JSON must decode to a JSON string array',
         }),
       ]);
     });
@@ -237,9 +237,9 @@ describe('workflow runtime diagnostics', () => {
 
   it('classifies a missing MCP server configuration distinctly', async () => {
     await withEnv({
-      AUTORESEARCH_RUN_MCP_COMMAND: undefined,
-      AUTORESEARCH_RUN_MCP_ARGS_JSON: undefined,
-      AUTORESEARCH_RUN_MCP_ENV_JSON: undefined,
+      NULLIUS_RUN_MCP_COMMAND: undefined,
+      NULLIUS_RUN_MCP_ARGS_JSON: undefined,
+      NULLIUS_RUN_MCP_ENV_JSON: undefined,
     }, async () => {
       const result = await executeWorkflowRuntimeRequest(makeRequest());
       expect(result.status).toBe('failed');
@@ -251,9 +251,9 @@ describe('workflow runtime diagnostics', () => {
 
   it('keeps missing MCP server configuration fail-closed even when degrade_mode=skip_with_reason', async () => {
     await withEnv({
-      AUTORESEARCH_RUN_MCP_COMMAND: undefined,
-      AUTORESEARCH_RUN_MCP_ARGS_JSON: undefined,
-      AUTORESEARCH_RUN_MCP_ENV_JSON: undefined,
+      NULLIUS_RUN_MCP_COMMAND: undefined,
+      NULLIUS_RUN_MCP_ARGS_JSON: undefined,
+      NULLIUS_RUN_MCP_ENV_JSON: undefined,
     }, async () => {
       const result = await executeWorkflowRuntimeRequest(makeRequest({ degrade_mode: 'skip_with_reason' }));
       expect(result.status).toBe('failed');
@@ -265,16 +265,16 @@ describe('workflow runtime diagnostics', () => {
 
   it('keeps malformed MCP env fail-closed even when degrade_mode=partial_result', async () => {
     await withEnv({
-      AUTORESEARCH_RUN_MCP_COMMAND: 'mock-mcp',
-      AUTORESEARCH_RUN_MCP_ARGS_JSON: '{not-json',
-      AUTORESEARCH_RUN_MCP_ENV_JSON: undefined,
+      NULLIUS_RUN_MCP_COMMAND: 'mock-mcp',
+      NULLIUS_RUN_MCP_ARGS_JSON: '{not-json',
+      NULLIUS_RUN_MCP_ENV_JSON: undefined,
     }, async () => {
       const result = await executeWorkflowRuntimeRequest(makeRequest({ degrade_mode: 'partial_result' }));
       expect(result.status).toBe('failed');
       expect(result.diagnostics).toEqual([
         expect.objectContaining({
           code: 'malformed_mcp_env',
-          message: 'AUTORESEARCH_RUN_MCP_ARGS_JSON must decode to a JSON string array',
+          message: 'NULLIUS_RUN_MCP_ARGS_JSON must decode to a JSON string array',
         }),
       ]);
     });

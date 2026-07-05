@@ -3,7 +3,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { STDIO_MAX_RESULT_BYTES, MAX_INLINE_RESULT_BYTES, HARD_CAP_RESULT_BYTES } from '@autoresearch/shared';
+import { STDIO_MAX_RESULT_BYTES, MAX_INLINE_RESULT_BYTES, HARD_CAP_RESULT_BYTES } from '@nullius/shared';
 import { compactPapersInResult } from '../../src/utils/compactPaper.js';
 import { inferMimeType } from '../../src/tools/dispatcher.js';
 

@@ -1,20 +1,20 @@
-# Autoresearch Lab — 立场（POSITIONING）
+# Nullius — 立场（POSITIONING）
 
-本文档说明 Autoresearch Lab **是什么**、**不是什么**、它**主动防御哪些 agent
+本文档说明 Nullius **是什么**、**不是什么**、它**主动防御哪些 agent
 失败模式**，以及**这些纪律如何被机器强制**。它补充
 [`docs/README_zh.md`](./README_zh.md) §1–§3 的 surface taxonomy，覆盖非
 surface 层面的保证。
 
 [English](./POSITIONING.md) | 中文
 
-## 1. Autoresearch Lab 是什么
+## 1. Nullius 是什么
 
 一个 domain-neutral、evidence-first 的研究 monorepo，面向 **agent-assisted
-research workflow**。control plane（`autoresearch` CLI + `orch_*` MCP）是
+research workflow**。control plane（`nullius` CLI + `orch_*` MCP）是
 外部 project root 的长期 lifecycle 权威；provider 包与 skill 是受限算子，
 由 control plane 组合。HEP 是当前最成熟的使用场景，**不是**域边界 — 见 §2。
 
-## 2. Autoresearch Lab 不是什么
+## 2. Nullius 不是什么
 
 - **不是 SaaS**。状态与 artifact 留在每个外部 research project root 内，
   不放在任何远程服务上。没有订阅、没有共享后端、没有计费。state 落点见
@@ -27,11 +27,11 @@ research workflow**。control plane（`autoresearch` CLI + `orch_*` MCP）是
 - **不是从一句 prompt 写出论文的工具**。`research-writer` 与 `paper-reviser`
   作用于研究者本人已有的 prose，对已 audit 的 run 收集的 evidence 操作；
   不从一个想法生成草稿。
-- **不是 HEP-only**。`@autoresearch/hep-mcp` 是当前最成熟的 domain pack
+- **不是 HEP-only**。`@nullius/hep-mcp` 是当前最成熟的 domain pack
   与最强的端到端示例。**按
   [`package.json`](../packages/hep-mcp/package.json) 实际依赖，它是一个
-  composite**，工作区依赖中**显式包含** `@autoresearch/arxiv-mcp` 与
-  `@autoresearch/openalex-mcp` —— 这两个是覆盖更广学术文献的
+  composite**，工作区依赖中**显式包含** `@nullius/arxiv-mcp` 与
+  `@nullius/openalex-mcp` —— 这两个是覆盖更广学术文献的
   domain-neutral atom。control plane 与 skill 层均 domain-neutral。"HEP"
   反映**一个使用场景的成熟度**，不是系统的域边界。
 - **不是 provider 工具的再实现**。`inspire_*`、`pdg_*`、`hepdata_*`、
@@ -58,8 +58,8 @@ research workflow**。control plane（`autoresearch` CLI + `orch_*` MCP）是
 - **M7** frame_lock
 
 该 skill 是 prompt-level 纪律。它的 receipt 在审批门做 **机器强制**：
-`autoresearch approve` 之前必须先用
-`autoresearch integrity-record --approval-id <id> --modes <Mx,...>` 写
+`nullius approve` 之前必须先用
+`nullius integrity-record --approval-id <id> --modes <Mx,...>` 写
 receipt；缺少 receipt 时审批 fail-closed，返回
 `INTEGRITY_RECEIPT_REQUIRED`。实现见
 [`packages/shared/src/integrity-receipt.ts`](../packages/shared/src/integrity-receipt.ts)，
@@ -71,9 +71,9 @@ receipt；缺少 receipt 时审批 fail-closed，返回
 长 session 会把 `research-harness` skill 挤出 context；项目状态与 agent
 的 mental model 静默 desync。对**读或写 project-keyed state** 的工具调用
 （分类按每个 `*-mcp` 包的 `state-touch-classification.ts`），每个 `*-mcp`
-dispatcher 都校验 `autoresearch status` 写入的
-`.autoresearch/HARNESS_INVOCATION` anchor：(a) 比
-`.autoresearch/state.json` / `.autoresearch/ledger.jsonl` 的最后修改时间
+dispatcher 都校验 `nullius status` 写入的
+`.nullius/HARNESS_INVOCATION` anchor：(a) 比
+`.nullius/state.json` / `.nullius/ledger.jsonl` 的最后修改时间
 新；(b) 写入时的 project_root 跟当前 cwd 一致（identity check）；(c) anchor
 时间戳不是未来（clock-skew guard）。anchor 缺失/错配/未来/比 state 旧 →
 fail-closed，返回 `HARNESS_INVOCATION_REQUIRED`。
@@ -84,7 +84,7 @@ fail-closed，返回 `HARNESS_INVOCATION_REQUIRED`。
 
 - 纯只读 provider query（按每个 `*-mcp` 包的 audit-backed
   `state-touch-classification.ts` 分类）；
-- standalone 使用，`process.cwd()` 无 `.autoresearch/` 目录（无 lifecycle
+- standalone 使用，`process.cwd()` 无 `.nullius/` 目录（无 lifecycle
   context）。
 
 实现见
@@ -120,7 +120,7 @@ root 上：
   范围。在断言一个包做什么之前，先检查 `package.json` 的 deps 与实际
   `import` 关系。工具名同样 — 先打开 handler 再判断它干什么。
 - **审批前走 M1–M7**。漏掉这一步意味着
-  `.autoresearch/integrity_log.jsonl` 中没有对应 receipt，审批门
+  `.nullius/integrity_log.jsonl` 中没有对应 receipt，审批门
   fail-closed。恢复方式是重新走一遍 M1–M7 + 重写 receipt，latest 胜。
 - **anti-drift CI 失败 = 纪律失败**。修复方式是恢复被破坏的契约，**不是**
   放宽 lint。
@@ -137,7 +137,7 @@ root 上：
 - **没有"把 hep-mcp 里的 generic primitive 回溯迁移到 shared"**。
   `hep-mcp` 在设计上就是 composite（依赖 `arxiv-mcp` 与 `openalex-mcp`，
   见 §2）。external-API cache 与 budget/warning diagnostics 等 primitive
-  支撑这一 composite 角色，**不**预先迁移到 `@autoresearch/shared`。
+  支撑这一 composite 角色，**不**预先迁移到 `@nullius/shared`。
   只有真实第二消费者请求时才迁。投机性的 "先搬过去 just in case" 不做。
 
 这两条不是 "稍后做"，是 **closed scope**。若未来证据显示有真实问题恰好

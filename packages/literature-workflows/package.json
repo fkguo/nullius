@@ -1,6 +1,6 @@
 {
-  "name": "@autoresearch/literature-workflows",
-  "version": "0.3.0",
+  "name": "@nullius/literature-workflows",
+  "version": "0.4.0",
   "description": "Checked-in literature workflow authority pack and provider/capability resolver",
   "author": "Feng-Kun Guo",
   "type": "module",
@@ -13,18 +13,18 @@
     }
   },
   "scripts": {
-    "prebuild": "node ../../scripts/ensure-workspace-package-artifacts.mjs @autoresearch/shared @autoresearch/arxiv-mcp @autoresearch/openalex-mcp",
+    "prebuild": "node ../../scripts/ensure-workspace-package-artifacts.mjs @nullius/shared @nullius/arxiv-mcp @nullius/openalex-mcp",
     "build": "tsc --build",
     "clean": "rm -rf dist tsconfig.tsbuildinfo",
-    "prelint": "node ../../scripts/ensure-workspace-package-artifacts.mjs @autoresearch/shared @autoresearch/arxiv-mcp @autoresearch/openalex-mcp",
+    "prelint": "node ../../scripts/ensure-workspace-package-artifacts.mjs @nullius/shared @nullius/arxiv-mcp @nullius/openalex-mcp",
     "lint": "tsc --noEmit",
-    "pretest": "node ../../scripts/ensure-workspace-package-artifacts.mjs @autoresearch/shared @autoresearch/arxiv-mcp @autoresearch/openalex-mcp",
+    "pretest": "node ../../scripts/ensure-workspace-package-artifacts.mjs @nullius/shared @nullius/arxiv-mcp @nullius/openalex-mcp",
     "test": "vitest run"
   },
   "dependencies": {
-    "@autoresearch/arxiv-mcp": "workspace:*",
-    "@autoresearch/openalex-mcp": "workspace:*",
-    "@autoresearch/shared": "workspace:*",
+    "@nullius/arxiv-mcp": "workspace:*",
+    "@nullius/openalex-mcp": "workspace:*",
+    "@nullius/shared": "workspace:*",
     "zod": "^4.3.5"
   },
   "devDependencies": {

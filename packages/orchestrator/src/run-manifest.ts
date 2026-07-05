@@ -1,9 +1,9 @@
-// @autoresearch/orchestrator — RunManifest (NEW-RT-04)
+// @nullius/orchestrator — RunManifest (NEW-RT-04)
 // Checkpoint + resume mechanism for durable execution.
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { writeJsonAtomicDurable } from '@autoresearch/shared';
+import { writeJsonAtomicDurable } from '@nullius/shared';
 import { utcNowIso } from './util.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────

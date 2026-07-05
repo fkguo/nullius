@@ -1,4 +1,4 @@
-import { invalidParams } from '@autoresearch/shared';
+import { invalidParams } from '@nullius/shared';
 import { getRun, updateRunManifestAtomic, type RunArtifactRef, type RunManifest } from '../../core/runs.js';
 import { buildAllowedCitationsArtifact, buildCitekeyToInspireStats, writeRunJsonArtifact } from '../../core/citations.js';
 import { makeHepRunManifestUri } from '../../core/runArtifactUri.js';

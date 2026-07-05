@@ -1,4 +1,4 @@
-import type { SamplingMetadata } from '@autoresearch/shared';
+import type { SamplingMetadata } from '@nullius/shared';
 
 type SamplingCostClassKey = 'low' | 'medium' | 'high';
 type SamplingRiskLevelKey = 'read' | 'write' | 'destructive';

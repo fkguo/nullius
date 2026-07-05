@@ -33,6 +33,6 @@ describe('getDataDir', () => {
     delete process.env.OPENALEX_DATA_DIR;
     delete process.env.HEP_DATA_DIR;
 
-    expect(getDataDir()).toBe(path.resolve(path.join(os.homedir(), '.autoresearch', 'openalex')));
+    expect(getDataDir()).toBe(path.resolve(path.join(os.homedir(), '.nullius', 'openalex')));
   });
 });

@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { writeJsonAtomicDurable } from '@autoresearch/shared';
+import { writeJsonAtomicDurable } from '@nullius/shared';
 
 export type MarkerKind = 'download_dir';
 

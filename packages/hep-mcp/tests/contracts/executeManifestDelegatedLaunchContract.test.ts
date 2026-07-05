@@ -2,7 +2,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { StateManager, handleToolCall as handleOrchToolCall } from '@autoresearch/orchestrator';
+import { StateManager, handleToolCall as handleOrchToolCall } from '@nullius/orchestrator';
 import { createFromIdea } from '../../src/tools/create-from-idea.js';
 import { handleToolCall } from '../../src/tools/index.js';
 import { extractPayload, makeTmpDir } from './executeManifestContractTestSupport.js';

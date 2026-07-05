@@ -24,9 +24,9 @@ import {
   PERMISSION_POLICY,
   redact,
   verifyHarnessInvocationMarker,
-} from '@autoresearch/shared';
-import type { SpanSink } from '@autoresearch/shared';
-import type { PaperSummary } from '@autoresearch/shared';
+} from '@nullius/shared';
+import type { SpanSink } from '@nullius/shared';
+import type { PaperSummary } from '@nullius/shared';
 import type {
   Notification,
   CreateMessageRequestParamsBase,
@@ -40,7 +40,7 @@ import { resolvePathWithinParent } from '../data/pathGuard.js';
 import { writeRunJsonArtifact } from '../core/citations.js';
 import { getRun } from '../core/runs.js';
 import { getRunManifestPath } from '../core/paths.js';
-import { withPdgDataDir } from '@autoresearch/pdg-mcp/tooling';
+import { withPdgDataDir } from '@nullius/pdg-mcp/tooling';
 
 import { getToolSpec, isToolExposed, type ToolExposureMode } from './registry.js';
 import { isStateTouchingHepMcp } from './state-touch-classification.js';

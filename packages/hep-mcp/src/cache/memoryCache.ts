@@ -1,5 +1,5 @@
-import { LRUCache } from '@autoresearch/shared';
-import type { PaperSummary, Paper } from '@autoresearch/shared';
+import { LRUCache } from '@nullius/shared';
+import type { PaperSummary, Paper } from '@nullius/shared';
 import { CACHE_TTL, CACHE_SIZE } from '../config.js';
 
 // ─────────────────────────────────────────────────────────────────────────────

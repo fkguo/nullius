@@ -16,7 +16,7 @@ from project_contracts.project_policy import assert_project_root_allowed, dev_re
 class TestRootPolicy(unittest.TestCase):
     def test_real_project_rejects_repo_internal_root(self) -> None:
         repo_root = dev_repo_root()
-        with self.assertRaisesRegex(ValueError, "outside the autoresearch-lab dev repo"):
+        with self.assertRaisesRegex(ValueError, "outside the nullius dev repo"):
             assert_project_root_allowed(repo_root / "skills" / "research-team", project_policy="real_project")
 
     def test_maintainer_fixture_allows_repo_internal_tmp(self) -> None:

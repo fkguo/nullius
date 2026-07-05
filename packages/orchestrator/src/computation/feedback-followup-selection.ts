@@ -1,4 +1,4 @@
-import type { ComputationResultV1 } from '@autoresearch/shared';
+import type { ComputationResultV1 } from '@nullius/shared';
 import type { TeamExecutionState } from '../team-execution-types.js';
 
 type FollowupTask = ComputationResultV1['workspace_feedback']['tasks'][number];

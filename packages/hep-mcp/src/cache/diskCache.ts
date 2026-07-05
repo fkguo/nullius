@@ -8,7 +8,7 @@ import * as path from 'path';
 import * as zlib from 'zlib';
 import { createHash } from 'crypto';
 import { promisify } from 'util';
-import { writeBytesAtomicDurable } from '@autoresearch/shared';
+import { writeBytesAtomicDurable } from '@nullius/shared';
 import { getCacheDir } from '../data/dataDir.js';
 
 const gzip = promisify(zlib.gzip);

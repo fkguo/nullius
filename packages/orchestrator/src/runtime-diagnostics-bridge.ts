@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { writeJsonAtomicDurable } from '@autoresearch/shared';
+import { writeJsonAtomicDurable } from '@nullius/shared';
 import type { RunManifest } from './run-manifest.js';
 import type {
   DelegatedRuntimeMarkerKind,

@@ -10,7 +10,7 @@ import {
   type SurveyResult,
   type PaperSummary,
   GenerateSurveyParamsSchema,
-} from '@autoresearch/shared';
+} from '@nullius/shared';
 import { classifyPaper } from './paperClassifier.js';
 
 // ─────────────────────────────────────────────────────────────────────────────

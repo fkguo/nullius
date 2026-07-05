@@ -1,6 +1,6 @@
-# @autoresearch/idea-mcp
+# @nullius/idea-mcp
 
-Narrow stdio MCP surface for the TypeScript idea campaign runtime. Bridges `idea_campaign_init|status|topup|pause|resume|complete`, `idea_search_step`, and `idea_eval_run` over to `@autoresearch/idea-engine` via RPC.
+Narrow stdio MCP surface for the TypeScript idea campaign runtime. Bridges `idea_campaign_init|status|topup|pause|resume|complete`, `idea_search_step`, and `idea_eval_run` over to `@nullius/idea-engine` via RPC.
 
 ## Layer
 
@@ -8,7 +8,7 @@ Experimental runtime bridge (MCP side). The current idea-engine phase is **close
 
 ## What it does NOT expose
 
-By design, the following stay inside `@autoresearch/idea-engine` and are not MCP tools:
+By design, the following stay inside `@nullius/idea-engine` and are not MCP tools:
 
 - `rank.compute` and `node.promote` post-search steps
 - Negative failure-library reflection cycles
@@ -30,7 +30,7 @@ Wire into an MCP client:
   "mcpServers": {
     "idea-mcp": {
       "command": "node",
-      "args": ["/absolute/path/to/autoresearch-lab/packages/idea-mcp/dist/server.js"]
+      "args": ["/absolute/path/to/nullius/packages/idea-mcp/dist/server.js"]
     }
   }
 }
@@ -47,6 +47,6 @@ pnpm -C packages/idea-mcp test
 
 ## See also
 
-- [`@autoresearch/idea-engine`](../idea-engine/README.md) — full runtime contract
+- [`@nullius/idea-engine`](../idea-engine/README.md) — full runtime contract
 - Root [README.md](../../README.md) §1 Surface Policy
 - Root [AGENTS.md](../../AGENTS.md) §Stable Public Invariants — "idea-mcp must not reclaim root workflow authority"

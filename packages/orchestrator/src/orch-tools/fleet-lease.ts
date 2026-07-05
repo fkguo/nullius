@@ -1,4 +1,4 @@
-import type { FleetQueueClaim, FleetQueueV1 } from '@autoresearch/shared';
+import type { FleetQueueClaim, FleetQueueV1 } from '@nullius/shared';
 
 const ISO_TRIMMED_MILLIS = /\.\d{3}Z$/;
 export const DEFAULT_FLEET_LEASE_DURATION_SECONDS = 60;

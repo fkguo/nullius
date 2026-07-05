@@ -1,12 +1,12 @@
-import { AUTORESEARCH_PUBLIC_COMMAND_INVENTORY } from './cli-command-inventory.js';
+import { NULLIUS_PUBLIC_COMMAND_INVENTORY } from './cli-command-inventory.js';
 
-const MAIN_COMMAND_USAGE = AUTORESEARCH_PUBLIC_COMMAND_INVENTORY
+const MAIN_COMMAND_USAGE = NULLIUS_PUBLIC_COMMAND_INVENTORY
   .map(entry => `  ${entry.usage}`)
   .join('\n');
 
-const MAIN_HELP = `autoresearch
+const MAIN_HELP = `nullius
 
-Canonical generic lifecycle and workflow-plan entrypoint for the Autoresearch control plane.
+Canonical generic lifecycle and workflow-plan entrypoint for the Nullius control plane.
 
 Commands:
 ${MAIN_COMMAND_USAGE}
@@ -16,26 +16,26 @@ Global options:
   -h, --help              Show help.
 
 Notes:
-  - \`autoresearch\` is the stateful CLI front door; \`orch_*\` is the MCP/operator counterpart of the same control plane.
+  - \`nullius\` is the stateful CLI front door; \`orch_*\` is the MCP/operator counterpart of the same control plane.
   - Provider MCP surfaces stay bounded atomic operators instead of being mirrored into provider-local CLI shells.
   - workflow-plan resolves checked-in literature workflow recipes into bounded steps.
-  - workflow-plan persists executable planning metadata into \`.autoresearch/state.json#/plan\`.
+  - workflow-plan persists executable planning metadata into \`.nullius/state.json#/plan\`.
   - \`run\` remains the only execution front door: computation manifests run natively, while persisted workflow-plan steps execute through a configured MCP tool caller.
   - Pipeline A parser support commands \`doctor\`, \`bridge\`, and \`literature-gap\` are deleted.
   - Retired-public maintainer helpers \`method-design\` and \`run-card\` are deleted; only \`branch\` remains on the provider-local internal parser.
 `;
 
 const COMMAND_HELP: Record<string, string> = {
-  init: `autoresearch init
+  init: `nullius init
 
-Bootstrap a real external project root and initialize .autoresearch state.
+Bootstrap a real external project root and initialize .nullius state.
 
 Behavior:
-  Always writes the project-local fallback launcher at \`.autoresearch/bin/autoresearch\`.
-  That wrapper keeps \`autoresearch status --json\` as the canonical recovery command even when
-  \`autoresearch\` is unavailable on PATH for a fresh external project.
+  Always writes the project-local fallback launcher at \`.nullius/bin/nullius\`.
+  That wrapper keeps \`nullius status --json\` as the canonical recovery command even when
+  \`nullius\` is unavailable on PATH for a fresh external project.
   --refresh re-applies the current managed scaffold doc (AGENTS.md),
-  backing up any changed file under \`.autoresearch/backups/<timestamp>/\` before overwriting it.
+  backing up any changed file under \`.nullius/backups/<timestamp>/\` before overwriting it.
   Refresh never writes user-owned files (research_plan.md, research_notebook.md,
   research_contract.md, project_charter.md, project_index.md). Pair with --dry-run to preview.
 
@@ -49,7 +49,7 @@ Pass-through options:
 
 Use --project-root <path> to target a root explicitly.
 `,
-  run: `autoresearch run --workflow-id <id> [options]
+  run: `nullius run --workflow-id <id> [options]
 
 Execute a bounded run slice through the canonical TS run front door.
 
@@ -61,17 +61,17 @@ Options:
   --dry-run                  Validate only; do not execute steps
 
 Behavior:
-  Requires an initialized external project root (\`autoresearch init\`).
+  Requires an initialized external project root (\`nullius init\`).
   Computation requests A3 approval when gate_satisfied.A3 is absent.
   Persisted workflow-plan steps advance in a bounded loop until completion or a blocking failure is reached.
   A \`connection_scan\` step with an empty \`recids\` paper set is skipped with a structured no-input result instead of being reported as a tool failure.
-  Workflow-step execution requires a configured local MCP stdio server via \`AUTORESEARCH_RUN_MCP_COMMAND\`
-  plus optional \`AUTORESEARCH_RUN_MCP_ARGS_JSON\` / \`AUTORESEARCH_RUN_MCP_ENV_JSON\`.
+  Workflow-step execution requires a configured local MCP stdio server via \`NULLIUS_RUN_MCP_COMMAND\`
+  plus optional \`NULLIUS_RUN_MCP_ARGS_JSON\` / \`NULLIUS_RUN_MCP_ENV_JSON\`.
 
 Output:
   JSON execution result is written to stdout.
 `,
-  verify: `autoresearch verify --run-id <id> --status <passed|failed|blocked> --summary "..." --evidence-path <path> [options]
+  verify: `nullius verify --run-id <id> --status <passed|failed|blocked> --summary "..." --evidence-path <path> [options]
 
 Record one decisive verification result for an existing computation run.
 
@@ -87,14 +87,14 @@ Options:
   --notes "..."                 Optional operator note recorded into the verification check artifact
 
 Behavior:
-  Requires an initialized external project root (\`autoresearch init\`).
+  Requires an initialized external project root (\`nullius init\`).
   Materializes \`verification_check_run_v1\`, refreshes verdict/coverage truth, and enriches \`computation_result_v1.verification_refs.check_run_refs\`.
   This is a local single-user verification front door, not a REP / multi-agent interaction surface.
 
 Output:
   JSON verification result summary is written to stdout.
 `,
-  'final-conclusions': `autoresearch final-conclusions --run-id <id> [options]
+  'final-conclusions': `nullius final-conclusions --run-id <id> [options]
 
 Evaluate whether a completed run is ready for the higher-conclusion A5 boundary.
 
@@ -103,16 +103,16 @@ Options:
   --note "..."          Optional operator note recorded if an A5 approval request is created
 
 Behavior:
-  Requires an initialized external project root (\`autoresearch init\`).
+  Requires an initialized external project root (\`nullius init\`).
   Reads the canonical \`artifacts/computation_result_v1.json\` and its typed verification refs.
   Only a decisive gate \`pass\` creates a pending A5 approval request.
   \`hold\`, \`block\`, and \`unavailable\` fail closed and do not create pending approval state.
-  After the request exists, \`autoresearch approve <approval_id>\` consumes A5 into a local \`final_conclusions_v1\` artifact instead of resuming the run.
+  After the request exists, \`nullius approve <approval_id>\` consumes A5 into a local \`final_conclusions_v1\` artifact instead of resuming the run.
 
 Output:
   JSON readiness or approval-request result is written to stdout.
 `,
-  'proposal-decision': `autoresearch proposal-decision --proposal-kind <repair|skill|optimize|innovate> --proposal-id <id> --decision <accepted_for_later|dismissed|already_captured> [options]
+  'proposal-decision': `nullius proposal-decision --proposal-kind <repair|skill|optimize|innovate> --proposal-id <id> --decision <accepted_for_later|dismissed|already_captured> [options]
 
 Record one local decision for the current run's current proposal.
 
@@ -123,12 +123,12 @@ Options:
   --note "..."          Optional operator note
 
 Behavior:
-  Requires an initialized external project root (\`autoresearch init\`).
+  Requires an initialized external project root (\`nullius init\`).
   Validates that the current run has a matching current proposal artifact for the requested kind.
-  Writes local decision memory into \`.autoresearch/proposal_decisions_v1.json\`.
+  Writes local decision memory into \`.nullius/proposal_decisions_v1.json\`.
   Does not mutate the proposal artifact itself.
 `,
-  status: `autoresearch status
+  status: `nullius status
 
 Show the current lifecycle state for the nearest project root.
 
@@ -138,15 +138,15 @@ Options:
 Behavior:
   Includes current-run lifecycle truth plus a thin project-level recent digest for recent runs,
   latest final conclusions, latest proposals, and the latest active team summary when readable.
-  When \`state.json#/plan\` exists but derived \`.autoresearch/plan.md\` is missing or stale, status rebuilds the plan view from state and reports a structured warning instead of showing an empty plan.
+  When \`state.json#/plan\` exists but derived \`.nullius/plan.md\` is missing or stale, status rebuilds the plan view from state and reports a structured warning instead of showing an empty plan.
   Status JSON also includes the legacy-stable \`resume_context\`, the richer \`recovery_context\`,
   and \`current_run_workflow_outputs\` so a reconnecting agent can recover the current run,
-  reuse bounded workflow outputs, and fall back to \`.autoresearch/bin/autoresearch status --json\`
-  when the canonical \`autoresearch\` command is not available on PATH.
+  reuse bounded workflow outputs, and fall back to \`.nullius/bin/nullius status --json\`
+  when the canonical \`nullius\` command is not available on PATH.
   Status JSON also includes \`project_surface_drift\`, a diagnostic-only warning block for stale legacy scaffold surfaces or optional host-local guidance noise in the current project root.
   When durable workflow outputs are missing for an older run, status rebuilds a best-effort legacy workflow projection from ledger/artifact conventions and reports the projection source.
 `,
-approve: `autoresearch approve <approval_id>
+approve: `nullius approve <approval_id>
 
 Approve the pending gate for the current project root.
 
@@ -157,14 +157,14 @@ Behavior:
   Non-A5 approvals resume the run as before.
   An A5 approval consumes the first post-A5 higher-conclusion consumer, writes \`artifacts/runs/<run_id>/final_conclusions_v1.json\`, and leaves the run \`completed\`.
 `,
-  pause: `autoresearch pause
+  pause: `nullius pause
 
 Pause the current run for the current project root.
 
 Options:
   --note "..."   Record a ledger note with the pause.
 `,
-  resume: `autoresearch resume
+  resume: `nullius resume
 
 Resume the current paused run for the current project root.
 
@@ -172,7 +172,7 @@ Options:
   --note "..."   Record a ledger note with the resume.
   --force        Allow resume from terminal states (idle/completed/failed).
 `,
-  export: `autoresearch export
+  export: `nullius export
 
 Bundle run artifacts into a zip archive for the current project root.
 
@@ -189,7 +189,7 @@ Behavior:
   Export summary also includes \`project_surface_drift\`, mirroring the status read model's diagnostic-only project-root warnings.
   Export fails closed when no substantive payload is available, instead of reporting a hollow success.
 `,
-  'workflow-plan': `autoresearch workflow-plan --recipe <recipe_id> [options]
+  'workflow-plan': `nullius workflow-plan --recipe <recipe_id> [options]
 
 Resolve a checked-in literature workflow recipe into a bounded executable plan.
 
@@ -208,17 +208,17 @@ Options:
   --available-tool <name>     Repeatable
 
 Behavior:
-  Requires an initialized external project root (\`autoresearch init\`).
+  Requires an initialized external project root (\`nullius init\`).
   Use a safe, readable project-local run_id such as \`20260502T023000Z-m3-branch-scan-r1\`.
   If omitted, workflow-plan derives \`<recipe>-<phase>\` only as a planning placeholder.
-  Persists the resolved plan into \`.autoresearch/state.json#/plan\`.
-  Derives \`.autoresearch/plan.md\` from the persisted plan.
-  Execution happens later through \`autoresearch run\`, which advances ready persisted steps in a bounded loop.
+  Persists the resolved plan into \`.nullius/state.json#/plan\`.
+  Derives \`.nullius/plan.md\` from the persisted plan.
+  Execution happens later through \`nullius run\`, which advances ready persisted steps in a bounded loop.
 
 Output:
   JSON workflow plan is still written to stdout.
 `,
-  graph: `autoresearch graph --kind <claims|progress|literature|roadmap> [options]
+  graph: `nullius graph --kind <claims|progress|literature|roadmap> [options]
 
 Render a domain-neutral dependency graph from research artifacts via the shared
 graph-viz engine. Output is Graphviz DOT (the portable source of truth) plus an
@@ -240,7 +240,7 @@ Options:
   --json                   Emit graph metadata + DOT as JSON to stdout instead of writing files.
 
 Behavior:
-  Each kind maps to one adapter in @autoresearch/shared/graph-viz; node fill encodes
+  Each kind maps to one adapter in @nullius/shared/graph-viz; node fill encodes
   status and edge style encodes the relationship kind. PNG/SVG are best-effort: when
   Graphviz is absent the DOT is still written and a warning is printed.
 

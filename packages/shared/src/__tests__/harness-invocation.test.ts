@@ -2,8 +2,8 @@
  * P3-C harness invocation marker — redesigned event-driven verifier tests.
  *
  * Covers:
- *   - skip layers (NODE_ENV=test, AUTORESEARCH_HARNESS_VERIFY env,
- *     no .autoresearch/ at cwd → B, toolIsStateTouching=false → C)
+ *   - skip layers (NODE_ENV=test, NULLIUS_HARNESS_VERIFY env,
+ *     no .nullius/ at cwd → B, toolIsStateTouching=false → C)
  *   - happy path (marker present, anchored_at ≥ state.json/ledger.jsonl
  *     mtime → no throw)
  *   - rejection paths (missing / invalid JSON / wrong contract / state
@@ -21,10 +21,10 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   HARNESS_INVOCATION_FILE,
   HARNESS_INVOCATION_SCHEMA_VERSION,
-  AUTORESEARCH_STATE_FILE,
-  AUTORESEARCH_LEDGER_FILE,
-  autoresearchStatePath,
-  autoresearchLedgerPath,
+  NULLIUS_STATE_FILE,
+  NULLIUS_LEDGER_FILE,
+  nulliusStatePath,
+  nulliusLedgerPath,
   harnessInvocationMarkerPath,
   isHarnessVerifySkipped,
   readHarnessInvocationMarker,
@@ -33,11 +33,11 @@ import {
 } from '../harness-invocation.js';
 import { McpError } from '../errors.js';
 
-const FORCE_ON_ENV = { AUTORESEARCH_HARNESS_VERIFY: 'on' } as NodeJS.ProcessEnv;
+const FORCE_ON_ENV = { NULLIUS_HARNESS_VERIFY: 'on' } as NodeJS.ProcessEnv;
 
 function makeProject(): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-inv-'));
-  fs.mkdirSync(path.join(root, '.autoresearch'), { recursive: true });
+  fs.mkdirSync(path.join(root, '.nullius'), { recursive: true });
   return root;
 }
 
@@ -51,17 +51,17 @@ function setMtime(filePath: string, isoTime: string): void {
 }
 
 describe('isHarnessVerifySkipped', () => {
-  it('skip when AUTORESEARCH_HARNESS_VERIFY=skip regardless of NODE_ENV', () => {
-    expect(isHarnessVerifySkipped({ AUTORESEARCH_HARNESS_VERIFY: 'skip' } as NodeJS.ProcessEnv)).toBe(true);
+  it('skip when NULLIUS_HARNESS_VERIFY=skip regardless of NODE_ENV', () => {
+    expect(isHarnessVerifySkipped({ NULLIUS_HARNESS_VERIFY: 'skip' } as NodeJS.ProcessEnv)).toBe(true);
     expect(isHarnessVerifySkipped({
-      AUTORESEARCH_HARNESS_VERIFY: 'skip',
+      NULLIUS_HARNESS_VERIFY: 'skip',
       NODE_ENV: 'production',
     } as NodeJS.ProcessEnv)).toBe(true);
   });
 
-  it('force-on when AUTORESEARCH_HARNESS_VERIFY=on even in test', () => {
+  it('force-on when NULLIUS_HARNESS_VERIFY=on even in test', () => {
     expect(isHarnessVerifySkipped({
-      AUTORESEARCH_HARNESS_VERIFY: 'on',
+      NULLIUS_HARNESS_VERIFY: 'on',
       NODE_ENV: 'test',
     } as NodeJS.ProcessEnv)).toBe(false);
   });
@@ -76,12 +76,12 @@ describe('isHarnessVerifySkipped', () => {
   });
 });
 
-describe('skip layer B — no .autoresearch at cwd', () => {
+describe('skip layer B — no .nullius at cwd', () => {
   let bare: string;
   beforeEach(() => { bare = makeBareCwd(); });
   afterEach(() => { fs.rmSync(bare, { recursive: true, force: true }); });
 
-  it('skips verification when cwd has no .autoresearch directory (standalone use)', () => {
+  it('skips verification when cwd has no .nullius directory (standalone use)', () => {
     expect(() => verifyHarnessInvocationMarker(bare, { env: FORCE_ON_ENV }))
       .not.toThrow();
   });
@@ -98,7 +98,7 @@ describe('skip layer C — caller-supplied toolIsStateTouching=false', () => {
   beforeEach(() => { project = makeProject(); });
   afterEach(() => { fs.rmSync(project, { recursive: true, force: true }); });
 
-  it('skips verification for read-only provider queries even with .autoresearch present', () => {
+  it('skips verification for read-only provider queries even with .nullius present', () => {
     expect(() =>
       verifyHarnessInvocationMarker(project, { env: FORCE_ON_ENV, toolIsStateTouching: false }),
     ).not.toThrow();
@@ -151,7 +151,7 @@ describe('verifyHarnessInvocationMarker rejection paths', () => {
       harnessInvocationMarkerPath(project),
       JSON.stringify({
         schema_version: 99,
-        kind: 'autoresearch_harness_invocation',
+        kind: 'nullius_harness_invocation',
         anchored_at: '2026-05-22T00:00:00Z',
         host_skill: 'research-harness',
         project_root: project,
@@ -190,7 +190,7 @@ describe('verifyHarnessInvocationMarker rejection paths', () => {
   it('STATE_CHANGED_SINCE_ANCHOR when state.json mtime > marker.anchored_at', () => {
     const t0 = new Date('2026-05-22T08:00:00Z');
     writeHarnessInvocationMarker(project, { now: t0 });
-    const statePath = autoresearchStatePath(project);
+    const statePath = nulliusStatePath(project);
     fs.writeFileSync(statePath, '{}', 'utf-8');
     setMtime(statePath, '2026-05-22T09:00:00Z');
 
@@ -209,7 +209,7 @@ describe('verifyHarnessInvocationMarker rejection paths', () => {
   it('STATE_CHANGED_SINCE_ANCHOR when ledger.jsonl mtime > marker.anchored_at', () => {
     const t0 = new Date('2026-05-22T08:00:00Z');
     writeHarnessInvocationMarker(project, { now: t0 });
-    const ledgerPath = autoresearchLedgerPath(project);
+    const ledgerPath = nulliusLedgerPath(project);
     fs.writeFileSync(ledgerPath, '{"event":"x"}\n', 'utf-8');
     setMtime(ledgerPath, '2026-05-22T09:30:00Z');
 
@@ -265,7 +265,7 @@ describe('gpt-5.5 review B1 — future anchored_at rejection (clock-skew guard)'
     const farFuture = new Date('2030-01-01T00:00:00Z');
     writeHarnessInvocationMarker(project, { now: farFuture });
     // Simulate a state-change AT now (which would normally invalidate the anchor)
-    const statePath = autoresearchStatePath(project);
+    const statePath = nulliusStatePath(project);
     fs.writeFileSync(statePath, '{}', 'utf-8');
     setMtime(statePath, '2026-05-22T07:30:00Z');
     try {
@@ -293,7 +293,7 @@ describe('gpt-5.5 review B2 — project_root identity guard', () => {
   it('MARKER_PROJECT_MISMATCH when marker was written for a different project', () => {
     // Write a marker for project A
     writeHarnessInvocationMarker(projectA, { now: new Date('2026-05-22T08:00:00Z') });
-    // Copy A's marker to B's .autoresearch dir (simulating cross-project marker copy)
+    // Copy A's marker to B's .nullius dir (simulating cross-project marker copy)
     fs.copyFileSync(
       harnessInvocationMarkerPath(projectA),
       harnessInvocationMarkerPath(projectB),
@@ -337,7 +337,7 @@ describe('verifyHarnessInvocationMarker happy path', () => {
 
   it('passes when marker anchored_at == state.json mtime (boundary equality is OK)', () => {
     const t0 = new Date('2026-05-22T08:00:00Z');
-    const statePath = autoresearchStatePath(project);
+    const statePath = nulliusStatePath(project);
     fs.writeFileSync(statePath, '{}', 'utf-8');
     setMtime(statePath, t0.toISOString());
     writeHarnessInvocationMarker(project, { now: t0 });
@@ -347,7 +347,7 @@ describe('verifyHarnessInvocationMarker happy path', () => {
   it('passes when marker anchored_at > state.json mtime (state stable since anchor)', () => {
     const tState = new Date('2026-05-22T08:00:00Z');
     const tAnchor = new Date('2026-05-22T08:30:00Z');
-    const statePath = autoresearchStatePath(project);
+    const statePath = nulliusStatePath(project);
     fs.writeFileSync(statePath, '{}', 'utf-8');
     setMtime(statePath, tState.toISOString());
     writeHarnessInvocationMarker(project, { now: tAnchor });
@@ -357,7 +357,7 @@ describe('verifyHarnessInvocationMarker happy path', () => {
   it('NO CLOCK TTL: marker anchored long ago still valid if state stable', () => {
     const tState = new Date('2025-01-01T00:00:00Z');
     const tAnchor = new Date('2025-01-01T01:00:00Z');
-    const statePath = autoresearchStatePath(project);
+    const statePath = nulliusStatePath(project);
     fs.writeFileSync(statePath, '{}', 'utf-8');
     setMtime(statePath, tState.toISOString());
     writeHarnessInvocationMarker(project, { now: tAnchor });
@@ -377,13 +377,13 @@ describe('writeHarnessInvocationMarker / round-trip', () => {
     const m = writeHarnessInvocationMarker(project, { now: new Date('2026-05-22T08:00:00Z') });
     expect(m.schema_version).toBe(HARNESS_INVOCATION_SCHEMA_VERSION);
     expect(m.schema_version).toBe(2);
-    expect(m.kind).toBe('autoresearch_harness_invocation');
+    expect(m.kind).toBe('nullius_harness_invocation');
     expect(m.host_skill).toBe('research-harness');
     expect(m.anchored_at).toBe('2026-05-22T08:00:00.000Z');
   });
 
   it('captures state.json mtime when state.json exists at write time (informational)', () => {
-    const statePath = autoresearchStatePath(project);
+    const statePath = nulliusStatePath(project);
     fs.writeFileSync(statePath, '{}', 'utf-8');
     setMtime(statePath, '2026-05-22T07:30:00Z');
     const m = writeHarnessInvocationMarker(project, { now: new Date('2026-05-22T08:00:00Z') });
@@ -438,7 +438,7 @@ describe('v1 backward compat', () => {
       harnessInvocationMarkerPath(project),
       JSON.stringify({
         schema_version: 1,
-        kind: 'autoresearch_harness_invocation',
+        kind: 'nullius_harness_invocation',
         anchored_at: '2026-05-22T08:00:00Z',
         ttl_seconds: 3600,
         host_skill: 'research-harness',
@@ -454,7 +454,7 @@ describe('v1 backward compat', () => {
       harnessInvocationMarkerPath(project),
       JSON.stringify({
         schema_version: 1,
-        kind: 'autoresearch_harness_invocation',
+        kind: 'nullius_harness_invocation',
         anchored_at: '2026-05-22T08:00:00Z',
         ttl_seconds: 999999,
         host_skill: 'research-harness',
@@ -462,7 +462,7 @@ describe('v1 backward compat', () => {
       }),
       'utf-8',
     );
-    const statePath = autoresearchStatePath(project);
+    const statePath = nulliusStatePath(project);
     fs.writeFileSync(statePath, '{}', 'utf-8');
     setMtime(statePath, '2026-05-22T09:00:00Z');
 
@@ -478,16 +478,16 @@ describe('v1 backward compat', () => {
 
 describe('path helpers', () => {
   it('exports the file constants', () => {
-    expect(HARNESS_INVOCATION_FILE).toBe('.autoresearch/HARNESS_INVOCATION');
-    expect(AUTORESEARCH_STATE_FILE).toBe('.autoresearch/state.json');
-    expect(AUTORESEARCH_LEDGER_FILE).toBe('.autoresearch/ledger.jsonl');
+    expect(HARNESS_INVOCATION_FILE).toBe('.nullius/HARNESS_INVOCATION');
+    expect(NULLIUS_STATE_FILE).toBe('.nullius/state.json');
+    expect(NULLIUS_LEDGER_FILE).toBe('.nullius/ledger.jsonl');
   });
 
-  it('autoresearchStatePath joins under project root', () => {
-    expect(autoresearchStatePath('/proj')).toBe(`/proj/${AUTORESEARCH_STATE_FILE}`);
+  it('nulliusStatePath joins under project root', () => {
+    expect(nulliusStatePath('/proj')).toBe(`/proj/${NULLIUS_STATE_FILE}`);
   });
 
-  it('autoresearchLedgerPath joins under project root', () => {
-    expect(autoresearchLedgerPath('/proj')).toBe(`/proj/${AUTORESEARCH_LEDGER_FILE}`);
+  it('nulliusLedgerPath joins under project root', () => {
+    expect(nulliusLedgerPath('/proj')).toBe(`/proj/${NULLIUS_LEDGER_FILE}`);
   });
 });

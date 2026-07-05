@@ -1,5 +1,5 @@
 import * as fs from 'node:fs';
-import type { ComputationResultV1 } from '@autoresearch/shared';
+import type { ComputationResultV1 } from '@nullius/shared';
 
 type FeedbackSignal = ComputationResultV1['feedback_lowering']['signal'];
 type CompletedFeedbackSignal = Exclude<FeedbackSignal, 'failure'>;

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://autoresearch.dev/schemas/integrity_check_v1.schema.json",
+  "$id": "https://nullius.dev/schemas/integrity_check_v1.schema.json",
   "title": "IntegrityCheck V1",
   "description": "Definition of a single integrity check that can be executed against a research artifact. Domain-agnostic interface; domain-specific checks are provided by domain packs.",
   "type": "object",

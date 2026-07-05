@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import type { ComputationManifestV1, ComputationResultV1, MutationProposalV1 } from '@autoresearch/shared';
+import type { ComputationManifestV1, ComputationResultV1, MutationProposalV1 } from '@nullius/shared';
 import { writeJsonAtomic } from './io.js';
 import { mutationProposalFingerprint, shouldSuppressProposal } from '../proposal-decisions.js';
 
@@ -45,7 +45,7 @@ function successfulRunStats(params: {
   for (const entry of fs.readdirSync(params.projectRoot).sort()) {
     const runDir = path.join(params.projectRoot, entry);
     if (!fs.existsSync(runDir) || !fs.statSync(runDir).isDirectory()) continue;
-    if (entry === '.autoresearch' || entry === 'artifacts' || entry.startsWith('.')) continue;
+    if (entry === '.nullius' || entry === 'artifacts' || entry.startsWith('.')) continue;
     const result = readJsonIfExists<ComputationResultV1>(path.join(runDir, 'artifacts', 'computation_result_v1.json'));
     if (!result || result.execution_status !== 'completed') continue;
     const manifest = readJsonIfExists<ComputationManifestV1>(path.join(runDir, 'computation', 'manifest.json'));

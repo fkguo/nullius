@@ -5,7 +5,7 @@
  * for DOIs, recids, and generic identifiers.
  */
 
-import { normalizeArxivId } from '@autoresearch/arxiv-mcp/tooling';
+import { normalizeArxivId } from '@nullius/arxiv-mcp/tooling';
 import * as api from '../api/client.js';
 
 export interface ResolveResult {

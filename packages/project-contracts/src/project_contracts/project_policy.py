@@ -58,7 +58,7 @@ def _repo_internal_path_allowed(path: Path, *, repo_root: Path, project_policy: 
 def _policy_violation_message(*, label: str, path: Path, repo_root: Path, project_policy: str) -> str:
     if project_policy == PROJECT_POLICY_REAL_PROJECT:
         return (
-            f"{label} must resolve outside the autoresearch-lab dev repo for real projects.\n"
+            f"{label} must resolve outside the nullius dev repo for real projects.\n"
             f"path={path}\nrepo_root={repo_root}"
         )
     allowed = ", ".join(str(item) for item in maintainer_fixture_roots(repo_root=repo_root))

@@ -3,7 +3,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { handleToolCall as handleOrchToolCall } from '@autoresearch/orchestrator';
+import { handleToolCall as handleOrchToolCall } from '@nullius/orchestrator';
 import { createFromIdea } from '../../src/tools/create-from-idea.js';
 
 function makeTmpDir(prefix: string): string {
@@ -75,7 +75,7 @@ describe('compute loop contract', () => {
       'full',
     ));
     // A3 (compute_runs) approval is opt-in; enable it so the loop exercises the gate.
-    fs.writeFileSync(path.join(projectRoot, '.autoresearch', 'approval_policy.json'), JSON.stringify({ require_approval_for: { compute_runs: true } }) + '\n', 'utf-8');
+    fs.writeFileSync(path.join(projectRoot, '.nullius', 'approval_policy.json'), JSON.stringify({ require_approval_for: { compute_runs: true } }) + '\n', 'utf-8');
 
     const runDir = staged.run_dir;
 
@@ -160,7 +160,7 @@ describe('compute loop contract', () => {
       'full',
     ));
     // A3 (compute_runs) approval is opt-in; enable it so the loop exercises the gate.
-    fs.writeFileSync(path.join(projectRoot, '.autoresearch', 'approval_policy.json'), JSON.stringify({ require_approval_for: { compute_runs: true } }) + '\n', 'utf-8');
+    fs.writeFileSync(path.join(projectRoot, '.nullius', 'approval_policy.json'), JSON.stringify({ require_approval_for: { compute_runs: true } }) + '\n', 'utf-8');
 
     const runDir = path.join(hepDataDir, 'runs', staged.run_id);
 

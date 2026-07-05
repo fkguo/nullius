@@ -404,7 +404,7 @@ describe('compute-loop failure lowering', () => {
       }],
       followup_bridge_refs: [],
       executor_provenance: {
-        orchestrator_component: '@autoresearch/orchestrator',
+        orchestrator_component: '@nullius/orchestrator',
         execution_surface: 'orch_run_execute_manifest',
         approval_gate: 'A3',
         step_tools: ['python'],

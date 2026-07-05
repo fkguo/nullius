@@ -1,7 +1,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import type { MutationProposalV1 } from '@autoresearch/shared';
-import { invalidParams } from '@autoresearch/shared';
+import type { MutationProposalV1 } from '@nullius/shared';
+import { invalidParams } from '@nullius/shared';
 import type { RunState } from '../types.js';
 import { decisionOverlayForFingerprint, mutationProposalFingerprint } from '../proposal-decisions.js';
 

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://autoresearch.dev/schemas/strategy_state_v1.schema.json",
+  "$id": "https://nullius.dev/schemas/strategy_state_v1.schema.json",
   "title": "StrategyState V1",
   "description": "Strategy parameter state for the proactive evolution engine. Ported from Evolver personality.js PersonalityState (MIT, AutoGame Limited).",
   "type": "object",

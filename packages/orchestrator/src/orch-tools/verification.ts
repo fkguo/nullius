@@ -6,8 +6,8 @@ import type {
   VerificationCoverageV1,
   VerificationSubjectV1,
   VerificationSubjectVerdictV1,
-} from '@autoresearch/shared';
-import { invalidParams } from '@autoresearch/shared';
+} from '@nullius/shared';
+import { invalidParams } from '@nullius/shared';
 import { z } from 'zod';
 import { createRunArtifactRef } from '../computation/artifact-refs.js';
 import { writeJsonAtomic } from '../computation/io.js';
@@ -135,7 +135,7 @@ export async function handleOrchRunRecordVerification(
     summary: params.summary,
     evidence_refs: evidenceRefs as [ArtifactRefV1, ...ArtifactRefV1[]],
     executor_provenance: {
-      component: '@autoresearch/orchestrator',
+      component: '@nullius/orchestrator',
       surface: 'orch_run_record_verification',
       executor_kind: 'operator_recorded',
     },

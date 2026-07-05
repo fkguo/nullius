@@ -43,7 +43,7 @@ const PROJECT_CORE_PREFIX_TOOL_SPECS = PROJECT_CORE_TOOL_SPECS.slice(0, projectC
 const PROJECT_CORE_RENDER_EXPORT_TOOL_SPECS = PROJECT_CORE_TOOL_SPECS.slice(projectCoreRenderLatexIndex);
 
 const PROJECT_ROOT_DESCRIPTION =
-  'Optional absolute path to an initialized autoresearch project root. When set, HEP/PDG artifacts for this call are stored under <project_root>/artifacts/hep-mcp; otherwise HEP_DATA_DIR or the scratch default is used.';
+  'Optional absolute path to an initialized nullius project root. When set, HEP/PDG artifacts for this call are stored under <project_root>/artifacts/hep-mcp; otherwise HEP_DATA_DIR or the scratch default is used.';
 
 function withProjectRootContract(spec: ToolSpec): ToolSpec {
   if (!(spec.zodSchema instanceof z.ZodObject)) return spec;

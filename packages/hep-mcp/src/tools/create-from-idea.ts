@@ -12,12 +12,12 @@ import {
   ORCH_RUN_CREATE,
   ORCH_RUN_PLAN_COMPUTATION,
   invalidParams,
-} from '@autoresearch/shared';
+} from '@nullius/shared';
 import {
   parseIdeaHandoffRecord,
   readIdeaHandoffRecord,
   stageIdeaArtifactsIntoRun,
-} from '@autoresearch/orchestrator';
+} from '@nullius/orchestrator';
 import { createProject } from '../core/projects.js';
 import { createRun } from '../core/runs.js';
 import { getProjectDir, getRunDir } from '../core/paths.js';

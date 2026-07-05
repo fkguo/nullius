@@ -6,8 +6,8 @@ import type {
   EvidenceLocalizationUnit,
   LatexLocatorV1,
   PdfLocatorV1,
-} from '@autoresearch/shared';
-import type { EvidenceType } from '@autoresearch/shared';
+} from '@nullius/shared';
+import type { EvidenceType } from '@nullius/shared';
 import {
   allowedUnits,
   AMBIGUITY_SCORE_DELTA,

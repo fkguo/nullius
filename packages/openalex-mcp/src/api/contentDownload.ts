@@ -12,7 +12,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import type { z } from 'zod';
-import { commitStagedDurable, invalidParams, upstreamError } from '@autoresearch/shared';
+import { commitStagedDurable, invalidParams, upstreamError } from '@nullius/shared';
 import type { OpenAlexContentSchema } from '../tools/schemas.js';
 import { openalexFetchFullUrl, getCostSummary, getResponseMeta } from './rateLimiter.js';
 import { getDataDir } from './client.js';

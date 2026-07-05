@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import type { MutationProposalV1, SkillProposalV2 } from '@autoresearch/shared';
-import { invalidParams, normalizeSignals } from '@autoresearch/shared';
+import type { MutationProposalV1, SkillProposalV2 } from '@nullius/shared';
+import { invalidParams, normalizeSignals } from '@nullius/shared';
 import { writeJsonAtomic } from './computation/io.js';
 import type { RunState } from './types.js';
 
@@ -25,7 +25,7 @@ type ProposalDecisionStore = {
 };
 
 function storePath(projectRoot: string): string {
-  return path.join(projectRoot, '.autoresearch', 'proposal_decisions_v1.json');
+  return path.join(projectRoot, '.nullius', 'proposal_decisions_v1.json');
 }
 
 function defaultStore(): ProposalDecisionStore {

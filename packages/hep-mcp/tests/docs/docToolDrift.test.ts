@@ -228,7 +228,7 @@ describe('Docs tool drift guard', () => {
   });
 
   it('meta/docs/orchestrator-mcp-tools-spec.md publishes the exact live orch_* inventory', async () => {
-    const { ORCH_TOOL_SPECS } = await import('@autoresearch/orchestrator');
+    const { ORCH_TOOL_SPECS } = await import('@nullius/orchestrator');
     const live = ORCH_TOOL_SPECS
       .map(tool => tool.name)
       .filter(name => name.startsWith('orch_'))
@@ -246,7 +246,7 @@ describe('Docs tool drift guard', () => {
       text: md,
       snippets: [
         '**Rule**: `orch_*` owns lifecycle state, approvals, queueing, and orchestration policy.',
-        '5. `autoresearch` remains the generic front door for lifecycle / workflow-plan / bounded computation; `orch_*` is the MCP/operator counterpart of that control plane rather than a competing product identity.',
+        '5. `nullius` remains the generic front door for lifecycle / workflow-plan / bounded computation; `orch_*` is the MCP/operator counterpart of that control plane rather than a competing product identity.',
         '`hep://` and `orch://` are intentionally separate owned namespaces. Cross-scheme correlation must be carried explicitly by workflow metadata or operator context, not by implicit aliasing.',
         '2. The provider-local Python parser package has been retired. Do not recreate provider-local Python control-plane authority.',
       ],
@@ -332,12 +332,12 @@ describe('Docs tool drift guard', () => {
 
   it('front-door authority map classifies the live public surfaces', () => {
     expect(FRONT_DOOR_AUTHORITY_SURFACE_IDS).toEqual([
-      'autoresearch_cli',
+      'nullius_cli',
       'orchestrator_mcp_tools_spec',
       'idea_mcp',
     ]);
 
-    expect(getFrontDoorAuthoritySurface('autoresearch_cli')).toMatchObject({
+    expect(getFrontDoorAuthoritySurface('nullius_cli')).toMatchObject({
       classification: 'canonical_public',
       surface_kind: 'cli_command_inventory',
       exact_inventory_source: 'packages/orchestrator/src/cli-command-inventory.ts',
@@ -357,11 +357,11 @@ describe('Docs tool drift guard', () => {
   it('front-door authority JS helpers stay in sync with the JSON authority map', () => {
     expect(Object.keys(FRONT_DOOR_AUTHORITY_MAP_BY_SURFACE)).toEqual(FRONT_DOOR_AUTHORITY_SURFACE_IDS);
 
-    expect(FRONT_DOOR_AUTHORITY_MAP_BY_SURFACE.autoresearch_cli).toMatchObject({
-      surface: 'autoresearch_cli',
-      classification: getFrontDoorAuthoritySurface('autoresearch_cli').classification,
-      owner: getFrontDoorAuthoritySurface('autoresearch_cli').owner,
-      relPath: getFrontDoorAuthoritySurface('autoresearch_cli').exact_inventory_source,
+    expect(FRONT_DOOR_AUTHORITY_MAP_BY_SURFACE.nullius_cli).toMatchObject({
+      surface: 'nullius_cli',
+      classification: getFrontDoorAuthoritySurface('nullius_cli').classification,
+      owner: getFrontDoorAuthoritySurface('nullius_cli').owner,
+      relPath: getFrontDoorAuthoritySurface('nullius_cli').exact_inventory_source,
     });
     expect(FRONT_DOOR_AUTHORITY_MAP_BY_SURFACE.orchestrator_mcp_tools_spec).toMatchObject({
       surface: 'orchestrator_mcp_tools_spec',
@@ -376,7 +376,7 @@ describe('Docs tool drift guard', () => {
       relPath: getFrontDoorAuthoritySurface('idea_mcp').exact_inventory_source,
     });
 
-    expect(() => getFrontDoorAuthoritySurface(['hep', 'autoresearch', 'internal', 'parser'].join('_'))).toThrow(
+    expect(() => getFrontDoorAuthoritySurface(['hep', 'nullius', 'internal', 'parser'].join('_'))).toThrow(
       /unknown front-door authority surface/,
     );
   });

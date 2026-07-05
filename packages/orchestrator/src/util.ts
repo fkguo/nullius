@@ -1,4 +1,4 @@
-// Shared utility functions for @autoresearch/orchestrator.
+// Shared utility functions for @nullius/orchestrator.
 
 /** UTC ISO timestamp with Z suffix, no milliseconds (matching Python utc_now_iso). */
 export function utcNowIso(): string {

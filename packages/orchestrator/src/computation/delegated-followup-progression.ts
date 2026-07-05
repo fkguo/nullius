@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import type { ComputationResultV1 } from '@autoresearch/shared';
+import type { ComputationResultV1 } from '@nullius/shared';
 import { createTeamExecutionState } from '../team-execution-state.js';
 import type { TeamExecutionState } from '../team-execution-types.js';
 import { TeamExecutionStateManager } from '../team-execution-storage.js';
@@ -17,7 +17,7 @@ import {
 } from './delegated-followup-selection.js';
 import { refreshReviewFollowupBridge } from './followup-bridges.js';
 import { evaluateReviewFollowupGate } from './review-followup-gate.js';
-import type { WritingReviewBridgeV1 } from '@autoresearch/shared';
+import type { WritingReviewBridgeV1 } from '@nullius/shared';
 
 export type DelegatedComputationFollowupLaunchStatus =
   | 'launched'

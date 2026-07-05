@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://autoresearch.dev/schemas/gate_spec_v1.schema.json",
+  "$id": "https://nullius.dev/schemas/gate_spec_v1.schema.json",
   "title": "GateSpec V1",
   "description": "Generic gate authority contract shared across approval, quality, and convergence checkpoints.",
   "type": "object",

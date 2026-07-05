@@ -7,7 +7,7 @@ import {
   invalidParams,
   upstreamError,
   cleanMathTitle,
-} from '@autoresearch/shared';
+} from '@nullius/shared';
 import {
   searchCache,
   buildSearchCacheKey,

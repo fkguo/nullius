@@ -20,7 +20,7 @@ export function getSchemaFileName(name: SchemaName): string {
 }
 
 export function getSchemaId(name: SchemaName): string {
-  return `https://autoresearch.dev/schemas/${getSchemaFileName(name)}`;
+  return `https://nullius.dev/schemas/${getSchemaFileName(name)}`;
 }
 
 export function loadSchema(name: SchemaName): Record<string, unknown> {

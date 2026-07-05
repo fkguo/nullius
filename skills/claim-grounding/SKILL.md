@@ -27,7 +27,7 @@ active replacement for the static `folklore_risk_score` presence-heuristic.
 Run a grounding pass before any of:
 
 - Promoting an idea card / folding claims into `research_contract.md` or `research_plan.md`.
-- Requesting `autoresearch final-conclusions` (A5) on a run.
+- Requesting `nullius final-conclusions` (A5) on a run.
 - Handing a claim set to `research-writer` / `referee-review`.
 
 You may ground a subset early (e.g. during a literature pull) and a fuller pass at the
@@ -82,7 +82,7 @@ the fetched source** (with a locator — section/equation/table/figure/page). If
 quote the source text that grounds the claim, the claim is **not** grounded: record
 `not_substantiated`.
 
-This is enforced mechanically. `assembleClaimGroundingReport` (in `@autoresearch/shared`,
+This is enforced mechanically. `assembleClaimGroundingReport` (in `@nullius/shared`,
 `packages/shared/src/claim-grounding.ts`) **downgrades any span-less substantiated/partial
 verdict to `not_substantiated`**, and the report parser rejects it otherwise. So a verdict
 of "substantiated" with no quote is impossible to ship — by design. Quote the line, the
@@ -144,7 +144,7 @@ checklist (items (a)–(g)); `deep-literature-review` produces the notes this di
 ## Output — `claim_grounding_report_v1`
 
 Emit one `claim_grounding_report_v1.json` for the claim set, conforming to the
-`ClaimGroundingReportV1` contract in `@autoresearch/shared`
+`ClaimGroundingReportV1` contract in `@nullius/shared`
 (`packages/shared/src/claim-grounding.ts` — the single source of truth for the shape).
 One entry per claim:
 
@@ -219,7 +219,7 @@ Procedure, on top of the per-claim procedure above:
    an uncertainty right next to the value) is fabrication on the same level as a fake
    verbatim quote.
 4. **Let the contract derive the verdict.** `compareNumericClaim` (in
-   `@autoresearch/shared`, `packages/shared/src/numeric-claim-match.ts`) recomputes the
+   `@nullius/shared`, `packages/shared/src/numeric-claim-match.ts`) recomputes the
    comparison verdict and details from the recorded input at both assembly and parse time;
    a hand-written comparison verdict the input does not reproduce is rejected. Machine-readable
    details record the actual deviation, the tolerance applied, and the decision path.

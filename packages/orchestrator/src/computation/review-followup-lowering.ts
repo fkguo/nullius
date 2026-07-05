@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { parseReviewJudgeDecisionV1 } from '@autoresearch/shared';
+import { parseReviewJudgeDecisionV1 } from '@nullius/shared';
 import { assertComputationResultValid } from './result-schema.js';
 import { readStagedContentArtifactFromRunDir } from './staged-content.js';
 import {

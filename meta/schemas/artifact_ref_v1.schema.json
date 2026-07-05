@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://autoresearch.dev/schemas/artifact_ref_v1.schema.json",
+  "$id": "https://nullius.dev/schemas/artifact_ref_v1.schema.json",
   "title": "ArtifactRef V1",
   "description": "Content-addressed reference to a research artifact. Used by integrity reports, research outcomes, and events to point at specific versioned artifacts.",
   "type": "object",

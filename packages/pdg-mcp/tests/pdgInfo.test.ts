@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { spawnSync } from 'child_process';
-import { McpError } from '@autoresearch/shared';
+import { McpError } from '@nullius/shared';
 
 import { getPdgDbPathFromEnv } from '../src/db/pdgDb.js';
 import { readPdgInfoMap } from '../src/db/pdgInfo.js';

@@ -226,7 +226,7 @@ describe('arXiv rate limiter shared interval gating', () => {
 //   1. rateLimiter.ts:237-240 used default `redirect: 'follow'` letting Node
 //      follow up to 20 redirects to any host.
 //   2. The exported `arxivFetch(url, options)` accepted arbitrary URLs at
-//      the public surface (used by hep-mcp via @autoresearch/arxiv-mcp/tooling).
+//      the public surface (used by hep-mcp via @nullius/arxiv-mcp/tooling).
 //
 // Defense:
 //   - validateArxivEntryUrl at the public entry point
@@ -511,7 +511,7 @@ describe('H-10 regression — downloadFile size cap', () => {
 // Bug: ARXIV_REQUEST_TIMEOUT_MS=30s was too tight when retry-after × retries
 // exceeded that budget; cross-process backoff was missing so multiple
 // agent runs amplified arXiv 429s. See
-// ~/.autoresearch-lab-dev/plans/2026-05-18-comprehensive-remediation-plan.md
+// ~/.nullius-dev/plans/2026-05-18-comprehensive-remediation-plan.md
 // (hotfix lane appended after P0 cluster).
 //
 // Defense:

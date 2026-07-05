@@ -14,8 +14,8 @@ import {
   INSPIRE_ANALYZE_CITATION_STANCE,
   INSPIRE_CLEANUP_DOWNLOADS,
   INSPIRE_VALIDATE_BIBLIOGRAPHY,
-} from '@autoresearch/shared';
-import { notFound } from '@autoresearch/shared';
+} from '@nullius/shared';
+import { notFound } from '@nullius/shared';
 import { writeRunJsonArtifact } from '../../core/citations.js';
 import type { ToolSpec } from './types.js';
 import {
@@ -296,7 +296,7 @@ Safety: if you set options.output_dir, it must be within HEP_DATA_DIR. Prefer a 
           const { registerDownloadDir } = await import('../../data/downloadSession.js');
           registerDownloadDir(destDir);
         }
-        const { accessPaperSource } = await import('@autoresearch/arxiv-mcp/tooling');
+        const { accessPaperSource } = await import('@nullius/arxiv-mcp/tooling');
         const result = await accessPaperSource({
           identifier: resolved.arxivId,
           mode: params.mode,
@@ -305,7 +305,7 @@ Safety: if you set options.output_dir, it must be within HEP_DATA_DIR. Prefer a 
         result.identifier = params.identifier;
         return result;
       }
-      const { accessPaperSource } = await import('@autoresearch/arxiv-mcp/tooling');
+      const { accessPaperSource } = await import('@nullius/arxiv-mcp/tooling');
       const result = await accessPaperSource({
         identifier: resolved.arxivId,
         mode: params.mode,

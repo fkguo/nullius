@@ -5,7 +5,7 @@
  * artifacts produced from TS callers byte-equal those produced from
  * the legacy Python control plane.
  *
- * Moved to `@autoresearch/shared/utils` (P1) from
+ * Moved to `@nullius/shared/utils` (P1) from
  * `packages/orchestrator/src/util.ts` so non-orchestrator packages can
  * use it without a dependency hop. The orchestrator util.ts re-exports
  * this so existing imports remain valid.

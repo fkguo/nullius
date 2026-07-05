@@ -5,7 +5,7 @@
  */
 
 import * as api from '../../api/client.js';
-import type { PaperSummary } from '@autoresearch/shared';
+import type { PaperSummary } from '@nullius/shared';
 import { getConfig, getCurrentYear } from './config.js';
 import { calculateMomentum, type CitationMomentum } from './citationMomentum.js';
 import { classifyPaper } from './paperClassifier.js';

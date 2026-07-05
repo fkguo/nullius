@@ -4,7 +4,7 @@ import {
   SerialTaskQueue,
   sleepWithAbort,
   upstreamError,
-} from '@autoresearch/shared';
+} from '@nullius/shared';
 
 /**
  * Parse a positive-integer env var. Falls back to `fallback` when the var
@@ -13,7 +13,7 @@ import {
  * valid.
  *
  * Sibling-lane copy of the same helper in arxiv-mcp's rateLimiter.ts.
- * Lifting to `@autoresearch/shared` is its own cleanup task — duplicated
+ * Lifting to `@nullius/shared` is its own cleanup task — duplicated
  * here to keep this hotfix narrowly scoped to one package per file.
  *
  * Sanitizes against malicious / buggy env (e.g. "abc", "-1", "1e999",
@@ -289,7 +289,7 @@ class OpenAlexRateLimiter {
 
   private getHeaders(): Record<string, string> {
     const mailto = getMailto();
-    const ua = `openalex-mcp/0.3.0${mailto ? ` (mailto:${mailto})` : ''}`;
+    const ua = `openalex-mcp/0.4.0${mailto ? ` (mailto:${mailto})` : ''}`;
     return { 'User-Agent': ua, 'Accept': 'application/json' };
   }
 

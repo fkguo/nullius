@@ -1,7 +1,7 @@
 {
   "package_id": "skills-market",
   "package_type": "skill-pack-index",
-  "repo": "autoresearch-lab/skills-market",
+  "repo": "nullius/skills-market",
   "channel": "beta",
   "version": "0.1.0",
   "summary": "Marketplace index and installer scripts for cross-platform skill distribution.",

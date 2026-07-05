@@ -1,7 +1,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import Ajv2020 from 'ajv/dist/2020.js';
-import { invalidParams, notFound, type ComputationManifestV1 } from '@autoresearch/shared';
+import { invalidParams, notFound, type ComputationManifestV1 } from '@nullius/shared';
 import computationManifestSchema from '../../../../meta/schemas/computation_manifest_v1.schema.json' with { type: 'json' };
 import { sha256File, toPosixRelative } from './io.js';
 import { assertCommandAllowed, buildToolCommand, resolveWithinRoot, sanitizeRelativePath } from './path-safety.js';

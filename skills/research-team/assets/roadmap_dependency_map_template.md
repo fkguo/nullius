@@ -99,12 +99,12 @@ are normalized.
 ### Render it (renderer-agnostic; no hard dependency on any viz tool)
 
 ```bash
-# Renders through the autoresearch graph front door (consumes the domain-neutral
-# @autoresearch/shared/graph-viz engine). Always writes <out-dir>/roadmap.dot (the
+# Renders through the nullius graph front door (consumes the domain-neutral
+# @nullius/shared/graph-viz engine). Always writes <out-dir>/roadmap.dot (the
 # portable source of truth; reads as text / pastes into any DOT viewer):
-autoresearch graph --kind roadmap --spec roadmap_graph.json --out-dir .
+nullius graph --kind roadmap --spec roadmap_graph.json --out-dir .
 # Optional raster/vector — only if Graphviz 'dot' is installed:
-autoresearch graph --kind roadmap --spec roadmap_graph.json --out-dir . --format svg
+nullius graph --kind roadmap --spec roadmap_graph.json --out-dir . --format svg
 ```
 
 The DOT is the portable source of truth. If a **host visualization capability**

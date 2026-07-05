@@ -1,6 +1,6 @@
 # skills-market
 
-Private-first marketplace index and installers for the Autoresearch ecosystem.
+Private-first marketplace index and installers for the Nullius ecosystem.
 
 ## Scope
 
@@ -37,15 +37,15 @@ Superpowers-style full symlink install (Git clone + links):
 ```bash
 # Codex full install (all market skill-pack entries)
 bash scripts/install_symlink_codex.sh \
-  --skills-root ~/Coding/Agents/Autoresearch/skills
+  --skills-root ~/Coding/Agents/Nullius/skills
 
 # Claude Code full install
 bash scripts/install_symlink_claude_code.sh \
-  --skills-root ~/Coding/Agents/Autoresearch/skills
+  --skills-root ~/Coding/Agents/Nullius/skills
 
 # OpenCode full install
 bash scripts/install_symlink_opencode.sh \
-  --skills-root ~/Coding/Agents/Autoresearch/skills
+  --skills-root ~/Coding/Agents/Nullius/skills
 ```
 
 Detailed guide:
@@ -99,7 +99,7 @@ python3 scripts/install_skill.py \
 ## Source Publishing Model (Private)
 
 Skill runtime source should live in a separate private repo, referenced by package metadata:
-- target repo: `autoresearch-lab/skills` (private)
+- target repo: `nullius/skills` (private)
 - each `skill-pack` points to:
   - `source.repo`
   - `source.ref`
@@ -125,4 +125,4 @@ When a skill opts in via `runtime.python`, the installed payload records `python
 - This repo is public but still pre-release; installer/runtime truth should follow checked-in manifests rather than private rollout assumptions.
 - Runtime compatibility SSOT:
   - Checked-in manifest in this repo: `meta/compatibility-matrix/ecosystem-manifest.json`
-  - GitHub mirror: `https://github.com/autoresearch-lab/autoresearch-meta/blob/main/compatibility-matrix/ecosystem-manifest.json`
+  - The former GitHub mirror (`https://github.com/autoresearch-lab/autoresearch-meta`, pre-rename) is retired and no longer synced; the checked-in manifest above is the only live copy.

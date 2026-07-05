@@ -18,7 +18,7 @@ import type {
   ExpansionDirection,
   SurveyGoal,
   SurveyPrioritize,
-} from '@autoresearch/shared';
+} from '@nullius/shared';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types

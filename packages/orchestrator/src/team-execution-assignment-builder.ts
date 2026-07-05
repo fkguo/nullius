@@ -7,7 +7,7 @@ import type {
   TeamExecutionAssignmentInput,
   TeamExecutionState,
 } from './team-execution-types.js';
-import { sortKeysRecursive } from '@autoresearch/shared';
+import { sortKeysRecursive } from '@nullius/shared';
 import { utcNowIso } from './util.js';
 
 type TeamStateSeed = Pick<TeamExecutionState, 'workspace_id' | 'coordination_policy'>;

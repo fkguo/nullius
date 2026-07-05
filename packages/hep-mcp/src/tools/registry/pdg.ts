@@ -1,4 +1,4 @@
-import { TOOL_SPECS as PDG_MCP_TOOL_SPECS } from '@autoresearch/pdg-mcp/tooling';
+import { TOOL_SPECS as PDG_MCP_TOOL_SPECS } from '@nullius/pdg-mcp/tooling';
 import { getHepToolRiskLevel } from '../../tool-risk.js';
 import type { ToolSpec } from './types.js';
 

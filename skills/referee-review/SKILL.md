@@ -26,10 +26,10 @@ before posting a draft to this reviewer. How the walk is recorded
 depends on whether an approval gate is open:
 
 - **A1-A5 gate open.** Run
-  `autoresearch integrity-record --approval-id <id> --modes <Mx,...> --notes "..."`
+  `nullius integrity-record --approval-id <id> --modes <Mx,...> --notes "..."`
   against that gate's `approval_id`. The receipt is the canonical
   machine record of the pre-flight and is fail-closed-enforced by
-  `autoresearch approve` (missing receipt → `INTEGRITY_RECEIPT_REQUIRED`,
+  `nullius approve` (missing receipt → `INTEGRITY_RECEIPT_REQUIRED`,
   see [`packages/shared/src/integrity-receipt.ts`](../../packages/shared/src/integrity-receipt.ts)).
   This matches the gate-coupled "machine record" path documented in
   [`skills/research-integrity/SKILL.md`](../research-integrity/SKILL.md)
@@ -39,10 +39,10 @@ depends on whether an approval gate is open:
   accompanies the draft** — the narrative record from
   `skills/research-integrity/` §"Recording the check" is the audit
   trail here. Do *not* invent a synthetic `approval_id` to feed the
-  CLI: `autoresearch integrity-record` is parameterized on
+  CLI: `nullius integrity-record` is parameterized on
   `approval_id` precisely because the receipt is the
   gate-coupling key, and a junk identifier pollutes
-  `.autoresearch/integrity_log.jsonl` without producing any
+  `.nullius/integrity_log.jsonl` without producing any
   enforcement (this reviewer's pipeline does not consume the log —
   `scripts/run_referee_review.py` does not read it).
 

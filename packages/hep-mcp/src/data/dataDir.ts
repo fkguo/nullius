@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { AsyncLocalStorage } from 'async_hooks';
-import { invalidParams } from '@autoresearch/shared';
+import { invalidParams } from '@nullius/shared';
 import { resolvePathWithinParent } from './pathGuard.js';
 
 export const HEP_DATA_DIR_ENV = 'HEP_DATA_DIR';
@@ -10,7 +10,7 @@ export const HEP_DOWNLOAD_DIR_ENV = 'HEP_DOWNLOAD_DIR';
 export const ARXIV_DOWNLOAD_DIR_ENV = 'ARXIV_DOWNLOAD_DIR';
 export const WRITING_PROGRESS_DIR_ENV = 'WRITING_PROGRESS_DIR';
 
-const DEFAULT_DATA_DIR = path.join(os.homedir(), '.autoresearch', 'hep-mcp');
+const DEFAULT_DATA_DIR = path.join(os.homedir(), '.nullius', 'hep-mcp');
 const PROJECT_LOCAL_HEP_DATA_DIR = path.join('artifacts', 'hep-mcp');
 
 export type HepDataRootSource = 'project_root' | 'env' | 'scratch';
@@ -47,9 +47,9 @@ function normalizeProjectRoot(rawProjectRoot: unknown): string | undefined {
   }
 
   const resolved = path.resolve(expanded);
-  const markerDir = path.join(resolved, '.autoresearch');
+  const markerDir = path.join(resolved, '.nullius');
   if (!fs.existsSync(markerDir) || !fs.statSync(markerDir).isDirectory()) {
-    throw invalidParams('project_root is not an initialized autoresearch project', {
+    throw invalidParams('project_root is not an initialized nullius project', {
       project_root: resolved,
       required_marker: markerDir,
     });

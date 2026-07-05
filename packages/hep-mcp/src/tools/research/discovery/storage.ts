@@ -2,8 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { atomicWriteFileSync } from '../../../core/atomicWrite.js';
 import { getCacheDir } from '../../../data/dataDir.js';
-import type { DiscoverySearchLogEntry } from '@autoresearch/shared';
-import { DiscoverySearchLogEntrySchema } from '@autoresearch/shared';
+import type { DiscoverySearchLogEntry } from '@nullius/shared';
+import { DiscoverySearchLogEntrySchema } from '@nullius/shared';
 
 export type DiscoveryArtifactRef = { artifact_name: string; file_path: string };
 

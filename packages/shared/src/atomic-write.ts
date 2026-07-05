@@ -4,7 +4,7 @@
  * Provides five primitives that guarantee POSIX-correct durability against
  * crash / power-loss between syscalls — the gold-standard pattern already
  * proven in `packages/orchestrator/src/run-manifest.ts:82-97` (Batch 8 R2
- * fix). Lifted into `@autoresearch/shared` so every package that writes
+ * fix). Lifted into `@nullius/shared` so every package that writes
  * artifacts can converge on one byte-accurate, sequence-verified
  * implementation rather than the half-fsync'd helpers that previously
  * lived in `orchestrator/computation/io.ts` and
@@ -118,7 +118,7 @@ function makeTmpPath(filePath: string): string {
  *
  * **Windows note**: opening a directory + `FlushFileBuffers` is
  * undefined on NTFS and returns ERROR_ACCESS_DENIED. This codebase
- * targets macOS + Linux (the autoresearch project's CI matrix), and
+ * targets macOS + Linux (the nullius project's CI matrix), and
  * Node.js itself documents `fsync` on a directory fd as
  * platform-dependent. If a Windows port is ever added, gate this on
  * `process.platform`.
@@ -219,7 +219,7 @@ export function writeBytesAtomicDurable(
  *       p => JSON.stringify(sortKeysRecursive(p), null, 2) + '\n',
  *     )
  *
- * `sortKeysRecursive` is exported from `@autoresearch/shared/utils`.
+ * `sortKeysRecursive` is exported from `@nullius/shared/utils`.
  */
 export function writeJsonAtomicDurable(
   filePath: string,

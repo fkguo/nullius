@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://autoresearch.dev/schemas/computation_manifest_v1.schema.json",
+  "$id": "https://nullius.dev/schemas/computation_manifest_v1.schema.json",
   "title": "ComputationManifest V1",
   "description": "Computation contract schema (UX-02). Standardizes the interface between research-team computation planning and hep-calc execution. A manifest.json at the root of a computation/ directory must conform to this schema.",
   "type": "object",

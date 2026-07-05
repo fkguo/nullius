@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { ORCH_RUN_CREATE, ORCH_RUN_LIST, ORCH_RUN_STATUS } from '@autoresearch/shared';
+import { ORCH_RUN_CREATE, ORCH_RUN_LIST, ORCH_RUN_STATUS } from '@nullius/shared';
 import { AgentRunner, _resetLaneQueue, type MessageParam, type Tool, type AgentEvent } from '../src/agent-runner.js';
 import type { McpClient, McpToolResult } from '../src/mcp-client.js';
 

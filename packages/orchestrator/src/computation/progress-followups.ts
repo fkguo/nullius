@@ -1,4 +1,4 @@
-import type { ComputationResultV1 } from '@autoresearch/shared';
+import type { ComputationResultV1 } from '@nullius/shared';
 import type { DelegatedFollowupTeamConfig } from './feedback-followups.js';
 import type {
   DelegatedComputationFollowupLaunchOutcome,

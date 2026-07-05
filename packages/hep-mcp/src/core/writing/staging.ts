@@ -2,8 +2,8 @@ import * as fs from 'fs';
 import {
   invalidParams,
   parseStagedContentArtifactV1,
-} from '@autoresearch/shared';
-import { stageContentInRunDir } from '@autoresearch/orchestrator';
+} from '@nullius/shared';
+import { stageContentInRunDir } from '@nullius/orchestrator';
 
 import { getRun } from '../runs.js';
 import { getRunArtifactPath, getRunDir } from '../paths.js';

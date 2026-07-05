@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://autoresearch.dev/schemas/capsule_v1.schema.json",
+  "$id": "https://nullius.dev/schemas/capsule_v1.schema.json",
   "title": "Capsule V1",
   "description": "Verified fix instance — a Gene applied to specific signals producing a specific outcome. Ported from Evolver GEP Capsule model (MIT, AutoGame Limited).",
   "type": "object",

@@ -7,4 +7,4 @@ Chinese version (full notes):
 
 Scope note:
 - This is a design scratchpad, not a shipped contract.
-- Nothing in this file should duplicate `autoresearch` / `packages/orchestrator` orchestration/state machines/approvals/evals.
+- Nothing in this file should duplicate `nullius` / `packages/orchestrator` orchestration/state machines/approvals/evals.

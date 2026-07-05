@@ -62,7 +62,7 @@ describe('orch_fleet_reassign_claim', () => {
         fleetWorker({ worker_id: 'worker-2', max_concurrent_claims: 2, note: 'target worker' }),
       ],
     });
-    const workersBefore = fs.readFileSync(path.join(projectRoot, '.autoresearch', 'fleet_workers.json'), 'utf-8');
+    const workersBefore = fs.readFileSync(path.join(projectRoot, '.nullius', 'fleet_workers.json'), 'utf-8');
 
     const payload = await handleOrchFleetReassignClaim(OrchFleetReassignClaimSchema.parse({
       project_root: projectRoot,
@@ -97,8 +97,8 @@ describe('orch_fleet_reassign_claim', () => {
       priority: 4,
       claim: { owner_id: 'worker-2', lease_duration_seconds: 90 },
     });
-    expect(fs.readFileSync(path.join(projectRoot, '.autoresearch', 'fleet_workers.json'), 'utf-8')).toBe(workersBefore);
-    const ledger = fs.readFileSync(path.join(projectRoot, '.autoresearch', 'ledger.jsonl'), 'utf-8');
+    expect(fs.readFileSync(path.join(projectRoot, '.nullius', 'fleet_workers.json'), 'utf-8')).toBe(workersBefore);
+    const ledger = fs.readFileSync(path.join(projectRoot, '.nullius', 'ledger.jsonl'), 'utf-8');
     expect(ledger).toContain('"event_type":"fleet_claim_reassigned"');
     expect(ledger).toContain('"prior_claim_id":"claim-old"');
     expect(ledger).toContain('"new_owner_id":"worker-2"');

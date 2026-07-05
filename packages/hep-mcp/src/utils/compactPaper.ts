@@ -4,7 +4,7 @@
  * ~63% size reduction per paper (~600 bytes → ~220 bytes).
  */
 
-import type { PaperSummary } from '@autoresearch/shared';
+import type { PaperSummary } from '@nullius/shared';
 
 export interface CompactPaperSummary {
   recid?: string;

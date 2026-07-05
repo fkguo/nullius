@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://autoresearch.dev/schemas/research_signal_v1.schema.json",
+  "$id": "https://nullius.dev/schemas/research_signal_v1.schema.json",
   "title": "ResearchSignal V1",
   "description": "A research signal detected by the REP Signal Engine (EVO-18). Signals drive strategy selection for research evolution.",
   "type": "object",

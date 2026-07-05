@@ -1,4 +1,4 @@
-import { invalidParams } from '@autoresearch/shared';
+import { invalidParams } from '@nullius/shared';
 import { createStateManager } from './common.js';
 import { fleetQueuePath, readFleetQueue } from './fleet-queue-store.js';
 import {

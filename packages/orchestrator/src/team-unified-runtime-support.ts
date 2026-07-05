@@ -1,4 +1,4 @@
-import type { StagedContentType } from '@autoresearch/shared';
+import type { StagedContentType } from '@nullius/shared';
 import type { MessageParam } from './backends/chat-backend.js';
 import { asMcpError, type AgentEvent } from './agent-runner-ops.js';
 import { isTerminalCompletionStopReason } from './agent-runner-stop-reasons.js';

@@ -5,7 +5,7 @@ import {
   normalizeArxivID,
   invalidParams,
   type IdentifierType,
-} from '@autoresearch/shared';
+} from '@nullius/shared';
 
 import * as api from '../../api/client.js';
 import { writeRunJsonArtifact } from '../citations.js';

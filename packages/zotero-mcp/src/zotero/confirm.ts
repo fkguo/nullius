@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 
-import { invalidParams } from '@autoresearch/shared';
+import { invalidParams } from '@nullius/shared';
 
 export interface ZoteroAddConfirmPayloadV1 {
   planned: { mode: 'create' } | { mode: 'update_existing'; item_key: string };

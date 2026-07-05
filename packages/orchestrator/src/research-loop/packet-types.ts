@@ -1,4 +1,4 @@
-import type { ResearchLoopPacketV1 } from '@autoresearch/shared';
+import type { ResearchLoopPacketV1 } from '@nullius/shared';
 import { ALLOWED_TASK_FOLLOWUPS } from './policy.js';
 import type { ResearchWorkspace } from './workspace-types.js';
 

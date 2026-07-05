@@ -78,9 +78,9 @@ describe('orch_fleet_worker_set_claim_acceptance', () => {
       accepts_claims: false,
       note: 'steady state',
     });
-    const queue = JSON.parse(fs.readFileSync(path.join(projectRoot, '.autoresearch', 'fleet_queue.json'), 'utf-8')) as { items: Array<{ status: string }> };
+    const queue = JSON.parse(fs.readFileSync(path.join(projectRoot, '.nullius', 'fleet_queue.json'), 'utf-8')) as { items: Array<{ status: string }> };
     expect(queue.items[0]?.status).toBe('queued');
-    const ledger = fs.readFileSync(path.join(projectRoot, '.autoresearch', 'ledger.jsonl'), 'utf-8');
+    const ledger = fs.readFileSync(path.join(projectRoot, '.nullius', 'ledger.jsonl'), 'utf-8');
     expect(ledger).toContain('"event_type":"fleet_worker_claim_acceptance_updated"');
     expect(ledger).toContain('"updated_by":"operator"');
     expect(ledger).toContain('"accepts_claims":false');
@@ -117,7 +117,7 @@ describe('orch_fleet_worker_set_claim_acceptance', () => {
       note: 'maintenance window',
     }))).rejects.toMatchObject({
       code: 'INVALID_PARAMS',
-      data: { fleet_workers_path: path.join(invalidRegistryProjectRoot, '.autoresearch', 'fleet_workers.json') },
+      data: { fleet_workers_path: path.join(invalidRegistryProjectRoot, '.nullius', 'fleet_workers.json') },
     });
   });
 });

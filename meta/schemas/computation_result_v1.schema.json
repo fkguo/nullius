@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://autoresearch.dev/schemas/computation_result_v1.schema.json",
+  "$id": "https://nullius.dev/schemas/computation_result_v1.schema.json",
   "title": "ComputationResult V1",
   "description": "Canonical provider-neutral outcome artifact for an approved computation execution. Records execution status, produced artifacts, and deterministic lowering into the single-user research-loop substrate.",
   "type": "object",
@@ -34,7 +34,7 @@
       "minLength": 1
     },
     "manifest_ref": {
-      "$ref": "https://autoresearch.dev/schemas/artifact_ref_v1.schema.json"
+      "$ref": "https://nullius.dev/schemas/artifact_ref_v1.schema.json"
     },
     "execution_status": {
       "type": "string",
@@ -43,7 +43,7 @@
     "produced_artifact_refs": {
       "type": "array",
       "items": {
-        "$ref": "https://autoresearch.dev/schemas/artifact_ref_v1.schema.json"
+        "$ref": "https://nullius.dev/schemas/artifact_ref_v1.schema.json"
       }
     },
     "started_at": {
@@ -157,7 +157,7 @@
     "followup_bridge_refs": {
       "type": "array",
       "items": {
-        "$ref": "https://autoresearch.dev/schemas/artifact_ref_v1.schema.json"
+        "$ref": "https://nullius.dev/schemas/artifact_ref_v1.schema.json"
       }
     },
     "verification_refs": {
@@ -168,28 +168,28 @@
           "type": "array",
           "minItems": 1,
           "items": {
-            "$ref": "https://autoresearch.dev/schemas/artifact_ref_v1.schema.json"
+            "$ref": "https://nullius.dev/schemas/artifact_ref_v1.schema.json"
           }
         },
         "check_run_refs": {
           "type": "array",
           "minItems": 1,
           "items": {
-            "$ref": "https://autoresearch.dev/schemas/artifact_ref_v1.schema.json"
+            "$ref": "https://nullius.dev/schemas/artifact_ref_v1.schema.json"
           }
         },
         "subject_verdict_refs": {
           "type": "array",
           "minItems": 1,
           "items": {
-            "$ref": "https://autoresearch.dev/schemas/artifact_ref_v1.schema.json"
+            "$ref": "https://nullius.dev/schemas/artifact_ref_v1.schema.json"
           }
         },
         "coverage_refs": {
           "type": "array",
           "minItems": 1,
           "items": {
-            "$ref": "https://autoresearch.dev/schemas/artifact_ref_v1.schema.json"
+            "$ref": "https://nullius.dev/schemas/artifact_ref_v1.schema.json"
           }
         }
       },

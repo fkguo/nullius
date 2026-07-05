@@ -13,14 +13,14 @@
 
 | Namespace | Owner | Scope |
 |---|---|---|
-| orchestrator run-tool family | `@autoresearch/orchestrator` | Project-root run lifecycle, approvals, export, and bounded agent runtime execution |
-| orchestrator policy-tool family | `@autoresearch/orchestrator` | Read-only policy inspection for approval/operation gates |
-| orchestrator fleet-tool family | `@autoresearch/orchestrator` | Queue and worker coordination for the per-project fleet substrate |
-| `hep_run_*` | `@autoresearch/hep-mcp` | Evidence-first run artifacts and run-scoped research assets |
-| `hep_project_*` | `@autoresearch/hep-mcp` | Project-level evidence/query/export operations |
+| orchestrator run-tool family | `@nullius/orchestrator` | Project-root run lifecycle, approvals, export, and bounded agent runtime execution |
+| orchestrator policy-tool family | `@nullius/orchestrator` | Read-only policy inspection for approval/operation gates |
+| orchestrator fleet-tool family | `@nullius/orchestrator` | Queue and worker coordination for the per-project fleet substrate |
+| `hep_run_*` | `@nullius/hep-mcp` | Evidence-first run artifacts and run-scoped research assets |
+| `hep_project_*` | `@nullius/hep-mcp` | Project-level evidence/query/export operations |
 | `inspire_*` / `hepdata_*` / `openalex_*` / `arxiv_*` | provider packages | Network/data retrieval and literature analysis |
-| `pdg_*` | `@autoresearch/pdg-mcp` | PDG offline lookups |
-| `zotero_*` | `@autoresearch/zotero-mcp` | Zotero Local API integration |
+| `pdg_*` | `@nullius/pdg-mcp` | PDG offline lookups |
+| `zotero_*` | `@nullius/zotero-mcp` | Zotero Local API integration |
 
 **Rule**: `orch_*` owns lifecycle state, approvals, queueing, and orchestration policy. Domain/runtime content remains outside that namespace. An agent may correlate `orch_*` with `hep_*`, but must not treat research artifacts as lifecycle authority or lifecycle tools as evidence authority.
 
@@ -36,10 +36,10 @@
 | `orch_run_plan_computation` | `write` | Compile staged idea artifacts into `execution_plan_v1.json` and a run-local `computation/manifest.json`, preferring provider-backed materialization when the staged surface carries an explicit method bundle |
 | `orch_run_execute_manifest` | `destructive` | Execute an approved run-local `computation_manifest_v1` from an existing run directory |
 | `orch_run_progress_followups` | `destructive` | Progress exactly one computation-generated follow-up through the generic delegated runtime surface; delegated idea/literature feedback and writer/reviewer continuation are live |
-| `orch_run_record_proposal_decision` | `write` | Record one local operator decision for the current run's current repair/skill/optimize/innovate proposal and write proposal decision memory into `.autoresearch/proposal_decisions_v1.json` |
+| `orch_run_record_proposal_decision` | `write` | Record one local operator decision for the current run's current repair/skill/optimize/innovate proposal and write proposal decision memory into `.nullius/proposal_decisions_v1.json` |
 | `orch_run_record_verification` | `write` | Record one decisive verification result for an existing computation run, materializing `verification_check_run_v1` plus refreshed verdict/coverage/check-run refs |
 | `orch_run_request_final_conclusions` | `write` | Evaluate canonical computation-result verification truth and create an A5 final-conclusions approval request only when higher-conclusion readiness is a decisive pass |
-| `orch_run_status` | `read` | Return the current run status from `.autoresearch/state.json`, including current-run `final_conclusions_v1`, `current_run_workflow_outputs`, the legacy-stable `resume_context`, the richer `recovery_context`, a thin project-level `project_recent_digest`, diagnostic-only `project_surface_drift` for stale scaffold/guidance and durable-project-truth warnings, and a plan view rebuilt from `state.json#/plan` when derived `plan.md` is missing or stale |
+| `orch_run_status` | `read` | Return the current run status from `.nullius/state.json`, including current-run `final_conclusions_v1`, `current_run_workflow_outputs`, the legacy-stable `resume_context`, the richer `recovery_context`, a thin project-level `project_recent_digest`, diagnostic-only `project_surface_drift` for stale scaffold/guidance and durable-project-truth warnings, and a plan view rebuilt from `state.json#/plan` when derived `plan.md` is missing or stale |
 | `orch_run_list` | `read` | List recorded runs from the project ledger |
 | `orch_run_approve` | `destructive` | Approve a pending gate with packet SHA verification; A5 approvals consume into a local `final_conclusions_v1` artifact instead of resuming execution |
 | `orch_run_reject` | `destructive` | Reject a pending gate and pause the run |
@@ -99,16 +99,16 @@ Fleet tools operate on queue items and worker ids rather than on artifact ids or
 
 | Layer | Responsibility | Implemented by |
 |---|---|---|
-| **Run-infra / control plane** | State transitions, approval gates, checkpointed agent runtime, project-root queueing, worker liveness, export summaries | `@autoresearch/orchestrator` via `orch_*` |
+| **Run-infra / control plane** | State transitions, approval gates, checkpointed agent runtime, project-root queueing, worker liveness, export summaries | `@nullius/orchestrator` via `orch_*` |
 | **Strategy / domain execution** | Evidence retrieval, plan resolution, writing/export, literature analysis, domain packs, measurement extraction | `hep_*`, `inspire_*`, `openalex_*`, `pdg_*`, `zotero_*`, etc. |
 
 ### 2.2 Invariants
 
 1. `orch_*` is workflow-agnostic. It owns control-plane semantics, not domain DAG content.
-2. Domain tools must not mutate `.autoresearch/state.json`, ledger state, queue state, or approval packets directly.
+2. Domain tools must not mutate `.nullius/state.json`, ledger state, queue state, or approval packets directly.
 3. Approval resolution lives on `orch_run_status`, `orch_run_approvals_list`, `orch_run_approve`, and `orch_run_reject`; domain tools may trigger the need for a gate but do not own the gate state.
 4. Fleet semantics live on the orchestrator fleet-tool family; they are not hidden behind domain packs or legacy Python shells.
-5. `autoresearch` remains the generic front door for lifecycle / workflow-plan / bounded computation; `orch_*` is the MCP/operator counterpart of that control plane rather than a competing product identity.
+5. `nullius` remains the generic front door for lifecycle / workflow-plan / bounded computation; `orch_*` is the MCP/operator counterpart of that control plane rather than a competing product identity.
 
 ### 2.3 Interaction Sketch
 
@@ -153,7 +153,7 @@ Agent / operator
 
 **Mitigations**:
 - `orch_*` writes are constrained to the orchestration workspace rather than arbitrary domain artifact roots.
-- State and ledger writes remain under `.autoresearch/`.
+- State and ledger writes remain under `.nullius/`.
 - `orch_run_status` is read-only and can be used to verify recovery state after interruptions.
 - `orch_run_execute_agent` persists run-scoped checkpoints instead of treating transient transcript state as the sole authority.
 
@@ -239,6 +239,6 @@ orch://runs/<run_id>                → lifecycle / control-plane view
 
 ## 6. Compatibility and Migration Notes
 
-1. The old “TS orchestrator is read-only Stage 1” framing is no longer live truth. `@autoresearch/orchestrator` already owns the current `orch_*` surface.
+1. The old “TS orchestrator is read-only Stage 1” framing is no longer live truth. `@nullius/orchestrator` already owns the current `orch_*` surface.
 2. The provider-local Python parser package has been retired. Do not recreate provider-local Python control-plane authority.
 3. Public documentation or review packets that need the current orchestrator MCP truth should point at this file plus the live tool registry/tests (`packages/orchestrator/src/orch-tools/index.ts`, `packages/orchestrator/tests/orchestrator-mcp-tools-spec.test.ts`) rather than older Stage 1/2 sketches.

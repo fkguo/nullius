@@ -51,9 +51,9 @@ Keep this section short enough to read in one screen. It is the human status ent
 
 ## Restart checklist
 
-- If `.autoresearch/HARNESS` exists, run `.autoresearch/bin/autoresearch status --json` first and inspect the current run/plan/output state before starting new work.
-- If `.autoresearch/` exists but `.autoresearch/HARNESS` is missing, run `autoresearch status --json` first, then repair the runtime handshake with `autoresearch init --runtime-only`.
-- If `autoresearch` is unavailable on `PATH`, run `.autoresearch/bin/autoresearch status --json` instead.
+- If `.nullius/HARNESS` exists, run `.nullius/bin/nullius status --json` first and inspect the current run/plan/output state before starting new work.
+- If `.nullius/` exists but `.nullius/HARNESS` is missing, run `nullius status --json` first, then repair the runtime handshake with `nullius init --runtime-only`.
+- If `nullius` is unavailable on `PATH`, run `.nullius/bin/nullius status --json` instead.
 - Treat that status output as the authoritative recovery briefing.
 - Read [project_index.md](project_index.md), then [AGENTS.md](AGENTS.md), then [project_charter.md](project_charter.md), then this file, then [research_contract.md](research_contract.md), then [research_notebook.md](research_notebook.md) if it already contains substantive content.
 - Update the task board before handing work to another run.

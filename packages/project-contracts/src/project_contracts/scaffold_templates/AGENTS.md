@@ -18,7 +18,7 @@ Use it as the restart checklist before any new milestone, context switch, or lon
 - Machine contract: `research_contract.md`
 - Evidence-first: every meaningful action writes auditable artifacts under `artifacts/runs/<run_id>/`.
 - `run_id` names the project-local research run. Prefer a safe, sortable, readable shape such as `<YYYYMMDDTHHMMSSZ>-<milestone>-<short-topic>-rN`; do not use bare UUIDs, `run_<uuid>`, path separators, `..`, or low-information generated names as human-facing run IDs.
-- Approval checkpoints: final-conclusion approval (A5) is always enforced through the finalize flow. Heavy-compute approval (A3) is opt-in — off by default so interactive work is not paused; set `require_approval_for.compute_runs: true` in `.autoresearch/approval_policy.json` to gate unattended runs. A1/A2/A4 (broad search, code/logic changes, manuscript edits) are advisory reminders, not hard blocks.
+- Approval checkpoints: final-conclusion approval (A5) is always enforced through the finalize flow. Heavy-compute approval (A3) is opt-in — off by default so interactive work is not paused; set `require_approval_for.compute_runs: true` in `.nullius/approval_policy.json` to gate unattended runs. A1/A2/A4 (broad search, code/logic changes, manuscript edits) are advisory reminders, not hard blocks.
 - Keep `research_plan.md#Current Status` current enough that a researcher can see the final target, completion state, blocker, next step, and stop condition without reading the full log.
 - Keep the task board in `research_plan.md` current enough that a new agent run can resume without relying on memory.
 - Keep `research_notebook.md` organized by the problem's logic. Do not use it for status tracking. Do not append large dated run logs there; put run logs in `research_plan.md` progress entries or `artifacts/runs/<run_id>/`, then fold durable insights into the relevant notebook sections.
@@ -45,13 +45,13 @@ Use it as the restart checklist before any new milestone, context switch, or lon
 - Do not write only "PDF-body read for X"; include the concrete section/page/equation/figure coverage above.
 - Format arXiv, DOI, PDF, source, library, and project-file references as clickable Markdown links. Do not leave bare URLs in literature notes.
 
-## Autoresearch session start protocol
+## Nullius session start protocol
 
-- If `.autoresearch/HARNESS` exists, this is a managed autoresearch project. Before any new session, reconnect, interruption recovery, context reset, handoff, milestone start, or closeout, run `.autoresearch/bin/autoresearch status --json`; if that project-local launcher is unavailable, run `autoresearch status --json`.
-- If the host agent exposes a `research-harness` skill or equivalent project-harness entrypoint, use that entrypoint first for reconnect, recovery, routing, verification, and handoff. It restores this project's durable state and then routes lifecycle work to `autoresearch`, milestone execution to `research-team`, and provider/domain work to the relevant tool layer.
-- On `new session`, `reconnect`, `interruption`, `context reset`, or `handoff`, if `.autoresearch/` exists but `.autoresearch/HARNESS` is missing, run `autoresearch status --json` before taking any new action, then repair the runtime handshake with `autoresearch init --runtime-only`.
-- If `autoresearch` is unavailable on `PATH`, run `.autoresearch/bin/autoresearch status --json` instead.
-- Treat `autoresearch` as the guaranteed root entrypoint for this scaffold.
+- If `.nullius/HARNESS` exists, this is a managed nullius project. Before any new session, reconnect, interruption recovery, context reset, handoff, milestone start, or closeout, run `.nullius/bin/nullius status --json`; if that project-local launcher is unavailable, run `nullius status --json`.
+- If the host agent exposes a `research-harness` skill or equivalent project-harness entrypoint, use that entrypoint first for reconnect, recovery, routing, verification, and handoff. It restores this project's durable state and then routes lifecycle work to `nullius`, milestone execution to `research-team`, and provider/domain work to the relevant tool layer.
+- On `new session`, `reconnect`, `interruption`, `context reset`, or `handoff`, if `.nullius/` exists but `.nullius/HARNESS` is missing, run `nullius status --json` before taking any new action, then repair the runtime handshake with `nullius init --runtime-only`.
+- If `nullius` is unavailable on `PATH`, run `.nullius/bin/nullius status --json` instead.
+- Treat `nullius` as the guaranteed root entrypoint for this scaffold.
 - Treat that status output as the authoritative recovery briefing for the current run, recovery context, plan view, and bounded workflow outputs.
 - After reading status, start with [research_plan.md#Current Status](research_plan.md#current-status), continue through the checked-in files in the order above, and read [research_notebook.md](research_notebook.md) only when it already contains substantive content.
 - When the host exposes orchestration or MCP control-plane commands such as `orch_*`, those host-local surfaces may be used as optional control planes; do not assume a literal `orch_*` command exists in every scaffolded project.
@@ -77,8 +77,8 @@ Use it as the restart checklist before any new milestone, context switch, or lon
 
 Some projects add extra host-local team or automation layers on top of this root.
 Treat those as opt-in support layers, not the default front door.
-When a host-local layer generates or updates this file, it must preserve the `.autoresearch/HARNESS` and `research-harness` reconnect requirements above so continuation starts from project recovery before executor-specific work.
-To pull newer versions of the managed scaffold document (this file) into an existing project without disturbing your own work, the project owner can run `autoresearch init --refresh`: it backs up any changed managed file under `.autoresearch/backups/` before overwriting, and never rewrites your `research_plan.md`, `research_notebook.md`, `research_contract.md`, `project_charter.md`, or `project_index.md`. Preview first with `autoresearch init --refresh --dry-run`.
+When a host-local layer generates or updates this file, it must preserve the `.nullius/HARNESS` and `research-harness` reconnect requirements above so continuation starts from project recovery before executor-specific work.
+To pull newer versions of the managed scaffold document (this file) into an existing project without disturbing your own work, the project owner can run `nullius init --refresh`: it backs up any changed managed file under `.nullius/backups/` before overwriting, and never rewrites your `research_plan.md`, `research_notebook.md`, `research_contract.md`, `project_charter.md`, or `project_index.md`. Preview first with `nullius init --refresh --dry-run`.
 If this project already has host-local support surfaces, follow the host's local instructions before using them.
 If it does not, keep using the read order above and update `research_plan.md` directly.
 

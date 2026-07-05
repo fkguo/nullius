@@ -6,7 +6,7 @@
 # Usage:
 #   packages/hep-mcp/scripts/migrate-papers-cache.sh --project-root /abs/path [--apply] [--hep-data-root /abs/path] [--json]
 #
-# Build prerequisite: pnpm --filter @autoresearch/hep-mcp build  (or pnpm -r build).
+# Build prerequisite: pnpm --filter @nullius/hep-mcp build  (or pnpm -r build).
 
 set -euo pipefail
 
@@ -16,7 +16,7 @@ CLI_JS="${PKG_DIR}/dist/admin/cli-migrate-papers-cache.js"
 
 if [[ ! -f "${CLI_JS}" ]]; then
   echo "error: ${CLI_JS} not found." >&2
-  echo "Build hep-mcp first: pnpm --filter @autoresearch/hep-mcp build" >&2
+  echo "Build hep-mcp first: pnpm --filter @nullius/hep-mcp build" >&2
   exit 2
 fi
 

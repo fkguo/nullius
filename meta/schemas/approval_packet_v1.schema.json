@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://autoresearch.dev/schemas/approval_packet_v1.schema.json",
+  "$id": "https://nullius.dev/schemas/approval_packet_v1.schema.json",
   "title": "ApprovalPacket V1",
   "description": "Structured approval packet for human review of orchestrator approval decisions. Contains purpose, plan, risks, budgets, outputs, rollback, and checklist.",
   "type": "object",

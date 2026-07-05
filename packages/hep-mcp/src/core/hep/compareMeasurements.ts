@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import { createHash } from 'crypto';
-import { invalidParams } from '@autoresearch/shared';
+import { invalidParams } from '@nullius/shared';
 
 import type { RunArtifactRef } from '../runs.js';
 import { getRun } from '../runs.js';

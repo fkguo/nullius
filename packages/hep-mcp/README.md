@@ -1,10 +1,10 @@
-# @autoresearch/hep-mcp
+# @nullius/hep-mcp
 
 Current most mature HEP domain pack and end-to-end workflow example. Local stdio MCP server exposing `hep_*` tools for projects, runs, evidence, writing, export, and provider-local composition.
 
 ## Layer
 
-Domain workflow pack. The strongest end-to-end example in the repo, but **not the root product identity** — generic lifecycle and contracts live in `@autoresearch/orchestrator` and `@autoresearch/shared`. See root [README.md](../../README.md) §3 Layer Model.
+Domain workflow pack. The strongest end-to-end example in the repo, but **not the root product identity** — generic lifecycle and contracts live in `@nullius/orchestrator` and `@nullius/shared`. See root [README.md](../../README.md) §3 Layer Model.
 
 ## Aggregated providers
 
@@ -16,9 +16,9 @@ The live tool inventory is code-owned and mode-filtered by `HEP_TOOL_MODE` (`sta
 
 Resolved per tool call, in this order:
 
-1. `project_root` argument (for an initialized autoresearch project) → `<project_root>/artifacts/hep-mcp/`
+1. `project_root` argument (for an initialized nullius project) → `<project_root>/artifacts/hep-mcp/`
 2. `HEP_DATA_DIR` env when set
-3. `~/.autoresearch/hep-mcp/` (scratch fallback)
+3. `~/.nullius/hep-mcp/` (scratch fallback)
 
 `PDG_DATA_DIR` follows the resolved root by default at `<resolved root>/pdg`.
 
@@ -36,9 +36,9 @@ Wire into an MCP client (Cursor / Claude Desktop / Claude Code / Codex / OpenCod
   "mcpServers": {
     "hep-mcp": {
       "command": "node",
-      "args": ["/absolute/path/to/autoresearch-lab/packages/hep-mcp/dist/index.js"],
+      "args": ["/absolute/path/to/nullius/packages/hep-mcp/dist/index.js"],
       "env": {
-        "HEP_DATA_DIR": "~/.autoresearch/hep-mcp",
+        "HEP_DATA_DIR": "~/.nullius/hep-mcp",
         "HEP_TOOL_MODE": "standard"
       }
     }
@@ -51,8 +51,8 @@ Wire into an MCP client (Cursor / Claude Desktop / Claude Code / Codex / OpenCod
 The tool inventory, doc tables, and category counts are tied together by:
 
 ```bash
-pnpm --filter @autoresearch/hep-mcp docs:tool-counts:check
-pnpm --filter @autoresearch/hep-mcp test -- tests/docs/docToolDrift.test.ts
+pnpm --filter @nullius/hep-mcp docs:tool-counts:check
+pnpm --filter @nullius/hep-mcp test -- tests/docs/docToolDrift.test.ts
 ```
 
 These fail closed when `docs/TOOL_CATEGORIES.md` or `meta/docs/orchestrator-mcp-tools-spec.md` drift from the live registry.

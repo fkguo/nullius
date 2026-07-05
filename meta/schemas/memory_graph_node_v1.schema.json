@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://autoresearch.dev/schemas/memory_graph_node_v1.schema.json",
+  "$id": "https://nullius.dev/schemas/memory_graph_node_v1.schema.json",
   "title": "MemoryGraphNode V1",
   "description": "Node in the Cross-Cycle Memory Graph. Core types support tool evolution; additional domain-specific types are registered at runtime by consuming tracks.",
   "type": "object",

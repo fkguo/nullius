@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://autoresearch.dev/schemas/verification_subject_verdict_v1.schema.json",
+  "$id": "https://nullius.dev/schemas/verification_subject_verdict_v1.schema.json",
   "title": "VerificationSubjectVerdict V1",
   "description": "Provider-neutral subject-level verification verdict. Aggregates check-run evidence without inlining runtime state, and makes missing decisive checks explicit and machine-visible instead of leaving them in prose only.",
   "type": "object",
@@ -33,7 +33,7 @@
       "minLength": 1
     },
     "subject_ref": {
-      "$ref": "https://autoresearch.dev/schemas/artifact_ref_v1.schema.json"
+      "$ref": "https://nullius.dev/schemas/artifact_ref_v1.schema.json"
     },
     "status": {
       "type": "string",
@@ -52,7 +52,7 @@
     "check_run_refs": {
       "type": "array",
       "items": {
-        "$ref": "https://autoresearch.dev/schemas/artifact_ref_v1.schema.json"
+        "$ref": "https://nullius.dev/schemas/artifact_ref_v1.schema.json"
       }
     },
     "missing_decisive_checks": {

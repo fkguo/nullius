@@ -50,7 +50,7 @@ describe('orch_fleet_worker_unregister', () => {
         },
       ],
     });
-    const queueBefore = fs.readFileSync(path.join(projectRoot, '.autoresearch', 'fleet_queue.json'), 'utf-8');
+    const queueBefore = fs.readFileSync(path.join(projectRoot, '.nullius', 'fleet_queue.json'), 'utf-8');
     writeWorkers(projectRoot, {
       schema_version: 1,
       updated_at: '2026-03-23T00:00:00Z',
@@ -74,8 +74,8 @@ describe('orch_fleet_worker_unregister', () => {
       active_claim_count: 0,
     });
     expect(readFleetWorkers(projectRoot).registry?.workers.map(worker => worker.worker_id)).toEqual(['worker-2']);
-    expect(fs.readFileSync(path.join(projectRoot, '.autoresearch', 'fleet_queue.json'), 'utf-8')).toBe(queueBefore);
-    const ledger = fs.readFileSync(path.join(projectRoot, '.autoresearch', 'ledger.jsonl'), 'utf-8');
+    expect(fs.readFileSync(path.join(projectRoot, '.nullius', 'fleet_queue.json'), 'utf-8')).toBe(queueBefore);
+    const ledger = fs.readFileSync(path.join(projectRoot, '.nullius', 'ledger.jsonl'), 'utf-8');
     expect(ledger).toContain('"event_type":"fleet_worker_unregistered"');
     expect(ledger).toContain('"worker_id":"worker-1"');
     expect(ledger).toContain('"unregistered_by":"operator"');
@@ -96,7 +96,7 @@ describe('orch_fleet_worker_unregister', () => {
 
     expect(payload.unregistered).toBe(true);
     expect(readFleetWorkers(projectRoot).registry?.workers).toEqual([]);
-    expect(fs.existsSync(path.join(projectRoot, '.autoresearch', 'fleet_queue.json'))).toBe(false);
+    expect(fs.existsSync(path.join(projectRoot, '.nullius', 'fleet_queue.json'))).toBe(false);
   });
 
   it('fails closed for unknown workers, open claim acceptance, active claims, or invalid registries', async () => {
@@ -163,7 +163,7 @@ describe('orch_fleet_worker_unregister', () => {
       unregisterPayload(invalidRegistryProjectRoot),
     ))).rejects.toMatchObject({
       code: 'INVALID_PARAMS',
-      data: { fleet_workers_path: path.join(invalidRegistryProjectRoot, '.autoresearch', 'fleet_workers.json') },
+      data: { fleet_workers_path: path.join(invalidRegistryProjectRoot, '.nullius', 'fleet_workers.json') },
     });
 
     const invalidQueueProjectRoot = makeTmpDir();
@@ -178,7 +178,7 @@ describe('orch_fleet_worker_unregister', () => {
       unregisterPayload(invalidQueueProjectRoot),
     ))).rejects.toMatchObject({
       code: 'INVALID_PARAMS',
-      data: { fleet_queue_path: path.join(invalidQueueProjectRoot, '.autoresearch', 'fleet_queue.json') },
+      data: { fleet_queue_path: path.join(invalidQueueProjectRoot, '.nullius', 'fleet_queue.json') },
     });
   });
 });

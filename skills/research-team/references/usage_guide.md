@@ -54,7 +54,7 @@ bash "${SKILL_DIR}/scripts/bin/scaffold_research_workflow.sh" \
   --profile mixed
 ```
 
-Use an external project root for real work. Public `research-team` scaffold / contract-refresh / team-cycle flows now fail closed if the project root or real-project intermediate outputs resolve back into the autoresearch-lab development repo checkout.
+Use an external project root for real work. Public `research-team` scaffold / contract-refresh / team-cycle flows now fail closed if the project root or real-project intermediate outputs resolve back into the nullius development repo checkout.
 
 3) Run deterministic preflight:
 
@@ -78,7 +78,7 @@ reviewers directly, provide explicit CLI runner kinds and runner paths; the
 script does not switch providers automatically.
 
 Use the resolved `<base>-rN` as the research-team cycle tag. When this cycle is
-part of an `autoresearch` control-plane run, use that same resolved value as the
+part of an `nullius` control-plane run, use that same resolved value as the
 project-local `run_id` for the reviewed cycle. The canonical project artifact
 root is `artifacts/runs/<run_id>/`; `team/runs/<tag>/` is a reviewer packet/log
 surface and should not be treated as the artifact SSOT unless the project

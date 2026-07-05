@@ -1,4 +1,4 @@
-import type { PaperSummary } from '@autoresearch/shared';
+import type { PaperSummary } from '@nullius/shared';
 import * as api from '../../../api/client.js';
 import type { BibEntry } from './bibliographyExtractor.js';
 import { isValidTexkey, normalizeJournal } from './inspireValidator.js';

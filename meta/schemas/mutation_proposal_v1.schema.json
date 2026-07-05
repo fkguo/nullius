@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://autoresearch.dev/schemas/mutation_proposal_v1.schema.json",
+  "$id": "https://nullius.dev/schemas/mutation_proposal_v1.schema.json",
   "title": "MutationProposal V1",
   "description": "Evolution mutation proposal — repair, optimize, or innovate. Produced by EVO-21 proactive evolution engine.",
   "type": "object",

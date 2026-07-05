@@ -1,7 +1,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { ComputationResultV1 } from '@autoresearch/shared';
+import type { ComputationResultV1 } from '@nullius/shared';
 import { makeRunArtifactUri } from './artifact-refs.js';
 import { writeJsonAtomic } from './io.js';
 import { loadStagedIdeaSurfaceFromRunDir } from './staged-idea-artifacts.js';

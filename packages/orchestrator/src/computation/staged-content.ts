@@ -5,7 +5,7 @@ import {
   parseStagedContentArtifactV1,
   type StagedContentArtifactV1,
   type StagedContentType,
-} from '@autoresearch/shared';
+} from '@nullius/shared';
 import { createRunArtifactRef, makeRunArtifactUri } from './artifact-refs.js';
 import { writeJsonAtomic } from './io.js';
 

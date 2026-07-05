@@ -2,7 +2,7 @@
 
 This runbook is for diagnosing deterministic gate failures and rerunning the workflow cleanly.
 Agent-first note: paste a rerun command into your tool-using agent; run it manually only if you want local reproduction/debugging.
-All public real-project commands below assume the project root is outside the autoresearch-lab development repo, and real-project outputs such as `team/` stay outside the dev repo as well.
+All public real-project commands below assume the project root is outside the nullius development repo, and real-project outputs such as `team/` stay outside the dev repo as well.
 
 Where to start:
 - Skill entry (trigger-loaded, lean): `SKILL.md`
@@ -112,7 +112,7 @@ In projects scaffolded by `research-team`, use the navigation front door instead
 - `team/LATEST.md` is the stable pointer index written by [update_project_map.py](scripts/bin/update_project_map.py).
 - `team/LATEST_TEAM.md`, `team/LATEST_DRAFT.md`, and `artifacts/LATEST.md` appear only after the corresponding live cycle/run has been materialized; older/stale placeholders should not be treated as guaranteed navigation surfaces.
 - Per-run outputs are grouped under `team/runs/<tag>/...` (packet, member reports, gate reports, adjudication).
-- On convergence, when an `autoresearch` CLI is reachable (project-local `.autoresearch/bin/autoresearch` or on `PATH`), two dependency graphs are rendered best-effort via `autoresearch graph` (consuming the `@autoresearch/shared/graph-viz` engine): the **Claim DAG** to `knowledge_graph/claims.dot` (the epistemic view — only when `knowledge_graph/claims.jsonl` + `edges.jsonl` exist) and the **milestone/task progress map** to `team/runs/<tag>/progress.dot` (the planning view — only when `research_plan.md` exists). Each is skipped silently when its inputs or the CLI are absent, is bounded so it can never hang, and never affects convergence.
+- On convergence, when an `nullius` CLI is reachable (project-local `.nullius/bin/nullius` or on `PATH`), two dependency graphs are rendered best-effort via `nullius graph` (consuming the `@nullius/shared/graph-viz` engine): the **Claim DAG** to `knowledge_graph/claims.dot` (the epistemic view — only when `knowledge_graph/claims.jsonl` + `edges.jsonl` exist) and the **milestone/task progress map** to `team/runs/<tag>/progress.dot` (the planning view — only when `research_plan.md` exists). Each is skipped silently when its inputs or the CLI are absent, is bounded so it can never hang, and never affects convergence.
 - Draft-cycle convergence artifacts (when enabled) live under `team/runs/<tag>/...`:
   - `<tag>_draft_convergence_log.md`
   - `<tag>_draft_converged_summary.md`
@@ -199,7 +199,7 @@ In projects scaffolded by `research-team`, use the navigation front door instead
   - Optional deterministic autofill (if enabled by config): `python3 "${SKILL_DIR}/scripts/bin/auto_fill_research_plan.py" --root . --deterministic`.
 - Rerun:
   - Preflight-only command.
-- Plan-summary / milestone-handoff tip: when communicating the plan to a stakeholder, closing out a milestone, or handing off, produce a **roadmap dependency-map** (summary table + milestone/lane dependency graph + binding-constraint + critical path) from [roadmap_dependency_map_template.md](assets/roadmap_dependency_map_template.md); render the graph with `autoresearch graph --kind roadmap --spec <roadmap.json>`. This is a planning view, distinct from the Claim DAG (`knowledge_graph/`).
+- Plan-summary / milestone-handoff tip: when communicating the plan to a stakeholder, closing out a milestone, or handing off, produce a **roadmap dependency-map** (summary table + milestone/lane dependency graph + binding-constraint + critical path) from [roadmap_dependency_map_template.md](assets/roadmap_dependency_map_template.md); render the graph with `nullius graph --kind roadmap --spec <roadmap.json>`. This is a planning view, distinct from the Claim DAG (`knowledge_graph/`).
 
 ### Project charter gate (goal drift prevention)
 

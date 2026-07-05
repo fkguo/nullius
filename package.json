@@ -1,8 +1,8 @@
 {
-  "name": "autoresearch-lab",
-  "version": "0.3.0",
+  "name": "nullius",
+  "version": "0.4.0",
   "private": true,
-  "description": "Autoresearch ecosystem monorepo — evidence-first theory-research substrate, control-plane, and provider packages",
+  "description": "Nullius ecosystem monorepo — evidence-first theory-research substrate, control-plane, and provider packages",
   "type": "module",
   "scripts": {
     "build": "pnpm -r build",

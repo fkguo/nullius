@@ -13,7 +13,7 @@ import {
   type SpanStatus,
   generateTraceId,
   generateSpanId,
-} from '@autoresearch/shared';
+} from '@nullius/shared';
 
 export class ActiveSpan {
   readonly span: Span;

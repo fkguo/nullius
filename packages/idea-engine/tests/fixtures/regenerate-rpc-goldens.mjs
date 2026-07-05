@@ -88,7 +88,7 @@ async function loadRuntime(fixturesDir) {
   const jsonRpcPath = resolve(fixturesDir, '../../dist/rpc/jsonrpc.js');
   if (!existsSync(rpcServicePath) || !existsSync(jsonRpcPath)) {
     throw new Error(
-      'Missing idea-engine dist runtime. Run `pnpm --filter @autoresearch/idea-engine build` first.',
+      'Missing idea-engine dist runtime. Run `pnpm --filter @nullius/idea-engine build` first.',
     );
   }
   const [{ IdeaEngineRpcService }, { handleJsonRpcRequest }] = await Promise.all([

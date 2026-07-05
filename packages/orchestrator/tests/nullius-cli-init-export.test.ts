@@ -71,12 +71,12 @@ function makeIo(cwd: string) {
   };
 }
 
-describe('autoresearch CLI init/export', () => {
+describe('nullius CLI init/export', () => {
   it('rejects repo-internal init before writing runtime state', async () => {
     const projectRoot = path.join(process.cwd(), '.tmp', `repo-internal-init-denied-${Date.now()}`);
 
     await expect(runCli([`--project-root=${projectRoot}`, 'init'], makeIo(process.cwd()).io)).rejects.toThrow(
-      'project root must resolve outside the autoresearch-lab dev repo for real projects',
+      'project root must resolve outside the nullius dev repo for real projects',
     );
 
     expect(fs.existsSync(projectRoot)).toBe(false);
@@ -86,14 +86,14 @@ describe('autoresearch CLI init/export', () => {
     const projectRoot = path.join(process.cwd(), '.tmp', `repo-internal-runtime-only-denied-${Date.now()}`);
 
     await expect(runCli([`--project-root=${projectRoot}`, 'init', '--runtime-only'], makeIo(process.cwd()).io)).rejects.toThrow(
-      'project root must resolve outside the autoresearch-lab dev repo for real projects',
+      'project root must resolve outside the nullius dev repo for real projects',
     );
 
     expect(fs.existsSync(projectRoot)).toBe(false);
   });
 
   it('initializes a real project root with the neutral scaffold', async () => {
-    const parentDir = makeTempDir('autoresearch-cli-parent-');
+    const parentDir = makeTempDir('nullius-cli-parent-');
     const projectRoot = path.join(parentDir, 'project-root');
     const { io, stdout } = makeIo(parentDir);
 
@@ -101,26 +101,26 @@ describe('autoresearch CLI init/export', () => {
 
     expect(code).toBe(0);
     expect(stdout.join('')).toContain('[ok] runtime dir:');
-    expect(fs.existsSync(path.join(projectRoot, '.autoresearch', 'state.json'))).toBe(true);
-    expect(fs.existsSync(path.join(projectRoot, '.autoresearch', 'approval_policy.json'))).toBe(true);
+    expect(fs.existsSync(path.join(projectRoot, '.nullius', 'state.json'))).toBe(true);
+    expect(fs.existsSync(path.join(projectRoot, '.nullius', 'approval_policy.json'))).toBe(true);
     // A3 (compute_runs) is opt-out by default; A1/A2/A4 advisory + A5 stay on.
-    expect(JSON.parse(fs.readFileSync(path.join(projectRoot, '.autoresearch', 'approval_policy.json'), 'utf-8'))).toMatchObject({
+    expect(JSON.parse(fs.readFileSync(path.join(projectRoot, '.nullius', 'approval_policy.json'), 'utf-8'))).toMatchObject({
       require_approval_for: { mass_search: true, code_changes: true, compute_runs: false, paper_edits: true, final_conclusions: true },
     });
-    expect(fs.existsSync(path.join(projectRoot, '.autoresearch', '.initialized'))).toBe(true);
-    const harnessPath = path.join(projectRoot, '.autoresearch', 'HARNESS');
+    expect(fs.existsSync(path.join(projectRoot, '.nullius', '.initialized'))).toBe(true);
+    const harnessPath = path.join(projectRoot, '.nullius', 'HARNESS');
     expect(fs.existsSync(harnessPath)).toBe(true);
     expect(JSON.parse(fs.readFileSync(harnessPath, 'utf-8'))).toMatchObject({
       schema_version: 1,
-      kind: 'autoresearch_project_harness',
+      kind: 'nullius_project_harness',
       status_receipt_required: true,
-      project_local_status_command: '.autoresearch/bin/autoresearch status --json',
-      fallback_status_command: 'autoresearch status --json',
+      project_local_status_command: '.nullius/bin/nullius status --json',
+      fallback_status_command: 'nullius status --json',
       host_skill: 'research-harness',
-      lifecycle_authority: 'autoresearch',
+      lifecycle_authority: 'nullius',
       milestone_executor: 'research-team',
     });
-    const launcherPath = path.join(projectRoot, '.autoresearch', 'bin', 'autoresearch');
+    const launcherPath = path.join(projectRoot, '.nullius', 'bin', 'nullius');
     expect(fs.existsSync(launcherPath)).toBe(true);
     expect((fs.statSync(launcherPath).mode & 0o111) !== 0).toBe(true);
     for (const rel of CANONICAL_SCAFFOLD_FILES) {
@@ -149,13 +149,13 @@ describe('autoresearch CLI init/export', () => {
       run_status: 'idle',
       recovery_context: {
         status_commands: {
-          canonical: 'autoresearch status --json',
-          project_local_fallback: '.autoresearch/bin/autoresearch status --json',
-          harness_entrypoint: '.autoresearch/bin/autoresearch status --json',
+          canonical: 'nullius status --json',
+          project_local_fallback: '.nullius/bin/nullius status --json',
+          harness_entrypoint: '.nullius/bin/nullius status --json',
         },
         control_files: {
           harness: {
-            path: '.autoresearch/HARNESS',
+            path: '.nullius/HARNESS',
             exists: true,
             valid: true,
           },
@@ -172,7 +172,7 @@ describe('autoresearch CLI init/export', () => {
   });
 
   it('calls the project-contracts scaffold authority without a variant argument', () => {
-    const parentDir = makeTempDir('autoresearch-scaffold-spawn-');
+    const parentDir = makeTempDir('nullius-scaffold-spawn-');
     const projectRoot = path.join(parentDir, 'project-root');
     const argvLog = path.join(parentDir, 'argv.log');
     const fakePython = path.join(parentDir, 'fake-python.sh');
@@ -186,15 +186,15 @@ describe('autoresearch CLI init/export', () => {
       'utf-8',
     );
     fs.chmodSync(fakePython, 0o755);
-    const previous = process.env.AUTORESEARCH_PYTHON;
-    process.env.AUTORESEARCH_PYTHON = fakePython;
+    const previous = process.env.NULLIUS_PYTHON;
+    process.env.NULLIUS_PYTHON = fakePython;
     try {
       ensureProjectScaffold(projectRoot);
     } finally {
       if (previous === undefined) {
-        delete process.env.AUTORESEARCH_PYTHON;
+        delete process.env.NULLIUS_PYTHON;
       } else {
-        process.env.AUTORESEARCH_PYTHON = previous;
+        process.env.NULLIUS_PYTHON = previous;
       }
     }
 
@@ -204,26 +204,26 @@ describe('autoresearch CLI init/export', () => {
   });
 
   it('writes the project-local fallback launcher even for runtime-only init', async () => {
-    const parentDir = makeTempDir('autoresearch-cli-runtime-only-');
+    const parentDir = makeTempDir('nullius-cli-runtime-only-');
     const projectRoot = path.join(parentDir, 'project-root');
     const { io } = makeIo(parentDir);
 
     const code = await runCli([`--project-root=${projectRoot}`, 'init', '--runtime-only'], io);
 
     expect(code).toBe(0);
-    const launcherPath = path.join(projectRoot, '.autoresearch', 'bin', 'autoresearch');
+    const launcherPath = path.join(projectRoot, '.nullius', 'bin', 'nullius');
     expect(fs.existsSync(launcherPath)).toBe(true);
-    const harnessPath = path.join(projectRoot, '.autoresearch', 'HARNESS');
+    const harnessPath = path.join(projectRoot, '.nullius', 'HARNESS');
     expect(fs.existsSync(harnessPath)).toBe(true);
     const launcherScript = fs.readFileSync(launcherPath, 'utf-8');
-    // Portable launcher: self-derives the project root and prefers an autoresearch
+    // Portable launcher: self-derives the project root and prefers an nullius
     // on PATH — but never itself — so the project works on another machine.
     expect(launcherScript).toContain('PROJECT_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)');
-    expect(launcherScript).toContain('command -v autoresearch');
+    expect(launcherScript).toContain('command -v nullius');
     expect(launcherScript).toContain('-ef "$0"');
-    expect(launcherScript).toContain('exec autoresearch "$@" --project-root "$PROJECT_ROOT"');
+    expect(launcherScript).toContain('exec nullius "$@" --project-root "$PROJECT_ROOT"');
     expect(launcherScript).not.toContain("PROJECT_ROOT='");
-    expect(launcherScript).toContain('autoresearch init --runtime-only');
+    expect(launcherScript).toContain('nullius init --runtime-only');
     expect(fs.existsSync(path.join(projectRoot, 'project_charter.md'))).toBe(false);
 
     const statusJson = execFileSync(launcherPath, ['status', '--json'], {
@@ -239,13 +239,13 @@ describe('autoresearch CLI init/export', () => {
       run_status: 'idle',
       recovery_context: {
         status_commands: {
-          canonical: 'autoresearch status --json',
-          project_local_fallback: '.autoresearch/bin/autoresearch status --json',
-          harness_entrypoint: '.autoresearch/bin/autoresearch status --json',
+          canonical: 'nullius status --json',
+          project_local_fallback: '.nullius/bin/nullius status --json',
+          harness_entrypoint: '.nullius/bin/nullius status --json',
         },
         control_files: {
           harness: {
-            path: '.autoresearch/HARNESS',
+            path: '.nullius/HARNESS',
             exists: true,
             valid: true,
           },
@@ -259,11 +259,11 @@ describe('autoresearch CLI init/export', () => {
   });
 
   it('detects its own bin dir on PATH and falls back to the baked CLI without recursing', async () => {
-    const parentDir = makeTempDir('autoresearch-cli-self-path-');
+    const parentDir = makeTempDir('nullius-cli-self-path-');
     const projectRoot = path.join(parentDir, 'project-root');
     expect(await runCli([`--project-root=${projectRoot}`, 'init'], makeIo(parentDir).io)).toBe(0);
-    const binDir = path.join(projectRoot, '.autoresearch', 'bin');
-    const launcherPath = path.join(binDir, 'autoresearch');
+    const binDir = path.join(projectRoot, '.nullius', 'bin');
+    const launcherPath = path.join(binDir, 'nullius');
     // Put the launcher's own dir first on PATH: the self-resolution guard must skip
     // itself and fall through to the baked CLI instead of recursing forever. The
     // 20s timeout fails the test (rather than hanging) if recursion regresses.
@@ -277,16 +277,16 @@ describe('autoresearch CLI init/export', () => {
   });
 
   it('treats a PATH symlink back to the launcher as itself and does not self-hop', async () => {
-    const parentDir = makeTempDir('autoresearch-cli-symlink-path-');
+    const parentDir = makeTempDir('nullius-cli-symlink-path-');
     const projectRoot = path.join(parentDir, 'project-root');
     expect(await runCli([`--project-root=${projectRoot}`, 'init'], makeIo(parentDir).io)).toBe(0);
-    const launcherPath = path.join(projectRoot, '.autoresearch', 'bin', 'autoresearch');
-    // A symlink named `autoresearch` on PATH pointing back to the launcher must be
+    const launcherPath = path.join(projectRoot, '.nullius', 'bin', 'nullius');
+    // A symlink named `nullius` on PATH pointing back to the launcher must be
     // recognized as the launcher itself (real file identity via -ef), not exec'd as
     // an external CLI — otherwise it self-hops and appends a wrong --project-root.
     const symDir = path.join(parentDir, 'symbin');
     fs.mkdirSync(symDir, { recursive: true });
-    fs.symlinkSync(launcherPath, path.join(symDir, 'autoresearch'));
+    fs.symlinkSync(launcherPath, path.join(symDir, 'nullius'));
     const statusJson = execFileSync(launcherPath, ['status', '--json'], {
       cwd: projectRoot,
       encoding: 'utf-8',
@@ -301,7 +301,7 @@ describe('autoresearch CLI init/export', () => {
   });
 
   it('exports run artifacts and optional kb profile files into a zip bundle', async () => {
-    const projectRoot = makeTempDir('autoresearch-cli-export-');
+    const projectRoot = makeTempDir('nullius-cli-export-');
     const manager = new StateManager(projectRoot);
     manager.ensureDirs();
     const state = manager.readState() as RunState;
@@ -342,7 +342,7 @@ describe('autoresearch CLI init/export', () => {
   });
 
   it('fails closed when no exportable files exist for the requested run', async () => {
-    const projectRoot = makeTempDir('autoresearch-cli-export-empty-');
+    const projectRoot = makeTempDir('nullius-cli-export-empty-');
     const manager = new StateManager(projectRoot);
     manager.ensureDirs();
     const state = manager.readState() as RunState;
@@ -359,9 +359,9 @@ describe('autoresearch CLI init/export', () => {
   });
 });
 
-describe('autoresearch CLI init --refresh', () => {
+describe('nullius CLI init --refresh', () => {
   it('refreshes changed managed docs with a backup and preserves user seed files', async () => {
-    const parentDir = makeTempDir('autoresearch-cli-refresh-');
+    const parentDir = makeTempDir('nullius-cli-refresh-');
     const projectRoot = path.join(parentDir, 'project-root');
     expect(await runCli([`--project-root=${projectRoot}`, 'init'], makeIo(parentDir).io)).toBe(0);
 
@@ -384,14 +384,14 @@ describe('autoresearch CLI init --refresh', () => {
     expect(agentsNow).not.toContain('HACKED');
     expect(fs.readFileSync(planPath, 'utf-8')).toBe(userPlan);
 
-    const backupsDir = path.join(projectRoot, '.autoresearch', 'backups');
+    const backupsDir = path.join(projectRoot, '.nullius', 'backups');
     expect(fs.existsSync(backupsDir)).toBe(true);
     const stamp = fs.readdirSync(backupsDir)[0]!;
     expect(fs.readFileSync(path.join(backupsDir, stamp, 'AGENTS.md'), 'utf-8')).toBe('HACKED AGENTS\n');
   });
 
   it('--refresh --dry-run previews without writing anything', async () => {
-    const parentDir = makeTempDir('autoresearch-cli-refresh-dry-');
+    const parentDir = makeTempDir('nullius-cli-refresh-dry-');
     const projectRoot = path.join(parentDir, 'project-root');
     expect(await runCli([`--project-root=${projectRoot}`, 'init'], makeIo(parentDir).io)).toBe(0);
 
@@ -404,50 +404,50 @@ describe('autoresearch CLI init --refresh', () => {
     expect(code).toBe(0);
     expect(stdout.join('')).toContain('--dry-run, no files written');
     expect(fs.readFileSync(agentsPath, 'utf-8')).toBe('HACKED AGENTS\n');
-    expect(fs.existsSync(path.join(projectRoot, '.autoresearch', 'backups'))).toBe(false);
+    expect(fs.existsSync(path.join(projectRoot, '.nullius', 'backups'))).toBe(false);
   });
 
   it('--refresh --dry-run on an uninitialized root writes nothing at all', async () => {
-    const parentDir = makeTempDir('autoresearch-cli-refresh-dry-fresh-');
+    const parentDir = makeTempDir('nullius-cli-refresh-dry-fresh-');
     const projectRoot = path.join(parentDir, 'project-root');
 
     const code = await runCli([`--project-root=${projectRoot}`, 'init', '--refresh', '--dry-run'], makeIo(parentDir).io);
 
     expect(code).toBe(0);
-    expect(fs.existsSync(path.join(projectRoot, '.autoresearch'))).toBe(false);
+    expect(fs.existsSync(path.join(projectRoot, '.nullius'))).toBe(false);
     expect(fs.existsSync(path.join(projectRoot, 'artifacts'))).toBe(false);
     expect(fs.existsSync(path.join(projectRoot, 'docs'))).toBe(false);
   });
 
   it('rejects --refresh --force before writing runtime state', async () => {
-    const parentDir = makeTempDir('autoresearch-cli-refresh-force-');
+    const parentDir = makeTempDir('nullius-cli-refresh-force-');
     const projectRoot = path.join(parentDir, 'project-root');
     await expect(
       runCli([`--project-root=${projectRoot}`, 'init', '--refresh', '--force'], makeIo(parentDir).io),
     ).rejects.toThrow('choose either --refresh or --force');
-    expect(fs.existsSync(path.join(projectRoot, '.autoresearch'))).toBe(false);
+    expect(fs.existsSync(path.join(projectRoot, '.nullius'))).toBe(false);
   });
 
   it('rejects --refresh --runtime-only before writing runtime state', async () => {
-    const parentDir = makeTempDir('autoresearch-cli-refresh-runtime-');
+    const parentDir = makeTempDir('nullius-cli-refresh-runtime-');
     const projectRoot = path.join(parentDir, 'project-root');
     await expect(
       runCli([`--project-root=${projectRoot}`, 'init', '--refresh', '--runtime-only'], makeIo(parentDir).io),
     ).rejects.toThrow('--refresh cannot be combined with --runtime-only');
-    expect(fs.existsSync(path.join(projectRoot, '.autoresearch'))).toBe(false);
+    expect(fs.existsSync(path.join(projectRoot, '.nullius'))).toBe(false);
   });
 
   it('rejects --dry-run without --refresh before writing runtime state', async () => {
-    const parentDir = makeTempDir('autoresearch-cli-dry-only-');
+    const parentDir = makeTempDir('nullius-cli-dry-only-');
     const projectRoot = path.join(parentDir, 'project-root');
     await expect(
       runCli([`--project-root=${projectRoot}`, 'init', '--dry-run'], makeIo(parentDir).io),
     ).rejects.toThrow('--dry-run is only valid together with --refresh');
-    expect(fs.existsSync(path.join(projectRoot, '.autoresearch'))).toBe(false);
+    expect(fs.existsSync(path.join(projectRoot, '.nullius'))).toBe(false);
   });
 
   it('threads --refresh and --dry-run to the scaffold authority and parses the enriched result', () => {
-    const parentDir = makeTempDir('autoresearch-scaffold-refresh-spawn-');
+    const parentDir = makeTempDir('nullius-scaffold-refresh-spawn-');
     const projectRoot = path.join(parentDir, 'project-root');
     const argvLog = path.join(parentDir, 'argv.log');
     const fakePython = path.join(parentDir, 'fake-python.sh');
@@ -456,19 +456,19 @@ describe('autoresearch CLI init --refresh', () => {
       [
         '#!/bin/sh',
         `printf '%s\\n' "$@" > ${JSON.stringify(argvLog)}`,
-        'printf \'{"created":[],"skipped":[],"refreshed":["AGENTS.md"],"backed_up":["AGENTS.md"],"unchanged":[],"preserved":["research_plan.md"],"missing":[],"backup_dir":".autoresearch/backups/X","dry_run":true}\\n\'',
+        'printf \'{"created":[],"skipped":[],"refreshed":["AGENTS.md"],"backed_up":["AGENTS.md"],"unchanged":[],"preserved":["research_plan.md"],"missing":[],"backup_dir":".nullius/backups/X","dry_run":true}\\n\'',
       ].join('\n') + '\n',
       'utf-8',
     );
     fs.chmodSync(fakePython, 0o755);
-    const previous = process.env.AUTORESEARCH_PYTHON;
-    process.env.AUTORESEARCH_PYTHON = fakePython;
+    const previous = process.env.NULLIUS_PYTHON;
+    process.env.NULLIUS_PYTHON = fakePython;
     let result: ReturnType<typeof ensureProjectScaffold>;
     try {
       result = ensureProjectScaffold(projectRoot, { refresh: true, dryRun: true });
     } finally {
-      if (previous === undefined) delete process.env.AUTORESEARCH_PYTHON;
-      else process.env.AUTORESEARCH_PYTHON = previous;
+      if (previous === undefined) delete process.env.NULLIUS_PYTHON;
+      else process.env.NULLIUS_PYTHON = previous;
     }
 
     const argv = fs.readFileSync(argvLog, 'utf-8').trim().split('\n');
@@ -477,7 +477,7 @@ describe('autoresearch CLI init --refresh', () => {
     expect(result.refreshed).toEqual(['AGENTS.md']);
     expect(result.backedUp).toEqual(['AGENTS.md']);
     expect(result.preserved).toEqual(['research_plan.md']);
-    expect(result.backupDir).toBe('.autoresearch/backups/X');
+    expect(result.backupDir).toBe('.nullius/backups/X');
     expect(result.dryRun).toBe(true);
   });
 });

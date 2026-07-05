@@ -1,7 +1,7 @@
-// @autoresearch/orchestrator — AgentRunner (NEW-RT-01 + NEW-RT-06)
+// @nullius/orchestrator — AgentRunner (NEW-RT-01 + NEW-RT-06)
 // Provider-agnostic agent loop: MCP tool dispatch, lane queue.
 
-import { generateTraceId } from '@autoresearch/shared';
+import { generateTraceId } from '@nullius/shared';
 import { createChatBackend, type ChatBackendFactory } from './backends/backend-factory.js';
 import type { ChatBackend, MessageParam, MessagesCreateFn, Tool } from './backends/chat-backend.js';
 import type { ToolCaller } from './mcp-client.js';

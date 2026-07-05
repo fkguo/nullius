@@ -4,11 +4,11 @@ import {
   type ResolveWorkflowRequest,
   type ResolvedWorkflowPlan,
   type ResolvedWorkflowStep,
-} from '@autoresearch/literature-workflows';
+} from '@nullius/literature-workflows';
 import {
   buildWorkflowStepTaskProjection,
   type WorkflowTaskPrecondition,
-} from '@autoresearch/shared';
+} from '@nullius/shared';
 import type { CliIo } from './cli-lifecycle.js';
 import { resolveLifecycleProjectRoot } from './cli-project-root.js';
 import { StateManager } from './state-manager.js';
@@ -106,7 +106,7 @@ export async function runWorkflowPlanCommand(input: WorkflowPlanCommandInput, io
   const projectRoot = resolveLifecycleProjectRoot(input.projectRoot, io.cwd);
   const manager = new StateManager(projectRoot);
   if (!fs.existsSync(manager.statePath)) {
-    throw new Error(`project root is not initialized: ${projectRoot}; run autoresearch init first`);
+    throw new Error(`project root is not initialized: ${projectRoot}; run nullius init first`);
   }
 
   const runId = derivedRunId(input);

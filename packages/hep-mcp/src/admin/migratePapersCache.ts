@@ -31,7 +31,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
-import { ARXIV_ID_REGEX } from '@autoresearch/arxiv-mcp/tooling';
+import { ARXIV_ID_REGEX } from '@nullius/arxiv-mcp/tooling';
 
 import {
   type Fetcher,
@@ -87,7 +87,7 @@ export interface MigrationReport {
 }
 
 export interface MigrationOptions {
-  /** Absolute path to the autoresearch project root containing artifacts/hep-mcp/. */
+  /** Absolute path to the nullius project root containing artifacts/hep-mcp/. */
   project_root: string;
   /** Override HEP_DATA_DIR resolution; defaults to <project_root>/artifacts/hep-mcp/. */
   hep_data_root?: string;

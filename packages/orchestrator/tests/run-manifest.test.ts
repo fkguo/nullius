@@ -105,7 +105,7 @@ describe('RunManifestManager', () => {
     // Simulate crash recovery scenario using AgentRunner.
     // This test imports AgentRunner here to verify end-to-end durable execution.
     const { AgentRunner, _resetLaneQueue } = await import('../src/agent-runner.js');
-    const { McpError } = await import('@autoresearch/shared');
+    const { McpError } = await import('@nullius/shared');
     _resetLaneQueue();
 
     const callLog: string[] = [];

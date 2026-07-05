@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 
-import { invalidParams, upstreamError } from '@autoresearch/shared';
+import { invalidParams, upstreamError } from '@nullius/shared';
 
 import { getZoteroConfig } from './config.js';
 

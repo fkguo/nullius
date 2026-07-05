@@ -7,7 +7,7 @@ import {
   SerialIntervalGate,
   sleepWithAbort,
   upstreamError,
-} from '@autoresearch/shared';
+} from '@nullius/shared';
 
 /**
  * arXiv API Rate Limiter
@@ -519,7 +519,7 @@ export const __testing__ = {
  * arXiv requires at least 3 seconds between requests.
  *
  * H-10: validates URL host before fetching so external callers (this is an
- * exported symbol consumed by hep-mcp via `@autoresearch/arxiv-mcp/tooling`)
+ * exported symbol consumed by hep-mcp via `@nullius/arxiv-mcp/tooling`)
  * cannot pass arbitrary URLs through the rate-limited surface.
  */
 export async function arxivFetch(

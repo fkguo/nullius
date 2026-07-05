@@ -1,5 +1,5 @@
 import type { CreateMessageRequestParamsBase, CreateMessageResult } from '@modelcontextprotocol/sdk/types.js';
-import { normalizeDiscoveryQuery, type DiscoveryQppAssessment } from '@autoresearch/shared';
+import { normalizeDiscoveryQuery, type DiscoveryQppAssessment } from '@nullius/shared';
 import { buildToolSamplingMetadata } from '../../../core/sampling-metadata.js';
 import { extractSamplingText } from '../../../core/semantics/quantitySampling.js';
 import { buildQueryReformulationPrompt } from './queryReformulationPrompt.js';

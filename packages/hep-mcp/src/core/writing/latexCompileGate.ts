@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 
-import { invalidParams, writeBytesAtomicDurable } from '@autoresearch/shared';
+import { invalidParams, writeBytesAtomicDurable } from '@nullius/shared';
 
 import type { RunArtifactRef } from '../runs.js';
 import { getRun } from '../runs.js';

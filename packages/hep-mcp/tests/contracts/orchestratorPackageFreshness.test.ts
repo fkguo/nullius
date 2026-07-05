@@ -256,7 +256,7 @@ describe('orchestrator package freshness gate', () => {
   it('passes on the real worktree after orchestrator build has refreshed the package output', () => {
     const result = runFreshnessCheck([]);
     expect(result.status).toBe(0);
-    expect(result.stdout).toContain('[ok] @autoresearch/orchestrator package output is fresh.');
+    expect(result.stdout).toContain('[ok] @nullius/orchestrator package output is fresh.');
     expect(result.stderr).toBe('');
   });
 });

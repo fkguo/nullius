@@ -5,7 +5,7 @@ import {
   INTEGRITY_MODES,
   writeIntegrityReceipt,
   type IntegrityMode,
-} from '@autoresearch/shared';
+} from '@nullius/shared';
 import { handleOrchRunApprove } from './orch-tools/approval.js';
 import { createStateManager, requireState } from './orch-tools/common.js';
 import { handleOrchRunRequestFinalConclusions } from './orch-tools/final-conclusions.js';

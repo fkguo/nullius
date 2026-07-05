@@ -10,7 +10,7 @@ import {
   type ConnectionsResult,
   type PaperSummary,
   FindConnectionsParamsSchema,
-} from '@autoresearch/shared';
+} from '@nullius/shared';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types

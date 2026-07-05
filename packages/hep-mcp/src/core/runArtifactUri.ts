@@ -5,7 +5,7 @@ import {
   makeScopedArtifactUri,
   parseScopedArtifactUri,
   type ArtifactRefSummary,
-} from '@autoresearch/shared';
+} from '@nullius/shared';
 
 import { assertSafePathSegment } from './paths.js';
 

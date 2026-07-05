@@ -4,7 +4,7 @@ import {
   APPROVAL_GATE_TO_POLICY_KEY,
   APPROVAL_REQUIRED_DEFAULTS,
   getApprovalPolicyKey,
-} from '@autoresearch/shared';
+} from '@nullius/shared';
 import { z } from 'zod';
 import {
   createStateManager,

@@ -108,7 +108,7 @@ describe('orch_fleet_claim and orch_fleet_release', () => {
     })) as { claimed: boolean; reason: string };
 
     expect(payload).toMatchObject({ claimed: false, reason: 'NO_QUEUED_ITEM' });
-    expect(fs.existsSync(path.join(projectRoot, '.autoresearch', 'fleet_queue.json'))).toBe(false);
+    expect(fs.existsSync(path.join(projectRoot, '.nullius', 'fleet_queue.json'))).toBe(false);
   });
 
   it('fails closed on missing items, unclaimed items, and owner mismatch', async () => {
@@ -185,7 +185,7 @@ describe('orch_fleet_claim and orch_fleet_release', () => {
       expect(payload.queue_item.claim).toBeUndefined();
       expect(payload.queue_item.status).toBe(disposition === 'requeue' ? 'queued' : disposition);
       expect(payload.queue_item.attempt_count).toBe(disposition === 'requeue' ? 3 : 2);
-      expect(fs.readFileSync(path.join(projectRoot, '.autoresearch', 'ledger.jsonl'), 'utf-8')).toContain('"event_type":"fleet_released"');
+      expect(fs.readFileSync(path.join(projectRoot, '.nullius', 'ledger.jsonl'), 'utf-8')).toContain('"event_type":"fleet_released"');
     },
   );
 
@@ -218,7 +218,7 @@ describe('orch_fleet_claim and orch_fleet_release', () => {
     expect(typeof defaultClaim.queue_item.claim?.lease_expires_at).toBe('string');
     expect(typeof customClaim.queue_item.claim?.lease_expires_at).toBe('string');
 
-    const ledger = fs.readFileSync(path.join(projectRoot, '.autoresearch', 'ledger.jsonl'), 'utf-8');
+    const ledger = fs.readFileSync(path.join(projectRoot, '.nullius', 'ledger.jsonl'), 'utf-8');
     expect(ledger).toContain('"lease_duration_seconds":60');
     expect(ledger).toContain('"lease_duration_seconds":15');
     expect(ledger).toContain('"lease_expires_at"');

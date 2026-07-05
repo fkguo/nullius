@@ -6,7 +6,7 @@ import {
   APPROVAL_GATE_IDS,
   APPROVAL_GATE_TO_POLICY_KEY,
   APPROVAL_REQUIRED_DEFAULTS,
-} from '@autoresearch/shared';
+} from '@nullius/shared';
 import { StateManager } from '../src/index.js';
 import type { RunState } from '../src/index.js';
 import { handleOrchPolicyQuery, handleOrchRunExport } from '../src/orch-tools/control.js';
@@ -19,13 +19,13 @@ function makeTmpDir(): string {
 }
 
 function writeState(repoRoot: string, state: RunState): void {
-  const dir = path.join(repoRoot, '.autoresearch');
+  const dir = path.join(repoRoot, '.nullius');
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(path.join(dir, 'state.json'), JSON.stringify(state, null, 2));
 }
 
 function writePolicy(repoRoot: string, policy: Record<string, unknown>): void {
-  const dir = path.join(repoRoot, '.autoresearch');
+  const dir = path.join(repoRoot, '.nullius');
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(path.join(dir, 'approval_policy.json'), JSON.stringify(policy));
 }
@@ -78,7 +78,7 @@ function writeProjectSurfaceFiles(
     : [
         '# research_contract.md',
         '',
-        'Keep machine-facing checkpoints here and treat `.autoresearch/` state as durable restart truth.',
+        'Keep machine-facing checkpoints here and treat `.nullius/` state as durable restart truth.',
       ].join('\n');
 
   fs.writeFileSync(path.join(repoRoot, 'AGENTS.md'), ['# AGENTS.md', '', optionalHostText, ''].join('\n'), 'utf-8');
@@ -158,7 +158,7 @@ describe('StateManager', () => {
     });
     const sm = new StateManager(tmpDir);
     sm.saveState(state);
-    fs.unlinkSync(path.join(tmpDir, '.autoresearch', 'plan.md'));
+    fs.unlinkSync(path.join(tmpDir, '.nullius', 'plan.md'));
 
     const view = buildRunStatusView(tmpDir, sm.readState());
     expect(view.current_step).toBeNull();
@@ -181,16 +181,16 @@ describe('StateManager', () => {
         source: 'state.plan',
       },
       status_commands: {
-        canonical: 'autoresearch status --json',
+        canonical: 'nullius status --json',
         project_local_fallback: null,
       },
     });
   });
 
   it('derives recovery_context from legacy plan.md and ledger.jsonl when state is sparse', () => {
-    fs.mkdirSync(path.join(tmpDir, '.autoresearch'), { recursive: true });
+    fs.mkdirSync(path.join(tmpDir, '.nullius'), { recursive: true });
     fs.writeFileSync(
-      path.join(tmpDir, '.autoresearch', 'state.json'),
+      path.join(tmpDir, '.nullius', 'state.json'),
       JSON.stringify({
         schema_version: 1,
         run_id: 'legacy-run-1',
@@ -199,14 +199,14 @@ describe('StateManager', () => {
       }, null, 2),
     );
     fs.writeFileSync(
-      path.join(tmpDir, '.autoresearch', 'plan.md'),
+      path.join(tmpDir, '.nullius', 'plan.md'),
       [
         '# Plan (derived view)',
         '',
         '- Run: legacy-run-1',
         '- Workflow: legacy_review',
         '',
-        'SSOT: `.autoresearch/state.json#/plan`',
+        'SSOT: `.nullius/state.json#/plan`',
         '',
         '## Steps',
         '',
@@ -219,7 +219,7 @@ describe('StateManager', () => {
       'utf-8',
     );
     fs.writeFileSync(
-      path.join(tmpDir, '.autoresearch', 'ledger.jsonl'),
+      path.join(tmpDir, '.nullius', 'ledger.jsonl'),
       [
         JSON.stringify({
           ts: '2026-04-15T00:00:00Z',
@@ -277,9 +277,9 @@ describe('StateManager', () => {
   });
 
   it('scopes recovery_context ledger fallback to the active state.run_id instead of the newest project-wide event', () => {
-    fs.mkdirSync(path.join(tmpDir, '.autoresearch'), { recursive: true });
+    fs.mkdirSync(path.join(tmpDir, '.nullius'), { recursive: true });
     fs.writeFileSync(
-      path.join(tmpDir, '.autoresearch', 'state.json'),
+      path.join(tmpDir, '.nullius', 'state.json'),
       JSON.stringify({
         schema_version: 1,
         run_id: 'legacy-run-1',
@@ -287,7 +287,7 @@ describe('StateManager', () => {
       }, null, 2),
     );
     fs.writeFileSync(
-      path.join(tmpDir, '.autoresearch', 'ledger.jsonl'),
+      path.join(tmpDir, '.nullius', 'ledger.jsonl'),
       [
         JSON.stringify({
           ts: '2026-04-15T00:00:00Z',
@@ -398,7 +398,7 @@ describe('StateManager', () => {
     });
     const sm = new StateManager(tmpDir);
     sm.saveState(state);
-    const launcherPath = path.join(tmpDir, '.autoresearch', 'bin', 'autoresearch');
+    const launcherPath = path.join(tmpDir, '.nullius', 'bin', 'nullius');
     fs.mkdirSync(path.dirname(launcherPath), { recursive: true });
     // New portable format, but the baked fallback target no longer exists on this machine.
     fs.writeFileSync(
@@ -407,9 +407,9 @@ describe('StateManager', () => {
         '#!/bin/sh',
         'set -eu',
         'PROJECT_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)',
-        'RESOLVED_AUTORESEARCH=$(command -v autoresearch 2>/dev/null || true)',
-        'if [ -n "$RESOLVED_AUTORESEARCH" ] && [ ! "$RESOLVED_AUTORESEARCH" -ef "$0" ]; then',
-        '  exec autoresearch "$@" --project-root "$PROJECT_ROOT"',
+        'RESOLVED_NULLIUS=$(command -v nullius 2>/dev/null || true)',
+        'if [ -n "$RESOLVED_NULLIUS" ] && [ ! "$RESOLVED_NULLIUS" -ef "$0" ]; then',
+        '  exec nullius "$@" --project-root "$PROJECT_ROOT"',
         'fi',
         "exec '/private/tmp/deleted-worktree/packages/orchestrator/dist/cli.js' \"$@\" --project-root \"$PROJECT_ROOT\"",
         '',
@@ -418,9 +418,9 @@ describe('StateManager', () => {
     );
     fs.chmodSync(launcherPath, 0o755);
 
-    // Force a PATH with no `autoresearch` so the baked-target miss is genuinely fatal.
+    // Force a PATH with no `nullius` so the baked-target miss is genuinely fatal.
     const prevPath = process.env.PATH;
-    process.env.PATH = path.join(tmpDir, 'no-autoresearch-on-path');
+    process.env.PATH = path.join(tmpDir, 'no-nullius-on-path');
     let view: ReturnType<typeof buildRunStatusView>;
     try {
       view = buildRunStatusView(tmpDir, sm.readState());
@@ -437,23 +437,23 @@ describe('StateManager', () => {
     expect(launcher.exists).toBe(true);
     expect(launcher.healthy).toBe(false);
     expect(launcher.issue_code).toBe('PROJECT_LOCAL_LAUNCHER_TARGET_MISSING');
-    expect(launcher.repair_command).toBe('autoresearch init --runtime-only');
+    expect(launcher.repair_command).toBe('nullius init --runtime-only');
     expect(recoveryContext.derivation_warnings).toEqual(expect.arrayContaining([
       expect.objectContaining({
         code: 'PROJECT_LOCAL_FALLBACK_UNHEALTHY',
-        repair_command: 'autoresearch init --runtime-only',
+        repair_command: 'nullius init --runtime-only',
       }),
     ]));
   });
 
-  it('treats a project-local launcher with a missing baked target as healthy when autoresearch is on PATH', () => {
+  it('treats a project-local launcher with a missing baked target as healthy when nullius is on PATH', () => {
     const state = baseState({
       run_id: 'test-run-path-launcher',
       run_status: 'idle',
     });
     const sm = new StateManager(tmpDir);
     sm.saveState(state);
-    const launcherPath = path.join(tmpDir, '.autoresearch', 'bin', 'autoresearch');
+    const launcherPath = path.join(tmpDir, '.nullius', 'bin', 'nullius');
     fs.mkdirSync(path.dirname(launcherPath), { recursive: true });
     fs.writeFileSync(
       launcherPath,
@@ -461,9 +461,9 @@ describe('StateManager', () => {
         '#!/bin/sh',
         'set -eu',
         'PROJECT_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)',
-        'RESOLVED_AUTORESEARCH=$(command -v autoresearch 2>/dev/null || true)',
-        'if [ -n "$RESOLVED_AUTORESEARCH" ] && [ ! "$RESOLVED_AUTORESEARCH" -ef "$0" ]; then',
-        '  exec autoresearch "$@" --project-root "$PROJECT_ROOT"',
+        'RESOLVED_NULLIUS=$(command -v nullius 2>/dev/null || true)',
+        'if [ -n "$RESOLVED_NULLIUS" ] && [ ! "$RESOLVED_NULLIUS" -ef "$0" ]; then',
+        '  exec nullius "$@" --project-root "$PROJECT_ROOT"',
         'fi',
         "exec '/private/tmp/deleted-worktree/packages/orchestrator/dist/cli.js' \"$@\" --project-root \"$PROJECT_ROOT\"",
         '',
@@ -471,13 +471,13 @@ describe('StateManager', () => {
       'utf-8',
     );
     fs.chmodSync(launcherPath, 0o755);
-    // Provide an `autoresearch` on PATH so the launcher's PATH-prefer branch is usable
+    // Provide an `nullius` on PATH so the launcher's PATH-prefer branch is usable
     // even though the baked fallback target is gone.
     const fakeBin = path.join(tmpDir, 'fakebin');
     fs.mkdirSync(fakeBin, { recursive: true });
-    const fakeAutoresearch = path.join(fakeBin, 'autoresearch');
-    fs.writeFileSync(fakeAutoresearch, '#!/bin/sh\nexit 0\n', 'utf-8');
-    fs.chmodSync(fakeAutoresearch, 0o755);
+    const fakeNullius = path.join(fakeBin, 'nullius');
+    fs.writeFileSync(fakeNullius, '#!/bin/sh\nexit 0\n', 'utf-8');
+    fs.chmodSync(fakeNullius, 0o755);
 
     const prevPath = process.env.PATH;
     process.env.PATH = `${fakeBin}${path.delimiter}/usr/bin:/bin`;
@@ -497,14 +497,14 @@ describe('StateManager', () => {
     expect(launcher.issue_code).toBeNull();
   });
 
-  it('does not treat a directory named autoresearch on PATH as a usable CLI fallback', () => {
+  it('does not treat a directory named nullius on PATH as a usable CLI fallback', () => {
     const state = baseState({
       run_id: 'test-run-dir-on-path',
       run_status: 'idle',
     });
     const sm = new StateManager(tmpDir);
     sm.saveState(state);
-    const launcherPath = path.join(tmpDir, '.autoresearch', 'bin', 'autoresearch');
+    const launcherPath = path.join(tmpDir, '.nullius', 'bin', 'nullius');
     fs.mkdirSync(path.dirname(launcherPath), { recursive: true });
     fs.writeFileSync(
       launcherPath,
@@ -512,9 +512,9 @@ describe('StateManager', () => {
         '#!/bin/sh',
         'set -eu',
         'PROJECT_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)',
-        'RESOLVED_AUTORESEARCH=$(command -v autoresearch 2>/dev/null || true)',
-        'if [ -n "$RESOLVED_AUTORESEARCH" ] && [ ! "$RESOLVED_AUTORESEARCH" -ef "$0" ]; then',
-        '  exec autoresearch "$@" --project-root "$PROJECT_ROOT"',
+        'RESOLVED_NULLIUS=$(command -v nullius 2>/dev/null || true)',
+        'if [ -n "$RESOLVED_NULLIUS" ] && [ ! "$RESOLVED_NULLIUS" -ef "$0" ]; then',
+        '  exec nullius "$@" --project-root "$PROJECT_ROOT"',
         'fi',
         "exec '/private/tmp/deleted-worktree/packages/orchestrator/dist/cli.js' \"$@\" --project-root \"$PROJECT_ROOT\"",
         '',
@@ -522,10 +522,10 @@ describe('StateManager', () => {
       'utf-8',
     );
     fs.chmodSync(launcherPath, 0o755);
-    // A *directory* named `autoresearch` carries the execute bit but is not a
+    // A *directory* named `nullius` carries the execute bit but is not a
     // resolvable command; it must not be counted as a usable PATH fallback.
     const dirOnPath = path.join(tmpDir, 'dirbin');
-    fs.mkdirSync(path.join(dirOnPath, 'autoresearch'), { recursive: true });
+    fs.mkdirSync(path.join(dirOnPath, 'nullius'), { recursive: true });
 
     const prevPath = process.env.PATH;
     process.env.PATH = `${dirOnPath}${path.delimiter}/usr/bin:/bin`;
@@ -551,8 +551,8 @@ describe('StateManager', () => {
     });
     const sm = new StateManager(tmpDir);
     sm.saveState(state);
-    const binDir = path.join(tmpDir, '.autoresearch', 'bin');
-    const launcherPath = path.join(binDir, 'autoresearch');
+    const binDir = path.join(tmpDir, '.nullius', 'bin');
+    const launcherPath = path.join(binDir, 'nullius');
     fs.mkdirSync(binDir, { recursive: true });
     fs.writeFileSync(
       launcherPath,
@@ -560,9 +560,9 @@ describe('StateManager', () => {
         '#!/bin/sh',
         'set -eu',
         'PROJECT_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)',
-        'RESOLVED_AUTORESEARCH=$(command -v autoresearch 2>/dev/null || true)',
-        'if [ -n "$RESOLVED_AUTORESEARCH" ] && [ ! "$RESOLVED_AUTORESEARCH" -ef "$0" ]; then',
-        '  exec autoresearch "$@" --project-root "$PROJECT_ROOT"',
+        'RESOLVED_NULLIUS=$(command -v nullius 2>/dev/null || true)',
+        'if [ -n "$RESOLVED_NULLIUS" ] && [ ! "$RESOLVED_NULLIUS" -ef "$0" ]; then',
+        '  exec nullius "$@" --project-root "$PROJECT_ROOT"',
         'fi',
         "exec '/private/tmp/deleted-worktree/packages/orchestrator/dist/cli.js' \"$@\" --project-root \"$PROJECT_ROOT\"",
         '',
@@ -596,8 +596,8 @@ describe('StateManager', () => {
     });
     const sm = new StateManager(tmpDir);
     sm.saveState(state);
-    const binDir = path.join(tmpDir, '.autoresearch', 'bin');
-    const launcherPath = path.join(binDir, 'autoresearch');
+    const binDir = path.join(tmpDir, '.nullius', 'bin');
+    const launcherPath = path.join(binDir, 'nullius');
     fs.mkdirSync(binDir, { recursive: true });
     fs.writeFileSync(
       launcherPath,
@@ -605,9 +605,9 @@ describe('StateManager', () => {
         '#!/bin/sh',
         'set -eu',
         'PROJECT_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)',
-        'RESOLVED_AUTORESEARCH=$(command -v autoresearch 2>/dev/null || true)',
-        'if [ -n "$RESOLVED_AUTORESEARCH" ] && [ ! "$RESOLVED_AUTORESEARCH" -ef "$0" ]; then',
-        '  exec autoresearch "$@" --project-root "$PROJECT_ROOT"',
+        'RESOLVED_NULLIUS=$(command -v nullius 2>/dev/null || true)',
+        'if [ -n "$RESOLVED_NULLIUS" ] && [ ! "$RESOLVED_NULLIUS" -ef "$0" ]; then',
+        '  exec nullius "$@" --project-root "$PROJECT_ROOT"',
         'fi',
         "exec '/private/tmp/deleted-worktree/packages/orchestrator/dist/cli.js' \"$@\" --project-root \"$PROJECT_ROOT\"",
         '',
@@ -619,7 +619,7 @@ describe('StateManager', () => {
     // it as self, so health must too (realpath alone would miss a hard link).
     const hardBin = path.join(tmpDir, 'hardbin');
     fs.mkdirSync(hardBin, { recursive: true });
-    fs.linkSync(launcherPath, path.join(hardBin, 'autoresearch'));
+    fs.linkSync(launcherPath, path.join(hardBin, 'nullius'));
 
     const prevPath = process.env.PATH;
     process.env.PATH = `${hardBin}${path.delimiter}/usr/bin:/bin`;
@@ -645,10 +645,10 @@ describe('StateManager', () => {
     });
     const sm = new StateManager(tmpDir);
     sm.saveState(state);
-    const launcherPath = path.join(tmpDir, '.autoresearch', 'bin', 'autoresearch');
+    const launcherPath = path.join(tmpDir, '.nullius', 'bin', 'nullius');
     fs.mkdirSync(path.dirname(launcherPath), { recursive: true });
     // Old format: self-derived root + UNGUARDED PATH-prefer (would self-recurse if
-    // .autoresearch/bin is first on PATH). It must be reported unparseable so the
+    // .nullius/bin is first on PATH). It must be reported unparseable so the
     // owner refreshes it, not advertised as a healthy fallback.
     fs.writeFileSync(
       launcherPath,
@@ -656,8 +656,8 @@ describe('StateManager', () => {
         '#!/bin/sh',
         'set -eu',
         'PROJECT_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)',
-        'if command -v autoresearch >/dev/null 2>&1; then',
-        '  exec autoresearch "$@" --project-root "$PROJECT_ROOT"',
+        'if command -v nullius >/dev/null 2>&1; then',
+        '  exec nullius "$@" --project-root "$PROJECT_ROOT"',
         'fi',
         "exec '/private/tmp/deleted-worktree/packages/orchestrator/dist/cli.js' \"$@\" --project-root \"$PROJECT_ROOT\"",
         '',
@@ -682,7 +682,7 @@ describe('StateManager', () => {
     });
     const sm = new StateManager(tmpDir);
     sm.saveState(state);
-    const launcherPath = path.join(tmpDir, '.autoresearch', 'bin', 'autoresearch');
+    const launcherPath = path.join(tmpDir, '.nullius', 'bin', 'nullius');
     fs.mkdirSync(path.dirname(launcherPath), { recursive: true });
     fs.writeFileSync(launcherPath, '#!/bin/sh\necho broken launcher\n', 'utf-8');
     fs.chmodSync(launcherPath, 0o755);
@@ -698,12 +698,12 @@ describe('StateManager', () => {
     expect(launcher.executable).toBe(true);
     expect(launcher.healthy).toBe(false);
     expect(launcher.issue_code).toBe('PROJECT_LOCAL_LAUNCHER_UNPARSEABLE');
-    expect(launcher.repair_command).toBe('autoresearch init --runtime-only');
+    expect(launcher.repair_command).toBe('nullius init --runtime-only');
     expect(recoveryContext.derivation_warnings).toEqual(expect.arrayContaining([
       expect.objectContaining({
         code: 'PROJECT_LOCAL_FALLBACK_UNHEALTHY',
         issue_code: 'PROJECT_LOCAL_LAUNCHER_UNPARSEABLE',
-        repair_command: 'autoresearch init --runtime-only',
+        repair_command: 'nullius init --runtime-only',
       }),
     ]));
   });
@@ -715,7 +715,7 @@ describe('StateManager', () => {
     });
     const sm = new StateManager(tmpDir);
     sm.saveState(state);
-    const launcherPath = path.join(tmpDir, '.autoresearch', 'bin', 'autoresearch');
+    const launcherPath = path.join(tmpDir, '.nullius', 'bin', 'nullius');
     fs.mkdirSync(path.dirname(launcherPath), { recursive: true });
     fs.writeFileSync(launcherPath, '#!/bin/sh\nexec \'/bin/sh\' "$@"\n', 'utf-8');
     fs.chmodSync(launcherPath, 0o755);
@@ -732,7 +732,7 @@ describe('StateManager', () => {
     expect(launcher.healthy).toBe(false);
     expect(launcher.checked_paths).toEqual(['/bin/sh']);
     expect(launcher.issue_code).toBe('PROJECT_LOCAL_LAUNCHER_UNPARSEABLE');
-    expect(launcher.repair_command).toBe('autoresearch init --runtime-only');
+    expect(launcher.repair_command).toBe('nullius init --runtime-only');
   });
 
   it('reads awaiting_approval status (Python SSOT)', () => {
@@ -822,7 +822,7 @@ describe('StateManager write operations (Stage 2)', () => {
     const state = baseState({ run_id: 'r1', run_status: 'idle' });
     sm.saveState(state);
 
-    const raw = fs.readFileSync(path.join(tmpDir, '.autoresearch', 'state.json'), 'utf-8');
+    const raw = fs.readFileSync(path.join(tmpDir, '.nullius', 'state.json'), 'utf-8');
     const parsed = JSON.parse(raw);
     expect(parsed.run_id).toBe('r1');
     // Verify keys are sorted (Python parity: json.dumps(sort_keys=True))
@@ -836,7 +836,7 @@ describe('StateManager write operations (Stage 2)', () => {
     const sm = new StateManager(tmpDir);
     sm.saveState(baseState());
 
-    const dir = path.join(tmpDir, '.autoresearch');
+    const dir = path.join(tmpDir, '.nullius');
     const files = fs.readdirSync(dir);
     expect(files.filter(f => f.endsWith('.tmp'))).toHaveLength(0);
   });
@@ -845,7 +845,7 @@ describe('StateManager write operations (Stage 2)', () => {
     const sm = new StateManager(tmpDir);
     sm.ensureDirs();
 
-    const dir = path.join(tmpDir, '.autoresearch');
+    const dir = path.join(tmpDir, '.nullius');
     expect(fs.existsSync(dir)).toBe(true);
     expect(fs.existsSync(path.join(dir, 'ledger.jsonl'))).toBe(true);
     expect(fs.readFileSync(path.join(dir, 'ledger.jsonl'), 'utf-8')).toBe('');
@@ -884,14 +884,14 @@ describe('StateManager write operations (Stage 2)', () => {
     expect(event.event_type).toBe('test_persist');
 
     // No staged files left
-    const files = fs.readdirSync(path.join(tmpDir, '.autoresearch'));
+    const files = fs.readdirSync(path.join(tmpDir, '.nullius'));
     expect(files.filter(f => f.includes('.next'))).toHaveLength(0);
   });
 
   it('saveStateWithLedger ignores a stale fixed state.json.next path and still appends exactly one ledger event', () => {
     const sm = new StateManager(tmpDir);
     const state = baseState({ run_id: 'r1', run_status: 'running' });
-    fs.mkdirSync(path.join(tmpDir, '.autoresearch', 'state.json.next'), { recursive: true });
+    fs.mkdirSync(path.join(tmpDir, '.nullius', 'state.json.next'), { recursive: true });
     sm.saveStateWithLedger(state, 'test_persist_retry', {
       details: { key: 'value' },
     });
@@ -899,7 +899,7 @@ describe('StateManager write operations (Stage 2)', () => {
     const rawLines = fs.readFileSync(sm.ledgerPath, 'utf-8').trim().split('\n').filter(Boolean);
     expect(rawLines).toHaveLength(1);
     expect(JSON.parse(rawLines[0]!).event_type).toBe('test_persist_retry');
-    const files = fs.readdirSync(path.join(tmpDir, '.autoresearch'));
+    const files = fs.readdirSync(path.join(tmpDir, '.nullius'));
     expect(files).toContain('state.json.next');
     expect(files.filter(f => f.endsWith('.next') && f !== 'state.json.next')).toHaveLength(0);
   });
@@ -2872,7 +2872,7 @@ describe('Stage 3c: renderPlanMd', () => {
     expect(md).toContain('# Plan (derived view)');
     expect(md).toContain('- Run: test-run');
     expect(md).toContain('- Workflow: test-workflow');
-    expect(md).toContain('SSOT: `.autoresearch/state.json#/plan`');
+    expect(md).toContain('SSOT: `.nullius/state.json#/plan`');
     expect(md).toContain('## Steps');
     expect(md).toContain('1. [pending] step_1 — First step');
     expect(md).toContain('   - expected_approvals: A1');
@@ -2983,15 +2983,15 @@ describe('Stage 3c: writePlanMd', () => {
 
   it('writes plan.md atomically and returns relative path', () => {
     const relPath = sm.writePlanMd(basePlan());
-    expect(relPath).toBe(path.join('.autoresearch', 'plan.md'));
-    const content = fs.readFileSync(path.join(tmpDir, '.autoresearch', 'plan.md'), 'utf-8');
+    expect(relPath).toBe(path.join('.nullius', 'plan.md'));
+    const content = fs.readFileSync(path.join(tmpDir, '.nullius', 'plan.md'), 'utf-8');
     expect(content).toContain('# Plan (derived view)');
-    expect(fs.existsSync(path.join(tmpDir, '.autoresearch', 'plan.md.tmp'))).toBe(false);
+    expect(fs.existsSync(path.join(tmpDir, '.nullius', 'plan.md.tmp'))).toBe(false);
   });
 
   it('throws on invalid plan (validation runs before write)', () => {
     expect(() => sm.writePlanMd({ schema_version: 0, steps: [] } as Record<string, unknown>)).toThrow(/schema_version/);
-    expect(fs.existsSync(path.join(tmpDir, '.autoresearch', 'plan.md'))).toBe(false);
+    expect(fs.existsSync(path.join(tmpDir, '.nullius', 'plan.md'))).toBe(false);
   });
 });
 
@@ -3012,17 +3012,17 @@ describe('Stage 3c: saveState with plan', () => {
   it('validates plan, sets plan_md_path, and derives plan.md on saveState', () => {
     const state = baseState({ plan: basePlan() });
     sm.saveState(state);
-    expect(state.plan_md_path).toBe(path.join('.autoresearch', 'plan.md'));
-    const stateJson = JSON.parse(fs.readFileSync(path.join(tmpDir, '.autoresearch', 'state.json'), 'utf-8'));
-    expect(stateJson.plan_md_path).toBe(path.join('.autoresearch', 'plan.md'));
-    const md = fs.readFileSync(path.join(tmpDir, '.autoresearch', 'plan.md'), 'utf-8');
+    expect(state.plan_md_path).toBe(path.join('.nullius', 'plan.md'));
+    const stateJson = JSON.parse(fs.readFileSync(path.join(tmpDir, '.nullius', 'state.json'), 'utf-8'));
+    expect(stateJson.plan_md_path).toBe(path.join('.nullius', 'plan.md'));
+    const md = fs.readFileSync(path.join(tmpDir, '.nullius', 'plan.md'), 'utf-8');
     expect(md).toContain('# Plan (derived view)');
   });
 
   it('skips plan validation when plan is null', () => {
     const state = baseState({ plan: null });
     expect(() => sm.saveState(state)).not.toThrow();
-    expect(fs.existsSync(path.join(tmpDir, '.autoresearch', 'plan.md'))).toBe(false);
+    expect(fs.existsSync(path.join(tmpDir, '.nullius', 'plan.md'))).toBe(false);
   });
 
   it('throws on invalid plan in saveState', () => {
@@ -3030,11 +3030,11 @@ describe('Stage 3c: saveState with plan', () => {
     expect(() => sm.saveState(state)).toThrow(/schema_version/);
   });
 
-  it('derives correct plan_md_path when AUTORESEARCH_CONTROL_DIR is overridden', () => {
+  it('derives correct plan_md_path when NULLIUS_CONTROL_DIR is overridden', () => {
     const customDir = path.join(tmpDir, 'custom_state_dir');
-    const origEnv = process.env['AUTORESEARCH_CONTROL_DIR'];
+    const origEnv = process.env['NULLIUS_CONTROL_DIR'];
     try {
-      process.env['AUTORESEARCH_CONTROL_DIR'] = customDir;
+      process.env['NULLIUS_CONTROL_DIR'] = customDir;
       const customSm = new StateManager(tmpDir);
       customSm.ensureDirs();
       const state = baseState({ plan: basePlan() });
@@ -3043,8 +3043,8 @@ describe('Stage 3c: saveState with plan', () => {
       expect(state.plan_md_path).toBe(path.relative(tmpDir, path.join(customDir, 'plan.md')));
       expect(fs.existsSync(path.join(customDir, 'plan.md'))).toBe(true);
     } finally {
-      if (origEnv === undefined) delete process.env['AUTORESEARCH_CONTROL_DIR'];
-      else process.env['AUTORESEARCH_CONTROL_DIR'] = origEnv;
+      if (origEnv === undefined) delete process.env['NULLIUS_CONTROL_DIR'];
+      else process.env['NULLIUS_CONTROL_DIR'] = origEnv;
       fs.rmSync(customDir, { recursive: true, force: true });
     }
   });
@@ -3053,7 +3053,7 @@ describe('Stage 3c: saveState with plan', () => {
     // In JS, typeof [] === 'object', so we need the Array.isArray guard
     const state = baseState({ plan: [] as unknown as Record<string, unknown> });
     expect(() => sm.saveState(state)).not.toThrow();
-    expect(fs.existsSync(path.join(tmpDir, '.autoresearch', 'plan.md'))).toBe(false);
+    expect(fs.existsSync(path.join(tmpDir, '.nullius', 'plan.md'))).toBe(false);
   });
 });
 
@@ -3074,8 +3074,8 @@ describe('Stage 3c: saveStateWithLedger with plan', () => {
   it('validates plan and derives plan.md during saveStateWithLedger', () => {
     const state = baseState({ plan: basePlan(), run_status: 'running', run_id: 'r1' });
     sm.saveStateWithLedger(state, 'checkpoint', { details: {} });
-    expect(state.plan_md_path).toBe(path.join('.autoresearch', 'plan.md'));
-    expect(fs.existsSync(path.join(tmpDir, '.autoresearch', 'plan.md'))).toBe(true);
+    expect(state.plan_md_path).toBe(path.join('.nullius', 'plan.md'));
+    expect(fs.existsSync(path.join(tmpDir, '.nullius', 'plan.md'))).toBe(true);
   });
 
   it('throws on invalid plan in saveStateWithLedger', () => {

@@ -13,7 +13,7 @@ Important scope note: networked research (literature discovery, metadata lookup,
 Non-goals:
 - No LLM calls (ever).
 - Not a literature crawler/downloader (belongs in project-leader tooling or the generic control plane).
-- No orchestration/state machines/approvals/evaluation logic (belongs in `autoresearch` / `packages/orchestrator`).
+- No orchestration/state machines/approvals/evaluation logic (belongs in `nullius` / `packages/orchestrator`).
 
 ## CLI
 
@@ -103,7 +103,7 @@ cmp -s /tmp/kb_index.json /tmp/kb_index_2.json && echo "byte-identical: yes"
 
 ## Suggested generic control-plane integration
 
-Treat `knowledge_base/kb_index.json` as an **evidence bundle index** input (alongside team packets and artifact manifests). The `autoresearch` / `packages/orchestrator` control plane should:
+Treat `knowledge_base/kb_index.json` as an **evidence bundle index** input (alongside team packets and artifact manifests). The `nullius` / `packages/orchestrator` control plane should:
 
 - validate the JSON against `scripts/schemas/kb_index.schema.json`
 - use `entries[].evidence_paths` (and/or `entries[].path`) to locate local evidence files (Markdown/TeX snapshots, etc.)

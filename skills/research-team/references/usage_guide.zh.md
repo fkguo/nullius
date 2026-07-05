@@ -30,7 +30,7 @@ bash "${SKILL_DIR}/scripts/bin/scaffold_research_workflow.sh" \
   --profile mixed
 ```
 
-真实研究请使用仓外 project root。现在 public `research-team` scaffold / contract-refresh / team-cycle 会对 project root 和真实运行中间产物做 fail-closed：如果它们回指到 autoresearch-lab 开发仓 checkout，命令会直接报错。
+真实研究请使用仓外 project root。现在 public `research-team` scaffold / contract-refresh / team-cycle 会对 project root 和真实运行中间产物做 fail-closed：如果它们回指到 nullius 开发仓 checkout，命令会直接报错。
 
 3) 跑确定性 preflight：
 
@@ -53,7 +53,7 @@ bash "${SKILL_DIR}/scripts/bin/run_team_cycle.sh" \
 脚本不会自动切换 provider。
 
 `--auto-tag` 会把有意义的 base tag 解析成 `<base>-rN`。如果这一轮对应
-`autoresearch` control-plane run，就把解析后的同一个值作为项目本地
+`nullius` control-plane run，就把解析后的同一个值作为项目本地
 `run_id`。canonical artifact root 是 `artifacts/runs/<run_id>/`；
 `team/runs/<tag>/` 只是 research-team reviewer packet/log surface，除非项目
 明确把它镜像或摘要到 `artifacts/runs/<run_id>/research_team/`，否则不要把它当成

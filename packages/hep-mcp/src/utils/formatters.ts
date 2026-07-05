@@ -3,7 +3,7 @@
  * Converts tool results to readable Markdown format
  */
 
-import type { PaperSummary } from '@autoresearch/shared';
+import type { PaperSummary } from '@nullius/shared';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types

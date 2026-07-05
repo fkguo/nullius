@@ -16,7 +16,7 @@ from project_contracts.project_policy import assert_path_allowed, assert_path_wi
 class TestOutputPolicy(unittest.TestCase):
     def test_real_project_rejects_repo_internal_output_path(self) -> None:
         repo_root = dev_repo_root()
-        with self.assertRaisesRegex(ValueError, "outside the autoresearch-lab dev repo"):
+        with self.assertRaisesRegex(ValueError, "outside the nullius dev repo"):
             assert_path_allowed(
                 repo_root / "skills" / "research-team" / ".tmp" / "output",
                 project_policy="real_project",

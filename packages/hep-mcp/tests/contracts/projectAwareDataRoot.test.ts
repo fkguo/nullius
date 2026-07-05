@@ -31,10 +31,10 @@ describe('project-aware HEP data root resolution', () => {
     fs.rmSync(tmpRoot, { recursive: true, force: true });
   });
 
-  it('prefers explicit autoresearch project_root over HEP_DATA_DIR for tool calls', async () => {
+  it('prefers explicit nullius project_root over HEP_DATA_DIR for tool calls', async () => {
     const projectRoot = path.join(tmpRoot, 'project');
     const envDataRoot = path.join(tmpRoot, 'env-hep-data');
-    fs.mkdirSync(path.join(projectRoot, '.autoresearch'), { recursive: true });
+    fs.mkdirSync(path.join(projectRoot, '.nullius'), { recursive: true });
     process.env.HEP_DATA_DIR = envDataRoot;
 
     const result = await handleToolCall('hep_project_create', {
@@ -50,7 +50,7 @@ describe('project-aware HEP data root resolution', () => {
 
   it('project_root also overrides static colocated directory env vars', async () => {
     const projectRoot = path.join(tmpRoot, 'project');
-    fs.mkdirSync(path.join(projectRoot, '.autoresearch'), { recursive: true });
+    fs.mkdirSync(path.join(projectRoot, '.nullius'), { recursive: true });
     process.env.HEP_DATA_DIR = path.join(tmpRoot, 'env-hep-data');
     process.env.HEP_DOWNLOAD_DIR = path.join(tmpRoot, 'env-downloads');
     process.env.WRITING_PROGRESS_DIR = path.join(tmpRoot, 'env-writing-progress');
@@ -95,7 +95,7 @@ describe('project-aware HEP data root resolution', () => {
     expect(payload.error.message).toContain('project_root');
   });
 
-  it('requires project_root to be an initialized autoresearch project', async () => {
+  it('requires project_root to be an initialized nullius project', async () => {
     const projectRoot = path.join(tmpRoot, 'not-initialized');
     fs.mkdirSync(projectRoot, { recursive: true });
 
@@ -107,13 +107,13 @@ describe('project-aware HEP data root resolution', () => {
     expect(result.isError).toBe(true);
     const payload = parsePayload(result);
     expect(payload.error.code).toBe('INVALID_PARAMS');
-    expect(payload.error.data.required_marker).toBe(path.join(projectRoot, '.autoresearch'));
+    expect(payload.error.data.required_marker).toBe(path.join(projectRoot, '.nullius'));
   });
 
   it('uses scratch fallback when neither project_root nor HEP_DATA_DIR is set', () => {
-    expect(resolveHepDataRoot().path).toBe(path.join(os.homedir(), '.autoresearch', 'hep-mcp'));
+    expect(resolveHepDataRoot().path).toBe(path.join(os.homedir(), '.nullius', 'hep-mcp'));
     expect(resolveHepDataRoot().source).toBe('scratch');
-    expect(getDataDir()).toBe(path.join(os.homedir(), '.autoresearch', 'hep-mcp'));
+    expect(getDataDir()).toBe(path.join(os.homedir(), '.nullius', 'hep-mcp'));
   });
 
   it('advertises project_root as a common optional MCP tool input', () => {

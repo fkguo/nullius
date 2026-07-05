@@ -4,7 +4,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { retryWithBackoff, RetryExhaustedError } from '../src/retry.js';
-import { McpError } from '@autoresearch/shared';
+import { McpError } from '@nullius/shared';
 
 describe('retryWithBackoff (H-19)', () => {
   it('returns value on first success', async () => {

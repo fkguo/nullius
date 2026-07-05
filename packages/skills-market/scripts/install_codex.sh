@@ -2,7 +2,7 @@
 set -euo pipefail
 
 INPUT_ROOT="${1:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
-TARGET_DIR="${HOME}/.codex/skills/autoresearch-market"
+TARGET_DIR="${HOME}/.codex/skills/nullius-market"
 
 if [[ ! -d "$INPUT_ROOT" ]]; then
   echo "[error] MARKET_ROOT does not exist or is not a directory: $INPUT_ROOT" >&2

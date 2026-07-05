@@ -15,14 +15,14 @@ def main() -> int:
     pkg_dir = root / "packages"
     schema_path = root / "schemas" / "market-package.schema.json"
     index_path = pkg_dir / "index.json"
-    meta_root = pathlib.Path(os.environ.get("AUTORESEARCH_META_ROOT", str(root.parent / "autoresearch-meta"))).expanduser()
+    meta_root = pathlib.Path(os.environ.get("NULLIUS_META_ROOT", str(root.parent / "nullius-meta"))).expanduser()
     manifest_path = pathlib.Path(
         os.environ.get(
-            "AUTORESEARCH_META_MANIFEST",
+            "NULLIUS_META_MANIFEST",
             str(meta_root / "compatibility-matrix" / "ecosystem-manifest.json"),
         )
     ).expanduser()
-    explicit_manifest_path = "AUTORESEARCH_META_ROOT" in os.environ or "AUTORESEARCH_META_MANIFEST" in os.environ
+    explicit_manifest_path = "NULLIUS_META_ROOT" in os.environ or "NULLIUS_META_MANIFEST" in os.environ
 
     errs: list[str] = []
     warns: list[str] = []

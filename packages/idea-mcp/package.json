@@ -1,6 +1,6 @@
 {
-  "name": "@autoresearch/idea-mcp",
-  "version": "0.3.0",
+  "name": "@nullius/idea-mcp",
+  "version": "0.4.0",
   "private": true,
   "description": "MCP surface for the TS idea campaign runtime",
   "type": "module",
@@ -21,8 +21,8 @@
     "vitest": "^3.0.0"
   },
   "dependencies": {
-    "@autoresearch/idea-engine": "workspace:^",
-    "@autoresearch/shared": "workspace:^",
+    "@nullius/idea-engine": "workspace:^",
+    "@nullius/shared": "workspace:^",
     "@modelcontextprotocol/sdk": "^1.25.2",
     "zod": "^4.3.5"
   }

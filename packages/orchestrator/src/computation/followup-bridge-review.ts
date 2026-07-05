@@ -1,4 +1,4 @@
-import type { ComputationResultV1, WritingReviewBridgeV1 } from '@autoresearch/shared';
+import type { ComputationResultV1, WritingReviewBridgeV1 } from '@nullius/shared';
 import type { ReviewHandoff, ResearchEdge, ResearchNode, ResearchTaskInput } from '../research-loop/index.js';
 import type { DraftContext } from './followup-bridge-context.js';
 

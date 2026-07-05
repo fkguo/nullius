@@ -1,5 +1,5 @@
 import Ajv2020 from 'ajv/dist/2020.js';
-import { invalidParams, type ComputationResultV1 } from '@autoresearch/shared';
+import { invalidParams, type ComputationResultV1 } from '@nullius/shared';
 import artifactRefSchema from '../../../../meta/schemas/artifact_ref_v1.schema.json' with { type: 'json' };
 import computationResultSchema from '../../../../meta/schemas/computation_result_v1.schema.json' with { type: 'json' };
 
@@ -19,7 +19,7 @@ const ajv = new (Ajv2020 as unknown as AjvConstructor)({
 
 ajv.addSchema?.(
   artifactRefSchema as Record<string, unknown>,
-  'https://autoresearch.dev/schemas/artifact_ref_v1.schema.json',
+  'https://nullius.dev/schemas/artifact_ref_v1.schema.json',
 );
 
 const validator = ajv.compile(computationResultSchema as Record<string, unknown>);

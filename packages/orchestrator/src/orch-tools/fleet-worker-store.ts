@@ -1,7 +1,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import Ajv2020 from 'ajv/dist/2020.js';
-import { writeJsonAtomicDurable, type FleetWorkersV1 } from '@autoresearch/shared';
+import { writeJsonAtomicDurable, type FleetWorkersV1 } from '@nullius/shared';
 import fleetWorkersSchema from '../../../../meta/schemas/fleet_workers_v1.schema.json' with { type: 'json' };
 import { utcNowIso } from '../util.js';
 import type { ReadModelError } from './run-read-model.js';
@@ -50,7 +50,7 @@ export type FleetWorkersReadResult = {
 };
 
 export function fleetWorkersPath(projectRoot: string): string {
-  return path.join(projectRoot, '.autoresearch', 'fleet_workers.json');
+  return path.join(projectRoot, '.nullius', 'fleet_workers.json');
 }
 
 export function createEmptyFleetWorkers(): FleetWorkersV1 {

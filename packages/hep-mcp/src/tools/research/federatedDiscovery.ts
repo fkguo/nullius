@@ -14,7 +14,7 @@ import {
   type DiscoveryQueryReformulationArtifact,
   type DiscoveryRerankArtifact,
   type DiscoverySearchLogEntry,
-} from '@autoresearch/shared';
+} from '@nullius/shared';
 import { DISCOVERY_PROVIDER_DESCRIPTORS } from './discovery/providerDescriptors.js';
 import { artifactRefs, discoveryDir, readSearchLogEntries, writeJsonArtifact, writeSearchLog, type DiscoveryArtifactRefs } from './discovery/storage.js';
 import { buildDiscoveryQueryProbe, defaultAssessDiscoveryQuery } from './discovery/queryAssessment.js';

@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { invalidParams, notFound, verifyIntegrityReceipt } from '@autoresearch/shared';
+import { invalidParams, notFound, verifyIntegrityReceipt } from '@nullius/shared';
 import { z } from 'zod';
 import { createStateManager, requireState } from './common.js';
 import { consumeApprovedFinalConclusions } from './final-conclusions.js';
@@ -39,7 +39,7 @@ export async function handleOrchRunApprove(
   const pending = getPendingApproval(state, params.approval_id);
 
   // P3-A followup-4: refuse to approve without an integrity receipt for this
-  // approval_id. Honors the AUTORESEARCH_INTEGRITY_VERIFY skip semantics
+  // approval_id. Honors the NULLIUS_INTEGRITY_VERIFY skip semantics
   // (NODE_ENV=test default-skips so the existing approval suite stays green;
   // the regression test forces verify=on to exercise the rejection path).
   verifyIntegrityReceipt(projectRoot, params.approval_id);

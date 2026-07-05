@@ -21,7 +21,7 @@ export function getDataDir(): string {
   }
 
   // Convenience: when hep-mcp is configured with HEP_DATA_DIR, default to a
-  // subdirectory within it so all autoresearch data stays co-located.
+  // subdirectory within it so all nullius data stays co-located.
   const hepDataDir = process.env[HEP_DATA_DIR_ENV];
   if (hepDataDir && hepDataDir.trim().length > 0) {
     return path.resolve(path.join(expandTilde(hepDataDir), 'hepdata'));

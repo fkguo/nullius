@@ -397,7 +397,7 @@ describe('vNext M10: hep_export_project (research_pack.zip + notebooklm_pack)', 
 
   it('reads PDG artifacts from project_root scoped storage when exporting a project run', async () => {
     const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'hep-export-project-root-'));
-    fs.mkdirSync(path.join(projectRoot, '.autoresearch'), { recursive: true });
+    fs.mkdirSync(path.join(projectRoot, '.nullius'), { recursive: true });
 
     const envPdgArtifactsDir = path.join(pdgDataDir, 'artifacts');
     fs.mkdirSync(envPdgArtifactsDir, { recursive: true });

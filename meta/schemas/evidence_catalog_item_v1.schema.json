@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://autoresearch.dev/schemas/evidence_catalog_item_v1.schema.json",
+  "$id": "https://nullius.dev/schemas/evidence_catalog_item_v1.schema.json",
   "title": "Evidence Catalog Item V1",
   "description": "Unified evidence catalog item for LaTeX and PDF sources. Each item represents a piece of evidence extracted from a research paper.",
   "type": "object",
@@ -52,7 +52,7 @@
       "description": "Type-specific metadata (e.g. equation_type, label, section_path)."
     },
     "artifact_ref": {
-      "$ref": "https://autoresearch.dev/schemas/artifact_ref_v1.schema.json",
+      "$ref": "https://nullius.dev/schemas/artifact_ref_v1.schema.json",
       "description": "Optional content-addressed reference to the source artifact."
     }
   },

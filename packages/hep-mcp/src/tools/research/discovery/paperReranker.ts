@@ -5,7 +5,7 @@ import {
   type CanonicalPaper,
   type DiscoveryRerankedPaper,
   type DiscoveryRerankArtifact,
-} from '@autoresearch/shared';
+} from '@nullius/shared';
 import { buildToolSamplingMetadata } from '../../../core/sampling-metadata.js';
 import { clamp01, extractSamplingText } from '../../../core/semantics/quantitySampling.js';
 import { buildPaperRerankerPrompt } from './paperRerankerPrompt.js';

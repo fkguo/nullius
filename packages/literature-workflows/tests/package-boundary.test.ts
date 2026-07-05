@@ -22,8 +22,8 @@ describe('literature-workflows package boundary', () => {
     };
     const standaloneCliPath = path.join(repoRoot, 'packages', 'literature-workflows', 'src', 'cli.ts');
 
-    expect(packageJson.dependencies?.['@autoresearch/hep-mcp']).toBeUndefined();
-    expect(packageJson.devDependencies?.['@autoresearch/hep-mcp']).toBeUndefined();
+    expect(packageJson.dependencies?.['@nullius/hep-mcp']).toBeUndefined();
+    expect(packageJson.devDependencies?.['@nullius/hep-mcp']).toBeUndefined();
     expect(packageJson).not.toHaveProperty('bin');
     expect(fs.existsSync(standaloneCliPath)).toBe(false);
   });
@@ -32,7 +32,7 @@ describe('literature-workflows package boundary', () => {
     const providerProfilesPath = path.join(repoRoot, 'packages', 'literature-workflows', 'src', 'providerProfiles.ts');
     const providerProfilesSource = fs.readFileSync(providerProfilesPath, 'utf8');
 
-    expect(providerProfilesSource).not.toContain('@autoresearch/hep-mcp');
+    expect(providerProfilesSource).not.toContain('@nullius/hep-mcp');
   });
 
   it('keeps generic literature workflow source free of hep-mcp source imports', () => {
@@ -42,7 +42,7 @@ describe('literature-workflows package boundary', () => {
       .map(filePath => fs.readFileSync(filePath, 'utf8'))
       .join('\n');
 
-    expect(sourceText).not.toContain('@autoresearch/hep-mcp');
+    expect(sourceText).not.toContain('@nullius/hep-mcp');
     expect(sourceText).not.toContain('packages/hep-mcp');
   });
 });

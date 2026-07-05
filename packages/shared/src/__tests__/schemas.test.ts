@@ -1,5 +1,5 @@
 /**
- * Tests for Zod schemas in @autoresearch/shared
+ * Tests for Zod schemas in @nullius/shared
  */
 
 import { describe, it, expect } from 'vitest';

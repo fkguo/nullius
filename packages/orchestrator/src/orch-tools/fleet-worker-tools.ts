@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { invalidParams, type FleetQueueV1 } from '@autoresearch/shared';
+import { invalidParams, type FleetQueueV1 } from '@nullius/shared';
 import { utcNowIso } from '../util.js';
 import { createStateManager } from './common.js';
 import { readFleetQueue, writeFleetQueue, type FleetQueueItem } from './fleet-queue-store.js';
@@ -43,7 +43,7 @@ function requireValidQueue(projectRoot: string) {
   const readResult = readFleetQueue(projectRoot);
   if (readResult.errors.length > 0) {
     throw invalidParams('fleet queue is invalid', {
-      fleet_queue_path: `${projectRoot}/.autoresearch/fleet_queue.json`,
+      fleet_queue_path: `${projectRoot}/.nullius/fleet_queue.json`,
       errors: readResult.errors,
     });
   }

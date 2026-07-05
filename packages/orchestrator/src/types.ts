@@ -1,4 +1,4 @@
-// @autoresearch/orchestrator — lifecycle state and approval policy types
+// @nullius/orchestrator — lifecycle state and approval policy types
 
 export type RunStatus =
   | 'idle'

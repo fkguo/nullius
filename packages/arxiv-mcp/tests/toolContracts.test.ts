@@ -9,7 +9,7 @@ import {
   normalizeArxivId,
 } from '../src/tools/registry.js';
 import { handleToolCall } from '../src/tools/dispatcher.js';
-import { ARXIV_SEARCH, ARXIV_GET_METADATA, ARXIV_PAPER_SOURCE } from '@autoresearch/shared';
+import { ARXIV_SEARCH, ARXIV_GET_METADATA, ARXIV_PAPER_SOURCE } from '@nullius/shared';
 import { zodToMcpInputSchema } from '../src/tools/mcpSchema.js';
 
 // ─────────────────────────────────────────────────────────────────────────────

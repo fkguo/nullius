@@ -6,7 +6,7 @@ import type {
   VerificationCoverageV1,
   VerificationSubjectV1,
   VerificationSubjectVerdictV1,
-} from '@autoresearch/shared';
+} from '@nullius/shared';
 import { createRunArtifactRef, makeRunArtifactUri } from './artifact-refs.js';
 import { assertExecutionPlanValid } from './execution-plan.js';
 import { planComputationFollowupBridges, writeComputationFollowupBridgeArtifacts } from './followup-bridges.js';
@@ -216,7 +216,7 @@ export function writeComputationResultArtifact(params: {
     summary,
     feedback_lowering: feedbackLowering,
     executor_provenance: {
-      orchestrator_component: '@autoresearch/orchestrator',
+      orchestrator_component: '@nullius/orchestrator',
       execution_surface: 'computation_manifest_executor',
       approval_gate: 'A3' as const,
       step_tools: [...new Set(params.prepared.steps.map(step => step.tool))],

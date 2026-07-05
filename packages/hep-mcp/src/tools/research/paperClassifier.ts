@@ -1,4 +1,4 @@
-import type { PaperSummary } from '@autoresearch/shared';
+import type { PaperSummary } from '@nullius/shared';
 import type { SemanticAssessmentProvenance } from './semantic/semanticProvenance.js';
 import { withSignals } from './semantic/semanticProvenance.js';
 

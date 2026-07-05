@@ -1,5 +1,5 @@
-import { TOOL_SPECS as ARXIV_TOOL_SPECS } from '@autoresearch/arxiv-mcp/tooling';
-import { TOOL_SPECS as HEPDATA_MCP_TOOL_SPECS } from '@autoresearch/hepdata-mcp/tooling';
+import { TOOL_SPECS as ARXIV_TOOL_SPECS } from '@nullius/arxiv-mcp/tooling';
+import { TOOL_SPECS as HEPDATA_MCP_TOOL_SPECS } from '@nullius/hepdata-mcp/tooling';
 import {
   HEP_RUN_INGEST_SKILL_ARTIFACTS,
 } from '../../tool-names.js';

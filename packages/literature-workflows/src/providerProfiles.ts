@@ -1,9 +1,9 @@
-import { ARXIV_DISCOVERY_DESCRIPTOR } from '@autoresearch/arxiv-mcp/tooling';
-import { OPENALEX_DISCOVERY_DESCRIPTOR } from '@autoresearch/openalex-mcp/tooling';
+import { ARXIV_DISCOVERY_DESCRIPTOR } from '@nullius/arxiv-mcp/tooling';
+import { OPENALEX_DISCOVERY_DESCRIPTOR } from '@nullius/openalex-mcp/tooling';
 import {
   DiscoveryProviderDescriptorSchema,
   type DiscoveryProviderDescriptor,
-} from '@autoresearch/shared';
+} from '@nullius/shared';
 import type { WorkflowActionId, WorkflowCapabilityId, WorkflowProviderId } from './types.js';
 
 type ProviderProfile = {

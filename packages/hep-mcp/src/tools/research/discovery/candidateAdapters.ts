@@ -1,5 +1,5 @@
-import type { ArxivMetadata } from '@autoresearch/arxiv-mcp/tooling';
-import type { CanonicalCandidate, DiscoveryCandidateChannel, PaperSummary } from '@autoresearch/shared';
+import type { ArxivMetadata } from '@nullius/arxiv-mcp/tooling';
+import type { CanonicalCandidate, DiscoveryCandidateChannel, PaperSummary } from '@nullius/shared';
 
 type OpenAlexWorkLike = Record<string, unknown>;
 

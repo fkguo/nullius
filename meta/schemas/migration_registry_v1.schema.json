@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://autoresearch.dev/schemas/migration_registry_v1.schema.json",
+  "$id": "https://nullius.dev/schemas/migration_registry_v1.schema.json",
   "title": "Migration Registry V1",
   "description": "Registry of schema migration chains. Each entry describes how to migrate artifacts from one schema version to another.",
   "type": "object",

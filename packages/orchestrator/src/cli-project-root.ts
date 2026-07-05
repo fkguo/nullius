@@ -3,14 +3,14 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 
 function looksLikeProjectRoot(candidate: string): boolean {
-  const autoresearchDir = path.join(candidate, '.autoresearch');
-  if (!fs.existsSync(autoresearchDir) || !fs.statSync(autoresearchDir).isDirectory()) {
+  const nulliusDir = path.join(candidate, '.nullius');
+  if (!fs.existsSync(nulliusDir) || !fs.statSync(nulliusDir).isDirectory()) {
     return false;
   }
-  const initMarker = path.join(autoresearchDir, '.initialized');
-  const hasState = fs.existsSync(path.join(autoresearchDir, 'state.json'));
-  const hasPolicy = fs.existsSync(path.join(autoresearchDir, 'approval_policy.json'));
-  const hasLedger = fs.existsSync(path.join(autoresearchDir, 'ledger.jsonl'));
+  const initMarker = path.join(nulliusDir, '.initialized');
+  const hasState = fs.existsSync(path.join(nulliusDir, 'state.json'));
+  const hasPolicy = fs.existsSync(path.join(nulliusDir, 'approval_policy.json'));
+  const hasLedger = fs.existsSync(path.join(nulliusDir, 'ledger.jsonl'));
   if (fs.existsSync(initMarker)) {
     if (!hasState && !hasPolicy) return false;
   } else if (!hasState || (!hasPolicy && !hasLedger)) {

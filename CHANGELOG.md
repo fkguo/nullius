@@ -1,13 +1,41 @@
 # Changelog
 
-Notable changes to autoresearch-lab. The format follows
+Notable changes to nullius. The format follows
 [Keep a Changelog](https://keepachangelog.com/). The project is **pre-1.0**: all
 workspace packages move in lockstep on a single `0.x` version, breaking changes may
 occur in any `0.x` release, and there is no API-stability promise yet. Dated, tagged
 releases begin at the first published release; until then the current development
 version is the lockstep number below.
 
-## [Unreleased]
+## [0.4.0] - 2026-07-05
+
+### Changed
+- **Repository renamed: `autoresearch-lab` → `nullius`** (after the Royal Society motto
+  *Nullius in verba*). One mechanical, repo-wide rename with no compatibility layer —
+  the project is pre-1.0 and carries no backward-compatibility burden. Renamed surfaces:
+  - package scope `@autoresearch/*` → `@nullius/*` (all 13 workspace packages, imports,
+    workspace dependencies);
+  - CLI front door `autoresearch` → `nullius` (bin name, help text, command inventory);
+  - project state directory `.autoresearch/` → `.nullius/`, including the project-local
+    launcher `.nullius/bin/nullius`, the `HARNESS` sentinel (kind
+    `nullius_project_harness`) and the `HARNESS_INVOCATION` receipt (kind
+    `nullius_harness_invocation`);
+  - environment/constant prefix `AUTORESEARCH_*` → `NULLIUS_*`;
+  - JSON-schema `$id`/`$ref` namespace `https://autoresearch.dev/...` →
+    `https://nullius.dev/...` (identifier namespace only; schema content unchanged);
+  - global scratch data root `~/.autoresearch/` → `~/.nullius/`.
+
+  Existing external projects: staying on `v0.3.0` is a supported resting point. To
+  migrate, rename the state directory (`mv .autoresearch .nullius`), delete the old
+  launcher, run `nullius init --runtime-only` then `nullius init --refresh` from the
+  project root; lifecycle state (`state.json`, `ledger.jsonl`) carries over unchanged.
+  See the migration guide in `docs/`.
+- **`kimi-cli-runner`: long-verification hardening.** New `--timeout-secs` per-attempt
+  hard timeout (default 900 s, `0` disables) and `--raw-out` / `--stderr-out` options
+  that preserve the last attempt's raw stdout/stderr for an auditable trace of tool
+  calls, provider warnings, and partial output on long reviewer/verification runs.
+
+## [0.3.0] - 2026-07-05
 
 ### Added
 - **`research-writer`: manuscript result-traceability gate.** `check_result_traceability.py`

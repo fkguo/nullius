@@ -19,7 +19,7 @@ import {
   ORCH_RUN_STAGE_CONTENT,
   ORCH_RUN_STAGE_IDEA,
   ORCH_RUN_STATUS,
-} from '@autoresearch/shared';
+} from '@nullius/shared';
 import {
   handleOrchRunApprove,
   handleOrchRunApprovalsList,
@@ -144,7 +144,7 @@ export const ORCH_TOOL_SPECS: OrchestratorToolSpec[] = [
     name: ORCH_RUN_RECORD_PROPOSAL_DECISION,
     tier: 'core',
     exposure: 'full',
-    description: "Record one local operator decision for the current run's current repair/skill/optimize/innovate proposal and write proposal decision memory into .autoresearch/proposal_decisions_v1.json (local-only).",
+    description: "Record one local operator decision for the current run's current repair/skill/optimize/innovate proposal and write proposal decision memory into .nullius/proposal_decisions_v1.json (local-only).",
     zodSchema: OrchRunRecordProposalDecisionSchema,
     handler: async params => handleOrchRunRecordProposalDecision(params as z.output<typeof OrchRunRecordProposalDecisionSchema>),
   },
@@ -160,7 +160,7 @@ export const ORCH_TOOL_SPECS: OrchestratorToolSpec[] = [
     name: ORCH_RUN_CREATE,
     tier: 'core',
     exposure: 'full',
-    description: 'Create (or idempotently replay) an autoresearch orchestrator run in a local project root. Initializes .autoresearch/ state (local-only).',
+    description: 'Create (or idempotently replay) an nullius orchestrator run in a local project root. Initializes .nullius/ state (local-only).',
     zodSchema: OrchRunCreateSchema,
     handler: async params => handleOrchRunCreate(params as z.output<typeof OrchRunCreateSchema>),
   },

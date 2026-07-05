@@ -10,7 +10,7 @@ import {
   type RelatedPapers,
   type PaperSummary,
   FindRelatedParamsSchema,
-} from '@autoresearch/shared';
+} from '@nullius/shared';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types

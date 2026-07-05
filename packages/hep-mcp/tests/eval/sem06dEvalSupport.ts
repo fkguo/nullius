@@ -9,7 +9,7 @@ import type {
   DiscoveryProviderId,
   DiscoveryQueryIntent,
   DiscoveryQueryReformulationArtifact,
-} from '@autoresearch/shared';
+} from '@nullius/shared';
 
 export type FixtureCandidate = {
   title: string;

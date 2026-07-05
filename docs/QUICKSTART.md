@@ -4,64 +4,64 @@
 - **Draft Path**：你已准备好结构化草稿数据，追求最短落地路径。
 - **Client Path**：你希望走高质量、Evidence-first 的完整写作流程。
 
-本页面向当前最成熟的 domain pack 上手路径，而不是重新定义 root 产品身份。generic lifecycle + workflow-plan front door 仍是 `autoresearch`；这里的 `hep_*` 路径只是在此基础上进入当前最强的 HEP evidence/project/run workflow family。
+本页面向当前最成熟的 domain pack 上手路径，而不是重新定义 root 产品身份。generic lifecycle + workflow-plan front door 仍是 `nullius`；这里的 `hep_*` 路径只是在此基础上进入当前最强的 HEP evidence/project/run workflow family。
 
 > 参数名以当前 Zod schema 为准；请始终以 MCP tool `inputSchema` 为最终准据。
 
 ## Generic First-Touch（先走 generic front door）
 
-在 Codex / Claude Code / OpenCode 里继续一个外部研究项目时，优先安装或启用 `research-harness` skill。它不是新的 CLI；它会指导 agent 先读取 `.autoresearch/HARNESS`、`.autoresearch/`、`research_plan.md#Current Status`、`research_contract.md` 与相关 `artifacts/runs/`，再把生命周期操作交给 `autoresearch`、把里程碑推进交给 `research-team`、把 Markdown 笔记清理交给 `markdown-hygiene`、把 HEP 文献/证据工作交给 `hep-mcp`。
+在 Codex / Claude Code / OpenCode 里继续一个外部研究项目时，优先安装或启用 `research-harness` skill。它不是新的 CLI；它会指导 agent 先读取 `.nullius/HARNESS`、`.nullius/`、`research_plan.md#Current Status`、`research_contract.md` 与相关 `artifacts/runs/`，再把生命周期操作交给 `nullius`、把里程碑推进交给 `research-team`、把 Markdown 笔记清理交给 `markdown-hygiene`、把 HEP 文献/证据工作交给 `hep-mcp`。
 
 给 Codex、Claude Code、OpenCode、Cursor、Kimi-code 等 agent 的通常启动指令应当是幂等的：同一段话同时覆盖第一次使用、关闭后重启、断网后恢复。
 
 ```text
-You are in a folder that should be managed by autoresearch.
+You are in a folder that should be managed by nullius.
 First determine whether it is already initialized.
 
-If .autoresearch/HARNESS exists, obtain a status receipt before doing any work:
-./.autoresearch/bin/autoresearch status --json
+If .nullius/HARNESS exists, obtain a status receipt before doing any work:
+./.nullius/bin/nullius status --json
 If the project-local launcher is unavailable, run:
-autoresearch status --json
+nullius status --json
 
-If .autoresearch/ exists but .autoresearch/HARNESS is missing, run status first if possible,
+If .nullius/ exists but .nullius/HARNESS is missing, run status first if possible,
 then repair the runtime handshake with:
-autoresearch init --runtime-only
+nullius init --runtime-only
 
-If AGENTS.md and .autoresearch/HARNESS are both missing, initialize the project:
-autoresearch init
+If AGENTS.md and .nullius/HARNESS are both missing, initialize the project:
+nullius init
 Then read the generated AGENTS.md and run:
-./.autoresearch/bin/autoresearch status --json
+./.nullius/bin/nullius status --json
 
 To pull newer managed scaffold doc (AGENTS.md) into an
 already-initialized project without touching your own notes, preview then apply:
-autoresearch init --refresh --dry-run
-autoresearch init --refresh
+nullius init --refresh --dry-run
+nullius init --refresh
 
-Use research-harness if your agent supports it. Treat autoresearch as the lifecycle
+Use research-harness if your agent supports it. Treat nullius as the lifecycle
 authority, research-team as the milestone executor, and fold stable results back into
 research_contract.md, research_plan.md#Current Status, and artifacts/runs/<run_id>/.
 ```
 
-初始化完成后，接续是 local-first 的：`.autoresearch/HARNESS`、`.autoresearch/bin/autoresearch`、`AGENTS.md`、`research_plan.md`、`research_contract.md` 和 `artifacts/runs/<run_id>/` 足以让 agent 在关闭会话或断网后恢复项目状态；只有真实需要外部文献/数据时才需要网络。
+初始化完成后，接续是 local-first 的：`.nullius/HARNESS`、`.nullius/bin/nullius`、`AGENTS.md`、`research_plan.md`、`research_contract.md` 和 `artifacts/runs/<run_id>/` 足以让 agent 在关闭会话或断网后恢复项目状态；只有真实需要外部文献/数据时才需要网络。
 
 如果你还没初始化外部 project root，先走这一条：
 
-1) `autoresearch init --project-root /absolute/path/to/external-project`
-- 建立 `.autoresearch/HARNESS` runtime handshake 与 `.autoresearch/` lifecycle/control-plane 状态。
+1) `nullius init --project-root /absolute/path/to/external-project`
+- 建立 `.nullius/HARNESS` runtime handshake 与 `.nullius/` lifecycle/control-plane 状态。
 
-2) `autoresearch status --project-root /absolute/path/to/external-project`
+2) `nullius status --project-root /absolute/path/to/external-project`
 - 确认 lifecycle state、审批与后续 workflow-plan / computation 入口可见。
 
-3) `autoresearch workflow-plan --recipe literature_to_evidence`
+3) `nullius workflow-plan --recipe literature_to_evidence`
 - 如需高层 literature planning front door，可先完成这一步；随后再按下方 HEP 路径进入当前最强的 domain-pack workflow family。
 
 如果你只想先把一个研究题目收敛成后续 handoff contract，而不启动重流程，可以使用 `research_brainstorm` durable harness：
 
 ```bash
-autoresearch workflow-plan --recipe research_brainstorm --run-id 20260502T023000Z-m0-topic-r1 --topic "<topic>"
+nullius workflow-plan --recipe research_brainstorm --run-id 20260502T023000Z-m0-topic-r1 --topic "<topic>"
 ```
 
-它会持久化 `.autoresearch/state.json#/plan` 并派生 `.autoresearch/plan.md` read model，输出的 `next_contract` 可建议后续 `literature_landscape`、`literature_gap_analysis`、`derivation_cycle` 或 `review_cycle`，但不会自动升级到这些 recipe。这个 harness 是 planning-only：持久化的 `research_brainstorm.*` step tools 是 handoff authority，不是内置 runnable tool chain。host-native thinking process 不属于这个 recipe 的 contract；它也不是 idea-engine、不是 full research-team、不是新的 root front door。
+它会持久化 `.nullius/state.json#/plan` 并派生 `.nullius/plan.md` read model，输出的 `next_contract` 可建议后续 `literature_landscape`、`literature_gap_analysis`、`derivation_cycle` 或 `review_cycle`，但不会自动升级到这些 recipe。这个 harness 是 planning-only：持久化的 `research_brainstorm.*` step tools 是 handoff authority，不是内置 runnable tool chain。host-native thinking process 不属于这个 recipe 的 contract；它也不是 idea-engine、不是 full research-team、不是新的 root front door。
 
 研究记录约定：`research_plan.md#Current Status` 是给人看的状态入口，应在长 task board / log 之前写清最终目标、当前阶段、完成状态、阻塞、下一步、停止条件和证据指针；`research_notebook.md` 按问题逻辑、推导、claim 和不确定性组织，不承载状态追踪。重要文献 note 必须全文/source-first 阅读，记录 section/page/equation/figure 覆盖，并用 LaTeX math 写科学记号；带日期的 run log、原始检索摘要、下载尝试和控制面观察写入 `research_plan.md` progress log 或 `artifacts/runs/<run_id>/`，再把稳定理解折回 notebook。`run_id` 应是 safe、sortable、readable 的研究标识，如 `20260502T023000Z-m3-branch-scan-r1`；若 `workflow-plan` 未显式传 `--run-id`，派生的 `<recipe>-<phase>` 只作为 planning placeholder。
 
@@ -104,8 +104,8 @@ autoresearch workflow-plan --recipe research_brainstorm --run-id 20260502T023000
 3) `hep_run_build_writing_evidence`（**必需**）
 - 若缺少该步骤，后续依赖 evidence/embeddings 的流程会 fail-fast。
 
-4) `autoresearch workflow-plan --recipe literature_to_evidence`
-- 先在目标外部 project root 执行 `autoresearch init`，然后在该 root 内或通过 `--project-root` 调用；这是一个公开的 stateful front door，会直接通过 `@autoresearch/literature-workflows` 解析 checked-in workflow authority，并写入 `.autoresearch/state.json#/plan` / `.autoresearch/plan.md`。对受限论文集分析使用 `inspire_critical_analysis`、`inspire_classify_reviews`、`inspire_theoretical_conflicts` 等 bounded operators。
+4) `nullius workflow-plan --recipe literature_to_evidence`
+- 先在目标外部 project root 执行 `nullius init`，然后在该 root 内或通过 `--project-root` 调用；这是一个公开的 stateful front door，会直接通过 `@nullius/literature-workflows` 解析 checked-in workflow authority，并写入 `.nullius/state.json#/plan` / `.nullius/plan.md`。对受限论文集分析使用 `inspire_critical_analysis`、`inspire_classify_reviews`、`inspire_theoretical_conflicts` 等 bounded operators。
 
 > 说明：较底层的 checked-in Python `workflow-plan` consumer 与 internal regression/parser-residue 路径见 `docs/TESTING_GUIDE.md`；不要把它们当成新的 quickstart 默认入口。
 

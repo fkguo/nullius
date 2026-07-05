@@ -3273,15 +3273,15 @@ fi
 if [[ -f "${CLAIM_AUTO_SCRIPT}" ]]; then
   python3 "${CLAIM_AUTO_SCRIPT}" --notes "${NOTEBOOK_PATH}" --status "converged" || true
 fi
-# At convergence, best-effort render dependency graphs through the `autoresearch graph`
-# front door (SSOT = @autoresearch/shared/graph-viz), replacing the retired Python claim
+# At convergence, best-effort render dependency graphs through the `nullius graph`
+# front door (SSOT = @nullius/shared/graph-viz), replacing the retired Python claim
 # renderer. Both emits are fully optional and bounded (run_bounded_best_effort): skipped
-# silently when no `autoresearch` CLI is reachable, and they never affect convergence.
+# silently when no `nullius` CLI is reachable, and they never affect convergence.
 graph_cli=""
-if [[ -x "${PROJECT_ROOT}/.autoresearch/bin/autoresearch" ]]; then
-  graph_cli="${PROJECT_ROOT}/.autoresearch/bin/autoresearch"
-elif command -v autoresearch >/dev/null 2>&1; then
-  graph_cli="autoresearch"
+if [[ -x "${PROJECT_ROOT}/.nullius/bin/nullius" ]]; then
+  graph_cli="${PROJECT_ROOT}/.nullius/bin/nullius"
+elif command -v nullius >/dev/null 2>&1; then
+  graph_cli="nullius"
 fi
 if [[ -n "${graph_cli}" ]]; then
   # Claim DAG (what we believe) — the epistemic view, when a claim graph exists.

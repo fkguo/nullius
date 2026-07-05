@@ -4,12 +4,12 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-// `autoresearch workflow-plan` is a native TS front door in the orchestrator
+// `nullius workflow-plan` is a native TS front door in the orchestrator
 // package, so it may consume the checked-in literature workflow pack in
 // addition to shared contract/control-plane helpers.
 const ALLOWED_WORKSPACE_IMPORTS = new Set([
-  '@autoresearch/shared',
-  '@autoresearch/literature-workflows',
+  '@nullius/shared',
+  '@nullius/literature-workflows',
 ]);
 // Exact-name only: `app-state` or `ui-kit` do not match these reserved
 // top-level shell/app-layer directory names.
@@ -37,7 +37,7 @@ function collectTsFiles(dirPath: string): string[] {
 
 // The boundary is package-level: a specifier is allowed when its workspace
 // PACKAGE (`@scope/name`) is allowed, including a package's sanctioned subpath
-// exports (e.g. `@autoresearch/shared/graph-viz`). The package's own `exports`
+// exports (e.g. `@nullius/shared/graph-viz`). The package's own `exports`
 // map still gates which subpaths actually resolve.
 function workspacePackageName(specifier: string): string {
   return specifier.split('/').slice(0, 2).join('/');
@@ -45,9 +45,9 @@ function workspacePackageName(specifier: string): string {
 
 function findWorkspaceImportOffenders(source: string): string[] {
   const offenders: string[] = [];
-  const importPattern = /['"](@autoresearch\/[^'"]+)['"]/g;
+  const importPattern = /['"](@nullius\/[^'"]+)['"]/g;
   for (const [index, line] of source.split('\n').entries()) {
-    if (!line.includes('@autoresearch/')) continue;
+    if (!line.includes('@nullius/')) continue;
     if (!/(?:^\s*import\b|^\s*export\b|\bfrom\s*['"]|\bimport\s*\()/.test(line)) continue;
     importPattern.lastIndex = 0;
     for (const match of line.matchAll(importPattern)) {
@@ -96,7 +96,7 @@ function packageDependencyOffenders(packageJsonPath: string): string[] {
     const entries = packageJson[group];
     if (!entries || typeof entries !== 'object' || Array.isArray(entries)) continue;
     for (const name of Object.keys(entries)) {
-      if (name.startsWith('@autoresearch/') && !ALLOWED_WORKSPACE_IMPORTS.has(name)) {
+      if (name.startsWith('@nullius/') && !ALLOWED_WORKSPACE_IMPORTS.has(name)) {
         offenders.push(`${group}:${name}`);
       }
       if (isForbiddenUiSpecifier(name)) {
@@ -156,7 +156,7 @@ describe('orchestrator package boundary', () => {
     expect([...sourceOffenders, ...dependencyOffenders]).toEqual([]);
   });
 
-  it('keeps autoresearch CLI command handlers out of the top-level startup path', () => {
+  it('keeps nullius CLI command handlers out of the top-level startup path', () => {
     const repoRoot = repoRootFromThisFile();
     const cliSourcePath = path.join(repoRoot, 'packages', 'orchestrator', 'src', 'cli.ts');
     const source = fs.readFileSync(cliSourcePath, 'utf-8');

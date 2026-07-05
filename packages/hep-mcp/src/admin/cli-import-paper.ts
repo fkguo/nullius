@@ -64,7 +64,7 @@ Options:
   --json                  emit JSON instead of human-readable report.
   -h, --help              show this help.
 
-The cache root is ~/.autoresearch/hep-mcp/papers_cache/ (override with
+The cache root is ~/.nullius/hep-mcp/papers_cache/ (override with
 HEP_PAPERS_CACHE_DIR env). A first-time import is purely additive and never
 requires --confirm.
 `;

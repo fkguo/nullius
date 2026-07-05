@@ -79,7 +79,7 @@ jobs:
 
       - run: pnpm -r build
 
-      - run: pnpm --filter @autoresearch/hep-mcp docs:tool-counts:check
+      - run: pnpm --filter @nullius/hep-mcp docs:tool-counts:check
 
       - run: pnpm -r lint
 

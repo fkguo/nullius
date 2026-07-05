@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://autoresearch.dev/schemas/memory_graph_edge_v1.schema.json",
+  "$id": "https://nullius.dev/schemas/memory_graph_edge_v1.schema.json",
   "title": "MemoryGraphEdge V1",
   "description": "Edge in the Cross-Cycle Memory Graph. Connects nodes with typed, weighted, decay-aware relationships.",
   "type": "object",

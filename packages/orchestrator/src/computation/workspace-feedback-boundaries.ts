@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { ComputationResultV1 } from '@autoresearch/shared';
+import type { ComputationResultV1 } from '@nullius/shared';
 import { utcNowIso } from '../util.js';
 import { loopNodeIdsFor } from './feedback-lowering.js';
 

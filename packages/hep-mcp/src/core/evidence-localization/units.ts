@@ -1,4 +1,4 @@
-import type { EvidenceLocalizationUnit, EvidenceType } from '@autoresearch/shared';
+import type { EvidenceLocalizationUnit, EvidenceType } from '@nullius/shared';
 
 import { mapEvidenceTypeToLocalizationUnit } from './scoring.js';
 

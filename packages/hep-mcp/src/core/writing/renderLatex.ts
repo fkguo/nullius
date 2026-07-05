@@ -1,5 +1,5 @@
 import * as fs from 'fs';
-import { invalidParams, writeBytesAtomicDurable } from '@autoresearch/shared';
+import { invalidParams, writeBytesAtomicDurable } from '@nullius/shared';
 
 import { getRun, type RunArtifactRef, type RunManifest, type RunStep, updateRunManifestAtomic } from '../runs.js';
 import { getRunArtifactPath } from '../paths.js';

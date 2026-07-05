@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://autoresearch.dev/schemas/domain_pack_manifest_v1.schema.json",
+  "$id": "https://nullius.dev/schemas/domain_pack_manifest_v1.schema.json",
   "title": "DomainPackManifest V1",
   "description": "Manifest file for a domain pack. Describes the pack's integrity checks, RDI scoring configuration, reproducibility settings, and strategy extensions for a specific research domain.",
   "type": "object",

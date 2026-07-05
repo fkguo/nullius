@@ -1,7 +1,7 @@
 import {
   OPENALEX_DISCOVERY_DESCRIPTOR,
   TOOL_SPECS as OPENALEX_MCP_TOOL_SPECS,
-} from '@autoresearch/openalex-mcp/tooling';
+} from '@nullius/openalex-mcp/tooling';
 import { getHepToolRiskLevel } from '../../tool-risk.js';
 import type { ToolSpec } from './types.js';
 

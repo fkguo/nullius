@@ -372,33 +372,33 @@ export function normalizeWorkflowRuntimeResult(
 }
 
 function parseWorkflowJsonEnv<T>(
-  name: 'AUTORESEARCH_RUN_MCP_ARGS_JSON' | 'AUTORESEARCH_RUN_MCP_ENV_JSON',
+  name: 'NULLIUS_RUN_MCP_ARGS_JSON' | 'NULLIUS_RUN_MCP_ENV_JSON',
   raw: string,
 ): T {
   try {
     return JSON.parse(raw) as T;
   } catch {
-    if (name === 'AUTORESEARCH_RUN_MCP_ARGS_JSON') {
-      throw new Error('AUTORESEARCH_RUN_MCP_ARGS_JSON must decode to a JSON string array');
+    if (name === 'NULLIUS_RUN_MCP_ARGS_JSON') {
+      throw new Error('NULLIUS_RUN_MCP_ARGS_JSON must decode to a JSON string array');
     }
-    throw new Error('AUTORESEARCH_RUN_MCP_ENV_JSON must decode to a JSON object');
+    throw new Error('NULLIUS_RUN_MCP_ENV_JSON must decode to a JSON object');
   }
 }
 
 export function loadWorkflowToolServerConfigFromEnv(): WorkflowToolServerConfig | null {
-  const command = (process.env.AUTORESEARCH_RUN_MCP_COMMAND ?? '').trim();
+  const command = (process.env.NULLIUS_RUN_MCP_COMMAND ?? '').trim();
   if (!command) return null;
-  const argsRaw = (process.env.AUTORESEARCH_RUN_MCP_ARGS_JSON ?? '').trim();
-  const envRaw = (process.env.AUTORESEARCH_RUN_MCP_ENV_JSON ?? '').trim();
-  const args = argsRaw ? parseWorkflowJsonEnv<unknown>('AUTORESEARCH_RUN_MCP_ARGS_JSON', argsRaw) : [];
+  const argsRaw = (process.env.NULLIUS_RUN_MCP_ARGS_JSON ?? '').trim();
+  const envRaw = (process.env.NULLIUS_RUN_MCP_ENV_JSON ?? '').trim();
+  const args = argsRaw ? parseWorkflowJsonEnv<unknown>('NULLIUS_RUN_MCP_ARGS_JSON', argsRaw) : [];
   if (!Array.isArray(args) || !args.every(item => typeof item === 'string')) {
-    throw new Error('AUTORESEARCH_RUN_MCP_ARGS_JSON must decode to a JSON string array');
+    throw new Error('NULLIUS_RUN_MCP_ARGS_JSON must decode to a JSON string array');
   }
   let env: Record<string, string> | undefined;
   if (envRaw) {
-    const parsed = parseWorkflowJsonEnv<unknown>('AUTORESEARCH_RUN_MCP_ENV_JSON', envRaw);
+    const parsed = parseWorkflowJsonEnv<unknown>('NULLIUS_RUN_MCP_ENV_JSON', envRaw);
     if (!isRecord(parsed)) {
-      throw new Error('AUTORESEARCH_RUN_MCP_ENV_JSON must decode to a JSON object');
+      throw new Error('NULLIUS_RUN_MCP_ENV_JSON must decode to a JSON object');
     }
     env = Object.fromEntries(Object.entries(parsed).map(([key, value]) => [key, String(value)]));
   }
@@ -415,7 +415,7 @@ async function withWorkflowToolCaller<T>(
   const serverConfig = loadWorkflowToolServerConfigFromEnv();
   if (!serverConfig) {
     throw new Error(
-      'workflow step execution requires a configured MCP tool server; set AUTORESEARCH_RUN_MCP_COMMAND and optional AUTORESEARCH_RUN_MCP_ARGS_JSON/AUTORESEARCH_RUN_MCP_ENV_JSON',
+      'workflow step execution requires a configured MCP tool server; set NULLIUS_RUN_MCP_COMMAND and optional NULLIUS_RUN_MCP_ARGS_JSON/NULLIUS_RUN_MCP_ENV_JSON',
     );
   }
   const client = new McpClient();
@@ -456,7 +456,7 @@ export async function executeWorkflowRuntimeRequest(
     return normalizeWorkflowRuntimeResult(request, toolResult);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    const code: WorkflowRuntimeDiagnosticCode = message.startsWith('AUTORESEARCH_RUN_MCP_')
+    const code: WorkflowRuntimeDiagnosticCode = message.startsWith('NULLIUS_RUN_MCP_')
       ? 'malformed_mcp_env'
       : message.includes('requires a configured MCP tool server')
         ? 'no_mcp_tool_server'

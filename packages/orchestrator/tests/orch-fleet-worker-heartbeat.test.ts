@@ -166,7 +166,7 @@ describe('orch_fleet_worker_heartbeat', () => {
       worker_id: 'worker-1',
     }))).rejects.toMatchObject({
       code: 'INVALID_PARAMS',
-      data: { fleet_workers_path: path.join(projectRoot, '.autoresearch', 'fleet_workers.json') },
+      data: { fleet_workers_path: path.join(projectRoot, '.nullius', 'fleet_workers.json') },
     });
   });
 });

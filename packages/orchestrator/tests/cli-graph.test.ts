@@ -5,7 +5,7 @@ import * as path from 'node:path';
 import { runCli } from '../src/cli.js';
 
 function makeTempDir(): string {
-  return fs.mkdtempSync(path.join(os.tmpdir(), 'autoresearch-graph-'));
+  return fs.mkdtempSync(path.join(os.tmpdir(), 'nullius-graph-'));
 }
 
 function makeIo(cwd: string) {
@@ -74,7 +74,7 @@ const ROADMAP_SPEC = JSON.stringify({
   ],
 });
 
-describe('autoresearch graph command', () => {
+describe('nullius graph command', () => {
   it('progress: parses a scaffolded research_plan.md into a milestone/task DAG', async () => {
     const dir = makeTempDir();
     fs.writeFileSync(path.join(dir, 'research_plan.md'), PLAN_MD, 'utf8');

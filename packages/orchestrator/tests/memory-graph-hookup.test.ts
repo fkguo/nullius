@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { createMemoryGraph } from '@autoresearch/shared';
+import { createMemoryGraph } from '@nullius/shared';
 import { runCli } from '../src/cli.js';
 import { executeComputationManifest } from '../src/computation/index.js';
 import { handleOrchRunApprove } from '../src/orch-tools/approval.js';
@@ -18,11 +18,11 @@ import { TeamExecutionStateManager } from '../src/team-execution-storage.js';
 import type { TeamPermissionMatrix } from '../src/team-execution-types.js';
 
 function makeTempProjectRoot(): string {
-  return fs.mkdtempSync(path.join(os.tmpdir(), 'autoresearch-memory-graph-'));
+  return fs.mkdtempSync(path.join(os.tmpdir(), 'nullius-memory-graph-'));
 }
 
 function memoryGraphDbPath(projectRoot: string): string {
-  return path.join(projectRoot, '.autoresearch', 'memory-graph.sqlite');
+  return path.join(projectRoot, '.nullius', 'memory-graph.sqlite');
 }
 
 function makeIo(cwd: string) {
@@ -375,7 +375,7 @@ describe('memory-graph hookup', () => {
     expect(result.status).toBe('failed');
     expect(fs.existsSync(path.join(projectRoot, 'artifacts', 'runs', 'run-decision-c', 'mutation_proposal_repair_v1.json'))).toBe(false);
 
-    const ledger = fs.readFileSync(path.join(projectRoot, '.autoresearch', 'ledger.jsonl'), 'utf-8');
+    const ledger = fs.readFileSync(path.join(projectRoot, '.nullius', 'ledger.jsonl'), 'utf-8');
     expect(ledger).toContain('"event_type":"proposal_suppressed"');
     expect(ledger).toContain(`"suppression_decision":"${decision}"`);
   });

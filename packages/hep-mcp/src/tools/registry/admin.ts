@@ -10,7 +10,7 @@
 
 import * as path from 'node:path';
 
-import { invalidParams } from '@autoresearch/shared';
+import { invalidParams } from '@nullius/shared';
 import { z } from 'zod';
 
 import {
@@ -31,7 +31,7 @@ const HepAdminMigratePapersCacheToolSchema = z.object({
     .string()
     .min(1)
     .describe(
-      'Absolute path to the autoresearch project root whose <project_root>/artifacts/hep-mcp/projects/*/papers/*/sources/latex/extracted/ directories are to be converted from pre-cache real-dirs to Tier 3 cache symlinks.',
+      'Absolute path to the nullius project root whose <project_root>/artifacts/hep-mcp/projects/*/papers/*/sources/latex/extracted/ directories are to be converted from pre-cache real-dirs to Tier 3 cache symlinks.',
     ),
   hep_data_root: z
     .string()
@@ -60,7 +60,7 @@ const HepAdminPrunePaperCacheToolSchema = z.object({
     .array(z.string().min(1))
     .min(1)
     .describe(
-      'One or more absolute paths to autoresearch project roots. The union of paper.json catalogs under <project_root>/artifacts/hep-mcp/projects/<id>/papers/<paper_id>/ forms the live set; any cache entry not referenced by this set is treated as an orphan. The list must be non-empty: calling with no roots would mark every entry as orphan and is rejected.',
+      'One or more absolute paths to nullius project roots. The union of paper.json catalogs under <project_root>/artifacts/hep-mcp/projects/<id>/papers/<paper_id>/ forms the live set; any cache entry not referenced by this set is treated as an orphan. The list must be non-empty: calling with no roots would mark every entry as orphan and is rejected.',
     ),
   hep_data_root: z
     .string()
@@ -84,7 +84,7 @@ const HepAdminLinkKbNotesToolSchema = z.object({
     .string()
     .min(1)
     .describe(
-      'Absolute path to the autoresearch project root. The tool scans <project_root>/artifacts/hep-mcp/projects/*/papers/*/paper.json for Tier 2 catalog entries and a configurable knowledge_base directory for Tier 1 markdown notes.',
+      'Absolute path to the nullius project root. The tool scans <project_root>/artifacts/hep-mcp/projects/*/papers/*/paper.json for Tier 2 catalog entries and a configurable knowledge_base directory for Tier 1 markdown notes.',
     ),
   hep_data_root: z
     .string()
@@ -96,7 +96,7 @@ const HepAdminLinkKbNotesToolSchema = z.object({
     .string()
     .optional()
     .describe(
-      'Override the knowledge_base directory (absolute path). If omitted, the tool auto-detects under project_root by probing .autoresearch/knowledge_base, knowledge_base/literature, then knowledge_base in that order.',
+      'Override the knowledge_base directory (absolute path). If omitted, the tool auto-detects under project_root by probing .nullius/knowledge_base, knowledge_base/literature, then knowledge_base in that order.',
     ),
 });
 
@@ -144,7 +144,7 @@ const RAW_ADMIN_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
       // path.resolve(undefined).
       if (!params.project_root || !params.project_root.trim()) {
         throw invalidParams(
-          'hep_admin_migrate_papers_cache requires project_root (absolute path to the autoresearch project root).',
+          'hep_admin_migrate_papers_cache requires project_root (absolute path to the nullius project root).',
         );
       }
       // Handler-level destructive gate: apply=true requires _confirm=true.
@@ -172,7 +172,7 @@ const RAW_ADMIN_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
     tier: 'core',
     exposure: 'standard',
     description:
-      'Delete cache entries under ~/.autoresearch/hep-mcp/papers_cache/ that no supplied project_root references (orphans + leftover tmp staging dirs). Dry-run by default; apply=true requires _confirm=true. Unrecognized / corrupted-meta entries are preserved for manual inspection.',
+      'Delete cache entries under ~/.nullius/hep-mcp/papers_cache/ that no supplied project_root references (orphans + leftover tmp staging dirs). Dry-run by default; apply=true requires _confirm=true. Unrecognized / corrupted-meta entries are preserved for manual inspection.',
     zodSchema: HepAdminPrunePaperCacheToolSchema,
     handler: async params => {
       if (!Array.isArray(params.project_roots) || params.project_roots.length === 0) {
@@ -267,7 +267,7 @@ const RAW_ADMIN_TOOL_SPECS: Omit<ToolSpec, 'riskLevel'>[] = [
       // shared layer, so the handler enforces it explicitly.
       if (!params.project_root || !params.project_root.trim()) {
         throw invalidParams(
-          'hep_admin_link_kb_notes requires project_root (absolute path to the autoresearch project root).',
+          'hep_admin_link_kb_notes requires project_root (absolute path to the nullius project root).',
         );
       }
       return linkKbNotes({

@@ -9,7 +9,7 @@
  * @module parserHarness
  */
 
-import { invalidParams } from '@autoresearch/shared';
+import { invalidParams } from '@nullius/shared';
 import { latexParser } from 'latex-utensils';
 import type * as LU from 'latex-utensils';
 
