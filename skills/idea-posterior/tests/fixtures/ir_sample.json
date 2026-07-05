@@ -1,0 +1,62 @@
+{
+  "ir_hash": "sha256:e314d88c63c80b8845d2c1347e0f20b77db5825076d847ecd1c143a925afc676",
+  "namespace": "github:trial_idea",
+  "package_name": "trial-idea-gaia",
+  "knowledges": [
+    {
+      "id": "github:trial_idea::worth",
+      "label": "worth",
+      "type": "claim",
+      "metadata": {}
+    },
+    {
+      "id": "github:trial_idea::tension_resolution",
+      "label": "tension_resolution",
+      "type": "claim",
+      "metadata": {}
+    },
+    {
+      "id": "github:trial_idea::ev_tension",
+      "label": "ev_tension",
+      "type": "claim",
+      "metadata": {
+        "prior": 0.999,
+        "supported_by": [
+          {
+            "action_label": "github:trial_idea::action::_anon_action_000",
+            "pattern": "observation",
+            "rationale": "anchor: literature_survey_v1 tensions section (trial fixture)",
+            "warrants": ["github:trial_idea::_anon_000"]
+          }
+        ]
+      }
+    },
+    {
+      "id": "github:trial_idea::_anon_000",
+      "type": "claim"
+    },
+    {
+      "id": "github:trial_idea::verification_cost",
+      "label": "verification_cost",
+      "type": "claim",
+      "metadata": {}
+    },
+    {
+      "id": "github:trial_idea::ev_cost",
+      "label": "ev_cost",
+      "type": "claim",
+      "metadata": {
+        "prior": 0.999,
+        "supported_by": [
+          {
+            "action_label": "github:trial_idea::action::_anon_action_003",
+            "pattern": "observation",
+            "rationale": "anchor: idea_card minimal_compute_plan (trial fixture)",
+            "warrants": ["github:trial_idea::_anon_003"]
+          }
+        ]
+      }
+    }
+  ],
+  "strategies": []
+}
