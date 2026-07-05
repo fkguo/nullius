@@ -53,6 +53,7 @@ const VALID_PAIRWISE_MATCH = {
     written: true,
     gaia_package_ref: 'file:///external/project/gaia/pkg-7',
   },
+  independent_runners: true,
 };
 
 const VALID_ALLOCATION_DECISION = {
