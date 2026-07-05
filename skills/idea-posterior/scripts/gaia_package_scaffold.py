@@ -130,13 +130,14 @@ testability_timing = claim(
 
 # --------------------------------------------------------------------------
 # Sub-criterion 5: verification_cost
-# Evidence that the first decisive check is cheap raises feasibility belief.
+# Evidence that a bounded, decisive first check exists raises feasibility
+# belief.
 # Only that belief-relevant part enters the graph; the budget decision itself
 # stays outside.
 # Evidence source: idea_card.minimal_compute_plan.
 # --------------------------------------------------------------------------
 verification_cost = claim(
-    "The idea's first decisive check is cheap and bounded.",
+    "A bounded, decisive first check of the idea exists.",
     title="verification_cost",
 )
 

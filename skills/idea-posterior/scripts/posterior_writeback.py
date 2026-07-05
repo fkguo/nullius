@@ -33,7 +33,7 @@ from pathlib import Path
 REQUIRED_POSTERIOR_FIELDS = ("value", "evidence_count", "gaia_package_ref")
 
 # The package reference must pin the compiled graph state via its IR hash.
-REF_PIN_RE = re.compile(r"#sha256:[0-9a-f]{16,}$")
+REF_PIN_RE = re.compile(r"#sha256:[0-9a-fA-F]{16,}$")
 
 
 def validate_posterior(posterior: dict) -> dict:

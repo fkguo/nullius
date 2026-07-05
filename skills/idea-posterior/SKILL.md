@@ -129,7 +129,7 @@ has a place to point.
 | `downstream_reach` | How long is the chain of downstream problems the idea feeds, and how broad is its generality — how many phenomenon domains does it unify or apply to? Breadth is a first-class dimension, rewarded non-linearly through the grade-promotion rule below. Frameworks with the generality of relativity or quantum mechanics serve only to calibrate the top of the breadth scale. | idea card claims, each with `support_type` and `evidence_uris` |
 | `mechanism_insight` | How much new, testable mechanistic understanding does the idea supply? | idea card claims; survey artifact |
 | `testability_timing` | Can the idea be tested, and is the verification window open now — data, tools, and comparison points available on a relevant horizon? | idea card claims |
-| `verification_cost` | Is the first decisive check cheap and bounded? Only the belief-relevant part enters the graph: evidence that the check is cheap raises feasibility belief. The budget decision itself stays outside. | the idea card's `minimal_compute_plan` field; trial computation artifacts |
+| `verification_cost` | Does a bounded, decisive first check exist? Only the belief-relevant part enters the graph: evidence that such a check exists raises feasibility belief. The budget decision itself stays outside. | the idea card's `minimal_compute_plan` field; trial computation artifacts |
 
 ## Parameter honesty discipline
 
@@ -295,10 +295,15 @@ readable diagnosis (including the pinned install recipe) when a stage fails.
      --package <project_root>/ideas/gaia/my-idea-gaia
    ```
 
-   Runs `gaia build compile`, `gaia build check`, `gaia run infer`, then
-   parses `.gaia/beliefs.json` (the entry labelled `worth`) and
-   `.gaia/ir.json` (observation supports, one per `observe()` statement) and
-   prints:
+   First runs a static discipline scan over the authored modules: `infer()`
+   probability pairs outside the three grades, and missing or anchor-less
+   rationales (including `register_prior` justifications), are reported as
+   warnings on stderr. The scan is best-effort — non-literal arguments are
+   flagged for review rather than judged — and never blocks; the review
+   below stays the authority. Then runs `gaia build compile`, `gaia build
+   check`, `gaia run infer`, parses `.gaia/beliefs.json` (the entry
+   labelled `worth`) and `.gaia/ir.json` (observation supports, one per
+   `observe()` statement), and prints:
 
    ```json
    {
@@ -332,7 +337,9 @@ readable diagnosis (including the pinned install recipe) when a stage fails.
 ## Review: audit anchors, not scores
 
 A graph review never argues with the posterior directly; it attacks the
-inputs.
+inputs. The extraction script's static scan catches mechanical slips
+(off-grade pairs, missing anchor notes) before review starts; everything it
+cannot decide statically it hands to the reviewer.
 
 - Run `gaia review calibration`: it ranks claims by the shift between prior
   and posterior. Large-shift claims are where wrong grades do the most

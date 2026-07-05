@@ -20,6 +20,7 @@ stderr. Standard library only; Gaia is invoked as a subprocess.
 from __future__ import annotations
 
 import argparse
+import ast
 import json
 import shutil
 import subprocess
@@ -27,6 +28,13 @@ import sys
 from pathlib import Path
 
 GAIA_PIN = "0.5.0a4"
+
+# The three likelihood grades (Jeffreys scale) and their reversals. Literal
+# float comparison is exact: 0.90 parses to the same float as 0.9.
+GRADE_PAIRS = {
+    (0.75, 0.25), (0.9, 0.09), (0.9, 0.03),
+    (0.25, 0.75), (0.09, 0.9), (0.03, 0.9),
+}
 PIN_INSTALL_HINT = (
     "Install the pinned Gaia toolchain (the pin is deliberate; upgrading is an "
     "explicit, reviewed action):\n"
@@ -78,6 +86,80 @@ def check_gaia_version(gaia_bin: str) -> None:
             "downgrade.\n" + PIN_INSTALL_HINT + "\n"
         )
         raise SystemExit(2)
+
+
+def scan_discipline(source: str) -> list[str]:
+    """Best-effort static scan for the grade and anchor discipline.
+
+    Warnings only: review remains the authority. Flags infer() probability
+    pairs outside the three grades, and observe/infer rationales (or
+    register_prior justifications) that are missing or lack a trailing
+    "anchor:" note. Non-literal arguments cannot be checked statically and
+    are surfaced for review instead.
+    """
+    try:
+        tree = ast.parse(source)
+    except SyntaxError as exc:
+        return [f"module does not parse: {exc}"]
+    findings: list[str] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func
+        name = (
+            func.id
+            if isinstance(func, ast.Name)
+            else getattr(func, "attr", None)
+        )
+        if name not in ("observe", "infer", "register_prior"):
+            continue
+        kwargs = {kw.arg: kw.value for kw in node.keywords if kw.arg}
+        if name == "infer":
+            h = kwargs.get("p_e_given_h")
+            nh = kwargs.get("p_e_given_not_h")
+            if isinstance(h, ast.Constant) and isinstance(nh, ast.Constant):
+                pair = (h.value, nh.value)
+                if pair not in GRADE_PAIRS:
+                    findings.append(
+                        f"line {node.lineno}: infer uses off-grade pair "
+                        f"{pair}; allowed grades are 3 (0.75/0.25), "
+                        "10 (0.90/0.09), 30 (0.90/0.03), or their reversals"
+                    )
+            elif h is not None or nh is not None:
+                findings.append(
+                    f"line {node.lineno}: infer probabilities are not "
+                    "literal numbers; the static scan cannot check the "
+                    "grade - flag for review"
+                )
+        note_name = "justification" if name == "register_prior" else "rationale"
+        note = kwargs.get(note_name)
+        if note is None:
+            findings.append(f"line {node.lineno}: {name} has no {note_name}")
+        elif isinstance(note, ast.Constant) and isinstance(note.value, str):
+            if "anchor:" not in note.value:
+                findings.append(
+                    f"line {node.lineno}: {name} {note_name} lacks an "
+                    "'anchor:' note"
+                )
+        else:
+            findings.append(
+                f"line {node.lineno}: {name} {note_name} is not a literal "
+                "string; the static scan cannot check the anchor - flag "
+                "for review"
+            )
+    return findings
+
+
+def scan_package_discipline(package_dir: Path) -> list[str]:
+    """Run the static discipline scan over every module under src/."""
+    findings: list[str] = []
+    src = package_dir / "src"
+    if not src.is_dir():
+        return findings
+    for module in sorted(src.rglob("*.py")):
+        for finding in scan_discipline(module.read_text(encoding="utf-8")):
+            findings.append(f"{module.relative_to(package_dir)}: {finding}")
+    return findings
 
 
 def run_stage(gaia_bin: str, stage: list[str], package_dir: Path) -> None:
@@ -187,6 +269,15 @@ def main(argv: list[str] | None = None) -> int:
 
     gaia_bin = resolve_gaia_bin(args.gaia_bin)
     check_gaia_version(gaia_bin)
+
+    discipline = scan_package_discipline(package_dir)
+    for finding in discipline:
+        sys.stderr.write(f"discipline warning: {finding}\n")
+    if discipline:
+        sys.stderr.write(
+            f"{len(discipline)} discipline warning(s): grades or anchor "
+            "notes need review before the posterior is trusted.\n"
+        )
 
     run_stage(gaia_bin, ["build", "compile"], package_dir)
     run_stage(gaia_bin, ["build", "check"], package_dir)

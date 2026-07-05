@@ -81,6 +81,69 @@ def test_extract_posterior_requires_artifacts(tmp_path) -> None:
         extract.extract_posterior(tmp_path / "pkg", "worth")
 
 
+CLEAN_MODULE = '''
+from gaia.engine.lang import claim, infer, observe, register_prior
+
+worth = claim("The idea merits sustained verification effort.", title="worth")
+sub = claim("A sub-criterion holds.", title="sub")
+ev = observe("An anchored fact.", rationale="context. anchor: survey artifact")
+infer(ev, hypothesis=sub, p_e_given_h=0.90, p_e_given_not_h=0.09,
+      rationale="substantial grade. anchor: survey artifact")
+register_prior(sub, value=0.7,
+               justification="external estimate. anchor: cited source")
+'''
+
+
+def test_discipline_scan_passes_clean_module() -> None:
+    assert extract.scan_discipline(CLEAN_MODULE) == []
+
+
+def test_discipline_scan_flags_off_grade_pair() -> None:
+    source = CLEAN_MODULE.replace("p_e_given_h=0.90", "p_e_given_h=0.85")
+    findings = extract.scan_discipline(source)
+    assert any("off-grade pair" in f for f in findings)
+
+
+def test_discipline_scan_flags_missing_anchor_note() -> None:
+    source = CLEAN_MODULE.replace(
+        'rationale="context. anchor: survey artifact"',
+        'rationale="context with no note"',
+    )
+    findings = extract.scan_discipline(source)
+    assert any("lacks an 'anchor:' note" in f for f in findings)
+
+
+def test_discipline_scan_flags_missing_justification_anchor() -> None:
+    source = CLEAN_MODULE.replace(
+        'justification="external estimate. anchor: cited source"',
+        'justification="just a feeling"',
+    )
+    findings = extract.scan_discipline(source)
+    assert any(
+        "register_prior" in f and "anchor" in f for f in findings
+    )
+
+
+def test_discipline_scan_surfaces_non_literal_arguments() -> None:
+    source = CLEAN_MODULE + "\nnote = 'anchor: x'\nobserve('More.', rationale=note)\n"
+    findings = extract.scan_discipline(source)
+    assert any("flag for review" in f for f in findings)
+
+
+def test_discipline_scan_accepts_reversed_grades() -> None:
+    source = CLEAN_MODULE.replace(
+        "p_e_given_h=0.90, p_e_given_not_h=0.09",
+        "p_e_given_h=0.09, p_e_given_not_h=0.90",
+    )
+    assert extract.scan_discipline(source) == []
+
+
+def test_discipline_scan_covers_generated_template() -> None:
+    import gaia_package_scaffold as scaffold
+
+    assert extract.scan_discipline(scaffold.render_template("x-idea")) == []
+
+
 def test_extract_posterior_requires_ir_hash(tmp_path, fixtures_dir) -> None:
     gaia_dir = tmp_path / "pkg" / ".gaia"
     gaia_dir.mkdir(parents=True)
