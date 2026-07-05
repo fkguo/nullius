@@ -175,6 +175,36 @@
     "independent_runners": {
       "type": "boolean",
       "description": "Whether the panel seats resolved to genuinely distinct underlying runner commands. False marks a stub-backed or single-command panel whose votes carry no real cross-family diversity, so the belief layer can weight the observation accordingly. Read from the panel run report at assembly time."
+    },
+    "statement_binding": {
+      "type": "object",
+      "description": "Per-side binding of the advocacy statement the judges saw: the arguing node id and the sha256 of the statement content. Written when --materials-dir is supplied at assembly (required in a real match); validated by validate_pairwise_match against the recorded node ids.",
+      "required": ["a", "b"],
+      "properties": {
+        "a": {
+          "type": "object",
+          "required": ["idea_node_id", "content_sha256"],
+          "properties": {
+            "idea_node_id": { "type": "string", "format": "uuid" },
+            "content_sha256": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }
+          },
+          "additionalProperties": false
+        },
+        "b": {
+          "type": "object",
+          "required": ["idea_node_id", "content_sha256"],
+          "properties": {
+            "idea_node_id": { "type": "string", "format": "uuid" },
+            "content_sha256": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "rationale": {
+      "type": "string",
+      "description": "Optional operator-supplied reason for a rematch of the same idea pair, recorded so a repeat observation carries its stated new-evidence justification."
     }
   },
   "additionalProperties": false

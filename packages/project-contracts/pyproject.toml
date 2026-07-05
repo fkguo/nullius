@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "project-contracts"
-version = "0.0.1"
+version = "0.5.0"
 description = "Generic scaffold/contracts package for nullius project roots"
 readme = "README.md"
 requires-python = ">=3.9"

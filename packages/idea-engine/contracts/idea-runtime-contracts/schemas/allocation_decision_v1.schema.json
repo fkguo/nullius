@@ -51,19 +51,20 @@
             "format": "uuid"
           },
           "posterior_value": {
-            "type": "number",
+            "type": ["number", "null"],
             "minimum": 0,
-            "maximum": 1
+            "maximum": 1,
+            "description": "Null for a cold-start candidate that has no belief-graph posterior yet."
           },
           "evidence_count": {
-            "type": "integer",
+            "type": ["integer", "null"],
             "minimum": 0
           },
           "sampled_value": {
-            "type": "number",
+            "type": ["number", "null"],
             "minimum": 0,
             "maximum": 1,
-            "description": "The Thompson draw for this node in this decision round."
+            "description": "The Thompson draw for this node in this decision round; null for a cold-start candidate."
           },
           "allocation": {
             "enum": [
@@ -121,7 +122,7 @@
             "additionalProperties": false
           },
           "last_checked_at": {
-            "type": "string",
+            "type": ["string", "null"],
             "format": "date-time"
           }
         },

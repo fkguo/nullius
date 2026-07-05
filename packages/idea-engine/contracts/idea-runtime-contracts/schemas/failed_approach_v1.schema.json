@@ -24,7 +24,7 @@
       "minItems": 1,
       "uniqueItems": true,
       "items": { "type": "string", "minLength": 1 },
-      "description": "Multi-label failure modes for bounded failure-library matching. Should include failure_mode as the primary label."
+      "description": "Multi-label failure modes for this negative result. Should include failure_mode as the primary label."
     },
     "failure_evidence_uris": {
       "type": "array",

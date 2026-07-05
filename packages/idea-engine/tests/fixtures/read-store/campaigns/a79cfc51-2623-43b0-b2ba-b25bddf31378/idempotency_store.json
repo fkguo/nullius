@@ -166,7 +166,7 @@
             "evidence_count": 2
           }
         ],
-        "ranking_artifact_ref": "file:///home/user/Coding/Agents/autoresearch-lab/.claude/worktrees/agent-a3cee3eb3010a50eb/packages/idea-engine/tests/fixtures/read-store/campaigns/a79cfc51-2623-43b0-b2ba-b25bddf31378/artifacts/rankings/ranking-20260705000005.json",
+        "ranking_artifact_ref": "file:///home/user/Coding/Agents/nullius/.claude/worktrees/agent-a3cee3eb3010a50eb/packages/idea-engine/tests/fixtures/read-store/campaigns/a79cfc51-2623-43b0-b2ba-b25bddf31378/artifacts/rankings/ranking-20260705000005.json",
         "skipped_nodes": [
           {
             "node_id": "dddd1111-2222-4333-8444-555566667777",
@@ -201,7 +201,7 @@
           "folklore_risk_score": 0.1,
           "status": "pass"
         },
-        "handoff_artifact_ref": "file:///home/user/Coding/Agents/autoresearch-lab/.claude/worktrees/agent-a3cee3eb3010a50eb/packages/idea-engine/tests/fixtures/read-store/campaigns/a79cfc51-2623-43b0-b2ba-b25bddf31378/artifacts/handoff/handoff-1d96a82f-9246-436e-814c-50b94df7a578.json",
+        "handoff_artifact_ref": "file:///home/user/Coding/Agents/nullius/.claude/worktrees/agent-a3cee3eb3010a50eb/packages/idea-engine/tests/fixtures/read-store/campaigns/a79cfc51-2623-43b0-b2ba-b25bddf31378/artifacts/handoff/handoff-1d96a82f-9246-436e-814c-50b94df7a578.json",
         "has_reduction_report": false,
         "idea_id": "aaaa1111-2222-4333-8444-555566667777",
         "idempotency": {
