@@ -9,9 +9,9 @@ files that you can *read* to learn **general physics discussion logic**
 (argument flow, diagnostics, uncertainty narration). This is not about
 superficial PRL formatting.
 
-Primary use (FK/Meissner/Hoferichter PRL query):
+Example use (replace <author1>/<author2>/<author3> with your own exemplar authors):
   python3 fetch_prl_style_corpus.py \
-    --query-url "https://inspirehep.net/literature?sort=mostrecent&size=50&page=1&q=%28a%20f%20k%20guo%20or%20a%20u%20g%20meissner%20or%20a%20m%20hoferichter%29%20and%20j%20phys.rev.lett.&ui-citation-summary=true" \
+    --query-url "https://inspirehep.net/literature?sort=mostrecent&size=50&page=1&q=%28a%20<author1>%20or%20a%20<author2>%20or%20a%20<author3>%29%20and%20j%20phys.rev.lett.&ui-citation-summary=true" \
     --max-records 10 \
     --out-dir /tmp/prl_style_corpus
 

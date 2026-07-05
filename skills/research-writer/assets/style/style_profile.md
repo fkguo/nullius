@@ -1,6 +1,6 @@
-# research-writer — FK LaTeX Writing Style Profile (M0)
+# research-writer — Physics Writing Style Profile (M0)
 
-This file summarizes recurring writing/style patterns inferred from a scan of the user’s existing LaTeX manuscripts (Overleaf projects listed in the M0 corpus below). It is intended as **guidance** for drafting new text in a similar technical voice, not as a phrase bank to copy verbatim.
+This file summarizes a reusable, domain-agnostic technical writing/style register for physics manuscripts. It is intended as **guidance** for drafting new text in a rigorous technical voice, not as a phrase bank to copy verbatim. If you calibrate this register against your own existing manuscripts, keep that private corpus list in your project repo (see §8), not in this shared tool.
 
 ## 1) High-level voice
 
@@ -79,46 +79,4 @@ For the distilled “how to discuss physics” guidance used during drafting, se
 
 ## 8) M0 corpus (inputs scanned; read-only)
 
-The following project names were used as the style corpus (local paths intentionally omitted; no files modified):
-
-- `Jpsipi_JpsiK`
-- `BaryonBaryonNc`
-- `psip2Jpipi_dip`
-- `Ds1DKgamma`
-- `X(3872)fit`
-- `ERE with lhc 2`
-- `SigmaTerm`
-- `JpsipiTFF`
-- `GraviChPT_spinlessMatterField`
-- `EntanglmentDecuplet`
-- `JpsiNScatteringLength`
-- `etap2etapipi`
-- `ee2Jpsipp`
-- `D0(2100)_EPJC`
-- `Disc-Calculus`
-- `ee2gammaCplusHM`
-- `PRD Letter: piK_RoySteinerEq`
-- `PRD: piK_RoySteinerEq`
-- `Nature Commun.: GFFs of nucleon`
-- `ERE_lhc`
-- `OpenCharmTetraquarks`
-- `EntanglementHeavyMesons`
-- `Dispersive analyses of GFFs`
-- `XfromLatticeQCD`
-- `ZREFT-Letter`
-- `Chiral representations of the nucleon mass at leading two-loop order`
-- `Photoproduction_3872`
-- `IsovectorX`
-- `CompleteHHbarMultiplet`
-- `0--engilish`
-- `AnnHalo`
-- `ProtonTFF_DalitzDecay`
-- `cusps`
-- `XAtom`
-- `DN-scattering_length`
-- `Nature: A new  paradigm for heavy-light meson spectroscopy`
-- `axion-nucleon`
-- `XEFT`
-- `X3872dip`
-- `Xmassprecise`
-- `Neutron-halo scattering`
+The M0 corpus is your own admitted-manuscript set; keep that private list in your project repo, not here — this tool ships only the domain-agnostic writing register.

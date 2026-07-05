@@ -1,12 +1,6 @@
 # M0 — Style sources (representative files opened)
 
-This is a minimal “audit trail” of representative `.tex` sources (sampled from the corpus listed in `assets/style/style_profile.md`) that were manually inspected to extract writing/voice conventions. It is not an exhaustive corpus dump.
-
-- `<local_overleaf_root>/Jpsipi_JpsiK/Jpsipi_v1.tex`
-- `<local_overleaf_root>/ZREFT-Letter/ZREFT.tex`
-- `<local_overleaf_root>/PRD Letter: piK_RoySteinerEq/main.tex`
-- `<local_overleaf_root>/Nature Commun.: GFFs of nucleon/main_arxiv.tex`
-- `<local_overleaf_root>/Disc-Calculus/main-JHEP.tex`
+This is a minimal “audit trail” of the kinds of sources inspected to extract writing/voice conventions. Any private, unpublished manuscript sources you sample belong in your own project repo, not in this shared tool: keep the list of your local Overleaf `.tex` paths (sampled from your M0 corpus) in your project, not here. This file records only the domain-agnostic, published exemplar sources below.
 
 ## Exemplar PRL-style papers (arXiv sources opened)
 
@@ -92,9 +86,9 @@ Papers (arXiv sources; IDs sorted by recency):
 
 ## N=96 exemplar set (PRL hep-ph multi-author filter; auto packs + dual-model maps)
 
-Downloaded via INSPIRE (most recent PRL; hep-ph; ≤10 authors; authors: Xiang.Dong.Ji.1, H.X.Zhu.1, Feng.Yuan.1, Jian.Zhou.2, M.Pospelov.1) and processed with dual-model extraction into:
+Downloaded via INSPIRE (most recent PRL; hep-ph; ≤10 authors; authors: `<author1>` or `<author2>` or `<author3>` — example INSPIRE query, replace with your own exemplar authors) and processed with dual-model extraction into:
 
-- `<discussion_logic_out_dir>/prl_hep-ph_xdj_hxz_fy_jz_mpospelov`
+- `<discussion_logic_out_dir>/prl_hep-ph_example`
 
 Progress + audit artifacts (written by the script, not stored in this repo):
 - `PROGRESS.md` (should read `Dual-model complete: 96/96`)

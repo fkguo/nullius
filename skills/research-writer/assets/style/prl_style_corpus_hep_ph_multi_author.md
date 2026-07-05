@@ -1,4 +1,4 @@
-# Physics discussion corpus: PRL hep-ph (Ji / Zhu / Yuan / Zhou / Pospelov; ≤10 authors)
+# Physics discussion corpus: PRL hep-ph (exemplar author query; ≤10 authors)
 
 Use this to collect **primary-source arXiv LaTeX** for close reading and for extracting **general physics discussion logic** (argument structure, diagnostics, uncertainty narration, “bottom line” framing). This is **not** about superficial PRL formatting.
 
@@ -7,15 +7,17 @@ For the distilled, reusable “how to discuss physics” guide, see:
 
 ## Source (INSPIRE query)
 
+Example INSPIRE query — replace `<author1>`/`<author2>`/`<author3>` with your own exemplar authors (INSPIRE-ID form, e.g. `Firstname.Lastname.1`).
+
 INSPIRE UI link (PRL; hep-ph; ≤10 authors; most recent):
 
-`https://inspirehep.net/literature?sort=mostrecent&size=100&page=1&q=%28a%20Xiang.Dong.Ji.1%20or%20a%20H.X.Zhu.1%20or%20a%20Feng.Yuan.1%20or%20a%20Jian.Zhou.2%20or%20a%20M.Pospelov.1%29%20and%20j%20phys.rev.lett.&author_count=10%20authors%20or%20fewer&arxiv_categories=hep-ph`
+`https://inspirehep.net/literature?sort=mostrecent&size=100&page=1&q=%28a%20<author1>%20or%20a%20<author2>%20or%20a%20<author3>%29%20and%20j%20phys.rev.lett.&author_count=10%20authors%20or%20fewer&arxiv_categories=hep-ph`
 
 ## Download arXiv sources (best-effort; logged; gzip-safe)
 
 ```bash
 python3 scripts/bin/fetch_prl_style_corpus.py \
-  --query-url "https://inspirehep.net/literature?sort=mostrecent&size=100&page=1&q=%28a%20Xiang.Dong.Ji.1%20or%20a%20H.X.Zhu.1%20or%20a%20Feng.Yuan.1%20or%20a%20Jian.Zhou.2%20or%20a%20M.Pospelov.1%29%20and%20j%20phys.rev.lett.&author_count=10%20authors%20or%20fewer&arxiv_categories=hep-ph" \
+  --query-url "https://inspirehep.net/literature?sort=mostrecent&size=100&page=1&q=%28a%20<author1>%20or%20a%20<author2>%20or%20a%20<author3>%29%20and%20j%20phys.rev.lett.&author_count=10%20authors%20or%20fewer&arxiv_categories=hep-ph" \
   --page-size 20 \
   --max-records 96 \
   --resume \
@@ -33,7 +35,7 @@ Outputs:
 ```bash
 python3 scripts/bin/research_writer_learn_discussion_logic.py \
   --corpus-dir /tmp/prl_hep_ph_prl_corpus \
-  --out-dir "<discussion_logic_out_dir>/prl_hep-ph_xdj_hxz_fy_jz_mpospelov" \
+  --out-dir "<discussion_logic_out_dir>/prl_hep-ph_example" \
   --mode new \
   --n 10 \
   --resume \

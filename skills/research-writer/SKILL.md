@@ -434,9 +434,9 @@ When drafting, revising, or synchronizing a manuscript:
 - Before synchronizing edits into another paper directory, compare the local and synchronized directories so collaborator changes are not overwritten.
 - After compilation, inspect undefined references/citations, overfull boxes, pagination anomalies, and orphaned headings or formulas.
 
-## Style profile (FK voice)
+## Style profile (physics writing register)
 
-Use the FK style guide when drafting or rewriting text:
+Use the writing style profile when drafting or rewriting text:
 - `assets/style/style_profile.md`
 - `assets/style/writing_voice_system_prompt.txt`
 - Anti-hallucination guardrails (evidence gate): `assets/style/research_writer_guardrails_system_prompt.txt`
@@ -446,11 +446,11 @@ Use the FK style guide when drafting or rewriting text:
 - N=10 reading-pack generator (corpus → per-paper excerpts + optional dual-model argument maps): `scripts/bin/research_writer_learn_discussion_logic.py` (writes `PROGRESS.md`/`PROGRESS.json` into `--out-dir`)
 - Deterministic distiller (dual-model outputs → consensus/disagreement reports): `scripts/bin/distill_discussion_logic.py` (writes `distill/` under the chosen `--out-dir`)
 
-Example (prepare N=10 packs; recommended masking on):
+Example (prepare N=10 packs; recommended masking on). The query below is an example — replace `<author1>`/`<author2>`/`<author3>` with your own exemplar authors:
 
 ```bash
 python3 scripts/bin/research_writer_learn_discussion_logic.py \
-  --query-url "https://inspirehep.net/literature?sort=mostrecent&size=50&page=1&q=%28a%20f%20k%20guo%20or%20a%20u%20g%20meissner%20or%20a%20m%20hoferichter%29%20and%20j%20phys.rev.lett." \
+  --query-url "https://inspirehep.net/literature?sort=mostrecent&size=50&page=1&q=%28a%20<author1>%20or%20a%20<author2>%20or%20a%20<author3>%29%20and%20j%20phys.rev.lett." \
   --fetch \
   --fetch-n 50 \
   --n 10 \
@@ -464,7 +464,7 @@ Example (distill a completed run into auditable reports):
 
 ```bash
 python3 scripts/bin/distill_discussion_logic.py \
-  --out-dir "<discussion_logic_out_dir>/prl_hep-ph_xdj_hxz_fy_jz_mpospelov"
+  --out-dir "<discussion_logic_out_dir>/prl_hep-ph_example"
 ```
 
 ## Operational docs

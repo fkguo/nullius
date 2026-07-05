@@ -1,14 +1,14 @@
 # Physics discussion logic playbook (from exemplar papers)
 
 This playbook captures **general, reusable logic** for discussing physics problems at a high level of rigor and clarity. It is distilled from:
-- the user’s existing manuscripts (see `assets/style/style_profile.md`), and
-- close reading of exemplar PRL papers across multiple hep-ph author clusters (e.g. Guo / Meißner / Hoferichter collaborations and adjacent work; and Ji / Zhu / Yuan / Zhou / Pospelov PRLs with hep-ph filter).
+- your own existing manuscripts (see `assets/style/style_profile.md`), and
+- close reading of exemplar PRL papers across multiple hep-ph author clusters (assembled from example INSPIRE author queries — replace with your own exemplar authors; see `assets/style/prl_style_corpus.md` and `assets/style/prl_style_corpus_hep_ph_multi_author.md`).
 
 It is **not** about superficial PRL formatting; it is about how strong papers *reason*, *argue*, and *diagnose*.
 
 Current exemplar-corpus totals used for the “high-yield patterns” section:
-- N=50 PRL set (Guo / Meißner / Hoferichter query; dual-model maps), and
-- N=96 PRL hep-ph set (Ji / Zhu / Yuan / Zhou / Pospelov query; dual-model maps),
+- an N=50 PRL set (exemplar author query; dual-model maps), and
+- an N=96 PRL hep-ph set (exemplar author query; dual-model maps),
 for a combined N=146 (details + paths in `assets/style/style_sources_used.md`).
 
 ## A. The core argument loop (mind-map template)

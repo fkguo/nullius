@@ -119,9 +119,11 @@ python3 scripts/bin/check_result_traceability.py --root paper --exempt-file pape
 
 Use this to collect arXiv LaTeX sources from exemplar papers so you can extract **general physics discussion logic** (argument flow, diagnostics, uncertainty narration). This is not about superficial PRL formatting.
 
+Example INSPIRE query — replace `<author1>`/`<author2>`/`<author3>` with your own exemplar authors.
+
 ```bash
 python3 scripts/bin/fetch_prl_style_corpus.py \
-  --query-url "https://inspirehep.net/literature?sort=mostrecent&size=50&page=1&q=%28a%20f%20k%20guo%20or%20a%20u%20g%20meissner%20or%20a%20m%20hoferichter%29%20and%20j%20phys.rev.lett.&ui-citation-summary=true" \
+  --query-url "https://inspirehep.net/literature?sort=mostrecent&size=50&page=1&q=%28a%20<author1>%20or%20a%20<author2>%20or%20a%20<author3>%29%20and%20j%20phys.rev.lett.&ui-citation-summary=true" \
   --max-records 50 \
   --resume \
   --out-dir /tmp/prl_style_corpus
@@ -145,7 +147,7 @@ python3 scripts/bin/research_writer_learn_discussion_logic.py \
 
 ```bash
 python3 scripts/bin/research_writer_learn_discussion_logic.py \
-  --query-url "https://inspirehep.net/literature?sort=mostrecent&size=50&page=1&q=%28a%20f%20k%20guo%20or%20a%20u%20g%20meissner%20or%20a%20m%20hoferichter%29%20and%20j%20phys.rev.lett.&ui-citation-summary=true" \
+  --query-url "https://inspirehep.net/literature?sort=mostrecent&size=50&page=1&q=%28a%20<author1>%20or%20a%20<author2>%20or%20a%20<author3>%29%20and%20j%20phys.rev.lett.&ui-citation-summary=true" \
   --fetch \
   --fetch-n 50 \
   --n 10 \
@@ -198,7 +200,7 @@ Once you have a run directory with dual-model outputs under `packs/*/{claude,gem
 
 ```bash
 python3 scripts/bin/distill_discussion_logic.py \
-  --out-dir "<discussion_logic_out_dir>/prl_hep-ph_xdj_hxz_fy_jz_mpospelov"
+  --out-dir "<discussion_logic_out_dir>/prl_hep-ph_example"
 ```
 
 Outputs are written under `<out-dir>/distill/`:

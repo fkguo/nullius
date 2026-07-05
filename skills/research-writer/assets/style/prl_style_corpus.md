@@ -1,4 +1,4 @@
-# Physics discussion corpus: PRL papers (Guo / Meißner / Hoferichter)
+# Physics discussion corpus: PRL papers (exemplar author query)
 
 Use this to collect **primary-source LaTeX** for close reading and for extracting **general discussion logic** (argument structure, diagnostics, uncertainty narration, and “bottom line” framing) from exemplar papers. This is **not** about superficial PRL formatting.
 
@@ -7,14 +7,16 @@ For the distilled, reusable “how to discuss physics” guide, see:
 
 ## Source (INSPIRE query)
 
+Example INSPIRE query — replace `<author1>`/`<author2>`/`<author3>` with your own exemplar authors.
+
 - INSPIRE UI link (most recent PRL papers):  
-  `https://inspirehep.net/literature?sort=mostrecent&size=50&page=1&q=%28a%20f%20k%20guo%20or%20a%20u%20g%20meissner%20or%20a%20m%20hoferichter%29%20and%20j%20phys.rev.lett.&ui-citation-summary=true`
+  `https://inspirehep.net/literature?sort=mostrecent&size=50&page=1&q=%28a%20<author1>%20or%20a%20<author2>%20or%20a%20<author3>%29%20and%20j%20phys.rev.lett.&ui-citation-summary=true`
 
 ## Download arXiv sources (best-effort; logged)
 
 ```bash
 python3 scripts/bin/fetch_prl_style_corpus.py \
-  --query-url "https://inspirehep.net/literature?sort=mostrecent&size=50&page=1&q=%28a%20f%20k%20guo%20or%20a%20u%20g%20meissner%20or%20a%20m%20hoferichter%29%20and%20j%20phys.rev.lett.&ui-citation-summary=true" \
+  --query-url "https://inspirehep.net/literature?sort=mostrecent&size=50&page=1&q=%28a%20<author1>%20or%20a%20<author2>%20or%20a%20<author3>%29%20and%20j%20phys.rev.lett.&ui-citation-summary=true" \
   --max-records 50 \
   --resume \
   --out-dir /tmp/prl_style_corpus
