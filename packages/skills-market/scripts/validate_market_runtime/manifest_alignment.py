@@ -1,9 +1,15 @@
 from __future__ import annotations
 
 import pathlib
+import sys
 from typing import Any
 
 from .contracts import load_json
+
+# The generator's projection functions live in scripts/; the validator runtime is
+# a subpackage of scripts/, so make the parent importable for the shared logic.
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+from manifest_components import expected_components  # noqa: E402
 
 
 def validate_manifest_alignment(
@@ -12,6 +18,15 @@ def validate_manifest_alignment(
     manifest_path: pathlib.Path,
     explicit_manifest_path: bool,
 ) -> tuple[list[str], list[str]]:
+    """Check that the manifest ``components`` map equals the catalog projection.
+
+    The manifest is a projection of ``packages/*.json`` (see manifest_components).
+    Rather than hand-listing a subset of fields to compare, we regenerate the full
+    expected components from the same catalog the manifest is meant to mirror and
+    compare per component. This makes ``depends_on`` (and any future component
+    field) drift a first-class failure, and points the operator at the generator
+    that fixes it deterministically.
+    """
     errs: list[str] = []
     warns: list[str] = []
     if not manifest_path.exists():
@@ -32,32 +47,30 @@ def validate_manifest_alignment(
         errs.append("cross-repo check: manifest.components must be an object")
         return errs, warns
 
-    market_ids = set(package_data_by_id.keys())
+    expected = expected_components(package_data_by_id)
+    expected_ids = set(expected.keys())
     manifest_ids = set(components.keys())
-    if market_ids - manifest_ids:
-        errs.append(f"cross-repo check: package ids missing in manifest: {sorted(market_ids - manifest_ids)}")
-    if manifest_ids - market_ids:
-        errs.append(f"cross-repo check: manifest components missing in market index: {sorted(manifest_ids - market_ids)}")
 
-    for package_id in sorted(market_ids & manifest_ids):
-        package = package_data_by_id[package_id]
+    if expected_ids - manifest_ids:
+        errs.append(
+            f"cross-repo check: package ids missing in manifest: {sorted(expected_ids - manifest_ids)} "
+            "(run `python3 scripts/generate_manifest_components.py --write`)"
+        )
+    if manifest_ids - expected_ids:
+        errs.append(
+            f"cross-repo check: manifest components missing in market index: {sorted(manifest_ids - expected_ids)} "
+            "(run `python3 scripts/generate_manifest_components.py --write`)"
+        )
+
+    for package_id in sorted(expected_ids & manifest_ids):
         component = components.get(package_id)
         if not isinstance(component, dict):
             errs.append(f"cross-repo check: manifest component {package_id!r} must be object")
             continue
-        for package_key, manifest_key in [
-            ("package_type", "type"),
-            ("repo", "repo"),
-            ("channel", "channel"),
-            ("version", "version"),
-            ("openrpc", "openrpc"),
-            ("source_path", "source_path"),
-        ]:
-            if package.get(package_key) != component.get(manifest_key):
-                if package.get(package_key) is None and component.get(manifest_key) is None:
-                    continue
-                errs.append(
-                    f"cross-repo check: {package_key}/{manifest_key} mismatch for {package_id}: "
-                    f"market={package.get(package_key)!r} manifest={component.get(manifest_key)!r}"
-                )
+        if component != expected[package_id]:
+            errs.append(
+                f"cross-repo check: manifest component {package_id!r} is stale vs catalog: "
+                f"manifest={component!r} expected={expected[package_id]!r} "
+                "(run `python3 scripts/generate_manifest_components.py --write`)"
+            )
     return errs, warns
