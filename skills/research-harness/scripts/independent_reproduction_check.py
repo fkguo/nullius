@@ -51,16 +51,18 @@ through a symlink alias, or through a relative traversal from the run root
 from the entry's environment and recorded in the report, so the rerun
 cannot import or execute uncommitted state through the environment.
 
-Threat model — what this check defends against, and what it does not.
-It defends against ACCIDENTAL contamination: a result that inadvertently
-depends on uncommitted edits, stale or pre-existing artifacts, or
-original-tree code leaking in through the environment. It does NOT defend
-against a deliberately adversarial manifest author: the manifest already
-controls an arbitrary shell entry command, so a deliberately constructed
-escape (an entry that reads absolute paths into the original tree on
-purpose, or fakes its outputs) is equivalent to fabricating the result
-itself — a research-integrity concern, out of scope for an isolation tool
-— and container-level sandboxing is explicitly out of scope by design.
+What this check verifies — and what it does not.
+It catches ACCIDENTAL contamination: a result that inadvertently depends
+on uncommitted edits, stale or pre-existing artifacts, or original-tree
+code leaking in through the environment. It does NOT verify that the
+entry command computes the right thing: the manifest's entry command and
+extraction rules are trusted input, so an entry that reads absolute
+paths into the original tree, or that emits numbers without computing
+them, is not caught here. Whether the computation itself is correct is
+established by the numerical-reliability-gate checks (convergence,
+orthogonal cross-checks, invariants) and by human review of the entry
+command recorded in every report; container-level sandboxing is
+explicitly out of scope by design.
 Honest limitations, restated in every report: isolation is checkout-level,
 not container-level — beyond the targeted scrub the entry command inherits
 the invoking environment and is not sandboxed against absolute-path
@@ -115,9 +117,11 @@ ITEM_STATUSES = ("within_tolerance", "out_of_tolerance", "not_extracted")
 LIMITATION_NOTE = (
     "Isolation is checkout-level, not container-level: beyond the recorded environment "
     "scrub, the entry command inherits the invoking process environment and is not "
-    "sandboxed against absolute-path writes. The check defends against accidental "
-    "contamination by uncommitted or original-tree state; it does not defend against a "
-    "deliberately adversarial manifest author, who already controls the entry command."
+    "sandboxed against absolute-path writes. The check catches accidental contamination "
+    "by uncommitted or original-tree state; it does not verify that the entry command "
+    "computes the right thing — the entry command (recorded in this report) is trusted "
+    "input, and correctness of the computation itself is established by "
+    "convergence/cross-method checks and human review."
 )
 
 

@@ -9,7 +9,7 @@ A citation entry that really denotes one published work has canonical metadata
 that independent bibliographic indexes agree on. When the same identifier
 resolves to different titles, author lists, years, or DOIs across indexes, the
 entry is suspect: a wrong version, a wrong author list, a splice of two real
-papers, or a fabricated reference. This skill turns that observation into a
+papers, or a hallucinated reference. This skill turns that observation into a
 machine check: fetch the same work's metadata from several indexes, then run a
 deterministic comparator over the per-provider records.
 
