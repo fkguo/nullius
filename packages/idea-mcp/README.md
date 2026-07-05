@@ -1,20 +1,20 @@
 # @nullius/idea-mcp
 
-Narrow stdio MCP surface for the TypeScript idea campaign runtime. Bridges `idea_campaign_init|status|topup|pause|resume|complete`, `idea_search_step`, and `idea_eval_run` over to `@nullius/idea-engine` via RPC.
+Narrow stdio MCP surface for the TypeScript idea campaign runtime. Bridges `idea_campaign_init|status|topup|pause|resume|complete` over to `@nullius/idea-engine` via RPC.
 
 ## Layer
 
-Experimental runtime bridge (MCP side). The current idea-engine phase is **closed** — this surface stays explicit and **narrower** than the full engine runtime contract. Not a root front door. See root [README.md](../../README.md) §1 Surface Policy.
+Experimental runtime bridge (MCP side). The idea-engine search/eval runtime is **archived**; contracts + store are retained, and scoring consumes an external belief-graph posterior (pinned tool, current pin gaia-lang==0.5.0a4). This surface stays explicit and **narrower** than the full engine runtime contract. Not a root front door. See root [README.md](../../README.md) §1 Surface Policy.
 
 ## What it does NOT expose
 
 By design, the following stay inside `@nullius/idea-engine` and are not MCP tools:
 
-- `rank.compute` and `node.promote` post-search steps
-- Negative failure-library reflection cycles
+- `node.set_posterior` and `node.set_lifecycle` belief/lifecycle updates
+- Posterior-based `rank.compute` and `node.promote`
 - Direct campaign-state mutation outside the documented tool list
 
-If you need these, run the engine directly.
+If you need these, use the engine directly (library import or `packages/idea-engine/bin/idea-rpc.mjs`).
 
 ## Run
 

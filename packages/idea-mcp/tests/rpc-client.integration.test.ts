@@ -8,8 +8,8 @@ function initParams() {
   return {
     charter: {
       campaign_name: 'idea-mcp-roundtrip',
-      domain: 'hep-ph',
-      scope: 'round-trip fixture for NEW-IDEA-01 retro closeout',
+      domain: 'test-domain',
+      scope: 'round-trip fixture for the campaign lifecycle bridge',
       approval_gate_ref: 'gate://a0.1',
     },
     seed_pack: {
@@ -41,7 +41,7 @@ describe('IdeaRpcClient integration', () => {
     }
   });
 
-  it('round-trips the TS idea-engine host for campaign lifecycle, search.step, and eval.run', async () => {
+  it('round-trips the TS idea-engine host for campaign lifecycle, posterior updates, and ranking', async () => {
     dataDir = await mkdtemp(path.join(tmpdir(), 'idea-mcp-engine-'));
     client = new IdeaRpcClient({
       rootDir: dataDir,
@@ -56,23 +56,33 @@ describe('IdeaRpcClient integration', () => {
       campaign_id: campaignId,
     }) as Record<string, unknown>;
     expect(statusResult.status).toBe('running');
+    expect(statusResult.node_count).toBe(2);
 
-    const stepResult = await client.call('search.step', {
+    const listResult = await client.call('node.list', {
       campaign_id: campaignId,
-      n_steps: 1,
-      idempotency_key: 'search-roundtrip',
     }) as Record<string, unknown>;
-    const newNodeIds = stepResult.new_node_ids as string[];
-    expect(stepResult.n_steps_executed).toBe(1);
-    expect(newNodeIds.length).toBeGreaterThan(0);
+    const nodeIds = (listResult.nodes as Array<Record<string, unknown>>).map(node => String(node.node_id));
+    expect(nodeIds).toHaveLength(2);
 
-    const evalResult = await client.call('eval.run', {
+    const posteriorResult = await client.call('node.set_posterior', {
       campaign_id: campaignId,
-      node_ids: [newNodeIds[0]],
-      evaluator_config: { dimensions: ['novelty', 'impact'], n_reviewers: 2 },
-      idempotency_key: 'eval-roundtrip',
+      node_id: nodeIds[0],
+      idempotency_key: 'posterior-roundtrip',
+      posterior: { value: 0.58, evidence_count: 3 },
     }) as Record<string, unknown>;
-    expect(typeof evalResult.scorecards_artifact_ref).toBe('string');
+    expect(((posteriorResult.node as Record<string, unknown>).posterior as Record<string, unknown>).value).toBe(0.58);
+
+    const rankResult = await client.call('rank.compute', {
+      campaign_id: campaignId,
+      idempotency_key: 'rank-roundtrip',
+      method: 'posterior',
+    }) as Record<string, unknown>;
+    const rankedNodes = rankResult.ranked_nodes as Array<Record<string, unknown>>;
+    expect(rankedNodes).toHaveLength(1);
+    expect(rankedNodes[0]!.node_id).toBe(nodeIds[0]);
+    expect(rankResult.skipped_nodes).toEqual([
+      { node_id: nodeIds[1], reason: 'no_posterior' },
+    ]);
 
     const pauseResult = await client.call('campaign.pause', {
       campaign_id: campaignId,
