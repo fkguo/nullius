@@ -126,7 +126,7 @@ has a place to point.
 | Sub-criterion | Question it answers | Evidence sources |
 |---|---|---|
 | `tension_resolution` | How far does the idea resolve an anchored open tension? Conceptual and structural tensions carry the same weight as numerical ones: incompatible frameworks, an approximation in use without justification, a missing mechanism. | tensions section of the literature survey artifact (`literature_survey_v1`) |
-| `downstream_reach` | How long is the chain of downstream problems the idea feeds, and how broad is its generality — how many phenomenon domains does it unify or apply to? Breadth is a first-class dimension, rewarded non-linearly through the grade-promotion rule below. Frameworks with the generality of relativity or quantum mechanics serve only to calibrate the top of the breadth scale. | idea card claims, each with `support_type` and `evidence_uris` |
+| `downstream_reach` | How long is the chain of downstream problems the idea feeds, and how broad is its generality — how many phenomenon domains does it unify or apply to? Breadth is a first-class dimension, rewarded non-linearly through the grade-promotion rule below; the top of the breadth scale is reserved for frameworks whose generality spans essentially every domain of a discipline. | idea card claims, each with `support_type` and `evidence_uris` |
 | `mechanism_insight` | How much new, testable mechanistic understanding does the idea supply? | idea card claims; survey artifact |
 | `testability_timing` | Can the idea be tested, and is the verification window open now — data, tools, and comparison points available on a relevant horizon? | idea card claims |
 | `verification_cost` | Does a bounded, decisive first check exist? Only the belief-relevant part enters the graph: evidence that such a check exists raises feasibility belief. The budget decision itself stays outside. | the idea card's `minimal_compute_plan` field; trial computation artifacts |
@@ -311,8 +311,10 @@ readable diagnosis (including the pinned install recipe) when a stage fails.
    grades; rationales and `register_prior` justifications must be literal
    strings ending with an `anchor: <reference>` note; a raising
    strong-grade `downstream_reach` update must carry its `domains:`
-   clause; statement names are resolved through import aliases. Anything
-   unprovable — non-literal grades or notes, wrapper indirection — is a
+   clause; statement names are resolved through import aliases, and
+   referencing a statement name without calling it (assignment aliasing,
+   passing it around) is itself a violation. Anything unprovable —
+   non-literal grades, notes, or prior values, wrapper indirection — is a
    violation, not a pass (better to reject a sound graph than to pass an
    unsound one), and the script refuses to extract a posterior.
    `--allow-discipline-warnings` downgrades violations as an explicit,

@@ -100,13 +100,19 @@ DOMAINS_CLAUSE_RE = re.compile(r"domains:\s*([^\n]+)")
 
 
 def has_domains_clause(text: str) -> bool:
-    """True when the text carries a domains clause with >= 3 entries."""
+    """True when the text carries a domains clause with >= 3 entries.
+
+    The trailing anchor note is not a domain: everything from "anchor:"
+    onward is cut before counting, so "domains: one; two; anchor: ref"
+    counts two entries, not three.
+    """
     match = DOMAINS_CLAUSE_RE.search(text)
     if not match:
         return False
+    clause = re.split(r"anchor:", match.group(1))[0]
     entries = [
         entry.strip()
-        for entry in re.split(r"[;|]", match.group(1))
+        for entry in re.split(r"[;|]", clause)
         if entry.strip()
     ]
     return len(entries) >= 3
@@ -144,10 +150,12 @@ def scan_discipline(source: str) -> tuple[list[str], list[str]]:
     violations: list[str] = []
     review_flags: list[str] = []
 
-    # Resolve import aliases for the scanned statement names.
+    # Resolve import aliases for the scanned statement names. Attribute
+    # calls (`anything.observe(...)`) are matched by name alone — a
+    # deliberately conservative over-match: false positives are possible,
+    # missed statements are not.
     scanned = {"observe", "infer", "register_prior"}
     name_aliases: dict[str, str] = {}
-    module_aliases: set[str] = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom) and node.module and (
             node.module == "gaia.engine.lang"
@@ -156,12 +164,6 @@ def scan_discipline(source: str) -> tuple[list[str], list[str]]:
             for alias in node.names:
                 if alias.name in scanned:
                     name_aliases[alias.asname or alias.name] = alias.name
-        elif isinstance(node, ast.Import):
-            for alias in node.names:
-                if alias.name == "gaia.engine.lang" or alias.name.startswith(
-                    "gaia."
-                ):
-                    module_aliases.add(alias.asname or alias.name.split(".")[0])
 
     def resolve_statement(func: ast.expr) -> str | None:
         if isinstance(func, ast.Name):
@@ -171,6 +173,31 @@ def scan_discipline(source: str) -> tuple[list[str], list[str]]:
         if isinstance(func, ast.Attribute) and func.attr in scanned:
             return func.attr
         return None
+
+    # Any reference to a scanned statement name OUTSIDE a direct call —
+    # assignment aliasing (`i = infer`), passing it as an argument,
+    # storing it in a container — defeats the line-by-line audit and is a
+    # violation in itself. This closes assignment aliases and every
+    # re-binding route in one rule.
+    call_func_nodes = {
+        id(call.func)
+        for call in ast.walk(tree)
+        if isinstance(call, ast.Call)
+    }
+    scanned_or_aliased = scanned | set(name_aliases)
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Name)
+            and isinstance(node.ctx, ast.Load)
+            and node.id in scanned_or_aliased
+            and id(node) not in call_func_nodes
+        ):
+            violations.append(
+                f"line {node.lineno}: {node.id} is referenced without "
+                "being called (aliasing or indirection); call "
+                "observe/infer/register_prior directly so every statement "
+                "is auditable in place"
+            )
 
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
@@ -224,6 +251,21 @@ def scan_discipline(source: str) -> tuple[list[str], list[str]]:
                     f"line {node.lineno}: infer probabilities are not "
                     "literal numbers; the discipline requires one of the "
                     "three grades written as literals"
+                )
+        if name == "register_prior":
+            val = kwargs.get("value")
+            if val is None and len(node.args) >= 2:
+                val = node.args[1]
+            if not (
+                isinstance(val, ast.Constant)
+                and isinstance(val.value, (int, float))
+                and not isinstance(val.value, bool)
+                and 0.0 <= val.value <= 1.0
+            ):
+                violations.append(
+                    f"line {node.lineno}: register_prior value must be a "
+                    "literal probability in [0, 1]; indirection defeats "
+                    "the audit"
                 )
         note_name = "justification" if name == "register_prior" else "rationale"
         note = kwargs.get(note_name)

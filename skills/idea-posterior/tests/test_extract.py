@@ -205,6 +205,44 @@ def test_strong_reach_with_two_domains_is_rejected() -> None:
     assert any("domains:" in v for v in violations)
 
 
+def test_domains_clause_does_not_count_the_anchor_as_a_domain() -> None:
+    # "domains: one; two; anchor: ref" is two domains, not three.
+    assert not extract.has_domains_clause(
+        "domains: first domain; second domain; anchor: idea card"
+    )
+    assert extract.has_domains_clause(
+        "domains: first domain; second domain; third domain. anchor: idea card"
+    )
+
+
+def test_scan_rejects_assignment_aliases() -> None:
+    source = (
+        "from gaia.engine.lang import claim, infer\n"
+        "h = claim('H.', title='h')\n"
+        "e = claim('E.', title='e')\n"
+        "i = infer\n"
+        "i(e, hypothesis=h, p_e_given_h=0.85, p_e_given_not_h=0.15,\n"
+        "  rationale='off grade. anchor: x')\n"
+    )
+    violations, _ = extract.scan_discipline(source)
+    assert any("without being called" in v for v in violations)
+
+
+def test_scan_rejects_passing_statements_as_values() -> None:
+    source = (
+        "from gaia.engine.lang import observe\n"
+        "helpers = {'obs': observe}\n"
+    )
+    violations, _ = extract.scan_discipline(source)
+    assert any("without being called" in v for v in violations)
+
+
+def test_scan_rejects_non_literal_prior_value() -> None:
+    source = CLEAN_MODULE.replace("value=0.7", "value=prior_guess")
+    violations, _ = extract.scan_discipline(source)
+    assert any("register_prior value" in v for v in violations)
+
+
 def test_strong_grade_on_other_claims_needs_no_domains() -> None:
     source = STRONG_REACH.replace("downstream_reach", "mechanism_insight")
     violations, _ = extract.scan_discipline(source.format(clause=""))
