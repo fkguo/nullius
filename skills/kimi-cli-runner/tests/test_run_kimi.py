@@ -94,6 +94,15 @@ PY
     echo '{"role":"meta","error":null,"content":"not an error"}'
     echo '{"role":"assistant","content":"OK_AFTER_NULL_ERROR"}'
     ;;
+  sleep_then_success)
+    sleep "${FAKE_SLEEP_SECS:-5}"
+    echo '{"role":"assistant","content":"OK_AFTER_SLEEP"}'
+    ;;
+  partial_then_sleep)
+    echo '{"role":"assistant","content":"PARTIAL_BEFORE_SLEEP"}'
+    sleep "${FAKE_SLEEP_SECS:-5}"
+    echo '{"role":"assistant","content":"OK_AFTER_SLEEP"}'
+    ;;
   unknown_assistant_shape)
     echo '{"role":"assistant","content":{"unexpected":true}}'
     ;;
@@ -222,6 +231,7 @@ def test_default_dry_run_uses_isolated_mode_no_workspace_and_empty_skills(tmp_pa
     assert "Work dir: (temporary isolated directory)" in proc.stdout
     assert "Workspace dirs: (none)" in proc.stdout
     assert "Skills dirs: (empty temporary directory)" in proc.stdout
+    assert "Timeout: 900s per attempt" in proc.stdout
     assert "--output-format stream-json" in proc.stdout
     assert "--add-dir" not in proc.stdout
     assert "--skills-dir" in proc.stdout
@@ -411,6 +421,40 @@ def test_retries_within_run_mode_then_succeeds(tmp_path: Path) -> None:
     assert proc.returncode == 0, proc.stderr
     assert "Attempt 1 failed in requested-model mode" in proc.stderr
     assert _out_text(out_path) == "OK_RETRY\n"
+
+
+def test_timeout_kills_hung_kimi_attempt(tmp_path: Path) -> None:
+    proc, out_path, _ = _run_runner(
+        tmp_path,
+        args=["--timeout-secs", "1"],
+        fake_mode="sleep_then_success",
+        extra_env={"FAKE_SLEEP_SECS": "5"},
+    )
+    assert proc.returncode == 124
+    assert "timed out after 1s" in proc.stderr
+    assert _out_text(out_path) == ""
+
+
+def test_timeout_can_preserve_raw_stdout_and_stderr(tmp_path: Path) -> None:
+    raw_out = tmp_path / "raw.jsonl"
+    stderr_out = tmp_path / "raw.stderr"
+    proc, out_path, _ = _run_runner(
+        tmp_path,
+        args=[
+            "--timeout-secs",
+            "1",
+            "--raw-out",
+            str(raw_out),
+            "--stderr-out",
+            str(stderr_out),
+        ],
+        fake_mode="partial_then_sleep",
+        extra_env={"FAKE_SLEEP_SECS": "5"},
+    )
+    assert proc.returncode == 124
+    assert _out_text(out_path) == ""
+    assert "PARTIAL_BEFORE_SLEEP" in raw_out.read_text(encoding="utf-8")
+    assert "timed out after 1s" in stderr_out.read_text(encoding="utf-8")
 
 
 def test_falls_back_to_default_model_on_model_not_found(tmp_path: Path) -> None:

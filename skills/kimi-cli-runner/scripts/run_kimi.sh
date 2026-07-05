@@ -20,8 +20,11 @@ MAX_ATTEMPTS=3
 MAX_ATTEMPTS_HARD_MAX=20
 SLEEP_SECS=5
 MAX_BACKOFF_SECS=300
+TIMEOUT_SECS=900
 NO_FALLBACK=0
 DRY_RUN=0
+RAW_OUT=""
+STDERR_OUT=""
 LAST_MODEL_NOT_FOUND=0
 YOLO=0
 RESUME_SESSION=""
@@ -51,6 +54,10 @@ Options:
   --max-attempts N        Total attempts per run mode (default: 3)
   --max-retries N         Deprecated alias of --max-attempts
   --sleep-secs SECONDS    Exponential backoff base seconds (default: 5)
+  --timeout-secs SECONDS  Per-attempt hard timeout for the Kimi subprocess.
+                          Default: 900. Use 0 to disable.
+  --raw-out FILE          Optional. Copy raw Kimi stdout from the last attempt here.
+  --stderr-out FILE       Optional. Copy raw Kimi stderr from the last attempt here.
   --no-fallback           Do not retry without -m when a model run fails as model-not-found.
   --yolo                  Pass Kimi -y (auto-approve all actions). Needed for headless agentic
                           tasks whose tool actions would otherwise wait for interactive approval.
@@ -375,6 +382,21 @@ while [[ $# -gt 0 ]]; do
       SLEEP_SECS="$2"
       shift 2
       ;;
+    --timeout-secs)
+      require_value "$1" "${2-}"
+      TIMEOUT_SECS="$2"
+      shift 2
+      ;;
+    --raw-out)
+      require_value "$1" "${2-}"
+      RAW_OUT="$2"
+      shift 2
+      ;;
+    --stderr-out)
+      require_value "$1" "${2-}"
+      STDERR_OUT="$2"
+      shift 2
+      ;;
     --no-fallback) NO_FALLBACK=1; shift 1;;
     --yolo) YOLO=1; shift 1;;
     --resume-session)
@@ -406,6 +428,14 @@ if [[ -d "${OUT}" ]]; then
   echo "Output path points to a directory: ${OUT}" >&2
   exit 2
 fi
+if [[ -n "${RAW_OUT}" && -d "${RAW_OUT}" ]]; then
+  echo "Raw output path points to a directory: ${RAW_OUT}" >&2
+  exit 2
+fi
+if [[ -n "${STDERR_OUT}" && -d "${STDERR_OUT}" ]]; then
+  echo "Stderr output path points to a directory: ${STDERR_OUT}" >&2
+  exit 2
+fi
 if ! [[ "${MAX_ATTEMPTS}" =~ ^[0-9]+$ ]] || [[ "${MAX_ATTEMPTS}" -lt 1 ]]; then
   echo "--max-attempts must be an integer >= 1" >&2
   exit 2
@@ -420,6 +450,10 @@ if ! [[ "${SLEEP_SECS}" =~ ^[0-9]+$ ]] || [[ "${SLEEP_SECS}" -lt 1 ]]; then
 fi
 if [[ "${SLEEP_SECS}" -gt "${MAX_BACKOFF_SECS}" ]]; then
   echo "--sleep-secs must be <= ${MAX_BACKOFF_SECS}" >&2
+  exit 2
+fi
+if ! [[ "${TIMEOUT_SECS}" =~ ^[0-9]+$ ]]; then
+  echo "--timeout-secs must be an integer >= 0" >&2
   exit 2
 fi
 if [[ -n "${RESUME_SESSION}" && "${CONTINUE_WORK_DIR}" -eq 1 ]]; then
@@ -514,6 +548,17 @@ if [[ "${DRY_RUN}" -eq 1 ]]; then
   echo "Prompt file: ${PROMPT_FILE} (bytes=${prompt_size}, sha256=${prompt_sha})"
   echo "Merged prompt: bytes=${merged_size}, sha256=${merged_sha}, limit=${PROMPT_LIMIT}"
   echo "Output: ${OUT}"
+  if [[ "${TIMEOUT_SECS}" -gt 0 ]]; then
+    echo "Timeout: ${TIMEOUT_SECS}s per attempt"
+  else
+    echo "Timeout: disabled"
+  fi
+  if [[ -n "${RAW_OUT}" ]]; then
+    echo "Raw output: ${RAW_OUT}"
+  fi
+  if [[ -n "${STDERR_OUT}" ]]; then
+    echo "Stderr output: ${STDERR_OUT}"
+  fi
   echo "Invocation:"
   echo -n "  "
   # NOTE: this dry-run display array is built SEPARATELY from run_once() below — when adding flags,
@@ -572,6 +617,16 @@ tmp_stdout="$(mktemp)"
 tmp_stderr="$(mktemp)"
 tmp_text="$(mktemp)"
 tmp_parse_err="$(mktemp)"
+copy_attempt_artifacts() {
+  if [[ -n "${RAW_OUT}" ]]; then
+    mkdir -p "$(dirname "${RAW_OUT}")"
+    cp "${tmp_stdout}" "${RAW_OUT}"
+  fi
+  if [[ -n "${STDERR_OUT}" ]]; then
+    mkdir -p "$(dirname "${STDERR_OUT}")"
+    cp "${tmp_stderr}" "${STDERR_OUT}"
+  fi
+}
 cleanup() {
   rm -f "${MERGED_PROMPT}" "${tmp_stdout}" "${tmp_stderr}" "${tmp_text}" "${tmp_parse_err}"
   if [[ -n "${TEMP_WORK_DIR}" ]]; then
@@ -619,10 +674,41 @@ run_once() {
   done
   cmd+=(-p "${prompt_text}")
 
-  (
-    cd "${RUN_WORK_DIR}"
-    "${cmd[@]}"
-  ) >"${tmp_stdout}" 2>"${tmp_stderr}"
+  if [[ "${TIMEOUT_SECS}" -eq 0 ]]; then
+    (
+      cd "${RUN_WORK_DIR}"
+      "${cmd[@]}"
+    ) >"${tmp_stdout}" 2>"${tmp_stderr}"
+    return $?
+  fi
+
+  python3 - "${RUN_WORK_DIR}" "${TIMEOUT_SECS}" "${tmp_stdout}" "${tmp_stderr}" "${cmd[@]}" <<'PY'
+import subprocess
+import sys
+from pathlib import Path
+
+cwd = sys.argv[1]
+timeout = int(sys.argv[2])
+stdout_path = Path(sys.argv[3])
+stderr_path = Path(sys.argv[4])
+cmd = sys.argv[5:]
+
+with stdout_path.open("wb") as stdout, stderr_path.open("ab") as stderr:
+    try:
+        proc = subprocess.run(
+            cmd,
+            cwd=cwd,
+            stdout=stdout,
+            stderr=stderr,
+            timeout=timeout,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        stderr.write(f"Kimi subprocess timed out after {timeout}s.\n".encode("utf-8"))
+        raise SystemExit(124)
+
+raise SystemExit(proc.returncode)
+PY
 }
 
 run_mode() {
@@ -644,6 +730,7 @@ run_mode() {
     else
       code=$?
     fi
+    copy_attempt_artifacts
     if [[ "${code}" -ne 0 ]] && is_model_not_found_error "${tmp_stdout}" "${tmp_stderr}"; then
       LAST_MODEL_NOT_FOUND=1
     fi

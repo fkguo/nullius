@@ -73,6 +73,7 @@ bash "${SKILL_DIR}/scripts/run_kimi.sh" \
 
 - The runner defaults to `--output-format stream-json` and writes only assistant text content to `--out`; tool calls, tool results, metadata, and non-text assistant blocks are not represented in that output file.
 - Tool result and metadata events are ignored in parsed output.
+- Kimi Code may spend a long time in thinking or tool-use before emitting final assistant text. For reviewer / verification use, prefer a generous per-attempt timeout (the runner default is 900 seconds) and pass `--raw-out` plus `--stderr-out` when you need an auditable trace of tool calls, provider warnings, or partial output.
 - If a specific `--model` fails with a model-not-found style error, the runner retries with Kimi's configured default model unless `--no-fallback` is set.
 - Retry behavior uses `--max-attempts` and `--sleep-secs`.
 - The merged prompt limit defaults to a conservative OS-argument-safe value. Override with `KIMI_MAX_PROMPT_BYTES` when you know your platform can accept larger prompt arguments.
@@ -117,6 +118,9 @@ Both continuation forms are live-validated END-TO-END: a fact planted in run 1 w
 | `--max-attempts N` | 3 | Attempts per run mode |
 | `--max-retries N` | 3 | Deprecated alias for `--max-attempts` |
 | `--sleep-secs S` | 5 | Base exponential backoff |
+| `--timeout-secs S` | 900 | Per-attempt hard timeout for the Kimi subprocess; 0 disables timeout |
+| `--raw-out FILE` | none | Copy raw Kimi stdout from the last attempt to this file for audit/debugging |
+| `--stderr-out FILE` | none | Copy raw Kimi stderr from the last attempt to this file for audit/debugging |
 | `--no-fallback` | off | Do not retry without `--model` after model-not-found errors |
 | `--yolo` | off | Pass Kimi `-y` (auto-approve all actions) for headless agentic tasks |
 | `--resume-session ID` | (none) | Resume a specific recorded Kimi session (`kimi -S ID`) |
