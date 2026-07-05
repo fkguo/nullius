@@ -11,7 +11,7 @@ This document explains the current front-door architecture of the monorepo. It i
 | Workflow authority | checked-in recipes consumed by `nullius workflow-plan` | High-level workflow meaning stays above provider packs |
 | Stateful control plane | `nullius` plus `orch_*` | One shared authority for lifecycle state, approvals, bounded execution, verification, proposal decisions, and read models |
 | Agent project harness | `research-harness` skill | Thin host-client entrypoint for recovery, routing, verification, and handoff in external research project roots |
-| Experimental runtime bridge | `@nullius/idea-engine`, `@nullius/idea-mcp` | Explicit runtime bridge, narrower than the full engine contract, phase closed, not a root front door |
+| Experimental runtime bridge | `@nullius/idea-engine`, `@nullius/idea-mcp` | Explicit runtime bridge, narrower than the full engine contract, search/eval runtime archived, not a root front door |
 | Domain workflow pack | `@nullius/hep-mcp`, `hep_*` | Current strongest end-to-end example without becoming the root identity |
 | Atomic provider operators | `openalex_*`, `arxiv_*`, `hepdata_*`, `pdg_*`, `zotero_*` | Bounded schema-driven MCP atoms that stay MCP-first |
 | Project-local reconnect truth | `.nullius/` plus durable memory files | The external project root, not the development repo, holds the long-lived truth |
@@ -23,7 +23,7 @@ This document explains the current front-door architecture of the monorepo. It i
 - `research-harness` is the agent-client skill entrypoint for Codex / Claude Code / OpenCode project continuation. It does not own state or execution; it restores `.nullius/` plus durable project files, routes milestone work to `research-team`, routes Markdown note cleanup to `markdown-hygiene`, routes HEP evidence work to `hep-mcp`, and folds results back into `research_contract.md`, `research_plan.md#Current Status`, and `artifacts/runs/<run_id>/`.
 - `nullius init` writes `.nullius/HARNESS` as the machine-readable project handshake. Agents should treat its presence as a mandatory `nullius status --json` receipt trigger before new work, milestone execution, closeout, or handoff. `nullius init --refresh` re-applies the managed scaffold doc (`AGENTS.md`) into an already-initialized project, backing up any changed file under `.nullius/backups/` and never rewriting the user-owned seed files.
 - Provider MCP surfaces stay MCP-first. We do not mass-convert provider MCP into CLI because those surfaces are bounded atoms, not stateful workflow shells.
-- `idea-mcp` remains experimental and must not reclaim root workflow authority; the current idea-engine phase is closed rather than a default capability-expansion lane.
+- `idea-mcp` remains experimental and must not reclaim root workflow authority; the idea-engine search/eval runtime is archived rather than a default capability-expansion lane, with contracts + store retained and scoring consuming an external belief-graph posterior (pinned tool, current pin gaia-lang==0.5.0a4).
 - `research_brainstorm` is a lightweight planning-only durable harness recipe under `nullius workflow-plan`: it persists a brainstorm-to-handoff plan and emits a `next_contract` for optional heavier recipes, but it does not provide built-in runtime tools or invoke host-native thinking process, idea-engine, full research-team, broad retrieval, memory graph expansion, or a new front door.
 - Large outputs are written to disk as artifacts; MCP results return compact summaries plus file or artifact pointers.
 - Missing or unauthorized writing citations fail hard at render time; source and artifact paths stay constrained under allowed roots.
@@ -41,7 +41,7 @@ This document explains the current front-door architecture of the monorepo. It i
 | Control-plane MCP/operator surface | `orch_*` | Canonical public MCP/operator counterpart of the same control plane |
 | Stateful literature planning | `nullius workflow-plan` | Checked-in workflow authority resolved via `@nullius/literature-workflows`; persists `.nullius/state.json#/plan` and derives `.nullius/plan.md`. `research_brainstorm` is the lightweight planning-only recipe variant that emits a `next_contract` handoff without starting heavier workflows |
 | Agent project harness skill | `research-harness` | Market-listed thin skill for Codex / Claude Code / OpenCode to recover project truth, route execution to `nullius` / `research-team` / `markdown-hygiene` / `hep-mcp`, and close out verification or handoff |
-| Experimental runtime bridge | `idea_mcp` | `idea_campaign_*`, `idea_search_step`, and `idea_eval_run` on explicit external data roots; post-search `rank.compute` / `node.promote` and bounded negative failure-library reflection stay inside the `idea-engine` runtime contract |
+| Experimental runtime bridge | `idea_mcp` | `idea_campaign_*` on explicit external data roots; node posterior/lifecycle updates and posterior-based `rank.compute` / `node.promote` stay inside the `idea-engine` runtime contract |
 | Current most mature domain MCP front door | `@nullius/hep-mcp` | Project/Run, evidence, writing/export, and provider-local composition |
 | Provider-local atoms | `openalex_*`, `arxiv_*`, `hepdata_*`, `pdg_*`, `zotero_*` | Bounded provider operators that remain MCP-first |
 

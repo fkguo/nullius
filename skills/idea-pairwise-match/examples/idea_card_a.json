@@ -1,0 +1,30 @@
+{
+  "node_id": "1f6c9d5e-4a2b-4c8d-9e3f-7a1b2c3d4e5f",
+  "title": "Adaptive basis enrichment for a variational bound-state method",
+  "gist": "Extend a variational bound-state method with an adaptive rule that enriches the trial basis where a residual-based error indicator is largest, aiming at faster convergence of low-lying states with an explicit error indicator reported alongside each level.",
+  "status": "active",
+  "claims": [
+    {
+      "claim": "Residual-based error indicators locate the regions where a variational trial basis is deficient.",
+      "support_type": "literature",
+      "evidence_uris": [
+        "https://example.org/literature/residual-error-indicators"
+      ]
+    },
+    {
+      "claim": "A pilot computation shows the adaptive enrichment rule reduces the basis size needed for a fixed energy tolerance by roughly a factor of three on a benchmark family.",
+      "support_type": "computation",
+      "evidence_uris": [
+        "artifact://campaign/toy/computations/adaptive-enrichment-pilot.json"
+      ]
+    },
+    {
+      "claim": "Greedy enrichment strategies are known to converge for the class of symmetric operators considered.",
+      "support_type": "literature",
+      "evidence_uris": [
+        "https://example.org/literature/greedy-convergence-review"
+      ]
+    }
+  ],
+  "note": "Synthetic example card for tests and protocol demonstrations. The references are placeholders, not real publications or real computations."
+}

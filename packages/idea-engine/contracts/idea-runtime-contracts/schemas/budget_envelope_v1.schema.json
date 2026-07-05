@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "budget_envelope_v1.schema.json",
   "title": "BudgetEnvelope v1",
-  "description": "Budget envelope for a campaign/search step. Used by the Budget Circuit Breaker.",
+  "description": "Budget envelope for a campaign. Enforced by the campaign budget accounting.",
   "type": "object",
   "required": ["max_tokens", "max_cost_usd", "max_wall_clock_s"],
   "properties": {
@@ -15,19 +15,6 @@
       "description": "Optional hard cap on the total number of IdeaNodes that may be created in this campaign."
     },
     "max_steps": { "type": "integer", "minimum": 1 },
-    "degradation_order": {
-      "type": "array",
-      "description": "Optional ordered degradation strategy when budget is tight.",
-      "items": {
-        "enum": [
-          "reduce_eval_rounds",
-          "reduce_islands",
-          "disable_cross_domain_operators",
-          "reduce_population",
-          "early_stop"
-        ]
-      }
-    },
     "extensions": {
       "type": "object",
       "description": "Implementation-specific knobs (kept out of the stable surface).",

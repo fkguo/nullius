@@ -42,13 +42,13 @@ function parseTtlHoursFromEnv(): { ttlHours: number | null; source: DiscoveryTtl
 /**
  * Delete per-request discovery artifacts older than the configured TTL.
  *
- * Discovery writes 6 per-request JSON files per `idea_search_step` /
- * `hep_research_*` discovery invocation (query_plan, query_reformulation,
- * candidate_generation, canonical_papers, dedup, rerank). Each is named
+ * Discovery writes 6 per-request JSON files per `hep_research_*` discovery
+ * invocation (query_plan, query_reformulation, candidate_generation,
+ * canonical_papers, dedup, rerank). Each is named
  * `discovery_<step>_<NNN>_v1.json` with NNN being the monotonic request index.
  * Without cleanup these files accumulate forever (the user audit found 949+
  * files on one machine). 24h is sufficient for "look up what just happened";
- * longer-term provenance lives in the append-only `discovery_search_log_v1.jsonl`
+ * longer-term origin records live in the append-only `discovery_search_log_v1.jsonl`
  * which this cleanup deliberately preserves.
  *
  * Best-effort: ignores individual filesystem errors. Returns a summary the

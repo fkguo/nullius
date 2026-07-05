@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "seed_pack_v1.schema.json",
   "title": "SeedPack v1",
-  "description": "Normalized seed inputs for a campaign. Sources may include C1 gaps, PDG tensions, KB priors, and user-provided seeds.",
+  "description": "Normalized seed inputs for a campaign. Sources may include literature gaps, measurement tensions, knowledge-base priors, and user-provided seeds.",
   "type": "object",
   "required": ["seeds"],
   "properties": {

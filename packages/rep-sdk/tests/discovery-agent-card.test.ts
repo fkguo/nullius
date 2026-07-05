@@ -9,8 +9,6 @@ const LIVE_IDEA_ENGINE_DISCOVERY_CAPABILITIES = [
   'campaign.pause',
   'campaign.resume',
   'campaign.complete',
-  'search.step',
-  'eval.run',
 ] as const;
 
 async function loadLiveCard(fileName: 'hep-mcp.json' | 'idea-engine.json') {
@@ -93,7 +91,7 @@ describe('agent card discovery helpers', () => {
     });
   });
 
-  it('keeps the live idea-engine card aligned to the eight-method runtime discovery surface', async () => {
+  it('keeps the live idea-engine card aligned to the six-method campaign-lifecycle discovery surface', async () => {
     const card = validateAgentCard(await loadLiveCard('idea-engine.json'));
     expect(card.ok).toBe(true);
 

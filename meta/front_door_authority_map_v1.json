@@ -88,8 +88,8 @@
       "surface_kind": "mcp_tool_inventory",
       "owner": "@nullius/idea-mcp",
       "notes": [
-        "Experimental runtime bridge for idea search/eval loops.",
-        "Not a root front door and intentionally narrower than the full `idea-engine` runtime contract."
+        "Experimental runtime bridge for idea campaign lifecycle management.",
+        "Not a root front door and intentionally narrower than the full `idea-engine` runtime contract (node posterior/lifecycle/rank/promote methods stay engine-side)."
       ],
       "exact_inventory_source": "packages/idea-mcp/src/tool-registry.ts",
       "tools": [
@@ -116,14 +116,6 @@
         {
           "name": "idea_campaign_complete",
           "rpc_method": "campaign.complete"
-        },
-        {
-          "name": "idea_search_step",
-          "rpc_method": "search.step"
-        },
-        {
-          "name": "idea_eval_run",
-          "rpc_method": "eval.run"
         }
       ]
     }

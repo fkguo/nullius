@@ -129,7 +129,7 @@ export async function startServer(env: NodeJS.ProcessEnv = process.env): Promise
     try {
       // P3-C (redesigned 2026-05-23): event-driven anchor verification.
       // idea-mcp classifier: ALL idea_* tools are STATE_TOUCHING per audit
-      // (every campaign/search/eval tool mutates `<rootDir>/campaigns/...`).
+      // (every campaign tool mutates `<rootDir>/campaigns/...`).
       verifyHarnessInvocationMarker(process.cwd(), {
         toolIsStateTouching: isStateTouchingIdeaMcp(toolName),
       });

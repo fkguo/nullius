@@ -661,3 +661,17 @@
 - Freshness guards must still fail when required emitted artifacts are missing; `tsbuildinfo` supplements artifact existence checks, it does not replace them.
 
 **Why**: Type-only or declaration-neutral edits can legitimately trigger an incremental build that leaves generated files byte-identical and therefore untouched on disk. A freshness checker that only compares source mtimes to emitted artifact mtimes will then report false stale-dist failures and break downstream package builds even though the package was rebuilt successfully.
+
+### [2026-07-05] Idea portfolio restart invariant: search/eval runtime archived, scoring consumes an external belief-graph posterior
+
+**Decision**:
+- The `idea-engine` island-search/eval runtime (search.step, eval.run, domain packs, distributor, failure library, computation-feedback consumer) is archived by deletion; git history is the archive and no compatibility shims, legacy enums, or fallback backends remain.
+- The engine now manages an idea portfolio: `idea_node_v1` gains `lifecycle_state` (`active`/`waiting_activation`/`archived`, absent = active), `posterior` (`value`, `evidence_count`, `updated_at`, optional `gaia_package_ref`), and `activation_condition`; `eval_info` is removed from the contract.
+- Scoring consumes an externally computed belief-graph posterior (pinned external tool; current pin gaia-lang==0.5.0a4) written back via the new `node.set_posterior` RPC method; `node.set_lifecycle` manages lifecycle transitions; both go through the standard lock + idempotency + mutation-log write pipeline and do not consume step budget.
+- `rank.compute` orders nodes by posterior (ties by evidence_count, then stable input order) and reports excluded nodes explicitly in `skipped_nodes` (`no_posterior`/`waiting_activation`/`archived`); an empty ranking is a valid result and `insufficient_eval_data` (-32013) is retired.
+- `node.promote` gates on idea_card completeness (schema + formalization trace + placeholder-evidence stripping), grounding pass, active lifecycle state, and a non-null posterior (new error -32017 `promotion_blocked` with reasons `posterior_missing`/`node_not_active`); no numeric posterior threshold — review audits anchors, not scores.
+- The exact public `idea-mcp` tool inventory shrinks to the six campaign lifecycle tools: `idea_campaign_init`, `idea_campaign_status`, `idea_campaign_topup`, `idea_campaign_pause`, `idea_campaign_resume`, `idea_campaign_complete`; `idea_search_step` and `idea_eval_run` are deleted.
+- Campaign records and contracts drop island states, domain packs, and distributor references; `campaign.init` no longer resolves any built-in registry (the abstract problem registry is caller-provided only).
+- New decision-layer contracts `pairwise_match_v1` and `allocation_decision_v1` live in the engine-local contract directory for cross-workstream consumption; the unused generated `idea_runtime_rpc_v1.bundled.json` (zero readers, no generator) is deleted.
+
+**Why**: The restart replaces heuristic multi-dimensional scoring (the "elo" placeholder never ranked on real signal) with probability management over source-grounded sub-criteria: beliefs live in an external argument-graph tool, the engine stores posteriors and orderings, and investment allocation belongs to a separate decision layer (Thompson sampling over posteriors). Keeping search-era surfaces alive as pseudo-compatibility truth would recreate the split-brain the pre-release no-backward-compatibility policy exists to prevent.

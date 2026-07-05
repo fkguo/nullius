@@ -121,8 +121,6 @@ export const IDEA_CAMPAIGN_TOPUP = 'idea_campaign_topup' as const;
 export const IDEA_CAMPAIGN_PAUSE = 'idea_campaign_pause' as const;
 export const IDEA_CAMPAIGN_RESUME = 'idea_campaign_resume' as const;
 export const IDEA_CAMPAIGN_COMPLETE = 'idea_campaign_complete' as const;
-export const IDEA_SEARCH_STEP = 'idea_search_step' as const;
-export const IDEA_EVAL_RUN = 'idea_eval_run' as const;
 
 /**
  * Shared code should treat tool identifiers as provider-owned strings.

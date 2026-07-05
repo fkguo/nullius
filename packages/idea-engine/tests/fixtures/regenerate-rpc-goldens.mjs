@@ -169,10 +169,6 @@ async function main() {
       label: 'write',
       path: resolve(fixturesDir, 'write-rpc-golden.json'),
     },
-    {
-      label: 'search-step',
-      path: resolve(fixturesDir, 'search-step-rpc-golden.json'),
-    },
   ];
 
   let hadMismatch = false;

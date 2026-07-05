@@ -1,0 +1,30 @@
+{
+  "node_id": "2a7d0e6f-5b3c-4d9e-8f4a-0b1c2d3e4f5a",
+  "title": "Dispersive continuation with explicitly tracked truncation error",
+  "gist": "Reconstruct the target quantity in an adjacent kinematic-like region through a dispersive continuation whose truncation error is tracked explicitly, so the continuation comes with an uncertainty band instead of a point estimate.",
+  "status": "active",
+  "claims": [
+    {
+      "claim": "The target quantity admits a dispersive representation whose truncation error can be bounded by the tail's asymptotic behavior.",
+      "support_type": "literature",
+      "evidence_uris": [
+        "https://example.org/literature/dispersive-representation-notes"
+      ]
+    },
+    {
+      "claim": "A toy reconstruction recovers the reference curve within the stated uncertainty band across the continuation region.",
+      "support_type": "computation",
+      "evidence_uris": [
+        "artifact://campaign/toy/computations/dispersive-toy-reconstruction.json"
+      ]
+    },
+    {
+      "claim": "Analytic-structure constraints remove most of the ambiguity that affects unconstrained extrapolation.",
+      "support_type": "literature",
+      "evidence_uris": [
+        "https://example.org/literature/analytic-constraints-survey"
+      ]
+    }
+  ],
+  "note": "Synthetic example card for tests and protocol demonstrations. The references are placeholders, not real publications or real computations."
+}

@@ -65,11 +65,17 @@ export class IdeaEngineStore {
     writeJsonFileAtomic(this.nodesLatestPath(campaignId), nodes);
   }
 
-  appendNodeLog(campaignId: string, node: Record<string, unknown>, mutation: string): void {
+  appendNodeLog(
+    campaignId: string,
+    node: Record<string, unknown>,
+    mutation: string,
+    extra?: Record<string, unknown>,
+  ): void {
     appendJsonLine(this.nodesLogPath(campaignId), {
       mutation,
       node_id: node.node_id,
       revision: node.revision,
+      ...(extra ?? {}),
       node,
     });
   }

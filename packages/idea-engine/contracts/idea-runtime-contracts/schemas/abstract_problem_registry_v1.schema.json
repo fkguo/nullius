@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "abstract_problem_registry_v1.schema.json",
   "title": "AbstractProblemRegistry v1",
-  "description": "DomainPack-declared registry mapping abstract problem types to known solution families, prerequisites, and references. Used by ProblemReduction/TechniqueTransplant operators and validated at reduction_audit time.",
+  "description": "Caller-provided registry mapping abstract problem types to known solution families, prerequisites, and references; supplied to the engine at campaign.init. Used by ProblemReduction/TechniqueTransplant operators and validated at reduction_audit time.",
   "type": "object",
   "required": ["entries"],
   "properties": {

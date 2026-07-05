@@ -18,8 +18,6 @@ describe('idea-mcp tool registry', () => {
       'idea_campaign_pause',
       'idea_campaign_resume',
       'idea_campaign_complete',
-      'idea_search_step',
-      'idea_eval_run',
     ]);
     expect(IDEA_TOOLS.map(tool => tool.rpcMethod)).toEqual([
       'campaign.init',
@@ -28,8 +26,6 @@ describe('idea-mcp tool registry', () => {
       'campaign.pause',
       'campaign.resume',
       'campaign.complete',
-      'search.step',
-      'eval.run',
     ]);
   });
 
@@ -55,7 +51,7 @@ describe('idea-mcp tool registry', () => {
     expect((schema.properties as Record<string, unknown>).abstract_problem_registry).toBeDefined();
   });
 
-  it('exposes live-contract required fields for search.step and eval.run', () => {
+  it('exposes live-contract required fields for the campaign mutation tools', () => {
     expect(zodToMcpInputSchema(getTool('idea_campaign_topup').schema)).toMatchObject({
       type: 'object',
       required: ['campaign_id', 'topup', 'idempotency_key'],
@@ -74,25 +70,12 @@ describe('idea-mcp tool registry', () => {
       // ListTools clients see the gate without out-of-band documentation.
       required: ['campaign_id', 'idempotency_key', '_confirm'],
     });
-    expect(zodToMcpInputSchema(getTool('idea_search_step').schema)).toMatchObject({
-      type: 'object',
-      required: ['campaign_id', 'n_steps', 'idempotency_key'],
-    });
-    expect(zodToMcpInputSchema(getTool('idea_eval_run').schema)).toMatchObject({
-      type: 'object',
-      required: ['campaign_id', 'node_ids', 'evaluator_config', 'idempotency_key'],
-    });
   });
 
   it('rejects the old shorthand request shapes from batch-9', () => {
     expect(() => getTool('idea_campaign_init').schema.parse({
-      topic: 'dark matter',
+      topic: 'a shorthand topic',
       budget: 5,
-    })).toThrow();
-
-    expect(() => getTool('idea_search_step').schema.parse({
-      campaign_id: 'not-a-uuid',
-      query: 'override',
     })).toThrow();
 
     expect(() => getTool('idea_campaign_topup').schema.parse({
@@ -178,13 +161,12 @@ describe('B-10 regression — destructive tool gate', () => {
   it('non-destructive tool schemas REJECT _confirm (strict-unknown contract preserved)', () => {
     // The strict() guard means passing _confirm to a non-destructive tool
     // is a contract violation — caught at parse, with no silent acceptance.
-    for (const name of ['idea_campaign_status', 'idea_campaign_pause', 'idea_campaign_resume', 'idea_search_step']) {
+    for (const name of ['idea_campaign_status', 'idea_campaign_pause', 'idea_campaign_resume']) {
       const tool = getTool(name);
       expect(
         () => tool.schema.parse({
           campaign_id: '11111111-1111-4111-8111-111111111111',
           idempotency_key: 'unused',
-          n_steps: 1,
           _confirm: true,
         }),
         `tool ${name} should reject _confirm`,

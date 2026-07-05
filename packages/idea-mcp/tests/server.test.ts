@@ -22,7 +22,7 @@ function initParams(campaignName: string) {
     charter: {
       approval_gate_ref: 'gate://idea.server',
       campaign_name: campaignName,
-      domain: 'hep-ph',
+      domain: 'test-domain',
       scope: 'idea-mcp server wiring regression',
     },
     idempotency_key: `${campaignName}-init`,

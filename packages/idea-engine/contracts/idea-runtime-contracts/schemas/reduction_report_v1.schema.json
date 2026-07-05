@@ -18,7 +18,7 @@
     "abstract_problem": {
       "type": "string",
       "minLength": 1,
-      "description": "Abstract problem type (must be registered in the DomainPack abstract_problem_registry at runtime)."
+      "description": "Abstract problem type (must be registered in the campaign's caller-provided abstract_problem_registry at runtime)."
     },
     "reduction_map": {
       "type": "array",
@@ -244,7 +244,7 @@
     },
     "extensions": {
       "type": "object",
-      "description": "Operator/DomainPack specific extensions.",
+      "description": "Operator-specific extensions.",
       "additionalProperties": true
     }
   },

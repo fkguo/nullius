@@ -4,9 +4,14 @@ import { pathToFileURL } from 'url';
 import { budgetSnapshot } from './budget-snapshot.js';
 import { recordOrReplay, responseIdempotency, storeIdempotency } from './idempotency.js';
 import { RpcError, schemaValidationError } from './errors.js';
-import { ensureNodeInCampaign, validateFormalizationTrace } from './post-search-shared.js';
-import { loadPromotionEvidenceSupport, PLACEHOLDER_EVIDENCE_URI } from './promotion-evidence-support.js';
-import { ensureCampaignRunning, loadCampaignOrError, setCampaignRunningIfBudgetAvailable } from './search-step-campaign.js';
+import {
+  PLACEHOLDER_EVIDENCE_URI,
+  ensureNodeInCampaign,
+  nodeLifecycleState,
+  nodePosterior,
+  validateFormalizationTrace,
+} from './node-shared.js';
+import { ensureCampaignRunning, loadCampaignOrError, setCampaignRunningIfBudgetAvailable } from './campaign-state.js';
 
 function reductionError(options: {
   campaignId: string;
@@ -17,6 +22,17 @@ function reductionError(options: {
   const data = { campaign_id: options.campaignId, node_id: options.nodeId, reason: options.reason };
   options.contracts.validateErrorData(data);
   return new RpcError(-32016, 'reduction_audit_failed', data);
+}
+
+function promotionBlockedError(options: {
+  campaignId: string;
+  contracts: IdeaEngineContractCatalog;
+  nodeId: string;
+  reason: 'posterior_missing' | 'node_not_active';
+}): RpcError {
+  const data = { campaign_id: options.campaignId, node_id: options.nodeId, reason: options.reason };
+  options.contracts.validateErrorData(data);
+  return new RpcError(-32017, 'promotion_blocked', data);
 }
 
 function stringArray(value: unknown): string[] {
@@ -42,6 +58,14 @@ function sanitizePromotedIdeaCard(ideaCard: Record<string, unknown>): Record<str
   return promotedIdeaCard;
 }
 
+/**
+ * node.promote gates: the idea_card must be structurally complete
+ * (schema-valid, formalization trace intact, and still schema-valid after
+ * placeholder evidence URIs are stripped), grounding_audit.status must be
+ * pass, the node must be in the active lifecycle state, and the node must
+ * carry a non-null posterior. Reviewers audit anchors, not scores, so no
+ * numeric posterior threshold is applied here.
+ */
 export function executeNodePromote(options: {
   contracts: IdeaEngineContractCatalog;
   now: () => string;
@@ -98,13 +122,15 @@ export function executeNodePromote(options: {
       options.contracts.validateErrorData(data);
       throw new RpcError(-32011, 'grounding_audit_failed', data);
     }
-    const evidenceSupport = loadPromotionEvidenceSupport({
-      campaignId,
-      contracts: options.contracts,
-      node,
-      nodeId,
-      store: options.store,
-    });
+
+    if (nodeLifecycleState(node) !== 'active') {
+      throw promotionBlockedError({ campaignId, contracts: options.contracts, nodeId, reason: 'node_not_active' });
+    }
+    const posterior = nodePosterior(node);
+    if (!posterior) {
+      throw promotionBlockedError({ campaignId, contracts: options.contracts, nodeId, reason: 'posterior_missing' });
+    }
+
     const promotedIdeaCard = sanitizePromotedIdeaCard(node.idea_card as Record<string, unknown>);
     options.contracts.validateAgainstRef(
       './idea_card_v1.schema.json',
@@ -148,7 +174,6 @@ export function executeNodePromote(options: {
     const handoffArtifactRef = pathToFileURL(options.store.artifactPath(campaignId, 'handoff', handoffArtifactName)).href;
     const handoffPayload: Record<string, unknown> = {
       campaign_id: campaignId,
-      evidence_support: evidenceSupport,
       grounding_audit: groundingAudit,
       idea_card: promotedIdeaCard,
       idea_id: node.idea_id,
