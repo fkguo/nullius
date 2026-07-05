@@ -136,11 +136,94 @@ def test_discipline_scan_flags_missing_justification_anchor() -> None:
     )
 
 
-def test_discipline_scan_surfaces_non_literal_arguments() -> None:
+def test_discipline_scan_rejects_non_literal_note() -> None:
+    # The discipline requires literal notes; indirection is a violation,
+    # not a pass-through.
     source = CLEAN_MODULE + "\nnote = 'anchor: x'\nobserve('More.', rationale=note)\n"
+    violations, _ = extract.scan_discipline(source)
+    assert any("not a literal string" in v for v in violations)
+
+
+def test_discipline_scan_rejects_non_literal_probabilities() -> None:
+    source = CLEAN_MODULE.replace(
+        "p_e_given_h=0.90, p_e_given_not_h=0.09",
+        "p_e_given_h=grade, p_e_given_not_h=0.09",
+    )
+    violations, _ = extract.scan_discipline(source)
+    assert any("not literal numbers" in v for v in violations)
+
+
+def test_discipline_scan_resolves_import_aliases() -> None:
+    source = (
+        "from gaia.engine.lang import claim, infer as i\n"
+        "h = claim('H.', title='h')\n"
+        "e = claim('E.', title='e')\n"
+        "i(e, hypothesis=h, p_e_given_h=0.85, p_e_given_not_h=0.15,\n"
+        "  rationale='off grade. anchor: x')\n"
+    )
+    violations, _ = extract.scan_discipline(source)
+    assert any("off-grade pair" in v for v in violations)
+
+
+def test_discipline_scan_resolves_module_aliases() -> None:
+    source = (
+        "import gaia.engine.lang as lang\n"
+        "h = lang.claim('H.', title='h')\n"
+        "lang.observe('Fact.', rationale='no note here')\n"
+    )
+    violations, _ = extract.scan_discipline(source)
+    assert any("does not end with an 'anchor:" in v for v in violations)
+
+
+STRONG_REACH = (
+    "from gaia.engine.lang import claim, infer, observe\n"
+    "worth = claim('Worth.', title='worth')\n"
+    "downstream_reach = claim('Reach.', title='downstream_reach')\n"
+    "ev = observe('Chains recorded.', rationale='ctx. anchor: idea card')\n"
+    "infer(ev, hypothesis=downstream_reach, p_e_given_h=0.90,\n"
+    "      p_e_given_not_h=0.03,\n"
+    "      rationale='{clause}broad reach. anchor: idea card')\n"
+)
+
+
+def test_strong_reach_requires_domains_clause() -> None:
+    violations, _ = extract.scan_discipline(STRONG_REACH.format(clause=""))
+    assert any("domains:" in v for v in violations)
+
+
+def test_strong_reach_with_three_domains_passes() -> None:
+    source = STRONG_REACH.format(
+        clause="domains: first domain; second domain; third domain. "
+    )
+    violations, _ = extract.scan_discipline(source)
+    assert violations == []
+
+
+def test_strong_reach_with_two_domains_is_rejected() -> None:
+    source = STRONG_REACH.format(clause="domains: first domain; second domain. ")
+    violations, _ = extract.scan_discipline(source)
+    assert any("domains:" in v for v in violations)
+
+
+def test_strong_grade_on_other_claims_needs_no_domains() -> None:
+    source = STRONG_REACH.replace("downstream_reach", "mechanism_insight")
+    violations, _ = extract.scan_discipline(source.format(clause=""))
+    assert violations == []
+
+
+def test_strong_raise_requires_plain_hypothesis_variable() -> None:
+    source = STRONG_REACH.format(clause="").replace(
+        "hypothesis=downstream_reach", "hypothesis=claims['reach']"
+    )
+    violations, _ = extract.scan_discipline(source)
+    assert any("plain claim variable" in v for v in violations)
+
+
+def test_non_strong_indirect_hypothesis_is_a_review_flag() -> None:
+    source = CLEAN_MODULE.replace("hypothesis=sub", "hypothesis=graph['sub']")
     violations, review_flags = extract.scan_discipline(source)
-    assert any("flag for review" in f for f in review_flags)
-    assert not any("More." in v for v in violations)
+    assert violations == []
+    assert any("confirm the update target" in f for f in review_flags)
 
 
 def test_discipline_scan_accepts_reversed_grades() -> None:
@@ -157,12 +240,25 @@ def test_discipline_scan_covers_generated_template() -> None:
     assert extract.scan_discipline(scaffold.render_template("x-idea")) == ([], [])
 
 
-def write_fake_gaia(tmp_path):
+def write_fake_gaia(tmp_path, fixtures_dir=None):
+    """Stub gaia: correct version banner; optionally fakes `run infer` by
+    copying fixture artifacts into the package's .gaia directory."""
     fake = tmp_path / "fake-gaia"
-    fake.write_text(
-        '#!/bin/sh\nif [ "$1" = "--version" ]; then echo "gaia-lang 0.5.0a4"; fi\nexit 0\n',
-        encoding="utf-8",
-    )
+    lines = [
+        "#!/bin/sh",
+        'if [ "$1" = "--version" ]; then echo "gaia-lang 0.5.0a4"; exit 0; fi',
+    ]
+    if fixtures_dir is not None:
+        lines += [
+            'eval "last=\\${$#}"',
+            'if [ "$1" = "run" ]; then',
+            '  mkdir -p "$last/.gaia"',
+            f'  cp "{fixtures_dir}/beliefs_sample.json" "$last/.gaia/beliefs.json"',
+            f'  cp "{fixtures_dir}/ir_sample.json" "$last/.gaia/ir.json"',
+            "fi",
+        ]
+    lines.append("exit 0")
+    fake.write_text("\n".join(lines) + "\n", encoding="utf-8")
     fake.chmod(0o755)
     return fake
 
@@ -190,9 +286,11 @@ def test_main_refuses_on_discipline_violation(tmp_path, capsys) -> None:
     assert "ok: build compile" not in err  # stopped before any gaia stage
 
 
-def test_main_explicit_exception_downgrades_to_warning(tmp_path, capsys) -> None:
+def test_main_explicit_exception_marks_exploration_only(
+    tmp_path, fixtures_dir, capsys
+) -> None:
     package = write_violating_package(tmp_path)
-    fake_gaia = write_fake_gaia(tmp_path)
+    fake_gaia = write_fake_gaia(tmp_path, fixtures_dir=fixtures_dir)
     code = extract.main(
         [
             "--package", str(package),
@@ -200,12 +298,14 @@ def test_main_explicit_exception_downgrades_to_warning(tmp_path, capsys) -> None
             "--allow-discipline-warnings",
         ]
     )
-    err = capsys.readouterr().err
-    assert "allowed by --allow-discipline-warnings" in err
-    # The scan let the run proceed to the gaia stages; with the stub gaia
-    # it then fails on missing inference artifacts, not on discipline.
-    assert code == 2
-    assert "run the inference stages" in err
+    out = capsys.readouterr()
+    assert "allowed by --allow-discipline-warnings" in out.err
+    assert code == 0
+    posterior = json.loads(out.out)
+    # The exception is explicit and the product is quarantined: the
+    # reference is marked so the writeback contract refuses it.
+    assert posterior["gaia_package_ref"].startswith("exploration-only:")
+    assert posterior["value"] == pytest.approx(0.8499370175790979)
 
 
 def test_extract_posterior_requires_ir_hash(tmp_path, fixtures_dir) -> None:

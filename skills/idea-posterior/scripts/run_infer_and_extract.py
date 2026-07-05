@@ -93,16 +93,49 @@ def check_gaia_version(gaia_bin: str) -> None:
 # by a non-empty reference, as the last thing in the string.
 TRAILING_ANCHOR_RE = re.compile(r"anchor:\s*\S[^\n]*$")
 
+# A raising strong-grade downstream_reach update must carry a domains
+# clause listing >= 3 independently anchored phenomenon domains, separated
+# by ";" or "|", e.g. "domains: first domain; second domain; third domain".
+DOMAINS_CLAUSE_RE = re.compile(r"domains:\s*([^\n]+)")
+
+
+def has_domains_clause(text: str) -> bool:
+    """True when the text carries a domains clause with >= 3 entries."""
+    match = DOMAINS_CLAUSE_RE.search(text)
+    if not match:
+        return False
+    entries = [
+        entry.strip()
+        for entry in re.split(r"[;|]", match.group(1))
+        if entry.strip()
+    ]
+    return len(entries) >= 3
+
 
 def scan_discipline(source: str) -> tuple[list[str], list[str]]:
     """Static scan for the grade and anchor discipline.
 
-    Returns (violations, review_flags). Violations are statically certain
-    breaches of the discipline: an infer() probability pair outside the
-    three grades, or a literal rationale/justification that is missing or
-    does not END with an "anchor: <reference>" note. Review flags are
-    statements the scan cannot decide (non-literal arguments); they go to
-    the reviewer instead. Review remains the authority either way.
+    Returns (violations, review_flags). The rule is: a statement passes only
+    when the scan can PROVE it follows the discipline. Literal probability
+    pairs must sit in the three grades; literal rationales/justifications
+    must end (last line) with an "anchor: <reference>" note; a raising
+    strong-grade update of `downstream_reach` must list three or more
+    domains in a "domains:" clause. Anything the scan cannot prove —
+    non-literal probabilities or notes, aliased statement names it can
+    still resolve but whose arguments it cannot read — is a violation, not
+    a pass: the discipline itself requires literal grades and literal
+    anchors, so an unprovable statement is a non-compliant statement.
+    Review flags carry only what remains for the reviewer's judgment on
+    substance (anchors' truth, grade appropriateness, domain independence).
+
+    Statement names are resolved through import aliases
+    (`from gaia.engine.lang import infer as i`, `import gaia.engine.lang
+    as g; g.infer(...)`). Wrapper functions that forward arguments are
+    caught by the literality rule: the forwarded arguments inside the
+    wrapper are non-literal. The scan guards against ordinary authoring
+    and casual workarounds; deliberately obfuscated authoring (exec,
+    computed attributes) is out of scope and belongs to review and
+    version-controlled history.
     """
     try:
         tree = ast.parse(source)
@@ -110,16 +143,40 @@ def scan_discipline(source: str) -> tuple[list[str], list[str]]:
         return [f"module does not parse: {exc}"], []
     violations: list[str] = []
     review_flags: list[str] = []
+
+    # Resolve import aliases for the scanned statement names.
+    scanned = {"observe", "infer", "register_prior"}
+    name_aliases: dict[str, str] = {}
+    module_aliases: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module and (
+            node.module == "gaia.engine.lang"
+            or node.module.startswith("gaia.")
+        ):
+            for alias in node.names:
+                if alias.name in scanned:
+                    name_aliases[alias.asname or alias.name] = alias.name
+        elif isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name == "gaia.engine.lang" or alias.name.startswith(
+                    "gaia."
+                ):
+                    module_aliases.add(alias.asname or alias.name.split(".")[0])
+
+    def resolve_statement(func: ast.expr) -> str | None:
+        if isinstance(func, ast.Name):
+            return name_aliases.get(func.id) or (
+                func.id if func.id in scanned else None
+            )
+        if isinstance(func, ast.Attribute) and func.attr in scanned:
+            return func.attr
+        return None
+
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
-        func = node.func
-        name = (
-            func.id
-            if isinstance(func, ast.Name)
-            else getattr(func, "attr", None)
-        )
-        if name not in ("observe", "infer", "register_prior"):
+        name = resolve_statement(node.func)
+        if name is None:
             continue
         kwargs = {kw.arg: kw.value for kw in node.keywords if kw.arg}
         if name == "infer":
@@ -133,11 +190,40 @@ def scan_discipline(source: str) -> tuple[list[str], list[str]]:
                         f"{pair}; allowed grades are 3 (0.75/0.25), "
                         "10 (0.90/0.09), 30 (0.90/0.03), or their reversals"
                     )
-            elif h is not None or nh is not None:
-                review_flags.append(
+                elif pair == (0.9, 0.03):
+                    # Raising strong-grade update: if it targets
+                    # downstream_reach it must list >= 3 domains; and its
+                    # hypothesis must be a plain claim variable so the
+                    # target is auditable at all.
+                    hyp = kwargs.get("hypothesis")
+                    note = kwargs.get("rationale")
+                    if not isinstance(hyp, ast.Name):
+                        violations.append(
+                            f"line {node.lineno}: a raising strong-grade "
+                            "infer must name its hypothesis as a plain "
+                            "claim variable; anything less is not "
+                            "auditable at the strongest grade"
+                        )
+                    elif hyp.id == "downstream_reach":
+                        note_text = (
+                            note.value
+                            if isinstance(note, ast.Constant)
+                            and isinstance(note.value, str)
+                            else ""
+                        )
+                        if not has_domains_clause(note_text):
+                            violations.append(
+                                f"line {node.lineno}: strong-grade "
+                                "downstream_reach update without a "
+                                "'domains: <one>; <two>; <three>' clause "
+                                "naming at least three independently "
+                                "anchored phenomenon domains"
+                            )
+            else:
+                violations.append(
                     f"line {node.lineno}: infer probabilities are not "
-                    "literal numbers; the static scan cannot check the "
-                    "grade - flag for review"
+                    "literal numbers; the discipline requires one of the "
+                    "three grades written as literals"
                 )
         note_name = "justification" if name == "register_prior" else "rationale"
         note = kwargs.get(note_name)
@@ -150,11 +236,30 @@ def scan_discipline(source: str) -> tuple[list[str], list[str]]:
                     "with an 'anchor: <reference>' note"
                 )
         else:
-            review_flags.append(
+            violations.append(
                 f"line {node.lineno}: {name} {note_name} is not a literal "
-                "string; the static scan cannot check the anchor - flag "
-                "for review"
+                "string; the discipline requires a literal note ending "
+                "with an anchor"
             )
+        if name == "infer":
+            hyp = kwargs.get("hypothesis")
+            h = kwargs.get("p_e_given_h")
+            nh = kwargs.get("p_e_given_not_h")
+            is_strong_raise = (
+                isinstance(h, ast.Constant)
+                and isinstance(nh, ast.Constant)
+                and (h.value, nh.value) == (0.9, 0.03)
+            )
+            if (
+                hyp is not None
+                and not isinstance(hyp, ast.Name)
+                and not is_strong_raise  # strong raise already a violation
+            ):
+                review_flags.append(
+                    f"line {node.lineno}: infer hypothesis is not a plain "
+                    "claim variable; reviewer should confirm the update "
+                    "target"
+                )
     return violations, review_flags
 
 
@@ -212,7 +317,11 @@ def extract_worth_belief(beliefs: dict, worth_label: str) -> float:
             f"must be bound to a module variable named {worth_label!r}."
         )
     value = matches[0].get("belief")
-    if not isinstance(value, (int, float)) or not 0.0 <= float(value) <= 1.0:
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, (int, float))
+        or not 0.0 <= float(value) <= 1.0
+    ):
         raise ValueError(f"belief for {worth_label!r} is not in [0, 1]: {value!r}")
     return float(value)
 
@@ -308,8 +417,8 @@ def main(argv: list[str] | None = None) -> int:
     if violations:
         sys.stderr.write(
             f"{len(violations)} discipline violation(s) allowed by "
-            "--allow-discipline-warnings; the posterior needs review "
-            "before it is trusted.\n"
+            "--allow-discipline-warnings; the posterior will be marked "
+            "exploration-only and cannot be written to the idea store.\n"
         )
 
     run_stage(gaia_bin, ["build", "compile"], package_dir)
@@ -321,6 +430,13 @@ def main(argv: list[str] | None = None) -> int:
     except (FileNotFoundError, ValueError, json.JSONDecodeError) as exc:
         sys.stderr.write(f"error: {exc}\n")
         return 2
+
+    if violations:
+        # A posterior extracted over allowed violations is exploration
+        # material: mark the reference so the writeback contract refuses it.
+        posterior["gaia_package_ref"] = (
+            "exploration-only:" + posterior["gaia_package_ref"]
+        )
 
     payload = json.dumps(posterior, indent=2, sort_keys=True)
     print(payload)

@@ -156,6 +156,10 @@ invented numbers is worse than no posterior: it looks like knowledge.
   updates are symmetric in strength whichever direction they push. Free-hand
   decimals ("0.85 feels right") are forbidden; if none of the three grades
   fits, the evidence is probably not understood well enough to enter yet.
+  The grades are written as **literal numbers** at the statement, never
+  routed through variables or helper functions: literality is what makes
+  the graph auditable line by line, and the extraction script refuses
+  statements whose grade or note it cannot read as a literal.
 
 - **Every number carries an anchor note.** The `rationale` of every
   `observe()` and `infer()` ends with `anchor: <artifact reference or
@@ -171,7 +175,13 @@ invented numbers is worse than no posterior: it looks like knowledge.
   chains in at least three independent phenomenon domains, each domain
   anchored separately. Single-domain reach uses the weak or substantial
   grade. Counting domains means counting anchors, one per domain — an
-  unanchored domain does not count.
+  unanchored domain does not count. A raising strong-grade
+  `downstream_reach` update must carry the domain list in its rationale as
+  a machine-checkable clause, `domains: <one>; <two>; <three>` (three or
+  more entries, `;` or `|` separated), before the trailing anchor note;
+  the extraction script refuses a raising strong reach update without it.
+  Whether the listed domains are genuinely independent and genuinely
+  anchored stays a review question.
 
 - **Utility and cost never enter the graph.** Beliefs and decisions are
   separate layers. No quantity of money, hours, or hardware ever appears in
@@ -295,19 +305,26 @@ readable diagnosis (including the pinned install recipe) when a stage fails.
      --package <project_root>/ideas/gaia/my-idea-gaia
    ```
 
-   First runs a static discipline scan over the authored modules.
-   Statically certain violations — an `infer()` probability pair outside
-   the three grades, or a literal rationale or `register_prior`
-   justification that is missing or does not end with an
-   `anchor: <reference>` note — make the script refuse to extract a
-   posterior (better to reject a sound graph than to pass an unsound one);
-   `--allow-discipline-warnings` downgrades them to warnings as an
-   explicit, logged exception for deliberate exploration. Non-literal
-   arguments cannot be judged statically and are flagged for the reviewer
-   instead; the review below stays the authority on substance. Then runs
-   `gaia build compile`, `gaia build check`, `gaia run infer`, parses
-   `.gaia/beliefs.json` (the entry labelled `worth`) and `.gaia/ir.json`
-   (observation supports, one per `observe()` statement), and prints:
+   First runs a static discipline scan over the authored modules. A
+   statement passes only when the scan can *prove* it follows the
+   discipline: probability pairs must be literal numbers in the three
+   grades; rationales and `register_prior` justifications must be literal
+   strings ending with an `anchor: <reference>` note; a raising
+   strong-grade `downstream_reach` update must carry its `domains:`
+   clause; statement names are resolved through import aliases. Anything
+   unprovable — non-literal grades or notes, wrapper indirection — is a
+   violation, not a pass (better to reject a sound graph than to pass an
+   unsound one), and the script refuses to extract a posterior.
+   `--allow-discipline-warnings` downgrades violations as an explicit,
+   logged exception for deliberate exploration, but the extracted
+   reference is then prefixed `exploration-only:` and the writeback
+   script refuses to store it. The scan guards against ordinary
+   authoring and casual workarounds; deliberately obfuscated authoring is
+   review's business, and review stays the authority on substance either
+   way. Then runs `gaia build compile`, `gaia build check`,
+   `gaia run infer`, parses `.gaia/beliefs.json` (the entry labelled
+   `worth`) and `.gaia/ir.json` (observation supports, one per
+   `observe()` statement), and prints:
 
    ```json
    {

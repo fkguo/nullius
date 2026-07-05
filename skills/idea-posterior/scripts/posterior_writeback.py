@@ -63,6 +63,12 @@ def validate_posterior(posterior: dict) -> dict:
     ref = posterior["gaia_package_ref"]
     if not isinstance(ref, str) or not ref.strip():
         raise ValueError("gaia_package_ref must be a non-empty string")
+    if ref.startswith("exploration-only:"):
+        raise ValueError(
+            "exploration-only posteriors (extracted over allowed "
+            "discipline violations) are not writable to the idea store; "
+            "fix the graph and re-extract"
+        )
     if not REF_PIN_RE.fullmatch(ref):
         raise ValueError(
             "gaia_package_ref must pin the compiled graph as "

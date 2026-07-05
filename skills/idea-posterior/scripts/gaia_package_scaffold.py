@@ -46,6 +46,11 @@ Authoring rules (see the idea-posterior skill for the full discipline):
     substantial ratio 10   p_e_given_h=0.90, p_e_given_not_h=0.09
     strong      ratio 30   p_e_given_h=0.90, p_e_given_not_h=0.03
   To let evidence LOWER a hypothesis, swap the two numbers of the grade.
+  Write the grades as literal numbers at the statement (no variables, no
+  helpers): the extraction script refuses statements whose grade or note
+  it cannot read as a literal. A raising strong-grade update of
+  downstream_reach must list its domains in the rationale before the
+  anchor note, "domains: <one>; <two>; <three>" (three or more entries).
 - Every observe()/infer() rationale ends with an anchor note:
     "anchor: <artifact reference or resolvable URI>"
   Example anchors, deliberately generic: "anchor: literature_survey_v1

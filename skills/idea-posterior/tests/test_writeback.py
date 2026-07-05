@@ -102,6 +102,12 @@ def test_validate_posterior_requires_pinned_ref() -> None:
             )
 
 
+def test_validate_posterior_refuses_exploration_only_refs() -> None:
+    ref = "exploration-only:" + POSTERIOR["gaia_package_ref"]
+    with pytest.raises(ValueError, match="not writable to the idea store"):
+        writeback.validate_posterior(dict(POSTERIOR, gaia_package_ref=ref))
+
+
 def test_idempotency_key_immune_to_delimiter_injection() -> None:
     # A newline inside one field must not be confusable with the field
     # boundary: ("a\nb", "c") and ("a", "b\nc") are different writes.
