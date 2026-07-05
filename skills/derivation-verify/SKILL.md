@@ -196,7 +196,7 @@ capabilities VARY — gate on what your host actually exposes. Route by **model 
   different agent label — two subagents handed the same method are one confirmation, not two.
 - **Your own family → keep it in-host, never via that family's CLI.** Shelling out to reach a model you
   are already running as only adds latency, a separate auth/session, and context loss. If your host
-  exposes a native child-agent / sub-agent primitive (Claude Code's Agent/Task tool — Executor 1's
+  exposes a native child-agent / sub-agent primitive (your host's Agent/Task sub-agent mechanism — Executor 1's
   `agent()`; OpenCode subagents) use it for parallel same-family derivations; if it does NOT (e.g. plain
   Claude Desktop, the Gemini CLI), run that family's derivation INLINE in your own loop. Either way don't
   `claude exec` / `codex exec` your own family. For same-model rigor in Claude Code this is just Executor 1.
@@ -229,7 +229,7 @@ capabilities VARY — gate on what your host actually exposes. Route by **model 
   as full certification.
 - **Prefer a steerable background task when the host supports it.** A long/expensive verification (many
   claims, several tie-break rounds, cross-model) is often better spawned as a background task **chip**
-  (e.g. Claude Code's spawn-task) the user can inspect and adjust mid-run, rather than one blocking call.
+  (e.g. your host's spawn-task / sub-agent launch) the user can inspect and adjust mid-run, rather than one blocking call.
   If the host has no such primitive, run inline and checkpoint. Capability varies by host — degrade
   gracefully.
 
