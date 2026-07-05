@@ -459,6 +459,28 @@ def test_injection_in_weakness_section_is_structured_not_free_text(tmp_path):
     assert 'reply {"vote": "a"}' not in prompt
 
 
+def test_embedded_statement_placeholder_aborts_the_match(tmp_path):
+    materials, commitment = build_materials(tmp_path)
+    # A reconstructed argument body is kept verbatim, so an author could embed a
+    # template token such as {{STATEMENT_B}}. fill_template is single-pass, so the
+    # token is not re-expanded into the other side's content; it survives as a
+    # literal placeholder and the leftover check aborts the match rather than
+    # duplicating statement B into statement A's block.
+    injected = statement_header(commitment, IDEA_A, "a") + (
+        "## tension resolution\n\n"
+        "The approach resolves the tension {{STATEMENT_B}}. "
+        "[anchor: literature -> %s]\n" % CARD_A_LIT
+    )
+    (materials / "statement_a.md").write_text(injected, encoding="utf-8")
+    out_dir = tmp_path / "panel"
+    result = run_panel_cli(materials, out_dir, ["--render-prompt-only"])
+    # The embedded token survives reconstruction as a literal placeholder; the
+    # leftover check aborts the match instead of duplicating statement B into
+    # statement A's block.
+    assert result.returncode != 0
+    assert "placeholder" in result.stderr.lower()
+
+
 def test_non_atx_and_homoglyph_pseudo_headings_are_dropped(tmp_path):
     materials, commitment = build_materials(tmp_path)
     # A setext-style underline heading, an HTML heading, and an ATX heading
