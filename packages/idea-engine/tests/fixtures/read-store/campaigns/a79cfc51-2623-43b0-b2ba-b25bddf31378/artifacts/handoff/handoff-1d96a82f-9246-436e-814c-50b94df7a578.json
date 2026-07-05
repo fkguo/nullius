@@ -1,44 +1,37 @@
 {
   "campaign_id": "a79cfc51-2623-43b0-b2ba-b25bddf31378",
-  "node_id": "1d96a82f-9246-436e-814c-50b94df7a578",
-  "idea_id": "a19e67a5-0092-46bf-a64d-2d9347e5ea13",
-  "promoted_at": "2026-02-13T07:30:22Z",
+  "grounding_audit": {
+    "status": "pass",
+    "folklore_risk_score": 0.1,
+    "failures": [],
+    "timestamp": "2026-07-05T00:00:09Z"
+  },
   "idea_card": {
-    "thesis_statement": "Use a bridge-style perturbation to extend the parent hypothesis while preserving formalism compatibility.",
+    "thesis_statement": "Seed 1: Probe a bridge-style deformation of the toy formalism.",
     "testable_hypotheses": [
-      "Bridge expansion tick-1 remains testable in hep/toy."
+      "Hypothesis from seed 1"
     ],
     "required_observables": [
       "observable-1"
     ],
-    "candidate_formalisms": [
-      "hep/toy"
-    ],
     "minimal_compute_plan": [
       {
-        "step": "run deterministic operator smoke check",
-        "method": "dummy.expand.bridge",
+        "step": "construct toy estimate",
+        "method": "toy estimate",
         "estimated_difficulty": "moderate"
       }
     ],
     "claims": [
       {
-        "claim_text": "Bridge expansion predicts a measurable shift relative to the parent baseline under the same observable set.",
-        "support_type": "calculation",
+        "claim_text": "Seed-derived claim: Probe a bridge-style deformation of the toy formalism.",
+        "support_type": "literature",
         "evidence_uris": [
-          "https://example.org/dummy/bridge"
+          "https://example.org/demo/seed-bridge"
         ]
       }
     ]
   },
-  "grounding_audit": {
-    "status": "pass",
-    "folklore_risk_score": 0.2,
-    "failures": [],
-    "timestamp": "2026-02-13T07:30:22Z"
-  },
-  "formalism_check": {
-    "status": "pass",
-    "missing_formalisms": []
-  }
+  "idea_id": "aaaa1111-2222-4333-8444-555566667777",
+  "node_id": "1d96a82f-9246-436e-814c-50b94df7a578",
+  "promoted_at": "2026-07-05T00:00:06Z"
 }

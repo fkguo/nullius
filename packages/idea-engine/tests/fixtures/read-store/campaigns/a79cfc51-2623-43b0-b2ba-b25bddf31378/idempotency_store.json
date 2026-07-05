@@ -1,170 +1,215 @@
 {
-  "search.step:run-001:search.step:01": {
-    "payload_hash": "sha256:209828d10c206abb5198436816088e9b09a604f3b3195728ab1552e0ba7492c3",
-    "created_at": "2026-02-13T07:30:22Z",
+  "node.set_posterior:read-sp-1": {
+    "payload_hash": "sha256:500dd5c56c6781938503226dbfb109ba4e94c9f30d631e3a3b5d4908a7bb4eaa",
+    "created_at": "2026-07-05T00:00:02Z",
     "state": "committed",
     "response": {
       "kind": "result",
       "payload": {
-        "campaign_id": "a79cfc51-2623-43b0-b2ba-b25bddf31378",
-        "step_id": "9242bf25-5176-4201-acca-3929869ca080",
-        "n_steps_requested": 2,
-        "n_steps_executed": 2,
-        "new_node_ids": [
-          "1d96a82f-9246-436e-814c-50b94df7a578",
-          "21c5f523-86b9-415d-8fa8-6843d48e8844"
-        ],
-        "updated_node_ids": [],
-        "island_states": [
-          {
-            "island_id": "island-0",
-            "state": "EXPLORING",
-            "population_size": 4,
-            "stagnation_counter": 1,
-            "repopulation_count": 0,
-            "best_score": null
-          }
-        ],
         "budget_snapshot": {
           "tokens_used": 0,
           "tokens_remaining": 100000,
-          "cost_usd_used": 0.0,
-          "cost_usd_remaining": 100.0,
-          "wall_clock_s_elapsed": 0.0,
-          "wall_clock_s_remaining": 100000.0,
-          "steps_used": 2,
-          "steps_remaining": 18,
-          "nodes_used": 4,
-          "nodes_remaining": 60
+          "cost_usd_used": 0,
+          "cost_usd_remaining": 100,
+          "wall_clock_s_elapsed": 0,
+          "wall_clock_s_remaining": 100000,
+          "steps_used": 0,
+          "steps_remaining": 20,
+          "nodes_used": 3,
+          "nodes_remaining": 61
         },
-        "idempotency": {
-          "idempotency_key": "run-001:search.step:01",
-          "is_replay": false,
-          "payload_hash": "sha256:209828d10c206abb5198436816088e9b09a604f3b3195728ab1552e0ba7492c3"
-        },
-        "new_nodes_artifact_ref": "demo://m2-12-replay-demo/run-001/store/campaigns/a79cfc51-2623-43b0-b2ba-b25bddf31378/artifacts/search_steps/9242bf25-5176-4201-acca-3929869ca080-new-nodes.json"
-      }
-    }
-  },
-  "eval.run:run-001:eval.run:01": {
-    "payload_hash": "sha256:03ec823b000ade343968c765fabc9bd3ee11a2ce2bb83d1c1c4aa67de4f5dd45",
-    "created_at": "2026-02-13T07:30:22Z",
-    "state": "committed",
-    "response": {
-      "kind": "result",
-      "payload": {
         "campaign_id": "a79cfc51-2623-43b0-b2ba-b25bddf31378",
-        "node_ids": [
-          "1d96a82f-9246-436e-814c-50b94df7a578"
-        ],
-        "updated_node_ids": [
-          "1d96a82f-9246-436e-814c-50b94df7a578"
-        ],
-        "node_revisions": {
-          "1d96a82f-9246-436e-814c-50b94df7a578": 2
-        },
-        "scorecards_artifact_ref": "demo://m2-12-replay-demo/run-001/store/campaigns/a79cfc51-2623-43b0-b2ba-b25bddf31378/artifacts/scorecards/scorecards-c39379ed-5dcc-467e-96a0-3221a04b95c4.json",
-        "budget_snapshot": {
-          "tokens_used": 0,
-          "tokens_remaining": 100000,
-          "cost_usd_used": 0.0,
-          "cost_usd_remaining": 100.0,
-          "wall_clock_s_elapsed": 0.0,
-          "wall_clock_s_remaining": 100000.0,
-          "steps_used": 3,
-          "steps_remaining": 17,
-          "nodes_used": 4,
-          "nodes_remaining": 60
-        },
         "idempotency": {
-          "idempotency_key": "run-001:eval.run:01",
+          "idempotency_key": "read-sp-1",
           "is_replay": false,
-          "payload_hash": "sha256:03ec823b000ade343968c765fabc9bd3ee11a2ce2bb83d1c1c4aa67de4f5dd45"
+          "payload_hash": "sha256:500dd5c56c6781938503226dbfb109ba4e94c9f30d631e3a3b5d4908a7bb4eaa"
+        },
+        "node": {
+          "activation_condition": null,
+          "idea_id": "aaaa1111-2222-4333-8444-555566667777",
+          "lifecycle_state": "active",
+          "node_id": "1d96a82f-9246-436e-814c-50b94df7a578",
+          "posterior": {
+            "value": 0.62,
+            "evidence_count": 5,
+            "updated_at": "2026-07-05T00:00:02Z",
+            "gaia_package_ref": "file:///external/project/gaia/pkg-1"
+          },
+          "revision": 2,
+          "updated_at": "2026-07-05T00:00:02Z"
         }
       }
     }
   },
-  "rank.compute:run-001:rank.compute:01": {
-    "payload_hash": "sha256:b04ea95de7ec4eda37801409c09d82102d88a87c34fdc7056cb6c07c61f09485",
-    "created_at": "2026-02-13T07:30:22Z",
+  "node.set_posterior:read-sp-2": {
+    "payload_hash": "sha256:47a270c8a5c71607ffa4ea966bd7eaf33eb8483935623fbfd7bf70f6a7128901",
+    "created_at": "2026-07-05T00:00:03Z",
     "state": "committed",
     "response": {
       "kind": "result",
       "payload": {
-        "campaign_id": "a79cfc51-2623-43b0-b2ba-b25bddf31378",
-        "method": "pareto",
-        "effective_dimensions": [
-          "novelty",
-          "impact"
-        ],
-        "scorecards_artifact_ref": "demo://m2-12-replay-demo/run-001/store/campaigns/a79cfc51-2623-43b0-b2ba-b25bddf31378/artifacts/scorecards/scorecards-c39379ed-5dcc-467e-96a0-3221a04b95c4.json",
-        "ranked_nodes": [
-          {
-            "node_id": "1d96a82f-9246-436e-814c-50b94df7a578",
-            "idea_id": "a19e67a5-0092-46bf-a64d-2d9347e5ea13",
-            "rank": 1,
-            "pareto_front": true
-          }
-        ],
         "budget_snapshot": {
           "tokens_used": 0,
           "tokens_remaining": 100000,
-          "cost_usd_used": 0.0,
-          "cost_usd_remaining": 100.0,
-          "wall_clock_s_elapsed": 0.0,
-          "wall_clock_s_remaining": 100000.0,
-          "steps_used": 4,
-          "steps_remaining": 16,
-          "nodes_used": 4,
-          "nodes_remaining": 60
+          "cost_usd_used": 0,
+          "cost_usd_remaining": 100,
+          "wall_clock_s_elapsed": 0,
+          "wall_clock_s_remaining": 100000,
+          "steps_used": 0,
+          "steps_remaining": 20,
+          "nodes_used": 3,
+          "nodes_remaining": 61
         },
+        "campaign_id": "a79cfc51-2623-43b0-b2ba-b25bddf31378",
         "idempotency": {
-          "idempotency_key": "run-001:rank.compute:01",
+          "idempotency_key": "read-sp-2",
           "is_replay": false,
-          "payload_hash": "sha256:b04ea95de7ec4eda37801409c09d82102d88a87c34fdc7056cb6c07c61f09485"
+          "payload_hash": "sha256:47a270c8a5c71607ffa4ea966bd7eaf33eb8483935623fbfd7bf70f6a7128901"
         },
-        "ranking_artifact_ref": "demo://m2-12-replay-demo/run-001/store/campaigns/a79cfc51-2623-43b0-b2ba-b25bddf31378/artifacts/rankings/ranking-b932e589-5dc2-4743-8c72-4886e0f8b89a.json"
+        "node": {
+          "activation_condition": null,
+          "idea_id": "cccc1111-2222-4333-8444-555566667777",
+          "lifecycle_state": "active",
+          "node_id": "bbbb1111-2222-4333-8444-555566667777",
+          "posterior": {
+            "value": 0.34,
+            "evidence_count": 2,
+            "updated_at": "2026-07-05T00:00:03Z"
+          },
+          "revision": 2,
+          "updated_at": "2026-07-05T00:00:03Z"
+        }
       }
     }
   },
-  "node.promote:run-001:node.promote:01": {
-    "payload_hash": "sha256:00f62044db5d75d79bc6c999bb6074812f70638ae3b66978a89173dfeb07276d",
-    "created_at": "2026-02-13T07:30:22Z",
+  "node.set_lifecycle:read-sl-3": {
+    "payload_hash": "sha256:df4d85b50a4b94a79e3281948557b0cbd836fb66770483465121b374eef3af2f",
+    "created_at": "2026-07-05T00:00:04Z",
     "state": "committed",
     "response": {
       "kind": "result",
       "payload": {
-        "campaign_id": "a79cfc51-2623-43b0-b2ba-b25bddf31378",
-        "node_id": "1d96a82f-9246-436e-814c-50b94df7a578",
-        "idea_id": "a19e67a5-0092-46bf-a64d-2d9347e5ea13",
-        "handoff_artifact_ref": "demo://m2-12-replay-demo/run-001/store/campaigns/a79cfc51-2623-43b0-b2ba-b25bddf31378/artifacts/handoff/handoff-1d96a82f-9246-436e-814c-50b94df7a578.json",
-        "formalism_check": {
-          "status": "pass",
-          "missing_formalisms": []
-        },
-        "grounding_audit_summary": {
-          "status": "pass",
-          "folklore_risk_score": 0.2,
-          "failures": []
-        },
         "budget_snapshot": {
           "tokens_used": 0,
           "tokens_remaining": 100000,
-          "cost_usd_used": 0.0,
-          "cost_usd_remaining": 100.0,
-          "wall_clock_s_elapsed": 0.0,
-          "wall_clock_s_remaining": 100000.0,
-          "steps_used": 5,
-          "steps_remaining": 15,
-          "nodes_used": 4,
-          "nodes_remaining": 60
+          "cost_usd_used": 0,
+          "cost_usd_remaining": 100,
+          "wall_clock_s_elapsed": 0,
+          "wall_clock_s_remaining": 100000,
+          "steps_used": 0,
+          "steps_remaining": 20,
+          "nodes_used": 3,
+          "nodes_remaining": 61
         },
+        "campaign_id": "a79cfc51-2623-43b0-b2ba-b25bddf31378",
         "idempotency": {
-          "idempotency_key": "run-001:node.promote:01",
+          "idempotency_key": "read-sl-3",
+          "is_replay": false,
+          "payload_hash": "sha256:df4d85b50a4b94a79e3281948557b0cbd836fb66770483465121b374eef3af2f"
+        },
+        "node": {
+          "activation_condition": {
+            "kind": "data_release",
+            "description": "waiting on the next public data release",
+            "satisfied": false
+          },
+          "idea_id": "eeee1111-2222-4333-8444-555566667777",
+          "lifecycle_state": "waiting_activation",
+          "node_id": "dddd1111-2222-4333-8444-555566667777",
+          "posterior": null,
+          "revision": 2,
+          "updated_at": "2026-07-05T00:00:04Z"
+        }
+      }
+    }
+  },
+  "rank.compute:read-rank-1": {
+    "payload_hash": "sha256:40259594d74b8384243ee8b499a630ffeaf3777b23af375fb8a181b8ab7a3193",
+    "created_at": "2026-07-05T00:00:05Z",
+    "state": "committed",
+    "response": {
+      "kind": "result",
+      "payload": {
+        "budget_snapshot": {
+          "tokens_used": 0,
+          "tokens_remaining": 100000,
+          "cost_usd_used": 0,
+          "cost_usd_remaining": 100,
+          "wall_clock_s_elapsed": 0,
+          "wall_clock_s_remaining": 100000,
+          "steps_used": 1,
+          "steps_remaining": 19,
+          "nodes_used": 3,
+          "nodes_remaining": 61
+        },
+        "campaign_id": "a79cfc51-2623-43b0-b2ba-b25bddf31378",
+        "generated_at": "2026-07-05T00:00:05Z",
+        "idempotency": {
+          "idempotency_key": "read-rank-1",
+          "is_replay": false,
+          "payload_hash": "sha256:40259594d74b8384243ee8b499a630ffeaf3777b23af375fb8a181b8ab7a3193"
+        },
+        "method": "posterior",
+        "ranked_nodes": [
+          {
+            "node_id": "1d96a82f-9246-436e-814c-50b94df7a578",
+            "idea_id": "aaaa1111-2222-4333-8444-555566667777",
+            "rank": 1,
+            "posterior_value": 0.62,
+            "evidence_count": 5
+          },
+          {
+            "node_id": "bbbb1111-2222-4333-8444-555566667777",
+            "idea_id": "cccc1111-2222-4333-8444-555566667777",
+            "rank": 2,
+            "posterior_value": 0.34,
+            "evidence_count": 2
+          }
+        ],
+        "ranking_artifact_ref": "file:///Users/fkg/Coding/Agents/autoresearch-lab/.claude/worktrees/agent-a3cee3eb3010a50eb/packages/idea-engine/tests/fixtures/read-store/campaigns/a79cfc51-2623-43b0-b2ba-b25bddf31378/artifacts/rankings/ranking-20260705000005.json",
+        "skipped_nodes": [
+          {
+            "node_id": "dddd1111-2222-4333-8444-555566667777",
+            "reason": "waiting_activation"
+          }
+        ]
+      }
+    }
+  },
+  "node.promote:read-promote-1": {
+    "payload_hash": "sha256:00f62044db5d75d79bc6c999bb6074812f70638ae3b66978a89173dfeb07276d",
+    "created_at": "2026-07-05T00:00:06Z",
+    "state": "committed",
+    "response": {
+      "kind": "result",
+      "payload": {
+        "budget_snapshot": {
+          "tokens_used": 0,
+          "tokens_remaining": 100000,
+          "cost_usd_used": 0,
+          "cost_usd_remaining": 100,
+          "wall_clock_s_elapsed": 0,
+          "wall_clock_s_remaining": 100000,
+          "steps_used": 2,
+          "steps_remaining": 18,
+          "nodes_used": 3,
+          "nodes_remaining": 61
+        },
+        "campaign_id": "a79cfc51-2623-43b0-b2ba-b25bddf31378",
+        "grounding_audit_summary": {
+          "failures": [],
+          "folklore_risk_score": 0.1,
+          "status": "pass"
+        },
+        "handoff_artifact_ref": "file:///Users/fkg/Coding/Agents/autoresearch-lab/.claude/worktrees/agent-a3cee3eb3010a50eb/packages/idea-engine/tests/fixtures/read-store/campaigns/a79cfc51-2623-43b0-b2ba-b25bddf31378/artifacts/handoff/handoff-1d96a82f-9246-436e-814c-50b94df7a578.json",
+        "has_reduction_report": false,
+        "idea_id": "aaaa1111-2222-4333-8444-555566667777",
+        "idempotency": {
+          "idempotency_key": "read-promote-1",
           "is_replay": false,
           "payload_hash": "sha256:00f62044db5d75d79bc6c999bb6074812f70638ae3b66978a89173dfeb07276d"
         },
-        "has_reduction_report": false,
+        "node_id": "1d96a82f-9246-436e-814c-50b94df7a578",
         "reduction_audit_summary": null
       }
     }

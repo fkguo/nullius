@@ -3,8 +3,7 @@ import type { IdeaEngineStore } from '../store/engine-store.js';
 import { budgetSnapshot, exhaustedDimensions } from './budget-snapshot.js';
 import { RpcError, schemaValidationError } from './errors.js';
 import { recordOrReplay, responseIdempotency, storeIdempotency } from './idempotency.js';
-import { refreshIslandPopulationSizes } from './island-state.js';
-import { loadCampaignOrError, type SearchCampaignRecord } from './search-step-campaign.js';
+import { loadCampaignOrError, type CampaignRecord } from './campaign-state.js';
 
 type CampaignMutationMethod =
   | 'campaign.topup'
@@ -20,7 +19,7 @@ const TOPUP_FIELD_MAP = [
   ['add_nodes', 'max_nodes'],
 ] as const;
 
-function budgetExhaustedError(campaign: SearchCampaignRecord): RpcError {
+function budgetExhaustedError(campaign: CampaignRecord): RpcError {
   const exhausted = exhaustedDimensions(campaign);
   return new RpcError(-32001, 'budget_exhausted', {
     reason: 'dimension_exhausted',
@@ -36,19 +35,8 @@ function campaignNotActive(campaignId: string): RpcError {
   });
 }
 
-function restoreBudgetReadyIslandStates(campaign: SearchCampaignRecord): void {
-  for (const island of campaign.island_states) {
-    if (String(island.state ?? '') !== 'EXHAUSTED') {
-      continue;
-    }
-    const populationSize = Number(island.population_size ?? 0);
-    island.state = populationSize > 0 ? 'EXPLORING' : 'SEEDING';
-    island.stagnation_counter = 0;
-  }
-}
-
 function buildCampaignStatus(
-  campaign: SearchCampaignRecord,
+  campaign: CampaignRecord,
   nodes: Record<string, Record<string, unknown>>,
 ): Record<string, unknown> {
   const result: Record<string, unknown> = {
@@ -56,7 +44,6 @@ function buildCampaignStatus(
     status: campaign.status,
     created_at: campaign.created_at,
     budget_snapshot: budgetSnapshot(campaign),
-    island_states: structuredClone(campaign.island_states),
     node_count: Object.keys(nodes).length,
   };
   if (campaign.status === 'early_stopped') {
@@ -64,21 +51,15 @@ function buildCampaignStatus(
       ? campaign.early_stop_reason
       : 'policy_halt';
   }
-  if (typeof campaign.distributor_policy_config_ref === 'string') {
-    result.distributor_policy_config_ref = campaign.distributor_policy_config_ref;
-  }
-  if (typeof campaign.last_step_id === 'string') {
-    result.last_step_id = campaign.last_step_id;
-  }
   return result;
 }
 
-function clearEarlyStopReason(campaign: SearchCampaignRecord): void {
+function clearEarlyStopReason(campaign: CampaignRecord): void {
   delete campaign.early_stop_reason;
 }
 
 function applyTopup(
-  campaign: SearchCampaignRecord,
+  campaign: CampaignRecord,
   topup: Record<string, unknown>,
 ): void {
   for (const [topupKey, budgetKey] of TOPUP_FIELD_MAP) {
@@ -97,7 +78,7 @@ function applyTopup(
 }
 
 function mutateCampaign(
-  campaign: SearchCampaignRecord,
+  campaign: CampaignRecord,
   method: CampaignMutationMethod,
   params: Record<string, unknown>,
 ): { changed: boolean; exhaustedAfter: string[]; mutation: 'topup' | 'pause' | 'resume' | 'complete'; previousStatus: string } {
@@ -111,7 +92,6 @@ function mutateCampaign(
     const exhaustedAfter = exhaustedDimensions(campaign);
     if (previousStatus === 'exhausted' && exhaustedAfter.length === 0) {
       campaign.status = 'running';
-      restoreBudgetReadyIslandStates(campaign);
       clearEarlyStopReason(campaign);
       return { changed: true, exhaustedAfter, mutation: 'topup', previousStatus };
     }
@@ -145,7 +125,6 @@ function mutateCampaign(
       throw budgetExhaustedError(campaign);
     }
     campaign.status = 'running';
-    restoreBudgetReadyIslandStates(campaign);
     clearEarlyStopReason(campaign);
     return { changed: true, exhaustedAfter, mutation: 'resume', previousStatus };
   }
@@ -198,7 +177,6 @@ export function executeCampaignMutation(options: {
     const campaign = loadCampaignOrError(options.store, campaignId);
     const nodes = options.store.loadNodes<Record<string, unknown>>(campaignId);
     const plannedCampaign = structuredClone(campaign);
-    refreshIslandPopulationSizes(plannedCampaign, nodes);
 
     const mutation = mutateCampaign(plannedCampaign, options.method, options.params);
     const campaignStatus = buildCampaignStatus(plannedCampaign, nodes);

@@ -37,7 +37,6 @@ describe('store substrate', () => {
       created_at: '2026-03-14T00:00:00Z',
       budget: { max_tokens: 10, max_cost_usd: 1, max_wall_clock_s: 5 },
       usage: { tokens_used: 0, cost_usd_used: 0, wall_clock_s_elapsed: 0, steps_used: 0, nodes_used: 0 },
-      island_states: [],
     });
     expect(store.loadCampaign('11111111-1111-4111-8111-111111111111')).toMatchObject({
       status: 'running',

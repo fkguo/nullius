@@ -35,30 +35,6 @@ function preparedSideEffectsCommitted(store: IdeaEngineStore, method: string, re
   if (record.response.kind !== 'result') {
     return true;
   }
-  if (method === 'search.step') {
-    const campaignId = record.response.payload.campaign_id;
-    const stepId = record.response.payload.step_id;
-    if (typeof campaignId !== 'string' || typeof stepId !== 'string') {
-      return false;
-    }
-    const campaign = store.loadCampaign<Record<string, unknown>>(campaignId);
-    if (!campaign || campaign.last_step_id !== stepId) {
-      return false;
-    }
-    if (!existsSync(store.artifactPath(campaignId, 'search_steps', `${stepId}.json`))) {
-      return false;
-    }
-    const newNodeIds = Array.isArray(record.response.payload.new_node_ids) ? record.response.payload.new_node_ids : [];
-    if (newNodeIds.length === 0) {
-      return true;
-    }
-    const newNodesRef = record.response.payload.new_nodes_artifact_ref;
-    if (typeof newNodesRef !== 'string' || !newNodesRef.startsWith('file://')) {
-      return false;
-    }
-    const nodes = store.loadNodes<Record<string, unknown>>(campaignId);
-    return newNodeIds.every(nodeId => typeof nodeId === 'string' && nodeId in nodes);
-  }
   if (method === 'campaign.init') {
     const campaignId = record.response.payload.campaign_id;
     return typeof campaignId === 'string' && existsSync(store.campaignManifestPath(campaignId));
@@ -88,10 +64,6 @@ function preparedSideEffectsCommitted(store: IdeaEngineStore, method: string, re
     return JSON.stringify(budgetSnapshot(campaign as { budget: Record<string, number | null>; usage: Record<string, number> }))
       === JSON.stringify(expected.budget_snapshot);
   }
-  if (method === 'eval.run') {
-    const scorecardsRef = record.response.payload.scorecards_artifact_ref;
-    return typeof scorecardsRef === 'string' && scorecardsRef.startsWith('file://') && existsSync(scorecardsRef.slice(7));
-  }
   if (method === 'rank.compute') {
     const rankingRef = record.response.payload.ranking_artifact_ref;
     return typeof rankingRef === 'string' && rankingRef.startsWith('file://') && existsSync(rankingRef.slice(7));
@@ -99,6 +71,24 @@ function preparedSideEffectsCommitted(store: IdeaEngineStore, method: string, re
   if (method === 'node.promote') {
     const handoffRef = record.response.payload.handoff_artifact_ref;
     return typeof handoffRef === 'string' && handoffRef.startsWith('file://') && existsSync(handoffRef.slice(7));
+  }
+  if (method === 'node.set_posterior' || method === 'node.set_lifecycle') {
+    const campaignId = record.response.payload.campaign_id;
+    const nodeSummary = record.response.payload.node;
+    if (typeof campaignId !== 'string' || !nodeSummary || typeof nodeSummary !== 'object' || Array.isArray(nodeSummary)) {
+      return false;
+    }
+    const summary = nodeSummary as Record<string, unknown>;
+    const nodeId = summary.node_id;
+    const expectedRevision = summary.revision;
+    if (typeof nodeId !== 'string' || typeof expectedRevision !== 'number') {
+      return false;
+    }
+    const nodes = store.loadNodes<Record<string, unknown>>(campaignId);
+    const node = nodes[nodeId];
+    // The prepared response is only committed once the node mutation
+    // reached the store; a later revision also counts as committed.
+    return !!node && Number(node.revision ?? 0) >= expectedRevision;
   }
   return false;
 }

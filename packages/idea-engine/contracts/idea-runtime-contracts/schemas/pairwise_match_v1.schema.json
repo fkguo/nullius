@@ -1,0 +1,175 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "pairwise_match_v1.schema.json",
+  "title": "PairwiseMatch v1",
+  "description": "Record of one cross-family pairwise comparison between two idea nodes under pre-committed review criteria. Each panel seat votes with anchored arguments only (literature or computation anchors); unanchored arguments are discarded and counted. The outcome is written back to the external belief graph as an observation.",
+  "type": "object",
+  "required": [
+    "match_id",
+    "campaign_id",
+    "idea_a_node_id",
+    "idea_b_node_id",
+    "criteria_commitment",
+    "panel",
+    "outcome",
+    "observation_write"
+  ],
+  "properties": {
+    "match_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "campaign_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "idea_a_node_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "idea_b_node_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "criteria_commitment": {
+      "type": "object",
+      "description": "Review criteria committed before the panel sees the pair, so the criteria cannot be adjusted to fit a preferred outcome.",
+      "required": [
+        "committed_at",
+        "criteria",
+        "commitment_hash"
+      ],
+      "properties": {
+        "committed_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "criteria": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "commitment_hash": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "panel": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "reviewer_family",
+          "model",
+          "vote",
+          "anchored_arguments",
+          "unanchored_arguments_discarded"
+        ],
+        "properties": {
+          "reviewer_family": {
+            "enum": [
+              "claude",
+              "codex",
+              "opencode",
+              "kimi"
+            ]
+          },
+          "model": {
+            "type": "string",
+            "minLength": 1
+          },
+          "vote": {
+            "enum": [
+              "a",
+              "b",
+              "tie"
+            ]
+          },
+          "anchored_arguments": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "argument",
+                "anchor_type",
+                "anchor_ref"
+              ],
+              "properties": {
+                "argument": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "anchor_type": {
+                  "enum": [
+                    "literature",
+                    "computation"
+                  ]
+                },
+                "anchor_ref": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "unanchored_arguments_discarded": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Count of arguments this seat produced that carried no literature/computation anchor and were therefore discarded before voting."
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "outcome": {
+      "type": "object",
+      "required": [
+        "winner",
+        "vote_margin",
+        "decided_at"
+      ],
+      "properties": {
+        "winner": {
+          "enum": [
+            "a",
+            "b",
+            "tie"
+          ]
+        },
+        "vote_margin": {
+          "type": "number"
+        },
+        "decided_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": false
+    },
+    "observation_write": {
+      "type": "object",
+      "description": "Whether the match outcome has been written to the external belief graph as an observation.",
+      "required": [
+        "written"
+      ],
+      "properties": {
+        "written": {
+          "type": "boolean"
+        },
+        "gaia_package_ref": {
+          "type": "string",
+          "description": "Optional reference to the belief-graph package that received the observation."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

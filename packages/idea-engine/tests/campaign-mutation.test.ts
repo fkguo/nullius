@@ -76,11 +76,14 @@ describe('campaign mutation RPC', () => {
     const init = service.handle('campaign.init', initParams(1)) as Record<string, unknown>;
     const campaignId = String(init.campaign_id);
 
-    service.handle('search.step', {
+    // rank.compute consumes the single budgeted step (an empty ranking is a
+    // valid result), driving the campaign into the exhausted state.
+    const rank = service.handle('rank.compute', {
       campaign_id: campaignId,
-      n_steps: 1,
-      idempotency_key: 'search-exhaust',
-    });
+      idempotency_key: 'rank-exhaust',
+      method: 'posterior',
+    }) as Record<string, unknown>;
+    expect((rank.budget_snapshot as Record<string, unknown>).steps_remaining).toBe(0);
 
     const topup = service.handle('campaign.topup', {
       campaign_id: campaignId,
