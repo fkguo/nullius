@@ -19,6 +19,9 @@ export * from './sampling-metadata.js';
 // EcosystemID (H-15a)
 export * from './ecosystem-id.js';
 
+// shortId — compact handle identifiers (replaces bare UUIDs for handle ids)
+export * from './short-id.js';
+
 // ArtifactRef (H-18)
 export * from './artifact-ref.js';
 
