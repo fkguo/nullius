@@ -27,7 +27,7 @@ _CARD_A_DATA = json.loads(CARD_A.read_text(encoding="utf-8"))
 _CARD_B_DATA = json.loads(CARD_B.read_text(encoding="utf-8"))
 IDEA_A = _CARD_A_DATA["node_id"]
 IDEA_B = _CARD_B_DATA["node_id"]
-CAMPAIGN_ID = "3b8e1f70-6c4d-4e0f-9a5b-1c2d3e4f5a6b"
+CAMPAIGN_ID = "3b8e1f70"
 
 # Anchor references a statement is allowed to use are exactly the evidence
 # URIs of that side's own card. The rebuild path cross-matches every anchor

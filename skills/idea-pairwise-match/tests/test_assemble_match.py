@@ -5,7 +5,6 @@ import copy
 import json
 import subprocess
 import sys
-import uuid
 from pathlib import Path
 
 import pytest
@@ -16,9 +15,11 @@ import commit_criteria
 SCRIPT = Path(assemble_match.__file__)
 
 CRITERIA = ["tension resolution", "verification cost"]
-IDEA_A = "1f6c9d5e-4a2b-4c8d-9e3f-7a1b2c3d4e5f"
-IDEA_B = "2a7d0e6f-5b3c-4d9e-8f4a-0b1c2d3e4f5a"
-CAMPAIGN_ID = "3b8e1f70-6c4d-4e0f-9a5b-1c2d3e4f5a6b"
+# Engine short ids: 8 chars of lowercase Crockford base32 (idea_node_v1 /
+# pairwise_match_v1 convention).
+IDEA_A = "1f6c9d5e"
+IDEA_B = "2a7d0e6f"
+CAMPAIGN_ID = "3b8e1f70"
 
 
 def make_commitment(tmp_path, committed_at=None):
@@ -134,6 +135,48 @@ def test_tier_tie_produces_no_observation():
 def test_tier_undefined_below_min_families():
     with pytest.raises(assemble_match.MatchError):
         assemble_match.observation_tier(assemble_match.tally_votes(["a", "a"]))
+
+
+# ---------------------------------------------------------------------------
+# Engine id convention (8-char short ids)
+# ---------------------------------------------------------------------------
+
+ENGINE_PAIRWISE_SCHEMA = (
+    Path(__file__).resolve().parents[3]
+    / "packages"
+    / "idea-engine"
+    / "contracts"
+    / "idea-runtime-contracts"
+    / "schemas"
+    / "pairwise_match_v1.schema.json"
+)
+
+
+def test_short_id_pattern_matches_engine_contract():
+    """Anti-drift lock on the tournament seam: the skill validator's id regex
+    must be byte-for-byte the engine pairwise_match_v1 pattern for all four id
+    fields. Skipped only when the skill runs standalone, away from the engine
+    contract tree."""
+    if not ENGINE_PAIRWISE_SCHEMA.is_file():
+        pytest.skip("engine contract tree not present (standalone install)")
+    schema = json.loads(ENGINE_PAIRWISE_SCHEMA.read_text(encoding="utf-8"))
+    for key in ("match_id", "campaign_id", "idea_a_node_id", "idea_b_node_id"):
+        assert (
+            schema["properties"][key]["pattern"]
+            == assemble_match.SHORT_ID_RE.pattern
+        ), key
+
+
+def test_mint_short_id_follows_engine_convention():
+    minted = [assemble_match.mint_short_id() for _ in range(64)]
+    for value in minted:
+        assert assemble_match.SHORT_ID_RE.match(value)
+    chars = set("".join(minted))
+    assert chars <= set(assemble_match.SHORT_ID_ALPHABET)
+    # 512 uniform draws over 32 symbols all landing inside the 16 hex symbols
+    # has probability 2^-512, so a hex/uuid-prefix shortcut cannot pass this.
+    assert any(c not in "0123456789abcdef" for c in chars)
+    assert len(set(minted)) == len(minted)
 
 
 # ---------------------------------------------------------------------------
@@ -265,13 +308,24 @@ def test_assemble_rejects_votes_collected_before_commitment(tmp_path):
         )
 
 
-def test_assemble_rejects_bad_uuids_and_same_pair(tmp_path):
+def test_assemble_rejects_bad_ids_and_same_pair(tmp_path):
     commitment_path, commitment, votes_dir, campaign = standard_setup(
         tmp_path, [("claude", "a"), ("codex", "a"), ("kimi", "a")]
     )
-    with pytest.raises(assemble_match.MatchError, match="not a lowercase dashed uuid"):
+    with pytest.raises(assemble_match.MatchError, match="not an engine short id"):
         assemble_match.assemble(
-            commitment_path, votes_dir, campaign, "not-a-uuid", IDEA_A, IDEA_B
+            commitment_path, votes_dir, campaign, "not-a-short-id", IDEA_A, IDEA_B
+        )
+    # A lowercase dashed uuid (the retired convention) is exactly what the
+    # engine contract excludes; it must be rejected, not tolerated.
+    with pytest.raises(assemble_match.MatchError, match="not an engine short id"):
+        assemble_match.assemble(
+            commitment_path,
+            votes_dir,
+            campaign,
+            "3b8e1f70-6c4d-4e0f-9a5b-1c2d3e4f5a6b",
+            IDEA_A,
+            IDEA_B,
         )
     with pytest.raises(assemble_match.MatchError, match="same node"):
         assemble_match.assemble(
@@ -391,7 +445,18 @@ def test_validator_accepts_the_assembled_artifact(valid_artifact):
     "mutate, expected",
     [
         (lambda a: a.pop("match_id"), "missing top-level key: match_id"),
-        (lambda a: a.__setitem__("match_id", "XYZ"), "not a lowercase dashed uuid"),
+        (lambda a: a.__setitem__("match_id", "XYZ"), "not an engine short id"),
+        # The retired dashed-uuid convention must fail the engine pattern.
+        (
+            lambda a: a.__setitem__(
+                "match_id", "4c9a2d10-7e5f-4b8a-9c3d-6e1f2a3b4c5d"
+            ),
+            "not an engine short id",
+        ),
+        # 8 lowercase chars, but i/l/o/u sit outside the Crockford alphabet.
+        (lambda a: a.__setitem__("campaign_id", "abcdilou"), "not an engine short id"),
+        # Right alphabet, wrong length.
+        (lambda a: a.__setitem__("idea_a_node_id", "1f6c9d5"), "not an engine short id"),
         (lambda a: a.__setitem__("idea_b_node_id", IDEA_A), "equals"),
         (lambda a: a.__setitem__("extra", 1), "unknown top-level keys"),
         (
