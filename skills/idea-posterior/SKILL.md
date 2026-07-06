@@ -131,6 +131,20 @@ has a place to point.
 | `testability_timing` | Can the idea be tested, and is the verification window open now — data, tools, and comparison points available on a relevant horizon? | idea card claims |
 | `verification_cost` | Does a bounded, decisive first check exist? Only the belief-relevant part enters the graph: evidence that such a check exists raises feasibility belief. The budget decision itself stays outside. | the idea card's `minimal_compute_plan` field; trial computation artifacts |
 
+**A tension is anchored by the literature that engages it, not by machinery
+that assumes it.** `tension_resolution` is graded off the tensions section of a
+real `literature_survey_v1` that surfaces both the strongest existing
+*statement* of the tension and the strongest existing *challenge or competing
+resolution* — the prior work that already argues, quantifies, or disputes it. A
+single citable source may supply the *statement* half, but it never excuses the
+challenge search: the competing or critical prior work is searched either way,
+and when a diligent search finds none, that null result is recorded explicitly
+and the tension is graded at the weakest grade — an unengaged tension is not a
+substantiated one. Method or formalism papers that merely exhibit the apparatus
+the idea reasons about are evidence for `mechanism_insight`, not anchors for
+`tension_resolution`: they show the machinery exists, not that the tension is
+real and open.
+
 ## Parameter honesty discipline
 
 This section is where the method stands or falls. A posterior computed from
@@ -324,7 +338,12 @@ readable diagnosis (including the pinned install recipe) when a stage fails.
    stated plainly under "Scan boundary" below; deliberately obfuscated
    authoring is review's business, and review stays the authority on
    substance either way. Then runs `gaia build compile`, `gaia build check`,
-   `gaia run infer`, parses `.gaia/beliefs.json` (the entry labelled
+   `gaia run infer`, and — unless `--no-render` — renders a viewable graph
+   after inference: an interactive single-file `starmap.html` (no external
+   dependency; open it in a browser), plus a paper-ready `starmap.svg` when
+   Graphviz is on `PATH` and a detailed-reasoning `docs/` render. Rendering
+   never gates the posterior — a render failure is reported and skipped. It
+   then parses `.gaia/beliefs.json` (the entry labelled
    `worth`) and `.gaia/ir.json` (observation supports, one per
    `observe()` statement), and prints:
 
@@ -356,6 +375,34 @@ readable diagnosis (including the pinned install recipe) when a stage fails.
    idempotency key is a deterministic digest of campaign, node, package
    reference, value, and evidence count: retrying the same write is a no-op,
    while any real change produces a new key.
+
+## Report — `posterior_report_v1`
+
+The scripts above produce the machine artifacts; the human-facing summary is
+`posterior_report_v1.md` in the idea's artifact directory. Its job is to make
+the posterior *auditable at a glance*: it states the admission verdict and
+route, each sub-criterion's grade and its anchor, and the final posterior with
+its `gaia_package_ref`. When the render step produced one, it also links the
+viewable argument graph (`starmap.html`) so a reader can open the graph the
+posterior came from.
+
+**Every anchor in the report is rendered as a link, not bare text.** An anchor
+earns its place only if a reader can reach it in one click:
+
+- A resolvable URI (a literature record, preprint, DOI, or dataset record) is
+  written as a Markdown link to that URI — carried through verbatim from the
+  grounding report's `evidence_uris`, never downgraded to a plain identifier
+  string.
+- An artifact reference (a `*_v1.json` / `*_v1.md` sibling) is written as a
+  relative Markdown link to the file. The posterior's `gaia_package_ref` keeps
+  its `#sha256:` pin intact — the pin is what ties the reference to the exact
+  compiled graph — and is linked when its path resolves.
+- The `anchor: <...>` notes echoed into the report follow the same rule: a
+  resolvable reference inside an anchor note is a link.
+
+A report that names a source or artifact without a link has failed its one job
+— the reachability question below cannot then be answered without the very
+re-search the report existed to save.
 
 ## Review: audit anchors, not scores
 
@@ -395,13 +442,24 @@ reviewer's call.
      below it?
   2. Is the anchor reachable — does the cited artifact or URI exist, and
      does its content actually establish the stated fact (route through
-     `claim-grounding` when in doubt)?
+     `claim-grounding` when in doubt)? In `posterior_report_v1` the anchor
+     must be a rendered link, not a bare identifier: a reference the reader
+     cannot click through is not a reachable anchor.
   3. Were both conditionals thought about — `p_e_given_h` *and*
      `p_e_given_not_h`? A grade chosen by imagining only the
      hypothesis-true world is not a considered grade.
 - Any number that fails these questions is deleted and the claim reverts to
   MaxEnt; then inference is re-run and the posterior re-extracted. Review
   outcomes change graphs, not narratives.
+- For a `tension_resolution` update graded above the weakest grade, the
+  reviewer confirms the survey engaged the critique — its tensions section
+  surfaces a genuine challenge or competing resolution, not only papers that
+  assume or apply the idea. A one-sided pool (all confirming, none contesting)
+  is `coverage_incomplete`: only an actual challenge or competing resolution
+  supports a grade above weakest; a documented null result records the debt but
+  the tension stays at the weakest grade. This is a reviewer judgement by
+  design — one-sidedness cannot be decided by a survey's shape alone, so no
+  machine field stands in for reading the pool.
 
 ## Activation conditions
 
