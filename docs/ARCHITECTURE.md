@@ -41,7 +41,7 @@ This document explains the current front-door architecture of the monorepo. It i
 | Control-plane MCP/operator surface | `orch_*` | Canonical public MCP/operator counterpart of the same control plane |
 | Stateful literature planning | `nullius workflow-plan` | Checked-in workflow authority resolved via `@nullius/literature-workflows`; persists `.nullius/state.json#/plan` and derives `.nullius/plan.md`. `research_brainstorm` is the lightweight planning-only recipe variant that emits a `next_contract` handoff without starting heavier workflows |
 | Agent project harness skill | `research-harness` | Market-listed thin skill for Codex / Claude Code / OpenCode to recover project truth, route execution to `nullius` / `research-team` / `markdown-hygiene` / `hep-mcp`, and close out verification or handoff |
-| Experimental runtime bridge | `idea_mcp` | `idea_campaign_*` on explicit external data roots; node posterior/lifecycle updates and posterior-based `rank.compute` / `node.promote` stay inside the `idea-engine` runtime contract |
+| Experimental runtime bridge | `idea_mcp` | `idea_campaign_*` on explicit external data roots; node posterior/lifecycle updates, generation-pack import (`node.import_generated`), and posterior-based `rank.compute` / `node.promote` stay inside the `idea-engine` runtime contract |
 | Current most mature domain MCP front door | `@nullius/hep-mcp` | Project/Run, evidence, writing/export, and provider-local composition |
 | Provider-local atoms | `openalex_*`, `arxiv_*`, `hepdata_*`, `pdg_*`, `zotero_*` | Bounded provider operators that remain MCP-first |
 

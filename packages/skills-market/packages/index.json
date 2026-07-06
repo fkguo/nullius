@@ -14,6 +14,7 @@
     "hep-calc.json",
     "hep-mcp.json",
     "idea-allocation.json",
+    "idea-generation.json",
     "idea-pairwise-match.json",
     "idea-posterior.json",
     "julia-perf.json",

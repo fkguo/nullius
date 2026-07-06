@@ -1,0 +1,37 @@
+{
+  "package_id": "idea-generation",
+  "package_type": "skill-pack",
+  "repo": "nullius/skills-market",
+  "channel": "dev",
+  "version": "0.1.0",
+  "summary": "Generate derived (non-seed) idea nodes for an idea campaign from research-progress evidence deltas and import them through the engine's node.import_generated RPC as an auditable generation pack. V0 operator: LiteratureMining over a deep survey's tensions and re-anchored gaps (FailureRouting when a failed-approach ledger exists). Retrieval-first by construction (no retrieval receipt, no evidence URI), one candidate per structurally distinct anchor, mechanical dedup against every campaign node, novelty as a falsifiable closest-prior delta claim — zero generator-side scoring; nodes face the same idea-posterior admission gate as seeds.",
+  "platforms": [
+    "claude_code",
+    "codex",
+    "opencode"
+  ],
+  "source_path": "skills/idea-generation/SKILL.md",
+  "install": {
+    "claude_code": "Link into ~/.claude/skills or install via marketplace when available.",
+    "codex": "Link into ~/.codex/skills for Codex native discovery.",
+    "opencode": "Link into ~/.config/opencode/skills for OpenCode discovery."
+  },
+  "source": {
+    "repo": "nullius/skills",
+    "ref": "main",
+    "subpath": "skills/idea-generation",
+    "include": [
+      "SKILL.md",
+      "scripts/**"
+    ],
+    "exclude": [
+      "**/tests/**",
+      "**/test/**",
+      "**/tmp/**",
+      "**/.pytest_cache/**",
+      "**/__pycache__/**",
+      "**/*.pyc",
+      "**/.DS_Store"
+    ]
+  }
+}
