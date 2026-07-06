@@ -451,3 +451,91 @@ def test_extract_posterior_requires_ir_hash(tmp_path, fixtures_dir) -> None:
     (gaia_dir / "ir.json").write_text(json.dumps(ir), encoding="utf-8")
     with pytest.raises(ValueError, match="ir_hash"):
         extract.extract_posterior(tmp_path / "pkg", "worth")
+
+
+def write_clean_package(tmp_path):
+    """A discipline-clean package whose posterior extracts successfully."""
+    module = tmp_path / "pkg" / "src" / "good_idea"
+    module.mkdir(parents=True)
+    (module / "__init__.py").write_text(CLEAN_MODULE, encoding="utf-8")
+    return tmp_path / "pkg"
+
+
+def write_fake_gaia_render(tmp_path, fixtures_dir, *, render_fails):
+    """Fake gaia that succeeds through infer (copying fixtures) and, for the
+    render subcommands (`inspect starmap`, `run render`), either writes its
+    `--out` target or exits non-zero, per `render_fails`."""
+    if render_fails:
+        render_branch = '  echo "boom: renderer unavailable" >&2\n  exit 1'
+    else:
+        render_branch = '  [ -n "$out" ] && printf "<html></html>" > "$out"\n  exit 0'
+    fake = tmp_path / "fake-gaia-render"
+    fake.write_text(
+        "\n".join(
+            [
+                "#!/bin/sh",
+                'if [ "$1" = "--version" ]; then echo "gaia-lang 0.5.0a4"; exit 0; fi',
+                'out=""; prev=""',
+                'for a in "$@"; do',
+                '  if [ "$prev" = "--out" ]; then out="$a"; fi',
+                '  prev="$a"',
+                "done",
+                'for a in "$@"; do last="$a"; done',
+                'if [ "$1" = "inspect" ]; then',
+                render_branch,
+                "fi",
+                'if [ "$1" = "run" ] && [ "$2" = "render" ]; then',
+                render_branch,
+                "fi",
+                'if [ "$1" = "run" ] && [ "$2" = "infer" ]; then',
+                '  mkdir -p "$last/.gaia"',
+                f'  cp "{fixtures_dir}/beliefs_sample.json" "$last/.gaia/beliefs.json"',
+                f'  cp "{fixtures_dir}/ir_sample.json" "$last/.gaia/ir.json"',
+                "fi",
+                "exit 0",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    fake.chmod(0o755)
+    return fake
+
+
+def test_render_failure_is_non_fatal(tmp_path, fixtures_dir, capsys) -> None:
+    # A render failure must never withhold a sound posterior.
+    package = write_clean_package(tmp_path)
+    fake_gaia = write_fake_gaia_render(tmp_path, fixtures_dir, render_fails=True)
+    # A stale render from a prior run must not survive a failed re-render, or
+    # the report would mislink it as "the graph the posterior came from".
+    stale = package / "starmap.html"
+    stale.write_text("STALE", encoding="utf-8")
+    code = extract.main(["--package", str(package), "--gaia-bin", str(fake_gaia)])
+    out = capsys.readouterr()
+    assert code == 0
+    posterior = json.loads(out.out)
+    assert posterior["value"] == pytest.approx(0.8499370175790979)
+    assert "render skipped" in out.err  # reported, not fatal
+    assert not posterior["gaia_package_ref"].startswith("exploration-only:")
+    assert not stale.exists()  # stale render removed, never left to mislead
+
+
+def test_render_writes_starmap(tmp_path, fixtures_dir) -> None:
+    package = write_clean_package(tmp_path)
+    fake_gaia = write_fake_gaia_render(tmp_path, fixtures_dir, render_fails=False)
+    code = extract.main(["--package", str(package), "--gaia-bin", str(fake_gaia)])
+    assert code == 0
+    assert (package / "starmap.html").is_file()
+    assert (package / "starmap.svg").is_file()
+
+
+def test_no_render_skips_rendering(tmp_path, fixtures_dir, capsys) -> None:
+    package = write_clean_package(tmp_path)
+    fake_gaia = write_fake_gaia_render(tmp_path, fixtures_dir, render_fails=False)
+    code = extract.main(
+        ["--package", str(package), "--gaia-bin", str(fake_gaia), "--no-render"]
+    )
+    out = capsys.readouterr()
+    assert code == 0
+    assert not (package / "starmap.html").exists()
+    assert "render" not in out.err
