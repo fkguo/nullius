@@ -97,6 +97,13 @@
       "version": "0.1.0",
       "source_path": "skills/idea-allocation/SKILL.md"
     },
+    "idea-generation": {
+      "type": "skill-pack",
+      "repo": "nullius/skills-market",
+      "channel": "dev",
+      "version": "0.1.0",
+      "source_path": "skills/idea-generation/SKILL.md"
+    },
     "idea-pairwise-match": {
       "type": "skill-pack",
       "repo": "nullius/skills-market",
