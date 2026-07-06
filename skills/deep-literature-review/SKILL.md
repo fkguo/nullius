@@ -73,6 +73,44 @@ silently drops older work — use it for "what's new," never for an exhaustive a
 topic corpus. For corpus completeness, paginate against `total` (and prefer relevance /
 citation-count sorts so foundational papers are not lost below the page boundary).
 
+**Search the critique, not only the topic.** A breadth-by-topic sweep finds the
+apparatus and the papers that *use* it; it will systematically miss the work
+that *contests* the central claim. Run a dedicated discovery pass aimed at the
+strongest existing statement of, and the strongest existing challenge to, the
+survey's central claim or tension. Two things decide whether it works:
+
+- *Vocabulary — use the field's own critique terms, not generic ones.* Generic
+  critique tokens alone ("limitations of", "model dependence", "revisited",
+  "reanalysis") routinely return nothing: a real critique is phrased in the
+  field's specific language — the particular property being contested, the
+  eponymous method or quantity it attacks, the specific kind of ambiguity,
+  degeneracy, or non-uniqueness it raises. Derive those terms from the claim
+  itself and query on them; treat the generic tokens only as a starting seed.
+- *Mechanics — search content, and keep the conjunction short.* Search full
+  text, not title: a critique paper's title often omits the topic word (it
+  names the flaw, not the field), so a title filter silently drops it. Keep the
+  required-term conjunction short — each extra required phrase can eject a
+  genuine hit whose wording differs slightly — and pin one domain term against
+  the critique term rather than stacking many. On a preprint server, prefer
+  fielded, date-bounded queries over natural-language relevance, which drifts
+  across unrelated fields.
+- *Reach — follow citations, and read conclusions.* The strongest critique you
+  find is a hub: traverse its references and its citing papers. The ancestor
+  critiques (which predate the claim's current framing) and the follow-up
+  refinements are routinely invisible to any topic query and surface only
+  through this citation snowball. And a critique can sit in the *conclusions* of
+  a paper whose title and abstract are about something else — a review, a
+  measurement, an application — reachable by full text but never by metadata; do
+  not let an off-topic abstract rule a paper out, read the conclusions of the
+  highest-relevance adjacent papers rather than trusting their abstracts to
+  advertise the caveat.
+
+Seed conflict-detection over the hits with whatever provider-specific tools
+expose it, otherwise reason over the read notes. A candidate pool that contains
+only papers assuming or applying the claim, and none that question it, is not
+saturated — it is one-sided; record that as coverage debt, never as a clean
+sweep.
+
 ### 2. Deep-read each core paper (depth) — fill the note from the SOURCE
 Fetch the **source, not the abstract** — source-first per the ReadingHandoffContract
 preference order: arXiv LaTeX source, then full-text PDF, then other available full text.
