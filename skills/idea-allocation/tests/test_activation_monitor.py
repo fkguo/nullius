@@ -12,7 +12,12 @@ from pathlib import Path
 import pytest
 
 import activation_monitor as am
-from conftest import FIXTURES_DIR, SCRIPTS_DIR
+# Paths derived locally rather than imported from conftest: pytest loads each
+# directory's conftest for sys.path wiring, but importing conftest AS A MODULE
+# collides when several skills' suites run in one pytest invocation (the first
+# loaded conftest shadows the rest in sys.modules).
+SCRIPTS_DIR = Path(__file__).resolve().parents[1] / "scripts"
+FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
 
 FIXTURE = FIXTURES_DIR / "nodes_latest.json"
 # Engine short id: 8 chars of lowercase Crockford base32.
