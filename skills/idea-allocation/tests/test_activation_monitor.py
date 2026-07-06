@@ -15,12 +15,16 @@ import activation_monitor as am
 from conftest import FIXTURES_DIR, SCRIPTS_DIR
 
 FIXTURE = FIXTURES_DIR / "nodes_latest.json"
-CAMPAIGN_ID = "0f3c2c8e-5df1-4a3a-9b6e-2f1a7c9d4e10"
+# Engine short id: 8 chars of lowercase Crockford base32.
+CAMPAIGN_ID = "0f3c2c8e"
 SCRIPT = SCRIPTS_DIR / "activation_monitor.py"
 
 MOCK_RPC_SOURCE = """\
 #!/usr/bin/env node
 // Mock of packages/idea-engine/bin/idea-rpc.mjs — pinned interface shape only.
+// Id params mirror the engine openrpc contract: campaign_id/node_id are
+// engine short ids; idempotency_key is a free-form non-empty string.
+const SHORT_ID_RE = /^[0123456789abcdefghjkmnpqrstvwxyz]{8}$/;
 let raw = '';
 process.stdin.on('data', (chunk) => { raw += chunk; });
 process.stdin.on('end', () => {
@@ -31,6 +35,11 @@ process.stdin.on('end', () => {
   for (const key of ['campaign_id', 'node_id', 'idempotency_key', 'lifecycle_state']) {
     if (typeof params[key] !== 'string' || params[key].length === 0) {
       problems.push(`missing params.${key}`);
+    }
+  }
+  for (const key of ['campaign_id', 'node_id']) {
+    if (typeof params[key] === 'string' && !SHORT_ID_RE.test(params[key])) {
+      problems.push(`params.${key} fails the engine short-id pattern`);
     }
   }
   if (typeof request.store_root !== 'string') problems.push('missing store_root');
@@ -86,16 +95,16 @@ def test_report_groups_by_kind_with_guidance(tmp_path):
         assert f"== {kind} (1) ==" in report
         assert am.CHECK_GUIDANCE[kind].split(".")[0] in report
     # Each waiting node appears under its kind with its description.
-    assert "idea-delta" in report and "seeded smoke run" in report
-    assert "idea-lambda" in report and "instrument logbook" in report
+    assert "de1ta000" in report and "seeded smoke run" in report
+    assert "1ambda00" in report and "instrument logbook" in report
     # Non-waiting nodes never appear.
-    for absent in ("idea-alpha", "idea-gamma", "idea-zeta"):
+    for absent in ("a1pha000", "gamma000", "zeta0000"):
         assert absent not in report
 
 
 def test_last_checked_at_shown_and_note_present(tmp_path):
     report = monitor_report(tmp_path)
-    assert "last_checked_at=2026-06-28T16:00:00Z" in report  # idea-delta
+    assert "last_checked_at=2026-06-28T16:00:00Z" in report  # de1ta000
     assert "last_checked_at=never" in report                 # nodes without the field
     assert "NOTE on last_checked_at" in report
     assert "updates last_checked_at in the campaign store" in report
@@ -104,11 +113,11 @@ def test_last_checked_at_shown_and_note_present(tmp_path):
 def test_only_satisfied_nodes_get_commands(tmp_path):
     report = monitor_report(tmp_path)
     commands = extract_commands(report)
-    assert len(commands) == 1  # only idea-epsilon has satisfied=true
-    assert "idea-epsilon" in commands[0]
+    assert len(commands) == 1  # only eps110n0 has satisfied=true
+    assert "eps110n0" in commands[0]
     ready_section = report.split("READY TO ACTIVATE")[1]
-    assert "idea-epsilon" in ready_section
-    assert "idea-delta" not in ready_section.split("NOTE on last_checked_at")[0]
+    assert "eps110n0" in ready_section
+    assert "de1ta000" not in ready_section.split("NOTE on last_checked_at")[0]
 
 
 # ---------------------------------------------------------------------------
@@ -133,8 +142,11 @@ def test_suggested_command_shape_matches_pinned_interface(tmp_path):
     params = payload["params"]
     assert set(params) == {"campaign_id", "node_id", "idempotency_key", "lifecycle_state"}
     assert params["campaign_id"] == CAMPAIGN_ID
-    assert params["node_id"] == "idea-epsilon"
+    assert params["node_id"] == "eps110n0"
     assert params["lifecycle_state"] == "active"
+    # The engine RPC contract pins idempotency_key as a free-form non-empty
+    # string (NOT an engine short id); the monitor's deterministic uuid5
+    # derivation is deliberate and stays.
     uuid.UUID(params["idempotency_key"])  # parseable uuid
 
 
@@ -143,12 +155,14 @@ def test_idempotency_key_is_deterministic(tmp_path):
     report_two = monitor_report(tmp_path)
     assert extract_commands(report_one) == extract_commands(report_two)
     payload, _ = parse_command(extract_commands(report_one)[0])
-    rebuilt = am.build_rpc_payload(CAMPAIGN_ID, "idea-epsilon", "/campaigns/example-store")
+    rebuilt = am.build_rpc_payload(CAMPAIGN_ID, "eps110n0", "/campaigns/example-store")
     assert payload == rebuilt
 
 
 def test_unquotable_payload_degrades_to_plain_json():
-    payload = am.build_rpc_payload(CAMPAIGN_ID, "idea-o'brien", "/store")
+    # Node and campaign ids can no longer carry a single quote (engine short
+    # ids), but store_root still can — the degradation path must survive.
+    payload = am.build_rpc_payload(CAMPAIGN_ID, "eps110n0", "/campaigns/o'brien-store")
     assert am.suggest_activation_command(payload, "rpc.mjs") is None
 
 
@@ -172,7 +186,7 @@ def test_suggested_command_round_trips_through_mock_rpc(tmp_path):
     assert completed.returncode == 0, completed.stdout + completed.stderr
     response = json.loads(completed.stdout)
     assert response["result"]["ok"] is True
-    assert response["result"]["node_id"] == "idea-epsilon"
+    assert response["result"]["node_id"] == "eps110n0"
     assert response["result"]["lifecycle_state"] == "active"
 
 

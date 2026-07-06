@@ -50,7 +50,7 @@ from node id to node). Per node, the pinned fields are:
 
 | field | meaning |
 | --- | --- |
-| `node_id` | non-empty string identifier |
+| `node_id` | engine short id: 8 chars of lowercase Crockford base32 (digits + lowercase letters minus `i`/`l`/`o`/`u`), as pinned by the engine `idea_node_v1` contract |
 | `lifecycle_state` | `active`, `waiting_activation`, or `archived`; missing means `active` |
 | `posterior` | optional object: `value` in [0, 1], `evidence_count` >= 0, `updated_at` ISO 8601, optional `gaia_package_ref` |
 | `activation_condition` | required for `waiting_activation`: `kind`, `description`, `satisfied`, optional `last_checked_at` |
@@ -182,8 +182,8 @@ fails validation):
 
 | field | content |
 | --- | --- |
-| `decision_id` | deterministic uuid5 over campaign id, seed, timestamp, store digest |
-| `campaign_id` | campaign UUID |
+| `decision_id` | deterministic engine short id (8 chars of lowercase Crockford base32): sha256 over campaign id, seed, timestamp, store digest, mapped byte-by-byte onto the engine alphabet — same inputs always give the same id |
+| `campaign_id` | campaign short id (8-char engine convention, same alphabet) |
 | `generated_at` | ISO 8601 date-time |
 | `method` | always `thompson_sampling` |
 | `random_seed` | the seed that produced the draws |
