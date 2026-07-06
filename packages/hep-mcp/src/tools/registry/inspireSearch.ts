@@ -34,15 +34,16 @@ Author disambiguation tip (IMPORTANT for common names):
 - Prefer INSPIRE BAI when available: \`a:E.Witten.1\` (stable unique author identifier).
 - If you only have a name, first call \`inspire_literature\` with \`mode=get_author\` to obtain \`bai\`, then search with \`a:<bai>\`.
 
-Full-text search: Use "fulltext:" to search paper content (not just metadata).
+Full-text search: Use "fulltext:" (short form "ft:") to search paper content (not just metadata).
 - fulltext:"dark matter detection" - search for exact phrase in paper text
 - fulltext:WIMP AND t:direct - combine full-text with title search
+- ft:"effective field theory" - short-form equivalent of fulltext:
 
 Common search operators:
 - a: author (e.g., "a:guo, feng-kun" or "a:Feng.Kun.Guo.1")
 - fa: first author (e.g., "fa:witten")
 - t: title (e.g., "t:pentaquark")
-- fulltext: full-text search (e.g., "fulltext:lattice QCD")
+- fulltext: (or "ft:") full-text search (e.g., "fulltext:lattice QCD")
 - topcite: citation count (e.g., "topcite:250+" for >=250 citations)
 - authorcount: author count (e.g., "authorcount:1->10" for 1-10 authors)
 - date: date range (e.g., "date:2020->2024")
