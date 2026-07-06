@@ -5,15 +5,15 @@
 > **Nullius in verba**——"勿轻信任何人的断言"。
 > 这句皇家学会会训既是本仓库得名的由来，也是它的运行规则：任何结果都不因权威而成立——结论只有经过独立重推导、干净环境复现与对抗性评审，才允许写入长期记录。
 
-Nullius 是一个面向理论研究的 domain-neutral、evidence-first monorepo。当前仓库把通用 lifecycle/control-plane 包、本地 MCP provider 包，以及可被 agent client 或 shell 入口消费的 checked-in workflow recipes 放在同一个工作台里。HEP 是目前最成熟的 provider family，也是当前最强的端到端 workflow 示例，但它不是 root 产品身份本身。
+Nullius 是一个面向理论研究的 domain-neutral、evidence-first monorepo。当前仓库把通用 lifecycle/control-plane 包、本地 MCP provider 包，以及可被 agent client 或 shell 入口消费的 checked-in workflow recipes 放在同一个工作台里。root 就是这个 domain-neutral 基座与 control plane；HEP 是在其上构建的、目前最成熟的 provider family 与最强的端到端 workflow 示例。
 
 ## 1. Surface Policy
 
 - `nullius` 继续作为已初始化外部 project root 的 stateful CLI front door。lifecycle state、bounded execution、`workflow-plan`、verification、更高结论 gate，以及 proposal decisions 都从这里进入。
 - `orch_*` 继续作为同一 control plane 的 MCP/operator counterpart。它是 control plane 的 host-facing bridge，不是另一个产品身份，也不是对 CLI 的替代。
-- `openalex_*`、`arxiv_*`、`hepdata_*`、`pdg_*`、`zotero_*` 继续作为 bounded atomic MCP operators。它们保持 MCP-first，因为这些 surface 是 schema-driven provider atoms，而不是需要整套 CLI 镜像的 stateful workflow shell。
+- `openalex_*`、`arxiv_*`、`hepdata_*`、`pdg_*`、`zotero_*` 继续作为 bounded atomic MCP operators。它们保持 MCP-first，因为这些 surface 是 schema-driven provider atoms，而不是需要整套 CLI 镜像的 stateful workflow shell。`@nullius/hep-mcp` 同时把这些 provider 工具作为入口纳入自身工具面（复用各 provider 包的 `tooling`），因此在一个 HEP 会话里即可使用文献、数据、参考与 Zotero 能力，无需分别接入各 provider MCP。
 - `idea-mcp` 继续是实验性的 runtime bridge。它不是 root front door，而且当前 MCP surface 也故意比完整 `idea-engine` runtime contract 更窄。idea-engine 的 search/eval runtime 已归档；contracts + store 保留，打分消费外部 belief-graph posterior（pinned tool，当前 pin gaia-lang==0.5.0a4），idea-engine 仍不是默认 capability expansion lane。
-- `@nullius/hep-mcp` 继续是当前最成熟的 domain pack 与最强的端到端示例，但 HEP 不定义 root 产品身份。
+- `@nullius/hep-mcp` 是在 domain-neutral root 之上构建的、当前最成熟的 domain pack 与最强的端到端示例。
 - `research-harness` 是面向 Codex / Claude Code / OpenCode 的薄 external research project 入口 skill：它恢复 `nullius` 项目状态，把里程碑执行路由给 `research-team`，把 Markdown 笔记清理路由给 `markdown-hygiene`，把 HEP 证据工作路由给 `hep-mcp`，并把长期结论折回项目文件与 artifacts。它不是新的 CLI，也不是第二套 control plane。
 - `.nullius/HARNESS` 是 `nullius init` 写入的机器可读 runtime handshake；存在时 agent 必须先取得 `nullius status --json` receipt，再开始新工作、milestone 执行、closeout 或 handoff。
 - `research_brainstorm` 是 `nullius workflow-plan` 下的 checked-in durable harness recipe，不是新的顶层 CLI 命令，不是 idea-engine，不是 full research-team workflow，也不是 root front-door expansion。
@@ -241,20 +241,6 @@ pnpm --filter @nullius/hep-mcp docs:tool-counts:check
 1. `hep_run_build_writing_evidence` 或 `hep_project_build_evidence`
 1. `hep_render_latex`
 1. `hep_export_project`
-
-## 当前 HEP 应如何出现在 Root 文档中
-
-HEP 在 root docs 中今天应被表述为：
-
-- 当前最成熟的 provider family
-- 当前最强的端到端 workflow family
-- evidence-first Project/Run 流程的当前 provider 示例
-
-HEP 不应被表述为：
-
-- 唯一目标领域
-- 理解仓库的唯一方式
-- root 产品身份本身
 
 ## 文档
 

@@ -5,15 +5,15 @@ English | [中文](./docs/README_zh.md)
 > **Nullius in verba** — "take nobody's word for it."
 > The Royal Society's motto is both the source of this repo's name and its operating rule: no result stands on authority — a conclusion enters the durable record only after independent re-derivation, clean-room reproduction, and adversarial review.
 
-Nullius is a domain-neutral, evidence-first research monorepo. Today it combines a generic lifecycle/control-plane package, local MCP provider packages, and checked-in workflow recipes that can be consumed through `nullius workflow-plan` or internal agent clients. HEP is the current most mature provider family and the strongest end-to-end workflow example in the repo, but it is not the root product identity.
+Nullius is a domain-neutral, evidence-first research monorepo. Today it combines a generic lifecycle/control-plane package, local MCP provider packages, and checked-in workflow recipes that can be consumed through `nullius workflow-plan` or internal agent clients. The root is that domain-neutral substrate and control plane; HEP is the most mature provider family and strongest end-to-end workflow example built on it.
 
 ## 1. Surface Policy
 
 - `nullius` remains the stateful CLI front door for initialized external project roots. Use it for lifecycle state, bounded execution, `workflow-plan`, verification, higher-conclusion gating, and proposal decisions.
 - `orch_*` remains the MCP/operator counterpart of that same control plane. It is a host-facing bridge for the control plane, not a competing product identity and not a replacement for the CLI.
-- `openalex_*`, `arxiv_*`, `hepdata_*`, `pdg_*`, and `zotero_*` remain bounded atomic MCP operators. They stay MCP-first because they are schema-driven provider atoms, not stateful workflow shells that need mass CLI mirroring.
+- `openalex_*`, `arxiv_*`, `hepdata_*`, `pdg_*`, and `zotero_*` remain bounded atomic MCP operators. They stay MCP-first because they are schema-driven provider atoms, not stateful workflow shells that need mass CLI mirroring. `@nullius/hep-mcp` also surfaces these provider tools as entry points inside its own tool set (reusing the provider packages' `tooling`), so a HEP session reaches literature, data, reference, and Zotero access without wiring each provider MCP separately.
 - `idea-mcp` remains an experimental runtime bridge onto the restarted, probability-managed `idea-engine` portfolio. It is not a root front door, and its MCP surface is intentionally narrower than the full `idea-engine` runtime contract. The idea-engine search/eval runtime is archived; contracts + store are retained, scoring consumes an external belief-graph posterior (pinned tool, current pin gaia-lang==0.5.0a4), and idea-engine is still not a default capability-expansion lane. The belief and decision layers around it live in three skills, not in the runtime: `idea-posterior` (decompose an idea into source-grounded sub-criteria, compute a Gaia posterior, write it back), `idea-pairwise-match` (criteria-committed cross-family judged comparison, one capped non-eliminating observation), and `idea-allocation` (Thompson-sampling allocation plus activation monitoring).
-- `@nullius/hep-mcp` remains the current most mature domain pack and strongest end-to-end example, but HEP does not define the root product identity.
+- `@nullius/hep-mcp` is the current most mature domain pack and strongest end-to-end example built on the domain-neutral root.
 - `research-harness` is the thin Codex / Claude Code / OpenCode skill entrypoint for external research projects: it restores `nullius` project state, routes milestone execution to `research-team`, routes Markdown note cleanup to `markdown-hygiene`, routes HEP evidence work to `hep-mcp`, and folds durable results back into project files and artifacts. It is not a new CLI or a second control plane.
 - `research_brainstorm` is a checked-in durable harness recipe under `nullius workflow-plan`, not a new top-level CLI command, not the idea-engine, not a full research-team workflow, and not a root front-door expansion.
 - `.nullius/HARNESS` is the machine-readable runtime handshake written by `nullius init`; when it is present, agents must obtain an `nullius status --json` receipt before new work, milestone execution, closeout, or handoff.
@@ -241,20 +241,6 @@ If you want the current strongest end-to-end workflow family, continue with:
 1. `hep_run_build_writing_evidence` or `hep_project_build_evidence`
 1. `hep_render_latex`
 1. `hep_export_project`
-
-## Current HEP Framing
-
-HEP belongs in the root docs today as:
-
-- the current most mature provider family
-- the current strongest end-to-end workflow family
-- the current provider example for evidence-first Project/Run flows
-
-HEP does not define the root docs as:
-
-- the only intended domain
-- the only meaningful way to understand the repo
-- the root product identity
 
 ## Documentation
 
