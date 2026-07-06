@@ -161,7 +161,9 @@ def observation_tier(tally):
 # ---------------------------------------------------------------------------
 
 def _is_short_id(value):
-    return isinstance(value, str) and bool(SHORT_ID_RE.match(value))
+    # fullmatch: with re.match, the pattern's `$` would tolerate one trailing
+    # newline that the engine-side JS regex rejects; stay exactly as strict.
+    return isinstance(value, str) and bool(SHORT_ID_RE.fullmatch(value))
 
 
 def mint_short_id():

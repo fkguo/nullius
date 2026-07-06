@@ -455,8 +455,13 @@ def test_validator_accepts_the_assembled_artifact(valid_artifact):
         ),
         # 8 lowercase chars, but i/l/o/u sit outside the Crockford alphabet.
         (lambda a: a.__setitem__("campaign_id", "abcdilou"), "not an engine short id"),
+        # Right length, wrong case: the alphabet is lowercase-only.
+        (lambda a: a.__setitem__("campaign_id", "ABCDEFGH"), "not an engine short id"),
         # Right alphabet, wrong length.
         (lambda a: a.__setitem__("idea_a_node_id", "1f6c9d5"), "not an engine short id"),
+        # A trailing newline must fail: fullmatch keeps the Python validator as
+        # strict as the engine-side JS regex, which `$`+re.match would not.
+        (lambda a: a.__setitem__("idea_a_node_id", "1f6c9d5e\n"), "not an engine short id"),
         (lambda a: a.__setitem__("idea_b_node_id", IDEA_A), "equals"),
         (lambda a: a.__setitem__("extra", 1), "unknown top-level keys"),
         (
