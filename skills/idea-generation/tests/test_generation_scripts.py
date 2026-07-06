@@ -88,6 +88,34 @@ def test_dedup_report_is_byte_deterministic_and_refuses_overwrite(tmp_path, make
     assert dedup_check.run(["--nodes", str(nodes_path), "--candidates", str(candidates_path), "--out", str(out_a)]) == 2
 
 
+def test_dedup_compares_within_the_burst(tmp_path, make_candidate):
+    """Two identical candidates in one burst: the second must see the first."""
+    nodes_path = tmp_path / "nodes.json"
+    nodes_path.write_text(json.dumps(_store_nodes(["a completely unrelated prior idea"])), encoding="utf-8")
+    candidates_path = tmp_path / "candidates.json"
+    candidates_path.write_text(json.dumps([make_candidate(), make_candidate()]), encoding="utf-8")
+    out_path = tmp_path / "report.json"
+    assert dedup_check.run(["--nodes", str(nodes_path), "--candidates", str(candidates_path), "--out", str(out_path)]) == 0
+    report = json.loads(out_path.read_text(encoding="utf-8"))
+    first, second = report["results"]
+    assert first["decision"] == "unique"
+    assert second["decision"] == "auto_drop"
+    assert second["intra_burst_neighbor_index"] == 0
+    assert second["nearest_similarity"] == 1.0  # exact normalized-text short-circuit
+
+
+def test_dedup_rejects_degenerate_dim(tmp_path, make_candidate):
+    nodes_path = tmp_path / "nodes.json"
+    nodes_path.write_text(json.dumps(_store_nodes(["x"])), encoding="utf-8")
+    candidates_path = tmp_path / "candidates.json"
+    candidates_path.write_text(json.dumps([make_candidate()]), encoding="utf-8")
+    for dim in ("0", "-4", "63"):
+        assert dedup_check.run([
+            "--nodes", str(nodes_path), "--candidates", str(candidates_path),
+            "--out", str(tmp_path / f"r{dim}.json"), "--dim", dim,
+        ]) == 2
+
+
 def test_dedup_accepts_wrapped_store_shape(tmp_path, make_candidate):
     wrapped = {"campaign_id": "cmpn0001", "nodes": _store_nodes(["anything"])}
     nodes_path = tmp_path / "nodes.json"
@@ -195,10 +223,18 @@ def test_non_novel_delta_types_are_rejected(make_candidate):
         assert any("non-novel by construction" in p for p in _problems(candidate))
 
 
+def _pinned_snapshot():
+    return {
+        "survey_artifact_ref": "file:///tmp/survey.json",
+        "survey_content_hash": "sha256:" + "c" * 64,
+    }
+
+
 def test_pack_shape_gates_triggers_and_parent_revisions(make_candidate):
     pack = {
         "campaign_id": "cmpn0001",
         "candidates": [make_candidate()],
+        "evidence_snapshot": _pinned_snapshot(),
         "trigger": {"artifact_ref": "file:///tmp/match.json", "kind": "match_concluded"},
     }
     problems = build_pack.validate_pack_shape(pack, {})
@@ -208,17 +244,81 @@ def test_pack_shape_gates_triggers_and_parent_revisions(make_candidate):
     problems = build_pack.validate_pack_shape(pack, {})
     assert any("require trigger.artifact_ref" in p for p in problems)
 
+    # LiteratureMining requires the survey snapshot to be pinned
+    unpinned = {
+        "campaign_id": "cmpn0001",
+        "candidates": [make_candidate()],
+        "evidence_snapshot": {},
+        "trigger": {"kind": "manual"},
+    }
+    problems = build_pack.validate_pack_shape(unpinned, {})
+    assert any("pinning the mined survey" in p for p in problems)
+
+    # parented FailureRouting exercises parent_revisions coverage
     candidate = make_candidate()
-    candidate["provenance"]["operator_family"] = "Mutation"
+    candidate["provenance"]["operator_family"] = "FailureRouting"
     candidate["provenance"]["parent_node_ids"] = ["nd000001"]
     pack = {
         "campaign_id": "cmpn0001",
         "candidates": [candidate],
+        "evidence_snapshot": {},
         "trigger": {"kind": "manual"},
     }
     problems = build_pack.validate_pack_shape(pack, {})
     assert any("missing from parent_revisions" in p for p in problems)
     assert build_pack.validate_pack_shape(pack, {"nd000001": 1}) == []
+
+
+def test_pack_shape_rejects_disabled_families_and_intra_pack_twins(make_candidate):
+    disabled = make_candidate()
+    disabled["provenance"]["operator_family"] = "Mutation"
+    disabled["provenance"]["parent_node_ids"] = ["nd000001"]
+    pack = {
+        "campaign_id": "cmpn0001",
+        "candidates": [disabled],
+        "evidence_snapshot": {},
+        "trigger": {"kind": "manual"},
+    }
+    problems = build_pack.validate_pack_shape(pack, {"nd000001": 1})
+    assert any("not yet enabled for import" in p for p in problems)
+
+    twins = {
+        "campaign_id": "cmpn0001",
+        "candidates": [make_candidate(), make_candidate()],
+        "evidence_snapshot": _pinned_snapshot(),
+        "trigger": {"kind": "manual"},
+    }
+    problems = build_pack.validate_pack_shape(twins, {})
+    assert any("near-identical twins" in p for p in problems)
+
+
+def test_new_receipt_and_consistency_mirrors(make_candidate):
+    # rationale_draft.references need receipts
+    candidate = make_candidate()
+    candidate["rationale_draft"]["references"] = ["https://example.com/unfetched"]
+    assert any("no retrieval receipt" in p or "not listed in evidence_uris_used" in p for p in _problems(candidate))
+
+    # URI-shaped closest_prior needs a receipt; a ref_key does not
+    candidate = make_candidate()
+    candidate["novelty_delta"]["closest_prior"] = "https://example.com/never-retrieved"
+    assert any("not listed in evidence_uris_used" in p for p in _problems(candidate))
+    candidate = make_candidate()
+    candidate["novelty_delta"]["closest_prior"] = "refA"
+    assert _problems(candidate) == []
+
+    # placeholder deep-scan reaches gap anchors
+    candidate = make_candidate()
+    candidate["provenance"]["trace_inputs"]["anchor"] = {
+        "kind": "gap",
+        "resolved_refs": [build_pack.PLACEHOLDER_EVIDENCE_URI],
+        "statement": "an unanchored gap",
+    }
+    assert any("forbidden anywhere" in p for p in _problems(candidate))
+
+    # self-contradictory dedup record
+    candidate = make_candidate()
+    candidate["dedup"] = {"decision": "unique", "method": "m", "nearest_similarity": 0.99}
+    assert any("contradicts nearest_similarity" in p for p in _problems(candidate))
 
 
 # ---------------------------------------------------------------------------
@@ -284,11 +384,15 @@ def test_build_pack_override_imports_flagged_with_reason(tmp_path, make_candidat
     candidates = [make_candidate()]
     candidates_path, report_path = _write_inputs(tmp_path, candidates, ["flagged"])
     out_path = tmp_path / "pack.json"
+    survey = tmp_path / "survey.json"
+    survey.write_text("{}", encoding="utf-8")
     assert build_pack.run([
         "--campaign-id", "cmpn0001",
         "--candidates", str(candidates_path),
         "--dedup-report", str(report_path),
         "--trigger-kind", "manual",
+        "--survey-artifact-ref", "file:///tmp/survey.json",
+        "--survey-file", str(survey),
         "--override", "0=reviewed: shares the anchor but proposes the opposite mechanism",
         "--created-at", "2026-07-06T00:00:00Z",
         "--out", str(out_path),
@@ -336,6 +440,85 @@ def test_build_pack_refuses_invalid_inputs(tmp_path, make_candidate):
     ]) == 2
 
 
+def test_build_pack_refuses_fail_open_paths(tmp_path, make_candidate):
+    survey = tmp_path / "survey.json"
+    survey.write_text("{}", encoding="utf-8")
+    base_args = [
+        "--campaign-id", "cmpn0001",
+        "--trigger-kind", "manual",
+        "--survey-artifact-ref", "file:///tmp/survey.json",
+        "--survey-file", str(survey),
+        "--created-at", "2026-07-06T00:00:00Z",
+    ]
+
+    # unknown decision string must not fall through to "unique"
+    candidates_path, report_path = _write_inputs(tmp_path / "a", [make_candidate()], ["unique"])
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    report["results"][0]["decision"] = "probably_fine"
+    report_path.write_text(json.dumps(report), encoding="utf-8")
+    assert build_pack.run(base_args + [
+        "--candidates", str(candidates_path), "--dedup-report", str(report_path),
+        "--out", str(tmp_path / "p1.json"),
+    ]) == 2
+
+    # misaligned candidate_index is refused (a reordered report drops the wrong candidate)
+    candidates_path, report_path = _write_inputs(tmp_path / "b", [make_candidate()], ["unique"])
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    report["results"][0]["candidate_index"] = 5
+    report_path.write_text(json.dumps(report), encoding="utf-8")
+    assert build_pack.run(base_args + [
+        "--candidates", str(candidates_path), "--dedup-report", str(report_path),
+        "--out", str(tmp_path / "p2.json"),
+    ]) == 2
+
+    # an override that matches no flagged candidate is an error, not a no-op
+    candidates_path, report_path = _write_inputs(tmp_path / "c", [make_candidate()], ["unique"])
+    assert build_pack.run(base_args + [
+        "--candidates", str(candidates_path), "--dedup-report", str(report_path),
+        "--override", "0=this candidate was never flagged",
+        "--out", str(tmp_path / "p3.json"),
+    ]) == 2
+
+    # malformed --rejected shape is a clean exit 2, not a traceback
+    candidates_path, report_path = _write_inputs(tmp_path / "d", [make_candidate()], ["unique"])
+    bad_rejected = tmp_path / "rejected.json"
+    bad_rejected.write_text(json.dumps([{"summary": "no reason field"}]), encoding="utf-8")
+    assert build_pack.run(base_args + [
+        "--candidates", str(candidates_path), "--dedup-report", str(report_path),
+        "--rejected", str(bad_rejected),
+        "--out", str(tmp_path / "p4.json"),
+    ]) == 2
+
+
+def test_build_pack_prompt_snapshot_flow(tmp_path, make_candidate):
+    import hashlib as _hashlib
+    survey = tmp_path / "survey.json"
+    survey.write_text("{}", encoding="utf-8")
+    snapshot = tmp_path / "prompt.txt"
+    snapshot.write_text("the full rendered generation prompt", encoding="utf-8")
+    expected_hash = "sha256:" + _hashlib.sha256(snapshot.read_bytes()).hexdigest()
+
+    candidates_path, report_path = _write_inputs(tmp_path, [make_candidate()], ["unique"])
+    out_path = tmp_path / "pack.json"
+    assert build_pack.run([
+        "--campaign-id", "cmpn0001",
+        "--candidates", str(candidates_path),
+        "--dedup-report", str(report_path),
+        "--trigger-kind", "manual",
+        "--survey-artifact-ref", "file:///tmp/survey.json",
+        "--survey-file", str(survey),
+        "--prompt-snapshot", str(snapshot),
+        "--created-at", "2026-07-06T00:00:00Z",
+        "--out", str(out_path),
+    ]) == 0
+    pack = json.loads(out_path.read_text(encoding="utf-8"))
+    assert pack["prompt_snapshots"] == [
+        {"content": "the full rendered generation prompt", "hash": expected_hash},
+    ]
+    # single snapshot auto-fills candidates lacking a declared hash
+    assert pack["candidates"][0]["provenance"]["prompt_snapshot_hash"] == expected_hash
+
+
 # ---------------------------------------------------------------------------
 # submit_pack
 # ---------------------------------------------------------------------------
@@ -359,6 +542,11 @@ def test_submit_key_is_deterministic_and_content_sensitive(make_candidate):
     key_b = submit_pack.deterministic_idempotency_key("cmpn0001", json.loads(json.dumps(pack)))
     assert key_a == key_b
     assert key_a.startswith("genpack-")
+    # key-order independence must be exercised for real: same content, keys
+    # inserted in a different order
+    reordered = {key: pack[key] for key in sorted(pack.keys(), reverse=True)}
+    assert list(reordered.keys()) != list(pack.keys())
+    assert submit_pack.deterministic_idempotency_key("cmpn0001", reordered) == key_a
     changed = copy.deepcopy(pack)
     changed["trigger"] = {"kind": "manual", "artifact_ref": "file:///x"}
     assert submit_pack.deterministic_idempotency_key("cmpn0001", changed) != key_a
@@ -437,11 +625,76 @@ def test_enabled_triggers_and_family_table_match_engine_executor(engine_src_dir)
     executor = (engine_src_dir / "service" / "import-generated-executor.ts").read_text(encoding="utf-8")
     enabled = _ts_const_strings(executor, "const ENABLED_TRIGGER_KINDS")
     assert enabled == build_pack.ENABLED_TRIGGER_KINDS
+    enabled_families = _ts_const_strings(executor, "const ENABLED_OPERATOR_FAMILIES")
+    assert enabled_families == build_pack.ENABLED_FAMILIES
 
     arity_start = executor.index("const OPERATOR_FAMILY_ARITY")
     arity_block = executor[arity_start:executor.index("};", arity_start)]
-    families = re.findall(r"^\s{2}(\w+):", arity_block, flags=re.MULTILINE)
-    assert sorted(families) == sorted(build_pack.FAMILY_ARITY.keys())
+    # Lock the arity VALUES, not just the family names: an engine arity change
+    # must fail here rather than drift silently into build_pack's exit-2 gate.
+    engine_arity = {}
+    for family, body in re.findall(r"^\s{2}(\w+): \{ ([^}]*) \},?$", arity_block, flags=re.MULTILINE):
+        engine_arity[family] = {
+            key: int(value) for key, value in re.findall(r"(exact|min|max): (\d+)", body)
+        }
+    assert engine_arity == build_pack.FAMILY_ARITY
+
+    bound = re.search(r"const DEDUP_AUTO_DROP_BOUND = ([0-9.]+)", executor)
+    assert bound and float(bound.group(1)) == build_pack.DEDUP_AUTO_DROP_BOUND
 
     shared = (engine_src_dir / "service" / "node-shared.ts").read_text(encoding="utf-8")
     assert f"'{build_pack.PLACEHOLDER_EVIDENCE_URI}'" in shared
+
+
+def test_submit_reaches_the_real_engine_bridge(tmp_path, make_candidate):
+    """End-to-end through bin/idea-rpc.mjs and the built engine (skipped when
+    node or the engine dist is absent, e.g. standalone skill installs)."""
+    import shutil
+    repo_root = SKILL_ROOT.parents[1]
+    idea_rpc = repo_root / "packages" / "idea-engine" / "bin" / "idea-rpc.mjs"
+    dist = repo_root / "packages" / "idea-engine" / "dist" / "index.js"
+    node_bin = shutil.which("node")
+    if not (idea_rpc.is_file() and dist.is_file() and node_bin):
+        pytest.skip("node or the built idea-engine is not available")
+
+    store_root = tmp_path / "store"
+    init_request = {
+        "method": "campaign.init",
+        "params": {
+            "budget": {"max_cost_usd": 10, "max_nodes": 10, "max_steps": 10, "max_tokens": 1000, "max_wall_clock_s": 1000},
+            "charter": {
+                "approval_gate_ref": "gate://a0.1",
+                "campaign_name": "bridge-smoke",
+                "domain": "test-domain",
+                "scope": "real-bridge submit integration test",
+            },
+            "idempotency_key": "init",
+            "seed_pack": {"seeds": [{"content": "seed", "seed_type": "text", "source_uris": ["https://example.com/s"]}]},
+        },
+        "store_root": str(store_root),
+    }
+    completed = subprocess.run(
+        [node_bin, str(idea_rpc)], capture_output=True, check=True,
+        input=json.dumps(init_request).encode("utf-8"), timeout=60,
+    )
+    campaign_id = json.loads(completed.stdout.decode("utf-8"))["result"]["campaign_id"]
+
+    pack = _minimal_pack(make_candidate)
+    pack["campaign_id"] = campaign_id
+    pack["evidence_snapshot"] = {
+        "survey_artifact_ref": "file:///tmp/survey.json",
+        "survey_content_hash": "sha256:" + "c" * 64,
+    }
+    pack_path = tmp_path / "pack.json"
+    pack_path.write_text(json.dumps(pack), encoding="utf-8")
+    exit_code = submit_pack.run([
+        "--pack", str(pack_path),
+        "--campaign-id", campaign_id,
+        "--store-root", str(store_root),
+        "--idea-rpc", str(idea_rpc),
+        "--node-bin", node_bin,
+    ])
+    assert exit_code == 0
+    nodes = json.loads((store_root / "campaigns" / campaign_id / "nodes_latest.json").read_text(encoding="utf-8"))
+    generated = [n for n in nodes.values() if n.get("operator_family") == "LiteratureMining"]
+    assert len(generated) == 1

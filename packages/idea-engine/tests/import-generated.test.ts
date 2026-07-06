@@ -1,3 +1,4 @@
+import { createHash } from 'crypto';
 import { existsSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -5,6 +6,9 @@ import { fileURLToPath } from 'url';
 import { afterEach, describe, expect, it } from 'vitest';
 import { IdeaEngineRpcService } from '../src/service/rpc-service.js';
 import { RpcError } from '../src/service/errors.js';
+
+const PROMPT_SNAPSHOT_CONTENT = 'rendered generation prompt for the regression tension burst';
+const PROMPT_SNAPSHOT_HASH = `sha256:${createHash('sha256').update(PROMPT_SNAPSHOT_CONTENT, 'utf8').digest('hex')}`;
 
 /** Deterministic engine-alphabet id sequence: t0000001, t0000002, ... */
 function makeIdSequence(): () => string {
@@ -96,7 +100,7 @@ function tensionCandidate(): Record<string, unknown> {
         timestamp: '2026-07-06T00:00:00Z',
       },
       parent_node_ids: [],
-      prompt_snapshot_hash: `sha256:${'b'.repeat(64)}`,
+      prompt_snapshot_hash: PROMPT_SNAPSHOT_HASH,
       trace_inputs: {
         anchor: {
           kind: 'tension',
@@ -129,12 +133,26 @@ function validPack(campaignId: string, overrides: Record<string, unknown> = {}):
       survey_artifact_ref: 'file:///tmp/survey-artifact.json',
       survey_content_hash: `sha256:${'c'.repeat(64)}`,
     },
+    prompt_snapshots: [
+      { content: PROMPT_SNAPSHOT_CONTENT, hash: PROMPT_SNAPSHOT_HASH },
+    ],
     rejected_candidates: [
       { reason: 'embedding dedup >= 0.95 against an active node', summary: 'near-duplicate of an existing thesis' },
     ],
     trigger: { artifact_ref: 'file:///tmp/survey-artifact.json', kind: 'survey_updated' },
     ...overrides,
   };
+}
+
+/** A second, textually distinct tension candidate (passes the intra-pack backstop). */
+function secondTensionCandidate(): Record<string, unknown> {
+  const candidate = tensionCandidate();
+  const draft = candidate.rationale_draft as Record<string, unknown>;
+  draft.title = 'Bound the second anchored discrepancy';
+  draft.rationale = 'A separate recorded discrepancy admits a different bounded discriminating check with its own kill criterion.';
+  const inputs = (candidate.provenance as Record<string, unknown>).trace_inputs as Record<string, unknown>;
+  (inputs.anchor as Record<string, unknown>).statement = 'C and D disagree on the sign of effect Y';
+  return candidate;
 }
 
 function importPack(
@@ -263,8 +281,19 @@ describe('node.import_generated', () => {
     expect(formalization.mode).toBe('explain_then_formalize_deterministic_v1');
     expect(formalization.source_artifact).toBe('rationale_draft');
     expect(String(formalization.rationale_hash)).toMatch(/^sha256:[a-f0-9]{64}$/);
+    // engine-injected audit surface on the NODE, not only the archived pack
+    expect(inputs.target_admission_route).toBe('open_problem');
+    expect((inputs.dedup as Record<string, unknown>).decision).toBe('unique');
+    expect((inputs.novelty_delta as Record<string, unknown>).delta_type).toBe('new_mechanism');
     const card = node.idea_card as Record<string, unknown>;
     expect(String(card.thesis_statement)).toContain('Resolve the anchored X tension');
+    // the novelty delta enters the card as an auditable llm_inference claim
+    const claims = card.claims as Array<Record<string, unknown>>;
+    expect(claims).toHaveLength(3);
+    const deltaClaim = claims[2]!;
+    expect(deltaClaim.support_type).toBe('llm_inference');
+    expect(String(deltaClaim.claim_text)).toContain('Novelty delta vs closest prior');
+    expect(deltaClaim.evidence_uris).toEqual([URI_A]);
 
     // pack artifact archived verbatim, including the operator's own rejects
     const artifactFile = artifactPathFromRef(String(result.pack_artifact_ref));
@@ -357,75 +386,88 @@ describe('node.import_generated', () => {
     }
   });
 
-  it('enforces the family arity table and parent existence', () => {
+  it('rejects committed-but-not-enabled families like reserved triggers', () => {
+    const service = freshService();
+    const campaignId = initCampaign(service);
+    for (const [family, operatorId] of [
+      ['Mutation', 'mutation.risk_reroute.v1'],
+      ['Recombination', 'recombine.method_transfer.v1'],
+      ['AnalogyTransfer', 'analogy.structure_transfer.v1'],
+    ] as const) {
+      const pack = mutateCandidate(validPack(campaignId), candidate => {
+        const provenance = candidate.provenance as Record<string, unknown>;
+        provenance.operator_family = family;
+        provenance.operator_id = operatorId;
+      });
+      const error = expectRpcError(() => importPack(service, campaignId, pack), -32002, 'operator_family_not_enabled');
+      expect((error.data.details as Record<string, unknown>).enabled).toEqual(['LiteratureMining', 'FailureRouting']);
+    }
+  });
+
+  it('enforces arity, parent existence, and honest parent revisions', () => {
     const service = freshService();
     const campaignId = initCampaign(service);
     const seedNodeId = Object.keys(service.node.store.loadNodes(campaignId))[0]!;
-
-    // Mutation requires exactly one parent
-    let pack = mutateCandidate(validPack(campaignId), candidate => {
+    const failureTrigger = { artifact_ref: 'file:///tmp/failed.jsonl', kind: 'failure_recorded' };
+    const asFailureRouting = (candidate: Record<string, unknown>, parents: string[]) => {
       const provenance = candidate.provenance as Record<string, unknown>;
-      provenance.operator_family = 'Mutation';
-      provenance.operator_id = 'mutation.risk_reroute.v1';
+      provenance.operator_family = 'FailureRouting';
+      provenance.operator_id = 'failroute.avoid_dead_end.v1';
+      provenance.parent_node_ids = parents;
+    };
+
+    // LiteratureMining requires exactly zero parents
+    let pack = mutateCandidate(validPack(campaignId, {
+      evidence_snapshot: {
+        parent_revisions: { [seedNodeId]: 1 },
+        survey_artifact_ref: 'file:///tmp/survey-artifact.json',
+        survey_content_hash: `sha256:${'c'.repeat(64)}`,
+      },
+    }), candidate => {
+      (candidate.provenance as Record<string, unknown>).parent_node_ids = [seedNodeId];
     });
     expectRpcError(() => importPack(service, campaignId, pack), -32002, 'operator_arity_invalid');
 
-    // Mutation with a nonexistent parent
-    pack = mutateCandidate(validPack(campaignId), candidate => {
-      const provenance = candidate.provenance as Record<string, unknown>;
-      provenance.operator_family = 'Mutation';
-      provenance.operator_id = 'mutation.risk_reroute.v1';
-      provenance.parent_node_ids = ['zzzzzzzz'];
+    // duplicate parents are refused before arity counts them twice
+    pack = mutateCandidate(validPack(campaignId, { trigger: failureTrigger }), candidate => {
+      asFailureRouting(candidate, [seedNodeId, seedNodeId]);
+    });
+    expectRpcError(() => importPack(service, campaignId, pack), -32002, 'operator_arity_invalid');
+
+    // nonexistent parent
+    pack = mutateCandidate(validPack(campaignId, { trigger: failureTrigger }), candidate => {
+      asFailureRouting(candidate, ['zzzzzzzz']);
     });
     expectRpcError(() => importPack(service, campaignId, pack), -32004, 'node_not_found');
 
-    // Mutation with a real parent but no recorded parent revision
-    pack = mutateCandidate(validPack(campaignId), candidate => {
-      const provenance = candidate.provenance as Record<string, unknown>;
-      provenance.operator_family = 'Mutation';
-      provenance.operator_id = 'mutation.risk_reroute.v1';
-      provenance.parent_node_ids = [seedNodeId];
+    // real parent but no recorded read-time revision
+    pack = mutateCandidate(validPack(campaignId, { trigger: failureTrigger }), candidate => {
+      asFailureRouting(candidate, [seedNodeId]);
     });
     expectRpcError(() => importPack(service, campaignId, pack), -32002, 'parent_revisions_missing');
 
-    // Same, with the revision recorded: imports and pins parent lineage
-    pack = mutateCandidate(
-      validPack(campaignId, {
-        evidence_snapshot: {
-          parent_revisions: { [seedNodeId]: 1 },
-          survey_artifact_ref: 'file:///tmp/survey-artifact.json',
-        },
-      }),
-      candidate => {
-        const provenance = candidate.provenance as Record<string, unknown>;
-        provenance.operator_family = 'Mutation';
-        provenance.operator_id = 'mutation.risk_reroute.v1';
-        provenance.parent_node_ids = [seedNodeId];
-      },
-    );
-    const result = importPack(service, campaignId, pack, 'import-mutation');
+    // fabricated FUTURE revision is refused
+    pack = mutateCandidate(validPack(campaignId, {
+      evidence_snapshot: { parent_revisions: { [seedNodeId]: 7 } },
+      trigger: failureTrigger,
+    }), candidate => {
+      asFailureRouting(candidate, [seedNodeId]);
+    });
+    expectRpcError(() => importPack(service, campaignId, pack), -32002, 'parent_revision_invalid');
+
+    // honest revision imports and pins parent lineage on the node
+    pack = mutateCandidate(validPack(campaignId, {
+      evidence_snapshot: { parent_revisions: { [seedNodeId]: 1 } },
+      trigger: failureTrigger,
+    }), candidate => {
+      asFailureRouting(candidate, [seedNodeId]);
+    });
+    const result = importPack(service, campaignId, pack, 'import-failroute-parented');
     const nodeId = String((result.imported as Array<Record<string, unknown>>)[0]!.node_id);
     const node = service.node.store.loadNodes<Record<string, unknown>>(campaignId)[nodeId]!;
     expect(node.parent_node_ids).toEqual([seedNodeId]);
     const inputs = (node.operator_trace as Record<string, unknown>).inputs as Record<string, unknown>;
     expect(inputs.parent_revisions).toEqual({ [seedNodeId]: 1 });
-
-    // Recombination requires at least two parents
-    pack = mutateCandidate(validPack(campaignId), candidate => {
-      const provenance = candidate.provenance as Record<string, unknown>;
-      provenance.operator_family = 'Recombination';
-      provenance.operator_id = 'recombine.method_transfer.v1';
-      provenance.parent_node_ids = [seedNodeId];
-    });
-    expectRpcError(() => importPack(service, campaignId, pack, 'import-recomb'), -32002, 'operator_arity_invalid');
-
-    // AnalogyTransfer requires a non-empty analogy_mapping
-    pack = mutateCandidate(validPack(campaignId), candidate => {
-      const provenance = candidate.provenance as Record<string, unknown>;
-      provenance.operator_family = 'AnalogyTransfer';
-      provenance.operator_id = 'analogy.structure_transfer.v1';
-    });
-    expectRpcError(() => importPack(service, campaignId, pack, 'import-analogy'), -32002, 'operator_arity_invalid');
   });
 
   it('rejects reserved vocabulary triggers and non-manual triggers without an artifact_ref', () => {
@@ -551,10 +593,158 @@ describe('node.import_generated', () => {
     expectRpcError(() => importPack(service, campaignId, pack), -32002, 'trace_key_reserved');
 
     pack = mutateCandidate(validPack(campaignId), candidate => {
+      const inputs = (candidate.provenance as Record<string, unknown>).trace_inputs as Record<string, unknown>;
+      inputs.novelty_delta = { spoofed: true };
+    });
+    expectRpcError(() => importPack(service, campaignId, pack), -32002, 'trace_key_reserved');
+
+    pack = mutateCandidate(validPack(campaignId), candidate => {
       const params = (candidate.provenance as Record<string, unknown>).trace_params as Record<string, unknown>;
       params.formalization = { mode: 'spoofed' };
     });
     expectRpcError(() => importPack(service, campaignId, pack), -32002, 'trace_key_reserved');
+  });
+
+  it('bans the placeholder URI anywhere in the candidate, including gap anchors and receipts', () => {
+    const service = freshService();
+    const campaignId = initCampaign(service);
+    const pack = mutateCandidate(validPack(campaignId), candidate => {
+      const inputs = (candidate.provenance as Record<string, unknown>).trace_inputs as Record<string, unknown>;
+      inputs.anchor = {
+        kind: 'gap',
+        resolved_refs: ['https://example.org/reference'],
+        statement: 'a gap the generator failed to actually re-anchor',
+      };
+      (inputs.retrieval_receipts as Array<Record<string, unknown>>).push(
+        { source: 'self-written-fabricated-receipt', uri: 'https://example.org/reference' },
+      );
+    });
+    expectRpcError(() => importPack(service, campaignId, pack), -32002, 'placeholder_evidence_forbidden');
+  });
+
+  it('requires receipts for rationale_draft.references and URI-shaped closest_prior', () => {
+    const service = freshService();
+    const campaignId = initCampaign(service);
+
+    // a bibliography entry with no receipt is a fabricated-decoration vector
+    let pack = mutateCandidate(validPack(campaignId), candidate => {
+      (candidate.rationale_draft as Record<string, unknown>).references = ['https://example.com/unfetched-decoration'];
+    });
+    expectRpcError(() => importPack(service, campaignId, pack), -32002, 'evidence_receipt_missing');
+
+    // URI-shaped closest_prior must itself be receipted
+    pack = mutateCandidate(validPack(campaignId), candidate => {
+      (candidate.novelty_delta as Record<string, unknown>).closest_prior = 'https://example.com/never-retrieved';
+    });
+    expectRpcError(() => importPack(service, campaignId, pack), -32002, 'evidence_receipt_missing');
+
+    // a survey ref_key closest_prior needs no receipt; the injected delta claim then carries no URI
+    pack = mutateCandidate(validPack(campaignId), candidate => {
+      (candidate.novelty_delta as Record<string, unknown>).closest_prior = 'refA';
+    });
+    const result = importPack(service, campaignId, pack, 'import-refkey-prior');
+    const nodeId = String((result.imported as Array<Record<string, unknown>>)[0]!.node_id);
+    const card = service.node.store.loadNodes<Record<string, unknown>>(campaignId)[nodeId]!.idea_card as Record<string, unknown>;
+    const deltaClaim = (card.claims as Array<Record<string, unknown>>)[2]!;
+    expect(deltaClaim.evidence_uris).toEqual([]);
+  });
+
+  it('requires a pinned survey snapshot for LiteratureMining and refuses invalid anchor kinds', () => {
+    const service = freshService();
+    const campaignId = initCampaign(service);
+
+    let pack = validPack(campaignId, {
+      evidence_snapshot: {},
+      trigger: { kind: 'manual' },
+    });
+    expectRpcError(() => importPack(service, campaignId, pack), -32002, 'evidence_snapshot_missing');
+
+    pack = mutateCandidate(validPack(campaignId), candidate => {
+      const inputs = (candidate.provenance as Record<string, unknown>).trace_inputs as Record<string, unknown>;
+      inputs.anchor = { kind: 'vibe', statement: 'not a recognized anchor kind' };
+    });
+    expectRpcError(() => importPack(service, campaignId, pack), -32002, 'anchor_missing');
+  });
+
+  it('refuses intra-pack duplicates and self-contradictory dedup records', () => {
+    const service = freshService();
+    const campaignId = initCampaign(service);
+
+    const twins = validPack(campaignId, { candidates: [tensionCandidate(), tensionCandidate()] });
+    const error = expectRpcError(() => importPack(service, campaignId, twins), -32002, 'intra_pack_duplicate');
+    expect((error.data.details as Record<string, unknown>).duplicate_of).toBe(0);
+
+    const contradictory = mutateCandidate(validPack(campaignId), candidate => {
+      candidate.dedup = { decision: 'unique', method: 'charngram-cosine-v1', nearest_similarity: 0.99 };
+    });
+    expectRpcError(() => importPack(service, campaignId, contradictory), -32002, 'dedup_inconsistent');
+  });
+
+  it('verifies prompt snapshots: declared hashes must be backed by matching archived content', () => {
+    const service = freshService();
+    const campaignId = initCampaign(service);
+
+    // declared hash with no snapshots at all
+    let pack = validPack(campaignId, {});
+    delete (pack as Record<string, unknown>).prompt_snapshots;
+    expectRpcError(() => importPack(service, campaignId, pack), -32002, 'prompt_snapshot_missing');
+
+    // snapshot entry whose content does not hash to its declared hash
+    pack = validPack(campaignId, {
+      prompt_snapshots: [{ content: 'different content entirely', hash: PROMPT_SNAPSHOT_HASH }],
+    });
+    expectRpcError(() => importPack(service, campaignId, pack), -32002, 'prompt_snapshot_missing');
+
+    // candidate WITHOUT a declared hash imports fine without snapshots
+    pack = mutateCandidate(validPack(campaignId), candidate => {
+      delete (candidate.provenance as Record<string, unknown>).prompt_snapshot_hash;
+    });
+    delete (pack as Record<string, unknown>).prompt_snapshots;
+    const result = importPack(service, campaignId, pack, 'import-no-snapshot');
+    expect(result.imported_count).toBe(1);
+  });
+
+  it('never overwrites a previously archived pack when the id generator collides', () => {
+    const service = freshService();
+    const campaignId = initCampaign(service);
+    const first = importPack(service, campaignId, validPack(campaignId));
+    const firstArtifact = artifactPathFromRef(String(first.pack_artifact_ref));
+    const firstBytes = readFileSync(firstArtifact);
+
+    // force the deterministic id sequence to restart, so the second import
+    // draws exactly the ids the first import used
+    const collidingService = new IdeaEngineRpcService({
+      createId: makeIdSequence(),
+      rootDir: service.node.store.rootDir,
+    });
+    const second = collidingService.handle('node.import_generated', {
+      campaign_id: campaignId,
+      idempotency_key: 'import-collide',
+      pack: validPack(campaignId, { candidates: [secondTensionCandidate()] }),
+    });
+    expect(second.pack_artifact_ref).not.toBe(first.pack_artifact_ref);
+    expect(readFileSync(firstArtifact)).toEqual(firstBytes);
+  });
+
+  it('surfaces a held mutation lock as store_locked and reclaims stale locks from dead holders', () => {
+    const service = freshService();
+    const campaignId = initCampaign(service);
+    const lockPath = join(service.node.store.campaignDir(campaignId), '.lock.lck');
+
+    // stale lock from a provably dead process: reclaimed, import succeeds
+    writeFileSync(lockPath, JSON.stringify({ created_at: '2026-07-06T00:00:00Z', pid: 999999999 }), 'utf8');
+    const result = importPack(service, campaignId, validPack(campaignId));
+    expect(result.imported_count).toBe(1);
+
+    // lock held by a live process (ourselves): distinct store_locked error
+    writeFileSync(lockPath, JSON.stringify({ created_at: new Date().toISOString(), pid: process.pid }), 'utf8');
+    const error = expectRpcError(
+      () => importPack(service, campaignId, validPack(campaignId, { candidates: [secondTensionCandidate()] }), 'import-locked'),
+      -32603,
+      'store_locked',
+    );
+    expect((error.data.details as Record<string, unknown>).holder_pid).toBe(process.pid);
+    rmSync(lockPath, { force: true });
   });
 
   it('rejects flagged dedup without an explicit override at the schema layer', () => {
@@ -571,7 +761,7 @@ describe('node.import_generated', () => {
     const campaignId = initCampaign(service, { max_nodes: 2 });
 
     // batch of 2 would exceed max_nodes=2 (1 seed already present)
-    const twoCandidates = validPack(campaignId, { candidates: [tensionCandidate(), tensionCandidate()] });
+    const twoCandidates = validPack(campaignId, { candidates: [tensionCandidate(), secondTensionCandidate()] });
     const error = expectRpcError(() => importPack(service, campaignId, twoCandidates), -32001, 'dimension_exhausted');
     expect((error.data.details as Record<string, unknown>).exhausted_dimensions).toEqual(['nodes']);
     expect(Object.keys(service.node.store.loadNodes(campaignId))).toHaveLength(1);
@@ -717,6 +907,99 @@ describe('node.import_generated', () => {
         -32603,
         'import_recovery_conflict',
       );
+    });
+
+    it('refuses recovery when the archived pack no longer matches the recorded pack_hash', () => {
+      const service = freshService();
+      const campaignId = initCampaign(service);
+      const result = importPack(service, campaignId, validPack(campaignId));
+      const artifactFile = artifactPathFromRef(String(result.pack_artifact_ref));
+      const archive = JSON.parse(readFileSync(artifactFile, 'utf8')) as Record<string, unknown>;
+      ((archive.pack as Record<string, unknown>).trigger as Record<string, unknown>).kind = 'manual';
+      writeFileSync(artifactFile, JSON.stringify(archive), 'utf8');
+      reopenPrepared(service, campaignId, 'import-key-1');
+
+      expectRpcError(
+        () => importPack(service, campaignId, validPack(campaignId)),
+        -32603,
+        'import_recovery_conflict',
+      );
+    });
+
+    it('refuses recovery when the archive lacks an assembled node the result recorded', () => {
+      const service = freshService();
+      const campaignId = initCampaign(service);
+      const result = importPack(service, campaignId, validPack(campaignId));
+      const nodeId = importedNodeId(result);
+      const artifactFile = artifactPathFromRef(String(result.pack_artifact_ref));
+      const archive = JSON.parse(readFileSync(artifactFile, 'utf8')) as Record<string, unknown>;
+      delete ((archive.engine_assembled as Record<string, unknown>).nodes as Record<string, unknown>)[nodeId];
+      writeFileSync(artifactFile, JSON.stringify(archive), 'utf8');
+      removeNodeFromStore(service, campaignId, nodeId);
+      reopenPrepared(service, campaignId, 'import-key-1');
+
+      expectRpcError(
+        () => importPack(service, campaignId, validPack(campaignId)),
+        -32603,
+        'import_recovery_conflict',
+      );
+    });
+
+    it('completes a multi-candidate import with a partially written log, healing a torn line', () => {
+      const service = freshService();
+      const campaignId = initCampaign(service);
+      const pack = validPack(campaignId, { candidates: [tensionCandidate(), secondTensionCandidate()] });
+      const result = importPack(service, campaignId, pack);
+      const ids = (result.imported as Array<Record<string, unknown>>).map(entry => String(entry.node_id));
+
+      // crash mid-append: first create entry landed, second is a torn fragment
+      stripCreateLogLines(service, campaignId, ids[1]!);
+      const logPath = service.node.store.nodesLogPath(campaignId);
+      const torn = readFileSync(logPath, 'utf8') + `{"mutation":"create","node_id":"${ids[1]}`;
+      writeFileSync(logPath, torn, 'utf8');
+      setNodesUsed(service, campaignId, 1);
+      reopenPrepared(service, campaignId, 'import-key-1');
+
+      const retry = importPack(service, campaignId, pack);
+      expect((retry.idempotency as Record<string, unknown>).is_replay).toBe(true);
+      const lines = readFileSync(logPath, 'utf8').split('\n').filter(line => line.trim().length > 0);
+      const parsed: Array<Record<string, unknown>> = [];
+      let unparseable = 0;
+      for (const line of lines) {
+        try {
+          parsed.push(JSON.parse(line) as Record<string, unknown>);
+        } catch {
+          unparseable += 1;
+        }
+      }
+      expect(unparseable).toBe(1); // the torn fragment stays behind as its own bad line
+      for (const nodeId of ids) {
+        expect(parsed.filter(entry => entry.mutation === 'create' && entry.node_id === nodeId)).toHaveLength(1);
+      }
+      const campaign = service.node.store.loadCampaign<Record<string, unknown>>(campaignId)!;
+      expect((campaign.usage as Record<string, number>).nodes_used).toBe(3);
+    });
+
+    it('flips a running campaign to exhausted when recovery completion reaches the nodes cap', () => {
+      const service = freshService();
+      const campaignId = initCampaign(service, { max_nodes: 2 });
+      const result = importPack(service, campaignId, validPack(campaignId));
+      const nodeId = importedNodeId(result);
+
+      // wind back: node missing, usage under cap, campaign forced back to running
+      removeNodeFromStore(service, campaignId, nodeId);
+      stripCreateLogLines(service, campaignId, nodeId);
+      setNodesUsed(service, campaignId, 1);
+      const campaign = service.node.store.loadCampaign<Record<string, unknown> & { campaign_id: string }>(campaignId)!;
+      campaign.status = 'running';
+      service.node.store.saveCampaign(campaign);
+      reopenPrepared(service, campaignId, 'import-key-1');
+
+      const retry = importPack(service, campaignId, validPack(campaignId));
+      expect((retry.idempotency as Record<string, unknown>).is_replay).toBe(true);
+      const after = service.node.store.loadCampaign<Record<string, unknown>>(campaignId)!;
+      expect((after.usage as Record<string, number>).nodes_used).toBe(2);
+      expect(after.status).toBe('exhausted');
     });
   });
 });

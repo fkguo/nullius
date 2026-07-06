@@ -42,24 +42,43 @@ export function buildGeneratedNode(options: {
     thesisStatement = `${thesisStatement} This rationale requires formal validation before promotion.`;
   }
 
+  // The novelty delta enters the card as an auditable claim (design §5.3):
+  // deterministic Formalize-stage injection, so claim-grounding and the
+  // admission reviewers audit novelty the way they audit any other claim.
+  // The statement is the generator's own falsifiable_delta_statement; the
+  // engine only places it.
+  const noveltyDelta = options.candidate.novelty_delta;
+  const closestPrior = String(noveltyDelta.closest_prior ?? '');
+  const deltaClaim: Record<string, unknown> = {
+    claim_text: `Novelty delta vs closest prior (${closestPrior}): ${String(noveltyDelta.falsifiable_delta_statement ?? '')}`,
+    support_type: 'llm_inference',
+    evidence_uris: closestPrior.includes('://') ? [closestPrior] : [],
+    verification_plan: 'Audit the delta against the recorded closest prior by retrieval and admission review; parametric novelty judgments are non-diagnostic.',
+  };
+
   const ideaCard: Record<string, unknown> = {
     thesis_statement: thesisStatement,
     testable_hypotheses: structuredClone(cardFields.testable_hypotheses),
     required_observables: structuredClone(cardFields.required_observables),
     minimal_compute_plan: structuredClone(cardFields.minimal_compute_plan),
-    claims: structuredClone(cardFields.claims),
+    claims: [...structuredClone(cardFields.claims) as Array<Record<string, unknown>>, deltaClaim],
   };
   if (cardFields.candidate_formalisms !== undefined) {
     ideaCard.candidate_formalisms = structuredClone(cardFields.candidate_formalisms);
   }
 
   // Engine-owned trace keys; validateCandidateSemantics has already rejected
-  // packs that try to supply trigger/pack_artifact/parent_revisions or
-  // params.formalization themselves (trace_key_reserved).
+  // packs that try to supply any of these themselves (trace_key_reserved).
+  // target_admission_route, dedup, and novelty_delta ride the NODE (not only
+  // the archived pack) so the admission/evaluation side reads them without
+  // dereferencing the pack artifact (design §7).
   const traceInputs: Record<string, unknown> = {
     ...structuredClone(provenance.trace_inputs as Record<string, unknown>),
     trigger: structuredClone(options.trigger),
     pack_artifact: options.packArtifactRef,
+    target_admission_route: options.candidate.target_admission_route,
+    dedup: structuredClone(options.candidate.dedup),
+    novelty_delta: structuredClone(noveltyDelta),
   };
   const parentIds = (provenance.parent_node_ids as string[] | undefined) ?? [];
   if (parentIds.length > 0) {

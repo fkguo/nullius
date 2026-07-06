@@ -80,6 +80,19 @@
     "created_at": {
       "type": "string",
       "format": "date-time"
+    },
+    "prompt_snapshots": {
+      "type": "array",
+      "description": "Full prompt snapshots for this burst, archived with the pack (the pack artifact is stored verbatim). Every candidate provenance.prompt_snapshot_hash MUST equal the sha256 of one entry's content — the engine verifies this at import, which is what makes the design's reproducibility statement (\"a third party can reconstruct exactly what the generator saw\") checkable.",
+      "items": {
+        "type": "object",
+        "required": ["hash", "content"],
+        "properties": {
+          "hash": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+          "content": { "type": "string", "minLength": 1 }
+        },
+        "additionalProperties": false
+      }
     }
   },
   "additionalProperties": false,
@@ -169,6 +182,11 @@
               "type": "string",
               "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$"
             },
+            "intra_burst_neighbor_index": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "When the nearest neighbor is another candidate of the SAME burst (intra-burst near-duplicate), its index in candidates[]. Dedup must compare within the burst as well as against the store."
+            },
             "nearest_similarity": { "type": "number", "minimum": 0, "maximum": 1 },
             "override_reason": { "type": "string", "minLength": 1 }
           },
@@ -179,7 +197,13 @@
                 "properties": { "decision": { "const": "flagged" } },
                 "required": ["decision"]
               },
-              "then": { "required": ["override_reason", "nearest_neighbor_node_id", "nearest_similarity"] }
+              "then": {
+                "required": ["override_reason", "nearest_similarity"],
+                "anyOf": [
+                  { "required": ["nearest_neighbor_node_id"] },
+                  { "required": ["intra_burst_neighbor_index"] }
+                ]
+              }
             }
           ]
         },

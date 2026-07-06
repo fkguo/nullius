@@ -120,20 +120,35 @@ def load_store_nodes(nodes_path: Path) -> Dict[str, Dict[str, Any]]:
     raise ValueError("nodes file is neither a node mapping nor a node list")
 
 
+def normalized_key(text: str) -> str:
+    return normalize_text(text)
+
+
 def nearest_neighbor(
-    candidate: Dict[str, Any],
-    node_vectors: List[Tuple[str, Dict[int, int]]],
-    dim: int,
-) -> Tuple[Optional[str], float]:
-    vector = char_ngram_vector(candidate_comparison_text(candidate), dim)
-    best_id: Optional[str] = None
+    candidate_vector: Dict[int, int],
+    candidate_key: str,
+    node_entries: List[Tuple[str, Dict[int, int], str]],
+    earlier_candidates: List[Tuple[int, Dict[int, int], str]],
+) -> Tuple[Optional[str], Optional[int], float]:
+    """Nearest neighbor over BOTH the campaign store and the earlier
+    candidates of the same burst (same-anchor twins are the most likely
+    duplicate source and are invisible to a store-only comparison).
+    Exact normalized-text equality short-circuits to similarity 1.0 —
+    a hash-collision artifact can never mask a verbatim duplicate."""
+    best_node_id: Optional[str] = None
+    best_candidate_index: Optional[int] = None
     best_similarity = 0.0
-    for node_id, node_vector in node_vectors:
-        similarity = cosine(vector, node_vector)
+    for node_id, node_vector, node_key in node_entries:
+        similarity = 1.0 if (candidate_key and candidate_key == node_key) else cosine(candidate_vector, node_vector)
         if similarity > best_similarity:
             best_similarity = similarity
-            best_id = node_id
-    return best_id, best_similarity
+            best_node_id, best_candidate_index = node_id, None
+    for index, vector, key in earlier_candidates:
+        similarity = 1.0 if (candidate_key and candidate_key == key) else cosine(candidate_vector, vector)
+        if similarity > best_similarity:
+            best_similarity = similarity
+            best_node_id, best_candidate_index = None, index
+    return best_node_id, best_candidate_index, best_similarity
 
 
 def decide(similarity: float, flag_threshold: float, drop_threshold: float) -> str:
@@ -157,6 +172,9 @@ def run(argv: Optional[List[str]] = None) -> int:
     if not (0.0 < args.flag_threshold <= args.drop_threshold <= 1.0):
         print("error: thresholds must satisfy 0 < flag <= drop <= 1", file=sys.stderr)
         return 2
+    if args.dim < 64:
+        print("error: --dim must be >= 64 (a tiny hash space makes every text collide)", file=sys.stderr)
+        return 2
 
     out_path = Path(args.out)
     if out_path.exists():
@@ -177,17 +195,21 @@ def run(argv: Optional[List[str]] = None) -> int:
         print("error: candidates must be a non-empty JSON array", file=sys.stderr)
         return 2
 
-    node_vectors = [
-        (node_id, char_ngram_vector(node_comparison_text(node), args.dim))
-        for node_id, node in sorted(nodes.items())
-    ]
+    node_entries = []
+    for node_id, node in sorted(nodes.items()):
+        text = node_comparison_text(node)
+        node_entries.append((node_id, char_ngram_vector(text, args.dim), normalized_key(text)))
 
     results = []
+    earlier_candidates: List[Any] = []
     for index, candidate in enumerate(candidates):
         if not isinstance(candidate, dict):
             print(f"error: candidates[{index}] is not an object", file=sys.stderr)
             return 2
-        neighbor_id, similarity = nearest_neighbor(candidate, node_vectors, args.dim)
+        text = candidate_comparison_text(candidate)
+        vector = char_ngram_vector(text, args.dim)
+        key = normalized_key(text)
+        neighbor_id, neighbor_index, similarity = nearest_neighbor(vector, key, node_entries, earlier_candidates)
         entry: Dict[str, Any] = {
             "candidate_index": index,
             "decision": decide(similarity, args.flag_threshold, args.drop_threshold),
@@ -195,7 +217,10 @@ def run(argv: Optional[List[str]] = None) -> int:
         }
         if neighbor_id is not None:
             entry["nearest_neighbor_node_id"] = neighbor_id
+        if neighbor_index is not None:
+            entry["intra_burst_neighbor_index"] = neighbor_index
         results.append(entry)
+        earlier_candidates.append((index, vector, key))
 
     report = {
         "artifact": "generation_dedup_report_v1",

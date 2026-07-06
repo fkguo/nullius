@@ -26,11 +26,33 @@ version is the lockstep number below.
   evidence-delta triggers (`survey_updated` / `failure_recorded` / `manual`
   enabled; the rest reserved vocabulary), one candidate per structurally distinct
   anchor with per-anchor and per-burst quotas, mechanical dedup against every
-  campaign node (deterministic hashed char-3-gram cosine; ≥ 0.95 auto-drop,
-  ≥ 0.80 flagged pending human override), novelty stated as a falsifiable
-  closest-prior delta claim (never an LLM novelty score), and pack assembly +
-  submission scripts (stdlib Python ≥ 3.9) with anti-drift locks that read the
-  engine contract at test time.
+  campaign node AND within the burst (deterministic hashed char-3-gram cosine
+  with an exact normalized-text short-circuit; ≥ 0.95 auto-drop, ≥ 0.80 flagged
+  pending human override), novelty stated as a falsifiable closest-prior delta
+  claim (never an LLM novelty score), and pack assembly + submission scripts
+  (stdlib Python ≥ 3.9) with anti-drift locks that read the engine contract at
+  test time.
+- **Adversarial-review hardening of the import path** (six-lens review, every
+  confirmed finding fixed): the placeholder ban now scans every string in a
+  candidate ("anywhere" means anywhere — gap anchors, receipts, references,
+  novelty fields); `rationale_draft.references` and URI-shaped
+  `novelty_delta.closest_prior` join the receipt-coverage rule; non-V0 operator
+  families (`Mutation` / `Recombination` / `AnalogyTransfer`) are
+  engine-rejected (`operator_family_not_enabled`) until their evidence
+  disciplines land — prose is not a gate; LiteratureMining packs must pin the
+  mined survey (`evidence_snapshot_missing`); recorded parent revisions must be
+  ones the parent actually had (`parent_revision_invalid`); exact intra-pack
+  twins (`intra_pack_duplicate`) and self-contradictory dedup records
+  (`dedup_inconsistent`) are refused; prompt snapshots are now real
+  end-to-end — archived inside the pack and hash-verified at import
+  (`prompt_snapshot_missing`); the engine copies `novelty_delta`, the dedup
+  record, and `target_admission_route` onto the node's trace and restates the
+  delta as an auditable `llm_inference` card claim; pack artifact filenames are
+  collision-guarded; node-log appends heal torn trailing lines instead of
+  gluing onto them; stale campaign locks from provably dead processes are
+  reclaimed and genuinely held locks surface as `store_locked` instead of a
+  misleading schema error; `build_pack.py` fails closed on unknown dedup
+  decisions, misaligned report indexes, and overrides that match nothing.
 
 ### Fixed
 - **Skill artifact ids converged to the engine 8-char short-id convention.**

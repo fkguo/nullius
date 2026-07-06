@@ -1,3 +1,5 @@
+import { createHash } from 'crypto';
+import { existsSync } from 'fs';
 import { pathToFileURL } from 'url';
 import type { IdeaEngineContractCatalog } from '../contracts/catalog.js';
 import type { IdeaEngineStore } from '../store/engine-store.js';
@@ -40,7 +42,32 @@ const OPERATOR_FAMILY_ARITY: Record<string, ArityRule> = {
   Recombination: { min: 2 },
 };
 
-const RESERVED_TRACE_INPUT_KEYS = ['trigger', 'pack_artifact', 'parent_revisions'] as const;
+/**
+ * Families a V0 import actually accepts — same treatment as trigger kinds:
+ * the rest of the taxonomy is committed vocabulary (arity table above) but
+ * import-rejected (operator_family_not_enabled) until each family's evidence
+ * discipline (design §5: delta claims for Mutation, bridge claims for
+ * Recombination, per-edge source verification for AnalogyTransfer) lands in
+ * this validator. Prose in a skill is not a gate; the engine is the authority.
+ */
+const ENABLED_OPERATOR_FAMILIES = ['LiteratureMining', 'FailureRouting'] as const;
+
+const RESERVED_TRACE_INPUT_KEYS = [
+  'trigger',
+  'pack_artifact',
+  'parent_revisions',
+  'target_admission_route',
+  'dedup',
+  'novelty_delta',
+] as const;
+
+/**
+ * The design's fixed auto-drop bound (§5.2): a dedup record claiming
+ * decision=unique at or above this similarity is self-contradictory and the
+ * pack is refused (dedup_inconsistent) — the engine cannot recompute the
+ * similarity, but it can refuse records that contradict themselves.
+ */
+const DEDUP_AUTO_DROP_BOUND = 0.95;
 
 /** delta_type values declared non-novel by construction (design §5.3). */
 const NON_NOVEL_DELTA_TYPES = new Set(['parameter_tweak', 'rewording']);
@@ -92,6 +119,37 @@ function receiptUris(traceInputs: Record<string, unknown>): Set<string> {
   return receipts;
 }
 
+/** Every string anywhere in the value tree — the "appears anywhere" scan. */
+function collectStrings(value: unknown, sink: string[]): void {
+  if (typeof value === 'string') {
+    sink.push(value);
+    return;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) collectStrings(item, sink);
+    return;
+  }
+  if (value && typeof value === 'object') {
+    for (const item of Object.values(value)) collectStrings(item, sink);
+  }
+}
+
+function looksLikeUri(value: string): boolean {
+  return value.includes('://');
+}
+
+function sha256OfText(text: string): string {
+  return `sha256:${createHash('sha256').update(text, 'utf8').digest('hex')}`;
+}
+
+/** Normalized duplicate key over the candidate's rationale draft (intra-pack backstop). */
+function candidateDuplicateKey(candidate: GeneratedCandidate): string {
+  const draft = candidate.rationale_draft;
+  const normalize = (value: unknown): string =>
+    typeof value === 'string' ? value.toLowerCase().trim().split(/\s+/).join(' ') : '';
+  return `${normalize(draft.title)}|${normalize(draft.rationale)}`;
+}
+
 /**
  * Semantic validation of one candidate beyond the generation_pack_v1 schema:
  * the arity table, engine-reserved trace keys, retrieval-receipt coverage of
@@ -105,6 +163,7 @@ function validateCandidateSemantics(options: {
   existingNodes: Record<string, Record<string, unknown>>;
   index: number;
   parentRevisions: Record<string, number>;
+  surveyPinned: boolean;
 }): void {
   const { campaignId, candidate, index } = options;
   const label = `candidates[${index}]`;
@@ -119,6 +178,14 @@ function validateCandidateSemantics(options: {
       'operator_family_unknown',
       campaignId,
       `${label}: operator_family '${family}' is not in the committed taxonomy${seedHint}; known families: ${known}`,
+    );
+  }
+  if (!(ENABLED_OPERATOR_FAMILIES as readonly string[]).includes(family)) {
+    throw importValidationError(
+      'operator_family_not_enabled',
+      campaignId,
+      `${label}: operator_family '${family}' is committed vocabulary but not yet enabled for import — its evidence discipline has not landed in this validator`,
+      { enabled: [...ENABLED_OPERATOR_FAMILIES] },
     );
   }
 
@@ -168,6 +235,19 @@ function validateCandidateSemantics(options: {
         { node_id: parentId },
       );
     }
+    // The recorded read-time revision must be one the parent has actually
+    // had: a fabricated future revision would stamp fiction into the
+    // engine-owned trace.
+    const recordedRevision = Number(options.parentRevisions[parentId]);
+    const currentRevision = Number((parent as Record<string, unknown>).revision ?? 0);
+    if (!Number.isInteger(recordedRevision) || recordedRevision < 1 || recordedRevision > currentRevision) {
+      throw importValidationError(
+        'parent_revision_invalid',
+        campaignId,
+        `${label}: recorded parent revision ${recordedRevision} for ${parentId} is not a revision the parent has had (current: ${currentRevision})`,
+        { node_id: parentId },
+      );
+    }
   }
 
   const traceInputs = provenance.trace_inputs as Record<string, unknown>;
@@ -189,29 +269,37 @@ function validateCandidateSemantics(options: {
     );
   }
 
+  // "Appears anywhere" means anywhere: scan every string in the candidate.
+  const allStrings: string[] = [];
+  collectStrings(candidate, allStrings);
+  if (allStrings.includes(PLACEHOLDER_EVIDENCE_URI)) {
+    throw importValidationError(
+      'placeholder_evidence_forbidden',
+      campaignId,
+      `${label}: the seed placeholder evidence URI is forbidden anywhere in a generated candidate — real anchors or claims typed llm_inference/assumption`,
+    );
+  }
+
   const evidenceUsed = (provenance.evidence_uris_used as string[] | undefined) ?? [];
   const claimUris = claimEvidenceUris(candidate.card_fields);
-  for (const uri of [...evidenceUsed, ...claimUris]) {
-    if (uri === PLACEHOLDER_EVIDENCE_URI) {
-      throw importValidationError(
-        'placeholder_evidence_forbidden',
-        campaignId,
-        `${label}: the seed placeholder evidence URI is forbidden in generated candidates — real anchors or claims typed llm_inference/assumption`,
-      );
-    }
-  }
+  const draftReferences = (Array.isArray(candidate.rationale_draft.references)
+    ? candidate.rationale_draft.references
+    : []).filter((uri): uri is string => typeof uri === 'string');
+  const closestPrior = String(candidate.novelty_delta.closest_prior ?? '');
+  const uriShapedClosestPrior = looksLikeUri(closestPrior) ? [closestPrior] : [];
+
   const receipts = receiptUris(traceInputs);
-  for (const uri of claimUris) {
+  for (const uri of [...claimUris, ...draftReferences, ...uriShapedClosestPrior]) {
     if (!evidenceUsed.includes(uri)) {
       throw importValidationError(
         'evidence_receipt_missing',
         campaignId,
-        `${label}: claim evidence URI is not listed in provenance.evidence_uris_used`,
+        `${label}: evidence URI (claim, rationale_draft.references, or URI-shaped novelty_delta.closest_prior) is not listed in provenance.evidence_uris_used`,
         { uri },
       );
     }
   }
-  for (const uri of new Set([...evidenceUsed, ...claimUris])) {
+  for (const uri of new Set([...evidenceUsed, ...claimUris, ...draftReferences, ...uriShapedClosestPrior])) {
     if (!receipts.has(uri)) {
       throw importValidationError(
         'evidence_receipt_missing',
@@ -222,7 +310,29 @@ function validateCandidateSemantics(options: {
     }
   }
 
+  // A self-contradictory dedup record is refused: the engine cannot recompute
+  // similarity, but decision=unique at/above the fixed auto-drop bound cannot
+  // both be true.
+  const dedup = candidate.dedup;
+  const nearestSimilarity = typeof dedup.nearest_similarity === 'number' ? dedup.nearest_similarity : null;
+  if (dedup.decision === 'unique' && nearestSimilarity !== null && nearestSimilarity >= DEDUP_AUTO_DROP_BOUND) {
+    throw importValidationError(
+      'dedup_inconsistent',
+      campaignId,
+      `${label}: dedup.decision=unique contradicts nearest_similarity ${nearestSimilarity} >= ${DEDUP_AUTO_DROP_BOUND} (the fixed auto-drop bound)`,
+    );
+  }
+
   if (family === 'LiteratureMining') {
+    // Tension/gap anchors come FROM a survey; an unpinned snapshot would
+    // leave the anchor's ref_keys pointing into nothing reconstructable.
+    if (!options.surveyPinned) {
+      throw importValidationError(
+        'evidence_snapshot_missing',
+        campaignId,
+        `${label}: LiteratureMining requires evidence_snapshot.survey_artifact_ref (and survey_content_hash) pinning the survey the anchor was mined from`,
+      );
+    }
     const anchor = traceInputs.anchor;
     const anchorRecord = anchor && typeof anchor === 'object' && !Array.isArray(anchor)
       ? anchor as Record<string, unknown>
@@ -359,6 +469,8 @@ export function executeImportGenerated(options: {
     const nodes = options.store.loadNodes<Record<string, unknown>>(campaignId);
     const evidenceSnapshot = (pack.evidence_snapshot ?? {}) as Record<string, unknown>;
     const parentRevisions = (evidenceSnapshot.parent_revisions ?? {}) as Record<string, number>;
+    const surveyPinned = isNonEmptyString(evidenceSnapshot.survey_artifact_ref)
+      && isNonEmptyString(evidenceSnapshot.survey_content_hash);
     const candidates = pack.candidates as GeneratedCandidate[];
     candidates.forEach((candidate, index) => validateCandidateSemantics({
       campaignId,
@@ -366,7 +478,55 @@ export function executeImportGenerated(options: {
       existingNodes: nodes as Record<string, Record<string, unknown>>,
       index,
       parentRevisions,
+      surveyPinned,
     }));
+
+    // Intra-pack duplicate backstop: the vector dedup lives in the skill, but
+    // the engine refuses the degenerate case it can check exactly — two
+    // candidates in one burst with the same normalized rationale draft.
+    const seenDuplicateKeys = new Map<string, number>();
+    candidates.forEach((candidate, index) => {
+      const key = candidateDuplicateKey(candidate);
+      const earlier = seenDuplicateKeys.get(key);
+      if (earlier !== undefined) {
+        throw importValidationError(
+          'intra_pack_duplicate',
+          campaignId,
+          `candidates[${index}] duplicates candidates[${earlier}] (same normalized rationale draft) — one burst must not import near-identical twins`,
+          { duplicate_of: earlier, index },
+        );
+      }
+      seenDuplicateKeys.set(key, index);
+    });
+
+    // Prompt-snapshot verification: a candidate that declares a
+    // prompt_snapshot_hash must be backed by a snapshot archived with this
+    // pack whose content hashes to exactly that value.
+    const snapshotsRaw = Array.isArray(pack.prompt_snapshots) ? pack.prompt_snapshots as Array<Record<string, unknown>> : [];
+    const snapshotHashes = new Set<string>();
+    snapshotsRaw.forEach((snapshot, index) => {
+      const hash = String(snapshot.hash ?? '');
+      const content = String(snapshot.content ?? '');
+      if (sha256OfText(content) !== hash) {
+        throw importValidationError(
+          'prompt_snapshot_missing',
+          campaignId,
+          `prompt_snapshots[${index}].content does not hash to its declared hash`,
+        );
+      }
+      snapshotHashes.add(hash);
+    });
+    candidates.forEach((candidate, index) => {
+      const declared = candidate.provenance.prompt_snapshot_hash;
+      if (typeof declared === 'string' && !snapshotHashes.has(declared)) {
+        throw importValidationError(
+          'prompt_snapshot_missing',
+          campaignId,
+          `candidates[${index}] declares prompt_snapshot_hash but no pack.prompt_snapshots entry carries that content`,
+          { prompt_snapshot_hash: declared },
+        );
+      }
+    });
 
     const currentCount = Object.keys(nodes).length;
     const maxNodes = campaign.budget.max_nodes;
@@ -389,7 +549,12 @@ export function executeImportGenerated(options: {
       usedHandleIds.add(nodeId);
       usedHandleIds.add(String((node as Record<string, unknown>).idea_id));
     }
-    const packId = drawUniqueId(options.createId, id => usedHandleIds.has(id));
+    // The archived pack is the burst's audit unit: the id draw must also
+    // avoid every pack artifact already on disk, and writeArtifact would
+    // overwrite silently otherwise.
+    const packId = drawUniqueId(options.createId, id =>
+      usedHandleIds.has(id)
+      || existsSync(options.store.artifactPath(campaignId, IMPORT_ARTIFACT_TYPE, `pack-${id}.json`)));
     usedHandleIds.add(packId);
     const packArtifactName = `pack-${packId}.json`;
     const packArtifactRef = pathToFileURL(

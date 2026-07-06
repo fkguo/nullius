@@ -87,12 +87,25 @@ import validator enforces the checkable parts):
 - Required outputs: a faithful `rationale_draft` — title, the idea stated
   plainly (no pre-narrowing; admission and decomposition belong to the
   evaluation skills), real `risks[]`, real `kill_criteria[]`, `mechanism`
-  where the idea proposes one; `card_fields` whose FIRST
+  where the idea proposes one (any `references[]` you list are evidence URIs
+  and need receipts like everything else); `card_fields` whose FIRST
   `minimal_compute_plan` step is a bounded, decisive check; claims typed
   under the card evidence discipline (evidence-typed claims carry receipted
   URIs; the idea's NEW part — the resolution mechanism, the delta — is
   exactly its unanchored part and must be typed `llm_inference` or
-  `assumption` WITH a `verification_plan`).
+  `assumption` WITH a `verification_plan`); and honest `provenance`:
+  `origin` records the REAL generator model id, the real sampling
+  temperature, a sha256 over the real rendered prompt (`prompt_hash`), the
+  generation timestamp, and role `Generator` — never backend labels or
+  invented values. Save the full rendered prompt to a file and pass it as
+  `--prompt-snapshot` at pack build time: it is archived inside the pack and
+  the engine verifies `prompt_snapshot_hash` against it, which is what makes
+  "a third party can reconstruct exactly what the generator saw" checkable.
+  The engine restates your `novelty_delta.falsifiable_delta_statement` as an
+  `llm_inference` claim on the card automatically (deterministic Formalize),
+  and copies `novelty_delta`, the dedup record, and `target_admission_route`
+  onto the node's trace — do not put them in `trace_inputs` yourself (those
+  keys are engine-owned).
 - Mandatory validations (before the pack is built): every URI has a receipt;
   the anchor is real (read the survey entry, do not paraphrase one into
   existence); a freshness retrieval checked whether literature AFTER the
@@ -115,8 +128,13 @@ thesis — the candidate must state the new mechanism/method and the first
 check that would falsify the workaround.
 
 Other committed families (`Mutation`, `Recombination`, `AnalogyTransfer`)
-are contract-ready (arity table in the engine) but deliberately later-phase;
-do not emit them from this skill until their own disciplines land.
+are contract-ready (arity table in the engine) but deliberately later-phase —
+and the ENGINE enforces that, exactly as it does for reserved trigger kinds:
+importing them today is refused with `operator_family_not_enabled` until each
+family's evidence discipline lands in the import validator. Prose is not a
+gate. LiteratureMining packs must also pin the mined survey in
+`evidence_snapshot` (`survey_artifact_ref` + `survey_content_hash`;
+`build_pack.py --survey-artifact-ref/--survey-file` does this).
 
 ## Novelty as an auditable claim (never a score)
 
@@ -146,11 +164,17 @@ see it.
      --candidates candidates.json --out dedup_report.json
    ```
 
-   Hashed character-3-gram cosine against every node (active, waiting,
-   archived): ≥ 0.95 auto-drop, ≥ 0.80 flagged. Flagged candidates import
-   only with an explicit human `--override INDEX=REASON`; the mechanical
-   record (method, nearest neighbor, similarity) travels in the pack either
-   way. This is a near-duplicate filter, not a novelty proof.
+   Hashed character-3-gram cosine (with an exact normalized-text
+   short-circuit) against every node (active, waiting, archived) AND against
+   the burst's own earlier candidates — same-anchor twins are the most likely
+   duplicates and a store-only comparison cannot see them: ≥ 0.95 auto-drop,
+   ≥ 0.80 flagged. Flagged candidates import only with an explicit human
+   `--override INDEX=REASON`; the mechanical record (method, nearest
+   neighbor — a store node id or an intra-burst candidate index —
+   similarity) travels in the pack either way. The engine additionally
+   refuses exact intra-pack twins and self-contradictory records
+   (decision=unique at ≥ 0.95). This is a near-duplicate filter, not a
+   novelty proof.
 5. **Build the pack** (folds dedup in, moves drops/unoverridden flags to
    `rejected_candidates` with reasons, validates fail-fast):
 
@@ -160,6 +184,7 @@ see it.
      --dedup-report dedup_report.json \
      --trigger-kind survey_updated --trigger-artifact-ref <survey_ref> \
      --survey-artifact-ref <survey_ref> --survey-file <survey_file> \
+     --prompt-snapshot rendered_prompt.txt \
      --out pack.json
    ```
 
