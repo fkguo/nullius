@@ -56,7 +56,6 @@ export const FRONT_DOOR_SNIPPETS = [
 	      'If you want the generic lifecycle/control-plane smoke path first:',
       '1. `nullius init --project-root /absolute/path/to/external-project`',
       '1. `nullius status --project-root /absolute/path/to/external-project`',
-      '- the root product identity',
     ],
     orderedSnippets: [
       '## 1. Surface Policy',
@@ -107,7 +106,6 @@ export const FRONT_DOOR_SNIPPETS = [
 	      '如果你想先走 generic lifecycle/control-plane 烟测路径：',
       '1. `nullius init --project-root /absolute/path/to/external-project`',
       '1. `nullius status --project-root /absolute/path/to/external-project`',
-      '- root 产品身份本身',
     ],
     orderedSnippets: [
       '## 1. Surface Policy',
