@@ -21,6 +21,13 @@ if str(_SCRIPTS_DIR) not in sys.path:
 _URI_A = "https://example.com/paper-a"
 _URI_B = "https://example.com/paper-b"
 
+# Prompt provenance is mandatory at import: fixture candidates hash this fixed
+# rendered-prompt text, and tests write it to a file for --prompt-snapshot.
+import hashlib as _hashlib
+
+PROMPT_SNAPSHOT_TEXT = "rendered generation prompt for the fixture tension burst"
+PROMPT_SNAPSHOT_HASH = "sha256:" + _hashlib.sha256(PROMPT_SNAPSHOT_TEXT.encode("utf-8")).hexdigest()
+
 _TENSION_CANDIDATE = {
     "card_fields": {
         "claims": [
@@ -60,7 +67,7 @@ _TENSION_CANDIDATE = {
         "operator_id": "litmine.tension_resolution.v1",
         "origin": {
             "model": "test-generator-model",
-            "prompt_hash": "sha256:" + "a" * 64,
+            "prompt_hash": PROMPT_SNAPSHOT_HASH,
             "role": "Generator",
             "temperature": 0.7,
             "timestamp": "2026-07-06T00:00:00Z",
@@ -100,6 +107,13 @@ def make_candidate():
         candidate.update(top_level_overrides)
         return candidate
     return _make
+
+
+@pytest.fixture()
+def prompt_snapshot():
+    """(text, sha256 hash) of the fixture rendered prompt; matches the fixture
+    candidates' origin.prompt_hash so mandatory prompt provenance validates."""
+    return PROMPT_SNAPSHOT_TEXT, PROMPT_SNAPSHOT_HASH
 
 
 @pytest.fixture()

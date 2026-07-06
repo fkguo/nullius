@@ -21,6 +21,10 @@ export class StoreLockedError extends Error {
 /** Locks with no readable pid are reclaimed only past this age. */
 const STALE_LOCK_MAX_AGE_MS = 10 * 60 * 1000;
 
+/** Zero-byte locks (crash between create and pid write) reclaim much sooner:
+ * a live acquirer writes its pid within milliseconds of creating the file. */
+const EMPTY_LOCK_MAX_AGE_MS = 5 * 1000;
+
 function processAlive(pid: number): boolean {
   try {
     process.kill(pid, 0);
@@ -43,8 +47,11 @@ function processAlive(pid: number): boolean {
  */
 function reclaimStaleLockOrThrow(lockFilePath: string): boolean {
   let holderPid: number | null = null;
+  let empty = false;
   try {
-    const content = JSON.parse(readFileSync(lockFilePath, 'utf8')) as Record<string, unknown>;
+    const raw = readFileSync(lockFilePath, 'utf8');
+    empty = raw.length === 0;
+    const content = JSON.parse(raw) as Record<string, unknown>;
     if (typeof content.pid === 'number' && Number.isInteger(content.pid) && content.pid > 0) {
       holderPid = content.pid;
     }
@@ -66,7 +73,11 @@ function reclaimStaleLockOrThrow(lockFilePath: string): boolean {
   } catch {
     return true; // vanished between EEXIST and stat: just retry
   }
-  if (ageMs > STALE_LOCK_MAX_AGE_MS) {
+  // A zero-byte lock means the holder crashed between creating the file and
+  // writing its pid — but a LIVE acquirer also passes through that window for
+  // a few milliseconds, so reclaim only past a short grace period.
+  const maxAgeMs = empty ? EMPTY_LOCK_MAX_AGE_MS : STALE_LOCK_MAX_AGE_MS;
+  if (ageMs > maxAgeMs) {
     rmSync(lockFilePath, { force: true });
     return true;
   }
@@ -81,8 +92,13 @@ export function withLock<T>(lockFilePath: string, fn: () => T): T {
     try {
       fd = openSync(lockFilePath, 'wx');
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'EEXIST' || attempt === 1) {
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') {
         throw error;
+      }
+      if (attempt === 1) {
+        // Reclaimed a stale lock but lost the re-acquire race to a concurrent
+        // live acquirer: this is a held-lock condition, not a schema problem.
+        throw new StoreLockedError(lockFilePath, null);
       }
       reclaimStaleLockOrThrow(lockFilePath);
     }

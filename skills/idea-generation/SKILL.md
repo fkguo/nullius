@@ -98,8 +98,10 @@ import validator enforces the checkable parts):
   temperature, a sha256 over the real rendered prompt (`prompt_hash`), the
   generation timestamp, and role `Generator` — never backend labels or
   invented values. Save the full rendered prompt to a file and pass it as
-  `--prompt-snapshot` at pack build time: it is archived inside the pack and
-  the engine verifies `prompt_snapshot_hash` against it, which is what makes
+  `--prompt-snapshot` at pack build time — this is MANDATORY: the engine
+  refuses candidates without a snapshot-backed `prompt_snapshot_hash`, and
+  `origin.prompt_hash` must equal it (both hash the same rendered prompt).
+  The snapshot is archived inside the pack, which is what makes
   "a third party can reconstruct exactly what the generator saw" checkable.
   The engine restates your `novelty_delta.falsifiable_delta_statement` as an
   `llm_inference` claim on the card automatically (deterministic Formalize),
@@ -122,10 +124,14 @@ import validator enforces the checkable parts):
 `failed_approach_v1` entries (prefer `reuse_potential: high`) or an archived
 node's kill criteria, and proposes a route AROUND the recorded failure with a
 positive thesis of its own. A parentless candidate records
-`trace_inputs.failed_approach_refs`; a candidate rerouting an archived node
-records that node as its single parent. "Not the failed thing" is not a
-thesis — the candidate must state the new mechanism/method and the first
-check that would falsify the workaround.
+`trace_inputs.failed_approach_refs`, each of which must ALSO be pinned in the
+pack's `evidence_snapshot.failed_approach_refs` (the burst's declared ledger
+reading — an invented free string is not a failure anchor; use
+`build_pack.py --failed-approach-refs`). A candidate rerouting an existing
+node records that node as its single parent, and the engine requires that
+parent to be ARCHIVED — rerouting only makes sense around a node that died.
+"Not the failed thing" is not a thesis — the candidate must state the new
+mechanism/method and the first check that would falsify the workaround.
 
 Other committed families (`Mutation`, `Recombination`, `AnalogyTransfer`)
 are contract-ready (arity table in the engine) but deliberately later-phase —

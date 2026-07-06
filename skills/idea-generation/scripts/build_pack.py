@@ -70,7 +70,14 @@ NON_NOVEL_DELTA_TYPES = ["parameter_tweak", "rewording"]
 
 ADMISSION_ROUTES = ["open_problem", "mechanism", "method", "framework"]
 
-RESERVED_TRACE_INPUT_KEYS = ["trigger", "pack_artifact", "parent_revisions"]
+RESERVED_TRACE_INPUT_KEYS = [
+    "trigger",
+    "pack_artifact",
+    "parent_revisions",
+    "target_admission_route",
+    "dedup",
+    "novelty_delta",
+]
 PLACEHOLDER_EVIDENCE_URI = "https://example.org/reference"
 
 
@@ -221,6 +228,10 @@ def validate_candidate(candidate: Dict[str, Any], index: int) -> List[str]:
         refs = trace_inputs.get("failed_approach_refs")
         if not (isinstance(refs, list) and refs and all(_is_nonempty_str(r) for r in refs)):
             problems.append(f"{label}: parentless FailureRouting requires non-empty trace_inputs.failed_approach_refs")
+        # engine additionally requires each ref pinned in
+        # evidence_snapshot.failed_approach_refs and a parented FailureRouting
+        # candidate to reroute an ARCHIVED node — the pack-shape check below
+        # mirrors the pinning half (the lifecycle half needs the store).
 
     delta = candidate.get("novelty_delta")
     if isinstance(delta, dict):
@@ -265,6 +276,13 @@ def validate_pack_shape(pack: Dict[str, Any], parent_revisions: Dict[str, int]) 
         snapshot.get("survey_content_hash"),
     )
 
+    ledger_refs = snapshot.get("failed_approach_refs")
+    ledger_refs = set(r for r in ledger_refs if _is_nonempty_str(r)) if isinstance(ledger_refs, list) else set()
+    snapshot_hashes = set()
+    for entry in pack.get("prompt_snapshots", []) if isinstance(pack.get("prompt_snapshots"), list) else []:
+        if isinstance(entry, dict) and _is_nonempty_str(entry.get("hash")):
+            snapshot_hashes.add(entry["hash"])
+
     seen_draft_keys: Dict[str, int] = {}
     for index, candidate in enumerate(pack.get("candidates", [])):
         problems.extend(validate_candidate(candidate, index))
@@ -277,6 +295,38 @@ def validate_pack_shape(pack: Dict[str, Any], parent_revisions: Dict[str, int]) 
                 f"candidates[{index}]: LiteratureMining requires evidence_snapshot.survey_artifact_ref "
                 "and survey_content_hash pinning the mined survey",
             )
+        if family == "FailureRouting" and isinstance(provenance, dict):
+            parents_list = provenance.get("parent_node_ids")
+            if isinstance(parents_list, list) and len(parents_list) == 0:
+                trace_inputs = provenance.get("trace_inputs")
+                refs = trace_inputs.get("failed_approach_refs") if isinstance(trace_inputs, dict) else None
+                for ref in refs if isinstance(refs, list) else []:
+                    if _is_nonempty_str(ref) and ref not in ledger_refs:
+                        problems.append(
+                            f"candidates[{index}]: failed_approach_ref not pinned in "
+                            f"evidence_snapshot.failed_approach_refs: {ref}",
+                        )
+        # Prompt provenance is mandatory at import: a declared hash must be
+        # backed by a pack snapshot, and origin.prompt_hash hashes the same
+        # rendered prompt so the two must agree.
+        if isinstance(provenance, dict):
+            declared = provenance.get("prompt_snapshot_hash")
+            if not _is_nonempty_str(declared):
+                problems.append(
+                    f"candidates[{index}]: provenance.prompt_snapshot_hash is required "
+                    "(pass --prompt-snapshot so the rendered prompt is archived and hashed)",
+                )
+            else:
+                if declared not in snapshot_hashes:
+                    problems.append(
+                        f"candidates[{index}]: prompt_snapshot_hash has no matching pack.prompt_snapshots entry",
+                    )
+                origin = provenance.get("origin")
+                if isinstance(origin, dict) and origin.get("prompt_hash") != declared:
+                    problems.append(
+                        f"candidates[{index}]: origin.prompt_hash must equal prompt_snapshot_hash "
+                        "(both hash the same rendered prompt)",
+                    )
         parents = provenance.get("parent_node_ids") if isinstance(provenance, dict) else None
         for parent in parents if isinstance(parents, list) else []:
             if parent not in parent_revisions:

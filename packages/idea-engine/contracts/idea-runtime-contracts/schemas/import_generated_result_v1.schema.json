@@ -12,6 +12,7 @@
     "rejected_count",
     "pack_artifact_ref",
     "pack_hash",
+    "archive_hash",
     "budget_snapshot",
     "idempotency"
   ],
@@ -58,6 +59,11 @@
     "pack_hash": {
       "type": "string",
       "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "archive_hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$",
+      "description": "sha256 over the canonical JSON of the ENTIRE archived artifact (verbatim pack + pack_hash + engine-assembled nodes). Crash recovery verifies this before completing any effect from the archive, so the engine-assembled node payloads it re-writes are exactly the schema-validated ones the original execution produced — pinned, not trusted."
     },
     "budget_snapshot": { "$ref": "./budget_snapshot_v1.schema.json" },
     "idempotency": { "$ref": "./idempotency_meta_v1.schema.json" }

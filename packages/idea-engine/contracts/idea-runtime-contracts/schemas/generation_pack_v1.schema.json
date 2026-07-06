@@ -20,7 +20,9 @@
     "trigger": {
       "type": "object",
       "description": "The research-progress evidence delta that justified this burst. Kinds beyond the currently enabled set are part of the vocabulary but rejected at import (trigger_not_enabled) until their seam is exercised.",
-      "required": ["kind"],
+      "required": [
+        "kind"
+      ],
       "properties": {
         "kind": {
           "enum": [
@@ -56,13 +58,21 @@
         },
         "failed_approach_refs": {
           "type": "array",
-          "items": { "type": "string", "minLength": 1 }
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
         },
         "parent_revisions": {
           "type": "object",
           "description": "Revision of every parent node AT READ TIME (parents' mutable fields move; this pins the generator's actual input). Keys must cover the union of all candidates' parent_node_ids.",
-          "propertyNames": { "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$" },
-          "additionalProperties": { "type": "integer", "minimum": 1 }
+          "propertyNames": {
+            "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$"
+          },
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 1
+          }
         }
       },
       "additionalProperties": false
@@ -70,12 +80,16 @@
     "candidates": {
       "type": "array",
       "minItems": 1,
-      "items": { "$ref": "#/$defs/candidate" }
+      "items": {
+        "$ref": "#/$defs/candidate"
+      }
     },
     "rejected_candidates": {
       "type": "array",
       "description": "Candidates the operator generated but did not submit, each with its disposition. Required (may be empty) so a burst cannot silently discard work.",
-      "items": { "$ref": "#/$defs/rejected_candidate" }
+      "items": {
+        "$ref": "#/$defs/rejected_candidate"
+      }
     },
     "created_at": {
       "type": "string",
@@ -86,10 +100,19 @@
       "description": "Full prompt snapshots for this burst, archived with the pack (the pack artifact is stored verbatim). Every candidate provenance.prompt_snapshot_hash MUST equal the sha256 of one entry's content — the engine verifies this at import, which is what makes the design's reproducibility statement (\"a third party can reconstruct exactly what the generator saw\") checkable.",
       "items": {
         "type": "object",
-        "required": ["hash", "content"],
+        "required": [
+          "hash",
+          "content"
+        ],
         "properties": {
-          "hash": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
-          "content": { "type": "string", "minLength": 1 }
+          "hash": {
+            "type": "string",
+            "pattern": "^sha256:[a-f0-9]{64}$"
+          },
+          "content": {
+            "type": "string",
+            "minLength": 1
+          }
         },
         "additionalProperties": false
       }
@@ -108,7 +131,9 @@
         "target_admission_route"
       ],
       "properties": {
-        "rationale_draft": { "$ref": "./rationale_draft_v1.schema.json" },
+        "rationale_draft": {
+          "$ref": "./rationale_draft_v1.schema.json"
+        },
         "card_fields": {
           "type": "object",
           "description": "Card content authored at generation time. The engine derives thesis_statement deterministically from the rationale_draft (same rule as seed import) and assembles the idea_card; claims follow the idea_card_v1 evidence discipline verbatim via $ref.",
@@ -119,11 +144,21 @@
             "claims"
           ],
           "properties": {
-            "testable_hypotheses": { "$ref": "./idea_card_v1.schema.json#/properties/testable_hypotheses" },
-            "required_observables": { "$ref": "./idea_card_v1.schema.json#/properties/required_observables" },
-            "candidate_formalisms": { "$ref": "./idea_card_v1.schema.json#/properties/candidate_formalisms" },
-            "minimal_compute_plan": { "$ref": "./idea_card_v1.schema.json#/properties/minimal_compute_plan" },
-            "claims": { "$ref": "./idea_card_v1.schema.json#/properties/claims" }
+            "testable_hypotheses": {
+              "$ref": "./idea_card_v1.schema.json#/properties/testable_hypotheses"
+            },
+            "required_observables": {
+              "$ref": "./idea_card_v1.schema.json#/properties/required_observables"
+            },
+            "candidate_formalisms": {
+              "$ref": "./idea_card_v1.schema.json#/properties/candidate_formalisms"
+            },
+            "minimal_compute_plan": {
+              "$ref": "./idea_card_v1.schema.json#/properties/minimal_compute_plan"
+            },
+            "claims": {
+              "$ref": "./idea_card_v1.schema.json#/properties/claims"
+            }
           },
           "additionalProperties": false
         },
@@ -149,11 +184,15 @@
               "minLength": 1,
               "description": "Versioned operator identifier, e.g. litmine.tension_resolution.v1."
             },
-            "origin": { "$ref": "./idea_node_v1.schema.json#/properties/origin" },
-            "parent_node_ids": { "$ref": "./idea_node_v1.schema.json#/properties/parent_node_ids" },
+            "origin": {
+              "$ref": "./idea_node_v1.schema.json#/properties/origin"
+            },
+            "parent_node_ids": {
+              "$ref": "./idea_node_v1.schema.json#/properties/parent_node_ids"
+            },
             "trace_inputs": {
               "type": "object",
-              "description": "Becomes operator_trace.inputs (engine adds trigger, the pack artifact reference, and the candidate's parent_revisions; supplying those keys yourself is rejected as trace_key_reserved). Per-family semantic requirements (anchor for LiteratureMining, failed_approach_refs for FailureRouting, retrieval_receipts covering every evidence URI) are enforced by the import executor."
+              "description": "Becomes operator_trace.inputs (engine adds trigger, the pack artifact reference, the candidate's parent_revisions, target_admission_route, dedup, and novelty_delta; supplying any of those six keys yourself is rejected as trace_key_reserved). Per-family semantic requirements (anchor for LiteratureMining, failed_approach_refs for FailureRouting, retrieval_receipts covering every evidence URI) are enforced by the import executor."
             },
             "trace_params": {
               "type": "object",
@@ -161,12 +200,18 @@
             },
             "evidence_uris_used": {
               "type": "array",
-              "items": { "type": "string", "format": "uri" }
+              "items": {
+                "type": "string",
+                "format": "uri"
+              }
             },
-            "random_seed": { "type": "integer" },
+            "random_seed": {
+              "type": "integer"
+            },
             "prompt_snapshot_hash": {
               "type": "string",
-              "pattern": "^sha256:[a-f0-9]{64}$"
+              "pattern": "^sha256:[a-f0-9]{64}$",
+              "description": "MANDATORY at import (executor-enforced): sha256 of the rendered generation prompt, matching one pack.prompt_snapshots entry AND origin.prompt_hash."
             }
           },
           "additionalProperties": false
@@ -174,10 +219,21 @@
         "dedup": {
           "type": "object",
           "description": "Mechanical dedup record against ALL campaign nodes (active, waiting, archived). decision=flagged requires an explicit human override_reason or the import refuses.",
-          "required": ["method", "decision"],
+          "required": [
+            "method",
+            "decision"
+          ],
           "properties": {
-            "method": { "type": "string", "minLength": 1 },
-            "decision": { "enum": ["unique", "flagged"] },
+            "method": {
+              "type": "string",
+              "minLength": 1
+            },
+            "decision": {
+              "enum": [
+                "unique",
+                "flagged"
+              ]
+            },
             "nearest_neighbor_node_id": {
               "type": "string",
               "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$"
@@ -187,21 +243,45 @@
               "minimum": 0,
               "description": "When the nearest neighbor is another candidate of the SAME burst (intra-burst near-duplicate), its index in candidates[]. Dedup must compare within the burst as well as against the store."
             },
-            "nearest_similarity": { "type": "number", "minimum": 0, "maximum": 1 },
-            "override_reason": { "type": "string", "minLength": 1 }
+            "nearest_similarity": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "override_reason": {
+              "type": "string",
+              "minLength": 1
+            }
           },
           "additionalProperties": false,
           "allOf": [
             {
               "if": {
-                "properties": { "decision": { "const": "flagged" } },
-                "required": ["decision"]
+                "properties": {
+                  "decision": {
+                    "const": "flagged"
+                  }
+                },
+                "required": [
+                  "decision"
+                ]
               },
               "then": {
-                "required": ["override_reason", "nearest_similarity"],
+                "required": [
+                  "override_reason",
+                  "nearest_similarity"
+                ],
                 "anyOf": [
-                  { "required": ["nearest_neighbor_node_id"] },
-                  { "required": ["intra_burst_neighbor_index"] }
+                  {
+                    "required": [
+                      "nearest_neighbor_node_id"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "intra_burst_neighbor_index"
+                    ]
+                  }
                 ]
               }
             }
@@ -222,7 +302,10 @@
               "minLength": 1,
               "description": "URI or survey ref_key of the closest prior work, found by RETRIEVAL (never parametric memory)."
             },
-            "overlap_summary": { "type": "string", "minLength": 1 },
+            "overlap_summary": {
+              "type": "string",
+              "minLength": 1
+            },
             "delta_type": {
               "enum": [
                 "new_mechanism",
@@ -235,12 +318,20 @@
                 "rewording"
               ]
             },
-            "falsifiable_delta_statement": { "type": "string", "minLength": 20 }
+            "falsifiable_delta_statement": {
+              "type": "string",
+              "minLength": 20
+            }
           },
           "additionalProperties": false
         },
         "target_admission_route": {
-          "enum": ["open_problem", "mechanism", "method", "framework"],
+          "enum": [
+            "open_problem",
+            "mechanism",
+            "method",
+            "framework"
+          ],
           "description": "The admission route (idea-posterior gate) the generator believes this idea should be judged under. Triage aid only; carries no authority."
         }
       },
@@ -248,15 +339,23 @@
     },
     "rejected_candidate": {
       "type": "object",
-      "required": ["summary", "reason"],
+      "required": [
+        "summary",
+        "reason"
+      ],
       "properties": {
-        "summary": { "type": "string", "minLength": 1 },
+        "summary": {
+          "type": "string",
+          "minLength": 1
+        },
         "reason": {
           "type": "string",
           "minLength": 1,
           "description": "Why the operator dropped it (dedup hit, unresolved gap anchor, freshness hit, failed anchor validation, quota, ...)."
         },
-        "details": { "type": "object" }
+        "details": {
+          "type": "object"
+        }
       },
       "additionalProperties": false
     }

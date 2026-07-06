@@ -1,5 +1,5 @@
 import { createHash } from 'crypto';
-import { existsSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, unlinkSync, utimesSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { fileURLToPath } from 'url';
@@ -94,7 +94,7 @@ function tensionCandidate(): Record<string, unknown> {
       operator_id: 'litmine.tension_resolution.v1',
       origin: {
         model: 'test-generator-model',
-        prompt_hash: `sha256:${'a'.repeat(64)}`,
+        prompt_hash: PROMPT_SNAPSHOT_HASH,
         role: 'Generator',
         temperature: 0.7,
         timestamp: '2026-07-06T00:00:00Z',
@@ -235,6 +235,12 @@ function setNodesUsed(service: IdeaEngineRpcService, campaignId: string, value: 
 
 function artifactPathFromRef(ref: string): string {
   return fileURLToPath(ref);
+}
+
+function archiveNode(service: IdeaEngineRpcService, campaignId: string, nodeId: string): void {
+  const nodes = service.node.store.loadNodes<Record<string, unknown>>(campaignId);
+  nodes[nodeId]!.lifecycle_state = 'archived';
+  service.node.store.saveNodes(campaignId, nodes);
 }
 
 describe('node.import_generated', () => {
@@ -455,7 +461,17 @@ describe('node.import_generated', () => {
     });
     expectRpcError(() => importPack(service, campaignId, pack), -32002, 'parent_revision_invalid');
 
-    // honest revision imports and pins parent lineage on the node
+    // a parented FailureRouting candidate must reroute an ARCHIVED parent
+    pack = mutateCandidate(validPack(campaignId, {
+      evidence_snapshot: { parent_revisions: { [seedNodeId]: 1 } },
+      trigger: failureTrigger,
+    }), candidate => {
+      asFailureRouting(candidate, [seedNodeId]);
+    });
+    expectRpcError(() => importPack(service, campaignId, pack), -32002, 'anchor_missing');
+
+    // honest revision + archived parent imports and pins parent lineage
+    archiveNode(service, campaignId, seedNodeId);
     pack = mutateCandidate(validPack(campaignId, {
       evidence_snapshot: { parent_revisions: { [seedNodeId]: 1 } },
       trigger: failureTrigger,
@@ -548,26 +564,38 @@ describe('node.import_generated', () => {
     expect(result.imported_count).toBe(1);
   });
 
-  it('requires failure-ledger references for parentless FailureRouting candidates', () => {
+  it('requires pinned failure-ledger references for parentless FailureRouting candidates', () => {
     const service = freshService();
     const campaignId = initCampaign(service);
-    let pack = mutateCandidate(
-      validPack(campaignId, { trigger: { artifact_ref: 'file:///tmp/failed.jsonl', kind: 'failure_recorded' } }),
-      candidate => {
-        const provenance = candidate.provenance as Record<string, unknown>;
-        provenance.operator_family = 'FailureRouting';
-        provenance.operator_id = 'failroute.avoid_dead_end.v1';
-      },
-    );
+    const failureTrigger = { artifact_ref: 'file:///tmp/failed.jsonl', kind: 'failure_recorded' };
+    const asFailureRouting = (candidate: Record<string, unknown>) => {
+      const provenance = candidate.provenance as Record<string, unknown>;
+      provenance.operator_family = 'FailureRouting';
+      provenance.operator_id = 'failroute.avoid_dead_end.v1';
+    };
+
+    // no refs at all
+    let pack = mutateCandidate(validPack(campaignId, { trigger: failureTrigger }), asFailureRouting);
     expectRpcError(() => importPack(service, campaignId, pack), -32002, 'anchor_missing');
 
+    // refs present but NOT pinned in evidence_snapshot.failed_approach_refs
+    pack = mutateCandidate(validPack(campaignId, { trigger: failureTrigger }), candidate => {
+      asFailureRouting(candidate);
+      ((candidate.provenance as Record<string, unknown>).trace_inputs as Record<string, unknown>)
+        .failed_approach_refs = ['file:///tmp/failed.jsonl#entry-3'];
+    });
+    expectRpcError(() => importPack(service, campaignId, pack), -32002, 'anchor_missing');
+
+    // pinned refs import
     pack = mutateCandidate(
-      validPack(campaignId, { trigger: { artifact_ref: 'file:///tmp/failed.jsonl', kind: 'failure_recorded' } }),
+      validPack(campaignId, {
+        evidence_snapshot: { failed_approach_refs: ['file:///tmp/failed.jsonl#entry-3'] },
+        trigger: failureTrigger,
+      }),
       candidate => {
-        const provenance = candidate.provenance as Record<string, unknown>;
-        provenance.operator_family = 'FailureRouting';
-        provenance.operator_id = 'failroute.avoid_dead_end.v1';
-        (provenance.trace_inputs as Record<string, unknown>).failed_approach_refs = ['file:///tmp/failed.jsonl#entry-3'];
+        asFailureRouting(candidate);
+        ((candidate.provenance as Record<string, unknown>).trace_inputs as Record<string, unknown>)
+          .failed_approach_refs = ['file:///tmp/failed.jsonl#entry-3'];
       },
     );
     const result = importPack(service, campaignId, pack, 'import-failroute');
@@ -695,13 +723,25 @@ describe('node.import_generated', () => {
     });
     expectRpcError(() => importPack(service, campaignId, pack), -32002, 'prompt_snapshot_missing');
 
-    // candidate WITHOUT a declared hash imports fine without snapshots
+    // prompt provenance is MANDATORY: a candidate without a declared hash is refused
     pack = mutateCandidate(validPack(campaignId), candidate => {
       delete (candidate.provenance as Record<string, unknown>).prompt_snapshot_hash;
     });
-    delete (pack as Record<string, unknown>).prompt_snapshots;
-    const result = importPack(service, campaignId, pack, 'import-no-snapshot');
-    expect(result.imported_count).toBe(1);
+    expectRpcError(() => importPack(service, campaignId, pack), -32002, 'prompt_snapshot_missing');
+
+    // origin.prompt_hash hashes the same rendered prompt and must agree
+    pack = mutateCandidate(validPack(campaignId), candidate => {
+      ((candidate.provenance as Record<string, unknown>).origin as Record<string, unknown>)
+        .prompt_hash = `sha256:${'d'.repeat(64)}`;
+    });
+    expectRpcError(() => importPack(service, campaignId, pack), -32002, 'prompt_snapshot_missing');
+  });
+
+  it('refuses imports while the campaign is paused', () => {
+    const service = freshService();
+    const campaignId = initCampaign(service);
+    service.handle('campaign.pause', { campaign_id: campaignId, idempotency_key: 'pause-1' });
+    expectRpcError(() => importPack(service, campaignId, validPack(campaignId)), -32015, 'campaign_not_active');
   });
 
   it('never overwrites a previously archived pack when the id generator collides', () => {
@@ -745,6 +785,19 @@ describe('node.import_generated', () => {
     );
     expect((error.data.details as Record<string, unknown>).holder_pid).toBe(process.pid);
     rmSync(lockPath, { force: true });
+
+    // zero-byte lock (crash between create and pid write): fresh -> still
+    // locked (a live acquirer passes through that window); old -> reclaimed
+    writeFileSync(lockPath, '', 'utf8');
+    expectRpcError(
+      () => importPack(service, campaignId, validPack(campaignId, { candidates: [secondTensionCandidate()] }), 'import-locked-2'),
+      -32603,
+      'store_locked',
+    );
+    const past = new Date(Date.now() - 60_000);
+    utimesSync(lockPath, past, past);
+    const recovered = importPack(service, campaignId, validPack(campaignId, { candidates: [secondTensionCandidate()] }), 'import-after-empty-lock');
+    expect(recovered.imported_count).toBe(1);
   });
 
   it('rejects flagged dedup without an explicit override at the schema layer', () => {
@@ -924,6 +977,30 @@ describe('node.import_generated', () => {
         -32603,
         'import_recovery_conflict',
       );
+    });
+
+    it('refuses recovery when the archived assembled node payload was tampered', () => {
+      const service = freshService();
+      const campaignId = initCampaign(service);
+      const result = importPack(service, campaignId, validPack(campaignId));
+      const nodeId = importedNodeId(result);
+      const artifactFile = artifactPathFromRef(String(result.pack_artifact_ref));
+      const archive = JSON.parse(readFileSync(artifactFile, 'utf8')) as Record<string, unknown>;
+      const assembled = (archive.engine_assembled as Record<string, unknown>).nodes as Record<string, Record<string, unknown>>;
+      assembled[nodeId]!.operator_id = 'tampered.v1'; // pack untouched; only the completion source is corrupted
+      writeFileSync(artifactFile, JSON.stringify(archive), 'utf8');
+      removeNodeFromStore(service, campaignId, nodeId);
+      stripCreateLogLines(service, campaignId, nodeId);
+      setNodesUsed(service, campaignId, 1);
+      reopenPrepared(service, campaignId, 'import-key-1');
+
+      expectRpcError(
+        () => importPack(service, campaignId, validPack(campaignId)),
+        -32603,
+        'import_recovery_conflict',
+      );
+      // the tampered payload must NOT have been imported
+      expect(service.node.store.loadNodes<Record<string, unknown>>(campaignId)[nodeId]).toBeUndefined();
     });
 
     it('refuses recovery when the archive lacks an assembled node the result recorded', () => {

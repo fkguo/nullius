@@ -136,7 +136,8 @@ export function recoverImportGenerated(
   const imported = Array.isArray(payload.imported) ? (payload.imported as ImportedEntry[]) : [];
   const packArtifactRef = String(payload.pack_artifact_ref ?? '');
   const recordedPackHash = String(payload.pack_hash ?? '');
-  if (!campaignId || imported.length === 0 || !packArtifactRef || !recordedPackHash) {
+  const recordedArchiveHash = String(payload.archive_hash ?? '');
+  if (!campaignId || imported.length === 0 || !packArtifactRef || !recordedPackHash || !recordedArchiveHash) {
     throw recoveryConflict(campaignId || 'unknown', 'recorded import result payload is malformed');
   }
 
@@ -155,6 +156,16 @@ export function recoverImportGenerated(
     });
   }
 
+  // archive_hash covers the ENTIRE artifact — verbatim pack AND the
+  // engine-assembled node payloads completion may re-write below. Verifying
+  // it first means recovery only ever completes from content the original
+  // execution produced and schema-validated (pinned, not trusted); a
+  // tampered/corrupted engine_assembled section can never be imported.
+  if (payloadHash(archive as unknown as Record<string, unknown>) !== recordedArchiveHash) {
+    throw recoveryConflict(campaignId, 'archived artifact does not match recorded archive_hash', {
+      pack_artifact_ref: packArtifactRef,
+    });
+  }
   if (payloadHash(archive.pack) !== recordedPackHash) {
     throw recoveryConflict(campaignId, 'archived pack content does not match recorded pack_hash', {
       pack_artifact_ref: packArtifactRef,

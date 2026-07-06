@@ -230,7 +230,7 @@ def _pinned_snapshot():
     }
 
 
-def test_pack_shape_gates_triggers_and_parent_revisions(make_candidate):
+def test_pack_shape_gates_triggers_and_parent_revisions(make_candidate, prompt_snapshot):
     pack = {
         "campaign_id": "cmpn0001",
         "candidates": [make_candidate()],
@@ -255,18 +255,43 @@ def test_pack_shape_gates_triggers_and_parent_revisions(make_candidate):
     assert any("pinning the mined survey" in p for p in problems)
 
     # parented FailureRouting exercises parent_revisions coverage
+    text, snapshot_hash = prompt_snapshot
     candidate = make_candidate()
     candidate["provenance"]["operator_family"] = "FailureRouting"
     candidate["provenance"]["parent_node_ids"] = ["nd000001"]
+    candidate["provenance"]["prompt_snapshot_hash"] = snapshot_hash
     pack = {
         "campaign_id": "cmpn0001",
         "candidates": [candidate],
         "evidence_snapshot": {},
+        "prompt_snapshots": [{"content": text, "hash": snapshot_hash}],
         "trigger": {"kind": "manual"},
     }
     problems = build_pack.validate_pack_shape(pack, {})
     assert any("missing from parent_revisions" in p for p in problems)
     assert build_pack.validate_pack_shape(pack, {"nd000001": 1}) == []
+
+    # mandatory prompt provenance: dropping the snapshot backing is a problem
+    del pack["prompt_snapshots"]
+    problems = build_pack.validate_pack_shape(pack, {"nd000001": 1})
+    assert any("prompt_snapshot" in p for p in problems)
+
+    # parentless FailureRouting refs must be pinned in the evidence snapshot
+    unpinned = make_candidate()
+    unpinned["provenance"]["operator_family"] = "FailureRouting"
+    unpinned["provenance"]["prompt_snapshot_hash"] = snapshot_hash
+    unpinned["provenance"]["trace_inputs"]["failed_approach_refs"] = ["file:///ledger#entry-3"]
+    pack2 = {
+        "campaign_id": "cmpn0001",
+        "candidates": [unpinned],
+        "evidence_snapshot": {},
+        "prompt_snapshots": [{"content": text, "hash": snapshot_hash}],
+        "trigger": {"kind": "manual"},
+    }
+    problems = build_pack.validate_pack_shape(pack2, {})
+    assert any("not pinned in" in p for p in problems)
+    pack2["evidence_snapshot"] = {"failed_approach_refs": ["file:///ledger#entry-3"]}
+    assert build_pack.validate_pack_shape(pack2, {}) == []
 
 
 def test_pack_shape_rejects_disabled_families_and_intra_pack_twins(make_candidate):
@@ -325,6 +350,15 @@ def test_new_receipt_and_consistency_mirrors(make_candidate):
 # build_pack — CLI assembly
 # ---------------------------------------------------------------------------
 
+def _snapshot_args(tmp_path, prompt_snapshot):
+    """Write the fixture rendered prompt (whose hash the fixture candidates'
+    origin.prompt_hash carries) and return the --prompt-snapshot args."""
+    text, _ = prompt_snapshot
+    path = tmp_path / "rendered_prompt.txt"
+    path.write_text(text, encoding="utf-8")
+    return ["--prompt-snapshot", str(path)]
+
+
 def _write_inputs(tmp_path, candidates, decisions, make_report_extra=None):
     tmp_path.mkdir(parents=True, exist_ok=True)
     candidates_path = tmp_path / "candidates.json"
@@ -350,7 +384,7 @@ def _write_inputs(tmp_path, candidates, decisions, make_report_extra=None):
     return candidates_path, report_path
 
 
-def test_build_pack_folds_dedup_and_records_drops(tmp_path, make_candidate):
+def test_build_pack_folds_dedup_and_records_drops(tmp_path, make_candidate, prompt_snapshot):
     candidates = [make_candidate(), make_candidate(), make_candidate()]
     candidates_path, report_path = _write_inputs(tmp_path, candidates, ["unique", "auto_drop", "flagged"])
     out_path = tmp_path / "pack.json"
@@ -365,6 +399,7 @@ def test_build_pack_folds_dedup_and_records_drops(tmp_path, make_candidate):
         "--trigger-artifact-ref", "file:///tmp/survey.json",
         "--survey-artifact-ref", "file:///tmp/survey.json",
         "--survey-file", str(survey),
+        *_snapshot_args(tmp_path, prompt_snapshot),
         "--created-at", "2026-07-06T00:00:00Z",
         "--out", str(out_path),
     ]) == 0
@@ -380,7 +415,7 @@ def test_build_pack_folds_dedup_and_records_drops(tmp_path, make_candidate):
     assert pack["trigger"] == {"artifact_ref": "file:///tmp/survey.json", "kind": "survey_updated"}
 
 
-def test_build_pack_override_imports_flagged_with_reason(tmp_path, make_candidate):
+def test_build_pack_override_imports_flagged_with_reason(tmp_path, make_candidate, prompt_snapshot):
     candidates = [make_candidate()]
     candidates_path, report_path = _write_inputs(tmp_path, candidates, ["flagged"])
     out_path = tmp_path / "pack.json"
@@ -393,6 +428,7 @@ def test_build_pack_override_imports_flagged_with_reason(tmp_path, make_candidat
         "--trigger-kind", "manual",
         "--survey-artifact-ref", "file:///tmp/survey.json",
         "--survey-file", str(survey),
+        *_snapshot_args(tmp_path, prompt_snapshot),
         "--override", "0=reviewed: shares the anchor but proposes the opposite mechanism",
         "--created-at", "2026-07-06T00:00:00Z",
         "--out", str(out_path),
@@ -440,7 +476,7 @@ def test_build_pack_refuses_invalid_inputs(tmp_path, make_candidate):
     ]) == 2
 
 
-def test_build_pack_refuses_fail_open_paths(tmp_path, make_candidate):
+def test_build_pack_refuses_fail_open_paths(tmp_path, make_candidate, prompt_snapshot):
     survey = tmp_path / "survey.json"
     survey.write_text("{}", encoding="utf-8")
     base_args = [
@@ -448,6 +484,7 @@ def test_build_pack_refuses_fail_open_paths(tmp_path, make_candidate):
         "--trigger-kind", "manual",
         "--survey-artifact-ref", "file:///tmp/survey.json",
         "--survey-file", str(survey),
+        *_snapshot_args(tmp_path, prompt_snapshot),
         "--created-at", "2026-07-06T00:00:00Z",
     ]
 
@@ -490,13 +527,10 @@ def test_build_pack_refuses_fail_open_paths(tmp_path, make_candidate):
     ]) == 2
 
 
-def test_build_pack_prompt_snapshot_flow(tmp_path, make_candidate):
-    import hashlib as _hashlib
+def test_build_pack_prompt_snapshot_flow(tmp_path, make_candidate, prompt_snapshot):
+    text, expected_hash = prompt_snapshot
     survey = tmp_path / "survey.json"
     survey.write_text("{}", encoding="utf-8")
-    snapshot = tmp_path / "prompt.txt"
-    snapshot.write_text("the full rendered generation prompt", encoding="utf-8")
-    expected_hash = "sha256:" + _hashlib.sha256(snapshot.read_bytes()).hexdigest()
 
     candidates_path, report_path = _write_inputs(tmp_path, [make_candidate()], ["unique"])
     out_path = tmp_path / "pack.json"
@@ -507,37 +541,54 @@ def test_build_pack_prompt_snapshot_flow(tmp_path, make_candidate):
         "--trigger-kind", "manual",
         "--survey-artifact-ref", "file:///tmp/survey.json",
         "--survey-file", str(survey),
-        "--prompt-snapshot", str(snapshot),
+        *_snapshot_args(tmp_path, prompt_snapshot),
         "--created-at", "2026-07-06T00:00:00Z",
         "--out", str(out_path),
     ]) == 0
     pack = json.loads(out_path.read_text(encoding="utf-8"))
-    assert pack["prompt_snapshots"] == [
-        {"content": "the full rendered generation prompt", "hash": expected_hash},
-    ]
-    # single snapshot auto-fills candidates lacking a declared hash
+    assert pack["prompt_snapshots"] == [{"content": text, "hash": expected_hash}]
+    # single snapshot auto-fills candidates lacking a declared hash, and the
+    # fixture's origin.prompt_hash matches by construction
     assert pack["candidates"][0]["provenance"]["prompt_snapshot_hash"] == expected_hash
+    assert pack["candidates"][0]["provenance"]["origin"]["prompt_hash"] == expected_hash
+
+    # omitting --prompt-snapshot is refused: prompt provenance is mandatory
+    candidates_path2, report_path2 = _write_inputs(tmp_path / "nosnap", [make_candidate()], ["unique"])
+    assert build_pack.run([
+        "--campaign-id", "cmpn0001",
+        "--candidates", str(candidates_path2),
+        "--dedup-report", str(report_path2),
+        "--trigger-kind", "manual",
+        "--survey-artifact-ref", "file:///tmp/survey.json",
+        "--survey-file", str(survey),
+        "--created-at", "2026-07-06T00:00:00Z",
+        "--out", str(tmp_path / "pack-nosnap.json"),
+    ]) == 2
 
 
 # ---------------------------------------------------------------------------
 # submit_pack
 # ---------------------------------------------------------------------------
 
-def _minimal_pack(make_candidate):
+def _minimal_pack(make_candidate, prompt_snapshot):
+    text, snapshot_hash = prompt_snapshot
     candidate = make_candidate()
     candidate["dedup"] = {"decision": "unique", "method": dedup_check.DEDUP_METHOD}
+    provenance = candidate["provenance"]
+    provenance["prompt_snapshot_hash"] = snapshot_hash
     return {
         "campaign_id": "cmpn0001",
         "candidates": [candidate],
         "created_at": "2026-07-06T00:00:00Z",
         "evidence_snapshot": {},
+        "prompt_snapshots": [{"content": text, "hash": snapshot_hash}],
         "rejected_candidates": [],
         "trigger": {"kind": "manual"},
     }
 
 
-def test_submit_key_is_deterministic_and_content_sensitive(make_candidate):
-    pack = _minimal_pack(make_candidate)
+def test_submit_key_is_deterministic_and_content_sensitive(make_candidate, prompt_snapshot):
+    pack = _minimal_pack(make_candidate, prompt_snapshot)
     key_a = submit_pack.deterministic_idempotency_key("cmpn0001", pack)
     key_b = submit_pack.deterministic_idempotency_key("cmpn0001", json.loads(json.dumps(pack)))
     assert key_a == key_b
@@ -552,8 +603,8 @@ def test_submit_key_is_deterministic_and_content_sensitive(make_candidate):
     assert submit_pack.deterministic_idempotency_key("cmpn0001", changed) != key_a
 
 
-def test_submit_pins_the_request_shape_against_a_mock_bridge(tmp_path, make_candidate, monkeypatch):
-    pack = _minimal_pack(make_candidate)
+def test_submit_pins_the_request_shape_against_a_mock_bridge(tmp_path, make_candidate, prompt_snapshot, monkeypatch):
+    pack = _minimal_pack(make_candidate, prompt_snapshot)
     pack_path = tmp_path / "pack.json"
     pack_path.write_text(json.dumps(pack), encoding="utf-8")
     capture = tmp_path / "captured.json"
@@ -576,8 +627,8 @@ def test_submit_pins_the_request_shape_against_a_mock_bridge(tmp_path, make_cand
     assert request["params"]["pack"] == pack
 
 
-def test_submit_surfaces_engine_errors_and_campaign_mismatch(tmp_path, make_candidate, monkeypatch):
-    pack = _minimal_pack(make_candidate)
+def test_submit_surfaces_engine_errors_and_campaign_mismatch(tmp_path, make_candidate, prompt_snapshot, monkeypatch):
+    pack = _minimal_pack(make_candidate, prompt_snapshot)
     pack_path = tmp_path / "pack.json"
     pack_path.write_text(json.dumps(pack), encoding="utf-8")
 
@@ -642,11 +693,17 @@ def test_enabled_triggers_and_family_table_match_engine_executor(engine_src_dir)
     bound = re.search(r"const DEDUP_AUTO_DROP_BOUND = ([0-9.]+)", executor)
     assert bound and float(bound.group(1)) == build_pack.DEDUP_AUTO_DROP_BOUND
 
+    non_novel = _ts_const_strings(executor, "const NON_NOVEL_DELTA_TYPES")
+    assert sorted(non_novel) == sorted(build_pack.NON_NOVEL_DELTA_TYPES)
+
+    reserved = _ts_const_strings(executor, "const RESERVED_TRACE_INPUT_KEYS")
+    assert reserved == build_pack.RESERVED_TRACE_INPUT_KEYS
+
     shared = (engine_src_dir / "service" / "node-shared.ts").read_text(encoding="utf-8")
     assert f"'{build_pack.PLACEHOLDER_EVIDENCE_URI}'" in shared
 
 
-def test_submit_reaches_the_real_engine_bridge(tmp_path, make_candidate):
+def test_submit_reaches_the_real_engine_bridge(tmp_path, make_candidate, prompt_snapshot):
     """End-to-end through bin/idea-rpc.mjs and the built engine (skipped when
     node or the engine dist is absent, e.g. standalone skill installs)."""
     import shutil
@@ -679,7 +736,7 @@ def test_submit_reaches_the_real_engine_bridge(tmp_path, make_candidate):
     )
     campaign_id = json.loads(completed.stdout.decode("utf-8"))["result"]["campaign_id"]
 
-    pack = _minimal_pack(make_candidate)
+    pack = _minimal_pack(make_candidate, prompt_snapshot)
     pack["campaign_id"] = campaign_id
     pack["evidence_snapshot"] = {
         "survey_artifact_ref": "file:///tmp/survey.json",

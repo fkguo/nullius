@@ -8,7 +8,7 @@ import { budgetSnapshot } from './budget-snapshot.js';
 import { RpcError } from './errors.js';
 import { recordOrReplay, responseIdempotency, storeIdempotency } from './idempotency.js';
 import { ensureCampaignRunning, loadCampaignOrError, setCampaignRunningIfBudgetAvailable } from './campaign-state.js';
-import { PLACEHOLDER_EVIDENCE_URI } from './node-shared.js';
+import { nodeLifecycleState, PLACEHOLDER_EVIDENCE_URI } from './node-shared.js';
 import { drawUniqueId } from './seed-node.js';
 import { buildGeneratedNode, type GeneratedCandidate } from './generated-node.js';
 import { IMPORT_ARTIFACT_TYPE, IMPORT_GENERATED_METHOD } from './import-generated-recovery.js';
@@ -162,6 +162,7 @@ function validateCandidateSemantics(options: {
   candidate: GeneratedCandidate;
   existingNodes: Record<string, Record<string, unknown>>;
   index: number;
+  ledgerRefs: Set<string>;
   parentRevisions: Record<string, number>;
   surveyPinned: boolean;
 }): void {
@@ -383,14 +384,41 @@ function validateCandidateSemantics(options: {
     }
   }
 
-  if (family === 'FailureRouting' && parents.length === 0) {
-    const refs = traceInputs.failed_approach_refs;
-    if (!Array.isArray(refs) || refs.length === 0 || !refs.every(isNonEmptyString)) {
-      throw importValidationError(
-        'anchor_missing',
-        campaignId,
-        `${label}: a parentless FailureRouting candidate requires non-empty trace_inputs.failed_approach_refs (the ledger entries it reroutes around)`,
-      );
+  if (family === 'FailureRouting') {
+    if (parents.length === 0) {
+      const refs = traceInputs.failed_approach_refs;
+      if (!Array.isArray(refs) || refs.length === 0 || !refs.every(isNonEmptyString)) {
+        throw importValidationError(
+          'anchor_missing',
+          campaignId,
+          `${label}: a parentless FailureRouting candidate requires non-empty trace_inputs.failed_approach_refs (the ledger entries it reroutes around)`,
+        );
+      }
+      // The refs must be pinned at pack level: an invented free string is not
+      // a failure anchor. evidence_snapshot.failed_approach_refs is the
+      // burst's declared ledger reading, like survey pinning for tensions.
+      for (const ref of refs) {
+        if (!options.ledgerRefs.has(String(ref))) {
+          throw importValidationError(
+            'anchor_missing',
+            campaignId,
+            `${label}: failed_approach_ref is not pinned in evidence_snapshot.failed_approach_refs (declare the ledger entries the burst actually read)`,
+            { uri: String(ref) },
+          );
+        }
+      }
+    } else {
+      // Rerouting an existing node's recorded failure only makes sense for a
+      // node that actually DIED: the parent must be archived.
+      const parent = options.existingNodes[parents[0]!]!;
+      if (nodeLifecycleState(parent) !== 'archived') {
+        throw importValidationError(
+          'anchor_missing',
+          campaignId,
+          `${label}: a parented FailureRouting candidate must reroute an ARCHIVED parent (its recorded kill criteria are the failure anchor); the parent is ${nodeLifecycleState(parent)}`,
+          { node_id: parents[0] },
+        );
+      }
     }
   }
 
@@ -471,12 +499,17 @@ export function executeImportGenerated(options: {
     const parentRevisions = (evidenceSnapshot.parent_revisions ?? {}) as Record<string, number>;
     const surveyPinned = isNonEmptyString(evidenceSnapshot.survey_artifact_ref)
       && isNonEmptyString(evidenceSnapshot.survey_content_hash);
+    const ledgerRefs = new Set<string>(
+      (Array.isArray(evidenceSnapshot.failed_approach_refs) ? evidenceSnapshot.failed_approach_refs : [])
+        .filter(isNonEmptyString),
+    );
     const candidates = pack.candidates as GeneratedCandidate[];
     candidates.forEach((candidate, index) => validateCandidateSemantics({
       campaignId,
       candidate,
       existingNodes: nodes as Record<string, Record<string, unknown>>,
       index,
+      ledgerRefs,
       parentRevisions,
       surveyPinned,
     }));
@@ -499,9 +532,12 @@ export function executeImportGenerated(options: {
       seenDuplicateKeys.set(key, index);
     });
 
-    // Prompt-snapshot verification: a candidate that declares a
-    // prompt_snapshot_hash must be backed by a snapshot archived with this
-    // pack whose content hashes to exactly that value.
+    // Prompt-snapshot verification (MANDATORY): every candidate must declare
+    // prompt_snapshot_hash, backed by a snapshot archived with this pack whose
+    // content hashes to exactly that value — otherwise the design's
+    // reproducibility statement ("a third party can reconstruct exactly what
+    // the generator saw") is unverifiable by construction. origin.prompt_hash
+    // hashes the same rendered prompt, so the two must agree.
     const snapshotsRaw = Array.isArray(pack.prompt_snapshots) ? pack.prompt_snapshots as Array<Record<string, unknown>> : [];
     const snapshotHashes = new Set<string>();
     snapshotsRaw.forEach((snapshot, index) => {
@@ -518,12 +554,28 @@ export function executeImportGenerated(options: {
     });
     candidates.forEach((candidate, index) => {
       const declared = candidate.provenance.prompt_snapshot_hash;
-      if (typeof declared === 'string' && !snapshotHashes.has(declared)) {
+      if (typeof declared !== 'string' || declared.length === 0) {
+        throw importValidationError(
+          'prompt_snapshot_missing',
+          campaignId,
+          `candidates[${index}] must declare provenance.prompt_snapshot_hash — prompt provenance is mandatory for imported candidates`,
+        );
+      }
+      if (!snapshotHashes.has(declared)) {
         throw importValidationError(
           'prompt_snapshot_missing',
           campaignId,
           `candidates[${index}] declares prompt_snapshot_hash but no pack.prompt_snapshots entry carries that content`,
           { prompt_snapshot_hash: declared },
+        );
+      }
+      const origin = candidate.provenance.origin as Record<string, unknown>;
+      if (String(origin.prompt_hash) !== declared) {
+        throw importValidationError(
+          'prompt_snapshot_missing',
+          campaignId,
+          `candidates[${index}]: origin.prompt_hash must equal prompt_snapshot_hash — both hash the same rendered prompt`,
+          { origin_prompt_hash: String(origin.prompt_hash), prompt_snapshot_hash: declared },
         );
       }
     });
@@ -600,7 +652,22 @@ export function executeImportGenerated(options: {
     // crash recovery free of unrecoverable counter arithmetic.
     setCampaignRunningIfBudgetAvailable(plannedCampaign);
 
+    const archive: Record<string, unknown> = {
+      engine_assembled: {
+        imported_at: now,
+        method: IMPORT_GENERATED_METHOD,
+        nodes: assembledNodes,
+      },
+      pack: structuredClone(pack),
+      pack_hash: packHash,
+    };
+    // archive_hash pins the WHOLE archived artifact — including the
+    // engine-assembled node payloads recovery may later re-write. pack_hash
+    // alone would leave engine_assembled.nodes an unpinned completion source.
+    const archiveHash = payloadHash(archive);
+
     const result: Record<string, unknown> = {
+      archive_hash: archiveHash,
       budget_snapshot: budgetSnapshot(plannedCampaign),
       campaign_id: campaignId,
       created_at: now,
@@ -612,16 +679,6 @@ export function executeImportGenerated(options: {
       rejected_count: (pack.rejected_candidates as unknown[]).length,
     };
     options.contracts.validateResult(IMPORT_GENERATED_METHOD, result);
-
-    const archive: Record<string, unknown> = {
-      engine_assembled: {
-        imported_at: now,
-        method: IMPORT_GENERATED_METHOD,
-        nodes: assembledNodes,
-      },
-      pack: structuredClone(pack),
-      pack_hash: packHash,
-    };
 
     storeIdempotency({
       campaignId,
