@@ -7,17 +7,20 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
+import nodes_store
 import thompson_allocation as ta
 from conftest import FIXTURES_DIR, SCRIPTS_DIR
 
 FIXTURE = FIXTURES_DIR / "nodes_latest.json"
-CAMPAIGN_ID = "0f3c2c8e-5df1-4a3a-9b6e-2f1a7c9d4e10"
+# Engine short id: 8 chars of lowercase Crockford base32 (idea_node_v1 /
+# allocation_decision_v1 convention).
+CAMPAIGN_ID = "0f3c2c8e"
 SCRIPT = SCRIPTS_DIR / "thompson_allocation.py"
 
 
 def load_fixture_nodes():
-    import nodes_store
-
     return nodes_store.load_nodes_file(str(FIXTURE))
 
 
@@ -58,12 +61,12 @@ def run_cli(args, cwd: Path):
 def test_split_nodes_excludes_archived_and_waiting():
     _, nodes = load_fixture_nodes()
     groups = ta.split_nodes(nodes)
-    assert {n["node_id"] for n in groups["sampled"]} == {"idea-alpha", "idea-beta", "idea-eta"}
-    assert {n["node_id"] for n in groups["cold_start"]} == {"idea-gamma"}
+    assert {n["node_id"] for n in groups["sampled"]} == {"a1pha000", "beta0000", "eta00000"}
+    assert {n["node_id"] for n in groups["cold_start"]} == {"gamma000"}
     assert {n["node_id"] for n in groups["waiting"]} == {
-        "idea-delta", "idea-epsilon", "idea-iota", "idea-kappa", "idea-lambda",
+        "de1ta000", "eps110n0", "10ta0000", "kappa000", "1ambda00",
     }
-    assert {n["node_id"] for n in groups["archived"]} == {"idea-zeta"}
+    assert {n["node_id"] for n in groups["archived"]} == {"zeta0000"}
 
 
 def test_slot_cut_counts_and_ranking():
@@ -92,23 +95,21 @@ def test_slot_cut_counts_and_ranking():
 def test_cold_start_never_takes_a_deep_slot(tmp_path):
     # More deep slots than sampled candidates: cold starts must NOT be promoted.
     nodes = [
-        active_node("idea-alpha", 0.8, 20),
-        active_node("idea-beta", 0.3, 4),
-        {"node_id": "idea-gamma", "lifecycle_state": "active"},
-        {"node_id": "idea-mu", "lifecycle_state": "active"},
+        active_node("a1pha000", 0.8, 20),
+        active_node("beta0000", 0.3, 4),
+        {"node_id": "gamma000", "lifecycle_state": "active"},
+        {"node_id": "mv000000", "lifecycle_state": "active"},
     ]
     path = make_store(tmp_path, nodes)
-    import nodes_store
-
     campaign_id, loaded = nodes_store.load_nodes_file(str(path))
     decision = ta.build_decision(
         campaign_id, loaded, seed=11, deep_slots=5, recon_slots=2,
         generated_at="2026-07-05T00:00:00Z",
     )
     deep = [e for e in decision["candidates"] if e["allocation"] == "deep_investment"]
-    assert {e["node_id"] for e in deep} == {"idea-alpha", "idea-beta"}
+    assert {e["node_id"] for e in deep} == {"a1pha000", "beta0000"}
     cold = [e for e in decision["candidates"] if e["sampled_value"] is None]
-    assert {e["node_id"] for e in cold} == {"idea-gamma", "idea-mu"}
+    assert {e["node_id"] for e in cold} == {"gamma000", "mv000000"}
     for entry in cold:
         assert entry["allocation"] == "reconnaissance"
         assert entry["posterior_value"] is None and entry["evidence_count"] is None
@@ -116,7 +117,7 @@ def test_cold_start_never_takes_a_deep_slot(tmp_path):
         assert "belief graph" in entry["budget_note"]
     # Cold starts sit at the tail, after every sampled candidate.
     ids = [e["node_id"] for e in decision["candidates"]]
-    assert ids.index("idea-gamma") > max(ids.index("idea-alpha"), ids.index("idea-beta"))
+    assert ids.index("gamma000") > max(ids.index("a1pha000"), ids.index("beta0000"))
 
 
 def test_budget_notes_flag_exploration_vs_conservative():
@@ -145,18 +146,18 @@ def test_waiting_activation_entries_in_artifact():
     waiting = decision["waiting_activation"]
     assert [w["node_id"] for w in waiting] == sorted(w["node_id"] for w in waiting)
     assert {w["node_id"] for w in waiting} == {
-        "idea-delta", "idea-epsilon", "idea-iota", "idea-kappa", "idea-lambda",
+        "de1ta000", "eps110n0", "10ta0000", "kappa000", "1ambda00",
     }
     by_id = {w["node_id"]: w for w in waiting}
-    assert by_id["idea-delta"]["last_checked_at"] == "2026-06-28T16:00:00Z"
-    assert by_id["idea-iota"]["last_checked_at"] is None
-    condition = by_id["idea-epsilon"]["activation_condition"]
+    assert by_id["de1ta000"]["last_checked_at"] == "2026-06-28T16:00:00Z"
+    assert by_id["10ta0000"]["last_checked_at"] is None
+    condition = by_id["eps110n0"]["activation_condition"]
     assert set(condition) == {"kind", "description", "satisfied"}
     assert condition["satisfied"] is True
     # Waiting and archived ids never appear among candidates.
     candidate_ids = {c["node_id"] for c in decision["candidates"]}
     assert candidate_ids.isdisjoint({w["node_id"] for w in waiting})
-    assert "idea-zeta" not in candidate_ids
+    assert "zeta0000" not in candidate_ids
 
 
 def test_artifact_passes_own_validator():
@@ -255,7 +256,7 @@ def test_cli_campaign_id_mismatch_fails(tmp_path):
             "--seed", "1",
             "--deep-slots", "1",
             "--recon-slots", "1",
-            "--campaign-id", "11111111-2222-4333-8444-555555555555",
+            "--campaign-id", "11111111",
         ],
         cwd=tmp_path,
     )
@@ -263,8 +264,26 @@ def test_cli_campaign_id_mismatch_fails(tmp_path):
     assert "campaign_id mismatch" in result.stderr
 
 
+def test_cli_rejects_dashed_uuid_campaign_id(tmp_path):
+    # The retired dashed-uuid convention is exactly what the engine contract
+    # excludes; the CLI must reject it with the engine pattern in the message.
+    result = run_cli(
+        [
+            "--nodes", str(FIXTURE),
+            "--seed", "1",
+            "--deep-slots", "1",
+            "--recon-slots", "1",
+            "--campaign-id", "11111111-2222-4333-8444-555555555555",
+        ],
+        cwd=tmp_path,
+    )
+    assert result.returncode != 0
+    assert "engine short id" in result.stderr
+    assert nodes_store.SHORT_ID_RE.pattern in result.stderr
+
+
 def test_cli_rejects_bad_posterior(tmp_path):
-    nodes = [active_node("idea-alpha", 1.5, 3)]
+    nodes = [active_node("a1pha000", 1.5, 3)]
     path = make_store(tmp_path, nodes)
     result = run_cli(
         ["--nodes", str(path), "--seed", "1", "--deep-slots", "1", "--recon-slots", "1"],
@@ -299,21 +318,19 @@ def test_mapping_form_of_nodes_accepted(tmp_path):
             {
                 "campaign_id": CAMPAIGN_ID,
                 "nodes": {
-                    "idea-alpha": {
+                    "a1pha000": {
                         "posterior": {
                             "value": 0.6,
                             "evidence_count": 10,
                             "updated_at": "2026-07-01T00:00:00Z",
                         }
                     },
-                    "idea-beta": {"lifecycle_state": "active"},
+                    "beta0000": {"lifecycle_state": "active"},
                 },
             }
         ),
         encoding="utf-8",
     )
-    import nodes_store
-
     campaign_id, nodes = nodes_store.load_nodes_file(str(path))
     assert campaign_id == CAMPAIGN_ID
     decision = ta.build_decision(
@@ -322,6 +339,78 @@ def test_mapping_form_of_nodes_accepted(tmp_path):
     )
     allocations = {e["node_id"]: e["allocation"] for e in decision["candidates"]}
     assert allocations == {
-        "idea-alpha": "deep_investment",
-        "idea-beta": "reconnaissance",
+        "a1pha000": "deep_investment",
+        "beta0000": "reconnaissance",
     }
+
+
+# ---------------------------------------------------------------------------
+# Engine id convention (8-char short ids)
+# ---------------------------------------------------------------------------
+
+def test_decision_id_is_deterministic_and_engine_convention():
+    """Same semantic inputs (campaign id, seed, generated_at, store digest)
+    must always give the same decision_id, and the id must follow the engine
+    short-id convention."""
+    digest = "ab" * 32
+    args = (CAMPAIGN_ID, 42, "2026-07-05T00:00:00Z", digest)
+    first = nodes_store.derive_decision_id(*args)
+    second = nodes_store.derive_decision_id(*args)
+    assert first == second
+    assert nodes_store.SHORT_ID_RE.match(first)
+    # Every input component participates in the derivation.
+    assert nodes_store.derive_decision_id("11111111", 42, "2026-07-05T00:00:00Z", digest) != first
+    assert nodes_store.derive_decision_id(CAMPAIGN_ID, 43, "2026-07-05T00:00:00Z", digest) != first
+    assert nodes_store.derive_decision_id(CAMPAIGN_ID, 42, "2026-07-05T00:00:01Z", digest) != first
+    assert nodes_store.derive_decision_id(CAMPAIGN_ID, 42, "2026-07-05T00:00:00Z", "cd" * 32) != first
+
+
+def test_derived_decision_ids_use_the_full_engine_alphabet():
+    derived = [
+        nodes_store.derive_decision_id(CAMPAIGN_ID, seed, "2026-07-05T00:00:00Z", "ab" * 32)
+        for seed in range(64)
+    ]
+    chars = set("".join(derived))
+    assert chars <= set(nodes_store.SHORT_ID_ALPHABET)
+    # 512 uniformly mapped digest bytes all landing inside the 16 hex symbols
+    # has probability 2^-512, so a hex/uuid-prefix shortcut cannot pass this.
+    assert any(c not in "0123456789abcdef" for c in chars)
+
+
+def test_build_decision_id_reproducible_across_calls():
+    campaign_id, nodes = load_fixture_nodes()
+    kwargs = dict(seed=7, deep_slots=1, recon_slots=1, generated_at="2026-07-05T00:00:00Z")
+    one = ta.build_decision(campaign_id, nodes, **kwargs)
+    two = ta.build_decision(campaign_id, nodes, **kwargs)
+    assert one["decision_id"] == two["decision_id"]
+    assert nodes_store.SHORT_ID_RE.match(one["decision_id"])
+
+
+def test_loader_rejects_retired_dashed_uuid_campaign_id(tmp_path):
+    path = make_store(
+        tmp_path,
+        [active_node("a1pha000", 0.5, 3)],
+        campaign_id="0f3c2c8e-5df1-4a3a-9b6e-2f1a7c9d4e10",
+    )
+    with pytest.raises(nodes_store.StoreError) as excinfo:
+        nodes_store.load_nodes_file(str(path))
+    message = str(excinfo.value)
+    assert "engine short id" in message
+    assert nodes_store.SHORT_ID_RE.pattern in message
+
+
+@pytest.mark.parametrize(
+    "bad_node_id",
+    [
+        "idea-alpha",                             # retired prose-style id
+        "4c9a2d10-7e5f-4b8a-9c3d-6e1f2a3b4c5d",   # retired dashed-uuid style
+        "abcdilou",                               # i/l/o/u sit outside Crockford
+        "1f6c9d5",                                # right alphabet, wrong length
+        "ABCDEF12",                               # uppercase is excluded
+    ],
+)
+def test_loader_rejects_non_engine_node_ids(tmp_path, bad_node_id):
+    path = make_store(tmp_path, [active_node(bad_node_id, 0.5, 3)])
+    with pytest.raises(nodes_store.StoreError) as excinfo:
+        nodes_store.load_nodes_file(str(path))
+    assert "engine short id" in str(excinfo.value)

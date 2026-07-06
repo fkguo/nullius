@@ -8,13 +8,17 @@ at closeout):
 ``nodes_latest.json`` is a JSON object::
 
     {
-      "campaign_id": "<uuid>",            # optional if supplied on the CLI
+      "campaign_id": "<short id>",        # optional if supplied on the CLI
       "nodes": [ {...}, ... ]             # list, or mapping node_id -> node
     }
 
+``campaign_id`` and every ``node_id`` are engine short ids: 8 characters of
+lowercase Crockford base32 (see ``SHORT_ID_ALPHABET`` below), the handle-id
+convention pinned by the engine contracts.
+
 Each node object carries:
 
-- ``node_id``: non-empty string (when ``nodes`` is a mapping, the key is the
+- ``node_id``: engine short id (when ``nodes`` is a mapping, the key is the
   node id and must match any inline ``node_id``).
 - ``lifecycle_state``: one of ``"active"``, ``"waiting_activation"``,
   ``"archived"``. Missing means ``"active"``.
@@ -35,7 +39,9 @@ allocate on top of malformed belief data.
 
 from __future__ import annotations
 
+import hashlib
 import json
+import re
 import uuid
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
@@ -55,14 +61,50 @@ ALLOCATION_KINDS = ("deep_investment", "reconnaissance", "hold")
 
 METHOD_NAME = "thompson_sampling"
 
-# Deterministic uuid5 namespaces (uuid5 is a pure function of namespace+name,
-# so ids derived below are reproducible across runs and machines).
-DECISION_ID_NAMESPACE = uuid.uuid5(
-    uuid.NAMESPACE_URL, "https://nullius.invalid/idea-allocation/allocation_decision_v1"
-)
+# Engine short-id convention for handle ids (decision_id, campaign_id, node_id):
+# 8 chars of lowercase Crockford base32 — digits + lowercase letters excluding
+# i/l/o/u. This is the exact alphabet and length pinned by the engine contracts
+# (allocation_decision_v1 / idea_node_v1 schemas) and
+# packages/shared/src/short-id.ts; never widen or substitute it here alone.
+SHORT_ID_ALPHABET = "0123456789abcdefghjkmnpqrstvwxyz"
+SHORT_ID_LENGTH = 8
+SHORT_ID_RE = re.compile(r"^[%s]{%d}$" % (SHORT_ID_ALPHABET, SHORT_ID_LENGTH))
+
+# Domain-separation prefix for decision-id derivation. Successor of the retired
+# uuid5 namespace: it keeps decision ids from colliding with any other
+# sha256-derived id family fed the same inputs.
+_DECISION_ID_DOMAIN = "https://nullius.invalid/idea-allocation/allocation_decision_v1"
+
+# Deterministic uuid5 namespace for the suggested lifecycle-transition
+# idempotency_key (uuid5 is a pure function of namespace+name, so keys are
+# reproducible across runs and machines). The engine RPC contract
+# (idea_runtime_rpc_v1.openrpc.json) pins idempotency_key as a free-form
+# non-empty string — NOT an engine short id — so the dashed-uuid key format
+# is deliberate and stays.
 ACTIVATION_KEY_NAMESPACE = uuid.uuid5(
     uuid.NAMESPACE_URL, "https://nullius.invalid/idea-allocation/activation-idempotency"
 )
+
+
+def derive_decision_id(
+    campaign_id: str, seed: int, generated_at: str, nodes_digest: str
+) -> str:
+    """Deterministic engine-convention decision id.
+
+    Successor of the retired uuid5 derivation, over the SAME semantic inputs
+    (campaign id, seed, generated_at, store digest) plus the fixed domain
+    prefix that replaces the uuid5 namespace: sha256 the canonical input
+    string, then map the first ``SHORT_ID_LENGTH`` digest bytes into
+    ``SHORT_ID_ALPHABET`` via ``byte % 32``. Because 256 % 32 == 0, every
+    byte maps uniformly onto the 32-symbol alphabet — no bias. Same inputs
+    always give the same id; no hidden randomness.
+    """
+    material = f"{_DECISION_ID_DOMAIN}|{campaign_id}|{seed}|{generated_at}|{nodes_digest}"
+    digest = hashlib.sha256(material.encode("utf-8")).digest()
+    alphabet_size = len(SHORT_ID_ALPHABET)
+    return "".join(
+        SHORT_ID_ALPHABET[byte % alphabet_size] for byte in digest[:SHORT_ID_LENGTH]
+    )
 
 
 class StoreError(ValueError):
@@ -86,14 +128,13 @@ def parse_datetime(value: Any) -> Optional[datetime]:
         return None
 
 
-def is_uuid_text(value: Any) -> bool:
-    if not isinstance(value, str):
-        return False
-    try:
-        uuid.UUID(value)
-        return True
-    except ValueError:
-        return False
+def is_short_id_text(value: Any) -> bool:
+    """True iff ``value`` is an engine short id (SHORT_ID_RE).
+
+    fullmatch: with re.match, the pattern's ``$`` would tolerate one trailing
+    newline that the engine-side JS regex rejects; stay exactly as strict.
+    """
+    return isinstance(value, str) and bool(SHORT_ID_RE.fullmatch(value))
 
 
 def _is_int(value: Any) -> bool:
@@ -201,11 +242,17 @@ def load_nodes_file(
 
     file_campaign_id = payload.get("campaign_id")
     campaign_id: Optional[str] = None
-    if file_campaign_id is not None and not is_uuid_text(file_campaign_id):
-        problems.append(f"campaign_id in file must be a UUID string, got {file_campaign_id!r}")
+    if file_campaign_id is not None and not is_short_id_text(file_campaign_id):
+        problems.append(
+            f"campaign_id in file is not an engine short id "
+            f"({SHORT_ID_RE.pattern}), got {file_campaign_id!r}"
+        )
         file_campaign_id = None
-    if cli_campaign_id is not None and not is_uuid_text(cli_campaign_id):
-        problems.append(f"--campaign-id must be a UUID string, got {cli_campaign_id!r}")
+    if cli_campaign_id is not None and not is_short_id_text(cli_campaign_id):
+        problems.append(
+            f"--campaign-id is not an engine short id "
+            f"({SHORT_ID_RE.pattern}), got {cli_campaign_id!r}"
+        )
         cli_campaign_id = None
     if file_campaign_id is not None and cli_campaign_id is not None:
         if file_campaign_id != cli_campaign_id:
@@ -230,6 +277,11 @@ def load_nodes_file(
         node_id = node.get("node_id")
         if not isinstance(node_id, str) or not node_id.strip():
             problems.append(f"node with missing or empty node_id: {node!r}")
+            continue
+        if not is_short_id_text(node_id):
+            problems.append(
+                f"node_id {node_id!r} is not an engine short id ({SHORT_ID_RE.pattern})"
+            )
             continue
         if node_id in seen_ids:
             problems.append(f"duplicate node_id {node_id!r}")

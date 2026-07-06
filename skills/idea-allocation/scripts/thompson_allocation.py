@@ -55,8 +55,10 @@ Reproducibility
 lexicographic order of node ids, so the same seed, the same store content, and
 the same ``--generated-at`` reproduce the artifact byte for byte (Python's
 Mersenne Twister and ``random.betavariate`` are deterministic for a given
-Python version). ``decision_id`` is a uuid5 over campaign id, seed, timestamp,
-and a digest of the store content — deterministic, no hidden randomness.
+Python version). ``decision_id`` is an engine-convention 8-char short id
+derived by sha256 over campaign id, seed, timestamp, and a digest of the
+store content (see ``nodes_store.derive_decision_id``) — deterministic, no
+hidden randomness.
 """
 
 from __future__ import annotations
@@ -66,7 +68,6 @@ import hashlib
 import json
 import random
 import sys
-import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -77,10 +78,11 @@ if __package__ in (None, ""):
 from nodes_store import (  # noqa: E402
     ACTIVATION_KINDS,
     ALLOCATION_KINDS,
-    DECISION_ID_NAMESPACE,
     METHOD_NAME,
+    SHORT_ID_RE,
     StoreError,
-    is_uuid_text,
+    derive_decision_id,
+    is_short_id_text,
     load_nodes_file,
     parse_datetime,
     waiting_entry,
@@ -246,11 +248,11 @@ def build_decision(
     draws = draw_samples(groups["sampled"], seed)
     candidates = assign_allocations(draws, groups["cold_start"], deep_slots, recon_slots)
     waiting = [waiting_entry(node) for node in sorted(groups["waiting"], key=lambda n: n["node_id"])]
-    decision_id = str(
-        uuid.uuid5(
-            DECISION_ID_NAMESPACE,
-            f"{campaign_id}|{seed}|{generated_at}|{_nodes_digest(nodes)}",
-        )
+    # Deterministic engine-convention short id over the same semantic inputs
+    # the retired uuid5 derivation used: campaign id, seed, generated_at,
+    # store digest. Same inputs always give the same decision_id.
+    decision_id = derive_decision_id(
+        campaign_id, seed, generated_at, _nodes_digest(nodes)
     )
     return {
         "decision_id": decision_id,
@@ -309,10 +311,16 @@ def validate_allocation_decision(obj: Any) -> List[str]:
     if extra:
         problems.append(f"unexpected top-level keys: {extra}")
 
-    if "decision_id" in obj and not is_uuid_text(obj["decision_id"]):
-        problems.append(f"decision_id must be a UUID string, got {obj['decision_id']!r}")
-    if "campaign_id" in obj and not is_uuid_text(obj["campaign_id"]):
-        problems.append(f"campaign_id must be a UUID string, got {obj['campaign_id']!r}")
+    if "decision_id" in obj and not is_short_id_text(obj["decision_id"]):
+        problems.append(
+            f"decision_id is not an engine short id ({SHORT_ID_RE.pattern}), "
+            f"got {obj['decision_id']!r}"
+        )
+    if "campaign_id" in obj and not is_short_id_text(obj["campaign_id"]):
+        problems.append(
+            f"campaign_id is not an engine short id ({SHORT_ID_RE.pattern}), "
+            f"got {obj['campaign_id']!r}"
+        )
     if "generated_at" in obj and parse_datetime(obj["generated_at"]) is None:
         problems.append(
             f"generated_at must be an ISO 8601 date-time string, got {obj['generated_at']!r}"
@@ -356,8 +364,11 @@ def _validate_candidate(index: int, entry: Any) -> List[str]:
     if missing:
         return problems
 
-    if not isinstance(entry["node_id"], str) or not entry["node_id"].strip():
-        problems.append(f"{prefix}.node_id must be a non-empty string")
+    if not is_short_id_text(entry["node_id"]):
+        problems.append(
+            f"{prefix}.node_id is not an engine short id ({SHORT_ID_RE.pattern}), "
+            f"got {entry['node_id']!r}"
+        )
     if entry["allocation"] not in ALLOCATION_KINDS:
         problems.append(
             f"{prefix}.allocation must be one of {list(ALLOCATION_KINDS)}, "
@@ -403,8 +414,11 @@ def _validate_waiting(index: int, entry: Any) -> List[str]:
     if missing:
         return problems
 
-    if not isinstance(entry["node_id"], str) or not entry["node_id"].strip():
-        problems.append(f"{prefix}.node_id must be a non-empty string")
+    if not is_short_id_text(entry["node_id"]):
+        problems.append(
+            f"{prefix}.node_id is not an engine short id ({SHORT_ID_RE.pattern}), "
+            f"got {entry['node_id']!r}"
+        )
     condition = entry["activation_condition"]
     if not isinstance(condition, dict):
         problems.append(f"{prefix}.activation_condition must be an object")
@@ -517,7 +531,10 @@ def main(argv: Optional[List[str]] = None) -> int:
     )
     parser.add_argument(
         "--campaign-id", default=None,
-        help="campaign UUID (required if nodes file has no campaign_id; must match if both)",
+        help=(
+            "campaign short id (8-char engine convention; required if nodes file "
+            "has no campaign_id; must match if both)"
+        ),
     )
     parser.add_argument(
         "--artifact-dir", default=DEFAULT_ARTIFACT_DIR,

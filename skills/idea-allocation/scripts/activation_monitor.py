@@ -67,6 +67,11 @@ def build_rpc_payload(campaign_id: str, node_id: str, store_root: str) -> Dict[s
     stdin JSON for ``idea-rpc.mjs``: ``method`` and ``params`` at the top
     level, with ``store_root`` as a SIBLING of ``method``/``params`` (not
     inside ``params``).
+
+    ``campaign_id`` and ``node_id`` are engine short ids (validated at store
+    load). ``idempotency_key`` is pinned by the engine RPC contract
+    (idea_runtime_rpc_v1.openrpc.json) as a free-form non-empty string — not
+    a short id — so its deterministic uuid5 derivation stays as is.
     """
     idempotency_key = str(
         uuid.uuid5(ACTIVATION_KEY_NAMESPACE, f"{campaign_id}|{node_id}|active")
@@ -190,7 +195,10 @@ def main(argv: Optional[List[str]] = None) -> int:
     )
     parser.add_argument(
         "--campaign-id", default=None,
-        help="campaign UUID (required if nodes file has no campaign_id; must match if both)",
+        help=(
+            "campaign short id (8-char engine convention; required if nodes file "
+            "has no campaign_id; must match if both)"
+        ),
     )
     parser.add_argument(
         "--rpc-path", default=DEFAULT_RPC_PATH,

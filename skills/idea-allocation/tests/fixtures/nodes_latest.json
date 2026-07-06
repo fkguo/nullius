@@ -1,18 +1,18 @@
 {
-  "campaign_id": "0f3c2c8e-5df1-4a3a-9b6e-2f1a7c9d4e10",
+  "campaign_id": "0f3c2c8e",
   "nodes": [
     {
-      "node_id": "idea-alpha",
+      "node_id": "a1pha000",
       "lifecycle_state": "active",
       "posterior": {
         "value": 0.85,
         "evidence_count": 40,
         "updated_at": "2026-07-01T09:00:00Z",
-        "gaia_package_ref": "packages/idea-alpha/posterior-040"
+        "gaia_package_ref": "packages/a1pha000/posterior-040"
       }
     },
     {
-      "node_id": "idea-beta",
+      "node_id": "beta0000",
       "lifecycle_state": "active",
       "posterior": {
         "value": 0.2,
@@ -21,7 +21,7 @@
       }
     },
     {
-      "node_id": "idea-eta",
+      "node_id": "eta00000",
       "posterior": {
         "value": 0.55,
         "evidence_count": 12,
@@ -29,11 +29,11 @@
       }
     },
     {
-      "node_id": "idea-gamma",
+      "node_id": "gamma000",
       "lifecycle_state": "active"
     },
     {
-      "node_id": "idea-delta",
+      "node_id": "de1ta000",
       "lifecycle_state": "waiting_activation",
       "activation_condition": {
         "kind": "tool_readiness",
@@ -43,7 +43,7 @@
       }
     },
     {
-      "node_id": "idea-epsilon",
+      "node_id": "eps110n0",
       "lifecycle_state": "waiting_activation",
       "activation_condition": {
         "kind": "data_release",
@@ -53,7 +53,7 @@
       }
     },
     {
-      "node_id": "idea-iota",
+      "node_id": "10ta0000",
       "lifecycle_state": "waiting_activation",
       "activation_condition": {
         "kind": "stage_reached",
@@ -62,7 +62,7 @@
       }
     },
     {
-      "node_id": "idea-kappa",
+      "node_id": "kappa000",
       "lifecycle_state": "waiting_activation",
       "activation_condition": {
         "kind": "exploratory_computation",
@@ -71,7 +71,7 @@
       }
     },
     {
-      "node_id": "idea-lambda",
+      "node_id": "1ambda00",
       "lifecycle_state": "waiting_activation",
       "activation_condition": {
         "kind": "other",
@@ -80,7 +80,7 @@
       }
     },
     {
-      "node_id": "idea-zeta",
+      "node_id": "zeta0000",
       "lifecycle_state": "archived",
       "posterior": {
         "value": 0.1,

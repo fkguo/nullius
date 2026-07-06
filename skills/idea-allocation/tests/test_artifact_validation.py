@@ -3,20 +3,27 @@
 from __future__ import annotations
 
 import copy
+import json
+from pathlib import Path
 
+import pytest
+
+import nodes_store
 import thompson_allocation as ta
 
 
 def good_artifact():
+    # All handle ids are engine short ids: 8 chars of lowercase Crockford
+    # base32 (allocation_decision_v1 / idea_node_v1 convention).
     return {
-        "decision_id": "8c50c1f0-a41c-5d3e-9d1b-6f2a3b4c5d6e",
-        "campaign_id": "0f3c2c8e-5df1-4a3a-9b6e-2f1a7c9d4e10",
+        "decision_id": "8c50c1f0",
+        "campaign_id": "0f3c2c8e",
         "generated_at": "2026-07-05T00:00:00Z",
         "method": "thompson_sampling",
         "random_seed": 42,
         "candidates": [
             {
-                "node_id": "idea-alpha",
+                "node_id": "a1pha000",
                 "posterior_value": 0.85,
                 "evidence_count": 40,
                 "sampled_value": 0.8712,
@@ -24,7 +31,7 @@ def good_artifact():
                 "budget_note": "deep slot 1 of 1; sampled above posterior mean — exploration draw",
             },
             {
-                "node_id": "idea-gamma",
+                "node_id": "gamma000",
                 "posterior_value": None,
                 "evidence_count": None,
                 "sampled_value": None,
@@ -34,7 +41,7 @@ def good_artifact():
         ],
         "waiting_activation": [
             {
-                "node_id": "idea-delta",
+                "node_id": "de1ta000",
                 "activation_condition": {
                     "kind": "tool_readiness",
                     "description": "solver toolchain passes its seeded smoke run",
@@ -43,7 +50,7 @@ def good_artifact():
                 "last_checked_at": "2026-06-28T16:00:00Z",
             },
             {
-                "node_id": "idea-iota",
+                "node_id": "10ta0000",
                 "activation_condition": {
                     "kind": "stage_reached",
                     "description": "campaign reaches the calibration-complete milestone",
@@ -77,11 +84,97 @@ def test_missing_and_extra_top_level_keys():
     assert any("unexpected top-level keys" in p for p in probs)
 
 
-def test_bad_uuid_fields():
-    probs = problems_after(lambda a: a.__setitem__("decision_id", "not-a-uuid"))
-    assert any("decision_id" in p for p in probs)
+def test_bad_id_fields():
+    probs = problems_after(lambda a: a.__setitem__("decision_id", "not-a-short-id"))
+    assert any("decision_id" in p and "engine short id" in p for p in probs)
     probs = problems_after(lambda a: a.__setitem__("campaign_id", 42))
     assert any("campaign_id" in p for p in probs)
+
+
+@pytest.mark.parametrize("field", ["decision_id", "campaign_id"])
+@pytest.mark.parametrize(
+    "bad_value",
+    [
+        # The retired dashed-uuid convention is exactly what the engine
+        # contract excludes; it must be rejected, not tolerated.
+        "8c50c1f0-a41c-5d3e-9d1b-6f2a3b4c5d6e",
+        "abcdilou",   # 8 lowercase chars, but i/l/o/u sit outside Crockford
+        "8c50c1f",    # right alphabet, wrong length
+        "8C50C1F0",   # uppercase is excluded
+    ],
+)
+def test_top_level_ids_reject_non_engine_forms(field, bad_value):
+    probs = problems_after(lambda a: a.__setitem__(field, bad_value))
+    assert any(field in p and "engine short id" in p for p in probs)
+
+
+def test_node_ids_reject_non_engine_forms():
+    dashed = "4c9a2d10-7e5f-4b8a-9c3d-6e1f2a3b4c5d"
+
+    def bad_candidate(artifact):
+        artifact["candidates"][0]["node_id"] = dashed
+
+    assert any(
+        "node_id" in p and "engine short id" in p for p in problems_after(bad_candidate)
+    )
+
+    def bad_waiting(artifact):
+        artifact["waiting_activation"][0]["node_id"] = dashed
+
+    assert any(
+        "node_id" in p and "engine short id" in p for p in problems_after(bad_waiting)
+    )
+
+
+# ---------------------------------------------------------------------------
+# Anti-drift lock against the engine contract
+# ---------------------------------------------------------------------------
+
+ENGINE_ALLOCATION_SCHEMA = (
+    Path(__file__).resolve().parents[3]
+    / "packages"
+    / "idea-engine"
+    / "contracts"
+    / "idea-runtime-contracts"
+    / "schemas"
+    / "allocation_decision_v1.schema.json"
+)
+
+
+def test_short_id_pattern_matches_engine_contract():
+    """Anti-drift lock on the campaign-store seam: the skill validator's id
+    regex must be byte-for-byte the engine allocation_decision_v1 pattern for
+    decision_id, campaign_id, and both node_id fields. The pattern is read
+    from the engine schema file at test time, never copied here as a literal.
+    Skipped only when the skill runs standalone, away from the engine
+    contract tree."""
+    if not ENGINE_ALLOCATION_SCHEMA.is_file():
+        pytest.skip("engine contract tree not present (standalone install)")
+    schema = json.loads(ENGINE_ALLOCATION_SCHEMA.read_text(encoding="utf-8"))
+    props = schema["properties"]
+    engine_patterns = {
+        "decision_id": props["decision_id"]["pattern"],
+        "campaign_id": props["campaign_id"]["pattern"],
+        "candidates[].node_id": (
+            props["candidates"]["items"]["properties"]["node_id"]["pattern"]
+        ),
+        "waiting_activation[].node_id": (
+            props["waiting_activation"]["items"]["properties"]["node_id"]["pattern"]
+        ),
+    }
+    for field, engine_pattern in engine_patterns.items():
+        assert engine_pattern == nodes_store.SHORT_ID_RE.pattern, field
+
+
+def test_is_short_id_text_is_exactly_as_strict_as_the_engine_regex():
+    """The string-level pattern lock above cannot see cross-engine matching
+    semantics: Python's re.match + ``$`` accepts one trailing newline that the
+    engine-side JS regex rejects. is_short_id_text must use fullmatch."""
+    assert nodes_store.is_short_id_text("abcd1234")
+    assert not nodes_store.is_short_id_text("abcd1234\n")
+    assert not nodes_store.is_short_id_text("ABCD1234")
+    assert not nodes_store.is_short_id_text("abcd123")
+    assert not nodes_store.is_short_id_text("abcdilou")
 
 
 def test_bad_generated_at_and_method_and_seed():
