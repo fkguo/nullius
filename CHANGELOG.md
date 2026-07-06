@@ -7,6 +7,43 @@ occur in any `0.x` release, and there is no API-stability promise yet. Dated, ta
 releases begin at the first published release; until then the current development
 version is the lockstep number below.
 
+## [Unreleased]
+
+### Added
+- **`node.import_generated` — the derived-node entry point of the idea engine.**
+  One `generation_pack_v1` per generation burst (candidates with full provenance
+  PLUS the operator's own rejected candidates with reasons); a committed
+  operator-family arity table (`LiteratureMining` / `Mutation` / `Recombination` /
+  `AnalogyTransfer` / `FailureRouting`); retrieval-receipt coverage of every
+  evidence URI and a hard ban on the seed placeholder URI; survey-tension anchors
+  and re-anchored gap anchors; non-novel `delta_type` rejection; engine-side
+  deterministic idea-card assembly sharing the seed import's sanitize/hash
+  authority (promote-gate compatible by construction); batch-atomic `max_nodes`
+  budget enforcement; verbatim pack archival; and import-specific crash recovery
+  that completes partially landed effects from the archived pack instead of
+  re-minting ids.
+- **skill `idea-generation`** — the Explain-stage generation discipline:
+  evidence-delta triggers (`survey_updated` / `failure_recorded` / `manual`
+  enabled; the rest reserved vocabulary), one candidate per structurally distinct
+  anchor with per-anchor and per-burst quotas, mechanical dedup against every
+  campaign node (deterministic hashed char-3-gram cosine; ≥ 0.95 auto-drop,
+  ≥ 0.80 flagged pending human override), novelty stated as a falsifiable
+  closest-prior delta claim (never an LLM novelty score), and pack assembly +
+  submission scripts (stdlib Python ≥ 3.9) with anti-drift locks that read the
+  engine contract at test time.
+
+### Fixed
+- **Skill artifact ids converged to the engine 8-char short-id convention.**
+  `idea-pairwise-match` (validator, minting, docs, fixtures) and
+  `idea-allocation` (deterministic sha256-derived `decision_id`, id validation,
+  fixtures) both matched the engine schemas' `^[0123456789abcdefghjkmnpqrstvwxyz]{8}$`
+  contract only on paper before; each now carries an anti-drift test that reads
+  the engine schema pattern at test time, and Python-side validation uses
+  `fullmatch` so a trailing newline cannot slip past the `$` anchor.
+- **Cross-suite pytest collection defect**: allocation tests no longer import
+  `conftest` as a module (first-loaded conftest shadowed the rest when several
+  skills' suites ran in one pytest invocation).
+
 ## [0.5.0] - 2026-07-05
 
 ### Changed

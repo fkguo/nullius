@@ -1,6 +1,6 @@
 # @nullius/idea-engine
 
-TypeScript idea-campaign runtime and contract authority. Library-only — no CLI or MCP surface here (a thin stdin/stdout bridge, `bin/idea-rpc.mjs`, exposes the JSON-RPC service to local tooling). Owns the full runtime contract for `idea_campaign_*` lifecycle, node reads, node posterior/lifecycle updates (`node.set_posterior`, `node.set_lifecycle`), posterior-based `rank.compute`, and `node.promote`.
+TypeScript idea-campaign runtime and contract authority. Library-only — no CLI or MCP surface here (a thin stdin/stdout bridge, `bin/idea-rpc.mjs`, exposes the JSON-RPC service to local tooling). Owns the full runtime contract for `idea_campaign_*` lifecycle, node reads, node posterior/lifecycle updates (`node.set_posterior`, `node.set_lifecycle`), generation-pack import (`node.import_generated`), posterior-based `rank.compute`, and `node.promote`.
 
 ## Layer
 
@@ -12,11 +12,12 @@ Experimental runtime bridge (engine side) for the **probability-managed idea por
 - Nodes carry a lifecycle state (`active` / `waiting_activation` / `archived`); `waiting_activation` requires an explicit activation condition.
 - `rank.compute` orders active nodes by posterior (ties by evidence count, then stable order) and reports excluded nodes explicitly in `skipped_nodes`.
 - `node.promote` gates on idea-card completeness, grounding, active lifecycle, and a non-null posterior — no numeric posterior threshold; review audits anchors, not scores.
+- Derived (non-seed) nodes enter ONLY through `node.import_generated`: one `generation_pack_v1` per generation burst (candidates with full provenance plus the operator's own rejected candidates), validated against a committed operator-family arity table and retrieval-receipt rules, idea cards assembled deterministically engine-side (same explain-then-formalize trace as seed import), the pack archived verbatim as a campaign artifact, and the nodes budget enforced batch-atomically. Imported nodes are born with `posterior: null` — generation never scores.
 - Investment allocation is a decision-layer concern (`allocation_decision_v1` contract); the engine only stores beliefs and orderings.
 
 ## Boundary with `@nullius/idea-mcp`
 
-`idea-mcp` is the narrow stdio surface that delegates to this package via RPC. The MCP surface is intentionally narrower than the full runtime contract — node posterior/lifecycle updates, `rank.compute`, and `node.promote` stay inside this engine, not exposed as MCP tools.
+`idea-mcp` is the narrow stdio surface that delegates to this package via RPC. The MCP surface is intentionally narrower than the full runtime contract — node posterior/lifecycle updates, `node.import_generated`, `rank.compute`, and `node.promote` stay inside this engine, not exposed as MCP tools.
 
 ## Build & test
 
