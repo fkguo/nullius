@@ -166,6 +166,17 @@ def test_short_id_pattern_matches_engine_contract():
         assert engine_pattern == nodes_store.SHORT_ID_RE.pattern, field
 
 
+def test_is_short_id_text_is_exactly_as_strict_as_the_engine_regex():
+    """The string-level pattern lock above cannot see cross-engine matching
+    semantics: Python's re.match + ``$`` accepts one trailing newline that the
+    engine-side JS regex rejects. is_short_id_text must use fullmatch."""
+    assert nodes_store.is_short_id_text("abcd1234")
+    assert not nodes_store.is_short_id_text("abcd1234\n")
+    assert not nodes_store.is_short_id_text("ABCD1234")
+    assert not nodes_store.is_short_id_text("abcd123")
+    assert not nodes_store.is_short_id_text("abcdilou")
+
+
 def test_bad_generated_at_and_method_and_seed():
     probs = problems_after(lambda a: a.__setitem__("generated_at", "yesterday"))
     assert any("generated_at" in p for p in probs)

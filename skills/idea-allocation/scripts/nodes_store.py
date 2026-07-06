@@ -129,8 +129,12 @@ def parse_datetime(value: Any) -> Optional[datetime]:
 
 
 def is_short_id_text(value: Any) -> bool:
-    """True iff ``value`` is an engine short id (SHORT_ID_RE)."""
-    return isinstance(value, str) and bool(SHORT_ID_RE.match(value))
+    """True iff ``value`` is an engine short id (SHORT_ID_RE).
+
+    fullmatch: with re.match, the pattern's ``$`` would tolerate one trailing
+    newline that the engine-side JS regex rejects; stay exactly as strict.
+    """
+    return isinstance(value, str) and bool(SHORT_ID_RE.fullmatch(value))
 
 
 def _is_int(value: Any) -> bool:
