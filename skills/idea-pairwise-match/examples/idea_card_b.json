@@ -1,5 +1,5 @@
 {
-  "node_id": "2a7d0e6f-5b3c-4d9e-8f4a-0b1c2d3e4f5a",
+  "node_id": "2a7d0e6f",
   "title": "Dispersive continuation with explicitly tracked truncation error",
   "gist": "Reconstruct the target quantity in an adjacent kinematic-like region through a dispersive continuation whose truncation error is tracked explicitly, so the continuation comes with an uncertainty band instead of a point estimate.",
   "status": "active",

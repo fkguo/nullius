@@ -28,8 +28,8 @@ import argparse
 import hashlib
 import json
 import re
+import secrets
 import sys
-import uuid
 from pathlib import Path
 
 _SCRIPTS_DIR = Path(__file__).resolve().parent
@@ -67,9 +67,14 @@ overwhelm the literature and computation anchors accumulated in the argument
 graph. The cap is part of the honesty discipline on evidence weights.
 """
 
-UUID_RE = re.compile(
-    r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
-)
+# Engine short-id convention for handle ids (match_id, campaign_id, node ids):
+# 8 chars of lowercase Crockford base32 — digits + lowercase letters excluding
+# i/l/o/u. This is the exact alphabet and length pinned by the engine contracts
+# (pairwise_match_v1 / idea_node_v1 schemas) and packages/shared/src/short-id.ts;
+# never widen or substitute it here alone.
+SHORT_ID_ALPHABET = "0123456789abcdefghjkmnpqrstvwxyz"
+SHORT_ID_LENGTH = 8
+SHORT_ID_RE = re.compile(r"^[%s]{%d}$" % (SHORT_ID_ALPHABET, SHORT_ID_LENGTH))
 
 PANEL_ENTRY_KEYS = {
     "reviewer_family",
@@ -155,8 +160,18 @@ def observation_tier(tally):
 # Artifact validation (hand-rolled, field by field)
 # ---------------------------------------------------------------------------
 
-def _is_uuid(value):
-    return isinstance(value, str) and bool(UUID_RE.match(value))
+def _is_short_id(value):
+    # fullmatch: with re.match, the pattern's `$` would tolerate one trailing
+    # newline that the engine-side JS regex rejects; stay exactly as strict.
+    return isinstance(value, str) and bool(SHORT_ID_RE.fullmatch(value))
+
+
+def mint_short_id():
+    """Mint an engine-convention short id: SHORT_ID_LENGTH chars drawn
+    uniformly from SHORT_ID_ALPHABET with a CSPRNG (stdlib secrets)."""
+    return "".join(
+        secrets.choice(SHORT_ID_ALPHABET) for _ in range(SHORT_ID_LENGTH)
+    )
 
 
 def _check_timestamp(errors, label, value):
@@ -180,10 +195,12 @@ def validate_pairwise_match(obj):
         errors.append("missing top-level key: %s" % key)
 
     for key in ("match_id", "campaign_id", "idea_a_node_id", "idea_b_node_id"):
-        if key in obj and not _is_uuid(obj[key]):
-            errors.append("%s is not a lowercase dashed uuid" % key)
+        if key in obj and not _is_short_id(obj[key]):
+            errors.append(
+                "%s is not an engine short id (%s)" % (key, SHORT_ID_RE.pattern)
+            )
     if (
-        _is_uuid(obj.get("idea_a_node_id"))
+        _is_short_id(obj.get("idea_a_node_id"))
         and obj.get("idea_a_node_id") == obj.get("idea_b_node_id")
     ):
         errors.append("idea_a_node_id equals idea_b_node_id")
@@ -570,15 +587,21 @@ def assemble(
         raise MatchError("commitment failed validation: " + "; ".join(problems))
 
     for label, value in (("campaign_id", campaign_id), ("idea_a", idea_a), ("idea_b", idea_b)):
-        if not _is_uuid(value):
-            raise MatchError("%s is not a lowercase dashed uuid: %r" % (label, value))
+        if not _is_short_id(value):
+            raise MatchError(
+                "%s is not an engine short id (%s): %r"
+                % (label, SHORT_ID_RE.pattern, value)
+            )
     if idea_a == idea_b:
         raise MatchError("idea_a and idea_b are the same node")
 
     if match_id is None:
-        match_id = str(uuid.uuid4())
-    elif not _is_uuid(match_id):
-        raise MatchError("match_id is not a lowercase dashed uuid: %r" % match_id)
+        match_id = mint_short_id()
+    elif not _is_short_id(match_id):
+        raise MatchError(
+            "match_id is not an engine short id (%s): %r"
+            % (SHORT_ID_RE.pattern, match_id)
+        )
 
     statement_binding = None
     if materials_dir is not None:

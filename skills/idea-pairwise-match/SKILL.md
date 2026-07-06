@@ -30,7 +30,9 @@ with a lowered worth, and can win a later match when new evidence arrives.
 Two idea nodes from campaign storage, each with a complete idea card. The
 fields this protocol consumes:
 
-- `node_id`: lowercase dashed uuid.
+- `node_id`: engine short id — 8 chars of lowercase Crockford base32,
+  pattern `^[0123456789abcdefghjkmnpqrstvwxyz]{8}$` (the idea_node_v1
+  convention).
 - `title`, `gist`, `status`: short descriptive strings; the node should be
   active.
 - `claims`: non-empty array; each claim carries its `support_type`
@@ -53,8 +55,16 @@ Everything for one match lives under the campaign:
   `statement_a.md`, `statement_b.md`, and `panel/` (rendered judge prompt,
   votes, raw runner receipts, `panel_run_report.json`).
 
-Mint a fresh uuid for `match_id` when creating WORK, and keep it for the
-artifact.
+Mint a fresh engine short id for `match_id` when creating WORK (8 chars
+drawn from the exact alphabet `0123456789abcdefghjkmnpqrstvwxyz`), and keep
+it for the artifact:
+
+```bash
+python3 -c "import secrets; print(''.join(secrets.choice('0123456789abcdefghjkmnpqrstvwxyz') for _ in range(8)))"
+```
+
+(`assemble_match.py` mints one the same way when `--match-id` is omitted,
+but WORK is usually named before assembly, so mint up front.)
 
 ## Protocol
 
@@ -220,8 +230,8 @@ Validity and honest degradation:
 python3 scripts/assemble_match.py \
   --commitment WORK/commitment.json --votes-dir WORK/panel/votes \
   --materials-dir WORK --campaign-dir CAMPAIGN \
-  --campaign-id CAMPAIGN_UUID --idea-a NODE_A_UUID --idea-b NODE_B_UUID \
-  --match-id MATCH_UUID
+  --campaign-id CAMPAIGN_ID --idea-a NODE_A_ID --idea-b NODE_B_ID \
+  --match-id MATCH_ID
 ```
 
 The winner is the side with more votes; equal counts make the outcome a tie.
@@ -305,8 +315,9 @@ decides who plays. Defaults when nothing else is specified:
 Top-level fields (unknown keys are rejected by the validator):
 
 - `match_id`, `campaign_id`, and the two idea node id fields
-  (idea_a_node_id, idea_b_node_id): lowercase dashed uuids; the two node ids
-  must differ.
+  (idea_a_node_id, idea_b_node_id): engine short ids, exactly
+  `^[0123456789abcdefghjkmnpqrstvwxyz]{8}$` (the same convention as
+  idea_node_v1 ids); the two node ids must differ.
 - `criteria_commitment`: exactly `{committed_at, criteria, commitment_hash}`
   as written in Step 1; the validator recomputes the hash.
 - `panel`: array with one entry per voting family, each exactly
@@ -329,10 +340,10 @@ Example:
 
 ```json
 {
-  "match_id": "4c9a2d10-7e5f-4b8a-9c3d-6e1f2a3b4c5d",
-  "campaign_id": "3b8e1f70-6c4d-4e0f-9a5b-1c2d3e4f5a6b",
-  "idea_a_node_id": "1f6c9d5e-4a2b-4c8d-9e3f-7a1b2c3d4e5f",
-  "idea_b_node_id": "2a7d0e6f-5b3c-4d9e-8f4a-0b1c2d3e4f5a",
+  "match_id": "4c9a2d10",
+  "campaign_id": "3b8e1f70",
+  "idea_a_node_id": "1f6c9d5e",
+  "idea_b_node_id": "2a7d0e6f",
   "criteria_commitment": {
     "committed_at": "2026-07-05T08:00:00+00:00",
     "criteria": [
