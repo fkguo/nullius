@@ -80,9 +80,9 @@ describe('McpError retryable (H-01)', () => {
 // ── H-02: trace_id ──────────────────────────────────────────────────────────
 
 describe('trace_id (H-02)', () => {
-  it('generateTraceId returns UUID v4 format', () => {
+  it('generateTraceId returns a short handle id', () => {
     const id = generateTraceId();
-    expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    expect(id).toMatch(/^[0123456789abcdefghjkmnpqrstvwxyz]{8}$/);
   });
 
   it('generateTraceId returns unique values', () => {
@@ -99,13 +99,13 @@ describe('trace_id (H-02)', () => {
 
   it('extractTraceId generates new ID when _trace_id missing', () => {
     const { traceId, params } = extractTraceId({ foo: 'bar' });
-    expect(traceId).toMatch(/^[0-9a-f]{8}-/);
+    expect(traceId).toMatch(/^[0123456789abcdefghjkmnpqrstvwxyz]{8}$/);
     expect(params).toEqual({ foo: 'bar' });
   });
 
   it('extractTraceId generates new ID when _trace_id is empty', () => {
     const { traceId } = extractTraceId({ _trace_id: '  ' });
-    expect(traceId).toMatch(/^[0-9a-f]{8}-/);
+    expect(traceId).toMatch(/^[0123456789abcdefghjkmnpqrstvwxyz]{8}$/);
   });
 });
 

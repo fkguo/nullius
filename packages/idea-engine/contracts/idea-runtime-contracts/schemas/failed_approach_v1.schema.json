@@ -14,9 +14,9 @@
     "tags"
   ],
   "properties": {
-    "approach_id": { "type": "string", "format": "uuid" },
-    "campaign_id": { "type": "string", "format": "uuid" },
-    "idea_id": { "type": "string", "format": "uuid" },
+    "approach_id": { "type": "string", "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$" },
+    "campaign_id": { "type": "string", "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$" },
+    "idea_id": { "type": "string", "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$" },
     "approach_summary": { "type": "string", "minLength": 1 },
     "failure_mode": { "type": "string", "minLength": 1 },
     "failure_modes": {

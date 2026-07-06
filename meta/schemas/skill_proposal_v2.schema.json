@@ -8,7 +8,7 @@
   "properties": {
     "proposal_id": {
       "type": "string",
-      "pattern": "^sp_[0-9a-f-]+$",
+      "pattern": "^sp_[0-9a-z-]+$",
       "description": "Unique proposal identifier (ID-01 compliant)"
     },
     "proposal_type": {
@@ -174,11 +174,11 @@
       "properties": {
         "trace_id": {
           "type": "string",
-          "format": "uuid"
+          "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$"
         },
         "run_id": {
           "type": "string",
-          "pattern": "^run_[0-9a-f-]+$"
+          "pattern": "^run_[0-9a-z-]+$"
         },
         "file_path": {
           "type": "string"

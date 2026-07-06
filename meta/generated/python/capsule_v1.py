@@ -131,7 +131,7 @@ class CapsuleV1(BaseModel):
             description="H-18 ArtifactRef URI to capsule content (diff, patch). Full ArtifactRef object resolved via artifact store."
         ),
     ] = None
-    run_id: Annotated[str | None, Field(pattern="^run_[0-9a-f-]+$")] = None
+    run_id: Annotated[str | None, Field(pattern="^run_[0-9a-z-]+$")] = None
     node_id: Annotated[
         str | None,
         Field(

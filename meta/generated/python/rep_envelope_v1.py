@@ -5,7 +5,6 @@ from __future__ import annotations
 
 from enum import StrEnum
 from typing import Annotated, Any, Literal
-from uuid import UUID
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
 
@@ -59,7 +58,11 @@ class RepEnvelopeV1(BaseModel):
         ),
     ]
     message_id: Annotated[
-        UUID, Field(description="Unique message identifier (UUID v4).")
+        str,
+        Field(
+            description="Unique message identifier (short handle id).",
+            pattern="^[0123456789abcdefghjkmnpqrstvwxyz]{8}$",
+        ),
     ]
     sender_id: Annotated[
         str, Field(description="Identifier of the sending agent/server.", min_length=1)
@@ -94,7 +97,11 @@ class RepEnvelopeV1(BaseModel):
         ),
     ] = None
     trace_id: Annotated[
-        UUID | None, Field(description="Trace ID for cross-system correlation.")
+        str | None,
+        Field(
+            description="Trace ID for cross-system correlation.",
+            pattern="^[0123456789abcdefghjkmnpqrstvwxyz]{8}$",
+        ),
     ] = None
 
 
@@ -144,9 +151,10 @@ class RevisionOf(BaseModel):
         ),
     ]
     review_message_id: Annotated[
-        UUID | None,
+        str | None,
         Field(
-            description="message_id of the review that triggered this revision. Links the causal chain: review -> revision -> re-review."
+            description="message_id of the review that triggered this revision. Links the causal chain: review -> revision -> re-review.",
+            pattern="^[0123456789abcdefghjkmnpqrstvwxyz]{8}$",
         ),
     ] = None
 

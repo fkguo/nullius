@@ -1,18 +1,18 @@
 {
-  "campaign_id": "a79cfc51-2623-43b0-b2ba-b25bddf31378",
+  "campaign_id": "camprd01",
   "generated_at": "2026-07-05T00:00:05Z",
   "method": "posterior",
   "ranked_nodes": [
     {
-      "node_id": "1d96a82f-9246-436e-814c-50b94df7a578",
-      "idea_id": "aaaa1111-2222-4333-8444-555566667777",
+      "node_id": "ndread01",
+      "idea_id": "dearead1",
       "rank": 1,
       "posterior_value": 0.62,
       "evidence_count": 5
     },
     {
-      "node_id": "bbbb1111-2222-4333-8444-555566667777",
-      "idea_id": "cccc1111-2222-4333-8444-555566667777",
+      "node_id": "ndread02",
+      "idea_id": "dearead2",
       "rank": 2,
       "posterior_value": 0.34,
       "evidence_count": 2
@@ -20,7 +20,7 @@
   ],
   "skipped_nodes": [
     {
-      "node_id": "dddd1111-2222-4333-8444-555566667777",
+      "node_id": "ndread03",
       "reason": "waiting_activation"
     }
   ]

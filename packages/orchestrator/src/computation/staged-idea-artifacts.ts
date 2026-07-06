@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { invalidParams } from '@nullius/shared';
+import { invalidParams, isShortId } from '@nullius/shared';
 import type { OutlineSeedInput, StagedIdeaHints, StagedIdeaSurface } from './execution-plan.js';
 import { writeJsonAtomic } from './io.js';
 
@@ -9,8 +9,6 @@ export interface StagedIdeaHintsSnapshotV1 {
   source_handoff_uri: string;
   hints: StagedIdeaHints | null;
 }
-
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function parseJsonObject(filePath: string, label: string): Record<string, unknown> {
   let raw: unknown;
@@ -28,13 +26,13 @@ function parseJsonObject(filePath: string, label: string): Record<string, unknow
   return raw as Record<string, unknown>;
 }
 
-function requireUuidField(record: Record<string, unknown>, handoffUri: string, field: 'campaign_id' | 'node_id' | 'idea_id'): string {
+function requireHandleIdField(record: Record<string, unknown>, handoffUri: string, field: 'campaign_id' | 'node_id' | 'idea_id'): string {
   const value = record[field];
   if (typeof value !== 'string' || value.length === 0) {
     throw invalidParams(`IdeaHandoffC2 artifact missing ${field}`, { handoff_uri: handoffUri });
   }
-  if (!UUID_PATTERN.test(value)) {
-    throw invalidParams(`IdeaHandoffC2 artifact requires ${field} to be a UUID`, {
+  if (!isShortId(value)) {
+    throw invalidParams(`IdeaHandoffC2 artifact requires ${field} to be a short handle id`, {
       handoff_uri: handoffUri,
       field,
       value,
@@ -124,9 +122,9 @@ export function parseIdeaHandoffRecord(params: {
   hintsSnapshot: StagedIdeaHintsSnapshotV1;
 } {
   const { handoffRecord, handoffUri } = params;
-  requireUuidField(handoffRecord, handoffUri, 'campaign_id');
-  requireUuidField(handoffRecord, handoffUri, 'node_id');
-  requireUuidField(handoffRecord, handoffUri, 'idea_id');
+  requireHandleIdField(handoffRecord, handoffUri, 'campaign_id');
+  requireHandleIdField(handoffRecord, handoffUri, 'node_id');
+  requireHandleIdField(handoffRecord, handoffUri, 'idea_id');
   requireDateTimeField(handoffRecord, handoffUri, 'promoted_at');
 
   const groundingAudit = handoffRecord.grounding_audit;

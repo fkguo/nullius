@@ -5,7 +5,6 @@ from __future__ import annotations
 
 from enum import StrEnum
 from typing import Annotated, Any
-from uuid import UUID
 
 from pydantic import AnyUrl, AwareDatetime, BaseModel, ConfigDict, Field
 
@@ -98,8 +97,8 @@ class EvidenceTrace(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
-    trace_id: UUID
-    run_id: Annotated[str, Field(pattern="^run_[0-9a-f-]+$")]
+    trace_id: Annotated[str, Field(pattern="^[0123456789abcdefghjkmnpqrstvwxyz]{8}$")]
+    run_id: Annotated[str, Field(pattern="^run_[0-9a-z-]+$")]
     file_path: str
     timestamp: AwareDatetime
     artifact_uri: Annotated[
@@ -148,7 +147,7 @@ class SkillproposalV2(BaseModel):
         str,
         Field(
             description="Unique proposal identifier (ID-01 compliant)",
-            pattern="^sp_[0-9a-f-]+$",
+            pattern="^sp_[0-9a-z-]+$",
         ),
     ]
     proposal_type: Annotated[

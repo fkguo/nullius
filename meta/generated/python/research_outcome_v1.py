@@ -5,7 +5,6 @@ from __future__ import annotations
 
 from enum import StrEnum
 from typing import Annotated, Any, Literal
-from uuid import UUID
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
 
@@ -153,9 +152,10 @@ class ResearchoutcomeV1(BaseModel):
         ),
     ]
     lineage_id: Annotated[
-        UUID,
+        str,
         Field(
-            description="Stable identity across revisions (analogous to arXiv paper ID). Generated on first publication, inherited by all subsequent versions within the same research line."
+            description="Stable identity across revisions (analogous to arXiv paper ID). Generated on first publication, inherited by all subsequent versions within the same research line.",
+            pattern="^[0123456789abcdefghjkmnpqrstvwxyz]{8}$",
         ),
     ]
     version: Annotated[

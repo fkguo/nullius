@@ -8,14 +8,14 @@
         "id": "golden-campaign.status",
         "method": "campaign.status",
         "params": {
-          "campaign_id": "a79cfc51-2623-43b0-b2ba-b25bddf31378"
+          "campaign_id": "camprd01"
         }
       },
       "response": {
         "jsonrpc": "2.0",
         "id": "golden-campaign.status",
         "result": {
-          "campaign_id": "a79cfc51-2623-43b0-b2ba-b25bddf31378",
+          "campaign_id": "camprd01",
           "status": "running",
           "created_at": "2026-07-05T00:00:01Z",
           "budget_snapshot": {
@@ -41,17 +41,17 @@
         "id": "golden-node.get",
         "method": "node.get",
         "params": {
-          "campaign_id": "a79cfc51-2623-43b0-b2ba-b25bddf31378",
-          "node_id": "1d96a82f-9246-436e-814c-50b94df7a578"
+          "campaign_id": "camprd01",
+          "node_id": "ndread01"
         }
       },
       "response": {
         "jsonrpc": "2.0",
         "id": "golden-node.get",
         "result": {
-          "campaign_id": "a79cfc51-2623-43b0-b2ba-b25bddf31378",
-          "idea_id": "aaaa1111-2222-4333-8444-555566667777",
-          "node_id": "1d96a82f-9246-436e-814c-50b94df7a578",
+          "campaign_id": "camprd01",
+          "idea_id": "dearead1",
+          "node_id": "ndread01",
           "revision": 3,
           "parent_node_ids": [],
           "operator_id": "seed.import",
@@ -150,7 +150,7 @@
         "id": "golden-node.list",
         "method": "node.list",
         "params": {
-          "campaign_id": "a79cfc51-2623-43b0-b2ba-b25bddf31378",
+          "campaign_id": "camprd01",
           "limit": 2
         }
       },
@@ -158,12 +158,12 @@
         "jsonrpc": "2.0",
         "id": "golden-node.list",
         "result": {
-          "campaign_id": "a79cfc51-2623-43b0-b2ba-b25bddf31378",
+          "campaign_id": "camprd01",
           "nodes": [
             {
-              "campaign_id": "a79cfc51-2623-43b0-b2ba-b25bddf31378",
-              "idea_id": "aaaa1111-2222-4333-8444-555566667777",
-              "node_id": "1d96a82f-9246-436e-814c-50b94df7a578",
+              "campaign_id": "camprd01",
+              "idea_id": "dearead1",
+              "node_id": "ndread01",
               "revision": 3,
               "parent_node_ids": [],
               "operator_id": "seed.import",
@@ -254,9 +254,9 @@
               "updated_at": "2026-07-05T00:00:06Z"
             },
             {
-              "campaign_id": "a79cfc51-2623-43b0-b2ba-b25bddf31378",
-              "idea_id": "cccc1111-2222-4333-8444-555566667777",
-              "node_id": "bbbb1111-2222-4333-8444-555566667777",
+              "campaign_id": "camprd01",
+              "idea_id": "dearead2",
+              "node_id": "ndread02",
               "revision": 2,
               "parent_node_ids": [],
               "operator_id": "seed.import",
@@ -353,8 +353,8 @@
         "id": "golden-node.get-missing",
         "method": "node.get",
         "params": {
-          "campaign_id": "a79cfc51-2623-43b0-b2ba-b25bddf31378",
-          "node_id": "99999999-9999-4999-8999-999999999999"
+          "campaign_id": "camprd01",
+          "node_id": "ndread99"
         }
       },
       "response": {
@@ -365,8 +365,8 @@
           "message": "node_not_found",
           "data": {
             "reason": "node_not_found",
-            "campaign_id": "a79cfc51-2623-43b0-b2ba-b25bddf31378",
-            "node_id": "99999999-9999-4999-8999-999999999999"
+            "campaign_id": "camprd01",
+            "node_id": "ndread99"
           }
         }
       }
@@ -378,7 +378,7 @@
         "id": "golden-node.list-bad",
         "method": "node.list",
         "params": {
-          "campaign_id": "a79cfc51-2623-43b0-b2ba-b25bddf31378",
+          "campaign_id": "camprd01",
           "limit": 0
         }
       },

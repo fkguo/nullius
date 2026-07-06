@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { uniqueShortId } from '@nullius/shared';
 
 import { utcNowIso } from '../util.js';
 import { ALLOWED_TASK_FOLLOWUPS, TASK_TRANSITIONS, interactiveResearchLoopPolicy } from './policy.js';
@@ -97,7 +97,7 @@ export class ResearchLoopRuntime {
 
   createCheckpoint(meta: { source: ResearchTask['source']; actor_id?: string | null; label?: string }): ResearchCheckpoint {
     const checkpoint: ResearchCheckpoint = {
-      checkpoint_id: randomUUID(),
+      checkpoint_id: uniqueShortId(id => this.state.checkpoints.some(item => item.checkpoint_id === id)),
       created_at: utcNowIso(),
       label: meta.label ?? null,
       event_cursor: this.state.events.length,
@@ -135,7 +135,7 @@ export class ResearchLoopRuntime {
     payload?: Record<string, unknown>;
   }): LoopIntervention {
     const intervention: LoopIntervention = {
-      intervention_id: randomUUID(),
+      intervention_id: uniqueShortId(id => this.state.interventions.some(item => item.intervention_id === id)),
       intervention_kind: input.intervention_kind,
       created_at: utcNowIso(),
       source: input.source,
@@ -154,7 +154,7 @@ export class ResearchLoopRuntime {
     this.ensureWorkspaceNode(input.target_node_id);
     const timestamp = utcNowIso();
     const task: ResearchTask = {
-      task_id: randomUUID(),
+      task_id: uniqueShortId(id => this.state.tasks.some(item => item.task_id === id)),
       kind: input.kind,
       title: input.title,
       target_node_id: input.target_node_id,
@@ -181,7 +181,7 @@ export class ResearchLoopRuntime {
     handoffId: string | null = null,
   ): void {
     this.state.events.push({
-      event_id: randomUUID(),
+      event_id: uniqueShortId(id => this.state.events.some(item => item.event_id === id)),
       event_type: eventType,
       created_at: utcNowIso(),
       source: meta.source,

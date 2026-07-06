@@ -104,7 +104,7 @@
           "name": "campaign_id",
           "schema": {
             "type": "string",
-            "format": "uuid"
+            "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$"
           },
           "required": true
         }
@@ -132,7 +132,7 @@
           "name": "campaign_id",
           "schema": {
             "type": "string",
-            "format": "uuid"
+            "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$"
           },
           "required": true
         },
@@ -183,7 +183,7 @@
           "name": "campaign_id",
           "schema": {
             "type": "string",
-            "format": "uuid"
+            "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$"
           },
           "required": true
         },
@@ -223,7 +223,7 @@
           "name": "campaign_id",
           "schema": {
             "type": "string",
-            "format": "uuid"
+            "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$"
           },
           "required": true
         },
@@ -267,7 +267,7 @@
           "name": "campaign_id",
           "schema": {
             "type": "string",
-            "format": "uuid"
+            "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$"
           },
           "required": true
         },
@@ -303,7 +303,7 @@
           "name": "campaign_id",
           "schema": {
             "type": "string",
-            "format": "uuid"
+            "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$"
           },
           "required": true
         },
@@ -311,7 +311,7 @@
           "name": "node_id",
           "schema": {
             "type": "string",
-            "format": "uuid"
+            "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$"
           },
           "required": true
         }
@@ -347,7 +347,7 @@
           "name": "campaign_id",
           "schema": {
             "type": "string",
-            "format": "uuid"
+            "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$"
           },
           "required": true
         },
@@ -398,7 +398,7 @@
           "name": "campaign_id",
           "schema": {
             "type": "string",
-            "format": "uuid"
+            "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$"
           },
           "required": true
         },
@@ -406,7 +406,7 @@
           "name": "node_id",
           "schema": {
             "type": "string",
-            "format": "uuid"
+            "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$"
           },
           "required": true
         },
@@ -488,7 +488,7 @@
           "name": "campaign_id",
           "schema": {
             "type": "string",
-            "format": "uuid"
+            "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$"
           },
           "required": true
         },
@@ -496,7 +496,7 @@
           "name": "node_id",
           "schema": {
             "type": "string",
-            "format": "uuid"
+            "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$"
           },
           "required": true
         },
@@ -600,7 +600,7 @@
           "name": "campaign_id",
           "schema": {
             "type": "string",
-            "format": "uuid"
+            "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$"
           },
           "required": true
         },
@@ -608,7 +608,7 @@
           "name": "node_id",
           "schema": {
             "type": "string",
-            "format": "uuid"
+            "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$"
           },
           "required": true
         },
@@ -676,7 +676,7 @@
           "name": "campaign_id",
           "schema": {
             "type": "string",
-            "format": "uuid"
+            "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$"
           },
           "required": true
         },

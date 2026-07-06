@@ -19,15 +19,15 @@
   "properties": {
     "campaign_id": {
       "type": "string",
-      "format": "uuid"
+      "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$"
     },
     "idea_id": {
       "type": "string",
-      "format": "uuid"
+      "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$"
     },
     "node_id": {
       "type": "string",
-      "format": "uuid"
+      "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$"
     },
     "revision": {
       "type": "integer",
@@ -38,7 +38,7 @@
       "type": "array",
       "items": {
         "type": "string",
-        "format": "uuid"
+        "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$"
       }
     },
     "island_id": {

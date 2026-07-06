@@ -1,9 +1,8 @@
-import { randomUUID } from 'node:crypto';
 import type { IntegrityReport } from '../src/model/integrity-report.js';
 import type { ResearchEvent } from '../src/model/research-event.js';
 import type { ResearchOutcome, ResearchOutcomeStatus } from '../src/model/research-outcome.js';
 import type { ResearchStrategy } from '../src/model/research-strategy.js';
-import { assignContentAddress, sha256Hex } from '../src/protocol/index.js';
+import { assignContentAddress, sha256Hex, shortId } from '../src/protocol/index.js';
 
 export function createStrategy(): ResearchStrategy {
   const strategy: ResearchStrategy = {
@@ -39,7 +38,7 @@ export function createOutcome(
   const outcome: ResearchOutcome = {
     schema_version: 1,
     outcome_id: '',
-    lineage_id: overrides.lineage_id ?? randomUUID(),
+    lineage_id: overrides.lineage_id ?? shortId(),
     version: overrides.version ?? 1,
     strategy_ref: strategy.strategy_id,
     status,
@@ -123,7 +122,7 @@ export function createIntegrityReport(outcome: ResearchOutcome, status: Integrit
 export function createOutcomePublishedEvent(outcome: ResearchOutcome): ResearchEvent {
   return {
     schema_version: 1,
-    event_id: randomUUID(),
+    event_id: shortId(),
     event_type: 'outcome_published',
     timestamp: '2026-03-24T00:00:00.000Z',
     run_id: 'run-1',

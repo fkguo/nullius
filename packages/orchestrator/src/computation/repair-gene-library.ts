@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { shortId } from '@nullius/shared';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { GeneV1, MutationProposalV1 } from '@nullius/shared';
@@ -143,7 +143,7 @@ export async function maybeGenerateRepairProposal(params: {
   }
 
   const proposal: MutationProposalV1 = {
-    proposal_id: `mp_${randomUUID()}`,
+    proposal_id: `mp_${shortId()}`,
     mutation_type: 'repair',
     gene_id: gene.gene_id,
     signals: params.signals,

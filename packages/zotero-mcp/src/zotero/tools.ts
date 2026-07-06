@@ -1,9 +1,9 @@
 import * as fs from 'fs';
-import { createHash, randomUUID } from 'crypto';
+import { createHash } from 'crypto';
 import * as os from 'os';
 import * as path from 'path';
 
-import { invalidParams, McpError, notFound, upstreamError, writeBytesAtomicDurable } from '@nullius/shared';
+import { invalidParams, McpError, notFound, shortId, upstreamError, writeBytesAtomicDurable } from '@nullius/shared';
 
 import type { Paper } from '@nullius/shared';
 import * as inspireApi from './inspireClient.js';
@@ -542,7 +542,7 @@ export async function zoteroDownloadAttachment(params: { attachment_key: string 
     };
   }
 
-  const tmpName = `zotero-mcp-${attachmentKey}-${randomUUID()}`;
+  const tmpName = `zotero-mcp-${attachmentKey}-${shortId()}`;
   const tmpPath = path.join(os.tmpdir(), tmpName);
   writeBytesAtomicDurable(tmpPath, Buffer.from(fileRes.bytes));
   const sha256 = inspireApi.sha256Hex(fileRes.bytes);

@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { createHash, randomUUID } from 'crypto';
-import { appendJsonlDurable, invalidParams } from '@nullius/shared';
+import { createHash } from 'crypto';
+import { appendJsonlDurable, invalidParams, shortId } from '@nullius/shared';
 import type { ComputationEvidenceCatalogItemV1 } from '@nullius/shared';
 import { getRunDir } from '../core/paths.js';
 import { resolvePathWithinParent } from '../data/pathGuard.js';
@@ -89,7 +89,7 @@ export async function ingestSkillArtifacts(
   }
 
   const now = new Date().toISOString();
-  const stepId = providedStepId ?? randomUUID();
+  const stepId = providedStepId ?? shortId();
 
   // Infer skill_id from directory name
   const skillId = path.basename(resolvedArtifactsDir);

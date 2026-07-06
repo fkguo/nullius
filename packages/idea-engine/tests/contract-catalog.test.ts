@@ -4,10 +4,10 @@ import { ContractRuntimeError, IdeaEngineContractCatalog } from '../src/contract
 const catalog = new IdeaEngineContractCatalog();
 
 const VALID_PAIRWISE_MATCH = {
-  match_id: '11111111-1111-4111-8111-111111111111',
-  campaign_id: '22222222-2222-4222-8222-222222222222',
-  idea_a_node_id: '33333333-3333-4333-8333-333333333333',
-  idea_b_node_id: '44444444-4444-4444-8444-444444444444',
+  match_id: 'mtch0001',
+  campaign_id: 'cmpn0001',
+  idea_a_node_id: 'ndae0001',
+  idea_b_node_id: 'ndbe0001',
   criteria_commitment: {
     committed_at: '2026-07-05T00:00:00Z',
     criteria: ['mechanism plausibility against cited sources'],
@@ -57,14 +57,14 @@ const VALID_PAIRWISE_MATCH = {
 };
 
 const VALID_ALLOCATION_DECISION = {
-  decision_id: '55555555-5555-4555-8555-555555555555',
-  campaign_id: '22222222-2222-4222-8222-222222222222',
+  decision_id: 'dcsn0001',
+  campaign_id: 'cmpn0001',
   generated_at: '2026-07-05T02:00:00Z',
   method: 'thompson_sampling',
   random_seed: 20260705,
   candidates: [
     {
-      node_id: '33333333-3333-4333-8333-333333333333',
+      node_id: 'ndae0001',
       posterior_value: 0.62,
       evidence_count: 5,
       sampled_value: 0.71,
@@ -72,7 +72,7 @@ const VALID_ALLOCATION_DECISION = {
       budget_note: 'one focused derivation cycle',
     },
     {
-      node_id: '44444444-4444-4444-8444-444444444444',
+      node_id: 'ndbe0001',
       posterior_value: 0.31,
       evidence_count: 2,
       sampled_value: 0.28,
@@ -82,7 +82,7 @@ const VALID_ALLOCATION_DECISION = {
   ],
   waiting_activation: [
     {
-      node_id: '66666666-6666-4666-8666-666666666666',
+      node_id: 'ndwt0001',
       activation_condition: {
         kind: 'data_release',
         description: 'next experimental data release',
@@ -155,7 +155,7 @@ describe('contract catalog: decision-layer schemas', () => {
     const coldStart = structuredClone(VALID_ALLOCATION_DECISION) as Record<string, unknown>;
     coldStart.candidates = [
       {
-        node_id: '33333333-3333-4333-8333-333333333333',
+        node_id: 'ndae0001',
         posterior_value: null,
         evidence_count: null,
         sampled_value: null,
@@ -199,9 +199,9 @@ describe('contract catalog: decision-layer schemas', () => {
 
   it('validates idea_node_v1 with the portfolio fields and rejects the removed eval_info field', () => {
     const node = {
-      campaign_id: '22222222-2222-4222-8222-222222222222',
-      idea_id: '77777777-7777-4777-8777-777777777777',
-      node_id: '88888888-8888-4888-8888-888888888888',
+      campaign_id: 'cmpn0001',
+      idea_id: 'deaa0001',
+      node_id: 'ndce0001',
       revision: 3,
       parent_node_ids: [],
       operator_id: 'seed.import',

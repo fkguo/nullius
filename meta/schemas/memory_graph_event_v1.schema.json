@@ -15,12 +15,12 @@
     },
     "run_id": {
       "type": ["string", "null"],
-      "pattern": "^run_[0-9a-f-]+$",
+      "pattern": "^run_[0-9a-z-]+$",
       "description": "Run ID (null for cross-run context events)"
     },
     "trace_id": {
       "type": ["string", "null"],
-      "format": "uuid",
+      "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$",
       "description": "Trace ID from H-02 observability"
     },
     "payload": {

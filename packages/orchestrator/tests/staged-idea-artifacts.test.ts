@@ -21,9 +21,9 @@ function writeJson(filePath: string, payload: unknown): void {
 
 function makeHandoff(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
-    campaign_id: '11111111-1111-4111-8111-111111111111',
-    node_id: '22222222-2222-4222-8222-222222222222',
-    idea_id: '33333333-3333-4333-8333-333333333333',
+    campaign_id: 'cccccc01',
+    node_id: 'nnnnnn02',
+    idea_id: 'dddddd03',
     promoted_at: '2026-03-13T00:00:00Z',
     idea_card: {
       thesis_statement: 'Canonical staged-idea parsing should stay generic and fail closed.',
@@ -79,9 +79,9 @@ describe('staged idea artifacts contract', () => {
       version: 1,
       source_handoff_uri: handoffUri,
       hints: {
-        campaign_id: '11111111-1111-4111-8111-111111111111',
-        node_id: '22222222-2222-4222-8222-222222222222',
-        idea_id: '33333333-3333-4333-8333-333333333333',
+        campaign_id: 'cccccc01',
+        node_id: 'nnnnnn02',
+        idea_id: 'dddddd03',
         promoted_at: '2026-03-13T00:00:00Z',
         required_observables: ['observable_a'],
         candidate_formalisms: ['dispersion'],
@@ -112,9 +112,9 @@ describe('staged idea artifacts contract', () => {
         message: /missing campaign_id/i,
       },
       {
-        label: 'non-uuid node_id',
-        handoffRecord: makeHandoff({ node_id: 'not-a-uuid' }),
-        message: /node_id.*uuid/i,
+        label: 'non-short-id node_id',
+        handoffRecord: makeHandoff({ node_id: 'not-a-short-id' }),
+        message: /node_id.*short handle id/i,
       },
       {
         label: 'non-iso promoted_at',
@@ -201,7 +201,7 @@ describe('staged idea artifacts contract', () => {
       source_handoff_uri: handoffPath,
     });
     expect(staged.hints).toMatchObject({
-      campaign_id: '11111111-1111-4111-8111-111111111111',
+      campaign_id: 'cccccc01',
       method_spec: {
         family: 'dispersion',
         target: 'HLbL',

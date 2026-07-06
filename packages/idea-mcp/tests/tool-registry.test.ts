@@ -79,7 +79,7 @@ describe('idea-mcp tool registry', () => {
     })).toThrow();
 
     expect(() => getTool('idea_campaign_topup').schema.parse({
-      campaign_id: '11111111-1111-4111-8111-111111111111',
+      campaign_id: 'c4mp41gn',
       topup: {},
       idempotency_key: 'empty-topup',
     })).toThrow();
@@ -119,7 +119,7 @@ describe('B-10 regression — destructive tool gate', () => {
   it('idea_campaign_complete schema REJECTS missing _confirm', () => {
     const tool = getTool('idea_campaign_complete');
     expect(() => tool.schema.parse({
-      campaign_id: '11111111-1111-4111-8111-111111111111',
+      campaign_id: 'c4mp41gn',
       idempotency_key: 'complete-without-confirm',
     })).toThrow();
   });
@@ -127,7 +127,7 @@ describe('B-10 regression — destructive tool gate', () => {
   it('idea_campaign_complete schema REJECTS _confirm: false', () => {
     const tool = getTool('idea_campaign_complete');
     expect(() => tool.schema.parse({
-      campaign_id: '11111111-1111-4111-8111-111111111111',
+      campaign_id: 'c4mp41gn',
       idempotency_key: 'complete-with-false',
       _confirm: false,
     })).toThrow();
@@ -136,7 +136,7 @@ describe('B-10 regression — destructive tool gate', () => {
   it('idea_campaign_complete schema REJECTS _confirm: "true" (string, not boolean)', () => {
     const tool = getTool('idea_campaign_complete');
     expect(() => tool.schema.parse({
-      campaign_id: '11111111-1111-4111-8111-111111111111',
+      campaign_id: 'c4mp41gn',
       idempotency_key: 'complete-with-string',
       _confirm: 'true',
     })).toThrow();
@@ -145,14 +145,14 @@ describe('B-10 regression — destructive tool gate', () => {
   it('idea_campaign_complete schema ACCEPTS _confirm: true', () => {
     const tool = getTool('idea_campaign_complete');
     const parsed = tool.schema.parse({
-      campaign_id: '11111111-1111-4111-8111-111111111111',
+      campaign_id: 'c4mp41gn',
       idempotency_key: 'complete-with-confirm',
       _confirm: true,
     });
     // Verify the parsed object DOES carry _confirm (server strips it later
     // before forwarding to rpc.call — see server.test.ts for that lock).
     expect(parsed).toMatchObject({
-      campaign_id: '11111111-1111-4111-8111-111111111111',
+      campaign_id: 'c4mp41gn',
       idempotency_key: 'complete-with-confirm',
       _confirm: true,
     });
@@ -165,7 +165,7 @@ describe('B-10 regression — destructive tool gate', () => {
       const tool = getTool(name);
       expect(
         () => tool.schema.parse({
-          campaign_id: '11111111-1111-4111-8111-111111111111',
+          campaign_id: 'c4mp41gn',
           idempotency_key: 'unused',
           _confirm: true,
         }),

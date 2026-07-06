@@ -22,7 +22,7 @@
       "name": "numeric_formatting",
       "payload": {
         "fraction": 4.5,
-        "integer_like": 1.0,
+        "integer_like": 1,
         "scientific_big": 1e+30,
         "scientific_small": 0.000001,
         "precise": 333333333.3333333
@@ -35,20 +35,20 @@
       "name": "node_list_default_limit_omitted",
       "method": "node.list",
       "params": {
-        "campaign_id": "11111111-1111-4111-8111-111111111111",
+        "campaign_id": "phcamp01",
         "idempotency_key": "unused"
       },
-      "expected_hash": "sha256:fe5242bd28a82930763e147fb6d9c1a197c54ce55b22a0ae52747e51d977162d"
+      "expected_hash": "sha256:d8f05019829611e5c62c42e182e2a924f3bc7569886639fce851481fafd7fffb"
     },
     {
       "name": "node_list_default_limit_explicit",
       "method": "node.list",
       "params": {
-        "campaign_id": "11111111-1111-4111-8111-111111111111",
+        "campaign_id": "phcamp01",
         "limit": 50,
         "idempotency_key": "unused"
       },
-      "expected_hash": "sha256:fe5242bd28a82930763e147fb6d9c1a197c54ce55b22a0ae52747e51d977162d"
+      "expected_hash": "sha256:d8f05019829611e5c62c42e182e2a924f3bc7569886639fce851481fafd7fffb"
     }
   ]
 }

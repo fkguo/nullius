@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { shortId } from './short-id.js';
 import type {
   RepEnvelope,
   RepEnvelopeByType,
@@ -27,7 +27,7 @@ export function createEnvelope<TType extends RepMessageType>(
     protocol: 'rep-a2a',
     protocol_version: options.protocolVersion ?? '1.0',
     message_type: options.messageType,
-    message_id: options.messageId ?? randomUUID(),
+    message_id: options.messageId ?? shortId(),
     sender_id: options.senderId,
     recipient_id: options.recipientId,
     timestamp: options.timestamp ?? new Date().toISOString(),

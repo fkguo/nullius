@@ -1,5 +1,5 @@
 {
-  "campaign_id": "a79cfc51-2623-43b0-b2ba-b25bddf31378",
+  "campaign_id": "camprd01",
   "grounding_audit": {
     "status": "pass",
     "folklore_risk_score": 0.1,
@@ -31,7 +31,7 @@
       }
     ]
   },
-  "idea_id": "aaaa1111-2222-4333-8444-555566667777",
-  "node_id": "1d96a82f-9246-436e-814c-50b94df7a578",
+  "idea_id": "dearead1",
+  "node_id": "ndread01",
   "promoted_at": "2026-07-05T00:00:06Z"
 }

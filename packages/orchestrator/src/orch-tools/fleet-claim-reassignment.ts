@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { shortId } from '@nullius/shared';
 import {
   invalidParams,
   notFound,
@@ -152,7 +152,7 @@ export async function handleOrchFleetReassignClaim(
   }
 
   const nextClaim = buildFleetLeaseClaim({
-    claim_id: `fqc_${randomUUID()}`,
+    claim_id: `fqc_${shortId()}`,
     owner_id: parsed.target_worker_id,
     claimed_at: utcNowIso(),
     lease_duration_seconds: claim.lease_duration_seconds,

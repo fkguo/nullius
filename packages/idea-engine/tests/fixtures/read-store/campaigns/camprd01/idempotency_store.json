@@ -18,7 +18,7 @@
           "nodes_used": 3,
           "nodes_remaining": 61
         },
-        "campaign_id": "a79cfc51-2623-43b0-b2ba-b25bddf31378",
+        "campaign_id": "camprd01",
         "idempotency": {
           "idempotency_key": "read-sp-1",
           "is_replay": false,
@@ -26,9 +26,9 @@
         },
         "node": {
           "activation_condition": null,
-          "idea_id": "aaaa1111-2222-4333-8444-555566667777",
+          "idea_id": "dearead1",
           "lifecycle_state": "active",
-          "node_id": "1d96a82f-9246-436e-814c-50b94df7a578",
+          "node_id": "ndread01",
           "posterior": {
             "value": 0.62,
             "evidence_count": 5,
@@ -60,7 +60,7 @@
           "nodes_used": 3,
           "nodes_remaining": 61
         },
-        "campaign_id": "a79cfc51-2623-43b0-b2ba-b25bddf31378",
+        "campaign_id": "camprd01",
         "idempotency": {
           "idempotency_key": "read-sp-2",
           "is_replay": false,
@@ -68,9 +68,9 @@
         },
         "node": {
           "activation_condition": null,
-          "idea_id": "cccc1111-2222-4333-8444-555566667777",
+          "idea_id": "dearead2",
           "lifecycle_state": "active",
-          "node_id": "bbbb1111-2222-4333-8444-555566667777",
+          "node_id": "ndread02",
           "posterior": {
             "value": 0.34,
             "evidence_count": 2,
@@ -101,7 +101,7 @@
           "nodes_used": 3,
           "nodes_remaining": 61
         },
-        "campaign_id": "a79cfc51-2623-43b0-b2ba-b25bddf31378",
+        "campaign_id": "camprd01",
         "idempotency": {
           "idempotency_key": "read-sl-3",
           "is_replay": false,
@@ -113,9 +113,9 @@
             "description": "waiting on the next public data release",
             "satisfied": false
           },
-          "idea_id": "eeee1111-2222-4333-8444-555566667777",
+          "idea_id": "dearead3",
           "lifecycle_state": "waiting_activation",
-          "node_id": "dddd1111-2222-4333-8444-555566667777",
+          "node_id": "ndread03",
           "posterior": null,
           "revision": 2,
           "updated_at": "2026-07-05T00:00:04Z"
@@ -142,7 +142,7 @@
           "nodes_used": 3,
           "nodes_remaining": 61
         },
-        "campaign_id": "a79cfc51-2623-43b0-b2ba-b25bddf31378",
+        "campaign_id": "camprd01",
         "generated_at": "2026-07-05T00:00:05Z",
         "idempotency": {
           "idempotency_key": "read-rank-1",
@@ -152,24 +152,24 @@
         "method": "posterior",
         "ranked_nodes": [
           {
-            "node_id": "1d96a82f-9246-436e-814c-50b94df7a578",
-            "idea_id": "aaaa1111-2222-4333-8444-555566667777",
+            "node_id": "ndread01",
+            "idea_id": "dearead1",
             "rank": 1,
             "posterior_value": 0.62,
             "evidence_count": 5
           },
           {
-            "node_id": "bbbb1111-2222-4333-8444-555566667777",
-            "idea_id": "cccc1111-2222-4333-8444-555566667777",
+            "node_id": "ndread02",
+            "idea_id": "dearead2",
             "rank": 2,
             "posterior_value": 0.34,
             "evidence_count": 2
           }
         ],
-        "ranking_artifact_ref": "file:///home/user/Coding/Agents/nullius/.claude/worktrees/agent-a3cee3eb3010a50eb/packages/idea-engine/tests/fixtures/read-store/campaigns/a79cfc51-2623-43b0-b2ba-b25bddf31378/artifacts/rankings/ranking-20260705000005.json",
+        "ranking_artifact_ref": "file:///home/user/Coding/Agents/nullius/.claude/worktrees/agent-a3cee3eb3010a50eb/packages/idea-engine/tests/fixtures/read-store/campaigns/camprd01/artifacts/rankings/ranking-20260705000005.json",
         "skipped_nodes": [
           {
-            "node_id": "dddd1111-2222-4333-8444-555566667777",
+            "node_id": "ndread03",
             "reason": "waiting_activation"
           }
         ]
@@ -195,21 +195,21 @@
           "nodes_used": 3,
           "nodes_remaining": 61
         },
-        "campaign_id": "a79cfc51-2623-43b0-b2ba-b25bddf31378",
+        "campaign_id": "camprd01",
         "grounding_audit_summary": {
           "failures": [],
           "folklore_risk_score": 0.1,
           "status": "pass"
         },
-        "handoff_artifact_ref": "file:///home/user/Coding/Agents/nullius/.claude/worktrees/agent-a3cee3eb3010a50eb/packages/idea-engine/tests/fixtures/read-store/campaigns/a79cfc51-2623-43b0-b2ba-b25bddf31378/artifacts/handoff/handoff-1d96a82f-9246-436e-814c-50b94df7a578.json",
+        "handoff_artifact_ref": "file:///home/user/Coding/Agents/nullius/.claude/worktrees/agent-a3cee3eb3010a50eb/packages/idea-engine/tests/fixtures/read-store/campaigns/camprd01/artifacts/handoff/handoff-ndread01.json",
         "has_reduction_report": false,
-        "idea_id": "aaaa1111-2222-4333-8444-555566667777",
+        "idea_id": "dearead1",
         "idempotency": {
           "idempotency_key": "read-promote-1",
           "is_replay": false,
           "payload_hash": "sha256:00f62044db5d75d79bc6c999bb6074812f70638ae3b66978a89173dfeb07276d"
         },
-        "node_id": "1d96a82f-9246-436e-814c-50b94df7a578",
+        "node_id": "ndread01",
         "reduction_audit_summary": null
       }
     }

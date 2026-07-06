@@ -154,7 +154,7 @@ export const HepRunIngestSkillArtifactsToolSchema = z.object({
   run_id: SafePathSegmentSchema,
   skill_artifacts_dir: z.string().min(1).describe('Absolute path to skill artifacts directory (must be within run_dir)'),
   manifest_path: z.string().optional().describe('Optional path to computation_manifest_v1.json (within run_dir)'),
-  step_id: z.string().min(1).optional().describe('Optional manifest step_id for traceability (generated UUID if omitted)'),
+  step_id: z.string().min(1).optional().describe('Optional manifest step_id for traceability (generated short id if omitted)'),
   tags: z.array(z.string()).max(20).optional().describe('Classification tags (e.g. feyncalc, one-loop)'),
 });
 

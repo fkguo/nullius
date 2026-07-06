@@ -18,19 +18,19 @@
   "properties": {
     "match_id": {
       "type": "string",
-      "format": "uuid"
+      "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$"
     },
     "campaign_id": {
       "type": "string",
-      "format": "uuid"
+      "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$"
     },
     "idea_a_node_id": {
       "type": "string",
-      "format": "uuid"
+      "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$"
     },
     "idea_b_node_id": {
       "type": "string",
-      "format": "uuid"
+      "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$"
     },
     "criteria_commitment": {
       "type": "object",
@@ -185,7 +185,7 @@
           "type": "object",
           "required": ["idea_node_id", "content_sha256"],
           "properties": {
-            "idea_node_id": { "type": "string", "format": "uuid" },
+            "idea_node_id": { "type": "string", "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$" },
             "content_sha256": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }
           },
           "additionalProperties": false
@@ -194,7 +194,7 @@
           "type": "object",
           "required": ["idea_node_id", "content_sha256"],
           "properties": {
-            "idea_node_id": { "type": "string", "format": "uuid" },
+            "idea_node_id": { "type": "string", "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$" },
             "content_sha256": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }
           },
           "additionalProperties": false

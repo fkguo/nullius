@@ -14,7 +14,7 @@
   "properties": {
     "campaign_id": {
       "type": "string",
-      "format": "uuid"
+      "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$"
     },
     "status": {
       "const": "running",

@@ -74,9 +74,9 @@ function createBridgeRun(runId: string, projectRoot: string) {
 
 function createIdeaOriginBridgeRun(runId: string, projectRoot: string) {
   const runDir = path.join(projectRoot, runId);
-  const campaignId = '11111111-1111-4111-8111-111111111111';
-  const nodeId = '22222222-2222-4222-8222-222222222222';
-  const ideaId = '33333333-3333-4333-8333-333333333333';
+  const campaignId = 'cccccc01';
+  const nodeId = 'nnnnnn02';
+  const ideaId = 'dddddd03';
   const handoffPath = path.join(projectRoot, 'idea-store', 'campaigns', campaignId, 'artifacts', 'handoff', `handoff-${nodeId}.json`);
   fs.mkdirSync(path.dirname(handoffPath), { recursive: true });
   const handoffRecord = {

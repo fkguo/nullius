@@ -1,4 +1,5 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
+import { shortId } from '@nullius/shared';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { ComputationManifestV1, ComputationResultV1, MutationProposalV1 } from '@nullius/shared';
@@ -78,7 +79,7 @@ function buildProposal(params: {
 }): MutationProposalV1 {
   const hash = createHash('sha1').update(params.signalSummary.join('|')).digest('hex').slice(0, 8);
   return {
-    proposal_id: `mp_${randomUUID()}`,
+    proposal_id: `mp_${shortId()}`,
     mutation_type: params.kind,
     gene_id: `gene_${params.kind}_${hash}`,
     signals: params.signalSummary,

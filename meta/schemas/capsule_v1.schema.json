@@ -62,7 +62,7 @@
     },
     "run_id": {
       "type": ["string", "null"],
-      "pattern": "^run_[0-9a-f-]+$"
+      "pattern": "^run_[0-9a-z-]+$"
     },
     "node_id": {
       "type": ["string", "null"],

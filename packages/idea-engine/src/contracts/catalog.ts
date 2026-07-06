@@ -34,10 +34,6 @@ function formatValidationError(errors: AjvValidator['errors']): string {
   return `schema_invalid at '${location}': ${first.message ?? 'validation failed'}`;
 }
 
-function isUuid(value: string): boolean {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
-}
-
 function isDateTime(value: string): boolean {
   return typeof value === 'string' && value.includes('T') && !Number.isNaN(Date.parse(value));
 }
@@ -71,7 +67,6 @@ export class IdeaEngineContractCatalog {
       validateFormats: true,
       addUsedSchema: false,
     });
-    this.ajv.addFormat('uuid', isUuid);
     this.ajv.addFormat('date-time', isDateTime);
     this.ajv.addFormat('uri', isUri);
     this.loadSchemas();

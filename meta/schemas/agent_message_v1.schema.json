@@ -24,8 +24,7 @@
     },
     "trace_id": {
       "type": "string",
-      "format": "uuid",
-      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+      "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$"
     },
     "run_id": {
       "type": ["string", "null"]
@@ -122,8 +121,7 @@
         },
         "trace_id": {
           "type": "string",
-          "format": "uuid",
-          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+          "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$"
         },
         "data": {
           "type": ["object", "null"]

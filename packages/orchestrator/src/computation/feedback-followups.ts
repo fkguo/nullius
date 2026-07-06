@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { shortId } from '@nullius/shared';
 import { utcNowIso } from '../util.js';
 import type { ResearchHandoff } from '../research-loop/handoff-types.js';
 import type { ResearchLoopRuntime } from '../research-loop/runtime.js';
@@ -129,7 +129,7 @@ function runtimeHandoff(
   seed: NonNullable<WritingFollowupWorkspaceSeed['handoff']> | NonNullable<WritingFollowupWorkspaceSeed['reviewTask']>['handoff'],
 ): DelegatedFollowupHandoff {
   const base = {
-    handoff_id: randomUUID(),
+    handoff_id: shortId(),
     workspace_id: `workspace:${runId}`,
     source_task_id: sourceTaskId,
     target_node_id: seed.target_node_id,

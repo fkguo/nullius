@@ -27,7 +27,7 @@
     },
     "lineage_id": {
       "type": "string",
-      "format": "uuid",
+      "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$",
       "description": "Stable identity across revisions (analogous to arXiv paper ID). Generated on first publication, inherited by all subsequent versions within the same research line."
     },
     "version": {

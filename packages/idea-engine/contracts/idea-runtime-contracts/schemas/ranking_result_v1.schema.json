@@ -6,7 +6,7 @@
   "type": "object",
   "required": ["campaign_id", "method", "generated_at", "ranked_nodes", "skipped_nodes", "budget_snapshot", "idempotency", "ranking_artifact_ref"],
   "properties": {
-    "campaign_id": { "type": "string", "format": "uuid" },
+    "campaign_id": { "type": "string", "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$" },
     "method": { "const": "posterior" },
     "generated_at": { "type": "string", "format": "date-time" },
     "ranked_nodes": {
@@ -15,8 +15,8 @@
         "type": "object",
         "required": ["node_id", "idea_id", "rank", "posterior_value", "evidence_count"],
         "properties": {
-          "node_id": { "type": "string", "format": "uuid" },
-          "idea_id": { "type": "string", "format": "uuid" },
+          "node_id": { "type": "string", "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$" },
+          "idea_id": { "type": "string", "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$" },
           "rank": { "type": "integer", "minimum": 1 },
           "posterior_value": { "type": "number", "minimum": 0, "maximum": 1 },
           "evidence_count": { "type": "integer", "minimum": 0 }
@@ -31,7 +31,7 @@
         "type": "object",
         "required": ["node_id", "reason"],
         "properties": {
-          "node_id": { "type": "string", "format": "uuid" },
+          "node_id": { "type": "string", "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$" },
           "reason": { "enum": ["no_posterior", "waiting_activation", "archived"] }
         },
         "additionalProperties": false

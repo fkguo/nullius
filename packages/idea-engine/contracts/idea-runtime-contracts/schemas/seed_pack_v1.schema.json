@@ -13,7 +13,7 @@
         "type": "object",
         "required": ["seed_type", "content"],
         "properties": {
-          "seed_id": { "type": "string", "format": "uuid" },
+          "seed_id": { "type": "string", "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$" },
           "seed_type": { "type": "string", "minLength": 1 },
           "content": { "type": "string", "minLength": 1 },
           "source_uris": { "type": "array", "items": { "type": "string", "format": "uri" } },

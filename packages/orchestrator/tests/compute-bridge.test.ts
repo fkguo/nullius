@@ -41,9 +41,9 @@ function stagedIdeaSurface() {
       source_handoff_uri: 'hep://runs/source-run/artifact/idea_handoff_c2_v1.json',
     },
     hints: {
-      campaign_id: '00000000-0000-0000-0000-000000000001',
-      node_id: '00000000-0000-0000-0000-000000000002',
-      idea_id: '00000000-0000-0000-0000-000000000003',
+      campaign_id: 'cccccc01',
+      node_id: 'nnnnnn02',
+      idea_id: 'dddddd03',
       promoted_at: '2026-03-13T00:00:00Z',
       required_observables: ['observable_a'],
       minimal_compute_plan: [

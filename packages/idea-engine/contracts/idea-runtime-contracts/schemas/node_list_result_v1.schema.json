@@ -6,7 +6,7 @@
   "type": "object",
   "required": ["campaign_id", "nodes", "cursor", "total_count"],
   "properties": {
-    "campaign_id": { "type": "string", "format": "uuid" },
+    "campaign_id": { "type": "string", "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$" },
     "nodes": { "type": "array", "items": { "$ref": "./idea_node_v1.schema.json" } },
     "cursor": {
       "type": ["string", "null"],

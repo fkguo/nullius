@@ -5,7 +5,7 @@
 export interface ResearchEventV1 {
   schema_version: 1;
   /**
-   * Unique event identifier (UUID v4).
+   * Unique event identifier (short handle id).
    */
   event_id: string;
   /**
@@ -38,7 +38,7 @@ export interface ResearchEventV1 {
    */
   run_id: string;
   /**
-   * Trace ID for cross-layer correlation (UUID v4).
+   * Trace ID for cross-layer correlation (short handle id).
    */
   trace_id?: string;
   /**
@@ -243,7 +243,7 @@ export interface IntegrityCheckCompletedPayload {
  */
 export interface SignalDetectedPayload {
   /**
-   * Reference to the ResearchSignal (UUID v4, matches ResearchSignal.signal_id).
+   * Reference to the ResearchSignal (short handle id, matches ResearchSignal.signal_id).
    */
   signal_id: string;
   signal_type:

@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { shortId } from '@nullius/shared';
 import { utcNowIso } from './util.js';
 import {
   appendRegisteredAssignment,
@@ -123,7 +123,7 @@ function resolveAffectedAssignments(
 
 function buildRecord(command: TeamInterventionCommand, timestamp: string): TeamInterventionRecord {
   return {
-    intervention_id: randomUUID(),
+    intervention_id: shortId(),
     kind: command.kind,
     scope: command.scope,
     actor_role: command.actor_role,

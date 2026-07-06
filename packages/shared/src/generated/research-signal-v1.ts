@@ -5,7 +5,7 @@
 export interface ResearchSignalV1 {
   schema_version: 1;
   /**
-   * Unique signal identifier (UUID v4).
+   * Unique signal identifier (short handle id).
    */
   signal_id: string;
   /**

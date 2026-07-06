@@ -1,31 +1,15 @@
 /**
  * H-02: Minimal observability — trace_id generation and extraction.
  *
- * Every MCP tool call gets a trace_id (UUID v4) for cross-component correlation.
- * Callers may pass `_trace_id` in tool params to propagate an existing trace;
- * otherwise a new one is generated.
+ * Every MCP tool call gets a trace_id (short handle id) for cross-component
+ * correlation. Callers may pass `_trace_id` in tool params to propagate an
+ * existing trace; otherwise a new one is generated.
  */
+import { shortId } from './short-id.js';
 
-/** Generate a new trace_id (UUID v4). */
+/** Generate a new trace_id (short handle id; see `@nullius/shared` shortId). */
 export function generateTraceId(): string {
-  // Simple UUID v4 without node:crypto dependency (shared must stay platform-agnostic).
-  const hex = '0123456789abcdef';
-  const segments = [8, 4, 4, 4, 12];
-  return segments
-    .map((len, i) => {
-      let s = '';
-      for (let j = 0; j < len; j++) {
-        if (i === 2 && j === 0) {
-          s += '4'; // version nibble
-        } else if (i === 3 && j === 0) {
-          s += hex[(Math.random() * 4 + 8) | 0]; // variant nibble 8-b
-        } else {
-          s += hex[(Math.random() * 16) | 0];
-        }
-      }
-      return s;
-    })
-    .join('-');
+  return shortId();
 }
 
 /**

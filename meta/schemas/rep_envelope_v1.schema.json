@@ -30,8 +30,8 @@
     },
     "message_id": {
       "type": "string",
-      "format": "uuid",
-      "description": "Unique message identifier (UUID v4)."
+      "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$",
+      "description": "Unique message identifier (short handle id)."
     },
     "sender_id": {
       "type": "string",
@@ -77,7 +77,7 @@
     },
     "trace_id": {
       "type": "string",
-      "format": "uuid",
+      "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$",
       "description": "Trace ID for cross-system correlation."
     }
   },
@@ -176,7 +176,7 @@
             },
             "review_message_id": {
               "type": "string",
-              "format": "uuid",
+              "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$",
               "description": "message_id of the review that triggered this revision. Links the causal chain: review -> revision -> re-review."
             }
           },

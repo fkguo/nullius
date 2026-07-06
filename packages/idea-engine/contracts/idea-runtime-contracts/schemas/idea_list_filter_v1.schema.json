@@ -5,8 +5,8 @@
   "description": "Filter options for listing IdeaNodes in a campaign.",
   "type": "object",
   "properties": {
-    "idea_id": { "type": "string", "format": "uuid" },
-    "node_id": { "type": "string", "format": "uuid" },
+    "idea_id": { "type": "string", "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$" },
+    "node_id": { "type": "string", "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$" },
     "island_id": { "type": "string", "minLength": 1, "description": "Filter on the historical origin/lineage tag (present only on nodes from earlier campaign runs)." },
     "operator_id": { "type": "string", "minLength": 1 },
     "has_idea_card": { "type": "boolean" },

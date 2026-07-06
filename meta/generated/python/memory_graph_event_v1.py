@@ -5,7 +5,6 @@ from __future__ import annotations
 
 from enum import StrEnum
 from typing import Annotated, Any, Literal
-from uuid import UUID
 
 from pydantic import AnyUrl, AwareDatetime, BaseModel, ConfigDict, Field
 
@@ -124,11 +123,15 @@ class MemorygrapheventV1(BaseModel):
         str | None,
         Field(
             description="Run ID (null for cross-run context events)",
-            pattern="^run_[0-9a-f-]+$",
+            pattern="^run_[0-9a-z-]+$",
         ),
     ] = None
     trace_id: Annotated[
-        UUID | None, Field(description="Trace ID from H-02 observability")
+        str | None,
+        Field(
+            description="Trace ID from H-02 observability",
+            pattern="^[0123456789abcdefghjkmnpqrstvwxyz]{8}$",
+        ),
     ] = None
     payload: Annotated[
         dict[str, Any],

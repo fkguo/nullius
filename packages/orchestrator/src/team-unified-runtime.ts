@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { shortId } from '@nullius/shared';
 import { appendTeamEvent } from './team-execution-events.js';
 import { findMatchingAssignment } from './team-execution-assignment-builder.js';
 import {
@@ -65,7 +65,7 @@ export async function executeUnifiedTeamRuntime(
   };
   const preparedAssignments = input.assignments.map(assignment => ({
     ...assignment,
-    assignment_id: assignment.assignment_id ?? randomUUID(),
+    assignment_id: assignment.assignment_id ?? shortId(),
   }));
   const [headAssignment] = preparedAssignments;
   if (!headAssignment) throw new Error('team runtime requires at least one assignment');

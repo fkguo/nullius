@@ -9,8 +9,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import * as crypto from 'crypto';
-import { commitStagedDurable, invalidParams, notFound, upstreamError } from '@nullius/shared';
+import { commitStagedDurable, invalidParams, notFound, upstreamError, uniqueShortId } from '@nullius/shared';
 import { openalexFetch, getCostSummary, getResponseMeta, isBudgetExceeded } from './rateLimiter.js';
 import { buildQueryParams } from './paramMapping.js';
 import { augmentSelect } from './selectAugment.js';
@@ -158,7 +157,7 @@ async function paginatedFetch<T>(
   // Bulk mode: auto-paginate via cursor, write JSONL to file
   const resultsDir = path.join(dataDir ?? getDataDir(), 'results');
   ensureDir(resultsDir);
-  const fileId = crypto.randomUUID();
+  const fileId = uniqueShortId((id) => fs.existsSync(path.join(resultsDir, `${id}.jsonl`)));
   const outFile = path.join(resultsDir, `${fileId}.jsonl`);
   const tmpFile = `${outFile}.tmp`;
 

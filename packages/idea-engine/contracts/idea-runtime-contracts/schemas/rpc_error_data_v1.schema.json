@@ -13,17 +13,17 @@
     },
     "campaign_id": {
       "type": "string",
-      "format": "uuid",
+      "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$",
       "description": "Optional campaign scope identifier for correlation (when applicable)."
     },
     "node_id": {
       "type": "string",
-      "format": "uuid",
+      "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$",
       "description": "Optional node identifier for correlation (when applicable)."
     },
     "idea_id": {
       "type": "string",
-      "format": "uuid",
+      "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$",
       "description": "Optional idea identifier for correlation (when applicable)."
     },
     "idempotency_key": {

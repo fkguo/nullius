@@ -5,7 +5,6 @@ from __future__ import annotations
 
 from enum import StrEnum
 from typing import Annotated, Literal
-from uuid import UUID
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
 
@@ -171,7 +170,9 @@ class ReproducibilityreportV1Deviationreport(BaseModel):
     run_id: Annotated[
         str | None, Field(description="Run in which this verification was performed.")
     ] = None
-    trace_id: UUID | None = None
+    trace_id: Annotated[
+        str | None, Field(pattern="^[0123456789abcdefghjkmnpqrstvwxyz]{8}$")
+    ] = None
     created_at: Annotated[AwareDatetime, Field(description="ISO 8601 UTC Z timestamp.")]
     duration_ms: Annotated[
         int | None,

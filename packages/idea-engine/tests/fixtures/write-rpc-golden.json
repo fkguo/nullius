@@ -4,11 +4,11 @@
       "name": "campaign.init happy path then replay",
       "now": "2026-03-14T12:00:00Z",
       "uuid_sequence": [
-        "11111111-1111-4111-8111-111111111111",
-        "22222222-2222-4222-8222-222222222222",
-        "33333333-3333-4333-8333-333333333333",
-        "44444444-4444-4444-8444-444444444444",
-        "55555555-5555-4555-8555-555555555555"
+        "a1111111",
+        "b2222222",
+        "c3333333",
+        "d4444444",
+        "e5555555"
       ],
       "initial_store": {},
       "steps": [
@@ -50,7 +50,7 @@
             "jsonrpc": "2.0",
             "id": "write-init-happy",
             "result": {
-              "campaign_id": "11111111-1111-4111-8111-111111111111",
+              "campaign_id": "a1111111",
               "status": "running",
               "created_at": "2026-03-14T12:00:00Z",
               "budget_snapshot": {
@@ -111,7 +111,7 @@
             "jsonrpc": "2.0",
             "id": "write-init-happy",
             "result": {
-              "campaign_id": "11111111-1111-4111-8111-111111111111",
+              "campaign_id": "a1111111",
               "status": "running",
               "created_at": "2026-03-14T12:00:00Z",
               "budget_snapshot": {
@@ -136,8 +136,8 @@
         }
       ],
       "expected_store": {
-        "campaigns/11111111-1111-4111-8111-111111111111/campaign.json": {
-          "campaign_id": "11111111-1111-4111-8111-111111111111",
+        "campaigns/a1111111/campaign.json": {
+          "campaign_id": "a1111111",
           "charter": {
             "campaign_name": "write-side-fixture",
             "domain": "test-domain",
@@ -173,11 +173,11 @@
             "nodes_used": 2
           }
         },
-        "campaigns/11111111-1111-4111-8111-111111111111/nodes_latest.json": {
-          "22222222-2222-4222-8222-222222222222": {
-            "campaign_id": "11111111-1111-4111-8111-111111111111",
-            "idea_id": "33333333-3333-4333-8333-333333333333",
-            "node_id": "22222222-2222-4222-8222-222222222222",
+        "campaigns/a1111111/nodes_latest.json": {
+          "b2222222": {
+            "campaign_id": "a1111111",
+            "idea_id": "c3333333",
+            "node_id": "b2222222",
             "revision": 1,
             "parent_node_ids": [],
             "operator_id": "seed.import",
@@ -256,10 +256,10 @@
             "reduction_audit": null,
             "created_at": "2026-03-14T12:00:00Z"
           },
-          "44444444-4444-4444-8444-444444444444": {
-            "campaign_id": "11111111-1111-4111-8111-111111111111",
-            "idea_id": "55555555-5555-4555-8555-555555555555",
-            "node_id": "44444444-4444-4444-8444-444444444444",
+          "d4444444": {
+            "campaign_id": "a1111111",
+            "idea_id": "e5555555",
+            "node_id": "d4444444",
             "revision": 1,
             "parent_node_ids": [],
             "operator_id": "seed.import",
@@ -339,15 +339,15 @@
             "created_at": "2026-03-14T12:00:00Z"
           }
         },
-        "campaigns/11111111-1111-4111-8111-111111111111/nodes_log.jsonl": [
+        "campaigns/a1111111/nodes_log.jsonl": [
           {
             "mutation": "create",
-            "node_id": "22222222-2222-4222-8222-222222222222",
+            "node_id": "b2222222",
             "revision": 1,
             "node": {
-              "campaign_id": "11111111-1111-4111-8111-111111111111",
-              "idea_id": "33333333-3333-4333-8333-333333333333",
-              "node_id": "22222222-2222-4222-8222-222222222222",
+              "campaign_id": "a1111111",
+              "idea_id": "c3333333",
+              "node_id": "b2222222",
               "revision": 1,
               "parent_node_ids": [],
               "operator_id": "seed.import",
@@ -429,12 +429,12 @@
           },
           {
             "mutation": "create",
-            "node_id": "44444444-4444-4444-8444-444444444444",
+            "node_id": "d4444444",
             "revision": 1,
             "node": {
-              "campaign_id": "11111111-1111-4111-8111-111111111111",
-              "idea_id": "55555555-5555-4555-8555-555555555555",
-              "node_id": "44444444-4444-4444-8444-444444444444",
+              "campaign_id": "a1111111",
+              "idea_id": "e5555555",
+              "node_id": "d4444444",
               "revision": 1,
               "parent_node_ids": [],
               "operator_id": "seed.import",
@@ -523,7 +523,7 @@
             "response": {
               "kind": "result",
               "payload": {
-                "campaign_id": "11111111-1111-4111-8111-111111111111",
+                "campaign_id": "a1111111",
                 "status": "running",
                 "created_at": "2026-03-14T12:00:00Z",
                 "budget_snapshot": {
@@ -553,9 +553,9 @@
       "name": "campaign.init idempotency conflict",
       "now": "2026-03-14T12:05:00Z",
       "uuid_sequence": [
-        "66666666-6666-4666-8666-666666666666",
-        "77777777-7777-4777-8777-777777777777",
-        "88888888-8888-4888-8888-888888888888"
+        "f6666666",
+        "g7777777",
+        "h8888888"
       ],
       "initial_store": {},
       "steps": [
@@ -593,7 +593,7 @@
             "jsonrpc": "2.0",
             "id": "write-init-conflict",
             "result": {
-              "campaign_id": "66666666-6666-4666-8666-666666666666",
+              "campaign_id": "f6666666",
               "status": "running",
               "created_at": "2026-03-14T12:05:00Z",
               "budget_snapshot": {
@@ -665,8 +665,8 @@
         }
       ],
       "expected_store": {
-        "campaigns/66666666-6666-4666-8666-666666666666/campaign.json": {
-          "campaign_id": "66666666-6666-4666-8666-666666666666",
+        "campaigns/f6666666/campaign.json": {
+          "campaign_id": "f6666666",
           "charter": {
             "campaign_name": "write-side-fixture",
             "domain": "test-domain",
@@ -698,11 +698,11 @@
             "nodes_used": 1
           }
         },
-        "campaigns/66666666-6666-4666-8666-666666666666/nodes_latest.json": {
-          "77777777-7777-4777-8777-777777777777": {
-            "campaign_id": "66666666-6666-4666-8666-666666666666",
-            "idea_id": "88888888-8888-4888-8888-888888888888",
-            "node_id": "77777777-7777-4777-8777-777777777777",
+        "campaigns/f6666666/nodes_latest.json": {
+          "g7777777": {
+            "campaign_id": "f6666666",
+            "idea_id": "h8888888",
+            "node_id": "g7777777",
             "revision": 1,
             "parent_node_ids": [],
             "operator_id": "seed.import",
@@ -782,15 +782,15 @@
             "created_at": "2026-03-14T12:05:00Z"
           }
         },
-        "campaigns/66666666-6666-4666-8666-666666666666/nodes_log.jsonl": [
+        "campaigns/f6666666/nodes_log.jsonl": [
           {
             "mutation": "create",
-            "node_id": "77777777-7777-4777-8777-777777777777",
+            "node_id": "g7777777",
             "revision": 1,
             "node": {
-              "campaign_id": "66666666-6666-4666-8666-666666666666",
-              "idea_id": "88888888-8888-4888-8888-888888888888",
-              "node_id": "77777777-7777-4777-8777-777777777777",
+              "campaign_id": "f6666666",
+              "idea_id": "h8888888",
+              "node_id": "g7777777",
               "revision": 1,
               "parent_node_ids": [],
               "operator_id": "seed.import",
@@ -879,7 +879,7 @@
             "response": {
               "kind": "result",
               "payload": {
-                "campaign_id": "66666666-6666-4666-8666-666666666666",
+                "campaign_id": "f6666666",
                 "status": "running",
                 "created_at": "2026-03-14T12:05:00Z",
                 "budget_snapshot": {
@@ -909,9 +909,9 @@
       "name": "campaign.init prepared record recovery",
       "now": "2026-03-14T12:10:00Z",
       "uuid_sequence": [
-        "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-        "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
-        "cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+        "aaaaaaaa",
+        "bbbbbbbb",
+        "cccccccc"
       ],
       "initial_store": {
         "global/idempotency_store.json": {
@@ -922,7 +922,7 @@
             "response": {
               "kind": "result",
               "payload": {
-                "campaign_id": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+                "campaign_id": "dddddddd",
                 "status": "running",
                 "created_at": "2026-03-14T12:09:00Z",
                 "budget_snapshot": {
@@ -1005,7 +1005,7 @@
             "response": {
               "kind": "result",
               "payload": {
-                "campaign_id": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+                "campaign_id": "dddddddd",
                 "status": "running",
                 "created_at": "2026-03-14T12:09:00Z",
                 "budget_snapshot": {

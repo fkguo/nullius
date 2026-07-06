@@ -33,9 +33,9 @@ describe('orch_run_stage_idea', () => {
     const runDir = path.join(tmpDir, 'domain-run-1');
     const handoffPath = path.join(tmpDir, 'idea_handoff_c2_v1.json');
     writeJson(handoffPath, {
-      campaign_id: '11111111-1111-4111-8111-111111111111',
-      node_id: '22222222-2222-4222-8222-222222222222',
-      idea_id: '33333333-3333-4333-8333-333333333333',
+      campaign_id: 'cccccc01',
+      node_id: 'nnnnnn02',
+      idea_id: 'dddddd03',
       promoted_at: '2026-03-13T00:00:00Z',
       grounding_audit: {
         status: 'pass',

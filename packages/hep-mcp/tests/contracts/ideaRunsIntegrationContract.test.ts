@@ -8,9 +8,9 @@ import { getRun } from '../../src/core/runs.js';
 
 function makeHandoff(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
-    campaign_id: '11111111-1111-4111-8111-111111111111',
-    node_id: '22222222-2222-4222-8222-222222222222',
-    idea_id: '33333333-3333-4333-8333-333333333333',
+    campaign_id: 'camp0001',
+    node_id: 'n0de0002',
+    idea_id: '1dea0003',
     promoted_at: '2026-01-01T00:00:00Z',
     idea_card: {
       thesis_statement: 'Dispersive constraints can tighten hadronic light-by-light uncertainty in muon g-2.',

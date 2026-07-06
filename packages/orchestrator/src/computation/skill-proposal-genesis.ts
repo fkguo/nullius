@@ -1,4 +1,5 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
+import { shortId } from '@nullius/shared';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { ComputationManifestV1, ComputationResultV1, SkillProposalV2 } from '@nullius/shared';
@@ -27,8 +28,9 @@ function packageSignature(manifest: ComputationManifestV1): { workflowSignature:
 }
 
 function artifactUriToPseudoTraceId(uri: string): string {
-  const hash = createHash('sha1').update(uri).digest('hex');
-  return `${hash.slice(0, 8)}-${hash.slice(8, 12)}-${hash.slice(12, 16)}-${hash.slice(16, 20)}-${hash.slice(20, 32)}`;
+  // Deterministic short handle id: first 8 hex chars are a valid short-id
+  // (hex is a strict subset of the Crockford base32 alphabet).
+  return createHash('sha1').update(uri).digest('hex').slice(0, 8);
 }
 
 function readJsonIfExists<T>(filePath: string): T | null {
@@ -130,7 +132,7 @@ export function maybeGenerateSkillProposal(params: {
   }
 
   const proposal: SkillProposalV2 = {
-    proposal_id: `sp_${randomUUID()}`,
+    proposal_id: `sp_${shortId()}`,
     proposal_type: 'new_skill',
     origin: 'agent_trace',
     name: `package-playbook-${createHash('sha1').update(signature.workflowSignature).digest('hex').slice(0, 8)}`,

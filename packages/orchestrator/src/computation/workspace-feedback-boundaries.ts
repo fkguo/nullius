@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { shortId } from '@nullius/shared';
 import type { ComputationResultV1 } from '@nullius/shared';
 import { utcNowIso } from '../util.js';
 import { loopNodeIdsFor } from './feedback-lowering.js';
@@ -49,7 +49,7 @@ function upsertEdge(workspaceFeedback: WorkspaceFeedback, edge: WorkspaceEdge): 
 
 function appendEvent(workspaceFeedback: WorkspaceFeedback, payload: Record<string, unknown>): void {
   const event: WorkspaceEvent = {
-    event_id: randomUUID(),
+    event_id: shortId(),
     event_type: 'intervention_recorded',
     created_at: utcNowIso(),
     source: 'system',

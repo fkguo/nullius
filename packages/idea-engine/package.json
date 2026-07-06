@@ -18,6 +18,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
+    "@nullius/shared": "workspace:*",
     "ajv": "^8.18.0",
     "canonicalize": "^2.1.0"
   },

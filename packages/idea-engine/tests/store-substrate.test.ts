@@ -32,35 +32,35 @@ describe('store substrate', () => {
     const store = new IdeaEngineStore(rootDir);
 
     store.saveCampaign({
-      campaign_id: '11111111-1111-4111-8111-111111111111',
+      campaign_id: 'stcmp001',
       status: 'running',
       created_at: '2026-03-14T00:00:00Z',
       budget: { max_tokens: 10, max_cost_usd: 1, max_wall_clock_s: 5 },
       usage: { tokens_used: 0, cost_usd_used: 0, wall_clock_s_elapsed: 0, steps_used: 0, nodes_used: 0 },
     });
-    expect(store.loadCampaign('11111111-1111-4111-8111-111111111111')).toMatchObject({
+    expect(store.loadCampaign('stcmp001')).toMatchObject({
       status: 'running',
     });
 
-    store.saveNodes('11111111-1111-4111-8111-111111111111', {
-      '22222222-2222-4222-8222-222222222222': {
-        campaign_id: '11111111-1111-4111-8111-111111111111',
-        node_id: '22222222-2222-4222-8222-222222222222',
+    store.saveNodes('stcmp001', {
+      'stnde001': {
+        campaign_id: 'stcmp001',
+        node_id: 'stnde001',
         revision: 1,
         created_at: '2026-03-14T00:00:00Z',
       },
     });
     store.appendNodeLog(
-      '11111111-1111-4111-8111-111111111111',
+      'stcmp001',
       {
-        node_id: '22222222-2222-4222-8222-222222222222',
+        node_id: 'stnde001',
         revision: 1,
       },
       'create',
     );
 
     const artifactRef = store.writeArtifact(
-      '11111111-1111-4111-8111-111111111111',
+      'stcmp001',
       'handoff',
       'handoff.json',
       { ok: true },
@@ -71,18 +71,18 @@ describe('store substrate', () => {
     store.saveIdempotency(null, {
       'campaign.init:demo': { payload_hash: 'sha256:abc' },
     });
-    store.saveIdempotency('11111111-1111-4111-8111-111111111111', {
+    store.saveIdempotency('stcmp001', {
       'node.list:demo': { payload_hash: 'sha256:def' },
     });
 
     expect(store.loadIdempotency(null)).toEqual({
       'campaign.init:demo': { payload_hash: 'sha256:abc' },
     });
-    expect(store.loadIdempotency('11111111-1111-4111-8111-111111111111')).toEqual({
+    expect(store.loadIdempotency('stcmp001')).toEqual({
       'node.list:demo': { payload_hash: 'sha256:def' },
     });
 
-    const jsonl = readFileSync(store.nodesLogPath('11111111-1111-4111-8111-111111111111'), 'utf8')
+    const jsonl = readFileSync(store.nodesLogPath('stcmp001'), 'utf8')
       .trim()
       .split('\n');
     expect(jsonl).toHaveLength(1);
@@ -94,9 +94,9 @@ describe('store substrate', () => {
     const rootDir = mkdtempSync(join(tmpdir(), 'idea-engine-lock-'));
     tempDirs.push(rootDir);
     const store = new IdeaEngineStore(rootDir);
-    const lockPath = store.mutationLockPath('11111111-1111-4111-8111-111111111111');
+    const lockPath = store.mutationLockPath('stcmp001');
 
-    store.withMutationLock('11111111-1111-4111-8111-111111111111', () => {
+    store.withMutationLock('stcmp001', () => {
       expect(existsSync(lockPath)).toBe(true);
     });
 
@@ -118,7 +118,7 @@ describe('store substrate', () => {
     const store = new IdeaEngineStore(rootDir);
     const missingRef = pathToFileURL(
       store.artifactPath(
-        '11111111-1111-4111-8111-111111111111',
+        'stcmp001',
         'handoff',
         'missing.json',
       ),

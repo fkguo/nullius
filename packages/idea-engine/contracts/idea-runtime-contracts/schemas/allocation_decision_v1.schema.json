@@ -16,11 +16,11 @@
   "properties": {
     "decision_id": {
       "type": "string",
-      "format": "uuid"
+      "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$"
     },
     "campaign_id": {
       "type": "string",
-      "format": "uuid"
+      "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$"
     },
     "generated_at": {
       "type": "string",
@@ -48,7 +48,7 @@
         "properties": {
           "node_id": {
             "type": "string",
-            "format": "uuid"
+            "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$"
           },
           "posterior_value": {
             "type": ["number", "null"],
@@ -92,7 +92,7 @@
         "properties": {
           "node_id": {
             "type": "string",
-            "format": "uuid"
+            "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$"
           },
           "activation_condition": {
             "type": "object",

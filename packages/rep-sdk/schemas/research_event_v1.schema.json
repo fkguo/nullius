@@ -18,8 +18,8 @@
     },
     "event_id": {
       "type": "string",
-      "format": "uuid",
-      "description": "Unique event identifier (UUID v4)."
+      "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$",
+      "description": "Unique event identifier (short handle id)."
     },
     "event_type": {
       "type": "string",
@@ -55,8 +55,8 @@
     },
     "trace_id": {
       "type": "string",
-      "format": "uuid",
-      "description": "Trace ID for cross-layer correlation (UUID v4)."
+      "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$",
+      "description": "Trace ID for cross-layer correlation (short handle id)."
     },
     "sequence_number": {
       "type": "integer",
@@ -322,8 +322,8 @@
       "properties": {
         "signal_id": {
           "type": "string",
-          "format": "uuid",
-          "description": "Reference to the ResearchSignal (UUID v4, matches ResearchSignal.signal_id)."
+          "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$",
+          "description": "Reference to the ResearchSignal (short handle id, matches ResearchSignal.signal_id)."
         },
         "signal_type": {
           "type": "string",

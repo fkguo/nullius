@@ -1,4 +1,4 @@
-import { randomUUID } from 'crypto';
+import { shortId } from '@nullius/shared';
 import { IdeaEngineContractCatalog } from '../contracts/catalog.js';
 import { executeCampaignInit } from './campaign-init-executor.js';
 import { executeCampaignMutation } from './campaign-mutation-executor.js';
@@ -17,7 +17,7 @@ export class IdeaEngineWriteService {
     this.store = new IdeaEngineStore(options.rootDir);
     this.contracts = new IdeaEngineContractCatalog(options.contractDir);
     this.now = options.now ?? utcNowIso;
-    this.createId = options.createId ?? randomUUID;
+    this.createId = options.createId ?? shortId;
   }
 
   handle(method: string, params: unknown): Record<string, unknown> {

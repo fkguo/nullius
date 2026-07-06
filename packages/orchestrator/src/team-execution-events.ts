@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { uniqueShortId } from '@nullius/shared';
 import { utcNowIso } from './util.js';
 import type { TeamDelegateAssignment, TeamExecutionEvent, TeamExecutionState } from './team-execution-types.js';
 
@@ -11,8 +11,9 @@ export function appendTeamEvent(
     payload?: Record<string, unknown>;
   },
 ): TeamExecutionEvent {
+  const existingEventIds = new Set(state.event_log.map(entry => entry.event_id));
   const event: TeamExecutionEvent = {
-    event_id: randomUUID(),
+    event_id: uniqueShortId(id => existingEventIds.has(id)),
     kind: input.kind,
     created_at: utcNowIso(),
     assignment_id: input.assignment?.assignment_id ?? null,

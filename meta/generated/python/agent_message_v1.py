@@ -5,7 +5,6 @@ from __future__ import annotations
 
 from enum import StrEnum
 from typing import Annotated, Any, Literal
-from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, RootModel
 
@@ -25,12 +24,7 @@ class ErrorEnvelope(BaseModel):
     message: Annotated[str, Field(min_length=1)]
     retryable: bool
     run_id: str | None
-    trace_id: Annotated[
-        UUID,
-        Field(
-            pattern="^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
-        ),
-    ]
+    trace_id: Annotated[str, Field(pattern="^[0123456789abcdefghjkmnpqrstvwxyz]{8}$")]
     data: dict[str, Any] | None
 
 
@@ -40,12 +34,7 @@ class AgentMessageV11(BaseModel):
     )
     schema_version: Literal[1]
     message_id: Annotated[str, Field(min_length=1)]
-    trace_id: Annotated[
-        UUID,
-        Field(
-            pattern="^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
-        ),
-    ]
+    trace_id: Annotated[str, Field(pattern="^[0123456789abcdefghjkmnpqrstvwxyz]{8}$")]
     run_id: str | None
     source_agent_id: Annotated[str, Field(min_length=1)]
     target_agent_id: Annotated[str, Field(min_length=1)]
@@ -61,12 +50,7 @@ class AgentMessageV12(BaseModel):
     )
     schema_version: Literal[1]
     message_id: Annotated[str, Field(min_length=1)]
-    trace_id: Annotated[
-        UUID,
-        Field(
-            pattern="^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
-        ),
-    ]
+    trace_id: Annotated[str, Field(pattern="^[0123456789abcdefghjkmnpqrstvwxyz]{8}$")]
     run_id: str | None
     source_agent_id: Annotated[str, Field(min_length=1)]
     target_agent_id: Annotated[str, Field(min_length=1)]
@@ -82,12 +66,7 @@ class AgentMessageV13(BaseModel):
     )
     schema_version: Literal[1]
     message_id: Annotated[str, Field(min_length=1)]
-    trace_id: Annotated[
-        UUID,
-        Field(
-            pattern="^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
-        ),
-    ]
+    trace_id: Annotated[str, Field(pattern="^[0123456789abcdefghjkmnpqrstvwxyz]{8}$")]
     run_id: str | None
     source_agent_id: Annotated[str, Field(min_length=1)]
     target_agent_id: Annotated[str, Field(min_length=1)]

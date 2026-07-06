@@ -98,7 +98,7 @@
       "properties": {
         "model": { "type": "string", "minLength": 1 },
         "role": { "type": "string", "minLength": 1 },
-        "session_id": { "type": "string", "format": "uuid" }
+        "session_id": { "type": "string", "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$" }
       },
       "additionalProperties": false
     }

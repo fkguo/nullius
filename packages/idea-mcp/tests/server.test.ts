@@ -91,16 +91,16 @@ describe('idea-mcp server configuration', () => {
 // that the marker field is never observed by `rpc.call(...)`.
 // ─────────────────────────────────────────────────────────────────────────────
 describe('B-10 regression — parseAndCleanToolArgs strips _confirm', () => {
-  const VALID_UUID = '11111111-1111-4111-8111-111111111111';
+  const VALID_CAMPAIGN_ID = 'c4mp41gn';
 
   it('destructive tool (idea_campaign_complete) with _confirm=true returns args WITHOUT _confirm', () => {
     const cleaned = parseAndCleanToolArgs(getTool('idea_campaign_complete'), {
-      campaign_id: VALID_UUID,
+      campaign_id: VALID_CAMPAIGN_ID,
       idempotency_key: 'complete-test',
       _confirm: true,
     });
     expect(cleaned).toEqual({
-      campaign_id: VALID_UUID,
+      campaign_id: VALID_CAMPAIGN_ID,
       idempotency_key: 'complete-test',
     });
     expect('_confirm' in cleaned).toBe(false);
@@ -108,14 +108,14 @@ describe('B-10 regression — parseAndCleanToolArgs strips _confirm', () => {
 
   it('destructive tool throws on missing _confirm (gate enforced via schema)', () => {
     expect(() => parseAndCleanToolArgs(getTool('idea_campaign_complete'), {
-      campaign_id: VALID_UUID,
+      campaign_id: VALID_CAMPAIGN_ID,
       idempotency_key: 'complete-test',
     })).toThrow();
   });
 
   it('destructive tool throws on _confirm: false', () => {
     expect(() => parseAndCleanToolArgs(getTool('idea_campaign_complete'), {
-      campaign_id: VALID_UUID,
+      campaign_id: VALID_CAMPAIGN_ID,
       idempotency_key: 'complete-test',
       _confirm: false,
     })).toThrow();
@@ -123,11 +123,11 @@ describe('B-10 regression — parseAndCleanToolArgs strips _confirm', () => {
 
   it('non-destructive tool (idea_campaign_pause) accepts normal args without _confirm', () => {
     const cleaned = parseAndCleanToolArgs(getTool('idea_campaign_pause'), {
-      campaign_id: VALID_UUID,
+      campaign_id: VALID_CAMPAIGN_ID,
       idempotency_key: 'pause-test',
     });
     expect(cleaned).toEqual({
-      campaign_id: VALID_UUID,
+      campaign_id: VALID_CAMPAIGN_ID,
       idempotency_key: 'pause-test',
     });
   });
@@ -137,7 +137,7 @@ describe('B-10 regression — parseAndCleanToolArgs strips _confirm', () => {
     // tool is making a contract error — surface it loudly rather than
     // silently strip and proceed.
     expect(() => parseAndCleanToolArgs(getTool('idea_campaign_pause'), {
-      campaign_id: VALID_UUID,
+      campaign_id: VALID_CAMPAIGN_ID,
       idempotency_key: 'pause-test',
       _confirm: true,
     })).toThrow();
@@ -145,11 +145,11 @@ describe('B-10 regression — parseAndCleanToolArgs strips _confirm', () => {
 
   it('read-only tool (idea_campaign_status) accepts query args; rejects _confirm', () => {
     expect(parseAndCleanToolArgs(getTool('idea_campaign_status'), {
-      campaign_id: VALID_UUID,
-    })).toEqual({ campaign_id: VALID_UUID });
+      campaign_id: VALID_CAMPAIGN_ID,
+    })).toEqual({ campaign_id: VALID_CAMPAIGN_ID });
 
     expect(() => parseAndCleanToolArgs(getTool('idea_campaign_status'), {
-      campaign_id: VALID_UUID,
+      campaign_id: VALID_CAMPAIGN_ID,
       _confirm: true,
     })).toThrow();
   });

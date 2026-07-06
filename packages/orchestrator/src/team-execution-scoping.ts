@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { shortId } from '@nullius/shared';
 import {
   buildDelegatedRuntimeHandleV1,
   type DelegatedRuntimeHandleV1,
@@ -152,7 +152,7 @@ export function openAssignmentSession(
 ): OpenAssignmentSessionOutcome {
   const parentSessionId = assignment.session_id;
   const hasForkSource = Boolean(assignment.forked_from_assignment_id || assignment.forked_from_session_id);
-  const sessionId = randomUUID();
+  const sessionId = shortId();
   const handle = buildDelegatedRuntimeHandleV1({
     project_run_id: runId,
     assignment_id: assignment.assignment_id,

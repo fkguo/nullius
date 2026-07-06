@@ -163,7 +163,7 @@ function signalDetectedEvent(timestamp: string, eventId = 'signal-detected-event
     timestamp,
     run_id: 'run-1',
     payload: {
-      signal_id: '22fa2477-b406-465c-b59b-a1cb31edc987',
+      signal_id: '22fa2477',
       signal_type: 'method_plateau',
       confidence: 0.8,
     },

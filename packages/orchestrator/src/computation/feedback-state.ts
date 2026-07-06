@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { shortId } from '@nullius/shared';
 import type { ComputationResultV1 } from '@nullius/shared';
 import { utcNowIso } from '../util.js';
 import {
@@ -130,7 +130,7 @@ function feedbackTaskInput(input: FeedbackAuthorityInput): ResearchTaskInput {
 
 function feedbackHandoff(input: FeedbackAuthorityInput, sourceTaskId: string): FeedbackHandoff {
   return {
-    handoff_id: randomUUID(),
+    handoff_id: shortId(),
     handoff_kind: 'feedback',
     workspace_id: `workspace:${input.run_id}`,
     source_task_id: sourceTaskId,

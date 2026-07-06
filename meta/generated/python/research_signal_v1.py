@@ -5,7 +5,6 @@ from __future__ import annotations
 
 from enum import StrEnum
 from typing import Annotated, Any, Literal
-from uuid import UUID
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
 
@@ -33,7 +32,13 @@ class ResearchsignalV1(BaseModel):
         extra="forbid",
     )
     schema_version: Literal[1]
-    signal_id: Annotated[UUID, Field(description="Unique signal identifier (UUID v4).")]
+    signal_id: Annotated[
+        str,
+        Field(
+            description="Unique signal identifier (short handle id).",
+            pattern="^[0123456789abcdefghjkmnpqrstvwxyz]{8}$",
+        ),
+    ]
     signal_type: Annotated[
         SignalType,
         Field(

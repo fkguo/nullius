@@ -1,11 +1,10 @@
-import { randomUUID } from 'node:crypto';
 import type {
   ResearchSignal,
   ResearchSignalPriority,
   ResearchSignalType,
 } from '../model/research-signal.js';
 import type { StrategyPreset } from '../model/research-strategy.js';
-import { sha256Hex } from '../protocol/index.js';
+import { sha256Hex, shortId } from '../protocol/index.js';
 
 export interface ExtractSignalsOptions {
   dedupWindowsMs?: Partial<Record<ResearchSignalType, number>>;
@@ -85,7 +84,7 @@ export function createSignalFromCandidate(
   // SAFETY: callers pair `signal_type` and `payload` from the same detector candidate.
   return {
     schema_version: 1,
-    signal_id: randomUUID(),
+    signal_id: shortId(),
     signal_type: candidate.signal_type,
     source_event_ids: [...sourceEventIds],
     fingerprint: sha256Hex(`${candidate.signal_type}:${candidate.fingerprint_key}`),

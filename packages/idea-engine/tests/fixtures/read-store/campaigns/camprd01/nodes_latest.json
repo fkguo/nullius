@@ -1,8 +1,8 @@
 {
-  "1d96a82f-9246-436e-814c-50b94df7a578": {
-    "campaign_id": "a79cfc51-2623-43b0-b2ba-b25bddf31378",
-    "idea_id": "aaaa1111-2222-4333-8444-555566667777",
-    "node_id": "1d96a82f-9246-436e-814c-50b94df7a578",
+  "ndread01": {
+    "campaign_id": "camprd01",
+    "idea_id": "dearead1",
+    "node_id": "ndread01",
     "revision": 3,
     "parent_node_ids": [],
     "operator_id": "seed.import",
@@ -92,10 +92,10 @@
     "created_at": "2026-07-05T00:00:01Z",
     "updated_at": "2026-07-05T00:00:06Z"
   },
-  "bbbb1111-2222-4333-8444-555566667777": {
-    "campaign_id": "a79cfc51-2623-43b0-b2ba-b25bddf31378",
-    "idea_id": "cccc1111-2222-4333-8444-555566667777",
-    "node_id": "bbbb1111-2222-4333-8444-555566667777",
+  "ndread02": {
+    "campaign_id": "camprd01",
+    "idea_id": "dearead2",
+    "node_id": "ndread02",
     "revision": 2,
     "parent_node_ids": [],
     "operator_id": "seed.import",
@@ -179,10 +179,10 @@
     "created_at": "2026-07-05T00:00:01Z",
     "updated_at": "2026-07-05T00:00:03Z"
   },
-  "dddd1111-2222-4333-8444-555566667777": {
-    "campaign_id": "a79cfc51-2623-43b0-b2ba-b25bddf31378",
-    "idea_id": "eeee1111-2222-4333-8444-555566667777",
-    "node_id": "dddd1111-2222-4333-8444-555566667777",
+  "ndread03": {
+    "campaign_id": "camprd01",
+    "idea_id": "dearead3",
+    "node_id": "ndread03",
     "revision": 2,
     "parent_node_ids": [],
     "operator_id": "seed.import",

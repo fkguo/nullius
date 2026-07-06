@@ -3,7 +3,7 @@ import type { IdeaEngineStore } from '../store/engine-store.js';
 import { budgetSnapshot } from './budget-snapshot.js';
 import { RpcError } from './errors.js';
 import { recordOrReplay, responseIdempotency, storeIdempotency } from './idempotency.js';
-import { buildSeedNode } from './seed-node.js';
+import { buildSeedNode, drawUniqueId } from './seed-node.js';
 import { toSchemaError } from './service-contract-error.js';
 
 export function executeCampaignInit(options: {
@@ -30,7 +30,7 @@ export function executeCampaignInit(options: {
     }
     const now = options.now();
     const seedPack = options.params.seed_pack as { seeds: Array<Record<string, unknown>> };
-    const campaignId = options.createId();
+    const campaignId = drawUniqueId(options.createId, (id) => options.store.loadCampaign(id) !== null);
     const userRegistry = typeof options.params.abstract_problem_registry === 'object' && options.params.abstract_problem_registry
       ? options.params.abstract_problem_registry as Record<string, unknown>
       : undefined;
@@ -52,14 +52,18 @@ export function executeCampaignInit(options: {
       ...(userRegistry ? { abstract_problem_registry: userRegistry } : {}),
     };
     const nodes: Record<string, Record<string, unknown>> = {};
+    const usedHandleIds = new Set<string>([campaignId]);
     for (const [index, seed] of seedPack.seeds.entries()) {
       const node = buildSeedNode({
         campaignId,
         createId: options.createId,
+        existsId: id => usedHandleIds.has(id),
         index,
         now,
         seed,
       });
+      usedHandleIds.add(String(node.node_id));
+      usedHandleIds.add(String(node.idea_id));
       try {
         options.contracts.validateAgainstRef('./idea_node_v1.schema.json', node, `seed_node/${index}`);
       } catch (error) {

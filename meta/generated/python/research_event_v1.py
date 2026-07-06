@@ -5,7 +5,6 @@ from __future__ import annotations
 
 from enum import StrEnum
 from typing import Annotated, Any, Literal
-from uuid import UUID
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
 
@@ -35,7 +34,13 @@ class ResearcheventV1(BaseModel):
         extra="forbid",
     )
     schema_version: Literal[1]
-    event_id: Annotated[UUID, Field(description="Unique event identifier (UUID v4).")]
+    event_id: Annotated[
+        str,
+        Field(
+            description="Unique event identifier (short handle id).",
+            pattern="^[0123456789abcdefghjkmnpqrstvwxyz]{8}$",
+        ),
+    ]
     event_type: Annotated[
         EventType,
         Field(
@@ -45,8 +50,11 @@ class ResearcheventV1(BaseModel):
     timestamp: Annotated[AwareDatetime, Field(description="ISO 8601 UTC Z timestamp.")]
     run_id: Annotated[str, Field(description="Run in which this event occurred.")]
     trace_id: Annotated[
-        UUID | None,
-        Field(description="Trace ID for cross-layer correlation (UUID v4)."),
+        str | None,
+        Field(
+            description="Trace ID for cross-layer correlation (short handle id).",
+            pattern="^[0123456789abcdefghjkmnpqrstvwxyz]{8}$",
+        ),
     ] = None
     sequence_number: Annotated[
         int | None,
@@ -209,9 +217,10 @@ class SignalType(StrEnum):
 
 class SignalDetectedPayload(BaseModel):
     signal_id: Annotated[
-        UUID,
+        str,
         Field(
-            description="Reference to the ResearchSignal (UUID v4, matches ResearchSignal.signal_id)."
+            description="Reference to the ResearchSignal (short handle id, matches ResearchSignal.signal_id).",
+            pattern="^[0123456789abcdefghjkmnpqrstvwxyz]{8}$",
         ),
     ]
     signal_type: SignalType

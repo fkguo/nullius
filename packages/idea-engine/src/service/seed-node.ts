@@ -4,9 +4,24 @@ import { sha256Hex } from './sha256-hex.js';
 interface SeedNodeOptions {
   campaignId: string;
   createId: () => string;
+  existsId?: (id: string) => boolean;
   index: number;
   now: string;
   seed: Record<string, unknown>;
+}
+
+/**
+ * Draw a fresh handle id from `createId`, skipping any that already exist per
+ * `existsId`. This gives short-id collision safety for the production generator
+ * while preserving deterministic injected id sequences (which never collide).
+ */
+export function drawUniqueId(createId: () => string, existsId?: (id: string) => boolean): string {
+  if (!existsId) return createId();
+  for (let i = 0; i < 16; i += 1) {
+    const id = createId();
+    if (!existsId(id)) return id;
+  }
+  throw new Error('seed-node: no free handle id after 16 tries (id space exhausted?)');
 }
 
 function sanitizeText(value: unknown, fallback: string): string {
@@ -95,8 +110,10 @@ export function buildIdeaCardFromRationaleDraft(options: {
 
 export function buildSeedNode(options: SeedNodeOptions): Record<string, unknown> {
   const content = String(options.seed.content);
-  const nodeId = options.createId();
-  const ideaId = options.createId();
+  const nodeId = drawUniqueId(options.createId, options.existsId);
+  // idea_id must differ from this seed's node_id too (caller adds both to the used
+  // set only after buildSeedNode returns).
+  const ideaId = drawUniqueId(options.createId, (id) => id === nodeId || (options.existsId?.(id) ?? false));
   const rationaleDraft = {
     title: `Seed ${options.index + 1}`,
     rationale: content,

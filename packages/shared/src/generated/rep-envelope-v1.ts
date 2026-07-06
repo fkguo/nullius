@@ -16,7 +16,7 @@ export interface REPEnvelopeV1 {
    */
   message_type: "hello" | "publish" | "fetch" | "report" | "review" | "revoke";
   /**
-   * Unique message identifier (UUID v4).
+   * Unique message identifier (short handle id).
    */
   message_id: string;
   /**

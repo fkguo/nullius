@@ -1,12 +1,16 @@
 import { z } from 'zod';
+import { SHORT_ID_JSON_PATTERN } from '@nullius/shared';
 
 const NonEmptyString = z.string().min(1);
-const UuidString = z.string().uuid();
+// Handle ids (seed_id, campaign_id, …) are short ids, not UUIDs. The regex emits
+// `{ "type": "string", "pattern": SHORT_ID_JSON_PATTERN }` via zodToMcpInputSchema,
+// which is what ListTools clients see in the inventory.
+const ShortIdString = z.string().regex(new RegExp(SHORT_ID_JSON_PATTERN));
 const UriString = z.string().url();
 const LooseObject = z.record(z.string(), z.unknown());
 
 const SeedSchema = z.object({
-  seed_id: UuidString.optional(),
+  seed_id: ShortIdString.optional(),
   seed_type: NonEmptyString,
   content: NonEmptyString,
   source_uris: z.array(UriString).optional(),
@@ -108,7 +112,7 @@ const RAW_IDEA_TOOLS: IdeaToolDef[] = [
   {
     name: 'idea_campaign_status',
     description: 'Get the current status of an idea campaign.',
-    schema: z.object({ campaign_id: UuidString }).strict(),
+    schema: z.object({ campaign_id: ShortIdString }).strict(),
     rpcMethod: 'campaign.status',
     riskLevel: 'read',
   },
@@ -116,7 +120,7 @@ const RAW_IDEA_TOOLS: IdeaToolDef[] = [
     name: 'idea_campaign_topup',
     description: 'Add budget to an existing campaign without creating a new runtime authority path.',
     schema: z.object({
-      campaign_id: UuidString,
+      campaign_id: ShortIdString,
       topup: BudgetTopupSchema,
       idempotency_key: NonEmptyString,
     }).strict(),
@@ -128,7 +132,7 @@ const RAW_IDEA_TOOLS: IdeaToolDef[] = [
     name: 'idea_campaign_pause',
     description: 'Pause an active or budget-exhausted campaign.',
     schema: z.object({
-      campaign_id: UuidString,
+      campaign_id: ShortIdString,
       idempotency_key: NonEmptyString,
     }).strict(),
     rpcMethod: 'campaign.pause',
@@ -140,7 +144,7 @@ const RAW_IDEA_TOOLS: IdeaToolDef[] = [
     name: 'idea_campaign_resume',
     description: 'Resume a paused or early-stopped campaign when budget remains.',
     schema: z.object({
-      campaign_id: UuidString,
+      campaign_id: ShortIdString,
       idempotency_key: NonEmptyString,
     }).strict(),
     rpcMethod: 'campaign.resume',
@@ -150,7 +154,7 @@ const RAW_IDEA_TOOLS: IdeaToolDef[] = [
     name: 'idea_campaign_complete',
     description: 'Mark a campaign complete and close further campaign mutation.',
     schema: z.object({
-      campaign_id: UuidString,
+      campaign_id: ShortIdString,
       idempotency_key: NonEmptyString,
     }).strict(),
     rpcMethod: 'campaign.complete',

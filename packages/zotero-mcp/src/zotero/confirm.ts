@@ -1,6 +1,4 @@
-import { randomUUID } from 'crypto';
-
-import { invalidParams } from '@nullius/shared';
+import { invalidParams, uniqueShortId } from '@nullius/shared';
 
 export interface ZoteroAddConfirmPayloadV1 {
   planned: { mode: 'create' } | { mode: 'update_existing'; item_key: string };
@@ -88,12 +86,13 @@ function cleanupExpiredConfirmActions(currentMs: number): void {
 }
 
 export function createConfirmAction(action: ConfirmAction): { confirm_token: string; expires_at: string } {
-  const token = randomUUID();
   const ttlMs = resolveTtlMs();
   const createdAtMs = nowMs();
   const expiresAtMs = createdAtMs + ttlMs;
 
   cleanupExpiredConfirmActions(createdAtMs);
+
+  const token = uniqueShortId((id) => ACTIONS_BY_TOKEN.has(id));
 
   const stored: StoredConfirmAction = {
     token,

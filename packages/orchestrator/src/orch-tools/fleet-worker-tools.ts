@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { shortId } from '@nullius/shared';
 import { invalidParams, type FleetQueueV1 } from '@nullius/shared';
 import { utcNowIso } from '../util.js';
 import { createStateManager } from './common.js';
@@ -62,7 +62,7 @@ function claimNextQueuedItem(
   }
   target.status = 'claimed';
   target.claim = buildFleetLeaseClaim({
-    claim_id: `fqc_${randomUUID()}`,
+    claim_id: `fqc_${shortId()}`,
     owner_id: workerId,
     claimed_at: claimedAt,
     lease_duration_seconds: leaseDurationSeconds,

@@ -1,7 +1,6 @@
-import { randomUUID } from 'crypto';
 import { resolve } from 'path';
 import { IdeaEngineRpcService, handleJsonRpcRequest } from '@nullius/idea-engine';
-import { internalError } from '@nullius/shared';
+import { internalError, shortId } from '@nullius/shared';
 import { mapRpcError } from './rpc-error-mapping.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -41,7 +40,7 @@ export class IdeaRpcClient {
     // idea-engine currently exposes a synchronous JSON-RPC helper; keep that assumption
     // explicit here so a future async refactor does not silently change this TS-only bridge contract.
     const response = handleJsonRpcRequest(this.ideaEngine, {
-      id: randomUUID(),
+      id: shortId(),
       jsonrpc: '2.0',
       method,
       params,

@@ -15,8 +15,7 @@ import { spawn } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { randomUUID } from 'crypto';
-import { commitStagedDurable, writeBytesAtomicDurable } from '@nullius/shared';
+import { commitStagedDurable, writeBytesAtomicDurable, shortId } from '@nullius/shared';
 
 // Security: Maximum stderr/stdout buffer size to prevent memory exhaustion
 const MAX_OUTPUT_SIZE = 64 * 1024; // 64KB
@@ -530,8 +529,8 @@ export async function renderLatexToPng(
     };
   }
 
-  // Create temporary directory with UUID for isolation
-  const tmpDir = path.join(os.tmpdir(), `latex-render-${randomUUID()}`);
+  // Create temporary directory with a short id for isolation
+  const tmpDir = path.join(os.tmpdir(), `latex-render-${shortId()}`);
   fs.mkdirSync(tmpDir, { recursive: true });
 
   const texPath = path.join(tmpDir, 'diagram.tex');

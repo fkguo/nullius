@@ -6,7 +6,7 @@
     "response": {
       "kind": "result",
       "payload": {
-        "campaign_id": "a79cfc51-2623-43b0-b2ba-b25bddf31378",
+        "campaign_id": "camprd01",
         "status": "running",
         "created_at": "2026-07-05T00:00:01Z",
         "budget_snapshot": {

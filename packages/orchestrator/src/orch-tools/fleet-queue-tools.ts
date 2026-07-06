@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { shortId, uniqueShortId } from '@nullius/shared';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { invalidParams, notFound, type FleetQueueV1 } from '@nullius/shared';
@@ -219,7 +219,7 @@ export async function handleOrchFleetEnqueue(
   }
 
   const item: FleetQueueItem = {
-    queue_item_id: `fq_${randomUUID()}`,
+    queue_item_id: `fq_${uniqueShortId(id => queue.items.some(existing => existing.queue_item_id === `fq_${id}`))}`,
     run_id: parsed.run_id,
     status: 'queued',
     priority: parsed.priority,
@@ -249,7 +249,7 @@ export async function handleOrchFleetClaim(
   }
 
   const claim: FleetQueueClaim = buildFleetLeaseClaim({
-    claim_id: `fqc_${randomUUID()}`,
+    claim_id: `fqc_${shortId()}`,
     owner_id: parsed.owner_id,
     claimed_at: utcNowIso(),
     lease_duration_seconds: parsed.lease_duration_seconds,

@@ -117,7 +117,7 @@ class MutationproposalV1(BaseModel):
         str,
         Field(
             description="Unique proposal identifier (ID-01 compliant)",
-            pattern="^mp_[0-9a-f-]+$",
+            pattern="^mp_[0-9a-z-]+$",
         ),
     ]
     mutation_type: Annotated[
@@ -142,6 +142,6 @@ class MutationproposalV1(BaseModel):
     ] = None
     status: Annotated[Status, Field(description="Current proposal status")]
     result: MutationResult | None = None
-    run_id: Annotated[str | None, Field(pattern="^run_[0-9a-f-]+$")] = None
+    run_id: Annotated[str | None, Field(pattern="^run_[0-9a-z-]+$")] = None
     created_at: AwareDatetime
     completed_at: AwareDatetime | None = None

@@ -143,7 +143,7 @@ describe('IdeaRpcClient', () => {
   it('maps campaign_not_found to NOT_FOUND', async () => {
     const { client, rootDir } = createClient('idea-mcp-ts-status-');
     tempDirs.push(rootDir);
-    const missingCampaignId = '11111111-1111-4111-8111-111111111111';
+    const missingCampaignId = 'c4mp41gn';
 
     try {
       await expect(client.call('campaign.status', { campaign_id: missingCampaignId })).rejects.toMatchObject({

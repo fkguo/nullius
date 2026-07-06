@@ -1,8 +1,8 @@
+import { isShortId } from '@nullius/shared';
 import { getMethodContract, getMethodDefault } from '../contracts/openrpc.js';
 import { schemaValidationError } from './errors.js';
 import type { NodeListFilter } from './filter-nodes.js';
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const FILTER_KEYS = new Set([
   'idea_id',
   'node_id',
@@ -19,9 +19,9 @@ function isPlainObject(value: unknown): value is ParamsRecord {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
-function assertUuid(value: unknown, fieldName: string): string {
-  if (typeof value !== 'string' || !UUID_RE.test(value)) {
-    throw schemaValidationError(`${fieldName} must be a UUID string`);
+function assertHandleId(value: unknown, fieldName: string): string {
+  if (!isShortId(value)) {
+    throw schemaValidationError(`${fieldName} must be a short handle id string`);
   }
   return value;
 }
@@ -55,8 +55,8 @@ function validateFilter(filter: unknown): NodeListFilter | undefined {
     throw schemaValidationError(`filter has unknown fields: ${extras.join(', ')}`);
   }
 
-  if (filter.idea_id !== undefined) assertUuid(filter.idea_id, 'filter.idea_id');
-  if (filter.node_id !== undefined) assertUuid(filter.node_id, 'filter.node_id');
+  if (filter.idea_id !== undefined) assertHandleId(filter.idea_id, 'filter.idea_id');
+  if (filter.node_id !== undefined) assertHandleId(filter.node_id, 'filter.node_id');
   if (filter.island_id !== undefined && typeof filter.island_id !== 'string') throw schemaValidationError('filter.island_id must be a string');
   if (filter.operator_id !== undefined && typeof filter.operator_id !== 'string') throw schemaValidationError('filter.operator_id must be a string');
   if (filter.has_idea_card !== undefined && typeof filter.has_idea_card !== 'boolean') throw schemaValidationError('filter.has_idea_card must be a boolean');
@@ -80,13 +80,13 @@ export function validateReadParams(
   assertNoExtraParams(method, params);
 
   if (method === 'campaign.status') {
-    return { campaign_id: assertUuid(params.campaign_id, 'campaign_id') };
+    return { campaign_id: assertHandleId(params.campaign_id, 'campaign_id') };
   }
 
   if (method === 'node.get') {
     return {
-      campaign_id: assertUuid(params.campaign_id, 'campaign_id'),
-      node_id: assertUuid(params.node_id, 'node_id'),
+      campaign_id: assertHandleId(params.campaign_id, 'campaign_id'),
+      node_id: assertHandleId(params.node_id, 'node_id'),
     };
   }
 
@@ -102,7 +102,7 @@ export function validateReadParams(
     }
 
     return {
-      campaign_id: assertUuid(params.campaign_id, 'campaign_id'),
+      campaign_id: assertHandleId(params.campaign_id, 'campaign_id'),
       filter: validateFilter(params.filter),
       cursor: params.cursor,
       limit: Number(limit),

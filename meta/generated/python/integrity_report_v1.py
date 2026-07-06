@@ -5,7 +5,6 @@ from __future__ import annotations
 
 from enum import StrEnum
 from typing import Annotated, Any, Literal
-from uuid import UUID
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
 
@@ -161,7 +160,11 @@ class IntegrityreportV1(BaseModel):
         str | None, Field(description="Run in which this report was generated.")
     ] = None
     trace_id: Annotated[
-        UUID | None, Field(description="Trace ID for cross-layer correlation.")
+        str | None,
+        Field(
+            description="Trace ID for cross-layer correlation.",
+            pattern="^[0123456789abcdefghjkmnpqrstvwxyz]{8}$",
+        ),
     ] = None
     created_at: Annotated[
         AwareDatetime, Field(description="ISO 8601 UTC Z timestamp of report creation.")

@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { shortId } from '@nullius/shared';
 import { buildTeamDelegationProtocol } from './delegation-protocol.js';
 import { activeAssignmentIds } from './team-execution-assignment-state.js';
 import { appendTeamEvent } from './team-execution-events.js';
@@ -50,7 +50,7 @@ export function buildTeamDelegateAssignment(
   requiredTools: string[] = [],
   timestamp: string = utcNowIso(),
 ): TeamDelegateAssignment {
-  const assignmentId = input.assignment_id ?? randomUUID();
+  const assignmentId = input.assignment_id ?? shortId();
   const inheritance = input.mcp_tool_inheritance ?? { mode: 'team_permission_matrix' as const };
   return {
     assignment_id: assignmentId,

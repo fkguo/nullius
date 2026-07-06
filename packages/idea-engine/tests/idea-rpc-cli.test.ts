@@ -75,7 +75,7 @@ describe('idea-rpc command-line bridge', () => {
     const { stdout, status } = runCli({
       method: 'campaign.status',
       store_root: rootDir,
-      params: { campaign_id: '99999999-9999-4999-8999-999999999999' },
+      params: { campaign_id: 'nxcamp99' },
     });
     expect(status).toBe(1);
     const response = JSON.parse(stdout) as Record<string, unknown>;
