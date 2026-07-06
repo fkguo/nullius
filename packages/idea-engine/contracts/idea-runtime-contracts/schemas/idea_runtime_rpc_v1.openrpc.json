@@ -592,6 +592,70 @@
       ]
     },
     {
+      "name": "node.import_generated",
+      "summary": "Import one generation burst (a generation_pack_v1) as derived idea nodes.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "campaign_id",
+          "schema": {
+            "type": "string",
+            "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$"
+          },
+          "required": true
+        },
+        {
+          "name": "pack",
+          "schema": {
+            "$ref": "./generation_pack_v1.schema.json"
+          },
+          "required": true,
+          "description": "The burst to import. pack.campaign_id MUST equal the campaign_id param (mismatch is schema_validation_failed/pack_campaign_mismatch)."
+        },
+        {
+          "name": "idempotency_key",
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          },
+          "required": true
+        }
+      ],
+      "description": "Side-effecting. The ONLY entry point for derived (non-seed) nodes. The engine: (1) validates the pack against generation_pack_v1 plus the semantic rules below; (2) refuses unless the campaign is running and the batch fits the nodes budget (budget_exhausted with details.exhausted_dimensions=[\"nodes\"] when the batch would exceed max_nodes); (3) mints node_id/idea_id per candidate; (3b) rejects reserved engine-owned trace keys; (4) assembles each idea_card deterministically from card_fields (thesis_statement derived from rationale_draft by the same rule as seed import) and computes operator_trace.params.formalization engine-side (mode explain_then_formalize_deterministic_v1, source_artifact rationale_draft, rationale_hash over the engine's own sanitization) so node.promote can never drift; (5) validates every assembled node against idea_node_v1; (6) archives the pack verbatim (plus the engine-assembled nodes) as campaign artifact artifacts/generation/pack-<pack_id>.json; (7) writes nodes, one create node-log entry per node, and recomputed campaign usage (usage.nodes_used = total node count; steps are NOT consumed — import spends the nodes dimension only) under the campaign mutation lock with prepared->committed idempotency. Imported nodes are born with posterior=null and grounding_audit=null — evaluation authority stays with the belief layer; the pack carries no scores.\n\nSemantic validation (all -32002 schema_validation_failed; error.data.reason values): pack_campaign_mismatch (pack.campaign_id != campaign_id param); operator_family_unknown (family outside the committed arity table below); operator_arity_invalid (parent_node_ids count violates the family's arity, duplicate parents, or AnalogyTransfer without a non-empty rationale_draft.analogy_mapping); trigger_not_enabled (trigger.kind outside the enabled set: manual, survey_updated, failure_recorded; the remaining vocabulary kinds are reserved and rejected until their seam is exercised; non-manual triggers additionally require trigger.artifact_ref); evidence_receipt_missing (an evidence URI in claims or evidence_uris_used lacks a retrieval receipt in trace_inputs.retrieval_receipts [{uri, source}], or a claims URI is absent from evidence_uris_used); placeholder_evidence_forbidden (the seed placeholder URI appears anywhere in a generated candidate); anchor_missing (LiteratureMining candidate without trace_inputs.anchor: kind=tension requires statement + non-empty ref_keys; FailureRouting with zero parents requires non-empty trace_inputs.failed_approach_refs); gap_unanchored (LiteratureMining anchor.kind=gap without non-empty anchor.resolved_refs, each receipted); novelty_delta_non_novel (delta_type is parameter_tweak or rewording — declared non-novel by construction); parent_revisions_missing (a candidate's parent id is absent from evidence_snapshot.parent_revisions); trace_key_reserved (trace_params carries a formalization key, or trace_inputs carries trigger / pack_artifact / parent_revisions — those keys are engine-owned). Parent nodes must exist in the campaign (node_not_found otherwise). dedup.decision=flagged without override_reason is rejected by the pack schema itself.\n\nArity table (operator_family -> required parent_node_ids count): Seed -> not importable here (seed import is campaign.init); LiteratureMining -> exactly 0; Mutation -> exactly 1; Recombination -> at least 2; AnalogyTransfer -> 0 or 1 (plus non-empty analogy_mapping); FailureRouting -> 0 or 1 (zero-parent form requires failed_approach_refs).\n\nCrash recovery (import-specific; the generic delete-prepared-and-re-execute path is NOT used when any effect landed): the prepared idempotency record's result payload carries the minted ids, created_at, pack_artifact_ref and pack_hash. On retry, the engine probes all four effect classes — pack artifact present with matching pack_hash; every recorded node present with a value-equal IMMUTABLE projection (created_at, lineage, origin, operator_trace, rationale_draft — mutable fields may legitimately have moved); one create node-log entry per node; campaign usage consistent (nodes_used equals the store's node count). Missing effects are COMPLETED from the archived pack artifact — ids are never re-minted and content is never regenerated; only when NOTHING landed (no artifact, no recorded node) does the engine fall back to fresh execution. A value mismatch that cannot be completed refuses with internal_error/import_recovery_conflict for manual repair.",
+      "result": {
+        "name": "import_generated_result",
+        "schema": {
+          "$ref": "./import_generated_result_v1.schema.json"
+        }
+      },
+      "errors": [
+        {
+          "code": -32001,
+          "message": "budget_exhausted"
+        },
+        {
+          "code": -32002,
+          "message": "schema_validation_failed"
+        },
+        {
+          "code": -32003,
+          "message": "campaign_not_found"
+        },
+        {
+          "code": -32004,
+          "message": "node_not_found"
+        },
+        {
+          "code": -32015,
+          "message": "campaign_not_active"
+        },
+        {
+          "code": -32603,
+          "message": "internal_error"
+        }
+      ]
+    },
+    {
       "name": "node.promote",
       "summary": "Promote a node to a C2 handoff artifact (idea_card completeness + grounding + posterior gates) within a campaign scope.",
       "paramStructure": "by-name",

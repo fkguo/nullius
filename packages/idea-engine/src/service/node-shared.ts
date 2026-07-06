@@ -10,7 +10,13 @@ import { RpcError, schemaValidationError } from './errors.js';
  */
 export const PLACEHOLDER_EVIDENCE_URI = 'https://example.org/reference';
 
-function sanitizeText(value: unknown, fallback: string): string {
+/**
+ * Single authority for the text sanitization that feeds the formalization
+ * trace. Seed import, generated-node import, and promote-time validation must
+ * all use THIS implementation: a byte-level divergence anywhere yields nodes
+ * whose rationale_hash can never satisfy validateFormalizationTrace.
+ */
+export function sanitizeText(value: unknown, fallback: string): string {
   if (typeof value !== 'string') {
     return fallback;
   }
@@ -18,7 +24,8 @@ function sanitizeText(value: unknown, fallback: string): string {
   return compact || fallback;
 }
 
-function rationaleHashForTrace(rationaleDraft: Record<string, unknown>): string {
+/** Formalization-trace hash over the sanitized rationale draft (see sanitizeText). */
+export function rationaleHashForTrace(rationaleDraft: Record<string, unknown>): string {
   const title = sanitizeText(rationaleDraft.title, 'Untitled rationale');
   const rationale = sanitizeText(rationaleDraft.rationale, 'No rationale provided.');
   return `sha256:${sha256Hex(`${title}|${rationale}`)}`;

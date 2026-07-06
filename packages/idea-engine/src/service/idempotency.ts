@@ -2,6 +2,7 @@ import { existsSync } from 'fs';
 import { IdeaEngineStore } from '../store/engine-store.js';
 import { budgetSnapshot } from './budget-snapshot.js';
 import { RpcError } from './errors.js';
+import { IMPORT_GENERATED_METHOD, recoverImportGenerated } from './import-generated-recovery.js';
 import { nodeLifecycleState } from './node-shared.js';
 
 interface IdempotencyResponse {
@@ -72,6 +73,15 @@ function preparedSideEffectsCommitted(store: IdeaEngineStore, method: string, re
   if (method === 'node.promote') {
     const handoffRef = record.response.payload.handoff_artifact_ref;
     return typeof handoffRef === 'string' && handoffRef.startsWith('file://') && existsSync(handoffRef.slice(7));
+  }
+  if (method === IMPORT_GENERATED_METHOD) {
+    // Import-specific: the generic delete-prepared-and-re-execute fallback
+    // below is only safe when NOTHING landed (a fresh run re-mints node ids).
+    // recoverImportGenerated probes all four recorded effect classes,
+    // COMPLETES missing ones from the archived pack artifact, returns false
+    // only for the zero-effects case, and throws import_recovery_conflict on
+    // a value mismatch it cannot complete.
+    return recoverImportGenerated(store, record);
   }
   if (method === 'node.set_posterior' || method === 'node.set_lifecycle') {
     const campaignId = record.response.payload.campaign_id;

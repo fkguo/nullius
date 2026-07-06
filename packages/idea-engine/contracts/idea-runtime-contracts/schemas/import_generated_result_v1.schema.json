@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "import_generated_result_v1.schema.json",
+  "title": "ImportGeneratedResult v1",
+  "description": "Result of node.import_generated. imported lists the engine-minted ids in candidate order; pack_artifact_ref points at the archived pack (verbatim pack + the engine-assembled nodes), and pack_hash pins the pack content (sha256 over its canonical JSON). These recorded values are also the crash-recovery probe data: a retried import commits only when every recorded node exists with a value-equal immutable projection, the pack artifact matches pack_hash, the node log carries one create entry per node, and campaign usage is consistent.",
+  "type": "object",
+  "required": [
+    "campaign_id",
+    "created_at",
+    "imported",
+    "imported_count",
+    "rejected_count",
+    "pack_artifact_ref",
+    "pack_hash",
+    "budget_snapshot",
+    "idempotency"
+  ],
+  "properties": {
+    "campaign_id": {
+      "type": "string",
+      "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "imported": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["node_id", "idea_id", "operator_family", "operator_id"],
+        "properties": {
+          "node_id": {
+            "type": "string",
+            "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$"
+          },
+          "idea_id": {
+            "type": "string",
+            "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$"
+          },
+          "operator_family": { "type": "string", "minLength": 1 },
+          "operator_id": { "type": "string", "minLength": 1 }
+        },
+        "additionalProperties": false
+      }
+    },
+    "imported_count": { "type": "integer", "minimum": 1 },
+    "rejected_count": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Echo of the pack's rejected_candidates length (the operator's own drops, archived with the pack)."
+    },
+    "pack_artifact_ref": {
+      "type": "string",
+      "format": "uri"
+    },
+    "pack_hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "budget_snapshot": { "$ref": "./budget_snapshot_v1.schema.json" },
+    "idempotency": { "$ref": "./idempotency_meta_v1.schema.json" }
+  },
+  "additionalProperties": false
+}
