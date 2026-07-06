@@ -218,8 +218,10 @@ invented numbers is worse than no posterior: it looks like knowledge.
 ## Graph construction rules
 
 - **One idea, one package, outside the tool repository.** Each idea's graph
-  lives at `<project_root>/ideas/gaia/<idea_slug>-gaia/` in the external
-  research project. `gaia build init` creates a nested git repository inside
+  lives at `<project_root>/argument-graphs/<idea_slug>-gaia/` in the external
+  research project — a directory for the reasoning graphs, kept distinct from
+  the engine's `idea-store/` (which holds the idea nodes and their posteriors).
+  `gaia build init` creates a nested git repository inside
   the package directory, so packages must never be created inside a
   development repository; the tool repository holds only the skeleton
   template and test fixtures.
@@ -302,7 +304,7 @@ readable diagnosis (including the pinned install recipe) when a stage fails.
 
    ```bash
    python3 scripts/gaia_package_scaffold.py \
-     --slug my-idea --dest <project_root>/ideas/gaia
+     --slug my-idea --dest <project_root>/argument-graphs
    ```
 
    Runs `gaia build init my-idea-gaia` in the destination and writes the
@@ -316,7 +318,7 @@ readable diagnosis (including the pinned install recipe) when a stage fails.
 
    ```bash
    python3 scripts/run_infer_and_extract.py \
-     --package <project_root>/ideas/gaia/my-idea-gaia
+     --package <project_root>/argument-graphs/my-idea-gaia
    ```
 
    First runs a static discipline scan over the authored modules. A

@@ -8,7 +8,7 @@ carrying comment guidance on evidence sources, likelihood grades, and anchor
 notes.
 
 The destination must live inside an external research project root (for
-example ``<project_root>/ideas/gaia/``), never inside the tool repository:
+example ``<project_root>/argument-graphs/``), never inside the tool repository:
 ``gaia build init`` creates a nested git repository in the package directory.
 
 Standard library only; Gaia is invoked as a subprocess.
@@ -248,7 +248,7 @@ def main(argv: list[str] | None = None) -> int:
         "--dest",
         required=True,
         help="parent directory for the package (external project root, e.g. "
-        "<project_root>/ideas/gaia/); the package lands in "
+        "<project_root>/argument-graphs/); the package lands in "
         "<dest>/<slug>-gaia/",
     )
     parser.add_argument(
