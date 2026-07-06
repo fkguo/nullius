@@ -1,4 +1,4 @@
-import { PLACEHOLDER_EVIDENCE_URI } from './node-shared.js';
+import { PLACEHOLDER_EVIDENCE_URI, rationaleHashForTrace, sanitizeText } from './node-shared.js';
 import { sha256Hex } from './sha256-hex.js';
 
 interface SeedNodeOptions {
@@ -24,14 +24,6 @@ export function drawUniqueId(createId: () => string, existsId?: (id: string) => 
   throw new Error('seed-node: no free handle id after 16 tries (id space exhausted?)');
 }
 
-function sanitizeText(value: unknown, fallback: string): string {
-  if (typeof value !== 'string') {
-    return fallback;
-  }
-  const compact = value.trim().split(/\s+/).join(' ');
-  return compact ? compact : fallback;
-}
-
 function sanitizeTextList(value: unknown, fallback: string[]): string[] {
   if (!Array.isArray(value)) {
     return fallback;
@@ -46,12 +38,6 @@ function sanitizeTextList(value: unknown, fallback: string[]): string[] {
 export function sanitizeEvidenceUris(value: unknown): string[] {
   const cleaned = sanitizeTextList(value, []);
   return cleaned.length > 0 ? cleaned : [PLACEHOLDER_EVIDENCE_URI];
-}
-
-function rationaleHashForTrace(rationaleDraft: Record<string, unknown>): string {
-  const title = sanitizeText(rationaleDraft.title, 'Untitled rationale');
-  const rationale = sanitizeText(rationaleDraft.rationale, 'No rationale provided.');
-  return `sha256:${sha256Hex(`${title}|${rationale}`)}`;
 }
 
 export function buildIdeaCardFromRationaleDraft(options: {

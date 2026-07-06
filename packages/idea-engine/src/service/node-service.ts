@@ -1,24 +1,34 @@
+import { shortId } from '@nullius/shared';
 import { IdeaEngineContractCatalog } from '../contracts/catalog.js';
 import { hashWithoutIdempotency } from '../hash/payload-hash.js';
 import { IdeaEngineStore } from '../store/engine-store.js';
 import { RpcError } from './errors.js';
+import { executeImportGenerated } from './import-generated-executor.js';
 import { executeNodePromote } from './node-promote-executor.js';
 import { executeNodeSetLifecycle } from './node-set-lifecycle-executor.js';
 import { executeNodeSetPosterior } from './node-set-posterior-executor.js';
 import { executeRankCompute } from './rank-compute-executor.js';
 import { toSchemaError, utcNowIso } from './service-contract-error.js';
 
-const NODE_METHODS = new Set(['rank.compute', 'node.promote', 'node.set_posterior', 'node.set_lifecycle']);
+const NODE_METHODS = new Set([
+  'rank.compute',
+  'node.promote',
+  'node.set_posterior',
+  'node.set_lifecycle',
+  'node.import_generated',
+]);
 
 export class IdeaEngineNodeService {
   readonly contracts: IdeaEngineContractCatalog;
   readonly store: IdeaEngineStore;
+  private readonly createId: () => string;
   private readonly now: () => string;
 
   constructor(options: { contractDir?: string; createId?: () => string; now?: () => string; rootDir: string }) {
     this.store = new IdeaEngineStore(options.rootDir);
     this.contracts = new IdeaEngineContractCatalog(options.contractDir);
     this.now = options.now ?? utcNowIso;
+    this.createId = options.createId ?? shortId;
   }
 
   canHandle(method: string): boolean {
@@ -52,6 +62,9 @@ export class IdeaEngineNodeService {
       }
       if (method === 'node.set_lifecycle') {
         return executeNodeSetLifecycle(executorOptions);
+      }
+      if (method === 'node.import_generated') {
+        return executeImportGenerated({ ...executorOptions, createId: this.createId });
       }
       return executeNodePromote(executorOptions);
     } catch (error) {
