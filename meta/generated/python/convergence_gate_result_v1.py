@@ -69,6 +69,7 @@ class ReportStatus(BaseModel):
 class GateId(StrEnum):
     team_convergence = "team_convergence"
     draft_convergence = "draft_convergence"
+    independent_reproduction = "independent_reproduction"
 
 
 class WorkflowMode(StrEnum):

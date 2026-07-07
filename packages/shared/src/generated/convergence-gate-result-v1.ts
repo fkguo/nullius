@@ -29,7 +29,10 @@ export interface ConvergenceGateResultV1 {
     };
   };
   meta: {
-    gate_id: "team_convergence" | "draft_convergence";
+    gate_id:
+      | "team_convergence"
+      | "draft_convergence"
+      | "independent_reproduction";
     generated_at: string;
     parser_version: string;
     schema_id: "convergence_gate_result_v1";

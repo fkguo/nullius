@@ -109,6 +109,8 @@ Configured in `research_team_config.json`:
 - `review_access_mode=packet_only`: reviewers must use only the team packet (offline/portable review; legacy mode).
 - `review_access_mode=full_access`: reviewers still have no direct tools; they request file reads / command runs / network fetches via a leader-run proxy. Every access is logged to `team/runs/<tag>/member_{a,b}_evidence.json` and enforced by deterministic gates.
 
+Independence of the two reproduction paths is machine-checked (`check_independent_reproduction.py`): reproduction sources that import/include the declared kernel-under-test (`independent_reproduction.kernel_modules`), or that share the same project-local module across both members, fail the gate with verdict `not_independent` (`SHARED_KERNEL_INHERITANCE`); the verdict JSON is written to `team/runs/<tag>/independent_reproduction_gate.json`. Disagreements between reproductions are resolved by tracing the first diverging intermediate quantity — never by majority vote.
+
 Third-party validation (offline):
 - `python3 "${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode"; do [ -d "$r/skills/research-team" ] && echo "$r/skills/research-team" && break; done || true)}/scripts/bin/validate_evidence.py" team/runs/<tag>/member_a_evidence.json`
 

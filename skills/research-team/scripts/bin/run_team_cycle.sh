@@ -2816,7 +2816,7 @@ for entry in "${post_gates[@]}"; do
       gate_code=$?
       ;;
     independent_reproduction_gate)
-      python3 "${gate_script}" --notes "${NOTEBOOK_PATH}" --tag "${RESOLVED_TAG}" --member-a "${member_a_evidence}" --member-b "${member_b_evidence}" --project-root "${PROJECT_ROOT}"
+      python3 "${gate_script}" --notes "${NOTEBOOK_PATH}" --tag "${RESOLVED_TAG}" --member-a "${member_a_evidence}" --member-b "${member_b_evidence}" --project-root "${PROJECT_ROOT}" --out-json "${run_dir}/independent_reproduction_gate.json"
       gate_code=$?
       ;;
     logic_isolation_gate)
