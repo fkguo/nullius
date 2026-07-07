@@ -36,13 +36,6 @@
       "version": "0.1.0",
       "source_path": "skills/codex-cli-runner/SKILL.md"
     },
-    "deep-learning-lab": {
-      "type": "skill-pack",
-      "repo": "nullius/skills-market",
-      "channel": "dev",
-      "version": "0.1.0",
-      "source_path": "skills/deep-learning-lab/SKILL.md"
-    },
     "deep-literature-review": {
       "type": "skill-pack",
       "repo": "nullius/skills-market",
