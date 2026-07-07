@@ -201,6 +201,32 @@ def test_validate_posterior_rejects_path_escapes() -> None:
             )
 
 
+def test_validate_posterior_rejects_hand_written_metacharacters() -> None:
+    # Raw URI metacharacters pass a naive check here but throw inside the
+    # engine's URL parsing (the first segment sits in host position) —
+    # refuse locally with a usable message. The extractor never emits
+    # these: quote(safe='/') percent-encodes them.
+    for bad_ref in (
+        f"project://a:b/pkg#{PIN}",
+        f"project://a[b]/pkg#{PIN}",
+        f"project://a|b#{PIN}",
+    ):
+        with pytest.raises(ValueError, match="percent-encoded form"):
+            writeback.validate_posterior(
+                dict(POSTERIOR, gaia_package_ref=bad_ref)
+            )
+
+
+def test_non_object_ir_json_is_a_clean_refusal(
+    tmp_path, fixtures_dir, capsys
+) -> None:
+    make_package(tmp_path)
+    ir_path = tmp_path / "example-idea-gaia" / ".gaia" / "ir.json"
+    ir_path.write_text(json.dumps("not an object"), encoding="utf-8")
+    assert run_main(tmp_path, fixtures_dir, package=False) == 2
+    assert "not a JSON object" in capsys.readouterr().err
+
+
 def test_ref_must_resolve_under_the_project_root(
     tmp_path, fixtures_dir, capsys
 ) -> None:
