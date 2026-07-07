@@ -1,0 +1,15 @@
+{
+  "schema_id": "independence_manifest_v1",
+  "reference_code_paths": [],
+  "methods": [
+    {
+      "id": "example_method",
+      "spec_path": "specs/example_method_spec.md",
+      "implementations": [
+        {"path": "src/example.jl", "origin": "fresh", "independent": true},
+        {"path": "checks/example_alt.py", "origin": "fresh", "independent": true}
+      ],
+      "review_verdicts": ["reviews/example_method_verdict.md"]
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "schema_id": "extraction_manifest_v1",
+  "sources": [
+    {"id": "paperA", "kind": "paper", "citation": "<full citation>", "doi_or_arxiv": "<id>"}
+  ],
+  "items": [
+    {
+      "id": "eq_example",
+      "kind": "equation",
+      "verbatim": "<exact span copied from the source>",
+      "source": "paperA",
+      "locator": "Eq. (1), p. 1",
+      "normalized_form": "<the convention the package adopts>"
+    },
+    {
+      "id": "const_example",
+      "kind": "constant",
+      "verbatim": "<exact span>",
+      "source": "paperA",
+      "locator": "Table 1",
+      "units": "dimensionless"
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "schema_id": "survey_decision_v1",
+  "components": [
+    {
+      "id": "example_component",
+      "decision": "build",
+      "searches": [
+        {"query": "<method name> implementation", "venue": "GitHub", "date": "YYYY-MM-DD", "results": 0}
+      ],
+      "strongest_prior_art": [
+        {"statement": "<the strongest existing statement found>", "source": "<source id>", "locator": "<section / page>"}
+      ],
+      "originality_claim": false,
+      "no_public_code_found": false
+    }
+  ]
+}

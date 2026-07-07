@@ -1,0 +1,16 @@
+{
+  "schema_id": "closeout_v1",
+  "readme_examples": [
+    {
+      "id": "quickstart",
+      "log": "closeout/quickstart_run.log"
+    }
+  ],
+  "readme_examples_none_reason": "",
+  "scrub_lexicon": [],
+  "scrub_lexicon_none_reason": "<why no internal-process vocabulary applies, if the lexicon is empty>",
+  "source_dirs": [
+    "src"
+  ],
+  "traceability_ledger": "traceability_ledger.json"
+}

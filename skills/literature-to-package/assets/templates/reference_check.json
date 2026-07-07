@@ -1,0 +1,17 @@
+{
+  "schema_id": "reference_check_v1",
+  "checks": [
+    {
+      "id": "anchor_example",
+      "quantity": "<observable name>",
+      "representation": "<representation / basis A>",
+      "computed": {"value": 0.0, "error": 0.0},
+      "reference": {"value": 0.0, "error": 0.0, "source": "paperA", "locator": "Table 2"},
+      "tolerance": 0.0,
+      "error_scale": 0.0,
+      "error_scale_basis": "combined quoted uncertainties"
+    }
+  ],
+  "reference_only": [],
+  "runtime_dep_files": []
+}
