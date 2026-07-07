@@ -259,7 +259,7 @@ describe('Docs tool drift guard', () => {
     assertContainsAll({
       text: md,
       snippets: [
-        'The current emitted/resolved URI schemes covered by this registry are `hep://`, `pdg://`, `orch://`, `rep://`, `hepdata://`, `openalex://`, `zotero://`, and `file://`.',
+        'The current emitted/resolved URI schemes covered by this registry are `hep://`, `pdg://`, `orch://`, `rep://`, `hepdata://`, `openalex://`, `zotero://`, `file://`, and `project://`.',
         '`orch://runs/{run_id}/artifact/{artifact_path}`',
         '`rep://runs/{run_id}/artifact/{artifact_path}`',
         '`hepdata://artifacts/submissions/{hepdata_id}/hepdata_submission.zip`',
