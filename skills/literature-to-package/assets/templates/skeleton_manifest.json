@@ -1,0 +1,15 @@
+{
+  "schema_id": "skeleton_manifest_v1",
+  "traceability_ledger": "traceability_ledger.json",
+  "reference_asset_dirs": [],
+  "source_dirs": [
+    "src"
+  ],
+  "exports": [
+    {
+      "name": "example_export",
+      "doc_path": "docs/api.md",
+      "test_path": "tests/test_example.py"
+    }
+  ]
+}

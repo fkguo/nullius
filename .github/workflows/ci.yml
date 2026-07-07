@@ -77,6 +77,10 @@ jobs:
         if: ${{ matrix.node-version == 22 }}
         run: node scripts/check-independent-reproduction-anti-drift.mjs
 
+      - name: Check literature-to-package anti-drift (phase-gate discipline)
+        if: ${{ matrix.node-version == 22 }}
+        run: node scripts/check-literature-to-package-anti-drift.mjs
+
       - name: Check codegen drift (meta/schemas ↔ generated)
         if: ${{ matrix.node-version == 22 }}
         run: pnpm codegen:check
@@ -116,6 +120,9 @@ jobs:
 
       - name: Python tests (independent-reproduction gate behavior)
         run: python -m pytest skills/research-team/tests/test_independent_reproduction_gate.py -q
+
+      - name: Python tests (literature-to-package phase gates)
+        run: python -m pytest skills/literature-to-package/tests/test_phase_gates.py -q
 
   skills-market-checks:
     runs-on: ubuntu-latest

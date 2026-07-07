@@ -1,0 +1,9 @@
+{
+  "entries": [
+    {
+      "artifact": "src/example.jl#example_export",
+      "extraction_ids": ["eq_example"],
+      "status": "pending"
+    }
+  ]
+}
