@@ -118,6 +118,13 @@
       "version": "0.1.0",
       "source_path": "skills/julia-perf/SKILL.md"
     },
+    "kimi-cli-runner": {
+      "type": "skill-pack",
+      "repo": "nullius/skills-market",
+      "channel": "beta",
+      "version": "0.1.0",
+      "source_path": "skills/kimi-cli-runner/SKILL.md"
+    },
     "literature-graph-builder": {
       "type": "skill-pack",
       "repo": "nullius/skills-market",
@@ -130,6 +137,13 @@
         "markdown-hygiene": ">=0.1.0 <0.2.0",
         "review-swarm": ">=0.1.0 <0.2.0"
       }
+    },
+    "literature-to-package": {
+      "type": "skill-pack",
+      "repo": "nullius/skills-market",
+      "channel": "beta",
+      "version": "0.1.0",
+      "source_path": "skills/literature-to-package/SKILL.md"
     },
     "literature-workflows": {
       "type": "workflow-pack",
@@ -177,6 +191,13 @@
       "depends_on": {
         "hep-mcp": ">=0.5.0 <0.6.0"
       }
+    },
+    "physics-diagrams": {
+      "type": "skill-pack",
+      "repo": "nullius/skills-market",
+      "channel": "dev",
+      "version": "0.1.0",
+      "source_path": "skills/physics-diagrams/SKILL.md"
     },
     "referee-review": {
       "type": "skill-pack",

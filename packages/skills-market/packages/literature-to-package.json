@@ -1,0 +1,39 @@
+{
+  "package_id": "literature-to-package",
+  "package_type": "skill-pack",
+  "repo": "nullius/skills-market",
+  "channel": "beta",
+  "version": "0.1.0",
+  "summary": "Build the initial framework of a software package from literature via a 7-phase pipeline (survey, extraction, skeleton, reimplementation, reference-check, composite-gates, closeout), each closed by a fail-closed gate; adds the literature-to-code bridge (span-anchored extraction, traceability ledger, clean-room reimplementation, reference-value cross-validation).",
+  "platforms": [
+    "claude_code",
+    "codex",
+    "opencode"
+  ],
+  "source_path": "skills/literature-to-package/SKILL.md",
+  "install": {
+    "claude_code": "Link into ~/.claude/skills or install via marketplace when available.",
+    "codex": "Link into ~/.codex/skills for Codex native discovery.",
+    "opencode": "Link into ~/.config/opencode/skills for OpenCode discovery."
+  },
+  "source": {
+    "repo": "nullius/skills",
+    "ref": "main",
+    "subpath": "skills/literature-to-package",
+    "include": [
+      "SKILL.md",
+      "assets/**",
+      "references/**",
+      "scripts/**"
+    ],
+    "exclude": [
+      "**/tests/**",
+      "**/test/**",
+      "**/tmp/**",
+      "**/.pytest_cache/**",
+      "**/__pycache__/**",
+      "**/*.pyc",
+      "**/.DS_Store"
+    ]
+  }
+}

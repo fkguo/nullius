@@ -1,0 +1,38 @@
+{
+  "package_id": "kimi-cli-runner",
+  "package_type": "skill-pack",
+  "repo": "nullius/skills-market",
+  "channel": "beta",
+  "version": "0.1.0",
+  "summary": "Non-interactive Kimi CLI (Kimi Code) runner skill for file-based prompt execution with retries and model fallback.",
+  "platforms": [
+    "claude_code",
+    "codex",
+    "opencode"
+  ],
+  "source_path": "skills/kimi-cli-runner/SKILL.md",
+  "install": {
+    "claude_code": "Link into ~/.claude/skills or install via marketplace when available.",
+    "codex": "Link into ~/.codex/skills for Codex native discovery.",
+    "opencode": "Link into ~/.config/opencode/skills for OpenCode discovery."
+  },
+  "source": {
+    "repo": "nullius/skills",
+    "ref": "main",
+    "subpath": "skills/kimi-cli-runner",
+    "include": [
+      "SKILL.md",
+      "agents/**",
+      "scripts/**"
+    ],
+    "exclude": [
+      "**/tests/**",
+      "**/test/**",
+      "**/tmp/**",
+      "**/.pytest_cache/**",
+      "**/__pycache__/**",
+      "**/*.pyc",
+      "**/.DS_Store"
+    ]
+  }
+}

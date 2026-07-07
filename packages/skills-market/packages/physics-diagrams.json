@@ -1,0 +1,40 @@
+{
+  "package_id": "physics-diagrams",
+  "package_type": "skill-pack",
+  "repo": "nullius/skills-market",
+  "channel": "dev",
+  "version": "0.1.0",
+  "summary": "Create, revise, and verify publication-grade physics diagrams for LaTeX papers (Feynman/process, Bethe-Salpeter/Faddeev/integral-equation schematics, geometry/coordinate sketches) with non-overlapping mathematical labels and editable source plus vector PDF.",
+  "platforms": [
+    "claude_code",
+    "codex",
+    "opencode"
+  ],
+  "source_path": "skills/physics-diagrams/SKILL.md",
+  "install": {
+    "claude_code": "Link into ~/.claude/skills or install via marketplace when available.",
+    "codex": "Link into ~/.codex/skills for Codex native discovery.",
+    "opencode": "Link into ~/.config/opencode/skills for OpenCode discovery."
+  },
+  "source": {
+    "repo": "nullius/skills",
+    "ref": "main",
+    "subpath": "skills/physics-diagrams",
+    "include": [
+      "SKILL.md",
+      "agents/**",
+      "assets/**",
+      "references/**",
+      "scripts/**"
+    ],
+    "exclude": [
+      "**/tests/**",
+      "**/test/**",
+      "**/tmp/**",
+      "**/.pytest_cache/**",
+      "**/__pycache__/**",
+      "**/*.pyc",
+      "**/.DS_Store"
+    ]
+  }
+}
