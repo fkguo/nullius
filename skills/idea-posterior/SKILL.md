@@ -52,6 +52,30 @@ After creating a package, run `gaia sdk` inside it once and read the generated
 `gaia-sdk/CHEATSHEET.md`: it is the authoritative statement reference for the
 pinned version, including the Lindley–Jeffreys section referenced below.
 
+### Moving between machines (synced projects)
+
+Research projects are routinely synced across machines; everything this
+skill writes is designed to survive that, provided one rule is respected:
+**environments are machine-local, references are project-relative.**
+
+- `gaia_package_ref` values are `project://` references resolved against
+  the project root, so posteriors in the idea store stay auditable on
+  every machine the project lands on. If a reference does not resolve
+  (the package was moved or deleted after the write), re-run
+  `run_infer_and_extract.py` on the package to produce a fresh posterior
+  and reference — the `#sha256:` pin tells you whether the graph is still
+  the same one.
+- Virtual environments must NOT ride the sync: `.gaia-venv/` and each
+  package's `.venv/` contain machine-specific binaries. Exclude them from
+  the sync tool, and rebuild on the new machine: the recipe above
+  recreates `.gaia-venv`; a package's own environment re-syncs
+  automatically from its pinned `pyproject.toml` on the next gaia run (or
+  explicitly with `uv sync --python 3.12` inside the package).
+- If the project is also a git repository, prefer syncing it as a
+  repository (push/pull) over letting a file-level sync service copy
+  `.git/` — concurrent file-sync of repository internals can corrupt
+  them.
+
 ## Admission gate — before any graph is built
 
 Not every idea deserves a graph. An idea is admitted only if it clears at
@@ -221,10 +245,14 @@ invented numbers is worse than no posterior: it looks like knowledge.
   lives at `<project_root>/argument-graphs/<idea_slug>-gaia/` in the external
   research project — a directory for the reasoning graphs, kept distinct from
   the engine's `idea-store/` (which holds the idea nodes and their posteriors).
-  `gaia build init` creates a nested git repository inside
-  the package directory, so packages must never be created inside a
-  development repository; the tool repository holds only the skeleton
-  template and test fixtures.
+  Packages must never be created inside a development repository; the tool
+  repository holds only the skeleton template and test fixtures.
+  `gaia build init` creates a nested git repository inside the package; the
+  scaffold removes that fresh, zero-commit repository so the research
+  project's own version control can track the package. A pre-existing
+  package with real git history is a different matter: absorb it into the
+  project deliberately (move its history or accept the loss explicitly) —
+  never delete a non-empty repository automatically.
 
 - **The top-level claim is named `worth` and gets no prior.** The module
   variable name must be `worth` (extraction keys on that label). Do not
@@ -312,7 +340,13 @@ readable diagnosis (including the pinned install recipe) when a stage fails.
    comment guidance restating the likelihood grades, the anchor-note format,
    and the pairwise-exclusivity rule. The skeleton compiles as generated
    (all claims MaxEnt, no evidence). Refuses to overwrite an existing
-   package.
+   package. The freshly generated package is then hardened: the
+   zero-commit nested git repository from `gaia build init` is removed,
+   and the generated environment pins are retargeted to
+   `gaia-lang==0.5.0a4` / Python 3.12 (gaia's own template still writes
+   `>=0.4.4` / 3.13 — a recipe observed to break silently in the field);
+   the init-time package venv is dropped so the next gaia run re-syncs it
+   from the corrected pins.
 
 2. **Run inference and extract the posterior.**
 
@@ -353,15 +387,20 @@ readable diagnosis (including the pinned install recipe) when a stage fails.
    {
      "value": 0.8499,
      "evidence_count": 2,
-     "gaia_package_ref": "file:///abs/path/to/my-idea-gaia#sha256:..."
+     "gaia_package_ref": "project://argument-graphs/my-idea-gaia#sha256:..."
    }
    ```
 
-   `gaia_package_ref` is a `file://` URI — the idea-engine contract types
-   this field as a URI, so a bare filesystem path is rejected at the store —
-   and embeds the IR hash, so the reference pins the exact compiled graph
-   the posterior came from; a later re-run on a changed graph yields a
-   visibly different reference.
+   `gaia_package_ref` is machine-portable by construction: research
+   projects sync across machines, so the reference names the package
+   RELATIVE to the project root — the nearest ancestor containing
+   `.nullius/`, or an explicit `--project-root` — never as this machine's
+   absolute path (path segments are percent-encoded; the form satisfies
+   the engine's URI typing of this field). The `#sha256:` fragment embeds
+   the IR hash, so the reference pins the exact compiled graph the
+   posterior came from; a later re-run on a changed graph yields a visibly
+   different reference, and on any machine the pin can be checked against
+   the package's `.gaia/ir.json`.
 
 3. **Write the posterior back to the idea store.**
 
@@ -375,11 +414,18 @@ readable diagnosis (including the pinned install recipe) when a stage fails.
 
    Sends `{"method": "node.set_posterior", "params": {campaign_id, node_id,
    idempotency_key, posterior}, "store_root": ...}` on stdin to the
-   idea-engine thin RPC caller and fails loudly on an error response. The
-   idempotency key is a deterministic digest of campaign, node, package
-   reference, value, and evidence count: retrying the same write is a no-op,
-   while any real change produces a new key. Two consequences of that
-   default are surfaced rather than left silent:
+   idea-engine thin RPC caller and fails loudly on an error response.
+   Before anything is sent, the `project://` reference is verified against
+   the project on disk: it must resolve under the project root (the
+   nearest ancestor of `--store-root` containing `.nullius/`, or an
+   explicit `--project-root`) and its `#sha256:` pin must match the
+   package's current `.gaia/ir.json`. A reference nobody could follow, or
+   one whose graph changed after extraction, is refused with the refresh
+   command (re-run `run_infer_and_extract.py`) instead of being archived
+   into the store. The idempotency key is a deterministic digest of
+   campaign, node, package reference, value, and evidence count: retrying
+   the same write is a no-op, while any real change produces a new key.
+   Two consequences of that default are surfaced rather than left silent:
 
    - When the posterior is identical to an **earlier** write (for example,
      restoring a node to a previous state after intervening revisions), the
@@ -412,7 +458,9 @@ earns its place only if a reader can reach it in one click:
 - An artifact reference (a `*_v1.json` / `*_v1.md` sibling) is written as a
   relative Markdown link to the file. The posterior's `gaia_package_ref` keeps
   its `#sha256:` pin intact — the pin is what ties the reference to the exact
-  compiled graph — and is linked when its path resolves.
+  compiled graph — and its `project://` path is resolved against the project
+  root and linked as a relative path, so the link survives the project
+  syncing to another machine.
 - The `anchor: <...>` notes echoed into the report follow the same rule: a
   resolvable reference inside an anchor note is a link.
 

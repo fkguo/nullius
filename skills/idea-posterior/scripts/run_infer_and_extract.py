@@ -13,10 +13,14 @@ then parse the produced artifacts:
   exact compiled graph.
 
 Output (stdout, JSON): {"value": float, "evidence_count": int,
-"gaia_package_ref": "file://<abs package path>#<ir_hash>"}. The reference is
-a file:// URI, never a bare path: the idea-engine contract pins
-gaia_package_ref as format "uri" (node.set_posterior / idea_node_v1), so a
-bare absolute path is refused at writeback. Diagnostics go to stderr.
+"gaia_package_ref": "project://<project-relative path>#<ir_hash>"}. The
+reference is machine-portable on purpose: research projects are synced
+across machines, so it names the package RELATIVE to the enclosing project
+root (the nearest ancestor directory containing ``.nullius/``, or an
+explicit ``--project-root``) instead of embedding this machine's absolute
+path. Path segments are percent-encoded; the ``#sha256:`` fragment is the
+package's own compiled-graph hash. The idea-engine contract types the field
+as format "uri", which this form satisfies. Diagnostics go to stderr.
 Standard library only; Gaia is invoked as a subprocess.
 """
 
@@ -30,6 +34,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from urllib.parse import quote
 
 GAIA_PIN = "0.5.0a4"
 
@@ -564,7 +569,50 @@ def count_observations(ir: dict) -> int:
     return count
 
 
-def extract_posterior(package_dir: Path, worth_label: str) -> dict:
+def find_project_root(start: Path) -> Path | None:
+    """Nearest ancestor of ``start`` (inclusive) containing ``.nullius/``.
+
+    ``.nullius/`` is the project-root marker written by ``nullius init``;
+    it is what makes a ``project://`` reference resolvable on any machine
+    the project is synced to.
+    """
+    for candidate in (start, *start.parents):
+        if (candidate / ".nullius").is_dir():
+            return candidate
+    return None
+
+
+def package_ref(package_dir: Path, project_root: Path, ir_hash: str) -> str:
+    """Build the machine-portable ``project://`` package reference.
+
+    The path is RELATIVE to the project root so the reference survives the
+    project being synced to another machine (an absolute path would not);
+    the ``#sha256:`` fragment pins the exact compiled graph regardless of
+    location. Segments are percent-encoded so the result is a valid URI
+    even for paths with spaces (the engine validates format "uri").
+    """
+    package_resolved = package_dir.resolve()
+    root_resolved = project_root.resolve()
+    try:
+        rel = package_resolved.relative_to(root_resolved)
+    except ValueError:
+        raise ValueError(
+            f"package {package_resolved} is not under the project root "
+            f"{root_resolved}; a machine-portable reference requires the "
+            "package inside the project (move it, or pass the correct "
+            "--project-root)"
+        ) from None
+    if rel == Path("."):
+        raise ValueError(
+            "the package directory IS the project root; the package must "
+            "be a subdirectory of the project (e.g. argument-graphs/<slug>-gaia)"
+        )
+    return f"project://{quote(rel.as_posix(), safe='/')}#{ir_hash}"
+
+
+def extract_posterior(
+    package_dir: Path, worth_label: str, project_root: Path
+) -> dict:
     """Parse .gaia artifacts into the posterior payload."""
     gaia_dir = package_dir / ".gaia"
     beliefs_path = gaia_dir / "beliefs.json"
@@ -585,9 +633,7 @@ def extract_posterior(package_dir: Path, worth_label: str) -> dict:
     return {
         "value": value,
         "evidence_count": evidence_count,
-        # file:// URI, not a bare path: the engine validates gaia_package_ref
-        # as format "uri" and rejects bare absolute paths at node.set_posterior.
-        "gaia_package_ref": f"{package_dir.resolve().as_uri()}#{ir_hash}",
+        "gaia_package_ref": package_ref(package_dir, project_root, ir_hash),
     }
 
 
@@ -610,6 +656,15 @@ def main(argv: list[str] | None = None) -> int:
         "--output",
         default=None,
         help="optional file to write the posterior JSON to (stdout always)",
+    )
+    parser.add_argument(
+        "--project-root",
+        default=None,
+        help="project root the package reference is made relative to "
+        "(default: the nearest ancestor of the package containing "
+        ".nullius/). The reference must be machine-portable — research "
+        "projects sync across machines — so there is no absolute-path "
+        "fallback",
     )
     parser.add_argument(
         "--allow-discipline-warnings",
@@ -638,6 +693,25 @@ def main(argv: list[str] | None = None) -> int:
     if not package_dir.is_dir():
         sys.stderr.write(f"error: package directory not found: {package_dir}\n")
         return 2
+
+    if args.project_root:
+        project_root = Path(args.project_root).resolve()
+        if not project_root.is_dir():
+            sys.stderr.write(
+                f"error: project root not found: {project_root}\n"
+            )
+            return 2
+    else:
+        project_root = find_project_root(package_dir)
+        if project_root is None:
+            sys.stderr.write(
+                "error: no project root found: no ancestor of "
+                f"{package_dir} contains .nullius/. The package reference "
+                "is project-relative so it stays valid when the project "
+                "syncs to another machine; put the package inside a "
+                "nullius project, or pass --project-root explicitly.\n"
+            )
+            return 2
 
     gaia_bin = resolve_gaia_bin(args.gaia_bin)
     check_gaia_version(gaia_bin)
@@ -671,7 +745,9 @@ def main(argv: list[str] | None = None) -> int:
         render_graph(gaia_bin, package_dir, args.render_timeout)
 
     try:
-        posterior = extract_posterior(package_dir, args.worth_label)
+        posterior = extract_posterior(
+            package_dir, args.worth_label, project_root
+        )
     except (FileNotFoundError, ValueError, json.JSONDecodeError) as exc:
         sys.stderr.write(f"error: {exc}\n")
         return 2

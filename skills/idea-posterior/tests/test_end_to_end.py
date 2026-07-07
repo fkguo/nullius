@@ -65,7 +65,12 @@ exclusive(rival_b, rival_c, rationale="Rival explanations; at most one true.")
 
 def run_extract(package_dir, gaia_bin, capsys, extra_args=()):
     code = extract.main(
-        ["--package", str(package_dir), "--gaia-bin", gaia_bin, *extra_args]
+        [
+            "--package", str(package_dir),
+            "--project-root", str(Path(package_dir).parent),
+            "--gaia-bin", gaia_bin,
+            *extra_args,
+        ]
     )
     assert code == 0
     return json.loads(capsys.readouterr().out)
@@ -88,16 +93,26 @@ def test_scaffold_infer_extract_writeback_chain(
     module_init = scaffold.find_module_dir(package_dir) / "__init__.py"
     text = module_init.read_text(encoding="utf-8")
     assert "worth = claim(" in text
+    # Post-init hardening: the zero-commit nested repository is gone and
+    # the generated environment pins are retargeted (gaia's own template
+    # still writes the silently-broken >=0.4.4 / 3.13 recipe).
+    assert not (package_dir / ".git").exists()
+    pyproject = (package_dir / "pyproject.toml").read_text(encoding="utf-8")
+    assert 'gaia-lang==0.5.0a4' in pyproject
+    assert 'requires-python = ">=3.12"' in pyproject
+    assert (package_dir / ".python-version").read_text(
+        encoding="utf-8"
+    ).strip() == "3.12"
     capsys.readouterr()  # drop scaffold output
 
     # 2. The freshly generated skeleton compiles and infers: pure MaxEnt.
     posterior = run_extract(package_dir, gaia_bin, capsys)
     assert posterior["value"] == pytest.approx(0.5, abs=1e-9)
     assert posterior["evidence_count"] == 0
+    # Machine-portable reference: project-relative, never an absolute path.
     assert posterior["gaia_package_ref"].startswith(
-        package_dir.resolve().as_uri()
+        "project://example-idea-gaia#sha256:"
     )
-    assert "#sha256:" in posterior["gaia_package_ref"]
 
     # 3. Append one anchored observation; the posterior must move up and the
     #    evidence count must see exactly one observation. Also exercise
@@ -121,6 +136,7 @@ def test_scaffold_infer_extract_writeback_chain(
             "--campaign-id", "campaign-e2e",
             "--node-id", "node-e2e",
             "--store-root", str(tmp_path / "store"),
+            "--project-root", str(tmp_path),
             "--idea-rpc", str(fixtures_dir / "fake_rpc.py"),
             "--runner", sys.executable,
         ]

@@ -122,6 +122,79 @@ def test_find_module_dir_requires_src(tmp_path) -> None:
         scaffold.find_module_dir(tmp_path)
 
 
+GENERATED_PYPROJECT = """\
+[project]
+name = "example-idea-gaia"
+version = "0.1.0"
+requires-python = ">=3.13"
+dependencies = [
+    "gaia-lang>=0.4.4",
+]
+"""
+
+
+def write_generated_package(tmp_path):
+    """A package directory shaped like fresh `gaia build init` output."""
+    package = tmp_path / "example-idea-gaia"
+    (package / ".git").mkdir(parents=True)
+    (package / ".git" / "HEAD").write_text(
+        "ref: refs/heads/main\n", encoding="utf-8"
+    )
+    (package / ".venv" / "bin").mkdir(parents=True)
+    (package / "uv.lock").write_text("", encoding="utf-8")
+    (package / ".python-version").write_text("3.13\n", encoding="utf-8")
+    (package / "pyproject.toml").write_text(
+        GENERATED_PYPROJECT, encoding="utf-8"
+    )
+    return package
+
+
+def test_harden_package_strips_git_and_retargets_pins(tmp_path) -> None:
+    package = write_generated_package(tmp_path)
+    scaffold.harden_package(package)
+    # The zero-commit nested repository is absorbed into the project's own
+    # version control by removing it; the init-time env is dropped so the
+    # next gaia run re-syncs from the corrected pins.
+    assert not (package / ".git").exists()
+    assert not (package / ".venv").exists()
+    assert not (package / "uv.lock").exists()
+    text = (package / "pyproject.toml").read_text(encoding="utf-8")
+    assert f'"gaia-lang=={scaffold.GAIA_PIN}"' in text
+    assert "gaia-lang>=0.4.4" not in text
+    assert f'requires-python = ">={scaffold.PACKAGE_PYTHON}"' in text
+    assert (package / ".python-version").read_text(
+        encoding="utf-8"
+    ).strip() == scaffold.PACKAGE_PYTHON
+
+
+def test_harden_package_stops_on_template_drift(tmp_path) -> None:
+    package = write_generated_package(tmp_path)
+    (package / "pyproject.toml").write_text(
+        GENERATED_PYPROJECT.replace(
+            '"gaia-lang>=0.4.4"', '"gaia-lang>=9.9.9"'
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(RuntimeError, match="template"):
+        scaffold.harden_package(package)
+    # Wrong pins must never silently pass through.
+    assert "9.9.9" in (package / "pyproject.toml").read_text(encoding="utf-8")
+
+
+def test_harden_package_requires_pyproject(tmp_path) -> None:
+    package = tmp_path / "example-idea-gaia"
+    package.mkdir()
+    with pytest.raises(RuntimeError, match="pyproject"):
+        scaffold.harden_package(package)
+
+
+def test_untracked_project_note_is_advisory_only(tmp_path, capsys) -> None:
+    scaffold.note_when_project_untracked(tmp_path / "definitely-not-a-repo")
+    err = capsys.readouterr().err
+    assert "not under version control" in err
+    assert "never runs it for you" in err
+
+
 def test_missing_gaia_binary_prints_pin_install_hint(tmp_path, capsys) -> None:
     with pytest.raises(SystemExit) as excinfo:
         scaffold.main(

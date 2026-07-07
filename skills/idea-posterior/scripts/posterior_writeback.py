@@ -12,6 +12,14 @@ Contract (idea-engine ``bin/idea-rpc.mjs``): a single JSON object on stdin,
 and a JSON-RPC response on stdout; a non-null ``error`` member means the
 write failed.
 
+Before anything is sent, ``gaia_package_ref`` is verified against the
+project on disk: the ``project://`` reference must resolve under the
+project root (``--project-root``, or the nearest ancestor of the store
+root containing ``.nullius/``) and its ``#sha256:`` pin must match the
+package's current compiled state. A reference nobody could follow — or one
+whose graph changed after extraction — is refused with the refresh command
+instead of being archived into the store.
+
 The idempotency key defaults to a deterministic digest of campaign, node,
 package reference (which pins the compiled graph via its ir_hash), value, and
 evidence count — re-running the same write is a no-op at the store, while any
@@ -38,18 +46,20 @@ import subprocess
 import sys
 import uuid
 from pathlib import Path
+from urllib.parse import unquote
 
 REQUIRED_POSTERIOR_FIELDS = ("value", "evidence_count", "gaia_package_ref")
 
-# The package reference must name the package as a file:// URI AND pin the
-# compiled graph state via its IR hash: file://<abs path>#sha256:<hex>.
-# Full-string match so a bare hash with no path is rejected.
-# A bare absolute path is NOT accepted either: the
-# idea-engine contract types gaia_package_ref as format "uri"
-# (node.set_posterior / idea_node_v1), and the engine refuses bare paths —
-# failing here gives the author a usable message instead of a remote
-# schema_validation_failed.
-REF_PIN_RE = re.compile(r"file:///\S+#sha256:[0-9a-fA-F]{16,}$")
+# The package reference must be machine-portable AND pin the compiled graph
+# state: project://<project-relative path>#sha256:<hex>, resolved against
+# the enclosing project root (the nearest ancestor with .nullius/). Research
+# projects sync across machines, so machine-absolute forms (file:// URIs,
+# bare paths) are refused — they go stale the moment the project lands on
+# another machine, while the relative path plus the content pin stay valid.
+# The engine itself types gaia_package_ref as format "uri" (node.set_posterior
+# / idea_node_v1), which the project:// form satisfies. Full-string match;
+# the first path character must not be "/" (no absolute smuggling).
+REF_PIN_RE = re.compile(r"project://[^\s#/][^\s#]*#sha256:[0-9a-fA-F]{16,}$")
 
 
 def validate_posterior(posterior: dict) -> dict:
@@ -86,16 +96,82 @@ def validate_posterior(posterior: dict) -> dict:
     if not REF_PIN_RE.fullmatch(ref):
         raise ValueError(
             "gaia_package_ref must pin the compiled graph as "
-            f"file://<abs package path>#sha256:<hex>, got {ref!r}; a bare "
-            "path is refused because the idea-engine contract types this "
-            "field as a URI — re-extract with the current "
-            "run_infer_and_extract.py, which emits the file:// form"
+            f"project://<project-relative path>#sha256:<hex>, got {ref!r}. "
+            "Machine-absolute forms (file:// URIs, bare paths) are refused: "
+            "research projects sync across machines and an absolute path "
+            "goes stale there — re-extract with the current "
+            "run_infer_and_extract.py, which emits the portable form"
         )
+    split_package_ref(ref)  # reject path escapes early, before any I/O
     return {
         "value": float(value),
         "evidence_count": evidence_count,
         "gaia_package_ref": ref,
     }
+
+
+def split_package_ref(ref: str) -> tuple[str, str]:
+    """Split a validated ref into (decoded relative path, pin fragment).
+
+    Rejects empty and ``..`` segments: the reference must stay INSIDE the
+    project root it is resolved against.
+    """
+    body = ref[len("project://"):]
+    encoded_path, _, pin = body.partition("#")
+    rel = unquote(encoded_path)
+    segments = rel.split("/")
+    if any(segment in ("", "..") for segment in segments):
+        raise ValueError(
+            f"gaia_package_ref path {rel!r} contains empty or '..' "
+            "segments; the reference must name a directory inside the "
+            "project root"
+        )
+    return rel, pin
+
+
+def find_project_root(start: Path) -> Path | None:
+    """Nearest ancestor of ``start`` (inclusive) containing ``.nullius/``.
+
+    Same rule as the extractor: ``.nullius/`` is the project-root marker,
+    and it is what makes a ``project://`` reference resolvable on any
+    machine the project is synced to.
+    """
+    for candidate in (start, *start.parents):
+        if (candidate / ".nullius").is_dir():
+            return candidate
+    return None
+
+
+def verify_package_ref(ref: str, project_root: Path) -> None:
+    """Check the reference resolves under this project and matches its pin.
+
+    A reference that does not resolve, or whose pin disagrees with the
+    package's current compiled state, is refused with the refresh command —
+    writing it to the store would archive a locator that no reader can
+    follow.
+    """
+    rel, pin = split_package_ref(ref)
+    package_dir = project_root / rel
+    ir_path = package_dir / ".gaia" / "ir.json"
+    if not ir_path.is_file():
+        raise ValueError(
+            f"gaia_package_ref does not resolve: {ir_path} not found under "
+            f"project root {project_root}. If the package moved or the "
+            "reference is stale, re-run run_infer_and_extract.py on the "
+            "package to produce a fresh posterior and reference"
+        )
+    try:
+        ir_hash = json.loads(ir_path.read_text(encoding="utf-8")).get("ir_hash")
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError(f"could not read {ir_path}: {exc}") from exc
+    if ir_hash != pin:
+        raise ValueError(
+            f"gaia_package_ref pin {pin!r} does not match the package's "
+            f"current compiled state {ir_hash!r} at {package_dir}. The "
+            "graph changed after extraction — re-run "
+            "run_infer_and_extract.py so the posterior and its reference "
+            "come from the same compiled graph"
+        )
 
 
 def derive_idempotency_key(campaign_id: str, node_id: str, posterior: dict) -> str:
@@ -134,6 +210,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--node-id", required=True)
     parser.add_argument(
         "--store-root", required=True, help="idea store root directory"
+    )
+    parser.add_argument(
+        "--project-root",
+        default=None,
+        help="project root the project:// package reference resolves "
+        "against (default: the nearest ancestor of --store-root "
+        "containing .nullius/)",
     )
     parser.add_argument(
         "--idea-rpc",
@@ -179,6 +262,29 @@ def main(argv: list[str] | None = None) -> int:
         posterior = validate_posterior(json.loads(raw))
     except (json.JSONDecodeError, ValueError) as exc:
         sys.stderr.write(f"error: invalid posterior JSON from {source}: {exc}\n")
+        return 2
+
+    if args.project_root:
+        project_root = Path(args.project_root).resolve()
+        if not project_root.is_dir():
+            sys.stderr.write(f"error: project root not found: {project_root}\n")
+            return 2
+    else:
+        project_root = find_project_root(Path(args.store_root).resolve())
+        if project_root is None:
+            sys.stderr.write(
+                "error: no project root found: no ancestor of "
+                f"{Path(args.store_root).resolve()} contains .nullius/. "
+                "The package reference resolves against the project root; "
+                "pass --project-root explicitly if the store lives outside "
+                "a nullius project.\n"
+            )
+            return 2
+
+    try:
+        verify_package_ref(posterior["gaia_package_ref"], project_root)
+    except ValueError as exc:
+        sys.stderr.write(f"error: {exc}\n")
         return 2
 
     rpc_path = Path(args.idea_rpc)

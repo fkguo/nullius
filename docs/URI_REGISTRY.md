@@ -6,7 +6,7 @@ It also does not elevate optional project-root support files into URI authority.
 
 ## Covered Schemes
 
-The current emitted/resolved URI schemes covered by this registry are `hep://`, `pdg://`, `orch://`, `rep://`, `hepdata://`, `openalex://`, `zotero://`, and `file://`.
+The current emitted/resolved URI schemes covered by this registry are `hep://`, `pdg://`, `orch://`, `rep://`, `hepdata://`, `openalex://`, `zotero://`, `file://`, and `project://`.
 
 | Scheme | Owner | Live authority | Surface type | Live patterns | Scope boundary |
 |---|---|---|---|---|---|
@@ -18,6 +18,7 @@ The current emitted/resolved URI schemes covered by this registry are `hep://`, 
 | `openalex://` | `@nullius/openalex-mcp`, shared artifact-ref validators | `packages/openalex-mcp/src/api/contentDownload.ts`; `packages/shared/src/artifact-ref.ts` | Tool-return content/artifact identifier, not MCP resources | `openalex://content/{work_id}/{file_name}`; shared validators accept scoped artifact refs such as `openalex://works/{work_id}/artifact/{artifact_path}` | OpenAlex content/download artifact references only. The server remains tool-only and does not expose `openalex://` resources. |
 | `zotero://` | `@nullius/zotero-mcp` | `packages/zotero-mcp/src/zotero/tools.ts` | Tool-return Zotero select URI, not MCP resources | `zotero://select/library/items/{item_key}` | Local Zotero item selection/deep-link pointer only. `@nullius/zotero-mcp` does not advertise MCP resources. |
 | `file://` | `@nullius/idea-engine` | `packages/idea-engine/src/service/{node-promote-executor,rank-compute-executor,import-generated-executor}.ts` emit via `pathToFileURL(...).href`; `handoff`/`ranking` refs are resolved by `packages/orchestrator/src/computation/idea-engine-feedback.ts` and `packages/hep-mcp/src/tools/idea-staging.ts` | Tool-return/cross-package artifact-ref handoff identifiers, not MCP resources | `file://<absolute-artifact-path>` for idea-engine `handoff` / `ranking` / `generation` (pack) artifact refs | Standard local file URL of an idea-engine artifact path. `handoff`/`ranking` refs are consumed by the orchestrator/HEP idea-staging bridge; `generation` pack refs are engine-archived audit units (recorded on imported nodes' traces and read back by the engine's own crash recovery), with no bridge consumer. It is not an owned project/run namespace and not an MCP resource. |
+| `project://` | `skills/idea-posterior` | Emitted by `skills/idea-posterior/scripts/run_infer_and_extract.py`; validated and resolved by `skills/idea-posterior/scripts/posterior_writeback.py` | Machine-portable project-relative package reference stored in idea-store posteriors, not an MCP resource | `project://<percent-encoded project-relative path>#sha256:<ir_hash>` as the `gaia_package_ref` of `node.set_posterior` payloads | Resolves against the enclosing project root (the nearest ancestor directory containing `.nullius/`); the path must stay inside that root (no empty or `..` segments), and the fragment pins the package's compiled-graph state. Deliberately relative: research projects sync across machines, so machine-absolute forms go stale. The idea-engine stores the value opaquely under its `format: "uri"` typing and never resolves it. |
 
 ## Boundary Rules
 

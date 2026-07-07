@@ -8,7 +8,7 @@
         "value": 0.85,
         "evidence_count": 40,
         "updated_at": "2026-07-01T09:00:00Z",
-        "gaia_package_ref": "file:///external/project/gaia/a1pha000#sha256:e314d88c63c80b8845d2c1347e0f20b77db5825076d847ecd1c143a925afc676"
+        "gaia_package_ref": "project://argument-graphs/a1pha000-gaia#sha256:e314d88c63c80b8845d2c1347e0f20b77db5825076d847ecd1c143a925afc676"
       }
     },
     {

@@ -63,14 +63,15 @@ def test_extract_posterior_end_shape(tmp_path, fixtures_dir) -> None:
     shutil.copy(fixtures_dir / "beliefs_sample.json", gaia_dir / "beliefs.json")
     shutil.copy(fixtures_dir / "ir_sample.json", gaia_dir / "ir.json")
 
-    posterior = extract.extract_posterior(tmp_path / "pkg", "worth")
+    posterior = extract.extract_posterior(tmp_path / "pkg", "worth", tmp_path)
 
     assert set(posterior) == {"value", "evidence_count", "gaia_package_ref"}
     assert posterior["value"] == pytest.approx(0.8499370175790979)
     assert posterior["evidence_count"] == 2
-    ref = posterior["gaia_package_ref"]
-    assert ref.startswith((tmp_path / "pkg").resolve().as_uri())
-    assert ref.endswith(
+    # Machine-portable on purpose: project-relative, never this machine's
+    # absolute path (synced projects land at different absolute paths).
+    assert posterior["gaia_package_ref"] == (
+        "project://pkg"
         "#sha256:e314d88c63c80b8845d2c1347e0f20b77db5825076d847ecd1c143a925afc676"
     )
 
@@ -78,7 +79,52 @@ def test_extract_posterior_end_shape(tmp_path, fixtures_dir) -> None:
 def test_extract_posterior_requires_artifacts(tmp_path) -> None:
     (tmp_path / "pkg").mkdir()
     with pytest.raises(FileNotFoundError, match="run the inference stages"):
-        extract.extract_posterior(tmp_path / "pkg", "worth")
+        extract.extract_posterior(tmp_path / "pkg", "worth", tmp_path)
+
+
+def test_package_ref_is_project_relative_and_quoted(tmp_path) -> None:
+    pkg = tmp_path / "argument graphs" / "my-idea-gaia"  # space on purpose
+    pkg.mkdir(parents=True)
+    ref = extract.package_ref(pkg, tmp_path, "sha256:" + "a" * 64)
+    assert ref == (
+        "project://argument%20graphs/my-idea-gaia#sha256:" + "a" * 64
+    )
+
+
+def test_package_ref_refuses_escape_and_root_package(tmp_path) -> None:
+    outside = tmp_path / "elsewhere" / "pkg"
+    outside.mkdir(parents=True)
+    root = tmp_path / "proj"
+    root.mkdir()
+    with pytest.raises(ValueError, match="not under the project root"):
+        extract.package_ref(outside, root, "sha256:" + "a" * 64)
+    with pytest.raises(ValueError, match="IS the project root"):
+        extract.package_ref(root, root, "sha256:" + "a" * 64)
+
+
+def test_find_project_root_walks_up_to_nullius_marker(tmp_path) -> None:
+    (tmp_path / ".nullius").mkdir()
+    nested = tmp_path / "argument-graphs" / "x-gaia"
+    nested.mkdir(parents=True)
+    assert extract.find_project_root(nested) == tmp_path
+
+
+def test_find_project_root_none_without_marker(tmp_path) -> None:
+    nested = tmp_path / "argument-graphs" / "x-gaia"
+    nested.mkdir(parents=True)
+    assert extract.find_project_root(nested) is None
+
+
+def test_main_requires_a_project_root(tmp_path, capsys) -> None:
+    # Checked before gaia is even resolved: without a portable base there
+    # is nothing worth extracting into the store.
+    package = tmp_path / "pkg"
+    package.mkdir()
+    code = extract.main(
+        ["--package", str(package), "--gaia-bin", str(tmp_path / "no-gaia")]
+    )
+    assert code == 2
+    assert "no project root found" in capsys.readouterr().err
 
 
 CLEAN_MODULE = '''
@@ -411,7 +457,11 @@ def test_main_refuses_on_discipline_violation(tmp_path, capsys) -> None:
     package = write_violating_package(tmp_path)
     fake_gaia = write_fake_gaia(tmp_path)
     code = extract.main(
-        ["--package", str(package), "--gaia-bin", str(fake_gaia)]
+        [
+            "--package", str(package),
+            "--project-root", str(tmp_path),
+            "--gaia-bin", str(fake_gaia),
+        ]
     )
     assert code == 2
     err = capsys.readouterr().err
@@ -428,6 +478,7 @@ def test_main_explicit_exception_marks_exploration_only(
     code = extract.main(
         [
             "--package", str(package),
+            "--project-root", str(tmp_path),
             "--gaia-bin", str(fake_gaia),
             "--allow-discipline-warnings",
         ]
@@ -450,7 +501,7 @@ def test_extract_posterior_requires_ir_hash(tmp_path, fixtures_dir) -> None:
     del ir["ir_hash"]
     (gaia_dir / "ir.json").write_text(json.dumps(ir), encoding="utf-8")
     with pytest.raises(ValueError, match="ir_hash"):
-        extract.extract_posterior(tmp_path / "pkg", "worth")
+        extract.extract_posterior(tmp_path / "pkg", "worth", tmp_path)
 
 
 def write_clean_package(tmp_path):
@@ -510,7 +561,13 @@ def test_render_failure_is_non_fatal(tmp_path, fixtures_dir, capsys) -> None:
     # the report would mislink it as "the graph the posterior came from".
     stale = package / "starmap.html"
     stale.write_text("STALE", encoding="utf-8")
-    code = extract.main(["--package", str(package), "--gaia-bin", str(fake_gaia)])
+    code = extract.main(
+        [
+            "--package", str(package),
+            "--project-root", str(tmp_path),
+            "--gaia-bin", str(fake_gaia),
+        ]
+    )
     out = capsys.readouterr()
     assert code == 0
     posterior = json.loads(out.out)
@@ -523,7 +580,13 @@ def test_render_failure_is_non_fatal(tmp_path, fixtures_dir, capsys) -> None:
 def test_render_writes_starmap(tmp_path, fixtures_dir) -> None:
     package = write_clean_package(tmp_path)
     fake_gaia = write_fake_gaia_render(tmp_path, fixtures_dir, render_fails=False)
-    code = extract.main(["--package", str(package), "--gaia-bin", str(fake_gaia)])
+    code = extract.main(
+        [
+            "--package", str(package),
+            "--project-root", str(tmp_path),
+            "--gaia-bin", str(fake_gaia),
+        ]
+    )
     assert code == 0
     assert (package / "starmap.html").is_file()
     assert (package / "starmap.svg").is_file()
@@ -533,7 +596,12 @@ def test_no_render_skips_rendering(tmp_path, fixtures_dir, capsys) -> None:
     package = write_clean_package(tmp_path)
     fake_gaia = write_fake_gaia_render(tmp_path, fixtures_dir, render_fails=False)
     code = extract.main(
-        ["--package", str(package), "--gaia-bin", str(fake_gaia), "--no-render"]
+        [
+            "--package", str(package),
+            "--project-root", str(tmp_path),
+            "--gaia-bin", str(fake_gaia),
+            "--no-render",
+        ]
     )
     out = capsys.readouterr()
     assert code == 0

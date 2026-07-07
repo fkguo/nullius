@@ -252,7 +252,7 @@ export const FRONT_DOOR_SNIPPETS = [
   {
     relPath: 'docs/URI_REGISTRY.md',
     snippets: [
-      'The current emitted/resolved URI schemes covered by this registry are `hep://`, `pdg://`, `orch://`, `rep://`, `hepdata://`, `openalex://`, `zotero://`, and `file://`.',
+      'The current emitted/resolved URI schemes covered by this registry are `hep://`, `pdg://`, `orch://`, `rep://`, `hepdata://`, `openalex://`, `zotero://`, `file://`, and `project://`.',
       'It is not an MCP resources contract; current MCP servers expose tools only.',
       '`hep://` and `orch://` are separate owned namespaces.',
       'There is no implicit `hep://` <-> `orch://` aliasing layer in live authority.',

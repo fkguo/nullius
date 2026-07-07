@@ -10,13 +10,13 @@ import pytest
 
 import posterior_writeback as writeback
 
+PIN = "sha256:e314d88c63c80b8845d2c1347e0f20b77db5825076d847ecd1c143a925afc676"
+
 POSTERIOR = {
     "value": 0.8499370175790979,
     "evidence_count": 2,
-    "gaia_package_ref": (
-        "file:///tmp/example-idea-gaia#sha256:"
-        "e314d88c63c80b8845d2c1347e0f20b77db5825076d847ecd1c143a925afc676"
-    ),
+    # Machine-portable: relative to the project root, pinned by content.
+    "gaia_package_ref": f"project://example-idea-gaia#{PIN}",
 }
 
 
@@ -26,13 +26,27 @@ def write_posterior_file(tmp_path):
     return path
 
 
-def run_main(tmp_path, fixtures_dir, extra_args=()):
+def make_package(tmp_path, rel="example-idea-gaia", ir_hash=PIN):
+    """A package on disk that the reference under test resolves to."""
+    gaia_dir = tmp_path / rel / ".gaia"
+    gaia_dir.mkdir(parents=True, exist_ok=True)
+    (gaia_dir / "ir.json").write_text(
+        json.dumps({"ir_hash": ir_hash}), encoding="utf-8"
+    )
+
+
+def run_main(tmp_path, fixtures_dir, extra_args=(), *, package=True,
+             project_root=True):
+    if package:
+        make_package(tmp_path)
+    root_args = ("--project-root", str(tmp_path)) if project_root else ()
     return writeback.main(
         [
             "--posterior-json", str(write_posterior_file(tmp_path)),
             "--campaign-id", "campaign-1",
             "--node-id", "node-7",
             "--store-root", str(tmp_path / "store"),
+            *root_args,
             "--idea-rpc", str(fixtures_dir / "fake_rpc.py"),
             "--runner", sys.executable,
             *extra_args,
@@ -158,19 +172,68 @@ def test_idempotency_key_distinguishes_any_two_float_values() -> None:
 
 def test_validate_posterior_requires_pinned_ref() -> None:
     for bad_ref in (
-        "file:///tmp/example-idea-gaia",  # no hash at all
-        "file:///tmp/example-idea-gaia#sha256:abc123",  # hash too short
-        "file:///tmp/example-idea-gaia#md5:" + "a" * 32,  # wrong algorithm tag
-        "file:///#sha256:" + "a" * 64,  # hash with no package path
-        # BARE absolute paths are refused outright: the engine contract types
-        # gaia_package_ref as a URI, so a path-form ref would only fail later
-        # with a remote schema error (live-project regression, 2026-07).
+        "project://example-idea-gaia",  # no hash at all
+        "project://example-idea-gaia#sha256:abc123",  # hash too short
+        "project://example-idea-gaia#md5:" + "a" * 32,  # wrong algorithm tag
+        "project:///#sha256:" + "a" * 64,  # absolute path smuggled in
+        # Machine-absolute forms are refused outright: synced projects land
+        # at different absolute paths, so a file:// URI or a bare path goes
+        # stale on every machine but this one (live-project feedback,
+        # 2026-07). The relative form plus the content pin stays valid.
+        "file:///tmp/example-idea-gaia#sha256:" + "a" * 64,
         "/tmp/example-idea-gaia#sha256:" + "a" * 64,
     ):
         with pytest.raises(ValueError, match="pin the compiled graph"):
             writeback.validate_posterior(
                 dict(POSTERIOR, gaia_package_ref=bad_ref)
             )
+
+
+def test_validate_posterior_rejects_path_escapes() -> None:
+    for bad_ref in (
+        f"project://../outside-gaia#{PIN}",
+        f"project://a/../../outside-gaia#{PIN}",
+        f"project://a//b#{PIN}",
+    ):
+        with pytest.raises(ValueError, match="segments"):
+            writeback.validate_posterior(
+                dict(POSTERIOR, gaia_package_ref=bad_ref)
+            )
+
+
+def test_ref_must_resolve_under_the_project_root(
+    tmp_path, fixtures_dir, capsys
+) -> None:
+    # No package on disk: archiving a reference nobody can follow is
+    # refused, with the refresh command in the message.
+    assert run_main(tmp_path, fixtures_dir, package=False) == 2
+    err = capsys.readouterr().err
+    assert "does not resolve" in err
+    assert "run_infer_and_extract.py" in err
+
+
+def test_ref_pin_must_match_package_state(
+    tmp_path, fixtures_dir, capsys
+) -> None:
+    make_package(tmp_path, ir_hash="sha256:" + "b" * 64)
+    assert run_main(tmp_path, fixtures_dir, package=False) == 2
+    err = capsys.readouterr().err
+    assert "does not match the package's current compiled state" in err
+
+
+def test_project_root_defaults_to_nullius_ancestor_of_store(
+    tmp_path, fixtures_dir, capsys
+) -> None:
+    (tmp_path / ".nullius").mkdir()
+    assert run_main(tmp_path, fixtures_dir, project_root=False) == 0
+    assert "posterior written" in capsys.readouterr().err
+
+
+def test_missing_project_root_fails_with_guidance(
+    tmp_path, fixtures_dir, capsys
+) -> None:
+    assert run_main(tmp_path, fixtures_dir, project_root=False) == 2
+    assert "no project root found" in capsys.readouterr().err
 
 
 def test_validate_posterior_refuses_exploration_only_refs() -> None:
@@ -208,12 +271,14 @@ def test_validate_posterior_drops_extra_fields() -> None:
 
 
 def test_missing_rpc_caller_is_diagnosed(tmp_path, capsys) -> None:
+    make_package(tmp_path)
     code = writeback.main(
         [
             "--posterior-json", str(write_posterior_file(tmp_path)),
             "--campaign-id", "c",
             "--node-id", "n",
             "--store-root", str(tmp_path),
+            "--project-root", str(tmp_path),
             "--idea-rpc", str(tmp_path / "missing-rpc.mjs"),
         ]
     )

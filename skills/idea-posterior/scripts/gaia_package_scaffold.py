@@ -7,9 +7,28 @@ one top-level ``worth`` claim plus five sub-criterion claim placeholders, each
 carrying comment guidance on evidence sources, likelihood grades, and anchor
 notes.
 
+After init, the freshly generated package is hardened:
+
+- The nested git repository ``gaia build init`` creates is removed. At this
+  point it has zero commits, so nothing is lost, and removing it lets the
+  research project's own version control track the package. Pre-existing
+  packages are never touched (the scaffold refuses to overwrite), so this
+  only ever removes the repository the current invocation just created; a
+  package with real git history must be absorbed manually, never deleted
+  automatically.
+- The generated environment pins are retargeted: gaia's own template still
+  writes ``gaia-lang>=0.4.4`` / Python ``3.13``, which is a
+  silently-broken environment recipe (observed in the field as
+  ``ModuleNotFoundError`` from a stale package venv). The package's
+  pyproject is pinned to ``gaia-lang==0.5.0a4`` / Python ``>=3.12``, and
+  the init-time venv and lockfile are removed so the next gaia run
+  re-syncs the environment from the corrected pins. A template that no
+  longer matches the expected strings stops the scaffold loudly — pins
+  must never silently pass through wrong.
+
 The destination must live inside an external research project root (for
-example ``<project_root>/argument-graphs/``), never inside the tool repository:
-``gaia build init`` creates a nested git repository in the package directory.
+example ``<project_root>/argument-graphs/``), never inside the tool
+repository.
 
 Standard library only; Gaia is invoked as a subprocess.
 """
@@ -23,6 +42,7 @@ import sys
 from pathlib import Path
 
 GAIA_PIN = "0.5.0a4"
+PACKAGE_PYTHON = "3.12"
 PIN_INSTALL_HINT = (
     "Install the pinned Gaia toolchain (the pin is deliberate; upgrading is an "
     "explicit, reviewed action):\n"
@@ -241,6 +261,79 @@ def find_module_dir(package_dir: Path) -> Path:
     return candidates[0]
 
 
+def harden_package(package_dir: Path) -> None:
+    """Post-init hardening of the freshly generated package (see docstring).
+
+    Only ever called on a package this invocation just created, so the
+    nested repository removed here is the zero-commit one from
+    ``gaia build init``. Raises RuntimeError on template drift: if gaia's
+    generated pyproject no longer contains the expected pin strings, the
+    scaffold must stop rather than leave wrong pins in place.
+    """
+    nested_git = package_dir / ".git"
+    if nested_git.is_dir():
+        shutil.rmtree(nested_git)
+
+    pyproject = package_dir / "pyproject.toml"
+    if not pyproject.is_file():
+        raise RuntimeError(
+            f"no pyproject.toml under {package_dir}; `gaia build init` "
+            "output does not match the expected package template"
+        )
+    text = pyproject.read_text(encoding="utf-8")
+    replacements = (
+        ('"gaia-lang>=0.4.4"', f'"gaia-lang=={GAIA_PIN}"'),
+        ('requires-python = ">=3.13"', f'requires-python = ">={PACKAGE_PYTHON}"'),
+    )
+    for old, new in replacements:
+        if old not in text:
+            raise RuntimeError(
+                f"expected {old!r} in {pyproject}; gaia's package template "
+                "changed — update the scaffold's pin patching deliberately "
+                "instead of letting unknown pins through"
+            )
+        text = text.replace(old, new, 1)
+    pyproject.write_text(text, encoding="utf-8")
+    (package_dir / ".python-version").write_text(
+        PACKAGE_PYTHON + "\n", encoding="utf-8"
+    )
+
+    # Drop the init-time environment so the next gaia run re-syncs it from
+    # the corrected pins (verified: gaia recreates .venv/uv.lock on demand).
+    venv = package_dir / ".venv"
+    if venv.is_dir():
+        shutil.rmtree(venv)
+    lock = package_dir / "uv.lock"
+    if lock.is_file():
+        lock.unlink()
+
+
+def note_when_project_untracked(dest: Path) -> None:
+    """One advisory line when the project is not under version control.
+
+    Never blocks and never initializes anything itself: silently creating
+    a repository is not the scaffold's call (and git alongside file-level
+    cloud sync is a deliberate user decision).
+    """
+    try:
+        probe = subprocess.run(
+            ["git", "-C", str(dest), "rev-parse", "--is-inside-work-tree"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return
+    if probe.returncode != 0:
+        sys.stderr.write(
+            "note: the destination is not under version control. A "
+            "project-level `git init` gives argument graphs and posterior "
+            "artifacts a recoverable history; the scaffold never runs it "
+            "for you.\n"
+        )
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--slug", required=True, help="idea slug, e.g. my-idea")
@@ -300,7 +393,8 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         module_dir = find_module_dir(package_dir)
-    except (FileNotFoundError, RuntimeError) as exc:
+        harden_package(package_dir)
+    except (FileNotFoundError, RuntimeError, OSError) as exc:
         sys.stderr.write(f"error: {exc}\n")
         return 2
 
@@ -308,6 +402,7 @@ def main(argv: list[str] | None = None) -> int:
         render_template(args.slug), encoding="utf-8"
     )
 
+    note_when_project_untracked(dest)
     sys.stderr.write(
         f"skeleton written: {module_dir / '__init__.py'}\n"
         "Next: wire observe()/infer() evidence into the skeleton, then run "
