@@ -17,6 +17,14 @@ package reference (which pins the compiled graph via its ir_hash), value, and
 evidence count — re-running the same write is a no-op at the store, while any
 change in the posterior produces a new key.
 
+The deterministic default has one sharp corner: a posterior identical to an
+EARLIER write (say, restoring a node to a previous state after intervening
+revisions) collides with that write's key, and the store replays the archived
+response — no new revision is created. The script surfaces this through the
+response's ``idempotency.is_replay`` flag instead of letting it pass as a
+fresh write; when a fresh revision is the intent, ``--new-write`` mints a
+unique key for the invocation.
+
 Standard library only; the RPC caller is invoked as a subprocess.
 """
 
@@ -28,14 +36,20 @@ import json
 import re
 import subprocess
 import sys
+import uuid
 from pathlib import Path
 
 REQUIRED_POSTERIOR_FIELDS = ("value", "evidence_count", "gaia_package_ref")
 
-# The package reference must name a package path AND pin the compiled graph
-# state via its IR hash: <package path>#sha256:<hex>. Full-string match so a
-# bare hash with no path is rejected.
-REF_PIN_RE = re.compile(r"\S.*#sha256:[0-9a-fA-F]{16,}$")
+# The package reference must name the package as a file:// URI AND pin the
+# compiled graph state via its IR hash: file://<abs path>#sha256:<hex>.
+# Full-string match so a bare hash with no path is rejected.
+# A bare absolute path is NOT accepted either: the
+# idea-engine contract types gaia_package_ref as format "uri"
+# (node.set_posterior / idea_node_v1), and the engine refuses bare paths —
+# failing here gives the author a usable message instead of a remote
+# schema_validation_failed.
+REF_PIN_RE = re.compile(r"file:///\S+#sha256:[0-9a-fA-F]{16,}$")
 
 
 def validate_posterior(posterior: dict) -> dict:
@@ -72,8 +86,10 @@ def validate_posterior(posterior: dict) -> dict:
     if not REF_PIN_RE.fullmatch(ref):
         raise ValueError(
             "gaia_package_ref must pin the compiled graph as "
-            f"<package path>#sha256:<hex>, got {ref!r}; use the reference "
-            "produced by run_infer_and_extract.py, which embeds the IR hash"
+            f"file://<abs package path>#sha256:<hex>, got {ref!r}; a bare "
+            "path is refused because the idea-engine contract types this "
+            "field as a URI — re-extract with the current "
+            "run_infer_and_extract.py, which emits the file:// form"
         )
     return {
         "value": float(value),
@@ -130,10 +146,21 @@ def main(argv: list[str] | None = None) -> int:
         default="node",
         help="interpreter for the RPC caller (default: node)",
     )
-    parser.add_argument(
+    key_group = parser.add_mutually_exclusive_group()
+    key_group.add_argument(
         "--idempotency-key",
         default=None,
         help="override the deterministic idempotency key",
+    )
+    key_group.add_argument(
+        "--new-write",
+        action="store_true",
+        help="mint a unique idempotency key for this invocation, so the "
+        "store records a fresh write even when an identical posterior was "
+        "written before (the deterministic default would replay that "
+        "earlier write instead). To retry THIS write after a failure, "
+        "reuse the key printed on stderr via --idempotency-key rather "
+        "than passing --new-write again",
     )
     args = parser.parse_args(argv)
 
@@ -166,6 +193,10 @@ def main(argv: list[str] | None = None) -> int:
     key = args.idempotency_key or derive_idempotency_key(
         args.campaign_id, args.node_id, posterior
     )
+    if args.new_write:
+        # Keep the deterministic digest as prefix (auditable content family),
+        # salt per invocation so the store treats it as a distinct write.
+        key = f"{key}-fresh-{uuid.uuid4().hex[:12]}"
     request = {
         "method": "node.set_posterior",
         "params": {
@@ -214,7 +245,22 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     print(json.dumps(response, indent=2, sort_keys=True))
-    sys.stderr.write(f"posterior written (idempotency key {key})\n")
+    result = response.get("result") or {}
+    idempotency = result.get("idempotency") or {}
+    if idempotency.get("is_replay"):
+        # Replay is correct for a retry of the same write, but silent replay
+        # is a trap when the intent was a fresh write of content identical
+        # to an earlier one (live-project regression, 2026-07): the store
+        # returns the archived response and no new revision appears.
+        sys.stderr.write(
+            "WARNING: the store REPLAYED an earlier identical write "
+            f"(idempotency key {key}); no new revision was created, and "
+            "the node summary above shows the store state as of that "
+            "earlier write. If you meant to re-assert this posterior as a "
+            "fresh write on the current node, re-run with --new-write.\n"
+        )
+    else:
+        sys.stderr.write(f"posterior written (idempotency key {key})\n")
     return 0
 
 

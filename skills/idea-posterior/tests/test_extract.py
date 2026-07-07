@@ -69,7 +69,7 @@ def test_extract_posterior_end_shape(tmp_path, fixtures_dir) -> None:
     assert posterior["value"] == pytest.approx(0.8499370175790979)
     assert posterior["evidence_count"] == 2
     ref = posterior["gaia_package_ref"]
-    assert ref.startswith(str((tmp_path / "pkg").resolve()))
+    assert ref.startswith((tmp_path / "pkg").resolve().as_uri())
     assert ref.endswith(
         "#sha256:e314d88c63c80b8845d2c1347e0f20b77db5825076d847ecd1c143a925afc676"
     )

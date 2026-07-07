@@ -353,13 +353,15 @@ readable diagnosis (including the pinned install recipe) when a stage fails.
    {
      "value": 0.8499,
      "evidence_count": 2,
-     "gaia_package_ref": "/abs/path/to/my-idea-gaia#sha256:..."
+     "gaia_package_ref": "file:///abs/path/to/my-idea-gaia#sha256:..."
    }
    ```
 
-   `gaia_package_ref` embeds the IR hash, so the reference pins the exact
-   compiled graph the posterior came from; a later re-run on a changed graph
-   yields a visibly different reference.
+   `gaia_package_ref` is a `file://` URI — the idea-engine contract types
+   this field as a URI, so a bare filesystem path is rejected at the store —
+   and embeds the IR hash, so the reference pins the exact compiled graph
+   the posterior came from; a later re-run on a changed graph yields a
+   visibly different reference.
 
 3. **Write the posterior back to the idea store.**
 
@@ -376,7 +378,19 @@ readable diagnosis (including the pinned install recipe) when a stage fails.
    idea-engine thin RPC caller and fails loudly on an error response. The
    idempotency key is a deterministic digest of campaign, node, package
    reference, value, and evidence count: retrying the same write is a no-op,
-   while any real change produces a new key.
+   while any real change produces a new key. Two consequences of that
+   default are surfaced rather than left silent:
+
+   - When the posterior is identical to an **earlier** write (for example,
+     restoring a node to a previous state after intervening revisions), the
+     key collides with that write's key and the store **replays** the
+     archived response — no new revision is created. The script detects
+     this via the response's `idempotency.is_replay` and warns on stderr
+     instead of reporting a fresh write.
+   - When a fresh revision is the intent despite identical content, pass
+     `--new-write`, which mints a unique key for the invocation. To retry
+     that specific write after a failure, reuse the key it printed via
+     `--idempotency-key` rather than repeating `--new-write`.
 
 ## Report — `posterior_report_v1`
 
