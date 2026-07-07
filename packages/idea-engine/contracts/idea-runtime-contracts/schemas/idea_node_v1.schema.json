@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "idea_node_v1.schema.json",
   "title": "IdeaNode v1",
-  "description": "A single candidate idea node in a campaign portfolio, with lineage, traces, diagnostics, an optional formalized IdeaCard, and an externally computed belief posterior.\n\nMutability contract (audit-first): Fields campaign_id, idea_id, node_id, parent_node_ids, island_id, operator_id, operator_family, origin, operator_trace, rationale_draft, created_at are IMMUTABLE after creation. Fields revision, idea_card, grounding_audit, reduction_report, reduction_audit, posterior, lifecycle_state, activation_condition, updated_at are MUTABLE (append/replace semantics; prior values should be preserved in the ledger or history artifacts). revision is engine-managed: initialized to 1 at creation and incremented on each mutation.",
+  "description": "A single candidate idea node in a campaign portfolio, with lineage, traces, diagnostics, an optional formalized IdeaCard, close-prior literature coverage, and an externally computed belief posterior.\n\nMutability contract (audit-first): Fields campaign_id, idea_id, node_id, parent_node_ids, island_id, operator_id, operator_family, origin, operator_trace, rationale_draft, created_at are IMMUTABLE after creation. Fields revision, idea_card, grounding_audit, reduction_report, reduction_audit, literature_coverage, posterior, lifecycle_state, activation_condition, updated_at are MUTABLE (append/replace semantics; prior values should be preserved in the ledger or history artifacts). revision is engine-managed: initialized to 1 at creation and incremented on each mutation.",
   "type": "object",
   "required": [
     "campaign_id",
@@ -175,11 +175,81 @@
               "type": "string",
               "format": "uri",
               "description": "Optional URI of the belief-graph package (inside the external project) that produced this posterior."
+            },
+            "status": {
+              "enum": [
+                "current",
+                "provisional",
+                "stale"
+              ],
+              "description": "Whether this stored posterior is current guidance. stale/provisional posteriors remain history and must not be treated as allocation-ready guidance."
             }
           },
           "additionalProperties": false
         }
       ]
+    },
+    "literature_coverage": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "required": [
+            "status"
+          ],
+          "properties": {
+            "status": {
+              "enum": [
+                "saturated",
+                "coverage_incomplete",
+                "metadata_only"
+              ],
+              "description": "Close-prior literature coverage status. Missing/null is interpreted by decision-layer readers as metadata_only."
+            },
+            "survey_ref": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Portable reference to the literature_survey_v1 or equivalent close-prior survey artifact."
+            },
+            "close_prior_matrix_ref": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Portable reference to the close-prior matrix artifact used by the posterior report."
+            },
+            "exploratory_allocation": {
+              "type": "boolean",
+              "description": "Explicit waiver allowing coverage_incomplete ideas to enter exploratory allocation. It does not turn incomplete coverage into standard allocation eligibility."
+            }
+          },
+          "additionalProperties": false,
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "status": {
+                    "enum": [
+                      "saturated",
+                      "coverage_incomplete"
+                    ]
+                  }
+                },
+                "required": [
+                  "status"
+                ]
+              },
+              "then": {
+                "required": [
+                  "survey_ref",
+                  "close_prior_matrix_ref"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "description": "Decision-layer literature coverage metadata. The engine stores this as portfolio state; scoring/allocation readers decide eligibility from it."
     },
     "activation_condition": {
       "oneOf": [

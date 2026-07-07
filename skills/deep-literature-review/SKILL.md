@@ -18,7 +18,12 @@ It does **not** start a parallel literature system. It builds on:
 - `literature-workflows` recipes (`literature_landscape`, `literature_gap_analysis`) for the multi-hop search/traversal plan — resolve them via `nullius workflow-plan`; do not hand-roll traversal.
 - the research-team KB note template (`knowledge_base/literature/<ref>.md`) — you FILL it, you do not replace it.
 - the provider tools (`inspire_*`, `openalex_*`, `arxiv_*`, `pdf_*`) for fetch + analysis.
+  For arXiv papers, prefer the hep-mcp / arXiv source path (`arxiv_paper_source`
+  or `inspire_paper_source` with LaTeX/source extraction) before PDF; a PDF read
+  is the fallback when source is unavailable or unusable, not the first move.
 - `markdown-hygiene` for math rendering, and `claim-grounding` for verifying the claims you extract.
+- `citation-triangulation` for cross-index identity checks before a paper enters
+  the core set; provider metadata from a subagent is not identity authority.
 - `review-swarm` as the gate harness for the deep-read note's source-fidelity, and `research-integrity` (*Extraction / transcription fidelity*) for the failure class that gate falsifies.
 - `literature-graph-builder` for the downstream graph artifact contract, validation, portable links, figure embedding, math rendering checks, and browser QA.
 
@@ -33,6 +38,14 @@ It does **not** start a parallel literature system. It builds on:
 1. Deep-read KB notes (the existing `.md` template, fully filled — see below).
 2. A `literature_survey_v1` artifact (the synthesis/coverage layer; contract SSOT:
    `packages/shared/src/literature-survey.ts`).
+
+All Markdown outputs from this workflow must keep references reachable: paper
+records (arXiv, DOI, INSPIRE/OpenAlex where available), source files, KB notes,
+and project artifacts are Markdown links, not bare or backticked identifiers.
+Repo-local links must resolve from the Markdown file's own directory. Do not
+write a link as if the reader's Markdown sidebar resolves from the project root;
+run `markdown-hygiene` link checks, and for idea-posterior reports run
+`skills/idea-posterior/scripts/normalize_report_links.py --check`.
 
 ## Procedure
 
@@ -117,6 +130,20 @@ preference order: arXiv LaTeX source, then full-text PDF, then other available f
 Use `inspire_paper_source` / `arxiv_paper_source` / `openalex_content`, plus
 `inspire_parse_latex` / `pdf_parse` for equations.
 
+For arXiv works, ask for the LaTeX/source form first (for example hep-mcp
+`arxiv_paper_source` with source/LaTeX extraction). Reading the PDF first is a
+process error unless the source is unavailable, fails extraction, or the relevant
+content only exists in a non-LaTeX full-text form; record that reason in the note.
+Do not let an abstract-driven fetch decide that a paper is irrelevant before the
+conclusion/outlook and method/results sections have been checked.
+
+Before a paper is admitted to `role: core`, run `citation-triangulation` and
+record a machine-readable `identity_triangulation` object with at least two
+independent provider records and verdict `consistent`. Check the title, year,
+authors, DOI/arXiv/INSPIRE/OpenAlex identifiers, and same-work aliases. A
+conflict such as an INSPIRE recid paired with the wrong arXiv id blocks core
+admission until resolved; subagent-provided metadata is only a lead.
+
 **Persist the source you read.** When a fetch/source tool returns the primary source to an
 ephemeral or temporary path, persist that exact source to a stable, auditable location (e.g.
 alongside the note) so the fidelity gate (step 5) — and any later reviewer — reads exactly the
@@ -143,12 +170,31 @@ the `metadata-only` / `reading-required` placeholders, or writing a value outsid
 vocabulary, makes the note fail the research-team `knowledge_layers` gate.
 
 **The anti-thin-note rule:** a paper is not deeply read until those fields are filled
-*from the source* with locators. If you only saw the abstract, the note stays
-metadata-only and the paper's survey `read_status` is `metadata_only` — do not pretend otherwise.
+*from the source* with locators. A core paper's `read_status` must be one of:
+
+- `full_text_read`: introduction, formalism/method, results/discussion, and
+  conclusion/outlook were checked from full text.
+- `section_read`: only named sections were read; this can support synthesis but
+  is not enough for saturated close-prior core status unless the unread sections
+  are nonessential and the gate accepts the limitation.
+- `metadata_only`: only title/abstract/metadata or provider summaries were seen.
+- `unavailable`: full text could not be obtained.
+
+`metadata_only` and `unavailable` papers never anchor Gaia likelihoods. For
+`full_text_read`, the minimum checked sections are introduction,
+formalism/method, results/discussion, and conclusion/outlook: important caveats
+often live at the end of a paper.
+
+Each close-prior entry must also carry `source_links`, `read_locators`, and
+`read_sections`. If you only saw the abstract, the note stays metadata-only and
+the paper's survey `read_status` is `metadata_only` — do not pretend otherwise.
 
 ### 3. Synthesize across the read set
 Produce the `literature_survey_v1`:
-- `papers[]`: one entry per paper — `ref_key`, `note_path`, `domain`, `read_status`, `role`, a synthesized `one_line`.
+- `papers[]`: one entry per paper — `ref_key`, `note_path`, `domain`,
+  `read_status`, `role`, a synthesized `one_line`, `source_links`,
+  `read_locators`, `read_sections`, `identity_triangulation`, and
+  `source_fidelity_audit` for each core paper.
 - `synthesis.consensus[]`: statements the read papers agree on, each citing the `ref_key`s that support it.
 - `synthesis.tensions[]`: disagreements/conflicts, each citing the `ref_key`s involved (HEP: seed these with `inspire_detect_measurement_conflicts` / `inspire_theoretical_conflicts`; general: reason over the read notes).
 - `synthesis.gaps[]`: open questions / what the literature does NOT cover.
@@ -211,7 +257,7 @@ value, (c) wrong / stale locator, (d) stale / wrong mapping to the consuming art
 (e) false "verbatim", (f) inference-as-source, (g) silent factor drop (full definitions:
 `research-integrity` → *Extraction / transcription fidelity*).
 
-For a note that will anchor a central claim or be folded into a durable artifact, the gate is
+For a note that will anchor a central claim, enter a close-prior matrix, or be folded into a durable artifact, the gate is
 **independent** (a fresh reader / subagent, not the note's author) and at least one reviewer
 **must** be **cross-model-family** doing a literal comparison — loose semantic agreement is
 insufficient for transcription fidelity. Run it through `review-swarm` (the source-fidelity reviewer role); re-review after
@@ -221,10 +267,26 @@ is a *separate* axis: it re-derives whether a re-derivable result is mathematica
 which does not check whether the note faithfully copied the source — use it in addition to,
 never instead of, the source comparison.)
 
+Record the result in the survey as `source_fidelity_audit`: reviewer/auditor id,
+checked locators, status `pass | partial | fail`, and notes. The summary itself
+is audited: every important paraphrase must be traceable to a quoted span or
+locator, and any unsupported summary sentence is removed or downgraded to
+inference. A core paper requires `source_fidelity_audit.status: pass`; `partial`
+or `fail` keeps the survey at `coverage_incomplete` for posterior admission.
+
+Subagent literature audits are discovery/synthesis inputs only. The main
+coordinator must verify links, source form, identity triangulation, quoted spans,
+locators, and the distinction between source text and synthesis before any
+proposition can become a Gaia anchor.
+
 ### 7. Ground the claims
 Hand the claims you extracted (with their `evidence_uris`) to the `claim-grounding` skill:
 it fetches each cited source and records a span-backed verdict, so "this paper says X" is
 verified against the source, not just asserted.
+
+Gaia input is proposition-level, never paper-level: deep-read paper -> extracted
+proposition -> claim-grounding quote and locator -> mapped sub-criterion anchor.
+A paper, literature count, or subagent summary is not itself evidence in Gaia.
 
 ## What this skill is NOT
 

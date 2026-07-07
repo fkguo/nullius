@@ -20,6 +20,10 @@ idea-card assembly + the formalization trace) and every store write.
   writes either, never ranks its own output, and never emits an LLM novelty
   score anywhere (LLM judgments of idea novelty run at or below chance and are
   non-diagnostic; novelty is handled as an auditable claim instead, below).
+  A generated idea is not allocation-ready, no matter how promising the
+  rationale looks. It cannot enter portfolio scoring until `idea-posterior`
+  has consumed a close-prior `literature_survey_v1` (or equivalent artifact),
+  a close-prior matrix, and claim-grounded proposition-level anchors.
 - **Retrieval-first grounding.** An evidence URI may enter a candidate ONLY
   from a retrieval the generator actually performed or an artifact it actually
   read, recorded as a receipt (`trace_inputs.retrieval_receipts`: `{uri,
@@ -215,10 +219,13 @@ see it.
    refs after validating the archived pack and its recorded hash.
 7. **Hand off to evaluation.** Imported nodes enter `idea-posterior`'s
    admission gate like any seed (their `target_admission_route` is a triage
-   hint, not authority). Nodes that fail admission are archived with their
-   gate record — and become FailureRouting inputs later. Allocation's
-   reconnaissance slots are where an admitted node's bounded first check
-   gets scheduled.
+   hint, not authority). Before posterior construction, the evaluator must
+   have a close-prior literature artifact with snowball discovery, source-first
+   core-paper reading, citation-identity triangulation, source-fidelity audit
+   of deep-read summaries, and claim-grounded proposition anchors. Nodes that
+   fail admission are archived with their gate record — and become
+   FailureRouting inputs later. Allocation's reconnaissance slots are where an
+   admitted node's bounded first check gets scheduled.
 
 ## Interfaces to the sibling machinery
 

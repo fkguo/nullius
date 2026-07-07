@@ -6,19 +6,23 @@ Contract (idea-engine ``bin/idea-rpc.mjs``): a single JSON object on stdin,
     {"method": "node.set_posterior",
      "params": {"campaign_id": ..., "node_id": ..., "idempotency_key": ...,
                 "posterior": {"value": ..., "evidence_count": ...,
-                              "gaia_package_ref": ...}},
+                              "gaia_package_ref": ...},
+                "literature_coverage": {"status": ...}},
      "store_root": ...}
 
 and a JSON-RPC response on stdout; a non-null ``error`` member means the
 write failed.
 
-Before anything is sent, ``gaia_package_ref`` is verified against the
-project on disk: the ``project://`` reference must resolve under the
-project root (``--project-root``, or the nearest ancestor of the store
-root containing ``.nullius/``) and its ``#sha256:`` pin must match the
-package's current compiled state. A reference nobody could follow — or one
-whose graph changed after extraction — is refused with the refresh command
-instead of being archived into the store.
+Before anything is sent, the close-prior survey, matrix, and report are
+validated. ``coverage_incomplete`` can write only provisional posterior
+guidance and cannot claim allocation eligibility unless exploratory allocation
+is explicit. Then ``gaia_package_ref`` is verified against the project on disk:
+the ``project://`` reference must resolve under the project root
+(``--project-root``, or the nearest ancestor of the store root containing
+``.nullius/``) and its ``#sha256:`` pin must match the package's current
+compiled state. A reference nobody could follow — or one whose graph changed
+after extraction — is refused with the refresh command instead of being
+archived into the store.
 
 The idempotency key defaults to a deterministic digest of campaign, node,
 package reference (which pins the compiled graph via its ir_hash), value, and
@@ -47,6 +51,21 @@ import sys
 import uuid
 from pathlib import Path
 from urllib.parse import unquote
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+from validate_close_prior_gate import (  # noqa: E402
+    literature_coverage_from_gate,
+    load_json,
+    validate_gate,
+)
+from normalize_report_links import (  # noqa: E402
+    normalize_file as report_links_need_normalization,
+    report_link_issues,
+)
+from normalize_report_posteriors import normalize_file as report_posteriors_need_normalization  # noqa: E402
 
 REQUIRED_POSTERIOR_FIELDS = ("value", "evidence_count", "gaia_package_ref")
 
@@ -232,6 +251,26 @@ def main(argv: list[str] | None = None) -> int:
         "--store-root", required=True, help="idea store root directory"
     )
     parser.add_argument(
+        "--literature-survey-json",
+        required=True,
+        help="literature_survey_v1 or equivalent close-prior survey artifact",
+    )
+    parser.add_argument(
+        "--close-prior-matrix-json",
+        required=True,
+        help="close-prior matrix artifact used by the posterior report",
+    )
+    parser.add_argument(
+        "--posterior-report-md",
+        required=True,
+        help="posterior_report_v1.md containing the human close-prior matrix",
+    )
+    parser.add_argument(
+        "--allow-exploratory-allocation",
+        action="store_true",
+        help="allow a coverage_incomplete matrix with exploratory_allocation=true to be allocation eligible",
+    )
+    parser.add_argument(
         "--project-root",
         default=None,
         help="project root the project:// package reference resolves "
@@ -284,6 +323,26 @@ def main(argv: list[str] | None = None) -> int:
         sys.stderr.write(f"error: invalid posterior JSON from {source}: {exc}\n")
         return 2
 
+    try:
+        survey = load_json(Path(args.literature_survey_json))
+        matrix = load_json(Path(args.close_prior_matrix_json))
+        report_text = Path(args.posterior_report_md).read_text(encoding="utf-8")
+    except (OSError, ValueError) as exc:
+        sys.stderr.write(f"error: close-prior gate input could not be read: {exc}\n")
+        return 2
+    gate_problems = validate_gate(
+        survey,
+        matrix,
+        report_text,
+        allow_exploratory=args.allow_exploratory_allocation,
+    )
+    if gate_problems:
+        sys.stderr.write("error: close-prior gate failed:\n")
+        for problem in gate_problems:
+            sys.stderr.write(f"  - {problem}\n")
+        return 2
+    literature_coverage = literature_coverage_from_gate(matrix)
+
     if args.project_root:
         project_root = Path(args.project_root).resolve()
         if not project_root.is_dir():
@@ -305,6 +364,33 @@ def main(argv: list[str] | None = None) -> int:
         verify_package_ref(posterior["gaia_package_ref"], project_root)
     except ValueError as exc:
         sys.stderr.write(f"error: {exc}\n")
+        return 2
+
+    report_path = Path(args.posterior_report_md).resolve()
+    try:
+        posterior_report_needs_normalization = report_posteriors_need_normalization(report_path, check=True)
+    except ValueError as exc:
+        sys.stderr.write(f"error: posterior report has invalid human posterior display: {exc}\n")
+        return 2
+    if posterior_report_needs_normalization:
+        sys.stderr.write(
+            "error: posterior report display values are not rounded for human readers. Run:\n"
+            f"  python3 {SCRIPT_DIR / 'normalize_report_posteriors.py'} {report_path}\n"
+        )
+        return 2
+    if report_links_need_normalization(report_path, project_root, check=True):
+        sys.stderr.write(
+            "error: posterior report links are not normalized/clickable from the report location. "
+            "Run:\n"
+            f"  python3 {SCRIPT_DIR / 'normalize_report_links.py'} "
+            f"--project-root {project_root} {report_path}\n"
+        )
+        return 2
+    link_issues = report_link_issues(report_path, project_root)
+    if link_issues:
+        sys.stderr.write("error: posterior report contains broken local links:\n")
+        for issue in link_issues:
+            sys.stderr.write(f"  - {issue}\n")
         return 2
 
     rpc_path = Path(args.idea_rpc)
@@ -330,6 +416,7 @@ def main(argv: list[str] | None = None) -> int:
             "node_id": args.node_id,
             "idempotency_key": key,
             "posterior": posterior,
+            "literature_coverage": literature_coverage,
         },
         "store_root": args.store_root,
     }

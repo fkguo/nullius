@@ -15,11 +15,44 @@ import {
 
 const GEN = '2026-06-13T00:00:00Z';
 
+function identityTriangulation() {
+  return {
+    verdict: 'consistent' as const,
+    providers: [
+      {
+        provider: 'arxiv',
+        title: 'Measures the branching ratio',
+        year: 2024,
+        identifier: '2401.00001',
+      },
+      {
+        provider: 'inspire',
+        title: 'Measures the branching ratio',
+        year: 2024,
+        identifier: 'recid:2401001',
+      },
+    ],
+  };
+}
+
+function sourceFidelityAudit() {
+  return {
+    status: 'pass' as const,
+    auditor: 'source-fidelity-reviewer',
+    checked_locators: ['Introduction; Method; Results; Conclusion'],
+  };
+}
+
 function paper(overrides: Partial<SurveyPaper> = {}): SurveyPaper {
   return {
     ref_key: 'Smith2024',
     domain: 'hep',
-    read_status: 'deep_read',
+    read_status: 'full_text_read',
+    source_links: ['https://example.org/source/smith2024'],
+    read_locators: ['Introduction; Method; Results; Conclusion'],
+    read_sections: ['introduction', 'formalism_method', 'results_discussion', 'conclusion_outlook'],
+    identity_triangulation: identityTriangulation(),
+    source_fidelity_audit: sourceFidelityAudit(),
     role: 'core',
     one_line: 'Measures the branching ratio.',
     ...overrides,
@@ -36,26 +69,47 @@ function input(overrides: Partial<AssembleLiteratureSurveyInput> = {}): Assemble
   };
 }
 
+const ALL_DISCOVERY_METHODS: SaturationExpansionRound['discovery_methods'] = [
+  'seed_search',
+  'backward_references',
+  'forward_citations',
+  'critique_specific_search',
+];
+
+function expansionRound(
+  round: number,
+  expansionCandidatesScreened: number,
+  newCorePapers: number,
+  discoveryMethods: SaturationExpansionRound['discovery_methods'] = ALL_DISCOVERY_METHODS,
+): SaturationExpansionRound {
+  return {
+    round,
+    expansion_candidates_screened: expansionCandidatesScreened,
+    new_core_papers: newCorePapers,
+    discovery_methods: discoveryMethods,
+  };
+}
+
 /** Rounds whose terminal entry converged (screened > 0, zero new core papers). */
 function convergedRounds(): SaturationExpansionRound[] {
   return [
-    { round: 1, expansion_candidates_screened: 40, new_core_papers: 2 },
-    { round: 2, expansion_candidates_screened: 25, new_core_papers: 0 },
+    expansionRound(1, 40, 2, ['seed_search', 'backward_references', 'forward_citations']),
+    expansionRound(2, 25, 0, ['critique_specific_search']),
   ];
 }
 
 describe('computeSurveyCoverage', () => {
   it('derives counts from papers (not trusted from caller)', () => {
     const papers = [
-      paper({ ref_key: 'A', role: 'core', read_status: 'deep_read' }),
-      paper({ ref_key: 'B', role: 'core', read_status: 'metadata_only' }),
-      paper({ ref_key: 'C', role: 'supporting', read_status: 'deep_read' }),
+      paper({ ref_key: 'A', role: 'core', read_status: 'full_text_read' }),
+      paper({ ref_key: 'B', role: 'supporting', read_status: 'metadata_only' }),
+      paper({ ref_key: 'C', role: 'supporting', read_status: 'section_read', read_sections: ['results_discussion'] }),
       paper({ ref_key: 'D', role: 'background', read_status: 'unavailable' }),
     ];
     const cov = computeSurveyCoverage(papers, { saturation: 'coverage_incomplete' });
     expect(cov.total_papers).toBe(4);
     expect(cov.deep_read).toBe(2);
-    expect(cov.core_total).toBe(2);
+    expect(cov.core_total).toBe(1);
     expect(cov.core_deep_read).toBe(1);
     expect(cov.saturation).toBe('coverage_incomplete');
   });
@@ -94,8 +148,18 @@ describe('assessSaturationEvidence (the mechanical saturation rule)', () => {
 
   it('supports a single converged round (K = 1)', () => {
     expect(assessSaturationEvidence([
-      { round: 1, expansion_candidates_screened: 12, new_core_papers: 0 },
+      expansionRound(1, 12, 0),
     ])).toEqual({ supported: true });
+  });
+
+  it('rejects saturated evidence that skipped critique-specific search', () => {
+    const res = assessSaturationEvidence([
+      expansionRound(1, 20, 0, ['seed_search', 'backward_references', 'forward_citations']),
+    ]);
+    expect(res.supported).toBe(false);
+    if (!res.supported) {
+      expect(res.reason).toMatch(/missing required close-prior discovery methods: critique_specific_search/);
+    }
   });
 
   it('rejects missing or empty evidence (saturation must be measured, not asserted)', () => {
@@ -108,8 +172,8 @@ describe('assessSaturationEvidence (the mechanical saturation rule)', () => {
 
   it('rejects when the last round still yielded new core papers (not converged)', () => {
     const res = assessSaturationEvidence([
-      { round: 1, expansion_candidates_screened: 40, new_core_papers: 0 },
-      { round: 2, expansion_candidates_screened: 30, new_core_papers: 1 },
+      expansionRound(1, 40, 0, ['seed_search', 'backward_references']),
+      expansionRound(2, 30, 1, ['forward_citations', 'critique_specific_search']),
     ]);
     expect(res.supported).toBe(false);
     if (!res.supported) expect(res.reason).toMatch(/round 2.*1 new core paper.*has not converged/);
@@ -117,8 +181,8 @@ describe('assessSaturationEvidence (the mechanical saturation rule)', () => {
 
   it('rejects a zero-work terminal round (screened nothing proves nothing)', () => {
     const res = assessSaturationEvidence([
-      { round: 1, expansion_candidates_screened: 40, new_core_papers: 2 },
-      { round: 2, expansion_candidates_screened: 0, new_core_papers: 0 },
+      expansionRound(1, 40, 2, ['seed_search', 'backward_references']),
+      expansionRound(2, 0, 0, ['forward_citations', 'critique_specific_search']),
     ]);
     expect(res.supported).toBe(false);
     if (!res.supported) expect(res.reason).toMatch(/screened zero candidates/);
@@ -188,7 +252,7 @@ describe('enforceSaturationRule', () => {
 
   it('downgrades structurally malformed evidence with a malformed reason (direct-call path)', () => {
     const out = enforceSaturationRule(coverage({
-      saturation_evidence: [{ round: 1, expansion_candidates_screened: -1, new_core_papers: 0 }],
+      saturation_evidence: [{ round: 1, expansion_candidates_screened: -1, new_core_papers: 0, discovery_methods: ALL_DISCOVERY_METHODS }],
     }));
     expect(out.saturation).toBe('coverage_incomplete');
     expect(out.notes).toMatch(/downgraded to coverage_incomplete: expansion-round evidence is malformed/);
@@ -205,7 +269,10 @@ describe('enforceSaturationRule', () => {
 describe('assembleLiteratureSurvey', () => {
   it('recomputes coverage from papers, ignoring any caller-asserted counts', () => {
     const survey = assembleLiteratureSurvey(input({
-      papers: [paper({ ref_key: 'A', read_status: 'deep_read' }), paper({ ref_key: 'B', read_status: 'metadata_only' })],
+      papers: [
+        paper({ ref_key: 'A', read_status: 'full_text_read' }),
+        paper({ ref_key: 'B', role: 'supporting', read_status: 'metadata_only' }),
+      ],
     }));
     expect(survey.coverage.total_papers).toBe(2);
     expect(survey.coverage.deep_read).toBe(1);
@@ -260,8 +327,8 @@ describe('assembleLiteratureSurvey', () => {
       papers: [paper({ ref_key: 'A' }), paper({ ref_key: 'B' })],
       saturation: 'saturated',
       saturation_evidence: [
-        { round: 1, expansion_candidates_screened: 30, new_core_papers: 0 },
-        { round: 2, expansion_candidates_screened: 20, new_core_papers: 1 },
+        expansionRound(1, 30, 0, ['seed_search', 'backward_references']),
+        expansionRound(2, 20, 1, ['forward_citations', 'critique_specific_search']),
       ],
       coverage_notes: 'three providers searched',
     }));
@@ -270,10 +337,22 @@ describe('assembleLiteratureSurvey', () => {
     expect(safeParseLiteratureSurveyV1(survey).ok).toBe(true);
   });
 
+  it('DOWNGRADES saturated whose rounds omit critique-specific discovery', () => {
+    const survey = assembleLiteratureSurvey(input({
+      saturation: 'saturated',
+      saturation_evidence: [
+        expansionRound(1, 12, 0, ['seed_search', 'backward_references', 'forward_citations']),
+      ],
+    }));
+    expect(survey.coverage.saturation).toBe('coverage_incomplete');
+    expect(survey.coverage.notes).toMatch(/critique_specific_search/);
+    expect(safeParseLiteratureSurveyV1(survey).ok).toBe(true);
+  });
+
   it('DOWNGRADES saturated whose last round screened zero candidates (zero-work round)', () => {
     const survey = assembleLiteratureSurvey(input({
       saturation: 'saturated',
-      saturation_evidence: [{ round: 1, expansion_candidates_screened: 0, new_core_papers: 0 }],
+      saturation_evidence: [expansionRound(1, 0, 0)],
     }));
     expect(survey.coverage.saturation).toBe('coverage_incomplete');
     expect(survey.coverage.notes).toMatch(/screened zero candidates/);
@@ -282,7 +361,7 @@ describe('assembleLiteratureSurvey', () => {
   it('THROWS on structurally malformed saturation_evidence (data corruption, not a claim to downgrade)', () => {
     expect(() => assembleLiteratureSurvey(input({
       saturation: 'saturated',
-      saturation_evidence: [{ round: 1, expansion_candidates_screened: -5, new_core_papers: 0 }],
+      saturation_evidence: [{ round: 1, expansion_candidates_screened: -5, new_core_papers: 0, discovery_methods: ALL_DISCOVERY_METHODS }],
     }))).toThrow(/failed validation/);
   });
 
@@ -291,8 +370,8 @@ describe('assembleLiteratureSurvey', () => {
     expect(() => assembleLiteratureSurvey(input({
       papers: [paper({ ref_key: 'A' })],
       saturation_evidence: [
-        { round: 1, expansion_candidates_screened: 10, new_core_papers: 3 },
-        { round: 2, expansion_candidates_screened: 5, new_core_papers: 0 },
+        expansionRound(1, 10, 3, ['seed_search', 'backward_references']),
+        expansionRound(2, 5, 0, ['forward_citations', 'critique_specific_search']),
       ],
     }))).toThrow(/exceeding core_total/);
   });
@@ -340,6 +419,171 @@ describe('safeParseLiteratureSurveyV1', () => {
     if (!parsed.ok) expect(parsed.issues.some(i => i.path === 'papers[0].read_status')).toBe(true);
   });
 
+  it('rejects a core paper that is metadata-only or lacks source locators', () => {
+    const base = valid();
+    const bad = {
+      ...base,
+      papers: [{
+        ...base.papers[0],
+        read_status: 'metadata_only',
+        source_links: [],
+        read_locators: [],
+      }],
+    };
+    const parsed = safeParseLiteratureSurveyV1(bad);
+    expect(parsed.ok).toBe(false);
+    if (!parsed.ok) {
+      expect(parsed.issues.some(i => i.path === 'papers[0].read_status' && /source-first/.test(i.message))).toBe(true);
+      expect(parsed.issues.some(i => i.path === 'papers[0].source_links')).toBe(true);
+      expect(parsed.issues.some(i => i.path === 'papers[0].read_locators')).toBe(true);
+    }
+  });
+
+  it('rejects full_text_read without conclusion/outlook coverage', () => {
+    const base = valid();
+    const bad = {
+      ...base,
+      papers: [{
+        ...base.papers[0],
+        read_sections: ['introduction', 'formalism_method', 'results_discussion'],
+      }],
+    };
+    const parsed = safeParseLiteratureSurveyV1(bad);
+    expect(parsed.ok).toBe(false);
+    if (!parsed.ok) {
+      expect(parsed.issues.some(i => i.path === 'papers[0].read_sections' && /conclusion_outlook/.test(i.message))).toBe(true);
+    }
+  });
+
+  it('rejects section_read core papers without recorded sections', () => {
+    const base = valid();
+    const bad = {
+      ...base,
+      papers: [{
+        ...base.papers[0],
+        read_status: 'section_read',
+        read_sections: undefined,
+      }],
+    };
+    const parsed = safeParseLiteratureSurveyV1(bad);
+    expect(parsed.ok).toBe(false);
+    if (!parsed.ok) {
+      expect(parsed.issues.some(i => i.path === 'papers[0].read_sections' && /section_read/.test(i.message))).toBe(true);
+    }
+  });
+
+  it('rejects core papers without consistent citation identity triangulation', () => {
+    const base = valid();
+    const conflicted = {
+      ...base,
+      papers: [{
+        ...base.papers[0],
+        identity_triangulation: {
+          ...identityTriangulation(),
+          verdict: 'conflicted',
+        },
+      }],
+    };
+    let parsed = safeParseLiteratureSurveyV1(conflicted);
+    expect(parsed.ok).toBe(false);
+    if (!parsed.ok) {
+      expect(parsed.issues.some(i => i.path === 'papers[0].identity_triangulation.verdict' && /consistent/.test(i.message))).toBe(true);
+    }
+
+    const singleProvider = {
+      ...base,
+      papers: [{
+        ...base.papers[0],
+        identity_triangulation: {
+          verdict: 'consistent',
+          providers: [identityTriangulation().providers[0]],
+        },
+      }],
+    };
+    parsed = safeParseLiteratureSurveyV1(singleProvider);
+    expect(parsed.ok).toBe(false);
+    if (!parsed.ok) {
+      expect(parsed.issues.some(i => i.path === 'papers[0].identity_triangulation.providers')).toBe(true);
+    }
+
+    const duplicateProvider = {
+      ...base,
+      papers: [{
+        ...base.papers[0],
+        identity_triangulation: {
+          ...identityTriangulation(),
+          providers: [
+            identityTriangulation().providers[0],
+            { ...identityTriangulation().providers[1], provider: 'arxiv' },
+          ],
+        },
+      }],
+    };
+    parsed = safeParseLiteratureSurveyV1(duplicateProvider);
+    expect(parsed.ok).toBe(false);
+    if (!parsed.ok) {
+      expect(parsed.issues.some(i => i.path === 'papers[0].identity_triangulation.providers' && /independent/.test(i.message))).toBe(true);
+    }
+
+    const mismatchedTitle = {
+      ...base,
+      papers: [{
+        ...base.papers[0],
+        identity_triangulation: {
+          ...identityTriangulation(),
+          providers: [
+            identityTriangulation().providers[0],
+            { ...identityTriangulation().providers[1], title: 'A different paper', year: 2025 },
+          ],
+        },
+      }],
+    };
+    parsed = safeParseLiteratureSurveyV1(mismatchedTitle);
+    expect(parsed.ok).toBe(false);
+    if (!parsed.ok) {
+      expect(parsed.issues.some(i => i.path === 'papers[0].identity_triangulation.providers' && /titles/.test(i.message))).toBe(true);
+      expect(parsed.issues.some(i => i.path === 'papers[0].identity_triangulation.providers' && /years/.test(i.message))).toBe(true);
+    }
+
+    const mismatchedArxiv = {
+      ...base,
+      papers: [{
+        ...base.papers[0],
+        identity_triangulation: {
+          ...identityTriangulation(),
+          providers: [
+            { ...identityTriangulation().providers[0], identifier: 'arXiv:2401.00001' },
+            { ...identityTriangulation().providers[1], identifier: 'arXiv:2401.99999' },
+          ],
+        },
+      }],
+    };
+    parsed = safeParseLiteratureSurveyV1(mismatchedArxiv);
+    expect(parsed.ok).toBe(false);
+    if (!parsed.ok) {
+      expect(parsed.issues.some(i => i.path === 'papers[0].identity_triangulation.providers' && /arXiv/.test(i.message))).toBe(true);
+    }
+  });
+
+  it('rejects core papers whose deep-read summary source-fidelity audit did not pass', () => {
+    const base = valid();
+    const bad = {
+      ...base,
+      papers: [{
+        ...base.papers[0],
+        source_fidelity_audit: {
+          ...sourceFidelityAudit(),
+          status: 'partial',
+        },
+      }],
+    };
+    const parsed = safeParseLiteratureSurveyV1(bad);
+    expect(parsed.ok).toBe(false);
+    if (!parsed.ok) {
+      expect(parsed.issues.some(i => i.path === 'papers[0].source_fidelity_audit.status' && /pass/.test(i.message))).toBe(true);
+    }
+  });
+
   it('rejects a synthesis citing an absent ref_key (referential integrity at the boundary)', () => {
     const bad = { ...valid(), synthesis: { ...valid().synthesis, consensus: [{ statement: 's', supporting_ref_keys: ['NOPE'] }] } };
     const parsed = safeParseLiteratureSurveyV1(bad);
@@ -385,7 +629,7 @@ describe('safeParseLiteratureSurveyV1', () => {
       coverage: {
         ...v.coverage,
         saturation: 'saturated',
-        saturation_evidence: [{ round: 1, expansion_candidates_screened: 10, new_core_papers: 1 }],
+        saturation_evidence: [expansionRound(1, 10, 1)],
       },
     };
     const parsed = safeParseLiteratureSurveyV1(bad);
@@ -393,12 +637,31 @@ describe('safeParseLiteratureSurveyV1', () => {
     if (!parsed.ok) expect(parsed.issues.some(i => i.path === 'coverage.saturation' && /has not converged/.test(i.message))).toBe(true);
   });
 
+  it('REJECTS a hand-authored saturated missing critique-specific discovery', () => {
+    const v = valid();
+    const bad = {
+      ...v,
+      coverage: {
+        ...v.coverage,
+        saturation: 'saturated',
+        saturation_evidence: [
+          expansionRound(1, 15, 0, ['seed_search', 'backward_references', 'forward_citations']),
+        ],
+      },
+    };
+    const parsed = safeParseLiteratureSurveyV1(bad);
+    expect(parsed.ok).toBe(false);
+    if (!parsed.ok) {
+      expect(parsed.issues.some(i => i.path === 'coverage.saturation' && /critique_specific_search/.test(i.message))).toBe(true);
+    }
+  });
+
   it('accepts a hand-authored saturated whose rounds support it', () => {
     const v = assembleLiteratureSurvey(input({
       papers: [paper({ ref_key: 'A' })],
       synthesis: { consensus: [{ statement: 's', supporting_ref_keys: ['A'] }], tensions: [], gaps: [] },
       saturation: 'saturated',
-      saturation_evidence: [{ round: 1, expansion_candidates_screened: 15, new_core_papers: 0 }],
+      saturation_evidence: [expansionRound(1, 15, 0)],
     }));
     expect(v.coverage.saturation).toBe('saturated');
     expect(safeParseLiteratureSurveyV1(JSON.parse(JSON.stringify(v))).ok).toBe(true);
@@ -411,7 +674,7 @@ describe('safeParseLiteratureSurveyV1', () => {
       coverage: {
         ...v.coverage,
         saturation: 'coverage_incomplete',
-        saturation_evidence: [{ round: 1, expansion_candidates_screened: 10, new_core_papers: 1 }],
+        saturation_evidence: [expansionRound(1, 10, 1, ['seed_search'])],
       },
     };
     expect(safeParseLiteratureSurveyV1(ok).ok).toBe(true);
@@ -432,9 +695,9 @@ describe('safeParseLiteratureSurveyV1', () => {
       coverage: {
         ...v.coverage,
         saturation_evidence: [
-          { round: 1, expansion_candidates_screened: -2, new_core_papers: 0.5 },
+          { round: 1, expansion_candidates_screened: -2, new_core_papers: 0.5, discovery_methods: ALL_DISCOVERY_METHODS },
           null,
-          { round: 7, expansion_candidates_screened: 1, new_core_papers: 3 },
+          { round: 7, expansion_candidates_screened: 1, new_core_papers: 3, discovery_methods: ALL_DISCOVERY_METHODS },
         ],
       },
     };
@@ -458,7 +721,7 @@ describe('safeParseLiteratureSurveyV1', () => {
       coverage: {
         ...v.coverage,
         saturation: 'saturated',
-        saturation_evidence: [{ round: 1, expansion_candidates_screened: -1, new_core_papers: 0 }],
+        saturation_evidence: [{ round: 1, expansion_candidates_screened: -1, new_core_papers: 0, discovery_methods: ALL_DISCOVERY_METHODS }],
       },
     };
     const parsed = safeParseLiteratureSurveyV1(bad);
@@ -485,8 +748,8 @@ describe('safeParseLiteratureSurveyV1', () => {
       coverage: {
         ...v.coverage,
         saturation_evidence: [
-          { round: 1, expansion_candidates_screened: 10, new_core_papers: 2 },
-          { round: 2, expansion_candidates_screened: 5, new_core_papers: 0 },
+          expansionRound(1, 10, 2, ['seed_search', 'backward_references']),
+          expansionRound(2, 5, 0, ['forward_citations', 'critique_specific_search']),
         ],
       },
     };

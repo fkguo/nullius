@@ -33,8 +33,14 @@ shape for exploration-aware allocation:
 
 Allocation rule
 ---------------
-One draw per eligible idea (``lifecycle_state == "active"`` and posterior
-present), ranked by sampled value, descending. The caller supplies
+One draw per eligible idea (``lifecycle_state == "active"``, posterior present,
+``posterior.status`` current, and close-prior literature coverage saturated),
+ranked by sampled value, descending. ``coverage_incomplete`` can participate
+only when the node explicitly declares
+``literature_coverage.exploratory_allocation=true``; ``metadata_only``, ordinary
+``coverage_incomplete``, and stale/provisional posteriors are listed as holds
+and never sampled.
+The caller supplies
 ``--deep-slots`` and ``--recon-slots`` (no defaults: slot counts encode real
 person-time and compute capacity, which only the caller knows). The top
 ``deep_slots`` draws get ``deep_investment``, the next ``recon_slots`` get
@@ -78,7 +84,9 @@ if __package__ in (None, ""):
 from nodes_store import (  # noqa: E402
     ACTIVATION_KINDS,
     ALLOCATION_KINDS,
+    LITERATURE_COVERAGE_STATUSES,
     METHOD_NAME,
+    POSTERIOR_STATUSES,
     SHORT_ID_RE,
     StoreError,
     derive_decision_id,
@@ -124,6 +132,7 @@ def split_nodes(nodes: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
     """Partition store nodes by how this round treats them."""
     groups: Dict[str, List[Dict[str, Any]]] = {
         "sampled": [],        # active, posterior present -> Thompson draw
+        "literature_blocked": [],  # active, posterior present, but close-prior gate not allocation-eligible
         "cold_start": [],     # active, no posterior -> reconnaissance tail
         "waiting": [],        # waiting_activation -> monitor queue
         "archived": [],       # excluded
@@ -135,10 +144,35 @@ def split_nodes(nodes: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
         elif state == "waiting_activation":
             groups["waiting"].append(node)
         elif node.get("posterior") is not None:
-            groups["sampled"].append(node)
+            coverage = literature_coverage(node)
+            if posterior_status(node) == "current" and allocation_eligible_from_coverage(coverage):
+                groups["sampled"].append(node)
+            else:
+                groups["literature_blocked"].append(node)
         else:
             groups["cold_start"].append(node)
     return groups
+
+
+def literature_coverage(node: Dict[str, Any]) -> Dict[str, Any]:
+    coverage = node.get("literature_coverage")
+    if isinstance(coverage, dict):
+        return coverage
+    return {"status": "metadata_only", "exploratory_allocation": False}
+
+
+def posterior_status(node: Dict[str, Any]) -> str:
+    posterior = node.get("posterior")
+    if isinstance(posterior, dict) and posterior.get("status") in POSTERIOR_STATUSES:
+        return str(posterior["status"])
+    return "current"
+
+
+def allocation_eligible_from_coverage(coverage: Dict[str, Any]) -> bool:
+    status = coverage.get("status")
+    return status == "saturated" or (
+        status == "coverage_incomplete" and coverage.get("exploratory_allocation") is True
+    )
 
 
 def draw_samples(
@@ -152,6 +186,7 @@ def draw_samples(
         value = float(posterior["value"])
         count = int(posterior["evidence_count"])
         alpha, beta = beta_parameters(value, count)
+        coverage = literature_coverage(node)
         draws.append(
             {
                 "node_id": node["node_id"],
@@ -159,6 +194,9 @@ def draw_samples(
                 "evidence_count": count,
                 "sampled_value": rng.betavariate(alpha, beta),
                 "posterior_mean": beta_mean(alpha, beta),
+                "posterior_status": posterior_status(node),
+                "literature_coverage_status": coverage["status"],
+                "exploratory_allocation": bool(coverage.get("exploratory_allocation", False)),
             }
         )
     return draws
@@ -166,14 +204,15 @@ def draw_samples(
 
 def _draw_comment(sampled: float, mean: float) -> str:
     if sampled > mean:
-        return f"sampled {sampled:.4f} above posterior mean {mean:.4f} — exploration draw"
+        return f"sampled {sampled:.3f} above posterior mean {mean:.3f} — exploration draw"
     if sampled < mean:
-        return f"sampled {sampled:.4f} below posterior mean {mean:.4f} — conservative draw"
-    return f"sampled {sampled:.4f} at posterior mean {mean:.4f}"
+        return f"sampled {sampled:.3f} below posterior mean {mean:.3f} — conservative draw"
+    return f"sampled {sampled:.3f} at posterior mean {mean:.3f}"
 
 
 def assign_allocations(
     draws: List[Dict[str, Any]],
+    literature_blocked_nodes: List[Dict[str, Any]],
     cold_start_nodes: List[Dict[str, Any]],
     deep_slots: int,
     recon_slots: int,
@@ -199,23 +238,63 @@ def assign_allocations(
         else:
             allocation = "hold"
             note = f"below slot cutoff this round; {comment}"
+        if draw["exploratory_allocation"]:
+            note = f"exploratory allocation on coverage_incomplete literature; {note}"
         candidates.append(
             {
                 "node_id": draw["node_id"],
                 "posterior_value": draw["posterior_value"],
                 "evidence_count": draw["evidence_count"],
                 "sampled_value": draw["sampled_value"],
+                "posterior_status": draw["posterior_status"],
+                "literature_coverage_status": draw["literature_coverage_status"],
+                "allocation_eligible": True,
+                "exploratory_allocation": draw["exploratory_allocation"],
                 "allocation": allocation,
                 "budget_note": note,
             }
         )
+    for node in sorted(literature_blocked_nodes, key=lambda n: n["node_id"]):
+        posterior = node["posterior"]
+        coverage = literature_coverage(node)
+        status = coverage["status"]
+        pstatus = posterior_status(node)
+        if pstatus != "current":
+            note = (
+                f"not allocation eligible: posterior status is {pstatus}; "
+                "rerun idea-posterior after the close-prior gate before using this as current guidance"
+            )
+        else:
+            note = (
+                f"not allocation eligible: literature coverage is {status}; "
+                "requires saturated close-prior survey, or explicit exploratory allocation for coverage_incomplete"
+            )
+        candidates.append(
+            {
+                "node_id": node["node_id"],
+                "posterior_value": float(posterior["value"]),
+                "evidence_count": int(posterior["evidence_count"]),
+                "sampled_value": None,
+                "posterior_status": pstatus,
+                "literature_coverage_status": status,
+                "allocation_eligible": False,
+                "exploratory_allocation": False,
+                "allocation": "hold",
+                "budget_note": note,
+            }
+        )
     for node in sorted(cold_start_nodes, key=lambda n: n["node_id"]):
+        coverage = literature_coverage(node)
         candidates.append(
             {
                 "node_id": node["node_id"],
                 "posterior_value": None,
                 "evidence_count": None,
                 "sampled_value": None,
+                "posterior_status": None,
+                "literature_coverage_status": coverage["status"],
+                "allocation_eligible": False,
+                "exploratory_allocation": False,
                 "allocation": "reconnaissance",
                 "budget_note": (
                     "no posterior yet — needs belief graph first; fixed reconnaissance "
@@ -246,7 +325,9 @@ def build_decision(
     """Assemble the full allocation_decision_v1 artifact object."""
     groups = split_nodes(nodes)
     draws = draw_samples(groups["sampled"], seed)
-    candidates = assign_allocations(draws, groups["cold_start"], deep_slots, recon_slots)
+    candidates = assign_allocations(
+        draws, groups["literature_blocked"], groups["cold_start"], deep_slots, recon_slots
+    )
     waiting = [waiting_entry(node) for node in sorted(groups["waiting"], key=lambda n: n["node_id"])]
     # Deterministic engine-convention short id over the same semantic inputs
     # the retired uuid5 derivation used: campaign id, seed, generated_at,
@@ -284,6 +365,10 @@ _CANDIDATE_KEYS = (
     "posterior_value",
     "evidence_count",
     "sampled_value",
+    "posterior_status",
+    "literature_coverage_status",
+    "allocation_eligible",
+    "exploratory_allocation",
     "allocation",
     "budget_note",
 )
@@ -374,6 +459,32 @@ def _validate_candidate(index: int, entry: Any) -> List[str]:
             f"{prefix}.allocation must be one of {list(ALLOCATION_KINDS)}, "
             f"got {entry['allocation']!r}"
         )
+    if entry["literature_coverage_status"] not in LITERATURE_COVERAGE_STATUSES:
+        problems.append(
+            f"{prefix}.literature_coverage_status must be one of {list(LITERATURE_COVERAGE_STATUSES)}, "
+            f"got {entry['literature_coverage_status']!r}"
+        )
+    if not isinstance(entry["allocation_eligible"], bool):
+        problems.append(f"{prefix}.allocation_eligible must be a boolean")
+    if not isinstance(entry["exploratory_allocation"], bool):
+        problems.append(f"{prefix}.exploratory_allocation must be a boolean")
+    if entry["posterior_status"] is not None and entry["posterior_status"] not in POSTERIOR_STATUSES:
+        problems.append(
+            f"{prefix}.posterior_status must be null or one of {list(POSTERIOR_STATUSES)}, "
+            f"got {entry['posterior_status']!r}"
+        )
+    if entry["allocation_eligible"] is True and entry["posterior_status"] != "current":
+        problems.append(f"{prefix}: allocation_eligible requires posterior_status=current")
+    if (
+        entry["literature_coverage_status"] == "coverage_incomplete"
+        and entry["allocation_eligible"] is True
+        and entry["exploratory_allocation"] is not True
+    ):
+        problems.append(
+            f"{prefix}: coverage_incomplete cannot be allocation_eligible without exploratory_allocation=true"
+        )
+    if entry["literature_coverage_status"] == "metadata_only" and entry["allocation_eligible"] is True:
+        problems.append(f"{prefix}: metadata_only literature coverage cannot be allocation_eligible")
     if not isinstance(entry["budget_note"], str) or not entry["budget_note"].strip():
         problems.append(f"{prefix}.budget_note must be a non-empty string")
 
@@ -384,13 +495,36 @@ def _validate_candidate(index: int, entry: Any) -> List[str]:
                 f"{prefix}: a candidate without posterior data (cold start) must have "
                 f"allocation 'reconnaissance', got {entry.get('allocation')!r}"
             )
+        if entry.get("allocation_eligible") is not False:
+            problems.append(f"{prefix}: cold start must have allocation_eligible=false")
+        if entry.get("posterior_status") is not None:
+            problems.append(f"{prefix}: cold start must have posterior_status=null")
     elif any(item is None for item in triple):
-        problems.append(
-            f"{prefix}: posterior_value, evidence_count, sampled_value must be all "
-            f"null (cold start) or all present, got {triple!r}"
-        )
+        value, count, sampled = triple
+        if sampled is None and value is not None and count is not None:
+            if entry.get("allocation") != "hold" or entry.get("allocation_eligible") is not False:
+                problems.append(
+                    f"{prefix}: a posterior-bearing candidate without a sampled_value "
+                    "must be a literature-coverage hold with allocation_eligible=false"
+                )
+            if not _is_number(value) or not (0.0 <= float(value) <= 1.0):
+                problems.append(f"{prefix}.posterior_value must be a number in [0, 1], got {value!r}")
+            if not _is_int(count) or count < 0:
+                problems.append(f"{prefix}.evidence_count must be an integer >= 0, got {count!r}")
+            if entry.get("posterior_status") not in POSTERIOR_STATUSES:
+                problems.append(f"{prefix}: posterior-bearing hold must record posterior_status")
+        else:
+            problems.append(
+                f"{prefix}: posterior_value, evidence_count, sampled_value must be all "
+                f"null (cold start), all present (sampled), or sampled_value null for "
+                f"a literature-coverage hold, got {triple!r}"
+            )
     else:
         value, count, sampled = triple
+        if entry.get("allocation_eligible") is not True:
+            problems.append(f"{prefix}: sampled candidates must have allocation_eligible=true")
+        if entry.get("posterior_status") != "current":
+            problems.append(f"{prefix}: sampled candidates must have posterior_status=current")
         if not _is_number(value) or not (0.0 <= float(value) <= 1.0):
             problems.append(f"{prefix}.posterior_value must be a number in [0, 1], got {value!r}")
         if not _is_int(count) or count < 0:
@@ -467,11 +601,20 @@ def render_summary(
 
     def _fmt(entry: Dict[str, Any]) -> str:
         if entry["sampled_value"] is None:
-            return f"  {entry['node_id']:<24} (no posterior)          {entry['budget_note']}"
+            coverage = f"coverage={entry['literature_coverage_status']}"
+            if entry["posterior_value"] is None:
+                return f"  {entry['node_id']:<24} (no posterior)          {coverage} posterior_status=n/a eligible=false  {entry['budget_note']}"
+            return (
+                f"  {entry['node_id']:<24} posterior {entry['posterior_value']:.3f} "
+                f"(n={entry['evidence_count']:>3}) sampled n/a    "
+                f"{coverage} posterior_status={entry['posterior_status']} eligible=false  {entry['budget_note']}"
+            )
+        coverage = f"coverage={entry['literature_coverage_status']}"
+        eligible = f"eligible={str(entry['allocation_eligible']).lower()}"
         return (
             f"  {entry['node_id']:<24} posterior {entry['posterior_value']:.3f} "
-            f"(n={entry['evidence_count']:>3}) sampled {entry['sampled_value']:.4f}  "
-            f"{entry['budget_note']}"
+            f"(n={entry['evidence_count']:>3}) sampled {entry['sampled_value']:.3f}  "
+            f"{coverage} posterior_status={entry['posterior_status']} {eligible}  {entry['budget_note']}"
         )
 
     lines.append("")

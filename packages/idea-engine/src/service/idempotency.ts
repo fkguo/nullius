@@ -111,7 +111,8 @@ function preparedSideEffectsCommitted(store: IdeaEngineStore, method: string, re
       return false;
     }
     if (method === 'node.set_posterior') {
-      return JSON.stringify(node.posterior ?? null) === JSON.stringify(summary.posterior ?? null);
+      return JSON.stringify(node.posterior ?? null) === JSON.stringify(summary.posterior ?? null)
+        && JSON.stringify(node.literature_coverage ?? null) === JSON.stringify(summary.literature_coverage ?? null);
     }
     return nodeLifecycleState(node) === summary.lifecycle_state
       && JSON.stringify(node.activation_condition ?? null) === JSON.stringify(summary.activation_condition ?? null);

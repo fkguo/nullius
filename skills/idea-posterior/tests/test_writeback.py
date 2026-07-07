@@ -20,6 +20,146 @@ POSTERIOR = {
 }
 
 
+def identity_triangulation():
+    return {
+        "verdict": "consistent",
+        "providers": [
+            {
+                "provider": "arxiv",
+                "title": "Source-grounded example paper",
+                "year": 2026,
+                "identifier": "2601.00001",
+            },
+            {
+                "provider": "inspire",
+                "title": "Source-grounded example paper",
+                "year": 2026,
+                "identifier": "recid:2601001",
+            },
+        ],
+    }
+
+
+def write_close_prior_bundle(tmp_path):
+    survey = {
+        "version": 1,
+        "generated_at": "2026-07-05T00:00:00Z",
+        "topic": "writeback close-prior fixture",
+        "papers": [
+            {
+                "ref_key": "Example2026",
+                "domain": "hep",
+                "read_status": "full_text_read",
+                "source_links": ["https://arxiv.org/abs/2601.00001"],
+                "read_locators": ["source.tex lines 10-70"],
+                "read_sections": [
+                    "introduction",
+                    "formalism_method",
+                    "results_discussion",
+                    "conclusion_outlook",
+                ],
+                "role": "core",
+                "one_line": "Anchors the close-prior test fixture.",
+                "identity_triangulation": identity_triangulation(),
+                "source_fidelity_audit": {
+                    "status": "pass",
+                    "auditor": "fixture-reviewer",
+                    "checked_locators": ["source.tex lines 10-70"],
+                },
+            }
+        ],
+        "synthesis": {"consensus": [], "tensions": [], "gaps": []},
+        "coverage": {
+            "total_papers": 1,
+            "deep_read": 1,
+            "core_total": 1,
+            "core_deep_read": 1,
+            "saturation": "saturated",
+            "saturation_evidence": [
+                {
+                    "round": 1,
+                    "expansion_candidates_screened": 8,
+                    "new_core_papers": 1,
+                    "discovery_methods": [
+                        "seed_search",
+                        "backward_references",
+                    ],
+                },
+                {
+                    "round": 2,
+                    "expansion_candidates_screened": 6,
+                    "new_core_papers": 0,
+                    "discovery_methods": [
+                        "forward_citations",
+                        "critique_specific_search",
+                    ],
+                },
+            ],
+        },
+    }
+    matrix = {
+        "coverage_status": "saturated",
+        "survey_ref": f"project://artifacts/literature/survey.json#sha256:{'c' * 64}",
+        "close_prior_matrix_ref": f"project://artifacts/literature/close-prior-matrix.json#sha256:{'d' * 64}",
+        "critique_search": {
+            "queries": ["example competing resolution"],
+            "top_hits_reviewed": ["Example2026"],
+        },
+        "entries": [
+            {
+                "reference": "Example2026",
+                "source_link": "https://arxiv.org/abs/2601.00001",
+                "read_status": "full_text_read",
+                "locator": "source.tex lines 10-70",
+                "sections_read": [
+                    "introduction",
+                    "formalism_method",
+                    "results_discussion",
+                    "conclusion_outlook",
+                ],
+                "same_scope": "not_same_scope",
+                "supports_subclaims": ["testability_timing"],
+                "weakens_novelty_claims": [],
+                "stale_or_provisional": False,
+                "identity_triangulation": identity_triangulation(),
+                "source_fidelity_audit": {
+                    "status": "pass",
+                    "auditor": "fixture-reviewer",
+                    "checked_locators": ["source.tex lines 10-70"],
+                },
+            }
+        ],
+        "gaia_anchors": [
+            {
+                "anchor_source": "claim_grounding",
+                "proposition": "The close-prior fixture supports testability timing.",
+                "quote": "short checked source span",
+                "locator": "source.tex lines 42-45",
+                "source_link": "https://arxiv.org/abs/2601.00001",
+            }
+        ],
+    }
+    report = "\n".join(
+        [
+            "# posterior_report_v1",
+            "",
+            "## Close-Prior Matrix",
+            "",
+            "| reference | read status | same-scope | supports | weakens | stale |",
+            "|---|---|---|---|---|---|",
+            "| [Example2026](https://arxiv.org/abs/2601.00001) | full_text_read | not_same_scope | testability_timing | none | no |",
+            "",
+        ]
+    )
+    survey_path = tmp_path / "literature_survey_v1.json"
+    matrix_path = tmp_path / "close_prior_matrix.json"
+    report_path = tmp_path / "posterior_report.md"
+    survey_path.write_text(json.dumps(survey), encoding="utf-8")
+    matrix_path.write_text(json.dumps(matrix), encoding="utf-8")
+    report_path.write_text(report, encoding="utf-8")
+    return survey_path, matrix_path, report_path
+
+
 def write_posterior_file(tmp_path):
     path = tmp_path / "posterior.json"
     path.write_text(json.dumps(POSTERIOR), encoding="utf-8")
@@ -39,6 +179,7 @@ def run_main(tmp_path, fixtures_dir, extra_args=(), *, package=True,
              project_root=True):
     if package:
         make_package(tmp_path)
+    survey_path, matrix_path, report_path = write_close_prior_bundle(tmp_path)
     root_args = ("--project-root", str(tmp_path)) if project_root else ()
     return writeback.main(
         [
@@ -46,6 +187,9 @@ def run_main(tmp_path, fixtures_dir, extra_args=(), *, package=True,
             "--campaign-id", "campaign-1",
             "--node-id", "node-7",
             "--store-root", str(tmp_path / "store"),
+            "--literature-survey-json", str(survey_path),
+            "--close-prior-matrix-json", str(matrix_path),
+            "--posterior-report-md", str(report_path),
             *root_args,
             "--idea-rpc", str(fixtures_dir / "fake_rpc.py"),
             "--runner", sys.executable,
@@ -66,6 +210,8 @@ def test_successful_writeback_request_shape(tmp_path, fixtures_dir, capsys) -> N
     assert params["node_id"] == "node-7"
     assert params["idempotency_key"].startswith("idea-posterior-")
     assert params["posterior"] == POSTERIOR
+    assert params["literature_coverage"]["status"] == "saturated"
+    assert params["literature_coverage"]["survey_ref"].startswith("project://artifacts/literature/")
     assert "posterior written" in out.err
 
 
@@ -264,6 +410,151 @@ def test_missing_project_root_fails_with_guidance(
     assert "no project root found" in capsys.readouterr().err
 
 
+def test_writeback_refuses_missing_close_prior_matrix(tmp_path, fixtures_dir, capsys) -> None:
+    make_package(tmp_path)
+    survey_path, matrix_path, report_path = write_close_prior_bundle(tmp_path)
+    matrix_path.unlink()
+    code = writeback.main(
+        [
+            "--posterior-json", str(write_posterior_file(tmp_path)),
+            "--campaign-id", "campaign-1",
+            "--node-id", "node-7",
+            "--store-root", str(tmp_path / "store"),
+            "--literature-survey-json", str(survey_path),
+            "--close-prior-matrix-json", str(matrix_path),
+            "--posterior-report-md", str(report_path),
+            "--project-root", str(tmp_path),
+            "--idea-rpc", str(fixtures_dir / "fake_rpc.py"),
+            "--runner", sys.executable,
+        ]
+    )
+    assert code == 2
+    assert "close-prior gate input" in capsys.readouterr().err
+
+
+def test_writeback_refuses_unrounded_posterior_report_display(tmp_path, fixtures_dir, capsys) -> None:
+    make_package(tmp_path)
+    survey_path, matrix_path, report_path = write_close_prior_bundle(tmp_path)
+    report_path.write_text(
+        report_path.read_text(encoding="utf-8") + "\nPosterior value: `0.9255435028366992`.\n",
+        encoding="utf-8",
+    )
+
+    code = writeback.main(
+        [
+            "--posterior-json", str(write_posterior_file(tmp_path)),
+            "--campaign-id", "campaign-1",
+            "--node-id", "node-7",
+            "--store-root", str(tmp_path / "store"),
+            "--literature-survey-json", str(survey_path),
+            "--close-prior-matrix-json", str(matrix_path),
+            "--posterior-report-md", str(report_path),
+            "--project-root", str(tmp_path),
+            "--idea-rpc", str(fixtures_dir / "fake_rpc.py"),
+            "--runner", sys.executable,
+        ]
+    )
+
+    assert code == 2
+    err = capsys.readouterr().err
+    assert "display values are not rounded" in err
+    assert "normalize_report_posteriors.py" in err
+
+
+def test_writeback_refuses_unnormalized_report_links(tmp_path, fixtures_dir, capsys) -> None:
+    make_package(tmp_path)
+    survey_path, matrix_path, _report_path = write_close_prior_bundle(tmp_path)
+    starmap = tmp_path / "ideas" / "gaia" / "demo-gaia" / "starmap.html"
+    starmap.parent.mkdir(parents=True)
+    starmap.write_text("html", encoding="utf-8")
+    report_dir = tmp_path / "artifacts" / "campaign"
+    report_dir.mkdir(parents=True)
+    report_path = report_dir / "posterior_report.md"
+    report_path.write_text(
+        "\n".join(
+            [
+                "# posterior_report_v1",
+                "",
+                "## Close-Prior Matrix",
+                "",
+                "[Starmap](ideas/gaia/demo-gaia/starmap.html)",
+                "",
+                "| reference | read status | same-scope | supports | weakens | stale |",
+                "|---|---|---|---|---|---|",
+                "| [Example2026](https://arxiv.org/abs/2601.00001) | full_text_read | not_same_scope | testability_timing | none | no |",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    code = writeback.main(
+        [
+            "--posterior-json", str(write_posterior_file(tmp_path)),
+            "--campaign-id", "campaign-1",
+            "--node-id", "node-7",
+            "--store-root", str(tmp_path / "store"),
+            "--literature-survey-json", str(survey_path),
+            "--close-prior-matrix-json", str(matrix_path),
+            "--posterior-report-md", str(report_path),
+            "--project-root", str(tmp_path),
+            "--idea-rpc", str(fixtures_dir / "fake_rpc.py"),
+            "--runner", sys.executable,
+        ]
+    )
+
+    assert code == 2
+    err = capsys.readouterr().err
+    assert "posterior report links" in err
+    assert "normalize_report_links.py" in err
+
+
+def test_writeback_refuses_broken_report_links(tmp_path, fixtures_dir, capsys) -> None:
+    make_package(tmp_path)
+    survey_path, matrix_path, _report_path = write_close_prior_bundle(tmp_path)
+    report_dir = tmp_path / "artifacts" / "campaign"
+    report_dir.mkdir(parents=True)
+    report_path = report_dir / "posterior_report.md"
+    report_path.write_text(
+        "\n".join(
+            [
+                "# posterior_report_v1",
+                "",
+                "## Close-Prior Matrix",
+                "",
+                "[Missing starmap](../../ideas/gaia/demo-gaia/starmap.html)",
+                "",
+                "| reference | read status | same-scope | supports | weakens | stale |",
+                "|---|---|---|---|---|---|",
+                "| [Example2026](https://arxiv.org/abs/2601.00001) | full_text_read | not_same_scope | testability_timing | none | no |",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    code = writeback.main(
+        [
+            "--posterior-json", str(write_posterior_file(tmp_path)),
+            "--campaign-id", "campaign-1",
+            "--node-id", "node-7",
+            "--store-root", str(tmp_path / "store"),
+            "--literature-survey-json", str(survey_path),
+            "--close-prior-matrix-json", str(matrix_path),
+            "--posterior-report-md", str(report_path),
+            "--project-root", str(tmp_path),
+            "--idea-rpc", str(fixtures_dir / "fake_rpc.py"),
+            "--runner", sys.executable,
+        ]
+    )
+
+    assert code == 2
+    err = capsys.readouterr().err
+    assert "broken local links" in err
+    assert "Missing starmap" not in err
+    assert "ideas/gaia/demo-gaia/starmap.html" in err
+
+
 def test_validate_posterior_refuses_exploration_only_refs() -> None:
     ref = "exploration-only:" + POSTERIOR["gaia_package_ref"]
     with pytest.raises(ValueError, match="not writable to the idea store"):
@@ -300,12 +591,16 @@ def test_validate_posterior_drops_extra_fields() -> None:
 
 def test_missing_rpc_caller_is_diagnosed(tmp_path, capsys) -> None:
     make_package(tmp_path)
+    survey_path, matrix_path, report_path = write_close_prior_bundle(tmp_path)
     code = writeback.main(
         [
             "--posterior-json", str(write_posterior_file(tmp_path)),
             "--campaign-id", "c",
             "--node-id", "n",
             "--store-root", str(tmp_path),
+            "--literature-survey-json", str(survey_path),
+            "--close-prior-matrix-json", str(matrix_path),
+            "--posterior-report-md", str(report_path),
             "--project-root", str(tmp_path),
             "--idea-rpc", str(tmp_path / "missing-rpc.mjs"),
         ]

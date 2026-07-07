@@ -56,6 +56,14 @@ function initCampaign(
 const URI_A = 'https://example.com/paper-a';
 const URI_B = 'https://example.com/paper-b';
 
+function saturatedCoverage(nodeId: string): Record<string, unknown> {
+  return {
+    status: 'saturated',
+    survey_ref: `project://artifacts/literature/${nodeId}-literature_survey_v1.json#sha256:${'c'.repeat(64)}`,
+    close_prior_matrix_ref: `project://artifacts/literature/${nodeId}-close-prior-matrix.json#sha256:${'d'.repeat(64)}`,
+  };
+}
+
 function tensionCandidate(): Record<string, unknown> {
   return {
     card_fields: {
@@ -348,6 +356,7 @@ describe('node.import_generated', () => {
     service.handle('node.set_posterior', {
       campaign_id: campaignId,
       idempotency_key: 'posterior-1',
+      literature_coverage: saturatedCoverage(nodeId),
       node_id: nodeId,
       posterior: { evidence_count: 2, value: 0.7 },
     });
@@ -392,6 +401,7 @@ describe('node.import_generated', () => {
     service.handle('node.set_posterior', {
       campaign_id: campaignId,
       idempotency_key: 'posterior-before-legacy-migration',
+      literature_coverage: saturatedCoverage(nodeId),
       node_id: nodeId,
       posterior: { evidence_count: 1, value: 0.51 },
     });
@@ -1089,6 +1099,7 @@ describe('node.import_generated', () => {
       service.handle('node.set_posterior', {
         campaign_id: campaignId,
         idempotency_key: 'posterior-mid-crash',
+        literature_coverage: saturatedCoverage(nodeId),
         node_id: nodeId,
         posterior: { evidence_count: 1, value: 0.4 },
       });

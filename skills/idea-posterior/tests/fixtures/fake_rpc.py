@@ -48,13 +48,16 @@ def main() -> int:
     if not request.get("store_root"):
         problems.append("missing store_root")
     params = request.get("params") or {}
-    for key in ("campaign_id", "node_id", "idempotency_key", "posterior"):
+    for key in ("campaign_id", "node_id", "idempotency_key", "posterior", "literature_coverage"):
         if not params.get(key):
             problems.append(f"missing params.{key}")
     posterior = params.get("posterior") or {}
     for key in ("value", "evidence_count", "gaia_package_ref"):
         if key not in posterior:
             problems.append(f"missing posterior.{key}")
+    coverage = params.get("literature_coverage") or {}
+    if coverage.get("status") not in ("saturated", "coverage_incomplete", "metadata_only"):
+        problems.append("bad literature_coverage.status")
 
     if problems:
         respond({"jsonrpc": "2.0", "id": 1,

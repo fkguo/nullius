@@ -60,12 +60,19 @@ function setPosterior(
   key: string,
   value: number,
   evidenceCount: number,
+  overrides: Record<string, unknown> = {},
 ): Record<string, unknown> {
   return service.handle('node.set_posterior', {
     campaign_id: campaignId,
     idempotency_key: key,
+    literature_coverage: {
+      status: 'saturated',
+      survey_ref: `project://artifacts/literature/${nodeId}-literature_survey_v1.json#sha256:${'c'.repeat(64)}`,
+      close_prior_matrix_ref: `project://artifacts/literature/${nodeId}-close-prior-matrix.json#sha256:${'d'.repeat(64)}`,
+      ...((overrides.literature_coverage as Record<string, unknown> | undefined) ?? {}),
+    },
     node_id: nodeId,
-    posterior: { evidence_count: evidenceCount, value },
+    posterior: { evidence_count: evidenceCount, value, ...((overrides.posterior as Record<string, unknown> | undefined) ?? {}) },
   });
 }
 
@@ -108,7 +115,9 @@ describe('node-side RPC surface (posterior portfolio)', () => {
     const posterior = (updated.node as Record<string, unknown>).posterior as Record<string, unknown>;
     expect(posterior.value).toBe(0.42);
     expect(posterior.evidence_count).toBe(3);
+    expect(posterior.status).toBe('current');
     expect(typeof posterior.updated_at).toBe('string');
+    expect(((updated.node as Record<string, unknown>).literature_coverage as Record<string, unknown>).status).toBe('saturated');
 
     setPosterior(service, campaignId, n2!, 'sp-2', 0.77, 1);
 
@@ -210,6 +219,119 @@ describe('node-side RPC surface (posterior portfolio)', () => {
     expect(reasonByNode.get(nb!)).toBe('waiting_activation');
     expect(reasonByNode.get(nc!)).toBe('archived');
     expect(skipped).toHaveLength(3);
+  });
+
+  it('excludes posterior nodes from ranking when close-prior coverage is incomplete or metadata-only', () => {
+    const service = freshService('idea-engine-node-rank-coverage-');
+    const campaignId = initCampaign(service, [
+      { content: 'seed-a', seed_type: 'text', source_uris: ['https://example.org/a'] },
+      { content: 'seed-b', seed_type: 'text', source_uris: ['https://example.org/b'] },
+      { content: 'seed-c', seed_type: 'text', source_uris: ['https://example.org/c'] },
+    ]);
+    const [na, nb, nc] = allNodeIds(service, campaignId);
+    setPosterior(service, campaignId, na!, 'sp-a', 0.9, 10, {
+      literature_coverage: { status: 'coverage_incomplete' },
+    });
+    setPosterior(service, campaignId, nb!, 'sp-b', 0.8, 10);
+    const nodes = service.read.store.loadNodes<Record<string, unknown>>(campaignId);
+    delete nodes[nb!]!.literature_coverage;
+    service.read.store.saveNodes(campaignId, nodes);
+    setPosterior(service, campaignId, nc!, 'sp-c', 0.2, 10);
+
+    const rank = service.handle('rank.compute', {
+      campaign_id: campaignId,
+      idempotency_key: 'rank-coverage',
+      method: 'posterior',
+    });
+    const rankedNodes = rank.ranked_nodes as Array<Record<string, unknown>>;
+    expect(rankedNodes.map(row => row.node_id)).toEqual([nc]);
+    expect(rankedNodes[0]!.literature_coverage_status).toBe('saturated');
+    expect(rankedNodes[0]!.allocation_eligible).toBe(true);
+    const skipped = rank.skipped_nodes as Array<Record<string, unknown>>;
+    const reasonByNode = new Map(skipped.map(row => [row.node_id, row.reason]));
+    expect(reasonByNode.get(na!)).toBe('coverage_incomplete');
+    expect(reasonByNode.get(nb!)).toBe('metadata_only');
+  });
+
+  it('rejects direct set_posterior attempts without close-prior refs', () => {
+    const service = freshService('idea-engine-node-posterior-coverage-gate-');
+    const campaignId = initCampaign(service);
+    const [nodeId] = allNodeIds(service, campaignId);
+
+    expectRpcError(() => service.handle('node.set_posterior', {
+      campaign_id: campaignId,
+      idempotency_key: 'sp-no-refs',
+      literature_coverage: { status: 'saturated' },
+      node_id: nodeId,
+      posterior: { evidence_count: 1, value: 0.5 },
+    }), -32002, 'schema_invalid');
+
+    expectRpcError(() => service.handle('node.set_posterior', {
+      campaign_id: campaignId,
+      idempotency_key: 'sp-metadata-only',
+      literature_coverage: {
+        status: 'metadata_only',
+        survey_ref: `project://artifacts/literature/${nodeId}-literature_survey_v1.json#sha256:${'c'.repeat(64)}`,
+        close_prior_matrix_ref: `project://artifacts/literature/${nodeId}-close-prior-matrix.json#sha256:${'d'.repeat(64)}`,
+      },
+      node_id: nodeId,
+      posterior: { evidence_count: 1, value: 0.5 },
+    }), -32002, 'schema_invalid');
+  });
+
+  it('does not rank legacy saturated coverage when close-prior refs are absent', () => {
+    const service = freshService('idea-engine-node-rank-missing-coverage-refs-');
+    const campaignId = initCampaign(service);
+    const [nodeId] = allNodeIds(service, campaignId);
+    setPosterior(service, campaignId, nodeId!, 'sp-good', 0.9, 10);
+    const nodes = service.read.store.loadNodes<Record<string, unknown>>(campaignId);
+    nodes[nodeId!]!.literature_coverage = { status: 'saturated' };
+    service.read.store.saveNodes(campaignId, nodes);
+
+    const rank = service.handle('rank.compute', {
+      campaign_id: campaignId,
+      idempotency_key: 'rank-missing-refs',
+      method: 'posterior',
+    });
+
+    expect(rank.ranked_nodes).toEqual([]);
+    expect(rank.skipped_nodes).toEqual([
+      {
+        node_id: nodeId,
+        reason: 'metadata_only',
+        literature_coverage_status: 'saturated',
+        posterior_status: 'current',
+        allocation_eligible: false,
+      },
+    ]);
+  });
+
+  it('excludes stale or provisional posteriors from ranking guidance', () => {
+    const service = freshService('idea-engine-node-rank-stale-');
+    const campaignId = initCampaign(service, [
+      { content: 'seed-a', seed_type: 'text', source_uris: ['https://example.org/a'] },
+      { content: 'seed-b', seed_type: 'text', source_uris: ['https://example.org/b'] },
+    ]);
+    const [na, nb] = allNodeIds(service, campaignId);
+    setPosterior(service, campaignId, na!, 'sp-a', 0.9, 10, {
+      posterior: { status: 'stale' },
+    });
+    setPosterior(service, campaignId, nb!, 'sp-b', 0.3, 10);
+
+    const rank = service.handle('rank.compute', {
+      campaign_id: campaignId,
+      idempotency_key: 'rank-stale',
+      method: 'posterior',
+    });
+    expect((rank.ranked_nodes as Array<Record<string, unknown>>).map(row => row.node_id)).toEqual([nb]);
+    const skipped = rank.skipped_nodes as Array<Record<string, unknown>>;
+    expect(skipped).toContainEqual({
+      node_id: na,
+      reason: 'posterior_not_current',
+      literature_coverage_status: 'saturated',
+      posterior_status: 'stale',
+      allocation_eligible: false,
+    });
   });
 
   it('rejects legacy rank methods at the contract boundary', () => {
@@ -518,6 +640,11 @@ describe('node-side RPC surface (posterior portfolio)', () => {
             activation_condition: null,
             idea_id: String(before.idea_id),
             lifecycle_state: 'active',
+            literature_coverage: {
+              status: 'saturated',
+              survey_ref: `project://artifacts/literature/${nodeId}-literature_survey_v1.json#sha256:${'c'.repeat(64)}`,
+              close_prior_matrix_ref: `project://artifacts/literature/${nodeId}-close-prior-matrix.json#sha256:${'d'.repeat(64)}`,
+            },
             node_id: nodeId,
             posterior: { evidence_count: 5, updated_at: crashedAt, value: 0.9 },
             revision: baseRevision + 1,

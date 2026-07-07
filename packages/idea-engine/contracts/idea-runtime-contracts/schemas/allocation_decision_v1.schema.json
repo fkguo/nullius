@@ -42,6 +42,10 @@
           "posterior_value",
           "evidence_count",
           "sampled_value",
+          "posterior_status",
+          "literature_coverage_status",
+          "allocation_eligible",
+          "exploratory_allocation",
           "allocation",
           "budget_note"
         ],
@@ -65,6 +69,32 @@
             "minimum": 0,
             "maximum": 1,
             "description": "The Thompson draw for this node in this decision round; null for a cold-start candidate."
+          },
+          "posterior_status": {
+            "type": ["string", "null"],
+            "enum": [
+              "current",
+              "provisional",
+              "stale",
+              null
+            ],
+            "description": "Current/provisional/stale status of the stored posterior. Null for cold-start candidates with no posterior."
+          },
+          "literature_coverage_status": {
+            "enum": [
+              "saturated",
+              "coverage_incomplete",
+              "metadata_only"
+            ],
+            "description": "Close-prior literature coverage status visible at allocation time. metadata_only means no source-first deep literature survey has been accepted yet."
+          },
+          "allocation_eligible": {
+            "type": "boolean",
+            "description": "False when the node is shown for portfolio triage but was not eligible for Thompson sampling, for example because close-prior literature coverage is incomplete."
+          },
+          "exploratory_allocation": {
+            "type": "boolean",
+            "description": "True only for an explicitly declared exploratory allocation over coverage_incomplete literature; ordinary coverage_incomplete nodes must not be allocation eligible."
           },
           "allocation": {
             "enum": [

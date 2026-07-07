@@ -433,12 +433,57 @@
                 "type": "string",
                 "format": "uri",
                 "description": "Optional URI of the belief-graph package (inside the external project) that produced this posterior."
+              },
+              "status": {
+                "enum": [
+                  "current",
+                  "provisional",
+                  "stale"
+                ],
+                "description": "Whether the posterior is current guidance, provisional, or stale after a later close-prior audit."
               }
             },
             "additionalProperties": false
           },
           "required": true,
           "description": "The posterior to record. The engine stamps posterior.updated_at itself."
+        },
+        {
+          "name": "literature_coverage",
+          "schema": {
+            "type": "object",
+            "required": [
+              "status",
+              "survey_ref",
+              "close_prior_matrix_ref"
+            ],
+            "properties": {
+              "status": {
+                "enum": [
+                  "saturated",
+                  "coverage_incomplete"
+                ],
+                "description": "Close-prior literature coverage status used by ranking/allocation gates."
+              },
+              "survey_ref": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Portable reference to the literature_survey_v1 or equivalent close-prior survey."
+              },
+              "close_prior_matrix_ref": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Portable reference to the close-prior matrix used by the posterior report."
+              },
+              "exploratory_allocation": {
+                "type": "boolean",
+                "description": "Explicit waiver for exploratory allocation over coverage_incomplete literature."
+              }
+            },
+            "additionalProperties": false
+          },
+          "required": true,
+          "description": "The close-prior gate result that made this posterior admissible for portfolio surfaces."
         },
         {
           "name": "idempotency_key",

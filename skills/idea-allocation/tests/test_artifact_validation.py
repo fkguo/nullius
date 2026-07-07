@@ -27,6 +27,10 @@ def good_artifact():
                 "posterior_value": 0.85,
                 "evidence_count": 40,
                 "sampled_value": 0.8712,
+                "posterior_status": "current",
+                "literature_coverage_status": "saturated",
+                "allocation_eligible": True,
+                "exploratory_allocation": False,
                 "allocation": "deep_investment",
                 "budget_note": "deep slot 1 of 1; sampled above posterior mean — exploration draw",
             },
@@ -35,6 +39,10 @@ def good_artifact():
                 "posterior_value": None,
                 "evidence_count": None,
                 "sampled_value": None,
+                "posterior_status": None,
+                "literature_coverage_status": "metadata_only",
+                "allocation_eligible": False,
+                "exploratory_allocation": False,
                 "allocation": "reconnaissance",
                 "budget_note": "no posterior yet — needs belief graph first",
             },
@@ -204,6 +212,21 @@ def test_candidate_shape_enforced():
 
     assert any("allocation" in p for p in problems_after(bad_allocation))
 
+    def bad_coverage_status(artifact):
+        artifact["candidates"][0]["literature_coverage_status"] = "skimmed"
+
+    assert any("literature_coverage_status" in p for p in problems_after(bad_coverage_status))
+
+    def bad_posterior_status(artifact):
+        artifact["candidates"][0]["posterior_status"] = "old"
+
+    assert any("posterior_status" in p for p in problems_after(bad_posterior_status))
+
+    def bad_eligible_type(artifact):
+        artifact["candidates"][0]["allocation_eligible"] = "yes"
+
+    assert any("allocation_eligible" in p for p in problems_after(bad_eligible_type))
+
     def bad_range(artifact):
         artifact["candidates"][0]["posterior_value"] = 1.5
 
@@ -232,6 +255,43 @@ def test_cold_start_triple_rules():
         artifact["candidates"][1]["allocation"] = "deep_investment"
 
     assert any("cold start" in p for p in problems_after(cold_deep))
+
+
+def test_literature_coverage_eligibility_rules():
+    def incomplete_without_exploratory(artifact):
+        artifact["candidates"][0]["literature_coverage_status"] = "coverage_incomplete"
+        artifact["candidates"][0]["allocation_eligible"] = True
+        artifact["candidates"][0]["exploratory_allocation"] = False
+
+    assert any("coverage_incomplete" in p and "exploratory_allocation" in p for p in problems_after(incomplete_without_exploratory))
+
+    def metadata_only_eligible(artifact):
+        artifact["candidates"][0]["literature_coverage_status"] = "metadata_only"
+        artifact["candidates"][0]["allocation_eligible"] = True
+
+    assert any("metadata_only" in p and "allocation_eligible" in p for p in problems_after(metadata_only_eligible))
+
+    artifact = good_artifact()
+    artifact["candidates"][0]["literature_coverage_status"] = "coverage_incomplete"
+    artifact["candidates"][0]["allocation_eligible"] = True
+    artifact["candidates"][0]["exploratory_allocation"] = True
+    assert ta.validate_allocation_decision(artifact) == []
+
+    def stale_eligible(artifact):
+        artifact["candidates"][0]["posterior_status"] = "stale"
+
+    assert any("posterior_status=current" in p for p in problems_after(stale_eligible))
+
+
+def test_posterior_candidate_without_sample_is_a_coverage_hold():
+    artifact = good_artifact()
+    artifact["candidates"][0]["sampled_value"] = None
+    artifact["candidates"][0]["allocation"] = "hold"
+    artifact["candidates"][0]["allocation_eligible"] = False
+    artifact["candidates"][0]["posterior_status"] = "current"
+    artifact["candidates"][0]["literature_coverage_status"] = "coverage_incomplete"
+    artifact["candidates"][0]["budget_note"] = "not allocation eligible: literature coverage is coverage_incomplete"
+    assert ta.validate_allocation_decision(artifact) == []
 
 
 def test_waiting_shape_enforced():

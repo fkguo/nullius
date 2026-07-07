@@ -69,6 +69,11 @@ describe('IdeaRpcClient integration', () => {
       node_id: nodeIds[0],
       idempotency_key: 'posterior-roundtrip',
       posterior: { value: 0.58, evidence_count: 3 },
+      literature_coverage: {
+        status: 'saturated',
+        survey_ref: `project://artifacts/literature/${nodeIds[0]}-literature_survey_v1.json#sha256:${'a'.repeat(64)}`,
+        close_prior_matrix_ref: `project://artifacts/literature/${nodeIds[0]}-close-prior-matrix.json#sha256:${'b'.repeat(64)}`,
+      },
     }) as Record<string, unknown>;
     expect(((posteriorResult.node as Record<string, unknown>).posterior as Record<string, unknown>).value).toBe(0.58);
 
@@ -80,6 +85,9 @@ describe('IdeaRpcClient integration', () => {
     const rankedNodes = rankResult.ranked_nodes as Array<Record<string, unknown>>;
     expect(rankedNodes).toHaveLength(1);
     expect(rankedNodes[0]!.node_id).toBe(nodeIds[0]);
+    expect(rankedNodes[0]!.literature_coverage_status).toBe('saturated');
+    expect(rankedNodes[0]!.allocation_eligible).toBe(true);
+    expect(rankedNodes[0]!.exploratory_allocation).toBe(false);
     expect(rankResult.skipped_nodes).toEqual([
       { node_id: nodeIds[1], reason: 'no_posterior' },
     ]);

@@ -2,7 +2,7 @@ import type { IdeaEngineContractCatalog } from '../contracts/catalog.js';
 import type { IdeaEngineStore } from '../store/engine-store.js';
 import { budgetSnapshot } from './budget-snapshot.js';
 import { recordOrReplay, responseIdempotency, storeIdempotency } from './idempotency.js';
-import { RpcError } from './errors.js';
+import { RpcError, schemaValidationError } from './errors.js';
 import { ensureNodeInCampaign, nodeLifecycleState } from './node-shared.js';
 import { ensureCampaignNotCompleted, loadCampaignOrError } from './campaign-state.js';
 
@@ -50,18 +50,48 @@ export function executeNodeSetPosterior(options: {
     });
 
     const posteriorParams = options.params.posterior as Record<string, unknown>;
+    const literatureCoverageParams = options.params.literature_coverage as Record<string, unknown>;
     const now = options.now();
+    const coverageStatus = literatureCoverageParams.status === 'saturated' || literatureCoverageParams.status === 'coverage_incomplete'
+      ? literatureCoverageParams.status
+      : 'metadata_only';
+    if (coverageStatus === 'metadata_only') {
+      throw schemaValidationError('node.set_posterior requires source-first close-prior literature coverage, not metadata_only', {
+        campaign_id: campaignId,
+        node_id: nodeId,
+      });
+    }
+    const hasRefs = typeof literatureCoverageParams.survey_ref === 'string' && literatureCoverageParams.survey_ref.trim().length > 0
+      && typeof literatureCoverageParams.close_prior_matrix_ref === 'string' && literatureCoverageParams.close_prior_matrix_ref.trim().length > 0;
+    if (!hasRefs) {
+      throw schemaValidationError('node.set_posterior requires survey_ref and close_prior_matrix_ref for close-prior literature coverage', {
+        campaign_id: campaignId,
+        node_id: nodeId,
+      });
+    }
     const posterior: Record<string, unknown> = {
       value: Number(posteriorParams.value),
       evidence_count: Number(posteriorParams.evidence_count),
       updated_at: now,
+      status: typeof posteriorParams.status === 'string'
+        ? posteriorParams.status
+        : (coverageStatus === 'saturated' || literatureCoverageParams.exploratory_allocation === true ? 'current' : 'provisional'),
     };
     if (typeof posteriorParams.gaia_package_ref === 'string' && posteriorParams.gaia_package_ref.length > 0) {
       posterior.gaia_package_ref = posteriorParams.gaia_package_ref;
     }
+    const literatureCoverage: Record<string, unknown> = {
+      status: coverageStatus,
+    };
+    for (const key of ['survey_ref', 'close_prior_matrix_ref', 'exploratory_allocation'] as const) {
+      if (literatureCoverageParams[key] !== undefined) {
+        literatureCoverage[key] = literatureCoverageParams[key];
+      }
+    }
 
     const updatedNode = structuredClone(node);
     updatedNode.posterior = posterior;
+    updatedNode.literature_coverage = literatureCoverage;
     updatedNode.revision = Number(updatedNode.revision ?? 0) + 1;
     updatedNode.updated_at = now;
     options.contracts.validateAgainstRef('./idea_node_v1.schema.json', updatedNode, `node.set_posterior/node/${nodeId}`);
@@ -75,6 +105,7 @@ export function executeNodeSetPosterior(options: {
         activation_condition: (updatedNode.activation_condition as Record<string, unknown> | null | undefined) ?? null,
         idea_id: String(updatedNode.idea_id),
         lifecycle_state: nodeLifecycleState(updatedNode),
+        literature_coverage: literatureCoverage,
         node_id: nodeId,
         posterior,
         revision: Number(updatedNode.revision),

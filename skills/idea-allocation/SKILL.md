@@ -56,13 +56,21 @@ the campaign id. Per node, the pinned fields are:
 | --- | --- |
 | `node_id` | engine short id: 8 chars of lowercase Crockford base32 (digits + lowercase letters minus `i`/`l`/`o`/`u`), as pinned by the engine idea_node_v1 contract |
 | `lifecycle_state` | `active`, `waiting_activation`, or `archived`; missing means `active` |
-| `posterior` | optional object: `value` in [0, 1], `evidence_count` >= 0, `updated_at` ISO 8601, optional `gaia_package_ref` |
+| `posterior` | optional object: `value` in [0, 1], `evidence_count` >= 0, `updated_at` ISO 8601, optional `gaia_package_ref`, optional `status` (`current`, `provisional`, `stale`) |
+| `literature_coverage` | optional object from `idea-posterior`: `status` (`saturated`, `coverage_incomplete`, `metadata_only`), optional `survey_ref`, optional `close_prior_matrix_ref`, optional `exploratory_allocation`; missing means `metadata_only` |
 | `activation_condition` | required for `waiting_activation`: `kind`, `description`, `satisfied`, optional `last_checked_at` |
 
 `activation_condition.kind` is one of `tool_readiness`, `data_release`,
 `stage_reached`, `exploratory_computation`, `other`. A store that fails
 validation is rejected as a whole, with every problem listed — the scripts
 refuse to allocate on top of malformed belief data.
+
+Literature coverage is a portfolio gate, not a display hint. An active node
+with a posterior is sampled only when the posterior is `current` and
+`literature_coverage.status` is `saturated`. `coverage_incomplete` can be
+sampled only when `exploratory_allocation: true` is explicit; the artifact then
+labels the candidate as exploratory. `metadata_only`, missing coverage, and
+stale/provisional posteriors are held out of allocation eligibility.
 
 ## The Beta construction, and why
 
@@ -105,13 +113,14 @@ python skills/idea-allocation/scripts/thompson_allocation.py \
   default slot counts on purpose: slots encode real person-time and compute
   capacity for the coming round, which only the caller knows. Pick them per
   round and treat them as the budget dial.
-- One draw per eligible idea (active with a posterior), draw order fixed by
-  sorted node id, ranked by sampled value descending. The top `deep_slots`
-  become `deep_investment`, the next `recon_slots` become `reconnaissance`,
-  the rest `hold`.
+- One draw per eligible idea (active with a current posterior and eligible
+  literature coverage), draw order fixed by sorted node id, ranked by sampled
+  value descending. The top `deep_slots` become `deep_investment`, the next
+  `recon_slots` become `reconnaissance`, the rest `hold`.
 - Every candidate carries a `budget_note` explaining its cut, including
   whether the draw landed above the posterior mean (an exploration draw) or
-  below it (a conservative draw).
+  below it (a conservative draw), plus the literature coverage status and
+  allocation eligibility.
 - `--dry-run` prints the summary and writes nothing. Otherwise the artifact
   goes to `artifacts/allocations/allocation-<decision_id>.json` (override the
   directory with `--artifact-dir`).
@@ -125,6 +134,12 @@ budget. The first unit of work for such an idea is always the same: build its
 belief-graph entry and obtain a first posterior, then it competes normally.
 If many cold starts pile up, batch them across rounds — their notes make them
 easy to spot.
+
+Active ideas WITH a posterior but without saturated close-prior coverage are
+not cold starts; they are literature-blocked holds. Their next work item is to
+finish the close-prior survey/matrix or explicitly declare exploratory
+allocation for `coverage_incomplete`. A `coverage_incomplete` idea must never be
+reported as allocation eligible unless the artifact says exploratory.
 
 ### What reconnaissance means
 
@@ -191,8 +206,12 @@ fails validation):
 | `generated_at` | ISO 8601 date-time |
 | `method` | always `thompson_sampling` |
 | `random_seed` | the seed that produced the draws |
-| `candidates` | per idea: `node_id`, `posterior_value`, `evidence_count`, `sampled_value`, `allocation`, `budget_note`; the three numeric fields are all null for cold starts |
+| `candidates` | per idea: `node_id`, `posterior_value`, `evidence_count`, `sampled_value`, `posterior_status`, `allocation`, `literature_coverage_status`, `allocation_eligible`, `exploratory_allocation`, `budget_note`; `posterior_status` is null for cold starts, and sampled/eligible candidates must be `current` |
 | `waiting_activation` | per waiting idea: `node_id`, `activation_condition`, `last_checked_at` |
+
+Human-readable portfolio summaries display posterior and sample values with a
+few decimals only; exact values remain in the JSON artifact and in the engine
+store snapshot.
 
 ## Seed and reproducibility
 

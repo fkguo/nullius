@@ -75,9 +75,73 @@
                 "gaia_package_ref": {
                   "type": "string",
                   "format": "uri"
+                },
+                "status": {
+                  "enum": [
+                    "current",
+                    "provisional",
+                    "stale"
+                  ]
                 }
               },
               "additionalProperties": false
+            }
+          ]
+        },
+        "literature_coverage": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "required": [
+                "status"
+              ],
+              "properties": {
+                "status": {
+                  "enum": [
+                    "saturated",
+                    "coverage_incomplete",
+                    "metadata_only"
+                  ]
+                },
+                "survey_ref": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "close_prior_matrix_ref": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "exploratory_allocation": {
+                  "type": "boolean"
+                }
+              },
+              "additionalProperties": false,
+              "allOf": [
+                {
+                  "if": {
+                    "properties": {
+                      "status": {
+                        "enum": [
+                          "saturated",
+                          "coverage_incomplete"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "status"
+                    ]
+                  },
+                  "then": {
+                    "required": [
+                      "survey_ref",
+                      "close_prior_matrix_ref"
+                    ]
+                  }
+                }
+              ]
             }
           ]
         },

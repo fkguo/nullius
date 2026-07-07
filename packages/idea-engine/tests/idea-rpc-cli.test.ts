@@ -53,6 +53,11 @@ describe('idea-rpc command-line bridge', () => {
       params: {
         campaign_id: campaignId,
         idempotency_key: 'cli-sp-1',
+        literature_coverage: {
+          status: 'saturated',
+          survey_ref: `project://artifacts/literature/${nodeId}-literature_survey_v1.json#sha256:${'c'.repeat(64)}`,
+          close_prior_matrix_ref: `project://artifacts/literature/${nodeId}-close-prior-matrix.json#sha256:${'d'.repeat(64)}`,
+        },
         node_id: nodeId,
         posterior: { evidence_count: 4, value: 0.55 },
       },

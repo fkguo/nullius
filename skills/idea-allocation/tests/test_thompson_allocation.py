@@ -47,6 +47,11 @@ def active_node(node_id: str, value: float, count: int):
             "evidence_count": count,
             "updated_at": "2026-07-01T00:00:00Z",
         },
+        "literature_coverage": {
+            "status": "saturated",
+            "survey_ref": f"project://artifacts/literature/{node_id}-literature_survey_v1.json#sha256:{'a' * 64}",
+            "close_prior_matrix_ref": f"project://artifacts/literature/{node_id}-close-prior-matrix.json#sha256:{'b' * 64}",
+        },
     }
 
 
@@ -67,6 +72,7 @@ def test_split_nodes_excludes_archived_and_waiting():
     _, nodes = load_fixture_nodes()
     groups = ta.split_nodes(nodes)
     assert {n["node_id"] for n in groups["sampled"]} == {"a1pha000", "beta0000", "eta00000"}
+    assert groups["literature_blocked"] == []
     assert {n["node_id"] for n in groups["cold_start"]} == {"gamma000"}
     assert {n["node_id"] for n in groups["waiting"]} == {
         "de1ta000", "eps110n0", "10ta0000", "kappa000", "1ambda00",
@@ -120,9 +126,88 @@ def test_cold_start_never_takes_a_deep_slot(tmp_path):
         assert entry["posterior_value"] is None and entry["evidence_count"] is None
         assert "no posterior yet" in entry["budget_note"]
         assert "belief graph" in entry["budget_note"]
+        assert entry["allocation_eligible"] is False
+        assert entry["literature_coverage_status"] == "metadata_only"
     # Cold starts sit at the tail, after every sampled candidate.
     ids = [e["node_id"] for e in decision["candidates"]]
     assert ids.index("gamma000") > max(ids.index("a1pha000"), ids.index("beta0000"))
+
+
+def test_coverage_incomplete_with_posterior_is_not_sampled_or_eligible(tmp_path):
+    blocked = active_node("a1pha000", 0.95, 30)
+    blocked["literature_coverage"] = {
+        "status": "coverage_incomplete",
+        "survey_ref": f"project://artifacts/literature/a1pha000-literature_survey_v1.json#sha256:{'c' * 64}",
+        "close_prior_matrix_ref": f"project://artifacts/literature/a1pha000-close-prior-matrix.json#sha256:{'d' * 64}",
+    }
+    nodes = [
+        blocked,
+        active_node("beta0000", 0.2, 3),
+    ]
+    path = make_store(tmp_path, nodes)
+    campaign_id, loaded = nodes_store.load_nodes_file(str(path))
+    groups = ta.split_nodes(loaded)
+    assert {n["node_id"] for n in groups["sampled"]} == {"beta0000"}
+    assert {n["node_id"] for n in groups["literature_blocked"]} == {"a1pha000"}
+    decision = ta.build_decision(
+        campaign_id, loaded, seed=5, deep_slots=2, recon_slots=0,
+        generated_at="2026-07-05T00:00:00Z",
+    )
+    by_id = {entry["node_id"]: entry for entry in decision["candidates"]}
+    assert by_id["a1pha000"]["allocation"] == "hold"
+    assert by_id["a1pha000"]["sampled_value"] is None
+    assert by_id["a1pha000"]["allocation_eligible"] is False
+    assert by_id["a1pha000"]["literature_coverage_status"] == "coverage_incomplete"
+    assert "not allocation eligible" in by_id["a1pha000"]["budget_note"]
+    assert by_id["beta0000"]["allocation"] == "deep_investment"
+    assert ta.validate_allocation_decision(decision) == []
+
+
+def test_coverage_incomplete_can_be_explicit_exploratory(tmp_path):
+    exploratory = active_node("a1pha000", 0.95, 30)
+    exploratory["literature_coverage"] = {
+        "status": "coverage_incomplete",
+        "exploratory_allocation": True,
+        "survey_ref": f"project://artifacts/literature/a1pha000-literature_survey_v1.json#sha256:{'c' * 64}",
+        "close_prior_matrix_ref": f"project://artifacts/literature/a1pha000-close-prior-matrix.json#sha256:{'d' * 64}",
+    }
+    path = make_store(tmp_path, [exploratory])
+    campaign_id, loaded = nodes_store.load_nodes_file(str(path))
+    decision = ta.build_decision(
+        campaign_id, loaded, seed=5, deep_slots=1, recon_slots=0,
+        generated_at="2026-07-05T00:00:00Z",
+    )
+    entry = decision["candidates"][0]
+    assert entry["node_id"] == "a1pha000"
+    assert entry["allocation"] == "deep_investment"
+    assert entry["allocation_eligible"] is True
+    assert entry["exploratory_allocation"] is True
+    assert entry["literature_coverage_status"] == "coverage_incomplete"
+    assert "exploratory allocation" in entry["budget_note"]
+    assert ta.validate_allocation_decision(decision) == []
+
+
+def test_stale_posterior_is_not_sampled_even_with_saturated_coverage(tmp_path):
+    stale = active_node("a1pha000", 0.95, 30)
+    stale["posterior"]["status"] = "stale"
+    fresh = active_node("beta0000", 0.2, 3)
+    path = make_store(tmp_path, [stale, fresh])
+    campaign_id, loaded = nodes_store.load_nodes_file(str(path))
+    groups = ta.split_nodes(loaded)
+    assert {n["node_id"] for n in groups["sampled"]} == {"beta0000"}
+    assert {n["node_id"] for n in groups["literature_blocked"]} == {"a1pha000"}
+    decision = ta.build_decision(
+        campaign_id, loaded, seed=5, deep_slots=2, recon_slots=0,
+        generated_at="2026-07-05T00:00:00Z",
+    )
+    by_id = {entry["node_id"]: entry for entry in decision["candidates"]}
+    assert by_id["a1pha000"]["allocation"] == "hold"
+    assert by_id["a1pha000"]["sampled_value"] is None
+    assert by_id["a1pha000"]["allocation_eligible"] is False
+    assert by_id["a1pha000"]["posterior_status"] == "stale"
+    assert "posterior status is stale" in by_id["a1pha000"]["budget_note"]
+    assert by_id["beta0000"]["allocation"] == "deep_investment"
+    assert ta.validate_allocation_decision(decision) == []
 
 
 def test_budget_notes_flag_exploration_vs_conservative():
@@ -298,6 +383,24 @@ def test_cli_rejects_bad_posterior(tmp_path):
     assert "posterior.value" in result.stderr
 
 
+def test_loader_defaults_missing_literature_coverage_to_metadata_only(tmp_path):
+    path = make_store(tmp_path, [{"node_id": "a1pha000", "lifecycle_state": "active"}])
+    _, nodes = nodes_store.load_nodes_file(str(path))
+    assert nodes[0]["literature_coverage"] == {
+        "status": "metadata_only",
+        "exploratory_allocation": False,
+    }
+
+
+def test_loader_rejects_exploratory_flag_outside_coverage_incomplete(tmp_path):
+    node = active_node("a1pha000", 0.5, 3)
+    node["literature_coverage"]["exploratory_allocation"] = True
+    path = make_store(tmp_path, [node])
+    with pytest.raises(nodes_store.StoreError) as excinfo:
+        nodes_store.load_nodes_file(str(path))
+    assert "exploratory_allocation is only allowed" in str(excinfo.value)
+
+
 def test_cli_rejects_negative_slots(tmp_path):
     result = run_cli(
         [
@@ -328,7 +431,12 @@ def test_mapping_form_of_nodes_accepted(tmp_path):
                             "value": 0.6,
                             "evidence_count": 10,
                             "updated_at": "2026-07-01T00:00:00Z",
-                        }
+                        },
+                        "literature_coverage": {
+                            "status": "saturated",
+                            "survey_ref": f"project://artifacts/literature/a1pha000-literature_survey_v1.json#sha256:{'a' * 64}",
+                            "close_prior_matrix_ref": f"project://artifacts/literature/a1pha000-close-prior-matrix.json#sha256:{'b' * 64}",
+                        },
                     },
                     "beta0000": {"lifecycle_state": "active"},
                 },

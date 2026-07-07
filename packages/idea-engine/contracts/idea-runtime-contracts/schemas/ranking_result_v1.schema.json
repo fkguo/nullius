@@ -13,13 +13,16 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["node_id", "idea_id", "rank", "posterior_value", "evidence_count"],
+        "required": ["node_id", "idea_id", "rank", "posterior_value", "evidence_count", "literature_coverage_status", "allocation_eligible", "exploratory_allocation"],
         "properties": {
           "node_id": { "type": "string", "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$" },
           "idea_id": { "type": "string", "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$" },
           "rank": { "type": "integer", "minimum": 1 },
           "posterior_value": { "type": "number", "minimum": 0, "maximum": 1 },
-          "evidence_count": { "type": "integer", "minimum": 0 }
+          "evidence_count": { "type": "integer", "minimum": 0 },
+          "literature_coverage_status": { "enum": ["saturated", "coverage_incomplete", "metadata_only"] },
+          "allocation_eligible": { "type": "boolean" },
+          "exploratory_allocation": { "type": "boolean" }
         },
         "additionalProperties": false
       },
@@ -32,8 +35,17 @@
         "required": ["node_id", "reason"],
         "properties": {
           "node_id": { "type": "string", "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$" },
-          "reason": { "enum": ["no_posterior", "waiting_activation", "archived"] }
+          "reason": { "enum": ["no_posterior", "waiting_activation", "archived", "metadata_only", "coverage_incomplete", "posterior_not_current"] },
+          "literature_coverage_status": { "enum": ["saturated", "coverage_incomplete", "metadata_only"] },
+          "allocation_eligible": { "type": "boolean" },
+          "posterior_status": { "enum": ["current", "provisional", "stale"] }
         },
+        "allOf": [
+          {
+            "if": { "properties": { "reason": { "enum": ["metadata_only", "coverage_incomplete", "posterior_not_current"] } }, "required": ["reason"] },
+            "then": { "required": ["literature_coverage_status", "allocation_eligible", "posterior_status"] }
+          }
+        ],
         "additionalProperties": false
       },
       "description": "Nodes excluded from the ordering, reported explicitly instead of being silently dropped."

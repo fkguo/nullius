@@ -34,8 +34,15 @@ Each node object carries:
   ``"archived"``. Missing means ``"active"``.
 - ``posterior`` (optional): ``{"value": float in [0, 1],
   "evidence_count": int >= 0, "updated_at": ISO 8601 date-time,
-  "gaia_package_ref": optional string}``. The posterior is produced by the
-  belief graph; this decision layer only reads it.
+  "gaia_package_ref": optional string, "status": optional one of "current" |
+  "provisional" | "stale"}``. Missing status is treated as ``current`` for
+  older snapshots. The posterior is produced by the belief graph; this decision
+  layer only reads it.
+- ``literature_coverage`` (optional): ``{"status": one of "saturated" |
+  "coverage_incomplete" | "metadata_only", "survey_ref": optional string,
+  "close_prior_matrix_ref": optional string, "exploratory_allocation": optional
+  bool}``. Missing means ``metadata_only``. ``coverage_incomplete`` participates
+  in allocation only when ``exploratory_allocation`` is explicitly true.
 - ``activation_condition`` (required when ``lifecycle_state`` is
   ``"waiting_activation"``): ``{"kind": one of tool_readiness | data_release |
   stage_reached | exploratory_computation | other, "description": non-empty
@@ -69,6 +76,8 @@ ACTIVATION_KINDS = (
 )
 
 ALLOCATION_KINDS = ("deep_investment", "reconnaissance", "hold")
+LITERATURE_COVERAGE_STATUSES = ("saturated", "coverage_incomplete", "metadata_only")
+POSTERIOR_STATUSES = ("current", "provisional", "stale")
 
 METHOD_NAME = "thompson_sampling"
 
@@ -175,6 +184,63 @@ def _validate_posterior(node_id: str, posterior: Any, problems: List[str]) -> No
     ref = posterior.get("gaia_package_ref")
     if ref is not None and not isinstance(ref, str):
         problems.append(f"{prefix}.gaia_package_ref must be a string when present, got {ref!r}")
+    status = posterior.get("status", "current")
+    if status not in POSTERIOR_STATUSES:
+        problems.append(f"{prefix}.status must be one of {list(POSTERIOR_STATUSES)} when present, got {status!r}")
+
+
+def _validate_literature_coverage(
+    node_id: str, node: Dict[str, Any], problems: List[str]
+) -> None:
+    prefix = f"node {node_id!r}: literature_coverage"
+    coverage = node.get("literature_coverage")
+    if coverage is None:
+        node["literature_coverage"] = {
+            "status": "metadata_only",
+            "exploratory_allocation": False,
+        }
+        return
+    if not isinstance(coverage, dict):
+        problems.append(f"{prefix} must be an object when present, got {type(coverage).__name__}")
+        return
+    allowed_keys = {
+        "status",
+        "survey_ref",
+        "close_prior_matrix_ref",
+        "exploratory_allocation",
+    }
+    extra = sorted(key for key in coverage if key not in allowed_keys)
+    if extra:
+        problems.append(f"{prefix} unexpected keys: {extra}")
+
+    status = coverage.get("status")
+    if status not in LITERATURE_COVERAGE_STATUSES:
+        problems.append(
+            f"{prefix}.status must be one of {list(LITERATURE_COVERAGE_STATUSES)}, got {status!r}"
+        )
+        status = "metadata_only"
+    exploratory = coverage.get("exploratory_allocation", False)
+    if not isinstance(exploratory, bool):
+        problems.append(f"{prefix}.exploratory_allocation must be a boolean when present, got {exploratory!r}")
+        exploratory = False
+    if exploratory and status != "coverage_incomplete":
+        problems.append(
+            f"{prefix}.exploratory_allocation is only allowed when status is 'coverage_incomplete'"
+        )
+    for field in ("survey_ref", "close_prior_matrix_ref"):
+        ref = coverage.get(field)
+        if ref is not None and (not isinstance(ref, str) or not ref.strip()):
+            problems.append(f"{prefix}.{field} must be a non-empty string when present, got {ref!r}")
+
+    normalized = {
+        "status": status,
+        "exploratory_allocation": exploratory,
+    }
+    for field in ("survey_ref", "close_prior_matrix_ref"):
+        ref = coverage.get(field)
+        if isinstance(ref, str) and ref.strip():
+            normalized[field] = ref
+    node["literature_coverage"] = normalized
 
 
 def _validate_activation_condition(node_id: str, condition: Any, problems: List[str]) -> None:
@@ -332,6 +398,7 @@ def load_nodes_file(
 
         if node.get("posterior") is not None:
             _validate_posterior(node_id, node["posterior"], problems)
+        _validate_literature_coverage(node_id, node, problems)
 
         condition = node.get("activation_condition")
         if state == "waiting_activation":

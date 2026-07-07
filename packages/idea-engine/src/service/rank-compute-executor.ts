@@ -5,7 +5,7 @@ import { budgetSnapshot } from './budget-snapshot.js';
 import { filterNodes, type NodeListFilter, type NodeRecord } from './filter-nodes.js';
 import { recordOrReplay, responseIdempotency, storeIdempotency } from './idempotency.js';
 import { RpcError } from './errors.js';
-import { nodeLifecycleState, nodePosterior } from './node-shared.js';
+import { isPortfolioScoringEligible, nodeLifecycleState, nodeLiteratureCoverage, nodePosterior, type LiteratureCoverageStatus } from './node-shared.js';
 import { ensureCampaignRunning, loadCampaignOrError, setCampaignRunningIfBudgetAvailable } from './campaign-state.js';
 
 interface RankedRow {
@@ -14,11 +14,17 @@ interface RankedRow {
   rank: number;
   posterior_value: number;
   evidence_count: number;
+  literature_coverage_status: LiteratureCoverageStatus;
+  allocation_eligible: boolean;
+  exploratory_allocation: boolean;
 }
 
 interface SkippedRow {
   node_id: string;
-  reason: 'no_posterior' | 'waiting_activation' | 'archived';
+  reason: 'no_posterior' | 'waiting_activation' | 'archived' | 'metadata_only' | 'coverage_incomplete' | 'posterior_not_current';
+  literature_coverage_status?: LiteratureCoverageStatus;
+  allocation_eligible?: boolean;
+  posterior_status?: 'current' | 'provisional' | 'stale';
 }
 
 /**
@@ -58,7 +64,16 @@ export function executeRankCompute(options: {
     const resolvedNodes = filterNodes(nodes, options.params.filter as NodeListFilter | undefined);
 
     const skippedNodes: SkippedRow[] = [];
-    const candidates: Array<{ nodeId: string; ideaId: string; posteriorValue: number; evidenceCount: number; stableIndex: number }> = [];
+    const candidates: Array<{
+      nodeId: string;
+      ideaId: string;
+      posteriorValue: number;
+      evidenceCount: number;
+      literatureCoverageStatus: LiteratureCoverageStatus;
+      allocationEligible: boolean;
+      exploratoryAllocation: boolean;
+      stableIndex: number;
+    }> = [];
     for (const [index, node] of resolvedNodes.entries()) {
       const nodeId = String(node.node_id);
       const lifecycle = nodeLifecycleState(node);
@@ -71,11 +86,36 @@ export function executeRankCompute(options: {
         skippedNodes.push({ node_id: nodeId, reason: 'no_posterior' });
         continue;
       }
+      const literatureCoverage = nodeLiteratureCoverage(node);
+      if (!isPortfolioScoringEligible(literatureCoverage)) {
+        const coverageSkipReason = literatureCoverage.status === 'coverage_incomplete' ? 'coverage_incomplete' : 'metadata_only';
+        skippedNodes.push({
+          node_id: nodeId,
+          reason: coverageSkipReason,
+          literature_coverage_status: literatureCoverage.status,
+          ...(posterior.status ? { posterior_status: posterior.status } : {}),
+          allocation_eligible: false,
+        });
+        continue;
+      }
+      if (posterior.status === 'stale' || posterior.status === 'provisional') {
+        skippedNodes.push({
+          node_id: nodeId,
+          reason: 'posterior_not_current',
+          literature_coverage_status: literatureCoverage.status,
+          posterior_status: posterior.status,
+          allocation_eligible: false,
+        });
+        continue;
+      }
       candidates.push({
         nodeId,
         ideaId: String(node.idea_id),
         posteriorValue: posterior.value,
         evidenceCount: posterior.evidence_count,
+        literatureCoverageStatus: literatureCoverage.status,
+        allocationEligible: true,
+        exploratoryAllocation: literatureCoverage.exploratory_allocation === true,
         stableIndex: index,
       });
     }
@@ -91,6 +131,9 @@ export function executeRankCompute(options: {
       rank: index + 1,
       posterior_value: candidate.posteriorValue,
       evidence_count: candidate.evidenceCount,
+      literature_coverage_status: candidate.literatureCoverageStatus,
+      allocation_eligible: candidate.allocationEligible,
+      exploratory_allocation: candidate.exploratoryAllocation,
     }));
 
     const now = options.now();

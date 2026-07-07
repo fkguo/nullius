@@ -125,6 +125,7 @@ export interface NodePosterior {
   evidence_count: number;
   updated_at: string;
   gaia_package_ref?: string;
+  status?: 'current' | 'provisional' | 'stale';
 }
 
 /** Returns the node posterior when present and well-formed, else null. */
@@ -138,4 +139,43 @@ export function nodePosterior(node: Record<string, unknown>): NodePosterior | nu
     return null;
   }
   return record as unknown as NodePosterior;
+}
+
+export type LiteratureCoverageStatus = 'saturated' | 'coverage_incomplete' | 'metadata_only';
+
+export interface LiteratureCoverage {
+  status: LiteratureCoverageStatus;
+  survey_ref?: string;
+  close_prior_matrix_ref?: string;
+  exploratory_allocation?: boolean;
+}
+
+export function nodeLiteratureCoverage(node: Record<string, unknown>): LiteratureCoverage {
+  const coverage = node.literature_coverage;
+  if (!coverage || typeof coverage !== 'object' || Array.isArray(coverage)) {
+    return { status: 'metadata_only' };
+  }
+  const record = coverage as Record<string, unknown>;
+  const status = record.status === 'saturated' || record.status === 'coverage_incomplete'
+    ? record.status
+    : 'metadata_only';
+  return {
+    status,
+    ...(typeof record.survey_ref === 'string' ? { survey_ref: record.survey_ref } : {}),
+    ...(typeof record.close_prior_matrix_ref === 'string' ? { close_prior_matrix_ref: record.close_prior_matrix_ref } : {}),
+    ...(typeof record.exploratory_allocation === 'boolean' ? { exploratory_allocation: record.exploratory_allocation } : {}),
+  };
+}
+
+export function hasClosePriorRefs(coverage: LiteratureCoverage): boolean {
+  return typeof coverage.survey_ref === 'string' && coverage.survey_ref.trim().length > 0
+    && typeof coverage.close_prior_matrix_ref === 'string' && coverage.close_prior_matrix_ref.trim().length > 0;
+}
+
+export function isPortfolioScoringEligible(coverage: LiteratureCoverage): boolean {
+  if (!hasClosePriorRefs(coverage)) {
+    return false;
+  }
+  return coverage.status === 'saturated'
+    || (coverage.status === 'coverage_incomplete' && coverage.exploratory_allocation === true);
 }

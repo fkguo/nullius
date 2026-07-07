@@ -78,6 +78,10 @@ skill writes is designed to survive that, provided one rule is respected:
 
 ## Admission gate — before any graph is built
 
+No idea enters this skill from generation as allocation-ready. Generation can
+only produce candidates; posterior construction starts from independently
+checked close-prior evidence, not from a generator score.
+
 Not every idea deserves a graph. An idea is admitted only if it clears at
 least one of the four routes below. Judge the routes on recorded evidence, not
 on enthusiasm; each route names what counts as its anchor.
@@ -140,6 +144,59 @@ demonstration, entering as appended observations (see revival semantics
 below). Admission says the idea deserves a graph, not that the graph starts
 high; an idea with neither reproduction nor a trial demonstration is not a
 low-posterior admit, it is a rejection.
+
+## Close-prior literature gate — before posterior or portfolio scoring
+
+Before building or updating a Gaia graph, before running `node.set_posterior`,
+and before any portfolio surface may treat the idea as allocation guidance, the
+idea must have a `literature_survey_v1` or equivalent close-prior artifact and
+a close-prior matrix. If either artifact is missing, stop: the idea is still a
+candidate or reconnaissance item, not posterior-ready.
+
+The survey must show snowball discovery, not a one-shot topic search:
+
+- `seed_search`
+- `backward_references`
+- `forward_citations`
+- `critique_specific_search`
+
+Every expansion round records `expansion_candidates_screened` and
+`new_core_papers`. `saturated` is legal only when the final measured round did
+real screening and admitted zero new core papers; if the final round still adds
+core papers, or no real expansion round was measured, the status is
+`coverage_incomplete`.
+
+Every close-prior/core paper must be source-first and machine-readable:
+`read_status` is one of `full_text_read`, `section_read`, `metadata_only`, or
+`unavailable`; source links, read locators, and read sections are recorded; the
+citation identity is triangulated across at least two independent providers
+with verdict `consistent`; and the deep-read summary has a source-fidelity
+audit with status `pass`. For `full_text_read`, the minimum checked regions are
+introduction, formalism/method, results/discussion, and conclusion/outlook.
+`metadata_only` and `unavailable` entries cannot anchor Gaia likelihoods.
+
+Subagent literature audits are allowed only as discovery/synthesis input. The
+main coordinator must verify source links, identity triangulation, source form,
+quoted spans, locators, and summary fidelity before any extracted proposition
+can become a graph anchor.
+
+Gaia input is proposition-level, not paper-level. The allowed chain is:
+deep-read paper -> extracted proposition -> claim-grounding quote and locator
+-> mapped sub-criterion anchor -> `observe()` or `infer()` rationale. A paper,
+paper count, provider metadata record, or subagent summary cannot directly
+"count as a score."
+
+Negative novelty claims ("no existing work does X") need reviewer gating:
+close-prior matrix, critique-search record, closest-hit same-scope exclusion
+reasons, and an independent reviewer check of the search terms plus the top
+close priors' discussion/conclusion sections. Without that gate, write only
+"not found in incomplete search" and do not use the claim as strong evidence.
+
+If a later close-prior audit finds important missed prior work, mark the
+existing posterior `stale` or `provisional` at the node/report layer.
+Historical posterior records remain audit history, but they are not current
+allocation guidance until the graph is rebuilt and `node.set_posterior` is run
+again.
 
 ## Sub-criterion decomposition
 
@@ -409,14 +466,27 @@ readable diagnosis (including the pinned install recipe) when a stage fails.
    python3 scripts/posterior_writeback.py \
      --campaign-id <campaign> --node-id <node> \
      --store-root <store_root> \
+     --literature-survey-json <artifact_dir>/literature_survey_v1.json \
+     --close-prior-matrix-json <artifact_dir>/close_prior_matrix.json \
+     --posterior-report-md <artifact_dir>/posterior_report_v1.md \
      --idea-rpc <repo>/packages/idea-engine/bin/idea-rpc.mjs
    ```
 
    Sends `{"method": "node.set_posterior", "params": {campaign_id, node_id,
-   idempotency_key, posterior}, "store_root": ...}` on stdin to the
-   idea-engine thin RPC caller and fails loudly on an error response.
-   Before anything is sent, the `project://` reference is verified against
-   the project on disk: it must resolve under the project root (the
+   idempotency_key, posterior, literature_coverage}, "store_root": ...}` on
+   stdin to the idea-engine thin RPC caller and fails loudly on an error
+   response. Before anything is sent, `posterior_writeback.py` runs the
+   close-prior validator over the survey, matrix, and report. It refuses a
+   missing close-prior matrix, missing critique search, one-sided
+   above-weakest `tension_resolution`, metadata-only Gaia anchors,
+   untriangulated core-paper identity, failed source-fidelity audit, or a
+   `coverage_incomplete` result that claims current/allocation-eligible status.
+   `coverage_incomplete` may be written only as provisional guidance; it can be
+   allocation eligible only when `--allow-exploratory-allocation` is passed and
+   the matrix declares the allocation exploratory.
+
+   The `project://` reference is also verified against the project on disk: it
+   must resolve under the project root (the
    nearest ancestor of `--store-root` containing `.nullius/`, or an
    explicit `--project-root`) and its `#sha256:` pin must match the
    package's current `.gaia/ir.json`. A reference nobody could follow, or
@@ -450,6 +520,16 @@ idea-store snapshot. When the render step produced one, it also links the
 viewable argument graph (`starmap.html`) so a reader can open the graph the
 posterior came from.
 
+The report must include a close-prior matrix. For every close prior, list the
+reference/link, read status, source link, locator, same-scope status, supported
+sub-propositions, weakened novelty claims, identity-triangulation verdict,
+source-fidelity audit status, and whether the posterior should be marked
+stale/provisional. The matrix also records critique-search queries and top
+hits, same-scope exclusion reasons for closest hits, and reviewer notes for
+negative novelty claims. Missing matrix, missing critique search, or missing
+reviewer gate means the report is provisional and cannot support allocation
+eligibility.
+
 **Every anchor in the report is rendered as a link, not bare text.** An anchor
 earns its place only if a reader can reach it in one click:
 
@@ -457,13 +537,23 @@ earns its place only if a reader can reach it in one click:
   written as a Markdown link to that URI — carried through verbatim from the
   grounding report's `evidence_uris`, never downgraded to a plain identifier
   string.
-- Repo-local artifact links are written as project-root-relative Markdown
-  links, never as absolute local paths, `file://` URLs, or document-relative
-  `../..` paths. Examples: `ideas/gaia/<slug>-gaia/starmap.html` and
-  `artifacts/<campaign>/<artifact>.json`. The posterior's `gaia_package_ref`
-  keeps its `#sha256:` pin intact — the pin is what ties the reference to the
-  exact compiled graph — and its `project://` path is resolved against the
-  project root before linking.
+- Repo-local artifact links are written as Markdown targets that resolve from
+  the report file's own directory, never as absolute local paths or `file://`
+  URLs. Do not hand-write project-root-looking targets such as
+  `ideas/gaia/<slug>-gaia/starmap.html` inside a report stored under
+  `artifacts/<campaign>/`: standard Markdown will resolve that as
+  `artifacts/<campaign>/ideas/...`. Let the normalizer compute the correct
+  report-relative target, such as `../../ideas/gaia/<slug>-gaia/starmap.html`
+  from `artifacts/<campaign>/posterior_report_v1.md`, or `posterior.json` for
+  a sibling artifact in the same directory. The posterior's `gaia_package_ref`
+  keeps its `project://...#sha256:` pin intact in machine artifacts — the pin
+  is what ties the reference to the exact compiled graph — while the human
+  Markdown link is just the click target.
+- Bare or backticked local file paths and literature identifiers in reports are
+  not allowed as plain text. File mentions must be Markdown links; arXiv, DOI,
+  and INSPIRE recid mentions must link to their source records. Use fenced code
+  blocks only for commands or literal snippets, not as a way to present a report
+  artifact/source path.
 - Before committing or sharing a Codex-readable report, normalize the
   human-facing posterior display and repo-local links with:
 
@@ -473,6 +563,9 @@ earns its place only if a reader can reach it in one click:
   python3 skills/idea-posterior/scripts/normalize_report_links.py \
     --project-root <project_root> <report.md>
   ```
+  Use the same command with `--check` in gates or writeback preflight; it fails
+  if a local Markdown link is still unnormalized, broken, absolute-local, or
+  otherwise not clickable from the report file's location.
 - The `anchor: <...>` notes echoed into the report follow the same rule: a
   resolvable reference inside an anchor note is a link.
 
