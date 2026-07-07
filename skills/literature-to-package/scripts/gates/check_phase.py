@@ -382,6 +382,20 @@ def check_skeleton(artifact: dict, root: Path, f: Findings) -> None:
             "and export anchoring cannot be verified",
         )
 
+    # Code files under source_dirs, collected up front: the ledger loop below
+    # accepts a "path#export" fragment only when its path part names one of
+    # these real source files — "#ghost" or "docs/api.md#ghost" cannot anchor
+    # an export.
+    source_files: list[Path] = []
+    for sd in source_dirs:
+        source_files.extend(
+            p for p in sorted(sd.rglob("*"))
+            if p.is_file() and p.suffix in _CODE_EXTS
+            and not any(part in _SCAN_SKIP_DIRS for part in p.relative_to(root).parts)
+        )
+    f.checked["source_files"] = len(source_files)
+    source_rel_set = {p.relative_to(root).as_posix() for p in source_files}
+
     covered_paths: set[str] = set()
     ledger_fragments: set[str] = set()
     ledger_rel = _nonempty_str(artifact, "traceability_ledger")
@@ -401,8 +415,9 @@ def check_skeleton(artifact: dict, root: Path, f: Findings) -> None:
         for i, e in enumerate(entries):
             eid = _nonempty_str(e, "artifact") or f"entries[{i}]"
             art = _nonempty_str(e, "artifact")
-            covered_paths.add(art.split("#", 1)[0])
-            if "#" in art:
+            path_part = art.split("#", 1)[0]
+            covered_paths.add(path_part)
+            if "#" in art and path_part in source_rel_set:
                 ledger_fragments.add(art.split("#", 1)[1])
             has_extraction = bool([x for x in _as_list(e, "extraction_ids") if isinstance(x, str) and x.strip()])
             has_reuse = bool(_nonempty_str(e, "reuse_source"))
@@ -416,14 +431,6 @@ def check_skeleton(artifact: dict, root: Path, f: Findings) -> None:
     # Coverage is two-way: declared entries must have origins (above), and
     # every code file under source_dirs must have a ledger entry — otherwise
     # "nothing enters the package without an origin" is a one-way promise.
-    source_files: list[Path] = []
-    for sd in source_dirs:
-        source_files.extend(
-            p for p in sorted(sd.rglob("*"))
-            if p.is_file() and p.suffix in _CODE_EXTS
-            and not any(part in _SCAN_SKIP_DIRS for part in p.relative_to(root).parts)
-        )
-    f.checked["source_files"] = len(source_files)
     for p in source_files:
         rel = p.relative_to(root).as_posix()
         if rel not in covered_paths:
@@ -463,13 +470,15 @@ def check_skeleton(artifact: dict, root: Path, f: Findings) -> None:
                     "to code that exists",
                 )
         # The load-bearing source leg: the export must be a traceability-ledger
-        # artifact (a "path#export" entry). A word-boundary mention in a source
-        # comment cannot fake this leg.
+        # artifact "path#export" whose path names a REAL code file under
+        # source_dirs. A word-boundary mention in a source comment cannot fake
+        # this leg, and neither can "#export" with an empty or non-source path.
         if name not in ledger_fragments:
             f.add(
                 "EXPORT_NOT_IN_LEDGER",
-                f"{name}: no traceability-ledger entry with fragment '#{name}' — every export is a "
-                "package artifact and needs an origin like any other",
+                f"{name}: no traceability-ledger entry '<source file>#{name}' whose path part names "
+                "an existing code file under source_dirs — every export is a package artifact and "
+                "needs an origin like any other",
             )
 
 
@@ -605,13 +614,15 @@ def check_reimplementation(artifact: dict, root: Path, f: Findings) -> None:
 def _review_state(path: Path) -> tuple[str, str]:
     """Classify a reviewer verdict file: approved / not_approved / unrecognized.
 
-    Accepted formats (the review-swarm output contract):
-    - JSON (optionally in a ```json fence): {"verdict": "PASS"|"FAIL",
-      "blocking_issues": [...]} — approval needs verdict PASS AND an empty
+    Accepted formats (mirrored from the review-swarm output contract; see
+    _REVIEW_REQUIRED_HEADERS / _REVIEW_JSON_REQUIRED_FIELDS above):
+    - JSON (optionally in a ```json fence): required fields `verdict`,
+      `blocking_issues`, `summary`; approval needs verdict PASS AND an empty
       blocking_issues list.
-    - Markdown: first non-empty line `VERDICT: READY|NOT_READY`; approval
-      needs READY and, when a `## Blockers` section exists, no blocker items
-      in it.
+    - Markdown: first non-empty line `VERDICT: READY|NOT_READY`, ALL required
+      report headers present (a bare VERDICT line is a stub, not a review),
+      and — for approval — no blocker items under `## Blockers`.
+    Anything else is `unrecognized` (diagnosed, never approved).
     """
     text = _read_text(path)
     if text is None:
@@ -646,10 +657,13 @@ def _review_state(path: Path) -> tuple[str, str]:
     m = _REVIEW_MD_RE.match(first)
     if not m:
         return "unrecognized", "first non-empty line is not a 'VERDICT: ...' line"
-    missing_headers = [h for h in _REVIEW_REQUIRED_HEADERS if h not in text]
+    # Required headers must be real heading LINES: a prose mention of
+    # "## Blockers" inside a paragraph is not a report section.
+    heading_lines = {ln.strip() for ln in lines if ln.strip().startswith("#")}
+    missing_headers = [h for h in _REVIEW_REQUIRED_HEADERS if h not in heading_lines]
     if missing_headers:
         return "unrecognized", (
-            "Markdown verdict is missing required header(s): "
+            "Markdown verdict is missing required header line(s): "
             + ", ".join(missing_headers)
             + " — a bare VERDICT line without the contract sections is not a review report"
         )
@@ -853,9 +867,13 @@ def check_composite_gates(artifact: dict, root: Path, f: Findings) -> None:
             # (numerical_reliability_matrix_v1): schema_version 1, counts
             # that agree with the rows, and per-row id + verdict. Full
             # per-row evidence rules stay owned by the sibling contract.
+            def _strict_int(v: Any) -> int | None:
+                # JSON true == 1 in Python; a boolean is never a count.
+                return v if isinstance(v, int) and not isinstance(v, bool) else None
+
             matrix = obj.get("matrix")
             not_reliable = obj.get("not_reliable")
-            if obj.get("schema_version") != 1:
+            if _strict_int(obj.get("schema_version")) != 1:
                 f.add(
                     "GATE_NOT_PASSED",
                     f"numerical_reliability: schema_version must be 1 "
@@ -901,8 +919,8 @@ def check_composite_gates(artifact: dict, root: Path, f: Findings) -> None:
                         f"numerical_reliability: not_reliable={not_reliable!r} while every matrix row "
                         "reads 'reliable' — the verdict file is self-inconsistent",
                     )
-                elif obj.get("reliable") != reliable_rows or (
-                    "total" in obj and obj.get("total") != len(matrix)
+                elif _strict_int(obj.get("reliable")) != reliable_rows or (
+                    "total" in obj and _strict_int(obj.get("total")) != len(matrix)
                 ):
                     f.add(
                         "GATE_NOT_PASSED",

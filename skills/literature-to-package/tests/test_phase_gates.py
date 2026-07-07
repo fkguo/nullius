@@ -420,6 +420,28 @@ def test_skeleton_comment_mention_cannot_fake_export_leg(tmp_path: Path):
     _assert_label(payload, "EXPORT_NOT_IN_LEDGER")
 
 
+def test_skeleton_ledger_fragment_needs_real_source_path(tmp_path: Path):
+    # "#ghost_export" (empty path) and "docs/api.md#ghost_export" (non-source
+    # path) must not anchor an export's ledger leg.
+    root = _make_pkg(tmp_path)
+    manifest = _skeleton_manifest()
+    manifest["exports"] = [{"name": "ghost_export", "doc_path": "docs/api.md", "test_path": "tests/test_example.py"}]
+    _write(root / "docs" / "api.md", "## ghost_export\n")
+    _write(root / "tests" / "test_example.py", "def test_ghost_export():\n    assert True  # ghost_export\n")
+    _write(root / "src" / "example.py", "def example_export():\n    return 1\n# note: ghost_export\n")
+    _wjson(
+        root / "traceability_ledger.json",
+        {"entries": [
+            {"artifact": "src/example.py#example_export", "extraction_ids": ["eq_1"], "status": "pending"},
+            {"artifact": "#ghost_export", "extraction_ids": ["eq_1"], "status": "pending"},
+            {"artifact": "docs/api.md#ghost_export", "extraction_ids": ["eq_1"], "status": "pending"},
+        ]},
+    )
+    rc, payload, _ = _run("skeleton", _wjson(tmp_path / "sk.json", manifest), root)
+    assert rc == 1
+    _assert_label(payload, "EXPORT_NOT_IN_LEDGER")
+
+
 def test_skeleton_exclusion_size_is_auditable(tmp_path: Path):
     root = _make_pkg(tmp_path)
     _write(root / "reference_assets" / "orig.py", "ORIGINAL = True\n")
@@ -606,6 +628,20 @@ def test_reimplementation_bare_verdict_line_is_not_a_review(tmp_path: Path):
     # A file with only "VERDICT: READY" and none of the required report
     # sections is a stub, not a review — diagnosed, never approved.
     root = _make_reimpl_pkg(tmp_path, verdict="VERDICT: READY\n")
+    rc, payload, _ = _run("reimplementation", _wjson(tmp_path / "i.json", _independence()), root)
+    assert rc == 1
+    _assert_label(payload, "REVIEW_VERDICT_UNRECOGNIZED")
+
+
+def test_reimplementation_inline_header_mentions_are_not_sections(tmp_path: Path):
+    # Prose that MENTIONS the header names is not a report with sections:
+    # required headers must be real heading lines.
+    stub = (
+        "VERDICT: READY\n\n"
+        "This stub mentions ## Blockers and ## Non-blocking and ## Real-research fit "
+        "and ## Robustness & safety and ## Specific patch suggestions inline.\n"
+    )
+    root = _make_reimpl_pkg(tmp_path, verdict=stub)
     rc, payload, _ = _run("reimplementation", _wjson(tmp_path / "i.json", _independence()), root)
     assert rc == 1
     _assert_label(payload, "REVIEW_VERDICT_UNRECOGNIZED")
@@ -925,6 +961,21 @@ def test_composite_gates_unversioned_matrix_rejected(tmp_path: Path):
     assert rc == 1
     _assert_label(payload, "GATE_NOT_PASSED")
     assert any("schema_version" in r for r in payload["reasons"])
+
+
+def test_composite_gates_boolean_typed_fields_rejected(tmp_path: Path):
+    # JSON true == 1 in Python: boolean-typed identity/count fields must not
+    # satisfy the integer checks.
+    root = tmp_path / "pkg"
+    _make_gate_files(root)
+    _wjson(
+        root / "gates" / "reliability_matrix.json",
+        {"schema_version": True, "total": True, "reliable": True, "not_reliable": [],
+         "matrix": [{"id": "x", "verdict": "reliable"}]},
+    )
+    rc, payload, _ = _run("composite-gates", _wjson(tmp_path / "c.json", _composite()), root)
+    assert rc == 1
+    _assert_label(payload, "GATE_NOT_PASSED")
 
 
 def test_composite_gates_count_mismatch_rejected(tmp_path: Path):

@@ -165,9 +165,11 @@ an origin" is enforced in both directions); `MISSING_EXPORT_MAP` /
 `EXPORT_MISSING_DOC` / `EXPORT_MISSING_TEST` / `EXPORT_DOC_UNANCHORED` /
 `EXPORT_TEST_UNANCHORED` / `EXPORT_NOT_IN_SOURCE` / `EXPORT_NOT_IN_LEDGER` (every
 export carries all three legs, each leg actually mentions the export by name, and —
-the load-bearing source leg — the export has a traceability-ledger entry of the form
-`path#export`: a word-boundary mention in a source comment can satisfy the text
-anchor, but it cannot fabricate a ledger origin).
+the load-bearing source leg — the export has a traceability-ledger entry
+`path#export` whose path part names an existing code file under `source_dirs`:
+a word-boundary mention in a source comment can satisfy the text anchor, but it
+cannot fabricate a ledger origin, and neither can `#export` with an empty or
+non-source path).
 
 ## Phase 4 · reimplementation — `independence_manifest_v1`
 
@@ -209,10 +211,11 @@ Gate checks:
   contract, `skills/review-swarm/scripts/bin/review_contract.py`; the repo
   anti-drift lock cross-checks the mirror against that source): a Markdown report
   whose first non-empty line is `VERDICT: READY`, that carries **all required
-  report headers** (`## Blockers`, `## Non-blocking`, `## Real-research fit`,
-  `## Robustness & safety`, `## Specific patch suggestions` — a bare VERDICT line
-  is a stub, not a review), and whose `## Blockers` section lists no blocker
-  items; or a JSON object (optionally in a ```json fence) with the required
+  report headers as real heading lines** (`## Blockers`, `## Non-blocking`,
+  `## Real-research fit`, `## Robustness & safety`, `## Specific patch
+  suggestions` — a bare VERDICT line is a stub, and a prose mention of the
+  header names is not a section), and whose `## Blockers` section lists no
+  blocker items; or a JSON object (optionally in a ```json fence) with the required
   fields `verdict` / `blocking_issues` / `summary`, `"verdict": "PASS"` and an
   empty `blocking_issues` list. `NOT_READY` / `FAIL` / listed blockers →
   `REVIEW_NOT_APPROVED`; anything that follows neither format →
@@ -293,8 +296,11 @@ Pass semantics per verdict:
   `matrix` whose every row carries a non-empty `id` + `verdict` and whose EVERY
   row verdict is recomputed to be `reliable`, an empty `not_reliable` list, and
   count fields that agree with the rows (`reliable` == reliable-row count;
-  `total`, when present, == row count). The summary fields are never trusted
-  over the rows; per-row evidence rules stay owned by the sibling contract.
+  `total`, when present, == row count). Identity/count fields must be strict
+  integers — JSON booleans do not count (`true == 1` in the implementation
+  language must not launder an unversioned object). The summary fields are never
+  trusted over the rows; per-row evidence rules stay owned by the sibling
+  contract.
 - `performance` — a performance-gate verdict object with `"verdict": "pass"`
   (an inconclusive / missing benchmark is not a pass).
 

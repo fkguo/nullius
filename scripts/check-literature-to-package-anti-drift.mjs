@@ -193,6 +193,24 @@ if (reviewContractText !== null && gateText !== null) {
       }
     }
   }
+  // Same for the JSON half of the contract (verdict/blocking_issues/summary).
+  const jsonBlock = reviewContractText.match(/JSON_REQUIRED_FIELDS\s*=\s*\{([\s\S]*?)\}/);
+  if (!jsonBlock) {
+    errors.push(`${REVIEW_CONTRACT_FILE}: could not parse JSON_REQUIRED_FIELDS — update this lock's mirror-sync parser.`);
+  } else {
+    const fields = [...jsonBlock[1].matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+    if (fields.length === 0) {
+      errors.push(`${REVIEW_CONTRACT_FILE}: JSON_REQUIRED_FIELDS parsed empty — update this lock's mirror-sync parser.`);
+    }
+    for (const fld of fields) {
+      if (!gateText.includes(`"${fld}"`)) {
+        errors.push(
+          `${GATE_FILE}: review-contract mirror is missing required JSON field ${JSON.stringify(fld)} ` +
+          `(source of truth: ${REVIEW_CONTRACT_FILE}).`,
+        );
+      }
+    }
+  }
 }
 if (!existsSync(path.join(repoRoot, SMOKE_FILE))) {
   errors.push(`smoke script missing: ${SMOKE_FILE}`);
