@@ -13,7 +13,7 @@ POSTERIOR = {
     "value": 0.8499370175790979,
     "evidence_count": 2,
     "gaia_package_ref": (
-        "/tmp/example-idea-gaia#sha256:"
+        "file:///tmp/example-idea-gaia#sha256:"
         "e314d88c63c80b8845d2c1347e0f20b77db5825076d847ecd1c143a925afc676"
     ),
 }
@@ -69,6 +69,46 @@ def test_explicit_idempotency_key_wins(tmp_path, fixtures_dir, capsys) -> None:
     assert response["result"]["echo"]["params"]["idempotency_key"] == "explicit-key-1"
 
 
+def test_new_write_mints_unique_keys(tmp_path, fixtures_dir, capsys) -> None:
+    deterministic = writeback.derive_idempotency_key(
+        "campaign-1", "node-7", writeback.validate_posterior(dict(POSTERIOR))
+    )
+    keys = []
+    for _ in range(2):
+        assert run_main(tmp_path, fixtures_dir, ("--new-write",)) == 0
+        response = json.loads(capsys.readouterr().out)
+        keys.append(response["result"]["echo"]["params"]["idempotency_key"])
+    # Distinct per invocation (a fresh write each time), but still carrying
+    # the deterministic digest as an auditable prefix.
+    assert keys[0] != keys[1]
+    for key in keys:
+        assert key.startswith(deterministic + "-fresh-")
+
+
+def test_new_write_conflicts_with_explicit_key(tmp_path, fixtures_dir) -> None:
+    with pytest.raises(SystemExit) as excinfo:
+        run_main(
+            tmp_path,
+            fixtures_dir,
+            ("--new-write", "--idempotency-key", "explicit-key-1"),
+        )
+    assert excinfo.value.code == 2
+
+
+def test_replayed_write_is_surfaced(
+    tmp_path, fixtures_dir, capsys, monkeypatch
+) -> None:
+    # A duplicate-key hit is NOT silent: the store replays the archived
+    # response (no new revision), and the script must say so and point at
+    # --new-write instead of reporting a fresh write.
+    monkeypatch.setenv("FAKE_RPC_REPLAY", "1")
+    assert run_main(tmp_path, fixtures_dir) == 0
+    out = capsys.readouterr()
+    assert "REPLAYED" in out.err
+    assert "--new-write" in out.err
+    assert "posterior written" not in out.err
+
+
 def test_idempotency_key_is_deterministic_and_sensitive() -> None:
     key_a = writeback.derive_idempotency_key("c", "n", POSTERIOR)
     key_b = writeback.derive_idempotency_key("c", "n", POSTERIOR)
@@ -91,10 +131,14 @@ def test_idempotency_key_distinguishes_any_two_float_values() -> None:
 
 def test_validate_posterior_requires_pinned_ref() -> None:
     for bad_ref in (
-        "/tmp/example-idea-gaia",  # no hash at all
-        "/tmp/example-idea-gaia#sha256:abc123",  # hash too short
-        "/tmp/example-idea-gaia#md5:" + "a" * 32,  # wrong algorithm tag
-        "#sha256:" + "a" * 64,  # hash with no package path
+        "file:///tmp/example-idea-gaia",  # no hash at all
+        "file:///tmp/example-idea-gaia#sha256:abc123",  # hash too short
+        "file:///tmp/example-idea-gaia#md5:" + "a" * 32,  # wrong algorithm tag
+        "file:///#sha256:" + "a" * 64,  # hash with no package path
+        # BARE absolute paths are refused outright: the engine contract types
+        # gaia_package_ref as a URI, so a path-form ref would only fail later
+        # with a remote schema error (live-project regression, 2026-07).
+        "/tmp/example-idea-gaia#sha256:" + "a" * 64,
     ):
         with pytest.raises(ValueError, match="pin the compiled graph"):
             writeback.validate_posterior(

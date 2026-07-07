@@ -2,8 +2,11 @@
 """Stand-in for the idea-engine thin RPC caller, used by writeback tests.
 
 Reads one JSON request from stdin. With FAKE_RPC_FAIL=1 it returns an error
-response. Otherwise it validates the request shape against the
-node.set_posterior contract and echoes the request back inside the result.
+response. With FAKE_RPC_REPLAY=1 the result carries idempotency metadata
+marking the response as a duplicate hit (``is_replay: true``), mirroring the
+engine's idempotency_meta_v1. Otherwise it validates the request shape
+against the node.set_posterior contract and echoes the request back inside
+the result.
 """
 
 import json
@@ -49,8 +52,14 @@ def main() -> int:
                  "error": {"code": -32602, "message": "; ".join(problems)}})
         return 0
 
-    respond({"jsonrpc": "2.0", "id": 1,
-             "result": {"ok": True, "echo": request}})
+    result = {"ok": True, "echo": request}
+    if os.environ.get("FAKE_RPC_REPLAY") == "1":
+        result["idempotency"] = {
+            "idempotency_key": params["idempotency_key"],
+            "is_replay": True,
+            "payload_hash": "sha256:" + "0" * 64,
+        }
+    respond({"jsonrpc": "2.0", "id": 1, "result": result})
     return 0
 
 

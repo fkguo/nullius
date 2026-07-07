@@ -13,8 +13,11 @@ then parse the produced artifacts:
   exact compiled graph.
 
 Output (stdout, JSON): {"value": float, "evidence_count": int,
-"gaia_package_ref": "<abs package path>#<ir_hash>"}. Diagnostics go to
-stderr. Standard library only; Gaia is invoked as a subprocess.
+"gaia_package_ref": "file://<abs package path>#<ir_hash>"}. The reference is
+a file:// URI, never a bare path: the idea-engine contract pins
+gaia_package_ref as format "uri" (node.set_posterior / idea_node_v1), so a
+bare absolute path is refused at writeback. Diagnostics go to stderr.
+Standard library only; Gaia is invoked as a subprocess.
 """
 
 from __future__ import annotations
@@ -582,7 +585,9 @@ def extract_posterior(package_dir: Path, worth_label: str) -> dict:
     return {
         "value": value,
         "evidence_count": evidence_count,
-        "gaia_package_ref": f"{package_dir.resolve()}#{ir_hash}",
+        # file:// URI, not a bare path: the engine validates gaia_package_ref
+        # as format "uri" and rejects bare absolute paths at node.set_posterior.
+        "gaia_package_ref": f"{package_dir.resolve().as_uri()}#{ir_hash}",
     }
 
 

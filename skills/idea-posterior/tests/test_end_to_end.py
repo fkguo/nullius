@@ -94,7 +94,9 @@ def test_scaffold_infer_extract_writeback_chain(
     posterior = run_extract(package_dir, gaia_bin, capsys)
     assert posterior["value"] == pytest.approx(0.5, abs=1e-9)
     assert posterior["evidence_count"] == 0
-    assert posterior["gaia_package_ref"].startswith(str(package_dir.resolve()))
+    assert posterior["gaia_package_ref"].startswith(
+        package_dir.resolve().as_uri()
+    )
     assert "#sha256:" in posterior["gaia_package_ref"]
 
     # 3. Append one anchored observation; the posterior must move up and the
