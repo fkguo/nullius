@@ -2,8 +2,9 @@
 """Submit a generation_pack_v1 to the idea engine (node.import_generated).
 
 Sends {"method": "node.import_generated", "params": {campaign_id, pack,
-idempotency_key}, "store_root": ...} on stdin to the engine's thin RPC bridge
-(packages/idea-engine/bin/idea-rpc.mjs) and fails loudly on an error response.
+idempotency_key}, "store_root": ..., "project_root": optional ...} on stdin to
+the engine's thin RPC bridge (packages/idea-engine/bin/idea-rpc.mjs) and fails
+loudly on an error response.
 
 The idempotency key defaults to a deterministic digest of the campaign id and
 the pack content: retrying the same submission is a no-op replay, while any
@@ -30,8 +31,14 @@ def deterministic_idempotency_key(campaign_id: str, pack: Dict[str, Any]) -> str
     return f"genpack-{digest}"
 
 
-def build_request(campaign_id: str, pack: Dict[str, Any], store_root: str, idempotency_key: str) -> Dict[str, Any]:
-    return {
+def build_request(
+    campaign_id: str,
+    pack: Dict[str, Any],
+    store_root: str,
+    idempotency_key: str,
+    project_root: Optional[str] = None,
+) -> Dict[str, Any]:
+    request = {
         "method": METHOD,
         "params": {
             "campaign_id": campaign_id,
@@ -40,6 +47,9 @@ def build_request(campaign_id: str, pack: Dict[str, Any], store_root: str, idemp
         },
         "store_root": store_root,
     }
+    if project_root is not None:
+        request["project_root"] = project_root
+    return request
 
 
 def run(argv: Optional[List[str]] = None) -> int:
@@ -47,6 +57,7 @@ def run(argv: Optional[List[str]] = None) -> int:
     parser.add_argument("--pack", required=True, help="Pack JSON from build_pack.py")
     parser.add_argument("--campaign-id", required=True, help="Must equal pack.campaign_id")
     parser.add_argument("--store-root", required=True, help="Campaign store root directory")
+    parser.add_argument("--project-root", help="Project root for project:// refs (default: engine inference from --store-root)")
     parser.add_argument("--idea-rpc", required=True, help="Path to packages/idea-engine/bin/idea-rpc.mjs")
     parser.add_argument("--node-bin", default="node", help="Node.js executable (default: node)")
     parser.add_argument("--idempotency-key", help="Override the deterministic default key")
@@ -69,7 +80,7 @@ def run(argv: Optional[List[str]] = None) -> int:
         return 2
 
     key = args.idempotency_key or deterministic_idempotency_key(args.campaign_id, pack)
-    request = build_request(args.campaign_id, pack, args.store_root, key)
+    request = build_request(args.campaign_id, pack, args.store_root, key, args.project_root)
 
     if args.dry_run:
         print(json.dumps(request, indent=2, sort_keys=True))

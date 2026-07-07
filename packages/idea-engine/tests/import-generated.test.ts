@@ -1,11 +1,12 @@
 import { createHash } from 'crypto';
 import { existsSync, mkdtempSync, readFileSync, rmSync, unlinkSync, utimesSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
-import { join } from 'path';
-import { fileURLToPath } from 'url';
+import { basename, join } from 'path';
+import { pathToFileURL } from 'url';
 import { afterEach, describe, expect, it } from 'vitest';
 import { IdeaEngineRpcService } from '../src/service/rpc-service.js';
 import { RpcError } from '../src/service/errors.js';
+import { payloadHash } from '../src/hash/payload-hash.js';
 
 const PROMPT_SNAPSHOT_CONTENT = 'rendered generation prompt for the regression tension burst';
 const PROMPT_SNAPSHOT_HASH = `sha256:${createHash('sha256').update(PROMPT_SNAPSHOT_CONTENT, 'utf8').digest('hex')}`;
@@ -233,8 +234,8 @@ function setNodesUsed(service: IdeaEngineRpcService, campaignId: string, value: 
   service.node.store.saveCampaign(campaign);
 }
 
-function artifactPathFromRef(ref: string): string {
-  return fileURLToPath(ref);
+function artifactPathFromRef(service: IdeaEngineRpcService, ref: string): string {
+  return service.node.store.artifactPathFromRef(ref);
 }
 
 function archiveNode(service: IdeaEngineRpcService, campaignId: string, nodeId: string): void {
@@ -302,7 +303,11 @@ describe('node.import_generated', () => {
     expect(deltaClaim.evidence_uris).toEqual([URI_A]);
 
     // pack artifact archived verbatim, including the operator's own rejects
-    const artifactFile = artifactPathFromRef(String(result.pack_artifact_ref));
+    expect(String(result.pack_artifact_ref)).toMatch(/^project:\/\/.+#sha256:[a-f0-9]{64}$/);
+    expect(String(result.pack_artifact_ref)).not.toContain('/Users/');
+    expect(String(result.pack_artifact_ref)).not.toContain('file://');
+    expect(String(result.pack_artifact_ref)).toContain(String(result.pack_hash));
+    const artifactFile = artifactPathFromRef(service, String(result.pack_artifact_ref));
     expect(existsSync(artifactFile)).toBe(true);
     const archive = JSON.parse(readFileSync(artifactFile, 'utf8')) as Record<string, unknown>;
     expect(archive.pack_hash).toBe(result.pack_hash);
@@ -372,6 +377,115 @@ describe('node.import_generated', () => {
       -32002,
       'idempotency_key_conflict',
     );
+  });
+
+  it('migrates legacy file:// generation pack refs during idempotent replay', () => {
+    const service = freshService();
+    const campaignId = initCampaign(service);
+    const pack = validPack(campaignId);
+    const first = importPack(service, campaignId, pack);
+    const portableRef = String(first.pack_artifact_ref);
+    const artifactFile = artifactPathFromRef(service, portableRef);
+    const legacyRef = pathToFileURL(join('/Users/old-machine/moved-project/idea-store/campaigns', campaignId, 'artifacts/generation', basename(artifactFile))).href;
+    const nodeId = String((first.imported as Array<Record<string, unknown>>)[0]!.node_id);
+
+    service.handle('node.set_posterior', {
+      campaign_id: campaignId,
+      idempotency_key: 'posterior-before-legacy-migration',
+      node_id: nodeId,
+      posterior: { evidence_count: 1, value: 0.51 },
+    });
+
+    const archive = JSON.parse(readFileSync(artifactFile, 'utf8')) as Record<string, unknown>;
+    const assembled = (archive.engine_assembled as Record<string, unknown>).nodes as Record<string, Record<string, unknown>>;
+    const archivedInputs = (assembled[nodeId]!.operator_trace as Record<string, unknown>).inputs as Record<string, unknown>;
+    archivedInputs.pack_artifact = legacyRef;
+    const legacyArchiveHash = payloadHash(archive);
+    writeFileSync(artifactFile, JSON.stringify(archive, null, 2), 'utf8');
+
+    const nodes = service.node.store.loadNodes<Record<string, unknown>>(campaignId);
+    const nodeInputs = (nodes[nodeId]!.operator_trace as Record<string, unknown>).inputs as Record<string, unknown>;
+    nodeInputs.pack_artifact = legacyRef;
+    service.node.store.saveNodes(campaignId, nodes);
+
+    const logPath = service.node.store.nodesLogPath(campaignId);
+    writeFileSync(logPath, readFileSync(logPath, 'utf8').replaceAll(portableRef, legacyRef), 'utf8');
+
+    const idem = loadIdem(service, campaignId);
+    const record = idem['node.import_generated:import-key-1']!;
+    record.response.payload.pack_artifact_ref = legacyRef;
+    record.response.payload.archive_hash = legacyArchiveHash;
+    (record.response.payload.idempotency as Record<string, unknown>).is_replay = false;
+    writeFileSync(idemPath(service, campaignId), `${JSON.stringify(idem, null, 2)}\n`, 'utf8');
+
+    const replay = importPack(service, campaignId, pack);
+
+    expect((replay.idempotency as Record<string, unknown>).is_replay).toBe(true);
+    expect(replay.pack_artifact_ref).toBe(portableRef);
+    expect(String(replay.archive_hash)).not.toBe(legacyArchiveHash);
+
+    const migratedNodes = service.node.store.loadNodes<Record<string, unknown>>(campaignId);
+    const migratedInputs = (migratedNodes[nodeId]!.operator_trace as Record<string, unknown>).inputs as Record<string, unknown>;
+    expect(migratedInputs.pack_artifact).toBe(portableRef);
+    expect(readFileSync(logPath, 'utf8')).toContain(portableRef);
+    expect(readFileSync(logPath, 'utf8')).not.toContain(legacyRef);
+
+    const migratedArchive = JSON.parse(readFileSync(artifactFile, 'utf8')) as Record<string, unknown>;
+    const migratedArchiveNode = (((migratedArchive.engine_assembled as Record<string, unknown>).nodes as Record<string, Record<string, unknown>>)[nodeId])!;
+    const migratedArchiveInputs = (migratedArchiveNode.operator_trace as Record<string, unknown>).inputs as Record<string, unknown>;
+    expect(migratedArchiveInputs.pack_artifact).toBe(portableRef);
+    expect(payloadHash(migratedArchive)).toBe(replay.archive_hash);
+
+    const migratedIdem = loadIdem(service, campaignId)['node.import_generated:import-key-1']!;
+    expect(migratedIdem.response.payload.pack_artifact_ref).toBe(portableRef);
+    expect(migratedIdem.response.payload.archive_hash).toBe(replay.archive_hash);
+    expect((migratedIdem.response.payload.idempotency as Record<string, unknown>).is_replay).toBe(false);
+  });
+
+  it('resumes legacy replay migration when the archive was rewritten before idempotency', () => {
+    const service = freshService();
+    const campaignId = initCampaign(service);
+    const pack = validPack(campaignId);
+    const first = importPack(service, campaignId, pack);
+    const portableRef = String(first.pack_artifact_ref);
+    const artifactFile = artifactPathFromRef(service, portableRef);
+    const legacyRef = pathToFileURL(join('/Users/old-machine/moved-project/idea-store/campaigns', campaignId, 'artifacts/generation', basename(artifactFile))).href;
+    const nodeId = String((first.imported as Array<Record<string, unknown>>)[0]!.node_id);
+
+    const currentArchive = JSON.parse(readFileSync(artifactFile, 'utf8')) as Record<string, unknown>;
+    const legacyArchive = structuredClone(currentArchive) as Record<string, unknown>;
+    const legacyAssembled = (legacyArchive.engine_assembled as Record<string, unknown>).nodes as Record<string, Record<string, unknown>>;
+    const legacyArchiveInputs = (legacyAssembled[nodeId]!.operator_trace as Record<string, unknown>).inputs as Record<string, unknown>;
+    legacyArchiveInputs.pack_artifact = legacyRef;
+    const legacyArchiveHash = payloadHash(legacyArchive);
+    // Disk remains on the already-migrated archive, as if the previous run died
+    // after archive rewrite but before idempotency was updated.
+
+    const nodes = service.node.store.loadNodes<Record<string, unknown>>(campaignId);
+    const nodeInputs = (nodes[nodeId]!.operator_trace as Record<string, unknown>).inputs as Record<string, unknown>;
+    nodeInputs.pack_artifact = legacyRef;
+    service.node.store.saveNodes(campaignId, nodes);
+    const logPath = service.node.store.nodesLogPath(campaignId);
+    writeFileSync(logPath, readFileSync(logPath, 'utf8').replaceAll(portableRef, legacyRef), 'utf8');
+
+    const idem = loadIdem(service, campaignId);
+    const record = idem['node.import_generated:import-key-1']!;
+    record.response.payload.pack_artifact_ref = legacyRef;
+    record.response.payload.archive_hash = legacyArchiveHash;
+    (record.response.payload.idempotency as Record<string, unknown>).is_replay = false;
+    writeFileSync(idemPath(service, campaignId), `${JSON.stringify(idem, null, 2)}\n`, 'utf8');
+
+    const replay = importPack(service, campaignId, pack);
+
+    expect((replay.idempotency as Record<string, unknown>).is_replay).toBe(true);
+    expect(replay.pack_artifact_ref).toBe(portableRef);
+    const migratedNodes = service.node.store.loadNodes<Record<string, unknown>>(campaignId);
+    const migratedInputs = (migratedNodes[nodeId]!.operator_trace as Record<string, unknown>).inputs as Record<string, unknown>;
+    expect(migratedInputs.pack_artifact).toBe(portableRef);
+    expect(readFileSync(logPath, 'utf8')).not.toContain(legacyRef);
+    const migratedIdem = loadIdem(service, campaignId)['node.import_generated:import-key-1']!;
+    expect(migratedIdem.response.payload.pack_artifact_ref).toBe(portableRef);
+    expect(migratedIdem.response.payload.archive_hash).toBe(replay.archive_hash);
   });
 
   it('rejects a pack whose campaign_id disagrees with the param', () => {
@@ -748,7 +862,7 @@ describe('node.import_generated', () => {
     const service = freshService();
     const campaignId = initCampaign(service);
     const first = importPack(service, campaignId, validPack(campaignId));
-    const firstArtifact = artifactPathFromRef(String(first.pack_artifact_ref));
+    const firstArtifact = artifactPathFromRef(service, String(first.pack_artifact_ref));
     const firstBytes = readFileSync(firstArtifact);
 
     // force the deterministic id sequence to restart, so the second import
@@ -841,7 +955,7 @@ describe('node.import_generated', () => {
       const nodeId = importedNodeId(result);
 
       // wind the store back to the crash point: prepared record, zero effects
-      unlinkSync(artifactPathFromRef(String(result.pack_artifact_ref)));
+      unlinkSync(artifactPathFromRef(service, String(result.pack_artifact_ref)));
       removeNodeFromStore(service, campaignId, nodeId);
       stripCreateLogLines(service, campaignId, nodeId);
       setNodesUsed(service, campaignId, 1);
@@ -882,6 +996,65 @@ describe('node.import_generated', () => {
       expect(logLines).toHaveLength(1);
       const campaign = service.node.store.loadCampaign<Record<string, unknown>>(campaignId)!;
       expect((campaign.usage as Record<string, number>).nodes_used).toBe(2);
+    });
+
+    it('recovers prepared legacy file:// pack refs after the project moved', () => {
+      const service = freshService();
+      const campaignId = initCampaign(service);
+      const pack = validPack(campaignId);
+      const result = importPack(service, campaignId, pack);
+      const nodeId = importedNodeId(result);
+      const portableRef = String(result.pack_artifact_ref);
+      const artifactFile = artifactPathFromRef(service, portableRef);
+      const legacyRef = pathToFileURL(join('/Users/old-machine/moved-project/idea-store/campaigns', campaignId, 'artifacts/generation', basename(artifactFile))).href;
+
+      const archive = JSON.parse(readFileSync(artifactFile, 'utf8')) as Record<string, unknown>;
+      const assembled = (archive.engine_assembled as Record<string, unknown>).nodes as Record<string, Record<string, unknown>>;
+      const archivedInputs = (assembled[nodeId]!.operator_trace as Record<string, unknown>).inputs as Record<string, unknown>;
+      archivedInputs.pack_artifact = legacyRef;
+      const legacyArchiveHash = payloadHash(archive);
+      writeFileSync(artifactFile, JSON.stringify(archive, null, 2), 'utf8');
+
+      // Crash after the legacy archive write, then the project moved: the
+      // prepared record still names the old absolute file:// path, while the
+      // current copy is only discoverable by pack_hash/archive_hash.
+      removeNodeFromStore(service, campaignId, nodeId);
+      stripCreateLogLines(service, campaignId, nodeId);
+      setNodesUsed(service, campaignId, 1);
+      const idem = loadIdem(service, campaignId);
+      const record = idem['node.import_generated:import-key-1']!;
+      record.state = 'prepared';
+      record.response.payload.pack_artifact_ref = legacyRef;
+      record.response.payload.archive_hash = legacyArchiveHash;
+      (record.response.payload.idempotency as Record<string, unknown>).is_replay = false;
+      writeFileSync(idemPath(service, campaignId), `${JSON.stringify(idem, null, 2)}\n`, 'utf8');
+
+      const retry = importPack(service, campaignId, pack);
+
+      expect((retry.idempotency as Record<string, unknown>).is_replay).toBe(true);
+      expect(importedNodeId(retry)).toBe(nodeId);
+      expect(retry.pack_artifact_ref).toBe(portableRef);
+      expect(String(retry.archive_hash)).not.toBe(legacyArchiveHash);
+
+      const nodes = service.node.store.loadNodes<Record<string, unknown>>(campaignId);
+      const nodeInputs = (nodes[nodeId]!.operator_trace as Record<string, unknown>).inputs as Record<string, unknown>;
+      expect(nodeInputs.pack_artifact).toBe(portableRef);
+      expect(Object.keys(nodes)).toHaveLength(2);
+
+      const logText = readFileSync(service.node.store.nodesLogPath(campaignId), 'utf8');
+      expect(logText).toContain(portableRef);
+      expect(logText).not.toContain(legacyRef);
+
+      const migratedArchive = JSON.parse(readFileSync(artifactFile, 'utf8')) as Record<string, unknown>;
+      const migratedNode = (((migratedArchive.engine_assembled as Record<string, unknown>).nodes as Record<string, Record<string, unknown>>)[nodeId])!;
+      const migratedInputs = (migratedNode.operator_trace as Record<string, unknown>).inputs as Record<string, unknown>;
+      expect(migratedInputs.pack_artifact).toBe(portableRef);
+      expect(payloadHash(migratedArchive)).toBe(retry.archive_hash);
+
+      const migratedIdem = loadIdem(service, campaignId)['node.import_generated:import-key-1']!;
+      expect(migratedIdem.state).toBe('committed');
+      expect(migratedIdem.response.payload.pack_artifact_ref).toBe(portableRef);
+      expect(migratedIdem.response.payload.archive_hash).toBe(retry.archive_hash);
     });
 
     it('completes missing log entries and usage when only the node landed', () => {
@@ -952,7 +1125,7 @@ describe('node.import_generated', () => {
       const campaignId = initCampaign(service);
       const result = importPack(service, campaignId, validPack(campaignId));
 
-      unlinkSync(artifactPathFromRef(String(result.pack_artifact_ref)));
+      unlinkSync(artifactPathFromRef(service, String(result.pack_artifact_ref)));
       reopenPrepared(service, campaignId, 'import-key-1');
 
       expectRpcError(
@@ -966,7 +1139,7 @@ describe('node.import_generated', () => {
       const service = freshService();
       const campaignId = initCampaign(service);
       const result = importPack(service, campaignId, validPack(campaignId));
-      const artifactFile = artifactPathFromRef(String(result.pack_artifact_ref));
+      const artifactFile = artifactPathFromRef(service, String(result.pack_artifact_ref));
       const archive = JSON.parse(readFileSync(artifactFile, 'utf8')) as Record<string, unknown>;
       ((archive.pack as Record<string, unknown>).trigger as Record<string, unknown>).kind = 'manual';
       writeFileSync(artifactFile, JSON.stringify(archive), 'utf8');
@@ -984,7 +1157,7 @@ describe('node.import_generated', () => {
       const campaignId = initCampaign(service);
       const result = importPack(service, campaignId, validPack(campaignId));
       const nodeId = importedNodeId(result);
-      const artifactFile = artifactPathFromRef(String(result.pack_artifact_ref));
+      const artifactFile = artifactPathFromRef(service, String(result.pack_artifact_ref));
       const archive = JSON.parse(readFileSync(artifactFile, 'utf8')) as Record<string, unknown>;
       const assembled = (archive.engine_assembled as Record<string, unknown>).nodes as Record<string, Record<string, unknown>>;
       assembled[nodeId]!.operator_id = 'tampered.v1'; // pack untouched; only the completion source is corrupted
@@ -1008,7 +1181,7 @@ describe('node.import_generated', () => {
       const campaignId = initCampaign(service);
       const result = importPack(service, campaignId, validPack(campaignId));
       const nodeId = importedNodeId(result);
-      const artifactFile = artifactPathFromRef(String(result.pack_artifact_ref));
+      const artifactFile = artifactPathFromRef(service, String(result.pack_artifact_ref));
       const archive = JSON.parse(readFileSync(artifactFile, 'utf8')) as Record<string, unknown>;
       delete ((archive.engine_assembled as Record<string, unknown>).nodes as Record<string, unknown>)[nodeId];
       writeFileSync(artifactFile, JSON.stringify(archive), 'utf8');

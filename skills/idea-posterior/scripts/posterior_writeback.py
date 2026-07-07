@@ -51,7 +51,7 @@ from urllib.parse import unquote
 REQUIRED_POSTERIOR_FIELDS = ("value", "evidence_count", "gaia_package_ref")
 
 # The package reference must be machine-portable AND pin the compiled graph
-# state: project://<project-relative path>#sha256:<hex>, resolved against
+# state: project://<project-relative path>#sha256:<64 lowercase hex>, resolved against
 # the enclosing project root (the nearest ancestor with .nullius/). Research
 # projects sync across machines, so machine-absolute forms (file:// URIs,
 # bare paths) are refused — they go stale the moment the project lands on
@@ -59,7 +59,7 @@ REQUIRED_POSTERIOR_FIELDS = ("value", "evidence_count", "gaia_package_ref")
 # The engine itself types gaia_package_ref as format "uri" (node.set_posterior
 # / idea_node_v1), which the project:// form satisfies. Full-string match;
 # the first path character must not be "/" (no absolute smuggling).
-REF_PIN_RE = re.compile(r"project://[^\s#/][^\s#]*#sha256:[0-9a-fA-F]{16,}$")
+REF_PIN_RE = re.compile(r"project://[^\s#/][^\s#]*#sha256:[0-9a-f]{64}$")
 
 
 def validate_posterior(posterior: dict) -> dict:
@@ -96,7 +96,7 @@ def validate_posterior(posterior: dict) -> dict:
     if not REF_PIN_RE.fullmatch(ref):
         raise ValueError(
             "gaia_package_ref must pin the compiled graph as "
-            f"project://<project-relative path>#sha256:<hex>, got {ref!r}. "
+            f"project://<project-relative path>#sha256:<64 lowercase hex>, got {ref!r}. "
             "Machine-absolute forms (file:// URIs, bare paths) are refused: "
             "research projects sync across machines and an absolute path "
             "goes stale there — re-extract with the current "
@@ -113,7 +113,7 @@ def validate_posterior(posterior: dict) -> dict:
 def split_package_ref(ref: str) -> tuple[str, str]:
     """Split a validated ref into (decoded relative path, pin fragment).
 
-    Rejects empty and ``..`` segments: the reference must stay INSIDE the
+    Rejects empty, ``.``, and ``..`` segments: the reference must stay INSIDE the
     project root it is resolved against.
     """
     body = ref[len("project://"):]
@@ -132,9 +132,9 @@ def split_package_ref(ref: str) -> tuple[str, str]:
         )
     rel = unquote(encoded_path)
     segments = rel.split("/")
-    if any(segment in ("", "..") for segment in segments):
+    if any(segment in ("", ".", "..") for segment in segments):
         raise ValueError(
-            f"gaia_package_ref path {rel!r} contains empty or '..' "
+            f"gaia_package_ref path {rel!r} contains empty, '.', or '..' "
             "segments; the reference must name a directory inside the "
             "project root"
         )

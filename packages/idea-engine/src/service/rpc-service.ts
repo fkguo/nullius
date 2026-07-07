@@ -7,8 +7,8 @@ export class IdeaEngineRpcService {
   readonly node: IdeaEngineNodeService;
   readonly write: IdeaEngineWriteService;
 
-  constructor(options: { contractDir?: string; createId?: () => string; now?: () => string; rootDir: string }) {
-    this.read = new IdeaEngineReadService({ rootDir: options.rootDir });
+  constructor(options: { contractDir?: string; createId?: () => string; now?: () => string; projectRoot?: string; rootDir: string }) {
+    this.read = new IdeaEngineReadService({ projectRoot: options.projectRoot, rootDir: options.rootDir });
     this.node = new IdeaEngineNodeService(options);
     this.write = new IdeaEngineWriteService(options);
   }

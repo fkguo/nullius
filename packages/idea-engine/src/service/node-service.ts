@@ -24,8 +24,8 @@ export class IdeaEngineNodeService {
   private readonly createId: () => string;
   private readonly now: () => string;
 
-  constructor(options: { contractDir?: string; createId?: () => string; now?: () => string; rootDir: string }) {
-    this.store = new IdeaEngineStore(options.rootDir);
+  constructor(options: { contractDir?: string; createId?: () => string; now?: () => string; projectRoot?: string; rootDir: string }) {
+    this.store = new IdeaEngineStore(options.rootDir, { projectRoot: options.projectRoot });
     this.contracts = new IdeaEngineContractCatalog(options.contractDir);
     this.now = options.now ?? utcNowIso;
     this.createId = options.createId ?? shortId;

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Thin command-line bridge into the idea-engine JSON-RPC service.
-// Reads one JSON object from stdin: { "method": string, "params": object, "store_root": string }.
+// Reads one JSON object from stdin:
+// { "method": string, "params": object, "store_root": string, "project_root"?: string }.
 // Writes the JSON-RPC response object to stdout. No business logic lives here;
 // this is the call path used by skill-layer tooling (e.g. the decision-layer
 // allocation script) to reach node.set_posterior / node.set_lifecycle /
@@ -54,7 +55,12 @@ if (typeof request.store_root !== 'string' || request.store_root.length === 0) {
   fail('request.store_root must be a non-empty string path');
 }
 
-const service = new IdeaEngineRpcService({ rootDir: resolve(request.store_root) });
+const service = new IdeaEngineRpcService({
+  projectRoot: typeof request.project_root === 'string' && request.project_root.length > 0
+    ? resolve(request.project_root)
+    : undefined,
+  rootDir: resolve(request.store_root),
+});
 const response = handleJsonRpcRequest(service, {
   jsonrpc: '2.0',
   id: randomUUID(),

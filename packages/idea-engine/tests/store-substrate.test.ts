@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, readdirSync, rmSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync } from 'fs';
 import { mkdtempSync } from 'fs';
 import { tmpdir } from 'os';
 import { join, resolve } from 'path';
@@ -110,6 +110,72 @@ describe('store substrate', () => {
     const outsideRef = pathToFileURL(fileURLToPath(new URL(import.meta.url))).href;
 
     expect(() => store.loadArtifactFromRef(outsideRef)).toThrow(/outside store root/);
+  });
+
+  it('rejects malformed or escaping project artifact refs', () => {
+    const projectRoot = mkdtempSync(join(tmpdir(), 'idea-engine-bad-project-ref-'));
+    tempDirs.push(projectRoot);
+    const store = new IdeaEngineStore(join(projectRoot, 'idea-store'));
+    const hash = `sha256:${'a'.repeat(64)}`;
+
+    for (const badRef of [
+      'project://idea-store/campaigns/stcmp001/artifacts/generation/pack-demo.json',
+      `project://idea-store/../outside.json#${hash}`,
+      `project://idea-store//campaigns/stcmp001#${hash}`,
+      `project://idea-store/%ZZ#${hash}`,
+      `project://idea-store/campaigns/stcmp001/artifacts/generation/pack-demo.json#sha256:${'A'.repeat(64)}`,
+      `project://ideas/gaia/demo#${hash}`,
+    ]) {
+      expect(() => store.artifactPathFromRef(badRef)).toThrow();
+    }
+  });
+
+  it('emits and resolves project-root-relative content-pinned artifact refs', () => {
+    const projectRoot = mkdtempSync(join(tmpdir(), 'idea-engine-project-'));
+    tempDirs.push(projectRoot);
+    const rootDir = join(projectRoot, 'idea-store');
+    const store = new IdeaEngineStore(rootDir);
+    const artifactPath = store.artifactPath('stcmp001', 'generation', 'pack-demo.json');
+    const artifactHash = `sha256:${'a'.repeat(64)}`;
+    store.writeArtifact('stcmp001', 'generation', 'pack-demo.json', { ok: true });
+
+    const portableRef = store.portableArtifactRef(artifactPath, artifactHash);
+
+    expect(portableRef).toBe(`project://idea-store/campaigns/stcmp001/artifacts/generation/pack-demo.json#${artifactHash}`);
+    expect(store.artifactHashFromRef(portableRef)).toBe(artifactHash);
+    expect(store.artifactPathFromRef(portableRef)).toBe(artifactPath);
+    expect(store.loadArtifactFromRef(portableRef)).toEqual({ ok: true });
+  });
+
+  it('discovers a managed project root by .nullius before falling back to idea-store parent', () => {
+    const projectRoot = mkdtempSync(join(tmpdir(), 'idea-engine-managed-project-'));
+    tempDirs.push(projectRoot);
+    const managedMarker = join(projectRoot, '.nullius');
+    const rootDir = join(projectRoot, 'data', 'idea-store');
+    const store = new IdeaEngineStore(rootDir);
+    const artifactHash = `sha256:${'b'.repeat(64)}`;
+
+    expect(existsSync(managedMarker)).toBe(false);
+    expect(store.projectRoot).toBe(join(projectRoot, 'data'));
+
+    rmSync(rootDir, { recursive: true, force: true });
+    const markerStore = new IdeaEngineStore(rootDir, { projectRoot });
+    markerStore.writeArtifact('stcmp001', 'generation', 'pack-demo.json', { ok: true });
+    const explicitRef = markerStore.portableArtifactRef(
+      markerStore.artifactPath('stcmp001', 'generation', 'pack-demo.json'),
+      artifactHash,
+    );
+    expect(explicitRef).toBe(`project://data/idea-store/campaigns/stcmp001/artifacts/generation/pack-demo.json#${artifactHash}`);
+
+    rmSync(rootDir, { recursive: true, force: true });
+    mkdirSync(managedMarker, { recursive: true });
+    const discoveredStore = new IdeaEngineStore(rootDir);
+    discoveredStore.writeArtifact('stcmp001', 'generation', 'pack-demo.json', { ok: true });
+    const discoveredRef = discoveredStore.portableArtifactRef(
+      discoveredStore.artifactPath('stcmp001', 'generation', 'pack-demo.json'),
+      artifactHash,
+    );
+    expect(discoveredRef).toBe(explicitRef);
   });
 
   it('rejects missing artifact refs inside the store root', () => {

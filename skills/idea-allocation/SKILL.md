@@ -44,9 +44,13 @@ which is this skill. Concretely:
 
 ## Input: the campaign store snapshot
 
-Both scripts read `nodes_latest.json` from the campaign store (a top-level
-object with `campaign_id` and `nodes`; `nodes` may be a list or a mapping
-from node id to node). Per node, the pinned fields are:
+Both scripts read the engine's real `nodes_latest.json` directly. The current
+store shape is a top-level mapping from node id to node object. A standalone
+wrapper object with `campaign_id` and `nodes` is also accepted for fixtures and
+exports, where `nodes` may be a list or a mapping from node id to node. For the
+native engine map, provide `--campaign-id` or use the standard path
+`.../campaigns/<campaign_id>/nodes_latest.json`, from which the scripts infer
+the campaign id. Per node, the pinned fields are:
 
 | field | meaning |
 | --- | --- |
@@ -93,7 +97,7 @@ pseudo-count on each side. Why this is the right shape:
 
 ```
 python skills/idea-allocation/scripts/thompson_allocation.py \
-  --nodes /path/to/campaign-store/nodes_latest.json \
+  --nodes /path/to/idea-store/campaigns/<campaign_id>/nodes_latest.json \
   --seed 42 --deep-slots 2 --recon-slots 3
 ```
 

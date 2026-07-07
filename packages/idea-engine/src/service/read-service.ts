@@ -16,8 +16,8 @@ interface CampaignRecord extends Record<string, unknown> {
 export class IdeaEngineReadService {
   readonly store: IdeaEngineStore;
 
-  constructor(options: { rootDir: string }) {
-    this.store = new IdeaEngineStore(options.rootDir);
+  constructor(options: { projectRoot?: string; rootDir: string }) {
+    this.store = new IdeaEngineStore(options.rootDir, { projectRoot: options.projectRoot });
   }
 
   handle(method: string, params: unknown): Record<string, unknown> {

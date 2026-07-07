@@ -444,7 +444,9 @@ The scripts above produce the machine artifacts; the human-facing summary is
 `posterior_report_v1.md` in the idea's artifact directory. Its job is to make
 the posterior *auditable at a glance*: it states the admission verdict and
 route, each sub-criterion's grade and its anchor, and the final posterior with
-its `gaia_package_ref`. When the render step produced one, it also links the
+its `gaia_package_ref`. Display the posterior value rounded to three decimals
+for humans, while the exact machine value remains in JSON artifacts and the
+idea-store snapshot. When the render step produced one, it also links the
 viewable argument graph (`starmap.html`) so a reader can open the graph the
 posterior came from.
 
@@ -455,12 +457,22 @@ earns its place only if a reader can reach it in one click:
   written as a Markdown link to that URI — carried through verbatim from the
   grounding report's `evidence_uris`, never downgraded to a plain identifier
   string.
-- An artifact reference (a `*_v1.json` / `*_v1.md` sibling) is written as a
-  relative Markdown link to the file. The posterior's `gaia_package_ref` keeps
-  its `#sha256:` pin intact — the pin is what ties the reference to the exact
-  compiled graph — and its `project://` path is resolved against the project
-  root and linked as a relative path, so the link survives the project
-  syncing to another machine.
+- Repo-local artifact links are written as project-root-relative Markdown
+  links, never as absolute local paths, `file://` URLs, or document-relative
+  `../..` paths. Examples: `ideas/gaia/<slug>-gaia/starmap.html` and
+  `artifacts/<campaign>/<artifact>.json`. The posterior's `gaia_package_ref`
+  keeps its `#sha256:` pin intact — the pin is what ties the reference to the
+  exact compiled graph — and its `project://` path is resolved against the
+  project root before linking.
+- Before committing or sharing a Codex-readable report, normalize the
+  human-facing posterior display and repo-local links with:
+
+  ```bash
+  python3 skills/idea-posterior/scripts/normalize_report_posteriors.py \
+    <report.md>
+  python3 skills/idea-posterior/scripts/normalize_report_links.py \
+    --project-root <project_root> <report.md>
+  ```
 - The `anchor: <...>` notes echoed into the report follow the same rule: a
   resolvable reference inside an anchor note is a link.
 

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "import_generated_result_v1.schema.json",
   "title": "ImportGeneratedResult v1",
-  "description": "Result of node.import_generated. imported lists the engine-minted ids in candidate order; pack_artifact_ref points at the archived pack (verbatim pack + the engine-assembled nodes), and pack_hash pins the pack content (sha256 over its canonical JSON). These recorded values are also the crash-recovery probe data: a retried import commits only when every recorded node exists with a value-equal immutable projection, the pack artifact matches pack_hash, the node log carries one create entry per node, and campaign usage is consistent.",
+  "description": "Result of node.import_generated. imported lists the engine-minted ids in candidate order; pack_artifact_ref is a project-root-relative project:// reference to the archived pack artifact, with its #sha256 fragment equal to pack_hash. pack_hash pins the pack content (sha256 over its canonical JSON) and is retained as the derived read-time check value; archive_hash pins the full archive. These recorded values are also the crash-recovery probe data: a retried import commits only when every recorded node exists with a value-equal immutable projection, the pack artifact resolves and matches pack_hash, the node log carries one create entry per node, and campaign usage is consistent.",
   "type": "object",
   "required": [
     "campaign_id",
@@ -54,7 +54,9 @@
     },
     "pack_artifact_ref": {
       "type": "string",
-      "format": "uri"
+      "format": "uri",
+      "pattern": "^project://[^/#][^#]*#sha256:[a-f0-9]{64}$",
+      "description": "Portable project://<project-relative artifact path>#sha256:<pack_hash> reference to the archived generation pack artifact."
     },
     "pack_hash": {
       "type": "string",

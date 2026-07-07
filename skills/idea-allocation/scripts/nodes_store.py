@@ -5,12 +5,22 @@ Standard library only. This module owns the PINNED read-side interface to the
 campaign store (agreed with the campaign-store side; integration is re-checked
 at closeout):
 
-``nodes_latest.json`` is a JSON object::
+``nodes_latest.json`` is either the engine's native top-level node map::
+
+    {
+      "<node_id>": {...},
+      ...
+    }
+
+or an explicit wrapper used by standalone fixtures::
 
     {
       "campaign_id": "<short id>",        # optional if supplied on the CLI
       "nodes": [ {...}, ... ]             # list, or mapping node_id -> node
     }
+
+For the native map form, the campaign id is supplied on the CLI or inferred
+from the standard engine path ``.../campaigns/<campaign_id>/nodes_latest.json``.
 
 ``campaign_id`` and every ``node_id`` are engine short ids: 8 characters of
 lowercase Crockford base32 (see ``SHORT_ID_ALPHABET`` below), the handle-id
@@ -44,6 +54,7 @@ import json
 import re
 import uuid
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 LIFECYCLE_STATES = ("active", "waiting_activation", "archived")
@@ -221,6 +232,16 @@ def _normalize_nodes(raw_nodes: Any, problems: List[str]) -> List[Dict[str, Any]
     return nodes
 
 
+def _infer_campaign_id_from_path(path: str) -> Optional[str]:
+    node_path = Path(path)
+    if node_path.name != "nodes_latest.json":
+        return None
+    candidate = node_path.parent.name
+    if node_path.parent.parent.name != "campaigns":
+        return None
+    return candidate if is_short_id_text(candidate) else None
+
+
 def load_nodes_file(
     path: str, cli_campaign_id: Optional[str] = None
 ) -> Tuple[str, List[Dict[str, Any]]]:
@@ -240,7 +261,10 @@ def load_nodes_file(
     if not isinstance(payload, dict):
         raise StoreError([f"nodes file top level must be an object, got {type(payload).__name__}"])
 
-    file_campaign_id = payload.get("campaign_id")
+    wrapper_shape = "nodes" in payload
+    raw_nodes = payload["nodes"] if wrapper_shape else payload
+    file_campaign_id = payload.get("campaign_id") if wrapper_shape else None
+    inferred_campaign_id = _infer_campaign_id_from_path(path)
     campaign_id: Optional[str] = None
     if file_campaign_id is not None and not is_short_id_text(file_campaign_id):
         problems.append(
@@ -254,6 +278,16 @@ def load_nodes_file(
             f"({SHORT_ID_RE.pattern}), got {cli_campaign_id!r}"
         )
         cli_campaign_id = None
+    if inferred_campaign_id is not None and cli_campaign_id is not None and inferred_campaign_id != cli_campaign_id:
+        problems.append(
+            f"campaign_id mismatch: path implies {inferred_campaign_id!r}, "
+            f"--campaign-id gave {cli_campaign_id!r}"
+        )
+    if file_campaign_id is not None and inferred_campaign_id is not None and file_campaign_id != inferred_campaign_id:
+        problems.append(
+            f"campaign_id mismatch: file has {file_campaign_id!r}, "
+            f"path implies {inferred_campaign_id!r}"
+        )
     if file_campaign_id is not None and cli_campaign_id is not None:
         if file_campaign_id != cli_campaign_id:
             problems.append(
@@ -262,15 +296,14 @@ def load_nodes_file(
             )
         campaign_id = file_campaign_id
     else:
-        campaign_id = file_campaign_id or cli_campaign_id
+        campaign_id = file_campaign_id or cli_campaign_id or inferred_campaign_id
     if campaign_id is None:
-        problems.append("campaign_id missing: provide it in the file or via --campaign-id")
+        problems.append(
+            "campaign_id missing: provide it in the file, via --campaign-id, "
+            "or use .../campaigns/<campaign_id>/nodes_latest.json"
+        )
 
-    if "nodes" not in payload:
-        problems.append("'nodes' key missing from nodes file")
-        raise StoreError(problems)
-
-    nodes = _normalize_nodes(payload["nodes"], problems)
+    nodes = _normalize_nodes(raw_nodes, problems)
 
     seen_ids: set = set()
     for node in nodes:

@@ -201,13 +201,18 @@ see it.
    ```bash
    python3 skills/idea-generation/scripts/submit_pack.py \
      --pack pack.json --campaign-id <campaign_id> \
-     --store-root <store_root> \
+     --store-root <store_root> --project-root <project_root> \
      --idea-rpc <repo>/packages/idea-engine/bin/idea-rpc.mjs
    ```
 
    The engine validates everything again (it is the authority), mints ids,
-   assembles cards, archives the pack verbatim as a campaign artifact, and
-   enforces the campaign's `max_nodes` budget batch-atomically.
+   assembles cards, archives the pack as a campaign artifact, records the
+   generation provenance as a single `project://...#sha256:<pack_hash>` pack
+   reference, and enforces the campaign's `max_nodes` budget batch-atomically.
+   The `--project-root` flag is optional when the store root is the project's
+   `idea-store/`, but pass it explicitly in standalone test projects. Retrying
+   an older import through this script also refreshes legacy `file://` pack
+   refs after validating the archived pack and its recorded hash.
 7. **Hand off to evaluation.** Imported nodes enter `idea-posterior`'s
    admission gate like any seed (their `target_admission_route` is a triage
    hint, not authority). Nodes that fail admission are archived with their

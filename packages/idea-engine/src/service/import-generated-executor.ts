@@ -1,6 +1,5 @@
 import { createHash } from 'crypto';
 import { existsSync } from 'fs';
-import { pathToFileURL } from 'url';
 import type { IdeaEngineContractCatalog } from '../contracts/catalog.js';
 import type { IdeaEngineStore } from '../store/engine-store.js';
 import { payloadHash } from '../hash/payload-hash.js';
@@ -11,7 +10,7 @@ import { ensureCampaignRunning, loadCampaignOrError, setCampaignRunningIfBudgetA
 import { nodeLifecycleState, PLACEHOLDER_EVIDENCE_URI } from './node-shared.js';
 import { drawUniqueId } from './seed-node.js';
 import { buildGeneratedNode, type GeneratedCandidate } from './generated-node.js';
-import { IMPORT_ARTIFACT_TYPE, IMPORT_GENERATED_METHOD } from './import-generated-recovery.js';
+import { IMPORT_ARTIFACT_TYPE, IMPORT_GENERATED_METHOD, refreshImportGeneratedReplay } from './import-generated-recovery.js';
 import { toSchemaError } from './service-contract-error.js';
 
 /**
@@ -462,7 +461,7 @@ export function executeImportGenerated(options: {
       if (replay.kind === 'error') {
         throw new RpcError(-32603, 'internal_error', replay.payload);
       }
-      return replay.payload;
+      return refreshImportGeneratedReplay(options.store, idempotencyKeyValue, replay.payload);
     }
 
     if (String(pack.campaign_id) !== campaignId) {
@@ -609,10 +608,11 @@ export function executeImportGenerated(options: {
       || existsSync(options.store.artifactPath(campaignId, IMPORT_ARTIFACT_TYPE, `pack-${id}.json`)));
     usedHandleIds.add(packId);
     const packArtifactName = `pack-${packId}.json`;
-    const packArtifactRef = pathToFileURL(
-      options.store.artifactPath(campaignId, IMPORT_ARTIFACT_TYPE, packArtifactName),
-    ).href;
     const packHash = payloadHash(pack);
+    const packArtifactRef = options.store.portableArtifactRef(
+      options.store.artifactPath(campaignId, IMPORT_ARTIFACT_TYPE, packArtifactName),
+      packHash,
+    );
 
     const assembledNodes: Record<string, Record<string, unknown>> = {};
     const imported: Array<Record<string, unknown>> = [];

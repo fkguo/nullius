@@ -174,6 +174,7 @@ def test_validate_posterior_requires_pinned_ref() -> None:
     for bad_ref in (
         "project://example-idea-gaia",  # no hash at all
         "project://example-idea-gaia#sha256:abc123",  # hash too short
+        "project://example-idea-gaia#sha256:" + "A" * 64,  # uppercase not canonical
         "project://example-idea-gaia#md5:" + "a" * 32,  # wrong algorithm tag
         "project:///#sha256:" + "a" * 64,  # absolute path smuggled in
         # Machine-absolute forms are refused outright: synced projects land
@@ -193,6 +194,7 @@ def test_validate_posterior_rejects_path_escapes() -> None:
     for bad_ref in (
         f"project://../outside-gaia#{PIN}",
         f"project://a/../../outside-gaia#{PIN}",
+        f"project://a/./outside-gaia#{PIN}",
         f"project://a//b#{PIN}",
     ):
         with pytest.raises(ValueError, match="segments"):

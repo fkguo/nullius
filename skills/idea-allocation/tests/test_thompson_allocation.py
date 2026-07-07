@@ -349,6 +349,60 @@ def test_mapping_form_of_nodes_accepted(tmp_path):
     }
 
 
+def test_engine_top_level_node_map_accepted_with_campaign_id_inferred(tmp_path):
+    campaign_dir = tmp_path / "idea-store" / "campaigns" / CAMPAIGN_ID
+    campaign_dir.mkdir(parents=True)
+    path = campaign_dir / "nodes_latest.json"
+    path.write_text(
+        json.dumps(
+            {
+                "a1pha000": active_node("a1pha000", 0.6, 10),
+                "beta0000": {"lifecycle_state": "active"},
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    campaign_id, nodes = nodes_store.load_nodes_file(str(path))
+
+    assert campaign_id == CAMPAIGN_ID
+    assert [node["node_id"] for node in nodes] == ["a1pha000", "beta0000"]
+    decision = ta.build_decision(
+        campaign_id, nodes, seed=3, deep_slots=1, recon_slots=0,
+        generated_at="2026-07-05T00:00:00Z",
+    )
+    allocations = {e["node_id"]: e["allocation"] for e in decision["candidates"]}
+    assert allocations == {
+        "a1pha000": "deep_investment",
+        "beta0000": "reconnaissance",
+    }
+
+
+def test_cli_reads_engine_top_level_node_map_directly(tmp_path):
+    campaign_dir = tmp_path / "project" / "idea-store" / "campaigns" / CAMPAIGN_ID
+    campaign_dir.mkdir(parents=True)
+    path = campaign_dir / "nodes_latest.json"
+    path.write_text(
+        json.dumps({"a1pha000": active_node("a1pha000", 0.6, 10)}, indent=2),
+        encoding="utf-8",
+    )
+
+    result = run_cli(
+        [
+            "--nodes", str(path),
+            "--seed", "42",
+            "--deep-slots", "1",
+            "--recon-slots", "0",
+            "--dry-run",
+        ],
+        cwd=tmp_path,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "a1pha000" in result.stdout
+
+
 # ---------------------------------------------------------------------------
 # Engine id convention (8-char short ids)
 # ---------------------------------------------------------------------------
