@@ -274,16 +274,38 @@ def test_parent_package_import_of_dotted_kernel_is_flagged(tmp_path: Path):
 
 
 def test_dotted_kernel_sibling_file_include_passes(tmp_path: Path):
-    # include(".../shared_utils/kernel_extra.jl") must NOT match the declared
-    # kernel shared_utils.kernel (path-segment boundary on the slash form).
+    # Sibling artifacts and enclosing segments must NOT match the declared
+    # dotted kernel's path spelling (true path-segment boundaries):
+    #   shared_utils/kernel_extra.jl, shared_utils/kernel-extra.jl,
+    #   shared_utils/kernel.extra.jl, my-shared_utils/kernel.jl
     proj = _make_project(tmp_path, kernel_modules=["shared_utils.kernel"])
-    _write(proj / "shared_utils" / "kernel_extra.jl", "const HELPER = 1\n")
-    rel_a = os.path.relpath(proj / "shared_utils" / "kernel_extra.jl", _member_dir(proj, "member_a"))
-    ev_a = _seed_member(proj, "member_a", {"repro_a.jl": f'include("{rel_a}")\n'})
+    siblings = [
+        proj / "shared_utils" / "kernel_extra.jl",
+        proj / "shared_utils" / "kernel-extra.jl",
+        proj / "shared_utils" / "kernel.extra.jl",
+        proj / "my-shared_utils" / "kernel.jl",
+    ]
+    for s in siblings:
+        _write(s, "const HELPER = 1\n")
+    ind_a = _member_dir(proj, "member_a")
+    lines = "".join(f'include("{os.path.relpath(s, ind_a)}")\n' for s in siblings)
+    ev_a = _seed_member(proj, "member_a", {"repro_a.jl": lines})
     ev_b = _seed_member(proj, "member_b", {"repro_b.jl": "println(1)\n"})
     proc, payload = _run_gate(proj, ev_a, ev_b)
     assert proc.returncode == 0, proc.stderr
     assert payload is not None and payload["status"] == "converged"
+
+
+def test_dotted_kernel_path_spelling_in_c_include_is_flagged(tmp_path: Path):
+    # The slash spelling must still MATCH the real kernel path in languages
+    # without structured include extraction (e.g. C).
+    proj = _make_project(tmp_path, kernel_modules=["shared_utils.kernel"])
+    ev_a = _seed_member(proj, "member_a", {"repro_a.c": '#include "../shared_utils/kernel.h"\n'})
+    ev_b = _seed_member(proj, "member_b", {"repro_b.c": "int main(void) { return 0; }\n"})
+    proc, payload = _run_gate(proj, ev_a, ev_b)
+    assert proc.returncode == 1
+    assert payload is not None
+    assert any("SHARED_KERNEL_INHERITANCE" in r for r in payload["reasons"])
 
 
 def test_oversized_source_with_declared_kernel_is_unverifiable(tmp_path: Path):

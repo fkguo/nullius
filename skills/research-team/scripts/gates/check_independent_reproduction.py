@@ -421,9 +421,17 @@ def _kernel_line_regex(kernel: str) -> re.Pattern[str]:
     alts = [rf"\b{re.escape(kernel)}\b"]
     if "." in kernel:
         # A dotted kernel also appears in path spelling inside load statements
-        # (include(".../pkg/kernel.jl")). Boundary both ends on word chars so a
-        # SIBLING file (pkg/kernel_extra.jl, pkg/kernel2.jl) never matches.
-        alts.append(rf"(?<![\w]){re.escape(kernel.replace('.', '/'))}(?![\w])")
+        # (include(".../pkg/kernel.jl")). Require TRUE path-segment boundaries:
+        # the first segment must start right after a delimiter (slash, quote,
+        # whitespace, bracket, start), and the last segment may carry at most
+        # one final extension before a delimiter/end — so a SIBLING artifact
+        # (pkg/kernel_extra.jl, pkg/kernel-extra.jl, pkg/kernel2.jl,
+        # pkg/kernel.extra.jl) or an enclosing segment (my-pkg/kernel.jl for
+        # kernel "pkg.kernel") never matches.
+        seg = "/".join(re.escape(part) for part in kernel.split("."))
+        alts.append(
+            rf"(?<![^\s\"'(=,;:<\[/]){seg}(?:\.[A-Za-z0-9]{{1,8}})?(?![^\s\"'),;:\]/])"
+        )
     return re.compile("|".join(alts))
 
 
