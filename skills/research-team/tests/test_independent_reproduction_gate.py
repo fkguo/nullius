@@ -261,6 +261,31 @@ def test_dotted_declared_kernel_include_under_allowlisted_root_is_flagged(tmp_pa
     assert payload["report_status"]["member_b"]["independence"] == "not_independent"
 
 
+def test_parent_package_import_of_dotted_kernel_is_flagged(tmp_path: Path):
+    # Importing the PACKAGE that contains the declared kernel is a
+    # call-through risk (its __init__ may load the kernel): fail-closed.
+    proj = _make_project(tmp_path, kernel_modules=["shared_utils.kernel"])
+    ev_a = _seed_member(proj, "member_a", {"repro_a.py": "import shared_utils\n"})
+    ev_b = _seed_member(proj, "member_b", {"repro_b.py": "import math\n"})
+    proc, payload = _run_gate(proj, ev_a, ev_b)
+    assert proc.returncode == 1
+    assert payload is not None
+    assert any("SHARED_KERNEL_INHERITANCE" in r for r in payload["reasons"])
+
+
+def test_dotted_kernel_sibling_file_include_passes(tmp_path: Path):
+    # include(".../shared_utils/kernel_extra.jl") must NOT match the declared
+    # kernel shared_utils.kernel (path-segment boundary on the slash form).
+    proj = _make_project(tmp_path, kernel_modules=["shared_utils.kernel"])
+    _write(proj / "shared_utils" / "kernel_extra.jl", "const HELPER = 1\n")
+    rel_a = os.path.relpath(proj / "shared_utils" / "kernel_extra.jl", _member_dir(proj, "member_a"))
+    ev_a = _seed_member(proj, "member_a", {"repro_a.jl": f'include("{rel_a}")\n'})
+    ev_b = _seed_member(proj, "member_b", {"repro_b.jl": "println(1)\n"})
+    proc, payload = _run_gate(proj, ev_a, ev_b)
+    assert proc.returncode == 0, proc.stderr
+    assert payload is not None and payload["status"] == "converged"
+
+
 def test_oversized_source_with_declared_kernel_is_unverifiable(tmp_path: Path):
     proj = _make_project(tmp_path, kernel_modules=["mykernel"])
     big = "# pad\n" * 400_000  # > 2 MB: the scan must refuse to certify it
@@ -270,6 +295,9 @@ def test_oversized_source_with_declared_kernel_is_unverifiable(tmp_path: Path):
     assert proc.returncode == 1
     assert payload is not None
     assert any("UNVERIFIABLE_INDEPENDENCE" in r for r in payload["reasons"])
+    # The only-source-is-oversized member gets ONE unverifiable reason, not a
+    # misleading extra "no reproduction sources were found".
+    assert sum("UNVERIFIABLE_INDEPENDENCE" in r for r in payload["reasons"]) == 1
 
 
 def test_oversized_source_without_kernels_passes_with_scan_note(tmp_path: Path):
@@ -320,6 +348,33 @@ def test_shared_aliased_multi_import_is_flagged(tmp_path: Path):
     proj = _make_project(tmp_path)
     _write(proj / "src" / "litekernel.py", "def solve():\n    return 42\n")
     ev_a = _seed_member(proj, "member_a", {"repro_a.py": "import numpy as np, litekernel as lk\n"})
+    ev_b = _seed_member(proj, "member_b", {"repro_b.py": "import litekernel\n"})
+    proc, payload = _run_gate(proj, ev_a, ev_b)
+    assert proc.returncode == 1
+    assert payload is not None
+    assert any("SHARED_KERNEL_INHERITANCE" in r and "litekernel" in r for r in payload["reasons"])
+
+
+def test_shared_namespace_package_dotted_import_is_flagged(tmp_path: Path):
+    # src/pkg/kernel.py WITHOUT src/pkg/__init__.py (namespace package): the
+    # dotted import must still resolve through its path spelling.
+    proj = _make_project(tmp_path)
+    _write(proj / "src" / "pkg" / "kernel.py", "def solve():\n    return 42\n")
+    ev_a = _seed_member(proj, "member_a", {"repro_a.py": "import pkg.kernel\n"})
+    ev_b = _seed_member(proj, "member_b", {"repro_b.py": "from pkg import kernel\n"})
+    proc, payload = _run_gate(proj, ev_a, ev_b)
+    assert proc.returncode == 1
+    assert payload is not None
+    assert any("SHARED_KERNEL_INHERITANCE" in r and "pkg.kernel" in r for r in payload["reasons"])
+
+
+def test_aliased_multi_import_in_unparseable_python_still_recorded(tmp_path: Path):
+    # The regex fallback (syntax-broken file) must not drop names after an
+    # alias: `import numpy as np, litekernel as lk` records litekernel too.
+    proj = _make_project(tmp_path)
+    _write(proj / "src" / "litekernel.py", "def solve():\n    return 42\n")
+    broken = "import numpy as np, litekernel as lk\ndef broken(:\n"
+    ev_a = _seed_member(proj, "member_a", {"repro_a.py": broken})
     ev_b = _seed_member(proj, "member_b", {"repro_b.py": "import litekernel\n"})
     proc, payload = _run_gate(proj, ev_a, ev_b)
     assert proc.returncode == 1
@@ -506,7 +561,7 @@ def test_bad_evidence_json_is_parse_error(tmp_path: Path):
     assert payload["status"] == "parse_error"
 
 
-def test_emitter_fallback_rewrites_invalid_payload(capsys):
+def _import_gate_module():
     import importlib.util
 
     spec = importlib.util.spec_from_file_location("cir_gate_under_test", GATE)
@@ -517,6 +572,35 @@ def test_emitter_fallback_rewrites_invalid_payload(capsys):
         spec.loader.exec_module(gate_mod)
     finally:
         sys.modules.pop("cir_gate_under_test", None)
+    return gate_mod
+
+
+def test_unexpected_crash_emits_parse_error_verdict(tmp_path: Path, capsys, monkeypatch):
+    # An unforeseen crash inside evaluation must still leave a machine
+    # verdict (parse_error / exit 2), never a bare traceback.
+    gate_mod = _import_gate_module()
+
+    def _boom(args, base_meta, _input_error):
+        raise RuntimeError("synthetic crash")
+
+    monkeypatch.setattr(gate_mod, "_run", _boom)
+    monkeypatch.setattr(
+        sys, "argv",
+        ["check_independent_reproduction.py", "--notes", str(tmp_path / "notes.md"),
+         "--tag", TAG, "--member-a", str(tmp_path / "a.json"), "--member-b", str(tmp_path / "b.json")],
+    )
+    rc = gate_mod.main()
+    assert rc == 2
+    out, err = capsys.readouterr()
+    payload = json.loads(out.strip())
+    _assert_valid(payload)
+    assert payload["status"] == "parse_error"
+    assert any("unexpected gate error" in r and "synthetic crash" in r for r in payload["reasons"])
+    assert "unexpected gate error" in err
+
+
+def test_emitter_fallback_rewrites_invalid_payload(capsys):
+    gate_mod = _import_gate_module()
 
     # status/exit_code cross-field mismatch must be rewritten to parse_error/2,
     # never emitted as-is.

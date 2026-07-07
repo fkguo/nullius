@@ -95,7 +95,9 @@ _SLASH_COMMENT_EXTS = {".c", ".cc", ".cpp", ".h", ".hpp", ".rs", ".go", ".js", "
 _MAX_SOURCE_BYTES = 2_000_000
 _MAX_SOURCES_PER_MEMBER = 500
 
-_PY_IMPORT_RE = re.compile(r"^\s*import\s+([A-Za-z_][\w.]*(?:\s*,\s*[A-Za-z_][\w.]*)*)")
+_PY_IMPORT_RE = re.compile(
+    r"^\s*import\s+([A-Za-z_][\w.]*(?:\s+as\s+\w+)?(?:\s*,\s*[A-Za-z_][\w.]*(?:\s+as\s+\w+)?)*)"
+)
 _PY_FROM_RE = re.compile(r"^\s*from\s+(\.*)([A-Za-z_][\w.]*)?\s+import\b")
 _JL_USING_RE = re.compile(r"^\s*(?:using|import)\s+([^#]+)")
 _JL_INCLUDE_RE = re.compile(r"""\bincludet?\(\s*["']([^"']+)["']\s*\)""")
@@ -419,8 +421,9 @@ def _kernel_line_regex(kernel: str) -> re.Pattern[str]:
     alts = [rf"\b{re.escape(kernel)}\b"]
     if "." in kernel:
         # A dotted kernel also appears in path spelling inside load statements
-        # (include(".../pkg/kernel.jl")).
-        alts.append(re.escape(kernel.replace(".", "/")))
+        # (include(".../pkg/kernel.jl")). Boundary both ends on word chars so a
+        # SIBLING file (pkg/kernel_extra.jl, pkg/kernel2.jl) never matches.
+        alts.append(rf"(?<![\w]){re.escape(kernel.replace('.', '/'))}(?![\w])")
     return re.compile("|".join(alts))
 
 
@@ -470,23 +473,26 @@ def _resolve_project_module(name: str, project_root: Path) -> Path | None:
     root, src/ layout, package manifests at root or one level down). An
     unrelated basename collision deep in the tree (e.g. docs/numpy.py) is
     NOT importable by that name and must not flag a shared third-party
-    import."""
+    import. A dotted name resolves through its path spelling (pkg.kernel ->
+    pkg/kernel.py), which also covers Python namespace packages that have no
+    __init__.py at the top level."""
+    rel = name.replace(".", "/")
     candidates = (
-        f"{name}.py",
-        f"{name}/__init__.py",
-        f"src/{name}.py",
-        f"src/{name}/__init__.py",
-        f"{name}.jl",
-        f"src/{name}.jl",
-        f"{name}/src/{name}.jl",
-        f"{name}.R",
-        f"{name}.r",
-        f"src/{name}.R",
-        f"{name}.m",
-        f"{name}.wl",
-        f"{name}.wls",
-        f"src/{name}.m",
-        f"src/{name}.wl",
+        f"{rel}.py",
+        f"{rel}/__init__.py",
+        f"src/{rel}.py",
+        f"src/{rel}/__init__.py",
+        f"{rel}.jl",
+        f"src/{rel}.jl",
+        f"{rel}/src/{rel}.jl",
+        f"{rel}.R",
+        f"{rel}.r",
+        f"src/{rel}.R",
+        f"{rel}.m",
+        f"{rel}.wl",
+        f"{rel}.wls",
+        f"src/{rel}.m",
+        f"src/{rel}.wl",
     )
     for rel in candidates:
         p = project_root / rel
@@ -514,7 +520,8 @@ def _resolve_project_module(name: str, project_root: Path) -> Path | None:
 
 def _member_shadows(ms: MemberSources, name: str) -> bool:
     """True when the member's own independent/ dir carries a module of this name."""
-    for rel in (f"{name}.py", f"{name}/__init__.py", f"{name}.jl"):
+    base = name.replace(".", "/")
+    for rel in (f"{base}.py", f"{base}/__init__.py", f"{base}.jl"):
         if (ms.root / rel).is_file():
             return True
     return False
@@ -529,21 +536,32 @@ def _scan_shared_kernel(
     """K2 + K3: both reproduction paths inherit the same project-local kernel."""
     issues: list[Issue] = []
 
-    shared_names = sorted(set(ms_a.modules) & set(ms_b.modules))
-    for name in shared_names:
-        if name in allowed_roots:
+    # Shared module names: top-level names PLUS full dotted names — a dotted
+    # import into a Python namespace package (src/pkg/kernel.py with no
+    # __init__.py) resolves only through its full path spelling.
+    flagged: set[str] = set()
+    shared_top = sorted(set(ms_a.modules) & set(ms_b.modules))
+    shared_full = sorted(set(ms_a.modules_full) & set(ms_b.modules_full))
+    for name in [*shared_top, *(n for n in shared_full if "." in n)]:
+        top = name.split(".", 1)[0]
+        if top in allowed_roots:
+            continue
+        if top in flagged or name in flagged:
             continue
         if _member_shadows(ms_a, name) or _member_shadows(ms_b, name):
             continue
         target = _resolve_project_module(name, project_root)
         if target is None:
             continue
+        flagged.add(name)
+        where_a = ms_a.modules.get(name) or ms_a.modules_full.get(name, "?")
+        where_b = ms_b.modules.get(name) or ms_b.modules_full.get(name, "?")
         rel = target.relative_to(project_root) if target.is_relative_to(project_root) else target
         issues.append(
             Issue(
                 "member_a+member_b",
                 f"SHARED_KERNEL_INHERITANCE: both reproduction paths import project-local module '{name}' "
-                f"(resolves to {rel}; member_a at {ms_a.modules[name]}, member_b at {ms_b.modules[name]}) — "
+                f"(resolves to {rel}; member_a at {where_a}, member_b at {where_b}) — "
                 "agreement between copies of one kernel is not an independent confirmation",
             )
         )
@@ -704,7 +722,7 @@ def _run(args: argparse.Namespace, base_meta: dict[str, Any], _input_error: Any)
     scan_notes: list[str] = []
     for member in MEMBERS:
         issues.extend(_scan_declared_kernels(ms[member], kernels))
-        if kernels and not ms[member].files:
+        if kernels and not ms[member].files and not ms[member].skipped:
             issues.append(
                 Issue(
                     member,
