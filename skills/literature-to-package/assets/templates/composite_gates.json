@@ -1,0 +1,8 @@
+{
+  "schema_id": "composite_gates_v1",
+  "gates": {
+    "derivation": "gates/derivation_verify_output.json",
+    "numerical_reliability": "gates/reliability_matrix.json",
+    "performance": "gates/performance_verdict.json"
+  }
+}
