@@ -62,6 +62,7 @@ const GATE_LABELS = [
   'EXPORT_DOC_UNANCHORED',
   'EXPORT_TEST_UNANCHORED',
   'EXPORT_NOT_IN_SOURCE',
+  'EXPORT_NOT_IN_LEDGER',
   'PORT_CLAIMED_INDEPENDENT',
   'INSUFFICIENT_INDEPENDENT_IMPLEMENTATIONS',
   'IMPLEMENTATION_COUPLING',
@@ -161,10 +162,38 @@ requireAll(TESTS_FILE, testsText, [
   'def test_reference_check_zero_errors_unanchored',
   'def test_reference_check_no_errors_at_all_unanchored',
   'def test_composite_gates_row_verdicts_recomputed',
+  'def test_composite_gates_unversioned_matrix_rejected',
   'def test_reimplementation_json_pass_with_blockers_not_approved',
+  'def test_reimplementation_bare_verdict_line_is_not_a_review',
+  'def test_skeleton_comment_mention_cannot_fake_export_leg',
   'def test_wrong_schema_id_is_input_error',
   'def test_unwritable_out_json_keeps_single_stdout_verdict',
 ], 'load-bearing test assertion');
+
+// 5. Mirror sync: the review-verdict format this gate accepts is MIRRORED from
+// the review-swarm output contract. If review-swarm's required headers evolve,
+// this lock fails until the mirror in check_phase.py is updated too.
+const REVIEW_CONTRACT_FILE = 'skills/review-swarm/scripts/bin/review_contract.py';
+const reviewContractText = read(REVIEW_CONTRACT_FILE);
+if (reviewContractText !== null && gateText !== null) {
+  const headerBlock = reviewContractText.match(/REQUIRED_HEADERS\s*=\s*\[([\s\S]*?)\]/);
+  if (!headerBlock) {
+    errors.push(`${REVIEW_CONTRACT_FILE}: could not parse REQUIRED_HEADERS — update this lock's mirror-sync parser.`);
+  } else {
+    const headers = [...headerBlock[1].matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+    if (headers.length === 0) {
+      errors.push(`${REVIEW_CONTRACT_FILE}: REQUIRED_HEADERS parsed empty — update this lock's mirror-sync parser.`);
+    }
+    for (const h of headers) {
+      if (!gateText.includes(`"${h}"`)) {
+        errors.push(
+          `${GATE_FILE}: review-contract mirror is missing required header ${JSON.stringify(h)} ` +
+          `(source of truth: ${REVIEW_CONTRACT_FILE}).`,
+        );
+      }
+    }
+  }
+}
 if (!existsSync(path.join(repoRoot, SMOKE_FILE))) {
   errors.push(`smoke script missing: ${SMOKE_FILE}`);
 }

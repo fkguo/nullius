@@ -126,6 +126,23 @@ def test_survey_absence_only_prior_art_rejected(tmp_path: Path):
     _assert_label(payload, "ABSENCE_PROMOTED_TO_NOVELTY")
 
 
+def test_survey_mixed_statement_with_absence_note_passes(tmp_path: Path):
+    # A genuine prior-art statement that ALSO notes missing code is not
+    # absence-only (the absence pattern is anchored to the statement start).
+    comp = _component(
+        originality_claim=True,
+        strongest_prior_art=[
+            {
+                "statement": "Paper A derives an equivalent algorithm; no public code was released.",
+                "source": "paperA",
+                "locator": "Sec. 4",
+            }
+        ],
+    )
+    rc, payload, _ = _run("survey", _wjson(tmp_path / "s.json", _survey([comp])))
+    assert rc == 0, payload["reasons"]
+
+
 def test_survey_prior_art_needs_locator(tmp_path: Path):
     comp = _component(
         originality_claim=True,
@@ -385,6 +402,22 @@ def test_skeleton_export_must_exist_in_source(tmp_path: Path):
     rc, payload, _ = _run("skeleton", _wjson(tmp_path / "sk.json", manifest), root)
     assert rc == 1
     _assert_label(payload, "EXPORT_NOT_IN_SOURCE")
+    _assert_label(payload, "EXPORT_NOT_IN_LEDGER")
+
+
+def test_skeleton_comment_mention_cannot_fake_export_leg(tmp_path: Path):
+    # A word-boundary mention in a source comment satisfies the (secondary)
+    # text anchor, but the load-bearing ledger leg still fails: the export
+    # has no "path#export" traceability entry.
+    root = _make_pkg(tmp_path)
+    manifest = _skeleton_manifest()
+    manifest["exports"] = [{"name": "ghost_export", "doc_path": "docs/api.md", "test_path": "tests/test_example.py"}]
+    _write(root / "docs" / "api.md", "## ghost_export\n")
+    _write(root / "tests" / "test_example.py", "def test_ghost_export():\n    assert True  # ghost_export\n")
+    _write(root / "src" / "example.py", "def example_export():\n    return 1\n# TODO: ghost_export\n")
+    rc, payload, _ = _run("skeleton", _wjson(tmp_path / "sk.json", manifest), root)
+    assert rc == 1
+    _assert_label(payload, "EXPORT_NOT_IN_LEDGER")
 
 
 def test_skeleton_exclusion_size_is_auditable(tmp_path: Path):
@@ -402,12 +435,25 @@ def test_skeleton_exclusion_size_is_auditable(tmp_path: Path):
 # ---------------------------------------------------------------------------
 
 
-def _make_reimpl_pkg(tmp_path: Path, verdict: str = "VERDICT: READY\n\n## Blockers\n(none)\n") -> Path:
+def _md_verdict(token: str = "READY", blockers: str = "(none)") -> str:
+    """A review verdict following the full review output contract (first
+    VERDICT line + the required headers)."""
+    return (
+        f"VERDICT: {token}\n\n"
+        f"## Blockers\n{blockers}\n\n"
+        "## Non-blocking\n(none)\n\n"
+        "## Real-research fit\nok\n\n"
+        "## Robustness & safety\nok\n\n"
+        "## Specific patch suggestions\n(none)\n"
+    )
+
+
+def _make_reimpl_pkg(tmp_path: Path, verdict: str | None = None) -> Path:
     root = tmp_path / "pkg"
     _write(root / "specs" / "method_spec.md", "# SPEC\nSolve the integral equation from the cited items.\n")
     _write(root / "src" / "impl_main.py", "def solve():\n    return 42\n")
     _write(root / "checks" / "impl_alt.jl", "solve() = 42\n")
-    _write(root / "reviews" / "verdict.md", verdict)
+    _write(root / "reviews" / "verdict.md", verdict if verdict is not None else _md_verdict())
     _write(root / "reference_assets" / "original_solver.py", "def solve():\n    return 42\n")
     return root
 
@@ -472,7 +518,7 @@ def test_reimplementation_same_stem_pair_not_false_flagged(tmp_path: Path):
     _write(root / "specs" / "method_spec.md", "# SPEC\nFrom the cited items.\n")
     _write(root / "src" / "solver.py", "def solver():\n    return 42\n")
     _write(root / "checks" / "solver.jl", "solver() = 42\n")
-    _write(root / "reviews" / "verdict.md", "VERDICT: READY\n")
+    _write(root / "reviews" / "verdict.md", _md_verdict())
     manifest = _independence()
     manifest["reference_code_paths"] = []
     manifest["methods"][0]["implementations"] = [
@@ -500,7 +546,7 @@ def test_reimplementation_spec_must_not_cite_reference_code(tmp_path: Path):
 
 
 def test_reimplementation_review_not_approved(tmp_path: Path):
-    root = _make_reimpl_pkg(tmp_path, verdict="VERDICT: NOT_READY\n\n## Blockers\n- divergence unresolved\n")
+    root = _make_reimpl_pkg(tmp_path, verdict=_md_verdict("NOT_READY", "- divergence unresolved"))
     rc, payload, _ = _run("reimplementation", _wjson(tmp_path / "i.json", _independence()), root)
     assert rc == 1
     _assert_label(payload, "REVIEW_NOT_APPROVED")
@@ -550,16 +596,31 @@ def test_reimplementation_fenced_json_verdict_accepted(tmp_path: Path):
 
 
 def test_reimplementation_unrecognized_verdict_is_diagnosed(tmp_path: Path):
-    root = _make_reimpl_pkg(tmp_path, verdict="VERDICT: MAYBE\n")
+    root = _make_reimpl_pkg(tmp_path, verdict=_md_verdict("MAYBE"))
+    rc, payload, _ = _run("reimplementation", _wjson(tmp_path / "i.json", _independence()), root)
+    assert rc == 1
+    _assert_label(payload, "REVIEW_VERDICT_UNRECOGNIZED")
+
+
+def test_reimplementation_bare_verdict_line_is_not_a_review(tmp_path: Path):
+    # A file with only "VERDICT: READY" and none of the required report
+    # sections is a stub, not a review — diagnosed, never approved.
+    root = _make_reimpl_pkg(tmp_path, verdict="VERDICT: READY\n")
+    rc, payload, _ = _run("reimplementation", _wjson(tmp_path / "i.json", _independence()), root)
+    assert rc == 1
+    _assert_label(payload, "REVIEW_VERDICT_UNRECOGNIZED")
+
+
+def test_reimplementation_json_missing_summary_unrecognized(tmp_path: Path):
+    root = _make_reimpl_pkg(tmp_path)
+    _wjson(root / "reviews" / "verdict.md", {"verdict": "PASS", "blocking_issues": []})  # no summary
     rc, payload, _ = _run("reimplementation", _wjson(tmp_path / "i.json", _independence()), root)
     assert rc == 1
     _assert_label(payload, "REVIEW_VERDICT_UNRECOGNIZED")
 
 
 def test_reimplementation_ready_with_listed_blockers_not_approved(tmp_path: Path):
-    root = _make_reimpl_pkg(
-        tmp_path, verdict="VERDICT: READY\n\n## Blockers\n- sign convention still unresolved\n"
-    )
+    root = _make_reimpl_pkg(tmp_path, verdict=_md_verdict("READY", "- sign convention still unresolved"))
     rc, payload, _ = _run("reimplementation", _wjson(tmp_path / "i.json", _independence()), root)
     assert rc == 1
     _assert_label(payload, "REVIEW_NOT_APPROVED")
@@ -756,8 +817,10 @@ def _make_gate_files(root: Path, *, derivation_ok=True, reliability_ok=True, per
     _wjson(
         root / "gates" / "reliability_matrix.json",
         {
+            "schema_version": 1,
+            "total": 2,
             "reliable": 2 if reliability_ok else 1,
-            "not_reliable": [] if reliability_ok else ["pole_R1"],
+            "not_reliable": [] if reliability_ok else ["y"],
             "matrix": [{"id": "x", "verdict": "reliable"}, {"id": "y", "verdict": "reliable" if reliability_ok else "unconverged"}],
         },
     )
@@ -827,7 +890,8 @@ def test_composite_gates_row_verdicts_recomputed(tmp_path: Path):
     _make_gate_files(root)
     _wjson(
         root / "gates" / "reliability_matrix.json",
-        {"reliable": 2, "not_reliable": [], "matrix": [{"id": "x", "verdict": "reliable"}, {"id": "y", "verdict": "unconverged"}]},
+        {"schema_version": 1, "total": 2, "reliable": 2, "not_reliable": [],
+         "matrix": [{"id": "x", "verdict": "reliable"}, {"id": "y", "verdict": "unconverged"}]},
     )
     rc, payload, _ = _run("composite-gates", _wjson(tmp_path / "c.json", _composite()), root)
     assert rc == 1
@@ -840,11 +904,41 @@ def test_composite_gates_self_inconsistent_summary_fails(tmp_path: Path):
     _make_gate_files(root)
     _wjson(
         root / "gates" / "reliability_matrix.json",
-        {"reliable": 2, "not_reliable": ["ghost"], "matrix": [{"id": "x", "verdict": "reliable"}]},
+        {"schema_version": 1, "total": 1, "reliable": 1, "not_reliable": ["ghost"],
+         "matrix": [{"id": "x", "verdict": "reliable"}]},
     )
     rc, payload, _ = _run("composite-gates", _wjson(tmp_path / "c.json", _composite()), root)
     assert rc == 1
     _assert_label(payload, "GATE_NOT_PASSED")
+
+
+def test_composite_gates_unversioned_matrix_rejected(tmp_path: Path):
+    # A hand-written object without schema_version is not a reliability
+    # matrix artifact, even if its rows all read 'reliable'.
+    root = tmp_path / "pkg"
+    _make_gate_files(root)
+    _wjson(
+        root / "gates" / "reliability_matrix.json",
+        {"not_reliable": [], "matrix": [{"id": "x", "verdict": "reliable"}]},
+    )
+    rc, payload, _ = _run("composite-gates", _wjson(tmp_path / "c.json", _composite()), root)
+    assert rc == 1
+    _assert_label(payload, "GATE_NOT_PASSED")
+    assert any("schema_version" in r for r in payload["reasons"])
+
+
+def test_composite_gates_count_mismatch_rejected(tmp_path: Path):
+    root = tmp_path / "pkg"
+    _make_gate_files(root)
+    _wjson(
+        root / "gates" / "reliability_matrix.json",
+        {"schema_version": 1, "total": 5, "reliable": 1, "not_reliable": [],
+         "matrix": [{"id": "x", "verdict": "reliable"}, {"id": "y", "verdict": "reliable"}]},
+    )
+    rc, payload, _ = _run("composite-gates", _wjson(tmp_path / "c.json", _composite()), root)
+    assert rc == 1
+    _assert_label(payload, "GATE_NOT_PASSED")
+    assert any("count fields disagree" in r for r in payload["reasons"])
 
 
 def test_composite_gates_unparseable_verdict(tmp_path: Path):

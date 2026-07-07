@@ -163,9 +163,11 @@ hidden here can ship); `MISSING_README`; `MISSING_TEST_SKELETON`;
 entry whose `artifact` path part matches it — "nothing enters the package without
 an origin" is enforced in both directions); `MISSING_EXPORT_MAP` /
 `EXPORT_MISSING_DOC` / `EXPORT_MISSING_TEST` / `EXPORT_DOC_UNANCHORED` /
-`EXPORT_TEST_UNANCHORED` / `EXPORT_NOT_IN_SOURCE` (every export carries all three
-legs, and each leg actually mentions the export by name — files that exist but
-never name the export do not anchor it).
+`EXPORT_TEST_UNANCHORED` / `EXPORT_NOT_IN_SOURCE` / `EXPORT_NOT_IN_LEDGER` (every
+export carries all three legs, each leg actually mentions the export by name, and —
+the load-bearing source leg — the export has a traceability-ledger entry of the form
+`path#export`: a word-boundary mention in a source comment can satisfy the text
+anchor, but it cannot fabricate a ledger origin).
 
 ## Phase 4 · reimplementation — `independence_manifest_v1`
 
@@ -203,14 +205,20 @@ Gate checks:
   (Textual stem matching; a **detector, not a proof** — see Approximations.)
 - `MISSING_INDEPENDENT_REVIEW` / `REVIEW_NOT_APPROVED` / `REVIEW_VERDICT_UNRECOGNIZED`
   — at least one independent review verdict file, and every recorded verdict must
-  approve. Accepted verdict formats (the review-swarm output contract): a Markdown
-  report whose first non-empty line is `VERDICT: READY` **and whose `## Blockers`
-  section (when present) lists no blocker items**, or a JSON object (optionally in
-  a ```json fence) with `"verdict": "PASS"` **and an empty `blocking_issues`
-  list**. `NOT_READY` / `FAIL` / listed blockers → `REVIEW_NOT_APPROVED`; anything
-  that follows neither format → `REVIEW_VERDICT_UNRECOGNIZED` (a misformatted
-  verdict is diagnosed as such, never silently approved and never conflated with a
-  rejection). Convergence is declared by the reviewer, never by the implementer.
+  approve. Accepted verdict formats (MIRRORED from the review-swarm output
+  contract, `skills/review-swarm/scripts/bin/review_contract.py`; the repo
+  anti-drift lock cross-checks the mirror against that source): a Markdown report
+  whose first non-empty line is `VERDICT: READY`, that carries **all required
+  report headers** (`## Blockers`, `## Non-blocking`, `## Real-research fit`,
+  `## Robustness & safety`, `## Specific patch suggestions` — a bare VERDICT line
+  is a stub, not a review), and whose `## Blockers` section lists no blocker
+  items; or a JSON object (optionally in a ```json fence) with the required
+  fields `verdict` / `blocking_issues` / `summary`, `"verdict": "PASS"` and an
+  empty `blocking_issues` list. `NOT_READY` / `FAIL` / listed blockers →
+  `REVIEW_NOT_APPROVED`; anything that follows neither format →
+  `REVIEW_VERDICT_UNRECOGNIZED` (a misformatted verdict is diagnosed as such,
+  never silently approved and never conflated with a rejection). Convergence is
+  declared by the reviewer, never by the implementer.
 
 When implementations disagree, locate the first diverging intermediate quantity by
 tracing both paths — never settle by majority vote, never re-run until agreement.
@@ -280,11 +288,13 @@ Pass semantics per verdict:
 
 - `derivation` — a derivation-verify output: `total_claims >= 1`,
   `converged == total_claims`, `unconverged == []`.
-- `numerical_reliability` — a numerical-reliability matrix: non-empty `matrix`
-  whose EVERY row verdict is recomputed to be `reliable` (the `not_reliable`
-  summary list is not trusted: a bad row with a hand-edited empty summary fails,
-  and a summary naming ids while all rows read `reliable` fails as
-  self-inconsistent).
+- `numerical_reliability` — a `numerical_reliability_matrix_v1` artifact:
+  `schema_version == 1` (an unversioned object is not the artifact), a non-empty
+  `matrix` whose every row carries a non-empty `id` + `verdict` and whose EVERY
+  row verdict is recomputed to be `reliable`, an empty `not_reliable` list, and
+  count fields that agree with the rows (`reliable` == reliable-row count;
+  `total`, when present, == row count). The summary fields are never trusted
+  over the rows; per-row evidence rules stay owned by the sibling contract.
 - `performance` — a performance-gate verdict object with `"verdict": "pass"`
   (an inconclusive / missing benchmark is not a pass).
 

@@ -93,13 +93,27 @@ _MAX_SCAN_BYTES = 2_000_000
 # detector pattern, not a machine-specific path.
 _ABS_PATH_RE = re.compile(r"(?:/Users/|/home/|[A-Za-z]:\\Users\\)[A-Za-z0-9._-]+")
 
-# Reviewer verdict formats accepted for the reimplementation phase
-# (the review-swarm output contract): markdown first line or JSON verdict.
+# Reviewer verdict formats accepted for the reimplementation phase.
+# MIRRORED from the review-swarm output contract
+# (skills/review-swarm/scripts/bin/review_contract.py) — the anti-drift lock
+# cross-checks this mirror against the source, so contract evolution there
+# fails CI here instead of silently diverging.
 _REVIEW_MD_RE = re.compile(r"^\s*VERDICT:\s*([A-Z_]+)\b")
+_REVIEW_REQUIRED_HEADERS = [
+    "## Blockers",
+    "## Non-blocking",
+    "## Real-research fit",
+    "## Robustness & safety",
+    "## Specific patch suggestions",
+]
+_REVIEW_JSON_REQUIRED_FIELDS = {"blocking_issues", "verdict", "summary"}
 _FENCED_JSON_RE = re.compile(r"^```(?:json)?\s*\n(.*)\n```\s*$", re.DOTALL)
 # Absence statements offered as "prior art" for an originality claim.
+# Anchored to the START of the statement: a genuine prior-art statement that
+# ALSO notes missing code ("Paper A derives an equivalent algorithm; no
+# public code was released") is not absence-only.
 _ABSENCE_STATEMENT_RE = re.compile(
-    r"(?i)\bno\s+(?:public\s+|open[- ]source\s+)?(?:code|implementation|package|software)\b"
+    r"(?i)^\s*no\s+(?:public\s+|open[- ]source\s+)?(?:code|implementation|package|software)\b"
 )
 
 _REL_SLACK = 1e-12
@@ -369,6 +383,7 @@ def check_skeleton(artifact: dict, root: Path, f: Findings) -> None:
         )
 
     covered_paths: set[str] = set()
+    ledger_fragments: set[str] = set()
     ledger_rel = _nonempty_str(artifact, "traceability_ledger")
     ledger_path = _rel_path(root, ledger_rel, f, "traceability_ledger") if ledger_rel else None
     if ledger_path is None or not ledger_path.is_file():
@@ -385,7 +400,10 @@ def check_skeleton(artifact: dict, root: Path, f: Findings) -> None:
             f.add("EMPTY_TRACEABILITY_LEDGER", "traceability ledger has no entries")
         for i, e in enumerate(entries):
             eid = _nonempty_str(e, "artifact") or f"entries[{i}]"
-            covered_paths.add(_nonempty_str(e, "artifact").split("#", 1)[0])
+            art = _nonempty_str(e, "artifact")
+            covered_paths.add(art.split("#", 1)[0])
+            if "#" in art:
+                ledger_fragments.add(art.split("#", 1)[1])
             has_extraction = bool([x for x in _as_list(e, "extraction_ids") if isinstance(x, str) and x.strip()])
             has_reuse = bool(_nonempty_str(e, "reuse_source"))
             if not has_extraction and not has_reuse:
@@ -444,6 +462,15 @@ def check_skeleton(artifact: dict, root: Path, f: Findings) -> None:
                     f"{name}: export name appears nowhere under source_dirs — the map must anchor "
                     "to code that exists",
                 )
+        # The load-bearing source leg: the export must be a traceability-ledger
+        # artifact (a "path#export" entry). A word-boundary mention in a source
+        # comment cannot fake this leg.
+        if name not in ledger_fragments:
+            f.add(
+                "EXPORT_NOT_IN_LEDGER",
+                f"{name}: no traceability-ledger entry with fragment '#{name}' — every export is a "
+                "package artifact and needs an origin like any other",
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -600,10 +627,13 @@ def _review_state(path: Path) -> tuple[str, str]:
             return "unrecognized", f"invalid JSON ({e})"
         if not isinstance(obj, dict):
             return "unrecognized", "JSON verdict must be an object"
+        missing = sorted(_REVIEW_JSON_REQUIRED_FIELDS - set(obj))
+        if missing:
+            return "unrecognized", f"JSON verdict is missing required field(s): {', '.join(missing)}"
         verdict = str(obj.get("verdict", "")).strip().upper()
         blocking = obj.get("blocking_issues")
         if not isinstance(blocking, list):
-            return "unrecognized", "JSON verdict is missing the blocking_issues list"
+            return "unrecognized", "blocking_issues must be a list"
         if verdict == "PASS":
             if blocking:
                 return "not_approved", f"verdict PASS but {len(blocking)} blocking issue(s) recorded"
@@ -616,6 +646,13 @@ def _review_state(path: Path) -> tuple[str, str]:
     m = _REVIEW_MD_RE.match(first)
     if not m:
         return "unrecognized", "first non-empty line is not a 'VERDICT: ...' line"
+    missing_headers = [h for h in _REVIEW_REQUIRED_HEADERS if h not in text]
+    if missing_headers:
+        return "unrecognized", (
+            "Markdown verdict is missing required header(s): "
+            + ", ".join(missing_headers)
+            + " — a bare VERDICT line without the contract sections is not a review report"
+        )
     token = m.group(1)
     if token == "NOT_READY":
         return "not_approved", "verdict NOT_READY"
@@ -812,9 +849,20 @@ def check_composite_gates(artifact: dict, root: Path, f: Findings) -> None:
                     f"unconverged={unconverged!r})",
                 )
         elif which == "numerical_reliability":
+            # Identity + consistency of the sibling artifact
+            # (numerical_reliability_matrix_v1): schema_version 1, counts
+            # that agree with the rows, and per-row id + verdict. Full
+            # per-row evidence rules stay owned by the sibling contract.
             matrix = obj.get("matrix")
             not_reliable = obj.get("not_reliable")
-            if not (isinstance(matrix, list) and len(matrix) >= 1 and isinstance(not_reliable, list)):
+            if obj.get("schema_version") != 1:
+                f.add(
+                    "GATE_NOT_PASSED",
+                    f"numerical_reliability: schema_version must be 1 "
+                    f"(got {obj.get('schema_version')!r}) — an unversioned object is not a "
+                    "numerical_reliability_matrix_v1 artifact",
+                )
+            elif not (isinstance(matrix, list) and len(matrix) >= 1 and isinstance(not_reliable, list)):
                 f.add(
                     "GATE_NOT_PASSED",
                     f"numerical_reliability: requires a non-empty matrix and a not_reliable list "
@@ -822,13 +870,26 @@ def check_composite_gates(artifact: dict, root: Path, f: Findings) -> None:
                     f"not_reliable={not_reliable!r})",
                 )
             else:
-                # Recompute from the rows: the summary list is not trusted.
-                bad_rows = [
-                    str((row or {}).get("id", f"matrix[{i}]")) if isinstance(row, dict) else f"matrix[{i}]"
-                    for i, row in enumerate(matrix)
-                    if not (isinstance(row, dict) and row.get("verdict") == "reliable")
+                malformed = [
+                    f"matrix[{i}]" for i, row in enumerate(matrix)
+                    if not (isinstance(row, dict) and str(row.get("id", "")).strip() and str(row.get("verdict", "")).strip())
                 ]
-                if bad_rows:
+                # Recompute from the rows: the summary fields are not trusted.
+                bad_rows = [
+                    str(row.get("id", f"matrix[{i}]"))
+                    for i, row in enumerate(matrix)
+                    if isinstance(row, dict) and row.get("verdict") != "reliable"
+                ]
+                reliable_rows = sum(
+                    1 for row in matrix if isinstance(row, dict) and row.get("verdict") == "reliable"
+                )
+                if malformed:
+                    f.add(
+                        "GATE_NOT_PASSED",
+                        f"numerical_reliability: malformed matrix row(s) {malformed[:5]!r} — every row "
+                        "needs a non-empty id and verdict",
+                    )
+                elif bad_rows:
                     f.add(
                         "GATE_NOT_PASSED",
                         f"numerical_reliability: matrix row(s) not 'reliable': {bad_rows[:5]!r} — "
@@ -839,6 +900,16 @@ def check_composite_gates(artifact: dict, root: Path, f: Findings) -> None:
                         "GATE_NOT_PASSED",
                         f"numerical_reliability: not_reliable={not_reliable!r} while every matrix row "
                         "reads 'reliable' — the verdict file is self-inconsistent",
+                    )
+                elif obj.get("reliable") != reliable_rows or (
+                    "total" in obj and obj.get("total") != len(matrix)
+                ):
+                    f.add(
+                        "GATE_NOT_PASSED",
+                        f"numerical_reliability: count fields disagree with the rows "
+                        f"(reliable={obj.get('reliable')!r} vs {reliable_rows} reliable row(s); "
+                        f"total={obj.get('total')!r} vs {len(matrix)} row(s)) — the artifact is "
+                        "self-inconsistent",
                     )
         else:  # performance
             verdict = str(obj.get("verdict", "")).lower()
