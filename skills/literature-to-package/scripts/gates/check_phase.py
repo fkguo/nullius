@@ -652,7 +652,9 @@ def _review_state(path: Path) -> tuple[str, str]:
         if verdict == "FAIL":
             return "not_approved", "verdict FAIL"
         return "unrecognized", f"unknown JSON verdict {obj.get('verdict')!r}"
-    lines = stripped.splitlines()
+    # Fenced code blocks are quoted content, not report structure: a heading
+    # or a VERDICT line inside ``` fences must not count.
+    lines = _unfenced_lines(stripped.splitlines())
     first = next((ln for ln in lines if ln.strip()), "")
     m = _REVIEW_MD_RE.match(first)
     if not m:
@@ -676,6 +678,18 @@ def _review_state(path: Path) -> tuple[str, str]:
     if blockers:
         return "not_approved", f"verdict READY but {len(blockers)} blocker item(s) listed"
     return "approved", ""
+
+
+def _unfenced_lines(lines: list[str]) -> list[str]:
+    out: list[str] = []
+    in_fence = False
+    for ln in lines:
+        if ln.strip().startswith("```"):
+            in_fence = not in_fence
+            continue
+        if not in_fence:
+            out.append(ln)
+    return out
 
 
 def _md_section_items(lines: list[str], heading: str) -> list[str]:

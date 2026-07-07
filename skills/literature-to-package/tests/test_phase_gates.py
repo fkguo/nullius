@@ -647,6 +647,22 @@ def test_reimplementation_inline_header_mentions_are_not_sections(tmp_path: Path
     _assert_label(payload, "REVIEW_VERDICT_UNRECOGNIZED")
 
 
+def test_reimplementation_fenced_headers_are_not_sections(tmp_path: Path):
+    # Required headers quoted inside a ``` fence are code, not report
+    # structure — the verdict stays unrecognized.
+    stub = (
+        "VERDICT: READY\n\n"
+        "```\n"
+        "## Blockers\n(none)\n\n## Non-blocking\n(none)\n\n## Real-research fit\nok\n\n"
+        "## Robustness & safety\nok\n\n## Specific patch suggestions\n(none)\n"
+        "```\n"
+    )
+    root = _make_reimpl_pkg(tmp_path, verdict=stub)
+    rc, payload, _ = _run("reimplementation", _wjson(tmp_path / "i.json", _independence()), root)
+    assert rc == 1
+    _assert_label(payload, "REVIEW_VERDICT_UNRECOGNIZED")
+
+
 def test_reimplementation_json_missing_summary_unrecognized(tmp_path: Path):
     root = _make_reimpl_pkg(tmp_path)
     _wjson(root / "reviews" / "verdict.md", {"verdict": "PASS", "blocking_issues": []})  # no summary
