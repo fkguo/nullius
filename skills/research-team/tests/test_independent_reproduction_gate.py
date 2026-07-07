@@ -298,14 +298,16 @@ def test_dotted_kernel_sibling_file_include_passes(tmp_path: Path):
 
 def test_dotted_kernel_path_spelling_in_c_include_is_flagged(tmp_path: Path):
     # The slash spelling must still MATCH the real kernel path in languages
-    # without structured include extraction (e.g. C).
-    proj = _make_project(tmp_path, kernel_modules=["shared_utils.kernel"])
-    ev_a = _seed_member(proj, "member_a", {"repro_a.c": '#include "../shared_utils/kernel.h"\n'})
-    ev_b = _seed_member(proj, "member_b", {"repro_b.c": "int main(void) { return 0; }\n"})
-    proc, payload = _run_gate(proj, ev_a, ev_b)
-    assert proc.returncode == 1
-    assert payload is not None
-    assert any("SHARED_KERNEL_INHERITANCE" in r for r in payload["reasons"])
+    # without structured include extraction (e.g. C) — both the quoted and
+    # the angle-bracket include forms.
+    for i, line in enumerate(('#include "../shared_utils/kernel.h"\n', "#include <shared_utils/kernel.h>\n")):
+        proj = _make_project(tmp_path / f"case{i}", kernel_modules=["shared_utils.kernel"])
+        ev_a = _seed_member(proj, "member_a", {"repro_a.c": line})
+        ev_b = _seed_member(proj, "member_b", {"repro_b.c": "int main(void) { return 0; }\n"})
+        proc, payload = _run_gate(proj, ev_a, ev_b)
+        assert proc.returncode == 1, f"line not flagged: {line!r}\n{proc.stderr}"
+        assert payload is not None
+        assert any("SHARED_KERNEL_INHERITANCE" in r for r in payload["reasons"])
 
 
 def test_oversized_source_with_declared_kernel_is_unverifiable(tmp_path: Path):

@@ -430,7 +430,7 @@ def _kernel_line_regex(kernel: str) -> re.Pattern[str]:
         # kernel "pkg.kernel") never matches.
         seg = "/".join(re.escape(part) for part in kernel.split("."))
         alts.append(
-            rf"(?<![^\s\"'(=,;:<\[/]){seg}(?:\.[A-Za-z0-9]{{1,8}})?(?![^\s\"'),;:\]/])"
+            rf"(?<![^\s\"'(=,;:<\[/]){seg}(?:\.[A-Za-z0-9]{{1,8}})?(?![^\s\"'),;:>\]/])"
         )
     return re.compile("|".join(alts))
 
