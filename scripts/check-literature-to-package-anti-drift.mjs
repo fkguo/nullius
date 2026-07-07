@@ -55,13 +55,20 @@ const GATE_LABELS = [
   'MISSING_UNITS',
   'ABSOLUTE_PATH_IN_PACKAGE',
   'EXCLUSION_COVERS_ROOT',
+  'PATH_ESCAPES_PACKAGE_ROOT',
+  'MISSING_SOURCE_DIRS',
   'UNTRACED_LEDGER_ITEM',
+  'UNTRACED_PACKAGE_FILE',
+  'EXPORT_DOC_UNANCHORED',
+  'EXPORT_TEST_UNANCHORED',
+  'EXPORT_NOT_IN_SOURCE',
   'PORT_CLAIMED_INDEPENDENT',
   'INSUFFICIENT_INDEPENDENT_IMPLEMENTATIONS',
   'IMPLEMENTATION_COUPLING',
   'REFERENCE_CODE_COUPLING',
   'SPEC_REFERENCES_SOURCE_CODE',
   'REVIEW_NOT_APPROVED',
+  'REVIEW_VERDICT_UNRECOGNIZED',
   'VALUE_MISMATCH',
   'NON_DIAGNOSTIC_TOLERANCE',
   'ERROR_SCALE_INFLATED',
@@ -144,7 +151,19 @@ requireAll(TESTS_FILE, testsText, [
   'SILENT_WAIVER',
   'SCRUB_LEXICON_HIT',
   'MEMORY_CITED_AS_SOURCE',
+  // Adversarial regressions: each pins a hole a reviewer demonstrated or a
+  // fail-closed guarantee the contract states. A gutted checker cannot
+  // survive these tests demanding FAIL verdicts.
   'def test_reference_check_self_claimed_pass_is_ignored',
+  'def test_skeleton_ledger_escape_via_dotdot_rejected',
+  'def test_skeleton_untraced_package_file',
+  'def test_survey_absence_only_prior_art_rejected',
+  'def test_reference_check_zero_errors_unanchored',
+  'def test_reference_check_no_errors_at_all_unanchored',
+  'def test_composite_gates_row_verdicts_recomputed',
+  'def test_reimplementation_json_pass_with_blockers_not_approved',
+  'def test_wrong_schema_id_is_input_error',
+  'def test_unwritable_out_json_keeps_single_stdout_verdict',
 ], 'load-bearing test assertion');
 if (!existsSync(path.join(repoRoot, SMOKE_FILE))) {
   errors.push(`smoke script missing: ${SMOKE_FILE}`);

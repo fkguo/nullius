@@ -36,7 +36,14 @@ Exit codes: `0` pass, `1` fail, `2` input / execution error. Verdict on stdout
 ```
 
 All paths inside artifacts are **package-root-relative**; an absolute path in a
-manifest is itself a finding (`ABSOLUTE_PATH_IN_MANIFEST`).
+manifest is a finding (`ABSOLUTE_PATH_IN_MANIFEST`), and a relative path that
+resolves outside the package root (via `..`) is a finding
+(`PATH_ESCAPES_PACKAGE_ROOT`) — a check satisfied by an external file certifies
+nothing about the package. Every artifact must carry the `schema_id` of its
+phase; a missing or mismatched `schema_id` is an input error (exit 2): the
+wrong artifact handed to the wrong phase is never silently accepted. When
+`--out-json` cannot be written, the stdout verdict still stands and the write
+failure is a stderr warning (never a second verdict).
 
 ---
 
@@ -64,10 +71,18 @@ Reuse-vs-build decisions per component, before anything is built.
 }
 ```
 
-Falsification labels: `EMPTY_SURVEY`, `MISSING_DECISION`, `MISSING_SEARCH_LOG`,
-`ORIGINALITY_WITHOUT_STRONGEST_PRIOR` (an originality claim must name the strongest
-existing statement a focused search produced), `ABSENCE_PROMOTED_TO_NOVELTY`
-("no public code found" recorded together with an unsupported originality claim).
+Falsification labels: `EMPTY_SURVEY`, `MISSING_DECISION`, `MISSING_SEARCH_LOG`
+(each search needs query + venue + date), `ORIGINALITY_WITHOUT_STRONGEST_PRIOR`
+(an originality claim must name the strongest existing statement a focused search
+produced — entries need statement + source + locator), `ABSENCE_PROMOTED_TO_NOVELTY`
+("no public code found" recorded together with an unsupported originality claim,
+or an originality claim whose every prior-art statement is itself an absence
+statement — absence is a search result, not prior art).
+
+The gate checks structure, not search quality: a decorative-but-complete search
+log passes the machine check and is a reviewer concern. What the gate does
+guarantee is that no originality claim can ship without a named, locatable
+strongest-prior statement.
 
 ## Phase 2 · extraction — `extraction_manifest_v1`
 
@@ -108,7 +123,8 @@ Package skeleton hygiene plus the traceability ledger and the export map.
 {
   "schema_id": "skeleton_manifest_v1",
   "traceability_ledger": "traceability_ledger.json",   // package-root-relative
-  "reference_asset_dirs": ["reference_assets"],        // excluded from the skeleton-phase path scan
+  "reference_asset_dirs": ["reference_assets"],        // excluded from the skeleton-phase path scan (audited, see below)
+  "source_dirs": ["src"],                              // REQUIRED: dirs whose code the ledger must cover
   "exports": [
     {"name": "solve_kernel", "doc_path": "docs/api.md", "test_path": "tests/test_solve_kernel.py"}
   ]
@@ -136,13 +152,20 @@ Gate checks: no machine-specific absolute path anywhere in the package tree
 cache dirs, and reports unreadable/oversized files as `SCAN_INCOMPLETE` — a blind
 spot is a failure, not a pass); `EXCLUSION_COVERS_ROOT` (a `reference_asset_dirs`
 entry must be a strict subdirectory of the package root — an exclusion resolving to
-the root or escaping it would disable the scan entirely); `MISSING_README`;
-`MISSING_TEST_SKELETON`;
+the root or escaping it would disable the scan entirely; every exclusion is a
+**declared, audited blind spot**: the verdict carries a `NOTE:` reason with the
+number of files it hid, and the closeout scan runs with NO exclusions, so nothing
+hidden here can ship); `MISSING_README`; `MISSING_TEST_SKELETON`;
+`MISSING_SOURCE_DIRS` (`source_dirs` must name at least one existing directory);
 `MISSING_TRACEABILITY_LEDGER` / `EMPTY_TRACEABILITY_LEDGER` / `UNTRACED_LEDGER_ITEM`
-(every entry needs `extraction_ids` or `reuse_source` — nothing enters the package
-without an origin); `MISSING_EXPORT_MAP` / `EXPORT_MISSING_DOC` /
-`EXPORT_MISSING_TEST` (every export carries all three legs: code, documentation
-anchor, test skeleton).
+(every entry needs `extraction_ids` or `reuse_source`) / `UNTRACED_PACKAGE_FILE`
+(coverage is **two-way**: every code file under `source_dirs` must have a ledger
+entry whose `artifact` path part matches it — "nothing enters the package without
+an origin" is enforced in both directions); `MISSING_EXPORT_MAP` /
+`EXPORT_MISSING_DOC` / `EXPORT_MISSING_TEST` / `EXPORT_DOC_UNANCHORED` /
+`EXPORT_TEST_UNANCHORED` / `EXPORT_NOT_IN_SOURCE` (every export carries all three
+legs, and each leg actually mentions the export by name — files that exist but
+never name the export do not anchor it).
 
 ## Phase 4 · reimplementation — `independence_manifest_v1`
 
@@ -178,11 +201,16 @@ Gate checks:
 - `IMPLEMENTATION_COUPLING` / `REFERENCE_CODE_COUPLING` — an independent
   implementation must not reference a sibling implementation or the reference code.
   (Textual stem matching; a **detector, not a proof** — see Approximations.)
-- `MISSING_INDEPENDENT_REVIEW` / `REVIEW_NOT_APPROVED` — at least one independent
-  review verdict file, and every recorded verdict must approve. Accepted verdict
-  formats (the review-swarm output contract): a Markdown report whose first
-  non-empty line is `VERDICT: READY`, or a JSON object with `"verdict": "PASS"`.
-  Convergence is declared by the reviewer, never by the implementer.
+- `MISSING_INDEPENDENT_REVIEW` / `REVIEW_NOT_APPROVED` / `REVIEW_VERDICT_UNRECOGNIZED`
+  — at least one independent review verdict file, and every recorded verdict must
+  approve. Accepted verdict formats (the review-swarm output contract): a Markdown
+  report whose first non-empty line is `VERDICT: READY` **and whose `## Blockers`
+  section (when present) lists no blocker items**, or a JSON object (optionally in
+  a ```json fence) with `"verdict": "PASS"` **and an empty `blocking_issues`
+  list**. `NOT_READY` / `FAIL` / listed blockers → `REVIEW_NOT_APPROVED`; anything
+  that follows neither format → `REVIEW_VERDICT_UNRECOGNIZED` (a misformatted
+  verdict is diagnosed as such, never silently approved and never conflated with a
+  rejection). Convergence is declared by the reviewer, never by the implementer.
 
 When implementations disagree, locate the first diverging intermediate quantity by
 tracing both paths — never settle by majority vote, never re-run until agreement.
@@ -217,10 +245,13 @@ Gate checks (all recomputed): `VALUE_MISMATCH` (`|computed − reference| > tole
 `NON_DIAGNOSTIC_TOLERANCE` (`tolerance <= error_scale` required, with a declared
 `error_scale_basis`: a tolerance coarser than the uncertainty scale cannot detect a
 discrepancy at the scale that matters, so it proves nothing); `ERROR_SCALE_INFLATED`
-(when at least one error is quoted, `error_scale` must not exceed the quadrature sum
-of the quoted errors, a missing error counting as zero — omitting an error can only
-tighten the ceiling, never loosen it; inflating the scale would launder a loose
-tolerance); `SINGLE_REPRESENTATION`
+(`error_scale` must not exceed the quadrature sum of the quoted errors, a missing
+error counting as zero — omitting an error can only tighten the ceiling, never
+loosen it; inflating the scale would launder a loose tolerance). The ceiling must
+also be **anchored**: when no non-zero uncertainty is quoted at all (both errors
+absent or zero), the check fails as `NON_DIAGNOSTIC_TOLERANCE` — quote at least
+the numerical precision of the computed value as `computed.error`; an exact
+reference still leaves the computation with finite precision; `SINGLE_REPRESENTATION`
 (>= 2 distinct `representation` values across the checks: agreement within one
 representation cannot expose a representation-level error);
 `MISSING_REFERENCE_LOCATOR`, `MISSING_VALUES`, `EMPTY_REFERENCE_CHECK`;
@@ -249,8 +280,11 @@ Pass semantics per verdict:
 
 - `derivation` — a derivation-verify output: `total_claims >= 1`,
   `converged == total_claims`, `unconverged == []`.
-- `numerical_reliability` — a numerical-reliability matrix: non-empty `matrix`,
-  `not_reliable == []` (every item verdict `reliable`).
+- `numerical_reliability` — a numerical-reliability matrix: non-empty `matrix`
+  whose EVERY row verdict is recomputed to be `reliable` (the `not_reliable`
+  summary list is not trusted: a bad row with a hand-edited empty summary fails,
+  and a summary naming ids while all rows read `reliable` fails as
+  self-inconsistent).
 - `performance` — a performance-gate verdict object with `"verdict": "pass"`
   (an inconclusive / missing benchmark is not a pass).
 
@@ -269,6 +303,7 @@ Other labels: `MISSING_GATE_VERDICT`, `UNPARSEABLE_GATE_VERDICT`, `GATE_NOT_PASS
   "readme_examples_none_reason": "",       // required text when readme_examples is empty
   "scrub_lexicon": ["…project-declared internal-process words…"],
   "scrub_lexicon_none_reason": "",         // required text when the lexicon is empty
+  "source_dirs": ["src"],                  // REQUIRED: coverage re-check on the final tree
   "traceability_ledger": "traceability_ledger.json"
 }
 ```
@@ -280,8 +315,10 @@ narrate the private construction history rather than the science; the gate sweep
 every text file, case-insensitive, whole-word); `ABSOLUTE_PATH_IN_PACKAGE`
 (re-scan of the FINAL tree — unlike the skeleton phase, nothing is excluded here:
 reference originals must not ship); `UNRESOLVED_TRACEABILITY` (every ledger entry
-`verified` or `reused`; no `pending` provenance may ship); `MISSING_CLOSEOUT_FIELDS`;
-`SCAN_INCOMPLETE`.
+`verified` or `reused`; no `pending` provenance may ship); `MISSING_SOURCE_DIRS` /
+`UNTRACED_PACKAGE_FILE` (the two-way coverage check runs again on the final tree —
+a code file added after the skeleton phase must not ship without an origin);
+`MISSING_CLOSEOUT_FIELDS`; `SCAN_INCOMPLETE`.
 
 ---
 

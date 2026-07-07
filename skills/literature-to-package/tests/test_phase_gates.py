@@ -101,6 +101,41 @@ def test_survey_absence_not_novelty(tmp_path: Path):
     _assert_label(payload, "ABSENCE_PROMOTED_TO_NOVELTY")
 
 
+def test_survey_search_needs_date(tmp_path: Path):
+    comp = _component(searches=[{"query": "solver", "venue": "GitHub"}])  # no date
+    rc, payload, _ = _run("survey", _wjson(tmp_path / "s.json", _survey([comp])))
+    assert rc == 1
+    _assert_label(payload, "MISSING_SEARCH_LOG")
+
+
+def test_survey_missing_decision(tmp_path: Path):
+    rc, payload, _ = _run("survey", _wjson(tmp_path / "s.json", _survey([_component(decision="maybe")])))
+    assert rc == 1
+    _assert_label(payload, "MISSING_DECISION")
+
+
+def test_survey_absence_only_prior_art_rejected(tmp_path: Path):
+    comp = _component(
+        originality_claim=True,
+        strongest_prior_art=[
+            {"statement": "No public code found for this method", "source": "search log", "locator": "queries 1-4"}
+        ],
+    )
+    rc, payload, _ = _run("survey", _wjson(tmp_path / "s.json", _survey([comp])))
+    assert rc == 1
+    _assert_label(payload, "ABSENCE_PROMOTED_TO_NOVELTY")
+
+
+def test_survey_prior_art_needs_locator(tmp_path: Path):
+    comp = _component(
+        originality_claim=True,
+        strongest_prior_art=[{"statement": "closest method", "source": "paperA"}],  # no locator
+    )
+    rc, payload, _ = _run("survey", _wjson(tmp_path / "s.json", _survey([comp])))
+    assert rc == 1
+    _assert_label(payload, "ORIGINALITY_WITHOUT_STRONGEST_PRIOR")
+
+
 # ---------------------------------------------------------------------------
 # extraction
 # ---------------------------------------------------------------------------
@@ -181,6 +216,14 @@ def test_extraction_unknown_source(tmp_path: Path):
     _assert_label(payload, "UNKNOWN_SOURCE")
 
 
+def test_extraction_unknown_item_kind(tmp_path: Path):
+    rc, payload, _ = _run(
+        "extraction", _wjson(tmp_path / "e.json", _extraction([_item(kind="vibe")]))
+    )
+    assert rc == 1
+    _assert_label(payload, "UNKNOWN_ITEM_KIND")
+
+
 # ---------------------------------------------------------------------------
 # skeleton
 # ---------------------------------------------------------------------------
@@ -189,7 +232,10 @@ def test_extraction_unknown_source(tmp_path: Path):
 def _make_pkg(tmp_path: Path) -> Path:
     root = tmp_path / "pkg"
     _write(root / "README.md", "# Example package\n")
-    _write(root / "tests" / "test_example.py", "def test_placeholder():\n    assert True\n")
+    _write(
+        root / "tests" / "test_example.py",
+        "from example import example_export\n\ndef test_example_export():\n    assert example_export() == 1\n",
+    )
     _write(root / "docs" / "api.md", "## example_export\n")
     _write(root / "src" / "example.py", "def example_export():\n    return 1\n")
     _wjson(
@@ -204,6 +250,7 @@ def _skeleton_manifest() -> dict:
         "schema_id": "skeleton_manifest_v1",
         "traceability_ledger": "traceability_ledger.json",
         "reference_asset_dirs": [],
+        "source_dirs": ["src"],
         "exports": [{"name": "example_export", "doc_path": "docs/api.md", "test_path": "tests/test_example.py"}],
     }
 
@@ -279,6 +326,75 @@ def test_skeleton_manifest_absolute_path_rejected(tmp_path: Path):
     rc, payload, _ = _run("skeleton", _wjson(tmp_path / "sk.json", manifest), root)
     assert rc == 1
     _assert_label(payload, "ABSOLUTE_PATH_IN_MANIFEST")
+
+
+def test_skeleton_ledger_escape_via_dotdot_rejected(tmp_path: Path):
+    root = _make_pkg(tmp_path)
+    _wjson(
+        tmp_path / "outside_ledger.json",
+        {"entries": [{"artifact": "src/example.py#example_export", "extraction_ids": ["eq_1"], "status": "pending"}]},
+    )
+    manifest = _skeleton_manifest()
+    manifest["traceability_ledger"] = "../outside_ledger.json"
+    rc, payload, _ = _run("skeleton", _wjson(tmp_path / "sk.json", manifest), root)
+    assert rc == 1
+    _assert_label(payload, "PATH_ESCAPES_PACKAGE_ROOT")
+
+
+def test_skeleton_missing_source_dirs(tmp_path: Path):
+    root = _make_pkg(tmp_path)
+    manifest = _skeleton_manifest()
+    manifest.pop("source_dirs")
+    rc, payload, _ = _run("skeleton", _wjson(tmp_path / "sk.json", manifest), root)
+    assert rc == 1
+    _assert_label(payload, "MISSING_SOURCE_DIRS")
+
+
+def test_skeleton_untraced_package_file(tmp_path: Path):
+    root = _make_pkg(tmp_path)
+    _write(root / "src" / "sneaky.py", "def sneak():\n    return 0\n")
+    rc, payload, _ = _run("skeleton", _wjson(tmp_path / "sk.json", _skeleton_manifest()), root)
+    assert rc == 1
+    _assert_label(payload, "UNTRACED_PACKAGE_FILE")
+
+
+def test_skeleton_empty_ledger(tmp_path: Path):
+    root = _make_pkg(tmp_path)
+    _wjson(root / "traceability_ledger.json", {"entries": []})
+    rc, payload, _ = _run("skeleton", _wjson(tmp_path / "sk.json", _skeleton_manifest()), root)
+    assert rc == 1
+    _assert_label(payload, "EMPTY_TRACEABILITY_LEDGER")
+
+
+def test_skeleton_export_anchoring(tmp_path: Path):
+    root = _make_pkg(tmp_path)
+    _write(root / "docs" / "api.md", "## something else entirely\n")
+    _write(root / "tests" / "test_example.py", "def test_placeholder():\n    assert True\n")
+    rc, payload, _ = _run("skeleton", _wjson(tmp_path / "sk.json", _skeleton_manifest()), root)
+    assert rc == 1
+    _assert_label(payload, "EXPORT_DOC_UNANCHORED")
+    _assert_label(payload, "EXPORT_TEST_UNANCHORED")
+
+
+def test_skeleton_export_must_exist_in_source(tmp_path: Path):
+    root = _make_pkg(tmp_path)
+    manifest = _skeleton_manifest()
+    manifest["exports"] = [{"name": "phantom_export", "doc_path": "docs/api.md", "test_path": "tests/test_example.py"}]
+    _write(root / "docs" / "api.md", "## phantom_export\n")
+    _write(root / "tests" / "test_example.py", "def test_phantom_export():\n    assert phantom_export\n")
+    rc, payload, _ = _run("skeleton", _wjson(tmp_path / "sk.json", manifest), root)
+    assert rc == 1
+    _assert_label(payload, "EXPORT_NOT_IN_SOURCE")
+
+
+def test_skeleton_exclusion_size_is_auditable(tmp_path: Path):
+    root = _make_pkg(tmp_path)
+    _write(root / "reference_assets" / "orig.py", "ORIGINAL = True\n")
+    manifest = _skeleton_manifest()
+    manifest["reference_asset_dirs"] = ["reference_assets"]
+    rc, payload, _ = _run("skeleton", _wjson(tmp_path / "sk.json", manifest), root)
+    assert rc == 0, payload["reasons"]
+    assert any(r.startswith("NOTE:") and "excluded 1 text file" in r for r in payload["reasons"])
 
 
 # ---------------------------------------------------------------------------
@@ -404,6 +520,49 @@ def test_reimplementation_missing_review(tmp_path: Path):
     rc, payload, _ = _run("reimplementation", _wjson(tmp_path / "i.json", manifest), root)
     assert rc == 1
     _assert_label(payload, "MISSING_INDEPENDENT_REVIEW")
+
+
+def test_reimplementation_missing_spec_and_impl(tmp_path: Path):
+    root = _make_reimpl_pkg(tmp_path)
+    manifest = _independence()
+    manifest["methods"][0]["spec_path"] = "specs/ghost_spec.md"
+    manifest["methods"][0]["implementations"][0]["path"] = "src/ghost.py"
+    rc, payload, _ = _run("reimplementation", _wjson(tmp_path / "i.json", manifest), root)
+    assert rc == 1
+    _assert_label(payload, "MISSING_SPEC")
+    _assert_label(payload, "MISSING_IMPLEMENTATION")
+
+
+def test_reimplementation_json_pass_with_blockers_not_approved(tmp_path: Path):
+    root = _make_reimpl_pkg(tmp_path)
+    _wjson(root / "reviews" / "verdict.md", {"verdict": "PASS", "blocking_issues": ["unresolved divergence"], "summary": "x"})
+    rc, payload, _ = _run("reimplementation", _wjson(tmp_path / "i.json", _independence()), root)
+    assert rc == 1
+    _assert_label(payload, "REVIEW_NOT_APPROVED")
+
+
+def test_reimplementation_fenced_json_verdict_accepted(tmp_path: Path):
+    root = _make_reimpl_pkg(tmp_path)
+    fenced = '```json\n{"verdict": "PASS", "blocking_issues": [], "summary": "ok"}\n```\n'
+    _write(root / "reviews" / "verdict.md", fenced)
+    rc, payload, _ = _run("reimplementation", _wjson(tmp_path / "i.json", _independence()), root)
+    assert rc == 0, payload["reasons"]
+
+
+def test_reimplementation_unrecognized_verdict_is_diagnosed(tmp_path: Path):
+    root = _make_reimpl_pkg(tmp_path, verdict="VERDICT: MAYBE\n")
+    rc, payload, _ = _run("reimplementation", _wjson(tmp_path / "i.json", _independence()), root)
+    assert rc == 1
+    _assert_label(payload, "REVIEW_VERDICT_UNRECOGNIZED")
+
+
+def test_reimplementation_ready_with_listed_blockers_not_approved(tmp_path: Path):
+    root = _make_reimpl_pkg(
+        tmp_path, verdict="VERDICT: READY\n\n## Blockers\n- sign convention still unresolved\n"
+    )
+    rc, payload, _ = _run("reimplementation", _wjson(tmp_path / "i.json", _independence()), root)
+    assert rc == 1
+    _assert_label(payload, "REVIEW_NOT_APPROVED")
 
 
 # ---------------------------------------------------------------------------
@@ -538,6 +697,52 @@ def test_reference_check_self_claimed_pass_is_ignored(tmp_path: Path):
     _assert_label(payload, "VALUE_MISMATCH")
 
 
+def test_reference_check_zero_errors_unanchored(tmp_path: Path):
+    # Both errors quoted as exactly 0: error_scale has no anchor; the check
+    # must demand a non-zero quoted precision instead of passing anything.
+    root = tmp_path / "pkg"
+    root.mkdir()
+    checks = [
+        _check_row(computed={"value": 1.2340, "error": 0.0}, reference={"value": 1.2340, "error": 0.0, "source": "paperA", "locator": "Table 2"}),
+        _check_row(id="anchor_2", representation="basis_B"),
+    ]
+    rc, payload, _ = _run("reference-check", _wjson(tmp_path / "r.json", _reference_check(checks)), root)
+    assert rc == 1
+    _assert_label(payload, "NON_DIAGNOSTIC_TOLERANCE")
+
+
+def test_reference_check_no_errors_at_all_unanchored(tmp_path: Path):
+    # Neither error quoted: a 500-sigma-style discrepancy must not be able to
+    # hide behind a self-declared loose tolerance/error_scale pair.
+    root = tmp_path / "pkg"
+    root.mkdir()
+    checks = [
+        _check_row(
+            computed={"value": 1.5},
+            reference={"value": 1.0, "source": "paperA", "locator": "Table 2"},
+            tolerance=0.6,
+            error_scale=0.7,
+        ),
+        _check_row(id="anchor_2", representation="basis_B"),
+    ]
+    rc, payload, _ = _run("reference-check", _wjson(tmp_path / "r.json", _reference_check(checks)), root)
+    assert rc == 1
+    _assert_label(payload, "NON_DIAGNOSTIC_TOLERANCE")
+
+
+def test_reference_check_missing_locator_and_values(tmp_path: Path):
+    root = tmp_path / "pkg"
+    root.mkdir()
+    checks = [
+        _check_row(reference={"value": 1.2340, "error": 0.0006}),  # no source/locator
+        _check_row(id="anchor_2", representation="basis_B", computed={"error": 0.1}),  # no value
+    ]
+    rc, payload, _ = _run("reference-check", _wjson(tmp_path / "r.json", _reference_check(checks)), root)
+    assert rc == 1
+    _assert_label(payload, "MISSING_REFERENCE_LOCATOR")
+    _assert_label(payload, "MISSING_VALUES")
+
+
 # ---------------------------------------------------------------------------
 # composite-gates
 # ---------------------------------------------------------------------------
@@ -616,6 +821,52 @@ def test_composite_gates_silent_waiver_fails(tmp_path: Path):
     _assert_label(payload, "SILENT_WAIVER")
 
 
+def test_composite_gates_row_verdicts_recomputed(tmp_path: Path):
+    # A hand-edited summary (not_reliable == []) must not launder a bad row.
+    root = tmp_path / "pkg"
+    _make_gate_files(root)
+    _wjson(
+        root / "gates" / "reliability_matrix.json",
+        {"reliable": 2, "not_reliable": [], "matrix": [{"id": "x", "verdict": "reliable"}, {"id": "y", "verdict": "unconverged"}]},
+    )
+    rc, payload, _ = _run("composite-gates", _wjson(tmp_path / "c.json", _composite()), root)
+    assert rc == 1
+    _assert_label(payload, "GATE_NOT_PASSED")
+    assert any("recomputed" in r for r in payload["reasons"])
+
+
+def test_composite_gates_self_inconsistent_summary_fails(tmp_path: Path):
+    root = tmp_path / "pkg"
+    _make_gate_files(root)
+    _wjson(
+        root / "gates" / "reliability_matrix.json",
+        {"reliable": 2, "not_reliable": ["ghost"], "matrix": [{"id": "x", "verdict": "reliable"}]},
+    )
+    rc, payload, _ = _run("composite-gates", _wjson(tmp_path / "c.json", _composite()), root)
+    assert rc == 1
+    _assert_label(payload, "GATE_NOT_PASSED")
+
+
+def test_composite_gates_unparseable_verdict(tmp_path: Path):
+    root = tmp_path / "pkg"
+    _make_gate_files(root)
+    _write(root / "gates" / "performance_verdict.json", "{not json")
+    rc, payload, _ = _run("composite-gates", _wjson(tmp_path / "c.json", _composite()), root)
+    assert rc == 1
+    _assert_label(payload, "UNPARSEABLE_GATE_VERDICT")
+
+
+def test_composite_gates_verdict_escape_via_dotdot_rejected(tmp_path: Path):
+    root = tmp_path / "pkg"
+    _make_gate_files(root)
+    _wjson(tmp_path / "outside.json", {"verdict": "pass"})
+    rc, payload, _ = _run(
+        "composite-gates", _wjson(tmp_path / "c.json", _composite(perf="../outside.json")), root
+    )
+    assert rc == 1
+    _assert_label(payload, "PATH_ESCAPES_PACKAGE_ROOT")
+
+
 # ---------------------------------------------------------------------------
 # closeout
 # ---------------------------------------------------------------------------
@@ -638,6 +889,7 @@ def _closeout(**over: object) -> dict:
         "schema_id": "closeout_v1",
         "readme_examples": [{"id": "quickstart", "log": "closeout/quickstart_run.log"}],
         "scrub_lexicon": ["internalcodename"],
+        "source_dirs": ["src"],
         "traceability_ledger": "traceability_ledger.json",
     }
     base.update(over)
@@ -691,6 +943,15 @@ def test_closeout_examples_or_reason(tmp_path: Path):
     _assert_label(payload, "MISSING_CLOSEOUT_FIELDS")
 
 
+def test_closeout_untraced_late_file(tmp_path: Path):
+    # A file added after the skeleton phase must not ship without an origin.
+    root = _make_closeout_pkg(tmp_path)
+    _write(root / "src" / "late_addition.py", "def late():\n    return 0\n")
+    rc, payload, _ = _run("closeout", _wjson(tmp_path / "co.json", _closeout()), root)
+    assert rc == 1
+    _assert_label(payload, "UNTRACED_PACKAGE_FILE")
+
+
 def test_closeout_final_tree_scans_reference_dirs_too(tmp_path: Path):
     root = _make_closeout_pkg(tmp_path)
     bad = "/" + "Users" + "/someone/notebook_export.py"
@@ -715,6 +976,27 @@ def test_invalid_json_is_input_error(tmp_path: Path):
     art = _write(tmp_path / "bad.json", "{not json")
     rc, payload, _ = _run("survey", art)
     assert rc == 2 and payload["status"] == "error"
+
+
+def test_wrong_schema_id_is_input_error(tmp_path: Path):
+    art = _wjson(tmp_path / "s.json", {"schema_id": "closeout_v1", "components": [_component()]})
+    rc, payload, _ = _run("survey", art)
+    assert rc == 2 and payload["status"] == "error"
+    assert any("schema_id" in r for r in payload["reasons"])
+
+
+def test_unwritable_out_json_keeps_single_stdout_verdict(tmp_path: Path):
+    art = _wjson(tmp_path / "s.json", _survey([_component()]))
+    blocker = _write(tmp_path / "blocker.txt", "not a directory\n")
+    out = blocker / "verdict.json"  # parent is a file: mkdir/write must fail
+    proc = subprocess.run(
+        [sys.executable, str(GATE), "--phase", "survey", "--artifact", str(art), "--out-json", str(out)],
+        capture_output=True, text=True, check=False,
+    )
+    assert proc.returncode == 0  # the stdout verdict is the contract; the write failure is a warning
+    payload = json.loads(proc.stdout.strip())  # exactly ONE JSON object on stdout
+    assert payload["status"] == "pass"
+    assert "could not write --out-json" in proc.stderr
 
 
 def test_out_json_matches_stdout(tmp_path: Path):

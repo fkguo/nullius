@@ -85,6 +85,9 @@ _SCAN_EXTS = {
     ".ini",
 }
 _SCAN_SKIP_DIRS = {".git", "node_modules", ".venv", "venv", "__pycache__", ".pytest_cache"}
+# Code files that must be covered by the traceability ledger (prose/config
+# files carry no algorithmic content to trace).
+_CODE_EXTS = _SCAN_EXTS - {".md", ".txt", ".json", ".toml", ".yaml", ".yml", ".cfg", ".ini"}
 _MAX_SCAN_BYTES = 2_000_000
 # The metacharacter right after each prefix is deliberate: it marks this as a
 # detector pattern, not a machine-specific path.
@@ -92,7 +95,12 @@ _ABS_PATH_RE = re.compile(r"(?:/Users/|/home/|[A-Za-z]:\\Users\\)[A-Za-z0-9._-]+
 
 # Reviewer verdict formats accepted for the reimplementation phase
 # (the review-swarm output contract): markdown first line or JSON verdict.
-_REVIEW_MD_RE = re.compile(r"^\s*VERDICT:\s*(READY|NOT_READY)\b")
+_REVIEW_MD_RE = re.compile(r"^\s*VERDICT:\s*([A-Z_]+)\b")
+_FENCED_JSON_RE = re.compile(r"^```(?:json)?\s*\n(.*)\n```\s*$", re.DOTALL)
+# Absence statements offered as "prior art" for an originality claim.
+_ABSENCE_STATEMENT_RE = re.compile(
+    r"(?i)\bno\s+(?:public\s+|open[- ]source\s+)?(?:code|implementation|package|software)\b"
+)
 
 _REL_SLACK = 1e-12
 
@@ -107,6 +115,11 @@ class Findings:
         if label not in self.labels:
             self.labels.append(label)
         self.reasons.append(f"{label}: {reason}")
+
+    def note(self, reason: str) -> None:
+        """A non-failing audit note: lands in reasons (visible in the machine
+        verdict) without a label, so it does not fail the phase."""
+        self.reasons.append(f"NOTE: {reason}")
 
 
 # ---------------------------------------------------------------------------
@@ -139,7 +152,9 @@ def _num(obj: Any, key: str) -> float | None:
 
 def _rel_path(root: Path, raw: str, f: Findings, ctx: str) -> Path | None:
     """Resolve a manifest-declared path against the package root. Absolute
-    paths in manifests are non-portable and fail closed."""
+    paths in manifests are non-portable, and a relative path that escapes the
+    package root (via '..') could satisfy a check with a file the package does
+    not contain; both fail closed."""
     p = raw.strip()
     if not p:
         f.add("MISSING_PATH", f"{ctx}: empty path")
@@ -147,7 +162,15 @@ def _rel_path(root: Path, raw: str, f: Findings, ctx: str) -> Path | None:
     if Path(p).is_absolute() or _ABS_PATH_RE.search(p):
         f.add("ABSOLUTE_PATH_IN_MANIFEST", f"{ctx}: manifest path must be package-root-relative: {p!r}")
         return None
-    return (root / p).resolve()
+    resolved = (root / p).resolve()
+    if not resolved.is_relative_to(root.resolve()):
+        f.add(
+            "PATH_ESCAPES_PACKAGE_ROOT",
+            f"{ctx}: {p!r} resolves outside the package root — a check satisfied by an external "
+            "file certifies nothing about the package",
+        )
+        return None
+    return resolved
 
 
 def _iter_package_files(root: Path) -> tuple[list[Path], list[str]]:
@@ -217,21 +240,34 @@ def check_survey(artifact: dict, root: Path | None, f: Findings) -> None:
         searches = _as_list(comp, "searches")
         ok_searches = [
             s for s in searches
-            if isinstance(s, dict) and _nonempty_str(s, "query") and _nonempty_str(s, "venue")
+            if isinstance(s, dict)
+            and _nonempty_str(s, "query") and _nonempty_str(s, "venue") and _nonempty_str(s, "date")
         ]
         if not ok_searches:
-            f.add("MISSING_SEARCH_LOG", f"{cid}: no recorded searches (each needs query + venue)")
+            f.add("MISSING_SEARCH_LOG", f"{cid}: no fully recorded searches (each needs query + venue + date)")
         prior = _as_list(comp, "strongest_prior_art")
         prior_ok = [
             p for p in prior
-            if isinstance(p, dict) and _nonempty_str(p, "statement") and _nonempty_str(p, "source")
+            if isinstance(p, dict)
+            and _nonempty_str(p, "statement") and _nonempty_str(p, "source") and _nonempty_str(p, "locator")
         ]
         originality = bool(comp.get("originality_claim", False)) if isinstance(comp, dict) else False
         if originality and not prior_ok:
             f.add(
                 "ORIGINALITY_WITHOUT_STRONGEST_PRIOR",
-                f"{cid}: originality_claim requires naming the strongest existing statement "
-                "found by a focused search (strongest_prior_art must be non-empty)",
+                f"{cid}: originality_claim requires naming the strongest existing statement found "
+                "by a focused search (strongest_prior_art entries need statement + source + locator)",
+            )
+        # An originality claim propped up only by absence statements is the
+        # absence being laundered through the prior-art field.
+        if originality and prior_ok and all(
+            _ABSENCE_STATEMENT_RE.search(_nonempty_str(p, "statement")) for p in prior_ok
+        ):
+            f.add(
+                "ABSENCE_PROMOTED_TO_NOVELTY",
+                f"{cid}: every strongest_prior_art statement is an absence statement ('no public "
+                "code/implementation found') — absence is a search RESULT, not prior art; name the "
+                "closest existing METHOD statement instead",
             )
         no_code = bool(comp.get("no_public_code_found", False)) if isinstance(comp, dict) else False
         if no_code and originality and not prior_ok:
@@ -304,12 +340,35 @@ def check_skeleton(artifact: dict, root: Path, f: Findings) -> None:
                 continue
             exclude.append(p)
     _scan_absolute_paths(root, f, exclude)
+    # An exclusion is a declared blind spot: make its size auditable in the
+    # machine verdict (the closeout phase re-scans with NO exclusions).
+    for e in exclude:
+        n = sum(1 for p in e.rglob("*") if p.is_file() and p.suffix in _SCAN_EXTS)
+        f.note(
+            f"reference_asset_dirs {str(e.relative_to(root))!r} excluded {n} text file(s) from "
+            "the skeleton path scan; the closeout scan has no exclusions"
+        )
 
     if not any((root / name).is_file() for name in ("README.md", "README.rst", "README.txt")):
         f.add("MISSING_README", "package root has no README")
     if not any((root / d).is_dir() for d in ("tests", "test")):
         f.add("MISSING_TEST_SKELETON", "package root has no tests/ (or test/) directory")
 
+    # Source dirs: the set of directories whose code the ledger must cover.
+    source_dirs: list[Path] = []
+    for raw in _as_list(artifact, "source_dirs"):
+        if isinstance(raw, str) and raw.strip():
+            p = _rel_path(root, raw, f, "source_dirs")
+            if p is not None and p.is_dir():
+                source_dirs.append(p)
+    if not source_dirs:
+        f.add(
+            "MISSING_SOURCE_DIRS",
+            "source_dirs must name at least one existing directory — without it, ledger coverage "
+            "and export anchoring cannot be verified",
+        )
+
+    covered_paths: set[str] = set()
     ledger_rel = _nonempty_str(artifact, "traceability_ledger")
     ledger_path = _rel_path(root, ledger_rel, f, "traceability_ledger") if ledger_rel else None
     if ledger_path is None or not ledger_path.is_file():
@@ -326,6 +385,7 @@ def check_skeleton(artifact: dict, root: Path, f: Findings) -> None:
             f.add("EMPTY_TRACEABILITY_LEDGER", "traceability ledger has no entries")
         for i, e in enumerate(entries):
             eid = _nonempty_str(e, "artifact") or f"entries[{i}]"
+            covered_paths.add(_nonempty_str(e, "artifact").split("#", 1)[0])
             has_extraction = bool([x for x in _as_list(e, "extraction_ids") if isinstance(x, str) and x.strip()])
             has_reuse = bool(_nonempty_str(e, "reuse_source"))
             if not has_extraction and not has_reuse:
@@ -335,20 +395,55 @@ def check_skeleton(artifact: dict, root: Path, f: Findings) -> None:
                     "reuse_source (adopted from an existing package)",
                 )
 
+    # Coverage is two-way: declared entries must have origins (above), and
+    # every code file under source_dirs must have a ledger entry — otherwise
+    # "nothing enters the package without an origin" is a one-way promise.
+    source_files: list[Path] = []
+    for sd in source_dirs:
+        source_files.extend(
+            p for p in sorted(sd.rglob("*"))
+            if p.is_file() and p.suffix in _CODE_EXTS
+            and not any(part in _SCAN_SKIP_DIRS for part in p.relative_to(root).parts)
+        )
+    f.checked["source_files"] = len(source_files)
+    for p in source_files:
+        rel = p.relative_to(root).as_posix()
+        if rel not in covered_paths:
+            f.add(
+                "UNTRACED_PACKAGE_FILE",
+                f"{rel}: code file under source_dirs has no traceability-ledger entry — nothing "
+                "enters the package without an origin",
+            )
+
+    source_texts: list[str] | None = None
     exports = _as_list(artifact, "exports")
     f.checked["exports"] = len(exports)
     if not exports:
         f.add("MISSING_EXPORT_MAP", "no exports declared — the export <-> doc <-> test map is required")
     for i, ex in enumerate(exports):
         name = _nonempty_str(ex, "name") or f"exports[{i}]"
+        name_re = re.compile(rf"\b{re.escape(name)}\b")
         doc = _nonempty_str(ex, "doc_path")
         doc_p = _rel_path(root, doc, f, f"exports[{name}].doc_path") if doc else None
         if doc_p is None or not doc_p.is_file():
             f.add("EXPORT_MISSING_DOC", f"{name}: documented-at file not found: {doc!r}")
+        elif not name_re.search(_read_text(doc_p) or ""):
+            f.add("EXPORT_DOC_UNANCHORED", f"{name}: doc file {doc!r} never mentions the export")
         test = _nonempty_str(ex, "test_path")
         test_p = _rel_path(root, test, f, f"exports[{name}].test_path") if test else None
         if test_p is None or not test_p.is_file():
             f.add("EXPORT_MISSING_TEST", f"{name}: test-skeleton file not found: {test!r}")
+        elif not name_re.search(_read_text(test_p) or ""):
+            f.add("EXPORT_TEST_UNANCHORED", f"{name}: test file {test!r} never mentions the export")
+        if source_dirs:
+            if source_texts is None:
+                source_texts = [_read_text(p) or "" for p in source_files]
+            if not any(name_re.search(t) for t in source_texts):
+                f.add(
+                    "EXPORT_NOT_IN_SOURCE",
+                    f"{name}: export name appears nowhere under source_dirs — the map must anchor "
+                    "to code that exists",
+                )
 
 
 # ---------------------------------------------------------------------------
@@ -465,31 +560,89 @@ def check_reimplementation(artifact: dict, root: Path, f: Findings) -> None:
             if v_p is None or not v_p.is_file():
                 f.add("MISSING_INDEPENDENT_REVIEW", f"{mid}: review verdict file not found: {raw!r}")
                 continue
-            if not _review_approved(v_p):
+            state, why = _review_state(v_p)
+            if state == "unrecognized":
+                f.add(
+                    "REVIEW_VERDICT_UNRECOGNIZED",
+                    f"{mid}: review verdict {raw!r} does not follow the review output contract "
+                    f"({why}) — a misformatted verdict is diagnosed as such, not silently approved",
+                )
+            elif state == "not_approved":
                 f.add(
                     "REVIEW_NOT_APPROVED",
-                    f"{mid}: review verdict {raw!r} is not an approval — convergence is declared by "
-                    "the reviewer, not by the implementer",
+                    f"{mid}: review verdict {raw!r} is not an approval ({why}) — convergence is "
+                    "declared by the reviewer, not by the implementer",
                 )
 
 
-def _review_approved(path: Path) -> bool:
+def _review_state(path: Path) -> tuple[str, str]:
+    """Classify a reviewer verdict file: approved / not_approved / unrecognized.
+
+    Accepted formats (the review-swarm output contract):
+    - JSON (optionally in a ```json fence): {"verdict": "PASS"|"FAIL",
+      "blocking_issues": [...]} — approval needs verdict PASS AND an empty
+      blocking_issues list.
+    - Markdown: first non-empty line `VERDICT: READY|NOT_READY`; approval
+      needs READY and, when a `## Blockers` section exists, no blocker items
+      in it.
+    """
     text = _read_text(path)
     if text is None:
-        return False
+        return "unrecognized", "unreadable file"
     stripped = text.strip()
+    fenced = _FENCED_JSON_RE.match(stripped)
+    if fenced:
+        stripped = fenced.group(1).strip()
     if stripped.startswith("{"):
         try:
             obj = json.loads(stripped)
-        except json.JSONDecodeError:
-            return False
-        return isinstance(obj, dict) and str(obj.get("verdict", "")).upper() == "PASS"
-    for line in stripped.splitlines():
-        if not line.strip():
+        except json.JSONDecodeError as e:
+            return "unrecognized", f"invalid JSON ({e})"
+        if not isinstance(obj, dict):
+            return "unrecognized", "JSON verdict must be an object"
+        verdict = str(obj.get("verdict", "")).strip().upper()
+        blocking = obj.get("blocking_issues")
+        if not isinstance(blocking, list):
+            return "unrecognized", "JSON verdict is missing the blocking_issues list"
+        if verdict == "PASS":
+            if blocking:
+                return "not_approved", f"verdict PASS but {len(blocking)} blocking issue(s) recorded"
+            return "approved", ""
+        if verdict == "FAIL":
+            return "not_approved", "verdict FAIL"
+        return "unrecognized", f"unknown JSON verdict {obj.get('verdict')!r}"
+    lines = stripped.splitlines()
+    first = next((ln for ln in lines if ln.strip()), "")
+    m = _REVIEW_MD_RE.match(first)
+    if not m:
+        return "unrecognized", "first non-empty line is not a 'VERDICT: ...' line"
+    token = m.group(1)
+    if token == "NOT_READY":
+        return "not_approved", "verdict NOT_READY"
+    if token != "READY":
+        return "unrecognized", f"unknown Markdown verdict {token!r}"
+    blockers = _md_section_items(lines, "blockers")
+    if blockers:
+        return "not_approved", f"verdict READY but {len(blockers)} blocker item(s) listed"
+    return "approved", ""
+
+
+def _md_section_items(lines: list[str], heading: str) -> list[str]:
+    """Non-trivial bullet/numbered items under a '## <heading>' section."""
+    items: list[str] = []
+    in_section = False
+    for ln in lines:
+        s = ln.strip()
+        if s.startswith("#"):
+            in_section = s.lstrip("#").strip().lower().startswith(heading)
             continue
-        m = _REVIEW_MD_RE.match(line)
-        return bool(m and m.group(1) == "READY")
-    return False
+        if not in_section or not s:
+            continue
+        if re.match(r"^(?:[-*+]|\d+[.)])\s+", s):
+            body = re.sub(r"^(?:[-*+]|\d+[.)])\s+", "", s).strip().lower()
+            if body and body not in {"(none)", "none", "none.", "n/a"}:
+                items.append(s)
+    return items
 
 
 # ---------------------------------------------------------------------------
@@ -534,17 +687,25 @@ def check_reference_check(artifact: dict, root: Path, f: Findings) -> None:
             )
             continue
         ce, re_ = _num(computed, "error"), _num(reference, "error")
-        if ce is not None or re_ is not None:
-            # A missing error counts as 0 here: that SHRINKS the combined
-            # uncertainty, i.e. tightens the ceiling on error_scale
-            # (fail-closed — omitting one error can never loosen the check).
-            combined = math.hypot(ce or 0.0, re_ or 0.0)
-            if combined > 0 and scale > combined * (1 + _REL_SLACK):
-                f.add(
-                    "ERROR_SCALE_INFLATED",
-                    f"{cid}: declared error_scale={scale:g} exceeds the combined declared "
-                    f"uncertainty {combined:g} — inflating the scale launders a loose tolerance",
-                )
+        # A missing error counts as 0: that SHRINKS the combined uncertainty,
+        # i.e. tightens the ceiling on error_scale (omitting an error can
+        # never loosen the check). And the ceiling must be ANCHORED: with no
+        # non-zero quoted uncertainty at all, any positive error_scale is a
+        # free parameter that could launder any tolerance.
+        combined = math.hypot(ce or 0.0, re_ or 0.0)
+        if combined <= 0:
+            f.add(
+                "NON_DIAGNOSTIC_TOLERANCE",
+                f"{cid}: no non-zero quoted uncertainty anchors error_scale — quote at least the "
+                "numerical precision of the computed value as computed.error (an exact reference "
+                "still leaves the computation with finite precision)",
+            )
+        elif scale > combined * (1 + _REL_SLACK):
+            f.add(
+                "ERROR_SCALE_INFLATED",
+                f"{cid}: declared error_scale={scale:g} exceeds the combined declared "
+                f"uncertainty {combined:g} — inflating the scale launders a loose tolerance",
+            )
         if tol > scale * (1 + _REL_SLACK):
             f.add(
                 "NON_DIAGNOSTIC_TOLERANCE",
@@ -653,17 +814,32 @@ def check_composite_gates(artifact: dict, root: Path, f: Findings) -> None:
         elif which == "numerical_reliability":
             matrix = obj.get("matrix")
             not_reliable = obj.get("not_reliable")
-            ok = (
-                isinstance(matrix, list) and len(matrix) >= 1
-                and isinstance(not_reliable, list) and not not_reliable
-            )
-            if not ok:
+            if not (isinstance(matrix, list) and len(matrix) >= 1 and isinstance(not_reliable, list)):
                 f.add(
                     "GATE_NOT_PASSED",
-                    f"numerical_reliability: requires a non-empty matrix with empty not_reliable "
+                    f"numerical_reliability: requires a non-empty matrix and a not_reliable list "
                     f"(got matrix={'list[' + str(len(matrix)) + ']' if isinstance(matrix, list) else matrix!r}, "
                     f"not_reliable={not_reliable!r})",
                 )
+            else:
+                # Recompute from the rows: the summary list is not trusted.
+                bad_rows = [
+                    str((row or {}).get("id", f"matrix[{i}]")) if isinstance(row, dict) else f"matrix[{i}]"
+                    for i, row in enumerate(matrix)
+                    if not (isinstance(row, dict) and row.get("verdict") == "reliable")
+                ]
+                if bad_rows:
+                    f.add(
+                        "GATE_NOT_PASSED",
+                        f"numerical_reliability: matrix row(s) not 'reliable': {bad_rows[:5]!r} — "
+                        "row verdicts are recomputed here; the summary list is not trusted",
+                    )
+                elif not_reliable:
+                    f.add(
+                        "GATE_NOT_PASSED",
+                        f"numerical_reliability: not_reliable={not_reliable!r} while every matrix row "
+                        "reads 'reliable' — the verdict file is self-inconsistent",
+                    )
         else:  # performance
             verdict = str(obj.get("verdict", "")).lower()
             if verdict != "pass":
@@ -731,6 +907,7 @@ def check_closeout(artifact: dict, root: Path, f: Findings) -> None:
                     )
                     break
 
+    covered_paths: set[str] = set()
     ledger_rel = _nonempty_str(artifact, "traceability_ledger")
     ledger_p = _rel_path(root, ledger_rel, f, "traceability_ledger") if ledger_rel else None
     if ledger_p is None or not ledger_p.is_file():
@@ -747,12 +924,42 @@ def check_closeout(artifact: dict, root: Path, f: Findings) -> None:
             f.add("UNRESOLVED_TRACEABILITY", "traceability ledger has no entries")
         for i, e in enumerate(entries):
             eid = _nonempty_str(e, "artifact") or f"entries[{i}]"
+            covered_paths.add(_nonempty_str(e, "artifact").split("#", 1)[0])
             status = _nonempty_str(e, "status")
             if status not in {"verified", "reused"}:
                 f.add(
                     "UNRESOLVED_TRACEABILITY",
                     f"{eid}: status must be 'verified' or 'reused' at closeout, got {status!r} — "
                     "no pending provenance may ship",
+                )
+
+    # Coverage re-check on the FINAL tree: every code file under source_dirs
+    # must still be traced (a file added after the skeleton phase must not
+    # ship without an origin).
+    source_dirs: list[Path] = []
+    for raw in _as_list(artifact, "source_dirs"):
+        if isinstance(raw, str) and raw.strip():
+            p = _rel_path(root, raw, f, "source_dirs")
+            if p is not None and p.is_dir():
+                source_dirs.append(p)
+    if not source_dirs:
+        f.add(
+            "MISSING_SOURCE_DIRS",
+            "source_dirs must name at least one existing directory — the closeout coverage "
+            "re-check cannot run without it",
+        )
+    for sd in source_dirs:
+        for p in sorted(sd.rglob("*")):
+            if not (p.is_file() and p.suffix in _CODE_EXTS):
+                continue
+            if any(part in _SCAN_SKIP_DIRS for part in p.relative_to(root).parts):
+                continue
+            rel = p.relative_to(root).as_posix()
+            if rel not in covered_paths:
+                f.add(
+                    "UNTRACED_PACKAGE_FILE",
+                    f"{rel}: code file under source_dirs has no traceability-ledger entry at "
+                    "closeout — nothing ships without an origin",
                 )
 
 
@@ -771,6 +978,16 @@ _CHECKERS = {
     "closeout": check_closeout,
 }
 
+_PHASE_SCHEMA_IDS = {
+    "survey": "survey_decision_v1",
+    "extraction": "extraction_manifest_v1",
+    "skeleton": "skeleton_manifest_v1",
+    "reimplementation": "independence_manifest_v1",
+    "reference-check": "reference_check_v1",
+    "composite-gates": "composite_gates_v1",
+    "closeout": "closeout_v1",
+}
+
 
 def _emit(phase: str, status: str, exit_code: int, f: Findings, out_json: Path | None) -> int:
     result = {
@@ -786,8 +1003,14 @@ def _emit(phase: str, status: str, exit_code: int, f: Findings, out_json: Path |
     }
     print(json.dumps(result, ensure_ascii=False, sort_keys=True))
     if out_json is not None:
-        out_json.parent.mkdir(parents=True, exist_ok=True)
-        out_json.write_text(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        # _emit must never raise: the stdout verdict above is already the
+        # contract, and a crash here would re-enter the error path and print
+        # a second (unparseable) verdict.
+        try:
+            out_json.parent.mkdir(parents=True, exist_ok=True)
+            out_json.write_text(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        except OSError as e:
+            print(f"WARNING: could not write --out-json {out_json}: {e}", file=sys.stderr)
     return exit_code
 
 
@@ -825,6 +1048,13 @@ def main() -> int:
             return _error(f"artifact is not valid JSON: {e}")
         if not isinstance(artifact, dict):
             return _error("artifact must be a JSON object")
+        expected_schema = _PHASE_SCHEMA_IDS[args.phase]
+        if artifact.get("schema_id") != expected_schema:
+            return _error(
+                f"artifact schema_id must be {expected_schema!r} for phase {args.phase} "
+                f"(got {artifact.get('schema_id')!r}) — the wrong artifact handed to the wrong "
+                "phase must not be silently accepted"
+            )
 
         _CHECKERS[args.phase](artifact, root, f)
 
