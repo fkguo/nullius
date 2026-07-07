@@ -663,6 +663,25 @@ def test_reimplementation_fenced_headers_are_not_sections(tmp_path: Path):
     _assert_label(payload, "REVIEW_VERDICT_UNRECOGNIZED")
 
 
+def test_reimplementation_four_backtick_fence_still_hides_headers(tmp_path: Path):
+    # An outer four-backtick fence quoting inner ``` content is ONE fence
+    # (CommonMark: a closer must match the opener's character and length);
+    # headers inside it must stay hidden.
+    stub = (
+        "VERDICT: READY\n\n"
+        "````\n"
+        "```\n"
+        "## Blockers\n(none)\n\n## Non-blocking\n(none)\n\n## Real-research fit\nok\n\n"
+        "## Robustness & safety\nok\n\n## Specific patch suggestions\n(none)\n"
+        "```\n"
+        "````\n"
+    )
+    root = _make_reimpl_pkg(tmp_path, verdict=stub)
+    rc, payload, _ = _run("reimplementation", _wjson(tmp_path / "i.json", _independence()), root)
+    assert rc == 1
+    _assert_label(payload, "REVIEW_VERDICT_UNRECOGNIZED")
+
+
 def test_reimplementation_json_missing_summary_unrecognized(tmp_path: Path):
     root = _make_reimpl_pkg(tmp_path)
     _wjson(root / "reviews" / "verdict.md", {"verdict": "PASS", "blocking_issues": []})  # no summary

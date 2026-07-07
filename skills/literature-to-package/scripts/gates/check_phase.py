@@ -681,13 +681,26 @@ def _review_state(path: Path) -> tuple[str, str]:
 
 
 def _unfenced_lines(lines: list[str]) -> list[str]:
+    """Drop fenced-code regions. Fences are tracked by opener character and
+    length (CommonMark): a fence closes only on a bare run of the SAME
+    character at least as long as the opener — so an outer ````-fence quoting
+    inner ``` content stays one fence, and its contents stay hidden."""
     out: list[str] = []
-    in_fence = False
+    open_char = ""
+    open_len = 0
     for ln in lines:
-        if ln.strip().startswith("```"):
-            in_fence = not in_fence
+        s = ln.strip()
+        m = re.match(r"^(`{3,}|~{3,})(.*)$", s)
+        if m:
+            run, rest = m.group(1), m.group(2).strip()
+            if not open_char:
+                open_char, open_len = run[0], len(run)
+            elif run[0] == open_char and len(run) >= open_len and not rest:
+                open_char, open_len = "", 0
+            # a fence-looking line inside an open fence that does not close
+            # it is fenced content
             continue
-        if not in_fence:
+        if not open_char:
             out.append(ln)
     return out
 
