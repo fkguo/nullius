@@ -208,8 +208,14 @@ def main(argv: list[str] | None = None) -> int:
         "store_root": args.store_root,
     }
 
+    # Emit the key BEFORE the write attempt: if the caller dies after the
+    # store committed but before the response was read, this line is the
+    # only record that allows retrying THAT write via --idempotency-key —
+    # a --new-write salt is minted in-process and cannot be re-derived.
+    sys.stderr.write(f"using idempotency key {key}\n")
+
     try:
-        result = subprocess.run(
+        proc = subprocess.run(
             [args.runner, str(rpc_path)],
             input=json.dumps(request),
             capture_output=True,
@@ -221,32 +227,41 @@ def main(argv: list[str] | None = None) -> int:
         sys.stderr.write(f"error: could not run the RPC caller: {exc}\n")
         return 2
 
-    if result.returncode != 0:
-        sys.stderr.write(
-            f"error: RPC caller exited {result.returncode}.\n"
-            f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}\n"
-        )
-        return 2
-
+    # Parse the envelope before judging the exit code: the real RPC caller
+    # (bin/idea-rpc.mjs) prints the JSON-RPC error envelope on stdout AND
+    # exits 1, so a store rejection must be reported as such (exit 1), not
+    # as an infrastructure failure of the caller (exit 2).
     try:
-        response = json.loads(result.stdout)
+        response = json.loads(proc.stdout)
     except json.JSONDecodeError:
-        sys.stderr.write(
-            "error: RPC caller did not return JSON on stdout.\n"
-            f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}\n"
-        )
-        return 2
+        response = None
+    if not isinstance(response, dict):
+        response = None
 
-    if response.get("error") is not None:
+    if response is not None and response.get("error") is not None:
         sys.stderr.write(
             "error: store rejected the write: "
             f"{json.dumps(response['error'])}\n"
         )
         return 1
 
+    if proc.returncode != 0:
+        sys.stderr.write(
+            f"error: RPC caller exited {proc.returncode}.\n"
+            f"stdout:\n{proc.stdout}\nstderr:\n{proc.stderr}\n"
+        )
+        return 2
+
+    if response is None:
+        sys.stderr.write(
+            "error: RPC caller did not return JSON on stdout.\n"
+            f"stdout:\n{proc.stdout}\nstderr:\n{proc.stderr}\n"
+        )
+        return 2
+
     print(json.dumps(response, indent=2, sort_keys=True))
-    result = response.get("result") or {}
-    idempotency = result.get("idempotency") or {}
+    rpc_result = response.get("result") or {}
+    idempotency = rpc_result.get("idempotency") or {}
     if idempotency.get("is_replay"):
         # Replay is correct for a retry of the same write, but silent replay
         # is a trap when the intent was a fresh write of content identical

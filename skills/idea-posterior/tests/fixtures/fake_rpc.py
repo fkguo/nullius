@@ -2,11 +2,13 @@
 """Stand-in for the idea-engine thin RPC caller, used by writeback tests.
 
 Reads one JSON request from stdin. With FAKE_RPC_FAIL=1 it returns an error
-response. With FAKE_RPC_REPLAY=1 the result carries idempotency metadata
-marking the response as a duplicate hit (``is_replay: true``), mirroring the
-engine's idempotency_meta_v1. Otherwise it validates the request shape
-against the node.set_posterior contract and echoes the request back inside
-the result.
+response and exits 1, mirroring the real caller's behavior on error
+envelopes. With FAKE_RPC_CRASH=1 it prints non-JSON and exits 3 (an
+infrastructure failure, as opposed to a store rejection). With
+FAKE_RPC_REPLAY=1 the result carries idempotency metadata marking the
+response as a duplicate hit (``is_replay: true``), mirroring the engine's
+idempotency_meta_v1. Otherwise it validates the request shape against the
+node.set_posterior contract and echoes the request back inside the result.
 """
 
 import json
@@ -28,10 +30,17 @@ def main() -> int:
                  "error": {"code": -32700, "message": f"parse error: {exc}"}})
         return 0
 
+    if os.environ.get("FAKE_RPC_CRASH") == "1":
+        sys.stdout.write("not json at all")
+        sys.stdout.flush()
+        return 3
+
     if os.environ.get("FAKE_RPC_FAIL") == "1":
         respond({"jsonrpc": "2.0", "id": 1,
                  "error": {"code": -32000, "message": "store rejected write"}})
-        return 0
+        # The real caller (bin/idea-rpc.mjs) exits 1 when the response has
+        # an error member; mirror that so tests exercise the real shape.
+        return 1
 
     problems = []
     if request.get("method") != "node.set_posterior":

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sys
 
 import pytest
@@ -55,10 +56,36 @@ def test_successful_writeback_request_shape(tmp_path, fixtures_dir, capsys) -> N
 
 
 def test_error_response_fails_loudly(tmp_path, fixtures_dir, capsys, monkeypatch) -> None:
+    # The fake mirrors the real caller: error envelope on stdout AND exit 1.
+    # A store rejection must be reported as such (exit 1), not as an
+    # infrastructure failure of the caller (exit 2).
     monkeypatch.setenv("FAKE_RPC_FAIL", "1")
     assert run_main(tmp_path, fixtures_dir) == 1
     err = capsys.readouterr().err
     assert "store rejected" in err
+
+
+def test_caller_crash_is_infrastructure_failure(
+    tmp_path, fixtures_dir, capsys, monkeypatch
+) -> None:
+    monkeypatch.setenv("FAKE_RPC_CRASH", "1")
+    assert run_main(tmp_path, fixtures_dir) == 2
+    err = capsys.readouterr().err
+    assert "RPC caller exited 3" in err
+
+
+def test_key_is_printed_before_the_write_attempt(
+    tmp_path, fixtures_dir, capsys, monkeypatch
+) -> None:
+    # If the caller dies after the store committed but before the response
+    # was read, the pre-write key line is the only way to retry THAT write
+    # via --idempotency-key — a --new-write salt cannot be re-derived.
+    monkeypatch.setenv("FAKE_RPC_FAIL", "1")
+    assert run_main(tmp_path, fixtures_dir, ("--new-write",)) == 1
+    err = capsys.readouterr().err
+    match = re.search(r"using idempotency key (\S+)", err)
+    assert match is not None
+    assert "-fresh-" in match.group(1)
 
 
 def test_explicit_idempotency_key_wins(tmp_path, fixtures_dir, capsys) -> None:
