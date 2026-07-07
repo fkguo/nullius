@@ -90,12 +90,21 @@ _PY_FROM_RE = re.compile(r"^\s*from\s+(\.*)([A-Za-z_][\w.]*)?\s+import\b")
 _JL_USING_RE = re.compile(r"^\s*(?:using|import)\s+([^#]+)")
 _JL_INCLUDE_RE = re.compile(r"""\bincludet?\(\s*["']([^"']+)["']\s*\)""")
 _SH_SOURCE_RE = re.compile(r"""^\s*(?:source|\.)\s+["']?([^\s"']+)""")
+_R_SOURCE_RE = re.compile(r"""\bsource\(\s*["']([^"']+)["']""")
+_R_LIBRARY_RE = re.compile(r"""\b(?:library|require)\(\s*["']?([A-Za-z][\w.]*)["']?\s*[,)]""")
+_WL_GET_RE = re.compile(r"""\b(?:Get|Needs)\[\s*"([^"]+)"\s*[,\]]""")
+_WL_LTLT_RE = re.compile(r"<<\s*([^\s;\]\"]+)")
 # Language-agnostic "this line loads code" hint for the K1 declared-kernel
-# scan (covers Mathematica Get/Needs/<<, R library/require, etc.). Python
-# `from X import` is handled by the structured parser above.
+# scan (covers Mathematica Get/Needs/<<, R library/require, etc.).
 _LOADER_HINT_RE = re.compile(
     r"(?:\b(?:import|using|include|includet|source|require|library|Get|Needs)\b|<<)"
 )
+# Python static import/from are covered precisely by the structured parser, so
+# the K1 line scan for .py only hunts DYNAMIC loads — this keeps a docstring or
+# string literal that merely mentions the kernel ("we import mykernel to
+# compare") from producing a false FAIL, while still catching
+# importlib.import_module("kernel") / __import__("kernel") call-throughs.
+_PY_DYNAMIC_IMPORT_RE = re.compile(r"\b(?:importlib|__import__|import_module)\b")
 
 # Directories never treated as project-local kernel sources (run artifacts,
 # reviewer workspaces, vendored deps, caches).
@@ -281,6 +290,27 @@ def _collect_member_sources(member: str, root: Path) -> MemberSources:
                     cand = inc if inc.is_absolute() else (f.parent / inc)
                     if cand.is_file():
                         ms.includes.setdefault(cand.resolve(), where)
+            elif ext in {".r", ".R"}:
+                for m in _R_SOURCE_RE.finditer(line):
+                    inc = Path(m.group(1))
+                    cand = inc if inc.is_absolute() else (f.parent / inc)
+                    if cand.is_file():
+                        ms.includes.setdefault(cand.resolve(), where)
+                for m in _R_LIBRARY_RE.finditer(line):
+                    ms.modules.setdefault(m.group(1), where)
+            elif ext in {".m", ".wl", ".wls"}:
+                for m in [*_WL_GET_RE.finditer(line), *_WL_LTLT_RE.finditer(line)]:
+                    arg = m.group(1).strip()
+                    if arg.endswith("`"):
+                        # Context form: Needs["Pkg`"] / Get["Pkg`Sub`"] — a module name.
+                        top = arg.strip("`").split("`", 1)[0]
+                        if re.fullmatch(r"[A-Za-z][\w$]*", top):
+                            ms.modules.setdefault(top, where)
+                    else:
+                        inc = Path(arg)
+                        cand = inc if inc.is_absolute() else (f.parent / inc)
+                        if cand.is_file():
+                            ms.includes.setdefault(cand.resolve(), where)
     return ms
 
 
@@ -306,9 +336,14 @@ def _scan_declared_kernels(ms: MemberSources, kernels: list[str]) -> list[Issue]
                 issues.append(Issue(ms.member, f"SHARED_KERNEL_INHERITANCE: reproduction includes declared kernel-under-test file for '{k}' ({where})"))
     for f in ms.files:
         ext = f.suffix
+        # For .py the structured parser above already covers static imports;
+        # the line scan only hunts dynamic loads (importlib / __import__), so
+        # a string literal or docstring mentioning the kernel cannot fail the
+        # gate. Other languages keep the broad loader hint.
+        hint_re = _PY_DYNAMIC_IMPORT_RE if ext == ".py" else _LOADER_HINT_RE
         for lineno, raw in enumerate(_iter_source_lines(f), start=1):
             line = _strip_comment(raw, ext)
-            if not line.strip() or not _LOADER_HINT_RE.search(line):
+            if not line.strip() or not hint_re.search(line):
                 continue
             for k, kre in kernel_res.items():
                 if (ms.member, k) in seen:
@@ -337,11 +372,18 @@ def _build_project_index(project_root: Path) -> dict[str, Path]:
             p = cur / fn
             if fn == "__init__.py":
                 index.setdefault(cur.name, p)
-            elif fn.endswith((".py", ".jl")):
+            elif fn.endswith((".py", ".jl", ".r", ".R", ".m", ".wl", ".wls")):
                 index.setdefault(fn.rsplit(".", 1)[0], p)
             elif fn == "Project.toml":
                 try:
                     m = re.search(r'(?m)^\s*name\s*=\s*"([^"]+)"', p.read_text(encoding="utf-8", errors="replace"))
+                except OSError:
+                    m = None
+                if m:
+                    index.setdefault(m.group(1), p)
+            elif fn == "DESCRIPTION":
+                try:
+                    m = re.search(r"(?m)^Package:\s*([A-Za-z][\w.]*)", p.read_text(encoding="utf-8", errors="replace"))
                 except OSError:
                     m = None
                 if m:
@@ -471,6 +513,16 @@ def main() -> int:
             out_json=args.out_json,
         )
 
+    try:
+        return _run(args, base_meta, _input_error)
+    except Exception as e:
+        # Fail-closed: an unforeseen crash must still leave a machine-readable
+        # parse_error verdict on stdout (exit 2), not a bare traceback whose
+        # missing verdict a caller could mistake for "gate not run".
+        return _input_error([f"unexpected gate error: {type(e).__name__}: {e}"])
+
+
+def _run(args: argparse.Namespace, base_meta: dict[str, Any], _input_error: Any) -> int:
     if not args.notes.is_file():
         return _input_error([f"notes not found: {args.notes}"])
 

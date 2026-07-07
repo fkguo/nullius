@@ -163,6 +163,41 @@ def test_declared_kernel_include_path_is_flagged(tmp_path: Path):
     assert any("SHARED_KERNEL_INHERITANCE" in r and "AmplitudeKernel" in r for r in payload["reasons"])
 
 
+def test_declared_kernel_dynamic_import_python_is_flagged(tmp_path: Path):
+    proj = _make_project(tmp_path, kernel_modules=["mykernel"])
+    ev_a = _seed_member(
+        proj, "member_a",
+        {"repro_a.py": "import importlib\nm = importlib.import_module('mykernel')\n"},
+    )
+    ev_b = _seed_member(proj, "member_b", {"repro_b.py": "import math\n"})
+    proc, payload = _run_gate(proj, ev_a, ev_b)
+    assert proc.returncode == 1
+    assert payload is not None
+    assert any("SHARED_KERNEL_INHERITANCE" in r and "mykernel" in r for r in payload["reasons"])
+
+
+def test_declared_kernel_string_mention_in_python_passes(tmp_path: Path):
+    proj = _make_project(tmp_path, kernel_modules=["mykernel"])
+    ev_a = _seed_member(
+        proj, "member_a",
+        {"repro_a.py": 'note = "we import mykernel results here only to compare"\nimport numpy\n'},
+    )
+    ev_b = _seed_member(proj, "member_b", {"repro_b.py": "import math\n"})
+    proc, payload = _run_gate(proj, ev_a, ev_b)
+    assert proc.returncode == 0, proc.stderr
+    assert payload is not None and payload["status"] == "converged"
+
+
+def test_declared_kernel_mathematica_needs_is_flagged(tmp_path: Path):
+    proj = _make_project(tmp_path, kernel_modules=["AmplKernel"])
+    ev_a = _seed_member(proj, "member_a", {"repro_a.wl": 'Needs["AmplKernel`"]\n'})
+    ev_b = _seed_member(proj, "member_b", {"repro_b.wl": "x = 1;\n"})
+    proc, payload = _run_gate(proj, ev_a, ev_b)
+    assert proc.returncode == 1
+    assert payload is not None
+    assert any("SHARED_KERNEL_INHERITANCE" in r and "AmplKernel" in r for r in payload["reasons"])
+
+
 def test_declared_kernel_comment_only_mention_passes(tmp_path: Path):
     proj = _make_project(tmp_path, kernel_modules=["mykernel"])
     ev_a = _seed_member(
@@ -277,6 +312,32 @@ def test_shared_include_path_fails_both(tmp_path: Path):
     assert any("SHARED_KERNEL_INHERITANCE" in r and "common.jl" in r for r in payload["reasons"])
 
 
+def test_shared_r_source_fails_both(tmp_path: Path):
+    proj = _make_project(tmp_path)
+    _write(proj / "src" / "kernel_common.R", "solve <- function() 42\n")
+    rel_a = os.path.relpath(proj / "src" / "kernel_common.R", _member_dir(proj, "member_a"))
+    rel_b = os.path.relpath(proj / "src" / "kernel_common.R", _member_dir(proj, "member_b"))
+    ev_a = _seed_member(proj, "member_a", {"repro_a.R": f'source("{rel_a}")\n'})
+    ev_b = _seed_member(proj, "member_b", {"repro_b.R": f'source("{rel_b}")\n'})
+    proc, payload = _run_gate(proj, ev_a, ev_b)
+    assert proc.returncode == 1
+    assert payload is not None
+    assert any("SHARED_KERNEL_INHERITANCE" in r and "kernel_common.R" in r for r in payload["reasons"])
+
+
+def test_shared_shell_source_fails_both(tmp_path: Path):
+    proj = _make_project(tmp_path)
+    _write(proj / "tools" / "env.sh", "export KERNEL_MODE=prod\n")
+    rel_a = os.path.relpath(proj / "tools" / "env.sh", _member_dir(proj, "member_a"))
+    rel_b = os.path.relpath(proj / "tools" / "env.sh", _member_dir(proj, "member_b"))
+    ev_a = _seed_member(proj, "member_a", {"repro_a.sh": f"source {rel_a}\n"})
+    ev_b = _seed_member(proj, "member_b", {"repro_b.sh": f". {rel_b}\n"})
+    proc, payload = _run_gate(proj, ev_a, ev_b)
+    assert proc.returncode == 1
+    assert payload is not None
+    assert any("SHARED_KERNEL_INHERITANCE" in r and "env.sh" in r for r in payload["reasons"])
+
+
 def test_own_dir_include_passes(tmp_path: Path):
     proj = _make_project(tmp_path)
     ev_a = _seed_member(
@@ -356,3 +417,36 @@ def test_bad_evidence_json_is_parse_error(tmp_path: Path):
     assert proc.returncode == 2
     assert payload is not None
     assert payload["status"] == "parse_error"
+
+
+def test_emitter_fallback_rewrites_invalid_payload(capsys):
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("cir_gate_under_test", GATE)
+    gate_mod = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    sys.modules["cir_gate_under_test"] = gate_mod
+    try:
+        spec.loader.exec_module(gate_mod)
+    finally:
+        sys.modules.pop("cir_gate_under_test", None)
+
+    # status/exit_code cross-field mismatch must be rewritten to parse_error/2,
+    # never emitted as-is.
+    members = {
+        m: {"verdict": "ready", "blocking_count": 0, "parse_ok": True}
+        for m in ("member_a", "member_b")
+    }
+    rc = gate_mod._emit_result_or_fallback(
+        status="converged",
+        exit_code=1,
+        reasons=[],
+        report_status=members,
+        meta=gate_mod.build_gate_meta("independent_reproduction"),
+        out_json=None,
+    )
+    assert rc == 2
+    payload = json.loads(capsys.readouterr().out.strip())
+    _assert_valid(payload)
+    assert payload["status"] == "parse_error"
+    assert any("schema validation failed" in r for r in payload["reasons"])

@@ -101,13 +101,20 @@ requireAll(RUNNER_FILE, read(RUNNER_FILE), [
 
 // 4. Prose + tests.
 requireAll(SKILL_FILE, read(SKILL_FILE), [
-  ['reproduction-independence contract bullet', 'Reproduction independence (mandatory in full_access review)'],
+  ['reproduction-independence contract bullet', 'Reproduction independence ('],
   ['shared-kernel criterion', 'SHARED_KERNEL_INHERITANCE'],
   ['trace-divergence discipline', 'never settle a disagreement by majority vote'],
 ]);
-if (!existsSync(path.join(repoRoot, TESTS_FILE))) {
-  errors.push(`behavior tests missing: ${TESTS_FILE}`);
-}
+// The tests must keep asserting the discipline, not merely exist: a stubbed
+// scan returning [] with the labels left in comments would keep the substring
+// checks above green, but cannot survive tests that demand FAIL verdicts.
+requireAll(TESTS_FILE, read(TESTS_FILE), [
+  ['shared-kernel FAIL assertions', 'SHARED_KERNEL_INHERITANCE'],
+  ['unverifiable-independence FAIL assertion', 'UNVERIFIABLE_INDEPENDENCE'],
+  ['not_independent verdict assertions', '"not_independent"'],
+  ['K2 shared project-local module scenario', 'def test_shared_project_local_python_module_fails_both'],
+  ['K3 shared include-by-path scenario', 'def test_shared_include_path_fails_both'],
+]);
 
 if (errors.length > 0) {
   process.stderr.write('[independent-reproduction-drift] anti-drift check failed:\n\n');
