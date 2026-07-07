@@ -134,7 +134,10 @@ The ledger file:
 Gate checks: no machine-specific absolute path anywhere in the package tree
 (`ABSOLUTE_PATH_IN_PACKAGE`; the scan covers code/doc/text extensions, skips VCS and
 cache dirs, and reports unreadable/oversized files as `SCAN_INCOMPLETE` — a blind
-spot is a failure, not a pass); `MISSING_README`; `MISSING_TEST_SKELETON`;
+spot is a failure, not a pass); `EXCLUSION_COVERS_ROOT` (a `reference_asset_dirs`
+entry must be a strict subdirectory of the package root — an exclusion resolving to
+the root or escaping it would disable the scan entirely); `MISSING_README`;
+`MISSING_TEST_SKELETON`;
 `MISSING_TRACEABILITY_LEDGER` / `EMPTY_TRACEABILITY_LEDGER` / `UNTRACED_LEDGER_ITEM`
 (every entry needs `extraction_ids` or `reuse_source` — nothing enters the package
 without an origin); `MISSING_EXPORT_MAP` / `EXPORT_MISSING_DOC` /
@@ -214,8 +217,10 @@ Gate checks (all recomputed): `VALUE_MISMATCH` (`|computed − reference| > tole
 `NON_DIAGNOSTIC_TOLERANCE` (`tolerance <= error_scale` required, with a declared
 `error_scale_basis`: a tolerance coarser than the uncertainty scale cannot detect a
 discrepancy at the scale that matters, so it proves nothing); `ERROR_SCALE_INFLATED`
-(when both errors are quoted, `error_scale` must not exceed their quadrature sum —
-inflating the scale would launder a loose tolerance); `SINGLE_REPRESENTATION`
+(when at least one error is quoted, `error_scale` must not exceed the quadrature sum
+of the quoted errors, a missing error counting as zero — omitting an error can only
+tighten the ceiling, never loosen it; inflating the scale would launder a loose
+tolerance); `SINGLE_REPRESENTATION`
 (>= 2 distinct `representation` values across the checks: agreement within one
 representation cannot expose a representation-level error);
 `MISSING_REFERENCE_LOCATOR`, `MISSING_VALUES`, `EMPTY_REFERENCE_CHECK`;
@@ -299,9 +304,13 @@ reference originals must not ship); `UNRESOLVED_TRACEABILITY` (every ledger entr
 - The coupling checks in `reimplementation` use word-boundary stem matching over
   the implementation text. They catch load statements, path strings, and name
   reuse, but they are a **detector, not a proof of independence** — an
-  implementation could be re-typed from the reference without naming it. The
-  independent review requirement exists precisely because textual checks cannot
-  certify provenance.
+  implementation could be re-typed from the reference without naming it. Two
+  further documented limits: implementation pairs with IDENTICAL file stems are
+  skipped (a stem match cannot be told apart from self-reference), and stems
+  shorter than 3 characters are skipped (they match everywhere). Give
+  independent implementations distinct, specific file names. The independent
+  review requirement exists precisely because textual checks cannot certify
+  provenance.
 - The runtime-dependency scan is textual (word-boundary name match in declared dep
   files); ecosystem-specific manifests with exotic layouts should be listed
   explicitly in `runtime_dep_files`.

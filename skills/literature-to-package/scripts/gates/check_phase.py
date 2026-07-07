@@ -290,8 +290,19 @@ def check_skeleton(artifact: dict, root: Path, f: Findings) -> None:
     for raw in _as_list(artifact, "reference_asset_dirs"):
         if isinstance(raw, str):
             p = _rel_path(root, raw, f, "reference_asset_dirs")
-            if p is not None:
-                exclude.append(p)
+            if p is None:
+                continue
+            # A scan exclusion must be a STRICT subdirectory of the package
+            # root: "." (or any path resolving to the root or escaping it)
+            # would hollow out the entire absolute-path scan.
+            if p == root or not p.is_relative_to(root):
+                f.add(
+                    "EXCLUSION_COVERS_ROOT",
+                    f"reference_asset_dirs entry {raw!r} resolves to the package root or outside "
+                    "it — an exclusion that broad would disable the path scan entirely",
+                )
+                continue
+            exclude.append(p)
     _scan_absolute_paths(root, f, exclude)
 
     if not any((root / name).is_file() for name in ("README.md", "README.rst", "README.txt")):
@@ -416,6 +427,12 @@ def check_reimplementation(artifact: dict, root: Path, f: Findings) -> None:
             for other_p, _other_label in independent:
                 if other_p == impl_p:
                     continue
+                # Identical stems cannot be textually distinguished from
+                # self-reference (two files both named solver.* each mention
+                # their own name), and very short stems match everywhere;
+                # both cases are documented approximations in contract.md.
+                if other_p.stem == impl_p.stem or len(other_p.stem) < 3:
+                    continue
                 if _stem_reference_re(other_p).search(text):
                     f.add(
                         "IMPLEMENTATION_COUPLING",
@@ -517,8 +534,11 @@ def check_reference_check(artifact: dict, root: Path, f: Findings) -> None:
             )
             continue
         ce, re_ = _num(computed, "error"), _num(reference, "error")
-        if ce is not None and re_ is not None:
-            combined = math.hypot(ce, re_)
+        if ce is not None or re_ is not None:
+            # A missing error counts as 0 here: that SHRINKS the combined
+            # uncertainty, i.e. tightens the ceiling on error_scale
+            # (fail-closed — omitting one error can never loosen the check).
+            combined = math.hypot(ce or 0.0, re_ or 0.0)
             if combined > 0 and scale > combined * (1 + _REL_SLACK):
                 f.add(
                     "ERROR_SCALE_INFLATED",

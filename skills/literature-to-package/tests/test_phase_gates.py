@@ -260,6 +260,18 @@ def test_skeleton_export_legs_must_exist(tmp_path: Path):
     _assert_label(payload, "EXPORT_MISSING_TEST")
 
 
+def test_skeleton_exclusion_covering_root_rejected(tmp_path: Path):
+    root = _make_pkg(tmp_path)
+    bad = "/" + "Users" + "/someone/data.csv"
+    _write(root / "src" / "loader.py", f'DATA = "{bad}"\n')
+    manifest = _skeleton_manifest()
+    manifest["reference_asset_dirs"] = ["."]  # would hollow out the scan
+    rc, payload, _ = _run("skeleton", _wjson(tmp_path / "sk.json", manifest), root)
+    assert rc == 1
+    _assert_label(payload, "EXCLUSION_COVERS_ROOT")
+    _assert_label(payload, "ABSOLUTE_PATH_IN_PACKAGE")  # the scan still ran
+
+
 def test_skeleton_manifest_absolute_path_rejected(tmp_path: Path):
     root = _make_pkg(tmp_path)
     manifest = _skeleton_manifest()
@@ -335,6 +347,24 @@ def test_reimplementation_coupling_between_implementations(tmp_path: Path):
     rc, payload, _ = _run("reimplementation", _wjson(tmp_path / "i.json", _independence()), root)
     assert rc == 1
     _assert_label(payload, "IMPLEMENTATION_COUPLING")
+
+
+def test_reimplementation_same_stem_pair_not_false_flagged(tmp_path: Path):
+    # Two implementations both named solver.* each mention their own name;
+    # identical stems are skipped (documented approximation), so this passes.
+    root = tmp_path / "pkg"
+    _write(root / "specs" / "method_spec.md", "# SPEC\nFrom the cited items.\n")
+    _write(root / "src" / "solver.py", "def solver():\n    return 42\n")
+    _write(root / "checks" / "solver.jl", "solver() = 42\n")
+    _write(root / "reviews" / "verdict.md", "VERDICT: READY\n")
+    manifest = _independence()
+    manifest["reference_code_paths"] = []
+    manifest["methods"][0]["implementations"] = [
+        {"path": "src/solver.py", "origin": "fresh", "independent": True},
+        {"path": "checks/solver.jl", "origin": "fresh", "independent": True},
+    ]
+    rc, payload, _ = _run("reimplementation", _wjson(tmp_path / "i.json", manifest), root)
+    assert rc == 0, payload["reasons"]
 
 
 def test_reimplementation_reference_code_coupling(tmp_path: Path):
@@ -444,6 +474,24 @@ def test_reference_check_error_scale_inflation(tmp_path: Path):
     root.mkdir()
     checks = [
         _check_row(tolerance=0.4, error_scale=0.5),  # tol <= scale but scale >> combined errors
+        _check_row(id="anchor_2", representation="basis_B"),
+    ]
+    rc, payload, _ = _run("reference-check", _wjson(tmp_path / "r.json", _reference_check(checks)), root)
+    assert rc == 1
+    _assert_label(payload, "ERROR_SCALE_INFLATED")
+
+
+def test_reference_check_single_sided_error_still_caps_scale(tmp_path: Path):
+    # Omitting one error must TIGHTEN the error-scale ceiling, not disable it.
+    root = tmp_path / "pkg"
+    root.mkdir()
+    checks = [
+        _check_row(
+            computed={"value": 1.2345, "error": 0.0004},
+            reference={"value": 1.2340, "source": "paperA", "locator": "Table 2"},  # no error quoted
+            tolerance=0.0004,
+            error_scale=0.01,  # far above the single quoted error
+        ),
         _check_row(id="anchor_2", representation="basis_B"),
     ]
     rc, payload, _ = _run("reference-check", _wjson(tmp_path / "r.json", _reference_check(checks)), root)
