@@ -1,0 +1,358 @@
+#!/usr/bin/env python3
+"""Behavior tests for the independent-reproduction gate (artifact presence +
+shared-kernel inheritance scan + convergence_gate_result_v1 emission)."""
+
+from __future__ import annotations
+
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+GATE = ROOT / "scripts" / "gates" / "check_independent_reproduction.py"
+
+sys.path.insert(0, str(ROOT / "scripts" / "gates"))
+from convergence_schema import validate_convergence_result  # noqa: E402
+
+TAG = "20260707T000000Z-m1-repro-r1"
+
+
+def _write(path: Path, content: str) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
+    return path
+
+
+def _make_project(
+    tmp_path: Path,
+    *,
+    kernel_modules: list[str] | None = None,
+    gate_enabled: bool = True,
+    mode: str = "full_access",
+) -> Path:
+    proj = tmp_path / "proj"
+    cfg: dict = {
+        "review_access_mode": mode,
+        "features": {"independent_reproduction_gate": gate_enabled},
+    }
+    if kernel_modules is not None:
+        cfg["independent_reproduction"] = {"kernel_modules": kernel_modules}
+    _write(proj / "research_team_config.json", json.dumps(cfg))
+    _write(proj / "notes.md", "# notes\n")
+    return proj
+
+
+def _member_dir(proj: Path, member: str) -> Path:
+    return proj / "artifacts" / "runs" / TAG / "research_team" / member / "independent"
+
+
+def _seed_member(proj: Path, member: str, sources: dict[str, str] | None = None) -> Path:
+    """Create the independent artifact + optional reproduction sources; return evidence path."""
+    ind = _member_dir(proj, member)
+    result_rel = f"artifacts/runs/{TAG}/research_team/{member}/independent/result.json"
+    _write(proj / result_rel, "{}\n")
+    for rel, content in (sources or {}).items():
+        _write(ind / rel, content)
+    ev = {"outputs_produced": [{"path": result_rel}]}
+    return _write(proj / f"{member}_evidence.json", json.dumps(ev))
+
+
+def _run_gate(proj: Path, ev_a: Path, ev_b: Path, extra: list[str] | None = None) -> tuple[subprocess.CompletedProcess[str], dict | None]:
+    env = dict(os.environ)
+    env.pop("RESEARCH_TEAM_CONFIG", None)
+    proc = subprocess.run(
+        [
+            sys.executable,
+            str(GATE),
+            "--notes", str(proj / "notes.md"),
+            "--tag", TAG,
+            "--member-a", str(ev_a),
+            "--member-b", str(ev_b),
+            "--project-root", str(proj),
+            *(extra or []),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+        env=env,
+    )
+    payload = json.loads(proc.stdout.strip()) if proc.stdout.strip() else None
+    return proc, payload
+
+
+def _assert_valid(payload: dict) -> None:
+    errors = validate_convergence_result(payload)
+    assert errors == [], f"emitted verdict violates convergence_gate_result_v1: {errors}"
+
+
+# ---------------------------------------------------------------------------
+# PASS / artifact-presence behavior
+# ---------------------------------------------------------------------------
+
+
+def test_clean_pass_emits_converged_verdict(tmp_path: Path):
+    proj = _make_project(tmp_path)
+    ev_a = _seed_member(proj, "member_a", {"repro_a.py": "import json\nprint('a')\n"})
+    ev_b = _seed_member(proj, "member_b", {"repro_b.py": "import math\nprint('b')\n"})
+    proc, payload = _run_gate(proj, ev_a, ev_b)
+    assert proc.returncode == 0, proc.stderr
+    assert payload is not None
+    _assert_valid(payload)
+    assert payload["status"] == "converged"
+    assert payload["meta"]["gate_id"] == "independent_reproduction"
+    for member in ("member_a", "member_b"):
+        assert payload["report_status"][member]["verdict"] == "ready"
+        assert payload["report_status"][member]["independence"] == "independent"
+
+
+def test_missing_artifact_fails_with_label(tmp_path: Path):
+    proj = _make_project(tmp_path)
+    ev_a = _seed_member(proj, "member_a")
+    ev_b = _write(proj / "member_b_evidence.json", json.dumps({"outputs_produced": []}))
+    proc, payload = _run_gate(proj, ev_a, ev_b)
+    assert proc.returncode == 1
+    assert payload is not None
+    _assert_valid(payload)
+    assert payload["status"] == "not_converged"
+    assert any("MISSING_INDEPENDENT_ARTIFACT" in r for r in payload["reasons"])
+    assert payload["report_status"]["member_b"]["verdict"] == "needs_revision"
+    assert payload["report_status"]["member_a"]["verdict"] == "ready"
+
+
+# ---------------------------------------------------------------------------
+# K1: declared kernel-under-test
+# ---------------------------------------------------------------------------
+
+
+def test_declared_kernel_import_python_is_not_independent(tmp_path: Path):
+    proj = _make_project(tmp_path, kernel_modules=["mykernel"])
+    ev_a = _seed_member(proj, "member_a", {"repro_a.py": "import mykernel\nprint(mykernel.solve())\n"})
+    ev_b = _seed_member(proj, "member_b", {"repro_b.py": "import numpy\n"})
+    proc, payload = _run_gate(proj, ev_a, ev_b)
+    assert proc.returncode == 1
+    assert payload is not None
+    _assert_valid(payload)
+    assert any("SHARED_KERNEL_INHERITANCE" in r and "mykernel" in r for r in payload["reasons"])
+    assert payload["report_status"]["member_a"]["independence"] == "not_independent"
+    assert payload["report_status"]["member_b"]["independence"] == "independent"
+
+
+def test_declared_kernel_using_julia_via_cli_flag(tmp_path: Path):
+    proj = _make_project(tmp_path)
+    ev_a = _seed_member(proj, "member_a", {"repro_a.jl": "using MyKernel\nprintln(MyKernel.solve())\n"})
+    ev_b = _seed_member(proj, "member_b", {"repro_b.jl": "println(2 + 2)\n"})
+    proc, payload = _run_gate(proj, ev_a, ev_b, extra=["--kernel-module", "MyKernel"])
+    assert proc.returncode == 1
+    assert payload is not None
+    assert any("SHARED_KERNEL_INHERITANCE" in r and "MyKernel" in r for r in payload["reasons"])
+    assert payload["report_status"]["member_a"]["independence"] == "not_independent"
+
+
+def test_declared_kernel_include_path_is_flagged(tmp_path: Path):
+    proj = _make_project(tmp_path, kernel_modules=["AmplitudeKernel"])
+    _write(proj / "src" / "AmplitudeKernel.jl", "module AmplitudeKernel end\n")
+    ind_a = _member_dir(proj, "member_a")
+    rel = os.path.relpath(proj / "src" / "AmplitudeKernel.jl", ind_a)
+    ev_a = _seed_member(proj, "member_a", {"repro_a.jl": f'include("{rel}")\n'})
+    ev_b = _seed_member(proj, "member_b", {"repro_b.jl": "println(1)\n"})
+    proc, payload = _run_gate(proj, ev_a, ev_b)
+    assert proc.returncode == 1
+    assert payload is not None
+    assert any("SHARED_KERNEL_INHERITANCE" in r and "AmplitudeKernel" in r for r in payload["reasons"])
+
+
+def test_declared_kernel_comment_only_mention_passes(tmp_path: Path):
+    proj = _make_project(tmp_path, kernel_modules=["mykernel"])
+    ev_a = _seed_member(
+        proj, "member_a",
+        {"repro_a.py": "# unlike mykernel, recompute from scratch using the direct sum\nimport numpy\n"},
+    )
+    ev_b = _seed_member(proj, "member_b", {"repro_b.py": "import math\n"})
+    proc, payload = _run_gate(proj, ev_a, ev_b)
+    assert proc.returncode == 0, proc.stderr
+    assert payload is not None and payload["status"] == "converged"
+
+
+def test_declared_kernel_with_no_sources_is_unverifiable(tmp_path: Path):
+    proj = _make_project(tmp_path, kernel_modules=["mykernel"])
+    ev_a = _seed_member(proj, "member_a")  # artifact only, no sources
+    ev_b = _seed_member(proj, "member_b", {"repro_b.py": "import math\n"})
+    proc, payload = _run_gate(proj, ev_a, ev_b)
+    assert proc.returncode == 1
+    assert payload is not None
+    assert any("UNVERIFIABLE_INDEPENDENCE" in r for r in payload["reasons"])
+    assert payload["report_status"]["member_a"]["verdict"] == "needs_revision"
+
+
+# ---------------------------------------------------------------------------
+# K2: shared project-local module (no declaration needed)
+# ---------------------------------------------------------------------------
+
+
+def test_shared_project_local_python_module_fails_both(tmp_path: Path):
+    proj = _make_project(tmp_path)
+    _write(proj / "src" / "litekernel.py", "def solve():\n    return 42\n")
+    ev_a = _seed_member(proj, "member_a", {"repro_a.py": "import litekernel\n"})
+    ev_b = _seed_member(proj, "member_b", {"repro_b.py": "import litekernel\n"})
+    proc, payload = _run_gate(proj, ev_a, ev_b)
+    assert proc.returncode == 1
+    assert payload is not None
+    _assert_valid(payload)
+    assert any("SHARED_KERNEL_INHERITANCE" in r and "litekernel" in r for r in payload["reasons"])
+    assert payload["report_status"]["member_a"]["independence"] == "not_independent"
+    assert payload["report_status"]["member_b"]["independence"] == "not_independent"
+
+
+def test_shared_julia_package_via_project_toml_name(tmp_path: Path):
+    proj = _make_project(tmp_path)
+    _write(proj / "Project.toml", 'name = "ProjPkg"\nuuid = "00000000-0000-0000-0000-000000000000"\n')
+    _write(proj / "src" / "somethingelse.jl", "module somethingelse end\n")
+    ev_a = _seed_member(proj, "member_a", {"repro_a.jl": "using ProjPkg\n"})
+    ev_b = _seed_member(proj, "member_b", {"repro_b.jl": "import ProjPkg: solve\n"})
+    proc, payload = _run_gate(proj, ev_a, ev_b)
+    assert proc.returncode == 1
+    assert payload is not None
+    assert any("SHARED_KERNEL_INHERITANCE" in r and "ProjPkg" in r for r in payload["reasons"])
+
+
+def test_shared_third_party_import_passes(tmp_path: Path):
+    proj = _make_project(tmp_path)
+    ev_a = _seed_member(proj, "member_a", {"repro_a.py": "import numpy\nimport json\n"})
+    ev_b = _seed_member(proj, "member_b", {"repro_b.py": "import numpy\nimport json\n"})
+    proc, payload = _run_gate(proj, ev_a, ev_b)
+    assert proc.returncode == 0, proc.stderr
+    assert payload is not None and payload["status"] == "converged"
+
+
+def test_same_name_own_dir_helpers_pass(tmp_path: Path):
+    proj = _make_project(tmp_path)
+    _write(proj / "helpers.py", "SHOULD_NOT_MATTER = True\n")
+    ev_a = _seed_member(
+        proj, "member_a",
+        {"repro_a.py": "import helpers\n", "helpers.py": "def own_a():\n    return 1\n"},
+    )
+    ev_b = _seed_member(
+        proj, "member_b",
+        {"repro_b.py": "import helpers\n", "helpers.py": "def own_b():\n    return 2\n"},
+    )
+    proc, payload = _run_gate(proj, ev_a, ev_b)
+    assert proc.returncode == 0, proc.stderr
+    assert payload is not None and payload["status"] == "converged"
+
+
+def test_allowlisted_shared_root_passes_unless_declared_kernel(tmp_path: Path):
+    proj = _make_project(tmp_path)
+    _write(proj / "shared_utils" / "__init__.py", "def plot():\n    pass\n")
+    ev_a = _seed_member(proj, "member_a", {"repro_a.py": "import shared_utils\n"})
+    ev_b = _seed_member(proj, "member_b", {"repro_b.py": "import shared_utils\n"})
+    proc, payload = _run_gate(proj, ev_a, ev_b)
+    assert proc.returncode == 0, proc.stderr
+    assert payload is not None and payload["status"] == "converged"
+
+    # Declaring the same root as kernel-under-test overrides the allowlist.
+    proc, payload = _run_gate(proj, ev_a, ev_b, extra=["--kernel-module", "shared_utils"])
+    assert proc.returncode == 1
+    assert payload is not None
+    assert any("SHARED_KERNEL_INHERITANCE" in r for r in payload["reasons"])
+
+
+# ---------------------------------------------------------------------------
+# K3: shared include-by-path
+# ---------------------------------------------------------------------------
+
+
+def test_shared_include_path_fails_both(tmp_path: Path):
+    proj = _make_project(tmp_path)
+    _write(proj / "src" / "common.jl", "const C = 1\n")
+    rel_a = os.path.relpath(proj / "src" / "common.jl", _member_dir(proj, "member_a"))
+    rel_b = os.path.relpath(proj / "src" / "common.jl", _member_dir(proj, "member_b"))
+    ev_a = _seed_member(proj, "member_a", {"repro_a.jl": f'include("{rel_a}")\n'})
+    ev_b = _seed_member(proj, "member_b", {"repro_b.jl": f'include("{rel_b}")\n'})
+    proc, payload = _run_gate(proj, ev_a, ev_b)
+    assert proc.returncode == 1
+    assert payload is not None
+    _assert_valid(payload)
+    assert any("SHARED_KERNEL_INHERITANCE" in r and "common.jl" in r for r in payload["reasons"])
+
+
+def test_own_dir_include_passes(tmp_path: Path):
+    proj = _make_project(tmp_path)
+    ev_a = _seed_member(
+        proj, "member_a",
+        {"repro_a.jl": 'include("lib_a.jl")\n', "lib_a.jl": "const A = 1\n"},
+    )
+    ev_b = _seed_member(
+        proj, "member_b",
+        {"repro_b.jl": 'include("lib_b.jl")\n', "lib_b.jl": "const B = 2\n"},
+    )
+    proc, payload = _run_gate(proj, ev_a, ev_b)
+    assert proc.returncode == 0, proc.stderr
+    assert payload is not None and payload["status"] == "converged"
+
+
+# ---------------------------------------------------------------------------
+# Contract plumbing
+# ---------------------------------------------------------------------------
+
+
+def test_out_json_matches_stdout(tmp_path: Path):
+    proj = _make_project(tmp_path)
+    ev_a = _seed_member(proj, "member_a")
+    ev_b = _seed_member(proj, "member_b")
+    out_json = tmp_path / "verdict.json"
+    proc, payload = _run_gate(proj, ev_a, ev_b, extra=["--out-json", str(out_json)])
+    assert proc.returncode == 0, proc.stderr
+    assert out_json.is_file()
+    assert json.loads(out_json.read_text(encoding="utf-8")) == payload
+
+
+def test_skip_when_disabled_emits_no_json(tmp_path: Path):
+    proj = _make_project(tmp_path, gate_enabled=False)
+    ev_a = _seed_member(proj, "member_a")
+    ev_b = _seed_member(proj, "member_b")
+    proc, payload = _run_gate(proj, ev_a, ev_b)
+    assert proc.returncode == 0
+    assert payload is None
+    assert "SKIP" in proc.stderr
+
+
+def test_skip_when_packet_only_mode(tmp_path: Path):
+    proj = _make_project(tmp_path, mode="packet_only")
+    ev_a = _seed_member(proj, "member_a")
+    ev_b = _seed_member(proj, "member_b")
+    proc, payload = _run_gate(proj, ev_a, ev_b)
+    assert proc.returncode == 0
+    assert payload is None
+
+
+def test_missing_notes_is_parse_error(tmp_path: Path):
+    proj = _make_project(tmp_path)
+    ev_a = _seed_member(proj, "member_a")
+    ev_b = _seed_member(proj, "member_b")
+    proc = subprocess.run(
+        [
+            sys.executable, str(GATE),
+            "--notes", str(proj / "does_not_exist.md"),
+            "--tag", TAG,
+            "--member-a", str(ev_a),
+            "--member-b", str(ev_b),
+            "--project-root", str(proj),
+        ],
+        capture_output=True, text=True, check=False,
+    )
+    assert proc.returncode == 2
+    payload = json.loads(proc.stdout.strip())
+    _assert_valid(payload)
+    assert payload["status"] == "parse_error"
+
+
+def test_bad_evidence_json_is_parse_error(tmp_path: Path):
+    proj = _make_project(tmp_path)
+    ev_a = _seed_member(proj, "member_a")
+    ev_b = _write(proj / "member_b_evidence.json", "{not json")
+    proc, payload = _run_gate(proj, ev_a, ev_b)
+    assert proc.returncode == 2
+    assert payload is not None
+    assert payload["status"] == "parse_error"

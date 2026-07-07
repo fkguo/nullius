@@ -90,7 +90,7 @@
       "properties": {
         "gate_id": {
           "type": "string",
-          "enum": ["team_convergence", "draft_convergence"]
+          "enum": ["team_convergence", "draft_convergence", "independent_reproduction"]
         },
         "generated_at": {
           "type": "string",

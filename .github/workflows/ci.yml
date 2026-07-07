@@ -73,6 +73,10 @@ jobs:
         if: ${{ matrix.node-version == 22 }}
         run: node scripts/check-transcription-fidelity-checklist-anti-drift.mjs
 
+      - name: Check independent-reproduction gate anti-drift (shared-kernel discipline)
+        if: ${{ matrix.node-version == 22 }}
+        run: node scripts/check-independent-reproduction-anti-drift.mjs
+
       - name: Check codegen drift (meta/schemas ↔ generated)
         if: ${{ matrix.node-version == 22 }}
         run: pnpm codegen:check

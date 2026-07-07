@@ -89,6 +89,10 @@
     "_note": "Independent reproduction scripts may import only these local project roots (default: shared_utils/toolkit).",
     "allowed_local_import_roots": ["shared_utils", "toolkit"]
   },
+  "independent_reproduction": {
+    "_note": "Names of the kernel-under-test modules/packages. A reproduction that imports/includes/`using`s one of these is a call-through of the tested kernel, not an independent path (verdict not_independent, fail-closed). Declared kernels override allowed_local_import_roots. Independent of declarations, the gate also fails when BOTH members' reproduction sources import/include the same project-local module.",
+    "kernel_modules": []
+  },
   "convention_mapping": {
     "_note": "Set required=true when a run depends on cross-paper/module normalization mappings; convention_mapping_gate enforces evidence.json fields when triggered.",
     "required": false

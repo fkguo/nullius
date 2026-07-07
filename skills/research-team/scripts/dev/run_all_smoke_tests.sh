@@ -11,6 +11,7 @@ python3 -m pytest \
   skills/research-team/tests/test_build_draft_packet_semantic_selection.py \
   skills/research-team/tests/test_convergence_gate.py \
   skills/research-team/tests/test_convergence_gate_json.py \
+  skills/research-team/tests/test_independent_reproduction_gate.py \
   skills/research-team/tests/test_notebook_integrity_gate.py \
   skills/research-team/tests/test_packet_redaction.py \
   skills/research-team/tests/test_run_artifact_identity.py \
