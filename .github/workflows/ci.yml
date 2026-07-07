@@ -114,6 +114,9 @@ jobs:
           python -m pip install pytest
           python -m pytest packages/project-contracts/tests -q
 
+      - name: Python tests (independent-reproduction gate behavior)
+        run: python -m pytest skills/research-team/tests/test_independent_reproduction_gate.py -q
+
   skills-market-checks:
     runs-on: ubuntu-latest
     defaults:

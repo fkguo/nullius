@@ -20,13 +20,24 @@ Layer 2 — shared-kernel inheritance scan (fail-closed):
         `--kernel-module`) — a call-through of the tested kernel is not a
         reproduction of it;
   - K2: BOTH members import the same module name that resolves to a
-        project-local source file (outside both members' own directories);
+        project-local source through an IMPORTABLE layout (project root,
+        src/ layout, or a package manifest at root / one level down) —
+        an unrelated basename collision deep in the tree does not count;
   - K3: BOTH members include/source the same resolved project file by path.
 
   K2/K3 honor the same `logic_isolation.allowed_local_import_roots` allowlist
   the logic_isolation gate uses (default: shared_utils, toolkit), so the two
   gates never disagree about a deliberately shared utility root. A DECLARED
-  kernel module is never allowlistable.
+  kernel module is never allowlistable — declaring `pkg.kernel` also strips
+  `pkg` from the allowlist, and the dotted form is matched against both
+  module chains (`pkg.kernel`, submodules, parent packages) and path
+  spellings (.../pkg/kernel.jl).
+
+  Fail-closed scan coverage: with declared kernels, a member with NO
+  scannable sources, or with sources the scan could not read (oversized /
+  unreadable / beyond the file cap), fails as UNVERIFIABLE_INDEPENDENCE.
+  Without declared kernels such blind spots are recorded as
+  SCAN_INCOMPLETE notes in the machine verdict's reasons.
 
 Resolution discipline (printed on failure): when two reproductions disagree,
 locate the FIRST diverging intermediate quantity by tracing both paths;
@@ -50,7 +61,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import re
 import sys
 from dataclasses import dataclass, field
@@ -106,15 +116,13 @@ _LOADER_HINT_RE = re.compile(
 # importlib.import_module("kernel") / __import__("kernel") call-throughs.
 _PY_DYNAMIC_IMPORT_RE = re.compile(r"\b(?:importlib|__import__|import_module)\b")
 
-# Directories never treated as project-local kernel sources (run artifacts,
-# reviewer workspaces, vendored deps, caches).
+# Directories whose package manifests are never project-local kernel sources
+# (run artifacts, reviewer workspaces, vendored deps, caches).
 _PRUNE_DIRS = {
     ".git", "artifacts", "team", "references", "node_modules", ".venv", "venv",
     "__pycache__", ".nullius", ".tmp", ".pytest_cache", ".serena",
     "knowledge_base", "knowledge_graph",
 }
-_WALK_MAX_DIRS = 4000
-_WALK_MAX_DEPTH = 6
 
 
 @dataclass(frozen=True)
@@ -127,9 +135,17 @@ class Issue:
 class MemberSources:
     member: str
     root: Path
+    # successfully scanned source files -> their (comment-bearing) lines
     files: list[Path] = field(default_factory=list)
+    lines: dict[Path, list[str]] = field(default_factory=dict)
+    # sources that could NOT be scanned (oversized / unreadable / beyond cap);
+    # with declared kernels these fail closed as UNVERIFIABLE_INDEPENDENCE.
+    skipped: list[str] = field(default_factory=list)
     # top-level import/using module names -> first "file:line" seen
     modules: dict[str, str] = field(default_factory=dict)
+    # FULL dotted module names (e.g. "pkg.kernel") -> first "file:line" seen;
+    # used by K1 so a dotted declared kernel cannot hide behind its top-level.
+    modules_full: dict[str, str] = field(default_factory=dict)
     # resolved include/source paths -> first "file:line" seen
     includes: dict[Path, str] = field(default_factory=dict)
 
@@ -217,7 +233,12 @@ def _allowed_local_roots(cfg: Any, kernels: list[str]) -> set[str]:
     roots = li.get("allowed_local_import_roots", ["shared_utils", "toolkit"])
     if not isinstance(roots, list):
         roots = ["shared_utils", "toolkit"]
-    return {str(x).strip() for x in roots if str(x).strip()} - set(kernels)
+    # A dotted declared kernel also strips its TOP-LEVEL root from the
+    # allowlist: with kernel_modules=["shared_utils.kernel"] nothing under
+    # shared_utils/ may be shared, or the kernel could be reached by path
+    # through the allowlisted root.
+    kernel_roots = {k.split(".", 1)[0] for k in kernels}
+    return {str(x).strip() for x in roots if str(x).strip()} - set(kernels) - kernel_roots
 
 
 def _strip_comment(line: str, ext: str) -> str:
@@ -228,46 +249,96 @@ def _strip_comment(line: str, ext: str) -> str:
     return line
 
 
-def _iter_source_lines(path: Path) -> list[str]:
+def _read_source(path: Path) -> tuple[str | None, str | None]:
+    """Return (text, skip_reason). Exactly one side is non-None."""
     try:
-        if path.stat().st_size > _MAX_SOURCE_BYTES:
-            return []
-        text = path.read_text(encoding="utf-8", errors="replace")
-    except OSError:
-        return []
-    return text.splitlines()
+        size = path.stat().st_size
+        if size > _MAX_SOURCE_BYTES:
+            return None, f"{path}: {size} bytes exceeds the {_MAX_SOURCE_BYTES}-byte scan cap"
+        return path.read_text(encoding="utf-8", errors="replace"), None
+    except OSError as e:
+        return None, f"{path}: unreadable ({e})"
+
+
+def _record_python_module(ms: MemberSources, full: str, where: str) -> None:
+    full = full.strip()
+    if not full:
+        return
+    ms.modules.setdefault(full.split(".", 1)[0], where)
+    ms.modules_full.setdefault(full, where)
+
+
+def _collect_python(ms: MemberSources, f: Path, text: str) -> None:
+    """AST-first Python import extraction (aliased multi-imports included);
+    falls back to line regexes when the file does not parse."""
+    import ast
+
+    try:
+        tree = ast.parse(text)
+    except (SyntaxError, ValueError):
+        for lineno, raw in enumerate(text.splitlines(), start=1):
+            line = _strip_comment(raw, ".py")
+            where = f"{f}:{lineno}"
+            m = _PY_IMPORT_RE.match(line)
+            if m:
+                for name in re.split(r"\s*,\s*", m.group(1)):
+                    _record_python_module(ms, name.split(" ", 1)[0], where)
+            m = _PY_FROM_RE.match(line)
+            if m and not m.group(1) and m.group(2):
+                _record_python_module(ms, m.group(2), where)
+        return
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                _record_python_module(ms, alias.name or "", f"{f}:{getattr(node, 'lineno', 1)}")
+        elif isinstance(node, ast.ImportFrom):
+            where = f"{f}:{getattr(node, 'lineno', 1)}"
+            level = getattr(node, "level", 0) or 0
+            mod = (node.module or "").strip()
+            if level == 0 and mod:
+                _record_python_module(ms, mod, where)
+                for alias in node.names:
+                    # `from pkg import kernel` may bind the pkg.kernel
+                    # submodule: record the joined form for K1 dotted-kernel
+                    # matching (modules_full only; top-level already recorded).
+                    if alias.name and alias.name != "*":
+                        ms.modules_full.setdefault(f"{mod}.{alias.name}", where)
+            elif level >= 2 and mod:
+                rel = Path(*([".."] * (level - 1))) / Path(*mod.split("."))
+                for cand in (f.parent / rel).with_suffix(".py"), (f.parent / rel / "__init__.py"):
+                    if cand.is_file():
+                        ms.includes.setdefault(cand.resolve(), where)
 
 
 def _collect_member_sources(member: str, root: Path) -> MemberSources:
     ms = MemberSources(member=member, root=root)
     if not root.is_dir():
         return ms
-    files = [p for p in sorted(root.rglob("*")) if p.is_file() and p.suffix in _K1_SCAN_EXTS]
-    ms.files = files[:_MAX_SOURCES_PER_MEMBER]
-    for f in ms.files:
+    found = [p for p in sorted(root.rglob("*")) if p.is_file() and p.suffix in _K1_SCAN_EXTS]
+    if len(found) > _MAX_SOURCES_PER_MEMBER:
+        ms.skipped.append(
+            f"{len(found) - _MAX_SOURCES_PER_MEMBER} source files beyond the "
+            f"{_MAX_SOURCES_PER_MEMBER}-file scan cap under {root}"
+        )
+        found = found[:_MAX_SOURCES_PER_MEMBER]
+    for f in found:
+        text, skip = _read_source(f)
+        if text is None:
+            ms.skipped.append(skip or f"{f}: unreadable")
+            continue
+        ms.files.append(f)
+        ms.lines[f] = text.splitlines()
         ext = f.suffix
-        for lineno, raw in enumerate(_iter_source_lines(f), start=1):
+        if ext == ".py":
+            _collect_python(ms, f, text)
+            continue
+        for lineno, raw in enumerate(ms.lines[f], start=1):
             line = _strip_comment(raw, ext)
             if not line.strip():
                 continue
             where = f"{f}:{lineno}"
-            if ext == ".py":
-                m = _PY_IMPORT_RE.match(line)
-                if m:
-                    for name in re.split(r"\s*,\s*", m.group(1)):
-                        top = name.split(".", 1)[0]
-                        ms.modules.setdefault(top, where)
-                m = _PY_FROM_RE.match(line)
-                if m:
-                    dots, mod = m.group(1), m.group(2)
-                    if not dots and mod:
-                        ms.modules.setdefault(mod.split(".", 1)[0], where)
-                    elif len(dots) >= 2 and mod:
-                        rel = Path(*([".."] * (len(dots) - 1))) / Path(*mod.split("."))
-                        for cand in (f.parent / rel).with_suffix(".py"), (f.parent / rel / "__init__.py"):
-                            if cand.is_file():
-                                ms.includes.setdefault(cand.resolve(), where)
-            elif ext == ".jl":
+            if ext == ".jl":
                 m = _JL_USING_RE.match(line)
                 if m:
                     spec = m.group(1).split(":", 1)[0]
@@ -278,6 +349,8 @@ def _collect_member_sources(member: str, root: Path) -> MemberSources:
                         top = name.split(".", 1)[0]
                         if re.fullmatch(r"[A-Za-z_]\w*", top):
                             ms.modules.setdefault(top, where)
+                            if re.fullmatch(r"[A-Za-z_][\w.]*", name):
+                                ms.modules_full.setdefault(name, where)
                 for m in _JL_INCLUDE_RE.finditer(line):
                     inc = Path(m.group(1))
                     cand = inc if inc.is_absolute() else (f.parent / inc)
@@ -298,14 +371,17 @@ def _collect_member_sources(member: str, root: Path) -> MemberSources:
                         ms.includes.setdefault(cand.resolve(), where)
                 for m in _R_LIBRARY_RE.finditer(line):
                     ms.modules.setdefault(m.group(1), where)
+                    ms.modules_full.setdefault(m.group(1), where)
             elif ext in {".m", ".wl", ".wls"}:
                 for m in [*_WL_GET_RE.finditer(line), *_WL_LTLT_RE.finditer(line)]:
                     arg = m.group(1).strip()
                     if arg.endswith("`"):
                         # Context form: Needs["Pkg`"] / Get["Pkg`Sub`"] — a module name.
-                        top = arg.strip("`").split("`", 1)[0]
+                        ctx = arg.strip("`")
+                        top = ctx.split("`", 1)[0]
                         if re.fullmatch(r"[A-Za-z][\w$]*", top):
                             ms.modules.setdefault(top, where)
+                            ms.modules_full.setdefault(ctx.replace("`", "."), where)
                     else:
                         inc = Path(arg)
                         cand = inc if inc.is_absolute() else (f.parent / inc)
@@ -314,24 +390,58 @@ def _collect_member_sources(member: str, root: Path) -> MemberSources:
     return ms
 
 
+def _module_chain_overlap(full: str, kernel: str) -> bool:
+    """True when a loaded module and a declared kernel overlap along the
+    dotted chain: loading `pkg.kernel`, a submodule of it, or a parent
+    package that contains it are all call-through risks (fail-closed)."""
+    return full == kernel or full.startswith(kernel + ".") or kernel.startswith(full + ".")
+
+
+def _include_matches_kernel(inc: Path, kernel: str) -> bool:
+    """True when an included/sourced path names the declared kernel — the
+    dotted form matches a consecutive path window (`pkg.kernel` matches
+    .../pkg/kernel.jl), so a dotted kernel cannot hide behind a path spelling."""
+    kparts = kernel.split(".")
+    parts = list(inc.parts)
+    n = len(kparts)
+    if n == 1:
+        return any(part == kernel or Path(part).stem == kernel for part in parts)
+    for i in range(len(parts) - n + 1):
+        window = parts[i : i + n]
+        if list(window[:-1]) == kparts[:-1] and (
+            window[-1] == kparts[-1] or Path(window[-1]).stem == kparts[-1]
+        ):
+            return True
+    return False
+
+
+def _kernel_line_regex(kernel: str) -> re.Pattern[str]:
+    alts = [rf"\b{re.escape(kernel)}\b"]
+    if "." in kernel:
+        # A dotted kernel also appears in path spelling inside load statements
+        # (include(".../pkg/kernel.jl")).
+        alts.append(re.escape(kernel.replace(".", "/")))
+    return re.compile("|".join(alts))
+
+
 def _scan_declared_kernels(ms: MemberSources, kernels: list[str]) -> list[Issue]:
     """K1: any load-like reference to a declared kernel-under-test module."""
     issues: list[Issue] = []
     if not kernels:
         return issues
-    kernel_res = {k: re.compile(rf"\b{re.escape(k)}\b") for k in kernels}
+    kernel_res = {k: _kernel_line_regex(k) for k in kernels}
     seen: set[tuple[str, str]] = set()
 
-    for name, where in ms.modules.items():
+    for full, where in ms.modules_full.items():
         for k in kernels:
-            if name == k and (ms.member, k) not in seen:
+            if _module_chain_overlap(full, k) and (ms.member, k) not in seen:
                 seen.add((ms.member, k))
-                issues.append(Issue(ms.member, f"SHARED_KERNEL_INHERITANCE: reproduction imports declared kernel-under-test module '{k}' ({where})"))
+                issues.append(Issue(ms.member, f"SHARED_KERNEL_INHERITANCE: reproduction imports declared kernel-under-test module '{k}' (via '{full}', {where})"))
     for inc, where in ms.includes.items():
-        for k, kre in kernel_res.items():
+        for k in kernels:
             if (ms.member, k) in seen:
                 continue
-            if any(kre.fullmatch(part) or kre.fullmatch(Path(part).stem) for part in inc.parts):
+            if _include_matches_kernel(inc, k):
                 seen.add((ms.member, k))
                 issues.append(Issue(ms.member, f"SHARED_KERNEL_INHERITANCE: reproduction includes declared kernel-under-test file for '{k}' ({where})"))
     for f in ms.files:
@@ -341,7 +451,7 @@ def _scan_declared_kernels(ms: MemberSources, kernels: list[str]) -> list[Issue]
         # a string literal or docstring mentioning the kernel cannot fail the
         # gate. Other languages keep the broad loader hint.
         hint_re = _PY_DYNAMIC_IMPORT_RE if ext == ".py" else _LOADER_HINT_RE
-        for lineno, raw in enumerate(_iter_source_lines(f), start=1):
+        for lineno, raw in enumerate(ms.lines.get(f, []), start=1):
             line = _strip_comment(raw, ext)
             if not line.strip() or not hint_re.search(line):
                 continue
@@ -354,41 +464,52 @@ def _scan_declared_kernels(ms: MemberSources, kernels: list[str]) -> list[Issue]
     return issues
 
 
-def _build_project_index(project_root: Path) -> dict[str, Path]:
-    """Map module-name candidates -> project-local source path (bounded walk)."""
-    index: dict[str, Path] = {}
-    root_depth = len(project_root.parts)
-    visited = 0
-    for dirpath, dirnames, filenames in os.walk(project_root):
-        visited += 1
-        if visited > _WALK_MAX_DIRS:
-            break
-        cur = Path(dirpath)
-        if len(cur.parts) - root_depth >= _WALK_MAX_DEPTH:
-            dirnames[:] = []
-            continue
-        dirnames[:] = sorted(d for d in dirnames if d not in _PRUNE_DIRS and not d.startswith("."))
-        for fn in sorted(filenames):
-            p = cur / fn
-            if fn == "__init__.py":
-                index.setdefault(cur.name, p)
-            elif fn.endswith((".py", ".jl", ".r", ".R", ".m", ".wl", ".wls")):
-                index.setdefault(fn.rsplit(".", 1)[0], p)
-            elif fn == "Project.toml":
-                try:
-                    m = re.search(r'(?m)^\s*name\s*=\s*"([^"]+)"', p.read_text(encoding="utf-8", errors="replace"))
-                except OSError:
-                    m = None
-                if m:
-                    index.setdefault(m.group(1), p)
-            elif fn == "DESCRIPTION":
-                try:
-                    m = re.search(r"(?m)^Package:\s*([A-Za-z][\w.]*)", p.read_text(encoding="utf-8", errors="replace"))
-                except OSError:
-                    m = None
-                if m:
-                    index.setdefault(m.group(1), p)
-    return index
+def _resolve_project_module(name: str, project_root: Path) -> Path | None:
+    """Resolve a module name to a project-local source ONLY through the
+    layouts a bare `import`/`using`/`library` can actually reach (project
+    root, src/ layout, package manifests at root or one level down). An
+    unrelated basename collision deep in the tree (e.g. docs/numpy.py) is
+    NOT importable by that name and must not flag a shared third-party
+    import."""
+    candidates = (
+        f"{name}.py",
+        f"{name}/__init__.py",
+        f"src/{name}.py",
+        f"src/{name}/__init__.py",
+        f"{name}.jl",
+        f"src/{name}.jl",
+        f"{name}/src/{name}.jl",
+        f"{name}.R",
+        f"{name}.r",
+        f"src/{name}.R",
+        f"{name}.m",
+        f"{name}.wl",
+        f"{name}.wls",
+        f"src/{name}.m",
+        f"src/{name}.wl",
+    )
+    for rel in candidates:
+        p = project_root / rel
+        if p.is_file():
+            return p
+    manifests = (
+        ("Project.toml", r'(?m)^\s*name\s*=\s*"([^"]+)"'),
+        ("DESCRIPTION", r"(?m)^Package:\s*([A-Za-z][\w.]*)"),
+    )
+    for fname, pattern in manifests:
+        for mf in (project_root / fname, *sorted(project_root.glob(f"*/{fname}"))):
+            if not mf.is_file():
+                continue
+            rel_parts = mf.relative_to(project_root).parts[:-1]
+            if any(part in _PRUNE_DIRS or part.startswith(".") for part in rel_parts):
+                continue
+            try:
+                m = re.search(pattern, mf.read_text(encoding="utf-8", errors="replace"))
+            except OSError:
+                m = None
+            if m and m.group(1) == name:
+                return mf
+    return None
 
 
 def _member_shadows(ms: MemberSources, name: str) -> bool:
@@ -409,15 +530,12 @@ def _scan_shared_kernel(
     issues: list[Issue] = []
 
     shared_names = sorted(set(ms_a.modules) & set(ms_b.modules))
-    index: dict[str, Path] | None = None
     for name in shared_names:
         if name in allowed_roots:
             continue
         if _member_shadows(ms_a, name) or _member_shadows(ms_b, name):
             continue
-        if index is None:
-            index = _build_project_index(project_root)
-        target = index.get(name)
+        target = _resolve_project_module(name, project_root)
         if target is None:
             continue
         rel = target.relative_to(project_root) if target.is_relative_to(project_root) else target
@@ -583,6 +701,7 @@ def _run(args: argparse.Namespace, base_meta: dict[str, Any], _input_error: Any)
         )
         for member in MEMBERS
     }
+    scan_notes: list[str] = []
     for member in MEMBERS:
         issues.extend(_scan_declared_kernels(ms[member], kernels))
         if kernels and not ms[member].files:
@@ -594,6 +713,27 @@ def _run(args: argparse.Namespace, base_meta: dict[str, Any], _input_error: Any)
                     "kernel-under-test cannot be verified (fail-closed)",
                 )
             )
+        if ms[member].skipped:
+            if kernels:
+                # A source the scan could not read could hide a kernel
+                # call-through: with declared kernels this fails closed.
+                issues.append(
+                    Issue(
+                        member,
+                        "UNVERIFIABLE_INDEPENDENCE: kernel modules are declared but "
+                        f"{len(ms[member].skipped)} reproduction source(s) could not be scanned "
+                        f"({'; '.join(ms[member].skipped[:3])}) — independence from the "
+                        "kernel-under-test cannot be verified (fail-closed)",
+                    )
+                )
+            else:
+                # Without declared kernels the cross-member net is best-effort;
+                # record the blind spot in the machine verdict instead of
+                # failing every run that carries one oversized notebook.
+                scan_notes.append(
+                    f"SCAN_INCOMPLETE: {member}: {len(ms[member].skipped)} source(s) not scanned "
+                    f"({'; '.join(ms[member].skipped[:3])})"
+                )
     issues.extend(_scan_shared_kernel(ms["member_a"], ms["member_b"], project_root, allowed_roots))
 
     print(f"- Notes: `{args.notes}`", file=sys.stderr)
@@ -637,18 +777,20 @@ def _run(args: argparse.Namespace, base_meta: dict[str, Any], _input_error: Any)
         return _emit_result_or_fallback(
             status="not_converged",
             exit_code=1,
-            reasons=[it.message for it in issues],
+            reasons=[*(it.message for it in issues), *scan_notes],
             report_status=report_status,
             meta=meta,
             out_json=args.out_json,
         )
 
+    for note in scan_notes:
+        print(f"- {note}", file=sys.stderr)
     print("- Gate: PASS", file=sys.stderr)
     report_status = {m: _member_summary("ready", "independent", []) for m in MEMBERS}
     return _emit_result_or_fallback(
         status="converged",
         exit_code=0,
-        reasons=[],
+        reasons=scan_notes,
         report_status=report_status,
         meta=meta,
         out_json=args.out_json,

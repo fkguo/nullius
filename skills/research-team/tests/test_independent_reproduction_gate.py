@@ -221,6 +221,69 @@ def test_declared_kernel_with_no_sources_is_unverifiable(tmp_path: Path):
     assert payload["report_status"]["member_a"]["verdict"] == "needs_revision"
 
 
+def test_dotted_declared_kernel_import_is_flagged(tmp_path: Path):
+    proj = _make_project(tmp_path, kernel_modules=["shared_utils.kernel"])
+    _write(proj / "shared_utils" / "__init__.py", "")
+    _write(proj / "shared_utils" / "kernel.py", "def solve():\n    return 42\n")
+    ev_a = _seed_member(proj, "member_a", {"repro_a.py": "import shared_utils.kernel\n"})
+    ev_b = _seed_member(proj, "member_b", {"repro_b.py": "import math\n"})
+    proc, payload = _run_gate(proj, ev_a, ev_b)
+    assert proc.returncode == 1
+    assert payload is not None
+    assert any("SHARED_KERNEL_INHERITANCE" in r and "shared_utils.kernel" in r for r in payload["reasons"])
+    assert payload["report_status"]["member_a"]["independence"] == "not_independent"
+
+
+def test_dotted_declared_kernel_from_import_is_flagged(tmp_path: Path):
+    proj = _make_project(tmp_path, kernel_modules=["shared_utils.kernel"])
+    ev_a = _seed_member(proj, "member_a", {"repro_a.py": "from shared_utils import kernel\n"})
+    ev_b = _seed_member(proj, "member_b", {"repro_b.py": "import math\n"})
+    proc, payload = _run_gate(proj, ev_a, ev_b)
+    assert proc.returncode == 1
+    assert payload is not None
+    assert any("SHARED_KERNEL_INHERITANCE" in r for r in payload["reasons"])
+
+
+def test_dotted_declared_kernel_include_under_allowlisted_root_is_flagged(tmp_path: Path):
+    # A declared kernel under an allowlisted root must NOT escape through the
+    # allowlist when loaded by path (include spelling of the dotted module).
+    proj = _make_project(tmp_path, kernel_modules=["shared_utils.kernel"])
+    _write(proj / "shared_utils" / "kernel.jl", "module kernel end\n")
+    rel_a = os.path.relpath(proj / "shared_utils" / "kernel.jl", _member_dir(proj, "member_a"))
+    rel_b = os.path.relpath(proj / "shared_utils" / "kernel.jl", _member_dir(proj, "member_b"))
+    ev_a = _seed_member(proj, "member_a", {"repro_a.jl": f'include("{rel_a}")\n'})
+    ev_b = _seed_member(proj, "member_b", {"repro_b.jl": f'include("{rel_b}")\n'})
+    proc, payload = _run_gate(proj, ev_a, ev_b)
+    assert proc.returncode == 1
+    assert payload is not None
+    assert any("SHARED_KERNEL_INHERITANCE" in r for r in payload["reasons"])
+    assert payload["report_status"]["member_a"]["independence"] == "not_independent"
+    assert payload["report_status"]["member_b"]["independence"] == "not_independent"
+
+
+def test_oversized_source_with_declared_kernel_is_unverifiable(tmp_path: Path):
+    proj = _make_project(tmp_path, kernel_modules=["mykernel"])
+    big = "# pad\n" * 400_000  # > 2 MB: the scan must refuse to certify it
+    ev_a = _seed_member(proj, "member_a", {"repro_a.py": big + "import mykernel\n"})
+    ev_b = _seed_member(proj, "member_b", {"repro_b.py": "import math\n"})
+    proc, payload = _run_gate(proj, ev_a, ev_b)
+    assert proc.returncode == 1
+    assert payload is not None
+    assert any("UNVERIFIABLE_INDEPENDENCE" in r for r in payload["reasons"])
+
+
+def test_oversized_source_without_kernels_passes_with_scan_note(tmp_path: Path):
+    proj = _make_project(tmp_path)
+    big = "# pad\n" * 400_000
+    ev_a = _seed_member(proj, "member_a", {"repro_a.py": big})
+    ev_b = _seed_member(proj, "member_b", {"repro_b.py": "import math\n"})
+    proc, payload = _run_gate(proj, ev_a, ev_b)
+    assert proc.returncode == 0, proc.stderr
+    assert payload is not None
+    assert payload["status"] == "converged"
+    assert any("SCAN_INCOMPLETE" in r for r in payload["reasons"])
+
+
 # ---------------------------------------------------------------------------
 # K2: shared project-local module (no declaration needed)
 # ---------------------------------------------------------------------------
@@ -252,10 +315,34 @@ def test_shared_julia_package_via_project_toml_name(tmp_path: Path):
     assert any("SHARED_KERNEL_INHERITANCE" in r and "ProjPkg" in r for r in payload["reasons"])
 
 
+def test_shared_aliased_multi_import_is_flagged(tmp_path: Path):
+    # `import numpy as np, litekernel as lk` must record BOTH names.
+    proj = _make_project(tmp_path)
+    _write(proj / "src" / "litekernel.py", "def solve():\n    return 42\n")
+    ev_a = _seed_member(proj, "member_a", {"repro_a.py": "import numpy as np, litekernel as lk\n"})
+    ev_b = _seed_member(proj, "member_b", {"repro_b.py": "import litekernel\n"})
+    proc, payload = _run_gate(proj, ev_a, ev_b)
+    assert proc.returncode == 1
+    assert payload is not None
+    assert any("SHARED_KERNEL_INHERITANCE" in r and "litekernel" in r for r in payload["reasons"])
+
+
 def test_shared_third_party_import_passes(tmp_path: Path):
     proj = _make_project(tmp_path)
     ev_a = _seed_member(proj, "member_a", {"repro_a.py": "import numpy\nimport json\n"})
     ev_b = _seed_member(proj, "member_b", {"repro_b.py": "import numpy\nimport json\n"})
+    proc, payload = _run_gate(proj, ev_a, ev_b)
+    assert proc.returncode == 0, proc.stderr
+    assert payload is not None and payload["status"] == "converged"
+
+
+def test_deep_basename_collision_does_not_flag_third_party(tmp_path: Path):
+    # docs/numpy.py is not importable as `numpy` from the project root: a
+    # shared third-party import must not be flagged by a basename collision.
+    proj = _make_project(tmp_path)
+    _write(proj / "docs" / "numpy.py", "PLACEHOLDER = True\n")
+    ev_a = _seed_member(proj, "member_a", {"repro_a.py": "import numpy\n"})
+    ev_b = _seed_member(proj, "member_b", {"repro_b.py": "import numpy\n"})
     proc, payload = _run_gate(proj, ev_a, ev_b)
     assert proc.returncode == 0, proc.stderr
     assert payload is not None and payload["status"] == "converged"
