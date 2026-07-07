@@ -118,6 +118,18 @@ def split_package_ref(ref: str) -> tuple[str, str]:
     """
     body = ref[len("project://"):]
     encoded_path, _, pin = body.partition("#")
+    # Mirror the extractor's encoding exactly: quote(safe='/') emits only
+    # unreserved characters, '%', and '/'. Hand-written refs with raw URI
+    # metacharacters (':', '[', '^', ...) would pass a looser check here
+    # but throw inside the engine's URL parsing — refuse them locally with
+    # a usable message instead.
+    if not re.fullmatch(r"[A-Za-z0-9._~%/-]+", encoded_path):
+        raise ValueError(
+            f"gaia_package_ref path {encoded_path!r} contains characters "
+            "outside the percent-encoded form the extractor emits; "
+            "re-extract with run_infer_and_extract.py rather than writing "
+            "the reference by hand"
+        )
     rel = unquote(encoded_path)
     segments = rel.split("/")
     if any(segment in ("", "..") for segment in segments):
@@ -158,12 +170,20 @@ def verify_package_ref(ref: str, project_root: Path) -> None:
             f"gaia_package_ref does not resolve: {ir_path} not found under "
             f"project root {project_root}. If the package moved or the "
             "reference is stale, re-run run_infer_and_extract.py on the "
-            "package to produce a fresh posterior and reference"
+            "package to produce a fresh posterior and reference; if the "
+            "reference was extracted against a different root (nested "
+            "projects), pass that root via --project-root"
         )
     try:
-        ir_hash = json.loads(ir_path.read_text(encoding="utf-8")).get("ir_hash")
+        ir_doc = json.loads(ir_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise ValueError(f"could not read {ir_path}: {exc}") from exc
+    if not isinstance(ir_doc, dict):
+        raise ValueError(
+            f"{ir_path} is not a JSON object; the package's compiled "
+            "state cannot be checked — re-run the inference stages"
+        )
+    ir_hash = ir_doc.get("ir_hash")
     if ir_hash != pin:
         raise ValueError(
             f"gaia_package_ref pin {pin!r} does not match the package's "
