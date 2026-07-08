@@ -34,6 +34,7 @@ def _write_manifest(path: pathlib.Path, components: dict[str, object]) -> None:
         "platforms": {
             "claude_code": {"install_mode": "x"},
             "codex": {"install_mode": "x"},
+            "kimi_code": {"install_mode": "x"},
             "opencode": {"install_mode": "x"},
         },
     }

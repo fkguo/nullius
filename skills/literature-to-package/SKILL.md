@@ -50,7 +50,7 @@ Every phase produces one JSON artifact (schemas: `references/contract.md`) and
 is closed by:
 
 ```bash
-SKILL_DIR="${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode"; do [ -d "$r/skills/literature-to-package" ] && echo "$r/skills/literature-to-package" && break; done || true)}"
+SKILL_DIR="${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode" "$HOME/.kimi-code"; do [ -d "$r/skills/literature-to-package" ] && echo "$r/skills/literature-to-package" && break; done || true)}"
 python3 "${SKILL_DIR}/scripts/gates/check_phase.py" \
   --phase <survey|extraction|skeleton|reimplementation|reference-check|composite-gates|closeout> \
   --artifact <phase_artifact.json> \

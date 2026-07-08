@@ -81,10 +81,18 @@ bash scripts/install_symlink_opencode.sh \
   --skills-root ~/Coding/Agents/nullius/skills
 ```
 
+### 5.4 Kimi Code
+
+```bash
+bash scripts/install_symlink_kimi_code.sh \
+  --skills-root ~/Coding/Agents/nullius/skills
+```
+
 ## 6) Target Paths
 
 - Codex: `~/.codex/skills`
 - Claude Code: `~/.claude/skills`
+- Kimi Code: `~/.kimi-code/skills`
 - OpenCode: `~/.config/opencode/skills`
 
 The installer links every market `skill-pack` package id to the platform target root.
@@ -168,6 +176,7 @@ Fix:
 Use one of:
 - `codex`
 - `claude_code`
+- `kimi_code`
 - `opencode`
 
 ## 10) Suggested Team Flow

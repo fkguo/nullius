@@ -55,7 +55,7 @@ def _default_skills_dir() -> Path:
         val = os.environ.get(env_var, "").strip()
         if val:
             return (Path(val).expanduser() / "skills").resolve()
-    for home in ("~/.claude", "~/.codex", "~/.config/opencode"):
+    for home in ("~/.claude", "~/.codex", "~/.config/opencode", "~/.kimi-code"):
         root = Path(home).expanduser() / "skills"
         if root.is_dir():
             return root.resolve()

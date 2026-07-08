@@ -8,6 +8,7 @@
   "platforms": [
     "claude_code",
     "codex",
+    "kimi_code",
     "opencode"
   ],
   "source_path": "skills/literature-graph-builder/SKILL.md",
@@ -20,6 +21,7 @@
   "install": {
     "claude_code": "Link into ~/.claude/skills or install via marketplace when available.",
     "codex": "Link into ~/.codex/skills for Codex native discovery.",
+    "kimi_code": "Link into ~/.kimi-code/skills for Kimi Code discovery.",
     "opencode": "Link into ~/.config/opencode/skills for OpenCode discovery."
   },
   "source": {

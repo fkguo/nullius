@@ -29,6 +29,7 @@ metadata and the platform copy/symlink installers.
 Supported platforms:
 - Claude Code
 - Codex
+- Kimi Code
 - OpenCode
 
 ## Layout
@@ -54,6 +55,7 @@ Installers:
 - Codex: `bash scripts/install_codex.sh`
 - OpenCode: `bash scripts/install_opencode.sh`
 - Claude Code (local skills link fallback): `bash scripts/install_claude_code.sh`
+- Kimi Code: `bash scripts/install_kimi_code.sh`
 
 Full symlink install (link the in-repo `skills/` into a host, superpowers-style):
 
@@ -68,6 +70,10 @@ bash scripts/install_symlink_claude_code.sh \
 
 # OpenCode full install
 bash scripts/install_symlink_opencode.sh \
+  --skills-root ~/Coding/Agents/nullius/skills
+
+# Kimi Code full install
+bash scripts/install_symlink_kimi_code.sh \
   --skills-root ~/Coding/Agents/nullius/skills
 ```
 
@@ -95,7 +101,7 @@ python3 scripts/install_skill.py \
 - Skill-pack dependencies are auto-installed by default (disable with `--no-deps`)
 - Non-skill dependencies (`tool-pack/workflow-pack/engine-pack/contract-pack`) are surfaced as preflight warnings, or hard-failed with `--strict-deps`
 - Source payload uses package-level publish allowlist (`source.include`) and denylist (`source.exclude`) so review artifacts/dev traces are not installed
-- `research-harness` is the thin external-project entry skill for Codex / Claude Code / OpenCode. It has no hard package dependency on `research-team` or `hep-mcp`; it routes to them when those capabilities are available.
+- `research-harness` is the thin external-project entry skill for Codex / Claude Code / Kimi Code / OpenCode. It has no hard package dependency on `research-team` or `hep-mcp`; it routes to them when those capabilities are available.
 - Skill-packs can opt into installer-managed Python isolation with `runtime.python.mode = "isolated-venv"`
 - Opted-in Python skills get a skill-local `.venv`; installs fail closed if venv creation or package install fails
 - `--auto-safe` is a narrower copy-install authority for `skill-pack` closures only:

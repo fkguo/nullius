@@ -18,6 +18,7 @@ def platform_root(platform: str, target_root_override: pathlib.Path | None) -> p
     roots = {
         "codex": home / ".codex" / "skills",
         "claude_code": home / ".claude" / "skills",
+        "kimi_code": home / ".kimi-code" / "skills",
         "opencode": home / ".config" / "opencode" / "skills",
     }
     try:

@@ -46,6 +46,16 @@ def _run(skills_root, market_root, target, *extra, env_mb="2"):
     )
 
 
+def _run_platform(skills_root, market_root, target, platform, *extra, env_mb="2"):
+    return subprocess.run(
+        ["bash", str(_INSTALLER), "--platform", platform,
+         "--skills-root", str(skills_root), "--market-root", str(market_root),
+         "--target-root", str(target), "--dry-run", "--allow-large-artifacts", *extra],
+        capture_output=True, text=True,
+        env={**os.environ, "HOME": str(target.parent), "SKILL_SYMLINK_MAX_MB": env_mb},
+    )
+
+
 def test_oversized_skill_is_refused_small_one_links(tmp_path):
     skills_root, market_root = _fixture(tmp_path)
     target = tmp_path / "dest"
@@ -73,8 +83,18 @@ def test_non_numeric_threshold_rejected(tmp_path):
     assert r.returncode == 2 and "must be a non-negative integer" in r.stderr
 
 
+def test_kimi_code_platform_is_accepted(tmp_path):
+    skills_root, market_root = _fixture(tmp_path)
+    target = tmp_path / "kimi-dest"
+    target.mkdir()
+    r = _run_platform(skills_root, market_root, target, "kimi_code")
+    assert r.returncode == 0, r.stderr
+    assert "platform=kimi_code" in r.stdout
+    assert "small-skill" in r.stdout
+
+
 def test_market_root_has_valid_catalog_skill_md():
-    # The market root is symlinked as a skill dir by install_{codex,opencode,claude_code}.sh, so it MUST
+    # The market root is symlinked as a skill dir by install_{codex,opencode,claude_code,kimi_code}.sh, so it MUST
     # carry a SKILL.md or a strict loader (OpenCode) can crash. Lock its presence + minimal frontmatter.
     skill_md = _MARKET_ROOT / "SKILL.md"
     assert skill_md.is_file()

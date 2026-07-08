@@ -8,6 +8,7 @@
   "platforms": [
     "claude_code",
     "codex",
+    "kimi_code",
     "opencode"
   ],
   "source_path": "skills/derivation-verify/SKILL.md",
@@ -17,6 +18,7 @@
   "install": {
     "claude_code": "Link into ~/.claude/skills or install via marketplace when available. Executor 1 (fast, same-model) needs the Claude Code Workflow tool; Executor 2 (cross-model CLI) reuses the review-swarm skill's run_multi_task.py and works on any host.",
     "codex": "Link into ~/.codex/skills for Codex native discovery. Executor 2 (cross-model CLI) requires the review-swarm dependency; Executor 1 (Workflow) is Claude Code only.",
+    "kimi_code": "Link into ~/.kimi-code/skills for Kimi Code discovery.",
     "opencode": "Link into ~/.config/opencode/skills for OpenCode discovery. Executor 2 (cross-model CLI) requires the review-swarm dependency; Executor 1 (Workflow) is Claude Code only."
   },
   "source": {

@@ -20,7 +20,7 @@ runs, and you can run them yourself for reproducibility and debugging.
 Resolve the skills directory, then smoke-test with no model calls:
 
 ```bash
-SKILLS_DIR="${SKILLS_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode"; do [ -d "$r/skills" ] && echo "$r/skills" && break; done || true)}"
+SKILLS_DIR="${SKILLS_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode" "$HOME/.kimi-code"; do [ -d "$r/skills" ] && echo "$r/skills" && break; done || true)}"
 python3 "$SKILLS_DIR/paper-reviser/scripts/bin/paper_reviser_edit.py" \
   --in /path/to/draft.tex \
   --out-dir /tmp/paper_reviser_out \

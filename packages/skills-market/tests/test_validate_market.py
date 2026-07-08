@@ -25,7 +25,7 @@ def _base_skill() -> dict[str, object]:
         "channel": "dev",
         "version": "0.1.0",
         "summary": "Sample skill",
-        "platforms": ["codex", "claude_code", "opencode"],
+        "platforms": ["codex", "claude_code", "kimi_code", "opencode"],
         "source_path": "skills/sample-skill/SKILL.md",
         "install": {"codex": "install"},
         "source": {
@@ -164,6 +164,7 @@ def test_research_team_package_metadata_describes_copy_vs_symlink_install() -> N
     expected_scripts = {
         "claude_code": "packages/skills-market/scripts/install_symlink_claude_code.sh",
         "codex": "packages/skills-market/scripts/install_symlink_codex.sh",
+        "kimi_code": "packages/skills-market/scripts/install_symlink_kimi_code.sh",
         "opencode": "packages/skills-market/scripts/install_symlink_opencode.sh",
     }
     for platform, script_path in expected_scripts.items():
