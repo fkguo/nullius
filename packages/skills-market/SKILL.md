@@ -7,7 +7,8 @@ description: Browse and install Nullius skills. This directory is the skills-mar
 
 This is the **catalog/installer control plane** for Nullius skills — it is intentionally a
 metadata + installer package, not a task skill. A host that linked the whole market root here (via
-`scripts/install_codex.sh` / `install_opencode.sh` / `install_claude_code.sh`) sees this `SKILL.md` so
+`scripts/install_codex.sh` / `install_opencode.sh` / `install_claude_code.sh` /
+`install_kimi_code.sh`) sees this `SKILL.md` so
 the directory is a well-formed, inert catalog entry rather than a `SKILL.md`-less directory that a strict
 skill loader could reject.
 
@@ -20,7 +21,7 @@ monorepo checkout once that route goes live. See `README.md` for the full status
 Install only what you need (skill-pack dependencies are pulled in automatically):
 
 ```bash
-python3 scripts/install_skill.py --platform <codex|claude_code|opencode> --package <skill-id>
+python3 scripts/install_skill.py --platform <codex|claude_code|kimi_code|opencode> --package <skill-id>
 ```
 
 List available skill ids in `packages/index.json`. To install every market skill as a live,

@@ -16,7 +16,7 @@ _SKILL_DIR_HINT = (
     '${SKILL_DIR:-$(for r in '
     '"${CLAUDE_CONFIG_DIR:-$HOME/.claude}" '
     '"${CODEX_HOME:-$HOME/.codex}" '
-    '"$HOME/.config/opencode"; do '
+    '"$HOME/.config/opencode" "$HOME/.kimi-code"; do '
     '[ -d "$r/skills/research-team" ] && echo "$r/skills/research-team" && break; '
     'done || true)}'
 )

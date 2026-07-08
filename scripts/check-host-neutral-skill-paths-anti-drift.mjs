@@ -10,7 +10,8 @@
 //   SKILL_DIR="${SKILL_DIR:-$(for r in \
 //     "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" \
 //     "${CODEX_HOME:-$HOME/.codex}" \
-//     "$HOME/.config/opencode"; do \
+//     "$HOME/.config/opencode" \
+//     "$HOME/.kimi-code"; do \
 //     [ -d "$r/skills/<skill>" ] && echo "$r/skills/<skill>" && break; done || true)}"
 //
 // What is FORBIDDEN is a host home token used DIRECTLY as the skills root — i.e.
@@ -25,8 +26,9 @@
 // AND `${CLAUDE_CONFIG_DIR:-$HOME/.claude}` as co-equal probe entries; neither is
 // privileged. So the discriminating signal is purely the `<host-token>/skills`
 // adjacency, not the mere presence of `CODEX_HOME` / `.codex` / `.claude`.
-// (Legitimate host CONFIG refs such as `~/.codex/config.toml` or
-// `~/.claude/settings.json` are therefore never flagged — they are not `/skills`.)
+// (Legitimate host CONFIG refs such as `~/.codex/config.toml`,
+// `~/.claude/settings.json`, or `~/.kimi-code/config.toml` are therefore never
+// flagged — they are not `/skills`.)
 //
 // SCOPE: `skills/` only. Deliberately NOT scanned:
 //   - `packages/skills-market/**`: a multi-host marketplace package that ships
@@ -51,7 +53,7 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'
 // Leading (?<![A-Za-z0-9_]) avoids matching longer identifiers like MY_CODEX_HOME
 // or a content word ending in `codex`/`claude`.
 const HOST_SKILLS_PRIVILEGE =
-  /(?<![A-Za-z0-9_])(?:CODEX_HOME|CLAUDE_CONFIG_DIR|\.codex|\.claude)\}?\/skills/;
+  /(?<![A-Za-z0-9_])(?:CODEX_HOME|CLAUDE_CONFIG_DIR|\.codex|\.claude|\.kimi-code)\}?\/skills/;
 
 const SCAN_EXT = new Set(['.md', '.py', '.sh', '.txt', '.json', '.ts', '.mjs', '.cjs', '.js']);
 
@@ -98,7 +100,7 @@ console.error('');
 console.error('A skill must NOT pin a single host as the skills root. Replace the hardcoded');
 console.error('home with the host-neutral probe (explicit SKILL_DIR override + ordered probe of');
 console.error('"${CLAUDE_CONFIG_DIR:-$HOME/.claude}", "${CODEX_HOME:-$HOME/.codex}",');
-console.error('"$HOME/.config/opencode"), joining "/skills/<skill>" through the loop variable.');
+console.error('"$HOME/.config/opencode", "$HOME/.kimi-code"), joining "/skills/<skill>" through the loop variable.');
 console.error('CODEX_HOME / CLAUDE_CONFIG_DIR are fine AS EQUAL PROBE ENTRIES — just never glued');
 console.error('directly to "/skills". Host config refs (e.g. ~/.codex/config.toml) are not flagged.');
 process.exit(1);

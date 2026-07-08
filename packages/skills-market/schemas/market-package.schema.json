@@ -32,13 +32,14 @@
     "platforms": {
       "type": "array",
       "minItems": 1,
-      "items": { "enum": ["claude_code", "codex", "opencode"] }
+      "items": { "enum": ["claude_code", "codex", "kimi_code", "opencode"] }
     },
     "install": {
       "type": "object",
       "properties": {
         "claude_code": { "type": "string" },
         "codex": { "type": "string" },
+        "kimi_code": { "type": "string" },
         "opencode": { "type": "string" }
       },
       "additionalProperties": false

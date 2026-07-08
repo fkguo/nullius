@@ -70,7 +70,7 @@ def _make_market(tmp_path: pathlib.Path, package_id: str, runtime_packages: list
         "channel": "dev",
         "version": "0.1.0",
         "summary": "Sample skill",
-        "platforms": ["codex"],
+        "platforms": ["codex", "kimi_code"],
         "source_path": f"skills/{package_id}/SKILL.md",
         "source": {
             "repo": "nullius/skills",
@@ -162,6 +162,29 @@ def test_non_opt_in_skill_remains_copy_only(tmp_path: pathlib.Path) -> None:
 
     source_skill.write_text("---\nname: sample\n---\n\n# Changed Source Skill\n", encoding="utf-8")
     assert installed_skill.read_text(encoding="utf-8") == original_text
+
+
+def test_kimi_code_platform_installs_to_selected_target_root(tmp_path: pathlib.Path) -> None:
+    market_root, source_root = _make_market(tmp_path, "kimi-skill", None)
+    target_root = tmp_path / "kimi-target"
+    assert (
+        install_main(
+            [
+                "--platform",
+                "kimi_code",
+                "--market-root",
+                str(market_root),
+                "--source-root",
+                str(source_root),
+                "--target-root",
+                str(target_root),
+                "--package",
+                "kimi-skill",
+            ]
+        )
+        == 0
+    )
+    assert (target_root / "kimi-skill" / "SKILL.md").is_file()
 
 
 def test_research_team_workflow_plan_copy_uses_source_workspace_provenance(monkeypatch, tmp_path: pathlib.Path) -> None:

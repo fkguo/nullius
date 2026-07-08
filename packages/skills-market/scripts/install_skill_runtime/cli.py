@@ -15,7 +15,7 @@ from .source_payload import clone_source_repo, collect_payload_files, git_head
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     script_path = pathlib.Path(__file__)
     parser = argparse.ArgumentParser(description="Install selected skills from skills-market metadata.")
-    parser.add_argument("--platform", required=True, choices=["codex", "claude_code", "opencode"])
+    parser.add_argument("--platform", required=True, choices=["codex", "claude_code", "kimi_code", "opencode"])
     parser.add_argument("--package", action="append", default=[], help="Package id to install. Repeatable.")
     parser.add_argument("--all", action="store_true", help="Install all skill-pack packages from the market index.")
     parser.add_argument("--market-root", default=str(default_market_root(script_path)))

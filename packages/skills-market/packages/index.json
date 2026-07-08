@@ -1,6 +1,6 @@
 {
   "index_version": "1.4.0",
-  "updated_at": "2026-07-07T00:00:00Z",
+  "updated_at": "2026-07-08T00:00:00Z",
   "packages": [
     "citation-triangulation.json",
     "claim-grounding.json",
@@ -12,6 +12,7 @@
     "gemini-cli-runner.json",
     "hep-calc.json",
     "hep-mcp.json",
+    "hep-mcp-usage.json",
     "idea-allocation.json",
     "idea-generation.json",
     "idea-pairwise-match.json",

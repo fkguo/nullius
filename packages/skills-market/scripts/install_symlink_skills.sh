@@ -17,7 +17,7 @@ Usage:
   install_symlink_skills.sh --platform codex --skills-root ~/Coding/Agents/nullius/skills
 
 Options:
-  --platform PLATFORM        Required: codex | claude_code | opencode
+  --platform PLATFORM        Required: codex | claude_code | kimi_code | opencode
   --skills-root DIR          Required: local skills source directory root
                              Expected layout:
                                - DIR/skills/<skill-id>/SKILL.md  (preferred)
@@ -35,6 +35,7 @@ Options:
 Platform default target roots:
   codex       -> ~/.codex/skills
   claude_code -> ~/.claude/skills
+  kimi_code   -> ~/.kimi-code/skills
   opencode    -> ~/.config/opencode/skills
 
 Exit behavior:
@@ -147,6 +148,7 @@ if [[ -z "${TARGET_ROOT}" ]]; then
   case "${PLATFORM}" in
     codex) TARGET_ROOT="${HOME}/.codex/skills" ;;
     claude_code) TARGET_ROOT="${HOME}/.claude/skills" ;;
+    kimi_code) TARGET_ROOT="${HOME}/.kimi-code/skills" ;;
     opencode) TARGET_ROOT="${HOME}/.config/opencode/skills" ;;
     *)
       echo "[error] unsupported platform: ${PLATFORM}" >&2

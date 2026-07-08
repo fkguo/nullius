@@ -1,0 +1,4 @@
+interface:
+  display_name: "hep-mcp Provider Stack"
+  short_description: "Use hep-mcp for literature evidence"
+  default_prompt: "Use $hep-mcp-usage to verify this literature claim with source-backed evidence."

@@ -6,7 +6,7 @@ import pathlib
 import re
 from typing import Any
 
-ALLOWED_PLATFORMS = {"claude_code", "codex", "opencode"}
+ALLOWED_PLATFORMS = {"claude_code", "codex", "kimi_code", "opencode"}
 RE_VERSION = re.compile(r"^(v?[0-9]+\.[0-9]+\.[0-9]+(?:[-+][A-Za-z0-9.]+)?|schemas-v[0-9]+\.[0-9]+\.[0-9]+)$")
 RE_INDEX_VERSION = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+$")
 RE_PACKAGE_ID = re.compile(r"^[A-Za-z0-9_.-]+$")

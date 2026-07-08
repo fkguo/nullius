@@ -28,7 +28,7 @@ Kimi Code currently exposes `-p, --prompt <prompt>` for headless prompt mode. It
 ## Recommended: runner script
 
 ```bash
-SKILL_DIR="${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode"; do [ -d "$r/skills/kimi-cli-runner" ] && echo "$r/skills/kimi-cli-runner" && break; done || true)}"
+SKILL_DIR="${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode" "$HOME/.kimi-code"; do [ -d "$r/skills/kimi-cli-runner" ] && echo "$r/skills/kimi-cli-runner" && break; done || true)}"
 bash "${SKILL_DIR}/scripts/run_kimi.sh" \
   --system-prompt-file /path/to/system.txt \
   --prompt-file /path/to/prompt.txt \
@@ -38,7 +38,7 @@ bash "${SKILL_DIR}/scripts/run_kimi.sh" \
 With an explicit model and read/write workspace exposure:
 
 ```bash
-SKILL_DIR="${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode"; do [ -d "$r/skills/kimi-cli-runner" ] && echo "$r/skills/kimi-cli-runner" && break; done || true)}"
+SKILL_DIR="${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode" "$HOME/.kimi-code"; do [ -d "$r/skills/kimi-cli-runner" ] && echo "$r/skills/kimi-cli-runner" && break; done || true)}"
 bash "${SKILL_DIR}/scripts/run_kimi.sh" \
   --model kimi-code/kimi-for-coding \
   --tool-mode workspace \
@@ -50,7 +50,7 @@ bash "${SKILL_DIR}/scripts/run_kimi.sh" \
 Dry-run:
 
 ```bash
-SKILL_DIR="${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode"; do [ -d "$r/skills/kimi-cli-runner" ] && echo "$r/skills/kimi-cli-runner" && break; done || true)}"
+SKILL_DIR="${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode" "$HOME/.kimi-code"; do [ -d "$r/skills/kimi-cli-runner" ] && echo "$r/skills/kimi-cli-runner" && break; done || true)}"
 bash "${SKILL_DIR}/scripts/run_kimi.sh" \
   --model kimi-code/kimi-for-coding \
   --prompt-file /path/to/prompt.txt \

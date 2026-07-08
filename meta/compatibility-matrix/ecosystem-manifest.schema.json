@@ -74,7 +74,7 @@
     },
     "platforms": {
       "type": "object",
-      "required": ["claude_code", "codex", "opencode"],
+      "required": ["claude_code", "codex", "kimi_code", "opencode"],
       "properties": {
         "claude_code": {
           "type": "object",
@@ -85,6 +85,14 @@
           "additionalProperties": false
         },
         "codex": {
+          "type": "object",
+          "required": ["install_mode"],
+          "properties": {
+            "install_mode": { "type": "string", "minLength": 1 }
+          },
+          "additionalProperties": false
+        },
+        "kimi_code": {
           "type": "object",
           "required": ["install_mode"],
           "properties": {
