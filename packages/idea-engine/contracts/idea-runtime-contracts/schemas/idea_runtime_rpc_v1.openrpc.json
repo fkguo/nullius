@@ -3,7 +3,7 @@
   "info": {
     "title": "Idea Campaign RPC (v1)",
     "version": "2.0.0",
-    "description": "JSON-RPC interface for the public idea campaign host surface, currently implemented by the TS idea-engine runtime. Contract schemas are referenced via $ref to sibling files in this directory.\n\nScope note: the search/eval runtime has been archived. The engine manages an idea portfolio: campaign lifecycle, node reads, externally computed belief posteriors (node.set_posterior), lifecycle transitions (node.set_lifecycle), posterior-based ranking (rank.compute), and promotion (node.promote).\n\nRef resolution: All external schema $ref values are relative to this OpenRPC document's directory.\n\nIdempotency semantics (MUST):\n1) Side-effecting methods require idempotency_key.\n2) Engine deduplicates by (method, campaign_id, idempotency_key). For campaign.init (no campaign_id yet), dedupe by (method, idempotency_key).\n2b) If the same idempotency_key is reused with a different request payload, the engine MUST reject with schema_validation_failed (-32002) and MUST NOT execute the request. The error MUST include error.data.reason=\"idempotency_key_conflict\" and MUST include error.data.idempotency_key + error.data.payload_hash.\n2c) Payload identity MUST be machine-defined: compute payload_hash = sha256(JCS(params_without_idempotency_key)). JCS = RFC 8785 JSON Canonicalization Scheme (deterministic object key order + number formatting). Engines SHOULD apply default-value filling (e.g., node.list.limit omitted → 50) before hashing to avoid false conflicts for semantically identical intents.\n3) On duplicate, engine MUST return the same logical response as the first call (result or error), without repeating side-effects. The response MUST include idempotency metadata (idempotency_key + is_replay); is_replay MUST be true on duplicate hits and false on first execution. All other fields MUST match the first response. For non-deterministic methods, this MUST be implemented by storing and replaying the first response, not by re-execution.\n4) Idempotency records MUST be retained for the campaign lifetime (or until an explicit campaign.delete is added).\n\nError data contract (MUST):\nAll error responses MUST include a machine-readable JSON-RPC error.data object. Minimum fields: {\"reason\": string, \"details\"?: object}.\n- For code -32001 (budget_exhausted), error.data.reason MUST be \"dimension_exhausted\" and error.data.details.exhausted_dimensions MUST list one or more exhausted budget dimensions.\n- For code -32002 (schema_validation_failed), error.data.reason MUST distinguish at least: schema_invalid, idempotency_key_conflict, activation_condition_required, activation_condition_unexpected.\n- For code -32017 (promotion_blocked), error.data.reason MUST be posterior_missing or node_not_active."
+    "description": "JSON-RPC interface for the public idea campaign host surface, currently implemented by the TS idea-engine runtime. Contract schemas are referenced via $ref to sibling files in this directory.\n\nScope note: the search/eval runtime has been archived. The engine manages an idea portfolio: campaign lifecycle, node reads, externally computed belief posteriors (node.set_posterior), lifecycle transitions (node.set_lifecycle), posterior-based ranking (rank.compute), and promotion (node.promote).\n\nRef resolution: All external schema $ref values are relative to this OpenRPC document's directory.\n\nIdempotency semantics (MUST):\n1) Side-effecting methods require idempotency_key.\n2) Engine deduplicates by (method, campaign_id, idempotency_key). For campaign.init (no campaign_id yet), dedupe by (method, idempotency_key).\n2b) If the same idempotency_key is reused with a different request payload, the engine MUST reject with schema_validation_failed (-32002) and MUST NOT execute the request. The error MUST include error.data.reason=\"idempotency_key_conflict\" and MUST include error.data.idempotency_key + error.data.payload_hash.\n2c) Payload identity MUST be machine-defined: compute payload_hash = sha256(JCS(params_without_idempotency_key)). JCS = RFC 8785 JSON Canonicalization Scheme (deterministic object key order + number formatting). Engines SHOULD apply default-value filling (e.g., node.list.limit omitted → 50) before hashing to avoid false conflicts for semantically identical intents.\n3) On duplicate, engine MUST return the same logical response as the first call (result or error), without repeating side-effects. The response MUST include idempotency metadata (idempotency_key + is_replay); is_replay MUST be true on duplicate hits and false on first execution. All other fields MUST match the first response. For non-deterministic methods, this MUST be implemented by storing and replaying the first response, not by re-execution.\n4) Idempotency records MUST be retained for the campaign lifetime (or until an explicit campaign.delete is added).\n\nError data contract (MUST):\nAll error responses MUST include a machine-readable JSON-RPC error.data object. Minimum fields: {\"reason\": string, \"details\"?: object}.\n- For code -32001 (budget_exhausted), error.data.reason MUST be \"dimension_exhausted\" and error.data.details.exhausted_dimensions MUST list one or more exhausted budget dimensions.\n- For code -32002 (schema_validation_failed), error.data.reason MUST distinguish at least: schema_invalid, idempotency_key_conflict, activation_condition_required, activation_condition_unexpected, archived_reason_required, posterior_status_not_supported_by_coverage.\n- For code -32017 (promotion_blocked), error.data.reason MUST be posterior_missing or node_not_admitted.\n- For code -32018 (lifecycle_transition_invalid), error.data.reason MUST distinguish at least: illegal_transition, entry_precondition_failed, posterior_write_lifecycle_invalid, unknown_lifecycle_state; error.data.details MUST name the node's current state, the requested (or implied) target state, and — for illegal_transition — the allowed next states."
   },
   "x-error-data-contract": {
     "schema": {
@@ -17,7 +17,9 @@
         "schema_invalid",
         "idempotency_key_conflict",
         "activation_condition_required",
-        "activation_condition_unexpected"
+        "activation_condition_unexpected",
+        "archived_reason_required",
+        "posterior_status_not_supported_by_coverage"
       ],
       "-32016": [
         "reduction_audit_not_pass",
@@ -26,7 +28,13 @@
       ],
       "-32017": [
         "posterior_missing",
-        "node_not_active"
+        "node_not_admitted"
+      ],
+      "-32018": [
+        "illegal_transition",
+        "entry_precondition_failed",
+        "posterior_write_lifecycle_invalid",
+        "unknown_lifecycle_state"
       ]
     }
   },
@@ -440,7 +448,7 @@
                   "provisional",
                   "stale"
                 ],
-                "description": "Whether the posterior is current guidance, provisional, or stale after a later close-prior audit."
+                "description": "Whether the posterior is current guidance, provisional, or stale after a later close-prior audit. status=current MUST be backed by scoring-eligible coverage in the same request (saturated, or coverage_incomplete with the explicit exploratory waiver); otherwise the write is rejected with schema_validation_failed/posterior_status_not_supported_by_coverage."
               }
             },
             "additionalProperties": false
@@ -494,7 +502,7 @@
           "required": true
         }
       ],
-      "description": "Side-effecting. Writes the posterior computed by the external belief-graph tool onto the node, stamps posterior.updated_at, increments the node revision, and appends a set_posterior entry to the node mutation log. Does not consume step budget. Permitted in any campaign status except completed (campaign_not_active).",
+      "description": "Side-effecting. Writes the posterior computed by the external belief-graph tool onto the node, stamps posterior.updated_at, increments the node revision, and appends a set_posterior entry to the node mutation log. Does not consume step budget. Permitted in any campaign status except completed (campaign_not_active).\n\nLifecycle coupling (MUST): the write is legal only while the node's lifecycle_state is admission_review, admitted, or needs_refresh — a candidate node must first be moved to admission_review via node.set_lifecycle (declaring the review gives admission a logged, timestamped start), and admission_blocked / waiting_activation / archived nodes must be transitioned out before receiving posterior writes (else lifecycle_transition_invalid/posterior_write_lifecycle_invalid, -32018). After a legal write the engine derives the lifecycle itself: resolved posterior status current -> admitted; provisional or stale -> needs_refresh. When that derivation changes the state, lifecycle_reason is set to \"posterior_status=<status>\". Only the engine mutates lifecycle on posterior writes, so the state cannot drift from the stored posterior.",
       "result": {
         "name": "node_update_result",
         "schema": {
@@ -521,12 +529,16 @@
         {
           "code": -32015,
           "message": "campaign_not_active"
+        },
+        {
+          "code": -32018,
+          "message": "lifecycle_transition_invalid"
         }
       ]
     },
     {
       "name": "node.set_lifecycle",
-      "summary": "Move a node between active, waiting_activation, and archived lifecycle states.",
+      "summary": "Move a node through the enforced idea lifecycle state machine.",
       "paramStructure": "by-name",
       "params": [
         {
@@ -549,12 +561,17 @@
           "name": "lifecycle_state",
           "schema": {
             "enum": [
-              "active",
+              "candidate",
+              "admission_review",
+              "admitted",
+              "needs_refresh",
+              "admission_blocked",
               "waiting_activation",
               "archived"
             ]
           },
-          "required": true
+          "required": true,
+          "description": "Target state. The transition must be legal from the node's current state AND satisfy the target's entry precondition (see method description)."
         },
         {
           "name": "activation_condition",
@@ -572,6 +589,7 @@
                   "data_release",
                   "stage_reached",
                   "exploratory_computation",
+                  "required_evidence",
                   "other"
                 ]
               },
@@ -586,7 +604,7 @@
             "additionalProperties": false
           },
           "required": false,
-          "description": "Required when lifecycle_state=waiting_activation (activation_condition_required otherwise); MUST be absent for other states (activation_condition_unexpected)."
+          "description": "Required when lifecycle_state is waiting_activation (the external condition to become actionable) or admission_blocked (the missing evidence that must be produced; kind is typically required_evidence) — activation_condition_required otherwise; MUST be absent for every other state (activation_condition_unexpected)."
         },
         {
           "name": "reason",
@@ -595,7 +613,7 @@
             "minLength": 1
           },
           "required": false,
-          "description": "Optional human-readable reason for the transition (recommended for archived). Recorded in the node mutation log."
+          "description": "Human-readable reason for the transition. REQUIRED (non-empty) when lifecycle_state=archived; optional otherwise. Stored on the node as lifecycle_reason and recorded in the node mutation log."
         },
         {
           "name": "idempotency_key",
@@ -606,7 +624,7 @@
           "required": true
         }
       ],
-      "description": "Side-effecting. Sets the node lifecycle state, increments the node revision, and appends a set_lifecycle entry (with the optional reason) to the node mutation log. waiting_activation MUST carry activation_condition; leaving waiting_activation clears the stored condition. Does not consume step budget. Permitted in any campaign status except completed (campaign_not_active).",
+      "description": "Side-effecting. Moves the node through the enforced lifecycle state machine, increments the node revision, records the reason as lifecycle_reason, and appends a set_lifecycle entry to the node mutation log. Does not consume step budget. Permitted in any campaign status except completed (campaign_not_active).\n\nTransition table (MUST; any request outside it is rejected with lifecycle_transition_invalid/illegal_transition, -32018, error.data.details listing the allowed next states): candidate -> admission_review | admission_blocked | waiting_activation | archived; admission_review -> candidate | admitted | needs_refresh | admission_blocked | waiting_activation | archived; admitted -> needs_refresh | admission_blocked | waiting_activation | archived; needs_refresh -> admitted | admission_blocked | waiting_activation | archived; admission_blocked -> admission_review | admission_blocked | waiting_activation | archived; waiting_activation -> candidate | admission_review | admitted | needs_refresh | admission_blocked | waiting_activation | archived; archived -> candidate | needs_refresh. Self-transitions exist only for the two condition-carrying states (condition update); revival from archived is re-intake (candidate or needs_refresh), never a shortcut back to admitted.\n\nEntry preconditions on stored data (MUST; violated -> lifecycle_transition_invalid/entry_precondition_failed with the failed requirement in error.data.details): candidate requires posterior=null; admitted requires a posterior with status=current AND scoring-eligible close-prior coverage (saturated, or coverage_incomplete with the explicit exploratory waiver, refs present); needs_refresh requires a non-null posterior. Request-shape requirements (MUST; violated -> schema_validation_failed, -32002): admission_blocked and waiting_activation require activation_condition (activation_condition_required) and every other target state must not carry one (activation_condition_unexpected); archived requires a non-empty reason (archived_reason_required). Entering any state that does not carry activation_condition clears the stored condition. Note the normal path INTO admitted is a node.set_posterior write (the engine derives admitted/needs_refresh from the posterior status); explicit set_lifecycle into admitted exists for returns from waiting_activation and equivalent recoveries, and is honest only because the precondition re-checks the stored data.",
       "result": {
         "name": "node_update_result",
         "schema": {
@@ -633,6 +651,10 @@
         {
           "code": -32015,
           "message": "campaign_not_active"
+        },
+        {
+          "code": -32018,
+          "message": "lifecycle_transition_invalid"
         }
       ]
     },
@@ -730,7 +752,7 @@
           "required": true
         }
       ],
-      "description": "Side-effecting. Only permitted when campaign status is running. If exhausted: budget_exhausted. Otherwise campaign_not_active. Promotion gates (MUST): the IdeaCard must be schema-valid (including after placeholder evidence URIs are stripped), the formalization trace must be intact, grounding_audit.status must be pass, the node must be in the active lifecycle state (else promotion_blocked/node_not_active), and the node must carry a non-null posterior (else promotion_blocked/posterior_missing). No numeric posterior threshold is applied: review audits anchors, not scores. Optional method/formalism metadata inside IdeaCard is preserved as run-local context only and MUST NOT be treated as a registry gate. Conditional reduction gate (MUST): if the node has reduction_report != null, reduction_audit must be non-null and reduction_audit.status must be pass; otherwise reject with reduction_audit_failed (-32016) with error.data.reason=reduction_audit_missing or reduction_audit_not_pass.",
+      "description": "Side-effecting. Only permitted when campaign status is running. If exhausted: budget_exhausted. Otherwise campaign_not_active. Promotion gates (MUST): the IdeaCard must be schema-valid (including after placeholder evidence URIs are stripped), the formalization trace must be intact, grounding_audit.status must be pass, the node must be in the admitted lifecycle state (else promotion_blocked/node_not_admitted), and the node must carry a non-null posterior (else promotion_blocked/posterior_missing). No numeric posterior threshold is applied: review audits anchors, not scores. Optional method/formalism metadata inside IdeaCard is preserved as run-local context only and MUST NOT be treated as a registry gate. Conditional reduction gate (MUST): if the node has reduction_report != null, reduction_audit must be non-null and reduction_audit.status must be pass; otherwise reject with reduction_audit_failed (-32016) with error.data.reason=reduction_audit_missing or reduction_audit_not_pass.",
       "result": {
         "name": "promotion_result",
         "schema": {
@@ -773,6 +795,10 @@
         {
           "code": -32017,
           "message": "promotion_blocked"
+        },
+        {
+          "code": -32018,
+          "message": "lifecycle_transition_invalid"
         }
       ]
     },
@@ -811,7 +837,7 @@
           "required": true
         }
       ],
-      "description": "Side-effecting (writes a ranking artifact and consumes one step). Only permitted when campaign status is running; otherwise campaign_not_active. Filter is applied within campaign scope. Ranking semantics (MUST): nodes with lifecycle_state archived or waiting_activation, and nodes whose posterior is null, do not participate in the ordering; they MUST be reported explicitly in skipped_nodes with reason archived, waiting_activation, or no_posterior — never silently dropped. Remaining nodes are ordered by posterior.value descending; ties break by posterior.evidence_count descending, then by stable input order. An empty ranked_nodes list is a valid result (e.g., when no node has a posterior yet).",
+      "description": "Side-effecting (writes a ranking artifact and consumes one step). Only permitted when campaign status is running; otherwise campaign_not_active. Filter is applied within campaign scope. Ranking semantics (MUST): only nodes in the admitted lifecycle state participate in the ordering; every node in any other state MUST be reported explicitly in skipped_nodes with its lifecycle state as the reason (candidate, admission_review, admission_blocked, needs_refresh, waiting_activation, archived) — never silently dropped. Admitted nodes are additionally re-checked against the stored data as defense in depth (relevant for hand-migrated stores): a missing posterior skips with no_posterior; coverage that is not scoring-eligible skips with metadata_only or coverage_incomplete; a posterior whose status is not current skips with posterior_not_current. Remaining nodes are ordered by posterior.value descending; ties break by posterior.evidence_count descending, then by stable input order. An empty ranked_nodes list is a valid result (e.g., when no node has been admitted yet). A node whose stored lifecycle_state is outside the machine (unmigrated store) fails the whole call with lifecycle_transition_invalid/unknown_lifecycle_state (-32018) and a migration hint.",
       "result": {
         "name": "ranking_result",
         "schema": {
@@ -834,6 +860,10 @@
         {
           "code": -32015,
           "message": "campaign_not_active"
+        },
+        {
+          "code": -32018,
+          "message": "lifecycle_transition_invalid"
         }
       ]
     }

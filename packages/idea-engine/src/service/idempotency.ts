@@ -115,6 +115,7 @@ function preparedSideEffectsCommitted(store: IdeaEngineStore, method: string, re
         && JSON.stringify(node.literature_coverage ?? null) === JSON.stringify(summary.literature_coverage ?? null);
     }
     return nodeLifecycleState(node) === summary.lifecycle_state
+      && (node.lifecycle_reason ?? null) === (summary.lifecycle_reason ?? null)
       && JSON.stringify(node.activation_condition ?? null) === JSON.stringify(summary.activation_condition ?? null);
   }
   return false;

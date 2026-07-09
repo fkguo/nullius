@@ -9,6 +9,7 @@ const INVALID_PARAMS_RPC_CODES = new Set([
   -32015,
   -32016,
   -32017,
+  -32018,
 ]);
 const NOT_FOUND_RPC_CODES = new Set([-32003, -32004, -32014]);
 const INTERNAL_RPC_CODES = new Set([-32700, -32600, -32601, -32603, -32000]);
