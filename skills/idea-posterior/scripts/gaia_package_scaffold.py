@@ -93,7 +93,12 @@ Authoring rules (see the idea-posterior skill for the full discipline):
 
 from gaia.engine.lang import claim, infer, observe  # noqa: F401
 
-__all__: list[str] = []
+# The root claim is the package's public surface. Exporting it marks the
+# node `exported` in the compiled graph, which the renderer uses to single
+# out the root (star marker, root highlight) in starmap views. Inference is
+# unaffected. Keep sub-criteria and evidence nodes unexported: they are
+# internal structure, not the package's conclusion.
+__all__ = ["worth"]
 
 # --------------------------------------------------------------------------
 # Top-level hypothesis. Label must stay `worth`: the extraction script keys

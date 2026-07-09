@@ -39,6 +39,7 @@ PROSE_FILES = (
     SKILL_ROOT / "scripts" / "gaia_package_scaffold.py",
     SKILL_ROOT / "scripts" / "run_infer_and_extract.py",
     SKILL_ROOT / "scripts" / "posterior_writeback.py",
+    SKILL_ROOT / "scripts" / "build_portfolio_status_report.py",
 )
 
 
@@ -49,6 +50,15 @@ def test_template_declares_worth_and_all_sub_criteria() -> None:
     for name in SUB_CRITERIA:
         assert f"{name} = claim(" in text, name
         assert f'title="{name}"' in text, name
+
+
+def test_template_exports_only_the_root_claim() -> None:
+    """The root claim is the package's public surface: exported so graph views
+    can single it out as the root. Sub-criteria stay internal."""
+    text = scaffold.render_template("example-idea")
+    assert '__all__ = ["worth"]' in text
+    for name in SUB_CRITERIA:
+        assert f'"{name}"' not in text.split("worth = claim(")[0], name
 
 
 def test_template_restates_the_three_likelihood_grades() -> None:
