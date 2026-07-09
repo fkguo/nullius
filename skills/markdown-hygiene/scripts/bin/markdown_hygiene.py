@@ -24,12 +24,38 @@ DISPLAY_MATH_ENV_END_RE = re.compile(
     r"\\end\{(?:equation|equation\*|align|align\*|aligned|gather|gather\*|multline|multline\*|split)\}"
 )
 DISPLAY_MATH_LEADING_CONTINUATION_RE = re.compile(r"^(\s*)([=+-])(.*)$")
+TABLE_DELIMITER_RE = re.compile(r"^\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)*\|?\s*$")
 
 SINGLE_DOLLAR_MATH_RE = re.compile(r"(?<!\$)\$(?!\$)(.+?)(?<!\$)\$(?!\$)")
 DOUBLE_DOLLAR_MATH_RE = re.compile(r"\$\$(.+?)\$\$")
+PAREN_INLINE_MATH_RE = re.compile(r"\\\((.+?)\\\)")
+BRACKET_INLINE_MATH_RE = re.compile(r"\\\[(.+?)\\\]")
+CODE_SPAN_WRAPPER_RE = re.compile(r"^(`+)(.*)\1$", re.DOTALL)
+LATEX_COMMAND_RE = re.compile(r"\\[A-Za-z]+")
+CODE_MATH_SUB_SUP_RE = re.compile(r"^[A-Za-z](?:_[A-Za-z0-9{}\\]+|\^[A-Za-z0-9{}\\+-]+)+$")
+CODE_MATH_FUNCTION_RE = re.compile(r"^[A-Za-z](?:_[A-Za-z0-9{}\\]+)?\([A-Za-z0-9_{}\\,+\-*/\s]+\)$")
+CODE_MATH_RATIO_RE = re.compile(r"^[A-Za-z](?:_[A-Za-z]+|\d+)?/[A-Za-z](?:_[A-Za-z]+|\d+)?$")
+CODE_MATH_OPERATOR_RE = re.compile(r"(?:<->|->|<-|<=>|=>|<=|>=|[+*^=]|≈|≃|≲|≳|≤|≥|±|×|·|√|→|←|↔)")
+CODE_ESCAPE_RE = re.compile(r"\\[ntr0abfv]$")
+UNESCAPED_PIPE_RE = re.compile(r"(?<!\\)\|")
+UNESCAPED_ASTERISK_RE = re.compile(r"(?<!\\)\*")
+GFM_FRAGILE_BAR_RE = re.compile(r"\\bar\{[^{}]+}\s*_[A-Za-z]")
 HTML_LINK_RE = re.compile(r"<a\s+[^>]*href=[\"']([^\"']+)[\"']", re.IGNORECASE)
+HTML_LINK_TAG_RE = re.compile(r"<a\s+[^>]*href=[\"'][^\"']+[\"'][^>]*>", re.IGNORECASE | re.DOTALL)
+HTML_ANCHOR_RE = re.compile(r"<a\b[^>]*>.*?</a>", re.IGNORECASE | re.DOTALL)
+HTML_IMG_TAG_RE = re.compile(r"<img\s+[^>]*src=[\"'][^\"']+[\"'][^>]*>", re.IGNORECASE | re.DOTALL)
 REFERENCE_LINK_DEF_RE = re.compile(r"^\s{0,3}\[[^\]\n]+]:\s+(<[^>\n]+>|\S+)")
+REFERENCE_LINK_DEF_LABEL_RE = re.compile(r"^\s{0,3}\[([^\]\n]+)]:\s+")
 CODE_SPAN_MD_PATH_RE = re.compile(r"`([^`\n]*\.m(?:ark)?d(?:#[^`\s]+)?[^`\n]*)`", re.IGNORECASE)
+REFERENCE_LINK_SPAN_RE = re.compile(r"!?\[[^\]\n]+\]\[[^\]\n]*\]")
+SHORTCUT_REFERENCE_LINK_SPAN_RE = re.compile(r"!?\[([^\]\n]+)]")
+AUTOLINK_RE = re.compile(r"<https?://[^<>\s]+>", re.IGNORECASE)
+BARE_WEB_URL_RE = re.compile(r"https?://[^\s<>\[\]`]+", re.IGNORECASE)
+BARE_DOI_RE = re.compile(r"(?<![\w./-])(?:doi:\s*)?10\.\d{4,9}/[^\s<>\[\]`]+", re.IGNORECASE)
+BARE_ARXIV_RE = re.compile(
+    r"(?<![\w/-])arXiv:\s*(?:\d{4}\.\d{4,5}(?:v\d+)?|[a-z-]+(?:\.[A-Za-z-]+)?/\d{7}(?:v\d+)?)",
+    re.IGNORECASE,
+)
 RAW_MATH_PRESETS = {
     "ascii-math": (
         r"(?<![-<=>])(?:<->|->|<-|<=>|=>)(?![-<=>])",
@@ -109,6 +135,13 @@ def split_inline_code_segments(line: str) -> Iterable[tuple[str, bool]]:
         cursor = end
 
 
+def parse_inline_code_span(segment: str) -> tuple[str, str] | None:
+    match = CODE_SPAN_WRAPPER_RE.match(segment)
+    if not match:
+        return None
+    return match.group(1), match.group(2)
+
+
 def normalize_markdown_link_target(raw_target: str) -> str:
     target = raw_target.strip()
     if target.startswith("<") and ">" in target:
@@ -146,6 +179,46 @@ def iter_inline_markdown_link_targets(segment: str) -> Iterable[str]:
                 depth -= 1
                 if depth == 0:
                     yield segment[target_start:pos]
+                    cursor = pos + 1
+                    break
+            pos += 1
+        else:
+            return
+
+
+def iter_inline_markdown_link_spans(segment: str) -> Iterable[tuple[int, int]]:
+    cursor = 0
+    while cursor < len(segment):
+        close_label = segment.find("](", cursor)
+        if close_label < 0:
+            return
+
+        label_start = segment.rfind("[", 0, close_label)
+        if label_start < 0:
+            cursor = close_label + 2
+            continue
+
+        target_start = close_label + 2
+        depth = 1
+        escaped = False
+        in_angle = False
+        pos = target_start
+        while pos < len(segment):
+            ch = segment[pos]
+            if escaped:
+                escaped = False
+            elif ch == "\\":
+                escaped = True
+            elif ch == "<":
+                in_angle = True
+            elif ch == ">" and in_angle:
+                in_angle = False
+            elif ch == "(" and not in_angle:
+                depth += 1
+            elif ch == ")" and not in_angle:
+                depth -= 1
+                if depth == 0:
+                    yield label_start, pos + 1
                     cursor = pos + 1
                     break
             pos += 1
@@ -242,17 +315,415 @@ def check_bare_markdown_paths_in_file(path: Path, text: str, prefixes: tuple[str
     return issues
 
 
-def check_raw_tokens_in_file(path: Path, text: str, raw_patterns: tuple[tuple[str, re.Pattern[str]], ...]) -> list[HygieneIssue]:
+def has_alnum(value: str) -> bool:
+    return any(ch.isalnum() for ch in value)
+
+
+def is_code_span_math_like(inner: str) -> bool:
+    stripped = inner.strip()
+    if not stripped:
+        return False
+    lower = stripped.lower()
+    if "://" in stripped or BARE_WEB_URL_RE.fullmatch(stripped):
+        return False
+    if BARE_DOI_RE.fullmatch(stripped) or BARE_ARXIV_RE.fullmatch(stripped):
+        return False
+    if "/" in stripped and ("." in stripped or stripped.count("/") > 1):
+        return False
+    if lower.endswith((".md", ".markdown", ".json", ".jsonl", ".yaml", ".yml", ".toml", ".txt")):
+        return False
+    if stripped in {"C++", "c++", "C#", "F#"}:
+        return False
+    if CODE_ESCAPE_RE.fullmatch(stripped):
+        return False
+    if stripped.startswith("$") and stripped.endswith("$"):
+        return True
+    if stripped.startswith(r"\(") and stripped.endswith(r"\)"):
+        return True
+    if stripped.startswith(r"\[") and stripped.endswith(r"\]"):
+        return True
+    if DISPLAY_MATH_ENV_START_RE.search(stripped) and DISPLAY_MATH_ENV_END_RE.search(stripped):
+        return True
+    if LATEX_COMMAND_RE.search(stripped):
+        return True
+    if CODE_MATH_SUB_SUP_RE.match(stripped):
+        return True
+    if CODE_MATH_FUNCTION_RE.match(stripped):
+        return True
+    if CODE_MATH_RATIO_RE.match(stripped):
+        return True
+    return has_alnum(stripped) and CODE_MATH_OPERATOR_RE.search(stripped) is not None
+
+
+def unwrap_delimited_code_math(inner: str, *, whole_line: bool) -> str:
+    stripped = inner.strip()
+    if stripped.startswith("$$") and stripped.endswith("$$") and len(stripped) >= 4:
+        content = stripped[2:-2].strip()
+        if whole_line:
+            return f"$$\n{content}\n$$"
+        return f"${content}$"
+    if stripped.startswith("$") and stripped.endswith("$") and len(stripped) >= 2:
+        return stripped
+    if stripped.startswith(r"\(") and stripped.endswith(r"\)") and len(stripped) >= 4:
+        return f"${stripped[2:-2].strip()}$"
+    if stripped.startswith(r"\[") and stripped.endswith(r"\]") and len(stripped) >= 4:
+        content = stripped[2:-2].strip()
+        if whole_line:
+            return f"$$\n{content}\n$$"
+        return f"${content}$"
+    return f"${stripped}$"
+
+
+def convert_code_span_math(segment: str, *, whole_line: bool) -> str | None:
+    parsed = parse_inline_code_span(segment)
+    if parsed is None:
+        return None
+    _, inner = parsed
+    if not is_code_span_math_like(inner):
+        return None
+    return unwrap_delimited_code_math(inner, whole_line=whole_line)
+
+
+def check_code_math_spans_in_file(path: Path, text: str) -> list[HygieneIssue]:
     issues: list[HygieneIssue] = []
     for line_number, (line, in_code_block) in enumerate(split_fenced_lines(text), start=1):
         if in_code_block:
             continue
         for segment, is_inline_code in split_inline_code_segments(line):
+            if not is_inline_code:
+                continue
+            parsed = parse_inline_code_span(segment)
+            if parsed is None:
+                continue
+            _, inner = parsed
+            if is_code_span_math_like(inner):
+                issues.append(
+                    HygieneIssue(path, line_number, f"math is shown as inline code instead of Markdown math: {inner}")
+                )
+    return issues
+
+
+def mask_spans(text: str, spans: Iterable[tuple[int, int]]) -> str:
+    chars = list(text)
+    for start, end in spans:
+        for index in range(max(0, start), min(len(chars), end)):
+            chars[index] = " "
+    return "".join(chars)
+
+
+def iter_inline_math_spans(segment: str) -> Iterable[tuple[int, int]]:
+    spans = [(match.start(), match.end()) for match in DOUBLE_DOLLAR_MATH_RE.finditer(segment)]
+    masked = mask_spans(segment, spans)
+    spans.extend((match.start(), match.end()) for match in SINGLE_DOLLAR_MATH_RE.finditer(masked))
+    masked = mask_spans(segment, spans)
+    spans.extend((match.start(), match.end()) for match in PAREN_INLINE_MATH_RE.finditer(masked))
+    masked = mask_spans(segment, spans)
+    spans.extend((match.start(), match.end()) for match in BRACKET_INLINE_MATH_RE.finditer(masked))
+    return spans
+
+
+def mask_inline_math_spans(segment: str) -> str:
+    return mask_spans(segment, iter_inline_math_spans(segment))
+
+
+def iter_inline_math_contents(segment: str) -> Iterable[tuple[int, int, str, str]]:
+    double_spans: list[tuple[int, int]] = []
+    for match in DOUBLE_DOLLAR_MATH_RE.finditer(segment):
+        double_spans.append((match.start(), match.end()))
+        yield match.start(), match.end(), match.group(1), "$$"
+
+    masked = mask_spans(segment, double_spans)
+    single_spans: list[tuple[int, int]] = []
+    for match in SINGLE_DOLLAR_MATH_RE.finditer(masked):
+        single_spans.append((match.start(), match.end()))
+        yield match.start(), match.end(), match.group(1), "$"
+
+    masked = mask_spans(masked, single_spans)
+    paren_spans: list[tuple[int, int]] = []
+    for match in PAREN_INLINE_MATH_RE.finditer(masked):
+        paren_spans.append((match.start(), match.end()))
+        yield match.start(), match.end(), match.group(1), r"\("
+
+    masked = mask_spans(masked, paren_spans)
+    for match in BRACKET_INLINE_MATH_RE.finditer(masked):
+        yield match.start(), match.end(), match.group(1), r"\["
+
+
+def is_display_math_boundary(line: str) -> bool:
+    return bool(
+        DISPLAY_MATH_DOLLAR_RE.match(line)
+        or DISPLAY_MATH_BRACKET_START_RE.match(line)
+        or DISPLAY_MATH_BRACKET_END_RE.match(line)
+        or DISPLAY_MATH_ENV_START_RE.search(line)
+        or DISPLAY_MATH_ENV_END_RE.search(line)
+    )
+
+
+def display_math_state_after_line(line: str, in_display_math: bool) -> bool:
+    if DISPLAY_MATH_DOLLAR_RE.match(line):
+        return not in_display_math
+    if DISPLAY_MATH_BRACKET_START_RE.match(line):
+        return True
+    if DISPLAY_MATH_BRACKET_END_RE.match(line):
+        return False
+    starts_env = DISPLAY_MATH_ENV_START_RE.search(line) is not None
+    ends_env = DISPLAY_MATH_ENV_END_RE.search(line) is not None
+    if starts_env and not ends_env:
+        return True
+    if ends_env:
+        return False
+    return in_display_math
+
+
+def has_table_separator_outside_inline_math(line: str) -> bool:
+    masked_parts: list[str] = []
+    for segment, is_inline_code in split_inline_code_segments(line):
+        if is_inline_code:
+            masked_parts.append(" " * len(segment))
+            continue
+        masked_parts.append(mask_inline_math_spans(segment))
+    return UNESCAPED_PIPE_RE.search("".join(masked_parts)) is not None
+
+
+def collect_markdown_table_lines(text: str) -> set[int]:
+    lines = text.splitlines()
+    table_lines: set[int] = set()
+    in_code_block = False
+    code_lines: set[int] = set()
+
+    for index, line in enumerate(lines):
+        line_number = index + 1
+        if FENCE_RE.match(line):
+            code_lines.add(line_number)
+            in_code_block = not in_code_block
+            continue
+        if in_code_block:
+            code_lines.add(line_number)
+
+    for index, line in enumerate(lines):
+        line_number = index + 1
+        if line_number in code_lines or not TABLE_DELIMITER_RE.match(line):
+            continue
+        if index == 0:
+            continue
+
+        header_number = index
+        header_line = lines[index - 1]
+        if header_number in code_lines or not has_table_separator_outside_inline_math(header_line):
+            continue
+
+        table_lines.add(header_number)
+        table_lines.add(line_number)
+
+        body_index = index + 1
+        while body_index < len(lines):
+            body_number = body_index + 1
+            if body_number in code_lines or not has_table_separator_outside_inline_math(lines[body_index]):
+                break
+            table_lines.add(body_number)
+            body_index += 1
+
+    return table_lines
+
+
+def strip_trailing_sentence_punctuation(value: str) -> str:
+    stripped = value.rstrip(".,;:!?")
+    while stripped.endswith(")") and stripped.count(")") > stripped.count("("):
+        stripped = stripped[:-1]
+    while stripped.endswith("]") and stripped.count("]") > stripped.count("["):
+        stripped = stripped[:-1]
+    return stripped
+
+
+def normalize_reference_label(label: str) -> str:
+    return " ".join(label.strip().casefold().split())
+
+
+def collect_reference_labels(text: str) -> set[str]:
+    labels: set[str] = set()
+    for line, in_code_block in split_fenced_lines(text):
+        if in_code_block:
+            continue
+        match = REFERENCE_LINK_DEF_LABEL_RE.match(line)
+        if match:
+            labels.add(normalize_reference_label(match.group(1)))
+    return labels
+
+
+def mask_multiline_clickable_html_spans(text: str) -> str:
+    spans: list[tuple[int, int]] = []
+    spans.extend((match.start(), match.end()) for match in HTML_ANCHOR_RE.finditer(text))
+    spans.extend((match.start(), match.end()) for match in HTML_LINK_TAG_RE.finditer(text))
+    spans.extend((match.start(), match.end()) for match in HTML_IMG_TAG_RE.finditer(text))
+    return mask_spans(text, spans)
+
+
+def mask_clickable_reference_spans(segment: str, reference_labels: set[str]) -> str:
+    spans: list[tuple[int, int]] = []
+    reference_definition = REFERENCE_LINK_DEF_RE.match(segment)
+    if reference_definition:
+        spans.append((0, len(segment)))
+    spans.extend(iter_inline_markdown_link_spans(segment))
+    spans.extend((match.start(), match.end()) for match in REFERENCE_LINK_SPAN_RE.finditer(segment))
+    spans.extend(
+        (match.start(), match.end())
+        for match in SHORTCUT_REFERENCE_LINK_SPAN_RE.finditer(segment)
+        if normalize_reference_label(match.group(1)) in reference_labels
+    )
+    spans.extend((match.start(), match.end()) for match in HTML_ANCHOR_RE.finditer(segment))
+    spans.extend((match.start(), match.end()) for match in HTML_LINK_TAG_RE.finditer(segment))
+    spans.extend((match.start(), match.end()) for match in HTML_IMG_TAG_RE.finditer(segment))
+    spans.extend((match.start(), match.end()) for match in AUTOLINK_RE.finditer(segment))
+    return mask_spans(segment, spans)
+
+
+def check_clickable_references_in_file(path: Path, text: str) -> list[HygieneIssue]:
+    issues: list[HygieneIssue] = []
+    reference_labels = collect_reference_labels(text)
+    clickable_text = mask_multiline_clickable_html_spans(text)
+    in_display_math = False
+    for line_number, (line, in_code_block) in enumerate(split_fenced_lines(clickable_text), start=1):
+        if in_code_block:
+            continue
+        if in_display_math or is_display_math_boundary(line):
+            in_display_math = display_math_state_after_line(line, in_display_math)
+            continue
+        for segment, is_inline_code in split_inline_code_segments(line):
             if is_inline_code:
                 continue
+
+            searchable = mask_inline_math_spans(mask_clickable_reference_spans(segment, reference_labels))
+            bare_url_spans: list[tuple[int, int]] = []
+            for match in BARE_WEB_URL_RE.finditer(searchable):
+                bare_url_spans.append((match.start(), match.end()))
+                target = strip_trailing_sentence_punctuation(match.group(0))
+                issues.append(HygieneIssue(path, line_number, f"bare web URL is not a Markdown link: {target}"))
+
+            searchable_without_urls = mask_spans(searchable, bare_url_spans)
+            for match in BARE_DOI_RE.finditer(searchable_without_urls):
+                target = strip_trailing_sentence_punctuation(match.group(0))
+                issues.append(HygieneIssue(path, line_number, f"bare DOI is not a Markdown link: {target}"))
+            for match in BARE_ARXIV_RE.finditer(searchable_without_urls):
+                target = strip_trailing_sentence_punctuation(match.group(0))
+                issues.append(HygieneIssue(path, line_number, f"bare arXiv identifier is not a Markdown link: {target}"))
+    return issues
+
+
+def check_raw_tokens_in_file(path: Path, text: str, raw_patterns: tuple[tuple[str, re.Pattern[str]], ...]) -> list[HygieneIssue]:
+    issues: list[HygieneIssue] = []
+    in_display_math = False
+    for line_number, (line, in_code_block) in enumerate(split_fenced_lines(text), start=1):
+        if in_code_block:
+            continue
+        if in_display_math or is_display_math_boundary(line):
+            in_display_math = display_math_state_after_line(line, in_display_math)
+            continue
+        for segment, is_inline_code in split_inline_code_segments(line):
+            if is_inline_code:
+                continue
+            searchable = mask_inline_math_spans(segment)
             for token, pattern in raw_patterns:
-                if pattern.search(segment):
+                if pattern.search(searchable):
                     issues.append(HygieneIssue(path, line_number, f"raw token matched configurable pattern: {token}"))
+    return issues
+
+
+def check_display_math_spacing_in_file(path: Path, text: str) -> list[HygieneIssue]:
+    issues: list[HygieneIssue] = []
+    lines = text.splitlines()
+    in_code_block = False
+    in_dollar_display = False
+
+    for index, line in enumerate(lines):
+        line_number = index + 1
+        if FENCE_RE.match(line):
+            in_code_block = not in_code_block
+            continue
+        if in_code_block:
+            continue
+
+        if "$$" in line and not DISPLAY_MATH_DOLLAR_RE.match(line):
+            issues.append(HygieneIssue(path, line_number, "display math delimiter must be on a standalone line"))
+            continue
+
+        if not DISPLAY_MATH_DOLLAR_RE.match(line):
+            continue
+
+        if not in_dollar_display:
+            previous_line = lines[index - 1] if index > 0 else ""
+            if previous_line.strip():
+                issues.append(HygieneIssue(path, line_number, "opening $$ display delimiter needs a blank line before it"))
+            in_dollar_display = True
+            continue
+
+        next_line = lines[index + 1] if index + 1 < len(lines) else ""
+        if next_line.strip():
+            issues.append(HygieneIssue(path, line_number, "closing $$ display delimiter needs a blank line after it"))
+        in_dollar_display = False
+
+    return issues
+
+
+def check_table_math_pipes_in_file(path: Path, text: str) -> list[HygieneIssue]:
+    issues: list[HygieneIssue] = []
+    table_lines = collect_markdown_table_lines(text)
+    in_display_math = False
+    for line_number, (line, in_code_block) in enumerate(split_fenced_lines(text), start=1):
+        if in_code_block:
+            continue
+        if in_display_math or is_display_math_boundary(line):
+            in_display_math = display_math_state_after_line(line, in_display_math)
+            continue
+        if line_number not in table_lines:
+            continue
+        for segment, is_inline_code in split_inline_code_segments(line):
+            if is_inline_code:
+                continue
+            for _, _, content, _ in iter_inline_math_contents(segment):
+                if UNESCAPED_PIPE_RE.search(content):
+                    issues.append(
+                        HygieneIssue(
+                            path,
+                            line_number,
+                            r"literal pipe inside table math can break Markdown tables; use \mid, \lvert/\rvert, or \lVert/\rVert",
+                        )
+                    )
+    return issues
+
+
+def check_github_math_in_file(path: Path, text: str) -> list[HygieneIssue]:
+    issues: list[HygieneIssue] = []
+    in_display_math = False
+    for line_number, (line, in_code_block) in enumerate(split_fenced_lines(text), start=1):
+        if in_code_block:
+            continue
+        if in_display_math:
+            if UNESCAPED_ASTERISK_RE.search(line):
+                issues.append(HygieneIssue(path, line_number, r"raw * inside display math may break GitHub math; use \ast"))
+            if GFM_FRAGILE_BAR_RE.search(line):
+                issues.append(HygieneIssue(path, line_number, r"\bar{...}_... can be fragile in GitHub math; prefer \bar X_..."))
+            in_display_math = display_math_state_after_line(line, in_display_math)
+            continue
+        if is_display_math_boundary(line):
+            in_display_math = display_math_state_after_line(line, in_display_math)
+            continue
+
+        for segment, is_inline_code in split_inline_code_segments(line):
+            if is_inline_code:
+                continue
+            for start, end, content, delimiter in iter_inline_math_contents(segment):
+                if UNESCAPED_ASTERISK_RE.search(content):
+                    issues.append(HygieneIssue(path, line_number, r"raw * inside Markdown math may break GitHub math; use \ast"))
+                if GFM_FRAGILE_BAR_RE.search(content):
+                    issues.append(HygieneIssue(path, line_number, r"\bar{...}_... can be fragile in GitHub math; prefer \bar X_..."))
+                if delimiter == "$" and end < len(segment) and segment[end] == ")":
+                    issues.append(
+                        HygieneIssue(
+                            path,
+                            line_number,
+                            "closing inline math delimiter is immediately followed by ')', which is fragile in GitHub math",
+                        )
+                    )
     return issues
 
 
@@ -271,6 +742,67 @@ def fix_toc_math(expr: str) -> str:
 def fix_doubled_math_commands(expr: str) -> str:
     # Fix common accidental command doubling, but leave line breaks and spacing intact.
     return re.sub(r"\\\\(?=[A-Za-z])", r"\\", expr)
+
+
+def fix_code_wrapped_math(text: str) -> tuple[str, int]:
+    out: list[str] = []
+    changes = 0
+
+    for line, in_code_block in split_fenced_lines(text):
+        if in_code_block:
+            out.append(line)
+            continue
+
+        line_ending = "\n" if line.endswith("\n") else ""
+        body = line[:-1] if line_ending else line
+        rewritten: list[str] = []
+        for segment, is_inline_code in split_inline_code_segments(body):
+            if not is_inline_code:
+                rewritten.append(segment)
+                continue
+            replacement = convert_code_span_math(segment, whole_line=body.strip() == segment.strip())
+            if replacement is None:
+                rewritten.append(segment)
+                continue
+            rewritten.append(replacement)
+            changes += 1
+        out.append("".join(rewritten) + line_ending)
+
+    return "".join(out), changes
+
+
+def fix_display_math_blank_lines(text: str) -> tuple[str, int]:
+    out: list[str] = []
+    changes = 0
+    in_code_block = False
+    in_dollar_display = False
+    lines = text.splitlines(keepends=True)
+
+    for index, line in enumerate(lines):
+        if FENCE_RE.match(line):
+            out.append(line)
+            in_code_block = not in_code_block
+            continue
+        if in_code_block or not DISPLAY_MATH_DOLLAR_RE.match(line):
+            out.append(line)
+            continue
+
+        if not in_dollar_display:
+            if out and out[-1].strip():
+                out.append("\n")
+                changes += 1
+            out.append(line)
+            in_dollar_display = True
+            continue
+
+        out.append(line)
+        in_dollar_display = False
+        next_line = lines[index + 1] if index + 1 < len(lines) else ""
+        if next_line.strip():
+            out.append("\n")
+            changes += 1
+
+    return "".join(out), changes
 
 
 def rewrite_math_in_line(line: str, fixer: Callable[[str], str]) -> str:
@@ -413,10 +945,24 @@ def run_extra_checks(
     *,
     check_local_links: bool,
     check_bare_md_paths: bool,
+    check_clickable_refs: bool,
+    check_code_math: bool,
+    check_display_spacing: bool,
+    check_table_math_pipes: bool,
+    check_github_math: bool,
     path_prefixes: tuple[str, ...],
     raw_tokens: tuple[str, ...],
 ) -> int:
-    if not (check_local_links or check_bare_md_paths or raw_tokens):
+    if not (
+        check_local_links
+        or check_bare_md_paths
+        or check_clickable_refs
+        or check_code_math
+        or check_display_spacing
+        or check_table_math_pipes
+        or check_github_math
+        or raw_tokens
+    ):
         return 0
 
     paths = list(iter_markdown_files(root))
@@ -432,6 +978,16 @@ def run_extra_checks(
             issues.extend(check_local_links_in_file(path, project_root, text))
         if check_bare_md_paths:
             issues.extend(check_bare_markdown_paths_in_file(path, text, path_prefixes))
+        if check_clickable_refs:
+            issues.extend(check_clickable_references_in_file(path, text))
+        if check_code_math:
+            issues.extend(check_code_math_spans_in_file(path, text))
+        if check_display_spacing:
+            issues.extend(check_display_math_spacing_in_file(path, text))
+        if check_table_math_pipes:
+            issues.extend(check_table_math_pipes_in_file(path, text))
+        if check_github_math:
+            issues.extend(check_github_math_in_file(path, text))
         if raw_patterns:
             issues.extend(check_raw_tokens_in_file(path, text, raw_patterns))
 
@@ -457,6 +1013,40 @@ def build_parser() -> argparse.ArgumentParser:
                 "--check-bare-md-paths",
                 action="store_true",
                 help="Fail when likely note paths are shown as inline code instead of Markdown links.",
+            )
+            subparser.add_argument(
+                "--check-clickable-refs",
+                action="store_true",
+                help="Fail when human-facing Markdown has bare web URLs, DOIs, or arXiv IDs instead of clickable links.",
+            )
+            subparser.add_argument(
+                "--check-code-math",
+                action="store_true",
+                help="Fail when likely math formulas are shown as inline code instead of Markdown math.",
+            )
+            subparser.add_argument(
+                "--check-display-spacing",
+                action="store_true",
+                help="Fail when $$ display delimiters are not standalone and separated from surrounding prose.",
+            )
+            subparser.add_argument(
+                "--check-table-math-pipes",
+                action="store_true",
+                help=r"Fail when math inside a Markdown table cell contains literal | instead of \mid or \lVert/\rVert.",
+            )
+            subparser.add_argument(
+                "--check-github-math",
+                action="store_true",
+                help="Fail on known GitHub/GFM-fragile Markdown math patterns such as raw * inside math.",
+            )
+            subparser.add_argument(
+                "--human-facing",
+                action="store_true",
+                help=(
+                    "Enable human-facing rendered-document checks: local links, bare Markdown paths, "
+                    "clickable web/paper references, code-wrapped math, display spacing, table math pipes, "
+                    "and the ascii-math raw-math preset."
+                ),
             )
             subparser.add_argument(
                 "--path-prefix",
@@ -487,9 +1077,12 @@ def main(argv: list[str]) -> int:
     args = build_parser().parse_args(argv)
 
     if args.command == "check":
+        human_facing = args.human_facing
         fix_exit = run(
             args.root,
             [
+                fix_code_wrapped_math,
+                fix_display_math_blank_lines,
                 fix_markdown_math_double_backslash,
                 fix_toc_latex_escapes,
                 fix_display_math_leading_continuation_lines,
@@ -497,13 +1090,21 @@ def main(argv: list[str]) -> int:
             check=True,
         )
         preset_tokens: list[str] = []
-        for preset_name in args.raw_math_preset:
+        raw_math_presets = list(args.raw_math_preset)
+        if human_facing and "ascii-math" not in raw_math_presets:
+            raw_math_presets.append("ascii-math")
+        for preset_name in raw_math_presets:
             preset_tokens.extend(RAW_MATH_PRESETS[preset_name])
 
         extra_exit = run_extra_checks(
             args.root,
-            check_local_links=args.check_local_links,
-            check_bare_md_paths=args.check_bare_md_paths,
+            check_local_links=args.check_local_links or human_facing,
+            check_bare_md_paths=args.check_bare_md_paths or human_facing,
+            check_clickable_refs=args.check_clickable_refs or human_facing,
+            check_code_math=args.check_code_math or human_facing,
+            check_display_spacing=args.check_display_spacing or human_facing,
+            check_table_math_pipes=args.check_table_math_pipes or human_facing,
+            check_github_math=args.check_github_math,
             path_prefixes=tuple(DEFAULT_BARE_MD_PATH_PREFIXES + tuple(args.path_prefix)),
             raw_tokens=tuple(args.raw_token + preset_tokens),
         )
@@ -512,6 +1113,8 @@ def main(argv: list[str]) -> int:
         return run(
             args.root,
             [
+                fix_code_wrapped_math,
+                fix_display_math_blank_lines,
                 fix_markdown_math_double_backslash,
                 fix_toc_latex_escapes,
                 fix_display_math_leading_continuation_lines,
