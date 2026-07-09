@@ -47,6 +47,8 @@ This skill is an agent-facing operating contract. It does not replace `research-
 
 Standalone provider MCPs remain valid bounded atoms. For HEP work, `hep-mcp` is the composed entrypoint unless there is a concrete reason to bypass it. For non-HEP scholarly work, use only the general provider capabilities exposed through the stack and avoid HEP-specific inference unless the source evidence warrants it.
 
+Query sizing: a single MCP tool call is bounded by the host's per-call timeout (host-dependent — as low as about two minutes by default on some CLI hosts, hours on others), and broad full-text literature searches have been observed to hit such ceilings. Decompose wide questions into several narrow metadata or citation-graph queries (then follow up on specific records) instead of one exhaustive full-text sweep, and prefer paginated continuation over raising result counts. Large source downloads that stall are better fetched through the host's page-fetch fallback than retried through the same MCP call.
+
 ## Routing to Neighbor Skills
 
 - Use `research-harness` first when entering or recovering an initialized research project.
