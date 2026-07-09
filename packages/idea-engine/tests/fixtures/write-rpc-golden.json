@@ -248,7 +248,8 @@
                 }
               ]
             },
-            "lifecycle_state": "active",
+            "lifecycle_state": "candidate",
+            "lifecycle_reason": null,
             "posterior": null,
             "activation_condition": null,
             "grounding_audit": null,
@@ -330,7 +331,8 @@
                 }
               ]
             },
-            "lifecycle_state": "active",
+            "lifecycle_state": "candidate",
+            "lifecycle_reason": null,
             "posterior": null,
             "activation_condition": null,
             "grounding_audit": null,
@@ -418,7 +420,8 @@
                   }
                 ]
               },
-              "lifecycle_state": "active",
+              "lifecycle_state": "candidate",
+              "lifecycle_reason": null,
               "posterior": null,
               "activation_condition": null,
               "grounding_audit": null,
@@ -505,7 +508,8 @@
                   }
                 ]
               },
-              "lifecycle_state": "active",
+              "lifecycle_state": "candidate",
+              "lifecycle_reason": null,
               "posterior": null,
               "activation_condition": null,
               "grounding_audit": null,
@@ -773,7 +777,8 @@
                 }
               ]
             },
-            "lifecycle_state": "active",
+            "lifecycle_state": "candidate",
+            "lifecycle_reason": null,
             "posterior": null,
             "activation_condition": null,
             "grounding_audit": null,
@@ -861,7 +866,8 @@
                   }
                 ]
               },
-              "lifecycle_state": "active",
+              "lifecycle_state": "candidate",
+              "lifecycle_reason": null,
               "posterior": null,
               "activation_condition": null,
               "grounding_audit": null,

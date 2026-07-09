@@ -53,6 +53,26 @@ function setGroundingPass(service: IdeaEngineRpcService, campaignId: string, nod
   service.read.store.saveNodes(campaignId, nodes);
 }
 
+function enterAdmissionReview(
+  service: IdeaEngineRpcService,
+  campaignId: string,
+  nodeId: string,
+  key: string,
+): Record<string, unknown> {
+  return service.handle('node.set_lifecycle', {
+    campaign_id: campaignId,
+    idempotency_key: key,
+    lifecycle_state: 'admission_review',
+    node_id: nodeId,
+  });
+}
+
+/**
+ * Drives the normal admission path: a candidate node first declares
+ * admission_review (the machine forbids posterior writes on candidates),
+ * then receives the posterior write, from which the engine derives
+ * admitted / needs_refresh itself.
+ */
 function setPosterior(
   service: IdeaEngineRpcService,
   campaignId: string,
@@ -62,6 +82,10 @@ function setPosterior(
   evidenceCount: number,
   overrides: Record<string, unknown> = {},
 ): Record<string, unknown> {
+  const node = service.read.store.loadNodes<Record<string, unknown>>(campaignId)[nodeId]!;
+  if (node.lifecycle_state === 'candidate') {
+    enterAdmissionReview(service, campaignId, nodeId, `${key}-review`);
+  }
   return service.handle('node.set_posterior', {
     campaign_id: campaignId,
     idempotency_key: key,
@@ -76,15 +100,16 @@ function setPosterior(
   });
 }
 
-function expectRpcError(fn: () => unknown, code: number, reason: string): void {
+function expectRpcError(fn: () => unknown, code: number, reason: string): RpcError {
   try {
     fn();
-    throw new Error(`expected RpcError ${code}/${reason}`);
   } catch (error) {
     if (!(error instanceof RpcError)) throw error;
     expect(error.code).toBe(code);
     expect(error.data.reason).toBe(reason);
+    return error;
   }
+  throw new Error(`expected RpcError ${code}/${reason}`);
 }
 
 describe('node-side RPC surface (posterior portfolio)', () => {
@@ -102,7 +127,7 @@ describe('node-side RPC surface (posterior portfolio)', () => {
     return new IdeaEngineRpcService({ rootDir });
   }
 
-  it('runs set_posterior, rank.compute, and node.promote end to end', () => {
+  it('runs admission_review, set_posterior, rank.compute, and node.promote end to end', () => {
     const service = freshService('idea-engine-node-rpc-');
     const campaignId = initCampaign(service, [
       { content: 'seed-one', seed_type: 'text', source_uris: ['https://example.org/seed-1'] },
@@ -110,14 +135,22 @@ describe('node-side RPC surface (posterior portfolio)', () => {
     ]);
     const [n1, n2] = allNodeIds(service, campaignId);
 
+    const stored = service.read.store.loadNodes<Record<string, unknown>>(campaignId);
+    expect(stored[n1!]!.lifecycle_state).toBe('candidate');
+    expect(stored[n1!]!.lifecycle_reason).toBeNull();
+
     const updated = setPosterior(service, campaignId, n1!, 'sp-1', 0.42, 3);
-    expect((updated.node as Record<string, unknown>).revision).toBe(2);
+    // revision 1 = create, 2 = admission_review declaration, 3 = posterior write
+    expect((updated.node as Record<string, unknown>).revision).toBe(3);
     const posterior = (updated.node as Record<string, unknown>).posterior as Record<string, unknown>;
     expect(posterior.value).toBe(0.42);
     expect(posterior.evidence_count).toBe(3);
     expect(posterior.status).toBe('current');
     expect(typeof posterior.updated_at).toBe('string');
     expect(((updated.node as Record<string, unknown>).literature_coverage as Record<string, unknown>).status).toBe('saturated');
+    // The engine derived admitted from the current posterior itself.
+    expect((updated.node as Record<string, unknown>).lifecycle_state).toBe('admitted');
+    expect((updated.node as Record<string, unknown>).lifecycle_reason).toBe('posterior_status=current');
 
     setPosterior(service, campaignId, n2!, 'sp-2', 0.77, 1);
 
@@ -180,14 +213,16 @@ describe('node-side RPC surface (posterior portfolio)', () => {
     expect(rankedNodes.map(row => row.node_id)).toEqual([nb, na, nc]);
   });
 
-  it('reports skipped nodes explicitly and accepts an empty ranking', () => {
+  it('reports skipped nodes explicitly, with the lifecycle state as the reason, and accepts an empty ranking', () => {
     const service = freshService('idea-engine-node-rank-skips-');
     const campaignId = initCampaign(service, [
       { content: 'seed-a', seed_type: 'text', source_uris: ['https://example.org/a'] },
       { content: 'seed-b', seed_type: 'text', source_uris: ['https://example.org/b'] },
       { content: 'seed-c', seed_type: 'text', source_uris: ['https://example.org/c'] },
+      { content: 'seed-d', seed_type: 'text', source_uris: ['https://example.org/d'] },
+      { content: 'seed-e', seed_type: 'text', source_uris: ['https://example.org/e'] },
     ]);
-    const [na, nb, nc] = allNodeIds(service, campaignId);
+    const [na, nb, nc, nd, ne] = allNodeIds(service, campaignId);
     service.handle('node.set_lifecycle', {
       campaign_id: campaignId,
       idempotency_key: 'sl-wait',
@@ -206,6 +241,18 @@ describe('node-side RPC surface (posterior portfolio)', () => {
       node_id: nc,
       reason: 'superseded by a stronger variant',
     });
+    enterAdmissionReview(service, campaignId, nd!, 'sl-review');
+    service.handle('node.set_lifecycle', {
+      campaign_id: campaignId,
+      idempotency_key: 'sl-block',
+      lifecycle_state: 'admission_blocked',
+      node_id: ne,
+      activation_condition: {
+        description: 'needs an independent reproduction of the pilot computation',
+        kind: 'required_evidence',
+        satisfied: false,
+      },
+    });
 
     const rank = service.handle('rank.compute', {
       campaign_id: campaignId,
@@ -215,13 +262,15 @@ describe('node-side RPC surface (posterior portfolio)', () => {
     expect(rank.ranked_nodes).toEqual([]);
     const skipped = rank.skipped_nodes as Array<Record<string, unknown>>;
     const reasonByNode = new Map(skipped.map(row => [row.node_id, row.reason]));
-    expect(reasonByNode.get(na!)).toBe('no_posterior');
+    expect(reasonByNode.get(na!)).toBe('candidate');
     expect(reasonByNode.get(nb!)).toBe('waiting_activation');
     expect(reasonByNode.get(nc!)).toBe('archived');
-    expect(skipped).toHaveLength(3);
+    expect(reasonByNode.get(nd!)).toBe('admission_review');
+    expect(reasonByNode.get(ne!)).toBe('admission_blocked');
+    expect(skipped).toHaveLength(5);
   });
 
-  it('excludes posterior nodes from ranking when close-prior coverage is incomplete or metadata-only', () => {
+  it('holds provisional-coverage posteriors in needs_refresh and re-checks admitted coverage as defense in depth', () => {
     const service = freshService('idea-engine-node-rank-coverage-');
     const campaignId = initCampaign(service, [
       { content: 'seed-a', seed_type: 'text', source_uris: ['https://example.org/a'] },
@@ -229,9 +278,16 @@ describe('node-side RPC surface (posterior portfolio)', () => {
       { content: 'seed-c', seed_type: 'text', source_uris: ['https://example.org/c'] },
     ]);
     const [na, nb, nc] = allNodeIds(service, campaignId);
-    setPosterior(service, campaignId, na!, 'sp-a', 0.9, 10, {
+    // Incomplete coverage without the waiver resolves to a provisional
+    // posterior, so the engine parks the node in needs_refresh.
+    const provisional = setPosterior(service, campaignId, na!, 'sp-a', 0.9, 10, {
       literature_coverage: { status: 'coverage_incomplete' },
     });
+    expect((provisional.node as Record<string, unknown>).lifecycle_state).toBe('needs_refresh');
+    expect(((provisional.node as Record<string, unknown>).posterior as Record<string, unknown>).status).toBe('provisional');
+
+    // An admitted node whose coverage was stripped by hand (migrated store)
+    // is caught by the data-level re-check.
     setPosterior(service, campaignId, nb!, 'sp-b', 0.8, 10);
     const nodes = service.read.store.loadNodes<Record<string, unknown>>(campaignId);
     delete nodes[nb!]!.literature_coverage;
@@ -249,7 +305,7 @@ describe('node-side RPC surface (posterior portfolio)', () => {
     expect(rankedNodes[0]!.allocation_eligible).toBe(true);
     const skipped = rank.skipped_nodes as Array<Record<string, unknown>>;
     const reasonByNode = new Map(skipped.map(row => [row.node_id, row.reason]));
-    expect(reasonByNode.get(na!)).toBe('coverage_incomplete');
+    expect(reasonByNode.get(na!)).toBe('needs_refresh');
     expect(reasonByNode.get(nb!)).toBe('metadata_only');
   });
 
@@ -306,30 +362,44 @@ describe('node-side RPC surface (posterior portfolio)', () => {
     ]);
   });
 
-  it('excludes stale or provisional posteriors from ranking guidance', () => {
+  it('parks stale posteriors in needs_refresh and catches hand-degraded admitted posteriors', () => {
     const service = freshService('idea-engine-node-rank-stale-');
     const campaignId = initCampaign(service, [
       { content: 'seed-a', seed_type: 'text', source_uris: ['https://example.org/a'] },
       { content: 'seed-b', seed_type: 'text', source_uris: ['https://example.org/b'] },
+      { content: 'seed-c', seed_type: 'text', source_uris: ['https://example.org/c'] },
     ]);
-    const [na, nb] = allNodeIds(service, campaignId);
-    setPosterior(service, campaignId, na!, 'sp-a', 0.9, 10, {
+    const [na, nb, nc] = allNodeIds(service, campaignId);
+    // An explicitly stale write lands in needs_refresh via the engine's own
+    // derivation.
+    const stale = setPosterior(service, campaignId, na!, 'sp-a', 0.9, 10, {
       posterior: { status: 'stale' },
     });
-    setPosterior(service, campaignId, nb!, 'sp-b', 0.3, 10);
+    expect((stale.node as Record<string, unknown>).lifecycle_state).toBe('needs_refresh');
+    // An admitted node whose posterior status was degraded by hand (migrated
+    // store) is caught by the data-level re-check.
+    setPosterior(service, campaignId, nb!, 'sp-b', 0.7, 10);
+    const nodes = service.read.store.loadNodes<Record<string, unknown>>(campaignId);
+    ((nodes[nb!]!.posterior) as Record<string, unknown>).status = 'provisional';
+    service.read.store.saveNodes(campaignId, nodes);
+    setPosterior(service, campaignId, nc!, 'sp-c', 0.3, 10);
 
     const rank = service.handle('rank.compute', {
       campaign_id: campaignId,
       idempotency_key: 'rank-stale',
       method: 'posterior',
     });
-    expect((rank.ranked_nodes as Array<Record<string, unknown>>).map(row => row.node_id)).toEqual([nb]);
+    expect((rank.ranked_nodes as Array<Record<string, unknown>>).map(row => row.node_id)).toEqual([nc]);
     const skipped = rank.skipped_nodes as Array<Record<string, unknown>>;
     expect(skipped).toContainEqual({
       node_id: na,
+      reason: 'needs_refresh',
+    });
+    expect(skipped).toContainEqual({
+      node_id: nb,
       reason: 'posterior_not_current',
       literature_coverage_status: 'saturated',
-      posterior_status: 'stale',
+      posterior_status: 'provisional',
       allocation_eligible: false,
     });
   });
@@ -357,11 +427,15 @@ describe('node-side RPC surface (posterior portfolio)', () => {
     }), -32011, 'grounding_audit_not_pass');
   });
 
-  it('blocks node.promote without a posterior', () => {
+  it('blocks node.promote when an admitted node lost its posterior (hand-migrated store)', () => {
     const service = freshService('idea-engine-node-promote-posterior-');
     const campaignId = initCampaign(service);
     const [nodeId] = allNodeIds(service, campaignId);
+    setPosterior(service, campaignId, nodeId!, 'sp', 0.6, 2);
     setGroundingPass(service, campaignId, nodeId!);
+    const nodes = service.read.store.loadNodes<Record<string, unknown>>(campaignId);
+    nodes[nodeId!]!.posterior = null;
+    service.read.store.saveNodes(campaignId, nodes);
 
     expectRpcError(() => service.handle('node.promote', {
       campaign_id: campaignId,
@@ -370,25 +444,35 @@ describe('node-side RPC surface (posterior portfolio)', () => {
     }), -32017, 'posterior_missing');
   });
 
-  it('blocks node.promote for non-active lifecycle states', () => {
+  it('blocks node.promote for non-admitted lifecycle states', () => {
     const service = freshService('idea-engine-node-promote-lifecycle-');
-    const campaignId = initCampaign(service);
-    const [nodeId] = allNodeIds(service, campaignId);
-    setPosterior(service, campaignId, nodeId!, 'sp', 0.6, 2);
-    setGroundingPass(service, campaignId, nodeId!);
+    const campaignId = initCampaign(service, [
+      { content: 'seed-a', seed_type: 'text', source_uris: ['https://example.org/a'] },
+      { content: 'seed-b', seed_type: 'text', source_uris: ['https://example.org/b'] },
+    ]);
+    const [archivedNode, candidateNode] = allNodeIds(service, campaignId);
+    setPosterior(service, campaignId, archivedNode!, 'sp', 0.6, 2);
+    setGroundingPass(service, campaignId, archivedNode!);
     service.handle('node.set_lifecycle', {
       campaign_id: campaignId,
       idempotency_key: 'sl-archive',
       lifecycle_state: 'archived',
-      node_id: nodeId,
+      node_id: archivedNode,
       reason: 'kill criterion met',
     });
-
     expectRpcError(() => service.handle('node.promote', {
       campaign_id: campaignId,
       idempotency_key: 'promote-archived',
-      node_id: nodeId,
-    }), -32017, 'node_not_active');
+      node_id: archivedNode,
+    }), -32017, 'node_not_admitted');
+
+    // A candidate that never went through admission is equally not promotable.
+    setGroundingPass(service, campaignId, candidateNode!);
+    expectRpcError(() => service.handle('node.promote', {
+      campaign_id: campaignId,
+      idempotency_key: 'promote-candidate',
+      node_id: candidateNode,
+    }), -32017, 'node_not_admitted');
   });
 
   it('strips placeholder evidence from the promoted idea card and rejects placeholder-only claims', () => {
@@ -492,10 +576,10 @@ describe('node-side RPC surface (posterior portfolio)', () => {
 
     // A fresh key with new values performs a second mutation.
     const second = setPosterior(service, campaignId, nodeId!, 'sp-idem-2', 0.9, 5);
-    expect((second.node as Record<string, unknown>).revision).toBe(3);
+    expect((second.node as Record<string, unknown>).revision).toBe(4);
   });
 
-  it('writes set_posterior and set_lifecycle mutations to the node mutation log', () => {
+  it('writes admission_review, set_posterior, and set_lifecycle mutations to the node mutation log', () => {
     const service = freshService('idea-engine-mutation-log-');
     const campaignId = initCampaign(service);
     const [nodeId] = allNodeIds(service, campaignId);
@@ -513,13 +597,15 @@ describe('node-side RPC surface (posterior portfolio)', () => {
       .split('\n')
       .map(line => JSON.parse(line) as Record<string, unknown>);
     const mutations = logLines.map(line => line.mutation);
-    expect(mutations).toEqual(['create', 'set_posterior', 'set_lifecycle']);
-    const lifecycleEntry = logLines[2]!;
+    expect(mutations).toEqual(['create', 'set_lifecycle', 'set_posterior', 'set_lifecycle']);
+    const lifecycleEntry = logLines[3]!;
     expect(lifecycleEntry.reason).toBe('exploration budget better spent elsewhere');
-    expect(lifecycleEntry.revision).toBe(3);
+    expect(lifecycleEntry.revision).toBe(4);
+    const storedNode = service.read.store.loadNodes<Record<string, unknown>>(campaignId)[nodeId!]!;
+    expect(storedNode.lifecycle_reason).toBe('exploration budget better spent elsewhere');
   });
 
-  it('requires an activation_condition for waiting_activation and clears it on return to active', () => {
+  it('requires an activation_condition for the condition-carrying states and clears it on exit', () => {
     const service = freshService('idea-engine-set-lifecycle-');
     const campaignId = initCampaign(service);
     const [nodeId] = allNodeIds(service, campaignId);
@@ -528,6 +614,13 @@ describe('node-side RPC surface (posterior portfolio)', () => {
       campaign_id: campaignId,
       idempotency_key: 'sl-missing-condition',
       lifecycle_state: 'waiting_activation',
+      node_id: nodeId,
+    }), -32002, 'activation_condition_required');
+
+    expectRpcError(() => service.handle('node.set_lifecycle', {
+      campaign_id: campaignId,
+      idempotency_key: 'sl-missing-blocked-condition',
+      lifecycle_state: 'admission_blocked',
       node_id: nodeId,
     }), -32002, 'activation_condition_required');
 
@@ -560,15 +653,392 @@ describe('node-side RPC surface (posterior portfolio)', () => {
     const reactivated = service.handle('node.set_lifecycle', {
       campaign_id: campaignId,
       idempotency_key: 'sl-reactivate',
-      lifecycle_state: 'active',
+      lifecycle_state: 'candidate',
       node_id: nodeId,
     });
-    expect((reactivated.node as Record<string, unknown>).lifecycle_state).toBe('active');
+    expect((reactivated.node as Record<string, unknown>).lifecycle_state).toBe('candidate');
     expect((reactivated.node as Record<string, unknown>).activation_condition).toBeNull();
 
     const storedNode = service.read.store.loadNodes<Record<string, unknown>>(campaignId)[nodeId!]!;
     expect(storedNode.activation_condition).toBeNull();
-    expect(storedNode.lifecycle_state).toBe('active');
+    expect(storedNode.lifecycle_state).toBe('candidate');
+  });
+
+  it('rejects illegal transitions with the allowed next states', () => {
+    const service = freshService('idea-engine-illegal-transition-');
+    const campaignId = initCampaign(service);
+    const [nodeId] = allNodeIds(service, campaignId);
+
+    const error = expectRpcError(() => service.handle('node.set_lifecycle', {
+      campaign_id: campaignId,
+      idempotency_key: 'sl-shortcut',
+      lifecycle_state: 'admitted',
+      node_id: nodeId,
+    }), -32018, 'illegal_transition');
+    const details = error.data.details as Record<string, unknown>;
+    expect(details.current_state).toBe('candidate');
+    expect(details.requested_state).toBe('admitted');
+    expect(details.allowed_next).toEqual(['admission_review', 'admission_blocked', 'waiting_activation', 'archived']);
+
+    // needs_refresh is likewise not reachable from candidate.
+    expectRpcError(() => service.handle('node.set_lifecycle', {
+      campaign_id: campaignId,
+      idempotency_key: 'sl-refresh-shortcut',
+      lifecycle_state: 'needs_refresh',
+      node_id: nodeId,
+    }), -32018, 'illegal_transition');
+
+    // Self-transition exists only for the condition-carrying states.
+    expectRpcError(() => service.handle('node.set_lifecycle', {
+      campaign_id: campaignId,
+      idempotency_key: 'sl-selfloop',
+      lifecycle_state: 'candidate',
+      node_id: nodeId,
+    }), -32018, 'illegal_transition');
+  });
+
+  it('enforces entry preconditions on stored data', () => {
+    const service = freshService('idea-engine-entry-preconditions-');
+    const campaignId = initCampaign(service, [
+      { content: 'seed-a', seed_type: 'text', source_uris: ['https://example.org/a'] },
+      { content: 'seed-b', seed_type: 'text', source_uris: ['https://example.org/b'] },
+    ]);
+    const [na, nb] = allNodeIds(service, campaignId);
+
+    // admitted requires a current posterior: a bare review cannot jump there.
+    enterAdmissionReview(service, campaignId, na!, 'sl-review-a');
+    const admittedError = expectRpcError(() => service.handle('node.set_lifecycle', {
+      campaign_id: campaignId,
+      idempotency_key: 'sl-admit-early',
+      lifecycle_state: 'admitted',
+      node_id: na,
+    }), -32018, 'entry_precondition_failed');
+    expect((admittedError.data.details as Record<string, unknown>).requirement).toBe('posterior_required');
+
+    // needs_refresh requires a posterior history.
+    const refreshError = expectRpcError(() => service.handle('node.set_lifecycle', {
+      campaign_id: campaignId,
+      idempotency_key: 'sl-refresh-early',
+      lifecycle_state: 'needs_refresh',
+      node_id: na,
+    }), -32018, 'entry_precondition_failed');
+    expect((refreshError.data.details as Record<string, unknown>).requirement).toBe('posterior_required');
+
+    // candidate requires posterior null: a node with a posterior history
+    // re-enters as needs_refresh, not candidate.
+    setPosterior(service, campaignId, nb!, 'sp-b', 0.5, 2);
+    service.handle('node.set_lifecycle', {
+      campaign_id: campaignId,
+      idempotency_key: 'sl-archive-b',
+      lifecycle_state: 'archived',
+      node_id: nb,
+      reason: 'parked for the record',
+    });
+    const candidateError = expectRpcError(() => service.handle('node.set_lifecycle', {
+      campaign_id: campaignId,
+      idempotency_key: 'sl-revive-as-candidate',
+      lifecycle_state: 'candidate',
+      node_id: nb,
+    }), -32018, 'entry_precondition_failed');
+    expect((candidateError.data.details as Record<string, unknown>).requirement).toBe('posterior_must_be_null');
+
+    const revived = service.handle('node.set_lifecycle', {
+      campaign_id: campaignId,
+      idempotency_key: 'sl-revive-as-refresh',
+      lifecycle_state: 'needs_refresh',
+      node_id: nb,
+      reason: 'revival: new evidence arrived, posterior must be re-reviewed',
+    });
+    expect((revived.node as Record<string, unknown>).lifecycle_state).toBe('needs_refresh');
+  });
+
+  it('requires a reason to archive', () => {
+    const service = freshService('idea-engine-archive-reason-');
+    const campaignId = initCampaign(service);
+    const [nodeId] = allNodeIds(service, campaignId);
+    expectRpcError(() => service.handle('node.set_lifecycle', {
+      campaign_id: campaignId,
+      idempotency_key: 'sl-archive-no-reason',
+      lifecycle_state: 'archived',
+      node_id: nodeId,
+    }), -32002, 'archived_reason_required');
+  });
+
+  it('scopes posterior writes to admission_review, admitted, and needs_refresh', () => {
+    const service = freshService('idea-engine-posterior-scope-');
+    const campaignId = initCampaign(service, [
+      { content: 'seed-a', seed_type: 'text', source_uris: ['https://example.org/a'] },
+      { content: 'seed-b', seed_type: 'text', source_uris: ['https://example.org/b'] },
+    ]);
+    const [na, nb] = allNodeIds(service, campaignId);
+
+    // Direct write on a candidate: must declare admission_review first.
+    const candidateError = expectRpcError(() => service.handle('node.set_posterior', {
+      campaign_id: campaignId,
+      idempotency_key: 'sp-candidate',
+      literature_coverage: {
+        status: 'saturated',
+        survey_ref: `project://artifacts/literature/${na}-literature_survey_v1.json#sha256:${'c'.repeat(64)}`,
+        close_prior_matrix_ref: `project://artifacts/literature/${na}-close-prior-matrix.json#sha256:${'d'.repeat(64)}`,
+      },
+      node_id: na,
+      posterior: { evidence_count: 1, value: 0.5 },
+    }), -32018, 'posterior_write_lifecycle_invalid');
+    const details = candidateError.data.details as Record<string, unknown>;
+    expect(details.current_state).toBe('candidate');
+    expect(details.allowed_states).toEqual(['admission_review', 'admitted', 'needs_refresh']);
+
+    // Parked and archived nodes must be transitioned out before a write.
+    service.handle('node.set_lifecycle', {
+      campaign_id: campaignId,
+      idempotency_key: 'sl-block-b',
+      lifecycle_state: 'admission_blocked',
+      node_id: nb,
+      activation_condition: {
+        description: 'needs a pilot computation before admission',
+        kind: 'required_evidence',
+        satisfied: false,
+      },
+    });
+    expectRpcError(() => service.handle('node.set_posterior', {
+      campaign_id: campaignId,
+      idempotency_key: 'sp-blocked',
+      literature_coverage: {
+        status: 'saturated',
+        survey_ref: `project://artifacts/literature/${nb}-literature_survey_v1.json#sha256:${'c'.repeat(64)}`,
+        close_prior_matrix_ref: `project://artifacts/literature/${nb}-close-prior-matrix.json#sha256:${'d'.repeat(64)}`,
+      },
+      node_id: nb,
+      posterior: { evidence_count: 1, value: 0.5 },
+    }), -32018, 'posterior_write_lifecycle_invalid');
+  });
+
+  it('rejects a current-labeled posterior that its coverage cannot support', () => {
+    const service = freshService('idea-engine-posterior-status-consistency-');
+    const campaignId = initCampaign(service);
+    const [nodeId] = allNodeIds(service, campaignId);
+    enterAdmissionReview(service, campaignId, nodeId!, 'sl-review');
+    expectRpcError(() => service.handle('node.set_posterior', {
+      campaign_id: campaignId,
+      idempotency_key: 'sp-current-incomplete',
+      literature_coverage: {
+        status: 'coverage_incomplete',
+        survey_ref: `project://artifacts/literature/${nodeId}-literature_survey_v1.json#sha256:${'c'.repeat(64)}`,
+        close_prior_matrix_ref: `project://artifacts/literature/${nodeId}-close-prior-matrix.json#sha256:${'d'.repeat(64)}`,
+      },
+      node_id: nodeId,
+      posterior: { evidence_count: 1, value: 0.5, status: 'current' },
+    }), -32002, 'posterior_status_not_supported_by_coverage');
+
+    // The explicit exploratory waiver makes the same write legal.
+    const waived = service.handle('node.set_posterior', {
+      campaign_id: campaignId,
+      idempotency_key: 'sp-current-waived',
+      literature_coverage: {
+        status: 'coverage_incomplete',
+        exploratory_allocation: true,
+        survey_ref: `project://artifacts/literature/${nodeId}-literature_survey_v1.json#sha256:${'c'.repeat(64)}`,
+        close_prior_matrix_ref: `project://artifacts/literature/${nodeId}-close-prior-matrix.json#sha256:${'d'.repeat(64)}`,
+      },
+      node_id: nodeId,
+      posterior: { evidence_count: 1, value: 0.5, status: 'current' },
+    });
+    expect((waived.node as Record<string, unknown>).lifecycle_state).toBe('admitted');
+  });
+
+  it('derives admitted and needs_refresh from posterior writes, both ways', () => {
+    const service = freshService('idea-engine-posterior-derivation-');
+    const campaignId = initCampaign(service);
+    const [nodeId] = allNodeIds(service, campaignId);
+
+    // First write is provisional -> needs_refresh.
+    const provisional = setPosterior(service, campaignId, nodeId!, 'sp-1', 0.4, 1, {
+      posterior: { status: 'provisional' },
+    });
+    expect((provisional.node as Record<string, unknown>).lifecycle_state).toBe('needs_refresh');
+    expect((provisional.node as Record<string, unknown>).lifecycle_reason).toBe('posterior_status=provisional');
+
+    // The reviewed writeback promotes to admitted.
+    const current = setPosterior(service, campaignId, nodeId!, 'sp-2', 0.55, 3);
+    expect((current.node as Record<string, unknown>).lifecycle_state).toBe('admitted');
+    expect((current.node as Record<string, unknown>).lifecycle_reason).toBe('posterior_status=current');
+
+    // A later stale write demotes an admitted node again.
+    const stale = setPosterior(service, campaignId, nodeId!, 'sp-3', 0.55, 3, {
+      posterior: { status: 'stale' },
+    });
+    expect((stale.node as Record<string, unknown>).lifecycle_state).toBe('needs_refresh');
+    expect((stale.node as Record<string, unknown>).lifecycle_reason).toBe('posterior_status=stale');
+  });
+
+  it('moves admission_blocked nodes through condition updates back into review', () => {
+    const service = freshService('idea-engine-admission-blocked-');
+    const campaignId = initCampaign(service);
+    const [nodeId] = allNodeIds(service, campaignId);
+
+    service.handle('node.set_lifecycle', {
+      campaign_id: campaignId,
+      idempotency_key: 'sl-block',
+      lifecycle_state: 'admission_blocked',
+      node_id: nodeId,
+      activation_condition: {
+        description: 'needs an independent reproduction of the pilot computation',
+        kind: 'required_evidence',
+        satisfied: false,
+      },
+      reason: 'admission gate found the required evidence missing',
+    });
+
+    // Condition update via the self-transition.
+    const updated = service.handle('node.set_lifecycle', {
+      campaign_id: campaignId,
+      idempotency_key: 'sl-block-update',
+      lifecycle_state: 'admission_blocked',
+      node_id: nodeId,
+      activation_condition: {
+        description: 'needs an independent reproduction of the pilot computation',
+        kind: 'required_evidence',
+        satisfied: true,
+      },
+    });
+    expect(((updated.node as Record<string, unknown>).activation_condition as Record<string, unknown>).satisfied).toBe(true);
+
+    const reviewed = service.handle('node.set_lifecycle', {
+      campaign_id: campaignId,
+      idempotency_key: 'sl-reenter-review',
+      lifecycle_state: 'admission_review',
+      node_id: nodeId,
+      reason: 'required evidence produced',
+    });
+    expect((reviewed.node as Record<string, unknown>).lifecycle_state).toBe('admission_review');
+    expect((reviewed.node as Record<string, unknown>).activation_condition).toBeNull();
+  });
+
+  it('returns admitted nodes from waiting_activation only while the stored data still supports it', () => {
+    const service = freshService('idea-engine-waiting-return-');
+    const campaignId = initCampaign(service);
+    const [nodeId] = allNodeIds(service, campaignId);
+    setPosterior(service, campaignId, nodeId!, 'sp', 0.6, 2);
+    service.handle('node.set_lifecycle', {
+      campaign_id: campaignId,
+      idempotency_key: 'sl-park',
+      lifecycle_state: 'waiting_activation',
+      node_id: nodeId,
+      activation_condition: {
+        description: 'waiting for the follow-up data release',
+        kind: 'data_release',
+        satisfied: false,
+      },
+    });
+
+    const returned = service.handle('node.set_lifecycle', {
+      campaign_id: campaignId,
+      idempotency_key: 'sl-return',
+      lifecycle_state: 'admitted',
+      node_id: nodeId,
+      reason: 'awaited release arrived; posterior still current',
+    });
+    expect((returned.node as Record<string, unknown>).lifecycle_state).toBe('admitted');
+
+    // Degrade the stored posterior by hand: the same return is now rejected.
+    service.handle('node.set_lifecycle', {
+      campaign_id: campaignId,
+      idempotency_key: 'sl-park-2',
+      lifecycle_state: 'waiting_activation',
+      node_id: nodeId,
+      activation_condition: {
+        description: 'waiting for the second data release',
+        kind: 'data_release',
+        satisfied: false,
+      },
+    });
+    const nodes = service.read.store.loadNodes<Record<string, unknown>>(campaignId);
+    ((nodes[nodeId!]!.posterior) as Record<string, unknown>).status = 'stale';
+    service.read.store.saveNodes(campaignId, nodes);
+    const error = expectRpcError(() => service.handle('node.set_lifecycle', {
+      campaign_id: campaignId,
+      idempotency_key: 'sl-return-2',
+      lifecycle_state: 'admitted',
+      node_id: nodeId,
+    }), -32018, 'entry_precondition_failed');
+    expect((error.data.details as Record<string, unknown>).requirement).toBe('posterior_status_current_required');
+  });
+
+  it('treats revival from archived as re-intake, never a shortcut back to admitted', () => {
+    const service = freshService('idea-engine-revival-');
+    const campaignId = initCampaign(service, [
+      { content: 'seed-a', seed_type: 'text', source_uris: ['https://example.org/a'] },
+      { content: 'seed-b', seed_type: 'text', source_uris: ['https://example.org/b'] },
+    ]);
+    const [fresh, admitted] = allNodeIds(service, campaignId);
+
+    // A never-admitted node revives as candidate.
+    service.handle('node.set_lifecycle', {
+      campaign_id: campaignId,
+      idempotency_key: 'sl-arch-fresh',
+      lifecycle_state: 'archived',
+      node_id: fresh,
+      reason: 'out of scope for this round',
+    });
+    const revivedFresh = service.handle('node.set_lifecycle', {
+      campaign_id: campaignId,
+      idempotency_key: 'sl-revive-fresh',
+      lifecycle_state: 'candidate',
+      node_id: fresh,
+      reason: 'scope widened again',
+    });
+    expect((revivedFresh.node as Record<string, unknown>).lifecycle_state).toBe('candidate');
+
+    // A formerly admitted node cannot jump back to admitted from the archive.
+    setPosterior(service, campaignId, admitted!, 'sp-admitted', 0.7, 4);
+    service.handle('node.set_lifecycle', {
+      campaign_id: campaignId,
+      idempotency_key: 'sl-arch-admitted',
+      lifecycle_state: 'archived',
+      node_id: admitted,
+      reason: 'paused after the first investigation round',
+    });
+    expectRpcError(() => service.handle('node.set_lifecycle', {
+      campaign_id: campaignId,
+      idempotency_key: 'sl-shortcut-back',
+      lifecycle_state: 'admitted',
+      node_id: admitted,
+    }), -32018, 'illegal_transition');
+    const revived = service.handle('node.set_lifecycle', {
+      campaign_id: campaignId,
+      idempotency_key: 'sl-revive-admitted',
+      lifecycle_state: 'needs_refresh',
+      node_id: admitted,
+      reason: 'revival: posterior must be re-reviewed before guidance',
+    });
+    expect((revived.node as Record<string, unknown>).lifecycle_state).toBe('needs_refresh');
+    // The stored posterior is untouched history; a fresh current write
+    // re-admits through the normal derivation.
+    const readmitted = setPosterior(service, campaignId, admitted!, 'sp-readmit', 0.72, 5);
+    expect((readmitted.node as Record<string, unknown>).lifecycle_state).toBe('admitted');
+  });
+
+  it('fails loudly on stores whose lifecycle_state is outside the machine', () => {
+    const service = freshService('idea-engine-unmigrated-store-');
+    const campaignId = initCampaign(service);
+    const [nodeId] = allNodeIds(service, campaignId);
+    const nodes = service.read.store.loadNodes<Record<string, unknown>>(campaignId);
+    nodes[nodeId!]!.lifecycle_state = 'active';
+    service.read.store.saveNodes(campaignId, nodes);
+
+    const rankError = expectRpcError(() => service.handle('rank.compute', {
+      campaign_id: campaignId,
+      idempotency_key: 'rank-unmigrated',
+      method: 'posterior',
+    }), -32018, 'unknown_lifecycle_state');
+    expect(String((rankError.data.details as Record<string, unknown>).message)).toContain('migrate the store');
+
+    expectRpcError(() => service.handle('node.set_lifecycle', {
+      campaign_id: campaignId,
+      idempotency_key: 'sl-unmigrated',
+      lifecycle_state: 'admission_review',
+      node_id: nodeId,
+    }), -32018, 'unknown_lifecycle_state');
   });
 
   it('rejects node mutations on a completed campaign but keeps reads working', () => {
@@ -580,7 +1050,17 @@ describe('node-side RPC surface (posterior portfolio)', () => {
       idempotency_key: 'complete-1',
     });
 
-    expectRpcError(() => setPosterior(service, campaignId, nodeId!, 'sp-after-complete', 0.5, 1), -32015, 'campaign_not_active');
+    expectRpcError(() => service.handle('node.set_posterior', {
+      campaign_id: campaignId,
+      idempotency_key: 'sp-after-complete',
+      literature_coverage: {
+        status: 'saturated',
+        survey_ref: `project://artifacts/literature/${nodeId}-literature_survey_v1.json#sha256:${'c'.repeat(64)}`,
+        close_prior_matrix_ref: `project://artifacts/literature/${nodeId}-close-prior-matrix.json#sha256:${'d'.repeat(64)}`,
+      },
+      node_id: nodeId,
+      posterior: { evidence_count: 1, value: 0.5 },
+    }), -32015, 'campaign_not_active');
     expectRpcError(() => service.handle('node.set_lifecycle', {
       campaign_id: campaignId,
       idempotency_key: 'sl-after-complete',
@@ -639,7 +1119,8 @@ describe('node-side RPC surface (posterior portfolio)', () => {
           node: {
             activation_condition: null,
             idea_id: String(before.idea_id),
-            lifecycle_state: 'active',
+            lifecycle_reason: 'posterior_status=current',
+            lifecycle_state: 'admitted',
             literature_coverage: {
               status: 'saturated',
               survey_ref: `project://artifacts/literature/${nodeId}-literature_survey_v1.json#sha256:${'c'.repeat(64)}`,
@@ -662,6 +1143,7 @@ describe('node-side RPC surface (posterior portfolio)', () => {
       idempotency_key: 'unrelated-lifecycle',
       lifecycle_state: 'archived',
       node_id: nodeId,
+      reason: 'unrelated archive to advance the revision counter',
     });
     const bumped = store.loadNodes<Record<string, unknown>>(campaignId)[nodeId!]!;
     expect(Number(bumped.revision)).toBe(baseRevision + 1);

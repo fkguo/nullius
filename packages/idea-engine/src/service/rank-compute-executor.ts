@@ -21,7 +21,8 @@ interface RankedRow {
 
 interface SkippedRow {
   node_id: string;
-  reason: 'no_posterior' | 'waiting_activation' | 'archived' | 'metadata_only' | 'coverage_incomplete' | 'posterior_not_current';
+  reason: 'candidate' | 'admission_review' | 'admission_blocked' | 'needs_refresh' | 'waiting_activation' | 'archived'
+    | 'no_posterior' | 'metadata_only' | 'coverage_incomplete' | 'posterior_not_current';
   literature_coverage_status?: LiteratureCoverageStatus;
   allocation_eligible?: boolean;
   posterior_status?: 'current' | 'provisional' | 'stale';
@@ -29,9 +30,11 @@ interface SkippedRow {
 
 /**
  * rank.compute: order nodes by their externally computed belief-graph
- * posterior. Nodes without a posterior, or outside the active lifecycle
- * state, are reported explicitly in skipped_nodes instead of being
- * silently dropped. An empty ranking is a valid result.
+ * posterior. Only admitted nodes participate; every other node is reported
+ * explicitly in skipped_nodes with its lifecycle state as the reason instead
+ * of being silently dropped. Admitted nodes are re-checked against the
+ * stored data (posterior presence/status, close-prior coverage) as defense
+ * in depth for hand-migrated stores. An empty ranking is a valid result.
  */
 export function executeRankCompute(options: {
   contracts: IdeaEngineContractCatalog;
@@ -77,7 +80,7 @@ export function executeRankCompute(options: {
     for (const [index, node] of resolvedNodes.entries()) {
       const nodeId = String(node.node_id);
       const lifecycle = nodeLifecycleState(node);
-      if (lifecycle === 'archived' || lifecycle === 'waiting_activation') {
+      if (lifecycle !== 'admitted') {
         skippedNodes.push({ node_id: nodeId, reason: lifecycle });
         continue;
       }
@@ -98,12 +101,12 @@ export function executeRankCompute(options: {
         });
         continue;
       }
-      if (posterior.status === 'stale' || posterior.status === 'provisional') {
+      if (posterior.status !== 'current') {
         skippedNodes.push({
           node_id: nodeId,
           reason: 'posterior_not_current',
           literature_coverage_status: literatureCoverage.status,
-          posterior_status: posterior.status,
+          ...(posterior.status ? { posterior_status: posterior.status } : {}),
           allocation_eligible: false,
         });
         continue;

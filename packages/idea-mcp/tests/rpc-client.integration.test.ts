@@ -64,6 +64,14 @@ describe('IdeaRpcClient integration', () => {
     const nodeIds = (listResult.nodes as Array<Record<string, unknown>>).map(node => String(node.node_id));
     expect(nodeIds).toHaveLength(2);
 
+    const reviewResult = await client.call('node.set_lifecycle', {
+      campaign_id: campaignId,
+      node_id: nodeIds[0],
+      idempotency_key: 'review-roundtrip',
+      lifecycle_state: 'admission_review',
+    }) as Record<string, unknown>;
+    expect((reviewResult.node as Record<string, unknown>).lifecycle_state).toBe('admission_review');
+
     const posteriorResult = await client.call('node.set_posterior', {
       campaign_id: campaignId,
       node_id: nodeIds[0],
@@ -89,7 +97,7 @@ describe('IdeaRpcClient integration', () => {
     expect(rankedNodes[0]!.allocation_eligible).toBe(true);
     expect(rankedNodes[0]!.exploratory_allocation).toBe(false);
     expect(rankResult.skipped_nodes).toEqual([
-      { node_id: nodeIds[1], reason: 'no_posterior' },
+      { node_id: nodeIds[1], reason: 'candidate' },
     ]);
 
     const pauseResult = await client.call('campaign.pause', {
