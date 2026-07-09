@@ -159,7 +159,10 @@ collapse*), Executor 2 enforces these SOTA-grounded rules ON TOP of "majority_si
 
 The output matrix is a SUPERSET of Executor 1's: each row adds `verification` (`cas` | `llm` | `error`),
 `cross_family_confirmations`, `families`, `judges` (comparator-panel size that returned a verdict), and
-`adjudicated_matches_majority`; the summary adds `dropped_claims` and `family_pool`. Offline unit tests (mock runner + local CAS, no real backends) live
+`adjudicated_matches_majority`; the summary adds `dropped_claims`, `family_pool`, and
+`unavailable_backends` (backend specs dropped from the deriver pool after repeated
+infrastructure-level failures — timeout / blank output / crash — so a degraded run reads as
+"backend down", never as a mathematical disagreement). Offline unit tests (mock runner + local CAS, no real backends) live
 in `tests/test_run_multi_backend.py`.
 
 > **Residual limit (honest):** for `verification: "cas"`, CAS proves the cross-family AGREEMENT is real,
