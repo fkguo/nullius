@@ -40,7 +40,7 @@ python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" check --root "${DOC}"
 grep -F '$\gamma_{\rm lin}$' "${DOC}" >/dev/null
 grep -F '$G_R$ and $k^*$' "${DOC}" >/dev/null
 grep -F 'Body math: $\Delta + \alpha$.' "${DOC}" >/dev/null
-grep -F 'Inline code `$\\Delta$` stays as code.' "${DOC}" >/dev/null
+grep -F 'Inline code $\Delta$ stays as code.' "${DOC}" >/dev/null
 grep -F '$\\Delta$ stays as code.' "${DOC}" >/dev/null
 grep -F '{}=\frac12 C.' "${DOC}" >/dev/null
 
@@ -169,8 +169,165 @@ if python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" check --root "${LINKS_
 fi
 
 cat >"${LINKS_DIR}/raw-math-inline-code-ok.md" <<'MD'
-Inline code `a -> b` and `m^2` should not trigger raw-math checks.
+Inline code `literal_code`, `cmd --flag`, `2026-07-09`, `src/foo`, `C++`, and `\n` should not trigger math checks.
 MD
 python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" check --root "${LINKS_DIR}/raw-math-inline-code-ok.md" --raw-math-preset ascii-math
+
+CODE_MATH="${TMP_DIR}/code-math.md"
+cat >"${CODE_MATH}" <<'MD'
+Inline code `\Omega`, `C(k)`, `m^2`, `a0/r_eff`, and `a -> b` should become math.
+
+`\[\Omega = m^2\]`
+MD
+if python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" check --root "${CODE_MATH}" --check-code-math; then
+  echo "expected check to fail for code-wrapped math" >&2
+  exit 1
+fi
+python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" fix --root "${CODE_MATH}"
+python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" check --root "${CODE_MATH}" --human-facing
+grep -F '$\Omega$' "${CODE_MATH}" >/dev/null
+grep -F '$C(k)$' "${CODE_MATH}" >/dev/null
+grep -F '$m^2$' "${CODE_MATH}" >/dev/null
+grep -F '$a0/r_eff$' "${CODE_MATH}" >/dev/null
+grep -F '$a -> b$' "${CODE_MATH}" >/dev/null
+grep -F '\Omega = m^2' "${CODE_MATH}" >/dev/null
+
+HUMAN_DIR="${TMP_DIR}/human-facing"
+mkdir -p "${HUMAN_DIR}/notes"
+printf '# Note\n' >"${HUMAN_DIR}/notes/source.md"
+cat >"${HUMAN_DIR}/good-human-facing.md" <<'MD'
+[project page](https://example.org/project)
+<https://example.org/autolink>
+<a href="https://example.org/html">HTML link</a>
+<a href="https://example.org/html-tag-only">
+https://example.org/html-link-text and arXiv:2401.12345 inside anchor text
+</a>
+<img
+  src="https://example.org/image.png"
+  alt="linked image">
+[paper DOI](https://doi.org/10.1000/example)
+[arXiv paper](https://arxiv.org/abs/2401.12345)
+[titled link](https://example.org/titled "title")
+[local note](notes/source.md)
+[reference page][page-ref]
+[reference DOI][doi-ref]
+[reference arXiv][arxiv-ref]
+[collapsed empty][]
+[collapsed reference]
+Inline math $a -> b$ and $m^2$ is already renderable.
+
+$$
+E = m^2
+$$
+
+Inline code `https://example.org/code`, `10.1000/code`, and `arXiv:2401.12345` are ignored.
+
+[page-ref]: https://example.org/reference
+[doi-ref]: https://doi.org/10.1000/reference
+[arxiv-ref]: https://arxiv.org/abs/2401.54321
+[collapsed empty]: https://example.org/collapsed-empty
+[collapsed reference]: https://example.org/collapsed
+MD
+python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" check --root "${HUMAN_DIR}" --human-facing
+
+cat >"${HUMAN_DIR}/bad-bare-url.md" <<'MD'
+Read (https://example.org/not-linked) for context.
+MD
+if python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" check --root "${HUMAN_DIR}/bad-bare-url.md" --check-clickable-refs; then
+  echo "expected check to fail for a bare web URL" >&2
+  exit 1
+fi
+if python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" check --root "${HUMAN_DIR}/bad-bare-url.md" --human-facing; then
+  echo "expected human-facing check to fail for a bare web URL" >&2
+  exit 1
+fi
+
+cat >"${HUMAN_DIR}/bad-bare-doi.md" <<'MD'
+The result follows 10.1000/example and doi:10.1000/example2.
+MD
+if python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" check --root "${HUMAN_DIR}/bad-bare-doi.md" --check-clickable-refs; then
+  echo "expected check to fail for a bare DOI" >&2
+  exit 1
+fi
+
+cat >"${HUMAN_DIR}/bad-bare-arxiv.md" <<'MD'
+Compare with (arXiv:2401.12345), arXiv:hep-th/9905100, and arXiv:cond-mat.mes-hall/0601234.
+MD
+if python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" check --root "${HUMAN_DIR}/bad-bare-arxiv.md" --check-clickable-refs; then
+  echo "expected check to fail for a bare arXiv identifier" >&2
+  exit 1
+fi
+
+cat >"${HUMAN_DIR}/bad-non-http-autolink.md" <<'MD'
+Compare <doi:10.1000/not-linked> and <arXiv:2401.12345>.
+MD
+if python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" check --root "${HUMAN_DIR}/bad-non-http-autolink.md" --check-clickable-refs; then
+  echo "expected check to fail for non-HTTP DOI/arXiv autolinks" >&2
+  exit 1
+fi
+
+cat >"${HUMAN_DIR}/bad-human-raw-math.md" <<'MD'
+The transition a -> b has scale m^2.
+MD
+if python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" check --root "${HUMAN_DIR}/bad-human-raw-math.md" --human-facing; then
+  echo "expected human-facing check to fail for raw ASCII math" >&2
+  exit 1
+fi
+
+cat >"${HUMAN_DIR}/bad-display-spacing.md" <<'MD'
+Text before display.
+$$
+x
+$$
+Text after display.
+MD
+if python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" check --root "${HUMAN_DIR}/bad-display-spacing.md" --check-display-spacing; then
+  echo "expected check to fail for missing display math blank lines" >&2
+  exit 1
+fi
+python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" fix --root "${HUMAN_DIR}/bad-display-spacing.md"
+python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" check --root "${HUMAN_DIR}/bad-display-spacing.md" --check-display-spacing
+
+cat >"${HUMAN_DIR}/bad-inline-display.md" <<'MD'
+Inline display $$x$$ is not portable.
+MD
+if python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" check --root "${HUMAN_DIR}/bad-inline-display.md" --check-display-spacing; then
+  echo "expected check to fail for inline display delimiters" >&2
+  exit 1
+fi
+
+cat >"${HUMAN_DIR}/bad-table-math-pipe.md" <<'MD'
+| State |
+| --- |
+| $\langle a|b\rangle$ |
+MD
+if python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" check --root "${HUMAN_DIR}/bad-table-math-pipe.md" --check-table-math-pipes; then
+  echo "expected check to fail for literal pipe inside table math" >&2
+  exit 1
+fi
+
+cat >"${HUMAN_DIR}/prose-math-pipe-ok.md" <<'MD'
+The prose expression $|x|$ is not a Markdown table row.
+MD
+python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" check --root "${HUMAN_DIR}/prose-math-pipe-ok.md" --check-table-math-pipes
+
+cat >"${HUMAN_DIR}/bad-github-math.md" <<'MD'
+GitHub fragile math: $B_{s0}^*$), $\bar{D}_s$.
+MD
+if python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" check --root "${HUMAN_DIR}/bad-github-math.md" --check-github-math; then
+  echo "expected check to fail for GitHub-fragile math" >&2
+  exit 1
+fi
+
+JSON_ONLY_DIR="${TMP_DIR}/json-only"
+mkdir -p "${JSON_ONLY_DIR}"
+cat >"${JSON_ONLY_DIR}/agent-artifact.json" <<'JSON'
+{
+  "url": "https://example.org/not-markdown",
+  "doi": "10.1000/not-markdown",
+  "arxiv": "arXiv:2401.12345"
+}
+JSON
+python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" check --root "${JSON_ONLY_DIR}" --human-facing
 
 echo "[ok] markdown-hygiene smoke tests passed"

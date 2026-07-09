@@ -4,7 +4,7 @@
   "repo": "nullius/skills-market",
   "channel": "dev",
   "version": "0.1.0",
-  "summary": "Standalone deterministic Markdown math and generated-TOC hygiene skill for research notes and handoffs.",
+  "summary": "Standalone deterministic Markdown math, link, and generated-TOC hygiene skill for research notes and handoffs.",
   "platforms": [
     "claude_code",
     "codex",
