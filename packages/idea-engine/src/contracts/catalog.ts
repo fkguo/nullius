@@ -5,7 +5,7 @@ import Ajv2020 from 'ajv/dist/2020.js';
 import { DEFAULT_CONTRACT_DIR, type OpenRpcMethod, type OpenRpcDocument } from './openrpc.js';
 
 type AjvValidator = ((value: unknown) => boolean) & {
-  errors?: Array<{ instancePath?: string; message?: string }>;
+  errors?: Array<{ instancePath?: string; message?: string; params?: Record<string, unknown> }>;
 };
 
 type AjvInstance = {
@@ -25,13 +25,32 @@ export class ContractRuntimeError extends Error {
   }
 }
 
+// Cap on distinct violations echoed in one error message. Ajv runs with allErrors: true, so a
+// caller fixing a large pack sees every violation in one round-trip instead of one per resubmit;
+// the cap only guards against a pathological flood making the message unreadable.
+const MAX_REPORTED_VIOLATIONS = 20;
+
+function formatOneViolation(error: NonNullable<AjvValidator['errors']>[number]): string {
+  const location = error.instancePath ? error.instancePath.slice(1) || '<root>' : '<root>';
+  let message = error.message ?? 'validation failed';
+  // Echo the allowed set on enum violations: "must be equal to one of the allowed values" is
+  // unactionable without saying which values are allowed.
+  const allowed = error.params?.allowedValues;
+  if (Array.isArray(allowed) && allowed.length > 0) {
+    message += ` (allowed: ${allowed.map((v) => JSON.stringify(v)).join(', ')})`;
+  }
+  return `at '${location}': ${message}`;
+}
+
 function formatValidationError(errors: AjvValidator['errors']): string {
-  const first = errors?.[0];
-  if (!first) {
+  const all = errors ?? [];
+  if (all.length === 0) {
     return "schema_invalid at '<root>': validation failed";
   }
-  const location = first.instancePath ? first.instancePath.slice(1) || '<root>' : '<root>';
-  return `schema_invalid at '${location}': ${first.message ?? 'validation failed'}`;
+  const shown = all.slice(0, MAX_REPORTED_VIOLATIONS).map(formatOneViolation);
+  const suppressed = all.length - shown.length;
+  const suffix = suppressed > 0 ? `; and ${suppressed} more violation(s)` : '';
+  return `schema_invalid ${shown.join('; ')}${suffix}`;
 }
 
 function isDateTime(value: string): boolean {
