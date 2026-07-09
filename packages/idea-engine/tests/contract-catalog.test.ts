@@ -272,4 +272,34 @@ describe('contract catalog: decision-layer schemas', () => {
       'test/idea_node/eval-info-removed',
     )).toThrow(ContractRuntimeError);
   });
+
+  it('reports every violation in one message and echoes allowed enum values', () => {
+    // A pack with several independent mistakes used to surface one error per resubmit round
+    // (fix enum A, resubmit, discover enum B, ...). One validation round must name them all,
+    // and enum violations must say which values are allowed.
+    const broken = structuredClone(VALID_PAIRWISE_MATCH);
+    (broken.panel[0] as Record<string, unknown>).vote = 'strong-a'; // enum violation 1
+    (broken.panel[1] as Record<string, unknown>).reviewer_family = 'gemini'; // enum violation 2
+    broken.criteria_commitment.commitment_hash = 'sha256:not-hex'; // pattern violation 3
+
+    let message = '';
+    try {
+      catalog.validateAgainstRef(
+        './pairwise_match_v1.schema.json',
+        broken,
+        'test/pairwise_match/multi-violation',
+      );
+    } catch (error) {
+      expect(error).toBeInstanceOf(ContractRuntimeError);
+      message = (error as Error).message;
+    }
+    expect(message).toContain('schema_invalid');
+    // All three independent violations appear in the single message.
+    expect(message).toContain('panel/0/vote');
+    expect(message).toContain('panel/1/reviewer_family');
+    expect(message).toContain('commitment_hash');
+    // Enum violations echo the allowed set so the fix needs no schema spelunking.
+    expect(message).toContain('allowed:');
+    expect(message).toContain('"tie"');
+  });
 });
