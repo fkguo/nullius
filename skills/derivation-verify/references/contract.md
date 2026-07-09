@@ -89,8 +89,10 @@ rather than confirmatory.
 comparator clustering + veto; `"error"` = claim crashed), `cross_family_confirmations` (# distinct model
 families in the agreeing cluster), `families`, `judges` (comparator-panel size that returned a verdict),
 `native_seeded` (# host-provided `native_derivations` injected without a CLI hop), and
-`adjudicated_matches_majority`; the summary adds `dropped_claims` and `family_pool` (distinct families
-available, incl. native — `<2` means cross-family convergence is structurally impossible). Convergence is **capability-first**: when any answer is CAS-checkable, a claim
+`adjudicated_matches_majority`; the summary adds `dropped_claims`, `family_pool` (distinct families
+available, incl. native — `<2` means cross-family convergence is structurally impossible), and
+`unavailable_backends` (specs dropped from the deriver pool after consecutive infrastructure-level
+failures, so backend outages stay distinguishable from mathematical disagreement). Convergence is **capability-first**: when any answer is CAS-checkable, a claim
 converges iff **>=2 cross-family `checkable_form`s are CAS-verified equal** (the comparator is NOT in the
 gate path, and a CAS refutation overrides a wrong LLM consensus); otherwise it falls back to the LLM path
 (**R1 ∧ R2**: `cross_family_confirmations >= 2` AND `adjudicated_matches_majority`). Both are strictly

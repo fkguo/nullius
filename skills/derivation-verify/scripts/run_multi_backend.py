@@ -45,6 +45,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import threading
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -62,7 +63,9 @@ def _resolve_runner(explicit):
         if cand:
             p = Path(cand)
             if p.exists():
-                return p
+                # Absolute so the launcher subprocess resolves the same file regardless of any
+                # cwd differences between this gate and the environment it was invoked from.
+                return p.resolve()
     return None
 
 # Reuse review-swarm's output sanitizers (strip Gemini CLI startup noise / markdown fences) — the
@@ -593,7 +596,8 @@ def _compare(c, ctx, derivations, families, comparators: list, run: RunFn, *, ta
     return _aggregate_judges(verdicts, len(derivations))
 
 
-def verify_claim(c: dict, *, ctx: str, pool: list[str], comparators: list, max_iter: int, run: RunFn) -> dict:
+def verify_claim(c: dict, *, ctx: str, pool: list[str], comparators: list, max_iter: int, run: RunFn,
+                 unavailable: Optional[Callable[[str], bool]] = None) -> dict:
     methods = [c.get("method0", ""), c.get("method1", "")]
     derivations: list[dict] = []
     families: list[str] = []
@@ -611,7 +615,12 @@ def verify_claim(c: dict, *, ctx: str, pool: list[str], comparators: list, max_i
             derivations.append(nat)
             native_families.add(families[-1])
     native_seeded = len(derivations)
-    cli_pool = [s for s in pool if family_of(s) not in native_families]
+    # `unavailable` (from run_gate's per-backend failure tracker) drops derivers whose backend has
+    # repeatedly failed at the infrastructure level (blank output / timeout / crash) so later claims
+    # and tie-break rounds stop re-trying a dead CLI. Convergence rules are NOT relaxed: a shrunken
+    # pool just means R1 (>=2 distinct families) fails honestly and the claim reports unconverged.
+    is_down = unavailable or (lambda _spec: False)
+    cli_pool = [s for s in pool if family_of(s) not in native_families and not is_down(s)]
 
     # Round 0: seed enough DISTINCT new CLI families to reach >=2 total (native + CLI). With no natives
     # this is the original 2-distinct-family seed; with a native family it is one independent CLI engine
@@ -649,8 +658,10 @@ def verify_claim(c: dict, *, ctx: str, pool: list[str], comparators: list, max_i
     rounds = 0
     while not converged and rounds < max_iter:
         rounds += 1
-        spec = pick_next_spec(cli_pool, used)  # tie-break also never re-runs a host-native family
-        if spec is None:
+        # Re-filter each round: a backend can cross the failure threshold mid-claim, and re-trying
+        # it every tie-break round is exactly the waste the tracker exists to stop.
+        spec = pick_next_spec([s for s in cli_pool if not is_down(s)], used)
+        if spec is None:  # tie-break also never re-runs a host-native family
             break
         used.append(spec)
         method = methods[rounds % 2]
@@ -688,7 +699,8 @@ def verify_claim(c: dict, *, ctx: str, pool: list[str], comparators: list, max_i
     }
 
 
-def _summarize(rows: list[dict], n_claims: int, family_pool: list[str]) -> dict:
+def _summarize(rows: list[dict], n_claims: int, family_pool: list[str],
+               unavailable_backends: Optional[list[dict]] = None) -> dict:
     unconverged = [r["claim"] for r in rows if not r["converged"]]
     return {
         "total_claims": len(rows),
@@ -701,8 +713,17 @@ def _summarize(rows: list[dict], n_claims: int, family_pool: list[str]) -> dict:
         # unsatisfiable and EVERY claim will report converged:false by design — surfaced here so the
         # matrix is self-explanatory rather than silently all-unconverged.
         "family_pool": family_pool,
+        # Backends dropped from the deriver pool after repeated infrastructure-level failures
+        # (blank output / timeout / crash). Recorded so a degraded run is legible as
+        # "backend down", never mistaken for a mathematical disagreement.
+        "unavailable_backends": unavailable_backends or [],
         "matrix": rows,
     }
+
+
+# Consecutive infrastructure-level failures (blank output / timeout / crash) after which a backend
+# spec is dropped from the deriver pool for the rest of the gate. Any success resets its counter.
+_BACKEND_DISABLE_AFTER = 2
 
 
 def run_gate(spec: dict, *, pool: list[str], comparators: list, run: RunFn,
@@ -711,12 +732,40 @@ def run_gate(spec: dict, *, pool: list[str], comparators: list, run: RunFn,
     claims = spec.get("claims") or []
     mi = spec.get("max_iter")
     max_iter = max_iter_override if max_iter_override is not None else (mi if isinstance(mi, int) and mi >= 0 else 3)
+
+    # Per-backend consecutive-failure tracker. `run` returning None means the backend itself failed
+    # (timeout / blank output / crash) — parse failures on non-empty output do NOT go through here.
+    # After _BACKEND_DISABLE_AFTER consecutive failures a spec stops being SELECTED as a deriver
+    # (comparator panels keep their own None-tolerant fallback and are not filtered). The lock keeps
+    # the counter exact under the ThreadPoolExecutor fan-outs (seed derivers, comparator panels).
+    fail_streak: dict[str, int] = {}
+    announced: set = set()
+    streak_lock = threading.Lock()
+
+    def tracked_run(model_spec: str, system: str, prompt: str, tag: str) -> Optional[str]:
+        out = run(model_spec, system, prompt, tag)
+        with streak_lock:
+            if out is None:
+                fail_streak[model_spec] = fail_streak.get(model_spec, 0) + 1
+                if fail_streak[model_spec] == _BACKEND_DISABLE_AFTER and model_spec not in announced:
+                    announced.add(model_spec)
+                    print(f"warning: backend {model_spec} dropped from the deriver pool after "
+                          f"{_BACKEND_DISABLE_AFTER} consecutive failures (timeout/blank/crash)",
+                          file=sys.stderr)
+            else:
+                fail_streak[model_spec] = 0
+        return out
+
+    def unavailable(model_spec: str) -> bool:
+        return fail_streak.get(model_spec, 0) >= _BACKEND_DISABLE_AFTER
+
     rows: list[dict] = []
     for c in claims:
         if not isinstance(c, dict) or not c.get("id") or not c.get("statement"):
             continue
         try:
-            rows.append(verify_claim(c, ctx=ctx, pool=pool, comparators=comparators, max_iter=max_iter, run=run))
+            rows.append(verify_claim(c, ctx=ctx, pool=pool, comparators=comparators, max_iter=max_iter,
+                                     run=tracked_run, unavailable=unavailable))
         except Exception as exc:  # never let one claim crash the whole matrix
             rows.append({
                 "claim": c.get("id", "?"), "converged": False, "verification": "error",
@@ -731,7 +780,12 @@ def run_gate(spec: dict, *, pool: list[str], comparators: list, run: RunFn,
                    for nat in (parse_native_derivation(d) for d in (c.get("native_derivations") or []))
                    if nat}
     family_pool = sorted({family_of(s) for s in pool} | native_fams)
-    return _summarize(rows, len(claims), family_pool)
+    downed = sorted(
+        ({"spec": s, "consecutive_failures": n} for s, n in fail_streak.items()
+         if n >= _BACKEND_DISABLE_AFTER),
+        key=lambda d: str(d["spec"]),
+    )
+    return _summarize(rows, len(claims), family_pool, unavailable_backends=downed)
 
 
 def main(argv=None) -> int:
@@ -789,6 +843,10 @@ def main(argv=None) -> int:
     if work_dir is None:
         tmp = tempfile.TemporaryDirectory(prefix="derivverify2_")
         work_dir = Path(tmp.name)
+    # Absolutize before anything is spawned: per-backend paths derived from work_dir are passed to
+    # subprocess runners, and a relative work-dir has produced outputs written under nested paths
+    # the gate never read back — a silently wasted cross-family round.
+    work_dir = work_dir.expanduser().resolve()
     work_dir.mkdir(parents=True, exist_ok=True)
     runner = MultiTaskRunner(runner_path=runner_path, work_dir=work_dir, timeout=args.timeout_secs,
                              tools=args.tools, config=args.config)

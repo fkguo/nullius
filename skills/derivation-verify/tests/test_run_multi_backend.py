@@ -709,7 +709,9 @@ def test_run_gate_summary_schema_and_skips():
     }])
     out = mb.run_gate(spec, pool=POOL, comparators=["codex/default"], run=run)
     assert set(out) == {"total_claims", "converged", "unconverged", "clean_first_pass",
-                        "needed_iteration", "dropped_claims", "family_pool", "matrix"}
+                        "needed_iteration", "dropped_claims", "family_pool",
+                        "unavailable_backends", "matrix"}
+    assert out["unavailable_backends"] == []  # healthy run: nothing was dropped
     assert out["total_claims"] == 1   # 2 malformed claims skipped
     assert out["dropped_claims"] == 2
     assert out["converged"] == 1
@@ -728,3 +730,60 @@ def test_run_gate_max_iter_override_zero_disables_iteration():
                       run=run, max_iter_override=0)
     assert out["matrix"][0]["iterate_rounds"] == 0
     assert out["converged"] == 0
+
+
+def test_run_gate_drops_backend_after_consecutive_failures():
+    """A backend that keeps failing at the infrastructure level (None = timeout/blank/crash) is
+    dropped from the deriver pool after _BACKEND_DISABLE_AFTER consecutive failures, instead of
+    being re-tried on every later claim and tie-break round. Recorded in unavailable_backends."""
+    good_cmp = {
+        "majority_answer": "42", "majority_size": 2, "majority_indices": [0, 1], "all_equivalent": True,
+        "outliers": "none", "correct_answer_adjudicated": "42", "adjudicated_matches_majority": True,
+    }
+    calls = {"gemini": 0}
+
+    def run(spec, system, prompt, tag):
+        fam = mb.family_of(spec)
+        if fam == "gemini":
+            calls["gemini"] += 1
+            return None  # backend-level failure every time
+        if "compare" in tag:
+            return "```json\n" + json.dumps(good_cmp) + "\n```"
+        return json.dumps({"canonical_answer": "42", "derivation_summary": "did it", "confidence": "high"})
+
+    claims = [dict(CLAIM, id=f"T{i}") for i in range(4)]
+    # gemini first in the pool, so it is seeded for claim after claim until the tracker trips.
+    out = mb.run_gate({"context": "", "claims": claims},
+                      pool=["gemini/default", "claude/default", "codex/default"],
+                      comparators=["codex/default"], run=run)
+    # Threshold is 2 consecutive failures: gemini is tried while below it, then never selected again.
+    assert calls["gemini"] == mb._BACKEND_DISABLE_AFTER
+    assert out["unavailable_backends"] == [
+        {"spec": "gemini/default", "consecutive_failures": mb._BACKEND_DISABLE_AFTER}
+    ]
+    # The surviving families still satisfy R1, so the gate itself keeps converging honestly.
+    assert out["converged"] == len(claims)
+
+
+def test_run_gate_degraded_pool_reports_unconverged_not_success():
+    """When failures shrink the pool below two distinct families, claims stay unconverged and the
+    matrix says WHY (unavailable_backends), rather than reporting a passed-looking result."""
+    good_cmp = {
+        "majority_answer": "42", "majority_size": 1, "majority_indices": [0], "all_equivalent": True,
+        "outliers": "", "correct_answer_adjudicated": "42", "adjudicated_matches_majority": True,
+    }
+
+    def run(spec, system, prompt, tag):
+        if mb.family_of(spec) == "gemini":
+            return None
+        if "compare" in tag:
+            return "```json\n" + json.dumps(good_cmp) + "\n```"
+        return json.dumps({"canonical_answer": "42", "derivation_summary": "did it", "confidence": "high"})
+
+    claims = [dict(CLAIM, id=f"T{i}") for i in range(3)]
+    out = mb.run_gate({"context": "", "claims": claims},
+                      pool=["gemini/default", "claude/default"],
+                      comparators=["claude/default"], run=run)
+    assert out["converged"] == 0  # single surviving family can never satisfy R1
+    assert [d["spec"] for d in out["unavailable_backends"]] == ["gemini/default"]
+    assert all(not r["converged"] for r in out["matrix"])
