@@ -518,7 +518,11 @@ its `gaia_package_ref`. Display the posterior value rounded to three decimals
 for humans, while the exact machine value remains in JSON artifacts and the
 idea-store snapshot. When the render step produced one, it also links the
 viewable argument graph (`starmap.html`) so a reader can open the graph the
-posterior came from.
+posterior came from. Treat the graph page as a topology and audit surface —
+what supports the graph's structure and where each number came from — not as
+the primary decision surface: the decision-readable statements (what raises
+the posterior, what lowers it, what evidence is still required) belong in
+this report and in the portfolio status report below.
 
 The report must include a close-prior matrix. For every close prior, list the
 reference/link, read status, source link, locator, same-scope status, supported
@@ -572,6 +576,42 @@ earns its place only if a reader can reach it in one click:
 A report that names a source or artifact without a link has failed its one job
 — the reachability question below cannot then be answered without the very
 re-search the report existed to save.
+
+## Portfolio status report — one page across all ideas
+
+Per-idea posterior reports answer "why is this idea's posterior what it is";
+the portfolio question — *which idea deserves the next unit of effort, and
+what is holding each one back* — needs one page across all nodes. Build it
+from the campaign store instead of hand-maintaining a status table that must
+be rewritten every time evidence lands:
+
+```bash
+python3 skills/idea-posterior/scripts/build_portfolio_status_report.py \
+  --nodes <idea-store>/campaigns/<campaign_id>/nodes_latest.json \
+  --project-root <project_root> \
+  --out-md artifacts/<campaign>/portfolio_status_report_v1.md \
+  --out-json artifacts/<campaign>/portfolio_status_report_v1.json
+```
+
+Per node it renders: lifecycle state, literature-coverage status, the store
+posterior (three decimals for humans; exact machine values in the JSON
+artifact), a relative link to the graph page, and — read directly from the
+compiled graph — the top support and top lowering drivers, each with its
+signed strength and the author's recorded reasoning. Two disciplines are
+built in:
+
+- **Score families stay separate.** The table shows the store posterior with
+  its recorded status; nodes without a written-back posterior show a
+  placeholder, never a triage number promoted into the posterior column.
+- **Stale posteriors are flagged, not trusted.** When the graph's current
+  root belief no longer equals the stored posterior, the row is flagged: the
+  stored value is historical evidence, not allocation guidance, until the
+  posterior is re-extracted and written back.
+
+Run the same two normalizers on this report as on posterior reports, and
+check deterministic Markdown hygiene (math escaping, link portability) with
+the markdown-hygiene skill before committing or handing the report to
+another host.
 
 ## Review: audit anchors, not scores
 
