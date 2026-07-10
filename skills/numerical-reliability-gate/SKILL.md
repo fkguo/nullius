@@ -94,7 +94,13 @@ Each check names its own minimum disconfirming test — never accept a number be
   **Which LLM/engine runs a method is not the cross-check axis — the *route* is.** `>=2` orthogonal methods
   run by ONE LLM is a valid G2 floor (parallelize them across same-model subagents if useful, one method
   each — the independence lives in the method, never in the agent label), so a single-LLM host is never
-  blocked here; two subagents (or two LLMs) running the *same* algorithm are one check, not two. A
+  blocked here; two subagents (or two LLMs) running the *same* algorithm are one check, not two. **A language
+  port is not a second method either:** re-implementing the same algorithm line-for-line in another language keeps the same
+  representation, discretization, and algorithmic route — it inherits the original's conceptual errors and
+  counts as an implementation check (useful against coding slips), never as the second G2 method. Every G2
+  record therefore states, in a sentence, what methodologically differs between the two routes
+  (representation / algorithm / discretization / basis); "same method, different language" disqualifies the
+  pair. A
   **cross-LLM (different model-family)** independent re-implementation is the *ceiling* — it additionally
   decorrelates the coding-style, transcription, and library error two methods inside ONE LLM can still share —
   reached for a load-bearing number when a second LLM family is available, its absence recorded as a stated
