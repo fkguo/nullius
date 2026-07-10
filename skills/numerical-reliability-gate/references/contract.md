@@ -54,6 +54,19 @@ and MUST equal the filename's `_vN` (ART-02). Write atomically (ART-03).
       // G5 — degeneracy honesty (null if no flat directions).
       "degeneracy": null,
 
+      // G6 — complete configuration provenance. REQUIRED when recorded_value is a connected/pooled
+      // series assembled from more than one checkpoint or run; null for a genuinely scalar/single-run
+      // quantity. The fingerprint is over canonical serialized content, not a timestamp or run label.
+      // { "scope": "connected_series",
+      //   "fingerprint_schema": "sha256(canonical JSON of model/branch, every integration and solver setting, source/dependency hashes, and transformation)",
+      //   "fingerprint_inputs": ["model_and_branch", "nested_resolution_settings", "solver_settings", "source_hashes", "dependency_hashes", "transformation"],
+      //   "point_fingerprints_artifact": "series_point_fingerprints.csv",
+      //   "unique_fingerprints": ["<one hex digest>"],
+      //   "all_points_fingerprinted": true,
+      //   "homogeneous": true,
+      //   "check_command": "python3 check_series_provenance.py --data series_point_fingerprints.csv" }
+      "configuration_provenance": null,
+
       // G7 — method-validity precondition at the production setting. null if the method carries no
       // operator/structural precondition; else REQUIRED for a `reliable` verdict (see the G7 field rule).
       // When present:
@@ -167,7 +180,7 @@ and MUST equal the filename's `_vN` (ART-02). Write atomically (ART-03).
 
 | verdict | meaning | foldable? |
 |---|---|---|
-| `reliable` | passed **every applicable** G1–G10 check at the converged setting — including the G4 anchor, G6 non-staleness, the G7 production-scale method-precondition, the G8 reference-match where a published-value match is claimed, the G9 gate-discrimination audit where trust rests on a purpose-built validation chain, and the G10 fast-path scoping where the value comes from an accelerated/heuristic path, not only G1–G3 | **yes** |
+| `reliable` | passed **every applicable** G1–G10 check at the converged setting — including the G4 anchor, G6 non-staleness and connected-series fingerprint homogeneity, the G7 production-scale method-precondition, the G8 reference-match where a published-value match is claimed, the G9 gate-discrimination audit where trust rests on a purpose-built validation chain, and the G10 fast-path scoping where the value comes from an accelerated/heuristic path, not only G1–G3 | **yes** |
 | `mirage` | a candidate optimum/feature that did not survive G1 refinement | no |
 | `unconverged` | value still moving as the resolution is refined (G1) | no |
 | `method_disagreement` | orthogonal methods (G2) do not agree and the discrepancy is unexplained | no |
@@ -175,6 +188,7 @@ and MUST equal the filename's `_vN` (ART-02). Write atomically (ART-03).
 | `anchor_failed` | the reference/default configuration did not reproduce its known anchor (G4), so no variation built on it can be trusted | no |
 | `degenerate` | a flat-direction parameter quoted as if determined (G5 violation) — report the robust observable instead | no |
 | `stale_artifact` | the record's code/input version or timestamp does not match the current run (G6 provenance) — recompute before trusting | no |
+| `heterogeneous_series` | points were connected, pooled, interpolated, fitted, or summarized across missing/different complete evaluator fingerprints (G6); matching visible grid labels is insufficient — recompute under one fingerprint or split the configurations into separately identified series | no |
 | `precondition_violated` | a structural property the method's validity rests on (commutation with a projector/symmetrizer, Hermiticity, self-adjointness, idempotency, unitarity, variational/Galerkin-subspace invariance) fails — or was only tested at a smaller/cheaper setting than the value — at the production setting/config (G7); the value is **invalid**, not approximate, even if G1-converged | no |
 | `reference_mismatch` | the value claims to reproduce/match a **published reference number** but the claimed observable, recomputed on a comparable state/regime and compared numerically (G8), differs by an order of magnitude in the same direction or by a sign — a qualitative "same scale / same sign" assertion, or citing the source, does not discharge G8; the match claim is **overstated**, not established | no |
 | `circular_validation` | the validation chain invoked to trust the value fails the G9 audit: its reference was co-derived with (or reverse-engineered from) the assumption under test, its comparison mode projects out the disputed structure, it has never rejected a known-wrong variant (no negative control), or it certifies a different layer / code path than the recorded value's — the "validated" status is **void** (the gate carried no information about the disputed structure) and the value reverts to a labeled candidate | no |
@@ -188,6 +202,18 @@ is a **labeled candidate** kept for follow-up or discarded — never silently pr
 - `refinement` MUST contain `>=2` settings spanning at least a 2–3× range of the dominant knob (resolution
   **or** size/extent/parity, whichever the value or its precondition could depend on) for any
   `converged: true`. A single setting can never establish convergence.
+- **G6 configuration provenance (when applicable)**: any connected line/trajectory, interpolation, fit,
+  pooled statistic, or downstream summary assembled from more than one checkpoint/run MUST carry a
+  `configuration_provenance` object. Every point must have a fingerprint computed from canonical
+  serialized content that includes the model and branch/sheet, all top-level and nested/defaulted
+  integration/discretization settings, solver settings, source/dependency hashes, and the transformation
+  into the recorded quantity. `all_points_fingerprinted` and `homogeneous` MUST both be `true`, and
+  `unique_fingerprints` MUST contain exactly one digest, for a `reliable` verdict. A timestamp, run id,
+  filename, or subset of visible knobs is not a complete fingerprint. Missing or mixed fingerprints give
+  verdict `heterogeneous_series`; the repair is a uniform recomputation or separately identified/faceted
+  series, never graphical smoothing or selective point replacement. A scalar or a result produced wholly
+  within one fingerprinted run may leave the field `null`, with that run fingerprint recorded in
+  `recorded_setting` or `notes`.
 - **G7 method-precondition (when applicable)**: for any `reliable` verdict whose method's validity rests on
   a structural property (commutation with a projector/symmetrizer, Hermiticity, self-adjointness,
   idempotency, unitarity, variational-subspace invariance), the matrix MUST record that property's

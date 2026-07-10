@@ -144,6 +144,16 @@ Each check names its own minimum disconfirming test — never accept a number be
   grid/node/method/contour. A coarse, intermediate, or non-converged number is **labeled as such or
   discarded** — never silently reused. Check a reused artifact's timestamp against the current code
   version before trusting it (a stale artifact from a since-fixed bug reads as current truth otherwise).
+  **Connected-series homogeneity is fail-closed.** Before joining points from several runs into one line,
+  trajectory, interpolation, fit, or downstream summary, require every joined point to carry the same
+  complete evaluator fingerprint. The fingerprint covers the scientific model and branch/sheet choice,
+  all integration/discretization and solver settings (including nested/defaulted settings), source and
+  dependency hashes, and the transformation that produced the plotted quantity. Matching a few visible
+  knobs or a human-readable method label is not enough. If fingerprints differ or any point lacks one,
+  do not connect or pool the points: recompute under one fingerprint, or present the configurations as
+  separate/faceted series with the difference stated. A smooth insensitive observable does not validate
+  a heterogeneous series; audit every plotted/output component because a more sensitive component can
+  expose the mismatch.
 - **G7 — Method-precondition at the production setting.** When a result's validity rests on a structural
   property of the operator/method — an operator commuting with a projector or symmetrizer, Hermiticity,
   self-adjointness, idempotency, unitarity, positivity, a variational/Galerkin subspace being invariant
@@ -309,8 +319,8 @@ Emit one auditable record per gated quantity, conforming to
 value), the orthogonal-method values and whether they agree, any invariant check, the regression-anchor
 result, a degeneracy note, the recorded converged value, and a `verdict ∈ reliable | mirage |
 unconverged | method_disagreement | fragile_method | anchor_failed | degenerate | stale_artifact |
-precondition_violated | reference_mismatch | circular_validation | overclaimed_heuristic`
-(`reliable` requires every *applicable* G1–G10 check to pass — including the G4 anchor, G6 non-staleness, the G7 production-scale precondition, the G8 reference-match when a published-value match is claimed, the G9 gate-discrimination audit when trust rests on a purpose-built validation chain, and the G10 fast-path scoping when the value comes from an accelerated/heuristic path,
+heterogeneous_series | precondition_violated | reference_mismatch | circular_validation | overclaimed_heuristic`
+(`reliable` requires every *applicable* G1–G10 check to pass — including the G4 anchor, G6 non-staleness and connected-series fingerprint homogeneity, the G7 production-scale precondition, the G8 reference-match when a published-value match is claimed, the G9 gate-discrimination audit when trust rests on a purpose-built validation chain, and the G10 fast-path scoping when the value comes from an accelerated/heuristic path,
 not only G1–G3). Only `reliable` rows may be folded into the durable record; everything else is a labeled
 candidate or is discarded.
 
@@ -373,6 +383,11 @@ carried only by the caller's context), each a way an agreement-based check gave 
   error raised — caught only by tracing a few-percent gap to a reference. **G6/G7** — thread configuration
   explicitly and assert end-to-end that the requested setting actually reaches every stage; a silent default
   is a converged-but-wrong trap;
+- a connected curve was assembled from checkpoints produced by several runs that agreed on the visible
+  headline grid settings but lacked a shared full evaluator fingerprint. One plotted component remained
+  smooth while a more sensitive component developed kinks. **G6** — compare a canonical per-point
+  evaluator fingerprint before joining rows, fail on missing or mixed fingerprints, and recompute the
+  whole connected series under one fingerprint rather than smoothing or selectively replacing points;
 - a feature's width/strength was **extracted from a window/region that did not contain the feature's
   peak/root**, so shoulder/background data fed the extractor and several methods produced a wide,
   method-dependent spread later reported as a genuine width; **locating the feature first** (and bracketing
