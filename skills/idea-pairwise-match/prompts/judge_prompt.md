@@ -2,9 +2,8 @@
 
 Two research ideas, labeled Idea A and Idea B, are compared under criteria
 that were committed to disk before any statement was drafted and before any
-judge ran. You are one judge on a panel drawn from different model families.
-Your vote is independent: every judge receives these same materials and
-nothing else.
+judge ran. You are one judge on a panel of independent judges. Your vote is
+independent: every judge receives these same materials and nothing else.
 
 ## Committed criteria (binding)
 

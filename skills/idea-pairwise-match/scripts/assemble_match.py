@@ -2,9 +2,11 @@
 """Tally the judge panel and write the pairwise_match_v1 artifact.
 
 This script closes protocol Step 4: it re-verifies the integrity thread
-(commitment hash on every vote, vote timestamps after the commitment,
-distinct families, at least MIN_FAMILIES of them), computes the outcome,
-validates the artifact field by field, and writes it to
+(commitment hash on every vote, vote timestamps after the commitment, and
+the panel composition against the run report: at least MIN_FAMILIES distinct
+families on a cross-family panel, or at least MIN_FAMILIES numbered seats of
+the one native family on a degraded single-family panel), computes the
+outcome, validates the artifact field by field, and writes it to
 
     <campaign>/artifacts/matches/match-<match_id>.json
 
@@ -40,7 +42,8 @@ import commit_criteria  # noqa: E402
 import run_panel  # noqa: E402
 
 MIN_FAMILIES = run_panel.MIN_FAMILIES
-FAMILIES = run_panel.FAMILIES
+FAMILY_LABEL_RE = run_panel.FAMILY_LABEL_RE
+INDEPENDENCE_MODES = run_panel.INDEPENDENCE_MODES
 VOTE_VALUES = run_panel.VOTE_VALUES
 ANCHOR_TYPES = run_panel.ANCHOR_TYPES
 
@@ -83,8 +86,13 @@ PANEL_ENTRY_KEYS = {
     "anchored_arguments",
     "unanchored_arguments_discarded",
 }
+# A single-family (native subagent) panel numbers its seats; a cross-family
+# panel must not carry the key at all.
+PANEL_ENTRY_OPTIONAL_KEYS = {"seat"}
 ARGUMENT_KEYS = {"argument", "anchor_type", "anchor_ref"}
 OUTCOME_KEYS = {"winner", "vote_margin", "decided_at"}
+PANEL_INDEPENDENCE_KEYS = {"mode", "families_present", "families_absent"}
+ABSENT_ENTRY_KEYS = {"family", "reason"}
 TOP_REQUIRED_KEYS = {
     "match_id",
     "campaign_id",
@@ -92,6 +100,7 @@ TOP_REQUIRED_KEYS = {
     "idea_b_node_id",
     "criteria_commitment",
     "panel",
+    "panel_independence",
     "independent_runners",
     "outcome",
     "observation_write",
@@ -214,19 +223,105 @@ def validate_pairwise_match(obj):
                 obj["criteria_commitment"]["committed_at"]
             )
 
+    # panel_independence is validated before the panel because the panel's
+    # diversity rules depend on its mode.
+    independence_mode = None
+    families_present = None
+    if "panel_independence" in obj:
+        block = obj["panel_independence"]
+        if not isinstance(block, dict):
+            errors.append("panel_independence is not an object")
+        else:
+            unknown_block = sorted(set(block) - PANEL_INDEPENDENCE_KEYS)
+            if unknown_block:
+                errors.append(
+                    "panel_independence has unknown keys: %s"
+                    % ", ".join(unknown_block)
+                )
+            for key in sorted(PANEL_INDEPENDENCE_KEYS - set(block)):
+                errors.append("panel_independence is missing key: %s" % key)
+            mode = block.get("mode")
+            if "mode" in block:
+                if mode not in INDEPENDENCE_MODES:
+                    errors.append(
+                        "panel_independence.mode must be one of %s"
+                        % ", ".join(INDEPENDENCE_MODES)
+                    )
+                else:
+                    independence_mode = mode
+            present = block.get("families_present")
+            if "families_present" in block:
+                if not isinstance(present, list) or not present:
+                    errors.append(
+                        "panel_independence.families_present must be a non-empty array"
+                    )
+                elif not all(
+                    isinstance(f, str) and FAMILY_LABEL_RE.fullmatch(f) for f in present
+                ):
+                    errors.append(
+                        "panel_independence.families_present entries must be family "
+                        "labels matching %s" % FAMILY_LABEL_RE.pattern
+                    )
+                elif len(set(present)) != len(present):
+                    errors.append(
+                        "panel_independence.families_present lists a family twice"
+                    )
+                else:
+                    families_present = present
+            absent = block.get("families_absent")
+            if "families_absent" in block:
+                if not isinstance(absent, list):
+                    errors.append(
+                        "panel_independence.families_absent must be an array"
+                    )
+                else:
+                    absent_families = []
+                    for a_index, item in enumerate(absent):
+                        a_where = "panel_independence.families_absent[%d]" % a_index
+                        if not isinstance(item, dict):
+                            errors.append("%s is not an object" % a_where)
+                            continue
+                        unknown_item = sorted(set(item) - ABSENT_ENTRY_KEYS)
+                        if unknown_item:
+                            errors.append(
+                                "%s has unknown keys: %s"
+                                % (a_where, ", ".join(unknown_item))
+                            )
+                        family = item.get("family")
+                        if not isinstance(family, str) or not FAMILY_LABEL_RE.fullmatch(family):
+                            errors.append(
+                                "%s.family must be a family label matching %s"
+                                % (a_where, FAMILY_LABEL_RE.pattern)
+                            )
+                        else:
+                            absent_families.append(family)
+                        reason = item.get("reason")
+                        if not isinstance(reason, str) or not reason.strip():
+                            errors.append("%s.reason must be a non-empty string" % a_where)
+                    if families_present is not None:
+                        overlap = sorted(set(absent_families) & set(families_present))
+                        if overlap:
+                            errors.append(
+                                "panel_independence lists %s as both present and "
+                                "absent" % ", ".join(overlap)
+                            )
+
     panel_votes = []
     if "panel" in obj:
         panel = obj["panel"]
         if not isinstance(panel, list) or not panel:
             errors.append("panel must be a non-empty array")
         else:
-            seen_families = []
+            entry_families = []
+            entry_seats = []
             for index, entry in enumerate(panel):
                 where = "panel[%d]" % index
                 if not isinstance(entry, dict):
                     errors.append("%s is not an object" % where)
                     continue
-                unknown_entry = sorted(set(entry) - PANEL_ENTRY_KEYS)
+                unknown_entry = sorted(
+                    set(entry) - PANEL_ENTRY_KEYS - PANEL_ENTRY_OPTIONAL_KEYS
+                )
                 if unknown_entry:
                     errors.append(
                         "%s has unknown keys: %s" % (where, ", ".join(unknown_entry))
@@ -234,18 +329,21 @@ def validate_pairwise_match(obj):
                 for key in sorted(PANEL_ENTRY_KEYS - set(entry)):
                     errors.append("%s is missing key: %s" % (where, key))
                 family = entry.get("reviewer_family")
-                if family not in FAMILIES:
+                if not isinstance(family, str) or not FAMILY_LABEL_RE.fullmatch(family):
                     errors.append(
-                        "%s.reviewer_family must be one of %s"
-                        % (where, ", ".join(FAMILIES))
-                    )
-                elif family in seen_families:
-                    errors.append(
-                        "%s.reviewer_family %r appears more than once (one vote "
-                        "per family)" % (where, family)
+                        "%s.reviewer_family must be a family label matching %s"
+                        % (where, FAMILY_LABEL_RE.pattern)
                     )
                 else:
-                    seen_families.append(family)
+                    entry_families.append(family)
+                if "seat" in entry:
+                    seat = entry["seat"]
+                    if isinstance(seat, bool) or not isinstance(seat, int) or seat < 1:
+                        errors.append("%s.seat must be an integer >= 1" % where)
+                    else:
+                        entry_seats.append((index, seat))
+                else:
+                    entry_seats.append((index, None))
                 model = entry.get("model")
                 if not isinstance(model, str) or not model.strip():
                     errors.append("%s.model must be a non-empty string" % where)
@@ -288,14 +386,72 @@ def validate_pairwise_match(obj):
                         "%s.unanchored_arguments_discarded must be an integer >= 0"
                         % where
                     )
-            if len(seen_families) < MIN_FAMILIES:
-                errors.append(
-                    "panel has %d distinct families; a valid match needs at "
-                    "least %d" % (len(seen_families), MIN_FAMILIES)
-                )
+
+            if independence_mode == "cross_family":
+                seen = set()
+                for family in entry_families:
+                    if family in seen:
+                        errors.append(
+                            "reviewer_family %r appears more than once (one vote "
+                            "per family on a cross-family panel)" % family
+                        )
+                    seen.add(family)
+                if len(seen) < MIN_FAMILIES:
+                    errors.append(
+                        "panel has %d distinct families; a valid match needs at "
+                        "least %d" % (len(seen), MIN_FAMILIES)
+                    )
+                for index, seat in entry_seats:
+                    if seat is not None:
+                        errors.append(
+                            "panel[%d] carries a seat number; cross-family "
+                            "panels do not number seats" % index
+                        )
+                if families_present is not None and seen != set(families_present):
+                    errors.append(
+                        "panel families %s do not match "
+                        "panel_independence.families_present %s"
+                        % (sorted(seen), sorted(families_present))
+                    )
+            elif independence_mode == "single_family":
+                if len(panel) < MIN_FAMILIES:
+                    errors.append(
+                        "a single-family panel has %d seats; a valid degraded "
+                        "match needs at least %d" % (len(panel), MIN_FAMILIES)
+                    )
+                if len(set(entry_families)) > 1:
+                    errors.append(
+                        "a single-family panel mixes families %s"
+                        % sorted(set(entry_families))
+                    )
+                if families_present is not None and entry_families:
+                    if set(entry_families) != set(families_present) or len(families_present) != 1:
+                        errors.append(
+                            "panel_independence.families_present %s does not "
+                            "match the single panel family %s"
+                            % (sorted(families_present), sorted(set(entry_families)))
+                        )
+                seats_seen = set()
+                for index, seat in entry_seats:
+                    if seat is None:
+                        errors.append(
+                            "panel[%d] is missing its seat number; single-family "
+                            "seats must be numbered" % index
+                        )
+                    elif seat in seats_seen:
+                        errors.append(
+                            "panel seat %d appears more than once" % seat
+                        )
+                    else:
+                        seats_seen.add(seat)
 
     if "independent_runners" in obj and not isinstance(obj["independent_runners"], bool):
         errors.append("independent_runners must be a boolean")
+    if independence_mode == "single_family" and obj.get("independent_runners") is True:
+        errors.append(
+            "a single_family panel cannot record independent_runners=true; "
+            "native subagent seats are never independent runners"
+        )
 
     decided_at = None
     if "outcome" in obj:
@@ -406,27 +562,106 @@ def validate_pairwise_match(obj):
 # Vote-record loading (run_panel wrapper files)
 # ---------------------------------------------------------------------------
 
-def load_vote_records(votes_dir, commitment):
-    """Load votes/*.json wrappers and re-verify the integrity thread."""
+def load_vote_records(votes_dir, commitment, report):
+    """Load the vote files the panel run report names and re-verify the
+    integrity thread.
+
+    The report's votes_collected map is the run's own manifest of the votes
+    it wrote: loading exactly those files (and refusing when the votes
+    directory holds any other vote file) keeps a stale vote from an earlier
+    run in the same directory out of the artifact. The diversity rules depend
+    on the report's composition record: a cross-family panel takes one vote
+    per distinct family and no seat numbers; a single-family (degraded native
+    subagent) panel takes numbered, distinct seats that all belong to the
+    report's single present family. The vote floor is the report's own
+    min_families (never below the protocol floor MIN_FAMILIES).
+    """
     votes_dir = Path(votes_dir)
-    paths = sorted(votes_dir.glob("*.json"))
-    if not paths:
-        raise MatchError("no vote files found in %s" % votes_dir)
+    independence_mode = report["independence"]
+    families_present = report["families_present"]
+    # Vote paths in the report are relative to the panel directory (the
+    # parent of votes/), e.g. "votes/claude.json", and must stay inside the
+    # votes directory: a manifest entry that is absolute, climbs upward, or
+    # resolves elsewhere (a symlink) would let a malformed report import a
+    # vote file from outside the panel.
+    panel_dir = votes_dir.parent
+    votes_root = votes_dir.resolve()
+    paths = []
+    for key in sorted(report["votes_collected"]):
+        rel = Path(report["votes_collected"][key])
+        if rel.is_absolute() or ".." in rel.parts:
+            raise MatchError(
+                "panel run report names a vote path that escapes the panel "
+                "directory: %r" % str(rel)
+            )
+        path = panel_dir / rel
+        if not path.is_file():
+            raise MatchError(
+                "vote file %s is named by the panel run report but missing "
+                "on disk" % path
+            )
+        if not path.resolve().is_relative_to(votes_root):
+            raise MatchError(
+                "vote file %s resolves outside the votes directory %s; a "
+                "vote must live inside the panel that produced it"
+                % (path, votes_dir)
+            )
+        paths.append(path)
+    listed = {path.resolve() for path in paths}
+    stray = [
+        path for path in sorted(votes_dir.glob("*.json"))
+        if path.resolve() not in listed
+    ]
+    if stray:
+        raise MatchError(
+            "vote files not named by the panel run report: %s; a stale or "
+            "foreign vote never enters an artifact — clean the panel "
+            "directory or assemble from the matching report"
+            % ", ".join(str(path) for path in stray)
+        )
     committed_at = commit_criteria.parse_rfc3339(commitment["committed_at"])
     records = []
     seen_families = set()
+    seen_seats = set()
     for path in paths:
         try:
             record = json.loads(path.read_text(encoding="utf-8"))
         except json.JSONDecodeError as exc:
             raise MatchError("%s is not valid JSON: %s" % (path, exc))
         family = record.get("reviewer_family")
-        if family not in FAMILIES:
-            raise MatchError("%s: reviewer_family must be one of %s" % (path, ", ".join(FAMILIES)))
-        if family in seen_families:
+        if not isinstance(family, str) or not FAMILY_LABEL_RE.fullmatch(family):
             raise MatchError(
-                "duplicate vote for family %r (%s); one vote per family" % (family, path)
+                "%s: reviewer_family must be a family label matching %s"
+                % (path, FAMILY_LABEL_RE.pattern)
             )
+        if independence_mode == "cross_family":
+            if "seat" in record:
+                raise MatchError(
+                    "%s carries a seat number, but the panel run report says "
+                    "this was a cross-family panel" % path
+                )
+            if family in seen_families:
+                raise MatchError(
+                    "duplicate vote for family %r (%s); one vote per family"
+                    % (family, path)
+                )
+        else:
+            if family != families_present[0]:
+                raise MatchError(
+                    "%s: vote from family %r, but the single-family panel "
+                    "belongs to %r" % (path, family, families_present[0])
+                )
+            seat = record.get("seat")
+            if isinstance(seat, bool) or not isinstance(seat, int) or seat < 1:
+                raise MatchError(
+                    "%s: a single-family seat vote must carry an integer "
+                    "seat >= 1" % path
+                )
+            if seat in seen_seats:
+                raise MatchError(
+                    "duplicate seat %d (%s); one vote per seat" % (seat, path)
+                )
+            seen_seats.add(seat)
         seen_families.add(family)
         model = record.get("model")
         if not isinstance(model, str) or not model.strip():
@@ -451,13 +686,23 @@ def load_vote_records(votes_dir, commitment):
                 "order violated" % (path, collected_at, commitment["committed_at"])
             )
         records.append(record)
-    if len(records) < MIN_FAMILIES:
+    floor = max(MIN_FAMILIES, report["min_families"])
+    if len(records) < floor:
         raise MatchError(
-            "only %d family votes present (minimum %d); the panel is invalid "
-            "and no artifact is written" % (len(records), MIN_FAMILIES)
+            "only %d votes present (minimum %d); the panel is invalid "
+            "and no artifact is written" % (len(records), floor)
         )
-    # Canonical family order for a deterministic artifact.
-    records.sort(key=lambda rec: FAMILIES.index(rec["reviewer_family"]))
+    if seen_families != set(families_present):
+        raise MatchError(
+            "vote families %s do not match the panel run report's "
+            "families_present %s"
+            % (sorted(seen_families), sorted(families_present))
+        )
+    # Canonical order for a deterministic artifact: family label, then seat.
+    if independence_mode == "cross_family":
+        records.sort(key=lambda rec: rec["reviewer_family"])
+    else:
+        records.sort(key=lambda rec: rec["seat"])
     return records
 
 
@@ -503,23 +748,24 @@ def cross_check_materials(materials_dir, commitment, idea_a, idea_b):
     return {"a": binding["a"], "b": binding["b"]}
 
 
-def read_independent_runners(votes_dir):
-    """Read independent_runners from the panel run report next to the votes.
+def read_panel_report(votes_dir):
+    """Read the panel composition record from the run report next to the votes.
 
     run_panel.py writes panel_run_report.json in the panel directory (the
-    parent of votes/), stamping independent_runners = false when a stub-backed
-    or single-model panel was run under the escape hatch. Carrying that flag
-    into the artifact makes a low-diversity panel visible in the artifact
-    itself, so the belief layer can weight the observation's diversity from the
-    record rather than only from a side file. The flag is required: a report
-    that is missing or does not carry a boolean flag stops assembly, because an
-    artifact that silently omitted it could hide a stub-backed panel.
+    parent of votes/). Four of its fields are carried into the artifact so a
+    low-diversity panel is visible in the artifact itself, not only in a side
+    file: independent_runners (false for a stub-backed or single-command
+    panel), independence ("cross_family" or "single_family"), the families
+    that voted, and the absent families with their reasons. All four are
+    required; a report that is missing or malformed stops assembly, because an
+    artifact that silently omitted the composition record could hide a
+    stub-backed or degraded panel.
     """
     report_path = Path(votes_dir).parent / "panel_run_report.json"
     if not report_path.is_file():
         raise MatchError(
             "panel run report not found next to the votes (%s); it carries the "
-            "independent_runners flag that must be recorded in the artifact"
+            "panel composition record that must be written into the artifact"
             % report_path
         )
     try:
@@ -533,7 +779,92 @@ def read_independent_runners(votes_dir):
             "must record whether the family seats were genuinely independent"
             % report_path
         )
-    return flag
+    mode = report.get("independence")
+    if mode not in INDEPENDENCE_MODES:
+        raise MatchError(
+            "%s: independence must be one of %s, got %r"
+            % (report_path, ", ".join(INDEPENDENCE_MODES), mode)
+        )
+    present = report.get("families_present")
+    if (
+        not isinstance(present, list)
+        or not present
+        or not all(isinstance(f, str) and FAMILY_LABEL_RE.fullmatch(f) for f in present)
+        or len(set(present)) != len(present)
+    ):
+        raise MatchError(
+            "%s: families_present must be a non-empty list of distinct family "
+            "labels" % report_path
+        )
+    if mode == "single_family" and len(present) != 1:
+        raise MatchError(
+            "%s: a single-family panel must list exactly one present family, "
+            "got %s" % (report_path, present)
+        )
+    if mode == "single_family" and flag:
+        raise MatchError(
+            "%s records a single-family panel with independent_runners=true; "
+            "native subagent seats never count as independent runners, so "
+            "this report is malformed" % report_path
+        )
+    panel_valid = report.get("panel_valid")
+    if not isinstance(panel_valid, bool):
+        raise MatchError(
+            "%s has no boolean panel_valid flag" % report_path
+        )
+    if not panel_valid:
+        raise MatchError(
+            "%s records panel_valid=false; an invalid panel run is never "
+            "assembled into an artifact" % report_path
+        )
+    min_families = report.get("min_families")
+    if (
+        isinstance(min_families, bool)
+        or not isinstance(min_families, int)
+        or min_families < MIN_FAMILIES
+    ):
+        raise MatchError(
+            "%s: min_families must be an integer >= %d (the panel floor the "
+            "run was held to)" % (report_path, MIN_FAMILIES)
+        )
+    votes_collected = report.get("votes_collected")
+    if (
+        not isinstance(votes_collected, dict)
+        or not votes_collected
+        or not all(
+            isinstance(k, str) and isinstance(v, str) and v.strip()
+            for k, v in votes_collected.items()
+        )
+    ):
+        raise MatchError(
+            "%s: votes_collected must be a non-empty map of vote keys to "
+            "vote file paths" % report_path
+        )
+    absent = report.get("absent")
+    if not isinstance(absent, list):
+        raise MatchError("%s: absent must be an array" % report_path)
+    for index, item in enumerate(absent):
+        if (
+            not isinstance(item, dict)
+            or sorted(item) != sorted(ABSENT_ENTRY_KEYS)
+            or not isinstance(item.get("family"), str)
+            or not FAMILY_LABEL_RE.fullmatch(item["family"])
+            or not isinstance(item.get("reason"), str)
+            or not item["reason"].strip()
+        ):
+            raise MatchError(
+                "%s: absent[%d] must be {family, reason} with a family label "
+                "and a non-empty reason" % (report_path, index)
+            )
+    return {
+        "independent_runners": flag,
+        "independence": mode,
+        "families_present": present,
+        "absent": absent,
+        "min_families": min_families,
+        "votes_collected": votes_collected,
+        "report_path": report_path,
+    }
 
 
 def find_existing_match(campaign_dir, idea_a, idea_b):
@@ -570,16 +901,15 @@ def assemble(
     rationale=None,
     materials_dir=None,
     decided_at=None,
-    independent_runners=None,
 ):
     """Assemble, validate, and write the pairwise_match_v1 artifact.
 
     Returns (artifact_path, artifact, tier, tier_label).
     Raises MatchError on any protocol violation.
 
-    independent_runners is recorded as a required top-level field. When not
-    passed explicitly it is read from panel_run_report.json next to the votes;
-    a caller (a test) may pass a boolean to bypass that lookup.
+    The panel composition record (independent_runners, independence mode,
+    present and absent families) is always read from panel_run_report.json
+    next to the votes and written into the artifact.
     """
     commitment = json.loads(Path(commitment_path).read_text(encoding="utf-8"))
     problems = commit_criteria.validate_commitment(commitment)
@@ -609,12 +939,9 @@ def assemble(
             materials_dir, commitment, idea_a, idea_b
         )
 
-    records = load_vote_records(votes_dir, commitment)
-
-    if independent_runners is None:
-        independent_runners = read_independent_runners(votes_dir)
-    elif not isinstance(independent_runners, bool):
-        raise MatchError("independent_runners must be a boolean")
+    report = read_panel_report(votes_dir)
+    records = load_vote_records(votes_dir, commitment, report)
+    independent_runners = report["independent_runners"]
 
     existing = find_existing_match(campaign_dir, idea_a, idea_b)
     if existing is not None and not rationale:
@@ -627,16 +954,18 @@ def assemble(
     tally = tally_votes([record["vote"] for record in records])
     tier, tier_label = observation_tier(tally)
 
-    panel = [
-        {
+    panel = []
+    for record in records:
+        entry = {
             "reviewer_family": record["reviewer_family"],
             "model": record["model"],
             "vote": record["vote"],
             "anchored_arguments": record["anchored_arguments"],
             "unanchored_arguments_discarded": record["unanchored_arguments_discarded"],
         }
-        for record in records
-    ]
+        if report["independence"] == "single_family":
+            entry["seat"] = record["seat"]
+        panel.append(entry)
 
     artifact = {
         "match_id": match_id,
@@ -645,6 +974,11 @@ def assemble(
         "idea_b_node_id": idea_b,
         "criteria_commitment": commitment,
         "panel": panel,
+        "panel_independence": {
+            "mode": report["independence"],
+            "families_present": report["families_present"],
+            "families_absent": report["absent"],
+        },
         "independent_runners": independent_runners,
         "outcome": {
             "winner": tally["winner"],
@@ -718,16 +1052,24 @@ def main(argv=None):
 
     outcome = artifact["outcome"]
     for entry in artifact["panel"]:
+        voter = entry["reviewer_family"]
+        if "seat" in entry:
+            voter = "%s seat %d" % (voter, entry["seat"])
         print(
             "vote: %s (%s) -> %s, %d anchored arguments credited, %d unanchored discarded"
             % (
-                entry["reviewer_family"],
+                voter,
                 entry["model"],
                 entry["vote"],
                 len(entry["anchored_arguments"]),
                 entry["unanchored_arguments_discarded"],
             )
         )
+    independence = artifact["panel_independence"]
+    print(
+        "panel independence: %s (present: %s)"
+        % (independence["mode"], ", ".join(independence["families_present"]))
+    )
     print("winner: %s (vote_margin %.4f)" % (outcome["winner"], outcome["vote_margin"]))
     print("observation: %s" % tier_label)
     print("artifact: %s" % artifact_path)

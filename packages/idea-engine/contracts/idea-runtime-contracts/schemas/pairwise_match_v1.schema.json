@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "pairwise_match_v1.schema.json",
   "title": "PairwiseMatch v1",
-  "description": "Record of one cross-family pairwise comparison between two idea nodes under pre-committed review criteria. Each panel seat votes with anchored arguments only (literature or computation anchors); unanchored arguments are discarded and counted. The outcome is written back to the external belief graph as an observation.",
+  "description": "Record of one judged pairwise comparison between two idea nodes under pre-committed review criteria. The panel is drawn from the third-party agent roster (agents.json): normally one seat per distinct model family, or — when the roster cannot field the cross-family floor — numbered native subagent seats of the host family, declared in panel_independence. Each panel seat votes with anchored arguments only (literature or computation anchors); unanchored arguments are discarded and counted. The outcome is written back to the external belief graph as an observation.",
   "type": "object",
   "required": [
     "match_id",
@@ -11,6 +11,7 @@
     "idea_b_node_id",
     "criteria_commitment",
     "panel",
+    "panel_independence",
     "outcome",
     "observation_write",
     "independent_runners"
@@ -62,7 +63,7 @@
     },
     "panel": {
       "type": "array",
-      "description": "One entry per judge vote. A valid match holds at least three votes from DISTINCT model families. JSON Schema cannot express \"families must be distinct\", so minItems: 3 here is only the closest schema-expressible floor; the authoritative check on family diversity and the three-distinct-families rule is the Python validator validate_pairwise_match in skills/idea-pairwise-match/scripts/assemble_match.py.",
+      "description": "One entry per judge vote. A valid cross-family match holds at least three votes from DISTINCT model families; a valid degraded (single-family) match holds at least three numbered native subagent seats of the one host family. JSON Schema cannot express either distinctness rule, so minItems: 3 here is only the closest schema-expressible floor; the authoritative check on panel composition is the Python validator validate_pairwise_match in skills/idea-pairwise-match/scripts/assemble_match.py.",
       "minItems": 3,
       "items": {
         "type": "object",
@@ -75,12 +76,14 @@
         ],
         "properties": {
           "reviewer_family": {
-            "enum": [
-              "claude",
-              "codex",
-              "opencode",
-              "kimi"
-            ]
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]{0,31}$",
+            "description": "Model-family label from the third-party agent roster (agents.json) the panel ran under. The label set is roster-defined, not fixed by this schema; family diversity is checked by validate_pairwise_match."
+          },
+          "seat": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Seat number on a degraded single-family (native subagent) panel; absent on cross-family panels. Seat distinctness is checked by validate_pairwise_match."
           },
           "model": {
             "type": "string",
@@ -172,9 +175,56 @@
       },
       "additionalProperties": false
     },
+    "panel_independence": {
+      "type": "object",
+      "description": "Panel composition record, read from the panel run report at assembly time: whether the panel was cross-family (distinct roster families) or single-family (native subagent seats, after the roster could not field the cross-family floor), which families voted, and which requested families were absent with the recorded reason. Consistency with the panel array is checked by validate_pairwise_match.",
+      "required": [
+        "mode",
+        "families_present",
+        "families_absent"
+      ],
+      "properties": {
+        "mode": {
+          "enum": [
+            "cross_family",
+            "single_family"
+          ]
+        },
+        "families_present": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]{0,31}$"
+          }
+        },
+        "families_absent": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "family",
+              "reason"
+            ],
+            "properties": {
+              "family": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_-]{0,31}$"
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
     "independent_runners": {
       "type": "boolean",
-      "description": "Whether the panel seats resolved to genuinely distinct underlying runner commands. False marks a stub-backed or single-command panel whose votes carry no real cross-family diversity, so the belief layer can weight the observation accordingly. Read from the panel run report at assembly time."
+      "description": "Whether the panel seats resolved to genuinely distinct underlying runner commands. False marks a stub-backed, single-command, or degraded native subagent panel whose votes carry no real cross-family diversity, so the belief layer can weight the observation accordingly. Read from the panel run report at assembly time."
     },
     "statement_binding": {
       "type": "object",
@@ -207,5 +257,26 @@
       "description": "Optional operator-supplied reason for a rematch of the same idea pair, recorded so a repeat observation carries its stated new-evidence justification."
     }
   },
+  "allOf": [
+    {
+      "if": {
+        "required": ["panel_independence"],
+        "properties": {
+          "panel_independence": {
+            "type": "object",
+            "required": ["mode"],
+            "properties": {
+              "mode": { "const": "single_family" }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "independent_runners": { "const": false }
+        }
+      }
+    }
+  ],
   "additionalProperties": false
 }

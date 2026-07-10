@@ -1,16 +1,17 @@
 ---
 name: idea-pairwise-match
-description: Judged pairwise comparison between two research ideas in a campaign. Commit the comparison criteria to disk first (sha256 over the canonicalized list), generate symmetric anchored advocacy statements, collect independent votes from a cross-family judge panel (claude / codex / opencode / kimi, at least three families for a valid match), and write a pairwise_match_v1 artifact whose outcome enters the belief layer as one observation. Arguments without a literature or computation anchor are discarded and counted, never weighed. Use when a campaign needs a relative-merit signal between two idea nodes beyond their individual posteriors, when choosing which of two competing ideas to advance, or when a newly admitted idea needs a calibrated first comparison.
+description: Judged pairwise comparison between two research ideas in a campaign. Commit the comparison criteria to disk first (sha256 over the canonicalized list), generate symmetric anchored advocacy statements, collect independent votes from a judge panel drawn from the third-party agent roster (agents.json; at least three distinct model families for a cross-family match, with an honest single-family native subagent degradation when the roster cannot field that floor), and write a pairwise_match_v1 artifact whose outcome enters the belief layer as one observation. Arguments without a literature or computation anchor are discarded and counted, never weighed. Use when a campaign needs a relative-merit signal between two idea nodes beyond their individual posteriors, when choosing which of two competing ideas to advance, or when a newly admitted idea needs a calibrated first comparison.
 ---
 
 # Idea Pairwise Match (criteria-committed, cross-family judged)
 
 Compare exactly two idea nodes of a campaign under criteria that were
 committed to disk before any advocacy was drafted and before any judge ran,
-with a judge panel drawn from different model families, and record the result
-as a `pairwise_match_v1` artifact. The outcome is an observation for the
-belief layer, never an elimination: the loser keeps living in the campaign
-with a lowered worth, and can win a later match when new evidence arrives.
+with a judge panel drawn from the model families of the third-party agent
+roster, and record the result as a `pairwise_match_v1` artifact. The outcome
+is an observation for the belief layer, never an elimination: the loser keeps
+living in the campaign with a lowered worth, and can win a later match when
+new evidence arrives.
 
 ## What a match measures, and what it does not
 
@@ -163,27 +164,65 @@ a disagreement is printed as a warning.
 This is a rebuild for signal quality, not a security sandbox: see "Scope of
 the rebuild" below.
 
-### Step 3: run the judge panel (cross-family, independent)
+### Step 3: run the judge panel (roster-drawn, independent)
 
 Judges from a single model family correlate: they share training lineage,
 blind spots, and failure shapes, so their agreement overstates the evidence.
-Family diversity is therefore a validity requirement of this protocol, not a
-preference. The four seats, and how each one runs:
+Family diversity is therefore the validity requirement of the normal,
+cross-family panel — not a preference. The one exception is the degraded
+single-family form described under "Validity and honest degradation" below,
+which exists so a roster that cannot field the floor still yields a
+comparison, and which is stamped as degraded everywhere it is recorded.
 
-- claude: preferred as a host subagent; its raw reply is injected with
-  `--claude-vote FILE`. The claude CLI through the launcher is the fallback.
-- codex: through the review-swarm launcher
-  (`skills/review-swarm/scripts/bin/run_multi_task.py`).
-- opencode: through the review-swarm launcher.
-- kimi: directly through `skills/kimi-cli-runner/scripts/run_kimi.sh`, in its
-  isolated working directory; the launcher has no kimi runner today.
+The panel's family list, each family's runner, and each family's model
+string come from the third-party agent roster — an agents.json file, schema
+version 1. Discovery order, first hit wins:
+
+1. an explicit `--roster PATH` argument;
+2. the project-level roster: the first `.nullius/agents.json` found walking
+   up from the materials directory toward the filesystem root;
+3. the user-level roster `~/.nullius/agents.json`;
+4. the built-in pure-native roster: one native seat, recorded under the
+   neutral family label `host`, because `run_panel.py` cannot verify which
+   model family the host actually is and will not guess one. A roster file
+   that declares the real family (for example claude) names it in the
+   records.
+
+A missing file is never an error — the next source applies. A roster file
+that exists but does not parse or validate stops the run loudly, naming the
+file; silently skipping a broken roster would change panel composition
+behind the operator's back. `run_panel.py` reads the roster with its own
+self-contained parser by design; there is no shared roster library.
+
+Each roster family declares its runner (one of native / codex / opencode /
+kimi / gemini / claude-cli), its model strings (a `models` object whose
+`default` entry the panel uses; a family declared `available: false` may
+omit it), and optional notes. Seat execution by runner:
+
+- native: the host family. Its vote is a host subagent's raw reply injected
+  with `--native-vote FILE`; `run_panel.py` never spawns a host subagent
+  itself, and a native seat with no injected file is recorded absent. A
+  roster declares at most one native family. The vote records the roster's
+  declared model string for the native family (what the host is expected to
+  run the subagent as); `--model-label` pins a different record.
+- codex / claude-cli: through the review-swarm launcher
+  (`skills/review-swarm/scripts/bin/run_multi_task.py`), which routes each
+  spec to the matching CLI.
+- opencode / gemini / kimi: directly through each runner script
+  (`skills/opencode-cli-runner/scripts/run_opencode.sh`,
+  `skills/gemini-cli-runner/scripts/run_gemini.sh`,
+  `skills/kimi-cli-runner/scripts/run_kimi.sh`), in their isolated working
+  directories. A model of `default` delegates to that CLI's own configured
+  default model; a pinned model is passed with the runner's strict flag, so
+  a pinned model that is unavailable makes the seat absent instead of being
+  silently replaced by the CLI's default (which, for a multi-provider CLI,
+  might not even belong to the seat's family).
 
 Launcher subprocesses always get `REVIEW_SWARM_NO_AUTO_CONFIG=1`, so a
 project-level review-swarm configuration can never silently change panel
-composition, models, or fallback behavior. Model specs default to each CLI's
-own configured default; pin one explicitly with, for example,
-`--model-spec opencode=some-provider/some-model` when the run must record a
-specific model.
+composition, models, or fallback behavior. `--model-spec FAMILY=MODEL`
+overrides one family's roster model string for a run that must record a
+specific model; `--families` selects a subset of the roster's families.
 
 ```bash
 python3 scripts/run_panel.py --materials-dir WORK --out-dir WORK/panel \
@@ -191,7 +230,7 @@ python3 scripts/run_panel.py --materials-dir WORK --out-dir WORK/panel \
 # host subagent answers WORK/panel/judge_prompt.md (system prompt:
 # WORK/panel/judge_system.md); save its raw reply, then:
 python3 scripts/run_panel.py --materials-dir WORK --out-dir WORK/panel \
-  --claude-vote WORK/panel/claude_vote_raw.txt
+  --native-vote WORK/panel/native_vote_raw.txt
 ```
 
 Every judge receives the identical self-contained prompt (commitment, both
@@ -207,14 +246,42 @@ reason in `panel_run_report.json`.
 
 Validity and honest degradation:
 
-- A match is valid only with votes from at least 3 distinct families.
-- With exactly 3, proceed, and keep the absent family on record.
-- Below 3, `run_panel.py` exits nonzero and the match is terminated; the run
-  report remains as the record of the attempt. `assemble_match.py` enforces
-  the same floor independently.
+- A cross-family match is valid only with votes from at least 3 distinct
+  families (`policy.cross_family_minimum`; a roster may raise this floor,
+  never lower it).
+- With exactly the floor, proceed, and keep the absent families on record.
+- A family the roster declares `available: false` is recorded absent up
+  front, with the roster's own notes as the reason, and is never invoked.
+- If at least the floor's worth of families is available but too many seats
+  fail at run time, `run_panel.py` exits nonzero and the match is
+  terminated; the run report remains as the record of the attempt.
+  `assemble_match.py` enforces the same floor independently.
 - An absent family is never backfilled by a second vote from a present
   family, and never silently substituted by another model of the same
   family lineage.
+- If the roster itself cannot field the floor (fewer available families in
+  the WHOLE roster than `policy.cross_family_minimum` — for example, no
+  roster file exists anywhere, so the built-in pure-native roster applies),
+  the panel degrades per
+  `policy.when_below_minimum = native_subagents` to NATIVE SUBAGENT SEATS:
+  run at least the floor's worth of independent host subagent instances,
+  each answering the rendered judge prompt blind to the other seats, save
+  each raw reply to its own file, and re-run with one `--native-vote FILE`
+  per seat (the first invocation without enough seat files exits with code
+  3 and prints exactly this guidance). Such a panel is stamped
+  `independence = "single_family"` and `independent_runners = false` in
+  `panel_run_report.json`, its vote files carry seat numbers and a sha256 of
+  each seat's raw reply, and the artifact records the same, so a degraded
+  panel can never pass for a cross-family one. The belief layer sees that
+  record and can weight the observation's diversity accordingly. Two guards
+  keep the seats honest: the same reply file given for two seats, or two
+  reply files with byte-identical content, stop the run — independent
+  subagent seats cannot share one reply. A `--families` subset can never
+  force degradation on a roster that could field the floor: such a request
+  just runs a cross-family panel that fails the vote floor. The degraded
+  seats always belong to the roster's native-runner family (which must be
+  available), even when a `--families` subset did not name it; the report
+  records the requested list and the native family side by side.
 - Distinct family labels are not enough on their own: `run_panel.py` also
   checks that the family seats resolve to genuinely different underlying
   commands. If two or more `--runner` seats point at the same command (a
@@ -238,12 +305,22 @@ The winner is the side with more votes; equal counts make the outcome a tie.
 `vote_margin` is the absolute vote difference divided by the number of votes
 cast (tie votes included in the denominator). Before writing anything,
 `assemble_match.py` re-verifies the commitment hash on every vote, the vote
-timestamps, family uniqueness, and the three-family floor; it then validates
-the assembled artifact field by field and writes it with
-`observation_write.written = false`. It also reads `independent_runners` from
-`panel_run_report.json` next to the votes and records it in the artifact
-(refusing if the report is missing or lacks the flag), so a stub-backed or
-single-model panel is visible in the artifact itself.
+timestamps, and the panel composition against the run report: on a
+cross-family panel, family uniqueness and the vote floor (the report's own
+`min_families`, never below three); on a degraded single-family panel,
+numbered distinct seats of the one native family. Assembly loads exactly the
+vote files the report's `votes_collected` map names — a vote file in the
+directory that the report does not name (a stale seat from an earlier run,
+or a foreign file) stops assembly — and refuses a report whose `panel_valid`
+is false. It then validates the assembled artifact field by field and writes
+it with `observation_write.written = false`. It also copies the panel
+composition record from `panel_run_report.json` next to the votes into the
+artifact — `independent_runners`, plus a `panel_independence` block carrying
+the mode (`cross_family` or `single_family`), the families that voted, and
+the absent families with their reasons — refusing if the report is missing
+or incomplete, and refusing a single-family report or artifact that claims
+`independent_runners = true`, so a stub-backed, degraded, or thinned panel
+is visible in the artifact itself and cannot dress itself up.
 
 `--materials-dir` is required, not optional. Assembly cross-checks both
 statements' declared hash and node ids against the commitment and the pair
@@ -320,17 +397,27 @@ Top-level fields (unknown keys are rejected by the validator):
   idea_node_v1 ids); the two node ids must differ.
 - `criteria_commitment`: exactly `{committed_at, criteria, commitment_hash}`
   as written in Step 1; the validator recomputes the hash.
-- `panel`: array with one entry per voting family, each exactly
+- `panel`: array with one entry per vote, each
   `{reviewer_family, model, vote, anchored_arguments,
-  unanchored_arguments_discarded}`; `reviewer_family` one of claude, codex,
-  opencode, kimi, no family twice, at least 3 families for a valid match;
-  `vote` one of `"a"`, `"b"`, `"tie"`; each anchored argument exactly
+  unanchored_arguments_discarded}` plus, on a single-family panel only, a
+  `seat` number. `reviewer_family` is a lowercase family label from the
+  agent roster; on a cross-family panel no family appears twice and at least
+  3 distinct families vote; on a single-family panel all entries carry the
+  one native family and distinct seats, at least 3 of them. `vote` is one of
+  `"a"`, `"b"`, `"tie"`; each anchored argument exactly
   `{argument, anchor_type, anchor_ref}` with `anchor_type` literature or
   computation.
+- `panel_independence`: exactly `{mode, families_present, families_absent}`,
+  copied from `panel_run_report.json` at assembly. `mode` is `cross_family`
+  or `single_family`; `families_present` lists the families that voted;
+  `families_absent` lists each requested family that did not vote as
+  `{family, reason}`. The validator cross-checks this block against the
+  panel array.
 - `independent_runners`: boolean, read from `panel_run_report.json` at
   assembly. It is `false` when the panel was run under the stub/single-model
-  escape hatch, so a low-diversity panel is visible in the artifact itself and
-  the belief layer can weight the observation's diversity from the record.
+  escape hatch or as degraded native subagent seats, so a low-diversity
+  panel is visible in the artifact itself and the belief layer can weight
+  the observation's diversity from the record.
 - `outcome`: exactly `{winner, vote_margin, decided_at}`; the validator
   recomputes winner and margin from the panel and rejects disagreement.
 - `observation_write`: `{written}` plus optional `gaia_package_ref`.
@@ -370,6 +457,13 @@ Example:
       "unanchored_arguments_discarded": 0
     }
   ],
+  "panel_independence": {
+    "mode": "cross_family",
+    "families_present": ["claude", "glm", "gpt"],
+    "families_absent": [
+      {"family": "kimi", "reason": "runner exit code 1; runner exit code 1"}
+    ]
+  },
   "independent_runners": true,
   "outcome": {
     "winner": "a",
@@ -383,22 +477,27 @@ Example:
 ```
 
 (The example shows one panel entry for brevity; a real valid artifact holds
-at least three, from three distinct families. An artifact assembled with the
-required `--materials-dir` also carries a top-level `statement_binding` block
-— per-side node id and a sha256 of the statement content — omitted here for
-brevity.)
+at least three — from three distinct families in cross-family mode, or three
+numbered seats of the one native family in single-family mode. An artifact
+assembled with the required `--materials-dir` also carries a top-level
+`statement_binding` block — per-side node id and a sha256 of the statement
+content — omitted here for brevity.)
 
 The authoritative check on an assembled match is `validate_pairwise_match` in
 `scripts/assemble_match.py`: a standalone, field-by-field check that a match
 can be verified against without any package installed. It is the binding
-judge of panel validity, including the rule that the panel holds at least
-three DISTINCT families — a constraint a JSON Schema cannot express directly.
-A machine-readable `pairwise_match_v1` JSON Schema also lives with the
-campaign engine's contracts for downstream consumers; because a schema cannot
-require distinct families, its `panel` array must set `minItems: 3` (not 1)
-and its description must defer to `validate_pairwise_match` as the
-authoritative family-diversity check, so a schema-only consumer cannot accept
-a sub-three-family artifact that the Python validator would reject.
+judge of panel validity, including the composition rules a JSON Schema cannot
+express directly: a cross-family panel holds at least three DISTINCT
+families and no seat numbers; a single-family panel holds at least three
+numbered, distinct seats of its one native family and never claims
+`independent_runners = true`; and the `panel_independence` block must agree
+with the panel array. A machine-readable `pairwise_match_v1` JSON Schema also
+lives with the campaign engine's contracts for downstream consumers; because
+a schema cannot require distinctness, its `panel` array must set
+`minItems: 3` (not 1) and its description must defer to
+`validate_pairwise_match` as the authoritative composition check, so a
+schema-only consumer cannot accept a sub-three-vote artifact that the Python
+validator would reject.
 
 ## Scripts
 
@@ -408,8 +507,10 @@ All three are standard-library-only Python (3.9 or newer):
   commitment. Refuses overwrites.
 - `scripts/run_panel.py`: verify materials and rebuild each statement from
   verified elements before any judge runs, render the judge prompt from the
-  rebuilt statements, run the four family seats (with the rendering modes shown
-  above), collect and validate votes, write `panel_run_report.json`. `--runner FAMILY=COMMAND` replaces a
+  rebuilt statements, resolve the agent roster, run the roster's family seats
+  (with the rendering modes shown above) or the degraded native subagent
+  seats, collect and validate votes, write `panel_run_report.json`.
+  `--runner FAMILY=COMMAND` replaces a
   family's runner with a command template (`{prompt}` and `{system}` expand to
   the rendered prompt paths; stdout is taken as the judge's raw reply); this
   hook exists for tests and custom runners, and a real match must use the real
@@ -419,7 +520,7 @@ All three are standard-library-only Python (3.9 or newer):
 - `scripts/assemble_match.py`: re-verify the integrity thread, tally, map
   the outcome to the observation tier, validate, and write the artifact.
   Requires `--materials-dir` and binds a per-side statement digest into the
-  artifact.
+  artifact; copies the panel composition record from the run report.
 
 ## Tests
 
@@ -430,7 +531,12 @@ python3 -m pytest skills/idea-pairwise-match/tests/
 The tests cover hash stability, stage-order enforcement (sentinel proof that
 no runner executes when materials fail verification), tally and mapping
 edges, artifact validation field by field, the rematch guard, and a mocked
-end-to-end panel. The rebuild cases pin what a judge does and does not see: a
+end-to-end panel. The agent-roster cases (inline fixtures, no template
+dependency) pin roster parsing and validation, the discovery order with the
+missing-file pure-native default and the loud error on a broken file, the
+floor-met regression path, the below-floor degradation to native subagent
+seats with its guidance exit and single-family record, and absence recording
+for roster-declared unavailable families. The rebuild cases pin what a judge does and does not see: a
 forged judge-prompt heading, an injection tucked into the weaknesses section, a
 non-ATX/HTML/homoglyph pseudo-heading, and an argument line whose anchor points
 at a reference the card never declared are each dropped from the rebuilt
@@ -481,6 +587,13 @@ security sandbox against deliberate injection, and does not need to be:
   authorship shares a family with one judge seat. Statements are inputs
   (advocacy under a fixed template), not votes; the independence requirement
   applies to the panel. Noted openly rather than hidden.
+- A degraded single-family panel has none of the cross-family diversity this
+  protocol is built around: its seats are independent instances (separate
+  contexts, blind to each other) of one host model, so shared blind spots
+  survive. It exists so a thin roster degrades honestly instead of blocking
+  all comparison, it is stamped as `single_family` everywhere
+  (`independent_runners = false` included), and the belief layer can weight
+  it down from the record.
 - Judges do not fetch anchor references during a match; anchor content is
   vetted upstream. A match with unvetted claims measures rhetoric, not
   merit, and should not be run.
