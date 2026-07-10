@@ -60,7 +60,11 @@ boundary pass is non-optional.
   logic, it only mandates when to call them.
 - Not a structured artifact. There is no `integrity_report.json` schema.
   The check result is recorded inline in the response or notebook entry
-  next to the boundary-crossing action.
+  next to the boundary-crossing action. When the boundary itself was a
+  human go-ahead given in conversation, record that decision with
+  `nullius decision record "<what was decided>"` so it survives the
+  conversation (see the pre-approval ritual below for the engine's
+  approval-flow counterpart).
 - Not domain-specific. Each mode is genuinely domain-neutral. Resolver
   and graph tools are routed **by discipline of the cited work**, not
   by which MCP package they live in. The package name is not a domain
@@ -651,6 +655,17 @@ deadline.
 For A5 specifically, run the full M1–M7 pass and record the check
 result inline in the conclusion artifact rather than as a separate
 file.
+
+In projects that do not use the engine's approval flow (declared
+`execution_mode: file`, or any moment where the go-ahead arrives in
+conversation instead of through `nullius approve`), the same ritual
+runs at the boundary moments listed under "When to use", and the
+human's decision is recorded with
+`nullius decision record "<what was decided>" --by <who>` — the
+engine-visible counterpart of the approval receipt. Open questions
+awaiting the project owner go in
+`nullius decision pending "<question>"` and stay in every status
+receipt until resolved.
 
 ## Integration with adjacent skills
 
