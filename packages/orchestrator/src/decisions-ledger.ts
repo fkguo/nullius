@@ -158,6 +158,7 @@ function scanTopLevelFields(line: string): TopLevelScan {
     if (c === '{' || c === '[') {
       // Full container stack: `[{]` -style mismatches are malformed, not
       // silently balanced.
+      const containerStart = i;
       const stack: string[] = [];
       while (i < n) {
         const d = line[i]!;
@@ -174,7 +175,17 @@ function scanTopLevelFields(line: string): TopLevelScan {
           const open = stack.pop();
           if ((d === '}' && open !== '{') || (d === ']' && open !== '[')) return null;
           i += 1;
-          if (stack.length === 0) return undefined;
+          if (stack.length === 0) {
+            // Balanced is not enough: the container's CONTENTS must be valid
+            // JSON too, or `{"junk":{"x":bogus},"id":"D<ceiling>"}` would
+            // count as a valid prefix and reserve a poisoned id.
+            try {
+              JSON.parse(line.slice(containerStart, i));
+              return undefined;
+            } catch {
+              return null;
+            }
+          }
           continue;
         }
         i += 1;
@@ -282,11 +293,29 @@ function parseDecisionLine(line: string): ParsedDecisionLine {
 // its ASCII-compatible bytes so they stay reserved.
 const FATAL_UTF8_DECODER = new TextDecoder('utf-8', { fatal: true });
 
-function decodeLedgerLine(bytes: Buffer): { text: string | null; asciiFallback: string } {
+/** Decodes the maximal valid UTF-8 PREFIX of the bytes: everything before
+ *  the first invalid or incomplete sequence. Ids are then salvaged from that
+ *  prefix only — bytes after an encoding error are unreadable garbage and
+ *  must not smuggle reservations (e.g. a poisoned ceiling id) into
+ *  allocation, mirroring the valid-prefix rule of the field scanner. */
+function maximalUtf8Prefix(bytes: Buffer): string {
+  const streaming = new TextDecoder('utf-8', { fatal: true });
+  let out = '';
+  for (let index = 0; index < bytes.length; index += 1) {
+    try {
+      out += streaming.decode(bytes.subarray(index, index + 1), { stream: true });
+    } catch {
+      return out;
+    }
+  }
+  return out; // a trailing incomplete sequence stays buffered and is dropped
+}
+
+function decodeLedgerLine(bytes: Buffer): { text: string | null; validPrefix: string } {
   try {
-    return { text: FATAL_UTF8_DECODER.decode(bytes), asciiFallback: '' };
+    return { text: FATAL_UTF8_DECODER.decode(bytes), validPrefix: '' };
   } catch {
-    return { text: null, asciiFallback: bytes.toString('latin1') };
+    return { text: null, validPrefix: maximalUtf8Prefix(bytes) };
   }
 }
 
@@ -313,7 +342,7 @@ export function readDecisionsLedger(projectRoot: string): DecisionsLedgerSnapsho
     const decoded = decodeLedgerLine(lineBytes);
     const { ids, record } = decoded.text !== null
       ? parseDecisionLine(decoded.text)
-      : { ids: scanTopLevelFields(decoded.asciiFallback).ids, record: null };
+      : { ids: scanTopLevelFields(decoded.validPrefix).ids, record: null };
     // Reserve every id the line's bytes carry and advance the high-water
     // mark — quarantined or not — so allocation never reuses an id that
     // exists in the file in any form.

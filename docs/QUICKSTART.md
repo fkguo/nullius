@@ -40,6 +40,8 @@ nullius init --refresh
 Use research-harness if your agent supports it. Treat nullius as the lifecycle
 authority, research-team as the milestone executor, and fold stable results back into
 research_contract.md, research_plan.md#Current Status, and artifacts/runs/<run_id>/.
+Declare (or re-declare) where project truth lives with: nullius init --mode=engine|file
+(file mode: work executed by hand or external runners; run_status staying idle is normal)
 Record decisions made in conversation with: nullius decision record "<what was decided>"
 Log open questions with: nullius decision pending "<question>"
 Close an open question with: nullius decision record "<answer>" --resolves <id>

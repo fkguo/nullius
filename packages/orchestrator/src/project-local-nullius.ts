@@ -44,7 +44,10 @@ const RESOLVE_NULLIUS_LINE = 'RESOLVED_NULLIUS=$(command -v nullius 2>/dev/null 
 // entry that is — or symlinks back to — this launcher is rejected. A plain string
 // compare would miss a symlink-to-self and self-hop, corrupting --project-root.
 const PATH_PREFER_GUARD_LINE = 'if [ -n "$RESOLVED_NULLIUS" ] && [ ! "$RESOLVED_NULLIUS" -ef "$0" ]; then';
-const PATH_PREFER_EXEC_LINE = 'exec nullius "$@" --project-root "$PROJECT_ROOT"';
+// The trusted root is PREPENDED so it is parsed before any user-supplied
+// end-of-options terminator; appended it would be mistaken for data after a
+// `--` (and the CLI rejects a second, conflicting root outright).
+const PATH_PREFER_EXEC_LINE = 'exec nullius --project-root "$PROJECT_ROOT" "$@"';
 
 function nulliusResolvableOnPath(launcherPath: string): boolean {
   const pathEnv = process.env.PATH;
@@ -105,7 +108,7 @@ function hasProjectLocalLauncherShape(script: string): boolean {
   const hasSelfGuard = lines.some(line => line.trim() === PATH_PREFER_GUARD_LINE);
   const hasPathPreferExec = lines.some(line => line.trim() === PATH_PREFER_EXEC_LINE);
   const hasFallbackExec = lines.some(line =>
-    /^\s*exec\s+'\/.*\s"\$@"\s+--project-root\s+"\$PROJECT_ROOT"\s*$/u.test(line),
+    /^\s*exec\s+'\/.*--project-root\s+"\$PROJECT_ROOT"\s+"\$@"\s*$/u.test(line),
   );
   return hasSelfDerivedRoot && hasSelfGuard && hasPathPreferExec && hasFallbackExec;
 }
@@ -257,7 +260,7 @@ export function ensureProjectLocalNulliusLauncher(projectRoot: string): {
     `  ${PATH_PREFER_EXEC_LINE}`,
     'fi',
     ...fallbackChecks,
-    `exec ${launcher.argv.map(shellQuote).join(' ')} "$@" --project-root "$PROJECT_ROOT"`,
+    `exec ${launcher.argv.map(shellQuote).join(' ')} --project-root "$PROJECT_ROOT" "$@"`,
     '',
   ].join('\n');
   // Durable + race-free: mode is applied at openSync (create-time) AND

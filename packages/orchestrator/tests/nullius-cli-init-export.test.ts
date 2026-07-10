@@ -221,7 +221,7 @@ describe('nullius CLI init/export', () => {
     expect(launcherScript).toContain('PROJECT_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)');
     expect(launcherScript).toContain('command -v nullius');
     expect(launcherScript).toContain('-ef "$0"');
-    expect(launcherScript).toContain('exec nullius "$@" --project-root "$PROJECT_ROOT"');
+    expect(launcherScript).toContain('exec nullius --project-root "$PROJECT_ROOT" "$@"');
     expect(launcherScript).not.toContain("PROJECT_ROOT='");
     expect(launcherScript).toContain('nullius init --runtime-only');
     expect(fs.existsSync(path.join(projectRoot, 'project_charter.md'))).toBe(false);

@@ -608,6 +608,81 @@ describe('decision ledger', () => {
     expect((JSON.parse(list.stdout.join('')) as { invalid_lines: number }).invalid_lines).toBe(1);
   });
 
+  it('does not reserve ids guarded by malformed nested containers', async () => {
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot);
+    const ledgerPath = path.join(projectRoot, '.nullius', 'decisions.jsonl');
+    // Balanced but INVALID nested containers before a ceiling id: reserving
+    // it would exhaust allocation forever.
+    fs.writeFileSync(
+      ledgerPath,
+      `{"junk":{"x":bogus},"id":"D${Number.MAX_SAFE_INTEGER}"}\n`
+      + `{"junk":[1,bogus,2],"id":"D${Number.MAX_SAFE_INTEGER}"}\n`,
+      'utf-8',
+    );
+
+    const record = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'allocation stays healthy'], record.io)).toBe(0);
+    expect(record.stdout.join('')).toContain('recorded: D1');
+
+    const list = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'list', '--json'], list.io)).toBe(0);
+    expect((JSON.parse(list.stdout.join('')) as { invalid_lines: number }).invalid_lines).toBe(2);
+  });
+
+  it('salvages ids only from the valid UTF-8 prefix of an undecodable line', async () => {
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot);
+    const ledgerPath = path.join(projectRoot, '.nullius', 'decisions.jsonl');
+    // Invalid byte BEFORE a ceiling id: everything after the encoding error
+    // is unreadable garbage and must not poison allocation.
+    const poisoned = Buffer.concat([
+      Buffer.from('{"note":"', 'utf-8'),
+      Buffer.from([0xff]),
+      Buffer.from(`","id":"D${Number.MAX_SAFE_INTEGER}"}\n`, 'utf-8'),
+    ]);
+    fs.writeFileSync(ledgerPath, poisoned);
+    const record = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'past the poisoned bytes'], record.io)).toBe(0);
+    expect(record.stdout.join('')).toContain('recorded: D1');
+
+    // Id BEFORE the invalid byte stays reserved.
+    const orderedRoot = makeTempProjectRoot();
+    await initRuntimeOnly(orderedRoot);
+    const reserved = Buffer.concat([
+      Buffer.from('{"id":"D1","note":"', 'utf-8'),
+      Buffer.from([0xff]),
+      Buffer.from('"}\n', 'utf-8'),
+    ]);
+    fs.writeFileSync(path.join(orderedRoot, '.nullius', 'decisions.jsonl'), reserved);
+    const ordered = makeIo(orderedRoot);
+    expect(await runCli([`--project-root=${orderedRoot}`, 'decision', 'record', 'after the reserved prefix id'], ordered.io)).toBe(0);
+    expect(ordered.stdout.join('')).toContain('recorded: D2');
+  });
+
+  it('keeps the terminator from hijacking help detection or the project root', async () => {
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot);
+
+    // "--help" after the terminator is decision text, not a help request.
+    const helpText = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', '--', '--help'], helpText.io)).toBe(0);
+    expect(helpText.stdout.join('')).toContain('recorded: D1');
+    expect(readDecisionLines(projectRoot)[0]).toMatchObject({ text: '--help' });
+
+    // "--project-root=..." after the terminator is data, not a retarget.
+    const otherRoot = makeTempProjectRoot();
+    const retarget = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', '--', `--project-root=${otherRoot}`], retarget.io)).toBe(0);
+    expect(readDecisionLines(projectRoot)).toHaveLength(2);
+    expect(fs.existsSync(path.join(otherRoot, '.nullius', 'decisions.jsonl'))).toBe(false);
+
+    // Two conflicting explicit roots are ambiguous authority, not last-wins.
+    await expect(
+      runCli([`--project-root=${projectRoot}`, 'status', `--project-root=${otherRoot}`], makeIo(projectRoot).io),
+    ).rejects.toThrow('duplicate --project-root');
+  });
+
   it('records text beginning with a hyphen after the end-of-options terminator', async () => {
     const projectRoot = makeTempProjectRoot();
     await initRuntimeOnly(projectRoot);

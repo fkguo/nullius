@@ -93,17 +93,36 @@ function readOptionValue(args: string[], index: number, name: string): string {
 function extractProjectRoot(argv: string[]): { args: string[]; projectRoot: string | null } {
   const args: string[] = [];
   let projectRoot: string | null = null;
+  let optionsEnded = false;
+  const setRoot = (value: string) => {
+    // Duplicate explicit roots are ambiguous authority, never last-wins:
+    // silently preferring one could write into the wrong project.
+    if (projectRoot !== null && projectRoot !== value) {
+      throw new Error(`duplicate --project-root values: ${projectRoot} and ${value}`);
+    }
+    projectRoot = value;
+  };
   for (let index = 0; index < argv.length; index += 1) {
     const current = argv[index]!;
-    if (current.startsWith('--project-root=')) {
-      projectRoot = current.slice('--project-root='.length);
+    // Tokens after the end-of-options terminator are data (e.g. decision
+    // text), never a project-root override — otherwise recorded text could
+    // silently retarget the write to another root. The project-local
+    // launcher PREPENDS its trusted root, so it is always seen before any
+    // user-supplied terminator.
+    if (!optionsEnded && current === '--') {
+      optionsEnded = true;
+      args.push(current);
       continue;
     }
-    if (current !== '--project-root') {
+    if (!optionsEnded && current.startsWith('--project-root=')) {
+      setRoot(current.slice('--project-root='.length));
+      continue;
+    }
+    if (optionsEnded || current !== '--project-root') {
       args.push(argv[index]!);
       continue;
     }
-    projectRoot = readOptionValue(argv, index, '--project-root');
+    setRoot(readOptionValue(argv, index, '--project-root'));
     index += 1;
   }
   return { args, projectRoot };
@@ -666,7 +685,11 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
   const [rawCommand, ...rest] = args;
   const command = rawCommand!;
   ensureKnownCommand(command);
-  if (rest.some(isHelpFlag)) {
+  // Help detection stops at the end-of-options terminator: after `--`,
+  // "--help" is data (e.g. decision text), not a request for help.
+  const terminatorAt = rest.indexOf('--');
+  const optionRest = terminatorAt === -1 ? rest : rest.slice(0, terminatorAt);
+  if (optionRest.some(isHelpFlag)) {
     return { command: 'help', projectRoot, topic: command };
   }
 
