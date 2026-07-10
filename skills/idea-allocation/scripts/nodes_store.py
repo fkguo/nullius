@@ -38,9 +38,9 @@ Each node object carries:
 - ``posterior`` (optional): ``{"value": float in [0, 1],
   "evidence_count": int >= 0, "updated_at": ISO 8601 date-time,
   "gaia_package_ref": optional string, "status": optional one of "current" |
-  "provisional" | "stale"}``. Missing status is treated as ``current`` for
-  older snapshots. The posterior is produced by the belief graph; this decision
-  layer only reads it.
+  "provisional" | "stale"}``. A missing status is NOT current (the engine's
+  ranking gate reads it the same way); the posterior is produced by the belief
+  graph, and this decision layer only reads it.
 - ``literature_coverage`` (optional): ``{"status": one of "saturated" |
   "coverage_incomplete" | "metadata_only", "survey_ref": optional string,
   "close_prior_matrix_ref": optional string, "exploratory_allocation": optional
@@ -448,12 +448,17 @@ def literature_coverage(node: Dict[str, Any]) -> Dict[str, Any]:
     return {"status": "metadata_only", "exploratory_allocation": False}
 
 
-def posterior_status(node: Dict[str, Any]) -> str:
-    """Stored posterior status; missing status reads as current (older snapshots)."""
+def posterior_status(node: Dict[str, Any]) -> Optional[str]:
+    """Stored posterior status, or None when absent.
+
+    A missing status is NOT current — the engine's ranking gate reads it the
+    same way, so a snapshot written before statuses existed must be re-written
+    back (or migrated) before its posterior counts as current guidance.
+    """
     posterior = node.get("posterior")
     if isinstance(posterior, dict) and posterior.get("status") in POSTERIOR_STATUSES:
         return str(posterior["status"])
-    return "current"
+    return None
 
 
 def allocation_eligible_from_coverage(coverage: Dict[str, Any]) -> bool:

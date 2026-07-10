@@ -33,8 +33,8 @@ fields this protocol consumes:
 - `node_id`: engine short id — 8 chars of lowercase Crockford base32,
   pattern `^[0123456789abcdefghjkmnpqrstvwxyz]{8}$` (the idea_node_v1
   convention).
-- `title`, `gist`, `status`: short descriptive strings; the node should be
-  active.
+- `title`, `gist`, `status`: short descriptive strings; the node should not
+  be archived or parked (a contest is effort spent on it).
 - `claims`: non-empty array; each claim carries its `support_type`
   (literature or computation) and `evidence_uris`.
 
@@ -301,7 +301,7 @@ its outcome has not yet influenced any posterior.
 The campaign's assignment layer (a selection script or the operating agent)
 decides who plays. Defaults when nothing else is specified:
 
-- Eligible: active nodes with a complete idea card.
+- Eligible: nodes that are neither archived nor parked (not waiting_activation / admission_blocked), with a complete idea card.
 - Most informative first: among nodes with a non-empty posterior, pair
   posterior neighbors; adjacent worth means the match carries the most
   information.

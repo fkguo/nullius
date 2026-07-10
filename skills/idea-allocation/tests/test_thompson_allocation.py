@@ -46,6 +46,7 @@ def admitted_node(node_id: str, value: float, count: int):
             "value": value,
             "evidence_count": count,
             "updated_at": "2026-07-01T00:00:00Z",
+            "status": "current",
         },
         "literature_coverage": {
             "status": "saturated",
@@ -210,6 +211,29 @@ def test_stale_posterior_is_not_sampled_even_with_saturated_coverage(tmp_path):
     assert by_id["a1pha000"]["posterior_status"] == "stale"
     assert "posterior status is stale" in by_id["a1pha000"]["budget_note"]
     assert by_id["beta0000"]["allocation"] == "deep_investment"
+    assert ta.validate_allocation_decision(decision) == []
+
+
+def test_missing_posterior_status_is_not_current(tmp_path):
+    # The engine's ranking gate treats a missing status as not current; the
+    # decision layer must agree, or the same node would rank in one layer and
+    # be skipped in the other.
+    legacy = admitted_node("a1pha000", 0.9, 30)
+    del legacy["posterior"]["status"]
+    path = make_store(tmp_path, [legacy])
+    campaign_id, loaded = nodes_store.load_nodes_file(str(path))
+    groups = ta.split_nodes(loaded)
+    assert groups["sampled"] == []
+    assert {n["node_id"] for n in groups["data_blocked"]} == {"a1pha000"}
+    decision = ta.build_decision(
+        campaign_id, loaded, seed=5, deep_slots=1, recon_slots=0,
+        generated_at="2026-07-05T00:00:00Z",
+    )
+    entry = decision["candidates"][0]
+    assert entry["allocation"] == "hold"
+    assert entry["allocation_eligible"] is False
+    assert entry["posterior_status"] is None
+    assert "posterior status is missing" in entry["budget_note"]
     assert ta.validate_allocation_decision(decision) == []
 
 
@@ -435,6 +459,7 @@ def test_mapping_form_of_nodes_accepted(tmp_path):
                             "value": 0.6,
                             "evidence_count": 10,
                             "updated_at": "2026-07-01T00:00:00Z",
+                            "status": "current",
                         },
                         "literature_coverage": {
                             "status": "saturated",
