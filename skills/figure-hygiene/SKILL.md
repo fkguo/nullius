@@ -1,6 +1,6 @@
 ---
 name: figure-hygiene
-description: "Correctness and legibility checklist for data/results figures in any field: charts, parameter scans, spectra, distributions, fit comparisons, constraint contours, heatmaps, and low-dimensional projection scatters. Use when an agent plots computed or measured data, revises a results figure for a manuscript, or audits whether a data figure is publication-ready. Covers data fidelity (excluded rows never enter plotted summaries, claim-titles true against every axis category, one canonical value per claim), label economy floor and ceiling, colour threading with a CVD-safe palette, role-mapped typography, chart choice by data shape, a render-then-verify QA loop (bbox overlap check plus per-panel perceptual crops), and a figure-reproduction provenance bundle. For schematic/topological figures such as process diagrams, integral-equation schematics, and geometry sketches, use physics-diagrams instead; this skill owns figures whose content is data."
+description: "Correctness and legibility checklist for data/results figures in any field: charts, parameter scans, spectra, distributions, fit comparisons, constraint contours, heatmaps, and low-dimensional projection scatters. Use when an agent plots computed or measured data, revises a results figure for a manuscript, or audits whether a data figure is publication-ready. Covers data fidelity (excluded rows never enter plotted summaries, connected-series evaluator fingerprints are homogeneous, claim-titles true against every axis category, one canonical value per claim), label economy floor and ceiling, colour threading with a CVD-safe palette, role-mapped typography, chart choice by data shape, a render-then-verify QA loop (bbox overlap check plus per-panel perceptual crops), and a figure-reproduction provenance bundle. For schematic/topological figures such as process diagrams, integral-equation schematics, and geometry sketches, use physics-diagrams instead; this skill owns figures whose content is data."
 ---
 
 # Figure Hygiene
@@ -22,6 +22,15 @@ Data fidelity, the label-economy floor, the anti-pattern list, and render-then-v
 
 - **Excluded rows.** A row marked excluded or flagged in the source data is either omitted entirely or drawn with a visually distinct open/hatched marker named in the key. It never enters a summary statistic plotted alongside the included rows.
 - **Comparable conditions only.** Conditions measured under non-comparable protocols (different sample size, budget, configuration, or procedure) are not plotted as visual peers. Separate them with a facet break or a marker on the label, and state the difference once in the caption.
+- **One connected series, one evaluator fingerprint.** Before drawing a line, interpolation, fitted band,
+  or pooled summary through rows originating in multiple checkpoints/runs, verify that every joined row has
+  the same complete evaluator fingerprint. The fingerprint covers model/branch choices, all top-level and
+  nested/defaulted numerical settings, source/dependency hashes, and the plotted-value transformation.
+  Matching a few legend-visible settings is insufficient. Missing or mixed fingerprints are a correctness
+  failure: recompute uniformly, or split/facet the configurations and identify them separately. Check every
+  plotted component; a smooth insensitive coordinate can conceal heterogeneity that appears as a kink in a
+  more sensitive coordinate. Use `scripts/bin/check_series_provenance.py` as the deterministic gate once the
+  plotting table exposes `series_id` and `evaluator_fingerprint` (or explicitly named equivalent columns).
 - **Self-consistency.** Every key, threshold, and title inside the figure must be satisfied by every plotted row. Before saving, walk each categorical outcome label back to the rule that defines it; if a row's value contradicts its label or the title, the figure is wrong, not the data.
 - **Claim-titles must be true.** A sentence-title is tested against every category on the axis before rendering. If any category contradicts it, qualify the title ("on 3 of 4 cases") or downgrade it to a description.
 - **State n and what was held fixed.** Every panel that draws a summary mark states the number of observations and the unit of replication; every small multiple that holds a variable fixed states the fixed value — in the panel or, when the label budget is tight, in the caption.
@@ -84,6 +93,8 @@ These are correctness failures, not style preferences:
 - The direction of goodness explained only in the caption.
 - A reference line drawn at a value that is itself one of the plotted points.
 - An excluded row that enters a plotted summary statistic.
+- A connected line, interpolation, fitted band, or pooled summary spanning missing or different complete
+  evaluator fingerprints.
 - A leader line whose nearest mark is not the row it labels.
 - A claim-title contradicted by a category on its own axis.
 
@@ -120,6 +131,12 @@ A durable or submission-bound figure must re-render from recorded inputs. Bind t
   "script": "figs/src/scan_summary.py",
   "style": "figs/src/style.json",
   "command": "python3 figs/src/scan_summary.py",
+  "series_provenance": {
+    "table": "data/scan_results.csv",
+    "series_column": "series_id",
+    "fingerprint_column": "evaluator_fingerprint",
+    "check_command": "python3 <figure-hygiene>/scripts/bin/check_series_provenance.py --data data/scan_results.csv"
+  },
   "sha256": {
     "figs/scan_summary.pdf": "<hex digest>",
     "data/scan_results.csv": "<hex digest>"
@@ -127,7 +144,7 @@ A durable or submission-bound figure must re-render from recorded inputs. Bind t
 }
 ```
 
-Anyone (including a later agent) must be able to re-run the command and diff the output against the checksum. If the regenerated figure differs beyond recorded nondeterminism, the figure and its numbers are out of sync: stop and reconcile before the figure is used anywhere. This bundle is what makes the checklist enforceable — a figure that cannot be regenerated cannot be re-verified. When the figure enters a manuscript gated by the research-writer skill, this bundle is the figure-side instantiation of that skill's traceability manifest: mirror the figure's checksum into the manifest entry so the manuscript-side result-traceability gate verifies the same bytes.
+Anyone (including a later agent) must be able to re-run the command and diff the output against the checksum. Run the series-provenance command before rendering; it must fail if any connected series has a missing or mixed fingerprint. If the regenerated figure differs beyond recorded nondeterminism, or the provenance check fails, the figure and its numbers are out of sync: stop and reconcile before the figure is used anywhere. This bundle is what makes the checklist enforceable — a figure that cannot be regenerated cannot be re-verified. When the figure enters a manuscript gated by the research-writer skill, this bundle is the figure-side instantiation of that skill's traceability manifest: mirror the figure's checksum into the manifest entry so the manuscript-side result-traceability gate verifies the same bytes.
 
 ## Review Gate
 

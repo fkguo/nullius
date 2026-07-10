@@ -7,6 +7,7 @@ TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
 QA="${SKILL_DIR}/scripts/bin/figure_qa.py"
+PROVENANCE_QA="${SKILL_DIR}/scripts/bin/check_series_provenance.py"
 
 if ! python3 -c "import matplotlib" >/dev/null 2>&1; then
   echo "figure-hygiene smoke tests skipped: matplotlib not installed" >&2
@@ -99,5 +100,46 @@ expect_output_matching "left no open figures"
 # JSON mode reports the same findings machine-readably.
 expect_exit 1 --script "${TMP_DIR}/overlap_figure.py" --json
 expect_output_matching '"kind": "text-overlaps-text"'
+
+HASH_A="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+HASH_B="bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+
+cat >"${TMP_DIR}/series_clean.csv" <<CSV
+series_id,evaluator_fingerprint,connected,x,y
+one,${HASH_A},true,0,1
+one,${HASH_A},true,1,2
+two,sha256:${HASH_B},true,0,3
+two,${HASH_A},false,1,4
+CSV
+
+cat >"${TMP_DIR}/series_mixed.csv" <<CSV
+series_id,evaluator_fingerprint,x,y
+one,${HASH_A},0,1
+one,${HASH_B},1,2
+CSV
+
+cat >"${TMP_DIR}/series_missing.csv" <<CSV
+series_id,evaluator_fingerprint,x,y
+one,${HASH_A},0,1
+one,,1,2
+CSV
+
+python3 "${PROVENANCE_QA}" --data "${TMP_DIR}/series_clean.csv" \
+  --connected-column connected >"${TMP_DIR}/provenance_clean.out"
+grep -F "series provenance clean" "${TMP_DIR}/provenance_clean.out" >/dev/null
+
+if python3 "${PROVENANCE_QA}" --data "${TMP_DIR}/series_mixed.csv" \
+  >"${TMP_DIR}/provenance_mixed.out" 2>&1; then
+  echo "expected mixed evaluator fingerprints to fail" >&2
+  exit 1
+fi
+grep -F "mixed-fingerprints" "${TMP_DIR}/provenance_mixed.out" >/dev/null
+
+if python3 "${PROVENANCE_QA}" --data "${TMP_DIR}/series_missing.csv" \
+  >"${TMP_DIR}/provenance_missing.out" 2>&1; then
+  echo "expected missing evaluator fingerprint to fail" >&2
+  exit 1
+fi
+grep -F "missing-fingerprint" "${TMP_DIR}/provenance_missing.out" >/dev/null
 
 echo "figure-hygiene smoke tests passed"
