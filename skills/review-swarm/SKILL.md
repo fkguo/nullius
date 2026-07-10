@@ -9,16 +9,21 @@ This skill provides a reusable clean-room swarm harness for independent reviewer
 
 Core capabilities:
 - Run **N agents** with `run_multi_task.py`.
+- One-command **single-reviewer** entry with `review_one.py` (advisory; packet auto-assembled).
 - Mix backends: OpenCode, Claude CLI, Codex CLI, Gemini CLI, Kimi CLI.
 - Enforce strict review output contract (optional).
 - Opt-in two-phase commit-then-review protocol (`--two-phase`).
 - Apply fallback policy when a target backend fails/returns invalid output.
+- Retry empty-output runs and report unreachable backends (`unavailable_backends`) so
+  a degraded run reads as a backend outage, never as review disagreement.
 - Record deterministic artifacts (`trace.jsonl`, `meta.json`, outputs).
 - Gate on convergence (optional Jaccard similarity).
 
 ## Canonical entrypoint
 
-Use `scripts/bin/run_multi_task.py` for all new workflows.
+Use `scripts/bin/run_multi_task.py` for all new multi-reviewer workflows, and
+`scripts/bin/review_one.py` for a one-command single-reviewer pass (it delegates
+into `run_multi_task.py` — one orchestration path).
 
 Primary public skill name: `review-swarm`.
 Use `review-swarm` consistently in documentation and automation references.
@@ -59,15 +64,21 @@ your own family in `--models` just to aggregate. Host capabilities VARY; gate on
   the user can inspect and adjust mid-run, when the host supports one; otherwise run inline and
   checkpoint. Capability varies by host — degrade gracefully.
 
-## Quick start (multi-agent)
+## Quick start (single reviewer, one command — advisory)
+
+For one independent reviewer from another family, `review_one.py` assembles the
+whole packet for you (no hand-written prompt files). A single reviewer is one
+model family, so treat its verdict as **advisory only** — final verdicts require
+cross-family review (the packet itself carries that caveat as its first line):
 
 ```bash
-python3 scripts/bin/run_multi_task.py \
-  --out-dir /tmp/multi_review \
-  --system /path/to/system.md \
-  --prompt /path/to/task.md \
-  --agents 3
+python3 scripts/bin/review_one.py \
+  --model codex/default \
+  --artifact /path/to/notes.md \
+  --role correctness
 ```
+
+See "Single-reviewer entry" below for the full flag set.
 
 ## Quick start (cross-family review: families other than your own)
 
@@ -90,6 +101,63 @@ python3 scripts/bin/run_multi_task.py \
   --models codex/default,gemini/default,zhipuai-coding-plan/glm-5.2 \
   --check-review-contract
 ```
+
+Choosing the reviewer set: your own (host) family reviews natively in-host; every
+OTHER family you want goes through `--models`. There is no automatic rotation
+worth relying on — pick the families explicitly.
+
+## Single-reviewer entry (`review_one.py`)
+
+`scripts/bin/review_one.py` is the one-command way to get a single independent
+reviewer with zero hand-written files. It builds the system prompt from a role
+template, embeds your artifacts (or a git diff) into an auto-assembled packet,
+then delegates to `run_multi_task.py` (same directory), inheriting runner
+discovery, per-backend read-only tool modes, the process-group timeout,
+`trace.jsonl`/`meta.json` artifacts and contract checking. Its delegated run
+also opts in to one orchestrator-level empty-output retry
+(`--retry-empty-output 1`; the launcher default is `0`).
+
+```bash
+python3 scripts/bin/review_one.py \
+  --model gemini/default \
+  --diff main..HEAD \
+  --role generic \
+  --context /path/to/acceptance_notes.md \
+  --out-dir /tmp/one_review
+```
+
+Flags:
+
+- `--model SPEC` — **required, exactly one**, no default (`codex/default`,
+  `gemini/default`, `kimi/default`, `claude/<model>`, or an OpenCode
+  `provider/model`).
+- `--artifact PATH` (repeatable) **or** `--diff BASE..HEAD` — the review target;
+  artifact text or `git diff` output is embedded in full.
+- `--role generic|correctness|execution-adversary|source-fidelity` — picks the
+  system prompt from `templates/<role>.md` (default: `generic`). Each template
+  embeds the required review-contract output format.
+- `--context PATH` — optional extra material appended to the packet.
+- `--out-dir DIR` — defaults to `./review-one-<UTC timestamp>/`; the assembled
+  inputs are persisted under `<out-dir>/inputs/` for audit.
+- `--host-family FAMILY` — pass your own family to make the entry refuse when
+  `--model` resolves to it, pointing you to host-native sub-agent review instead
+  (mirrors "Host-aware execution" above).
+- `--max-prompt-bytes N` / `--max-prompt-chars N` — the launcher's prompt-size
+  guard applied to the assembled inputs; an oversize packet is refused with the
+  guard's message (no silent truncation).
+- `--use-project-config` — opt back into `.nullius/review-swarm.json`
+  auto-discovery; by default the entry sets `REVIEW_SWARM_NO_AUTO_CONFIG=1` so
+  runs are hermetic. With the flag, `REVIEW_SWARM_NO_AUTO_CONFIG` is removed for
+  the delegated run even when the caller's environment already sets it (the
+  prior value is restored afterward), so the opt-in works under a suppressing
+  environment too.
+- `--timeout-secs`, `--backend-tool-mode`, `--<backend>-runner` — forwarded to
+  the launcher unchanged.
+
+The assembled packet's first line is the advisory caveat ("single-family review —
+advisory; final verdicts require cross-family review"), and the command prints
+the verdict line, `contract_ok`, and the output/packet/meta/trace paths to
+stdout when the run finishes.
 
 ## Backend overrides
 
@@ -219,8 +287,10 @@ compute-and-compare gate, returning `reference_mismatch` on an order-of-magnitud
 
 ## Model selection
 
-- `--agents N`: rotate through available OpenCode config models.
-- `--models a,b,c`: explicit model specs.
+- `--models a,b,c`: explicit model specs — the recommended path (host family native,
+  every other family listed here explicitly).
+- `--agents N`: rotate through available OpenCode config models (legacy convenience;
+  prefer explicit `--models` for reviewer runs).
 - `--model default`: one OpenCode agent, CLI default model.
 - Mixed backends supported: `claude/...`, `codex/...`, `gemini/...`, `kimi/...`, OpenCode `provider/model`.
 
@@ -238,11 +308,15 @@ This rule applies to all backends:
 
 ## Fallback policy
 
-Fallback can be enabled for target backends (default target: `gemini`):
+Fallback can be enabled for explicitly chosen target backends:
 
 - `--fallback-mode off` (default)
 - `--fallback-mode ask` (exit code `4`, asks for rerun decision)
 - `--fallback-mode auto` (tries `--fallback-order`, default `codex,claude`)
+- `--fallback-target-backends a,b` — **required whenever fallback is enabled**.
+  There is no default target list: enabling `ask`/`auto` without naming targets
+  is an input error, so a substitute reviewer can never be swapped in for a
+  backend you did not explicitly nominate.
 
 Example:
 
@@ -254,8 +328,33 @@ python3 scripts/bin/run_multi_task.py \
   --models codex/default,gemini/default,zhipuai-coding-plan/glm-5.2 \
   --check-review-contract \
   --fallback-mode auto \
+  --fallback-target-backends gemini \
   --fallback-order codex,claude
 ```
+
+## Backend outage handling (retry + availability report)
+
+Backend infrastructure failures are classified and handled distinctly from
+review content, so a degraded run is legible as "backend down" rather than
+mistaken for reviewer disagreement:
+
+- Every agent result carries a `failure_class`: `infrastructure` (timeout,
+  crash exit, empty output — the backend never delivered reviewable content) or
+  `content` (the backend answered but the answer failed a protocol check, e.g.
+  an invalid two-phase criteria block). Successes carry `null`.
+- `--retry-empty-output N` (default `0` — disabled, so existing callers of the
+  launcher keep their behavior; `review_one.py` passes `1` explicitly for its
+  delegated run): an agent whose runner exited 0 but wrote an empty output file
+  is re-run at the orchestrator level up to N times — before fallback is
+  considered and before the agent is recorded as `empty_output`. Retried agents
+  record `empty_output_retries` in `meta.json`. In two-phase mode a phase-1
+  empty output (`phase1_empty_output`) is classified infrastructure but is NOT
+  auto-retried by this flag, and `--two-phase` rejects fallback — recover it
+  with a manual same-model rerun (see the two-phase section).
+- `meta.json` always includes `unavailable_backends`: the requested model specs
+  whose runs ALL failed at the infrastructure level this invocation (a
+  fallback-recovered run counts by its original failure). Read entries there as
+  backend outages; never fold them into a review verdict.
 
 ## Prompt-size guardrail (optional)
 
@@ -349,7 +448,9 @@ recorded per agent in `meta.json` under `two_phase` (`conformance_ok`,
 `conformance_errors`), never a fallback trigger. Phase-1 failures are different: if the
 phase-1 call fails or returns no parseable criteria block, phase 2 is skipped and the agent
 is marked failed (`phase1_command_failed`, `phase1_empty_output`, or
-`phase1_criteria_invalid`); rerun that reviewer same-model.
+`phase1_criteria_invalid`); rerun that reviewer same-model. A phase-1 empty output is
+classified as an infrastructure failure but is NOT auto-retried by `--retry-empty-output`,
+and two-phase rejects fallback — recovery is that manual same-model rerun.
 
 ```bash
 python3 scripts/bin/run_multi_task.py \
@@ -383,9 +484,12 @@ Notes:
 
 - `{out-dir}/agent_*_*.txt` (or backend output override paths)
 - `{out-dir}/trace.jsonl`
-- `{out-dir}/meta.json`
+- `{out-dir}/meta.json` (per-agent results incl. `failure_class`, plus the
+  `unavailable_backends` outage report)
 - With `--two-phase`: `{out-dir}/two_phase/` (composite phase prompts) and `*.phase1.*`
   phase-1 outputs next to the final outputs.
+- With `review_one.py`: the assembled inputs persist under `{out-dir}/inputs/`
+  (`system.md`, `packet.md`) for audit.
 
 ## Runner parity notes
 

@@ -4,7 +4,7 @@
   "repo": "nullius/skills-market",
   "channel": "dev",
   "version": "0.1.0",
-  "summary": "Clean-room multi-agent review loops across Claude/Gemini/Codex/OpenCode with strict review-contract checks, fallback policy, and convergence gates.",
+  "summary": "Clean-room multi-agent review loops across Claude/Gemini/Codex/OpenCode/Kimi with strict review-contract checks, a one-command single-reviewer entry with role templates, fallback policy, and convergence gates.",
   "platforms": [
     "claude_code",
     "codex",
@@ -24,16 +24,9 @@
     "subpath": "skills/review-swarm",
     "include": [
       "SKILL.md",
-      "SKILL.zh.md",
       "README.md",
-      "RUNBOOK.md",
-      "PROJECT_MAP.md",
       "scripts/**",
-      "assets/**",
-      "references/**",
       "templates/**",
-      "schemas/**",
-      "agents/**",
       ".gitignore"
     ],
     "exclude": [
