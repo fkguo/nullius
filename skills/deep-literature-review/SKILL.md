@@ -1,6 +1,6 @@
 ---
 name: deep-literature-review
-description: Turn a shallow, metadata-only literature pull into a DEEP review — multi-hop discovery via the existing literature-workflows recipes, per-paper deep-read notes that fill the research-team KB note template from the actual source (with verbatim quotes + locators), cross-paper synthesis (consensus / tensions / gaps), correct Markdown math rendering, and a checkable literature_survey_v1 artifact. Run when a survey feels thin, before promoting an idea, or before writing a related-work / introduction section.
+description: Turn a shallow, metadata-only literature pull into a DEEP review — multi-hop discovery via the existing literature-workflows recipes, per-paper deep-read notes that fill the research-team KB note template from the actual source (with verbatim quotes + locators), an optional double-reader mode for load-bearing papers (two independent readers from different model families plus a moderator that keeps disagreements visible), cross-paper synthesis (consensus / tensions / gaps), correct Markdown math rendering, and a checkable literature_survey_v1 artifact. Run when a survey feels thin, before promoting an idea, or before writing a related-work / introduction section.
 ---
 
 # Deep Literature Review
@@ -189,6 +189,11 @@ Each close-prior entry must also carry `source_links`, `read_locators`, and
 `read_sections`. If you only saw the abstract, the note stays metadata-only and
 the paper's survey `read_status` is `metadata_only` — do not pretend otherwise.
 
+For a load-bearing paper — one whose extracted propositions will anchor a
+likelihood, decide a close-prior verdict, or support a central claim — the note
+can be produced by two independent readers plus a moderator instead of a single
+reader; see *Optional: double-reader mode for load-bearing papers* below.
+
 ### 3. Synthesize across the read set
 Produce the `literature_survey_v1`:
 - `papers[]`: one entry per paper — `ref_key`, `note_path`, `domain`,
@@ -287,6 +292,57 @@ verified against the source, not just asserted.
 Gaia input is proposition-level, never paper-level: deep-read paper -> extracted
 proposition -> claim-grounding quote and locator -> mapped sub-criterion anchor.
 A paper, literature count, or subagent summary is not itself evidence in Gaia.
+
+## Optional: double-reader mode for load-bearing papers
+
+The default flow produces each deep-read note with a single reader (step 2) and
+falsifies it against the source (step 6). For a **load-bearing** paper — one whose
+extracted propositions will anchor a likelihood, decide a close-prior verdict, or
+support a central claim of the survey — one reading, however carefully gated, still
+carries one reader's blind spots. For those papers the note can instead be produced
+in double-reader mode:
+
+1. **Two independent readers.** Each reader runs the full step-2 deep-read on the
+   same persisted source bytes and writes a complete note draft. Independence means
+   readers from **different model families where available**, and at minimum
+   separately-run readers that never see each other's drafts (no shared conversation,
+   no shared draft) — two readers sharing one context are one reader with extra words.
+2. **A moderator pass.** A third, separately-run participant compares the two drafts
+   against the persisted source and produces the single KB note:
+   - it merges **agreed content** — statements both readers extracted with compatible
+     quotes and locators — into the note body;
+   - it records **every disagreement explicitly**, each with a verbatim quote + locator
+     from the source (the disputed passage itself, not either reader's paraphrase);
+     where the source settles the point at that locator, the moderator resolves it
+     from the source and says so;
+   - it **never resolves a disagreement by majority or by smoothing the language**.
+     Recruiting extra readers to outvote a reading settles nothing — only the source
+     settles a reading — and a blended sentence both readers "could accept" hides the
+     conflict instead of recording it. Whatever the source does not settle stays
+     visible as an **open item for the human**, listed under `## Notes / Issues` with
+     both readings side by side.
+
+**Marking the note.** A double-read note carries a `Readers:` line among the head
+metadata lines, in the same `Field: value` style as `Verification status:` (the
+auto-generated template does not emit it; the moderator adds it):
+`Readers: <reader-1 id / model family>, <reader-2 id / model family>; moderator: <id / model family>`.
+Keep both reader drafts alongside the persisted source so the merge and every
+recorded disagreement stay auditable. Single-reader notes omit the field.
+
+**Consequences for use.** Merged agreed content is used like any other deep-read
+content and still goes through the step-6 source-fidelity gate (with a fresh
+reviewer — neither of the two readers nor the moderator) before anchoring anything:
+double-reading is a production discipline, not a replacement for that falsification
+pass, though it sharpens it — divergences arrive already localized. A proposition
+that is still an open disagreement is not evidence-ready: it must not anchor a
+likelihood, decide a close-prior verdict, or be cited as consensus until a human
+resolves the item.
+
+**When it is worth the cost.** Double-reading doubles the reading work and adds a
+moderation pass; spend it only where a wrong extraction changes a decision — papers
+that anchor likelihoods, decide close-prior verdicts, or carry a central claim.
+Routine breadth reading — `supporting` / `background` roles, and core papers whose
+role is context rather than decision — stays single-reader by default.
 
 ## What this skill is NOT
 

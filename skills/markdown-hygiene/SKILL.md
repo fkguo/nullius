@@ -1,6 +1,6 @@
 ---
 name: markdown-hygiene
-description: Check and repair deterministic Markdown hygiene issues in research notes, especially Markdown math escaping, TOC-generated LaTeX escapes, rendered math/link readiness, and portable cleanup before research-harness/research-team/research-writer/research-integrity handoff.
+description: Check and repair deterministic Markdown hygiene issues in research notes, especially Markdown math escaping, TOC-generated LaTeX escapes, rendered math/link readiness, and portable cleanup before research-harness/research-team/research-writer/research-integrity handoff; also trigger on rendering symptoms such as math showing as raw $...$ source on GitHub or a report page, formulas that render in one viewer but not on the target surface, LaTeX escapes that look doubled, or paper references that are not clickable.
 metadata:
   short-description: Deterministic Markdown math and link hygiene
 ---
@@ -19,8 +19,29 @@ The TOC repair is one subcommand of this broader Markdown hygiene surface.
 - You need a standalone Markdown cleanup/check before invoking `research-harness`, `research-team`, or `research-writer`.
 - You need to verify rendered-note portability for graph or slide artifacts: local Markdown links resolve, absolute local paths are absent, likely note paths are real links rather than code spans, display math is separated from prose, and project-configured raw math/text tokens are gone.
 - Human-facing Markdown documents must render all intended math as math, both inline and display, and every web page or paper reference shown to a reader must be clickable.
+- Math renders on one surface but not another, for example formulas that show as raw `$...$` source text on a GitHub README or a rendered report page while a local preview looks fine.
 
 For a full `research-team` project preflight, keep using `research-team`; its team-cycle gates remain the authoritative runtime checks. This skill is the standalone, reusable hygiene entrypoint.
+
+## Target rendering surface
+
+These rules are not renderer-neutral: the same Markdown source can render cleanly on one surface and leak raw math source on another. Decide which surface the document must serve before choosing checks, and never "fix" a file back and forth between surface conventions — pick the target, then converge on it.
+
+- **GitHub repo Markdown (README, in-repo docs pages, issue and PR text).** Inline `$...$` and display `$$...$$` are both supported. GitHub layers its own Markdown parsing on top of the math span, so a few constructs that are fine in a TeX document are fragile here; the known hazards are exactly what `--check-github-math` flags. Typical symptom: a formula that looks fine in a local preview shows up on the rendered GitHub page as raw `$...$` source text or with mangled characters. Run the baseline `check` plus `--human-facing`, and add `--check-github-math`; that flag exists for this surface.
+- **Local editors and document pipelines (editor previews, KaTeX or MathJax site and slide generators, pandoc-style converters).** Inline `$...$` and display `$$...$$` are the portable forms. These renderers hand the span content to the math engine mostly verbatim, so doubled command backslashes such as `$\\Delta$`, TOC-escaped forms such as `$G\_R$`, and prose-adjacent `$$` blocks are the classic breakage. Typical symptom: stray literal backslashes or underscores inside typeset math, or a display block that renders as plain paragraph text. Run the baseline `check`, plus `--human-facing` for reader-facing notes; leave `--check-github-math` off unless the renderer shares GitHub's failure modes.
+- **Chat clients that render only display blocks.** Some conversation surfaces render standalone `$$...$$` blocks but show inline `$...$` as raw source, so inline math typed into the chat window needs Unicode or display blocks there. That constraint applies to chat replies, not to Markdown files: for files, keep `$...$` as the portable inline form and do not rewrite documents into Unicode-only math (see the Safety Contract). The deterministic script lints Markdown files only and has no checks for chat-reply text.
+
+The deterministic script inspects Markdown source patterns and never invokes any renderer, so a clean run is strong evidence, not proof, that the target surface renders everything. The acid test is always the same: the document must compile and render on the TARGET surface without leaking raw source. When one file must serve several surfaces, write to the strictest target and verify there.
+
+### Checking GitHub rendering without pushing
+
+GitHub's own Markdown endpoint is the cheapest faithful probe of its math pipeline. It needs network access and an authenticated GitHub CLI (`gh api` refuses to run unauthenticated; bare unauthenticated REST calls get only a very small quota):
+
+```bash
+gh api markdown -f mode=gfm -f "text=$(cat README.md)"
+```
+
+Every formula GitHub recognizes comes back wrapped in a `math-renderer` element; any `$...$` left as bare text in the returned HTML will leak as raw source on the rendered page. Use `mode=gfm` — the plain `markdown` mode does not run the math pipeline. Recognition is necessary but not sufficient: typesetting happens later in the browser, so an unsupported macro inside a recognized span can still fail there; for final certainty view the rendered page once. This skill deliberately ships no offline emulator of GitHub's pipeline: local preview engines differ from GitHub in exactly the ways that matter here, and a faithful clone would be heavy machinery for little added trust.
 
 ## Commands
 
@@ -111,4 +132,4 @@ python3 "$SKILL_DIR/scripts/bin/markdown_hygiene.py" fix-toc --check --root Draf
 - Optional GitHub-math checks are fail-only and target README/GitHub rendering hazards; do not enable them for non-GitHub surfaces unless that renderer has the same failure modes.
 - Optional raw-token and raw-math-preset checks are fail-only guards for rendered artifacts; tune them per project so they catch unrendered formula text without becoming a generic prose linter.
 
-After applying fixes, inspect `git diff` and then run the nearest project gate, for example `research-team` preflight or `research-writer` validation. If the target artifact is rendered HTML, GitHub Markdown, slides, or PDF, verify the actual target renderer rather than relying only on source checks; for PDF-style deliverables, build and read back or visually inspect the pages.
+After applying fixes, inspect `git diff` and then run the nearest project gate, for example `research-team` preflight or `research-writer` validation. If the target artifact is rendered HTML, GitHub Markdown, slides, or PDF, verify the actual target renderer rather than relying only on source checks; for GitHub Markdown the endpoint probe under "Target rendering surface" is the cheapest first pass, and for PDF-style deliverables, build and read back or visually inspect the pages.
