@@ -92,6 +92,7 @@ For the project's non-surface guarantees — what Nullius is *not*, which agent 
     HARNESS
     state.json
     ledger.jsonl
+    decisions.jsonl
     plan.md
     approval_policy.json
     fleet_queue.json          # when fleet features are in use

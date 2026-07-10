@@ -77,7 +77,7 @@ Verification runs on events, not on reminders: each moment below is the trigger,
 
 ## Execution mode (engine vs file)
 
-Two legitimate ways to run a project, declared once with `nullius init --mode=<engine|file>` and surfaced as `execution_mode` in the status receipt:
+Two legitimate ways to run a project, declared with `nullius init --mode=<engine|file>` (re-runnable any time to change the declaration) and surfaced as `execution_mode` in the status receipt:
 
 - `engine`: the nullius run/approve lifecycle drives the work; approvals flow through `nullius approve`.
 - `file`: work is executed by hand or by external runners; durable truth lives in `research_plan.md`, `research_contract.md`, and the run-evidence roots, and `run_status` legitimately stays `idle`.

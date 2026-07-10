@@ -92,6 +92,7 @@ Skill 源码面与分发面是分离的：
     HARNESS
     state.json
     ledger.jsonl
+    decisions.jsonl
     plan.md
     approval_policy.json
     fleet_queue.json          # 使用 fleet 功能时

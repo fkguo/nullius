@@ -2,12 +2,12 @@
 
 Generic lifecycle control plane and bounded workflow CLI for the nullius ecosystem. Exposes both:
 
-- the **`nullius` CLI** — stateful front door for external project roots (init, status, workflow-plan, verify, final-conclusions, approve, graph);
+- the **`nullius` CLI** — stateful front door for external project roots (init — including the `--mode=<engine|file>` execution-mode declaration —, status, workflow-plan, verify, final-conclusions, approve, decision, graph);
 - the **`orch_*` MCP/operator surface** — the canonical operator/tool counterpart of the same control plane, documented in [meta/docs/orchestrator-mcp-tools-spec.md](../../meta/docs/orchestrator-mcp-tools-spec.md).
 
 ## Layer
 
-Stateful control plane. One shared authority for lifecycle state, approvals, bounded execution, verification, proposal decisions, and read models. Not a competing product identity with the MCP surface — both are facets of the same control plane.
+Stateful control plane. One shared authority for lifecycle state, approvals, bounded execution, verification, proposal decisions, conversational-decision recording (`nullius decision record|pending` append to `.nullius/decisions.jsonl`; `decision list` reads it back), and read models. Not a competing product identity with the MCP surface — both are facets of the same control plane.
 
 ## Binary
 
@@ -32,6 +32,7 @@ Writes to **external project roots only**:
     HARNESS              # machine-readable handshake
     state.json
     ledger.jsonl
+    decisions.jsonl
     plan.md
     approval_policy.json
     fleet_queue.json     # if fleet features used
