@@ -120,8 +120,12 @@ export async function runInitCommand(projectRoot: string | null, cwd: string, ar
         io.stdout(`[ok] execution mode already declared: ${options.mode}\n`);
       } else {
         state.execution_mode = options.mode;
-        manager.saveState(state);
+        // Audit event before the state write: if the two cannot both land,
+        // a retry re-declares (worst case a duplicated audit line), whereas
+        // the reverse order would change the mode with no audit event and
+        // the retry would report "already declared" forever.
         manager.appendLedger('execution_mode_declared', { details: { execution_mode: options.mode } });
+        manager.saveState(state);
         io.stdout(`[ok] execution mode declared: ${options.mode}\n`);
       }
     }
@@ -136,13 +140,15 @@ export async function runInitCommand(projectRoot: string | null, cwd: string, ar
     if (options.mode !== null) {
       state.execution_mode = options.mode;
     }
-    manager.saveState(state);
-    manager.appendLedger('initialized', options.mode !== null ? { details: { execution_mode: options.mode } } : {});
     if (stateExisted && options.mode !== null && priorMode !== options.mode) {
       // A --force re-init that changes the declaration is still a declaration
-      // change; keep the dedicated audit event the non-force path writes.
+      // change; keep the dedicated audit event the non-force path writes, and
+      // write it before the state so a failure between the two is repaired by
+      // an idempotent retry instead of losing the audit trail.
       manager.appendLedger('execution_mode_declared', { details: { execution_mode: options.mode } });
     }
+    manager.saveState(state);
+    manager.appendLedger('initialized', options.mode !== null ? { details: { execution_mode: options.mode } } : {});
     io.stdout(`[ok] wrote: ${statePath}\n`);
     if (options.mode !== null) {
       io.stdout(`[ok] execution mode declared: ${options.mode}\n`);

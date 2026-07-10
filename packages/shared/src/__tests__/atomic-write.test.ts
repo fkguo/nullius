@@ -1,5 +1,5 @@
 /**
- * Sequence-locking tests for the five durable atomic-write primitives (P1).
+ * Sequence-locking tests for the six durable atomic-write primitives (P1).
  *
  * The point of these tests is NOT just to check "did it write the file" —
  * that's covered by end-to-end tests at the bottom. The point IS to lock
@@ -18,7 +18,7 @@
  *     → fsync (fd) → close (fd) → rename (tmp → final)
  *     → open (dirname, 'r') → fsync (dirFd) → close (dirFd)
  *
- *   appendJsonlDurable:
+ *   appendJsonlDurable / appendBytesDurable:
  *     mkdir (dirname) → open (final, 'a') → write → fsync (fd) → close (fd)
  *     → open (dirname, 'r') → fsync (dirFd) → close (dirFd)
  *

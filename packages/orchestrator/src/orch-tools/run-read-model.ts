@@ -1045,9 +1045,16 @@ function executionModeUndeclaredIssue(projectRoot: string, state: RunState | nul
   const teamRunsPrefix = path.join('team', 'runs') + path.sep;
   const teamRunCount = runs.filter(run => run.rel_dir.startsWith(teamRunsPrefix)).length;
   const harnessSentinel = readNulliusHarnessSentinelHealth(projectRoot);
+  // Control-dir aware: with NULLIUS_CONTROL_DIR set, .nullius/state.json
+  // would name a file that does not exist.
+  const absoluteStatePath = new StateManager(projectRoot).statePath;
+  const relativeStatePath = path.relative(projectRoot, absoluteStatePath);
+  const statePathDisplay = relativeStatePath.startsWith('..') || path.isAbsolute(relativeStatePath)
+    ? absoluteStatePath
+    : relativeStatePath.split(path.sep).join('/');
   return {
     code: 'EXECUTION_MODE_UNDECLARED_LOOKS_FILE_MODE',
-    path: path.join('.nullius', 'state.json'),
+    path: statePathDisplay,
     message: 'Engine state has stayed at its init values while dated run evidence accumulates, so this looks like a file-mode project that never declared it. '
       + 'Declare the mode so reconnecting agents read the right truth surface: '
       + '`nullius init --mode=file` if work is executed by hand or external runners '

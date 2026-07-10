@@ -1,7 +1,7 @@
 /**
  * Durable atomic file writes (P1).
  *
- * Provides five primitives that guarantee POSIX-correct durability against
+ * Provides six primitives that guarantee POSIX-correct durability against
  * crash / power-loss between syscalls — the gold-standard pattern already
  * proven in `packages/orchestrator/src/run-manifest.ts:82-97` (Batch 8 R2
  * fix). Lifted into `@nullius/shared` so every package that writes

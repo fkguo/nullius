@@ -201,6 +201,7 @@ function main() {
       '  - writeBytesAtomicDurable(filePath, bytes, mode?)\n' +
       '  - writeJsonAtomicDurable(filePath, payload, stringify?)\n' +
       '  - appendJsonlDurable(filePath, lineObject)\n' +
+      '  - appendBytesDurable(filePath, bytes)\n' +
       '  - writeExecutableAtomicDurable(filePath, script)\n' +
       '  - commitStagedDurable(stagedPath, finalPath)\n' +
       '\nIf the new call site genuinely cannot use a primitive (e.g. cross-parent\n' +

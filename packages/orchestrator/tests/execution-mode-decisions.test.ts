@@ -479,6 +479,68 @@ describe('decision ledger', () => {
     expect(replayLedger.decided_count).toBe(1);
   });
 
+  it('reserves the id of a quarantined line so allocation never reuses it', async () => {
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot);
+    const ledgerPath = path.join(projectRoot, '.nullius', 'decisions.jsonl');
+    // Valid canonical id, structurally invalid record (empty text).
+    fs.writeFileSync(ledgerPath, `${JSON.stringify({ id: 'D1', ts: '2026-07-10T00:00:00Z', kind: 'pending', text: '', by: 'user', resolves: null })}\n`, 'utf-8');
+
+    const record = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'first CLI decision'], record.io)).toBe(0);
+    // D1 exists as bytes (quarantined), so the CLI must continue at D2.
+    expect(record.stdout.join('')).toContain('recorded: D2');
+    const payload = await statusJson(projectRoot);
+    expect((payload.decision_ledger as Record<string, unknown>).invalid_lines).toBe(1);
+  });
+
+  it('rejects non-canonical ids and malformed resolves fields as invalid lines', async () => {
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot);
+    const ledgerPath = path.join(projectRoot, '.nullius', 'decisions.jsonl');
+    const lines = [
+      // Leading-zero id: not canonical, cannot alias D1.
+      { id: 'D01', ts: '2026-07-10T00:00:00Z', kind: 'pending', text: 'leading zero id', by: 'user', resolves: null },
+      // Pending entries must not carry resolves.
+      { id: 'D1', ts: '2026-07-10T00:00:01Z', kind: 'pending', text: 'pending with resolves', by: 'user', resolves: 'D2' },
+      // Malformed resolves value on a decided entry.
+      { id: 'D2', ts: '2026-07-10T00:00:02Z', kind: 'decided', text: 'bad resolves', by: 'user', resolves: 'not-an-id' },
+    ];
+    fs.writeFileSync(ledgerPath, lines.map(line => JSON.stringify(line)).join('\n') + '\n', 'utf-8');
+
+    const list = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'list', '--json'], list.io)).toBe(0);
+    const parsed = JSON.parse(list.stdout.join('')) as { invalid_lines: number; records: unknown[] };
+    expect(parsed.invalid_lines).toBe(3);
+    expect(parsed.records).toHaveLength(0);
+
+    // D1 and D2 were reserved by the quarantined lines; D01 was not an id.
+    const record = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'continues after the quarantine'], record.io)).toBe(0);
+    expect(record.stdout.join('')).toContain('recorded: D3');
+  });
+
+  it('keeps the declared mode unchanged when the audit event cannot be written', async () => {
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot);
+    const ledgerPath = path.join(projectRoot, '.nullius', 'ledger.jsonl');
+    fs.chmodSync(ledgerPath, 0o444);
+    try {
+      await expect(
+        runCli([`--project-root=${projectRoot}`, 'init', '--runtime-only', '--mode=file'], makeIo(projectRoot).io),
+      ).rejects.toThrow(/EACCES|permission denied/);
+      // Event-before-state ordering: the failed declaration left no state change.
+      expect(new StateManager(projectRoot).readState().execution_mode ?? null).toBeNull();
+    } finally {
+      fs.chmodSync(ledgerPath, 0o644);
+    }
+
+    const retry = await initRuntimeOnly(projectRoot, ['--mode=file']);
+    expect(retry).toContain('[ok] execution mode declared: file');
+    expect(new StateManager(projectRoot).readState().execution_mode).toBe('file');
+    expect(readLedgerEvents(projectRoot).filter(event => event.event_type === 'execution_mode_declared')).toHaveLength(1);
+  });
+
   it('lists the invalid-line count even when no valid record exists', async () => {
     const projectRoot = makeTempProjectRoot();
     await initRuntimeOnly(projectRoot);
@@ -537,6 +599,15 @@ describe('decision ledger', () => {
       expect(await runCli([`--project-root=${overriddenRoot}`, 'decision', 'record', 'recorded under the override'], makeIo(overriddenRoot).io)).toBe(0);
       expect(fs.existsSync(path.join(overriddenRoot, 'ctl', 'decisions.jsonl'))).toBe(true);
       expect(fs.existsSync(path.join(overriddenRoot, '.nullius', 'decisions.jsonl'))).toBe(false);
+      const receipt = await statusJson(overriddenRoot);
+      expect((receipt.decision_ledger as Record<string, unknown>).path).toBe('ctl/decisions.jsonl');
+
+      // The undeclared-mode hint must also name the overridden state path.
+      const hintRoot = makeTempProjectRoot();
+      await initRuntimeOnly(hintRoot);
+      fs.mkdirSync(path.join(hintRoot, 'artifacts', 'runs', '20260701T090000Z-m1-scan-r1'), { recursive: true });
+      const hint = driftIssues(await statusJson(hintRoot)).find(issue => issue.code === 'EXECUTION_MODE_UNDECLARED_LOOKS_FILE_MODE');
+      expect(hint?.path).toBe('ctl/state.json');
     } finally {
       if (previous === undefined) delete process.env.NULLIUS_CONTROL_DIR;
       else process.env.NULLIUS_CONTROL_DIR = previous;

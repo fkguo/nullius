@@ -51,7 +51,9 @@ export type DecisionsLedgerSnapshot = {
   highest_id_sequence: number;
 };
 
-const DECISION_ID_PATTERN = /^D(\d+)$/;
+// Canonical ids only: no leading zeros, so "D01" can never alias "D1" as a
+// second identity for the same numeric sequence.
+const DECISION_ID_PATTERN = /^D([1-9]\d*)$/;
 
 // Bounded wait for the cross-process append lock: 100 x 25ms = 2.5s covers
 // any realistic holder (one read + one appended line), then fail loudly.
@@ -85,26 +87,49 @@ function decisionSequenceNumber(id: unknown): number | null {
   return Number.isSafeInteger(value) && value > 0 ? value : null;
 }
 
-function parseDecisionLine(line: string): DecisionRecord | null {
+type ParsedDecisionLine = {
+  /** Canonical id found on the line, even when the record itself is
+   *  quarantined — its sequence number is reserved either way. */
+  id: string | null;
+  record: DecisionRecord | null;
+};
+
+function parseDecisionLine(line: string): ParsedDecisionLine {
   let parsed: unknown;
   try {
     parsed = JSON.parse(line);
   } catch {
-    return null;
+    return { id: null, record: null };
   }
-  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return { id: null, record: null };
   const record = parsed as Record<string, unknown>;
-  if (decisionSequenceNumber(record.id) === null) return null;
-  if (typeof record.ts !== 'string') return null;
-  if (record.kind !== 'decided' && record.kind !== 'pending') return null;
-  if (typeof record.text !== 'string' || record.text.length === 0) return null;
+  // Extract the id FIRST: a line that carries a canonical id reserves its
+  // sequence number no matter what else is wrong with it, so quarantining a
+  // line never frees its id for reuse.
+  const id = decisionSequenceNumber(record.id) !== null ? record.id as string : null;
+  if (id === null) return { id: null, record: null };
+  if (typeof record.ts !== 'string') return { id, record: null };
+  if (record.kind !== 'decided' && record.kind !== 'pending') return { id, record: null };
+  if (typeof record.text !== 'string' || record.text.length === 0) return { id, record: null };
+  // Strict resolves validation: absent/null, or a canonical id on a decided
+  // record. A malformed value or a pending record carrying resolves is a
+  // malformed line, not something to silently coerce to null.
+  let resolves: string | null = null;
+  if (record.resolves !== undefined && record.resolves !== null) {
+    if (record.kind !== 'decided') return { id, record: null };
+    if (decisionSequenceNumber(record.resolves) === null) return { id, record: null };
+    resolves = record.resolves as string;
+  }
   return {
-    id: record.id as string,
-    ts: record.ts,
-    kind: record.kind,
-    text: record.text,
-    by: typeof record.by === 'string' && record.by.length > 0 ? record.by : 'user',
-    resolves: decisionSequenceNumber(record.resolves) !== null ? record.resolves as string : null,
+    id,
+    record: {
+      id,
+      ts: record.ts,
+      kind: record.kind,
+      text: record.text,
+      by: typeof record.by === 'string' && record.by.length > 0 ? record.by : 'user',
+      resolves,
+    },
   };
 }
 
@@ -115,21 +140,27 @@ export function readDecisionsLedger(projectRoot: string): DecisionsLedgerSnapsho
     return { path: displayPath, exists: false, records: [], invalid_lines: 0, highest_id_sequence: 0 };
   }
   const records: DecisionRecord[] = [];
-  const seenIds = new Set<string>();
+  const reservedIds = new Set<string>();
   const openIds = new Set<string>();
   let invalidLines = 0;
   let highestSequence = 0;
   const lines = fs.readFileSync(filePath, 'utf-8').split(/\r?\n/);
   for (const line of lines) {
     if (line.trim().length === 0) continue;
-    const record = parseDecisionLine(line);
-    if (record) {
-      const sequence = decisionSequenceNumber(record.id);
+    const { id, record } = parseDecisionLine(line);
+    // Reserve the id and advance the high-water mark for EVERY line that
+    // carries a canonical id — quarantined or not — so allocation never
+    // reuses an id that exists as bytes in the file.
+    const alreadyReserved = id !== null && reservedIds.has(id);
+    if (id !== null) {
+      reservedIds.add(id);
+      const sequence = decisionSequenceNumber(id);
       if (sequence !== null && sequence > highestSequence) highestSequence = sequence;
     }
-    if (!record || seenIds.has(record.id)) {
-      // A repeated id (hand edit) would make `--resolves <id>` ambiguous;
-      // the first occurrence stays authoritative, later ones are quarantined.
+    if (!record || alreadyReserved) {
+      // Malformed line, or a repeated id (which would make `--resolves <id>`
+      // ambiguous): the first occurrence stays authoritative, later ones are
+      // quarantined.
       invalidLines += 1;
       continue;
     }
@@ -141,7 +172,6 @@ export function readDecisionsLedger(projectRoot: string): DecisionsLedgerSnapsho
       invalidLines += 1;
       continue;
     }
-    seenIds.add(record.id);
     if (record.kind === 'pending') {
       openIds.add(record.id);
     } else if (record.resolves !== null) {
