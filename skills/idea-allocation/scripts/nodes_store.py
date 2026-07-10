@@ -462,8 +462,16 @@ def posterior_status(node: Dict[str, Any]) -> Optional[str]:
 
 
 def allocation_eligible_from_coverage(coverage: Dict[str, Any]) -> bool:
-    """Close-prior gate as the decision layer reads it: saturated, or
-    coverage_incomplete with the explicit exploratory waiver."""
+    """Close-prior gate exactly as the engine checks it (isPortfolioScoringEligible):
+    BOTH close-prior refs recorded (survey + matrix), AND saturated coverage or
+    coverage_incomplete with the explicit exploratory waiver. A status label
+    without the refs is not scoring-eligible — the survey and matrix are what
+    make the label auditable."""
+    has_refs = bool(str(coverage.get("survey_ref", "")).strip()) and bool(
+        str(coverage.get("close_prior_matrix_ref", "")).strip()
+    )
+    if not has_refs:
+        return False
     status = coverage.get("status")
     return status == "saturated" or (
         status == "coverage_incomplete" and coverage.get("exploratory_allocation") is True

@@ -76,11 +76,14 @@ re-checks their stored data, because a hand-migrated store can carry an
 `admitted` label the data no longer supports.
 
 Literature coverage is a portfolio gate, not a display hint. An admitted node
-is sampled only when the posterior is `current` and
-`literature_coverage.status` is `saturated`. `coverage_incomplete` can be
-sampled only when `exploratory_allocation: true` is explicit; the artifact then
-labels the candidate as exploratory. An admitted node failing these data
-re-checks is a hold whose note says to repair the store.
+is sampled only when the posterior is `current`, both close-prior refs
+(`survey_ref` + `close_prior_matrix_ref`) are recorded, and
+`literature_coverage.status` is `saturated` — the same predicate the engine's
+scoring gate applies; a status label without the refs is not eligible.
+`coverage_incomplete` can be sampled only when `exploratory_allocation: true`
+is explicit; the artifact then labels the candidate as exploratory. An
+admitted node failing these data re-checks is a hold whose note says to
+repair the store.
 
 ## The Beta construction, and why
 
