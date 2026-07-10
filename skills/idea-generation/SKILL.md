@@ -175,7 +175,8 @@ see it.
    ```
 
    Hashed character-3-gram cosine (with an exact normalized-text
-   short-circuit) against every node (active, waiting, archived) AND against
+   short-circuit) against every node (every lifecycle state, archived
+   included) AND against
    the burst's own earlier candidates — same-anchor twins are the most likely
    duplicates and a store-only comparison cannot see them: ≥ 0.95 auto-drop,
    ≥ 0.80 flagged. Flagged candidates import only with an explicit human

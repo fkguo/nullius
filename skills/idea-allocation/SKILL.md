@@ -1,6 +1,6 @@
 ---
 name: idea-allocation
-description: "Decision layer for allocating research effort across a portfolio of ideas: Thompson-sampling allocation from per-idea posteriors (a Beta construction with Laplace pseudo-counts), slot-based cuts into deep investment vs reconnaissance vs hold, cold-start handling for ideas without a posterior, and an activation monitor for ideas waiting on external conditions with ready-to-paste lifecycle-transition commands. Use before each investment round, after new evidence has updated the belief graph posteriors, or when checking whether waiting ideas can enter play. Keeps utility, cost, and budget OUT of the belief layer; slot counts are caller-supplied (no built-in budget); an explicit random seed makes every allocation reproducible."
+description: "Decision layer for allocating research effort across a portfolio of ideas: Thompson-sampling allocation from per-idea posteriors (a Beta construction with Laplace pseudo-counts), slot-based cuts into deep investment vs reconnaissance vs hold, cold-start handling for ideas without a posterior, and an activation monitor for ideas parked on recorded conditions (external activation conditions and missing admission evidence) with ready-to-paste lifecycle-transition commands. Use before each investment round, after new evidence has updated the belief graph posteriors, or when checking whether waiting ideas can enter play. Keeps utility, cost, and budget OUT of the belief layer; slot counts are caller-supplied (no built-in budget); an explicit random seed makes every allocation reproducible."
 ---
 
 # Idea Allocation
@@ -9,12 +9,13 @@ Turn per-idea posteriors into one round of investment decisions, and watch the
 queue of ideas waiting for their entry condition. Two standard-library Python
 scripts, no third-party dependencies:
 
-- `scripts/thompson_allocation.py` — one Thompson-sampling draw per active
+- `scripts/thompson_allocation.py` — one Thompson-sampling draw per admitted
   idea, ranked, cut into deep investment / reconnaissance / hold, written as
   an `allocation_decision_v1` artifact.
-- `scripts/activation_monitor.py` — a check report over ideas in
-  `waiting_activation`, grouped by condition kind, with a ready-to-paste
-  lifecycle-transition command for every condition already satisfied.
+- `scripts/activation_monitor.py` — a check report over ideas parked in the
+  condition-carrying states (`waiting_activation` and `admission_blocked`),
+  grouped by condition kind, with a ready-to-paste lifecycle-transition
+  command for every condition already satisfied.
 
 ## When to use
 
@@ -24,7 +25,8 @@ scripts, no third-party dependencies:
   were re-derived: re-read the fresh posteriors and re-allocate. Revival is
   automatic this way — an idea whose posterior rose on new evidence simply
   starts winning draws again; nothing needs to be un-archived by hand here.
-- Any time you want to know whether a waiting idea can enter play: run the
+- Any time you want to know whether a parked idea (waiting on an external
+  condition, or blocked on missing admission evidence) can move: run the
   activation monitor and follow its check guidance.
 
 ## Layering principle
@@ -55,26 +57,37 @@ the campaign id. Per node, the pinned fields are:
 | field | meaning |
 | --- | --- |
 | `node_id` | engine short id: 8 chars of lowercase Crockford base32 (digits + lowercase letters minus `i`/`l`/`o`/`u`), as pinned by the engine idea_node_v1 contract |
-| `lifecycle_state` | `active`, `waiting_activation`, or `archived`; missing means `active` |
-| `posterior` | optional object: `value` in [0, 1], `evidence_count` >= 0, `updated_at` ISO 8601, optional `gaia_package_ref`, optional `status` (`current`, `provisional`, `stale`) |
+| `lifecycle_state` | one of the engine lifecycle machine's states: `candidate`, `admission_review`, `admitted`, `needs_refresh`, `admission_blocked`, `waiting_activation`, `archived`. Required — there is no default, and the retired `active` value marks an unmigrated store (rejected with a migration hint) |
+| `posterior` | optional object: `value` in [0, 1], `evidence_count` >= 0, `updated_at` ISO 8601, optional `gaia_package_ref`, optional `status` (`current`, `provisional`, `stale`); a missing status is NOT current — the engine's ranking gate reads it the same way |
 | `literature_coverage` | optional object from `idea-posterior`: `status` (`saturated`, `coverage_incomplete`, `metadata_only`), optional `survey_ref`, optional `close_prior_matrix_ref`, optional `exploratory_allocation`; missing means `metadata_only` |
-| `activation_condition` | required for `waiting_activation`: `kind`, `description`, `satisfied`, optional `last_checked_at` |
+| `activation_condition` | required for the two condition-carrying states — `waiting_activation` (external condition) and `admission_blocked` (missing evidence admission needs): `kind`, `description`, `satisfied`, optional `last_checked_at` |
 
 `activation_condition.kind` is one of `tool_readiness`, `data_release`,
-`stage_reached`, `exploratory_computation`, `other`. A store that fails
-validation is rejected as a whole, with every problem listed — the scripts
-refuse to allocate on top of malformed belief data.
+`stage_reached`, `exploratory_computation`, `required_evidence`, `other`. A
+store that fails validation is rejected as a whole, with every problem listed
+— the scripts refuse to allocate on top of malformed belief data.
 
-Literature coverage is a portfolio gate, not a display hint. An active node
-with a posterior is sampled only when the posterior is `current` and
-`literature_coverage.status` is `saturated`. `coverage_incomplete` can be
-sampled only when `exploratory_allocation: true` is explicit; the artifact then
-labels the candidate as exploratory. `metadata_only`, missing coverage, and
-stale/provisional posteriors are held out of allocation eligibility.
+The engine enforces the lifecycle machine at the store: nodes are born
+`candidate`, a posterior write is legal only in `admission_review` /
+`admitted` / `needs_refresh`, and the engine itself derives `admitted`
+(posterior `current`) or `needs_refresh` (anything else) from each writeback.
+This decision layer therefore samples exactly the `admitted` nodes — and still
+re-checks their stored data, because a hand-migrated store can carry an
+`admitted` label the data no longer supports.
+
+Literature coverage is a portfolio gate, not a display hint. An admitted node
+is sampled only when the posterior is `current`, both close-prior refs
+(`survey_ref` + `close_prior_matrix_ref`) are recorded, and
+`literature_coverage.status` is `saturated` — the same predicate the engine's
+scoring gate applies; a status label without the refs is not eligible.
+`coverage_incomplete` can be sampled only when `exploratory_allocation: true`
+is explicit; the artifact then labels the candidate as exploratory. An
+admitted node failing these data re-checks is a hold whose note says to
+repair the store.
 
 ## The Beta construction, and why
 
-Each active idea with posterior summary `value = v`, `evidence_count = n`
+Each admitted idea with posterior summary `value = v`, `evidence_count = n`
 samples from:
 
 ```
@@ -113,7 +126,7 @@ python skills/idea-allocation/scripts/thompson_allocation.py \
   default slot counts on purpose: slots encode real person-time and compute
   capacity for the coming round, which only the caller knows. Pick them per
   round and treat them as the budget dial.
-- One draw per eligible idea (active with a current posterior and eligible
+- One draw per eligible idea (admitted with a current posterior and eligible
   literature coverage), draw order fixed by sorted node id, ranked by sampled
   value descending. The top `deep_slots` become `deep_investment`, the next
   `recon_slots` become `reconnaissance`, the rest `hold`.
@@ -125,21 +138,24 @@ python skills/idea-allocation/scripts/thompson_allocation.py \
   goes to `artifacts/allocations/allocation-<decision_id>.json` (override the
   directory with `--artifact-dir`).
 
-### Cold start
+### Cold start and the admission pipeline
 
-Active ideas WITHOUT a posterior are never sampled and never occupy a deep
-slot; they are appended to the tail of the reconnaissance list with a fixed
-note ("no posterior yet — needs belief graph first"), outside the slot
-budget. The first unit of work for such an idea is always the same: build its
-belief-graph entry and obtain a first posterior, then it competes normally.
-If many cold starts pile up, batch them across rounds — their notes make them
-easy to spot.
+Ideas still in the admission pipeline (`candidate` and `admission_review`) are
+never sampled and never occupy a deep slot; they are appended to the tail of
+the reconnaissance list with a fixed note, outside the slot budget. The first
+unit of work for such an idea is always the same: run the admission gate and
+close-prior survey, build its belief-graph entry, and obtain a first posterior
+through the engine's writeback (which itself moves the node to `admitted` or
+`needs_refresh`), then it competes normally. If many cold starts pile up,
+batch them across rounds — their notes make them easy to spot.
 
-Active ideas WITH a posterior but without saturated close-prior coverage are
-not cold starts; they are literature-blocked holds. Their next work item is to
-finish the close-prior survey/matrix or explicitly declare exploratory
-allocation for `coverage_incomplete`. A `coverage_incomplete` idea must never be
-reported as allocation eligible unless the artifact says exploratory.
+`needs_refresh` ideas are not cold starts; they are holds. Their stored
+posterior is history, not current allocation guidance — the next work item is
+the close-prior re-review and a fresh posterior writeback. `admission_blocked`
+ideas are holds carrying the missing-evidence condition; produce the evidence,
+then re-enter `admission_review` (the activation monitor prints the exact
+command once the condition is satisfied). A `coverage_incomplete` idea must
+never be reported as allocation eligible unless the artifact says exploratory.
 
 ### What reconnaissance means
 
@@ -157,7 +173,7 @@ destinations:
 Deep investment is the full treatment: sustained derivations, production
 computations, manuscript-grade work.
 
-## Monitoring ideas waiting for activation
+## Monitoring ideas parked on a condition
 
 ```
 python skills/idea-allocation/scripts/activation_monitor.py \
@@ -165,8 +181,9 @@ python skills/idea-allocation/scripts/activation_monitor.py \
   --store-root /path/to/campaign-store
 ```
 
-Waiting ideas do not participate in allocation. The monitor groups them by
-condition kind and prints check guidance per kind:
+Parked ideas do not participate in allocation. The monitor scans both
+condition-carrying states — `waiting_activation` and `admission_blocked` —
+groups them by condition kind, and prints check guidance per kind:
 
 | kind | what to check |
 | --- | --- |
@@ -174,10 +191,11 @@ condition kind and prints check guidance per kind:
 | `data_release` | the publication status of the awaited data source or release channel |
 | `stage_reached` | whether the named project stage or milestone has been reached |
 | `exploratory_computation` | whether the exploratory computation artifact exists AND passed the numerical reliability checks |
+| `required_evidence` | whether the named missing evidence now exists as a recorded artifact (and, for computed evidence, passed its reliability checks) |
 | `other` | no standard probe — follow the condition description verbatim |
 
 For every node whose condition is already `satisfied: true` but which still
-sits in `waiting_activation`, the report prints a ready-to-paste command that
+sits in its parked state, the report prints a ready-to-paste command that
 performs the lifecycle transition through the campaign store's thin RPC
 helper:
 
@@ -185,6 +203,12 @@ helper:
 echo '{"method":"node.set_lifecycle","params":{...},"store_root":"..."}' \
   | node packages/idea-engine/bin/idea-rpc.mjs
 ```
+
+The suggested target respects the engine's lifecycle machine: a satisfied
+`admission_blocked` node re-enters `admission_review`, while a satisfied
+`waiting_activation` node returns to the state its stored data supports (no
+posterior means `candidate`; a current posterior with scoring-eligible
+coverage means `admitted`; any other posterior means `needs_refresh`).
 
 The monitor itself NEVER performs the transition — executing the command is
 the caller's action. The suggested `idempotency_key` is a deterministic
@@ -206,8 +230,8 @@ fails validation):
 | `generated_at` | ISO 8601 date-time |
 | `method` | always `thompson_sampling` |
 | `random_seed` | the seed that produced the draws |
-| `candidates` | per idea: `node_id`, `posterior_value`, `evidence_count`, `sampled_value`, `posterior_status`, `allocation`, `literature_coverage_status`, `allocation_eligible`, `exploratory_allocation`, `budget_note`; `posterior_status` is null for cold starts, and sampled/eligible candidates must be `current` |
-| `waiting_activation` | per waiting idea: `node_id`, `activation_condition`, `last_checked_at` |
+| `candidates` | per idea: `node_id`, `lifecycle_state`, `posterior_value`, `evidence_count`, `sampled_value`, `posterior_status`, `allocation`, `literature_coverage_status`, `allocation_eligible`, `exploratory_allocation`, `budget_note`; only `admitted` rows may carry a `sampled_value`, `posterior_status` is null without posterior data, and sampled/eligible candidates must be `current` |
+| `waiting_activation` | per waiting idea: `node_id`, `activation_condition`, `last_checked_at` (admission_blocked ideas appear among candidates as holds instead) |
 
 Human-readable portfolio summaries display posterior and sample values with a
 few decimals only; exact values remain in the JSON artifact and in the engine

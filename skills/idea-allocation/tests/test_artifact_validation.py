@@ -24,6 +24,7 @@ def good_artifact():
         "candidates": [
             {
                 "node_id": "a1pha000",
+                "lifecycle_state": "admitted",
                 "posterior_value": 0.85,
                 "evidence_count": 40,
                 "sampled_value": 0.8712,
@@ -36,6 +37,7 @@ def good_artifact():
             },
             {
                 "node_id": "gamma000",
+                "lifecycle_state": "candidate",
                 "posterior_value": None,
                 "evidence_count": None,
                 "sampled_value": None,
@@ -45,6 +47,32 @@ def good_artifact():
                 "exploratory_allocation": False,
                 "allocation": "reconnaissance",
                 "budget_note": "no posterior yet — needs belief graph first",
+            },
+            {
+                "node_id": "nr000000",
+                "lifecycle_state": "needs_refresh",
+                "posterior_value": 0.6,
+                "evidence_count": 8,
+                "sampled_value": None,
+                "posterior_status": "stale",
+                "literature_coverage_status": "saturated",
+                "allocation_eligible": False,
+                "exploratory_allocation": False,
+                "allocation": "hold",
+                "budget_note": "not allocation eligible: needs_refresh — stored posterior is history",
+            },
+            {
+                "node_id": "mx000000",
+                "lifecycle_state": "admission_blocked",
+                "posterior_value": None,
+                "evidence_count": None,
+                "sampled_value": None,
+                "posterior_status": None,
+                "literature_coverage_status": "metadata_only",
+                "allocation_eligible": False,
+                "exploratory_allocation": False,
+                "allocation": "hold",
+                "budget_note": "not allocation eligible: admission_blocked — missing required evidence",
             },
         ],
         "waiting_activation": [
@@ -243,18 +271,46 @@ def test_candidate_shape_enforced():
     assert any("candidates must be a list" in p for p in problems_after(candidates_not_list))
 
 
-def test_cold_start_triple_rules():
-    # Mixed null triple is invalid.
-    def mixed(artifact):
+def test_lifecycle_state_rules():
+    # A sampled value on a non-admitted row is invalid.
+    def sampled_candidate(artifact):
         artifact["candidates"][1]["sampled_value"] = 0.5
 
-    assert any("all" in p and "null" in p for p in problems_after(mixed))
+    probs = problems_after(sampled_candidate)
+    assert any("only admitted nodes may carry a sampled_value" in p for p in probs)
 
-    # A full-null cold start must be reconnaissance, never deep or hold.
+    # An admission-pipeline row must sit in the reconnaissance tail.
     def cold_deep(artifact):
         artifact["candidates"][1]["allocation"] = "deep_investment"
 
-    assert any("cold start" in p for p in problems_after(cold_deep))
+    assert any("admission pipeline" in p for p in problems_after(cold_deep))
+
+    # A candidate row must not carry posterior data (posterior null by the
+    # engine's entry precondition).
+    def candidate_with_posterior(artifact):
+        artifact["candidates"][1]["posterior_value"] = 0.4
+        artifact["candidates"][1]["evidence_count"] = 2
+        artifact["candidates"][1]["posterior_status"] = "current"
+
+    assert any("must not carry posterior data" in p for p in problems_after(candidate_with_posterior))
+
+    # A non-sampled needs_refresh / admission_blocked row must be a hold.
+    def refresh_recon(artifact):
+        artifact["candidates"][2]["allocation"] = "reconnaissance"
+
+    assert any("must have allocation 'hold'" in p for p in problems_after(refresh_recon))
+
+    # An unknown lifecycle state is rejected.
+    def bad_state(artifact):
+        artifact["candidates"][0]["lifecycle_state"] = "active"
+
+    assert any("lifecycle_state" in p for p in problems_after(bad_state))
+
+    # Value/count must be both null or both present.
+    def torn_pair(artifact):
+        artifact["candidates"][2]["evidence_count"] = None
+
+    assert any("both null or both present" in p for p in problems_after(torn_pair))
 
 
 def test_literature_coverage_eligibility_rules():

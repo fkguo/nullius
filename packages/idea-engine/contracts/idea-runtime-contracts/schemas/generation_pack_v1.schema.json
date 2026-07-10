@@ -218,7 +218,7 @@
         },
         "dedup": {
           "type": "object",
-          "description": "Mechanical dedup record against ALL campaign nodes (active, waiting, archived). decision=flagged requires an explicit human override_reason or the import refuses.",
+          "description": "Mechanical dedup record against ALL campaign nodes (every lifecycle state, archived included). decision=flagged requires an explicit human override_reason or the import refuses.",
           "required": [
             "method",
             "decision"

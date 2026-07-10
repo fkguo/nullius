@@ -47,6 +47,18 @@ describe('idea-rpc command-line bridge', () => {
     const campaignId = String(init.campaign_id);
     const nodeId = Object.keys(service.read.store.loadNodes(campaignId))[0]!;
 
+    const review = runCli({
+      method: 'node.set_lifecycle',
+      store_root: rootDir,
+      params: {
+        campaign_id: campaignId,
+        idempotency_key: 'cli-review-1',
+        lifecycle_state: 'admission_review',
+        node_id: nodeId,
+      },
+    });
+    expect(review.status).toBe(0);
+
     const { stdout, status } = runCli({
       method: 'node.set_posterior',
       store_root: rootDir,
@@ -71,7 +83,8 @@ describe('idea-rpc command-line bridge', () => {
 
     const storedNode = service.read.store.loadNodes<Record<string, unknown>>(campaignId)[nodeId]!;
     expect((storedNode.posterior as Record<string, unknown>).value).toBe(0.55);
-    expect(storedNode.revision).toBe(2);
+    expect(storedNode.lifecycle_state).toBe('admitted');
+    expect(storedNode.revision).toBe(3);
   });
 
   it('returns a JSON-RPC error envelope and non-zero exit for engine errors', () => {

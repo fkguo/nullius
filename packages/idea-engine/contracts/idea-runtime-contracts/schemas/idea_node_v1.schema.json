@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "idea_node_v1.schema.json",
   "title": "IdeaNode v1",
-  "description": "A single candidate idea node in a campaign portfolio, with lineage, traces, diagnostics, an optional formalized IdeaCard, close-prior literature coverage, and an externally computed belief posterior.\n\nMutability contract (audit-first): Fields campaign_id, idea_id, node_id, parent_node_ids, island_id, operator_id, operator_family, origin, operator_trace, rationale_draft, created_at are IMMUTABLE after creation. Fields revision, idea_card, grounding_audit, reduction_report, reduction_audit, literature_coverage, posterior, lifecycle_state, activation_condition, updated_at are MUTABLE (append/replace semantics; prior values should be preserved in the ledger or history artifacts). revision is engine-managed: initialized to 1 at creation and incremented on each mutation.",
+  "description": "A single candidate idea node in a campaign portfolio, with lineage, traces, diagnostics, an optional formalized IdeaCard, close-prior literature coverage, and an externally computed belief posterior.\n\nMutability contract (audit-first): Fields campaign_id, idea_id, node_id, parent_node_ids, island_id, operator_id, operator_family, origin, operator_trace, rationale_draft, created_at are IMMUTABLE after creation. Fields revision, idea_card, grounding_audit, reduction_report, reduction_audit, literature_coverage, posterior, lifecycle_state, lifecycle_reason, activation_condition, updated_at are MUTABLE (append/replace semantics; prior values should be preserved in the ledger or history artifacts). revision is engine-managed: initialized to 1 at creation and incremented on each mutation.",
   "type": "object",
   "required": [
     "campaign_id",
@@ -14,6 +14,7 @@
     "origin",
     "operator_trace",
     "rationale_draft",
+    "lifecycle_state",
     "created_at"
   ],
   "properties": {
@@ -136,11 +137,22 @@
     },
     "lifecycle_state": {
       "enum": [
-        "active",
+        "candidate",
+        "admission_review",
+        "admitted",
+        "needs_refresh",
+        "admission_blocked",
         "waiting_activation",
         "archived"
       ],
-      "description": "Portfolio lifecycle state. Absent means active (validator-side default). waiting_activation nodes carry an activation_condition and are excluded from ranking; archived nodes are retained as an idea archive and are excluded from ranking and promotion."
+      "description": "Portfolio lifecycle state (required; no validator-side default). States: candidate = in the pool, no posterior written (entry requires posterior null); admission_review = admission or re-admission review declared in progress; admitted = current store-backed posterior, the only state eligible for strict posterior ranking and promotion (entry requires posterior.status=current plus scoring-eligible close-prior coverage); needs_refresh = carries a posterior that is not current allocation guidance (entry requires a posterior); admission_blocked = cannot proceed to admission until the recorded missing evidence is produced (requires activation_condition); waiting_activation = parked on an external condition (requires activation_condition); archived = retained for the record, excluded from ranking and promotion (requires a transition reason). Transitions are enforced by node.set_lifecycle: candidate -> admission_review | admission_blocked | waiting_activation | archived; admission_review -> candidate | admitted | needs_refresh | admission_blocked | waiting_activation | archived; admitted -> needs_refresh | admission_blocked | waiting_activation | archived; needs_refresh -> admitted | admission_blocked | waiting_activation | archived; admission_blocked -> admission_review | admission_blocked | waiting_activation | archived; waiting_activation -> candidate | admission_review | admitted | needs_refresh | admission_blocked | waiting_activation | archived; archived -> candidate | needs_refresh (revival is re-intake; no shortcut back to admitted). Self-transitions exist only for the two condition-carrying states (condition update). node.set_posterior additionally derives lifecycle itself: a write with status=current yields admitted, otherwise needs_refresh."
+    },
+    "lifecycle_reason": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Reason recorded with the most recent lifecycle transition (engine-written; null when the last transition carried none). Required non-empty on transitions into archived. Gives portfolio reports the obstruction/rationale column without reading the mutation log."
     },
     "posterior": {
       "oneOf": [
@@ -270,6 +282,7 @@
                 "data_release",
                 "stage_reached",
                 "exploratory_computation",
+                "required_evidence",
                 "other"
               ]
             },
@@ -284,7 +297,7 @@
           "additionalProperties": false
         }
       ],
-      "description": "Present when lifecycle_state is waiting_activation: the condition under which the idea becomes actionable."
+      "description": "Present exactly when lifecycle_state is waiting_activation or admission_blocked. For waiting_activation: the external condition under which the idea becomes actionable. For admission_blocked: the missing evidence that must be produced before admission review can resume (kind is typically required_evidence). Cleared on transitions into any other state."
     },
     "grounding_audit": {
       "oneOf": [

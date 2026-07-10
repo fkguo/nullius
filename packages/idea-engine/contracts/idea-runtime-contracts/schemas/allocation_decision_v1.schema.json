@@ -39,6 +39,7 @@
         "type": "object",
         "required": [
           "node_id",
+          "lifecycle_state",
           "posterior_value",
           "evidence_count",
           "sampled_value",
@@ -53,6 +54,16 @@
           "node_id": {
             "type": "string",
             "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$"
+          },
+          "lifecycle_state": {
+            "enum": [
+              "candidate",
+              "admission_review",
+              "admitted",
+              "needs_refresh",
+              "admission_blocked"
+            ],
+            "description": "The node's lifecycle state at allocation time. Only admitted nodes are sampled; waiting_activation nodes are listed in the waiting_activation array instead, and archived nodes are excluded."
           },
           "posterior_value": {
             "type": ["number", "null"],
@@ -138,6 +149,7 @@
                   "data_release",
                   "stage_reached",
                   "exploratory_computation",
+                  "required_evidence",
                   "other"
                 ]
               },

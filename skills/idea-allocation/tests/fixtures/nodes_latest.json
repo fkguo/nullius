@@ -3,12 +3,13 @@
   "nodes": [
     {
       "node_id": "a1pha000",
-      "lifecycle_state": "active",
+      "lifecycle_state": "admitted",
       "posterior": {
         "value": 0.85,
         "evidence_count": 40,
         "updated_at": "2026-07-01T09:00:00Z",
-        "gaia_package_ref": "project://argument-graphs/a1pha000-gaia#sha256:e314d88c63c80b8845d2c1347e0f20b77db5825076d847ecd1c143a925afc676"
+        "gaia_package_ref": "project://argument-graphs/a1pha000-gaia#sha256:e314d88c63c80b8845d2c1347e0f20b77db5825076d847ecd1c143a925afc676",
+        "status": "current"
       },
       "literature_coverage": {
         "status": "saturated",
@@ -18,11 +19,12 @@
     },
     {
       "node_id": "beta0000",
-      "lifecycle_state": "active",
+      "lifecycle_state": "admitted",
       "posterior": {
         "value": 0.2,
         "evidence_count": 3,
-        "updated_at": "2026-07-02T10:30:00Z"
+        "updated_at": "2026-07-02T10:30:00Z",
+        "status": "current"
       },
       "literature_coverage": {
         "status": "saturated",
@@ -35,17 +37,19 @@
       "posterior": {
         "value": 0.55,
         "evidence_count": 12,
-        "updated_at": "2026-07-03T08:15:00Z"
+        "updated_at": "2026-07-03T08:15:00Z",
+        "status": "current"
       },
       "literature_coverage": {
         "status": "saturated",
         "survey_ref": "project://artifacts/literature/eta00000-literature_survey_v1.json#sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
         "close_prior_matrix_ref": "project://artifacts/literature/eta00000-close-prior-matrix.json#sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
-      }
+      },
+      "lifecycle_state": "admitted"
     },
     {
       "node_id": "gamma000",
-      "lifecycle_state": "active"
+      "lifecycle_state": "candidate"
     },
     {
       "node_id": "de1ta000",
@@ -101,6 +105,31 @@
         "value": 0.1,
         "evidence_count": 25,
         "updated_at": "2026-05-20T11:00:00Z"
+      }
+    },
+    {
+      "node_id": "mx000000",
+      "lifecycle_state": "admission_blocked",
+      "activation_condition": {
+        "kind": "required_evidence",
+        "description": "independent reproduction of the pilot computation recorded as an artifact",
+        "satisfied": true,
+        "last_checked_at": "2026-07-05T09:00:00Z"
+      }
+    },
+    {
+      "node_id": "nr000000",
+      "lifecycle_state": "needs_refresh",
+      "posterior": {
+        "value": 0.6,
+        "evidence_count": 8,
+        "updated_at": "2026-06-15T10:00:00Z",
+        "status": "stale"
+      },
+      "literature_coverage": {
+        "status": "saturated",
+        "survey_ref": "project://artifacts/literature/nr000000-literature_survey_v1.json#sha256:1111111111111111111111111111111111111111111111111111111111111111",
+        "close_prior_matrix_ref": "project://artifacts/literature/nr000000-close-prior-matrix.json#sha256:2222222222222222222222222222222222222222222222222222222222222222"
       }
     }
   ]

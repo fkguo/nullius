@@ -35,7 +35,7 @@
         "required": ["node_id", "reason"],
         "properties": {
           "node_id": { "type": "string", "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$" },
-          "reason": { "enum": ["no_posterior", "waiting_activation", "archived", "metadata_only", "coverage_incomplete", "posterior_not_current"] },
+          "reason": { "enum": ["candidate", "admission_review", "admission_blocked", "needs_refresh", "waiting_activation", "archived", "no_posterior", "metadata_only", "coverage_incomplete", "posterior_not_current"] },
           "literature_coverage_status": { "enum": ["saturated", "coverage_incomplete", "metadata_only"] },
           "allocation_eligible": { "type": "boolean" },
           "posterior_status": { "enum": ["current", "provisional", "stale"] }
@@ -43,7 +43,7 @@
         "allOf": [
           {
             "if": { "properties": { "reason": { "enum": ["metadata_only", "coverage_incomplete", "posterior_not_current"] } }, "required": ["reason"] },
-            "then": { "required": ["literature_coverage_status", "allocation_eligible", "posterior_status"] }
+            "then": { "required": ["literature_coverage_status", "allocation_eligible"] }
           }
         ],
         "additionalProperties": false
