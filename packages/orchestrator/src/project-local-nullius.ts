@@ -63,7 +63,7 @@ export const LAUNCHER_GENERATION_TOKEN = '--launcher-generation=2';
 // entry that is — or symlinks back to — this launcher is rejected. A plain string
 // compare would miss a symlink-to-self and self-hop, corrupting --project-root.
 // The trailing clause is the protocol handshake described above.
-const PATH_PREFER_GUARD_LINE = `if [ -n "$RESOLVED_NULLIUS" ] && [ "\${RESOLVED_NULLIUS#/}" != "$RESOLVED_NULLIUS" ] && [ -f "$RESOLVED_NULLIUS" ] && [ ! "$RESOLVED_NULLIUS" -ef "$0" ] && BANNER_OUT=$("$RESOLVED_NULLIUS" ${LAUNCHER_PROTOCOL_FLAG} 2>/dev/null) && [ "$BANNER_OUT" = "${LAUNCHER_PROTOCOL_BANNER}" ]; then`;
+const PATH_PREFER_GUARD_LINE = `if [ -n "$RESOLVED_NULLIUS" ] && [ "\${RESOLVED_NULLIUS#/}" != "$RESOLVED_NULLIUS" ] && [ -f "$RESOLVED_NULLIUS" ] && [ ! "$RESOLVED_NULLIUS" -ef "$0" ] && BANNER_OUT=$("$RESOLVED_NULLIUS" ${LAUNCHER_GENERATION_TOKEN} ${LAUNCHER_PROTOCOL_FLAG} 2>/dev/null) && [ "$BANNER_OUT" = "${LAUNCHER_PROTOCOL_BANNER}" ]; then`;
 // The trusted root is PREPENDED so it is parsed before any user-supplied
 // end-of-options terminator; appended it would be mistaken for data after a
 // `--` (and the CLI rejects a second, conflicting root outright). The exec
@@ -84,8 +84,9 @@ function launcherProtocolCandidateOnPath(launcherPath: string): string | 'self' 
     launcherStat = null;
   }
   for (const dir of pathEnv.split(path.delimiter)) {
-    if (!dir) continue;
-    const candidate = path.join(dir, 'nullius');
+    // POSIX: an empty PATH component means the current directory; skipping it
+    // would advertise a different candidate than the shell resolves.
+    const candidate = path.join(dir === '' ? '.' : dir, 'nullius');
     try {
       fs.accessSync(candidate, fs.constants.X_OK);
       const candidateStat = fs.statSync(candidate);
@@ -131,7 +132,7 @@ export function answersLauncherProtocol(argv: string[]): boolean {
   if (cached !== undefined && cached.expiresAt > Date.now()) return cached.result;
   let result = false;
   try {
-    const output = execFileSync(argv[0]!, [...argv.slice(1), LAUNCHER_PROTOCOL_FLAG], {
+    const output = execFileSync(argv[0]!, [...argv.slice(1), LAUNCHER_GENERATION_TOKEN, LAUNCHER_PROTOCOL_FLAG], {
       encoding: 'utf-8',
       timeout: 5000,
       stdio: ['ignore', 'pipe', 'ignore'],
@@ -170,7 +171,7 @@ function extractExecQuotedPaths(script: string): string[] {
 
 // The baked branch's protocol-gated guard, generic over the machine-specific
 // absolute argv it embeds.
-const BAKED_GUARD_PATTERN = /^if \[ -e '\/.+ && BANNER_OUT=\$\('\/.+ --launcher-protocol 2>\/dev\/null\) && \[ "\$BANNER_OUT" = "nullius-launcher-protocol 2" \]; then$/u;
+const BAKED_GUARD_PATTERN = /^if \[ -e '\/.+ && BANNER_OUT=\$\('\/.+ --launcher-generation=2 --launcher-protocol 2>\/dev\/null\) && \[ "\$BANNER_OUT" = "nullius-launcher-protocol 2" \]; then$/u;
 const BAKED_EXEC_PATTERN = /^\s*exec\s+'\/.*--launcher-generation=2\s+--project-root\s+"\$PROJECT_ROOT"\s+"\$@"\s*$/u;
 
 function hasProjectLocalLauncherShape(script: string): boolean {
@@ -362,7 +363,7 @@ export function ensureProjectLocalNulliusLauncher(projectRoot: string): {
   // Existence is NOT generation: the baked path is a mutable checkout that a
   // rebuild can flip to an older parser, so the baked branch runs the same
   // in-band handshake as the PATH branch before it is trusted with the root.
-  const bakedGuard = `if ${bakedExistenceGuard} && BANNER_OUT=$(${bakedArgvQuoted} ${LAUNCHER_PROTOCOL_FLAG} 2>/dev/null) && [ "$BANNER_OUT" = "${LAUNCHER_PROTOCOL_BANNER}" ]; then`;
+  const bakedGuard = `if ${bakedExistenceGuard} && BANNER_OUT=$(${bakedArgvQuoted} ${LAUNCHER_GENERATION_TOKEN} ${LAUNCHER_PROTOCOL_FLAG} 2>/dev/null) && [ "$BANNER_OUT" = "${LAUNCHER_PROTOCOL_BANNER}" ]; then`;
   const script = [
     '#!/bin/sh',
     'set -eu',

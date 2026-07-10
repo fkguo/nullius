@@ -20,11 +20,18 @@ function defaultIo(): CliIo {
 }
 
 export async function runCli(argv: string[], io: CliIo = defaultIo()): Promise<number> {
-  if (argv.length === 1 && argv[0] === '--launcher-protocol') {
-    // Machine-readable handshake for the project-local launcher's PATH
-    // fallback: an older-generation CLI errors on this token, which tells the
-    // launcher its argument contract (prepended root, `--` terminator) cannot
-    // be trusted. See project-local-nullius.ts.
+  if (argv[argv.length - 1] === '--launcher-protocol') {
+    // Machine-readable handshake for the launcher's branch selection: an
+    // older-generation CLI errors on this token, which tells the launcher its
+    // argument contract (prepended root, `--` terminator) cannot be trusted.
+    // The probe carries the generation token and it is consumed by the SAME
+    // cli-args module that guards real dispatch, so a mixed build (new
+    // cli.js, stale parser) fails the probe too. See project-local-nullius.ts.
+    const { consumeLauncherGenerationToken } = await import('./cli-args.js');
+    const rest = consumeLauncherGenerationToken(argv.slice(0, -1));
+    if (rest.length > 0) {
+      throw new Error(`unexpected arguments before --launcher-protocol: ${rest.join(' ')}`);
+    }
     const { LAUNCHER_PROTOCOL_BANNER } = await import('./project-local-nullius.js');
     io.stdout(`${LAUNCHER_PROTOCOL_BANNER}\n`);
     return 0;

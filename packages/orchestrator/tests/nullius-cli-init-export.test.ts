@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { StateManager } from '../src/state-manager.js';
 import type { RunState } from '../src/types.js';
 import { runCli } from '../src/cli.js';
+import { readProjectLocalNulliusLauncherHealth } from '../src/project-local-nullius.js';
 import { ensureProjectScaffold } from '../src/project-scaffold.js';
 
 const CANONICAL_SCAFFOLD_FILES = [
@@ -318,7 +319,7 @@ describe('nullius CLI init/export', () => {
     // The impostor was consulted only for the handshake probe — it never
     // received a real command, so no cross-root write was possible.
     const probeLines = fs.readFileSync(impostorLog, 'utf-8').split('\n').filter(line => line.length > 0);
-    expect(new Set(probeLines)).toEqual(new Set(['--launcher-protocol']));
+    expect(new Set(probeLines)).toEqual(new Set(['--launcher-generation=2', '--launcher-protocol']));
 
     // 3) Baked target unavailable + protocol-answering PATH candidate: used,
     //    with the trusted root PREPENDED before user args.
@@ -327,7 +328,7 @@ describe('nullius CLI init/export', () => {
       path.join(impostorDir, 'nullius'),
       [
         '#!/bin/sh',
-        'if [ "${1:-}" = "--launcher-protocol" ]; then',
+        'if [ "${2:-}" = "--launcher-protocol" ] || [ "${1:-}" = "--launcher-protocol" ]; then',
         "  printf '%s\\n' 'nullius-launcher-protocol 2'",
         '  exit 0',
         'fi',
@@ -364,7 +365,7 @@ describe('nullius CLI init/export', () => {
     fs.writeFileSync(trickCli, [
       "const fs = require('node:fs');",
       `fs.appendFileSync(${JSON.stringify(trickLog)}, process.argv.slice(2).join(' ') + '\\n');`,
-      "if (process.argv[2] === '--launcher-protocol') { console.log('nullius-launcher-protocol 2'); process.exit(0); }",
+      "if (process.argv.includes('--launcher-protocol')) { console.log('nullius-launcher-protocol 2'); process.exit(0); }",
       "if (process.argv.some(arg => arg.startsWith('--launcher-generation='))) { console.error('unknown argument: --launcher-generation=2'); process.exit(2); }",
       'process.exit(0);',
     ].join('\n') + '\n', 'utf-8');
@@ -420,7 +421,7 @@ describe('nullius CLI init/export', () => {
     fs.writeFileSync(staleCli, [
       "const fs = require('node:fs');",
       `fs.appendFileSync(${JSON.stringify(staleLog)}, process.argv.slice(2).join(' ') + '\\n');`,
-      "if (process.argv[2] === '--launcher-protocol') { console.log('nullius-launcher-protocol 1'); process.exit(0); }",
+      "if (process.argv.includes('--launcher-protocol')) { console.log('nullius-launcher-protocol 1'); process.exit(0); }",
       'process.exit(0);',
     ].join('\n') + '\n', 'utf-8');
     const script = fs.readFileSync(launcherPath, 'utf-8');
@@ -444,8 +445,79 @@ describe('nullius CLI init/export', () => {
     // it only ever saw the handshake probe.
     expect(failed?.status).toBe(127);
     const staleLines = fs.readFileSync(staleLog, 'utf-8').split('\n').filter(line => line.length > 0);
-    expect(new Set(staleLines)).toEqual(new Set(['--launcher-protocol']));
+    expect(new Set(staleLines)).toEqual(new Set(['--launcher-generation=2 --launcher-protocol']));
   }, 30000);
+
+  it('reports a mixed-generation baked target as incompatible in launcher health', async () => {
+    const parentDir = makeTempDir('nullius-cli-mixed-health-');
+    const projectRoot = path.join(parentDir, 'project-root');
+    expect(await runCli([`--project-root=${projectRoot}`, 'init', '--runtime-only'], makeIo(parentDir).io)).toBe(0);
+    const launcherPath = path.join(projectRoot, '.nullius', 'bin', 'nullius');
+
+    // Old-parser shape: it errors on the generation token BEFORE anything
+    // else — exactly what a stale cli-args module does. The token-carrying
+    // probe therefore fails, so health cannot advertise it.
+    const oldParserCli = path.join(parentDir, 'old-parser-cli.js');
+    fs.writeFileSync(oldParserCli, [
+      "if (process.argv.some(arg => arg.startsWith('--launcher-generation='))) { console.error('unknown argument'); process.exit(2); }",
+      "if (process.argv.includes('--launcher-protocol')) { console.log('nullius-launcher-protocol 2'); process.exit(0); }",
+      'process.exit(0);',
+    ].join('\n') + '\n', 'utf-8');
+    const script = fs.readFileSync(launcherPath, 'utf-8');
+    const cliMatch = script.match(/'(\/[^']*dist\/cli\.js)'/u);
+    expect(cliMatch).not.toBeNull();
+    fs.writeFileSync(launcherPath, script.replaceAll(cliMatch![1]!, oldParserCli), 'utf-8');
+    fs.chmodSync(launcherPath, 0o755);
+
+    const prevPath = process.env.PATH;
+    process.env.PATH = '/usr/bin:/bin';
+    try {
+      const health = readProjectLocalNulliusLauncherHealth(projectRoot);
+      expect(health.healthy).toBe(false);
+      expect(health.issue_code).toBe('PROJECT_LOCAL_LAUNCHER_TARGET_INCOMPATIBLE');
+    } finally {
+      if (prevPath === undefined) delete process.env.PATH;
+      else process.env.PATH = prevPath;
+    }
+  });
+
+  it('treats an empty PATH component as the current directory like the shell does', async () => {
+    const parentDir = makeTempDir('nullius-cli-empty-path-');
+    const projectRoot = path.join(parentDir, 'project-root');
+    expect(await runCli([`--project-root=${projectRoot}`, 'init', '--runtime-only'], makeIo(parentDir).io)).toBe(0);
+    const launcherPath = path.join(projectRoot, '.nullius', 'bin', 'nullius');
+
+    // Break the baked target so health must consult PATH; put a
+    // protocol-answering nullius in a directory we make the cwd, reachable
+    // only through the EMPTY leading PATH component.
+    const script = fs.readFileSync(launcherPath, 'utf-8');
+    fs.writeFileSync(launcherPath, script.replaceAll('/dist/cli.js', '/dist/cli.js.gone'), 'utf-8');
+    fs.chmodSync(launcherPath, 0o755);
+    const cwdDir = path.join(parentDir, 'cwdbin');
+    fs.mkdirSync(cwdDir, { recursive: true });
+    fs.writeFileSync(path.join(cwdDir, 'nullius'), [
+      '#!/bin/sh',
+      'if [ "${2:-}" = "--launcher-protocol" ] || [ "${1:-}" = "--launcher-protocol" ]; then',
+      "  printf '%s\\n' 'nullius-launcher-protocol 2'",
+      '  exit 0',
+      'fi',
+      'exit 0',
+    ].join('\n') + '\n', 'utf-8');
+    fs.chmodSync(path.join(cwdDir, 'nullius'), 0o755);
+
+    const prevPath = process.env.PATH;
+    const prevCwd = process.cwd();
+    process.env.PATH = `${path.delimiter}/usr/bin:/bin`;
+    try {
+      process.chdir(cwdDir);
+      const health = readProjectLocalNulliusLauncherHealth(projectRoot);
+      expect(health.healthy).toBe(true);
+    } finally {
+      process.chdir(prevCwd);
+      if (prevPath === undefined) delete process.env.PATH;
+      else process.env.PATH = prevPath;
+    }
+  });
 
   it('detects its own bin dir on PATH and falls back to the baked CLI without recursing', async () => {
     const parentDir = makeTempDir('nullius-cli-self-path-');

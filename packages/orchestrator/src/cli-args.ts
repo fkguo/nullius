@@ -99,6 +99,20 @@ function readOptionValue(args: string[], index: number, name: string): string {
 const LAUNCHER_GENERATION_TOKEN = '--launcher-generation=2';
 const LAUNCHER_GENERATION_PREFIX = '--launcher-generation=';
 
+/** Strips one leading generation token, failing closed on a mismatch. The
+ *  launcher-protocol handshake calls this too, so the banner is only emitted
+ *  when THIS module — the component whose root semantics actually matter —
+ *  accepted the token; a mixed build (new cli.js, stale cli-args.js) fails
+ *  the probe instead of advertising a fallback that dispatch would reject. */
+export function consumeLauncherGenerationToken(argv: string[]): string[] {
+  const [first, ...rest] = argv;
+  if (first === undefined || !first.startsWith(LAUNCHER_GENERATION_PREFIX)) return argv;
+  if (first !== LAUNCHER_GENERATION_TOKEN) {
+    throw new Error(`launcher generation mismatch: this CLI implements ${LAUNCHER_GENERATION_TOKEN}, launcher sent ${first}`);
+  }
+  return rest;
+}
+
 function extractProjectRoot(argv: string[]): { args: string[]; projectRoot: string | null } {
   const args: string[] = [];
   let projectRoot: string | null = null;
@@ -126,9 +140,7 @@ function extractProjectRoot(argv: string[]): { args: string[]; projectRoot: stri
     if (!optionsEnded && current.startsWith(LAUNCHER_GENERATION_PREFIX)) {
       // Consumed (stripped) when it names THIS generation; any other value
       // means a launcher expecting different root semantics — fail closed.
-      if (current !== LAUNCHER_GENERATION_TOKEN) {
-        throw new Error(`launcher generation mismatch: this CLI implements ${LAUNCHER_GENERATION_TOKEN}, launcher sent ${current}`);
-      }
+      consumeLauncherGenerationToken([current]);
       continue;
     }
     if (!optionsEnded && current.startsWith('--project-root=')) {
