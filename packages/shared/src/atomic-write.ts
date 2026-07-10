@@ -27,7 +27,7 @@
  * intentionally best-effort because the caller has bigger problems if it
  * fires (the throw propagates up).
  *
- * ## Why ALL five primitives?
+ * ## Why ALL six primitives?
  *
  * - {@link writeBytesAtomicDurable}: the generic byte / string write. Used
  *   for binary artifacts, executable scripts, text rollback restores.
@@ -38,6 +38,9 @@
  * - {@link appendJsonlDurable}: append-only with file+dir fsync. Designed
  *   for ledgers and other append-only logs where each append must survive
  *   crash before the next syscall.
+ * - {@link appendBytesDurable}: the raw-bytes form of the same append for
+ *   in-place boundary repairs (e.g. a missing trailing newline) that must
+ *   not replace the inode.
  * - {@link writeExecutableAtomicDurable}: mode-at-create wrapper for
  *   executable scripts. Closes the chmod-after-write race that allowed
  *   another process to exec a half-written launcher.

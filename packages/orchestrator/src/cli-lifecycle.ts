@@ -182,7 +182,7 @@ function writeStatusText(io: CliIo, payload: Record<string, unknown>): void {
         io.stdout(`  ... and ${omitted} more open (run: nullius decision list)\n`);
       }
       if (invalidLines > 0) {
-        io.stdout(`  decisions_invalid_lines: ${invalidLines} (unparseable lines in .nullius/decisions.jsonl)\n`);
+        io.stdout(`  decisions_invalid_lines: ${invalidLines} (invalid, duplicate, or mis-resolving lines in ${String(ledger.path ?? 'the decisions ledger')})\n`);
       }
     }
   }
@@ -378,6 +378,9 @@ export async function runDecisionCommand(
     }
     if (!snapshot.exists || snapshot.records.length === 0) {
       io.stdout('no decisions recorded\n');
+      if (snapshot.invalid_lines > 0) {
+        io.stdout(`invalid_lines: ${snapshot.invalid_lines} (invalid, duplicate, or mis-resolving lines in ${snapshot.path})\n`);
+      }
       return;
     }
     for (const record of snapshot.records) {

@@ -266,7 +266,7 @@ nullius decision record "<what was decided>" --by <who>
 nullius export --run-id <run_id>
 ```
 
-Use the command that matches the project state. If approval is pending, stop at the approval boundary and report the exact approval id and evidence path. In projects that do not use the engine's approval flow (declared `execution_mode: file`, or any project where the go-ahead was given in conversation), record that go-ahead with `nullius decision record` at the closeout boundary — it is the engine-visible counterpart of the approval receipt, and open questions recorded with `nullius decision pending` surface in every status receipt until resolved.
+Use the command that matches the project state. If approval is pending, stop at the approval boundary and report the exact approval id and evidence path. In projects that do not use the engine's approval flow (declared `execution_mode: file`, or any project where the go-ahead was given in conversation), record that go-ahead with `nullius decision record` at the closeout boundary — it is the engine-visible counterpart of the approval receipt, and open questions recorded with `nullius decision pending` stay counted in every status receipt (the oldest ten itemized; the rest via `nullius decision list`) until resolved.
 
 Run the `research-integrity` skill's M1-M7 checklist at the moments
 work becomes durable. These triggers are observable file events — none

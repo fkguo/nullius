@@ -421,31 +421,94 @@ describe('decision ledger', () => {
     }
   });
 
-  it('reclaims a dead-holder lock exactly once under concurrent contenders', async () => {
+  it('fails closed on a leftover lock and recovers after quiescent repair', async () => {
     const projectRoot = makeTempProjectRoot();
     await initRuntimeOnly(projectRoot);
-    // A real, provably dead pid: a child that has already exited.
+    // A lock left behind by a crashed process (provably dead pid).
     const dead = spawnSync(process.execPath, ['-e', 'process.exit(0)']);
-    const deadPid = dead.pid ?? 999999;
     const lockPath = path.join(projectRoot, '.nullius', 'decisions.jsonl.lock');
-    fs.writeFileSync(lockPath, JSON.stringify({ pid: deadPid, ts: '2026-07-10T00:00:00Z', nonce: 'stale' }), 'utf-8');
+    fs.writeFileSync(lockPath, JSON.stringify({ pid: dead.pid ?? 999999, ts: '2026-07-10T00:00:00Z' }), 'utf-8');
 
-    const cliPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'dist', 'cli.js');
-    const runOne = (text: string) => new Promise<number>((resolve, reject) => {
-      const child = spawn(process.execPath, [cliPath, `--project-root=${projectRoot}`, 'decision', 'record', text], { stdio: 'ignore' });
-      child.on('error', reject);
-      child.on('exit', code => resolve(code ?? -1));
-    });
-    const [first, second] = await Promise.all([runOne('reclaimer one'), runOne('reclaimer two')]);
-    expect(first).toBe(0);
-    expect(second).toBe(0);
+    // No automatic reclamation: the bounded wait expires and the error names
+    // the lock file and the repair.
+    await expect(
+      runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'blocked by the stale lock'], makeIo(projectRoot).io),
+    ).rejects.toThrow(/decisions ledger is locked \(.*decisions\.jsonl\.lock.*remove that lock file/s);
+    expect(fs.existsSync(lockPath)).toBe(true);
+    expect(fs.existsSync(path.join(projectRoot, '.nullius', 'decisions.jsonl'))).toBe(false);
 
-    const lines = readDecisionLines(projectRoot);
-    expect(lines).toHaveLength(2);
-    expect(new Set(lines.map(line => line.id))).toEqual(new Set(['D1', 'D2']));
-    expect(fs.existsSync(lockPath)).toBe(false);
-    expect(fs.readdirSync(path.join(projectRoot, '.nullius')).filter(name => name.includes('.reclaim.'))).toEqual([]);
+    // The documented repair: verify nothing is recording, remove, retry.
+    fs.rmSync(lockPath);
+    const retry = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'recorded after the repair'], retry.io)).toBe(0);
+    expect(retry.stdout.join('')).toContain('recorded: D1');
   }, 20000);
+
+  it('quarantines forward and replayed resolutions instead of closing later questions', async () => {
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot);
+    const ledgerPath = path.join(projectRoot, '.nullius', 'decisions.jsonl');
+    // A decided entry resolving an id that does not exist yet (hand-written):
+    // sequential semantics must quarantine it, not let it pre-close the id.
+    const forward = { id: 'D1', ts: '2026-07-10T00:00:00Z', kind: 'decided', text: 'answer to a question that does not exist yet', by: 'user', resolves: 'D2' };
+    fs.writeFileSync(ledgerPath, `${JSON.stringify(forward)}\n`, 'utf-8');
+
+    const pendingIo = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'pending', 'A brand-new question'], pendingIo.io)).toBe(0);
+    // D1 exists as bytes, so allocation continues at D2 — and the quarantined
+    // forward resolution must not close it.
+    expect(pendingIo.stdout.join('')).toContain('pending: D2');
+    const payload = await statusJson(projectRoot);
+    const ledger = payload.decision_ledger as Record<string, unknown>;
+    expect(ledger.open_count).toBe(1);
+    expect(ledger.open_items).toMatchObject([{ id: 'D2' }]);
+    expect(ledger.invalid_lines).toBe(1);
+
+    // A replayed resolution of an already-closed pending is quarantined too.
+    const replayRoot = makeTempProjectRoot();
+    await initRuntimeOnly(replayRoot);
+    const lines = [
+      { id: 'D1', ts: '2026-07-10T00:00:00Z', kind: 'pending', text: 'question', by: 'user', resolves: null },
+      { id: 'D2', ts: '2026-07-10T00:00:01Z', kind: 'decided', text: 'first answer', by: 'user', resolves: 'D1' },
+      { id: 'D3', ts: '2026-07-10T00:00:02Z', kind: 'decided', text: 'replayed answer', by: 'user', resolves: 'D1' },
+    ];
+    fs.writeFileSync(path.join(replayRoot, '.nullius', 'decisions.jsonl'), lines.map(line => JSON.stringify(line)).join('\n') + '\n', 'utf-8');
+    const replayPayload = await statusJson(replayRoot);
+    const replayLedger = replayPayload.decision_ledger as Record<string, unknown>;
+    expect(replayLedger.invalid_lines).toBe(1);
+    expect(replayLedger.decided_count).toBe(1);
+  });
+
+  it('lists the invalid-line count even when no valid record exists', async () => {
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot);
+    fs.writeFileSync(path.join(projectRoot, '.nullius', 'decisions.jsonl'), 'garbage\n', 'utf-8');
+
+    const list = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'list'], list.io)).toBe(0);
+    const text = list.stdout.join('');
+    expect(text).toContain('no decisions recorded');
+    expect(text).toContain('invalid_lines: 1');
+  });
+
+  it('surfaces the semantic error before touching a read-only unterminated ledger', async () => {
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot);
+    const ledgerPath = path.join(projectRoot, '.nullius', 'decisions.jsonl');
+    const manual = { id: 'D1', ts: '2026-07-10T00:00:00Z', kind: 'decided', text: 'a decided entry', by: 'user', resolves: null };
+    fs.writeFileSync(ledgerPath, JSON.stringify(manual), 'utf-8'); // no trailing LF
+    fs.chmodSync(ledgerPath, 0o444);
+    try {
+      // Validation runs before any byte is written: the resolve error wins,
+      // not EACCES, and the unterminated tail stays byte-identical.
+      await expect(
+        runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'x', '--resolves', 'D1'], makeIo(projectRoot).io),
+      ).rejects.toThrow('points at a decided entry');
+      expect(fs.readFileSync(ledgerPath, 'utf-8')).toBe(JSON.stringify(manual));
+    } finally {
+      fs.chmodSync(ledgerPath, 0o644);
+    }
+  });
 
   it('renders a genuinely empty ledger and a ledger read error in the text status', async () => {
     const emptyRoot = makeTempProjectRoot();
