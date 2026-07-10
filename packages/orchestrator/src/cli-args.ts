@@ -323,8 +323,22 @@ function parseDecisionArgs(args: string[]): {
   let by: string | null = null;
   let resolves: string | null = null;
   let json = false;
+  let optionsEnded = false;
   for (let index = 1; index < args.length; index += 1) {
     const arg = args[index]!;
+    if (!optionsEnded && arg === '--') {
+      // Conventional end-of-options terminator so decision text may begin
+      // with a hyphen: nullius decision record -- "-keep the negative branch"
+      optionsEnded = true;
+      continue;
+    }
+    if (optionsEnded) {
+      if (text === null && action !== 'list') {
+        text = arg;
+        continue;
+      }
+      throw new Error(`unknown decision argument: ${arg}`);
+    }
     if (arg === '--by') {
       if (action === 'list') throw new Error('decision list does not take --by');
       by = readOptionValue(args, index, '--by');

@@ -97,17 +97,34 @@ type ParsedDecisionLine = {
 
 const JSON_WHITESPACE = new Set([' ', '\t', '\r', '\n']);
 
-/** JSON-aware scan of ONE line for every TOP-LEVEL `id` key whose value is a
- *  canonical decision id. A regex cannot do this honestly: JSON escapes let a
- *  key spell itself as `"id"` and a value as `"D2"`, duplicate keys
- *  are erased by JSON.parse (last one wins), and a nested `{"meta":{"id":...}}`
- *  is not a record identity at all. The scanner walks the top level of the
- *  object, decodes every key and string value through JSON.parse of the exact
- *  quoted token (full escape handling), skips nested structures with string
- *  awareness, and simply stops at the first malformed position — so crash
- *  tails yield every complete candidate seen before the truncation. */
-function topLevelIdCandidates(line: string): string[] {
-  const out: string[] = [];
+type TopLevelScan = {
+  /** Canonical id values from every VALID-PREFIX top-level `id` key. */
+  ids: string[];
+  /** Occurrence count per top-level key (duplicates preserved, however the
+   *  key was escaped) within the valid prefix. */
+  keyCounts: Map<string, number>;
+  /** True only when the whole line is one syntactically well-formed object
+   *  with nothing but whitespace after the closing brace. */
+  complete: boolean;
+};
+
+/** JSON-aware scan of ONE line's top-level object fields. A regex cannot do
+ *  this honestly, and neither can JSON.parse alone: escapes let a key spell
+ *  itself as `"id"` and a value as `"D2"`, JSON.parse erases
+ *  duplicate keys (last member wins — which would let conflicting `by`,
+ *  `kind`, `text`, or `resolves` members smuggle past field validation), and
+ *  a nested `{"meta":{"id":...}}` is not a record identity at all.
+ *
+ *  The scanner walks the top level of the object, decodes every key and
+ *  string value through JSON.parse of the exact quoted token, validates
+ *  scalar tokens the same way (so `bogus` is malformed, not silently
+ *  skipped), skips nested structures with a full brace/bracket stack and
+ *  string awareness, and STOPS at the first malformed position. Ids are
+ *  therefore reserved from the valid PREFIX only: a crash tail keeps every
+ *  candidate before the truncation, while garbage occurring before an id
+ *  cannot smuggle a poisoned (e.g. ceiling) id into the reservation set. */
+function scanTopLevelFields(line: string): TopLevelScan {
+  const scan: TopLevelScan = { ids: [], keyCounts: new Map(), complete: false };
   let i = 0;
   const n = line.length;
   const skipWs = () => { while (i < n && JSON_WHITESPACE.has(line[i]!)) i += 1; };
@@ -131,61 +148,87 @@ function topLevelIdCandidates(line: string): string[] {
     }
     return null;
   };
-  // Consumes one value at the top level; returns its decoded string when the
-  // value is a string, undefined for non-string values, null on truncation.
+  // Consumes one top-level value. Returns the decoded string for string
+  // values, undefined for valid non-string values, null on any malformation.
   const readValue = (): string | null | undefined => {
     skipWs();
     if (i >= n) return null;
     const c = line[i]!;
     if (c === '"') return readString();
     if (c === '{' || c === '[') {
-      const open = c;
-      const close = c === '{' ? '}' : ']';
-      let depth = 0;
+      // Full container stack: `[{]` -style mismatches are malformed, not
+      // silently balanced.
+      const stack: string[] = [];
       while (i < n) {
         const d = line[i]!;
         if (d === '"') {
           if (readString() === null) return null;
           continue;
         }
-        if (d === open) depth += 1;
-        else if (d === close) {
-          depth -= 1;
-          if (depth === 0) { i += 1; return undefined; }
+        if (d === '{' || d === '[') {
+          stack.push(d);
+          i += 1;
+          continue;
+        }
+        if (d === '}' || d === ']') {
+          const open = stack.pop();
+          if ((d === '}' && open !== '{') || (d === ']' && open !== '[')) return null;
+          i += 1;
+          if (stack.length === 0) return undefined;
+          continue;
         }
         i += 1;
       }
       return null;
     }
-    while (i < n && line[i] !== ',' && line[i] !== '}') i += 1;
-    return undefined;
+    // Scalar token (number / true / false / null): must itself be valid JSON.
+    const start = i;
+    while (i < n && line[i] !== ',' && line[i] !== '}' && !JSON_WHITESPACE.has(line[i]!)) i += 1;
+    const token = line.slice(start, i);
+    if (token.length === 0) return null;
+    try {
+      JSON.parse(token);
+      return undefined;
+    } catch {
+      return null;
+    }
   };
   skipWs();
-  if (line[i] !== '{') return out;
+  if (line[i] !== '{') return scan;
   i += 1;
-  while (i < n) {
+  for (;;) {
     skipWs();
-    if (line[i] === '}') break;
-    if (line[i] !== '"') break;
+    if (i >= n) return scan;
+    if (line[i] === '}') {
+      i += 1;
+      skipWs();
+      scan.complete = i >= n;
+      return scan;
+    }
+    if (line[i] !== '"') return scan;
     const key = readString();
-    if (key === null) break;
+    if (key === null) return scan;
     skipWs();
-    if (line[i] !== ':') break;
+    if (line[i] !== ':') return scan;
     i += 1;
     const value = readValue();
-    if (value === null) break;
-    if (key === 'id' && typeof value === 'string' && decisionSequenceNumber(value) !== null && !out.includes(value)) {
-      out.push(value);
+    if (value === null) return scan;
+    scan.keyCounts.set(key, (scan.keyCounts.get(key) ?? 0) + 1);
+    if (key === 'id' && typeof value === 'string' && decisionSequenceNumber(value) !== null && !scan.ids.includes(value)) {
+      scan.ids.push(value);
     }
     skipWs();
     if (line[i] === ',') { i += 1; continue; }
-    break;
+    if (line[i] === '}') continue;
+    return scan;
   }
-  return out;
 }
 
+const LOAD_BEARING_KEYS = ['id', 'ts', 'kind', 'text', 'by', 'resolves'] as const;
+
 function parseDecisionLine(line: string): ParsedDecisionLine {
-  const ids = topLevelIdCandidates(line);
+  const scan = scanTopLevelFields(line);
+  const ids = scan.ids;
   let parsed: unknown;
   try {
     parsed = JSON.parse(line);
@@ -193,15 +236,16 @@ function parseDecisionLine(line: string): ParsedDecisionLine {
     return { ids, record: null };
   }
   if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return { ids, record: null };
+  // JSON.parse keeps only the LAST of duplicate members, so a repeated
+  // load-bearing key (however escaped) could smuggle a conflicting id, kind,
+  // text, authorship, or resolution past field validation. Admission requires
+  // the scanner to have walked the whole line and seen each of these keys at
+  // most once.
+  if (!scan.complete) return { ids, record: null };
+  if (LOAD_BEARING_KEYS.some(key => (scan.keyCounts.get(key) ?? 0) > 1)) return { ids, record: null };
   const record = parsed as Record<string, unknown>;
   const id = decisionSequenceNumber(record.id) !== null ? record.id as string : null;
   if (id === null) return { ids, record: null };
-  if (ids.length > 1) {
-    // More than one distinct top-level id candidate (duplicate keys, however
-    // escaped — JSON.parse keeps only the last): the line is ambiguous about
-    // its identity — quarantine it; every candidate stays reserved via `ids`.
-    return { ids, record: null };
-  }
   if (typeof record.ts !== 'string') return { ids, record: null };
   if (record.kind !== 'decided' && record.kind !== 'pending') return { ids, record: null };
   if (typeof record.text !== 'string' || record.text.length === 0) return { ids, record: null };
@@ -269,7 +313,7 @@ export function readDecisionsLedger(projectRoot: string): DecisionsLedgerSnapsho
     const decoded = decodeLedgerLine(lineBytes);
     const { ids, record } = decoded.text !== null
       ? parseDecisionLine(decoded.text)
-      : { ids: topLevelIdCandidates(decoded.asciiFallback), record: null };
+      : { ids: scanTopLevelFields(decoded.asciiFallback).ids, record: null };
     // Reserve every id the line's bytes carry and advance the high-water
     // mark — quarantined or not — so allocation never reuses an id that
     // exists in the file in any form.

@@ -563,6 +563,66 @@ describe('decision ledger', () => {
     expect(parsed.records.map(entry => entry.id)).toEqual(['D4']);
   });
 
+  it('quarantines duplicate load-bearing fields that JSON.parse would silently collapse', async () => {
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot);
+    const ledgerPath = path.join(projectRoot, '.nullius', 'decisions.jsonl');
+    const lines = [
+      // Duplicate authorship: last-member-wins would smuggle "Mallory" past
+      // the malformed-authorship quarantine.
+      '{"id":"D1","ts":"2026-07-10T00:00:00Z","kind":"pending","text":"dup by","by":false,"by":"Mallory","resolves":null}',
+      // An honest pending entry, then a resolver with DUPLICATE resolves
+      // members: which pending it closes must not depend on member order.
+      '{"id":"D2","ts":"2026-07-10T00:00:01Z","kind":"pending","text":"real question","by":"user","resolves":null}',
+      '{"id":"D3","ts":"2026-07-10T00:00:02Z","kind":"decided","text":"dup resolves","by":"user","resolves":"D1","resolves":"D2"}',
+    ].join('\n') + '\n';
+    fs.writeFileSync(ledgerPath, lines, 'utf-8');
+
+    const payload = await statusJson(projectRoot);
+    const ledger = payload.decision_ledger as Record<string, unknown>;
+    expect(ledger.invalid_lines).toBe(2);
+    // D2 stays open: the ambiguous resolver was quarantined, not applied.
+    expect(ledger.open_count).toBe(1);
+    expect(ledger.open_items).toMatchObject([{ id: 'D2' }]);
+
+    // All three ids remain reserved.
+    const record = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'continues at D4'], record.io)).toBe(0);
+    expect(record.stdout.join('')).toContain('recorded: D4');
+  });
+
+  it('does not reserve ids that appear after a malformed token', async () => {
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot);
+    const ledgerPath = path.join(projectRoot, '.nullius', 'decisions.jsonl');
+    // A poisoned line: garbage scalar BEFORE a ceiling id. Reserving that id
+    // would make every future append fail with id-space exhaustion.
+    fs.writeFileSync(ledgerPath, `{"junk":bogus,"id":"D${Number.MAX_SAFE_INTEGER}"}\n`, 'utf-8');
+
+    const record = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'unpoisoned allocation'], record.io)).toBe(0);
+    expect(record.stdout.join('')).toContain('recorded: D1');
+
+    const list = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'list', '--json'], list.io)).toBe(0);
+    expect((JSON.parse(list.stdout.join('')) as { invalid_lines: number }).invalid_lines).toBe(1);
+  });
+
+  it('records text beginning with a hyphen after the end-of-options terminator', async () => {
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot);
+
+    const record = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', '--by', 'FKG', '--', '-keep the negative branch'], record.io)).toBe(0);
+    expect(record.stdout.join('')).toContain('recorded: D1');
+    expect(readDecisionLines(projectRoot)[0]).toMatchObject({ text: '-keep the negative branch', by: 'FKG' });
+
+    // Without the terminator a leading-hyphen text still errors clearly.
+    await expect(
+      runCli([`--project-root=${projectRoot}`, 'decision', 'record', '-not an option'], makeIo(projectRoot).io),
+    ).rejects.toThrow('unknown decision argument');
+  });
+
   it('quarantines records whose persisted authorship is not an explicit nonempty string', async () => {
     const projectRoot = makeTempProjectRoot();
     await initRuntimeOnly(projectRoot);
@@ -615,17 +675,21 @@ describe('decision ledger', () => {
     ).rejects.toThrow(`decision list --project-root ${expectedQuoted}`);
     fs.rmSync(lockPath);
 
-    // Control characters in recorded text must not forge extra receipt lines.
-    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'pending', 'line one\nforged: looks-like-a-field\u001b[31m'], makeIo(projectRoot).io)).toBe(0);
+    // Control characters in recorded text must not forge extra receipt
+    // lines: C0 (newline, ESC), DEL, C1 (NEL), and the JS line separator all
+    // render as explicit escapes.
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'pending', 'line one\nforged: looks-like-a-field\u001b[31m del:\u007f c1:\u0085 ls:\u2028end'], makeIo(projectRoot).io)).toBe(0);
     const { io, stdout } = makeIo(projectRoot);
     expect(await runCli([`--project-root=${projectRoot}`, 'status'], io)).toBe(0);
     const text = stdout.join('');
-    expect(text).toContain('line one\\nforged: looks-like-a-field\\u001b[31m');
+    expect(text).toContain('line one\\nforged: looks-like-a-field\\u001b[31m del:\\u007f c1:\\u0085 ls:\\u2028end');
     expect(text).not.toContain('line one\nforged');
+    expect(text).not.toContain('\u0085');
 
     const list = makeIo(projectRoot);
     expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'list'], list.io)).toBe(0);
     expect(list.stdout.join('')).toContain('\\nforged');
+    expect(list.stdout.join('')).toContain('\\u0085');
   }, 20000);
 
   it('quarantines lines with invalid or truncated UTF-8 instead of admitting mutated text', async () => {

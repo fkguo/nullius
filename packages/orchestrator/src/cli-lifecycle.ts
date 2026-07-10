@@ -29,9 +29,22 @@ function writeJson(io: CliIo, payload: unknown): void {
 // Ledger strings (decision text, authorship, timestamps) are arbitrary user
 // input rendered into a receipt other agents parse visually: raw control
 // characters could forge receipt-looking lines or reprogram the terminal.
-// JSON-escape them (\n, , ...) so one ledger entry stays one line.
+// Escape C0 controls, DEL, C1 controls, and the JS line separators with
+// explicit unicode escapes (JSON.stringify leaves DEL/C1/U+2028/U+2029
+// literal, so it cannot be used for this).
+const RENDER_ESCAPE_SHORTHAND: Record<string, string> = {
+  '\b': '\\b',
+  '\t': '\\t',
+  '\n': '\\n',
+  '\f': '\\f',
+  '\r': '\\r',
+};
+
 function renderInline(value: unknown): string {
-  return String(value ?? '').replace(/[\u0000-\u001f\u007f\u2028\u2029]/g, ch => JSON.stringify(ch).slice(1, -1));
+  return String(value ?? '').replace(
+    /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g,
+    ch => RENDER_ESCAPE_SHORTHAND[ch] ?? `\\u${ch.codePointAt(0)!.toString(16).padStart(4, '0')}`,
+  );
 }
 
 function writeStatusText(io: CliIo, payload: Record<string, unknown>, statusProjectRoot: string): void {

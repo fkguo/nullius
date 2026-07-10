@@ -161,7 +161,8 @@ Behavior:
   approvals. Open entries surface in the status receipt until a later
   \`decision record --resolves <id>\` closes them (all counted; the oldest ten itemized,
   the remainder via \`decision list\`).
-  --by defaults to "user".
+  --by defaults to "user". Text beginning with a hyphen goes after the conventional
+  end-of-options terminator: \`nullius decision record -- "-keep the negative branch"\`.
 `,
   status: `nullius status
 
