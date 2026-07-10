@@ -28,9 +28,9 @@ function writeJson(io: CliIo, payload: unknown): void {
 function writeStatusText(io: CliIo, payload: Record<string, unknown>): void {
   io.stdout(`run_id: ${String(payload.run_id ?? '')}\n`);
   io.stdout(`run_status: ${String(payload.run_status ?? '')}\n`);
-  if (payload.execution_mode) {
-    io.stdout(`execution_mode: ${String(payload.execution_mode)}\n`);
-  }
+  // Always stated: "undeclared" is itself load-bearing information for a
+  // reconnecting agent (see the undeclared-looks-file-mode drift hint).
+  io.stdout(`execution_mode: ${payload.execution_mode ? String(payload.execution_mode) : 'undeclared'}\n`);
   io.stdout(`workflow_id: ${String(payload.workflow_id ?? '')}\n`);
   io.stdout(`project_uri: ${String(payload.uri ?? '')}\n`);
   if (payload.current_step) {
@@ -165,7 +165,8 @@ function writeStatusText(io: CliIo, payload: Record<string, unknown>): void {
     const ledger = decisionLedger as Record<string, unknown>;
     const decidedCount = Number(ledger.decided_count ?? 0);
     const openCount = Number(ledger.open_count ?? 0);
-    if (decidedCount > 0 || openCount > 0) {
+    const invalidLines = Number(ledger.invalid_lines ?? 0);
+    if (decidedCount > 0 || openCount > 0 || invalidLines > 0) {
       io.stdout(`decisions: ${decidedCount} decided, ${openCount} open\n`);
       const openItems = Array.isArray(ledger.open_items) ? ledger.open_items : [];
       for (const rawItem of openItems) {
@@ -173,7 +174,17 @@ function writeStatusText(io: CliIo, payload: Record<string, unknown>): void {
         const item = rawItem as Record<string, unknown>;
         io.stdout(`  - [open] ${String(item.id ?? '')} (${String(item.ts ?? '')}): ${String(item.text ?? '')}\n`);
       }
+      const omitted = Number(ledger.open_items_omitted ?? 0);
+      if (omitted > 0) {
+        io.stdout(`  ... and ${omitted} more open (run: nullius decision list)\n`);
+      }
+      if (invalidLines > 0) {
+        io.stdout(`  decisions_invalid_lines: ${invalidLines} (unparseable lines in .nullius/decisions.jsonl)\n`);
+      }
     }
+  }
+  if (payload.decision_ledger_error && typeof payload.decision_ledger_error === 'object') {
+    io.stdout(`decision_ledger_error: ${JSON.stringify(payload.decision_ledger_error)}\n`);
   }
   const digestError = payload.project_recent_digest_error;
   if (digestError && typeof digestError === 'object') {
@@ -383,16 +394,23 @@ export async function runDecisionCommand(
     by: parsed.by,
     resolves: parsed.resolves,
   });
-  // Mirror into the machine event log so the chronological ledger stays whole;
-  // .nullius/decisions.jsonl remains the parse source of truth.
-  const { manager } = createStateManager(projectRoot);
-  manager.appendLedger(record.kind === 'decided' ? 'decision_recorded' : 'decision_pending_recorded', {
-    details: {
-      decision_id: record.id,
-      by: record.by,
-      ...(record.resolves ? { resolves: record.resolves } : {}),
-    },
-  });
+  // Mirror into the machine event log so the chronological ledger stays whole.
+  // .nullius/decisions.jsonl is the parse source of truth and is already
+  // durably written at this point; a mirror failure must not make a recorded
+  // decision look unrecorded (a retry would duplicate it), so it degrades to
+  // a warning instead of failing the command.
+  try {
+    const { manager } = createStateManager(projectRoot);
+    manager.appendLedger(record.kind === 'decided' ? 'decision_recorded' : 'decision_pending_recorded', {
+      details: {
+        decision_id: record.id,
+        by: record.by,
+        ...(record.resolves ? { resolves: record.resolves } : {}),
+      },
+    });
+  } catch (error) {
+    io.stderr(`[warn] decision ${record.id} recorded, but the ledger.jsonl mirror event failed: ${error instanceof Error ? error.message : String(error)}\n`);
+  }
   io.stdout(`${record.kind === 'decided' ? 'recorded' : 'pending'}: ${record.id}\n`);
   if (record.resolves) {
     io.stdout(`resolved: ${record.resolves}\n`);

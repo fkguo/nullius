@@ -1020,14 +1020,25 @@ function recentRunsWithoutVerificationIssue(projectRoot: string): Record<string,
 // which is only surfaced here because outside this frozen-engine situation an
 // unused executor is a preference, not drift.
 function executionModeUndeclaredIssue(projectRoot: string, state: RunState | null): Record<string, unknown> | null {
-  if (state && (state.execution_mode === 'engine' || state.execution_mode === 'file')) return null;
-  const engineFrozen = !state || (
-    state.run_id === null
+  // No state file, no verdict: "frozen at init values" is only assertable
+  // about a state that exists (export can reach this with a stateless root).
+  if (!state) return null;
+  if (state.execution_mode === 'engine' || state.execution_mode === 'file') return null;
+  // A pause sentinel means someone drove the engine; that is not frozen.
+  if (fs.existsSync(pauseFilePath(projectRoot))) return null;
+  // Frozen = every engine-activity field still at its init value. Any single
+  // touched field (a run, a step, a plan, an approval, a gate, an output, an
+  // artifact pointer) disqualifies the hint — under-firing is fine, a wrong
+  // "this project never used the engine" is not.
+  const engineFrozen = state.run_id === null
     && state.run_status === 'idle'
+    && !state.current_step
+    && !state.plan
     && (state.approval_history ?? []).length === 0
     && Object.keys(state.gate_satisfied ?? {}).length === 0
     && !state.pending_approval
-  );
+    && Object.keys(state.workflow_outputs ?? {}).length === 0
+    && Object.keys(state.artifacts ?? {}).length === 0;
   if (!engineFrozen) return null;
   const runs = datedRunDirectories(projectRoot);
   if (runs.length === 0) return null;
@@ -1465,12 +1476,15 @@ function readDecisionLedgerView(projectRoot: string): {
         open_count: open.length,
         // Oldest first, bounded: open items are the receipt's "still needs the
         // user's decision" list, not a full ledger dump (`decision list` is).
+        // open_count is always exact; open_items_omitted says how many open
+        // entries the bound cut, so truncation is explicit, never silent.
         open_items: open.slice(0, 10).map(record => ({
           id: record.id,
           ts: record.ts,
           text: record.text,
           by: record.by,
         })),
+        open_items_omitted: Math.max(0, open.length - 10),
         latest_decided: latestDecided
           ? {
             id: latestDecided.id,

@@ -1,10 +1,14 @@
+import { spawn } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { runCli } from '../src/cli.js';
+import { renderHelp } from '../src/cli-help.js';
 import { StateManager } from '../src/state-manager.js';
 import type { RunState } from '../src/types.js';
+import { handleOrchRunExport } from '../src/orch-tools/control.js';
 import { handleOrchRunCreate } from '../src/orch-tools/create-status-list.js';
 import { buildRunStatusView } from '../src/orch-tools/run-read-model.js';
 
@@ -124,6 +128,66 @@ describe('execution mode declaration', () => {
     await handleOrchRunCreate({ project_root: projectRoot, run_id: 'M1' } as Parameters<typeof handleOrchRunCreate>[0]);
     expect(new StateManager(projectRoot).readState().execution_mode).toBe('file');
   });
+
+  it('preserves the declared mode through an idempotency replay', async () => {
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot, ['--mode=file']);
+
+    const params = { project_root: projectRoot, run_id: 'M1', idempotency_key: 'k1' } as Parameters<typeof handleOrchRunCreate>[0];
+    await handleOrchRunCreate(params);
+    const replay = await handleOrchRunCreate(params) as Record<string, unknown>;
+    expect(replay.idempotency_replay).toBe(true);
+    expect(new StateManager(projectRoot).readState().execution_mode).toBe('file');
+  });
+
+  it('rejects an inline --mode value with trailing garbage', async () => {
+    const projectRoot = makeTempProjectRoot();
+    await expect(
+      runCli([`--project-root=${projectRoot}`, 'init', '--runtime-only', '--mode=file=typo'], makeIo(projectRoot).io),
+    ).rejects.toThrow('invalid --mode value');
+  });
+
+  it('appends the declaration event when --force re-init changes the mode', async () => {
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot, ['--mode=engine']);
+
+    const { io, stdout } = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'init', '--runtime-only', '--force', '--mode=file'], io)).toBe(0);
+    expect(stdout.join('')).toContain('[ok] execution mode declared: file');
+    expect(new StateManager(projectRoot).readState().execution_mode).toBe('file');
+    const modeEvents = readLedgerEvents(projectRoot).filter(event => event.event_type === 'execution_mode_declared');
+    // One from the engine->file change; the initial --mode=engine declaration
+    // on the fresh init is carried by the 'initialized' event details instead.
+    expect(modeEvents).toHaveLength(1);
+    expect(modeEvents[0]?.details).toMatchObject({ execution_mode: 'file' });
+  });
+
+  it('previews but does not write the mode on --refresh --dry-run', async () => {
+    const parentDir = makeTempProjectRoot();
+    const projectRoot = path.join(parentDir, 'project-root');
+    expect(await runCli([`--project-root=${projectRoot}`, 'init'], makeIo(parentDir).io)).toBe(0);
+
+    const { io, stdout } = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'init', '--refresh', '--dry-run', '--mode=file'], io)).toBe(0);
+    expect(stdout.join('')).toContain('[ok] would declare execution mode: file (--dry-run, not written)');
+    expect(new StateManager(projectRoot).readState().execution_mode ?? null).toBeNull();
+
+    const applied = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'init', '--refresh', '--mode=file'], applied.io)).toBe(0);
+    expect(applied.stdout.join('')).toContain('[ok] execution mode declared: file');
+    expect(new StateManager(projectRoot).readState().execution_mode).toBe('file');
+  });
+
+  it('declares the mode on a fresh full-scaffold init', async () => {
+    const parentDir = makeTempProjectRoot();
+    const projectRoot = path.join(parentDir, 'project-root');
+    const { io, stdout } = makeIo(parentDir);
+
+    expect(await runCli([`--project-root=${projectRoot}`, 'init', '--mode=file'], io)).toBe(0);
+    expect(stdout.join('')).toContain('[ok] execution mode declared: file');
+    expect(new StateManager(projectRoot).readState().execution_mode).toBe('file');
+    expect(fs.existsSync(path.join(projectRoot, 'AGENTS.md'))).toBe(true);
+  });
 });
 
 describe('decision ledger', () => {
@@ -219,6 +283,131 @@ describe('decision ledger', () => {
     expect((payload.decision_ledger as Record<string, unknown>).invalid_lines).toBe(1);
   });
 
+  it('repairs an unterminated tail line before appending', async () => {
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot);
+    // A hand-added valid record whose final newline is missing: blind append
+    // would concatenate and corrupt BOTH lines.
+    const manual = { id: 'D1', ts: '2026-07-10T00:00:00Z', kind: 'pending', text: 'Manually added question', by: 'user', resolves: null };
+    fs.writeFileSync(path.join(projectRoot, '.nullius', 'decisions.jsonl'), JSON.stringify(manual), 'utf-8');
+
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'Recorded after the manual edit'], makeIo(projectRoot).io)).toBe(0);
+
+    const lines = readDecisionLines(projectRoot);
+    expect(lines).toHaveLength(2);
+    expect(lines[0]).toMatchObject({ id: 'D1', kind: 'pending' });
+    expect(lines[1]).toMatchObject({ id: 'D2', kind: 'decided' });
+
+    const list = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'list', '--json'], list.io)).toBe(0);
+    expect((JSON.parse(list.stdout.join('')) as { invalid_lines: number }).invalid_lines).toBe(0);
+  });
+
+  it('allocates distinct ids under concurrent recording processes', async () => {
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot);
+    const cliPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'dist', 'cli.js');
+
+    const runOne = (text: string) => new Promise<number>((resolve, reject) => {
+      const child = spawn(process.execPath, [cliPath, `--project-root=${projectRoot}`, 'decision', 'record', text], { stdio: 'ignore' });
+      child.on('error', reject);
+      child.on('exit', code => resolve(code ?? -1));
+    });
+    const [first, second] = await Promise.all([runOne('Concurrent decision one'), runOne('Concurrent decision two')]);
+    expect(first).toBe(0);
+    expect(second).toBe(0);
+
+    const lines = readDecisionLines(projectRoot);
+    expect(lines).toHaveLength(2);
+    expect(new Set(lines.map(line => line.id))).toEqual(new Set(['D1', 'D2']));
+  }, 20000);
+
+  it('treats unsafe manual ids as invalid lines and keeps allocation sane', async () => {
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot);
+    const huge = { id: 'D99999999999999999999', ts: '2026-07-10T00:00:00Z', kind: 'pending', text: 'absurd id', by: 'user', resolves: null };
+    fs.writeFileSync(path.join(projectRoot, '.nullius', 'decisions.jsonl'), `${JSON.stringify(huge)}\n`, 'utf-8');
+
+    const record = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'Normal decision'], record.io)).toBe(0);
+    expect(record.stdout.join('')).toContain('recorded: D1');
+
+    const list = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'list', '--json'], list.io)).toBe(0);
+    const parsed = JSON.parse(list.stdout.join('')) as { invalid_lines: number; records: Array<{ id: string }> };
+    expect(parsed.invalid_lines).toBe(1);
+    expect(parsed.records.map(record_ => record_.id)).toEqual(['D1']);
+  });
+
+  it('releases the append lock after a failed recording', async () => {
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot);
+
+    await expect(
+      runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'x', '--resolves', 'D42'], makeIo(projectRoot).io),
+    ).rejects.toThrow('does not match any recorded decision id');
+    expect(fs.existsSync(path.join(projectRoot, '.nullius', 'decisions.jsonl.lock'))).toBe(false);
+
+    const retry = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'Recovered after the failed attempt'], retry.io)).toBe(0);
+    expect(retry.stdout.join('')).toContain('recorded: D1');
+  });
+
+  it('rejects resolving the same pending entry twice', async () => {
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot);
+    await runCli([`--project-root=${projectRoot}`, 'decision', 'pending', 'A question with one answer'], makeIo(projectRoot).io);
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'First answer', '--resolves', 'D1'], makeIo(projectRoot).io)).toBe(0);
+
+    await expect(
+      runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'Second answer', '--resolves', 'D1'], makeIo(projectRoot).io),
+    ).rejects.toThrow('already resolved');
+  });
+
+  it('reports truncation explicitly when more than ten items are open', async () => {
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot);
+    for (let index = 1; index <= 12; index += 1) {
+      expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'pending', `Open question number ${index}`], makeIo(projectRoot).io)).toBe(0);
+    }
+
+    const payload = await statusJson(projectRoot);
+    const ledger = payload.decision_ledger as Record<string, unknown>;
+    expect(ledger.open_count).toBe(12);
+    expect((ledger.open_items as unknown[]).length).toBe(10);
+    expect(ledger.open_items_omitted).toBe(2);
+
+    const { io, stdout } = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'status'], io)).toBe(0);
+    const text = stdout.join('');
+    expect(text).toContain('decisions: 0 decided, 12 open');
+    expect(text).toContain('... and 2 more open (run: nullius decision list)');
+  }, 20000);
+
+  it('keeps the decision recorded when the ledger mirror append fails', async () => {
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot);
+    const ledgerPath = path.join(projectRoot, '.nullius', 'ledger.jsonl');
+    fs.chmodSync(ledgerPath, 0o444);
+    try {
+      const { io, stdout, stderr } = makeIo(projectRoot);
+      expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'Recorded despite mirror failure'], io)).toBe(0);
+      expect(stdout.join('')).toContain('recorded: D1');
+      expect(stderr.join('')).toContain('ledger.jsonl mirror event failed');
+      expect(readDecisionLines(projectRoot)).toHaveLength(1);
+    } finally {
+      fs.chmodSync(ledgerPath, 0o644);
+    }
+  });
+
+  it('lists actions in the decision command help', () => {
+    const help = renderHelp('decision');
+    expect(help).toContain('record "<what was decided>"');
+    expect(help).toContain('pending "<open question>"');
+    expect(help).toContain('list [--json]');
+    expect(help).toContain('list reads permissively');
+  });
+
   it('renders mode and open decisions in the human status text', async () => {
     const projectRoot = makeTempProjectRoot();
     await initRuntimeOnly(projectRoot, ['--mode=file']);
@@ -272,6 +461,63 @@ describe('undeclared-mode drift hint', () => {
     }
   });
 
+  it('stays silent when a pause sentinel or any engine-activity field is set', async () => {
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot);
+    fs.mkdirSync(path.join(projectRoot, 'artifacts', 'runs', '20260701T090000Z-m1-scan-r1'), { recursive: true });
+    const manager = new StateManager(projectRoot);
+
+    // Pause sentinel: someone drove the engine, so "frozen" does not apply.
+    const pausePath = path.join(projectRoot, '.pause');
+    fs.writeFileSync(pausePath, '{}\n', 'utf-8');
+    expect(driftIssues(await statusJson(projectRoot)).map(issue => issue.code)).not.toContain('EXECUTION_MODE_UNDECLARED_LOOKS_FILE_MODE');
+    fs.rmSync(pausePath);
+
+    // Non-empty workflow_outputs.
+    const withOutputs = manager.readState() as RunState;
+    withOutputs.workflow_outputs = {
+      step1: {
+        step_id: 'step1',
+        tool: 'demo',
+        runtime_status: 'completed',
+        artifact_uri: null,
+        additional_artifact_uris: [],
+        summary_text: 'done',
+        reason_code: null,
+        recoverable: false,
+        payload: null,
+        payload_truncated: false,
+      },
+    };
+    manager.saveState(withOutputs);
+    expect(driftIssues(await statusJson(projectRoot)).map(issue => issue.code)).not.toContain('EXECUTION_MODE_UNDECLARED_LOOKS_FILE_MODE');
+
+    // Non-empty artifacts pointer map.
+    const withArtifacts = manager.readState() as RunState;
+    withArtifacts.workflow_outputs = {};
+    withArtifacts.artifacts = { some_artifact: 'artifacts/runs/x/file.json' };
+    manager.saveState(withArtifacts);
+    expect(driftIssues(await statusJson(projectRoot)).map(issue => issue.code)).not.toContain('EXECUTION_MODE_UNDECLARED_LOOKS_FILE_MODE');
+  });
+
+  it('does not assert frozen-at-init about a root whose state file is absent', async () => {
+    const projectRoot = makeTempProjectRoot();
+    fs.mkdirSync(path.join(projectRoot, '.nullius'), { recursive: true });
+    const runDir = path.join(projectRoot, 'artifacts', 'runs', '20260701T090000Z-m1-scan-r1');
+    fs.mkdirSync(runDir, { recursive: true });
+    fs.writeFileSync(path.join(runDir, 'result.json'), '{}\n', 'utf-8');
+
+    const exportView = await handleOrchRunExport({
+      project_root: projectRoot,
+      _confirm: true,
+      include_state: true,
+      include_artifacts: true,
+    } as Parameters<typeof handleOrchRunExport>[0]) as Record<string, unknown>;
+    expect(exportView.state_missing).toBe(true);
+    const drift = exportView.project_surface_drift as { issues?: Array<Record<string, unknown>> } | null;
+    expect((drift?.issues ?? []).map(issue => issue.code)).not.toContain('EXECUTION_MODE_UNDECLARED_LOOKS_FILE_MODE');
+  });
+
   it('stays silent while the engine surface is in use', async () => {
     const projectRoot = makeTempProjectRoot();
     await initRuntimeOnly(projectRoot);
@@ -311,9 +557,39 @@ describe('file-mode recovery quieting', () => {
     await initRuntimeOnly(undeclaredRoot);
     expect(planFocusWarningCodes(await statusJson(undeclaredRoot))).toContain('RECOVERY_PLAN_FOCUS_UNAVAILABLE');
 
+    const engineRoot = makeTempProjectRoot();
+    await initRuntimeOnly(engineRoot, ['--mode=engine']);
+    expect(planFocusWarningCodes(await statusJson(engineRoot))).toContain('RECOVERY_PLAN_FOCUS_UNAVAILABLE');
+
     const fileModeRoot = makeTempProjectRoot();
     await initRuntimeOnly(fileModeRoot, ['--mode=file']);
     expect(planFocusWarningCodes(await statusJson(fileModeRoot))).not.toContain('RECOVERY_PLAN_FOCUS_UNAVAILABLE');
+  });
+
+  it('renders undeclared mode and invalid ledger lines in the human status text', async () => {
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot);
+    fs.writeFileSync(path.join(projectRoot, '.nullius', 'decisions.jsonl'), 'garbage line\n', 'utf-8');
+
+    const { io, stdout } = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'status'], io)).toBe(0);
+    const text = stdout.join('');
+    expect(text).toContain('execution_mode: undeclared');
+    expect(text).toContain('decisions: 0 decided, 0 open');
+    expect(text).toContain('decisions_invalid_lines: 1');
+  });
+
+  it('leaves engine state untouched by file mode and open decisions', async () => {
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot, ['--mode=file']);
+    await runCli([`--project-root=${projectRoot}`, 'decision', 'pending', 'Open question that must not gate anything'], makeIo(projectRoot).io);
+
+    const payload = await statusJson(projectRoot);
+    expect(payload.run_status).toBe('idle');
+    expect(payload.pending_approval).toBeNull();
+    const state = new StateManager(projectRoot).readState();
+    expect(state.run_status).toBe('idle');
+    expect(state.gate_satisfied).toEqual({});
   });
 
   it('keeps mode and decision fields visible through buildRunStatusView for library callers', async () => {

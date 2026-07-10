@@ -30,7 +30,7 @@ function parseInitArgs(args: string[]): InitOptions {
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index]!;
     const value = arg.startsWith('--checkpoint-interval-seconds=') ? arg.split('=', 2)[1] ?? '' : null;
-    const modeValue = arg.startsWith('--mode=') ? arg.split('=', 2)[1] ?? '' : null;
+    const modeValue = arg.startsWith('--mode=') ? arg.slice('--mode='.length) : null;
     if (arg === '--force') options.force = true;
     else if (arg === '--refresh') options.refresh = true;
     else if (arg === '--dry-run') options.dryRun = true;
@@ -111,7 +111,8 @@ export async function runInitCommand(projectRoot: string | null, cwd: string, ar
     ? null
     : ensureProjectScaffold(repoRoot, options.refresh ? { refresh: true } : { force: options.force });
   const statePath = manager.statePath;
-  if (fs.existsSync(statePath) && !options.force) {
+  const stateExisted = fs.existsSync(statePath);
+  if (stateExisted && !options.force) {
     io.stdout(`[ok] already initialized: ${statePath}\n`);
     if (options.mode !== null) {
       const state = manager.readState();
@@ -125,7 +126,10 @@ export async function runInitCommand(projectRoot: string | null, cwd: string, ar
       }
     }
   } else {
+    // readState() returns the EXISTING state when the file is present (the
+    // --force path), so a prior declaration survives unless --mode changes it.
     const state = manager.readState();
+    const priorMode = state.execution_mode ?? null;
     if (options.checkpointIntervalSeconds !== null) {
       state.checkpoints.checkpoint_interval_seconds = options.checkpointIntervalSeconds;
     }
@@ -134,6 +138,11 @@ export async function runInitCommand(projectRoot: string | null, cwd: string, ar
     }
     manager.saveState(state);
     manager.appendLedger('initialized', options.mode !== null ? { details: { execution_mode: options.mode } } : {});
+    if (stateExisted && options.mode !== null && priorMode !== options.mode) {
+      // A --force re-init that changes the declaration is still a declaration
+      // change; keep the dedicated audit event the non-force path writes.
+      manager.appendLedger('execution_mode_declared', { details: { execution_mode: options.mode } });
+    }
     io.stdout(`[ok] wrote: ${statePath}\n`);
     if (options.mode !== null) {
       io.stdout(`[ok] execution mode declared: ${options.mode}\n`);
