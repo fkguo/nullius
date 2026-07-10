@@ -411,27 +411,47 @@ class TestScaffoldContract(unittest.TestCase):
         self.assertIn("artifacts/runs/<run_id>/", rendered)
         self.assertIn("20260502T023000Z-m3-branch-scan-r1", rendered)
 
-    def test_research_notebook_template_is_logic_first_not_date_first(self) -> None:
+    def test_research_notebook_template_is_a_self_contained_memo(self) -> None:
+        """The notebook is a paper-like research memo, not a change log.
+
+        Contract (2026-07): the memo carries the complete current
+        understanding — full derivations, computations, analysis — organized
+        by the structure of the problem; it updates by REWRITING affected
+        sections, never by appending stage fragments, so the old
+        change-log/section-index shape is deliberately gone.
+        """
         template = (scaffold_template_dir() / "research_notebook.md").read_text(encoding="utf-8")
 
-        self.assertIn("Organize it by the logic of the research problem, not by run date.", template)
-        self.assertIn("Write dated run logs and raw step summaries in [research_plan.md](research_plan.md) or `artifacts/runs/<run_id>/`", template)
-        self.assertIn("## Problem Statement", template)
-        self.assertIn("## Current Understanding", template)
-        self.assertIn("## Question Map", template)
-        self.assertIn("## Evidence Map", template)
-        self.assertIn("## Conventions and Definitions", template)
-        self.assertIn("## Reasoning Threads", template)
-        self.assertIn("## Claims and Results", template)
-        self.assertIn("## Uncertainties and Kill Criteria", template)
-        self.assertIn("## Change Log", template)
-        self.assertIn("source form read (`latex_source`, `full_text_pdf`, `available_full_text`, `abstract_only`, or `unavailable`)", template)
+        # Positioning: self-contained, paper-like, complete-detail memo.
+        self.assertIn("research memo", template)
+        self.assertIn("derivation, computation, and piece of analysis", template)
+        self.assertIn("Organize by the structure of the problem, never by time.", template)
+        self.assertIn("Update by rewriting, not appending.", template)
+        self.assertIn("revision history is git's job", template)
+        # Process detail stays out of the memo.
+        self.assertIn("dated logs live in [research_plan.md](research_plan.md)", template)
+        # Two content substrings (not one string spanning a hard wrap, which
+        # would pin the paragraph's line-break position instead of its text).
+        self.assertIn("Tool-use logs, metadata checks, download attempts,", template)
+        self.assertIn("belong in [research_plan.md](research_plan.md)", template)
+        # Run evidence is named by its canonical root, not a bare runs/ dir.
+        self.assertIn("artifacts/runs/<run_id>/", template)
+        # Paper-shaped skeleton, including the derivation/result sections the
+        # previous index-style contract deliberately excluded.
+        self.assertIn("## Scientific picture and motivation", template)
+        self.assertIn("## Setup, conventions, and definitions", template)
+        self.assertIn("## Methods and derivations", template)
+        self.assertIn("## Results and analysis", template)
+        self.assertIn("## Open questions and risks", template)
+        self.assertIn("## References", template)
+        # Reading honesty vocabulary survives on this surface (see
+        # test_literature_note_quality_contract_is_repeated_on_project_surfaces).
         self.assertIn("sections/pages/equations/figures actually read", template)
-        self.assertIn("Tool-use logs, metadata checks, download attempts, and API/MCP call details belong in [research_plan.md](research_plan.md)", template)
-        self.assertIn("LaTeX math for scientific notation rather than inline-code backticks", template)
+        # Math is written as math, not inline code.
+        self.assertIn("Write mathematics as LaTeX math", template)
+        # The append-only shapes are gone: no change log, no per-run bullets.
+        self.assertNotIn("## Change Log", template)
         self.assertNotIn("- Current milestone:", template)
-        self.assertNotIn("## Derivation Notes", template)
-        self.assertNotIn("## Results", template)
 
 
 MANAGED_SUPPORT_FILES = set(SCAFFOLD_SUPPORT_FILES)
