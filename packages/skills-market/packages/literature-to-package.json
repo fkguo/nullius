@@ -12,6 +12,15 @@
     "opencode"
   ],
   "source_path": "skills/literature-to-package/SKILL.md",
+  "depends_on": {
+    "citation-triangulation": ">=0.1.0 <0.2.0",
+    "claim-grounding": ">=0.1.0 <0.2.0",
+    "deep-literature-review": ">=0.1.0 <0.2.0",
+    "derivation-verify": ">=0.1.0 <0.2.0",
+    "julia-perf": ">=0.1.0 <0.2.0",
+    "numerical-reliability-gate": ">=0.1.0 <0.2.0",
+    "review-swarm": ">=0.1.0 <0.2.0"
+  },
   "install": {
     "claude_code": "Link into ~/.claude/skills or install via marketplace when available.",
     "codex": "Link into ~/.codex/skills for Codex native discovery.",

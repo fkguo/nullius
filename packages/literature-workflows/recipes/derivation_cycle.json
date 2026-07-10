@@ -1,7 +1,7 @@
 {
   "recipe_id": "derivation_cycle",
   "name": "Derivation Cycle",
-  "description": "Construct evidence, generate measurements, and compare tension across runs.",
+  "description": "Literature-evidence chain: construct writing evidence, extract published measurements, and compare tension across runs. This recipe collects and compares literature evidence only; it does not check any mathematics. To verify a derivation or symbolic result, use the derivation-verify skill; for an independent review of an artifact, use the review-swarm skill.",
   "entry_tool": "hep_run_build_writing_evidence",
   "steps": [
     {

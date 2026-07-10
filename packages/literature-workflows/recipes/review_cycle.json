@@ -1,7 +1,7 @@
 {
   "recipe_id": "review_cycle",
   "name": "Review Cycle",
-  "description": "Run critical analysis, render manuscript latex, and export final research assets.",
+  "description": "Literature-evidence chain: run bounded critical analysis of a target paper, render manuscript latex, and export final research assets. This recipe assembles literature evidence and draft artifacts only; it is not an independent review gate. For independent review of an artifact, use the review-swarm skill; to verify a derivation, use the derivation-verify skill.",
   "entry_tool": "inspire_critical_analysis",
   "steps": [
     {
