@@ -64,6 +64,30 @@ your own family in `--models` just to aggregate. Host capabilities VARY; gate on
   the user can inspect and adjust mid-run, when the host supports one; otherwise run inline and
   checkpoint. Capability varies by host — degrade gracefully.
 
+## Agents file and honest degradation (below the cross-family minimum)
+
+A machine may carry a third-party agents file (project level `.nullius/agents.json`, else user level
+`~/.nullius/agents.json`; format and discovery order in the repository page docs/AGENTS_FILE.md)
+mapping model families to execution routes and model strings. When one is present,
+`run_multi_task.py` accepts `family:<name>` and `family:<name>:<tier>` model specs and resolves them
+through the file, and its `meta.json` gains an independence record: which families actually produced
+output, at which level (cross-family / single-family / none), which declared families were absent,
+and whether the machine sits below the file's cross-family minimum. A missing file changes nothing —
+explicit model specs keep working exactly as before.
+
+The launcher only records; the degradation decision is yours (the agent driving this skill):
+
+- If the file declares fewer usable families than its cross-family minimum, or a `family:` request
+  fails because that family is declared unavailable or its runner executable is absent, do NOT
+  substitute another family and do NOT silently shrink the review. Follow the file's policy value
+  (native subagents): run the review as a panel of your host's own subagents — multiple instances
+  with distinct review perspectives (correctness, numerics, portability, ...).
+- Label the outcome honestly in whatever you hand back: state the independence level (single-family)
+  and list the absent families, so a degraded round is never mistaken for a cross-family one.
+  Single-model agreement is the floor; cross-family agreement is the ceiling.
+- A family served by a native runner (normally your own) always runs in-host, never through a CLI
+  (see Host-aware execution above).
+
 ## Quick start (single reviewer, one command — advisory)
 
 For one independent reviewer from another family, `review_one.py` assembles the

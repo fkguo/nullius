@@ -710,6 +710,7 @@ def test_run_gate_summary_schema_and_skips():
     out = mb.run_gate(spec, pool=POOL, comparators=["codex/default"], run=run)
     assert set(out) == {"total_claims", "converged", "unconverged", "clean_first_pass",
                         "needed_iteration", "dropped_claims", "family_pool",
+                        "agents_file", "independence",
                         "unavailable_backends", "matrix"}
     assert out["unavailable_backends"] == []  # healthy run: nothing was dropped
     assert out["total_claims"] == 1   # 2 malformed claims skipped
@@ -717,6 +718,14 @@ def test_run_gate_summary_schema_and_skips():
     assert out["converged"] == 1
     assert out["clean_first_pass"] == 1
     assert out["family_pool"] == ["claude", "codex", "gemini"]  # N4: pool families surfaced
+    # No agents file in force: source recorded as none, declaration-relative
+    # independence fields are null, and participating families keep the
+    # backend-namespace labels.
+    assert out["agents_file"] == {"path": None, "source": "none"}
+    assert out["independence"]["level"] == "cross_family"
+    assert out["independence"]["participating_families"] == ["claude", "codex"]
+    assert out["independence"]["absent_families"] is None
+    assert out["independence"]["below_minimum"] is None
 
 
 def test_run_gate_max_iter_override_zero_disables_iteration():

@@ -135,6 +135,18 @@ python3 scripts/run_multi_backend.py --claims claims.json \
 > reasoning-first; the deriver prompt asks the model to use a CAS only *if* its CLI actually exposes
 > one, else derive analytically. Treat real code-execution as opportunistic, not assured.
 
+A machine may carry a third-party agents file (project level `.nullius/agents.json`, else user level
+`~/.nullius/agents.json`; format and discovery order in the repository page docs/AGENTS_FILE.md)
+mapping model families to execution routes and model strings. When one is present, `--backends` and
+`--comparators` accept `family:<name>` and `family:<name>:<tier>` specs, family identity inside the
+gate (cross-family counting, diversity tie-break, native auto-exclusion) follows the file, and the
+matrix gains an independence record (participating families, level, absent families, below-minimum
+flag). A missing file changes nothing. If a `family:` request fails because that family is declared
+unavailable or its runner executable is absent, or the file declares fewer usable families than its
+cross-family minimum, do NOT substitute another family: follow the file's policy value (native
+subagents), exactly as the load-bearing-claim guidance below already prescribes for a short family
+pool — add same-model subagent derivations, and record the cross-family gap as a stated limitation.
+
 Because same-model agreement is weak evidence (same-model committees exhibit *representational
 collapse*), Executor 2 enforces these SOTA-grounded rules ON TOP of "majority_size >= 2":
 

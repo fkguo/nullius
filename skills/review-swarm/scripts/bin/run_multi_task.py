@@ -1359,6 +1359,333 @@ def _dual_review_summary(results: list[dict[str, Any]]) -> Optional[dict[str, An
 
 
 
+# --- Third-party agents file (family -> runner -> model-string mapping) ---
+#
+# Single update point for which model families exist on this machine, which
+# execution route serves each family, and which model string each route takes.
+# Schema, discovery order, and degradation semantics: docs/AGENTS_FILE.md.
+# Deliberately self-contained (no shared parser library); the checked-in
+# template docs/examples/agents.example.json is the shared parsing fixture
+# that keeps this parser aligned with derivation-verify's.
+
+_AGENTS_FILENAME = "agents.json"
+_AGENTS_RUNNERS = {"native", "codex", "opencode", "kimi", "gemini", "claude-cli"}
+# Runner label -> this launcher's backend name. `native` maps to no backend:
+# the host runs its own family in-process, never through a CLI launcher.
+_AGENTS_RUNNER_BACKEND = {
+    "codex": "codex",
+    "opencode": "opencode",
+    "kimi": "kimi",
+    "gemini": "gemini",
+    "claude-cli": "claude",
+}
+_AGENTS_RUNNER_BINARY = {
+    "codex": "codex",
+    "opencode": "opencode",
+    "kimi": "kimi",
+    "gemini": "gemini",
+    "claude-cli": "claude",
+}
+_FAMILY_SPEC_PREFIX = "family:"
+
+
+def _validate_agents_roster(obj: Any, *, source: Any) -> dict[str, Any]:
+    if not isinstance(obj, dict):
+        raise ValueError(f"{source}: agents file root must be a JSON object")
+    version = obj.get("version")
+    if not isinstance(version, int) or isinstance(version, bool) or version != 1:
+        raise ValueError(f"{source}: unsupported agents file version: {version!r} (expected the integer 1)")
+    families = obj.get("families")
+    if not isinstance(families, dict):
+        raise ValueError(f"{source}: 'families' must be a JSON object")
+    # One non-opencode CLI runner serves ONE model family (opencode is a multi-provider
+    # gateway and may serve several). Two families on one dedicated runner, or two
+    # families declaring the same (runner, model string), would make family attribution
+    # ambiguous and could count one physical family twice in a cross-family gate — that
+    # is a configuration contradiction, rejected here rather than guessed at later.
+    runner_owner: dict[str, str] = {}
+    seen_models: dict[tuple[str, str], str] = {}
+    for name, fam in families.items():
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError(f"{source}: family names must be non-empty strings")
+        if name != name.strip().lower():
+            # Family names travel through case-normalized channels (family: specs,
+            # native family tags); a non-lowercase name would compare unequal to its
+            # own normalized form and could label one physical family two ways.
+            raise ValueError(f"{source}: family names must be lowercase: {name!r}")
+        if not isinstance(fam, dict):
+            raise ValueError(f"{source}: family {name!r} must be a JSON object")
+        runner = fam.get("runner")
+        if runner not in _AGENTS_RUNNERS:
+            raise ValueError(
+                f"{source}: family {name!r} has unknown runner {runner!r} "
+                f"(expected one of: {', '.join(sorted(_AGENTS_RUNNERS))})"
+            )
+        if runner not in ("native", "opencode"):
+            other = runner_owner.get(runner)
+            if other is not None:
+                raise ValueError(
+                    f"{source}: families {other!r} and {name!r} both declare runner {runner!r}: "
+                    "one dedicated execution route is one model family; merge them into one "
+                    "family with multiple model tiers"
+                )
+            runner_owner[runner] = name
+        models = fam.get("models", {})
+        if not isinstance(models, dict):
+            raise ValueError(f"{source}: family {name!r} 'models' must be a JSON object")
+        for tier, value in models.items():
+            if not isinstance(tier, str) or not tier.strip() or not isinstance(value, str) or not value.strip():
+                raise ValueError(
+                    f"{source}: family {name!r} model tiers must map non-empty strings to non-empty strings"
+                )
+            key = (str(runner), value.strip())
+            other = seen_models.get(key)
+            if other is not None and other != name:
+                raise ValueError(
+                    f"{source}: families {other!r} and {name!r} both declare model {value!r} "
+                    f"on runner {runner!r}: one model string is one family"
+                )
+            seen_models[key] = name
+        if "available" in fam and not isinstance(fam["available"], bool):
+            raise ValueError(f"{source}: family {name!r} 'available' must be a boolean")
+        if "notes" in fam and not isinstance(fam["notes"], str):
+            raise ValueError(f"{source}: family {name!r} 'notes' must be a string")
+    if "policy" in obj and not isinstance(obj["policy"], dict):
+        raise ValueError(f"{source}: 'policy' must be a JSON object")
+    policy = obj.get("policy") or {}
+    minimum = policy.get("cross_family_minimum", 3)
+    if isinstance(minimum, bool) or not isinstance(minimum, int) or minimum < 1:
+        raise ValueError(f"{source}: policy.cross_family_minimum must be a positive integer")
+    when_below = policy.get("when_below_minimum", "native_subagents")
+    if when_below != "native_subagents":
+        raise ValueError(
+            f"{source}: policy.when_below_minimum must be \"native_subagents\" "
+            "(the only value defined by schema version 1)"
+        )
+    return obj
+
+
+def _find_agents_file(start: Path | None = None) -> tuple[Path | None, str]:
+    """Auto-discover the agents file: project level <git-root>/.nullius/agents.json
+    (same upward walk as review-swarm.json) first, then user level
+    ~/.nullius/agents.json. Disabled when REVIEW_SWARM_NO_AUTO_CONFIG=1 (an
+    explicit --agents-file bypasses this switch entirely)."""
+    if os.environ.get("REVIEW_SWARM_NO_AUTO_CONFIG"):
+        return None, "none"
+    cur = (start or Path.cwd()).resolve()
+    while True:
+        if (cur / ".git").exists():
+            candidate = cur / ".nullius" / _AGENTS_FILENAME
+            if candidate.is_file():
+                return candidate, "project"
+            break
+        parent = cur.parent
+        if parent == cur:
+            break
+        cur = parent
+    user_candidate = Path.home() / ".nullius" / _AGENTS_FILENAME
+    if user_candidate.is_file():
+        return user_candidate, "user"
+    return None, "none"
+
+
+def _load_agents_file(explicit: str | None) -> tuple[dict[str, Any] | None, str, Path | None]:
+    """Load the agents file. Returns (roster or None, source, path or None).
+
+    A missing file (no explicit path, nothing discovered) is the pure-native
+    configuration and never an error. An explicit path that does not exist, or
+    any file that fails to parse or validate, IS an input error: the run stops
+    rather than silently continuing without the declared configuration."""
+    if explicit:
+        p = Path(explicit).expanduser().resolve()
+        if not p.is_file():
+            raise FileNotFoundError(f"--agents-file not found: {p}")
+        roster = _validate_agents_roster(json.loads(p.read_text(encoding="utf-8")), source=p)
+        return roster, "explicit", p
+    found, source = _find_agents_file()
+    if found is None:
+        return None, "none", None
+    roster = _validate_agents_roster(json.loads(found.read_text(encoding="utf-8")), source=found)
+    return roster, source, found
+
+
+def _resolve_family_spec(spec: str, roster: dict[str, Any] | None) -> str:
+    """Resolve a family:<name>[:<tier>] spec into an explicit model spec via the
+    agents file. Every failure is an explicit input error; a family spec is never
+    silently reinterpreted, and an unusable family is never substituted."""
+    body = spec[len(_FAMILY_SPEC_PREFIX):].strip()
+    name, _, tier = body.partition(":")
+    # Family names are lowercase by schema; normalize the request the same way.
+    name = name.strip().lower()
+    tier = tier.strip() or "default"
+    if not name:
+        raise ValueError(f"empty family spec: {spec!r}")
+    if not roster:
+        raise ValueError(
+            f"model spec {spec!r} needs an agents file and none was found "
+            "(pass --agents-file or create .nullius/agents.json; see docs/AGENTS_FILE.md)"
+        )
+    families = roster.get("families") or {}
+    fam = families.get(name)
+    if not isinstance(fam, dict):
+        raise ValueError(
+            f"agents file has no family {name!r} (declared: {', '.join(sorted(families)) or 'none'})"
+        )
+    if fam.get("available") is False:
+        notes = str(fam.get("notes") or "").strip()
+        raise ValueError(
+            f"family {name!r} is declared unavailable in the agents file"
+            + (f" ({notes})" if notes else "")
+        )
+    runner = str(fam.get("runner") or "")
+    if runner == "native":
+        raise ValueError(
+            f"family {name!r} is declared native: it runs as the host's own subagents, "
+            "not through this launcher"
+        )
+    if not _agents_runner_available(runner):
+        raise ValueError(
+            f"family {name!r} is declared available but its runner executable is not present "
+            f"on this machine (runner {runner!r}); the family is honestly absent, never substituted"
+        )
+    models = fam.get("models") or {}
+    model = models.get(tier)
+    if not isinstance(model, str) or not model.strip():
+        raise ValueError(
+            f"family {name!r} has no model tier {tier!r} "
+            f"(declared tiers: {', '.join(sorted(models)) or 'none'})"
+        )
+    model = model.strip()
+    backend = _AGENTS_RUNNER_BACKEND[runner]
+    if backend == "opencode":
+        # OpenCode model strings already carry their provider/model prefix. A provider
+        # segment that collides with a reserved launcher prefix would make _classify_model
+        # re-route the agent to a DIFFERENT runner than the file declares — reject the
+        # collision instead of silently overriding the declared runner.
+        head = model.split("/", 1)[0].strip().lower()
+        if head in ("claude", "codex", "gemini", "kimi") or model.lower().startswith(_FAMILY_SPEC_PREFIX):
+            raise ValueError(
+                f"family {name!r} declares opencode model {model!r} whose leading segment "
+                "collides with a reserved launcher prefix (claude/, codex/, gemini/, kimi/, family:)"
+            )
+        return model
+    return f"{backend}/{model}"
+
+
+def _roster_family(backend: str, model: str, roster: dict[str, Any] | None) -> str:
+    """Family label for one resolved (backend, model) execution, used by the
+    independence record. Attribution works on the resolved execution: an exact
+    model-string match against a declared tier wins; a runner used by exactly one
+    declared family maps to that family; opencode model strings match by their
+    provider/ prefix; anything the file cannot attribute keeps the backend name
+    as its family label (the pre-agents-file behavior)."""
+    if not roster:
+        return backend
+    families = roster.get("families") or {}
+    m = (model or "").strip()
+    if backend != "opencode" and m.startswith(backend + "/"):
+        m = m.split("/", 1)[1]
+    runner_families: list[str] = []
+    for fam_name in sorted(families):
+        fam = families[fam_name]
+        if not isinstance(fam, dict):
+            continue
+        if _AGENTS_RUNNER_BACKEND.get(str(fam.get("runner") or "")) != backend:
+            continue
+        runner_families.append(fam_name)
+        tiers = fam.get("models") or {}
+        if m and isinstance(tiers, dict) and m in {str(v).strip() for v in tiers.values()}:
+            return fam_name
+    if backend != "opencode":
+        if len(runner_families) == 1:
+            return runner_families[0]
+        return backend
+    provider = m.split("/", 1)[0] if "/" in m else ""
+    if provider:
+        hits = [
+            fam_name
+            for fam_name in runner_families
+            if any(
+                "/" in str(v) and str(v).strip().split("/", 1)[0] == provider
+                for v in (families[fam_name].get("models") or {}).values()
+            )
+        ]
+        if len(hits) == 1:
+            return hits[0]
+    return backend
+
+
+def _agents_runner_available(runner: str) -> bool:
+    if runner == "native":
+        return True
+    binary = _AGENTS_RUNNER_BINARY.get(runner)
+    return bool(binary and shutil.which(binary))
+
+
+def _usable_families(roster: dict[str, Any]) -> list[str]:
+    """Families that count as usable on this machine: declared available
+    (`available` absent or true) AND the runner's executable actually exists
+    (`native` always passes). Everything else is honestly absent."""
+    out: list[str] = []
+    for name in sorted(roster.get("families") or {}):
+        fam = roster["families"][name]
+        if not isinstance(fam, dict) or fam.get("available") is False:
+            continue
+        if _agents_runner_available(str(fam.get("runner") or "")):
+            out.append(name)
+    return out
+
+
+def _resolved_family(result: dict[str, Any], roster: dict[str, Any] | None) -> str:
+    resolved = result.get("resolved") if isinstance(result.get("resolved"), dict) else {}
+    backend = str(resolved.get("backend") or result.get("backend") or "")
+    model = resolved.get("model")
+    return _roster_family(backend, str(model or ""), roster)
+
+
+def _independence_summary(results: list[dict[str, Any]], roster: dict[str, Any] | None) -> dict[str, Any]:
+    """Independence record for the run's outputs: which families actually
+    produced output, at which independence level, and — when an agents file is
+    in force — how that compares to the declared availability and the
+    cross-family minimum. A degraded round must be visible as degraded; the
+    launcher itself never blocks on this (falling back to the host's native
+    subagent panel is the calling skill's move, per policy.when_below_minimum)."""
+    participating = sorted({_resolved_family(r, roster) for r in results if r.get("success")})
+    if len(participating) >= 2:
+        level = "cross_family"
+    elif len(participating) == 1:
+        level = "single_family"
+    else:
+        level = "none"
+    # The field set is identical on every path. Without an agents file the
+    # declaration-relative fields are null — "nothing was declared", which is
+    # different from an empty list ("everything declared participated").
+    info: dict[str, Any] = {
+        "level": level,
+        "participating_families": participating,
+        "declared_available_families": None,
+        "absent_families": None,
+        "cross_family_minimum": None,
+        "below_minimum": None,
+        "when_below_minimum": None,
+    }
+    if roster:
+        declared = sorted(roster.get("families") or {})
+        usable = _usable_families(roster)
+        policy = roster.get("policy") or {}
+        minimum = policy.get("cross_family_minimum", 3)
+        info.update(
+            {
+                "declared_available_families": usable,
+                "absent_families": [f for f in declared if f not in participating],
+                "cross_family_minimum": int(minimum),
+                "below_minimum": len(usable) < int(minimum),
+                "when_below_minimum": str(policy.get("when_below_minimum", "native_subagents")),
+            }
+        )
+    return info
+
+
 _CONFIG_FILENAME = "review-swarm.json"
 
 # Keys in the project config that map to simple CLI args (string/bool/number).
@@ -1480,6 +1807,17 @@ def _parse_args() -> argparse.Namespace:
         help=(
             "Path to project config JSON file. "
             "If omitted, auto-discovers .nullius/review-swarm.json from git root."
+        ),
+    )
+    ap.add_argument(
+        "--agents-file",
+        default=None,
+        help=(
+            "Path to a third-party agents file (family -> runner -> model mapping; "
+            "see docs/AGENTS_FILE.md). If omitted, auto-discovers "
+            ".nullius/agents.json from the git root, then ~/.nullius/agents.json; "
+            "a missing file is the pure-native configuration, never an error. "
+            "REVIEW_SWARM_NO_AUTO_CONFIG=1 disables the auto-discovery only."
         ),
     )
     ap.add_argument(
@@ -1746,6 +2084,10 @@ def main() -> int:
     backend_tool_modes: dict[str, str] = {}
     scope_prompt: Optional[Path] = None
     review_workspace_dir = Path.cwd().resolve()
+    agents_roster: Optional[dict[str, Any]] = None
+    agents_source = "none"
+    agents_path: Optional[Path] = None
+    family_spec_by_index: dict[int, str] = {}
 
     try:
         if args.max_prompt_bytes is not None and args.max_prompt_bytes <= 0:
@@ -1844,7 +2186,16 @@ def main() -> int:
         _require_file(system_prompt, label="System prompt")
         _require_file(user_prompt, label="User prompt")
 
+        agents_roster, agents_source, agents_path = _load_agents_file(args.agents_file)
         models = _select_models(args)
+        resolved_models: list[str] = []
+        for i, m in enumerate(models):
+            if m.startswith(_FAMILY_SPEC_PREFIX):
+                family_spec_by_index[i] = m
+                resolved_models.append(_resolve_family_spec(m, agents_roster))
+            else:
+                resolved_models.append(m)
+        models = resolved_models
         plans = _build_plans(
             models,
             opencode_runner=opencode_runner,
@@ -1884,6 +2235,13 @@ def main() -> int:
                 "created_at": _utc_now(),
                 "status": "input_error",
                 "error": str(exc),
+                # Which agents file was in force when the input was rejected (None when
+                # the failure happened before/without one) — a family: spec rejection is
+                # diagnosable from the meta alone, and the independence block hands the
+                # calling skill its degradation signal (declared-available families,
+                # below-minimum flag) without a second run. No agents ran: level "none".
+                "agents_file": {"path": str(agents_path) if agents_path else None, "source": agents_source},
+                "independence": _independence_summary([], agents_roster),
                 "paths": {"trace": str(trace_path)},
             },
         )
@@ -1963,6 +2321,8 @@ def main() -> int:
                     "created_at": _utc_now(),
                     "status": "prompt_guard_error",
                     "error": str(exc),
+                    "agents_file": {"path": str(agents_path) if agents_path else None, "source": agents_source},
+                    "independence": _independence_summary([], agents_roster),
                     "paths": {"trace": str(trace_path)},
                 },
             )
@@ -2007,6 +2367,7 @@ def main() -> int:
         "n_agents": len(plans),
         "models": [p.requested_model for p in plans],
         "backends": [p.backend for p in plans],
+        "agents_file": {"path": str(agents_path) if agents_path else None, "source": agents_source},
         "agent_name": args.agent or None,
         "variant": args.variant or None,
         "parallel": bool(args.parallel),
@@ -2032,6 +2393,8 @@ def main() -> int:
             if plan.backend == "gemini" and profile is not None
         ],
     }
+    if family_spec_by_index:
+        config_event["family_specs"] = {str(i): family_spec_by_index[i] for i in sorted(family_spec_by_index)}
     if args.two_phase:
         config_event["two_phase"] = True
         config_event["scope_prompt"] = str(scope_prompt)
@@ -2125,6 +2488,9 @@ def main() -> int:
         r["variant"] = "canonical"
         r["fallback_reason"] = None
         r["command_success"] = bool(r.get("success", False))
+        family_spec = family_spec_by_index.get(int(r.get("index", -1)))
+        if family_spec is not None:
+            r["family_spec"] = family_spec
         _postprocess_result(r, check_review_contract=bool(args.check_review_contract))
 
     if args.two_phase:
@@ -2187,8 +2553,31 @@ def main() -> int:
             if attempts:
                 r["empty_output_retries"] = attempts
 
+    # An agent requested through a family: spec never falls back to another backend:
+    # the caller asked for THAT family, and an unusable family is honestly absent,
+    # never substituted. Rerun the same family or drop it explicitly instead.
+    for r in results:
+        if (
+            r.get("failure_reason")
+            and str((r.get("requested") or {}).get("backend")) in fallback_targets
+            and int(r.get("index", -1)) in family_spec_by_index
+        ):
+            _append_jsonl(
+                trace_path,
+                {
+                    "ts": _utc_now(),
+                    "event": "fallback_skipped_family_spec",
+                    "index": r.get("index"),
+                    "family_spec": family_spec_by_index[int(r.get("index", -1))],
+                    "reason": r.get("failure_reason"),
+                },
+            )
     fallback_candidates = [
-        r for r in results if r.get("failure_reason") and str((r.get("requested") or {}).get("backend")) in fallback_targets
+        r
+        for r in results
+        if r.get("failure_reason")
+        and str((r.get("requested") or {}).get("backend")) in fallback_targets
+        and int(r.get("index", -1)) not in family_spec_by_index
     ]
     needs_user_decision = False
     if fallback_candidates:
@@ -2330,6 +2719,8 @@ def main() -> int:
         _append_jsonl(trace_path, {"ts": _utc_now(), "event": "convergence_check", **convergence_info})
 
     success_count = sum(1 for r in results if r.get("success", False))
+    independence = _independence_summary(results, agents_roster)
+    _append_jsonl(trace_path, {"ts": _utc_now(), "event": "independence", **independence})
     meta: dict[str, Any] = {
         "schema_version": 1,
         "created_at": _utc_now(),
@@ -2338,6 +2729,11 @@ def main() -> int:
         "failure_count": len(plans) - success_count,
         "models": [p.requested_model for p in plans],
         "agents": results,
+        # Which agents file was in force and which families actually produced
+        # output, at which independence level. A run below the cross-family
+        # minimum is allowed but must be visible as degraded, never silent.
+        "agents_file": {"path": str(agents_path) if agents_path else None, "source": agents_source},
+        "independence": independence,
         # Requested specs whose runs ALL failed at the infrastructure level
         # (timeout / crash exit / empty output): a degraded run reads as a
         # backend outage, never as review disagreement.
