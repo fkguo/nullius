@@ -264,6 +264,24 @@ def test_saturated_label_without_refs_is_not_eligible(tmp_path):
     assert nodes_store.waiting_return_state(parked) == "needs_refresh"
 
 
+def test_refs_must_be_strings_not_truthy_values():
+    # The engine's hasClosePriorRefs requires string refs; a non-string truthy
+    # value (as could appear in a hand-built in-memory node) must not count.
+    assert nodes_store.has_close_prior_refs({
+        "status": "saturated", "survey_ref": "s", "close_prior_matrix_ref": "m",
+    }) is True
+    for bad in ({"uri": "s"}, 7, True, ["s"]):
+        assert nodes_store.has_close_prior_refs({
+            "status": "saturated", "survey_ref": bad, "close_prior_matrix_ref": "m",
+        }) is False
+    assert nodes_store.has_close_prior_refs({
+        "status": "saturated", "survey_ref": "  ", "close_prior_matrix_ref": "m",
+    }) is False
+    assert nodes_store.allocation_eligible_from_coverage({
+        "status": "saturated", "survey_ref": 7, "close_prior_matrix_ref": "m",
+    }) is False
+
+
 def test_budget_notes_flag_exploration_vs_conservative():
     campaign_id, nodes = load_fixture_nodes()
     decision = ta.build_decision(

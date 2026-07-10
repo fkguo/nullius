@@ -34,12 +34,14 @@ shape for exploration-aware allocation:
 Allocation rule
 ---------------
 One draw per eligible idea (``lifecycle_state == "admitted"``, posterior
-present, ``posterior.status`` current, and close-prior literature coverage
-saturated), ranked by sampled value, descending. ``coverage_incomplete`` can
-participate only when the node explicitly declares
-``literature_coverage.exploratory_allocation=true``. An admitted node whose
-stored data fails this re-check (possible only in a hand-migrated store — the
-engine derives admitted from the data) is listed as a hold, never sampled.
+present, ``posterior.status`` current, BOTH close-prior refs recorded
+(``survey_ref`` + ``close_prior_matrix_ref``), and coverage saturated),
+ranked by sampled value, descending. ``coverage_incomplete`` can participate
+only when the node explicitly declares
+``literature_coverage.exploratory_allocation=true`` (the refs are still
+required). An admitted node whose stored data fails this re-check (possible
+only in a hand-migrated store — the engine derives admitted from the data)
+is listed as a hold, never sampled.
 The caller supplies
 ``--deep-slots`` and ``--recon-slots`` (no defaults: slot counts encode real
 person-time and compute capacity, which only the caller knows). The top
@@ -99,6 +101,7 @@ from nodes_store import (  # noqa: E402
     StoreError,
     allocation_eligible_from_coverage,
     derive_decision_id,
+    has_close_prior_refs,
     is_short_id_text,
     literature_coverage,
     load_nodes_file,
@@ -282,9 +285,6 @@ def assign_allocations(
         )
     for node in sorted(groups["data_blocked"], key=lambda n: n["node_id"]):
         coverage = literature_coverage(node)
-        has_refs = bool(str(coverage.get("survey_ref", "")).strip()) and bool(
-            str(coverage.get("close_prior_matrix_ref", "")).strip()
-        )
         if node.get("posterior") is None:
             detail = "stored node is admitted but carries no posterior"
         elif posterior_status(node) != "current":
@@ -292,7 +292,7 @@ def assign_allocations(
                 "stored node is admitted but posterior status is "
                 f"{posterior_status(node) or 'missing'}"
             )
-        elif not has_refs:
+        elif not has_close_prior_refs(coverage):
             detail = (
                 "stored node is admitted but the close-prior refs "
                 "(survey_ref + close_prior_matrix_ref) are missing"
