@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
@@ -351,6 +351,140 @@ describe('decision ledger', () => {
     const retry = makeIo(projectRoot);
     expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'Recovered after the failed attempt'], retry.io)).toBe(0);
     expect(retry.stdout.join('')).toContain('recorded: D1');
+  });
+
+  it('refuses to allocate past the id-space ceiling instead of emitting an invisible record', async () => {
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot);
+    const ceiling = { id: `D${Number.MAX_SAFE_INTEGER}`, ts: '2026-07-10T00:00:00Z', kind: 'pending', text: 'ceiling id', by: 'user', resolves: null };
+    fs.writeFileSync(path.join(projectRoot, '.nullius', 'decisions.jsonl'), `${JSON.stringify(ceiling)}\n`, 'utf-8');
+
+    await expect(
+      runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'one past the ceiling'], makeIo(projectRoot).io),
+    ).rejects.toThrow('decision id space exhausted');
+    expect(readDecisionLines(projectRoot)).toHaveLength(1);
+  });
+
+  it('quarantines duplicate ids so resolution stays unambiguous', async () => {
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot);
+    const first = { id: 'D1', ts: '2026-07-10T00:00:00Z', kind: 'pending', text: 'first question', by: 'user', resolves: null };
+    const duplicate = { id: 'D1', ts: '2026-07-10T00:00:01Z', kind: 'pending', text: 'unrelated question with a stolen id', by: 'user', resolves: null };
+    fs.writeFileSync(
+      path.join(projectRoot, '.nullius', 'decisions.jsonl'),
+      `${JSON.stringify(first)}\n${JSON.stringify(duplicate)}\n`,
+      'utf-8',
+    );
+
+    const list = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'list', '--json'], list.io)).toBe(0);
+    const parsed = JSON.parse(list.stdout.join('')) as { invalid_lines: number; records: Array<{ id: string; text: string }> };
+    expect(parsed.invalid_lines).toBe(1);
+    expect(parsed.records).toHaveLength(1);
+    expect(parsed.records[0]?.text).toBe('first question');
+
+    // Resolving D1 targets exactly the surviving first occurrence.
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'answered', '--resolves', 'D1'], makeIo(projectRoot).io)).toBe(0);
+    const payload = await statusJson(projectRoot);
+    expect((payload.decision_ledger as Record<string, unknown>).open_count).toBe(0);
+  });
+
+  it('repairs the tail in place, preserving the ledger file mode', async () => {
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot);
+    const ledgerPath = path.join(projectRoot, '.nullius', 'decisions.jsonl');
+    const manual = { id: 'D1', ts: '2026-07-10T00:00:00Z', kind: 'pending', text: 'no trailing newline', by: 'user', resolves: null };
+    fs.writeFileSync(ledgerPath, JSON.stringify(manual), 'utf-8');
+    fs.chmodSync(ledgerPath, 0o600);
+
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'appended after repair'], makeIo(projectRoot).io)).toBe(0);
+    expect(readDecisionLines(projectRoot)).toHaveLength(2);
+    expect(fs.statSync(ledgerPath).mode & 0o777).toBe(0o600);
+  });
+
+  it('fails with a normal permission error on a read-only ledger instead of replacing it', async () => {
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot);
+    const ledgerPath = path.join(projectRoot, '.nullius', 'decisions.jsonl');
+    const manual = { id: 'D1', ts: '2026-07-10T00:00:00Z', kind: 'pending', text: 'read-only, no trailing newline', by: 'user', resolves: null };
+    fs.writeFileSync(ledgerPath, JSON.stringify(manual), 'utf-8');
+    fs.chmodSync(ledgerPath, 0o444);
+    try {
+      await expect(
+        runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'must not be written'], makeIo(projectRoot).io),
+      ).rejects.toThrow(/EACCES|permission denied/);
+      expect(fs.statSync(ledgerPath).mode & 0o777).toBe(0o444);
+      expect(fs.readFileSync(ledgerPath, 'utf-8')).toBe(JSON.stringify(manual));
+      expect(fs.existsSync(`${ledgerPath}.lock`)).toBe(false);
+    } finally {
+      fs.chmodSync(ledgerPath, 0o644);
+    }
+  });
+
+  it('reclaims a dead-holder lock exactly once under concurrent contenders', async () => {
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot);
+    // A real, provably dead pid: a child that has already exited.
+    const dead = spawnSync(process.execPath, ['-e', 'process.exit(0)']);
+    const deadPid = dead.pid ?? 999999;
+    const lockPath = path.join(projectRoot, '.nullius', 'decisions.jsonl.lock');
+    fs.writeFileSync(lockPath, JSON.stringify({ pid: deadPid, ts: '2026-07-10T00:00:00Z', nonce: 'stale' }), 'utf-8');
+
+    const cliPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'dist', 'cli.js');
+    const runOne = (text: string) => new Promise<number>((resolve, reject) => {
+      const child = spawn(process.execPath, [cliPath, `--project-root=${projectRoot}`, 'decision', 'record', text], { stdio: 'ignore' });
+      child.on('error', reject);
+      child.on('exit', code => resolve(code ?? -1));
+    });
+    const [first, second] = await Promise.all([runOne('reclaimer one'), runOne('reclaimer two')]);
+    expect(first).toBe(0);
+    expect(second).toBe(0);
+
+    const lines = readDecisionLines(projectRoot);
+    expect(lines).toHaveLength(2);
+    expect(new Set(lines.map(line => line.id))).toEqual(new Set(['D1', 'D2']));
+    expect(fs.existsSync(lockPath)).toBe(false);
+    expect(fs.readdirSync(path.join(projectRoot, '.nullius')).filter(name => name.includes('.reclaim.'))).toEqual([]);
+  }, 20000);
+
+  it('renders a genuinely empty ledger and a ledger read error in the text status', async () => {
+    const emptyRoot = makeTempProjectRoot();
+    await initRuntimeOnly(emptyRoot);
+    fs.writeFileSync(path.join(emptyRoot, '.nullius', 'decisions.jsonl'), '', 'utf-8');
+    const empty = makeIo(emptyRoot);
+    expect(await runCli([`--project-root=${emptyRoot}`, 'status'], empty.io)).toBe(0);
+    expect(empty.stdout.join('')).toContain('decisions: 0 decided, 0 open');
+
+    const errorRoot = makeTempProjectRoot();
+    await initRuntimeOnly(errorRoot);
+    // A directory at the ledger path makes the read model fail structurally.
+    fs.mkdirSync(path.join(errorRoot, '.nullius', 'decisions.jsonl'));
+    const broken = makeIo(errorRoot);
+    expect(await runCli([`--project-root=${errorRoot}`, 'status'], broken.io)).toBe(0);
+    expect(broken.stdout.join('')).toContain('decision_ledger_error');
+  });
+
+  it('derives the ledger path from the control-dir authority and requires state.json to record', async () => {
+    // Overridden control dir: the ledger must follow it.
+    const overriddenRoot = makeTempProjectRoot();
+    const previous = process.env.NULLIUS_CONTROL_DIR;
+    process.env.NULLIUS_CONTROL_DIR = 'ctl';
+    try {
+      await initRuntimeOnly(overriddenRoot);
+      expect(await runCli([`--project-root=${overriddenRoot}`, 'decision', 'record', 'recorded under the override'], makeIo(overriddenRoot).io)).toBe(0);
+      expect(fs.existsSync(path.join(overriddenRoot, 'ctl', 'decisions.jsonl'))).toBe(true);
+      expect(fs.existsSync(path.join(overriddenRoot, '.nullius', 'decisions.jsonl'))).toBe(false);
+    } finally {
+      if (previous === undefined) delete process.env.NULLIUS_CONTROL_DIR;
+      else process.env.NULLIUS_CONTROL_DIR = previous;
+    }
+
+    // A bare control dir without state.json is not an initialized project.
+    const bareRoot = makeTempProjectRoot();
+    fs.mkdirSync(path.join(bareRoot, '.nullius'), { recursive: true });
+    await expect(
+      runCli([`--project-root=${bareRoot}`, 'decision', 'record', 'too early'], makeIo(bareRoot).io),
+    ).rejects.toThrow('not initialized');
   });
 
   it('rejects resolving the same pending entry twice', async () => {

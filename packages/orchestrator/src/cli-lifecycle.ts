@@ -166,7 +166,10 @@ function writeStatusText(io: CliIo, payload: Record<string, unknown>): void {
     const decidedCount = Number(ledger.decided_count ?? 0);
     const openCount = Number(ledger.open_count ?? 0);
     const invalidLines = Number(ledger.invalid_lines ?? 0);
-    if (decidedCount > 0 || openCount > 0 || invalidLines > 0) {
+    // A ledger FILE that exists renders even at 0/0 — an emptied ledger is a
+    // deliberate state the operator should see, unlike the never-adopted case
+    // (no file), which stays silent.
+    if (ledger.exists === true || decidedCount > 0 || openCount > 0 || invalidLines > 0) {
       io.stdout(`decisions: ${decidedCount} decided, ${openCount} open\n`);
       const openItems = Array.isArray(ledger.open_items) ? ledger.open_items : [];
       for (const rawItem of openItems) {

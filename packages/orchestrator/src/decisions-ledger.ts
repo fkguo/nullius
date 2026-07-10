@@ -1,7 +1,9 @@
+import { randomUUID } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { closeSync, openSync, readFileSync, rmSync, statSync, writeSync } from 'node:fs';
-import { appendJsonlDurable, writeBytesAtomicDurable } from '@nullius/shared';
+import { closeSync, linkSync, openSync, readFileSync, renameSync, rmSync, statSync, writeSync } from 'node:fs';
+import { appendBytesDurable, appendJsonlDurable } from '@nullius/shared';
+import { nulliusControlDir } from './state-manager.js';
 import { utcNowIso } from './util.js';
 
 /** Append-only ledger of human decisions made in conversation.
@@ -33,11 +35,14 @@ export type DecisionRecord = {
 };
 
 export type DecisionsLedgerSnapshot = {
-  /** Project-relative POSIX path of the ledger file. */
+  /** Project-relative POSIX path of the ledger file (absolute when the
+   *  control-dir override points outside the project root). */
   path: string;
   exists: boolean;
   records: DecisionRecord[];
-  /** Lines that failed to parse or lacked required fields; never fatal. */
+  /** Lines that failed to parse, lacked required fields, or repeated an id
+   *  already seen (a duplicate id would make resolution ambiguous, so later
+   *  duplicates are quarantined here instead of entering the read model). */
   invalid_lines: number;
 };
 
@@ -47,13 +52,23 @@ const DECISION_ID_PATTERN = /^D(\d+)$/;
 // any realistic holder (one read + one appended line), then fail loudly.
 const LOCK_RETRY_ATTEMPTS = 100;
 const LOCK_RETRY_SLEEP_MS = 25;
-
-export function decisionsLedgerRelativePath(): string {
-  return path.join('.nullius', 'decisions.jsonl').split(path.sep).join('/');
-}
+// A live holder finishes in well under a second; any lock older than this is
+// stale no matter what its pid says (kills the zombie-lock failure mode where
+// a stolen-and-restored lock names a long-lived process as holder).
+const LOCK_HARD_MAX_AGE_MS = 60_000;
+// Unreadable/empty locks (crash between create and pid write) reclaim much
+// sooner: a live acquirer writes its content within milliseconds.
+const LOCK_EMPTY_MAX_AGE_MS = 5_000;
 
 export function decisionsLedgerPath(projectRoot: string): string {
-  return path.join(projectRoot, '.nullius', 'decisions.jsonl');
+  return path.join(nulliusControlDir(projectRoot), 'decisions.jsonl');
+}
+
+export function decisionsLedgerDisplayPath(projectRoot: string): string {
+  const absolute = decisionsLedgerPath(projectRoot);
+  const relative = path.relative(projectRoot, absolute);
+  if (relative.startsWith('..') || path.isAbsolute(relative)) return absolute;
+  return relative.split(path.sep).join('/');
 }
 
 /** Parse an id like "D7" to its safe-integer sequence number, else null.
@@ -92,23 +107,29 @@ function parseDecisionLine(line: string): DecisionRecord | null {
 
 export function readDecisionsLedger(projectRoot: string): DecisionsLedgerSnapshot {
   const filePath = decisionsLedgerPath(projectRoot);
-  const relativePath = decisionsLedgerRelativePath();
+  const displayPath = decisionsLedgerDisplayPath(projectRoot);
   if (!fs.existsSync(filePath)) {
-    return { path: relativePath, exists: false, records: [], invalid_lines: 0 };
+    return { path: displayPath, exists: false, records: [], invalid_lines: 0 };
   }
   const records: DecisionRecord[] = [];
+  const seenIds = new Set<string>();
   let invalidLines = 0;
   const lines = fs.readFileSync(filePath, 'utf-8').split(/\r?\n/);
   for (const line of lines) {
     if (line.trim().length === 0) continue;
     const record = parseDecisionLine(line);
-    if (record) {
-      records.push(record);
-    } else {
+    if (!record || seenIds.has(record.id)) {
+      // A repeated id (hand edit, or the residual lock race documented in
+      // withDecisionsLock) would make `--resolves <id>` ambiguous; the first
+      // occurrence stays authoritative, later ones are quarantined and
+      // surfaced through invalid_lines.
       invalidLines += 1;
+      continue;
     }
+    seenIds.add(record.id);
+    records.push(record);
   }
-  return { path: relativePath, exists: true, records, invalid_lines: invalidLines };
+  return { path: displayPath, exists: true, records, invalid_lines: invalidLines };
 }
 
 /** Pending entries not closed by any later decided entry. Oldest first. */
@@ -126,6 +147,12 @@ function nextDecisionId(records: DecisionRecord[]): string {
   for (const record of records) {
     const value = decisionSequenceNumber(record.id);
     if (value !== null && value > highest) highest = value;
+  }
+  if (highest >= Number.MAX_SAFE_INTEGER) {
+    // Unreachable by honest sequential use; a hand-added ceiling id would
+    // otherwise make the successor unparseable (rejected on reread) while the
+    // command keeps reporting success with the same invisible id.
+    throw new Error(`decision id space exhausted (D${highest} is the largest safe id); repair the ledger ids before recording`);
   }
   return `D${highest + 1}`;
 }
@@ -145,34 +172,79 @@ function holderAlive(pid: number): boolean {
   }
 }
 
-/** Reclaims a provably stale lock (holder dead, or unreadable and old).
- *  Returns true when reclaimed so the acquire loop can retry immediately. */
-function reclaimStaleLock(lockPath: string): boolean {
+type LockInspection = {
+  raw: string | null;
+  stale: boolean;
+};
+
+function inspectLock(lockPath: string): LockInspection {
+  let raw: string | null = null;
   let holderPid: number | null = null;
   try {
-    const content = JSON.parse(readFileSync(lockPath, 'utf-8')) as Record<string, unknown>;
+    raw = readFileSync(lockPath, 'utf-8');
+    const content = JSON.parse(raw) as Record<string, unknown>;
     if (typeof content.pid === 'number' && Number.isInteger(content.pid) && content.pid > 0) {
       holderPid = content.pid;
     }
   } catch {
     holderPid = null;
   }
-  if (holderPid !== null) {
-    if (holderAlive(holderPid)) return false;
-    rmSync(lockPath, { force: true });
-    return true;
-  }
+  let ageMs = 0;
   try {
-    // Unreadable/empty lock: a live acquirer writes its pid within
-    // milliseconds of creating the file, so a short grace period suffices.
-    if (Date.now() - statSync(lockPath).mtimeMs > 5000) {
-      rmSync(lockPath, { force: true });
-      return true;
-    }
+    ageMs = Date.now() - statSync(lockPath).mtimeMs;
   } catch {
-    return true; // vanished between EEXIST and stat: just retry
+    return { raw, stale: false }; // vanished: nothing to reclaim, just retry
   }
-  return false;
+  if (ageMs > LOCK_HARD_MAX_AGE_MS) return { raw, stale: true };
+  if (holderPid !== null) return { raw, stale: !holderAlive(holderPid) };
+  return { raw, stale: ageMs > LOCK_EMPTY_MAX_AGE_MS };
+}
+
+/** Single-winner reclamation of a stale lock.
+ *
+ *  Judging staleness and removing the file are not one atomic step, so a
+ *  naive unlink can delete a FRESH lock created between the two. Instead the
+ *  reclaimer renames the lock to a per-process claim path (rename is atomic;
+ *  exactly one contender wins a given inode), then verifies the claimed bytes
+ *  are the ones it judged stale. On mismatch it stole a live lock and puts it
+ *  back via link(2) (which never replaces an existing path, so a
+ *  concurrently-created new lock is never clobbered).
+ *
+ *  Residual window: if the live holder releases (unlink no-ops on the moved
+ *  path) or a third process acquires during the microseconds between rename
+ *  and restore, two holders can briefly coexist. That worst case produces a
+ *  duplicate decision id, which the reader quarantines as an invalid line
+ *  (see readDecisionsLedger) — detected and non-corrupting, the same bound
+ *  the widely-used lockfile packages accept. The 60s hard age cap above keeps
+ *  any restored-but-orphaned lock from outliving its usefulness.
+ */
+function reclaimStaleLock(lockPath: string, examined: LockInspection): void {
+  const claimPath = `${lockPath}.reclaim.${process.pid}`;
+  try {
+    renameSync(lockPath, claimPath);
+  } catch {
+    return; // someone else won the reclaim (or the holder released): retry
+  }
+  let claimedRaw: string | null = null;
+  try {
+    claimedRaw = readFileSync(claimPath, 'utf-8');
+  } catch {
+    claimedRaw = null;
+  }
+  if (claimedRaw === examined.raw) {
+    rmSync(claimPath, { force: true });
+    return;
+  }
+  // We moved a lock that is not the one we judged stale — a fresh holder
+  // acquired between inspection and rename. Restore it without clobbering
+  // any newer lock: link() fails with EEXIST instead of replacing.
+  try {
+    linkSync(claimPath, lockPath);
+  } catch {
+    // lockPath is occupied again or the claim vanished; nothing safe to do —
+    // the hard age cap and duplicate-id quarantine bound the damage.
+  }
+  rmSync(claimPath, { force: true });
 }
 
 function sleepBlocking(ms: number): void {
@@ -182,15 +254,17 @@ function sleepBlocking(ms: number): void {
 
 /** Cross-process mutual exclusion around read-allocate-append, so two CLI
  *  processes recording concurrently cannot allocate the same D<n>. The lock
- *  file carries the holder pid (control metadata, not durable project data). */
+ *  file carries the holder identity (control metadata, not durable project
+ *  data — hence plain writes, mirroring the engine-store file lock). */
 function withDecisionsLock<T>(projectRoot: string, action: () => T): T {
   const lockPath = lockFilePath(projectRoot);
+  const myToken = JSON.stringify({ pid: process.pid, ts: utcNowIso(), nonce: randomUUID() });
   let acquired = false;
   for (let attempt = 0; attempt < LOCK_RETRY_ATTEMPTS; attempt += 1) {
     try {
       const fd = openSync(lockPath, 'wx');
       try {
-        writeSync(fd, JSON.stringify({ pid: process.pid, ts: utcNowIso() }));
+        writeSync(fd, myToken);
       } finally {
         closeSync(fd);
       }
@@ -198,7 +272,11 @@ function withDecisionsLock<T>(projectRoot: string, action: () => T): T {
       break;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
-      if (reclaimStaleLock(lockPath)) continue;
+      const examined = inspectLock(lockPath);
+      if (examined.stale) {
+        reclaimStaleLock(lockPath, examined);
+        continue;
+      }
       sleepBlocking(LOCK_RETRY_SLEEP_MS);
     }
   }
@@ -208,20 +286,30 @@ function withDecisionsLock<T>(projectRoot: string, action: () => T): T {
   try {
     return action();
   } finally {
-    rmSync(lockPath, { force: true });
+    // Ownership-checked release: remove the lock only when it still carries
+    // our token, so a reclaimed-and-reissued lock is never deleted by the
+    // previous holder.
+    try {
+      if (readFileSync(lockPath, 'utf-8') === myToken) {
+        rmSync(lockPath, { force: true });
+      }
+    } catch {
+      // already gone (reclaimed): nothing to release
+    }
   }
 }
 
 /** A hand edit or an interrupted foreign write can leave the last line
  *  without a trailing newline; blindly appending would concatenate the new
- *  record onto it, corrupting BOTH lines. Repair the boundary first with an
- *  atomic full-file replace (contents preserved byte-for-byte plus one LF). */
+ *  record onto it, corrupting BOTH lines. Repair by durably appending one LF
+ *  in place — the inode, ownership, and mode are preserved, and a read-only
+ *  ledger fails with a normal permission error instead of being replaced. */
 function repairUnterminatedTail(filePath: string): void {
   if (!fs.existsSync(filePath)) return;
   const bytes = fs.readFileSync(filePath);
   if (bytes.length === 0) return;
   if (bytes[bytes.length - 1] === 0x0a) return;
-  writeBytesAtomicDurable(filePath, Buffer.concat([bytes, Buffer.from('\n')]));
+  appendBytesDurable(filePath, '\n');
 }
 
 export function appendDecision(
@@ -232,9 +320,10 @@ export function appendDecision(
   if (trimmed.length === 0) {
     throw new Error('decision text must not be empty');
   }
-  const runtimeDir = path.join(projectRoot, '.nullius');
-  if (!fs.existsSync(runtimeDir)) {
-    throw new Error('project is not initialized (missing .nullius/); run nullius init first');
+  // Recording requires an initialized project, and "initialized" means the
+  // engine state exists — a bare control directory is not enough.
+  if (!fs.existsSync(path.join(nulliusControlDir(projectRoot), 'state.json'))) {
+    throw new Error('project is not initialized (missing state.json in the control dir); run nullius init first');
   }
   return withDecisionsLock(projectRoot, () => {
     const filePath = decisionsLedgerPath(projectRoot);
