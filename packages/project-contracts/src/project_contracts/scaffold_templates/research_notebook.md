@@ -3,63 +3,81 @@
 Project: <PROJECT_NAME>
 Last updated: <YYYY-MM-DD>
 
-This file is the human-facing research notebook.
-Organize it by the logic of the research problem, not by run date.
-Write dated run logs and raw step summaries in [research_plan.md](research_plan.md) or `artifacts/runs/<run_id>/`, then fold durable insights back into the sections below.
-Keep machine-stable gate structure in [research_contract.md](research_contract.md).
+This file is the research memo: the one document a colleague in the field
+could read, without opening anything else in the repository, and come away
+with the project's complete current understanding — including every
+derivation, computation, and piece of analysis that understanding rests on.
+It reads like a paper (with appendix-level detail), not like a diary.
 
-## Problem Statement
+Three disciplines keep it that way:
 
-- Core question:
-- Why it matters:
+1. **Organize by the structure of the problem, never by time.** Sections
+   follow the research picture — setup, methods, derivations, results,
+   analysis — not the order in which work happened. "What changed when" is
+   not this file's job: dated logs live in [research_plan.md](research_plan.md)
+   and `artifacts/runs/<run_id>/`; machine-checkable claims live in
+   [research_contract.md](research_contract.md).
+2. **Update by rewriting, not appending.** When a result lands, a derivation
+   is corrected, or the direction changes, rewrite the affected sections so
+   the whole document is self-consistent again — as if writing the section
+   fresh with today's knowledge. Never leave stage markers ("in the previous
+   version...", "as of this week...") or patch-on-patch fragments; the
+   revision history is git's job.
+3. **Complete but not cluttered.** Every load-bearing derivation appears in
+   full (all steps a careful reader needs, with conventions stated), every
+   trusted number appears with its uncertainty and provenance link — but
+   process detail (tool logs, run transcripts, failed attempts) stays in
+   `artifacts/runs/<run_id>/`, referenced by link where relevant. If a section can be deleted
+   without losing understanding, delete it.
 
-## Current Understanding
+Suggested skeleton — rename, merge, and grow sections to fit the actual
+problem; headings with real meaning beat generic labels:
 
-- What is currently believed:
-- What is evidence-backed:
-- What is still hypothesis:
+## Scientific picture and motivation
 
-## Question Map
+The problem in plain scientific prose: what question is being answered, why
+it matters, what the current best answer looks like and how confident it is.
+A reader should understand the point of the project from this section alone.
 
-- Main questions:
-- Subquestions and dependencies:
-- What would change the direction:
+## Setup, conventions, and definitions
 
-## Evidence Map
+The framework this work lives in: definitions, notation, units, assumptions,
+and scope boundaries — everything a reader needs to check the mathematics
+that follows. Write mathematics as LaTeX math ($...$ inline, $$...$$ for
+display), not as inline-code text.
 
-- Core sources and what each establishes:
-- For important sources, record source form read (`latex_source`, `full_text_pdf`, `available_full_text`, `abstract_only`, or `unavailable`), sections/pages/equations/figures actually read, central equations and assumptions, what was not read and why, project relevance, limitations, and remaining gaps:
-- Candidate-only sources:
-- Known gaps in source reading:
-- Tool-use logs, metadata checks, download attempts, and API/MCP call details belong in [research_plan.md](research_plan.md) or `artifacts/runs/<run_id>/`, not in literature notes.
+## Methods and derivations
 
-## Conventions and Definitions
+The heart of the memo. Each method or derivation gets its own subsection
+with a meaningful title, written as connected prose with complete
+mathematics: starting relations, every non-obvious step, approximations with
+their justification and expected validity range, and the final expressions
+actually used. When a derivation has passed an independent check, say so and
+link the verification artifact; when it has not, say that too.
 
-- Terms, variables, and units, written with LaTeX math for scientific notation rather than inline-code backticks:
-- Naming or representation choices:
-- Assumptions and scope boundaries:
+## Results and analysis
 
-## Reasoning Threads
+Current results with uncertainties, presented and interpreted: what the
+numbers/figures show, how they were validated (link the verification
+artifacts next to each trusted value), how they compare with prior work, and
+what scientific conclusions they do and do not support. Superseded results are
+removed, not struck through — if the change of value itself carries a
+lesson, one sentence with a link to the run record is enough.
 
-- State assumptions explicitly.
-- Keep each reasoning thread under a stable conceptual heading.
-- Keep the reasoning readable; move machine-checkable pointers to [research_contract.md](research_contract.md).
+## Open questions and risks
 
-## Claims and Results
-
-- Result / claim IDs:
-- Evidence and artifact pointers:
-- Status: candidate, checked, blocked, or rejected
-
-## Uncertainties and Kill Criteria
-
-- What is still uncertain?
-- What would falsify the current direction?
+What is genuinely unresolved, what would falsify the current direction, and
+which assumptions the conclusions are most sensitive to.
 
 ## References
 
-- Add stable links and local note pointers here as the project grows.
-
-## Change Log
-
-- <YYYY-MM-DD>: Scaffold created. Keep this section brief; put substantive research content in the logical sections above.
+Stable links and local note pointers, kept current with the text above. For
+load-bearing sources, keep the reading honest: record the source form read
+(`latex_source`, `full_text_pdf`, `available_full_text`, `abstract_only`, or
+`unavailable`), the sections/pages/equations/figures actually read, the
+central equations and assumptions taken from each,
+what was not read and why, and each source's
+project relevance, limitations, and remaining gaps.
+Tool-use logs, metadata checks, download attempts, and API/MCP call details
+belong in [research_plan.md](research_plan.md) or `artifacts/runs/<run_id>/`,
+not here.

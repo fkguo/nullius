@@ -111,6 +111,40 @@ Fill this section for each milestone or tag that is claimed as complete.
   - Tolerance or acceptance rule:
 <!-- REPRO_CAPSULE_END -->
 
+## Parameter Sweep Semantics
+
+Fill this when any recorded result comes from a scan over a parameter. Even
+"no sweep" is a declaration: state the baseline configuration and which
+constants were held fixed.
+
+- Swept parameter(s) and range:
+- Baseline configuration and held-fixed constants:
+- Which points are trend-quality and which are precision-quality (a grid
+  point computed for the shape of a curve is not automatically accurate
+  enough to quote as a standalone number):
+- Resolution/convergence status per quoted point:
+
+## Multi-Root / Branch Accounting
+
+Fill this when a computed quantity can have several coexisting solutions
+(roots, branches, modes). A non-smooth curve is first a branch-assignment
+question, not a plotting problem — never smooth over a crossing by
+connecting points.
+
+- Quantity with multiple roots/branches:
+- How branches are identified and tracked across the scan:
+- Which branch each reported number belongs to:
+- Diagnostics that would reveal a mis-assignment:
+
+## Failed Approaches Ledger
+
+Approaches tried and abandoned, so they are not silently retried and the
+reasons stay auditable. One line each: what was tried, why it failed
+(with a pointer to the run or note), and what would have to change to make
+it worth revisiting.
+
+- (none yet)
+
 ## Claims And Results
 
 Use stable IDs so claims can be reviewed and revised.
