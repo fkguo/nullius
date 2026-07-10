@@ -59,12 +59,12 @@ and MUST equal the filename's `_vN` (ART-02). Write atomically (ART-03).
       // quantity. The fingerprint is over canonical serialized content, not a timestamp or run label.
       // { "scope": "connected_series",
       //   "fingerprint_schema": "sha256(canonical JSON of model/branch, every integration and solver setting, source/dependency hashes, and transformation)",
-      //   "fingerprint_inputs": ["model_and_branch", "nested_resolution_settings", "solver_settings", "source_hashes", "dependency_hashes", "transformation"],
+      //   "fingerprint_inputs": ["model_and_branch", "all_resolution_settings_top_level_and_nested", "solver_settings", "source_hashes", "dependency_hashes", "transformation"],
       //   "point_fingerprints_artifact": "series_point_fingerprints.csv",
       //   "unique_fingerprints": ["<one hex digest>"],
       //   "all_points_fingerprinted": true,
       //   "homogeneous": true,
-      //   "check_command": "python3 check_series_provenance.py --data series_point_fingerprints.csv" }
+      //   "check_command": "python3 $SKILL_DIR/../figure-hygiene/scripts/bin/check_series_provenance.py --data series_point_fingerprints.csv" }
       "configuration_provenance": null,
 
       // G7 — method-validity precondition at the production setting. null if the method carries no

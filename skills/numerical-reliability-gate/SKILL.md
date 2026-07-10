@@ -140,11 +140,11 @@ Each check names its own minimum disconfirming test — never accept a number be
   robust to the degeneracy** (e.g., in a fit, the χ², a pole position, a lineshape, a residue) and mark
   flat-direction parameters "not individually determined".
 - **G6 — Report only converged values, with provenance.** Fold into the durable record only values that
-  passed every applicable G1–G8 check at the converged setting, each tagged with its
+  passed every applicable G1–G10 check at the converged setting, each tagged with its
   grid/node/method/contour. A coarse, intermediate, or non-converged number is **labeled as such or
   discarded** — never silently reused. Check a reused artifact's timestamp against the current code
   version before trusting it (a stale artifact from a since-fixed bug reads as current truth otherwise).
-  **Connected-series homogeneity is fail-closed.** Before joining points from several runs into one line,
+  **Connected-series homogeneity: missing evidence fails the check.** Before joining points from several runs into one line,
   trajectory, interpolation, fit, or downstream summary, require every joined point to carry the same
   complete evaluator fingerprint. The fingerprint covers the scientific model and branch/sheet choice,
   all integration/discretization and solver settings (including nested/defaulted settings), source and
@@ -153,7 +153,8 @@ Each check names its own minimum disconfirming test — never accept a number be
   do not connect or pool the points: recompute under one fingerprint, or present the configurations as
   separate/faceted series with the difference stated. A smooth insensitive observable does not validate
   a heterogeneous series; audit every plotted/output component because a more sensitive component can
-  expose the mismatch.
+  expose the mismatch. The deterministic per-point check lives in the `figure-hygiene` skill
+  (`scripts/bin/check_series_provenance.py`), runnable on any table exposing series and fingerprint columns.
 - **G7 — Method-precondition at the production setting.** When a result's validity rests on a structural
   property of the operator/method — an operator commuting with a projector or symmetrizer, Hermiticity,
   self-adjointness, idempotency, unitarity, positivity, a variational/Galerkin subspace being invariant

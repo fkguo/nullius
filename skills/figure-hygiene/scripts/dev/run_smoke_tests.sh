@@ -9,6 +9,82 @@ trap 'rm -rf "${TMP_DIR}"' EXIT
 QA="${SKILL_DIR}/scripts/bin/figure_qa.py"
 PROVENANCE_QA="${SKILL_DIR}/scripts/bin/check_series_provenance.py"
 
+# --- series-provenance gate (no matplotlib dependency: runs on every machine) ---
+expect_prov_exit() {
+  local expected="$1"
+  shift
+  local out_file="${TMP_DIR}/prov_last.out"
+  local code=0
+  python3 "${PROVENANCE_QA}" "$@" >"${out_file}" 2>&1 || code=$?
+  if [ "${code}" -ne "${expected}" ]; then
+    echo "expected exit ${expected}, got ${code} for: check_series_provenance $*" >&2
+    cat "${out_file}" >&2
+    exit 1
+  fi
+}
+
+HASH_A="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+HASH_B="bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+
+cat >"${TMP_DIR}/series_clean.csv" <<CSV
+series_id,evaluator_fingerprint,connected,x,y
+one,${HASH_A},true,0,1
+one,${HASH_A},true,1,2
+two,sha256:${HASH_B},true,0,3
+two,${HASH_A},false,1,4
+CSV
+
+cat >"${TMP_DIR}/series_mixed.csv" <<CSV
+series_id,evaluator_fingerprint,x,y
+one,${HASH_A},0,1
+one,${HASH_B},1,2
+CSV
+
+cat >"${TMP_DIR}/series_missing.csv" <<CSV
+series_id,evaluator_fingerprint,x,y
+one,${HASH_A},0,1
+one,,1,2
+CSV
+
+# Duplicate headers must be a usage error, not a silent pass: DictReader keeps
+# the LAST duplicate column, so a mixed first column could otherwise hide.
+cat >"${TMP_DIR}/series_dup_header.csv" <<CSV
+series_id,evaluator_fingerprint,evaluator_fingerprint
+one,${HASH_A},${HASH_B}
+one,${HASH_B},${HASH_B}
+CSV
+
+# An unrecognized connected-column value must not silently exempt the row.
+cat >"${TMP_DIR}/series_bad_connected.csv" <<CSV
+series_id,evaluator_fingerprint,connected
+one,${HASH_A},ture
+CSV
+
+cat >"${TMP_DIR}/series_no_fp_col.csv" <<CSV
+series_id,x,y
+one,0,1
+CSV
+
+expect_prov_exit 0 --data "${TMP_DIR}/series_clean.csv" --connected-column connected
+grep -F "series provenance clean" "${TMP_DIR}/prov_last.out" >/dev/null
+
+expect_prov_exit 1 --data "${TMP_DIR}/series_mixed.csv"
+grep -F "mixed-fingerprints" "${TMP_DIR}/prov_last.out" >/dev/null
+
+expect_prov_exit 1 --data "${TMP_DIR}/series_missing.csv"
+grep -F "missing-fingerprint" "${TMP_DIR}/prov_last.out" >/dev/null
+
+expect_prov_exit 2 --data "${TMP_DIR}/series_dup_header.csv"
+grep -F "duplicate column header" "${TMP_DIR}/prov_last.out" >/dev/null
+
+expect_prov_exit 2 --data "${TMP_DIR}/series_bad_connected.csv" --connected-column connected
+grep -F "unrecognized" "${TMP_DIR}/prov_last.out" >/dev/null
+
+expect_prov_exit 2 --data "${TMP_DIR}/series_no_fp_col.csv"
+grep -F "missing required column" "${TMP_DIR}/prov_last.out" >/dev/null
+
+expect_prov_exit 2 --data "${TMP_DIR}/does_not_exist.csv"
+
 if ! python3 -c "import matplotlib" >/dev/null 2>&1; then
   echo "figure-hygiene smoke tests skipped: matplotlib not installed" >&2
   exit 0
@@ -100,46 +176,5 @@ expect_output_matching "left no open figures"
 # JSON mode reports the same findings machine-readably.
 expect_exit 1 --script "${TMP_DIR}/overlap_figure.py" --json
 expect_output_matching '"kind": "text-overlaps-text"'
-
-HASH_A="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-HASH_B="bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-
-cat >"${TMP_DIR}/series_clean.csv" <<CSV
-series_id,evaluator_fingerprint,connected,x,y
-one,${HASH_A},true,0,1
-one,${HASH_A},true,1,2
-two,sha256:${HASH_B},true,0,3
-two,${HASH_A},false,1,4
-CSV
-
-cat >"${TMP_DIR}/series_mixed.csv" <<CSV
-series_id,evaluator_fingerprint,x,y
-one,${HASH_A},0,1
-one,${HASH_B},1,2
-CSV
-
-cat >"${TMP_DIR}/series_missing.csv" <<CSV
-series_id,evaluator_fingerprint,x,y
-one,${HASH_A},0,1
-one,,1,2
-CSV
-
-python3 "${PROVENANCE_QA}" --data "${TMP_DIR}/series_clean.csv" \
-  --connected-column connected >"${TMP_DIR}/provenance_clean.out"
-grep -F "series provenance clean" "${TMP_DIR}/provenance_clean.out" >/dev/null
-
-if python3 "${PROVENANCE_QA}" --data "${TMP_DIR}/series_mixed.csv" \
-  >"${TMP_DIR}/provenance_mixed.out" 2>&1; then
-  echo "expected mixed evaluator fingerprints to fail" >&2
-  exit 1
-fi
-grep -F "mixed-fingerprints" "${TMP_DIR}/provenance_mixed.out" >/dev/null
-
-if python3 "${PROVENANCE_QA}" --data "${TMP_DIR}/series_missing.csv" \
-  >"${TMP_DIR}/provenance_missing.out" 2>&1; then
-  echo "expected missing evaluator fingerprint to fail" >&2
-  exit 1
-fi
-grep -F "missing-fingerprint" "${TMP_DIR}/provenance_missing.out" >/dev/null
 
 echo "figure-hygiene smoke tests passed"
