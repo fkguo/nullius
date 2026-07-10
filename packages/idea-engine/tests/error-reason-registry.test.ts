@@ -380,9 +380,10 @@ describe('error reason registry', () => {
     expect(schemaReasons).toContain('idempotency_key_conflict');
     // helper forwarding a reason parameter (import-generated semantic validation)
     expect(schemaReasons).toContain('anchor_missing');
-    // options-object helper (promotion blocked)
+    // options-object helper (promotion blocked; the lifecycle state machine
+    // renamed node_not_active -> node_not_admitted)
     expect([...(byCode.get(-32017) ?? [])]).toEqual(
-      expect.arrayContaining(['posterior_missing', 'node_not_active']),
+      expect.arrayContaining(['posterior_missing', 'node_not_admitted']),
     );
     // options-object helper behind a data variable (reduction audit)
     expect([...(byCode.get(-32016) ?? [])]).toEqual(
