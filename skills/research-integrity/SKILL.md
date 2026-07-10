@@ -528,7 +528,12 @@ checks whether the implementation matches the derived **form**, not whether the 
   it as a different-model / limit-regime comparison and record the absence of an
   apples-to-apples check as an explicit stated limitation** — never let the prior
   cross-check pattern quietly disappear and never let the different-model check stand in
-  for it.
+  for it. "Different route" means a different mathematical representation, algorithm,
+  discretization, or basis — **a line-for-line port of the same algorithm to another
+  language is the same route** (it inherits the original's conceptual errors) and counts
+  only as an implementation check, never as the independent cross-check; the
+  reproduction record must name what methodologically differs, and "same method,
+  different language" is the honest label that disqualifies it from D2 credit.
 
 This is **not a new receipt mode.** It is a cross-cutting check that **augments M3** (the
 cited / compared number) and **M5b** (when the result's own validity *is* the claimed
