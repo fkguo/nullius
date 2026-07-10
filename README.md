@@ -192,6 +192,9 @@ as described in this README, then retry the same startup sequence.
 Use research-harness if your agent supports it. Treat nullius as the lifecycle
 authority, research-team as the milestone executor, and fold stable results back into
 research_contract.md, research_plan.md#Current Status, and artifacts/runs/<run_id>/.
+Record decisions made in conversation with: nullius decision record "<what was decided>"
+Log open questions with: nullius decision pending "<question>"
+Open questions stay visible in every status receipt until resolved.
 ```
 
   Once initialized, reconnect is local-first: `.nullius/HARNESS`, `.nullius/bin/nullius`, `AGENTS.md`, `research_plan.md`, `research_contract.md`, and `artifacts/runs/<run_id>/` are enough for an agent to recover the project state after a closed session or a network outage. Network access is only needed for tasks that actually fetch external sources.

@@ -192,6 +192,9 @@ as described in this README, then retry the same startup sequence.
 Use research-harness if your agent supports it. Treat nullius as the lifecycle
 authority, research-team as the milestone executor, and fold stable results back into
 research_contract.md, research_plan.md#Current Status, and artifacts/runs/<run_id>/.
+Record decisions made in conversation with: nullius decision record "<what was decided>"
+Log open questions with: nullius decision pending "<question>"
+Open questions stay visible in every status receipt until resolved.
 ```
 
 初始化完成后，接续是 local-first 的：`.nullius/HARNESS`、`.nullius/bin/nullius`、`AGENTS.md`、`research_plan.md`、`research_contract.md` 和 `artifacts/runs/<run_id>/` 足以让 agent 在关闭会话或断网后恢复项目状态；只有真实需要外部文献/数据时才需要网络。
