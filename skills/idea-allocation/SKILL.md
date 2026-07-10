@@ -58,7 +58,7 @@ the campaign id. Per node, the pinned fields are:
 | --- | --- |
 | `node_id` | engine short id: 8 chars of lowercase Crockford base32 (digits + lowercase letters minus `i`/`l`/`o`/`u`), as pinned by the engine idea_node_v1 contract |
 | `lifecycle_state` | one of the engine lifecycle machine's states: `candidate`, `admission_review`, `admitted`, `needs_refresh`, `admission_blocked`, `waiting_activation`, `archived`. Required — there is no default, and the retired `active` value marks an unmigrated store (rejected with a migration hint) |
-| `posterior` | optional object: `value` in [0, 1], `evidence_count` >= 0, `updated_at` ISO 8601, optional `gaia_package_ref`, optional `status` (`current`, `provisional`, `stale`) |
+| `posterior` | optional object: `value` in [0, 1], `evidence_count` >= 0, `updated_at` ISO 8601, optional `gaia_package_ref`, optional `status` (`current`, `provisional`, `stale`); a missing status is NOT current — the engine's ranking gate reads it the same way |
 | `literature_coverage` | optional object from `idea-posterior`: `status` (`saturated`, `coverage_incomplete`, `metadata_only`), optional `survey_ref`, optional `close_prior_matrix_ref`, optional `exploratory_allocation`; missing means `metadata_only` |
 | `activation_condition` | required for the two condition-carrying states — `waiting_activation` (external condition) and `admission_blocked` (missing evidence admission needs): `kind`, `description`, `satisfied`, optional `last_checked_at` |
 

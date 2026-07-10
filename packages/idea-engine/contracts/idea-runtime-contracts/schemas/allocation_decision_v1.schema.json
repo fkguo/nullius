@@ -149,6 +149,7 @@
                   "data_release",
                   "stage_reached",
                   "exploratory_computation",
+                  "required_evidence",
                   "other"
                 ]
               },

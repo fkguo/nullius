@@ -285,7 +285,10 @@ def assign_allocations(
         if node.get("posterior") is None:
             detail = "stored node is admitted but carries no posterior"
         elif posterior_status(node) != "current":
-            detail = f"stored node is admitted but posterior status is {posterior_status(node)}"
+            detail = (
+                "stored node is admitted but posterior status is "
+                f"{posterior_status(node) or 'missing'}"
+            )
         else:
             detail = f"stored node is admitted but literature coverage is {coverage_status}"
         candidates.append(_held_row(
@@ -537,8 +540,6 @@ def _validate_candidate(index: int, entry: Any) -> List[str]:
         problems.append(f"{prefix}.posterior_value must be a number in [0, 1], got {value!r}")
     if count is not None and (not _is_int(count) or count < 0):
         problems.append(f"{prefix}.evidence_count must be an integer >= 0, got {count!r}")
-    if value is not None and entry.get("posterior_status") not in POSTERIOR_STATUSES:
-        problems.append(f"{prefix}: a posterior-bearing candidate must record posterior_status")
     if value is None and entry.get("posterior_status") is not None:
         problems.append(f"{prefix}: posterior_status must be null without posterior data")
 

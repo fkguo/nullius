@@ -27,7 +27,7 @@
         "node": {
           "activation_condition": null,
           "idea_id": "dearead1",
-          "lifecycle_state": "candidate",
+          "lifecycle_state": "needs_refresh",
           "node_id": "ndread01",
           "posterior": {
             "value": 0.62,
@@ -69,7 +69,7 @@
         "node": {
           "activation_condition": null,
           "idea_id": "dearead2",
-          "lifecycle_state": "candidate",
+          "lifecycle_state": "needs_refresh",
           "node_id": "ndread02",
           "posterior": {
             "value": 0.34,

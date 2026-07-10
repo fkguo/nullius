@@ -122,7 +122,7 @@
               }
             ]
           },
-          "lifecycle_state": "candidate",
+          "lifecycle_state": "needs_refresh",
           "posterior": {
             "value": 0.62,
             "evidence_count": 5,
@@ -234,7 +234,7 @@
                   }
                 ]
               },
-              "lifecycle_state": "candidate",
+              "lifecycle_state": "needs_refresh",
               "posterior": {
                 "value": 0.62,
                 "evidence_count": 5,
@@ -327,7 +327,7 @@
                   }
                 ]
               },
-              "lifecycle_state": "candidate",
+              "lifecycle_state": "needs_refresh",
               "posterior": {
                 "value": 0.34,
                 "evidence_count": 2,
