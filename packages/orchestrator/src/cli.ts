@@ -20,6 +20,15 @@ function defaultIo(): CliIo {
 }
 
 export async function runCli(argv: string[], io: CliIo = defaultIo()): Promise<number> {
+  if (argv.length === 1 && argv[0] === '--launcher-protocol') {
+    // Machine-readable handshake for the project-local launcher's PATH
+    // fallback: an older-generation CLI errors on this token, which tells the
+    // launcher its argument contract (prepended root, `--` terminator) cannot
+    // be trusted. See project-local-nullius.ts.
+    const { LAUNCHER_PROTOCOL_BANNER } = await import('./project-local-nullius.js');
+    io.stdout(`${LAUNCHER_PROTOCOL_BANNER}\n`);
+    return 0;
+  }
   const parsed = parseCliArgs(argv);
   if (parsed.command === 'help') {
     io.stdout(renderHelp(parsed.topic));

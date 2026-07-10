@@ -486,8 +486,8 @@ describe('StateManager', () => {
         'set -eu',
         'PROJECT_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)',
         'RESOLVED_NULLIUS=$(command -v nullius 2>/dev/null || true)',
-        'if [ -n "$RESOLVED_NULLIUS" ] && [ ! "$RESOLVED_NULLIUS" -ef "$0" ]; then',
-        '  exec nullius --project-root "$PROJECT_ROOT" "$@"',
+        'if [ -n "$RESOLVED_NULLIUS" ] && [ ! "$RESOLVED_NULLIUS" -ef "$0" ] && [ "$("$RESOLVED_NULLIUS" --launcher-protocol 2>/dev/null || true)" = "nullius-launcher-protocol 2" ]; then',
+        '  exec "$RESOLVED_NULLIUS" --project-root "$PROJECT_ROOT" "$@"',
         'fi',
         "exec '/private/tmp/deleted-worktree/packages/orchestrator/dist/cli.js' --project-root \"$PROJECT_ROOT\" \"$@\"",
         '',
@@ -540,8 +540,8 @@ describe('StateManager', () => {
         'set -eu',
         'PROJECT_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)',
         'RESOLVED_NULLIUS=$(command -v nullius 2>/dev/null || true)',
-        'if [ -n "$RESOLVED_NULLIUS" ] && [ ! "$RESOLVED_NULLIUS" -ef "$0" ]; then',
-        '  exec nullius --project-root "$PROJECT_ROOT" "$@"',
+        'if [ -n "$RESOLVED_NULLIUS" ] && [ ! "$RESOLVED_NULLIUS" -ef "$0" ] && [ "$("$RESOLVED_NULLIUS" --launcher-protocol 2>/dev/null || true)" = "nullius-launcher-protocol 2" ]; then',
+        '  exec "$RESOLVED_NULLIUS" --project-root "$PROJECT_ROOT" "$@"',
         'fi',
         "exec '/private/tmp/deleted-worktree/packages/orchestrator/dist/cli.js' --project-root \"$PROJECT_ROOT\" \"$@\"",
         '',
@@ -554,7 +554,7 @@ describe('StateManager', () => {
     const fakeBin = path.join(tmpDir, 'fakebin');
     fs.mkdirSync(fakeBin, { recursive: true });
     const fakeNullius = path.join(fakeBin, 'nullius');
-    fs.writeFileSync(fakeNullius, '#!/bin/sh\nexit 0\n', 'utf-8');
+    fs.writeFileSync(fakeNullius, '#!/bin/sh\nif [ "${1:-}" = "--launcher-protocol" ]; then printf "%s\\n" "nullius-launcher-protocol 2"; fi\nexit 0\n', 'utf-8');
     fs.chmodSync(fakeNullius, 0o755);
 
     const prevPath = process.env.PATH;
@@ -591,8 +591,8 @@ describe('StateManager', () => {
         'set -eu',
         'PROJECT_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)',
         'RESOLVED_NULLIUS=$(command -v nullius 2>/dev/null || true)',
-        'if [ -n "$RESOLVED_NULLIUS" ] && [ ! "$RESOLVED_NULLIUS" -ef "$0" ]; then',
-        '  exec nullius --project-root "$PROJECT_ROOT" "$@"',
+        'if [ -n "$RESOLVED_NULLIUS" ] && [ ! "$RESOLVED_NULLIUS" -ef "$0" ] && [ "$("$RESOLVED_NULLIUS" --launcher-protocol 2>/dev/null || true)" = "nullius-launcher-protocol 2" ]; then',
+        '  exec "$RESOLVED_NULLIUS" --project-root "$PROJECT_ROOT" "$@"',
         'fi',
         "exec '/private/tmp/deleted-worktree/packages/orchestrator/dist/cli.js' --project-root \"$PROJECT_ROOT\" \"$@\"",
         '',
@@ -639,8 +639,8 @@ describe('StateManager', () => {
         'set -eu',
         'PROJECT_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)',
         'RESOLVED_NULLIUS=$(command -v nullius 2>/dev/null || true)',
-        'if [ -n "$RESOLVED_NULLIUS" ] && [ ! "$RESOLVED_NULLIUS" -ef "$0" ]; then',
-        '  exec nullius --project-root "$PROJECT_ROOT" "$@"',
+        'if [ -n "$RESOLVED_NULLIUS" ] && [ ! "$RESOLVED_NULLIUS" -ef "$0" ] && [ "$("$RESOLVED_NULLIUS" --launcher-protocol 2>/dev/null || true)" = "nullius-launcher-protocol 2" ]; then',
+        '  exec "$RESOLVED_NULLIUS" --project-root "$PROJECT_ROOT" "$@"',
         'fi',
         "exec '/private/tmp/deleted-worktree/packages/orchestrator/dist/cli.js' --project-root \"$PROJECT_ROOT\" \"$@\"",
         '',
@@ -684,8 +684,8 @@ describe('StateManager', () => {
         'set -eu',
         'PROJECT_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)',
         'RESOLVED_NULLIUS=$(command -v nullius 2>/dev/null || true)',
-        'if [ -n "$RESOLVED_NULLIUS" ] && [ ! "$RESOLVED_NULLIUS" -ef "$0" ]; then',
-        '  exec nullius --project-root "$PROJECT_ROOT" "$@"',
+        'if [ -n "$RESOLVED_NULLIUS" ] && [ ! "$RESOLVED_NULLIUS" -ef "$0" ] && [ "$("$RESOLVED_NULLIUS" --launcher-protocol 2>/dev/null || true)" = "nullius-launcher-protocol 2" ]; then',
+        '  exec "$RESOLVED_NULLIUS" --project-root "$PROJECT_ROOT" "$@"',
         'fi',
         "exec '/private/tmp/deleted-worktree/packages/orchestrator/dist/cli.js' --project-root \"$PROJECT_ROOT\" \"$@\"",
         '',
@@ -735,7 +735,7 @@ describe('StateManager', () => {
         'set -eu',
         'PROJECT_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)',
         'if command -v nullius >/dev/null 2>&1; then',
-        '  exec nullius --project-root "$PROJECT_ROOT" "$@"',
+        '  exec "$RESOLVED_NULLIUS" --project-root "$PROJECT_ROOT" "$@"',
         'fi',
         "exec '/private/tmp/deleted-worktree/packages/orchestrator/dist/cli.js' --project-root \"$PROJECT_ROOT\" \"$@\"",
         '',

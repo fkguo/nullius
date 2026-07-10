@@ -54,6 +54,8 @@ export type DecisionsLedgerSnapshot = {
 // Canonical ids only: no leading zeros, so "D01" can never alias "D1" as a
 // second identity for the same numeric sequence.
 const DECISION_ID_PATTERN = /^D([1-9]\d*)$/;
+// UTC-Z RFC3339, the only shape the recording path (utcNowIso) ever writes.
+const UTC_ISO_TS_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/;
 
 // Bounded wait for the cross-process append lock: 100 x 25ms = 2.5s covers
 // any realistic holder (one read + one appended line), then fail loudly.
@@ -257,9 +259,15 @@ function parseDecisionLine(line: string): ParsedDecisionLine {
   const record = parsed as Record<string, unknown>;
   const id = decisionSequenceNumber(record.id) !== null ? record.id as string : null;
   if (id === null) return { ids, record: null };
-  if (typeof record.ts !== 'string') return { ids, record: null };
+  // The recording path always writes a UTC-Z RFC3339 timestamp; a persisted
+  // ts that is not one is a malformed line, not a value to display as-is.
+  if (typeof record.ts !== 'string' || !UTC_ISO_TS_PATTERN.test(record.ts) || Number.isNaN(Date.parse(record.ts))) {
+    return { ids, record: null };
+  }
   if (record.kind !== 'decided' && record.kind !== 'pending') return { ids, record: null };
-  if (typeof record.text !== 'string' || record.text.length === 0) return { ids, record: null };
+  // Whitespace-only text is rejected at recording time; a persisted record
+  // carrying it is malformed, not an admissible empty-looking decision.
+  if (typeof record.text !== 'string' || record.text.trim().length === 0) return { ids, record: null };
   // Persisted authorship must be an explicit nonempty string: rewriting a
   // malformed `by` as "user" would invent provenance in a ledger whose whole
   // point is preserving who decided. (The CLI-side default to "user" applies
@@ -298,17 +306,40 @@ const FATAL_UTF8_DECODER = new TextDecoder('utf-8', { fatal: true });
  *  prefix only — bytes after an encoding error are unreadable garbage and
  *  must not smuggle reservations (e.g. a poisoned ceiling id) into
  *  allocation, mirroring the valid-prefix rule of the field scanner. */
-function maximalUtf8Prefix(bytes: Buffer): string {
-  const streaming = new TextDecoder('utf-8', { fatal: true });
-  let out = '';
-  for (let index = 0; index < bytes.length; index += 1) {
-    try {
-      out += streaming.decode(bytes.subarray(index, index + 1), { stream: true });
-    } catch {
-      return out;
+/** Single-pass UTF-8 validation (RFC 3629: continuation shapes, overlongs,
+ *  surrogates, and the U+10FFFF ceiling) returning the byte length of the
+ *  maximal valid prefix. One pass plus one decode keeps a corrupt
+ *  multi-megabyte line from stalling every status/list/record read the way a
+ *  per-byte streaming decode would. */
+function utf8ValidPrefixLength(bytes: Buffer): number {
+  let i = 0;
+  const n = bytes.length;
+  while (i < n) {
+    const b0 = bytes[i]!;
+    if (b0 < 0x80) { i += 1; continue; }
+    let need: number;
+    let codePoint: number;
+    let min: number;
+    if (b0 >= 0xc2 && b0 <= 0xdf) { need = 1; codePoint = b0 & 0x1f; min = 0x80; }
+    else if (b0 >= 0xe0 && b0 <= 0xef) { need = 2; codePoint = b0 & 0x0f; min = 0x800; }
+    else if (b0 >= 0xf0 && b0 <= 0xf4) { need = 3; codePoint = b0 & 0x07; min = 0x10000; }
+    else return i; // 0x80-0xc1 (bare continuation / overlong lead) and 0xf5+ are invalid
+    if (i + need >= n) return i; // incomplete trailing sequence: dropped
+    for (let k = 1; k <= need; k += 1) {
+      const bk = bytes[i + k]!;
+      if ((bk & 0xc0) !== 0x80) return i;
+      codePoint = (codePoint << 6) | (bk & 0x3f);
     }
+    if (codePoint < min) return i; // overlong encoding
+    if (codePoint >= 0xd800 && codePoint <= 0xdfff) return i; // surrogate
+    if (codePoint > 0x10ffff) return i;
+    i += need + 1;
   }
-  return out; // a trailing incomplete sequence stays buffered and is dropped
+  return n;
+}
+
+function maximalUtf8Prefix(bytes: Buffer): string {
+  return FATAL_UTF8_DECODER.decode(bytes.subarray(0, utf8ValidPrefixLength(bytes)));
 }
 
 function decodeLedgerLine(bytes: Buffer): { text: string | null; validPrefix: string } {

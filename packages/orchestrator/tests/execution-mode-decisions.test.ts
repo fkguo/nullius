@@ -660,6 +660,47 @@ describe('decision ledger', () => {
     expect(ordered.stdout.join('')).toContain('recorded: D2');
   });
 
+  it('quarantines malformed timestamps and whitespace-only text', async () => {
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot);
+    const ledgerPath = path.join(projectRoot, '.nullius', 'decisions.jsonl');
+    const lines = [
+      { id: 'D1', ts: 'yesterday-ish', kind: 'pending', text: 'bad timestamp', by: 'user', resolves: null },
+      { id: 'D2', ts: '2026-07-10T00:00:00+08:00', kind: 'pending', text: 'non-UTC offset', by: 'user', resolves: null },
+      { id: 'D3', ts: '2026-07-10T00:00:00Z', kind: 'pending', text: '   \t  ', by: 'user', resolves: null },
+    ];
+    fs.writeFileSync(ledgerPath, lines.map(line => JSON.stringify(line)).join('\n') + '\n', 'utf-8');
+
+    const list = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'list', '--json'], list.io)).toBe(0);
+    const parsed = JSON.parse(list.stdout.join('')) as { invalid_lines: number; records: unknown[] };
+    expect(parsed.invalid_lines).toBe(3);
+    expect(parsed.records).toHaveLength(0);
+
+    const record = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'well-formed record'], record.io)).toBe(0);
+    expect(record.stdout.join('')).toContain('recorded: D4');
+  });
+
+  it('handles a large invalid tail with the single-pass prefix validator', async () => {
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot);
+    const ledgerPath = path.join(projectRoot, '.nullius', 'decisions.jsonl');
+    // 1 MiB of invalid bytes after a valid id-carrying prefix: the read model
+    // must quarantine the line quickly (single pass + one decode), keep the
+    // prefix id reserved, and stay responsive.
+    const invalidTail = Buffer.alloc(1024 * 1024, 0xff);
+    fs.writeFileSync(ledgerPath, Buffer.concat([
+      Buffer.from('{"id":"D1","note":"', 'utf-8'),
+      invalidTail,
+      Buffer.from('\n', 'utf-8'),
+    ]));
+
+    const record = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'still responsive'], record.io)).toBe(0);
+    expect(record.stdout.join('')).toContain('recorded: D2');
+  });
+
   it('keeps the terminator from hijacking help detection or the project root', async () => {
     const projectRoot = makeTempProjectRoot();
     await initRuntimeOnly(projectRoot);

@@ -221,7 +221,8 @@ describe('nullius CLI init/export', () => {
     expect(launcherScript).toContain('PROJECT_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)');
     expect(launcherScript).toContain('command -v nullius');
     expect(launcherScript).toContain('-ef "$0"');
-    expect(launcherScript).toContain('exec nullius --project-root "$PROJECT_ROOT" "$@"');
+    expect(launcherScript).toContain('exec "$RESOLVED_NULLIUS" --project-root "$PROJECT_ROOT" "$@"');
+    expect(launcherScript).toContain('--launcher-protocol');
     expect(launcherScript).not.toContain("PROJECT_ROOT='");
     expect(launcherScript).toContain('nullius init --runtime-only');
     expect(fs.existsSync(path.join(projectRoot, 'project_charter.md'))).toBe(false);
@@ -257,6 +258,96 @@ describe('nullius CLI init/export', () => {
       expect.objectContaining({ code: 'RECOVERY_GUIDANCE_FILES_UNAVAILABLE' }),
     ]));
   });
+
+  it('answers the launcher-protocol handshake with the exact banner', async () => {
+    const { io, stdout } = makeIo(process.cwd());
+    expect(await runCli(['--launcher-protocol'], io)).toBe(0);
+    expect(stdout.join('')).toBe('nullius-launcher-protocol 2\n');
+  });
+
+  it('prefers the baked CLI and gates PATH fallback on the protocol handshake', async () => {
+    const parentDir = makeTempDir('nullius-cli-protocol-');
+    const projectRoot = path.join(parentDir, 'project-root');
+    expect(await runCli([`--project-root=${projectRoot}`, 'init', '--runtime-only'], makeIo(parentDir).io)).toBe(0);
+    const launcherPath = path.join(projectRoot, '.nullius', 'bin', 'nullius');
+
+    // An impostor on PATH that answers commands but NOT the handshake (the
+    // shape of an older-generation CLI whose root handling differs). It logs
+    // every argv line it ever receives.
+    const impostorDir = path.join(parentDir, 'impostorbin');
+    fs.mkdirSync(impostorDir, { recursive: true });
+    const impostorLog = path.join(parentDir, 'impostor-argv.log');
+    fs.writeFileSync(
+      path.join(impostorDir, 'nullius'),
+      `#!/bin/sh\nprintf '%s\\n' "$@" >> ${impostorLog}\nexit 0\n`,
+      'utf-8',
+    );
+    fs.chmodSync(path.join(impostorDir, 'nullius'), 0o755);
+    const pathWithImpostor = `${impostorDir}${path.delimiter}/usr/bin:/bin`;
+
+    // 1) Baked target present: the launcher execs the baked CLI and never
+    //    consults the impostor at all.
+    const statusJson = execFileSync(launcherPath, ['status', '--json'], {
+      cwd: projectRoot,
+      encoding: 'utf-8',
+      timeout: 20000,
+      env: { ...process.env, PATH: pathWithImpostor },
+    });
+    expect(JSON.parse(statusJson).run_status).toBe('idle');
+    expect(fs.existsSync(impostorLog)).toBe(false);
+
+    // 2) Baked target unavailable + non-protocol PATH candidate: the launcher
+    //    refuses (exit 127) instead of executing a parser whose root handling
+    //    it cannot trust — no cross-root write is possible.
+    const script = fs.readFileSync(launcherPath, 'utf-8');
+    const brokenScript = script.replaceAll('/dist/cli.js', '/dist/cli.js.gone');
+    fs.writeFileSync(launcherPath, brokenScript, 'utf-8');
+    fs.chmodSync(launcherPath, 0o755);
+    let failed: { status: number | null } | null = null;
+    try {
+      execFileSync(launcherPath, ['status', '--json'], {
+        cwd: projectRoot,
+        encoding: 'utf-8',
+        timeout: 20000,
+        env: { ...process.env, PATH: pathWithImpostor },
+      });
+    } catch (error) {
+      failed = error as { status: number | null };
+    }
+    expect(failed?.status).toBe(127);
+    // The impostor was consulted only for the handshake probe — it never
+    // received a real command, so no cross-root write was possible.
+    const probeLines = fs.readFileSync(impostorLog, 'utf-8').split('\n').filter(line => line.length > 0);
+    expect(new Set(probeLines)).toEqual(new Set(['--launcher-protocol']));
+
+    // 3) Baked target unavailable + protocol-answering PATH candidate: used,
+    //    with the trusted root PREPENDED before user args.
+    const argvLog = path.join(parentDir, 'protocol-argv.log');
+    fs.writeFileSync(
+      path.join(impostorDir, 'nullius'),
+      [
+        '#!/bin/sh',
+        'if [ "${1:-}" = "--launcher-protocol" ]; then',
+        "  printf '%s\\n' 'nullius-launcher-protocol 2'",
+        '  exit 0',
+        'fi',
+        `printf '%s\\n' "$@" > ${argvLog}`,
+        'exit 0',
+      ].join('\n') + '\n',
+      'utf-8',
+    );
+    fs.chmodSync(path.join(impostorDir, 'nullius'), 0o755);
+    execFileSync(launcherPath, ['status', '--json'], {
+      cwd: projectRoot,
+      encoding: 'utf-8',
+      timeout: 20000,
+      env: { ...process.env, PATH: pathWithImpostor },
+    });
+    const argvLines = fs.readFileSync(argvLog, 'utf-8').split('\n');
+    expect(argvLines[0]).toBe('--project-root');
+    expect(argvLines[1]).toBe(projectRoot);
+    expect(argvLines[2]).toBe('status');
+  }, 30000);
 
   it('detects its own bin dir on PATH and falls back to the baked CLI without recursing', async () => {
     const parentDir = makeTempDir('nullius-cli-self-path-');
