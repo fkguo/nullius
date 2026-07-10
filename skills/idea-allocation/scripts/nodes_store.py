@@ -44,8 +44,10 @@ Each node object carries:
 - ``literature_coverage`` (optional): ``{"status": one of "saturated" |
   "coverage_incomplete" | "metadata_only", "survey_ref": optional string,
   "close_prior_matrix_ref": optional string, "exploratory_allocation": optional
-  bool}``. Missing means ``metadata_only``. ``coverage_incomplete`` participates
-  in allocation only when ``exploratory_allocation`` is explicitly true.
+  bool}``. Missing means ``metadata_only``. Scoring eligibility requires BOTH
+  close-prior refs plus ``saturated`` status, or ``coverage_incomplete`` with
+  ``exploratory_allocation`` explicitly true — a status label without the refs
+  is not eligible (the engine's gate reads it the same way).
 - ``activation_condition`` (required when ``lifecycle_state`` is
   ``"waiting_activation"`` — the external condition to become actionable — or
   ``"admission_blocked"`` — the missing evidence admission needs):
@@ -461,16 +463,24 @@ def posterior_status(node: Dict[str, Any]) -> Optional[str]:
     return None
 
 
+def has_close_prior_refs(coverage: Dict[str, Any]) -> bool:
+    """Both close-prior refs recorded, exactly as the engine's hasClosePriorRefs
+    reads them: each must BE a string with non-whitespace content (no coercion
+    of non-string truthy values)."""
+    for field in ("survey_ref", "close_prior_matrix_ref"):
+        ref = coverage.get(field)
+        if not isinstance(ref, str) or not ref.strip():
+            return False
+    return True
+
+
 def allocation_eligible_from_coverage(coverage: Dict[str, Any]) -> bool:
     """Close-prior gate exactly as the engine checks it (isPortfolioScoringEligible):
     BOTH close-prior refs recorded (survey + matrix), AND saturated coverage or
     coverage_incomplete with the explicit exploratory waiver. A status label
     without the refs is not scoring-eligible — the survey and matrix are what
     make the label auditable."""
-    has_refs = bool(str(coverage.get("survey_ref", "")).strip()) and bool(
-        str(coverage.get("close_prior_matrix_ref", "")).strip()
-    )
-    if not has_refs:
+    if not has_close_prior_refs(coverage):
         return False
     status = coverage.get("status")
     return status == "saturated" or (
