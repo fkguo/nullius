@@ -666,7 +666,9 @@ engine-visible counterpart of the approval receipt. Open questions
 awaiting the project owner go in
 `nullius decision pending "<question>"` and stay counted in every
 status receipt (the oldest ten itemized; the rest via
-`nullius decision list`) until resolved.
+`nullius decision list`) until a later
+`nullius decision record "<answer>" --resolves <id>` closes them —
+recording an unrelated decision leaves the pending entry open.
 
 ## Integration with adjacent skills
 

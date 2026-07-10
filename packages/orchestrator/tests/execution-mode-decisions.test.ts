@@ -433,7 +433,7 @@ describe('decision ledger', () => {
     // the lock file and the repair.
     await expect(
       runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'blocked by the stale lock'], makeIo(projectRoot).io),
-    ).rejects.toThrow(/decisions ledger is locked \(.*decisions\.jsonl\.lock.*remove that lock file/s);
+    ).rejects.toThrow(/decisions ledger is locked \(.*decisions\.jsonl\.lock.*decision list --project-root .*remove that lock file and retry only if the entry is absent/s);
     expect(fs.existsSync(lockPath)).toBe(true);
     expect(fs.existsSync(path.join(projectRoot, '.nullius', 'decisions.jsonl'))).toBe(false);
 
@@ -511,6 +511,55 @@ describe('decision ledger', () => {
     const parsed = JSON.parse(list.stdout.join('')) as { invalid_lines: number; records: Array<{ id: string }> };
     expect(parsed.invalid_lines).toBe(1);
     expect(parsed.records.map(entry => entry.id)).toEqual(['D2']);
+  });
+
+  it('reserves every id candidate on duplicate-key lines', async () => {
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot);
+    const ledgerPath = path.join(projectRoot, '.nullius', 'decisions.jsonl');
+    // A malformed tail carrying TWO id candidates, then a parseable record
+    // with duplicate id keys (JSON.parse keeps the last): both lines are
+    // quarantined and every visible id stays reserved.
+    const duplicateKeyRecord = '{"id":"D3","ts":"2026-07-10T00:00:00Z","kind":"pending","text":"duplicate keys","by":"user","resolves":null,"id":"D4"}';
+    fs.writeFileSync(ledgerPath, `{"id":"D1","id":"D2","ts":\n${duplicateKeyRecord}\n`, 'utf-8');
+
+    const record = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'continues past every candidate'], record.io)).toBe(0);
+    expect(record.stdout.join('')).toContain('recorded: D5');
+
+    const list = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'list', '--json'], list.io)).toBe(0);
+    const parsed = JSON.parse(list.stdout.join('')) as { invalid_lines: number; records: Array<{ id: string }> };
+    expect(parsed.invalid_lines).toBe(2);
+    expect(parsed.records.map(entry => entry.id)).toEqual(['D5']);
+  });
+
+  it('quarantines lines with invalid or truncated UTF-8 instead of admitting mutated text', async () => {
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot);
+    const ledgerPath = path.join(projectRoot, '.nullius', 'decisions.jsonl');
+    // A record whose text contains a raw invalid byte (0xff): lossy decoding
+    // would silently turn it into U+FFFD and admit the mutated decision.
+    const head = Buffer.from('{"id":"D1","ts":"2026-07-10T00:00:00Z","kind":"pending","text":"corrupted ', 'utf-8');
+    const tail = Buffer.from('","by":"user","resolves":null}\n', 'utf-8');
+    // A second line ending in a truncated multibyte sequence (first byte of a
+    // two-byte UTF-8 character).
+    const truncated = Buffer.concat([
+      Buffer.from('{"id":"D2","ts":"2026-07-10T00:00:01Z","kind":"pending","text":"cut ', 'utf-8'),
+      Buffer.from([0xc3]),
+    ]);
+    fs.writeFileSync(ledgerPath, Buffer.concat([head, Buffer.from([0xff]), tail, truncated]));
+
+    const list = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'list', '--json'], list.io)).toBe(0);
+    const parsed = JSON.parse(list.stdout.join('')) as { invalid_lines: number; records: unknown[] };
+    expect(parsed.invalid_lines).toBe(2);
+    expect(parsed.records).toHaveLength(0);
+
+    // Both quarantined ids stay reserved.
+    const record = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'clean text'], record.io)).toBe(0);
+    expect(record.stdout.join('')).toContain('recorded: D3');
   });
 
   it('creates no state when the fresh-init audit event cannot be written', async () => {

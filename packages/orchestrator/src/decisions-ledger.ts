@@ -1,4 +1,4 @@
-import { closeSync, openSync, readFileSync, rmSync, writeSync } from 'node:fs';
+import { readFileSync, rmSync } from 'node:fs';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { appendBytesDurable, appendJsonlDurable } from '@nullius/shared';
@@ -88,46 +88,62 @@ function decisionSequenceNumber(id: unknown): number | null {
 }
 
 type ParsedDecisionLine = {
-  /** Canonical id found on the line, even when the record itself is
-   *  quarantined — its sequence number is reserved either way. */
-  id: string | null;
+  /** Every canonical id the line's bytes visibly carry — parsed or salvaged —
+   *  all reserved regardless of record admission, so no id that exists in
+   *  the file in any form is ever reissued. */
+  ids: string[];
   record: DecisionRecord | null;
 };
 
-// Salvages a canonical id from a line whose JSON is broken (e.g. the crash
-// tail `{"id":"D1","ts":`), so even a malformed line reserves the id it
-// visibly carries and allocation never reissues it.
-const RAW_ID_SALVAGE_PATTERN = /"id"\s*:\s*"(D[1-9]\d*)"/;
+// Salvages canonical ids from raw line bytes. Inside a JSON-stringified
+// record the pattern can only match real (unescaped) keys: quotes inside a
+// string value are always escaped as \" so a value containing the characters
+// "id":"D5" never produces this byte sequence. Malformed hand-written lines
+// (crash tails, duplicate keys) can match more than once — every match is a
+// reservation candidate.
+const RAW_ID_SALVAGE_PATTERN = /"id"\s*:\s*"(D[1-9]\d*)"/g;
+
+function salvageIds(line: string): string[] {
+  const ids: string[] = [];
+  for (const match of line.matchAll(RAW_ID_SALVAGE_PATTERN)) {
+    const candidate = match[1];
+    if (candidate && !ids.includes(candidate)) ids.push(candidate);
+  }
+  return ids;
+}
 
 function parseDecisionLine(line: string): ParsedDecisionLine {
+  const ids = salvageIds(line);
   let parsed: unknown;
   try {
     parsed = JSON.parse(line);
   } catch {
-    const salvaged = RAW_ID_SALVAGE_PATTERN.exec(line);
-    return { id: salvaged ? salvaged[1] ?? null : null, record: null };
+    return { ids, record: null };
   }
-  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return { id: null, record: null };
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return { ids, record: null };
   const record = parsed as Record<string, unknown>;
-  // Extract the id FIRST: a line that carries a canonical id reserves its
-  // sequence number no matter what else is wrong with it, so quarantining a
-  // line never frees its id for reuse.
   const id = decisionSequenceNumber(record.id) !== null ? record.id as string : null;
-  if (id === null) return { id: null, record: null };
-  if (typeof record.ts !== 'string') return { id, record: null };
-  if (record.kind !== 'decided' && record.kind !== 'pending') return { id, record: null };
-  if (typeof record.text !== 'string' || record.text.length === 0) return { id, record: null };
+  if (id === null) return { ids, record: null };
+  if (ids.length > 1) {
+    // Duplicate top-level id keys (JSON.parse keeps only the last): the line
+    // is ambiguous about its identity — quarantine it; every candidate id
+    // stays reserved via `ids`.
+    return { ids, record: null };
+  }
+  if (typeof record.ts !== 'string') return { ids, record: null };
+  if (record.kind !== 'decided' && record.kind !== 'pending') return { ids, record: null };
+  if (typeof record.text !== 'string' || record.text.length === 0) return { ids, record: null };
   // Strict resolves validation: absent/null, or a canonical id on a decided
   // record. A malformed value or a pending record carrying resolves is a
   // malformed line, not something to silently coerce to null.
   let resolves: string | null = null;
   if (record.resolves !== undefined && record.resolves !== null) {
-    if (record.kind !== 'decided') return { id, record: null };
-    if (decisionSequenceNumber(record.resolves) === null) return { id, record: null };
+    if (record.kind !== 'decided') return { ids, record: null };
+    if (decisionSequenceNumber(record.resolves) === null) return { ids, record: null };
     resolves = record.resolves as string;
   }
   return {
-    id,
+    ids,
     record: {
       id,
       ts: record.ts,
@@ -137,6 +153,20 @@ function parseDecisionLine(line: string): ParsedDecisionLine {
       resolves,
     },
   };
+}
+
+// Fatal per-line UTF-8 decoding: the default lossy decode would replace
+// invalid bytes with U+FFFD and silently ADMIT a mutated decision text.
+// A line that does not decode is quarantined; ids are still salvaged from
+// its ASCII-compatible bytes so they stay reserved.
+const FATAL_UTF8_DECODER = new TextDecoder('utf-8', { fatal: true });
+
+function decodeLedgerLine(bytes: Buffer): { text: string | null; asciiFallback: string } {
+  try {
+    return { text: FATAL_UTF8_DECODER.decode(bytes), asciiFallback: '' };
+  } catch {
+    return { text: null, asciiFallback: bytes.toString('latin1') };
+  }
 }
 
 export function readDecisionsLedger(projectRoot: string): DecisionsLedgerSnapshot {
@@ -150,23 +180,29 @@ export function readDecisionsLedger(projectRoot: string): DecisionsLedgerSnapsho
   const openIds = new Set<string>();
   let invalidLines = 0;
   let highestSequence = 0;
-  const lines = fs.readFileSync(filePath, 'utf-8').split(/\r?\n/);
-  for (const line of lines) {
-    if (line.trim().length === 0) continue;
-    const { id, record } = parseDecisionLine(line);
-    // Reserve the id and advance the high-water mark for EVERY line that
-    // carries a canonical id — quarantined or not — so allocation never
-    // reuses an id that exists as bytes in the file.
-    const alreadyReserved = id !== null && reservedIds.has(id);
-    if (id !== null) {
+  // Byte-level split; each line is decoded with fatal UTF-8 so invalid bytes
+  // quarantine the line instead of being silently replaced with U+FFFD.
+  const rawLines = fs.readFileSync(filePath).toString('binary').split('\n');
+  for (const rawLine of rawLines) {
+    const lineBytes = Buffer.from(rawLine.endsWith('\r') ? rawLine.slice(0, -1) : rawLine, 'binary');
+    if (lineBytes.length === 0 || lineBytes.toString('latin1').trim().length === 0) continue;
+    const decoded = decodeLedgerLine(lineBytes);
+    const { ids, record } = decoded.text !== null
+      ? parseDecisionLine(decoded.text)
+      : { ids: salvageIds(decoded.asciiFallback), record: null };
+    // Reserve every id the line's bytes carry and advance the high-water
+    // mark — quarantined or not — so allocation never reuses an id that
+    // exists in the file in any form.
+    const alreadyReserved = record !== null && reservedIds.has(record.id);
+    for (const id of ids) {
       reservedIds.add(id);
       const sequence = decisionSequenceNumber(id);
       if (sequence !== null && sequence > highestSequence) highestSequence = sequence;
     }
     if (!record || alreadyReserved) {
-      // Malformed line, or a repeated id (which would make `--resolves <id>`
-      // ambiguous): the first occurrence stays authoritative, later ones are
-      // quarantined.
+      // Undecodable or malformed line, ambiguous identity, or a repeated id
+      // (which would make `--resolves <id>` ambiguous): the first occurrence
+      // stays authoritative, later ones are quarantined.
       invalidLines += 1;
       continue;
     }
@@ -242,26 +278,36 @@ function withDecisionsLock<T>(projectRoot: string, action: () => T): T {
   const lockPath = lockFilePath(projectRoot);
   let acquired = false;
   for (let attempt = 0; attempt < LOCK_RETRY_ATTEMPTS; attempt += 1) {
+    let fd: number | null = null;
     try {
-      const fd = openSync(lockPath, 'wx');
-      try {
-        writeSync(fd, JSON.stringify({ pid: process.pid, ts: utcNowIso() }));
-      } finally {
-        closeSync(fd);
-      }
-      acquired = true;
-      break;
+      fd = fs.openSync(lockPath, 'wx');
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
       sleepBlocking(LOCK_RETRY_SLEEP_MS);
+      continue;
     }
+    try {
+      // We own the freshly created lock from here on: any failure writing or
+      // closing its metadata must not orphan it.
+      try {
+        fs.writeSync(fd, JSON.stringify({ pid: process.pid, ts: utcNowIso() }));
+      } finally {
+        fs.closeSync(fd);
+      }
+    } catch (error) {
+      rmSync(lockPath, { force: true });
+      throw error;
+    }
+    acquired = true;
+    break;
   }
   if (!acquired) {
     throw new Error(
       `decisions ledger is locked (${lockPath}; ${describeLockHolder(lockPath)}). `
       + 'If no recording process is running (e.g. after a crash), first check whether the '
-      + 'intended entry already landed (nullius decision list) — a crashed holder may have '
-      + 'completed its append — then remove that lock file and retry only if the entry is absent.',
+      + `intended entry already landed (nullius decision list --project-root ${projectRoot}) — `
+      + 'a crashed holder may have completed its append — then remove that lock file and '
+      + 'retry only if the entry is absent.',
     );
   }
   try {
