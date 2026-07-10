@@ -61,7 +61,7 @@ export function executeNodeSetPosterior(options: {
 
     const currentLifecycle = nodeLifecycleState(node);
     if (!(POSTERIOR_WRITE_STATES as readonly string[]).includes(currentLifecycle)) {
-      throw new RpcError(-32018, 'lifecycle_transition_invalid', {
+      const data = {
         reason: 'posterior_write_lifecycle_invalid',
         campaign_id: campaignId,
         node_id: nodeId,
@@ -72,7 +72,9 @@ export function executeNodeSetPosterior(options: {
             ? 'a candidate must enter admission_review via node.set_lifecycle before any posterior write (declaring the review gives admission a logged start)'
             : `posterior writes are legal only in ${POSTERIOR_WRITE_STATES.join(', ')}; move the node out of ${currentLifecycle} first`,
         },
-      });
+      };
+      options.contracts.validateErrorData(data);
+      throw new RpcError(-32018, 'lifecycle_transition_invalid', data);
     }
 
     const posteriorParams = options.params.posterior as Record<string, unknown>;
@@ -100,7 +102,7 @@ export function executeNodeSetPosterior(options: {
       ? posteriorParams.status
       : (coverageSupportsCurrent ? 'current' : 'provisional');
     if (resolvedStatus === 'current' && !coverageSupportsCurrent) {
-      throw new RpcError(-32002, 'schema_validation_failed', {
+      const data = {
         reason: 'posterior_status_not_supported_by_coverage',
         campaign_id: campaignId,
         node_id: nodeId,
@@ -108,7 +110,9 @@ export function executeNodeSetPosterior(options: {
           coverage_status: coverageStatus,
           message: 'posterior.status=current requires saturated coverage or the explicit exploratory waiver on coverage_incomplete; write provisional instead',
         },
-      });
+      };
+      options.contracts.validateErrorData(data);
+      throw new RpcError(-32002, 'schema_validation_failed', data);
     }
     const posterior: Record<string, unknown> = {
       value: Number(posteriorParams.value),

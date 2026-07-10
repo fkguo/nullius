@@ -56,32 +56,38 @@ export function executeNodeSetLifecycle(options: {
     const hasActivationCondition = activationCondition !== undefined && activationCondition !== null;
     const targetCarriesCondition = (CONDITION_CARRYING_STATES as readonly string[]).includes(targetState);
     if (targetCarriesCondition && !hasActivationCondition) {
-      throw new RpcError(-32002, 'schema_validation_failed', {
+      const data = {
         reason: 'activation_condition_required',
         campaign_id: campaignId,
         node_id: nodeId,
         details: { message: `lifecycle_state=${targetState} requires activation_condition` },
-      });
+      };
+      options.contracts.validateErrorData(data);
+      throw new RpcError(-32002, 'schema_validation_failed', data);
     }
     if (!targetCarriesCondition && hasActivationCondition) {
-      throw new RpcError(-32002, 'schema_validation_failed', {
+      const data = {
         reason: 'activation_condition_unexpected',
         campaign_id: campaignId,
         node_id: nodeId,
         details: { message: `lifecycle_state=${targetState} must not carry activation_condition` },
-      });
+      };
+      options.contracts.validateErrorData(data);
+      throw new RpcError(-32002, 'schema_validation_failed', data);
     }
 
     const reason = typeof options.params.reason === 'string' && options.params.reason.length > 0
       ? options.params.reason
       : null;
     if (targetState === 'archived' && reason === null) {
-      throw new RpcError(-32002, 'schema_validation_failed', {
+      const data = {
         reason: 'archived_reason_required',
         campaign_id: campaignId,
         node_id: nodeId,
         details: { message: 'lifecycle_state=archived requires a non-empty reason (why the idea leaves the pool is part of the record)' },
-      });
+      };
+      options.contracts.validateErrorData(data);
+      throw new RpcError(-32002, 'schema_validation_failed', data);
     }
 
     const campaign = loadCampaignOrError(options.store, campaignId);
@@ -98,7 +104,7 @@ export function executeNodeSetLifecycle(options: {
     const currentState = nodeLifecycleState(node);
     const allowedNext = LIFECYCLE_TRANSITIONS[currentState];
     if (!allowedNext.includes(targetState)) {
-      throw new RpcError(-32018, 'lifecycle_transition_invalid', {
+      const data = {
         reason: 'illegal_transition',
         campaign_id: campaignId,
         node_id: nodeId,
@@ -108,12 +114,14 @@ export function executeNodeSetLifecycle(options: {
           allowed_next: [...allowedNext],
           message: `no transition ${currentState} -> ${targetState}; allowed next states from ${currentState}: ${allowedNext.join(', ')}`,
         },
-      });
+      };
+      options.contracts.validateErrorData(data);
+      throw new RpcError(-32018, 'lifecycle_transition_invalid', data);
     }
 
     const preconditionFailure = lifecycleEntryPreconditionFailure(targetState, node);
     if (preconditionFailure) {
-      throw new RpcError(-32018, 'lifecycle_transition_invalid', {
+      const data = {
         reason: 'entry_precondition_failed',
         campaign_id: campaignId,
         node_id: nodeId,
@@ -123,7 +131,9 @@ export function executeNodeSetLifecycle(options: {
           requirement: preconditionFailure.requirement,
           message: preconditionFailure.message,
         },
-      });
+      };
+      options.contracts.validateErrorData(data);
+      throw new RpcError(-32018, 'lifecycle_transition_invalid', data);
     }
 
     const now = options.now();
