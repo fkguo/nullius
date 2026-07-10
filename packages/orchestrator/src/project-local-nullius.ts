@@ -49,6 +49,12 @@ const RESOLVE_NULLIUS_LINE = 'RESOLVED_NULLIUS=$(command -v nullius 2>/dev/null 
  *  another project root, so the launcher refuses it. */
 export const LAUNCHER_PROTOCOL_FLAG = '--launcher-protocol';
 export const LAUNCHER_PROTOCOL_BANNER = 'nullius-launcher-protocol 2';
+/** Passed WITH the real command by both exec branches, so the invocation
+ *  that handles the trusted root proves its own parser generation in-band
+ *  (cli-args.ts consumes it; an older parser fails on the unknown token).
+ *  The separate --launcher-protocol probe above only selects the branch;
+ *  correctness never depends on the probe-then-exec window. */
+export const LAUNCHER_GENERATION_TOKEN = '--launcher-generation=2';
 // The handshake used at runtime for BOTH exec branches: `BANNER_OUT=$(cmd)`
 // inside `if` requires command SUCCESS (a banner printed before a nonzero
 // exit does not count), and command substitution strips trailing newlines
@@ -57,12 +63,12 @@ export const LAUNCHER_PROTOCOL_BANNER = 'nullius-launcher-protocol 2';
 // entry that is — or symlinks back to — this launcher is rejected. A plain string
 // compare would miss a symlink-to-self and self-hop, corrupting --project-root.
 // The trailing clause is the protocol handshake described above.
-const PATH_PREFER_GUARD_LINE = `if [ -n "$RESOLVED_NULLIUS" ] && [ ! "$RESOLVED_NULLIUS" -ef "$0" ] && BANNER_OUT=$("$RESOLVED_NULLIUS" ${LAUNCHER_PROTOCOL_FLAG} 2>/dev/null) && [ "$BANNER_OUT" = "${LAUNCHER_PROTOCOL_BANNER}" ]; then`;
+const PATH_PREFER_GUARD_LINE = `if [ -n "$RESOLVED_NULLIUS" ] && [ "\${RESOLVED_NULLIUS#/}" != "$RESOLVED_NULLIUS" ] && [ -f "$RESOLVED_NULLIUS" ] && [ ! "$RESOLVED_NULLIUS" -ef "$0" ] && BANNER_OUT=$("$RESOLVED_NULLIUS" ${LAUNCHER_PROTOCOL_FLAG} 2>/dev/null) && [ "$BANNER_OUT" = "${LAUNCHER_PROTOCOL_BANNER}" ]; then`;
 // The trusted root is PREPENDED so it is parsed before any user-supplied
 // end-of-options terminator; appended it would be mistaken for data after a
 // `--` (and the CLI rejects a second, conflicting root outright). The exec
 // uses the checked resolved path, not a second PATH lookup.
-const PATH_PREFER_EXEC_LINE = 'exec "$RESOLVED_NULLIUS" --project-root "$PROJECT_ROOT" "$@"';
+const PATH_PREFER_EXEC_LINE = `exec "$RESOLVED_NULLIUS" ${LAUNCHER_GENERATION_TOKEN} --project-root "$PROJECT_ROOT" "$@"`;
 
 /** First `command -v`-like candidate on PATH: the first executable regular
  *  file named nullius. Returns 'self' when that FIRST candidate is the
@@ -98,10 +104,13 @@ function launcherProtocolCandidateOnPath(launcherPath: string): string | 'self' 
   return null;
 }
 
-// Handshake results are cached per (path, mtime, size): health runs on every
-// status call and must not spawn a process each time, while a rebuild of the
-// target (mtime/size change) still re-verifies.
-const handshakeCache = new Map<string, boolean>();
+// Handshake results are cached per (path, mtime, size) with a bounded TTL:
+// health runs on every status call and must not spawn a process each time,
+// a rebuild of the target (mtime/size change) re-verifies immediately, and a
+// stable WRAPPER whose underlying CLI changed (fingerprint blind spot)
+// re-verifies within the TTL instead of never.
+const HANDSHAKE_CACHE_TTL_MS = 30_000;
+const handshakeCache = new Map<string, { result: boolean; expiresAt: number }>();
 
 /** Mirrors the runtime handshake exactly: command success required
  *  (execFileSync throws on nonzero exit, like `BANNER_OUT=$(...)` failing in
@@ -119,7 +128,7 @@ export function answersLauncherProtocol(argv: string[]): boolean {
     })
     .join(' | ');
   const cached = handshakeCache.get(key);
-  if (cached !== undefined) return cached;
+  if (cached !== undefined && cached.expiresAt > Date.now()) return cached.result;
   let result = false;
   try {
     const output = execFileSync(argv[0]!, [...argv.slice(1), LAUNCHER_PROTOCOL_FLAG], {
@@ -131,7 +140,7 @@ export function answersLauncherProtocol(argv: string[]): boolean {
   } catch {
     result = false;
   }
-  handshakeCache.set(key, result);
+  handshakeCache.set(key, { result, expiresAt: Date.now() + HANDSHAKE_CACHE_TTL_MS });
   return result;
 }
 
@@ -162,25 +171,27 @@ function extractExecQuotedPaths(script: string): string[] {
 // The baked branch's protocol-gated guard, generic over the machine-specific
 // absolute argv it embeds.
 const BAKED_GUARD_PATTERN = /^if \[ -e '\/.+ && BANNER_OUT=\$\('\/.+ --launcher-protocol 2>\/dev\/null\) && \[ "\$BANNER_OUT" = "nullius-launcher-protocol 2" \]; then$/u;
-const BAKED_EXEC_PATTERN = /^\s*exec\s+'\/.*--project-root\s+"\$PROJECT_ROOT"\s+"\$@"\s*$/u;
+const BAKED_EXEC_PATTERN = /^\s*exec\s+'\/.*--launcher-generation=2\s+--project-root\s+"\$PROJECT_ROOT"\s+"\$@"\s*$/u;
 
 function hasProjectLocalLauncherShape(script: string): boolean {
   const lines = script.split(/\r?\n/u);
   const hasSelfDerivedRoot = lines.includes(SELF_DERIVE_PROJECT_ROOT_LINE);
   // Require the self-identity guard: an older unguarded PATH-prefer launcher would
   // self-recurse, so it must be reported unparseable (→ refresh) rather than healthy.
-  const hasSelfGuard = lines.some(line => line.trim() === PATH_PREFER_GUARD_LINE);
+  const pathGuardAt = lines.findIndex(line => line.trim() === PATH_PREFER_GUARD_LINE);
   const pathPreferExecAt = lines.findIndex(line => line.trim() === PATH_PREFER_EXEC_LINE);
   const bakedGuardAt = lines.findIndex(line => BAKED_GUARD_PATTERN.test(line.trim()));
   const bakedExecAt = lines.findIndex(line => BAKED_EXEC_PATTERN.test(line));
-  // Baked-first ordering is part of the shape: a PATH-first script is the
-  // older generation whose skew this design exists to prevent.
+  // The complete ordered branch structure is the shape: each exec is the
+  // line directly under ITS OWN guard, and the baked branch precedes the
+  // PATH branch — a guard floating elsewhere (e.g. below an unconditional
+  // exec) is the skew this design exists to prevent.
   return hasSelfDerivedRoot
-    && hasSelfGuard
-    && pathPreferExecAt !== -1
     && bakedGuardAt !== -1
-    && bakedExecAt !== -1
-    && bakedExecAt < pathPreferExecAt;
+    && bakedExecAt === bakedGuardAt + 1
+    && pathGuardAt !== -1
+    && pathPreferExecAt === pathGuardAt + 1
+    && bakedGuardAt < pathGuardAt;
 }
 
 /** The baked exec line's quoted absolute argv, for the health handshake. */
@@ -363,7 +374,7 @@ export function ensureProjectLocalNulliusLauncher(projectRoot: string): {
     '# handshake as the PATH branch: a rebuilt checkout or an older-generation',
     '# parser whose root handling differs must never be trusted with the root.',
     bakedGuard,
-    `  exec ${bakedArgvQuoted} --project-root "$PROJECT_ROOT" "$@"`,
+    `  exec ${bakedArgvQuoted} ${LAUNCHER_GENERATION_TOKEN} --project-root "$PROJECT_ROOT" "$@"`,
     'fi',
     '# Never this launcher itself: -ef compares real file identity, so a PATH',
     '# entry that is (or symlinks back to) this script is rejected — a',

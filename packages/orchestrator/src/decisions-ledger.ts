@@ -55,11 +55,20 @@ export type DecisionsLedgerSnapshot = {
 // second identity for the same numeric sequence.
 const DECISION_ID_PATTERN = /^D([1-9]\d*)$/;
 
-/** True when the value contains at least one non-whitespace character under
- *  the Unicode definition — String.prototype.trim misses U+0085 NEXT LINE,
- *  so a trim-based emptiness check would admit an U+0085-only decision. */
+/** True when the value contains at least one substantive character.
+ *  String.prototype.trim and Unicode White_Space DISAGREE at the edges:
+ *  trim misses U+0085 NEXT LINE, and White_Space excludes U+FEFF (which trim
+ *  removes) — either mismatch alone lets a visually empty value through one
+ *  layer and vanish at the other. Validation and normalization both use the
+ *  union. */
+const NON_SUBSTANTIVE_CLASS = /[\p{White_Space}\uFEFF]/u;
 function hasSubstantiveText(value: string): boolean {
-  return !/^\p{White_Space}*$/u.test(value);
+  return !new RegExp(`^${NON_SUBSTANTIVE_CLASS.source}*$`, 'u').test(value);
+}
+
+/** Trims the same character class the substantive-text predicate ignores. */
+function unicodeTrim(value: string): string {
+  return value.replace(new RegExp(`^${NON_SUBSTANTIVE_CLASS.source}+|${NON_SUBSTANTIVE_CLASS.source}+$`, 'gu'), '');
 }
 // UTC-Z RFC3339, the only shape the recording path (utcNowIso) ever writes.
 const UTC_ISO_TS_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/;
@@ -541,7 +550,7 @@ export function appendDecision(
   projectRoot: string,
   params: { kind: DecisionKind; text: string; by?: string | null; resolves?: string | null },
 ): DecisionRecord {
-  const trimmed = params.text.trim();
+  const trimmed = unicodeTrim(params.text);
   if (!hasSubstantiveText(trimmed)) {
     throw new Error('decision text must not be empty');
   }
@@ -575,7 +584,7 @@ export function appendDecision(
       ts: utcNowIso(),
       kind: params.kind,
       text: trimmed,
-      by: params.by && hasSubstantiveText(params.by) ? params.by.trim() : 'user',
+      by: params.by && hasSubstantiveText(params.by) ? unicodeTrim(params.by) : 'user',
       resolves,
     };
     // Validation is done; only now touch the file (boundary repair + append),

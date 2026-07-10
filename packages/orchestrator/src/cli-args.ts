@@ -90,6 +90,15 @@ function readOptionValue(args: string[], index: number, name: string): string {
   return value;
 }
 
+// In-dispatch generation token: the project-local launcher passes this with
+// the REAL command (not only in a separate probe), so the invocation that
+// handles the trusted root proves its own parser generation. An
+// older-generation parser fails on the unknown token instead of proceeding
+// with different root semantics — closing the probe-then-exec swap window and
+// the mixed-build case where the banner is new but the parser is old.
+const LAUNCHER_GENERATION_TOKEN = '--launcher-generation=2';
+const LAUNCHER_GENERATION_PREFIX = '--launcher-generation=';
+
 function extractProjectRoot(argv: string[]): { args: string[]; projectRoot: string | null } {
   const args: string[] = [];
   let projectRoot: string | null = null;
@@ -112,6 +121,14 @@ function extractProjectRoot(argv: string[]): { args: string[]; projectRoot: stri
     if (!optionsEnded && current === '--') {
       optionsEnded = true;
       args.push(current);
+      continue;
+    }
+    if (!optionsEnded && current.startsWith(LAUNCHER_GENERATION_PREFIX)) {
+      // Consumed (stripped) when it names THIS generation; any other value
+      // means a launcher expecting different root semantics — fail closed.
+      if (current !== LAUNCHER_GENERATION_TOKEN) {
+        throw new Error(`launcher generation mismatch: this CLI implements ${LAUNCHER_GENERATION_TOKEN}, launcher sent ${current}`);
+      }
       continue;
     }
     if (!optionsEnded && current.startsWith('--project-root=')) {

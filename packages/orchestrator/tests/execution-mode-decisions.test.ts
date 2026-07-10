@@ -3,7 +3,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { runCli } from '../src/cli.js';
 import { renderHelp } from '../src/cli-help.js';
 import { StateManager } from '../src/state-manager.js';
@@ -699,10 +699,22 @@ describe('decision ledger', () => {
       Buffer.from('\n', 'utf-8'),
     ]));
 
-    const startedAt = performance.now();
+    // Deterministic discriminator instead of wall-clock: the single-pass
+    // validator decodes at most a handful of times per line (one failed
+    // whole-line attempt + one prefix decode), while a per-byte streaming
+    // recovery would call decode millions of times for this prefix.
+    const decodeSpy = vi.spyOn(TextDecoder.prototype, 'decode');
+    try {
+      const { readDecisionsLedger } = await import('../src/decisions-ledger.js');
+      const snapshot = readDecisionsLedger(projectRoot);
+      expect(snapshot.invalid_lines).toBe(1);
+      expect(snapshot.highest_id_sequence).toBe(1);
+      expect(decodeSpy.mock.calls.length).toBeLessThan(10);
+    } finally {
+      decodeSpy.mockRestore();
+    }
     const record = makeIo(projectRoot);
     expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'still responsive'], record.io)).toBe(0);
-    expect(performance.now() - startedAt).toBeLessThan(15_000);
     // The id sits in the valid prefix, so it stays reserved.
     expect(record.stdout.join('')).toContain('recorded: D2');
   });
@@ -734,6 +746,22 @@ describe('decision ledger', () => {
     await expect(
       runCli([`--project-root=${projectRoot}`, 'decision', 'record', '\u0085\u0085'], makeIo(projectRoot).io),
     ).rejects.toThrow('decision text must not be empty');
+    // U+FEFF alone is caught one layer earlier (the arg parser's trim DOES
+    // remove FEFF); mixed with U+0085 it reaches — and fails — the module
+    // predicate. Both layers fail closed.
+    await expect(
+      runCli([`--project-root=${projectRoot}`, 'decision', 'record', '\ufeff'], makeIo(projectRoot).io),
+    ).rejects.toThrow('requires the text');
+    await expect(
+      runCli([`--project-root=${projectRoot}`, 'decision', 'record', '\ufeff\u0085'], makeIo(projectRoot).io),
+    ).rejects.toThrow('decision text must not be empty');
+    // U+FEFF-only authorship is not a name: it falls back to the default
+    // instead of being trimmed to an empty string that rereading would
+    // quarantine (a durably recorded decision must never vanish).
+    const feffBy = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'real decision', '--by', '\ufeff'], feffBy.io)).toBe(0);
+    expect(readDecisionLines(projectRoot)[0]).toMatchObject({ by: 'user' });
+    fs.rmSync(path.join(projectRoot, '.nullius', 'decisions.jsonl'));
 
     const ledgerPath = path.join(projectRoot, '.nullius', 'decisions.jsonl');
     const lines = [
