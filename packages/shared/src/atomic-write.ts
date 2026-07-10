@@ -252,15 +252,31 @@ export function appendJsonlDurable(
   filePath: string,
   lineObject: unknown,
 ): void {
+  appendBytesDurable(filePath, JSON.stringify(lineObject) + '\n');
+}
+
+/**
+ * Primitive 3b: durable raw append.
+ *
+ * Same durability contract as {@link appendJsonlDurable} (in-place
+ * O_APPEND write, file fsync, close, parent-dir fsync) for callers that
+ * must append bytes that are not one JSON line — e.g. repairing a
+ * missing trailing newline on an append-only ledger without replacing
+ * the inode (which would reset ownership/mode and break read-only
+ * intent).
+ */
+export function appendBytesDurable(
+  filePath: string,
+  bytes: string | Uint8Array,
+): void {
   const dir = path.dirname(filePath);
   fs.mkdirSync(dir, { recursive: true });
   audit({ kind: 'mkdir', path: dir });
-  const line = JSON.stringify(lineObject) + '\n';
   const fd = fs.openSync(filePath, 'a');
   audit({ kind: 'open', path: filePath, flags: 'a', fd });
   try {
-    fs.writeFileSync(fd, line);
-    audit({ kind: 'write', fd, bytes: Buffer.byteLength(line) });
+    fs.writeFileSync(fd, bytes);
+    audit({ kind: 'write', fd, bytes: typeof bytes === 'string' ? Buffer.byteLength(bytes) : bytes.byteLength });
     fs.fsyncSync(fd);
     audit({ kind: 'fsync', fd });
   } catch (err) {
