@@ -10,6 +10,18 @@ version is the lockstep number below.
 ## [Unreleased]
 
 ### Added
+- **Third-party agent roster (`agents.json`) + roster-wired review panels.**
+  A user-level (`~/.nullius/agents.json`) or project-level
+  (`.nullius/agents.json`) file declares each model family's execution runner
+  and model strings, a `cross_family_minimum` policy floor, and an honest
+  degradation to native subagents when the roster cannot field that floor —
+  documented in `docs/AGENTS_FILE.md` with a template at
+  `docs/examples/agents.example.json`. `review-swarm`, `derivation-verify`, and
+  `idea-pairwise-match` resolve their panel composition from the roster;
+  explicit CLI arguments still win, a missing file behaves exactly as
+  native-only, and unavailable families are recorded absent rather than
+  silently substituted. The `pairwise_match_v1` artifact records the panel
+  independence level (cross-family vs single-family native).
 - **`node.import_generated` — the derived-node entry point of the idea engine.**
   One `generation_pack_v1` per generation burst (candidates with full provenance
   PLUS the operator's own rejected candidates with reasons); a committed
