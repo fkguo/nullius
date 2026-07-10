@@ -1,7 +1,7 @@
 /**
  * Durable atomic file writes (P1).
  *
- * Provides five primitives that guarantee POSIX-correct durability against
+ * Provides six primitives that guarantee POSIX-correct durability against
  * crash / power-loss between syscalls — the gold-standard pattern already
  * proven in `packages/orchestrator/src/run-manifest.ts:82-97` (Batch 8 R2
  * fix). Lifted into `@nullius/shared` so every package that writes
@@ -27,7 +27,7 @@
  * intentionally best-effort because the caller has bigger problems if it
  * fires (the throw propagates up).
  *
- * ## Why ALL five primitives?
+ * ## Why ALL six primitives?
  *
  * - {@link writeBytesAtomicDurable}: the generic byte / string write. Used
  *   for binary artifacts, executable scripts, text rollback restores.
@@ -38,6 +38,9 @@
  * - {@link appendJsonlDurable}: append-only with file+dir fsync. Designed
  *   for ledgers and other append-only logs where each append must survive
  *   crash before the next syscall.
+ * - {@link appendBytesDurable}: the raw-bytes form of the same append for
+ *   in-place boundary repairs (e.g. a missing trailing newline) that must
+ *   not replace the inode.
  * - {@link writeExecutableAtomicDurable}: mode-at-create wrapper for
  *   executable scripts. Closes the chmod-after-write race that allowed
  *   another process to exec a half-written launcher.
@@ -252,15 +255,31 @@ export function appendJsonlDurable(
   filePath: string,
   lineObject: unknown,
 ): void {
+  appendBytesDurable(filePath, JSON.stringify(lineObject) + '\n');
+}
+
+/**
+ * Primitive 3b: durable raw append.
+ *
+ * Same durability contract as {@link appendJsonlDurable} (in-place
+ * O_APPEND write, file fsync, close, parent-dir fsync) for callers that
+ * must append bytes that are not one JSON line — e.g. repairing a
+ * missing trailing newline on an append-only ledger without replacing
+ * the inode (which would reset ownership/mode and break read-only
+ * intent).
+ */
+export function appendBytesDurable(
+  filePath: string,
+  bytes: string | Uint8Array,
+): void {
   const dir = path.dirname(filePath);
   fs.mkdirSync(dir, { recursive: true });
   audit({ kind: 'mkdir', path: dir });
-  const line = JSON.stringify(lineObject) + '\n';
   const fd = fs.openSync(filePath, 'a');
   audit({ kind: 'open', path: filePath, flags: 'a', fd });
   try {
-    fs.writeFileSync(fd, line);
-    audit({ kind: 'write', fd, bytes: Buffer.byteLength(line) });
+    fs.writeFileSync(fd, bytes);
+    audit({ kind: 'write', fd, bytes: typeof bytes === 'string' ? Buffer.byteLength(bytes) : bytes.byteLength });
     fs.fsyncSync(fd);
     audit({ kind: 'fsync', fd });
   } catch (err) {

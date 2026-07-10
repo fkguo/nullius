@@ -92,6 +92,7 @@ Skill 源码面与分发面是分离的：
     HARNESS
     state.json
     ledger.jsonl
+    decisions.jsonl
     plan.md
     approval_policy.json
     fleet_queue.json          # 使用 fleet 功能时
@@ -192,6 +193,13 @@ as described in this README, then retry the same startup sequence.
 Use research-harness if your agent supports it. Treat nullius as the lifecycle
 authority, research-team as the milestone executor, and fold stable results back into
 research_contract.md, research_plan.md#Current Status, and artifacts/runs/<run_id>/.
+Declare (or re-declare) where project truth lives with: nullius init --mode=engine|file
+(file mode: work executed by hand or external runners; run_status staying idle is normal)
+Record decisions made in conversation with: nullius decision record "<what was decided>"
+Log open questions with: nullius decision pending "<question>"
+Close an open question with: nullius decision record "<answer>" --resolves <id>
+Open questions stay counted in every status receipt (oldest ten itemized; the rest
+via: nullius decision list) until resolved.
 ```
 
 初始化完成后，接续是 local-first 的：`.nullius/HARNESS`、`.nullius/bin/nullius`、`AGENTS.md`、`research_plan.md`、`research_contract.md` 和 `artifacts/runs/<run_id>/` 足以让 agent 在关闭会话或断网后恢复项目状态；只有真实需要外部文献/数据时才需要网络。

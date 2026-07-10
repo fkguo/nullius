@@ -92,6 +92,7 @@ For the project's non-surface guarantees — what Nullius is *not*, which agent 
     HARNESS
     state.json
     ledger.jsonl
+    decisions.jsonl
     plan.md
     approval_policy.json
     fleet_queue.json          # when fleet features are in use
@@ -192,6 +193,13 @@ as described in this README, then retry the same startup sequence.
 Use research-harness if your agent supports it. Treat nullius as the lifecycle
 authority, research-team as the milestone executor, and fold stable results back into
 research_contract.md, research_plan.md#Current Status, and artifacts/runs/<run_id>/.
+Declare (or re-declare) where project truth lives with: nullius init --mode=engine|file
+(file mode: work executed by hand or external runners; run_status staying idle is normal)
+Record decisions made in conversation with: nullius decision record "<what was decided>"
+Log open questions with: nullius decision pending "<question>"
+Close an open question with: nullius decision record "<answer>" --resolves <id>
+Open questions stay counted in every status receipt (oldest ten itemized; the rest
+via: nullius decision list) until resolved.
 ```
 
   Once initialized, reconnect is local-first: `.nullius/HARNESS`, `.nullius/bin/nullius`, `AGENTS.md`, `research_plan.md`, `research_contract.md`, and `artifacts/runs/<run_id>/` are enough for an agent to recover the project state after a closed session or a network outage. Network access is only needed for tasks that actually fetch external sources.

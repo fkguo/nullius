@@ -1,5 +1,5 @@
 /**
- * Sequence-locking tests for the five durable atomic-write primitives (P1).
+ * Sequence-locking tests for the six durable atomic-write primitives (P1).
  *
  * The point of these tests is NOT just to check "did it write the file" —
  * that's covered by end-to-end tests at the bottom. The point IS to lock
@@ -18,7 +18,7 @@
  *     → fsync (fd) → close (fd) → rename (tmp → final)
  *     → open (dirname, 'r') → fsync (dirFd) → close (dirFd)
  *
- *   appendJsonlDurable:
+ *   appendJsonlDurable / appendBytesDurable:
  *     mkdir (dirname) → open (final, 'a') → write → fsync (fd) → close (fd)
  *     → open (dirname, 'r') → fsync (dirFd) → close (dirFd)
  *
@@ -31,6 +31,7 @@ import * as path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   _setAtomicWriteAuditHook,
+  appendBytesDurable,
   appendJsonlDurable,
   commitStagedDurable,
   type AtomicWriteAuditEvent,
@@ -172,6 +173,18 @@ describe('appendJsonlDurable — sequence lock', () => {
     const file = path.join(tmp, 'ledger.jsonl');
     appendJsonlDurable(file, { event: 'x' });
     expect(fs.readFileSync(file, 'utf-8')).toBe('{"event":"x"}\n');
+  });
+
+  it('appendBytesDurable appends raw bytes in place, preserving the inode mode', () => {
+    const file = path.join(tmp, 'ledger.jsonl');
+    fs.writeFileSync(file, 'unterminated', 'utf-8');
+    fs.chmodSync(file, 0o600);
+    rec.log.length = 0;
+    appendBytesDurable(file, '\n');
+    expect(fs.readFileSync(file, 'utf-8')).toBe('unterminated\n');
+    expect(fs.statSync(file).mode & 0o777).toBe(0o600);
+    // Same durable sequence as the JSONL append: no tmp+rename inode swap.
+    expect(kinds(rec.log)).toEqual(['mkdir', 'open', 'write', 'fsync', 'close', 'open', 'fsync', 'close']);
   });
 });
 

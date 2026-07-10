@@ -485,11 +485,22 @@ describe('StateManager', () => {
         '#!/bin/sh',
         'set -eu',
         'PROJECT_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)',
-        'RESOLVED_NULLIUS=$(command -v nullius 2>/dev/null || true)',
-        'if [ -n "$RESOLVED_NULLIUS" ] && [ ! "$RESOLVED_NULLIUS" -ef "$0" ]; then',
-        '  exec nullius "$@" --project-root "$PROJECT_ROOT"',
+        'if [ -e \'/private/tmp/deleted-worktree/packages/orchestrator/dist/cli.js\' ] && BANNER_OUT=$(\'/private/tmp/deleted-worktree/packages/orchestrator/dist/cli.js\' --launcher-generation=2 --launcher-protocol 2>/dev/null) && [ "$BANNER_OUT" = "nullius-launcher-protocol 2" ]; then',
+        "  exec '/private/tmp/deleted-worktree/packages/orchestrator/dist/cli.js' --launcher-generation=2 --project-root \"$PROJECT_ROOT\" \"$@\"",
         'fi',
-        "exec '/private/tmp/deleted-worktree/packages/orchestrator/dist/cli.js' \"$@\" --project-root \"$PROJECT_ROOT\"",
+        'RESOLVED_NULLIUS=',
+        '_nullius_ifs=$IFS; IFS=:; set -f',
+        'for _nullius_dir in $PATH; do',
+        '  case "$_nullius_dir" in /*) ;; *) continue;; esac',
+        '  if [ -f "$_nullius_dir/nullius" ] && [ -x "$_nullius_dir/nullius" ]; then',
+        '    RESOLVED_NULLIUS="$_nullius_dir/nullius"',
+        '    break',
+        '  fi',
+        'done',
+        'IFS=$_nullius_ifs; set +f',
+        'if [ -n "$RESOLVED_NULLIUS" ] && [ "${RESOLVED_NULLIUS#/}" != "$RESOLVED_NULLIUS" ] && [ -f "$RESOLVED_NULLIUS" ] && [ ! "$RESOLVED_NULLIUS" -ef "$0" ] && BANNER_OUT=$("$RESOLVED_NULLIUS" --launcher-generation=2 --launcher-protocol 2>/dev/null) && [ "$BANNER_OUT" = "nullius-launcher-protocol 2" ]; then',
+        '  exec "$RESOLVED_NULLIUS" --launcher-generation=2 --project-root "$PROJECT_ROOT" "$@"',
+        'fi',
         '',
       ].join('\n'),
       'utf-8',
@@ -539,11 +550,22 @@ describe('StateManager', () => {
         '#!/bin/sh',
         'set -eu',
         'PROJECT_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)',
-        'RESOLVED_NULLIUS=$(command -v nullius 2>/dev/null || true)',
-        'if [ -n "$RESOLVED_NULLIUS" ] && [ ! "$RESOLVED_NULLIUS" -ef "$0" ]; then',
-        '  exec nullius "$@" --project-root "$PROJECT_ROOT"',
+        'if [ -e \'/private/tmp/deleted-worktree/packages/orchestrator/dist/cli.js\' ] && BANNER_OUT=$(\'/private/tmp/deleted-worktree/packages/orchestrator/dist/cli.js\' --launcher-generation=2 --launcher-protocol 2>/dev/null) && [ "$BANNER_OUT" = "nullius-launcher-protocol 2" ]; then',
+        "  exec '/private/tmp/deleted-worktree/packages/orchestrator/dist/cli.js' --launcher-generation=2 --project-root \"$PROJECT_ROOT\" \"$@\"",
         'fi',
-        "exec '/private/tmp/deleted-worktree/packages/orchestrator/dist/cli.js' \"$@\" --project-root \"$PROJECT_ROOT\"",
+        'RESOLVED_NULLIUS=',
+        '_nullius_ifs=$IFS; IFS=:; set -f',
+        'for _nullius_dir in $PATH; do',
+        '  case "$_nullius_dir" in /*) ;; *) continue;; esac',
+        '  if [ -f "$_nullius_dir/nullius" ] && [ -x "$_nullius_dir/nullius" ]; then',
+        '    RESOLVED_NULLIUS="$_nullius_dir/nullius"',
+        '    break',
+        '  fi',
+        'done',
+        'IFS=$_nullius_ifs; set +f',
+        'if [ -n "$RESOLVED_NULLIUS" ] && [ "${RESOLVED_NULLIUS#/}" != "$RESOLVED_NULLIUS" ] && [ -f "$RESOLVED_NULLIUS" ] && [ ! "$RESOLVED_NULLIUS" -ef "$0" ] && BANNER_OUT=$("$RESOLVED_NULLIUS" --launcher-generation=2 --launcher-protocol 2>/dev/null) && [ "$BANNER_OUT" = "nullius-launcher-protocol 2" ]; then',
+        '  exec "$RESOLVED_NULLIUS" --launcher-generation=2 --project-root "$PROJECT_ROOT" "$@"',
+        'fi',
         '',
       ].join('\n'),
       'utf-8',
@@ -554,7 +576,7 @@ describe('StateManager', () => {
     const fakeBin = path.join(tmpDir, 'fakebin');
     fs.mkdirSync(fakeBin, { recursive: true });
     const fakeNullius = path.join(fakeBin, 'nullius');
-    fs.writeFileSync(fakeNullius, '#!/bin/sh\nexit 0\n', 'utf-8');
+    fs.writeFileSync(fakeNullius, '#!/bin/sh\nif [ "${2:-}" = "--launcher-protocol" ] || [ "${1:-}" = "--launcher-protocol" ]; then printf "%s\\n" "nullius-launcher-protocol 2"; fi\nexit 0\n', 'utf-8');
     fs.chmodSync(fakeNullius, 0o755);
 
     const prevPath = process.env.PATH;
@@ -590,11 +612,22 @@ describe('StateManager', () => {
         '#!/bin/sh',
         'set -eu',
         'PROJECT_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)',
-        'RESOLVED_NULLIUS=$(command -v nullius 2>/dev/null || true)',
-        'if [ -n "$RESOLVED_NULLIUS" ] && [ ! "$RESOLVED_NULLIUS" -ef "$0" ]; then',
-        '  exec nullius "$@" --project-root "$PROJECT_ROOT"',
+        'if [ -e \'/private/tmp/deleted-worktree/packages/orchestrator/dist/cli.js\' ] && BANNER_OUT=$(\'/private/tmp/deleted-worktree/packages/orchestrator/dist/cli.js\' --launcher-generation=2 --launcher-protocol 2>/dev/null) && [ "$BANNER_OUT" = "nullius-launcher-protocol 2" ]; then',
+        "  exec '/private/tmp/deleted-worktree/packages/orchestrator/dist/cli.js' --launcher-generation=2 --project-root \"$PROJECT_ROOT\" \"$@\"",
         'fi',
-        "exec '/private/tmp/deleted-worktree/packages/orchestrator/dist/cli.js' \"$@\" --project-root \"$PROJECT_ROOT\"",
+        'RESOLVED_NULLIUS=',
+        '_nullius_ifs=$IFS; IFS=:; set -f',
+        'for _nullius_dir in $PATH; do',
+        '  case "$_nullius_dir" in /*) ;; *) continue;; esac',
+        '  if [ -f "$_nullius_dir/nullius" ] && [ -x "$_nullius_dir/nullius" ]; then',
+        '    RESOLVED_NULLIUS="$_nullius_dir/nullius"',
+        '    break',
+        '  fi',
+        'done',
+        'IFS=$_nullius_ifs; set +f',
+        'if [ -n "$RESOLVED_NULLIUS" ] && [ "${RESOLVED_NULLIUS#/}" != "$RESOLVED_NULLIUS" ] && [ -f "$RESOLVED_NULLIUS" ] && [ ! "$RESOLVED_NULLIUS" -ef "$0" ] && BANNER_OUT=$("$RESOLVED_NULLIUS" --launcher-generation=2 --launcher-protocol 2>/dev/null) && [ "$BANNER_OUT" = "nullius-launcher-protocol 2" ]; then',
+        '  exec "$RESOLVED_NULLIUS" --launcher-generation=2 --project-root "$PROJECT_ROOT" "$@"',
+        'fi',
         '',
       ].join('\n'),
       'utf-8',
@@ -638,11 +671,22 @@ describe('StateManager', () => {
         '#!/bin/sh',
         'set -eu',
         'PROJECT_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)',
-        'RESOLVED_NULLIUS=$(command -v nullius 2>/dev/null || true)',
-        'if [ -n "$RESOLVED_NULLIUS" ] && [ ! "$RESOLVED_NULLIUS" -ef "$0" ]; then',
-        '  exec nullius "$@" --project-root "$PROJECT_ROOT"',
+        'if [ -e \'/private/tmp/deleted-worktree/packages/orchestrator/dist/cli.js\' ] && BANNER_OUT=$(\'/private/tmp/deleted-worktree/packages/orchestrator/dist/cli.js\' --launcher-generation=2 --launcher-protocol 2>/dev/null) && [ "$BANNER_OUT" = "nullius-launcher-protocol 2" ]; then',
+        "  exec '/private/tmp/deleted-worktree/packages/orchestrator/dist/cli.js' --launcher-generation=2 --project-root \"$PROJECT_ROOT\" \"$@\"",
         'fi',
-        "exec '/private/tmp/deleted-worktree/packages/orchestrator/dist/cli.js' \"$@\" --project-root \"$PROJECT_ROOT\"",
+        'RESOLVED_NULLIUS=',
+        '_nullius_ifs=$IFS; IFS=:; set -f',
+        'for _nullius_dir in $PATH; do',
+        '  case "$_nullius_dir" in /*) ;; *) continue;; esac',
+        '  if [ -f "$_nullius_dir/nullius" ] && [ -x "$_nullius_dir/nullius" ]; then',
+        '    RESOLVED_NULLIUS="$_nullius_dir/nullius"',
+        '    break',
+        '  fi',
+        'done',
+        'IFS=$_nullius_ifs; set +f',
+        'if [ -n "$RESOLVED_NULLIUS" ] && [ "${RESOLVED_NULLIUS#/}" != "$RESOLVED_NULLIUS" ] && [ -f "$RESOLVED_NULLIUS" ] && [ ! "$RESOLVED_NULLIUS" -ef "$0" ] && BANNER_OUT=$("$RESOLVED_NULLIUS" --launcher-generation=2 --launcher-protocol 2>/dev/null) && [ "$BANNER_OUT" = "nullius-launcher-protocol 2" ]; then',
+        '  exec "$RESOLVED_NULLIUS" --launcher-generation=2 --project-root "$PROJECT_ROOT" "$@"',
+        'fi',
         '',
       ].join('\n'),
       'utf-8',
@@ -683,11 +727,22 @@ describe('StateManager', () => {
         '#!/bin/sh',
         'set -eu',
         'PROJECT_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)',
-        'RESOLVED_NULLIUS=$(command -v nullius 2>/dev/null || true)',
-        'if [ -n "$RESOLVED_NULLIUS" ] && [ ! "$RESOLVED_NULLIUS" -ef "$0" ]; then',
-        '  exec nullius "$@" --project-root "$PROJECT_ROOT"',
+        'if [ -e \'/private/tmp/deleted-worktree/packages/orchestrator/dist/cli.js\' ] && BANNER_OUT=$(\'/private/tmp/deleted-worktree/packages/orchestrator/dist/cli.js\' --launcher-generation=2 --launcher-protocol 2>/dev/null) && [ "$BANNER_OUT" = "nullius-launcher-protocol 2" ]; then',
+        "  exec '/private/tmp/deleted-worktree/packages/orchestrator/dist/cli.js' --launcher-generation=2 --project-root \"$PROJECT_ROOT\" \"$@\"",
         'fi',
-        "exec '/private/tmp/deleted-worktree/packages/orchestrator/dist/cli.js' \"$@\" --project-root \"$PROJECT_ROOT\"",
+        'RESOLVED_NULLIUS=',
+        '_nullius_ifs=$IFS; IFS=:; set -f',
+        'for _nullius_dir in $PATH; do',
+        '  case "$_nullius_dir" in /*) ;; *) continue;; esac',
+        '  if [ -f "$_nullius_dir/nullius" ] && [ -x "$_nullius_dir/nullius" ]; then',
+        '    RESOLVED_NULLIUS="$_nullius_dir/nullius"',
+        '    break',
+        '  fi',
+        'done',
+        'IFS=$_nullius_ifs; set +f',
+        'if [ -n "$RESOLVED_NULLIUS" ] && [ "${RESOLVED_NULLIUS#/}" != "$RESOLVED_NULLIUS" ] && [ -f "$RESOLVED_NULLIUS" ] && [ ! "$RESOLVED_NULLIUS" -ef "$0" ] && BANNER_OUT=$("$RESOLVED_NULLIUS" --launcher-generation=2 --launcher-protocol 2>/dev/null) && [ "$BANNER_OUT" = "nullius-launcher-protocol 2" ]; then',
+        '  exec "$RESOLVED_NULLIUS" --launcher-generation=2 --project-root "$PROJECT_ROOT" "$@"',
+        'fi',
         '',
       ].join('\n'),
       'utf-8',
@@ -716,6 +771,55 @@ describe('StateManager', () => {
     expect(launcher.issue_code).toBe('PROJECT_LOCAL_LAUNCHER_TARGET_MISSING');
   });
 
+  it('flags a launcher whose resolver block was relocated below the guard as unparseable', () => {
+    const state = baseState({
+      run_id: 'test-run-relocated-resolver',
+      run_status: 'idle',
+    });
+    const sm = new StateManager(tmpDir);
+    sm.saveState(state);
+    const launcherPath = path.join(tmpDir, '.nullius', 'bin', 'nullius');
+    fs.mkdirSync(path.dirname(launcherPath), { recursive: true });
+    // The complete, intact resolver block — but AFTER the PATH guard. Under
+    // set -u the guard reads an unset RESOLVED_NULLIUS and dispatch aborts,
+    // so health must refuse to advertise this script rather than resolving
+    // PATH on its own.
+    fs.writeFileSync(
+      launcherPath,
+      [
+        '#!/bin/sh',
+        'set -eu',
+        'PROJECT_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)',
+        'if [ -e \'/private/tmp/deleted-worktree/packages/orchestrator/dist/cli.js\' ] && BANNER_OUT=$(\'/private/tmp/deleted-worktree/packages/orchestrator/dist/cli.js\' --launcher-generation=2 --launcher-protocol 2>/dev/null) && [ "$BANNER_OUT" = "nullius-launcher-protocol 2" ]; then',
+        "  exec '/private/tmp/deleted-worktree/packages/orchestrator/dist/cli.js' --launcher-generation=2 --project-root \"$PROJECT_ROOT\" \"$@\"",
+        'fi',
+        'if [ -n "$RESOLVED_NULLIUS" ] && [ "${RESOLVED_NULLIUS#/}" != "$RESOLVED_NULLIUS" ] && [ -f "$RESOLVED_NULLIUS" ] && [ ! "$RESOLVED_NULLIUS" -ef "$0" ] && BANNER_OUT=$("$RESOLVED_NULLIUS" --launcher-generation=2 --launcher-protocol 2>/dev/null) && [ "$BANNER_OUT" = "nullius-launcher-protocol 2" ]; then',
+        '  exec "$RESOLVED_NULLIUS" --launcher-generation=2 --project-root "$PROJECT_ROOT" "$@"',
+        'fi',
+        'RESOLVED_NULLIUS=',
+        '_nullius_ifs=$IFS; IFS=:; set -f',
+        'for _nullius_dir in $PATH; do',
+        '  case "$_nullius_dir" in /*) ;; *) continue;; esac',
+        '  if [ -f "$_nullius_dir/nullius" ] && [ -x "$_nullius_dir/nullius" ]; then',
+        '    RESOLVED_NULLIUS="$_nullius_dir/nullius"',
+        '    break',
+        '  fi',
+        'done',
+        'IFS=$_nullius_ifs; set +f',
+        '',
+      ].join('\n'),
+      'utf-8',
+    );
+    fs.chmodSync(launcherPath, 0o755);
+
+    const view = buildRunStatusView(tmpDir, sm.readState());
+    const recoveryContext = view.recovery_context as Record<string, unknown>;
+    const controlFiles = recoveryContext.control_files as Record<string, unknown>;
+    const launcher = controlFiles.project_local_launcher as Record<string, unknown>;
+    expect(launcher.healthy).toBe(false);
+    expect(launcher.issue_code).toBe('PROJECT_LOCAL_LAUNCHER_UNPARSEABLE');
+  });
+
   it('flags an old self-recursing launcher shape (no self-identity guard) as unparseable', () => {
     const state = baseState({
       run_id: 'test-run-old-launcher-shape',
@@ -735,9 +839,8 @@ describe('StateManager', () => {
         'set -eu',
         'PROJECT_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)',
         'if command -v nullius >/dev/null 2>&1; then',
-        '  exec nullius "$@" --project-root "$PROJECT_ROOT"',
+        '  exec "$RESOLVED_NULLIUS" --launcher-generation=2 --project-root "$PROJECT_ROOT" "$@"',
         'fi',
-        "exec '/private/tmp/deleted-worktree/packages/orchestrator/dist/cli.js' \"$@\" --project-root \"$PROJECT_ROOT\"",
         '',
       ].join('\n'),
       'utf-8',

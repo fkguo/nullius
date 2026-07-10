@@ -66,7 +66,7 @@ export async function handleOrchRunExport(
   const { manager, projectRoot } = createStateManager(params.project_root);
   const result: Record<string, unknown> = { project_root: projectRoot };
   const state = fs.existsSync(manager.statePath) ? manager.readState() : null;
-  const projectSurfaceDrift = readProjectSurfaceDriftView(projectRoot);
+  const projectSurfaceDrift = readProjectSurfaceDriftView(projectRoot, state);
   result.project_surface_drift = projectSurfaceDrift.project_surface_drift;
   result.project_surface_drift_error = projectSurfaceDrift.project_surface_drift_error;
   if (params.include_state) {

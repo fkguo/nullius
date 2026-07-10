@@ -450,6 +450,14 @@ function nulliusDir(repoRoot: string): string {
   return path.join(repoRoot, NULLIUS_DIRNAME);
 }
 
+/** Resolved control directory for a project root (honors the
+ *  NULLIUS_CONTROL_DIR override). The single authority every runtime file
+ *  under `.nullius/` must derive from — hardcoding the directory name
+ *  silently bypasses the override. */
+export function nulliusControlDir(repoRoot: string): string {
+  return nulliusDir(repoRoot);
+}
+
 function defaultState(): RunState {
   return {
     schema_version: 1,
@@ -467,6 +475,7 @@ function defaultState(): RunState {
     artifacts: {},
     workflow_outputs: {},
     notes: '',
+    execution_mode: null,
   };
 }
 
