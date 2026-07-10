@@ -220,7 +220,7 @@ describe('nullius CLI init/export', () => {
     // Portable launcher: self-derives the project root and prefers an nullius
     // on PATH — but never itself — so the project works on another machine.
     expect(launcherScript).toContain('PROJECT_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)');
-    expect(launcherScript).toContain('command -v nullius');
+    expect(launcherScript).toContain('case "$_nullius_dir" in /*) ;; *) continue;; esac');
     expect(launcherScript).toContain('-ef "$0"');
     expect(launcherScript).toContain('exec "$RESOLVED_NULLIUS" --launcher-generation=2 --project-root "$PROJECT_ROOT" "$@"');
     expect(launcherScript).toContain('--launcher-protocol');
@@ -515,6 +515,20 @@ describe('nullius CLI init/export', () => {
       const health = readProjectLocalNulliusLauncherHealth(projectRoot);
       expect(health.healthy).toBe(false);
       expect(health.issue_code).toBe('PROJECT_LOCAL_LAUNCHER_TARGET_MISSING');
+      // Runtime agrees byte-for-byte with health: the launcher's explicit
+      // resolver skips the empty (cwd) component too, so dispatch refuses.
+      let failed: { status: number | null } | null = null;
+      try {
+        execFileSync(launcherPath, ['status', '--json'], {
+          cwd: cwdDir,
+          encoding: 'utf-8',
+          timeout: 20000,
+          env: { ...process.env, PATH: `${path.delimiter}/usr/bin:/bin` },
+        });
+      } catch (error) {
+        failed = error as { status: number | null };
+      }
+      expect(failed?.status).toBe(127);
     } finally {
       process.chdir(prevCwd);
       if (prevPath === undefined) delete process.env.PATH;

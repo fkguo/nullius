@@ -40,7 +40,26 @@ function repairCommand(): string {
 }
 
 const SELF_DERIVE_PROJECT_ROOT_LINE = 'PROJECT_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)';
-const RESOLVE_NULLIUS_LINE = 'RESOLVED_NULLIUS=$(command -v nullius 2>/dev/null || true)';
+// Explicit PATH scan instead of `command -v`: shells disagree about what
+// command -v returns for empty PATH components (absolute cwd path on some,
+// bare or relative name on others) and about function shadowing — an
+// explicit loop over absolute components makes runtime and health follow one
+// spec: the FIRST executable regular file named nullius in an
+// absolute-directory PATH component; cwd-relative resolution is never
+// trusted with the project root.
+const RESOLVE_NULLIUS_BLOCK = [
+  'RESOLVED_NULLIUS=',
+  '_nullius_ifs=$IFS; IFS=:',
+  'for _nullius_dir in $PATH; do',
+  '  case "$_nullius_dir" in /*) ;; *) continue;; esac',
+  '  if [ -f "$_nullius_dir/nullius" ] && [ -x "$_nullius_dir/nullius" ]; then',
+  '    RESOLVED_NULLIUS="$_nullius_dir/nullius"',
+  '    break',
+  '  fi',
+  'done',
+  'IFS=$_nullius_ifs',
+] as const;
+const RESOLVE_NULLIUS_SIGNATURE_LINE = '  case "$_nullius_dir" in /*) ;; *) continue;; esac';
 /** Machine-readable launcher-protocol handshake. Protocol 2 = the trusted
  *  project root is PREPENDED before user args and the parser honors the `--`
  *  end-of-options terminator with duplicate-root rejection. A PATH-resolved
@@ -84,11 +103,9 @@ function launcherProtocolCandidateOnPath(launcherPath: string): string | 'self' 
     launcherStat = null;
   }
   for (const dir of pathEnv.split(path.delimiter)) {
-    // The generated launcher only accepts an ABSOLUTE regular file from
-    // `command -v` (relative answers — empty PATH components resolving via
-    // the cwd, or shell functions echoing a bare name — are rejected by its
-    // guard). Health mirrors the launcher, the runtime authority, so a
-    // cwd-relative candidate is never advertised as a usable fallback.
+    // Shared spec with the launcher's explicit resolver loop: only absolute
+    // PATH components are scanned, and the FIRST executable regular file
+    // wins. Cwd-relative resolution is never trusted with the project root.
     if (!path.isAbsolute(dir)) continue;
     const candidate = path.join(dir, 'nullius');
     try {
@@ -181,6 +198,7 @@ const BAKED_EXEC_PATTERN = /^\s*exec\s+'\/.*--launcher-generation=2\s+--project-
 function hasProjectLocalLauncherShape(script: string): boolean {
   const lines = script.split(/\r?\n/u);
   const hasSelfDerivedRoot = lines.includes(SELF_DERIVE_PROJECT_ROOT_LINE);
+  const hasExplicitResolver = lines.includes(RESOLVE_NULLIUS_SIGNATURE_LINE);
   // Require the self-identity guard: an older unguarded PATH-prefer launcher would
   // self-recurse, so it must be reported unparseable (→ refresh) rather than healthy.
   const pathGuardAt = lines.findIndex(line => line.trim() === PATH_PREFER_GUARD_LINE);
@@ -192,6 +210,7 @@ function hasProjectLocalLauncherShape(script: string): boolean {
   // PATH branch — a guard floating elsewhere (e.g. below an unconditional
   // exec) is the skew this design exists to prevent.
   return hasSelfDerivedRoot
+    && hasExplicitResolver
     && bakedGuardAt !== -1
     && bakedExecAt === bakedGuardAt + 1
     && pathGuardAt !== -1
@@ -384,7 +403,7 @@ export function ensureProjectLocalNulliusLauncher(projectRoot: string): {
     '# Never this launcher itself: -ef compares real file identity, so a PATH',
     '# entry that is (or symlinks back to) this script is rejected — a',
     '# self-referential PATH would recurse and corrupt --project-root.',
-    RESOLVE_NULLIUS_LINE,
+    ...RESOLVE_NULLIUS_BLOCK,
     PATH_PREFER_GUARD_LINE,
     `  ${PATH_PREFER_EXEC_LINE}`,
     'fi',
