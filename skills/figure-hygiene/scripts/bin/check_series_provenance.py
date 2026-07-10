@@ -21,8 +21,9 @@ from collections import defaultdict
 from pathlib import Path
 
 
-_SHA256 = re.compile(r"(?:sha256:)?([0-9a-fA-F]{64})\Z")
+_SHA256 = re.compile(r"(?:sha256:)?([0-9a-fA-F]{64})\Z", re.IGNORECASE)
 _TRUTHY = {"1", "true", "yes", "y", "connected"}
+_FALSY = {"0", "false", "no", "n", "unconnected", ""}
 
 
 def _normalise_fingerprint(raw: str) -> str | None:
@@ -42,7 +43,14 @@ def check_table(
 
     with path.open(newline="", encoding="utf-8-sig") as handle:
         reader = csv.DictReader(handle)
-        fields = set(reader.fieldnames or [])
+        fieldnames = list(reader.fieldnames or [])
+        if len(fieldnames) != len(set(fieldnames)):
+            # DictReader silently keeps the LAST duplicate column, so a
+            # malformed table (column-concatenation tools produce these) could
+            # pass a genuinely mixed series as clean. Refuse instead.
+            duplicates = sorted({name for name in fieldnames if fieldnames.count(name) > 1})
+            raise ValueError(f"duplicate column header(s): {', '.join(duplicates)}")
+        fields = set(fieldnames)
         required = {series_column, fingerprint_column}
         if connected_column:
             required.add(connected_column)
@@ -56,8 +64,15 @@ def check_table(
             input_rows += 1
             if connected_column:
                 connected = (row.get(connected_column) or "").strip().lower()
-                if connected not in _TRUTHY:
+                if connected in _FALSY:
                     continue
+                if connected not in _TRUTHY:
+                    # An unrecognized value must not silently exempt the row:
+                    # a typo in the status column would otherwise skip the check.
+                    raise ValueError(
+                        f"row {row_number}: unrecognized {connected_column} value {connected!r} "
+                        f"(recognized true: {sorted(_TRUTHY)}; false: {sorted(_FALSY - {''})} or empty)"
+                    )
             connected_rows += 1
             series = (row.get(series_column) or "").strip()
             raw = (row.get(fingerprint_column) or "").strip()

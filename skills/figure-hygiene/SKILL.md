@@ -29,7 +29,7 @@ Data fidelity, the label-economy floor, the anti-pattern list, and render-then-v
   Matching a few legend-visible settings is insufficient. Missing or mixed fingerprints are a correctness
   failure: recompute uniformly, or split/facet the configurations and identify them separately. Check every
   plotted component; a smooth insensitive coordinate can conceal heterogeneity that appears as a kink in a
-  more sensitive coordinate. Use `scripts/bin/check_series_provenance.py` as the deterministic gate once the
+  more sensitive coordinate. Use `"$SKILL_DIR/scripts/bin/check_series_provenance.py"` as the deterministic gate once the
   plotting table exposes `series_id` and `evaluator_fingerprint` (or explicitly named equivalent columns).
 - **Self-consistency.** Every key, threshold, and title inside the figure must be satisfied by every plotted row. Before saving, walk each categorical outcome label back to the rule that defines it; if a row's value contradicts its label or the title, the figure is wrong, not the data.
 - **Claim-titles must be true.** A sentence-title is tested against every category on the axis before rendering. If any category contradicts it, qualify the title ("on 3 of 4 cases") or downgrade it to a description.
@@ -135,7 +135,7 @@ A durable or submission-bound figure must re-render from recorded inputs. Bind t
     "table": "data/scan_results.csv",
     "series_column": "series_id",
     "fingerprint_column": "evaluator_fingerprint",
-    "check_command": "python3 <figure-hygiene>/scripts/bin/check_series_provenance.py --data data/scan_results.csv"
+    "check_command": "python3 $SKILL_DIR/scripts/bin/check_series_provenance.py --data data/scan_results.csv"
   },
   "sha256": {
     "figs/scan_summary.pdf": "<hex digest>",
