@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   NULLIUS_PUBLIC_COMMANDS,
   NULLIUS_PUBLIC_COMMAND_INVENTORY,
@@ -1671,79 +1672,18 @@ describe('nullius CLI', () => {
     state.run_status = 'idle';
     manager.saveState(state);
 
-    fs.writeFileSync(
-      path.join(projectRoot, 'research_notebook.md'),
-      [
-        '# research_notebook.md',
-        '',
-        'Project: Demo',
-        'Last updated: 2026-04-16',
-        '',
-        'This file is the human-facing research notebook.',
-        'Organize it by the logic of the research problem, not by run date.',
-        'Write dated run logs and raw step summaries in [research_plan.md](research_plan.md) or `artifacts/runs/<run_id>/`, then fold durable insights back into the sections below.',
-        'Keep machine-stable gate structure in [research_contract.md](research_contract.md).',
-        '',
-        '## Problem Statement',
-        '',
-        '- Core question:',
-        '- Why it matters:',
-        '- Current milestone:',
-        '',
-        '## Current Understanding',
-        '',
-        '- What is currently believed:',
-        '- What is evidence-backed:',
-        '- What is still hypothesis:',
-        '',
-        '## Question Map',
-        '',
-        '- Main questions:',
-        '- Subquestions and dependencies:',
-        '- What would change the direction:',
-        '',
-        '## Evidence Map',
-        '',
-        '- Core sources and what each establishes:',
-        '- For important sources, record source form read (`latex_source`, `full_text_pdf`, `available_full_text`, `abstract_only`, or `unavailable`), sections/pages/equations/figures actually read, central equations and assumptions, what was not read and why, project relevance, limitations, and remaining gaps:',
-        '- Candidate-only sources:',
-        '- Known gaps in source reading:',
-        '- Tool-use logs, metadata checks, download attempts, and API/MCP call details belong in [research_plan.md](research_plan.md) or `artifacts/runs/<run_id>/`, not in literature notes.',
-        '',
-        '## Conventions and Definitions',
-        '',
-        '- Terms, variables, and units, written with LaTeX math for scientific notation rather than inline-code backticks:',
-        '- Naming or representation choices:',
-        '- Assumptions and scope boundaries:',
-        '',
-        '## Reasoning Threads',
-        '',
-        '- State assumptions explicitly.',
-        '- Keep each reasoning thread under a stable conceptual heading.',
-        '- Keep the reasoning readable; move machine-checkable pointers to [research_contract.md](research_contract.md).',
-        '',
-        '## Claims and Results',
-        '',
-        '- Result / claim IDs:',
-        '- Evidence and artifact pointers:',
-        '- Status: candidate, checked, blocked, or rejected',
-        '',
-        '## Uncertainties and Kill Criteria',
-        '',
-        '- What is still uncertain?',
-        '- What would falsify the current direction?',
-        '',
-        '## References',
-        '',
-        '- Add stable links and local note pointers here as the project grows.',
-        '',
-        '## Change Log',
-        '',
-        '- <YYYY-MM-DD>: Scaffold created. Keep this section brief; put substantive research content in the logical sections above.',
-        '',
-      ].join('\n'),
-      'utf-8',
+    // Render the CURRENT scaffold template (the same file `nullius init`
+    // consumes) instead of hardcoding a skeleton copy: a hardcoded fixture
+    // silently keeps passing against a retired template while freshly
+    // scaffolded projects misclassify.
+    const templatePath = path.resolve(
+      path.dirname(fileURLToPath(import.meta.url)),
+      '../../project-contracts/src/project_contracts/scaffold_templates/research_notebook.md',
     );
+    const skeleton = fs.readFileSync(templatePath, 'utf-8')
+      .replace('<PROJECT_NAME>', 'Demo')
+      .replace('<YYYY-MM-DD>', '2026-04-16');
+    fs.writeFileSync(path.join(projectRoot, 'research_notebook.md'), skeleton, 'utf-8');
 
     const { io, stdout } = makeIo(projectRoot);
     const code = await runCli(['status', '--json'], io);

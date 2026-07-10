@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { FinalConclusionsV1, MutationProposalV1, SkillProposalV2 } from '@nullius/shared';
 import { invalidParams } from '@nullius/shared';
 import { readFinalConclusionsView, readResearchOutcomeProjectionView } from './final-conclusions.js';
@@ -120,6 +121,11 @@ function readLedgerSnapshot(projectRoot: string): LedgerSnapshot {
   return readLedgerSnapshotFromPath(new StateManager(projectRoot).ledgerPath);
 }
 
+// Historical scaffold-template lines (multiple template generations), kept so
+// notebooks scaffolded by OLDER templates are still recognized as skeletons.
+// Lines from the CURRENT template are read from the template source itself
+// (see currentNotebookTemplateLines) so a template rewrite can never silently
+// desynchronize this classifier again.
 const RESEARCH_NOTEBOOK_TEMPLATE_LINES = new Set([
   '# research_notebook.md',
   'This file is the human-facing research notebook.',
@@ -180,11 +186,38 @@ function artifactPathFromUri(uri: string): string | null {
   return decodeURIComponent(uri.slice(index + marker.length));
 }
 
+// Lazily-read line set of the CURRENT notebook scaffold template — the same
+// file `nullius init` renders (via project-contracts; see project-scaffold.ts
+// for the sibling-path convention). Reading the source directly means a
+// template rewrite updates this classifier automatically; on any read failure
+// the historical hardcoded set above still covers older scaffolds.
+let currentNotebookTemplateLinesCache: Set<string> | null = null;
+
+function currentNotebookTemplateLines(): Set<string> {
+  if (currentNotebookTemplateLinesCache !== null) return currentNotebookTemplateLinesCache;
+  try {
+    const moduleDir = path.dirname(fileURLToPath(import.meta.url));
+    const templatePath = path.resolve(
+      moduleDir,
+      '../../../project-contracts/src/project_contracts/scaffold_templates/research_notebook.md',
+    );
+    const lines = fs.readFileSync(templatePath, 'utf-8')
+      .split(/\r?\n/)
+      .map((line: string) => line.trim())
+      .filter((line: string) => line.length > 0);
+    currentNotebookTemplateLinesCache = new Set(lines);
+  } catch {
+    currentNotebookTemplateLinesCache = new Set();
+  }
+  return currentNotebookTemplateLinesCache;
+}
+
 function hasSubstantiveResearchNotebook(projectRoot: string): boolean {
   const notebookPath = path.join(projectRoot, 'research_notebook.md');
   if (!fs.existsSync(notebookPath)) return false;
   try {
     const content = fs.readFileSync(notebookPath, 'utf-8');
+    const templateLines = currentNotebookTemplateLines();
     const lines = content
       .split(/\r?\n/)
       .map((line: string) => line.trim())
@@ -195,7 +228,8 @@ function hasSubstantiveResearchNotebook(projectRoot: string): boolean {
         /^- \d{4}-\d{2}-\d{2}: Scaffold created\. Keep this section brief; put substantive research content in the logical sections above\.$/
           .test(line)
       ))
-      .filter((line: string) => !RESEARCH_NOTEBOOK_TEMPLATE_LINES.has(line));
+      .filter((line: string) => !RESEARCH_NOTEBOOK_TEMPLATE_LINES.has(line))
+      .filter((line: string) => !templateLines.has(line));
     return lines.length > 0;
   } catch {
     return false;
@@ -844,6 +878,30 @@ function latestIsoDate(values: Array<string | null>): string | null {
   return dates.length > 0 ? dates.sort().at(-1) ?? null : null;
 }
 
+// Evidence roots where dated run directories land. team/runs is where the
+// research-team workflow writes the bulk of real evidence, so freshness
+// checks that only watch artifacts/runs systematically under-report on
+// team-driven projects.
+const RUN_EVIDENCE_ROOTS = [
+  path.join('artifacts', 'runs'),
+  path.join('team', 'runs'),
+];
+
+function datedRunDirectories(projectRoot: string): Array<{ run_id: string; date: string; rel_dir: string }> {
+  const runs: Array<{ run_id: string; date: string; rel_dir: string }> = [];
+  for (const relRoot of RUN_EVIDENCE_ROOTS) {
+    const absRoot = path.join(projectRoot, relRoot);
+    if (!fs.existsSync(absRoot)) continue;
+    for (const entry of fs.readdirSync(absRoot, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const date = artifactRunDateFromId(entry.name);
+      if (!date) continue;
+      runs.push({ run_id: entry.name, date, rel_dir: path.join(relRoot, entry.name) });
+    }
+  }
+  return runs.sort((a, b) => a.date === b.date ? a.run_id.localeCompare(b.run_id) : a.date.localeCompare(b.date));
+}
+
 function researchPlanLastUpdatedIssue(projectRoot: string): Record<string, unknown> | null {
   const researchPlanPath = path.join(projectRoot, 'research_plan.md');
   if (!fs.existsSync(researchPlanPath)) return null;
@@ -853,31 +911,94 @@ function researchPlanLastUpdatedIssue(projectRoot: string): Record<string, unkno
   if (!lastUpdated) return null;
 
   const progressDates = [...text.matchAll(/^\s*-\s*(\d{4}-\d{2}-\d{2})\b/gm)].map(match => match[1] ?? null);
-  const artifactRunsDir = path.join(projectRoot, 'artifacts', 'runs');
-  const artifactRunIds = fs.existsSync(artifactRunsDir)
-    ? fs.readdirSync(artifactRunsDir, { withFileTypes: true })
-      .filter(entry => entry.isDirectory())
-      .map(entry => entry.name)
-    : [];
   const latestProgressDate = latestIsoDate(progressDates);
-  const latestArtifactRun = artifactRunIds
-    .map(runId => ({ run_id: runId, date: artifactRunDateFromId(runId) }))
-    .filter((entry): entry is { run_id: string; date: string } => Boolean(entry.date))
-    .sort((a, b) => a.date === b.date ? a.run_id.localeCompare(b.run_id) : a.date.localeCompare(b.date))
-    .at(-1) ?? null;
-  const latestObservedDate = latestIsoDate([latestProgressDate, latestArtifactRun?.date ?? null]);
+  const latestRun = datedRunDirectories(projectRoot).at(-1) ?? null;
+  const latestObservedDate = latestIsoDate([latestProgressDate, latestRun?.date ?? null]);
   if (!latestObservedDate || latestObservedDate <= lastUpdated) return null;
 
   return {
     code: 'RESEARCH_PLAN_LAST_UPDATED_STALE',
     path: 'research_plan.md',
-    message: 'research_plan.md has a Last updated date older than dated progress or artifact evidence, so reconnecting agents may under-trust or misread the current project state.',
+    message: 'research_plan.md has a Last updated date older than dated progress or run evidence, so reconnecting agents may under-trust or misread the current project state.',
     recommended_action: 'refresh_current_status_and_last_updated',
     evidence: {
       last_updated: lastUpdated,
       latest_observed_date: latestObservedDate,
       latest_progress_log_date: latestProgressDate,
-      latest_artifact_run_id: latestArtifactRun?.run_id ?? null,
+      latest_run_id: latestRun?.run_id ?? null,
+      latest_run_dir: latestRun?.rel_dir ?? null,
+    },
+  };
+}
+
+// Filename shapes that count as verification evidence inside a run directory.
+// Deliberately broad: any of the standing verification workflows leaves at
+// least one of these (verification/reliability matrices, integrity M1-M7
+// records, reviewer verdicts, derivation-verify outputs).
+const VERIFICATION_EVIDENCE_PATTERN = /verif|reliab|integrity|verdict|review|convergence/i;
+// A run is only flagged when it holds enough non-hidden files to plausibly
+// carry results worth verifying; tiny bookkeeping-only runs stay silent.
+const VERIFICATION_HINT_MIN_FILES = 3;
+const VERIFICATION_HINT_RECENT_RUNS = 5;
+const VERIFICATION_HINT_MAX_DEPTH = 3;
+
+// One bounded walk per run directory: counts non-hidden files and stops the
+// moment any file OR directory name matches the verification pattern. Loop
+// accumulation (no spread), early exit on evidence, and per-directory read
+// errors are skipped rather than collapsing the whole drift view — status is
+// fetched on every reconnect, and run directories can be arbitrarily large.
+function scanRunForVerificationEvidence(
+  absDir: string,
+  depth: number,
+  state: { fileCount: number; evidence: boolean },
+): void {
+  if (state.evidence || depth > VERIFICATION_HINT_MAX_DEPTH) return;
+  let entries: fs.Dirent[];
+  try {
+    entries = fs.readdirSync(absDir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    if (state.evidence) return;
+    if (entry.name.startsWith('.')) continue;
+    if (VERIFICATION_EVIDENCE_PATTERN.test(entry.name)) {
+      state.evidence = true;
+      return;
+    }
+    if (entry.isDirectory()) {
+      scanRunForVerificationEvidence(path.join(absDir, entry.name), depth + 1, state);
+    } else {
+      state.fileCount += 1;
+    }
+  }
+}
+
+function recentRunsWithoutVerificationIssue(projectRoot: string): Record<string, unknown> | null {
+  const recentRuns = datedRunDirectories(projectRoot).slice(-VERIFICATION_HINT_RECENT_RUNS);
+  if (recentRuns.length === 0) return null;
+  const unverified: string[] = [];
+  for (const run of recentRuns) {
+    const state = { fileCount: 0, evidence: false };
+    scanRunForVerificationEvidence(path.join(projectRoot, run.rel_dir), 1, state);
+    if (state.evidence) continue;
+    if (state.fileCount < VERIFICATION_HINT_MIN_FILES) continue;
+    unverified.push(run.rel_dir);
+  }
+  if (unverified.length === 0) return null;
+
+  return {
+    code: 'RECENT_RUNS_WITHOUT_VERIFICATION_EVIDENCE',
+    path: unverified[0] ?? '.',
+    message: 'Recent run directories hold results but no verification evidence alongside them. '
+      + 'Before these results are folded into durable artifacts, run the matching gate: '
+      + 'derivation-verify for symbolic claims, numerical-reliability-gate for computed numbers, '
+      + 'review-swarm for an independent review, research-integrity (M1-M7) before conclusions — '
+      + 'and record the outcome next to the run.',
+    recommended_action: 'run_matching_verification_gate_or_record_existing_evidence',
+    evidence: {
+      unverified_run_dirs: unverified,
+      recent_runs_checked: recentRuns.length,
     },
   };
 }
@@ -997,6 +1118,9 @@ export function readProjectSurfaceDriftView(projectRoot: string): {
 
     const artifactManifestIssue = artifactRunManifestIssue(projectRoot);
     if (artifactManifestIssue) issues.push(artifactManifestIssue);
+
+    const verificationHintIssue = recentRunsWithoutVerificationIssue(projectRoot);
+    if (verificationHintIssue) issues.push(verificationHintIssue);
 
     return {
       project_surface_drift: {

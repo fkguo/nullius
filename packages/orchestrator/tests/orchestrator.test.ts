@@ -358,6 +358,84 @@ describe('StateManager', () => {
     expect(view.project_surface_drift_error).toBeNull();
   });
 
+  it('treats team/runs as run evidence for the stale-plan check', () => {
+    const state = baseState({ run_id: 'test-run-team-evidence', run_status: 'idle' });
+    const sm = new StateManager(tmpDir);
+    sm.saveState(state);
+    writeProjectSurfaceFiles(tmpDir);
+    fs.writeFileSync(
+      path.join(tmpDir, 'research_plan.md'),
+      '# research_plan.md\n\nLast updated: 2026-06-01\n\n- 2026-05-30 earlier progress\n',
+      'utf-8',
+    );
+    // No artifacts/runs at all — the only newer evidence lives under team/runs,
+    // which is where the research-team workflow actually writes.
+    const teamRunDir = path.join(tmpDir, 'team', 'runs', '20260705T120000Z-m9-check-r1');
+    fs.mkdirSync(teamRunDir, { recursive: true });
+    fs.writeFileSync(path.join(teamRunDir, 'verification_matrix.json'), '{}\n', 'utf-8');
+    fs.writeFileSync(path.join(teamRunDir, 'summary.md'), 'summary\n', 'utf-8');
+    fs.writeFileSync(path.join(teamRunDir, 'result.json'), '{}\n', 'utf-8');
+
+    const view = buildRunStatusView(tmpDir, sm.readState());
+    const drift = view.project_surface_drift as { issues: Array<Record<string, unknown>> };
+    const stale = drift.issues.find(issue => issue.code === 'RESEARCH_PLAN_LAST_UPDATED_STALE');
+    expect(stale).toBeDefined();
+    expect(stale?.evidence).toMatchObject({
+      last_updated: '2026-06-01',
+      latest_observed_date: '2026-07-05',
+      latest_run_id: '20260705T120000Z-m9-check-r1',
+    });
+  });
+
+  it('hints when recent substantial runs carry no verification evidence', () => {
+    const state = baseState({ run_id: 'test-run-verification-hint', run_status: 'idle' });
+    const sm = new StateManager(tmpDir);
+    sm.saveState(state);
+    writeProjectSurfaceFiles(tmpDir);
+    // A substantial run (3+ files) with results but nothing verification-shaped.
+    const bareRun = path.join(tmpDir, 'artifacts', 'runs', '20260706T090000Z-m1-compute-r1');
+    fs.mkdirSync(bareRun, { recursive: true });
+    fs.writeFileSync(path.join(bareRun, 'result.json'), '{}\n', 'utf-8');
+    fs.writeFileSync(path.join(bareRun, 'summary.md'), 'numbers\n', 'utf-8');
+    fs.writeFileSync(path.join(bareRun, 'figure.png'), '', 'utf-8');
+    // A verified run: same shape plus a nested reviewer verdict — not flagged.
+    const verifiedRun = path.join(tmpDir, 'team', 'runs', '20260707T090000Z-m1-verify-r1');
+    fs.mkdirSync(path.join(verifiedRun, 'member_a'), { recursive: true });
+    fs.writeFileSync(path.join(verifiedRun, 'result.json'), '{}\n', 'utf-8');
+    fs.writeFileSync(path.join(verifiedRun, 'summary.md'), 'numbers\n', 'utf-8');
+    fs.writeFileSync(path.join(verifiedRun, 'member_a', 'verdict.md'), 'ok\n', 'utf-8');
+    // A tiny bookkeeping run (fewer than 3 files) — stays silent.
+    const tinyRun = path.join(tmpDir, 'artifacts', 'runs', '20260708T090000Z-m1-note-r1');
+    fs.mkdirSync(tinyRun, { recursive: true });
+    fs.writeFileSync(path.join(tinyRun, 'note.md'), 'note\n', 'utf-8');
+
+    const view = buildRunStatusView(tmpDir, sm.readState());
+    const drift = view.project_surface_drift as { issues: Array<Record<string, unknown>> };
+    const hint = drift.issues.find(issue => issue.code === 'RECENT_RUNS_WITHOUT_VERIFICATION_EVIDENCE');
+    expect(hint).toBeDefined();
+    expect(hint?.evidence).toMatchObject({
+      unverified_run_dirs: [path.join('artifacts', 'runs', '20260706T090000Z-m1-compute-r1')],
+    });
+    expect(String(hint?.message)).toContain('derivation-verify');
+    expect(String(hint?.message)).toContain('numerical-reliability-gate');
+  });
+
+  it('stays silent when recent runs all carry verification evidence', () => {
+    const state = baseState({ run_id: 'test-run-verified-quiet', run_status: 'idle' });
+    const sm = new StateManager(tmpDir);
+    sm.saveState(state);
+    writeProjectSurfaceFiles(tmpDir);
+    const runDir = path.join(tmpDir, 'artifacts', 'runs', '20260706T090000Z-m2-gate-r1');
+    fs.mkdirSync(runDir, { recursive: true });
+    fs.writeFileSync(path.join(runDir, 'result.json'), '{}\n', 'utf-8');
+    fs.writeFileSync(path.join(runDir, 'summary.md'), 'numbers\n', 'utf-8');
+    fs.writeFileSync(path.join(runDir, 'numerical_reliability_matrix_v1.json'), '{}\n', 'utf-8');
+
+    const view = buildRunStatusView(tmpDir, sm.readState());
+    const drift = view.project_surface_drift as { issues: Array<Record<string, unknown>> };
+    expect(drift.issues.find(issue => issue.code === 'RECENT_RUNS_WITHOUT_VERIFICATION_EVIDENCE')).toBeUndefined();
+  });
+
   it('mirrors project_surface_drift through export summaries', async () => {
     const state = baseState({
       run_id: 'test-run-export-drift',

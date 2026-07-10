@@ -137,6 +137,23 @@ function writeStatusText(io: CliIo, payload: Record<string, unknown>): void {
   if (payload.legacy_workflow_projection && typeof payload.legacy_workflow_projection === 'object') {
     io.stdout(`legacy_workflow_projection: ${JSON.stringify(payload.legacy_workflow_projection)}\n`);
   }
+  // Surface-drift warnings (stale plan dates, unverified recent runs, stale
+  // support files) were previously JSON-only; an operator reading the plain
+  // status text never saw them, which is exactly how a stale progress record
+  // goes unnoticed. Render each issue as one actionable line.
+  const surfaceDrift = payload.project_surface_drift;
+  if (surfaceDrift && typeof surfaceDrift === 'object') {
+    const drift = surfaceDrift as Record<string, unknown>;
+    const issues = Array.isArray(drift.issues) ? drift.issues : [];
+    if (issues.length > 0) {
+      io.stdout('project_attention:\n');
+      for (const rawIssue of issues) {
+        if (!rawIssue || typeof rawIssue !== 'object') continue;
+        const issue = rawIssue as Record<string, unknown>;
+        io.stdout(`  - ${String(issue.code ?? '')} (${String(issue.path ?? '')}): ${String(issue.message ?? '')}\n`);
+      }
+    }
+  }
   const digestError = payload.project_recent_digest_error;
   if (digestError && typeof digestError === 'object') {
     io.stdout(`project_recent_digest_error: ${JSON.stringify(digestError)}\n`);
