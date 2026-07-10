@@ -95,25 +95,97 @@ type ParsedDecisionLine = {
   record: DecisionRecord | null;
 };
 
-// Salvages canonical ids from raw line bytes. Inside a JSON-stringified
-// record the pattern can only match real (unescaped) keys: quotes inside a
-// string value are always escaped as \" so a value containing the characters
-// "id":"D5" never produces this byte sequence. Malformed hand-written lines
-// (crash tails, duplicate keys) can match more than once — every match is a
-// reservation candidate.
-const RAW_ID_SALVAGE_PATTERN = /"id"\s*:\s*"(D[1-9]\d*)"/g;
+const JSON_WHITESPACE = new Set([' ', '\t', '\r', '\n']);
 
-function salvageIds(line: string): string[] {
-  const ids: string[] = [];
-  for (const match of line.matchAll(RAW_ID_SALVAGE_PATTERN)) {
-    const candidate = match[1];
-    if (candidate && !ids.includes(candidate)) ids.push(candidate);
+/** JSON-aware scan of ONE line for every TOP-LEVEL `id` key whose value is a
+ *  canonical decision id. A regex cannot do this honestly: JSON escapes let a
+ *  key spell itself as `"id"` and a value as `"D2"`, duplicate keys
+ *  are erased by JSON.parse (last one wins), and a nested `{"meta":{"id":...}}`
+ *  is not a record identity at all. The scanner walks the top level of the
+ *  object, decodes every key and string value through JSON.parse of the exact
+ *  quoted token (full escape handling), skips nested structures with string
+ *  awareness, and simply stops at the first malformed position — so crash
+ *  tails yield every complete candidate seen before the truncation. */
+function topLevelIdCandidates(line: string): string[] {
+  const out: string[] = [];
+  let i = 0;
+  const n = line.length;
+  const skipWs = () => { while (i < n && JSON_WHITESPACE.has(line[i]!)) i += 1; };
+  // Consumes a JSON string starting at line[i] === '"'; returns the decoded
+  // value, or null when unterminated/undecodable (scan then stops).
+  const readString = (): string | null => {
+    const start = i;
+    i += 1;
+    while (i < n) {
+      const c = line[i]!;
+      if (c === '\\') { i += 2; continue; }
+      if (c === '"') {
+        i += 1;
+        try {
+          return JSON.parse(line.slice(start, i)) as string;
+        } catch {
+          return null;
+        }
+      }
+      i += 1;
+    }
+    return null;
+  };
+  // Consumes one value at the top level; returns its decoded string when the
+  // value is a string, undefined for non-string values, null on truncation.
+  const readValue = (): string | null | undefined => {
+    skipWs();
+    if (i >= n) return null;
+    const c = line[i]!;
+    if (c === '"') return readString();
+    if (c === '{' || c === '[') {
+      const open = c;
+      const close = c === '{' ? '}' : ']';
+      let depth = 0;
+      while (i < n) {
+        const d = line[i]!;
+        if (d === '"') {
+          if (readString() === null) return null;
+          continue;
+        }
+        if (d === open) depth += 1;
+        else if (d === close) {
+          depth -= 1;
+          if (depth === 0) { i += 1; return undefined; }
+        }
+        i += 1;
+      }
+      return null;
+    }
+    while (i < n && line[i] !== ',' && line[i] !== '}') i += 1;
+    return undefined;
+  };
+  skipWs();
+  if (line[i] !== '{') return out;
+  i += 1;
+  while (i < n) {
+    skipWs();
+    if (line[i] === '}') break;
+    if (line[i] !== '"') break;
+    const key = readString();
+    if (key === null) break;
+    skipWs();
+    if (line[i] !== ':') break;
+    i += 1;
+    const value = readValue();
+    if (value === null) break;
+    if (key === 'id' && typeof value === 'string' && decisionSequenceNumber(value) !== null && !out.includes(value)) {
+      out.push(value);
+    }
+    skipWs();
+    if (line[i] === ',') { i += 1; continue; }
+    break;
   }
-  return ids;
+  return out;
 }
 
 function parseDecisionLine(line: string): ParsedDecisionLine {
-  const ids = salvageIds(line);
+  const ids = topLevelIdCandidates(line);
   let parsed: unknown;
   try {
     parsed = JSON.parse(line);
@@ -125,14 +197,19 @@ function parseDecisionLine(line: string): ParsedDecisionLine {
   const id = decisionSequenceNumber(record.id) !== null ? record.id as string : null;
   if (id === null) return { ids, record: null };
   if (ids.length > 1) {
-    // Duplicate top-level id keys (JSON.parse keeps only the last): the line
-    // is ambiguous about its identity — quarantine it; every candidate id
-    // stays reserved via `ids`.
+    // More than one distinct top-level id candidate (duplicate keys, however
+    // escaped — JSON.parse keeps only the last): the line is ambiguous about
+    // its identity — quarantine it; every candidate stays reserved via `ids`.
     return { ids, record: null };
   }
   if (typeof record.ts !== 'string') return { ids, record: null };
   if (record.kind !== 'decided' && record.kind !== 'pending') return { ids, record: null };
   if (typeof record.text !== 'string' || record.text.length === 0) return { ids, record: null };
+  // Persisted authorship must be an explicit nonempty string: rewriting a
+  // malformed `by` as "user" would invent provenance in a ledger whose whole
+  // point is preserving who decided. (The CLI-side default to "user" applies
+  // at RECORDING time, before persistence.)
+  if (typeof record.by !== 'string' || record.by.trim().length === 0) return { ids, record: null };
   // Strict resolves validation: absent/null, or a canonical id on a decided
   // record. A malformed value or a pending record carrying resolves is a
   // malformed line, not something to silently coerce to null.
@@ -149,7 +226,7 @@ function parseDecisionLine(line: string): ParsedDecisionLine {
       ts: record.ts,
       kind: record.kind,
       text: record.text,
-      by: typeof record.by === 'string' && record.by.length > 0 ? record.by : 'user',
+      by: record.by,
       resolves,
     },
   };
@@ -185,11 +262,14 @@ export function readDecisionsLedger(projectRoot: string): DecisionsLedgerSnapsho
   const rawLines = fs.readFileSync(filePath).toString('binary').split('\n');
   for (const rawLine of rawLines) {
     const lineBytes = Buffer.from(rawLine.endsWith('\r') ? rawLine.slice(0, -1) : rawLine, 'binary');
-    if (lineBytes.length === 0 || lineBytes.toString('latin1').trim().length === 0) continue;
+    // Blank detection on ASCII whitespace bytes ONLY: a lossy .trim() would
+    // also swallow bytes like 0xA0 (latin1 NBSP) and skip a line that fatal
+    // decoding must quarantine instead.
+    if (lineBytes.every(byte => byte === 0x20 || byte === 0x09 || byte === 0x0d)) continue;
     const decoded = decodeLedgerLine(lineBytes);
     const { ids, record } = decoded.text !== null
       ? parseDecisionLine(decoded.text)
-      : { ids: salvageIds(decoded.asciiFallback), record: null };
+      : { ids: topLevelIdCandidates(decoded.asciiFallback), record: null };
     // Reserve every id the line's bytes carry and advance the high-water
     // mark — quarantined or not — so allocation never reuses an id that
     // exists in the file in any form.
@@ -251,6 +331,12 @@ function lockFilePath(projectRoot: string): string {
   return `${decisionsLedgerPath(projectRoot)}.lock`;
 }
 
+/** POSIX single-quote escaping so recovery guidance stays copy-pasteable
+ *  (and non-executing) for roots containing spaces or shell metacharacters. */
+export function shellQuote(value: string): string {
+  return `'${value.replaceAll("'", "'\\''")}'`;
+}
+
 function sleepBlocking(ms: number): void {
   const shared = new SharedArrayBuffer(4);
   Atomics.wait(new Int32Array(shared), 0, 0, ms);
@@ -305,7 +391,7 @@ function withDecisionsLock<T>(projectRoot: string, action: () => T): T {
     throw new Error(
       `decisions ledger is locked (${lockPath}; ${describeLockHolder(lockPath)}). `
       + 'If no recording process is running (e.g. after a crash), first check whether the '
-      + `intended entry already landed (nullius decision list --project-root ${projectRoot}) — `
+      + `intended entry already landed (nullius decision list --project-root ${shellQuote(projectRoot)}) — `
       + 'a crashed holder may have completed its append — then remove that lock file and '
       + 'retry only if the entry is absent.',
     );

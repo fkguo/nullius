@@ -6,6 +6,7 @@ import {
   writeIntegrityReceipt,
   type IntegrityMode,
 } from '@nullius/shared';
+import { shellQuote } from './decisions-ledger.js';
 import { handleOrchRunApprove } from './orch-tools/approval.js';
 import { createStateManager, requireState } from './orch-tools/common.js';
 import { handleOrchRunRequestFinalConclusions } from './orch-tools/final-conclusions.js';
@@ -25,7 +26,15 @@ function writeJson(io: CliIo, payload: unknown): void {
   io.stdout(`${JSON.stringify(payload, null, 2)}\n`);
 }
 
-function writeStatusText(io: CliIo, payload: Record<string, unknown>): void {
+// Ledger strings (decision text, authorship, timestamps) are arbitrary user
+// input rendered into a receipt other agents parse visually: raw control
+// characters could forge receipt-looking lines or reprogram the terminal.
+// JSON-escape them (\n, , ...) so one ledger entry stays one line.
+function renderInline(value: unknown): string {
+  return String(value ?? '').replace(/[\u0000-\u001f\u007f\u2028\u2029]/g, ch => JSON.stringify(ch).slice(1, -1));
+}
+
+function writeStatusText(io: CliIo, payload: Record<string, unknown>, statusProjectRoot: string): void {
   io.stdout(`run_id: ${String(payload.run_id ?? '')}\n`);
   io.stdout(`run_status: ${String(payload.run_status ?? '')}\n`);
   // Always stated: "undeclared" is itself load-bearing information for a
@@ -175,11 +184,11 @@ function writeStatusText(io: CliIo, payload: Record<string, unknown>): void {
       for (const rawItem of openItems) {
         if (!rawItem || typeof rawItem !== 'object') continue;
         const item = rawItem as Record<string, unknown>;
-        io.stdout(`  - [open] ${String(item.id ?? '')} (${String(item.ts ?? '')}): ${String(item.text ?? '')}\n`);
+        io.stdout(`  - [open] ${renderInline(item.id)} (${renderInline(item.ts)}): ${renderInline(item.text)}\n`);
       }
       const omitted = Number(ledger.open_items_omitted ?? 0);
       if (omitted > 0) {
-        io.stdout(`  ... and ${omitted} more open (run: nullius decision list)\n`);
+        io.stdout(`  ... and ${omitted} more open (run: nullius decision list --project-root ${shellQuote(statusProjectRoot)})\n`);
       }
       if (invalidLines > 0) {
         io.stdout(`  decisions_invalid_lines: ${invalidLines} (invalid, duplicate, or mis-resolving lines in ${String(ledger.path ?? 'the decisions ledger')})\n`);
@@ -250,7 +259,7 @@ export async function runStatusCommand(projectRoot: string, json: boolean, io: C
     writeJson(io, payload);
     return;
   }
-  writeStatusText(io, payload);
+  writeStatusText(io, payload, projectRoot);
 }
 
 export async function runPauseCommand(projectRoot: string, note: string | null, io: CliIo): Promise<void> {
@@ -386,7 +395,7 @@ export async function runDecisionCommand(
     for (const record of snapshot.records) {
       const openMark = record.kind === 'pending' && open.some((entry) => entry.id === record.id) ? ' [open]' : '';
       const resolvesMark = record.resolves ? ` resolves=${record.resolves}` : '';
-      io.stdout(`${record.id} ${record.kind}${openMark} @ ${record.ts} (${record.by})${resolvesMark}: ${record.text}\n`);
+      io.stdout(`${record.id} ${record.kind}${openMark} @ ${renderInline(record.ts)} (${renderInline(record.by)})${resolvesMark}: ${renderInline(record.text)}\n`);
     }
     io.stdout(`decisions: ${snapshot.records.filter((record) => record.kind === 'decided').length} decided, ${open.length} open\n`);
     if (snapshot.invalid_lines > 0) {

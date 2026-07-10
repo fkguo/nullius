@@ -534,6 +534,100 @@ describe('decision ledger', () => {
     expect(parsed.records.map(entry => entry.id)).toEqual(['D5']);
   });
 
+  it('decodes JSON escapes when hunting id candidates and ignores nested ids', async () => {
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot);
+    const ledgerPath = path.join(projectRoot, '.nullius', 'decisions.jsonl');
+    const lines = [
+      // Duplicate id keys where the second is spelled with a JSON escape:
+      // JSON.parse admits it as D2; the scanner sees both and quarantines.
+      '{"id":"D1","\\u0069d":"D2","ts":"2026-07-10T00:00:00Z","kind":"pending","text":"escaped duplicate key","by":"user","resolves":null}',
+      // A crash tail whose id value is escaped: still reserved as D3.
+      '{"id":"D\\u0033","ts":',
+      // A malformed line whose only id is NESTED: not a record identity,
+      // reserves nothing.
+      '{"meta":{"id":"D99"},"ts":',
+    ].join('\n') + '\n';
+    fs.writeFileSync(ledgerPath, lines, 'utf-8');
+
+    const record = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'allocated past the escapes'], record.io)).toBe(0);
+    // D1..D3 reserved (escaped spellings included); D99 was nested, so the
+    // next id is D4, not D100.
+    expect(record.stdout.join('')).toContain('recorded: D4');
+
+    const list = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'list', '--json'], list.io)).toBe(0);
+    const parsed = JSON.parse(list.stdout.join('')) as { invalid_lines: number; records: Array<{ id: string }> };
+    expect(parsed.invalid_lines).toBe(3);
+    expect(parsed.records.map(entry => entry.id)).toEqual(['D4']);
+  });
+
+  it('quarantines records whose persisted authorship is not an explicit nonempty string', async () => {
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot);
+    const ledgerPath = path.join(projectRoot, '.nullius', 'decisions.jsonl');
+    const lines = [
+      { id: 'D1', ts: '2026-07-10T00:00:00Z', kind: 'pending', text: 'by is false', by: false, resolves: null },
+      { id: 'D2', ts: '2026-07-10T00:00:01Z', kind: 'pending', text: 'by is blank', by: '   ', resolves: null },
+      { id: 'D3', ts: '2026-07-10T00:00:02Z', kind: 'pending', text: 'by is missing', resolves: null },
+    ];
+    fs.writeFileSync(ledgerPath, lines.map(line => JSON.stringify(line)).join('\n') + '\n', 'utf-8');
+
+    const list = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'list', '--json'], list.io)).toBe(0);
+    const parsed = JSON.parse(list.stdout.join('')) as { invalid_lines: number; records: unknown[] };
+    // Fabricating "user" for any of these would invent provenance.
+    expect(parsed.invalid_lines).toBe(3);
+    expect(parsed.records).toHaveLength(0);
+
+    const record = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'clean record'], record.io)).toBe(0);
+    expect(record.stdout.join('')).toContain('recorded: D4');
+  });
+
+  it('quarantines a non-ASCII-whitespace-only line instead of skipping it as blank', async () => {
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot);
+    const ledgerPath = path.join(projectRoot, '.nullius', 'decisions.jsonl');
+    // A single 0xA0 byte (latin1 NBSP): lossy trimming would treat the line
+    // as blank; fatal decoding must quarantine it.
+    fs.writeFileSync(ledgerPath, Buffer.concat([Buffer.from([0xa0]), Buffer.from('\n', 'utf-8')]));
+
+    const list = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'list', '--json'], list.io)).toBe(0);
+    expect((JSON.parse(list.stdout.join('')) as { invalid_lines: number }).invalid_lines).toBe(1);
+  });
+
+  it('shell-quotes the project root in lock guidance and escapes control characters in rendering', async () => {
+    const parentDir = fs.mkdtempSync(path.join(os.tmpdir(), "nullius d'ir-"));
+    const projectRoot = path.join(parentDir, 'project root');
+    fs.mkdirSync(projectRoot, { recursive: true });
+    await initRuntimeOnly(projectRoot);
+
+    // Lock guidance must stay copy-pasteable for a root with a space and an
+    // apostrophe.
+    const lockPath = path.join(projectRoot, '.nullius', 'decisions.jsonl.lock');
+    fs.writeFileSync(lockPath, JSON.stringify({ pid: 999999999, ts: '2026-07-10T00:00:00Z' }), 'utf-8');
+    const expectedQuoted = `'${projectRoot.replaceAll("'", "'\\''")}'`;
+    await expect(
+      runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'blocked'], makeIo(projectRoot).io),
+    ).rejects.toThrow(`decision list --project-root ${expectedQuoted}`);
+    fs.rmSync(lockPath);
+
+    // Control characters in recorded text must not forge extra receipt lines.
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'pending', 'line one\nforged: looks-like-a-field\u001b[31m'], makeIo(projectRoot).io)).toBe(0);
+    const { io, stdout } = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'status'], io)).toBe(0);
+    const text = stdout.join('');
+    expect(text).toContain('line one\\nforged: looks-like-a-field\\u001b[31m');
+    expect(text).not.toContain('line one\nforged');
+
+    const list = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'list'], list.io)).toBe(0);
+    expect(list.stdout.join('')).toContain('\\nforged');
+  }, 20000);
+
   it('quarantines lines with invalid or truncated UTF-8 instead of admitting mutated text', async () => {
     const projectRoot = makeTempProjectRoot();
     await initRuntimeOnly(projectRoot);
@@ -741,7 +835,7 @@ describe('decision ledger', () => {
     expect(await runCli([`--project-root=${projectRoot}`, 'status'], io)).toBe(0);
     const text = stdout.join('');
     expect(text).toContain('decisions: 0 decided, 12 open');
-    expect(text).toContain('... and 2 more open (run: nullius decision list)');
+    expect(text).toContain(`... and 2 more open (run: nullius decision list --project-root '${projectRoot}')`);
   }, 20000);
 
   it('keeps the decision recorded when the ledger mirror append fails', async () => {

@@ -4,7 +4,7 @@ export const NULLIUS_PUBLIC_COMMAND_INVENTORY = [
   { command: 'verify', usage: 'nullius verify --run-id <id> --status <passed|failed|blocked> --summary \"...\" --evidence-path <path> [--evidence-path <path> ...]' },
   { command: 'final-conclusions', usage: 'nullius final-conclusions --run-id <id> [--note "..."]' },
   { command: 'proposal-decision', usage: 'nullius proposal-decision --proposal-kind <repair|skill|optimize|innovate> --proposal-id <id> --decision <accepted_for_later|dismissed|already_captured> [--note "..."]' },
-  { command: 'decision', usage: 'nullius decision <record|pending|list> ["<text>"] [--by <who>] [--resolves <id>] [--json]' },
+  { command: 'decision', usage: 'nullius decision record "<text>" [--by <who>] [--resolves <id>] | nullius decision pending "<text>" [--by <who>] | nullius decision list [--json]' },
   { command: 'status', usage: 'nullius status [--json]' },
   { command: 'approve', usage: 'nullius approve <approval_id> [--note "..."]' },
   { command: 'integrity-record', usage: 'nullius integrity-record --approval-id <id> --modes <M1[,M2,...]> --notes "<summary>" [--skip <Mx:reason>[,Mx:reason]...]' },

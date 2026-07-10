@@ -34,7 +34,7 @@
         },
         {
           "command": "decision",
-          "usage": "nullius decision <record|pending|list> [\"<text>\"] [--by <who>] [--resolves <id>] [--json]"
+          "usage": "nullius decision record \"<text>\" [--by <who>] [--resolves <id>] | nullius decision pending \"<text>\" [--by <who>] | nullius decision list [--json]"
         },
         {
           "command": "status",
