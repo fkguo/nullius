@@ -1,6 +1,6 @@
 ---
 name: referee-review
-description: Generate a clean-room, offline (no network) referee-review report with Markdown + strict JSON output (generic profile).
+description: Use when a manuscript or draft needs an independent referee-style assessment before submission, revision, or handoff. Generates a clean-room, offline (no network) referee-review report with Markdown + strict JSON output (generic profile).
 ---
 
 # Referee Review (generic, offline)

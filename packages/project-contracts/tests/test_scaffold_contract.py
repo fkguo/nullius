@@ -287,28 +287,38 @@ class TestScaffoldContract(unittest.TestCase):
         self.assertNotEqual(rejected.returncode, 0)
         self.assertIn(f"unrecognized arguments: {deprecated_flag}", rejected.stderr)
 
-    def test_project_index_and_research_plan_repeat_reconnect_discipline(self) -> None:
+    def test_user_owned_templates_point_to_agents_for_reconnect_protocol(self) -> None:
         agents_template = (scaffold_template_dir() / "AGENTS.md").read_text(encoding="utf-8")
         index_template = (scaffold_template_dir() / "project_index.md").read_text(encoding="utf-8")
         plan_template = (scaffold_template_dir() / "research_plan.md").read_text(encoding="utf-8")
         contract_template = (scaffold_template_dir() / "research_contract.md").read_text(encoding="utf-8")
 
-        templates = [
-            agents_template,
-            index_template,
-            plan_template,
-            contract_template,
-        ]
-        for template in templates:
-            self.assertIn("nullius status --json", template)
-            self.assertIn(".nullius/bin/nullius status --json", template)
-            self.assertIn("authoritative recovery briefing", template)
-            self.assertIn("research_notebook.md", template)
+        # The managed file (the only one `nullius init --refresh` rewrites)
+        # carries the full session-start / reconnect protocol.
+        self.assertIn("nullius status --json", agents_template)
+        self.assertIn(".nullius/bin/nullius status --json", agents_template)
         self.assertIn(".nullius/HARNESS", agents_template)
+        self.assertIn("authoritative recovery briefing", agents_template)
+        self.assertIn("nullius init --runtime-only", agents_template)
+
+        # User-owned seed files carry a pointer to AGENTS.md instead of a copy
+        # of the protocol: refresh never rewrites them, so any copied command
+        # goes stale (observed in real projects after an entrypoint rename).
+        for name, template in (
+            ("project_index.md", index_template),
+            ("research_plan.md", plan_template),
+            ("research_contract.md", contract_template),
+        ):
+            self.assertIn("lives in [AGENTS.md](AGENTS.md)", template, msg=name)
+            self.assertIn("nullius init --refresh", template, msg=name)
+            self.assertNotIn("nullius status --json", template, msg=name)
+            self.assertNotIn(".nullius/bin/nullius", template, msg=name)
+            self.assertNotIn("nullius init --runtime-only", template, msg=name)
+            self.assertNotIn("authoritative recovery briefing", template, msg=name)
+            self.assertIn("research_notebook.md", template, msg=name)
+
         self.assertIn("1) [project_index.md](project_index.md) — checked-in front door for restart and navigation", index_template)
         self.assertIn("2) [AGENTS.md](AGENTS.md) — workflow anchor, reconnect discipline, and output rules", index_template)
-        self.assertIn("If `.nullius/HARNESS` exists, start by running `.nullius/bin/nullius status --json`", index_template)
-        self.assertIn("repair the runtime handshake with `nullius init --runtime-only`", index_template)
         self.assertIn("# project_index.md\n", index_template)
         self.assertNotIn("# project_index.md (Template)", index_template)
         self.assertIn("organized by the research problem's logic", index_template)
@@ -329,9 +339,6 @@ class TestScaffoldContract(unittest.TestCase):
         ]:
             self.assertIn(field, plan_template)
         self.assertIn("not by appending a dated run log", plan_template)
-        self.assertIn("If `.nullius/HARNESS` exists, run `.nullius/bin/nullius status --json` first", plan_template)
-        self.assertIn("repair the runtime handshake with `nullius init --runtime-only`", plan_template)
-        self.assertIn("If `.nullius/HARNESS` exists, run `.nullius/bin/nullius status --json` before continuing", contract_template)
         self.assertIn("opt-in support layers", index_template)
         self.assertNotIn("[prompts/](prompts/)", index_template)
         self.assertNotIn("[team/](team/)", index_template)
@@ -339,23 +346,76 @@ class TestScaffoldContract(unittest.TestCase):
         self.assertNotIn("[prompts/](prompts/)", plan_template)
         self.assertNotIn("[team/](team/)", plan_template)
 
-    def test_superagent_handoff_protocol_semantics_are_repeated_on_root_scaffold_surfaces(self) -> None:
-        templates = {
-            "AGENTS.md": (scaffold_template_dir() / "AGENTS.md").read_text(encoding="utf-8"),
-            "project_index.md": (scaffold_template_dir() / "project_index.md").read_text(encoding="utf-8"),
-            "research_contract.md": (scaffold_template_dir() / "research_contract.md").read_text(encoding="utf-8"),
-        }
+    def test_handoff_protocol_semantics_live_in_managed_agents_file(self) -> None:
+        agents_template = (scaffold_template_dir() / "AGENTS.md").read_text(encoding="utf-8")
+        index_template = (scaffold_template_dir() / "project_index.md").read_text(encoding="utf-8")
+        contract_template = (scaffold_template_dir() / "research_contract.md").read_text(encoding="utf-8")
 
-        for name, template in templates.items():
-            self.assertIn("`nullius`", template, msg=name)
-            self.assertIn("guaranteed root entrypoint", template, msg=name)
-            self.assertIn("orchestration or MCP control-plane commands such as `orch_*`", template, msg=name)
-            self.assertIn("do not assume a literal `orch_*` command exists", template, msg=name)
-            self.assertIn("Provider/domain MCP tools are capability sources, not root authority", template, msg=name)
-            self.assertIn("do not treat provider MCPs such as `hep-mcp` as the generic root authority", template, msg=name)
-            self.assertIn("If any A1-A5 approval is pending, stop there.", template, msg=name)
-            self.assertIn("Silence is never approval.", template, msg=name)
-            self.assertIn("mark the state `uncertain`, `abstained`, `unavailable`, or as a reading gap", template, msg=name)
+        self.assertIn("`nullius`", agents_template)
+        self.assertIn("guaranteed root entrypoint", agents_template)
+        self.assertIn("orchestration or MCP control-plane commands such as `orch_*`", agents_template)
+        self.assertIn("do not assume a literal `orch_*` command exists", agents_template)
+        self.assertIn("Provider/domain MCP tools are capability sources, not root authority", agents_template)
+        self.assertIn("do not treat provider MCPs such as `hep-mcp` as the generic root authority", agents_template)
+        self.assertIn("If any A1-A5 approval is pending, stop there.", agents_template)
+        self.assertIn("Silence is never approval.", agents_template)
+        self.assertIn("mark the state `uncertain`, `abstained`, `unavailable`, or as a reading gap", agents_template)
+
+        # User-owned surfaces defer to the managed file instead of restating
+        # the handoff protocol; the contract keeps only its own epistemic rule.
+        for name, template in (
+            ("project_index.md", index_template),
+            ("research_contract.md", contract_template),
+        ):
+            self.assertNotIn("guaranteed root entrypoint", template, msg=name)
+            self.assertNotIn("orch_*", template, msg=name)
+            self.assertNotIn("Silence is never approval.", template, msg=name)
+        self.assertIn("mark the state `uncertain`, `abstained`, `unavailable`, or as a reading gap", contract_template)
+        self.assertIn("durable restart truth", contract_template)
+
+    def test_scaffold_agents_template_carries_verification_trigger_table(self) -> None:
+        template = (scaffold_template_dir() / "AGENTS.md").read_text(encoding="utf-8")
+
+        self.assertIn("## Verification triggers (event → workflow)", template)
+        self.assertIn("Verification runs on events, not on reminders", template)
+        self.assertIn("record the result as unverified instead of skipping the check silently", template)
+        for workflow in (
+            "`derivation-verify`",
+            "`numerical-reliability-gate`",
+            "`claim-grounding`",
+            "`citation-triangulation`",
+            "`figure-hygiene`",
+            "`physics-diagrams`",
+            "`julia-perf`",
+            "`review-swarm`",
+            "`research-integrity` M1-M7",
+        ):
+            self.assertIn(workflow, template)
+        for moment in (
+            "Derived a formula, closed form, identity",
+            "A computed number is about to be trusted, compared, or folded into durable artifacts",
+            "Wrote citation-backed claims (introduction, related work, discussion)",
+            "Freezing a bibliography",
+            "Finalized a data or results figure (once per generating script)",
+            "schematic, process, or geometry diagram",
+            "Claimed a speedup or performance regression",
+            "needs independent review",
+            "Before conclusions, a milestone closeout, or a handoff",
+        ):
+            self.assertIn(moment, template)
+        # The integrity row states where run evidence lands.
+        self.assertIn("land run evidence under `artifacts/runs/<run_id>/` or `team/runs/<run>/`", template)
+
+    def test_templates_recognize_team_runs_as_first_class_evidence_root(self) -> None:
+        agents_template = (scaffold_template_dir() / "AGENTS.md").read_text(encoding="utf-8")
+        contract_template = (scaffold_template_dir() / "research_contract.md").read_text(encoding="utf-8")
+
+        self.assertIn("first-class evidence roots", agents_template)
+        self.assertIn("`team/runs/<run>/`", agents_template)
+        self.assertIn("first-class evidence root alongside `artifacts/runs/<run_id>/`", contract_template)
+        self.assertIn("cite the path that actually holds", contract_template)
+        # The lifecycle artifact trio stays the canonical run record.
+        self.assertIn("Store meaningful run outputs under `artifacts/runs/<run_id>/`", contract_template)
 
     def test_research_contract_template_drops_legacy_host_surface_residue(self) -> None:
         template = (scaffold_template_dir() / "research_contract.md").read_text(encoding="utf-8")

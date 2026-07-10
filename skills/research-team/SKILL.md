@@ -1,6 +1,6 @@
 ---
 name: research-team
-description: "Milestone-based research-team workflow for theory+computation projects with reproducible artifacts, independent parallel workstreams (default: host-native subagents; configurable), and a strict convergence gate.\n"
+description: "Use when a research milestone (theory or computation) needs executed, reproducible work whose results are independently reviewed before being trusted. Milestone-based research-team workflow for theory+computation projects with reproducible artifacts, independent parallel workstreams (default: host-native subagents; configurable), and a strict convergence gate.\n"
 ---
 
 # Research Team (Lean Entry)
@@ -28,6 +28,7 @@ Use `research-team` when you want a project workflow with:
 ## Non-negotiable contracts (fail-fast)
 
 - **Strict convergence**: if either member reports mismatch/fail/needs revision, you must fix and rerun until converged (or explicitly narrow/kill as `SCOPE`/`MATCHING`).
+- **Symbolic claims route through `derivation-verify`**: when a converging milestone rests on a symbolic / derivation claim (a closed form, an identity, a sign/branch choice), the independent confirmation for that claim is at least two independent blind re-derivations via [`derivation-verify`](../derivation-verify/SKILL.md) — reviewer agreement that a written derivation "looks right" is not independent confirmation. Computed numbers route through `numerical-reliability-gate`, the sibling gate.
 - **Notebook split**: `research_notebook.md` is the human entry; `research_contract.md` is the machine-stable gate surface.
 - **Reproducibility Capsule (mandatory)**: `research_contract.md` must include a filled capsule block (between `<!-- REPRO_CAPSULE_START -->` and `<!-- REPRO_CAPSULE_END -->`).
 - **Sweep semantics (mandatory)**: capsule must include `### G) Sweep semantics / parameter dependence (MANDATORY)` (even if “no sweep”: declare baseline + held-fixed constants).
@@ -40,12 +41,15 @@ Use `research-team` when you want a project workflow with:
 - **Reproduction independence (full_access review; enforced whenever the `independent_reproduction_gate` feature is enabled — on in the shipped config template)**: an "independent reproduction" must not import / include / `using` the kernel under test, and the two members' reproduction paths must not share the same project-local module — agreement between copies of one kernel is a shared-error artifact, not a confirmation. Declare the modules under test in `independent_reproduction.kernel_modules` (a declared kernel is never allowlistable); the `check_independent_reproduction.py` gate fails closed with verdict `not_independent` (label `SHARED_KERNEL_INHERITANCE`) and emits a machine-readable `convergence_gate_result_v1` verdict — the caller does not self-judge independence. When two reproductions disagree, locate the first diverging intermediate quantity by tracing both paths; never settle a disagreement by majority vote, and never by re-running until agreement.
 - **Pointer lint (mandatory)**: code pointers in the notebook must be resolvable under the configured `pointer_lint.strategy`.
 - **No silent retries**: when a gate fails, stop, apply the minimal fix, rerun with a new tag (`M2-r2`, `M2-r3`, ...).
-- **Run artifact identity**: the canonical project artifact root is
-  `artifacts/runs/<run_id>/`. Use a safe, sortable, readable `run_id`, preferably
+- **Run artifact identity**: the canonical project artifact root for
+  lifecycle and compute runs is `artifacts/runs/<run_id>/`. Use a safe,
+  sortable, readable `run_id`, preferably
   `<YYYYMMDDTHHMMSSZ>-<milestone>-<short-topic>-rN`. `team/runs/<tag>/` is the
-  research-team reviewer packet/log surface; it is not the project artifact
-  SSOT unless the project explicitly mirrors or summarizes it under
-  `artifacts/runs/<run_id>/research_team/`.
+  research-team reviewer packet/log surface and a first-class evidence root in
+  its own right: contract claims may cite `team/runs/<tag>/...` paths directly.
+  Mirror or summarize under `artifacts/runs/<run_id>/research_team/` when a
+  milestone's headline evidence should live with the run record, not as a
+  precondition for citing it.
 - **Tag relation**: with `--auto-tag`, pass a meaningful base tag such as
   `20260502T023000Z-m3-branch-scan`; the resolved `<base>-rN` is the
   research-team cycle tag and may be used as the control-plane `run_id` for
@@ -99,10 +103,11 @@ Tip: add `--preflight-only` to run deterministic gates without calling external 
 By default, Member A and Member B should be assigned through the current host agent's official subagent mechanism with config-derived reasoning depth. `run_team_cycle.sh` keeps CLI compatibility runners for shell-only environments; use `--member-a-runner-kind` / `--member-b-runner-kind` or `research_team_config.json` only when you explicitly want a provider-specific CLI runner.
 Keep `--out-dir` on a real-project path as well; do not point real-project team outputs back into the development repo.
 The command above writes reviewer-cycle packets and logs under `team/runs/<tag>/`.
-Durable research outputs and claims should point to the canonical project root
-`artifacts/runs/<run_id>/`; when the team cycle is evidence for that run, record
-or summarize it under `artifacts/runs/<run_id>/research_team/` and keep the
-`team/runs/<tag>/` paths as reviewer provenance.
+`team/runs/<tag>/` is a first-class evidence root: durable claims may cite its
+paths directly, alongside the canonical lifecycle root `artifacts/runs/<run_id>/`.
+When a milestone's headline evidence should live with the run record, record or
+summarize it under `artifacts/runs/<run_id>/research_team/`; otherwise keep the
+`team/runs/<tag>/` paths as the cited reviewer provenance.
 
 **Workspace disk policy**: `team/runs/<tag>/workspaces/` contains per-member
 project snapshots that the reviewer subprocess runs against. They can grow

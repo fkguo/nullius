@@ -4,7 +4,7 @@
   "repo": "nullius/skills-market",
   "channel": "dev",
   "version": "0.1.0",
-  "summary": "Pre-approval AI failure-mode checklist (M1-M7) for research agents. Generic across domains; runs before A1-A5 approval gates, before folding results into durable artifacts, and before handoff.",
+  "summary": "AI failure-mode checklist (M1-M7) for research agents. Generic across domains; runs at the moments work becomes durable — folding a number or claim into the plan or contract, checking off a task-board item, a milestone closeout commit, handoff or submission material — and before A1-A5 approval gates in projects using the engine's approval flow.",
   "platforms": [
     "claude_code",
     "codex",

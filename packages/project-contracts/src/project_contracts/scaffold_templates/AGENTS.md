@@ -16,12 +16,28 @@ Use it as the restart checklist before any new milestone, context switch, or lon
 
 - Human notebook: `research_notebook.md`
 - Machine contract: `research_contract.md`
-- Evidence-first: every meaningful action writes auditable artifacts under `artifacts/runs/<run_id>/`.
+- Evidence-first: every meaningful action writes auditable artifacts under `artifacts/runs/<run_id>/` (lifecycle and compute runs) or `team/runs/<run>/` (milestone-executor review cycles); both are first-class evidence roots — cite the one that actually holds the evidence.
 - `run_id` names the project-local research run. Prefer a safe, sortable, readable shape such as `<YYYYMMDDTHHMMSSZ>-<milestone>-<short-topic>-rN`; do not use bare UUIDs, `run_<uuid>`, path separators, `..`, or low-information generated names as human-facing run IDs.
 - Approval checkpoints: final-conclusion approval (A5) is always enforced through the finalize flow. Heavy-compute approval (A3) is opt-in — off by default so interactive work is not paused; set `require_approval_for.compute_runs: true` in `.nullius/approval_policy.json` to gate unattended runs. A1/A2/A4 (broad search, code/logic changes, manuscript edits) are advisory reminders, not hard blocks.
 - Keep `research_plan.md#Current Status` current enough that a researcher can see the final target, completion state, blocker, next step, and stop condition without reading the full log.
 - Keep the task board in `research_plan.md` current enough that a new agent run can resume without relying on memory.
 - Keep `research_notebook.md` organized by the problem's logic. Do not use it for status tracking. Do not append large dated run logs there; put run logs in `research_plan.md` progress entries or `artifacts/runs/<run_id>/`, then fold durable insights into the relevant notebook sections.
+
+## Verification triggers (event → workflow)
+
+Verification runs on events, not on reminders: each moment below is the trigger, and each names the workflow that gates that kind of result. When the host agent exposes the named skill, run it at that moment without waiting to be asked; when it does not, record the result as unverified instead of skipping the check silently.
+
+| The moment | Verification workflow |
+|---|---|
+| Derived a formula, closed form, identity, or a sign/branch/boundary choice that later work will rely on | `derivation-verify` — at least two independent blind re-derivations |
+| A computed number is about to be trusted, compared, or folded into durable artifacts | `numerical-reliability-gate` — convergence, independent methods, regression anchor |
+| Wrote citation-backed claims (introduction, related work, discussion) | `claim-grounding` — fetch each cited source and verify it supports the claim |
+| Freezing a bibliography, or admitting papers into a core reading set | `citation-triangulation` — cross-index metadata agreement per entry |
+| Finalized a data or results figure (once per generating script) | `figure-hygiene` — data fidelity and legibility checklist |
+| Drew or revised a schematic, process, or geometry diagram | `physics-diagrams` — layout and publication-readiness audit |
+| Claimed a speedup or performance regression, or wrote performance-critical numerical code | `julia-perf` — language-scoped benchmark gating; use an equivalent gate for other languages |
+| A result, manuscript, derivation, or diff needs independent review | `review-swarm` — clean-room cross-model review |
+| Before conclusions, a milestone closeout, or a handoff | `research-integrity` M1-M7 — record the outcome inline and land run evidence under `artifacts/runs/<run_id>/` or `team/runs/<run>/` |
 
 ## Scientific writing discipline
 
