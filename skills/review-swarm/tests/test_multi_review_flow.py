@@ -184,6 +184,8 @@ class MultiReviewFlowTests(unittest.TestCase):
                 "auto",
                 "--fallback-order",
                 "claude",
+                "--fallback-target-backends",
+                "gemini",
                 "--no-parallel",
             ]
             code = _run_main_with_argv(self.mod, argv)
@@ -234,6 +236,8 @@ class MultiReviewFlowTests(unittest.TestCase):
                 "--check-review-contract",
                 "--fallback-mode",
                 "ask",
+                "--fallback-target-backends",
+                "gemini",
                 "--no-parallel",
             ]
             code = _run_main_with_argv(self.mod, argv)

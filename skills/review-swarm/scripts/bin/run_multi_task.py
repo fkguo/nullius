@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-# CONTRACT-EXEMPT: CODE-01.1 sunset:2026-06-01 — multi-backend orchestrator; split into backend modules planned
+# CONTRACT-EXEMPT: CODE-01.1 sunset:2026-12-01 — kept as a single stable launcher facade: two external
+# consumers pin this file by path (skills/derivation-verify/scripts/run_multi_backend.py and
+# skills/idea-pairwise-match/scripts/run_panel.py), and review_one.py delegates into main() so there is
+# exactly one orchestration path. Mechanical extraction into backend modules is deferred until a consumer
+# actually needs modularity; splitting now would only churn the pinned path without any consumer benefit.
 """
 run_multi_task.py
 
@@ -1166,6 +1170,7 @@ def _finalize_two_phase_result(result: dict[str, Any], *, trace_path: Path) -> N
     failure = info.get("failure")
     if failure:
         result["failure_reason"] = failure
+        result["failure_class"] = _classify_failure(str(failure))
         result["success"] = False
     elif result.get("success"):
         phase1_path = Path(str(info.get("phase1_out", "")))
@@ -1193,6 +1198,71 @@ def _finalize_two_phase_result(result: dict[str, Any], *, trace_path: Path) -> N
             "failure": info.get("failure"),
         },
     )
+
+
+# --- Failure classification (infrastructure vs content) ---
+#
+# An INFRASTRUCTURE failure means the backend never delivered reviewable
+# content: the CLI timed out, crashed (nonzero exit), or exited 0 with an empty
+# output file — including a failed/empty phase-1 call in the two-phase
+# protocol. These are retry/outage signals. A CONTENT failure means the backend
+# answered but the answer failed a protocol check (e.g. an unparseable phase-1
+# criteria block); re-running is a judgment call, not an outage signal. The
+# distinction keeps a degraded run legible as "backend down", never mistaken
+# for review disagreement (same pattern as derivation-verify's backend
+# availability tracker).
+_INFRASTRUCTURE_FAILURE_REASONS = {
+    "timeout",
+    "empty_output",
+    "phase1_command_failed",
+    "phase1_empty_output",
+}
+
+
+def _classify_failure(failure_reason: Optional[str]) -> Optional[str]:
+    if failure_reason is None:
+        return None
+    reason = str(failure_reason)
+    if reason in _INFRASTRUCTURE_FAILURE_REASONS or reason.startswith("exit_code_"):
+        return "infrastructure"
+    # Everything else — e.g. phase1_criteria_invalid, and any unknown future
+    # reason — is "content": misreading a disagreement as an outage would hide
+    # review signal, which is the worse error.
+    return "content"
+
+
+def _unavailable_backend_summary(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Requested model specs whose every run this invocation failed at the
+    infrastructure level (timeout / crash exit / empty output).
+
+    A fallback-recovered run counts by its ORIGINAL failure (``fallback_reason``):
+    the requested backend was still unreachable even if another backend covered
+    for it. Specs listed here describe a backend outage, not review content."""
+    reasons_by_spec: dict[str, list[Optional[str]]] = {}
+    for r in results:
+        requested = r.get("requested") if isinstance(r.get("requested"), dict) else {}
+        spec = str(requested.get("model") or r.get("model") or "")
+        if not spec:
+            continue
+        if r.get("variant") == "fallback":
+            original_reason = r.get("fallback_reason")
+        else:
+            original_reason = r.get("failure_reason")
+        reasons_by_spec.setdefault(spec, []).append(
+            str(original_reason) if original_reason is not None else None
+        )
+    summary: list[dict[str, Any]] = []
+    for spec in sorted(reasons_by_spec):
+        reasons = reasons_by_spec[spec]
+        if reasons and all(_classify_failure(reason) == "infrastructure" for reason in reasons):
+            summary.append(
+                {
+                    "spec": spec,
+                    "runs": len(reasons),
+                    "failure_reasons": sorted({str(reason) for reason in reasons}),
+                }
+            )
+    return summary
 
 
 def _postprocess_result(
@@ -1237,20 +1307,31 @@ def _postprocess_result(
     # contract_ok/contract_errors for downstream consumers but never blocks.
 
     result["failure_reason"] = failure_reason
+    result["failure_class"] = _classify_failure(failure_reason)
     result["success"] = failure_reason is None
     return result
 
 
+def _requested_backend(result: dict[str, Any]) -> str:
+    req = result.get("requested")
+    backend = req.get("backend") if isinstance(req, dict) else result.get("backend")
+    return str(backend or "")
+
+
 def _dual_review_summary(results: list[dict[str, Any]]) -> Optional[dict[str, Any]]:
-    reviewer_a = None
-    reviewer_b = None
+    """Two-reviewer diversity summary over the first two reviewers (by index)
+    whose REQUESTED backends differ — any backend pair counts, not a fixed
+    seat assignment. Diversity degrades when the RESOLVED backends coincide
+    (e.g. one reviewer fell back onto the other's backend)."""
+    reviewer_a: Optional[dict[str, Any]] = None
+    reviewer_b: Optional[dict[str, Any]] = None
     for r in results:
-        req = r.get("requested")
-        backend = req.get("backend") if isinstance(req, dict) else r.get("backend")
-        if backend == "claude" and reviewer_a is None:
+        if reviewer_a is None:
             reviewer_a = r
-        if backend == "gemini" and reviewer_b is None:
+            continue
+        if _requested_backend(r) != _requested_backend(reviewer_a):
             reviewer_b = r
+            break
     if reviewer_a is None or reviewer_b is None:
         return None
 
@@ -1520,6 +1601,22 @@ def _parse_args() -> argparse.Namespace:
         default=_DEFAULT_TIMEOUT_SECS,
         help=f"Per-backend timeout seconds (0 disables, default: {_DEFAULT_TIMEOUT_SECS}).",
     )
+    ap.add_argument(
+        "--retry-empty-output",
+        type=int,
+        default=0,
+        metavar="N",
+        help=(
+            "Orchestrator-level re-runs for an agent whose runner exited 0 but wrote an "
+            "empty output file (default: 0 — disabled, so existing callers of this "
+            "launcher keep their behavior; review_one.py passes 1 explicitly). When "
+            "enabled, retries run before fallback is considered and before the agent is "
+            "recorded as empty_output. In two-phase mode a phase-1 empty output "
+            "(phase1_empty_output) is classified as an infrastructure failure but is NOT "
+            "auto-retried by this flag, and --two-phase rejects fallback — recover it "
+            "with a manual same-model rerun."
+        ),
+    )
 
     guard = ap.add_mutually_exclusive_group()
     guard.add_argument("--max-prompt-bytes", type=int, help="Optional per-file max prompt size in bytes.")
@@ -1578,8 +1675,11 @@ def _parse_args() -> argparse.Namespace:
     )
     ap.add_argument(
         "--fallback-target-backends",
-        default="gemini",
-        help="Comma-separated backends that can trigger fallback (default: gemini).",
+        default="",
+        help=(
+            "Comma-separated backends allowed to trigger fallback. No default: "
+            "required (explicitly chosen) whenever --fallback-mode is ask or auto."
+        ),
     )
     ap.add_argument(
         "--fallback-codex-model",
@@ -1654,6 +1754,8 @@ def main() -> int:
             raise ValueError("--max-prompt-chars must be a positive integer")
         if args.timeout_secs < 0:
             raise ValueError("--timeout-secs must be >= 0")
+        if args.retry_empty_output < 0:
+            raise ValueError("--retry-empty-output must be >= 0")
         if not (0.0 <= args.convergence_threshold <= 1.0):
             raise ValueError("--convergence-threshold must be between 0 and 1")
         if args.fallback_mode != "off" and not fallback_order:
@@ -1677,6 +1779,12 @@ def main() -> int:
             _require_file(scope_prompt, label="Scope prompt")
         elif str(args.scope_prompt or "").strip():
             raise ValueError("--scope-prompt requires --two-phase")
+
+        if args.fallback_mode != "off" and not fallback_targets:
+            raise ValueError(
+                "--fallback-mode ask/auto requires explicit --fallback-target-backends "
+                "(comma-separated backends allowed to trigger fallback; there is no default target)"
+            )
 
         prompt_entries, prompt_json_system_entries, prompt_json_output_entries = _expand_backend_prompt_json_entries(
             args.backend_prompt
@@ -2023,6 +2131,62 @@ def main() -> int:
         for r in results:
             _finalize_two_phase_result(r, trace_path=trace_path)
 
+    # Empty-output resilience: a runner that exits 0 but writes an empty file is
+    # an infrastructure hiccup, not a review verdict. Re-run that agent (same
+    # spec, same output path) up to --retry-empty-output times BEFORE fallback
+    # is considered and before the agent is recorded as empty_output. Additive:
+    # retried agents gain an "empty_output_retries" count in their result record.
+    if int(args.retry_empty_output) > 0:
+        spec_by_index = {spec[0].index: spec for spec in run_specs}
+        for r in results:
+            spec = spec_by_index.get(int(r.get("index", -1)))
+            if spec is None:
+                continue
+            plan, plan_system, plan_prompt, plan_out, plan_gemini_cli_home, plan_gemini_review_profile = spec
+            attempts = 0
+            while attempts < int(args.retry_empty_output) and r.get("failure_reason") == "empty_output":
+                attempts += 1
+                _append_jsonl(
+                    trace_path,
+                    {
+                        "ts": _utc_now(),
+                        "event": "empty_output_retry",
+                        "index": plan.index,
+                        "backend": plan.backend,
+                        "model": plan.requested_model,
+                        "attempt": attempts,
+                        "max_attempts": int(args.retry_empty_output),
+                    },
+                )
+                rerun = agent_fn(
+                    plan=plan,
+                    out_dir=out_dir,
+                    output_prefix=args.output_prefix,
+                    system=plan_system,
+                    prompt=plan_prompt,
+                    trace_path=trace_path,
+                    opencode_agent=args.agent or None,
+                    opencode_variant=args.variant or None,
+                    backend_tool_modes=backend_tool_modes,
+                    review_workspace_dir=review_workspace_dir,
+                    gemini_cli_home=plan_gemini_cli_home,
+                    gemini_review_profile=plan_gemini_review_profile,
+                    timeout_secs=int(args.timeout_secs),
+                    output_path=plan_out,
+                    **two_phase_extra,
+                )
+                r["command_success"] = bool(rerun.get("success", False))
+                r["exit_code"] = rerun.get("exit_code")
+                r["timed_out"] = bool(rerun.get("timed_out"))
+                r["out"] = rerun.get("out", r.get("out"))
+                if "two_phase" in rerun:
+                    r["two_phase"] = rerun["two_phase"]
+                _postprocess_result(r, check_review_contract=bool(args.check_review_contract))
+                if args.two_phase:
+                    _finalize_two_phase_result(r, trace_path=trace_path)
+            if attempts:
+                r["empty_output_retries"] = attempts
+
     fallback_candidates = [
         r for r in results if r.get("failure_reason") and str((r.get("requested") or {}).get("backend")) in fallback_targets
     ]
@@ -2174,6 +2338,10 @@ def main() -> int:
         "failure_count": len(plans) - success_count,
         "models": [p.requested_model for p in plans],
         "agents": results,
+        # Requested specs whose runs ALL failed at the infrastructure level
+        # (timeout / crash exit / empty output): a degraded run reads as a
+        # backend outage, never as review disagreement.
+        "unavailable_backends": _unavailable_backend_summary(results),
         "paths": {
             "trace": str(trace_path),
             "outputs": [r.get("out", "") for r in results],

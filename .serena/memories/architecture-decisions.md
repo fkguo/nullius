@@ -675,3 +675,13 @@
 - New decision-layer contracts `pairwise_match_v1` and `allocation_decision_v1` live in the engine-local contract directory for cross-workstream consumption; the unused generated `idea_runtime_rpc_v1.bundled.json` (zero readers, no generator) is deleted.
 
 **Why**: The restart replaces heuristic multi-dimensional scoring (the "elo" placeholder never ranked on real signal) with probability management over source-grounded sub-criteria: beliefs live in an external argument-graph tool, the engine stores posteriors and orderings, and investment allocation belongs to a separate decision layer (Thompson sampling over posteriors). Keeping search-era surfaces alive as pseudo-compatibility truth would recreate the split-brain the pre-release no-backward-compatibility policy exists to prevent.
+
+### [2026-07-10] review-swarm launcher facade invariant: run_multi_task.py stays one file while external consumers pin it by path
+
+**Decision**:
+- `skills/review-swarm/scripts/bin/run_multi_task.py` keeps its `CONTRACT-EXEMPT: CODE-01.1` marker, renewed with sunset 2026-12-01: the file is deliberately maintained as a single stable launcher facade, not an overdue split.
+- The load-bearing reasons: two external skill consumers pin the file by path (`skills/derivation-verify/scripts/run_multi_backend.py` and `skills/idea-pairwise-match/scripts/run_panel.py` both resolve `review-swarm/scripts/bin/run_multi_task.py` relative to the installed skills root), and `scripts/check-literature-to-package-anti-drift.mjs` reads `review_contract.py` constants as a mirror-sync source of truth.
+- New single-reviewer entry `review_one.py` delegates by constructing argv and calling the launcher's `main()` — one orchestration path; it must not grow a second runner/timeout/artifact pipeline.
+- Mechanical extraction into backend modules is deferred until a consumer actually needs modularity; splitting before then would churn the pinned path and the split pieces would have exactly one caller each.
+
+**Why**: The launcher's value to its consumers is path and CLI-flag stability: cross-backend runner discovery, per-backend read-only tool modes, process-group timeouts, on-disk audit artifacts (`trace.jsonl`, `meta.json`), and the review-contract check all live behind one entrypoint that other skills invoke as a subprocess by absolute path. A module split would satisfy a line-count rule while invalidating the pinned paths and duplicating the orchestration surface — the opposite of the stability the consumers depend on. The exemption is therefore renewed with an honest reason and a fresh sunset instead of being left expired.
