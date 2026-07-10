@@ -65,7 +65,7 @@ nullius workflow-plan --recipe research_brainstorm --run-id 20260502T023000Z-m0-
 
 研究记录约定：`research_plan.md#Current Status` 是给人看的状态入口，应在长 task board / log 之前写清最终目标、当前阶段、完成状态、阻塞、下一步、停止条件和证据指针；`research_notebook.md` 按问题逻辑、推导、claim 和不确定性组织，不承载状态追踪。重要文献 note 必须全文/source-first 阅读，记录 section/page/equation/figure 覆盖，并用 LaTeX math 写科学记号；带日期的 run log、原始检索摘要、下载尝试和控制面观察写入 `research_plan.md` progress log 或 `artifacts/runs/<run_id>/`，再把稳定理解折回 notebook。`run_id` 应是 safe、sortable、readable 的研究标识，如 `20260502T023000Z-m3-branch-scan-r1`；若 `workflow-plan` 未显式传 `--run-id`，派生的 `<recipe>-<phase>` 只作为 planning placeholder。
 
-`research-team` 的 `team/runs/` 是执行与 reviewer packet/log surface，不是最终项目真相。稳定结论必须折回 `research_contract.md`、`research_plan.md#Current Status` 和对应 `artifacts/runs/<run_id>/` 后，才算完成交接。
+`research-team` 的 `team/runs/` 是执行与 reviewer packet/log surface，同时也是与 `artifacts/runs/<run_id>/` 并列的一等证据根：claim 可以直接引用 `team/runs/<run>/` 下的证据路径。但它不是最终项目真相——稳定结论必须折回 `research_contract.md` 与 `research_plan.md#Current Status`（证据指针指向实际存放证据的根），才算完成交接。
 
 ## Draft Path（最简路径）
 

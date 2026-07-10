@@ -21,16 +21,9 @@ Keep narrative reasoning, interpretation, and human-readable notes in [research_
 
 ## Restart And Status Rule
 
-- If `.nullius/HARNESS` exists, run `.nullius/bin/nullius status --json` before continuing after a new session, reconnect, interruption, context reset, handoff, milestone start, or closeout.
-- If `.nullius/` exists but `.nullius/HARNESS` is missing, run `nullius status --json` first, then repair the runtime handshake with `nullius init --runtime-only`.
-- If `nullius` is unavailable on `PATH`, run `.nullius/bin/nullius status --json` instead.
-- Treat `nullius` as the guaranteed root entrypoint for this scaffold.
-- Treat that status output as the authoritative recovery briefing.
-- When the host exposes orchestration or MCP control-plane commands such as `orch_*`, those host-local surfaces may be used as optional control planes; do not assume a literal `orch_*` command exists in every scaffolded project.
-- Provider/domain MCP tools are capability sources, not root authority; do not treat provider MCPs such as `hep-mcp` as the generic root authority.
-- If any A1-A5 approval is pending, stop there. Silence is never approval.
+- The session-start, reconnect, recovery, and approval-boundary protocol lives in [AGENTS.md](AGENTS.md), the managed scaffold file that `nullius init --refresh` keeps current. Follow it there after a new session, reconnect, interruption, context reset, handoff, milestone start, or closeout; this file deliberately carries no copy of the protocol commands, because copies in user-owned files go stale.
 - If evidence is incomplete, mark the state `uncertain`, `abstained`, `unavailable`, or as a reading gap instead of writing a stronger conclusion.
-- Then re-read [project_index.md](project_index.md), [AGENTS.md](AGENTS.md), [project_charter.md](project_charter.md), [research_plan.md](research_plan.md), and this file before resuming.
+- After the protocol, re-read [project_index.md](project_index.md), [AGENTS.md](AGENTS.md), [project_charter.md](project_charter.md), [research_plan.md](research_plan.md), and this file before resuming.
 - Read [research_notebook.md](research_notebook.md) when it already contains substantive content.
 - Optional host/provider/support surfaces are used only when this project explicitly creates them; this contract and `.nullius/` state remain the durable restart truth.
 
@@ -57,6 +50,13 @@ Keep narrative reasoning, interpretation, and human-readable notes in [research_
   versions, produced files), `summary.json` (derived statistics, definitions, or
   aggregation rules), and `analysis.json` (headline results plus the pointers
   that justify them).
+- `team/runs/<run>/` (written by milestone-executor review cycles) is a
+  first-class evidence root alongside `artifacts/runs/<run_id>/`. A claim may
+  cite evidence from either root directly; cite the path that actually holds
+  the evidence instead of copying files between roots. Mirroring into
+  `artifacts/runs/<run_id>/` is optional: do it when the source location is
+  transient, or when a milestone's headline evidence should live with the run
+  record.
 - Choose `run_id` as a project-local research identity, not as an opaque machine
   identity. Prefer `<YYYYMMDDTHHMMSSZ>-<milestone>-<short-topic>-rN`, for
   example `20260502T023000Z-m3-branch-scan-r1`.

@@ -1,6 +1,6 @@
 ---
 name: claim-grounding
-description: Active statement-support grounding for cited claims. For each claim that leans on a citation, fetch the cited source and verify its CONTENT actually substantiates the claim — recording a span-backed verdict in a claim_grounding_report_v1 artifact. Generic across domains; routes HEP claims through INSPIRE and everything else through arXiv/OpenAlex. Run before promoting an idea, folding claims into durable artifacts, or requesting final conclusions.
+description: Active statement-support grounding for cited claims. For each claim that leans on a citation, fetch the cited source and verify its CONTENT actually substantiates the claim — recording a span-backed verdict in a claim_grounding_report_v1 artifact. Generic across domains; routes HEP claims through INSPIRE and everything else through arXiv/OpenAlex. Run right after writing citation-backed prose (an introduction, related-work, or discussion section), before folding cited claims into durable artifacts, and before final conclusions.
 ---
 
 # Claim Grounding (statement-support verification)

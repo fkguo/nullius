@@ -54,10 +54,12 @@ bash "${SKILL_DIR}/scripts/bin/run_team_cycle.sh" \
 
 `--auto-tag` 会把有意义的 base tag 解析成 `<base>-rN`。如果这一轮对应
 `nullius` control-plane run，就把解析后的同一个值作为项目本地
-`run_id`。canonical artifact root 是 `artifacts/runs/<run_id>/`；
-`team/runs/<tag>/` 只是 research-team reviewer packet/log surface，除非项目
-明确把它镜像或摘要到 `artifacts/runs/<run_id>/research_team/`，否则不要把它当成
-artifact SSOT。不要把裸 UUID 或 `run_<uuid>` 当作给人看的研究 tag。
+`run_id`。lifecycle run 的 canonical artifact root 是 `artifacts/runs/<run_id>/`；
+`team/runs/<tag>/` 是 research-team reviewer packet/log surface，同时也是与之
+并列的一等证据根：contract claim 可以直接引用它的路径。当某个 milestone 的
+headline 证据应当与 run 记录放在一起时，可镜像或摘要到
+`artifacts/runs/<run_id>/research_team/`——这是可选项，不是引用该证据的前提。
+不要把裸 UUID 或 `run_<uuid>` 当作给人看的研究 tag。
 
 ## 只跑确定性 preflight（不调用外部 LLM；适合 CI/无网环境）
 

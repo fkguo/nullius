@@ -46,6 +46,7 @@ bash "${SKILL_DIR}/scripts/run_codex.sh" \
 - The runner intentionally does **not** pass codex's deprecated `--full-auto` flag: in codex ≥0.140 `--full-auto` implies `--sandbox workspace-write` and would silently override the read-only default, giving a reviewer write access. To allow writes, request the write sandbox explicitly with `--sandbox workspace-write`.
 - System prompt + user prompt are merged and fed via stdin to avoid ARG_MAX limits with large prompt files.
 - `--output-last-message` (`-o`) captures the agent's final response to the output file.
+- **Danger: `--out` OVERWRITES its target on every invocation, including retries.** Never point `--out` at a file whose current content matters: a rerun or follow-up call that returns a short summary silently replaces whatever an earlier run wrote there (a real multi-hundred-line deliverable has been lost to a 13-line summary this way). Recommended pattern: have the prompt instruct the agent to write deliverables to their own separate files, and use `--out` only to collect the final summary message.
 - `--skip-git-repo-check` is enabled by default so the runner works from any directory.
 - Retries on failure with exponential backoff (useful for transient API errors).
 - For offline/CI validation, use `--dry-run` to print the planned invocation without calling Codex.
@@ -80,7 +81,7 @@ sessions whose independence you need to preserve.
 | `--model MODEL` | (from config.toml) | Model override (e.g. `o3`, `gpt-4.1`) |
 | `--system-prompt-file FILE` | (none) | Optional system instructions file |
 | `--prompt-file FILE` | **required** | User prompt file |
-| `--out PATH` | **required** | Output file for agent's last message |
+| `--out PATH` | **required** | Output file for agent's last message (**overwritten on every invocation** — see Notes; keep deliverables in separate files) |
 | `--sandbox MODE` | `read-only` | Sandbox policy: `read-only`, `workspace-write`, `danger-full-access` |
 | `--profile PROFILE` | (none) | Config profile from config.toml |
 | `--config KEY=VALUE` | (none) | Repeatable `-c` overrides for config.toml values |

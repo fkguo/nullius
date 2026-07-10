@@ -98,6 +98,21 @@ node /absolute/path/to/nullius/packages/orchestrator/dist/cli.js init --runtime-
 - If the task is physics or adjacent scientific literature research, evidence, INSPIRE/arXiv/OpenAlex provider lookup, source reading, bibliography, or export support, use `hep-mcp`. Web search may supplement broad discovery, but it does not replace the provider citation graph gate below.
 - If the task is lifecycle, verification, approval, pause/resume, final conclusions, or export, keep it on `nullius`.
 
+**Verification dispatch by result type.** This uses the same event → workflow vocabulary as the trigger table the scaffolded `AGENTS.md` carries (extended here with two harness-local rows, literature survey and prose; the integrity boundary lives in Closeout below); run the matching workflow at the moment the result appears, not on user reminder, and record the result as unverified when the named skill is unavailable:
+
+| Result type | The moment | Verification workflow |
+|---|---|---|
+| Symbolic derivation | derived a formula, closed form, identity, or a sign/branch/boundary choice that later work will rely on | [`derivation-verify`](../derivation-verify/SKILL.md) |
+| Numerical result | a computed number is about to be trusted, compared, or folded into durable artifacts | [`numerical-reliability-gate`](../numerical-reliability-gate/SKILL.md) |
+| Citation-backed claim | wrote citation-backed claims (introduction, related work, discussion) | [`claim-grounding`](../claim-grounding/SKILL.md) |
+| Bibliography | freezing a bibliography, or admitting papers into a core reading set | [`citation-triangulation`](../citation-triangulation/SKILL.md) |
+| Literature survey | a survey feels thin, or before writing an introduction / related-work section | [`deep-literature-review`](../deep-literature-review/SKILL.md) |
+| Data figure | finalized a data or results figure (once per generating script) | [`figure-hygiene`](../figure-hygiene/SKILL.md) |
+| Schematic diagram | drew or revised a schematic, process, or geometry diagram | [`physics-diagrams`](../physics-diagrams/SKILL.md) |
+| Performance claim | claimed a speedup or performance regression, or wrote performance-critical numerical code | [`julia-perf`](../julia-perf/SKILL.md) (language-scoped; use an equivalent gate for other languages) |
+| Independent review | a result, manuscript, derivation, or diff needs independent review | [`review-swarm`](../review-swarm/SKILL.md) |
+| Prose / notes | Markdown math, TOC, links, or note hygiene before a handoff or gate | [`markdown-hygiene`](../markdown-hygiene/SKILL.md) |
+
 Do not invent compatibility commands or fallback entrypoints. Keep lifecycle work on `nullius` and route executor or provider work to the relevant skill/tool layer.
 
 ## Long-Running Compute Jobs
@@ -220,14 +235,22 @@ If `hep-mcp` or a needed provider is unavailable, state that limitation explicit
 
 ## Fold Results Back
 
-`research-team` output is not complete while it only lives in `team/runs`.
+`research-team` output is not complete while it only lives in `team/runs` as an unreferenced log: the durable conclusion must land in the project contract and plan, with evidence pointers. `team/runs/<run>/` itself is a first-class evidence root alongside `artifacts/runs/<run_id>/` — cite the path that actually holds the evidence; do not copy files between roots just to satisfy a pointer convention.
 
-After a milestone or run produces a stable result:
+After a milestone or run produces a stable result, gate each result by its type before folding it (the Route The Work dispatch table above, applied at the fold boundary):
 
-- Fold in only numbers that pass the [`numerical-reliability-gate`](../numerical-reliability-gate/SKILL.md) — converged under refinement (no coarse-grid mirage), agreed across `>=2` orthogonal methods, and regression-anchored. A coarse, intermediate, or non-converged value is labeled as such or discarded, never silently promoted.
+- A computed number passes the [`numerical-reliability-gate`](../numerical-reliability-gate/SKILL.md) — converged under refinement (no coarse-grid mirage), agreed across `>=2` orthogonal methods, and regression-anchored. A coarse, intermediate, or non-converged value is labeled as such or discarded, never silently promoted.
+- A derived formula, identity, or sign/branch choice passes [`derivation-verify`](../derivation-verify/SKILL.md) (at least two independent blind re-derivations) before downstream work consumes it.
+- A citation-backed claim passes [`claim-grounding`](../claim-grounding/SKILL.md); a bibliography being frozen passes [`citation-triangulation`](../citation-triangulation/SKILL.md).
+- A data figure passes [`figure-hygiene`](../figure-hygiene/SKILL.md) (once per generating script); a schematic diagram passes [`physics-diagrams`](../physics-diagrams/SKILL.md).
+- A speedup or performance claim passes its reproducible benchmark gate ([`julia-perf`](../julia-perf/SKILL.md) for Julia code; an equivalent gate for other languages).
+- Walk the [`research-integrity`](../research-integrity/SKILL.md) M1-M7 checklist immediately before the fold itself.
+
+Then land the folded result:
+
 - Summarize the durable conclusion in `research_contract.md`.
 - Update `research_plan.md#Current Status` with the current state, next step, blockers, and evidence pointers.
-- Link or copy the relevant run evidence under `artifacts/runs/<run_id>/`.
+- Cite the relevant run evidence where it lives — under `artifacts/runs/<run_id>/` or `team/runs/<run>/`. Mirroring into `artifacts/runs/<run_id>/` is optional: do it when the source location is transient, or when a milestone's headline evidence should live with the run record.
 - Preserve unresolved questions as explicit blockers rather than burying them in chat or transient team logs.
 - At a milestone handoff or stakeholder plan-summary, produce a **roadmap dependency-map** (summary table + milestone/lane dependency graph + binding-constraint + critical path) via `research-team` (`assets/roadmap_dependency_map_template.md`, rendered with `nullius graph --kind roadmap`). It is a planning view — distinct from the Claim DAG and from `research_plan.md#Current Status`, and it makes "what gates what / what caps feasibility / shortest route to the goal" legible to whoever picks up the work next.
 
@@ -244,12 +267,34 @@ nullius export --run-id <run_id>
 
 Use the command that matches the project state. If approval is pending, stop at the approval boundary and report the exact approval id and evidence path.
 
-Before invoking `nullius approve` for any A1-A5 gate (and before
-folding a result into `research_contract.md` or
-`research_plan.md#Current Status`), run the `research-integrity` skill's
-M1-M7 pre-approval ritual. M1-M7 is the agent-side discipline that
+Run the `research-integrity` skill's M1-M7 checklist at the moments
+work becomes durable. These triggers are observable file events — none
+of them requires the engine's approval flow to be active:
+
+- before folding a new number, claim, or result into
+  `research_plan.md#Current Status` or the `research_contract.md`
+  claims table,
+- before checking off a task-board item whose output later work will
+  build on,
+- before a milestone closeout commit,
+- when a `research-team` convergence gate reports the cycle converged,
+- before assembling submission or handoff material,
+- and before invoking `nullius approve` for any A1-A5 gate, in
+  projects that use the engine's approval flow.
+
+M1-M7 is the agent-side discipline that
 catches hallucinated citations, hallucinated measurements, shortcut
 graph claims, bugs-as-insights, methodology fabrication, and frame-lock
 before they reach the durable record. The machine gates and the
 `HARNESS_INVOCATION_REQUIRED` anchor remain authoritative; the
 integrity check is owed to the next agent who reads your work.
+
+Optional closeout retrospective (recommended at milestone or project
+closeout): list the workflow lessons from the finished stretch of work;
+split the generalizable verification philosophy (how results of this
+kind should be verified anywhere) into the toolchain backlog, and keep
+the project-specific instantiation (what was verified here, with which
+tests) in the project repo; and when the project owner had to ask for
+the same type of verification more than once, promote that moment into
+the event → workflow dispatch table as a default trigger instead of
+leaving it a reminder.

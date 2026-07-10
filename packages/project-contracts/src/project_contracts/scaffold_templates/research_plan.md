@@ -51,10 +51,7 @@ Keep this section short enough to read in one screen. It is the human status ent
 
 ## Restart checklist
 
-- If `.nullius/HARNESS` exists, run `.nullius/bin/nullius status --json` first and inspect the current run/plan/output state before starting new work.
-- If `.nullius/` exists but `.nullius/HARNESS` is missing, run `nullius status --json` first, then repair the runtime handshake with `nullius init --runtime-only`.
-- If `nullius` is unavailable on `PATH`, run `.nullius/bin/nullius status --json` instead.
-- Treat that status output as the authoritative recovery briefing.
+- The session-start and reconnect protocol lives in [AGENTS.md](AGENTS.md), the managed scaffold file that `nullius init --refresh` keeps current; follow it there before starting new work (this file carries no copy of the protocol commands).
 - Read [project_index.md](project_index.md), then [AGENTS.md](AGENTS.md), then [project_charter.md](project_charter.md), then this file, then [research_contract.md](research_contract.md), then [research_notebook.md](research_notebook.md) if it already contains substantive content.
 - Update the task board before handing work to another run.
 - If the project adds host-local support surfaces, treat them as opt-in support layers rather than the default restart path and follow their local instructions only when they already exist.

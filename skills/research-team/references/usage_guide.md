@@ -79,10 +79,12 @@ script does not switch providers automatically.
 
 Use the resolved `<base>-rN` as the research-team cycle tag. When this cycle is
 part of an `nullius` control-plane run, use that same resolved value as the
-project-local `run_id` for the reviewed cycle. The canonical project artifact
-root is `artifacts/runs/<run_id>/`; `team/runs/<tag>/` is a reviewer packet/log
-surface and should not be treated as the artifact SSOT unless the project
-explicitly mirrors or summarizes it under `artifacts/runs/<run_id>/research_team/`.
+project-local `run_id` for the reviewed cycle. The canonical lifecycle artifact
+root is `artifacts/runs/<run_id>/`; `team/runs/<tag>/` is the reviewer packet/log
+surface and a first-class evidence root — contract claims may cite its paths
+directly. Mirror or summarize under `artifacts/runs/<run_id>/research_team/`
+when a milestone's headline evidence should live with the run record, not as a
+precondition for citing it.
 Do not use bare UUIDs or `run_<uuid>` as human-facing research tags.
 
 ## Deterministic preflight-only (no external LLM calls)
