@@ -206,6 +206,7 @@ function hasProjectLocalLauncherShape(script: string): boolean {
   const resolverStart = lines.indexOf(RESOLVE_NULLIUS_BLOCK[0]!);
   const hasExplicitResolver = resolverStart !== -1
     && RESOLVE_NULLIUS_BLOCK.every((blockLine, offset) => lines[resolverStart + offset] === blockLine);
+  const resolverEnd = resolverStart + RESOLVE_NULLIUS_BLOCK.length;
   // Require the self-identity guard: an older unguarded PATH-prefer launcher would
   // self-recurse, so it must be reported unparseable (→ refresh) rather than healthy.
   const pathGuardAt = lines.findIndex(line => line.trim() === PATH_PREFER_GUARD_LINE);
@@ -222,7 +223,11 @@ function hasProjectLocalLauncherShape(script: string): boolean {
     && bakedExecAt === bakedGuardAt + 1
     && pathGuardAt !== -1
     && pathPreferExecAt === pathGuardAt + 1
-    && bakedGuardAt < pathGuardAt;
+    && bakedGuardAt < pathGuardAt
+    // The PATH guard must sit DIRECTLY under the resolver block: a relocated
+    // block (e.g. below the guard) would leave RESOLVED_NULLIUS unset at the
+    // guard under `set -u`, aborting dispatch while health still resolves.
+    && pathGuardAt === resolverEnd;
 }
 
 /** The baked exec line's quoted absolute argv, for the health handshake. */
