@@ -25,7 +25,7 @@
 - reconnect 时应优先读取 `.nullius/HARNESS`、`.nullius/` state 与 project-local durable memory，例如 `research_plan.md`、`research_contract.md`、以及已有实质内容的 `research_notebook.md`
 - `research_plan.md#Current Status` 是给人的当前状态入口；测试 scaffold/read-model 时要保证它被作为恢复指引暴露，同时不新增单独状态文档
 - `research_notebook.md` 是问题逻辑主线，不是日期 run log，也不承载状态追踪；重要文献 note 必须记录全文/source-first 阅读、section/page/equation/figure 覆盖，并用 LaTeX math 写科学记号；测试 scaffold/read-model 时要保证空模板不会被误判为 substantive，同时真实逻辑内容会进入 reconnect recommended files
-- `team/runs/` 只作为 `research-team` 执行与 reviewer packet/log surface；验收外部项目恢复/交接时，稳定结论必须能从 `research_contract.md`、`research_plan.md#Current Status` 或 `artifacts/runs/<run_id>/` 找回
+- `team/runs/` 是 `research-team` 执行与 reviewer packet/log surface，也是与 `artifacts/runs/<run_id>/` 并列的一等证据根（claim 可直接引用其路径）；验收外部项目恢复/交接时，稳定结论必须能从 `research_contract.md`、`research_plan.md#Current Status` 找回，其证据指针指向 `artifacts/runs/<run_id>/` 或 `team/runs/<run>/` 中实际存放证据的位置
 
 ### 0.1 构建与计数检查
 

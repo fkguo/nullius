@@ -1,6 +1,6 @@
 ---
 name: research-integrity
-description: Pre-approval AI failure-mode checklist (M1-M7) for research agents. Generic across domains. Walk this before requesting an A1-A5 approval gate, before folding a result into durable project artifacts, before handoff, and before claiming a result is final.
+description: AI failure-mode checklist (M1-M7) for research agents. Generic across domains. Walk this at the moments work becomes durable — you just finished a derivation or computation and are about to write conclusions, fold a number or claim into the plan or contract, check off a task-board item, make a milestone closeout commit, hand off, assemble submission material, or claim a result is final — and, in projects using the engine's approval flow, before requesting an A1-A5 approval gate.
 ---
 
 # Research Integrity (M1-M7)
@@ -19,18 +19,26 @@ fair and the durable record actually reflects work that was done.
 
 ## When to use
 
-Run M1–M7 immediately before any of:
+Run M1–M7 immediately before any of these moments. They are observable
+file events — none of them requires the engine's approval flow to be
+active, so a project that never calls `nullius approve` still hits
+every trigger below:
 
-- Calling `nullius approve <approval_id>` for an A1, A2, A3, A4, or
-  A5 gate.
-- Folding a result into `research_contract.md` or
-  `research_plan.md#Current Status`.
-- Handing off to another agent or human via the `research-harness`
-  "Fold Results Back" step.
-- Marking a `research-team` cycle as converged.
+- Folding a new number, claim, or result into
+  `research_plan.md#Current Status` or the `research_contract.md`
+  claims table.
+- Checking off a task-board item whose output later work will build
+  on.
+- A milestone closeout commit.
+- Marking a `research-team` cycle as converged, or acting on a
+  convergence gate that reports the cycle converged.
+- Assembling submission material, or handing off to another agent or
+  human via the `research-harness` "Fold Results Back" step.
 - Requesting `nullius final-conclusions` on a run.
 - Posting a draft to `research-writer` or invoking a `referee-review`
   pass.
+- Calling `nullius approve <approval_id>` for an A1, A2, A3, A4, or
+  A5 gate, in projects that use the engine's approval flow.
 
 You may run a smaller subset earlier (for example M2/M4 during a
 literature pull, the **Extraction / transcription fidelity** check

@@ -15,16 +15,7 @@ Use it to find the human notebook, the machine contract, and the current plan wi
 5) [research_contract.md](research_contract.md) — machine-stable contract for gates, packets, and revision
 6) [research_notebook.md](research_notebook.md) — human-readable problem logic, derivations, interpretation, and figures, when it already contains substantive content
 
-If `.nullius/HARNESS` exists, start by running `.nullius/bin/nullius status --json` before continuing work.
-If `.nullius/` exists but `.nullius/HARNESS` is missing, run `nullius status --json` first, then repair the runtime handshake with `nullius init --runtime-only`.
-If `nullius` is unavailable on `PATH`, run `.nullius/bin/nullius status --json` instead.
-- Treat `nullius` as the guaranteed root entrypoint for this scaffold.
-- Treat that status output as the authoritative recovery briefing.
-- When the host exposes orchestration or MCP control-plane commands such as `orch_*`, those host-local surfaces may be used as optional control planes; do not assume a literal `orch_*` command exists in every scaffolded project.
-- Provider/domain MCP tools are capability sources, not root authority; do not treat provider MCPs such as `hep-mcp` as the generic root authority.
-- If any A1-A5 approval is pending, stop there. Silence is never approval.
-- If evidence is incomplete, mark the state `uncertain`, `abstained`, `unavailable`, or as a reading gap instead of writing a stronger conclusion.
-- Then continue in order through [project_index.md](project_index.md), [AGENTS.md](AGENTS.md), [project_charter.md](project_charter.md), [research_plan.md](research_plan.md), [research_contract.md](research_contract.md), and [research_notebook.md](research_notebook.md) when it already contains substantive content.
+The session-start, reconnect, recovery, and approval-boundary protocol lives in [AGENTS.md](AGENTS.md) — the managed scaffold file that `nullius init --refresh` keeps current. Follow it there before starting work; this file deliberately carries no copy of the protocol commands, because copies in user-owned files go stale.
 
 ## Core working surfaces
 

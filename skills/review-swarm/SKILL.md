@@ -1,6 +1,6 @@
 ---
 name: review-swarm
-description: Run clean-room multi-agent loops across Claude/Gemini/Codex/OpenCode/Kimi with strict review-contract checks, fallback policy, and convergence gates.
+description: Use when a result, manuscript, derivation, or diff needs independent review. Runs clean-room multi-agent review loops across Claude/Gemini/Codex/OpenCode/Kimi with strict review-contract checks, fallback policy, and convergence gates.
 ---
 
 # Review Swarm (multi-backend)
