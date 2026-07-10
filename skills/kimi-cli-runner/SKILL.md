@@ -76,6 +76,7 @@ bash "${SKILL_DIR}/scripts/run_kimi.sh" \
 - Kimi Code may spend a long time in thinking or tool-use before emitting final assistant text. For reviewer / verification use, prefer a generous per-attempt timeout (the runner default is 900 seconds) and pass `--raw-out` plus `--stderr-out` when you need an auditable trace of tool calls, provider warnings, or partial output.
 - If a specific `--model` fails with a model-not-found style error, the runner retries with Kimi's configured default model unless `--no-fallback` is set.
 - Retry behavior uses `--max-attempts` and `--sleep-secs`.
+- Deterministic failures (usage/auth/region-ineligibility errors, exit codes 2/126/127, and similar, detected from the exit code and diagnostics) fail immediately with the diagnostic instead of burning the retry backoff; model-not-found keeps its default-model fallback.
 - The merged prompt limit defaults to a conservative OS-argument-safe value. Override with `KIMI_MAX_PROMPT_BYTES` when you know your platform can accept larger prompt arguments.
 - Repeat `--skills-dir DIR` to pass Kimi Code skill directories through to the run. Per official Kimi docs, specifying this flag replaces auto-discovered user and project skill directories.
 - Pass `--auto-skills` only when you intentionally want Kimi to auto-discover user/project skills; it is mutually exclusive with explicit `--skills-dir`.

@@ -133,6 +133,18 @@ PY
     fi
     echo '{"role":"assistant","content":"OK_FALLBACK_AFTER_ANY_MODEL_MISS"}'
     ;;
+  deterministic_stdout_diagnostic)
+    echo "Error: this account is not eligible for the requested endpoint"
+    exit 1
+    ;;
+  connection_reset_once_then_success)
+    if [[ -n "${state_file}" && ! -f "${state_file}" ]]; then
+      printf 'failed\\n' >"${state_file}"
+      echo "fetch failed: connection reset by peer" >&2
+      exit 1
+    fi
+    echo '{"role":"assistant","content":"OK_AFTER_RESET"}'
+    ;;
   emit_metadata)
     python3 - "${model}" "${output_format}" "${#add_dirs[@]}" "${#skills_dirs[@]}" <<'PY'
 import json
@@ -499,3 +511,35 @@ def test_rejects_merged_prompt_over_configured_limit(tmp_path: Path) -> None:
     assert proc.returncode == 2
     assert "Merged prompt is" in proc.stderr
     assert _out_text(out_path) == ""
+
+
+def test_deterministic_failure_is_not_retried_even_with_attempts_left(tmp_path: Path) -> None:
+    # run_mode classifies AFTER the deterministic-parse-error short-circuit,
+    # grepping stderr + parse-error text + the tail-40 of raw stdout. Here the
+    # diagnostic lands on raw STDOUT (kimi-specific surface): the runner must
+    # stop after ONE attempt even though --max-attempts allows a second.
+    proc, out_path, log_path = _run_runner(
+        tmp_path,
+        args=["--max-attempts", "2", "--sleep-secs", "1"],
+        fake_mode="deterministic_stdout_diagnostic",
+    )
+    assert proc.returncode == 1
+    assert _log_text(log_path).count("args=") == 1, "deterministic failure must fail on the first attempt"
+    assert "Kimi failed with a deterministic error" in proc.stderr
+    assert "not eligible" in proc.stderr
+    assert _out_text(out_path) == ""
+
+
+def test_transient_connection_reset_is_retried_then_succeeds(tmp_path: Path) -> None:
+    # Negative control: a transient-looking failure (connection reset, exit 1)
+    # must NOT be classified as deterministic — the existing in-mode retry
+    # still runs and recovers on the second attempt.
+    proc, out_path, log_path = _run_runner(
+        tmp_path,
+        args=["--max-attempts", "2", "--sleep-secs", "1"],
+        fake_mode="connection_reset_once_then_success",
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert _log_text(log_path).count("args=") == 2, "transient failure must keep the retry budget"
+    assert "Attempt 1 failed in requested-model mode" in proc.stderr
+    assert _out_text(out_path) == "OK_AFTER_RESET\n"
