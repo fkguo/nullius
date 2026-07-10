@@ -49,7 +49,9 @@ const SELF_DERIVE_PROJECT_ROOT_LINE = 'PROJECT_ROOT=$(CDPATH= cd -- "$(dirname -
 // trusted with the project root.
 const RESOLVE_NULLIUS_BLOCK = [
   'RESOLVED_NULLIUS=',
-  '_nullius_ifs=$IFS; IFS=:',
+  // set -f: an unquoted $PATH word-split would otherwise GLOB-expand
+  // wildcard components; components must stay literal strings on both sides.
+  '_nullius_ifs=$IFS; IFS=:; set -f',
   'for _nullius_dir in $PATH; do',
   '  case "$_nullius_dir" in /*) ;; *) continue;; esac',
   '  if [ -f "$_nullius_dir/nullius" ] && [ -x "$_nullius_dir/nullius" ]; then',
@@ -57,9 +59,8 @@ const RESOLVE_NULLIUS_BLOCK = [
   '    break',
   '  fi',
   'done',
-  'IFS=$_nullius_ifs',
+  'IFS=$_nullius_ifs; set +f',
 ] as const;
-const RESOLVE_NULLIUS_SIGNATURE_LINE = '  case "$_nullius_dir" in /*) ;; *) continue;; esac';
 /** Machine-readable launcher-protocol handshake. Protocol 2 = the trusted
  *  project root is PREPENDED before user args and the parser honors the `--`
  *  end-of-options terminator with duplicate-root rejection. A PATH-resolved
@@ -107,7 +108,11 @@ function launcherProtocolCandidateOnPath(launcherPath: string): string | 'self' 
     // PATH components are scanned, and the FIRST executable regular file
     // wins. Cwd-relative resolution is never trusted with the project root.
     if (!path.isAbsolute(dir)) continue;
-    const candidate = path.join(dir, 'nullius');
+    // Literal concatenation, NOT path.join: lexical normalization would
+    // resolve "missing/../bin" to "bin" even when "missing" does not exist,
+    // while the shell's [ -f "$dir/nullius" ] lets the OS resolve it (and
+    // fail). Both sides must hand the literal string to the OS.
+    const candidate = `${dir}${path.sep}nullius`;
     try {
       fs.accessSync(candidate, fs.constants.X_OK);
       const candidateStat = fs.statSync(candidate);
@@ -198,7 +203,9 @@ const BAKED_EXEC_PATTERN = /^\s*exec\s+'\/.*--launcher-generation=2\s+--project-
 function hasProjectLocalLauncherShape(script: string): boolean {
   const lines = script.split(/\r?\n/u);
   const hasSelfDerivedRoot = lines.includes(SELF_DERIVE_PROJECT_ROOT_LINE);
-  const hasExplicitResolver = lines.includes(RESOLVE_NULLIUS_SIGNATURE_LINE);
+  const resolverStart = lines.indexOf(RESOLVE_NULLIUS_BLOCK[0]!);
+  const hasExplicitResolver = resolverStart !== -1
+    && RESOLVE_NULLIUS_BLOCK.every((blockLine, offset) => lines[resolverStart + offset] === blockLine);
   // Require the self-identity guard: an older unguarded PATH-prefer launcher would
   // self-recurse, so it must be reported unparseable (→ refresh) rather than healthy.
   const pathGuardAt = lines.findIndex(line => line.trim() === PATH_PREFER_GUARD_LINE);

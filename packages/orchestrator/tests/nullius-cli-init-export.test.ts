@@ -536,6 +536,72 @@ describe('nullius CLI init/export', () => {
     }
   });
 
+  it('keeps PATH components literal on both sides: glob and dot-dot parity', async () => {
+    const parentDir = makeTempDir('nullius-cli-path-literal-');
+    const projectRoot = path.join(parentDir, 'project-root');
+    expect(await runCli([`--project-root=${projectRoot}`, 'init', '--runtime-only'], makeIo(parentDir).io)).toBe(0);
+    const launcherPath = path.join(projectRoot, '.nullius', 'bin', 'nullius');
+    // Break the baked target so both sides must consult PATH.
+    const script = fs.readFileSync(launcherPath, 'utf-8');
+    fs.writeFileSync(launcherPath, script.replaceAll('/dist/cli.js', '/dist/cli.js.gone'), 'utf-8');
+    fs.chmodSync(launcherPath, 0o755);
+
+    // A protocol-answering candidate in .../real/bin.
+    const realBin = path.join(parentDir, 'real', 'bin');
+    fs.mkdirSync(realBin, { recursive: true });
+    fs.writeFileSync(path.join(realBin, 'nullius'), [
+      '#!/bin/sh',
+      'if [ "${2:-}" = "--launcher-protocol" ] || [ "${1:-}" = "--launcher-protocol" ]; then',
+      "  printf '%s\\n' 'nullius-launcher-protocol 2'",
+      '  exit 0',
+      'fi',
+      'exit 0',
+    ].join('\n') + '\n', 'utf-8');
+    fs.chmodSync(path.join(realBin, 'nullius'), 0o755);
+
+    const runLauncher = (pathEnv: string): number => {
+      try {
+        execFileSync(launcherPath, ['status', '--json'], {
+          cwd: projectRoot,
+          encoding: 'utf-8',
+          timeout: 20000,
+          env: { ...process.env, PATH: pathEnv },
+        });
+        return 0;
+      } catch (error) {
+        return (error as { status: number | null }).status ?? -1;
+      }
+    };
+    const healthUnder = (pathEnv: string): boolean => {
+      const prevPath = process.env.PATH;
+      process.env.PATH = pathEnv;
+      try {
+        return readProjectLocalNulliusLauncherHealth(projectRoot).healthy;
+      } finally {
+        if (prevPath === undefined) delete process.env.PATH;
+        else process.env.PATH = prevPath;
+      }
+    };
+
+    // Glob component: '<parent>/re*/bin' would expand to real/bin under an
+    // unquoted unprotected loop. Both sides must treat it literally — no
+    // usable candidate.
+    const globPath = `${path.join(parentDir, 're*', 'bin')}${path.delimiter}/usr/bin:/bin`;
+    expect(runLauncher(globPath)).toBe(127);
+    expect(healthUnder(globPath)).toBe(false);
+
+    // Dot-dot through a MISSING directory: lexical normalization would reach
+    // real/bin, OS resolution fails. Both sides must refuse.
+    const dotdotPath = `${parentDir}/missing/../real/bin${path.delimiter}/usr/bin:/bin`;
+    expect(runLauncher(dotdotPath)).toBe(127);
+    expect(healthUnder(dotdotPath)).toBe(false);
+
+    // Control: dot-dot through an EXISTING directory resolves for both.
+    const viaExisting = `${parentDir}/real/../real/bin${path.delimiter}/usr/bin:/bin`;
+    expect(runLauncher(viaExisting)).toBe(0);
+    expect(healthUnder(viaExisting)).toBe(true);
+  }, 30000);
+
   it('detects its own bin dir on PATH and falls back to the baked CLI without recursing', async () => {
     const parentDir = makeTempDir('nullius-cli-self-path-');
     const projectRoot = path.join(parentDir, 'project-root');
