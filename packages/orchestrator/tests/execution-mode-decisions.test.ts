@@ -494,6 +494,49 @@ describe('decision ledger', () => {
     expect((payload.decision_ledger as Record<string, unknown>).invalid_lines).toBe(1);
   });
 
+  it('reserves the id visible on an unparseable crash tail', async () => {
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot);
+    const ledgerPath = path.join(projectRoot, '.nullius', 'decisions.jsonl');
+    // A write interrupted mid-record: broken JSON, no trailing newline, but
+    // the id bytes are visible and must be reserved.
+    fs.writeFileSync(ledgerPath, '{"id":"D1","ts":', 'utf-8');
+
+    const record = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'recorded after the crash tail'], record.io)).toBe(0);
+    expect(record.stdout.join('')).toContain('recorded: D2');
+
+    const list = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'list', '--json'], list.io)).toBe(0);
+    const parsed = JSON.parse(list.stdout.join('')) as { invalid_lines: number; records: Array<{ id: string }> };
+    expect(parsed.invalid_lines).toBe(1);
+    expect(parsed.records.map(entry => entry.id)).toEqual(['D2']);
+  });
+
+  it('creates no state when the fresh-init audit event cannot be written', async () => {
+    const projectRoot = makeTempProjectRoot();
+    const controlDir = path.join(projectRoot, '.nullius');
+    fs.mkdirSync(controlDir, { recursive: true });
+    const ledgerPath = path.join(controlDir, 'ledger.jsonl');
+    fs.writeFileSync(ledgerPath, '', 'utf-8');
+    fs.chmodSync(ledgerPath, 0o444);
+    try {
+      await expect(
+        runCli([`--project-root=${projectRoot}`, 'init', '--runtime-only', '--mode=file'], makeIo(projectRoot).io),
+      ).rejects.toThrow(/EACCES|permission denied/);
+      // Event-before-state: the failed init left no state file, so the retry
+      // is a clean fresh init whose audit trail is complete.
+      expect(fs.existsSync(path.join(controlDir, 'state.json'))).toBe(false);
+    } finally {
+      fs.chmodSync(ledgerPath, 0o644);
+    }
+
+    const retry = await initRuntimeOnly(projectRoot, ['--mode=file']);
+    expect(retry).toContain('[ok] execution mode declared: file');
+    const initialized = readLedgerEvents(projectRoot).find(event => event.event_type === 'initialized');
+    expect(initialized?.details).toMatchObject({ execution_mode: 'file' });
+  });
+
   it('rejects non-canonical ids and malformed resolves fields as invalid lines', async () => {
     const projectRoot = makeTempProjectRoot();
     await initRuntimeOnly(projectRoot);

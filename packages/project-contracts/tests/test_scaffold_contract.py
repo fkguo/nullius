@@ -414,9 +414,11 @@ class TestScaffoldContract(unittest.TestCase):
         # Both modes are legitimate; file mode names where truth lives and why
         # an idle run_status is not a defect there.
         self.assertIn("`run_status` legitimately stays `idle`", template)
-        # Conversational decisions have an engine-visible recording surface.
+        # Conversational decisions have an engine-visible recording surface,
+        # including the route that closes an open question.
         self.assertIn('`nullius decision record "<what was decided>"`', template)
         self.assertIn('`nullius decision pending "<question>"`', template)
+        self.assertIn('`nullius decision record "<answer>" --resolves <id>`', template)
         # The verification trigger table is mode-independent.
         self.assertIn("The verification triggers above apply identically in both modes.", template)
 

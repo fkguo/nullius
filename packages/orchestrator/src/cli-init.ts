@@ -147,8 +147,11 @@ export async function runInitCommand(projectRoot: string | null, cwd: string, ar
       // an idempotent retry instead of losing the audit trail.
       manager.appendLedger('execution_mode_declared', { details: { execution_mode: options.mode } });
     }
-    manager.saveState(state);
+    // Event before state here as well: if the ledger append fails, the state
+    // file is not created, so the retry is a clean fresh init instead of an
+    // "already initialized" root whose declaration audit never existed.
     manager.appendLedger('initialized', options.mode !== null ? { details: { execution_mode: options.mode } } : {});
+    manager.saveState(state);
     io.stdout(`[ok] wrote: ${statePath}\n`);
     if (options.mode !== null) {
       io.stdout(`[ok] execution mode declared: ${options.mode}\n`);

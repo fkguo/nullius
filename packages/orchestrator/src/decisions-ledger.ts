@@ -94,12 +94,18 @@ type ParsedDecisionLine = {
   record: DecisionRecord | null;
 };
 
+// Salvages a canonical id from a line whose JSON is broken (e.g. the crash
+// tail `{"id":"D1","ts":`), so even a malformed line reserves the id it
+// visibly carries and allocation never reissues it.
+const RAW_ID_SALVAGE_PATTERN = /"id"\s*:\s*"(D[1-9]\d*)"/;
+
 function parseDecisionLine(line: string): ParsedDecisionLine {
   let parsed: unknown;
   try {
     parsed = JSON.parse(line);
   } catch {
-    return { id: null, record: null };
+    const salvaged = RAW_ID_SALVAGE_PATTERN.exec(line);
+    return { id: salvaged ? salvaged[1] ?? null : null, record: null };
   }
   if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return { id: null, record: null };
   const record = parsed as Record<string, unknown>;
@@ -253,7 +259,9 @@ function withDecisionsLock<T>(projectRoot: string, action: () => T): T {
   if (!acquired) {
     throw new Error(
       `decisions ledger is locked (${lockPath}; ${describeLockHolder(lockPath)}). `
-      + 'If no recording process is running (e.g. after a crash), remove that lock file and retry.',
+      + 'If no recording process is running (e.g. after a crash), first check whether the '
+      + 'intended entry already landed (nullius decision list) — a crashed holder may have '
+      + 'completed its append — then remove that lock file and retry only if the entry is absent.',
     );
   }
   try {

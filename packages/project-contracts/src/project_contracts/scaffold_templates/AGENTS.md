@@ -81,7 +81,7 @@ Two legitimate ways to run a project, declared with `nullius init --mode=<engine
 
 - `engine`: the nullius run/approve lifecycle drives the work; approvals flow through `nullius approve`.
 - `file`: work is executed by hand or by external runners; durable truth lives in `research_plan.md`, `research_contract.md`, and the run-evidence roots, and `run_status` legitimately stays `idle`.
-- In both modes, decisions made in conversation are recorded with `nullius decision record "<what was decided>"` (open questions with `nullius decision pending "<question>"`); open items stay counted in every status receipt (the oldest ten itemized, the remainder via `nullius decision list`) until resolved. In file mode this ledger is the engine-visible record of conversational approvals.
+- In both modes, decisions made in conversation are recorded with `nullius decision record "<what was decided>"` (open questions with `nullius decision pending "<question>"`; close one with `nullius decision record "<answer>" --resolves <id>`); open items stay counted in every status receipt (the oldest ten itemized, the remainder via `nullius decision list`) until resolved. In file mode this ledger is the engine-visible record of conversational approvals.
 - An undeclared project whose engine state stays frozen while dated run evidence accumulates gets a status hint asking for the declaration; either declaration is honest and silences it.
 - The verification triggers above apply identically in both modes.
 

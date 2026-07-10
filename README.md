@@ -195,6 +195,7 @@ authority, research-team as the milestone executor, and fold stable results back
 research_contract.md, research_plan.md#Current Status, and artifacts/runs/<run_id>/.
 Record decisions made in conversation with: nullius decision record "<what was decided>"
 Log open questions with: nullius decision pending "<question>"
+Close an open question with: nullius decision record "<answer>" --resolves <id>
 Open questions stay counted in every status receipt (oldest ten itemized; the rest
 via: nullius decision list) until resolved.
 ```
