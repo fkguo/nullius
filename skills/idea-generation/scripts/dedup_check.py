@@ -2,7 +2,7 @@
 """Mechanical near-duplicate check for generation candidates.
 
 Compares each candidate's text against EVERY node already in the campaign
-store (active, waiting_activation, and archived alike) using a deterministic,
+store (every lifecycle state, archived included) using a deterministic,
 dependency-free vector-space cosine: hashed character-3-gram counts. This is
 NOT a semantic embedding — it is a mechanical near-duplicate filter, strong on
 near-verbatim and light-paraphrase duplicates, and it is recorded as such

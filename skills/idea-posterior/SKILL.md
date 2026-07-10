@@ -192,11 +192,14 @@ reasons, and an independent reviewer check of the search terms plus the top
 close priors' discussion/conclusion sections. Without that gate, write only
 "not found in incomplete search" and do not use the claim as strong evidence.
 
-If a later close-prior audit finds important missed prior work, mark the
-existing posterior `stale` or `provisional` at the node/report layer.
+If a later close-prior audit finds important missed prior work, take the idea
+out of current guidance in the store: either move the node to `needs_refresh`
+via `node.set_lifecycle` (the immediate coarse gate — ranking and allocation
+read the lifecycle state first), or re-run `node.set_posterior` with status
+`stale`/`provisional`, which makes the engine derive `needs_refresh` itself.
 Historical posterior records remain audit history, but they are not current
 allocation guidance until the graph is rebuilt and `node.set_posterior` is run
-again.
+again with a `current` result.
 
 ## Sub-criterion decomposition
 
@@ -342,7 +345,12 @@ invented numbers is worse than no posterior: it looks like knowledge.
   computation, or a tournament result arrives for a dormant idea, append the
   corresponding `observe()` and `infer()` statements, re-run inference, and
   write the posterior back. No revival approval step exists; the posterior
-  moves because evidence moved.
+  moves because evidence moved. One store mechanic: if the node was archived,
+  first move it back into the machine via `node.set_lifecycle` — to
+  `needs_refresh` when it carries a posterior history, to `candidate` when it
+  never had one (the engine enforces exactly this split, and forbids jumping
+  from the archive straight to `admitted`) — then the fresh writeback
+  re-admits it through the normal derivation.
 
 ## Absorbing pairwise tournament results
 
@@ -475,7 +483,28 @@ readable diagnosis (including the pinned install recipe) when a stage fails.
    Sends `{"method": "node.set_posterior", "params": {campaign_id, node_id,
    idempotency_key, posterior, literature_coverage}, "store_root": ...}` on
    stdin to the idea-engine thin RPC caller and fails loudly on an error
-   response. Before anything is sent, `posterior_writeback.py` runs the
+   response.
+
+   The engine enforces the idea lifecycle machine around this write. A node
+   fresh from seed import or generation sits in `candidate`, where posterior
+   writes are rejected — declare the review first, so admission has a logged,
+   timestamped start in the store:
+
+   ```bash
+   echo '{"method":"node.set_lifecycle","params":{"campaign_id":"<campaign>",
+     "node_id":"<node>","idempotency_key":"<key>",
+     "lifecycle_state":"admission_review"},"store_root":"<store_root>"}' \
+     | node <repo>/packages/idea-engine/bin/idea-rpc.mjs
+   ```
+
+   After a legal write the engine moves the lifecycle itself: a `current`
+   posterior yields `admitted` (the only state strict ranking and allocation
+   sample), anything else yields `needs_refresh`. Never set those two states
+   by hand around a writeback — the derivation is the single writer that
+   keeps lifecycle and stored posterior consistent. If the admission gate
+   instead finds named evidence missing, record it on the node as
+   `admission_blocked` with an `activation_condition` (kind
+   `required_evidence`) rather than leaving the review open. Before anything is sent, `posterior_writeback.py` runs the
    close-prior validator over the survey, matrix, and report. It refuses a
    missing close-prior matrix, missing critique search, one-sided
    above-weakest `tension_resolution`, metadata-only Gaia anchors,
@@ -672,23 +701,31 @@ reviewer's call.
 
 ## Activation conditions
 
-Some admitted ideas depend on something that does not exist yet: a tool
-reaching readiness, a dataset being released, a project stage arriving, a
-trial computation finishing. Do not build a speculative full graph for these.
-Record an activation condition on the idea instead and leave it in the
-waiting state:
+Some ideas depend on something that does not exist yet: a tool reaching
+readiness, a dataset being released, a project stage arriving, a trial
+computation finishing. Do not build a speculative full graph for these. Park
+the node in `waiting_activation` via `node.set_lifecycle` with the condition
+recorded on it (the engine requires the condition for this state and clears
+it on exit):
 
 ```json
 {
   "activation_condition": {
-    "condition_type": "tool_readiness | data_release | stage_reached | trial_computation_done",
+    "kind": "tool_readiness | data_release | stage_reached | exploratory_computation | other",
     "description": "what must become true, stated so a third party can check it",
-    "check_hint": "where or how to check, e.g. an artifact path or release page"
+    "satisfied": false
   }
 }
 ```
 
-When the condition is met, run the admission gate (if not already passed),
+Distinguish this from `admission_blocked`: waiting is about the external
+world (nothing to do but wait and check), while blocked means the admission
+gate named evidence that WORK must produce (kind `required_evidence`). When
+the condition is met, the activation monitor in `idea-allocation` prints the
+engine-legal return transition (a waiting node with no posterior returns to
+`candidate`; with a current, coverage-eligible posterior to `admitted`;
+otherwise to `needs_refresh` — a satisfied blocked node re-enters
+`admission_review`). Then run the admission gate (if not already passed),
 build the graph, and proceed normally. Monitoring activation conditions is
 the portfolio scheduler's job, not this skill's; this skill only defines the
 judgment and the record format.
