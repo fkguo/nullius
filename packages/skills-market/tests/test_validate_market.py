@@ -6,7 +6,7 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from validate_market_runtime.contracts import load_json
+from validate_market_runtime.contracts import load_json, satisfies_range
 from validate_market_runtime.package_checks import build_constraints_from_schema, validate_package
 
 
@@ -142,6 +142,45 @@ def test_install_policy_auto_safe_requires_immutable_source_ref() -> None:
         allowed_properties=properties,
     )
     assert "auto-safe source.ref must be an immutable 40-character git SHA" in "\n".join(errs)
+
+
+def test_depends_on_unknown_target_is_rejected() -> None:
+    required, types, channels, platforms, properties = _validator_inputs()
+    data = _base_skill()
+    data["depends_on"] = {"not-a-market-package": ">=0.1.0 <0.2.0"}
+    errs = validate_package(
+        path=ROOT / "packages" / "sample-skill.json",
+        data=data,
+        required_keys=required,
+        allowed_types=types,
+        allowed_channels=channels,
+        allowed_platforms=platforms,
+        package_versions={"sample-skill": "0.1.0"},
+        allowed_properties=properties,
+    )
+    assert "depends_on references unknown package_id: not-a-market-package" in "\n".join(errs)
+
+
+def test_every_catalog_depends_on_target_exists_in_market_index() -> None:
+    index = load_json(ROOT / "packages" / "index.json")
+    catalog: dict[str, dict[str, object]] = {}
+    for rel in index["packages"]:
+        data = load_json(ROOT / "packages" / str(rel))
+        catalog[str(data["package_id"])] = data
+
+    checked = 0
+    for package_id, data in catalog.items():
+        for dep_id, dep_range in (data.get("depends_on") or {}).items():
+            assert dep_id in catalog, (
+                f"{package_id}: depends_on target {dep_id!r} is not in the market index"
+            )
+            dep_version = str(catalog[dep_id]["version"])
+            assert satisfies_range(dep_version, str(dep_range)) is True, (
+                f"{package_id}: depends_on range {dep_range!r} does not match "
+                f"{dep_id} version {dep_version!r}"
+            )
+            checked += 1
+    assert checked > 0, "expected at least one depends_on edge in the catalog"
 
 
 def test_research_team_package_metadata_describes_copy_vs_symlink_install() -> None:

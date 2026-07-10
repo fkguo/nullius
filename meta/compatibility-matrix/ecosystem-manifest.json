@@ -153,7 +153,16 @@
       "repo": "nullius/skills-market",
       "channel": "beta",
       "version": "0.1.0",
-      "source_path": "skills/literature-to-package/SKILL.md"
+      "source_path": "skills/literature-to-package/SKILL.md",
+      "depends_on": {
+        "citation-triangulation": ">=0.1.0 <0.2.0",
+        "claim-grounding": ">=0.1.0 <0.2.0",
+        "deep-literature-review": ">=0.1.0 <0.2.0",
+        "derivation-verify": ">=0.1.0 <0.2.0",
+        "julia-perf": ">=0.1.0 <0.2.0",
+        "numerical-reliability-gate": ">=0.1.0 <0.2.0",
+        "review-swarm": ">=0.1.0 <0.2.0"
+      }
     },
     "literature-workflows": {
       "type": "workflow-pack",
@@ -221,7 +230,14 @@
       "repo": "nullius/skills-market",
       "channel": "dev",
       "version": "0.1.0",
-      "source_path": "skills/research-harness/SKILL.md"
+      "source_path": "skills/research-harness/SKILL.md",
+      "depends_on": {
+        "hep-mcp": ">=0.5.0 <0.6.0",
+        "markdown-hygiene": ">=0.1.0 <0.2.0",
+        "numerical-reliability-gate": ">=0.1.0 <0.2.0",
+        "research-integrity": ">=0.1.0 <0.2.0",
+        "research-team": ">=0.1.0 <0.2.0"
+      }
     },
     "research-integrity": {
       "type": "skill-pack",
