@@ -7,6 +7,7 @@ import { ensureProjectLocalNulliusLauncher, projectLocalNulliusRelativePath } fr
 import { ensureProjectScaffold, type ProjectScaffoldResult } from './project-scaffold.js';
 import { type CliIo } from './cli-lifecycle.js';
 import { StateManager } from './state-manager.js';
+import type { ExecutionMode } from './types.js';
 import { assertProjectRootAllowed, resolveUserPath } from './project-policy.js';
 
 type InitOptions = {
@@ -16,18 +17,30 @@ type InitOptions = {
   refresh: boolean;
   dryRun: boolean;
   runtimeOnly: boolean;
+  mode: ExecutionMode | null;
 };
 
+function parseExecutionMode(raw: string): ExecutionMode {
+  if (raw === 'engine' || raw === 'file') return raw;
+  throw new Error(`invalid --mode value: ${raw} (expected engine or file)`);
+}
+
 function parseInitArgs(args: string[]): InitOptions {
-  const options: InitOptions = { allowNested: false, checkpointIntervalSeconds: null, force: false, refresh: false, dryRun: false, runtimeOnly: false };
+  const options: InitOptions = { allowNested: false, checkpointIntervalSeconds: null, force: false, refresh: false, dryRun: false, runtimeOnly: false, mode: null };
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index]!;
     const value = arg.startsWith('--checkpoint-interval-seconds=') ? arg.split('=', 2)[1] ?? '' : null;
+    const modeValue = arg.startsWith('--mode=') ? arg.split('=', 2)[1] ?? '' : null;
     if (arg === '--force') options.force = true;
     else if (arg === '--refresh') options.refresh = true;
     else if (arg === '--dry-run') options.dryRun = true;
     else if (arg === '--allow-nested') options.allowNested = true;
     else if (arg === '--runtime-only') options.runtimeOnly = true;
+    else if (arg === '--mode' || modeValue !== null) {
+      const raw = modeValue ?? args[++index] ?? '';
+      if (!raw || raw.startsWith('-')) throw new Error('missing value for --mode (engine or file)');
+      options.mode = parseExecutionMode(raw);
+    }
     else if (arg === '--checkpoint-interval-seconds' || value !== null) {
       const raw = value ?? args[++index] ?? '';
       if (!raw || raw.startsWith('-')) throw new Error('missing value for --checkpoint-interval-seconds');
@@ -88,6 +101,9 @@ export async function runInitCommand(projectRoot: string | null, cwd: string, ar
   if (options.refresh && options.dryRun) {
     const preview = ensureProjectScaffold(repoRoot, { refresh: true, dryRun: true });
     emitRefreshSummary(io, preview, true);
+    if (options.mode !== null) {
+      io.stdout(`[ok] would declare execution mode: ${options.mode} (--dry-run, not written)\n`);
+    }
     return;
   }
   manager.ensureDirs();
@@ -97,14 +113,31 @@ export async function runInitCommand(projectRoot: string | null, cwd: string, ar
   const statePath = manager.statePath;
   if (fs.existsSync(statePath) && !options.force) {
     io.stdout(`[ok] already initialized: ${statePath}\n`);
+    if (options.mode !== null) {
+      const state = manager.readState();
+      if (state.execution_mode === options.mode) {
+        io.stdout(`[ok] execution mode already declared: ${options.mode}\n`);
+      } else {
+        state.execution_mode = options.mode;
+        manager.saveState(state);
+        manager.appendLedger('execution_mode_declared', { details: { execution_mode: options.mode } });
+        io.stdout(`[ok] execution mode declared: ${options.mode}\n`);
+      }
+    }
   } else {
     const state = manager.readState();
     if (options.checkpointIntervalSeconds !== null) {
       state.checkpoints.checkpoint_interval_seconds = options.checkpointIntervalSeconds;
     }
+    if (options.mode !== null) {
+      state.execution_mode = options.mode;
+    }
     manager.saveState(state);
-    manager.appendLedger('initialized', {});
+    manager.appendLedger('initialized', options.mode !== null ? { details: { execution_mode: options.mode } } : {});
     io.stdout(`[ok] wrote: ${statePath}\n`);
+    if (options.mode !== null) {
+      io.stdout(`[ok] execution mode declared: ${options.mode}\n`);
+    }
   }
 
   if (!fs.existsSync(manager.policyPath)) {

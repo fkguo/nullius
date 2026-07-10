@@ -65,6 +65,11 @@ export async function runCli(argv: string[], io: CliIo = defaultIo()): Promise<n
     await runProposalDecisionCommand(projectRoot, parsed, io);
     return 0;
   }
+  if (parsed.command === 'decision') {
+    const { runDecisionCommand } = await import('./cli-lifecycle.js');
+    await runDecisionCommand(projectRoot, parsed, io);
+    return 0;
+  }
   if (parsed.command === 'status') {
     const { runStatusCommand } = await import('./cli-lifecycle.js');
     await runStatusCommand(projectRoot, parsed.json, io);

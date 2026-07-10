@@ -28,6 +28,9 @@ function writeJson(io: CliIo, payload: unknown): void {
 function writeStatusText(io: CliIo, payload: Record<string, unknown>): void {
   io.stdout(`run_id: ${String(payload.run_id ?? '')}\n`);
   io.stdout(`run_status: ${String(payload.run_status ?? '')}\n`);
+  if (payload.execution_mode) {
+    io.stdout(`execution_mode: ${String(payload.execution_mode)}\n`);
+  }
   io.stdout(`workflow_id: ${String(payload.workflow_id ?? '')}\n`);
   io.stdout(`project_uri: ${String(payload.uri ?? '')}\n`);
   if (payload.current_step) {
@@ -151,6 +154,24 @@ function writeStatusText(io: CliIo, payload: Record<string, unknown>): void {
         if (!rawIssue || typeof rawIssue !== 'object') continue;
         const issue = rawIssue as Record<string, unknown>;
         io.stdout(`  - ${String(issue.code ?? '')} (${String(issue.path ?? '')}): ${String(issue.message ?? '')}\n`);
+      }
+    }
+  }
+  // Conversational decisions: recorded totals plus every still-open item.
+  // Open items are exactly what a reconnecting agent must not lose — they are
+  // the questions a human still owes an answer to.
+  const decisionLedger = payload.decision_ledger;
+  if (decisionLedger && typeof decisionLedger === 'object') {
+    const ledger = decisionLedger as Record<string, unknown>;
+    const decidedCount = Number(ledger.decided_count ?? 0);
+    const openCount = Number(ledger.open_count ?? 0);
+    if (decidedCount > 0 || openCount > 0) {
+      io.stdout(`decisions: ${decidedCount} decided, ${openCount} open\n`);
+      const openItems = Array.isArray(ledger.open_items) ? ledger.open_items : [];
+      for (const rawItem of openItems) {
+        if (!rawItem || typeof rawItem !== 'object') continue;
+        const item = rawItem as Record<string, unknown>;
+        io.stdout(`  - [open] ${String(item.id ?? '')} (${String(item.ts ?? '')}): ${String(item.text ?? '')}\n`);
       }
     }
   }
@@ -320,6 +341,62 @@ export async function runProposalDecisionCommand(
     ...(parsed.note ? { note: parsed.note } : {}),
   });
   writeJson(io, payload);
+}
+
+export async function runDecisionCommand(
+  projectRoot: string,
+  parsed: Extract<ParsedCliArgs, { command: 'decision' }>,
+  io: CliIo,
+): Promise<void> {
+  const { appendDecision, openDecisions, readDecisionsLedger } = await import('./decisions-ledger.js');
+  if (parsed.action === 'list') {
+    const snapshot = readDecisionsLedger(projectRoot);
+    const open = openDecisions(snapshot.records);
+    if (parsed.json) {
+      writeJson(io, {
+        path: snapshot.path,
+        exists: snapshot.exists,
+        invalid_lines: snapshot.invalid_lines,
+        records: snapshot.records,
+        open_ids: open.map((record) => record.id),
+      });
+      return;
+    }
+    if (!snapshot.exists || snapshot.records.length === 0) {
+      io.stdout('no decisions recorded\n');
+      return;
+    }
+    for (const record of snapshot.records) {
+      const openMark = record.kind === 'pending' && open.some((entry) => entry.id === record.id) ? ' [open]' : '';
+      const resolvesMark = record.resolves ? ` resolves=${record.resolves}` : '';
+      io.stdout(`${record.id} ${record.kind}${openMark} @ ${record.ts} (${record.by})${resolvesMark}: ${record.text}\n`);
+    }
+    io.stdout(`decisions: ${snapshot.records.filter((record) => record.kind === 'decided').length} decided, ${open.length} open\n`);
+    if (snapshot.invalid_lines > 0) {
+      io.stdout(`invalid_lines: ${snapshot.invalid_lines}\n`);
+    }
+    return;
+  }
+  const record = appendDecision(projectRoot, {
+    kind: parsed.action === 'record' ? 'decided' : 'pending',
+    text: parsed.text ?? '',
+    by: parsed.by,
+    resolves: parsed.resolves,
+  });
+  // Mirror into the machine event log so the chronological ledger stays whole;
+  // .nullius/decisions.jsonl remains the parse source of truth.
+  const { manager } = createStateManager(projectRoot);
+  manager.appendLedger(record.kind === 'decided' ? 'decision_recorded' : 'decision_pending_recorded', {
+    details: {
+      decision_id: record.id,
+      by: record.by,
+      ...(record.resolves ? { resolves: record.resolves } : {}),
+    },
+  });
+  io.stdout(`${record.kind === 'decided' ? 'recorded' : 'pending'}: ${record.id}\n`);
+  if (record.resolves) {
+    io.stdout(`resolved: ${record.resolves}\n`);
+  }
 }
 
 export async function runVerifyCommand(

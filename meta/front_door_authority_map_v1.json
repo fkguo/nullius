@@ -33,6 +33,10 @@
           "usage": "nullius proposal-decision --proposal-kind <repair|skill|optimize|innovate> --proposal-id <id> --decision <accepted_for_later|dismissed|already_captured> [--note \"...\"]"
         },
         {
+          "command": "decision",
+          "usage": "nullius decision <record|pending|list> [\"<text>\"] [--by <who>] [--resolves <id>] [--json]"
+        },
+        {
           "command": "status",
           "usage": "nullius status [--json]"
         },

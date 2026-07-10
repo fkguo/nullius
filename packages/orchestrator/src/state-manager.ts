@@ -467,6 +467,7 @@ function defaultState(): RunState {
     artifacts: {},
     workflow_outputs: {},
     notes: '',
+    execution_mode: null,
   };
 }
 

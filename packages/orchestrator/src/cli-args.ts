@@ -33,6 +33,15 @@ export type ParsedCliArgs =
     decision: 'accepted_for_later' | 'dismissed' | 'already_captured';
     note: string | null;
   }
+  | {
+    command: 'decision';
+    projectRoot: string | null;
+    action: 'record' | 'pending' | 'list';
+    text: string | null;
+    by: string | null;
+    resolves: string | null;
+    json: boolean;
+  }
   | { command: 'status'; projectRoot: string | null; json: boolean }
   | { command: 'pause'; projectRoot: string | null; note: string | null }
   | { command: 'resume'; projectRoot: string | null; note: string | null; force: boolean }
@@ -296,6 +305,53 @@ function parseProposalDecisionArgs(args: string[]): {
   if (!proposalId) throw new Error('proposal-decision requires --proposal-id <id>');
   if (!decision) throw new Error('proposal-decision requires --decision <accepted_for_later|dismissed|already_captured>');
   return { proposalKind, proposalId, decision, note };
+}
+
+function parseDecisionArgs(args: string[]): {
+  action: 'record' | 'pending' | 'list';
+  text: string | null;
+  by: string | null;
+  resolves: string | null;
+  json: boolean;
+} {
+  const rawAction = args[0];
+  if (rawAction !== 'record' && rawAction !== 'pending' && rawAction !== 'list') {
+    throw new Error('decision requires an action: record | pending | list');
+  }
+  const action = rawAction;
+  let text: string | null = null;
+  let by: string | null = null;
+  let resolves: string | null = null;
+  let json = false;
+  for (let index = 1; index < args.length; index += 1) {
+    const arg = args[index]!;
+    if (arg === '--by') {
+      if (action === 'list') throw new Error('decision list does not take --by');
+      by = readOptionValue(args, index, '--by');
+      index += 1;
+      continue;
+    }
+    if (arg === '--resolves') {
+      if (action !== 'record') throw new Error('--resolves is only valid with decision record');
+      resolves = readOptionValue(args, index, '--resolves');
+      index += 1;
+      continue;
+    }
+    if (arg === '--json') {
+      if (action !== 'list') throw new Error('--json is only valid with decision list');
+      json = true;
+      continue;
+    }
+    if (!arg.startsWith('-') && text === null && action !== 'list') {
+      text = arg;
+      continue;
+    }
+    throw new Error(`unknown decision argument: ${arg}`);
+  }
+  if ((action === 'record' || action === 'pending') && (text === null || text.trim().length === 0)) {
+    throw new Error(`decision ${action} requires the text as one quoted argument`);
+  }
+  return { action, text, by, resolves, json };
 }
 
 function parseVerifyArgs(args: string[]): {
@@ -611,6 +667,8 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
       return { command: 'final-conclusions', projectRoot, ...parseFinalConclusionsArgs(rest) };
     case 'proposal-decision':
       return { command: 'proposal-decision', projectRoot, ...parseProposalDecisionArgs(rest) };
+    case 'decision':
+      return { command: 'decision', projectRoot, ...parseDecisionArgs(rest) };
     case 'export':
       return { command: 'export', projectRoot, passthrough: rest };
     case 'status':

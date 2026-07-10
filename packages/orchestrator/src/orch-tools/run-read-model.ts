@@ -11,6 +11,7 @@ import { readSkillProposalView } from './skill-proposal.js';
 import { readTeamSummaryView } from './team-summary.js';
 import { deriveLedgerStatusFromOperatorEvent } from '../operator-read-model-summary.js';
 import { readNulliusHarnessSentinelHealth } from '../nullius-harness-sentinel.js';
+import { openDecisions, readDecisionsLedger } from '../decisions-ledger.js';
 import { decisionOverlayForFingerprint, mutationProposalFingerprint, skillProposalFingerprint } from '../proposal-decisions.js';
 import { readProjectLocalNulliusLauncherHealth } from '../project-local-nullius.js';
 import type { RunState } from '../types.js';
@@ -478,7 +479,11 @@ function readRecoveryContextView(projectRoot: string, state: RunState, ledgerSna
         message: 'recovery_context.plan_focus was derived from .nullius/plan.md because state.plan is unavailable or incomplete.',
         plan_md_path: controlFiles.plan_md.path,
       });
-    } else if (!statePlan) {
+    } else if (!statePlan && state.execution_mode !== 'file') {
+      // In declared file-mode the engine plan is expected to be unused (plan
+      // truth lives in research_plan.md), so "plan_focus unavailable" is not a
+      // warning there — it was the standing complaint of real file-mode
+      // projects that this line fired on every reconnect.
       warnings.push({
         code: 'RECOVERY_PLAN_FOCUS_UNAVAILABLE',
         message: 'recovery_context.plan_focus could not be derived from state.plan or .nullius/plan.md.',
@@ -1003,6 +1008,52 @@ function recentRunsWithoutVerificationIssue(projectRoot: string): Record<string,
   };
 }
 
+// Fires only for projects that never declared an execution mode while every
+// observable signal says the engine is unused and the file surfaces carry the
+// real work: engine state frozen at its init values, yet dated run evidence
+// keeps accumulating. This is the pattern of real file-mode projects whose
+// state.json stayed byte-identical from init onward while decisions and
+// results lived in hand-maintained markdown. A declaration (either value)
+// silences it permanently — the hint exists to prompt the declaration, never
+// to guess a mode and act on it. The evidence block also answers "the HARNESS
+// declares a milestone executor; did it ever run?" (team_run_dirs_observed),
+// which is only surfaced here because outside this frozen-engine situation an
+// unused executor is a preference, not drift.
+function executionModeUndeclaredIssue(projectRoot: string, state: RunState | null): Record<string, unknown> | null {
+  if (state && (state.execution_mode === 'engine' || state.execution_mode === 'file')) return null;
+  const engineFrozen = !state || (
+    state.run_id === null
+    && state.run_status === 'idle'
+    && (state.approval_history ?? []).length === 0
+    && Object.keys(state.gate_satisfied ?? {}).length === 0
+    && !state.pending_approval
+  );
+  if (!engineFrozen) return null;
+  const runs = datedRunDirectories(projectRoot);
+  if (runs.length === 0) return null;
+  const teamRunsPrefix = path.join('team', 'runs') + path.sep;
+  const teamRunCount = runs.filter(run => run.rel_dir.startsWith(teamRunsPrefix)).length;
+  const harnessSentinel = readNulliusHarnessSentinelHealth(projectRoot);
+  return {
+    code: 'EXECUTION_MODE_UNDECLARED_LOOKS_FILE_MODE',
+    path: path.join('.nullius', 'state.json'),
+    message: 'Engine state has stayed at its init values while dated run evidence accumulates, so this looks like a file-mode project that never declared it. '
+      + 'Declare the mode so reconnecting agents read the right truth surface: '
+      + '`nullius init --mode=file` if work is executed by hand or external runners '
+      + '(durable truth in research_plan.md / research_contract.md and run directories), '
+      + 'or `nullius init --mode=engine` if the run/approve lifecycle is still intended to drive this project.',
+    recommended_action: 'declare_execution_mode',
+    evidence: {
+      dated_run_dirs_observed: runs.length,
+      latest_run_dir: runs.at(-1)?.rel_dir ?? null,
+      harness_milestone_executor: harnessSentinel.valid && harnessSentinel.payload
+        ? harnessSentinel.payload.milestone_executor
+        : null,
+      team_run_dirs_observed: teamRunCount,
+    },
+  };
+}
+
 function directoryHasRecoveryManifest(runDir: string): boolean {
   return RECOVERY_MANIFEST_FILENAMES.some(fileName => fs.existsSync(path.join(runDir, fileName)));
 }
@@ -1037,12 +1088,15 @@ function artifactRunManifestIssue(projectRoot: string): Record<string, unknown> 
   };
 }
 
-export function readProjectSurfaceDriftView(projectRoot: string): {
+export function readProjectSurfaceDriftView(projectRoot: string, state: RunState | null): {
   project_surface_drift: Record<string, unknown> | null;
   project_surface_drift_error: Record<string, unknown> | null;
 } {
   try {
     const issues: Record<string, unknown>[] = [];
+    const executionModeIssue = executionModeUndeclaredIssue(projectRoot, state);
+    if (executionModeIssue) issues.push(executionModeIssue);
+
     const mcpTemplatePath = path.join(projectRoot, '.mcp.template.json');
     const mcpConfigPath = path.join(projectRoot, '.mcp.json');
     if (fs.existsSync(mcpTemplatePath) && !fs.existsSync(mcpConfigPath)) {
@@ -1394,6 +1448,53 @@ function readActiveTeamRunForDigest(projectRoot: string, runId: string, runStatu
   }
 }
 
+function readDecisionLedgerView(projectRoot: string): {
+  decision_ledger: Record<string, unknown> | null;
+  decision_ledger_error: Record<string, unknown> | null;
+} {
+  try {
+    const snapshot = readDecisionsLedger(projectRoot);
+    const open = openDecisions(snapshot.records);
+    const latestDecided = [...snapshot.records].reverse().find(record => record.kind === 'decided') ?? null;
+    return {
+      decision_ledger: {
+        path: snapshot.path,
+        exists: snapshot.exists,
+        decided_count: snapshot.records.filter(record => record.kind === 'decided').length,
+        pending_count: snapshot.records.filter(record => record.kind === 'pending').length,
+        open_count: open.length,
+        // Oldest first, bounded: open items are the receipt's "still needs the
+        // user's decision" list, not a full ledger dump (`decision list` is).
+        open_items: open.slice(0, 10).map(record => ({
+          id: record.id,
+          ts: record.ts,
+          text: record.text,
+          by: record.by,
+        })),
+        latest_decided: latestDecided
+          ? {
+            id: latestDecided.id,
+            ts: latestDecided.ts,
+            text: latestDecided.text,
+            by: latestDecided.by,
+            resolves: latestDecided.resolves,
+          }
+          : null,
+        invalid_lines: snapshot.invalid_lines,
+      },
+      decision_ledger_error: null,
+    };
+  } catch (error) {
+    return {
+      decision_ledger: null,
+      decision_ledger_error: {
+        code: 'DECISION_LEDGER_INVALID',
+        message: error instanceof Error ? error.message : String(error),
+      },
+    };
+  }
+}
+
 export function buildRunStatusView(projectRoot: string, state: RunState) {
   const ledgerSnapshot = readLedgerSnapshot(projectRoot);
   const paused = fs.existsSync(pauseFilePath(projectRoot));
@@ -1414,10 +1515,12 @@ export function buildRunStatusView(projectRoot: string, state: RunState) {
   const learningSummary = readLearningSummaryView(projectRoot, state);
   const teamSummary = readTeamSummaryView(projectRoot, state);
   const projectRecentDigest = readProjectRecentDigestView(projectRoot, ledgerSnapshot);
-  const projectSurfaceDrift = readProjectSurfaceDriftView(projectRoot);
+  const projectSurfaceDrift = readProjectSurfaceDriftView(projectRoot, state);
+  const decisionLedger = readDecisionLedgerView(projectRoot);
   return {
     run_id: state.run_id,
     run_status: paused ? 'paused' : state.run_status,
+    execution_mode: state.execution_mode === 'engine' || state.execution_mode === 'file' ? state.execution_mode : null,
     workflow_id: state.workflow_id ?? null,
     current_step: state.current_step ?? null,
     pending_approval: state.pending_approval
@@ -1472,6 +1575,8 @@ export function buildRunStatusView(projectRoot: string, state: RunState) {
     project_recent_digest_error: projectRecentDigest.project_recent_digest_error,
     project_surface_drift: projectSurfaceDrift.project_surface_drift,
     project_surface_drift_error: projectSurfaceDrift.project_surface_drift_error,
+    decision_ledger: decisionLedger.decision_ledger,
+    decision_ledger_error: decisionLedger.decision_ledger_error,
   };
 }
 
