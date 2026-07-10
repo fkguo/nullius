@@ -27,6 +27,12 @@ prompt=""
 stdin_file="$(mktemp)"
 trap 'rm -f "${stdin_file}"' EXIT
 
+# Count every invocation so tests can assert how many times the runner
+# actually called the CLI (deterministic failure => exactly once).
+if [[ -n "${FAKE_COUNT_FILE:-}" ]]; then
+  printf 'x\\n' >>"${FAKE_COUNT_FILE}"
+fi
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -m|--model)
@@ -87,6 +93,17 @@ cat >"${stdin_file}" || true
     printf 'gemini_api_key=%s\\n' "${GEMINI_API_KEY:-}"
     printf 'google_gemini_base_url=%s\\n' "${GOOGLE_GEMINI_BASE_URL:-}"
     ;;
+  deterministic_unbound_variable)
+    echo 'gemini: line 1: GEMINI_FAKE_VAR: unbound variable' >&2
+    exit 1
+    ;;
+  transient_reset_with_model)
+    if [[ -n "${model}" ]]; then
+      echo 'stream error: connection reset by peer' >&2
+      exit 1
+    fi
+    echo "OK_FALLBACK"
+    ;;
   *)
     echo "OK_DEFAULT"
     ;;
@@ -119,6 +136,7 @@ def _run_runner(
     env = os.environ.copy()
     env["PATH"] = f"{bin_dir}:{env.get('PATH', '')}"
     env["FAKE_MODE"] = fake_mode
+    env["FAKE_COUNT_FILE"] = str(tmp_path / "fake_gemini_calls.log")
     if extra_env:
         env.update(extra_env)
 
@@ -265,6 +283,43 @@ def test_isolated_gemini_home_bridges_oauth_personal_from_default_home(tmp_path:
     assert '"selectedType": "oauth-personal"' in settings_payload
     assert (isolated_home / ".gemini" / "oauth_creds.json").exists()
     assert (isolated_home / ".gemini" / "google_accounts.json").exists()
+
+
+def _fake_call_count(tmp_path: Path) -> int:
+    count_file = tmp_path / "fake_gemini_calls.log"
+    if not count_file.exists():
+        return 0
+    return len(count_file.read_text(encoding="utf-8").splitlines())
+
+
+def test_deterministic_failure_skips_model_alias_fallback_and_fails_once(tmp_path: Path) -> None:
+    # run_gemini.sh classifies stderr BEFORE the model-alias fallback: a
+    # deterministic diagnostic must fail immediately (one CLI call, no
+    # fallback without -m) and surface the classification on stderr.
+    proc, out_path = _run_runner(
+        tmp_path,
+        args=["--model", "gemini-3.1-pro-preview", "--no-proxy-first"],
+        fake_mode="deterministic_unbound_variable",
+    )
+    assert proc.returncode == 1, proc.stdout + proc.stderr
+    assert _fake_call_count(tmp_path) == 1, "deterministic failure must not reach the model-alias fallback"
+    assert "Gemini failed with a deterministic error" in proc.stderr
+    assert "unbound variable" in proc.stderr
+    assert _out_text(out_path) == ""
+
+
+def test_transient_failure_still_reaches_model_alias_fallback(tmp_path: Path) -> None:
+    # Negative control: a transient-looking failure (connection reset, exit 1)
+    # must NOT be classified as deterministic — the existing model-alias
+    # fallback (retry without -m) still runs and recovers.
+    proc, out_path = _run_runner(
+        tmp_path,
+        args=["--model", "gemini-3.1-pro-preview", "--no-proxy-first"],
+        fake_mode="transient_reset_with_model",
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert _fake_call_count(tmp_path) == 2, "transient failure must still fall back to the default model alias"
+    assert _out_text(out_path) == "OK_FALLBACK\n"
 
 
 if __name__ == "__main__":

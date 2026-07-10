@@ -318,6 +318,56 @@ is_deterministic_parse_error() {
   [[ "${code}" -eq 12 || "${code}" -eq 13 ]]
 }
 
+# Deterministic-failure classifier — duplicated verbatim in every *-cli-runner
+# script (cross-skill imports are forbidden: each skill must stay self-contained).
+# Retry-with-backoff exists for TRANSIENT failures (rate limits, network blips,
+# 5xx, timeouts). Deterministic failures — usage errors, unbound variables,
+# missing commands/files, auth or region ineligibility — reproduce identically
+# on every retry, so the runner fails immediately with the diagnostic instead
+# of burning the backoff budget re-running them.
+# Usage: classify_deterministic_failure EXIT_CODE [DIAG_FILE...]
+# Prints a one-line classification and returns 0 when (exit code, diagnostics)
+# look deterministic; prints nothing and returns 1 when the failure may be
+# transient (callers then keep their existing retry/fallback behavior).
+classify_deterministic_failure() {
+  local code="$1"
+  shift
+  local reason=""
+  case "${code}" in
+    2) reason="exit code 2 (usage/argument error)";;
+    126) reason="exit code 126 (command found but not executable)";;
+    127) reason="exit code 127 (command not found)";;
+  esac
+  if [[ -z "${reason}" ]]; then
+    local f pat
+    for f in "$@"; do
+      [[ -n "${f}" && -s "${f}" ]] || continue
+      for pat in \
+        'unbound variable' \
+        'command not found' \
+        'no such file or directory' \
+        'usage:' \
+        'unrecognized argument' \
+        'invalid value' \
+        'not eligible' \
+        'not currently available in your location' \
+        'location is not supported' \
+        'unauthorized' \
+        'forbidden' \
+        'invalid api key'; do
+        if grep -qiF -- "${pat}" "${f}" 2>/dev/null; then
+          reason="diagnostic output matched '${pat}'"
+          break 2
+        fi
+      done
+    done
+  fi
+  if [[ -z "${reason}" ]]; then
+    return 1
+  fi
+  printf '%s\n' "${reason}"
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --model)
@@ -617,6 +667,7 @@ tmp_stdout="$(mktemp)"
 tmp_stderr="$(mktemp)"
 tmp_text="$(mktemp)"
 tmp_parse_err="$(mktemp)"
+tmp_stdout_tail="$(mktemp)"
 copy_attempt_artifacts() {
   if [[ -n "${RAW_OUT}" ]]; then
     mkdir -p "$(dirname "${RAW_OUT}")"
@@ -628,7 +679,7 @@ copy_attempt_artifacts() {
   fi
 }
 cleanup() {
-  rm -f "${MERGED_PROMPT}" "${tmp_stdout}" "${tmp_stderr}" "${tmp_text}" "${tmp_parse_err}"
+  rm -f "${MERGED_PROMPT}" "${tmp_stdout}" "${tmp_stderr}" "${tmp_text}" "${tmp_parse_err}" "${tmp_stdout_tail}"
   if [[ -n "${TEMP_WORK_DIR}" ]]; then
     rm -rf "${TEMP_WORK_DIR}"
   fi
@@ -717,6 +768,7 @@ run_mode() {
   local attempt=1
   local code=0
   local parse_code=0
+  local det_reason=""
   LAST_MODEL_NOT_FOUND=0
 
   while true; do
@@ -753,6 +805,23 @@ run_mode() {
         echo "Kimi produced a deterministic parse failure in ${label} mode; not retrying identical output." >&2
         return "${parse_code}"
       fi
+    fi
+
+    # Deterministic failures reproduce identically on every retry: fail
+    # immediately with the diagnostic instead of burning the backoff budget.
+    # stderr and the parser's extracted error text are grepped in full; raw
+    # stdout only by its TAIL, because the stream-json transcript can carry
+    # prompt/assistant text that merely QUOTES an error string, while a fatal
+    # diagnostic lands at the end. Model-not-found strings are not in the
+    # classifier's pattern list, so the default-model fallback keeps working.
+    tail -n 40 "${tmp_stdout}" >"${tmp_stdout_tail}" 2>/dev/null || true
+    if det_reason="$(classify_deterministic_failure "${code}" "${tmp_stderr}" "${tmp_parse_err}" "${tmp_stdout_tail}")"; then
+      echo "Kimi failed with a deterministic error (${det_reason}) in ${label} mode; not retrying." >&2
+      if [[ -s "${tmp_stderr}" ]]; then
+        echo "stderr tail:" >&2
+        tail -n 40 "${tmp_stderr}" >&2 || true
+      fi
+      return "${code}"
     fi
 
     if [[ "${attempt}" -ge "${MAX_ATTEMPTS}" ]]; then

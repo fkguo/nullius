@@ -62,6 +62,7 @@ bash "${SKILL_DIR}/scripts/run_opencode.sh" \
 - If OpenCode exits non-zero but valid text events were extracted, the runner preserves that output and returns success.
 - If a specific `--model` fails with model-not-found, the runner can retry with OpenCode's default model by omitting `-m` (disable with `--no-fallback`).
 - Retry behavior uses `--max-attempts` (legacy alias: `--max-retries`) and `--sleep-secs`.
+- Deterministic failures (usage/auth/region-ineligibility errors and similar, detected from the runner's error/stderr diagnostics) fail immediately with the diagnostic instead of burning the retry backoff; model-not-found keeps its default-model fallback.
 - Guardrails: `--model` must use `provider/model`, `--max-attempts` must be `1..20`, and `--sleep-secs` must be `1..300`.
 - Current OpenCode `run` mode does not expose a built-in read-only tool allowlist like Claude/Gemini. `--tool-mode workspace` is explicit workspace access, not a hard no-mutation guarantee by itself.
 

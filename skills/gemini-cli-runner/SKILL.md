@@ -49,6 +49,7 @@ bash "${SKILL_DIR}/scripts/run_gemini.sh" \
 
 Notes:
 - If the given `--model` is not recognized by your local CLI, the script retries with the default model (by omitting `-m`).
+- Deterministic failures (usage/auth/region-ineligibility errors and similar, detected from the exit code and stderr) exit immediately with the diagnostic instead of trying the model-alias / proxy fallbacks, which would fail identically.
 - Prompts are fed via stdin to avoid `Argument list too long` with large prompt files.
 - If `--system-prompt-file` is provided, its contents are prepended to stdin before the prompt file (separated by a blank line).
 - If no proxy env is already exported, the runner will try to bootstrap `http_proxy` / `https_proxy` / `all_proxy` from an interactive `zsh` session by invoking a user-defined `proxy_on` helper when available.

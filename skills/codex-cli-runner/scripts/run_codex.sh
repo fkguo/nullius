@@ -349,8 +349,9 @@ fi
 
 MERGED_PROMPT="$(build_merged_prompt)"
 ATTEMPT_LOG="$(mktemp)"
+ATTEMPT_TAIL="$(mktemp)"
 CONTINUE_PROMPT_FILE=""
-trap 'rm -f "${MERGED_PROMPT}" "${ATTEMPT_LOG}" ${CONTINUE_PROMPT_FILE:+"${CONTINUE_PROMPT_FILE}"}' EXIT
+trap 'rm -f "${MERGED_PROMPT}" "${ATTEMPT_LOG}" "${ATTEMPT_TAIL}" ${CONTINUE_PROMPT_FILE:+"${CONTINUE_PROMPT_FILE}"}' EXIT
 
 # --- Execute with retries ---
 
@@ -360,6 +361,56 @@ mkdir -p "$(dirname "${OUT}")"
 # captures a session id, subsequent attempts resume that session, so they get a short continue nudge
 # instead (the original prompt already lives in the resumed session).
 PROMPT_SOURCE="${MERGED_PROMPT}"
+
+# Deterministic-failure classifier — duplicated verbatim in every *-cli-runner
+# script (cross-skill imports are forbidden: each skill must stay self-contained).
+# Retry-with-backoff exists for TRANSIENT failures (rate limits, network blips,
+# 5xx, timeouts). Deterministic failures — usage errors, unbound variables,
+# missing commands/files, auth or region ineligibility — reproduce identically
+# on every retry, so the runner fails immediately with the diagnostic instead
+# of burning the backoff budget re-running them.
+# Usage: classify_deterministic_failure EXIT_CODE [DIAG_FILE...]
+# Prints a one-line classification and returns 0 when (exit code, diagnostics)
+# look deterministic; prints nothing and returns 1 when the failure may be
+# transient (callers then keep their existing retry/fallback behavior).
+classify_deterministic_failure() {
+  local code="$1"
+  shift
+  local reason=""
+  case "${code}" in
+    2) reason="exit code 2 (usage/argument error)";;
+    126) reason="exit code 126 (command found but not executable)";;
+    127) reason="exit code 127 (command not found)";;
+  esac
+  if [[ -z "${reason}" ]]; then
+    local f pat
+    for f in "$@"; do
+      [[ -n "${f}" && -s "${f}" ]] || continue
+      for pat in \
+        'unbound variable' \
+        'command not found' \
+        'no such file or directory' \
+        'usage:' \
+        'unrecognized argument' \
+        'invalid value' \
+        'not eligible' \
+        'not currently available in your location' \
+        'location is not supported' \
+        'unauthorized' \
+        'forbidden' \
+        'invalid api key'; do
+        if grep -qiF -- "${pat}" "${f}" 2>/dev/null; then
+          reason="diagnostic output matched '${pat}'"
+          break 2
+        fi
+      done
+    done
+  fi
+  if [[ -z "${reason}" ]]; then
+    return 1
+  fi
+  printf '%s\n' "${reason}"
+}
 
 attempt=1
 while true; do
@@ -405,6 +456,20 @@ while true; do
     else
       echo "Warning: codex exited 0 but output file not found: ${OUT}" >&2
       exit 1
+    fi
+  fi
+
+  # Deterministic failures reproduce identically on every retry: fail
+  # immediately with the diagnostic instead of burning the backoff budget.
+  # Classified on the TAIL of the combined log only — codex exec streams the
+  # prompt and agent text into the same log, and a full-log grep would
+  # false-positive on text that merely QUOTES an error string; the fatal
+  # diagnostic lands at the end.
+  if [[ $code -ne 0 ]]; then
+    tail -n 40 "${ATTEMPT_LOG}" >"${ATTEMPT_TAIL}" 2>/dev/null || true
+    if det_reason="$(classify_deterministic_failure "${code}" "${ATTEMPT_TAIL}")"; then
+      echo "Codex failed with a deterministic error (${det_reason}); not retrying." >&2
+      exit $code
     fi
   fi
 

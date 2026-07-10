@@ -48,6 +48,7 @@ bash "${SKILL_DIR}/scripts/run_codex.sh" \
 - `--output-last-message` (`-o`) captures the agent's final response to the output file.
 - `--skip-git-repo-check` is enabled by default so the runner works from any directory.
 - Retries on failure with exponential backoff (useful for transient API errors).
+- Deterministic failures (usage/auth/region-ineligibility errors, exit codes 2/126/127, and similar, detected from the exit code and the tail of the attempt log) fail immediately with the diagnostic instead of burning the retry backoff.
 - For offline/CI validation, use `--dry-run` to print the planned invocation without calling Codex.
 
 ## Session continuation (multi-turn / crash recovery)

@@ -17,6 +17,7 @@ set -euo pipefail
 
 mode="${FAKE_MODE:-success}"
 log_file="${FAKE_LOG:-}"
+state_file="${FAKE_STATE:-}"
 model=""
 stdin_file="$(mktemp)"
 trap 'rm -f "${stdin_file}"' EXIT
@@ -124,6 +125,19 @@ PY
     echo 'diagnostic noise on stderr' >&2
     exit 0
     ;;
+  deterministic_stderr_diagnostic)
+    echo 'opencode: line 1: OPENCODE_FAKE_VAR: unbound variable' >&2
+    exit 1
+    ;;
+  transient_reset_then_success)
+    if [[ -n "${state_file}" && ! -f "${state_file}" ]]; then
+      printf 'failed\\n' >"${state_file}"
+      echo '{"type":"error","error":{"data":{"message":"connection reset by peer"}}}'
+      exit 0
+    fi
+    echo '{"type":"text","part":{"text":"OK_TRANSIENT_RETRY"}}'
+    exit 0
+    ;;
   *)
     echo '{"type":"text","part":{"text":"OK_DEFAULT"}}'
     exit 0
@@ -158,6 +172,7 @@ def _run_runner(
     env["PATH"] = f"{bin_dir}:{env.get('PATH', '')}"
     env["FAKE_MODE"] = fake_mode
     env["FAKE_LOG"] = str(log)
+    env["FAKE_STATE"] = str(tmp_path / "fake_state")
 
     cmd = [
         "bash",
@@ -364,3 +379,45 @@ def test_rejects_attach_plus_start_server(tmp_path: Path) -> None:
     assert proc.returncode == 2
     assert _out_text(out_path) == ""
     assert "--attach and --start-server cannot be used together" in proc.stderr
+
+
+def _fake_run_call_count(tmp_path: Path) -> int:
+    log_path = tmp_path / "fake_opencode.log"
+    if not log_path.exists():
+        return 0
+    return sum(
+        1
+        for line in log_path.read_text(encoding="utf-8").splitlines()
+        if line.startswith("run ")
+    )
+
+
+def test_deterministic_failure_is_not_retried(tmp_path: Path) -> None:
+    # run_with_retries classifies (err_file, stderr_file) after the rc==10
+    # model-not-found short-circuit: a deterministic diagnostic on stderr must
+    # stop after ONE attempt even though the attempt budget allows more.
+    proc, out_path = _run_runner(
+        tmp_path,
+        args=["--max-attempts", "2", "--sleep-secs", "1"],
+        fake_mode="deterministic_stderr_diagnostic",
+    )
+    assert proc.returncode != 0
+    assert _fake_run_call_count(tmp_path) == 1, "deterministic failure must fail on the first attempt"
+    assert "failed with a deterministic error" in proc.stderr
+    assert "unbound variable" in proc.stderr
+    assert _out_text(out_path) == ""
+
+
+def test_transient_failure_still_retries_then_succeeds(tmp_path: Path) -> None:
+    # Negative control: a transient-looking error event (connection reset)
+    # must NOT be classified as deterministic — the existing in-mode retry
+    # still runs and recovers on the second attempt.
+    proc, out_path = _run_runner(
+        tmp_path,
+        args=["--max-attempts", "2", "--sleep-secs", "1"],
+        fake_mode="transient_reset_then_success",
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert _fake_run_call_count(tmp_path) == 2, "transient failure must keep the retry budget"
+    assert "retrying in" in proc.stderr
+    assert _out_text(out_path) == "OK_TRANSIENT_RETRY\n"

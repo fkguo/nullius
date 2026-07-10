@@ -36,6 +36,7 @@ Notes:
 - `--tools ...` remains available as an explicit advanced override when you need a custom built-in tool list.
 - It enables `--strict-mcp-config` by default to avoid side effects and MCP schema loading issues (disable with `--no-strict-mcp-config`).
 - It retries on failures with exponential backoff (useful for transient 5xx/overload).
+- Deterministic failures (usage/auth/region-ineligibility errors, exit codes 2/126/127, and similar, detected from the exit code and stderr) fail immediately with the diagnostic instead of burning the retry backoff.
 - It feeds the user prompt via stdin (`--input-format text` + `< --prompt-file`) to avoid macOS/Linux `ARG_MAX` limits (fixes `Argument list too long` with 1–5MB prompt packets).
 - For offline/CI validation, use `--dry-run` to print the planned invocation without calling Claude (prints only paths + size + sha256; never the full prompt).
 
