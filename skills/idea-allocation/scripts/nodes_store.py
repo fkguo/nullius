@@ -30,8 +30,11 @@ Each node object carries:
 
 - ``node_id``: engine short id (when ``nodes`` is a mapping, the key is the
   node id and must match any inline ``node_id``).
-- ``lifecycle_state``: one of ``"active"``, ``"waiting_activation"``,
-  ``"archived"``. Missing means ``"active"``.
+- ``lifecycle_state``: one of the engine lifecycle machine's states —
+  ``"candidate"``, ``"admission_review"``, ``"admitted"``, ``"needs_refresh"``,
+  ``"admission_blocked"``, ``"waiting_activation"``, ``"archived"``. Required:
+  there is no default, and the retired ``"active"`` value marks an unmigrated
+  store (rejected with a migration hint).
 - ``posterior`` (optional): ``{"value": float in [0, 1],
   "evidence_count": int >= 0, "updated_at": ISO 8601 date-time,
   "gaia_package_ref": optional string, "status": optional one of "current" |
@@ -44,8 +47,10 @@ Each node object carries:
   bool}``. Missing means ``metadata_only``. ``coverage_incomplete`` participates
   in allocation only when ``exploratory_allocation`` is explicitly true.
 - ``activation_condition`` (required when ``lifecycle_state`` is
-  ``"waiting_activation"``): ``{"kind": one of tool_readiness | data_release |
-  stage_reached | exploratory_computation | other, "description": non-empty
+  ``"waiting_activation"`` — the external condition to become actionable — or
+  ``"admission_blocked"`` — the missing evidence admission needs):
+  ``{"kind": one of tool_readiness | data_release | stage_reached |
+  exploratory_computation | required_evidence | other, "description": non-empty
   string, "satisfied": bool, "last_checked_at": optional ISO 8601 date-time}``.
 
 Unknown extra keys on a node or on ``posterior`` are tolerated (the campaign
@@ -64,14 +69,26 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-LIFECYCLE_STATES = ("active", "waiting_activation", "archived")
-DEFAULT_LIFECYCLE_STATE = "active"
+LIFECYCLE_STATES = (
+    "candidate",
+    "admission_review",
+    "admitted",
+    "needs_refresh",
+    "admission_blocked",
+    "waiting_activation",
+    "archived",
+)
+
+# The two states whose nodes carry an activation_condition (the engine clears
+# the condition on every other state).
+CONDITION_CARRYING_STATES = ("waiting_activation", "admission_blocked")
 
 ACTIVATION_KINDS = (
     "tool_readiness",
     "data_release",
     "stage_reached",
     "exploratory_computation",
+    "required_evidence",
     "other",
 )
 
@@ -387,24 +404,31 @@ def load_nodes_file(
             continue
         seen_ids.add(node_id)
 
-        state = node.get("lifecycle_state", DEFAULT_LIFECYCLE_STATE)
+        state = node.get("lifecycle_state")
         if state not in LIFECYCLE_STATES:
+            hint = (
+                " (missing or legacy value: the engine lifecycle state machine has no"
+                " default; migrate the store — no posterior -> 'candidate',"
+                " posterior.status=current with scoring-eligible coverage -> 'admitted',"
+                " otherwise -> 'needs_refresh')"
+                if state is None or state == "active"
+                else ""
+            )
             problems.append(
                 f"node {node_id!r}: lifecycle_state must be one of {list(LIFECYCLE_STATES)}, "
-                f"got {state!r}"
+                f"got {state!r}{hint}"
             )
             continue
-        node["lifecycle_state"] = state
 
         if node.get("posterior") is not None:
             _validate_posterior(node_id, node["posterior"], problems)
         _validate_literature_coverage(node_id, node, problems)
 
         condition = node.get("activation_condition")
-        if state == "waiting_activation":
+        if state in CONDITION_CARRYING_STATES:
             if condition is None:
                 problems.append(
-                    f"node {node_id!r}: waiting_activation requires an activation_condition"
+                    f"node {node_id!r}: {state} requires an activation_condition"
                 )
             else:
                 _validate_activation_condition(node_id, condition, problems)
@@ -414,6 +438,45 @@ def load_nodes_file(
     if problems:
         raise StoreError(problems)
     return campaign_id, nodes
+
+
+def literature_coverage(node: Dict[str, Any]) -> Dict[str, Any]:
+    """The node's literature_coverage object; metadata_only when absent."""
+    coverage = node.get("literature_coverage")
+    if isinstance(coverage, dict):
+        return coverage
+    return {"status": "metadata_only", "exploratory_allocation": False}
+
+
+def posterior_status(node: Dict[str, Any]) -> str:
+    """Stored posterior status; missing status reads as current (older snapshots)."""
+    posterior = node.get("posterior")
+    if isinstance(posterior, dict) and posterior.get("status") in POSTERIOR_STATUSES:
+        return str(posterior["status"])
+    return "current"
+
+
+def allocation_eligible_from_coverage(coverage: Dict[str, Any]) -> bool:
+    """Close-prior gate as the decision layer reads it: saturated, or
+    coverage_incomplete with the explicit exploratory waiver."""
+    status = coverage.get("status")
+    return status == "saturated" or (
+        status == "coverage_incomplete" and coverage.get("exploratory_allocation") is True
+    )
+
+
+def waiting_return_state(node: Dict[str, Any]) -> str:
+    """The engine-legal state a waiting_activation node returns to, derived
+    from its stored data the same way the engine checks entry preconditions:
+    no posterior -> candidate; current posterior with scoring-eligible
+    coverage -> admitted; any other posterior -> needs_refresh."""
+    if node.get("posterior") is None:
+        return "candidate"
+    if posterior_status(node) == "current" and allocation_eligible_from_coverage(
+        literature_coverage(node)
+    ):
+        return "admitted"
+    return "needs_refresh"
 
 
 def waiting_entry(node: Dict[str, Any]) -> Dict[str, Any]:
