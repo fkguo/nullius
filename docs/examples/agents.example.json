@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "_notes": [
+    "Annotated template for the third-party agents file; see docs/AGENTS_FILE.md for the schema.",
+    "Copy to ~/.nullius/agents.json (user level) or <project>/.nullius/agents.json (project level).",
+    "Consumers ignore unknown keys, so these _notes travel with the file harmlessly.",
+    "Every model string below is an example: confirm each one against the CLI actually installed",
+    "on your machine (for kimi, read default_model from the kimi CLI config or run one minimal",
+    "call and check the session record) before relying on it.",
+    "This file is also the shared parsing fixture for the review-swarm and derivation-verify tests."
+  ],
+  "families": {
+    "claude": {
+      "runner": "native",
+      "models": { "default": "opus", "strong": "fable", "fast": "sonnet" },
+      "notes": "The host agent's own family, served by the host's native subagents in-process. CLI launchers reject family: specs that resolve to a native runner; derivation-verify takes host-supplied native_derivations instead."
+    },
+    "gpt": {
+      "runner": "codex",
+      "models": { "default": "gpt-5.6-terra", "strong": "gpt-5.6-sol", "fast": "gpt-5.6-luna" }
+    },
+    "glm": {
+      "runner": "opencode",
+      "models": { "default": "zhipuai-coding-plan/glm-5.2" },
+      "notes": "run review invocations in the foreground; background concurrency has died silently"
+    },
+    "kimi": {
+      "runner": "kimi",
+      "models": { "default": "kimi-code/kimi-for-coding" },
+      "notes": "Model alias as accepted by the kimi CLI -m flag. The executable is the current kimi binary (Kimi Code); the runner skill directory name kimi-cli-runner is historical."
+    },
+    "gemini": {
+      "runner": "gemini",
+      "available": false,
+      "notes": "no local access on this machine"
+    }
+  },
+  "policy": {
+    "cross_family_minimum": 3,
+    "when_below_minimum": "native_subagents"
+  }
+}

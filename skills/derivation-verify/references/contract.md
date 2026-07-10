@@ -22,7 +22,13 @@ input and produce this output, so a caller's `claims` port verbatim across execu
           "canonical_answer": "string",   // and AUTO-EXCLUDES their family from the CLI backend pool.
           "family": "string",             // the producing family, canonicalized like a backend spec:
                                           //   "claude"/"codex"/"gemini"/"kimi" (any case), a spec "claude/default",
-                                          //   or any other token -> "opencode". A native family can supply
+                                          //   or any other token -> "opencode". With a third-party agents
+                                          //   file in force (docs/AGENTS_FILE.md), the tag must land in a
+                                          //   DECLARED family: declared names pass verbatim, a dedicated
+                                          //   backend alias maps to its declared family, and an
+                                          //   unattributable tag is dropped VISIBLY (native_dropped in the
+                                          //   row) so it can never pair with a roster-attributed CLI family
+                                          //   and count one physical family twice. A native family can supply
                                           //   at most ONE of the >=2 confirmations: convergence still
                                           //   requires >=1 independent CLI family (no self-certification).
           "checkable_form": "string",     // optional strict-sympy form (enables the CAS path)
@@ -88,11 +94,18 @@ rather than confirmatory.
 `verification` (`"cas"` = decided by deterministic cross-family equivalence, LLM-independent; `"llm"` =
 comparator clustering + veto; `"error"` = claim crashed), `cross_family_confirmations` (# distinct model
 families in the agreeing cluster), `families`, `judges` (comparator-panel size that returned a verdict),
-`native_seeded` (# host-provided `native_derivations` injected without a CLI hop), and
+`native_seeded` (# host-provided `native_derivations` injected without a CLI hop), `native_dropped`
+(native tags rejected because the agents file declares no such family — visible, never silent), and
 `adjudicated_matches_majority`; the summary adds `dropped_claims`, `family_pool` (distinct families
-available, incl. native — `<2` means cross-family convergence is structurally impossible), and
+available, incl. native — `<2` means cross-family convergence is structurally impossible),
+`agents_file` (which third-party agents file was in force: source explicit/project/user/none plus its
+path; see docs/AGENTS_FILE.md), `independence` (participating families; level cross_family /
+single_family / none; and the declared-available families, absent families, cross-family minimum and
+below-minimum flag — null without an agents file), and
 `unavailable_backends` (specs dropped from the deriver pool after consecutive infrastructure-level
-failures, so backend outages stay distinguishable from mathematical disagreement). Convergence is **capability-first**: when any answer is CAS-checkable, a claim
+failures, so backend outages stay distinguishable from mathematical disagreement). Family identity
+throughout (cross-family counting, diversity tie-break, native auto-exclusion) is refined by the
+agents file when one is in force; without one it stays the backend namespace above. Convergence is **capability-first**: when any answer is CAS-checkable, a claim
 converges iff **>=2 cross-family `checkable_form`s are CAS-verified equal** (the comparator is NOT in the
 gate path, and a CAS refutation overrides a wrong LLM consensus); otherwise it falls back to the LLM path
 (**R1 ∧ R2**: `cross_family_confirmations >= 2` AND `adjudicated_matches_majority`). Both are strictly
