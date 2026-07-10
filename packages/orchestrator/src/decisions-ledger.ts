@@ -54,6 +54,13 @@ export type DecisionsLedgerSnapshot = {
 // Canonical ids only: no leading zeros, so "D01" can never alias "D1" as a
 // second identity for the same numeric sequence.
 const DECISION_ID_PATTERN = /^D([1-9]\d*)$/;
+
+/** True when the value contains at least one non-whitespace character under
+ *  the Unicode definition — String.prototype.trim misses U+0085 NEXT LINE,
+ *  so a trim-based emptiness check would admit an U+0085-only decision. */
+function hasSubstantiveText(value: string): boolean {
+  return !/^\p{White_Space}*$/u.test(value);
+}
 // UTC-Z RFC3339, the only shape the recording path (utcNowIso) ever writes.
 const UTC_ISO_TS_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/;
 
@@ -127,6 +134,7 @@ type TopLevelScan = {
  *  cannot smuggle a poisoned (e.g. ceiling) id into the reservation set. */
 function scanTopLevelFields(line: string): TopLevelScan {
   const scan: TopLevelScan = { ids: [], keyCounts: new Map(), complete: false };
+  const seenScanIds = new Set<string>();
   let i = 0;
   const n = line.length;
   const skipWs = () => { while (i < n && JSON_WHITESPACE.has(line[i]!)) i += 1; };
@@ -227,7 +235,8 @@ function scanTopLevelFields(line: string): TopLevelScan {
     const value = readValue();
     if (value === null) return scan;
     scan.keyCounts.set(key, (scan.keyCounts.get(key) ?? 0) + 1);
-    if (key === 'id' && typeof value === 'string' && decisionSequenceNumber(value) !== null && !scan.ids.includes(value)) {
+    if (key === 'id' && typeof value === 'string' && decisionSequenceNumber(value) !== null && !seenScanIds.has(value)) {
+      seenScanIds.add(value);
       scan.ids.push(value);
     }
     skipWs();
@@ -261,18 +270,23 @@ function parseDecisionLine(line: string): ParsedDecisionLine {
   if (id === null) return { ids, record: null };
   // The recording path always writes a UTC-Z RFC3339 timestamp; a persisted
   // ts that is not one is a malformed line, not a value to display as-is.
-  if (typeof record.ts !== 'string' || !UTC_ISO_TS_PATTERN.test(record.ts) || Number.isNaN(Date.parse(record.ts))) {
+  // Date.parse NORMALIZES overflowing components (2026-02-29 -> Mar 1,
+  // 24:00 -> next day), so the parsed instant must round-trip to the same
+  // second-level components.
+  if (typeof record.ts !== 'string' || !UTC_ISO_TS_PATTERN.test(record.ts)) return { ids, record: null };
+  const parsedInstant = new Date(record.ts);
+  if (Number.isNaN(parsedInstant.getTime()) || parsedInstant.toISOString().slice(0, 19) !== record.ts.slice(0, 19)) {
     return { ids, record: null };
   }
   if (record.kind !== 'decided' && record.kind !== 'pending') return { ids, record: null };
   // Whitespace-only text is rejected at recording time; a persisted record
   // carrying it is malformed, not an admissible empty-looking decision.
-  if (typeof record.text !== 'string' || record.text.trim().length === 0) return { ids, record: null };
+  if (typeof record.text !== 'string' || !hasSubstantiveText(record.text)) return { ids, record: null };
   // Persisted authorship must be an explicit nonempty string: rewriting a
   // malformed `by` as "user" would invent provenance in a ledger whose whole
   // point is preserving who decided. (The CLI-side default to "user" applies
   // at RECORDING time, before persistence.)
-  if (typeof record.by !== 'string' || record.by.trim().length === 0) return { ids, record: null };
+  if (typeof record.by !== 'string' || !hasSubstantiveText(record.by)) return { ids, record: null };
   // Strict resolves validation: absent/null, or a canonical id on a decided
   // record. A malformed value or a pending record carrying resolves is a
   // malformed line, not something to silently coerce to null.
@@ -528,7 +542,7 @@ export function appendDecision(
   params: { kind: DecisionKind; text: string; by?: string | null; resolves?: string | null },
 ): DecisionRecord {
   const trimmed = params.text.trim();
-  if (trimmed.length === 0) {
+  if (!hasSubstantiveText(trimmed)) {
     throw new Error('decision text must not be empty');
   }
   // Recording requires an initialized project, and "initialized" means the
@@ -561,7 +575,7 @@ export function appendDecision(
       ts: utcNowIso(),
       kind: params.kind,
       text: trimmed,
-      by: params.by && params.by.trim().length > 0 ? params.by.trim() : 'user',
+      by: params.by && hasSubstantiveText(params.by) ? params.by.trim() : 'user',
       resolves,
     };
     // Validation is done; only now touch the file (boundary repair + append),

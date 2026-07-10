@@ -405,8 +405,9 @@ export async function runDecisionCommand(
       }
       return;
     }
+    const openIds = new Set(open.map((entry) => entry.id));
     for (const record of snapshot.records) {
-      const openMark = record.kind === 'pending' && open.some((entry) => entry.id === record.id) ? ' [open]' : '';
+      const openMark = record.kind === 'pending' && openIds.has(record.id) ? ' [open]' : '';
       const resolvesMark = record.resolves ? ` resolves=${record.resolves}` : '';
       io.stdout(`${record.id} ${record.kind}${openMark} @ ${renderInline(record.ts)} (${renderInline(record.by)})${resolvesMark}: ${renderInline(record.text)}\n`);
     }

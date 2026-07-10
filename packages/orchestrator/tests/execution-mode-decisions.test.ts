@@ -682,23 +682,68 @@ describe('decision ledger', () => {
     expect(record.stdout.join('')).toContain('recorded: D4');
   });
 
-  it('handles a large invalid tail with the single-pass prefix validator', async () => {
+  it('handles a huge valid prefix before one invalid byte without stalling', async () => {
     const projectRoot = makeTempProjectRoot();
     await initRuntimeOnly(projectRoot);
     const ledgerPath = path.join(projectRoot, '.nullius', 'decisions.jsonl');
-    // 1 MiB of invalid bytes after a valid id-carrying prefix: the read model
-    // must quarantine the line quickly (single pass + one decode), keep the
-    // prefix id reserved, and stay responsive.
-    const invalidTail = Buffer.alloc(1024 * 1024, 0xff);
+    // 4 MiB of VALID bytes before the single invalid byte: a per-byte
+    // streaming decode would grind through millions of decoder calls before
+    // reaching the error, while the single-pass validator finishes in
+    // milliseconds. The bound below is generous for the linear scan and far
+    // below the per-byte cost.
+    const validPrefix = Buffer.alloc(4 * 1024 * 1024, 0x61);
     fs.writeFileSync(ledgerPath, Buffer.concat([
       Buffer.from('{"id":"D1","note":"', 'utf-8'),
-      invalidTail,
+      validPrefix,
+      Buffer.from([0xff]),
       Buffer.from('\n', 'utf-8'),
     ]));
 
+    const startedAt = performance.now();
     const record = makeIo(projectRoot);
     expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'still responsive'], record.io)).toBe(0);
+    expect(performance.now() - startedAt).toBeLessThan(15_000);
+    // The id sits in the valid prefix, so it stays reserved.
     expect(record.stdout.join('')).toContain('recorded: D2');
+  });
+
+  it('quarantines calendar-invalid timestamps that Date.parse would normalize', async () => {
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot);
+    const ledgerPath = path.join(projectRoot, '.nullius', 'decisions.jsonl');
+    const lines = [
+      { id: 'D1', ts: '2026-02-29T00:00:00Z', kind: 'pending', text: 'not a leap year', by: 'user', resolves: null },
+      { id: 'D2', ts: '2026-04-31T00:00:00Z', kind: 'pending', text: 'April has 30 days', by: 'user', resolves: null },
+      { id: 'D3', ts: '2026-07-10T24:00:00Z', kind: 'pending', text: 'hour 24', by: 'user', resolves: null },
+      // A real leap day stays valid.
+      { id: 'D4', ts: '2028-02-29T00:00:00Z', kind: 'pending', text: 'genuine leap day', by: 'user', resolves: null },
+    ];
+    fs.writeFileSync(ledgerPath, lines.map(line => JSON.stringify(line)).join('\n') + '\n', 'utf-8');
+
+    const list = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'list', '--json'], list.io)).toBe(0);
+    const parsed = JSON.parse(list.stdout.join('')) as { invalid_lines: number; records: Array<{ id: string }> };
+    expect(parsed.invalid_lines).toBe(3);
+    expect(parsed.records.map(entry => entry.id)).toEqual(['D4']);
+  });
+
+  it('rejects U+0085-only text and authorship that trim would miss', async () => {
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot);
+
+    await expect(
+      runCli([`--project-root=${projectRoot}`, 'decision', 'record', '\u0085\u0085'], makeIo(projectRoot).io),
+    ).rejects.toThrow('decision text must not be empty');
+
+    const ledgerPath = path.join(projectRoot, '.nullius', 'decisions.jsonl');
+    const lines = [
+      { id: 'D1', ts: '2026-07-10T00:00:00Z', kind: 'pending', text: '\u0085', by: 'user', resolves: null },
+      { id: 'D2', ts: '2026-07-10T00:00:01Z', kind: 'pending', text: 'real question', by: '\u0085', resolves: null },
+    ];
+    fs.writeFileSync(ledgerPath, lines.map(line => JSON.stringify(line)).join('\n') + '\n', 'utf-8');
+    const list = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'list', '--json'], list.io)).toBe(0);
+    expect((JSON.parse(list.stdout.join('')) as { invalid_lines: number }).invalid_lines).toBe(2);
   });
 
   it('keeps the terminator from hijacking help detection or the project root', async () => {

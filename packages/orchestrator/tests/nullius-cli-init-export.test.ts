@@ -349,6 +349,47 @@ describe('nullius CLI init/export', () => {
     expect(argvLines[2]).toBe('status');
   }, 30000);
 
+  it('refuses a present-but-older-generation baked target instead of trusting it with the root', async () => {
+    const parentDir = makeTempDir('nullius-cli-stale-baked-');
+    const projectRoot = path.join(parentDir, 'project-root');
+    expect(await runCli([`--project-root=${projectRoot}`, 'init', '--runtime-only'], makeIo(parentDir).io)).toBe(0);
+    const launcherPath = path.join(projectRoot, '.nullius', 'bin', 'nullius');
+
+    // A baked target that EXISTS and answers commands, but speaks the WRONG
+    // protocol generation (the shape of a checkout rebuilt to an older
+    // commit). It logs every argv it receives.
+    const staleLog = path.join(parentDir, 'stale-argv.log');
+    const staleCli = path.join(parentDir, 'stale-cli.js');
+    fs.writeFileSync(staleCli, [
+      "const fs = require('node:fs');",
+      `fs.appendFileSync(${JSON.stringify(staleLog)}, process.argv.slice(2).join(' ') + '\\n');`,
+      "if (process.argv[2] === '--launcher-protocol') { console.log('nullius-launcher-protocol 1'); process.exit(0); }",
+      'process.exit(0);',
+    ].join('\n') + '\n', 'utf-8');
+    const script = fs.readFileSync(launcherPath, 'utf-8');
+    const cliMatch = script.match(/'(\/[^']*dist\/cli\.js)'/u);
+    expect(cliMatch).not.toBeNull();
+    fs.writeFileSync(launcherPath, script.replaceAll(cliMatch![1]!, staleCli), 'utf-8');
+    fs.chmodSync(launcherPath, 0o755);
+
+    let failed: { status: number | null } | null = null;
+    try {
+      execFileSync(launcherPath, ['status', '--json'], {
+        cwd: projectRoot,
+        encoding: 'utf-8',
+        timeout: 20000,
+        env: { ...process.env, PATH: '/usr/bin:/bin' },
+      });
+    } catch (error) {
+      failed = error as { status: number | null };
+    }
+    // Refused outright: the stale parser is never trusted with the root, and
+    // it only ever saw the handshake probe.
+    expect(failed?.status).toBe(127);
+    const staleLines = fs.readFileSync(staleLog, 'utf-8').split('\n').filter(line => line.length > 0);
+    expect(new Set(staleLines)).toEqual(new Set(['--launcher-protocol']));
+  }, 30000);
+
   it('detects its own bin dir on PATH and falls back to the baked CLI without recursing', async () => {
     const parentDir = makeTempDir('nullius-cli-self-path-');
     const projectRoot = path.join(parentDir, 'project-root');
