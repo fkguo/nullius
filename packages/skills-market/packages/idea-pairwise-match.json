@@ -4,7 +4,7 @@
   "repo": "nullius/skills-market",
   "channel": "dev",
   "version": "0.1.0",
-  "summary": "Criteria-committed, cross-family judged pairwise comparison between two idea nodes: commit the comparison criteria (sha256) before any advocacy, rebuild the judge input from validated anchored structure only (never verbatim author prose), collect a panel of at least three distinct model families, and write a pairwise_match_v1 artifact whose outcome enters the belief layer as one capped, non-eliminating observation.",
+  "summary": "Criteria-committed, roster-judged pairwise comparison between two idea nodes: commit the comparison criteria (sha256) before any advocacy, rebuild the judge input from validated anchored structure only (never verbatim author prose), collect a panel drawn from the third-party agent roster (at least three distinct model families; a roster that cannot field that floor degrades honestly to numbered native subagent seats stamped single_family), and write a pairwise_match_v1 artifact whose outcome enters the belief layer as one capped, non-eliminating observation.",
   "platforms": [
     "claude_code",
     "codex",

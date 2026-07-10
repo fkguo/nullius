@@ -15,6 +15,7 @@ const VALID_PAIRWISE_MATCH = {
   },
   panel: [
     {
+      // Family labels come from the third-party agent roster (agents.json).
       reviewer_family: 'claude',
       model: 'claude-fable-5',
       vote: 'a',
@@ -28,22 +29,29 @@ const VALID_PAIRWISE_MATCH = {
       unanchored_arguments_discarded: 2,
     },
     {
-      reviewer_family: 'codex',
-      model: 'gpt-5.5',
+      reviewer_family: 'gpt',
+      model: 'gpt-5.6-terra',
       vote: 'tie',
       anchored_arguments: [],
       unanchored_arguments_discarded: 0,
     },
     {
-      reviewer_family: 'opencode',
+      reviewer_family: 'glm',
       model: 'glm-5.2',
       vote: 'a',
       anchored_arguments: [],
       unanchored_arguments_discarded: 0,
     },
   ],
+  panel_independence: {
+    mode: 'cross_family',
+    families_present: ['claude', 'glm', 'gpt'],
+    families_absent: [
+      { family: 'kimi', reason: 'runner exit code 1; runner exit code 1' },
+    ],
+  },
   outcome: {
-    // claude='a', codex='tie', opencode='a' -> votes_a=2, votes_b=0, ties=1
+    // claude='a', gpt='tie', glm='a' -> votes_a=2, votes_b=0, ties=1
     // winner='a', vote_margin = |2-0|/3 = 2/3, matching validate_pairwise_match's recompute.
     winner: 'a',
     vote_margin: 0.6666666666666666,
@@ -144,12 +152,66 @@ describe('contract catalog: decision-layer schemas', () => {
       'test/pairwise_match/empty-panel',
     )).toThrow(ContractRuntimeError);
 
+    // Family labels are roster-defined, so an unfamiliar lowercase label such
+    // as 'gemini' is schema-valid; what the pattern still rejects is a label
+    // that could not be a roster key at all (uppercase, leading digit, ...).
     const badFamily = structuredClone(VALID_PAIRWISE_MATCH);
-    (badFamily.panel[0] as Record<string, unknown>).reviewer_family = 'gemini';
+    (badFamily.panel[0] as Record<string, unknown>).reviewer_family = 'GPT';
     expect(() => catalog.validateAgainstRef(
       './pairwise_match_v1.schema.json',
       badFamily,
       'test/pairwise_match/bad-family',
+    )).toThrow(ContractRuntimeError);
+
+    const missingIndependence = structuredClone(VALID_PAIRWISE_MATCH) as Record<string, unknown>;
+    delete missingIndependence.panel_independence;
+    expect(() => catalog.validateAgainstRef(
+      './pairwise_match_v1.schema.json',
+      missingIndependence,
+      'test/pairwise_match/missing-independence',
+    )).toThrow(ContractRuntimeError);
+
+    const badMode = structuredClone(VALID_PAIRWISE_MATCH);
+    (badMode.panel_independence as Record<string, unknown>).mode = 'mixed';
+    expect(() => catalog.validateAgainstRef(
+      './pairwise_match_v1.schema.json',
+      badMode,
+      'test/pairwise_match/bad-independence-mode',
+    )).toThrow(ContractRuntimeError);
+  });
+
+  it('accepts a degraded single-family pairwise_match_v1 record with numbered seats', () => {
+    const degraded = structuredClone(VALID_PAIRWISE_MATCH) as Record<string, unknown>;
+    degraded.panel = [1, 2, 3].map((seat) => ({
+      reviewer_family: 'claude',
+      seat,
+      model: 'claude/host-subagent',
+      vote: seat === 2 ? 'tie' : 'a',
+      anchored_arguments: [],
+      unanchored_arguments_discarded: 0,
+    }));
+    degraded.panel_independence = {
+      mode: 'single_family',
+      families_present: ['claude'],
+      families_absent: [
+        { family: 'gemini', reason: 'declared unavailable in the roster: no local access on this machine' },
+      ],
+    };
+    degraded.independent_runners = false;
+    expect(() => catalog.validateAgainstRef(
+      './pairwise_match_v1.schema.json',
+      degraded,
+      'test/pairwise_match/single-family',
+    )).not.toThrow();
+
+    // A single-family panel can never claim independent runners; the seats
+    // are instances of one host model by definition.
+    const dishonest = structuredClone(degraded) as Record<string, unknown>;
+    dishonest.independent_runners = true;
+    expect(() => catalog.validateAgainstRef(
+      './pairwise_match_v1.schema.json',
+      dishonest,
+      'test/pairwise_match/single-family-dishonest-runners',
     )).toThrow(ContractRuntimeError);
   });
 
@@ -282,7 +344,7 @@ describe('contract catalog: decision-layer schemas', () => {
     // and enum violations must say which values are allowed.
     const broken = structuredClone(VALID_PAIRWISE_MATCH);
     (broken.panel[0] as Record<string, unknown>).vote = 'strong-a'; // enum violation 1
-    (broken.panel[1] as Record<string, unknown>).reviewer_family = 'gemini'; // enum violation 2
+    (broken.panel[1] as Record<string, unknown>).reviewer_family = 'Gemini'; // label-pattern violation 2
     broken.criteria_commitment.commitment_hash = 'sha256:not-hex'; // pattern violation 3
 
     let message = '';

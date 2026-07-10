@@ -1,7 +1,7 @@
 # Advocacy statement request: Idea {{IDEA_LABEL}}
 
 You are writing the advocacy statement for one side of a pairwise idea
-match. A cross-family judge panel will read your statement next to the
+match. A panel of independent judges will read your statement next to the
 opposing idea's statement, produced from this same template. You have not
 seen the opposing idea and must not speculate about it.
 

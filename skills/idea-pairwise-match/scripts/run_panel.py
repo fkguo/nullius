@@ -27,11 +27,24 @@ sandbox against a third-party adversary (see SKILL.md "Scope of the rebuild").
 
 Judge execution:
 
-  claude    host-subagent vote injected via --claude-vote FILE (preferred),
-            else the claude CLI through the review-swarm launcher
-  codex     review-swarm launcher (scripts/bin/run_multi_task.py)
-  opencode  review-swarm launcher
-  kimi      kimi-cli-runner (the launcher has no kimi runner today)
+The panel's family list, each family's runner, and each family's model string
+come from a third-party agent roster (an agents.json file, schema version 1;
+see "Third-party agent roster" below and in SKILL.md). Runner dispatch:
+
+  native      host-subagent vote injected via --native-vote FILE; run_panel
+              never spawns a host subagent itself
+  codex       review-swarm launcher (scripts/bin/run_multi_task.py)
+  claude-cli  review-swarm launcher (claude/<model> spec)
+  opencode    opencode-cli-runner script, invoked directly
+  gemini      gemini-cli-runner script, invoked directly
+  kimi        kimi-cli-runner script, invoked directly
+
+The directly invoked runner scripts get their strict-model flag whenever the
+roster pins a specific model, because those scripts would otherwise retry
+with the CLI's own configured default model when the pinned model is
+unavailable — and for a multi-provider CLI that default may not even belong
+to the seat's model family. Under the strict flag a failing pinned model
+makes the seat absent, never silently re-modeled.
 
 Launcher subprocesses run with REVIEW_SWARM_NO_AUTO_CONFIG=1 so that a
 project-level review-swarm configuration can never silently alter panel
@@ -46,6 +59,16 @@ MIN_FAMILIES distinct families were collected; otherwise this script exits
 nonzero and the match is terminated (assemble_match.py enforces the same
 floor independently).
 
+When the roster itself cannot field the cross-family floor (fewer available
+families than policy.cross_family_minimum), the panel degrades to NATIVE
+SUBAGENT SEATS per the roster policy when_below_minimum = native_subagents:
+the host runs at least the floor's worth of independent subagent instances,
+each answering the rendered judge prompt blind, and injects one reply file
+per seat with repeated --native-vote flags. Such a panel is stamped
+independence = "single_family" (and independent_runners = false) in
+panel_run_report.json, and assemble_match.py carries the same record into
+the artifact, so a degraded panel can never pass for a cross-family one.
+
 Vote JSON is extracted fence-first: fenced ```json blocks are tried before
 the whole text and before a brace-delimited substring.
 
@@ -56,6 +79,7 @@ from __future__ import annotations
 
 import argparse
 import concurrent.futures
+import hashlib
 import json
 import os
 import re
@@ -71,9 +95,36 @@ if str(_SCRIPTS_DIR) not in sys.path:
 
 import commit_criteria  # noqa: E402
 
-FAMILIES = ("claude", "codex", "opencode", "kimi")
 MIN_FAMILIES = 3
 MAX_ATTEMPTS = 2
+
+# ---------------------------------------------------------------------------
+# Third-party agent roster (agents.json, schema version 1)
+# ---------------------------------------------------------------------------
+# The roster names the model families a panel can draw on, each family's
+# runner and model strings, per-family availability, and the degradation
+# policy. Discovery order: an explicit --roster path, then the project-level
+# <project root>/.nullius/agents.json found by walking up from the materials
+# directory, then the user-level ~/.nullius/agents.json, then the built-in
+# pure-native roster. A missing file is never an error (the next source is
+# used); a file that exists but does not parse or validate stops the run
+# loudly, because silently skipping a misconfigured roster would change panel
+# composition behind the operator's back. Each skill reads the roster with
+# its own self-contained parser by design; there is no shared roster library.
+
+ROSTER_VERSION = 1
+ROSTER_FILE_RELATIVE = Path(".nullius") / "agents.json"
+RUNNER_LABELS = ("native", "codex", "opencode", "kimi", "gemini", "claude-cli")
+POLICY_BELOW_MINIMUM = "native_subagents"
+INDEPENDENCE_MODES = ("cross_family", "single_family")
+
+# Family labels are lowercase roster keys; the same pattern is enforced on
+# reviewer_family by the engine's pairwise_match_v1 schema.
+FAMILY_LABEL_RE = re.compile(r"^[a-z][a-z0-9_-]{0,31}$")
+# Model strings are opaque CLI model names/aliases; the pattern only rejects
+# placeholders and shell-hostile junk, not any particular vendor syntax.
+MODEL_STRING_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/:-]*$")
+MODEL_TIER_KEY_RE = re.compile(r"^[a-z][a-z0-9_-]*$")
 
 # The --runner override lets a caller replace a family's runner with a command
 # template. It is intended for tests and custom runners. Left unguarded, a
@@ -91,15 +142,243 @@ PROMPTS_DIR = SKILL_DIR / "prompts"
 SKILLS_ROOT = SKILL_DIR.parent
 DEFAULT_MULTI_TASK = SKILLS_ROOT / "review-swarm" / "scripts" / "bin" / "run_multi_task.py"
 DEFAULT_KIMI_RUNNER = SKILLS_ROOT / "kimi-cli-runner" / "scripts" / "run_kimi.sh"
+DEFAULT_OPENCODE_RUNNER = SKILLS_ROOT / "opencode-cli-runner" / "scripts" / "run_opencode.sh"
+DEFAULT_GEMINI_RUNNER = SKILLS_ROOT / "gemini-cli-runner" / "scripts" / "run_gemini.sh"
 
-# Model specs handed to the review-swarm launcher. "default" delegates to the
-# CLI's own configured default model (launcher policy); callers pin an
-# explicit spec with --model-spec when a run must record a specific model.
-DEFAULT_MODEL_SPECS = {
-    "claude": "claude/default",
-    "codex": "codex/default",
-    "opencode": "default",
+# Launcher backend selected by the launcher-backed runner labels; used both to
+# build the launcher model spec and to name the --backend-output capture file.
+# The opencode, gemini, and kimi seats call their runner scripts DIRECTLY so
+# the panel can pass the strict-model flag: those runner scripts would
+# otherwise silently retry with the CLI's own default model when the pinned
+# model is unavailable, and for a multi-provider CLI that default may not even
+# be the same model family. A pinned model that fails must make the seat
+# absent, never silently re-model it.
+LAUNCHER_BACKENDS = {
+    "codex": "codex",
+    "claude-cli": "claude",
 }
+DIRECT_RUNNER_ENV = {
+    "kimi": ("IDEA_PAIRWISE_KIMI_RUNNER", DEFAULT_KIMI_RUNNER),
+    "opencode": ("IDEA_PAIRWISE_OPENCODE_RUNNER", DEFAULT_OPENCODE_RUNNER),
+    "gemini": ("IDEA_PAIRWISE_GEMINI_RUNNER", DEFAULT_GEMINI_RUNNER),
+}
+
+
+def builtin_roster():
+    """Pure-native roster used when no agents.json exists anywhere: the host
+    holds the only seat, so a panel can only run as native subagent seats
+    (the degraded, single-family form). Cross-family judging requires an
+    operator-written roster.
+
+    The seat is labeled "host", not any concrete family name: this script
+    cannot verify which model family the host actually is, and recording a
+    guessed family would be a false record on a non-claude host. An operator
+    who wants the real family named writes a roster file that declares it.
+    """
+    return {
+        "version": ROSTER_VERSION,
+        "families": {
+            "host": {"runner": "native", "models": {"default": "host-subagent"}},
+        },
+        "policy": {
+            "cross_family_minimum": MIN_FAMILIES,
+            "when_below_minimum": POLICY_BELOW_MINIMUM,
+        },
+    }
+
+
+def parse_roster(obj, where):
+    """Validate a roster object (agents.json schema version 1) and reduce it
+    to what the panel consumes:
+
+        {"families": {label: {"runner", "model", "available", "notes"}},
+         "cross_family_minimum": int}
+
+    "model" is the family's default model string. Raises PanelError naming
+    `where` on any shape problem; a roster that exists must be right.
+    """
+    if not isinstance(obj, dict):
+        raise PanelError("%s: roster must be a JSON object" % where)
+    problems = []
+    unknown = sorted(set(obj) - {"version", "families", "policy"})
+    if unknown:
+        problems.append("unknown top-level keys: %s" % ", ".join(unknown))
+    version = obj.get("version")
+    # The exact-type check matters: in Python, True == 1 and 1.0 == 1, so a
+    # bare equality test would silently accept a malformed version field.
+    if isinstance(version, bool) or not isinstance(version, int) or version != ROSTER_VERSION:
+        problems.append(
+            "version must be the integer %d, got %r" % (ROSTER_VERSION, version)
+        )
+    families = obj.get("families")
+    parsed = {}
+    if not isinstance(families, dict) or not families:
+        problems.append("families must be a non-empty object")
+    else:
+        native_labels = []
+        for label, entry in families.items():
+            frame = "families.%s" % label
+            if not isinstance(label, str) or not FAMILY_LABEL_RE.fullmatch(label):
+                problems.append(
+                    "family label %r must match %s" % (label, FAMILY_LABEL_RE.pattern)
+                )
+                continue
+            if not isinstance(entry, dict):
+                problems.append("%s must be an object" % frame)
+                continue
+            unknown_entry = sorted(set(entry) - {"runner", "models", "available", "notes"})
+            if unknown_entry:
+                problems.append(
+                    "%s has unknown keys: %s" % (frame, ", ".join(unknown_entry))
+                )
+            runner = entry.get("runner")
+            if runner not in RUNNER_LABELS:
+                problems.append(
+                    "%s.runner must be one of %s, got %r"
+                    % (frame, ", ".join(RUNNER_LABELS), runner)
+                )
+            elif runner == "native":
+                native_labels.append(label)
+            available = entry.get("available", True)
+            if not isinstance(available, bool):
+                problems.append("%s.available must be a boolean" % frame)
+                available = True
+            # A family that is declared unavailable can never be invoked, so
+            # it may omit its models object (the finalized schema's gemini
+            # entry does exactly that); an available family must name at
+            # least its default model.
+            models = entry.get("models")
+            model = None
+            if models is None and not available:
+                pass
+            elif not isinstance(models, dict) or not models:
+                problems.append(
+                    "%s.models must be a non-empty object (required unless the "
+                    "family is declared unavailable)" % frame
+                )
+            else:
+                for key, value in models.items():
+                    if not isinstance(key, str) or not MODEL_TIER_KEY_RE.fullmatch(key):
+                        problems.append("%s.models has a bad key %r" % (frame, key))
+                    if not isinstance(value, str) or not MODEL_STRING_RE.fullmatch(value):
+                        problems.append(
+                            "%s.models[%r] must be a plain model string "
+                            "(pattern %s), got %r"
+                            % (frame, key, MODEL_STRING_RE.pattern, value)
+                        )
+                if "default" not in models:
+                    problems.append('%s.models must carry a "default" entry' % frame)
+                else:
+                    model = models["default"]
+            notes = entry.get("notes", "")
+            if not isinstance(notes, str):
+                problems.append("%s.notes must be a string" % frame)
+                notes = ""
+            parsed[label] = {
+                "runner": runner,
+                "model": model,
+                "available": available,
+                "notes": notes,
+            }
+        if len(native_labels) > 1:
+            problems.append(
+                'families %s all declare runner "native"; the host provides '
+                "exactly one native seat" % ", ".join(sorted(native_labels))
+            )
+    policy = obj.get("policy", {})
+    minimum = MIN_FAMILIES
+    if not isinstance(policy, dict):
+        problems.append("policy must be an object")
+    else:
+        unknown_policy = sorted(
+            set(policy) - {"cross_family_minimum", "when_below_minimum"}
+        )
+        if unknown_policy:
+            problems.append("policy has unknown keys: %s" % ", ".join(unknown_policy))
+        raw_minimum = policy.get("cross_family_minimum", MIN_FAMILIES)
+        if isinstance(raw_minimum, bool) or not isinstance(raw_minimum, int):
+            problems.append("policy.cross_family_minimum must be an integer")
+        elif raw_minimum < MIN_FAMILIES:
+            problems.append(
+                "policy.cross_family_minimum is %d; the protocol floor is %d "
+                "and a roster cannot lower it" % (raw_minimum, MIN_FAMILIES)
+            )
+        else:
+            minimum = raw_minimum
+        below = policy.get("when_below_minimum", POLICY_BELOW_MINIMUM)
+        if below != POLICY_BELOW_MINIMUM:
+            problems.append(
+                "policy.when_below_minimum must be %r, got %r"
+                % (POLICY_BELOW_MINIMUM, below)
+            )
+    if problems:
+        raise PanelError("%s: %s" % (where, "; ".join(problems)))
+    return {"families": parsed, "cross_family_minimum": minimum}
+
+
+def load_roster_file(path):
+    path = Path(path)
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise PanelError("cannot read roster %s: %s" % (path, exc))
+    try:
+        obj = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise PanelError("roster %s is not valid JSON: %s" % (path, exc))
+    return parse_roster(obj, str(path))
+
+
+def find_project_roster(start_dir):
+    """Walk up from start_dir to the filesystem root and return the first
+    <ancestor>/.nullius/agents.json that exists, else None."""
+    current = Path(start_dir).resolve()
+    for ancestor in [current] + list(current.parents):
+        candidate = ancestor / ROSTER_FILE_RELATIVE
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def resolve_roster(explicit_path, start_dir, home=None):
+    """Resolve the agent roster and return (roster, source, path).
+
+    source is one of "explicit", "project", "user", "builtin"; path is the
+    file used, or None for the built-in roster. An explicit path must exist;
+    for the two discovered locations a missing file just falls through.
+    """
+    if explicit_path is not None:
+        return load_roster_file(explicit_path), "explicit", Path(explicit_path)
+    project = find_project_roster(start_dir)
+    if project is not None:
+        return load_roster_file(project), "project", project
+    user = Path(home) if home is not None else Path.home()
+    user_roster = user / ROSTER_FILE_RELATIVE
+    if user_roster.is_file():
+        return load_roster_file(user_roster), "user", user_roster
+    return parse_roster(builtin_roster(), "built-in roster"), "builtin", None
+
+
+def native_family_of(roster):
+    """Return the label of the roster's native-runner family, or None."""
+    for label, entry in roster["families"].items():
+        if entry["runner"] == "native":
+            return label
+    return None
+
+
+def launcher_model_spec(runner, model):
+    """Model spec handed to the review-swarm launcher for one CLI seat.
+    A model of "default" delegates to the CLI's own configured default."""
+    if runner in LAUNCHER_BACKENDS:
+        return "%s/%s" % (LAUNCHER_BACKENDS[runner], model)
+    raise PanelError("runner %r takes no launcher model spec" % runner)
+
+
+def direct_runner_path(runner):
+    """Path of a directly invoked runner script, with its env override."""
+    env_name, default_path = DIRECT_RUNNER_ENV[runner]
+    return Path(os.environ.get(env_name, default_path))
 
 VOTE_VALUES = ("a", "b", "tie")
 ANCHOR_TYPES = ("literature", "computation")
@@ -636,14 +915,21 @@ def launcher_env():
     return env
 
 
-def family_command(family, spec, judge_system, judge_prompt, attempt_dir,
-                   timeout_secs, multi_task, kimi_runner):
-    """Build (argv, output_file) for one family attempt."""
-    if family == "kimi":
-        out_file = attempt_dir / "vote_raw.txt"
+def family_command(runner, model, judge_system, judge_prompt, attempt_dir,
+                   timeout_secs, multi_task):
+    """Build (argv, output_file) for one family attempt.
+
+    `model` is the family's model string; "default" delegates to the CLI's
+    own configured default. Directly invoked runner scripts (kimi, opencode,
+    gemini) get their strict-model flag whenever a specific model is pinned,
+    so the pinned model failing makes the seat absent instead of being
+    silently replaced by the CLI's default model.
+    """
+    out_file = attempt_dir / "vote_raw.txt"
+    if runner == "kimi":
         argv = [
             "bash",
-            str(kimi_runner),
+            str(direct_runner_path("kimi")),
             "--prompt-file",
             str(judge_prompt),
             "--system-prompt-file",
@@ -657,8 +943,40 @@ def family_command(family, spec, judge_system, judge_prompt, attempt_dir,
             "--raw-out",
             str(attempt_dir / "kimi_stream_raw.txt"),
         ]
+        if model != "default":
+            argv += ["--model", model, "--no-fallback"]
         return argv, out_file
-    out_file = attempt_dir / "vote_raw.txt"
+    if runner == "opencode":
+        argv = [
+            "bash",
+            str(direct_runner_path("opencode")),
+            "--prompt-file",
+            str(judge_prompt),
+            "--system-prompt-file",
+            str(judge_system),
+            "--out",
+            str(out_file),
+            "--max-attempts",
+            "1",
+        ]
+        if model != "default":
+            argv += ["--model", model, "--no-fallback"]
+        return argv, out_file
+    if runner == "gemini":
+        argv = [
+            "bash",
+            str(direct_runner_path("gemini")),
+            "--prompt-file",
+            str(judge_prompt),
+            "--system-prompt-file",
+            str(judge_system),
+            "--out",
+            str(out_file),
+        ]
+        if model != "default":
+            argv += ["--model", model, "--no-fallback"]
+        return argv, out_file
+    spec = launcher_model_spec(runner, model)
     argv = [
         sys.executable,
         str(multi_task),
@@ -671,7 +989,7 @@ def family_command(family, spec, judge_system, judge_prompt, attempt_dir,
         "--models",
         spec,
         "--backend-output",
-        "%s=vote_raw.txt" % family,
+        "%s=vote_raw.txt" % LAUNCHER_BACKENDS[runner],
         "--timeout-secs",
         str(timeout_secs),
     ]
@@ -693,14 +1011,21 @@ def model_label_from_meta(attempt_dir, fallback):
     return fallback
 
 
-def run_family(family, spec, override_cmd, judge_system, judge_prompt,
-               family_dir, timeout_secs, multi_task, kimi_runner):
+def run_family(family, runner, model, override_cmd, judge_system, judge_prompt,
+               family_dir, timeout_secs, multi_task):
     """Run one family with up to MAX_ATTEMPTS attempts.
 
+    `runner` and `model` come from the roster (model is the family's default
+    model string); an override command replaces the runner entirely.
     Returns (payload_or_None, model_label, detail dict).
     """
     detail = {"attempts": [], "source": "override" if override_cmd else "runner"}
-    model_label = spec if family != "kimi" else "kimi/default"
+    if override_cmd:
+        model_label = "%s/runner-override" % family
+    elif runner in LAUNCHER_BACKENDS:
+        model_label = launcher_model_spec(runner, model)
+    else:
+        model_label = "%s/%s" % (runner, model)
     for attempt in range(1, MAX_ATTEMPTS + 1):
         attempt_dir = family_dir / ("attempt%d" % attempt)
         attempt_dir.mkdir(parents=True, exist_ok=True)
@@ -723,8 +1048,8 @@ def run_family(family, spec, override_cmd, judge_system, judge_prompt,
                 (attempt_dir / "vote_raw.txt").write_text(raw_text, encoding="utf-8")
             else:
                 argv, out_file = family_command(
-                    family, spec, judge_system, judge_prompt, attempt_dir,
-                    timeout_secs, multi_task, kimi_runner,
+                    runner, model, judge_system, judge_prompt, attempt_dir,
+                    timeout_secs, multi_task,
                 )
                 attempt_info["argv"] = argv
                 proc = subprocess.run(
@@ -735,7 +1060,8 @@ def run_family(family, spec, override_cmd, judge_system, judge_prompt,
                     env=launcher_env(),
                 )
                 raw_text = out_file.read_text(encoding="utf-8") if out_file.is_file() else ""
-                model_label = model_label_from_meta(attempt_dir, model_label)
+                if runner in LAUNCHER_BACKENDS:
+                    model_label = model_label_from_meta(attempt_dir, model_label)
             attempt_info["exit_code"] = proc.returncode
             stderr_tail = (proc.stderr or "")[-2000:]
             if stderr_tail:
@@ -774,9 +1100,12 @@ def run_family(family, spec, override_cmd, judge_system, judge_prompt,
 
 
 def collect_injected_vote(vote_file):
-    """Parse a host-provided judge reply (claude family). No retry is possible
-    for an injected file; failures make the family absent."""
-    raw_text = Path(vote_file).read_text(encoding="utf-8")
+    """Parse a host-provided judge reply (a native seat). No retry is possible
+    for an injected file; failures make the seat absent."""
+    try:
+        raw_text = Path(vote_file).read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        return None, "cannot read injected vote file as UTF-8 text: %s" % exc
     payload = extract_json_object(raw_text)
     if payload is None:
         return None, "no JSON object found in injected vote file"
@@ -858,22 +1187,39 @@ def main(argv=None):
         "materials-rendering modes).",
     )
     parser.add_argument(
-        "--families",
-        default=",".join(FAMILIES),
-        help="Comma-separated subset of: %s" % ", ".join(FAMILIES),
+        "--roster",
+        type=Path,
+        default=None,
+        help="Explicit agent roster file (agents.json, schema version 1). "
+        "When omitted, the roster is discovered by walking up from the "
+        "materials directory to a project-level .nullius/agents.json, then "
+        "the user-level ~/.nullius/agents.json, then the built-in "
+        "pure-native roster.",
     )
     parser.add_argument(
-        "--claude-vote",
+        "--families",
+        default=None,
+        help="Comma-separated subset of the roster's families "
+        "(default: every family the roster declares).",
+    )
+    parser.add_argument(
+        "--native-vote",
+        action="append",
+        default=[],
         type=Path,
-        help="File holding the host subagent's raw judge reply for the claude "
-        "family (preferred claude path; skips the claude CLI).",
+        metavar="FILE",
+        help="File holding one host subagent's raw judge reply for the "
+        "roster's native-runner family. Give it once for the native seat of "
+        "a cross-family panel; repeat it once per seat when the panel has "
+        "degraded to native subagent seats.",
     )
     parser.add_argument(
         "--model-spec",
         action="append",
         default=[],
-        metavar="FAMILY=SPEC",
-        help="Launcher model spec override, e.g. opencode=zhipuai-coding-plan/glm-5.2",
+        metavar="FAMILY=MODEL",
+        help="Override one roster family's model string for this run, "
+        "e.g. somefamily=some-provider/some-model",
     )
     parser.add_argument(
         "--model-label",
@@ -921,27 +1267,38 @@ def main(argv=None):
         return 1
 
 
-def _run(args):
+def _parse_requested_families(families_arg, roster):
+    """Return the requested family list: every roster family by default, or
+    the --families subset validated against the roster."""
+    roster_families = list(roster["families"])
+    if families_arg is None:
+        return roster_families
     families = []
-    for name in args.families.split(","):
+    for name in families_arg.split(","):
         name = name.strip()
         if not name:
             continue
-        if name not in FAMILIES:
-            raise PanelError("unknown family %r (known: %s)" % (name, ", ".join(FAMILIES)))
+        if name not in roster["families"]:
+            raise PanelError(
+                "unknown family %r (the roster declares: %s)"
+                % (name, ", ".join(roster_families))
+            )
         if name in families:
             raise PanelError("family %r listed twice" % name)
         families.append(name)
     if not families:
         raise PanelError("no families requested")
+    return families
 
-    specs = dict(DEFAULT_MODEL_SPECS)
-    specs.update(parse_kv_list(args.model_spec, "--model-spec", set(FAMILIES)))
-    labels = parse_kv_list(args.model_label, "--model-label", set(FAMILIES))
-    overrides = parse_kv_list(args.runner, "--runner", set(FAMILIES))
-    allow_shared = os.environ.get(ALLOW_SHARED_RUNNERS_ENV) == "1"
-    independent_runners, _shared = check_runner_independence(overrides, allow_shared)
 
+def _unavailable_reason(entry):
+    reason = "declared unavailable in the roster"
+    if entry["notes"]:
+        reason += ": " + entry["notes"]
+    return reason
+
+
+def _run(args):
     materials_dir = Path(args.materials_dir)
 
     # Rendering modes that only need the commitment (and cards).
@@ -997,27 +1354,67 @@ def _run(args):
     if args.render_prompt_only:
         return 0
 
-    if args.claude_vote and "claude" not in families:
-        raise PanelError("--claude-vote given but the claude family is not requested")
+    # Panel execution starts here, and the judge prompt above was just
+    # rebuilt from the CURRENT materials. Invalidate any earlier run's report
+    # NOW, before roster resolution and every later refusal: a run that stops
+    # at any point past this line — a roster problem, a usage refusal, a
+    # duplicated seat reply, a crash — must never leave an old panel_valid
+    # report through which the previous run's votes could be assembled
+    # against materials that may since have changed. Assembly refuses a
+    # panel directory without a report.
+    (out_dir / "panel_run_report.json").unlink(missing_ok=True)
+
+    roster, roster_source, roster_path = resolve_roster(args.roster, materials_dir)
+    families = _parse_requested_families(args.families, roster)
+    specs_override = parse_kv_list(args.model_spec, "--model-spec", set(families))
+    labels = parse_kv_list(args.model_label, "--model-label", set(families))
+    overrides = parse_kv_list(args.runner, "--runner", set(families))
+
+    native_family = native_family_of(roster)
+    native_votes = list(args.native_vote)
+    if native_votes and native_family is None:
+        raise PanelError(
+            "--native-vote given but the roster declares no native-runner family"
+        )
+    for family, value in specs_override.items():
+        if roster["families"][family]["runner"] == "native" and family not in overrides:
+            raise PanelError(
+                "--model-spec for %r: a native seat takes no model override"
+                % family
+            )
+        if not MODEL_STRING_RE.fullmatch(value):
+            raise PanelError(
+                "--model-spec for %r must be a plain model string (pattern %s), "
+                "got %r" % (family, MODEL_STRING_RE.pattern, value)
+            )
+
+    # The degradation decision is made over the WHOLE roster, not the
+    # --families subset: a roster that can field the floor is never dropped
+    # into single-family mode by requesting fewer families (that request just
+    # runs a cross-family panel that fails the vote floor). Degradation is
+    # for a roster that genuinely cannot field the floor.
+    roster_available = [
+        label for label, entry in roster["families"].items() if entry["available"]
+    ]
+    available_requested = [f for f in families if roster["families"][f]["available"]]
+    floor = roster["cross_family_minimum"]
+    degraded = len(roster_available) < floor
 
     multi_task = Path(os.environ.get("IDEA_PAIRWISE_MULTI_TASK", DEFAULT_MULTI_TASK))
-    kimi_runner = Path(os.environ.get("IDEA_PAIRWISE_KIMI_RUNNER", DEFAULT_KIMI_RUNNER))
 
+    # Created lazily by the first stored vote, so a run refused before any
+    # seat executes (a shared-runner guard trip, a roster problem) leaves no
+    # empty votes directory behind.
     votes_dir = out_dir / "votes"
-    votes_dir.mkdir(parents=True, exist_ok=True)
-    raw_dir = out_dir / "raw"
-    raw_dir.mkdir(parents=True, exist_ok=True)
 
     started_at = commit_criteria.utc_now_iso()
-    votes = {}
+    votes = {}            # vote key (family, or family_seat_N) -> path relative to out_dir
+    voted_families = {}   # vote key -> family label
     absent = []
+    seats_failed = []
     details = {}
 
-    def handle_result(family, payload, model_label, failure_reason, detail):
-        if payload is None:
-            absent.append({"family": family, "reason": failure_reason})
-            details[family] = detail
-            return
+    def store_vote(key, family, payload, model_label, detail, seat=None):
         record = {
             "reviewer_family": family,
             "model": labels.get(family, model_label),
@@ -1028,37 +1425,164 @@ def _run(args):
             "collected_at": commit_criteria.utc_now_iso(),
             "collection": detail,
         }
-        vote_path = votes_dir / ("%s.json" % family)
+        if seat is not None:
+            record["seat"] = seat
+        votes_dir.mkdir(parents=True, exist_ok=True)
+        vote_path = votes_dir / ("%s.json" % key)
         commit_criteria.write_json_atomic(vote_path, record)
-        votes[family] = str(vote_path.relative_to(out_dir))
-        details[family] = detail
+        votes[key] = str(vote_path.relative_to(out_dir))
+        voted_families[key] = family
+        details[key] = detail
 
-    # Claude injection is handled inline (no subprocess).
-    runner_families = list(families)
-    if "claude" in families and args.claude_vote:
-        payload, failure = collect_injected_vote(args.claude_vote)
-        detail = {
-            "source": "injected",
-            "vote_file": str(args.claude_vote),
-            "attempts": [{"attempt": 1, "ok": payload is not None}],
+    def finish(independence, independent_runners, panel_valid, extra):
+        """Write panel_run_report.json and print the shared summary lines."""
+        # The parser's own count of unanchored argument lines it dropped, per
+        # side and in total. This is the authoritative discard count; each
+        # judge also self-reports one, and any voter whose number disagrees is
+        # flagged so the two can be reconciled by an auditor.
+        parsed_total = parsed_discarded["statement_a"] + parsed_discarded["statement_b"]
+        discard_reconciliation = []
+        for key in sorted(votes):
+            record = json.loads((out_dir / votes[key]).read_text(encoding="utf-8"))
+            reported = record.get("unanchored_arguments_discarded")
+            discard_reconciliation.append(
+                {
+                    "voter": key,
+                    "judge_reported": reported,
+                    "parser_counted": parsed_total,
+                    "agree": reported == parsed_total,
+                }
+            )
+        report = {
+            "roster": {
+                "source": roster_source,
+                "path": str(roster_path) if roster_path is not None else None,
+            },
+            "families_requested": families,
+            "votes_collected": {key: votes[key] for key in sorted(votes)},
+            "families_present": sorted(set(voted_families.values())),
+            "absent": sorted(absent, key=lambda item: item["family"]),
+            "independence": independence,
+            "independent_runners": independent_runners,
+            "commitment_hash": commitment["commitment_hash"],
+            "min_families": floor,
+            "panel_valid": panel_valid,
+            "unanchored_arguments_discarded_by_parser": {
+                "statement_a": parsed_discarded["statement_a"],
+                "statement_b": parsed_discarded["statement_b"],
+                "total": parsed_total,
+            },
+            "discard_reconciliation": discard_reconciliation,
+            "started_at": started_at,
+            "finished_at": commit_criteria.utc_now_iso(),
         }
-        default_label = labels.get("claude", "claude/host-subagent")
-        handle_result("claude", payload, default_label, failure, detail)
-        runner_families.remove("claude")
+        report.update(extra)
+        commit_criteria.write_json_atomic(out_dir / "panel_run_report.json", report)
+        for key in sorted(votes):
+            print("vote collected: %s -> %s" % (key, votes[key]))
+        for item in discard_reconciliation:
+            if not item["agree"]:
+                print(
+                    "warning: %s reported %s unanchored discards; the parser "
+                    "counted %d (self-report and mechanism disagree)"
+                    % (item["voter"], item["judge_reported"], item["parser_counted"])
+                )
+        for item in report["absent"]:
+            print("family absent: %s (%s)" % (item["family"], item["reason"]))
+        return report
+
+    if degraded:
+        return _run_native_panel(
+            roster, families, roster_available, floor, native_family,
+            native_votes, overrides, specs_override, absent, seats_failed,
+            store_vote, finish, votes, judge_prompt_path, judge_system_path,
+        )
+
+    # ------------------------------------------------------------------
+    # Cross-family panel (the roster fields at least the floor's worth of
+    # available families).
+    # ------------------------------------------------------------------
+    if len(native_votes) > 1:
+        raise PanelError(
+            "a cross-family panel seats one native vote; %d files given"
+            % len(native_votes)
+        )
+    if native_votes and native_family not in families:
+        raise PanelError(
+            "--native-vote given but the native-runner family %r is not requested"
+            % native_family
+        )
+    if native_votes and not roster["families"][native_family]["available"]:
+        raise PanelError(
+            "--native-vote given but the native-runner family %r is declared "
+            "unavailable in the roster" % native_family
+        )
+    if native_votes and overrides.get(native_family):
+        raise PanelError(
+            "both --native-vote and a --runner override target the native "
+            "family %r; give one or the other" % native_family
+        )
+    allow_shared = os.environ.get(ALLOW_SHARED_RUNNERS_ENV) == "1"
+    independent_runners, _shared = check_runner_independence(overrides, allow_shared)
+
+    raw_dir = out_dir / "raw"
+    raw_dir.mkdir(parents=True, exist_ok=True)
+
+    def handle_result(family, payload, model_label, failure_reason, detail):
+        if payload is None:
+            absent.append({"family": family, "reason": failure_reason})
+            details[family] = detail
+            return
+        store_vote(family, family, payload, model_label, detail)
+
+    # Families the roster declares unavailable are absent up front and are
+    # never invoked; their reason carries the roster's own notes.
+    for family in families:
+        if family not in available_requested:
+            absent.append(
+                {"family": family, "reason": _unavailable_reason(roster["families"][family])}
+            )
+
+    # The native seat is injected inline (no subprocess) unless a --runner
+    # override replaces it for a test. Its recorded model is the roster's
+    # declared model string for the native family (the model the host is
+    # expected to run the subagent as); --model-label pins a different one.
+    runner_families = list(available_requested)
+    if native_family in available_requested and not overrides.get(native_family):
+        runner_families.remove(native_family)
+        if native_votes:
+            payload, failure = collect_injected_vote(native_votes[0])
+            detail = {
+                "source": "injected",
+                "vote_file": str(native_votes[0]),
+                "attempts": [{"attempt": 1, "ok": payload is not None}],
+            }
+            native_label = "%s/%s" % (
+                native_family, roster["families"][native_family]["model"],
+            )
+            handle_result(native_family, payload, native_label, failure, detail)
+        else:
+            absent.append(
+                {
+                    "family": native_family,
+                    "reason": "native seat: no vote file injected (--native-vote)",
+                }
+            )
 
     def worker(family):
         family_dir = raw_dir / family
         family_dir.mkdir(parents=True, exist_ok=True)
+        entry = roster["families"][family]
         payload, model_label, detail = run_family(
             family,
-            specs.get(family, "default"),
+            entry["runner"],
+            specs_override.get(family, entry["model"]),
             overrides.get(family),
             judge_system_path,
             judge_prompt_path,
             family_dir,
             args.timeout_secs,
             multi_task,
-            kimi_runner,
         )
         failure = None
         if payload is None:
@@ -1073,63 +1597,165 @@ def _run(args):
             ):
                 handle_result(family, payload, model_label, failure, detail)
 
-    panel_valid = len(votes) >= MIN_FAMILIES
-    # The parser's own count of unanchored argument lines it dropped, per side
-    # and in total. This is the authoritative discard count; each judge also
-    # self-reports one, and we flag any judge whose number disagrees so the two
-    # can be reconciled by an auditor.
-    parsed_total = parsed_discarded["statement_a"] + parsed_discarded["statement_b"]
-    discard_reconciliation = []
-    for family in sorted(votes):
-        record = json.loads((votes_dir / ("%s.json" % family)).read_text(encoding="utf-8"))
-        reported = record.get("unanchored_arguments_discarded")
-        discard_reconciliation.append(
-            {
-                "family": family,
-                "judge_reported": reported,
-                "parser_counted": parsed_total,
-                "agree": reported == parsed_total,
-            }
-        )
-    report = {
-        "families_requested": families,
-        "votes_collected": {f: votes[f] for f in sorted(votes)},
-        "absent": sorted(absent, key=lambda item: item["family"]),
-        "commitment_hash": commitment["commitment_hash"],
-        "min_families": MIN_FAMILIES,
-        "panel_valid": panel_valid,
-        "independent_runners": independent_runners,
-        "unanchored_arguments_discarded_by_parser": {
-            "statement_a": parsed_discarded["statement_a"],
-            "statement_b": parsed_discarded["statement_b"],
-            "total": parsed_total,
-        },
-        "discard_reconciliation": discard_reconciliation,
-        "started_at": started_at,
-        "finished_at": commit_criteria.utc_now_iso(),
-    }
-    commit_criteria.write_json_atomic(out_dir / "panel_run_report.json", report)
-
-    for family in sorted(votes):
-        print("vote collected: %s -> %s" % (family, votes[family]))
-    for item in discard_reconciliation:
-        if not item["agree"]:
-            print(
-                "warning: %s reported %s unanchored discards; the parser counted "
-                "%d (self-report and mechanism disagree)"
-                % (item["family"], item["judge_reported"], item["parser_counted"])
-            )
-    for item in report["absent"]:
-        print("family absent: %s (%s)" % (item["family"], item["reason"]))
+    panel_valid = len(votes) >= floor
+    finish("cross_family", independent_runners, panel_valid, {})
     if not panel_valid:
         print(
             "error: only %d of the requested families voted (minimum %d); "
             "panel is invalid and the match is terminated"
-            % (len(votes), MIN_FAMILIES),
+            % (len(votes), floor),
             file=sys.stderr,
         )
         return 2
     print("panel valid: %d family votes collected" % len(votes))
+    return 0
+
+
+def _run_native_panel(roster, families, roster_available, floor, native_family,
+                      native_votes, overrides, specs_override, absent,
+                      seats_failed, store_vote, finish, votes,
+                      judge_prompt_path, judge_system_path):
+    """Degraded panel: the roster cannot field the cross-family floor, so per
+    policy when_below_minimum = native_subagents the seats are independent
+    host subagent instances of the roster's native-runner family, one injected
+    reply file per seat. The report and the artifact both carry independence =
+    "single_family" and independent_runners = false, so this panel is never
+    mistaken for a cross-family one."""
+    if overrides or specs_override:
+        raise PanelError(
+            "the roster fields %d available families of the %d required; the "
+            "panel degrades to native subagent seats, which take no --runner "
+            "or --model-spec" % (len(roster_available), floor)
+        )
+    if native_family is None or not roster["families"][native_family]["available"]:
+        detail = (
+            "declares no native-runner family" if native_family is None
+            else "declares its native-runner family %r unavailable" % native_family
+        )
+        raise PanelError(
+            "the roster fields %d available families of the %d required and "
+            "%s; the panel cannot run"
+            % (len(roster_available), floor, detail)
+        )
+
+    # Two seats fed from the same reply cannot be independent: refuse a file
+    # given twice up front, and refuse byte-identical reply contents below.
+    resolved_files = [Path(p).resolve() for p in native_votes]
+    if len(set(resolved_files)) != len(resolved_files):
+        raise PanelError(
+            "the same --native-vote file was given for more than one seat; "
+            "every seat needs its own subagent's reply file"
+        )
+
+    # Every requested family except the native seat is absent, with the reason
+    # split between roster-declared unavailability and the degradation itself.
+    for family in families:
+        if family == native_family:
+            continue
+        entry = roster["families"][family]
+        if not entry["available"]:
+            reason = _unavailable_reason(entry)
+        else:
+            reason = (
+                "cross-family floor not met (%d of %d available); the panel "
+                "degraded to native subagent seats and this seat was not run"
+                % (len(roster_available), floor)
+            )
+        absent.append({"family": family, "reason": reason})
+
+    native_model = roster["families"][native_family]["model"]
+    extra = {"native_family": native_family, "seats_provided": len(native_votes)}
+    if len(native_votes) < floor:
+        finish("single_family", False, False, dict(extra, seats_failed=seats_failed))
+        print(
+            "cross-family floor not met: the roster fields %d available "
+            "families of the %d required (policy when_below_minimum = "
+            "native_subagents). Run %d independent host subagent seats "
+            "(roster model for the native family: %s), each answering %s "
+            "(system prompt %s) blind to the other seats; save each seat's "
+            "raw reply to its own file and re-run this command with one "
+            "--native-vote FILE per seat (%d file(s) given so far)."
+            % (
+                len(roster_available), floor, floor, native_model,
+                judge_prompt_path, judge_system_path, len(native_votes),
+            ),
+            file=sys.stderr,
+        )
+        return 3
+
+    # Two stages, validate then write: every reply is read, hashed against
+    # the others, and parsed BEFORE any vote file is written, so a refusal
+    # (a duplicated reply) leaves no partially written seat set behind.
+    model_label = "%s/%s" % (native_family, native_model)
+    seen_replies = {}
+    validated = []
+    for seat, vote_file in enumerate(native_votes, start=1):
+        # Hash the RAW BYTES: reading in text mode first would fold CRLF into
+        # LF (universal newlines), so two byte-distinct replies could hash
+        # alike and the recorded digest would not be the file's true sha256.
+        try:
+            raw_bytes = Path(vote_file).read_bytes()
+        except OSError as exc:
+            seats_failed.append(
+                {"seat": seat, "reason": "cannot read injected vote file: %s" % exc}
+            )
+            continue
+        digest = hashlib.sha256(raw_bytes).hexdigest()
+        if digest in seen_replies:
+            raise PanelError(
+                "seat %d's reply file (%s) is byte-identical to seat %d's; "
+                "independent subagent seats cannot share one reply"
+                % (seat, vote_file, seen_replies[digest])
+            )
+        seen_replies[digest] = seat
+        try:
+            raw_text = raw_bytes.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            seats_failed.append(
+                {"seat": seat, "reason": "reply is not UTF-8 text: %s" % exc}
+            )
+            continue
+        payload = extract_json_object(raw_text)
+        failure = None
+        if payload is None:
+            failure = "no JSON object found in injected vote file"
+        else:
+            problems = validate_vote_payload(payload)
+            if problems:
+                failure = "invalid vote payload: " + "; ".join(problems)
+        if failure is not None:
+            seats_failed.append({"seat": seat, "reason": failure})
+            continue
+        validated.append((seat, vote_file, digest, clean_vote_payload(payload)))
+
+    for seat, vote_file, digest, payload in validated:
+        detail = {
+            "source": "injected",
+            "vote_file": str(vote_file),
+            "reply_sha256": "sha256:" + digest,
+            "attempts": [{"attempt": 1, "ok": True}],
+        }
+        store_vote(
+            "%s_seat_%d" % (native_family, seat), native_family,
+            payload, model_label, detail, seat=seat,
+        )
+
+    panel_valid = len(votes) >= floor
+    finish("single_family", False, panel_valid, dict(extra, seats_failed=seats_failed))
+    for item in seats_failed:
+        print("seat absent: %s seat %d (%s)" % (native_family, item["seat"], item["reason"]))
+    if not panel_valid:
+        print(
+            "error: only %d of %d native subagent seats produced a valid vote "
+            "(minimum %d); panel is invalid and the match is terminated"
+            % (len(votes), len(native_votes), floor),
+            file=sys.stderr,
+        )
+        return 2
+    print(
+        "panel valid: %d native subagent seat votes collected (single-family, "
+        "degraded)" % len(votes)
+    )
     return 0
 
 

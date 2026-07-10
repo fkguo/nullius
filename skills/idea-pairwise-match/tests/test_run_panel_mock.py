@@ -3,6 +3,12 @@
 Stubs stand in for the real family runners ONLY here: a real match must use
 the real cross-family runners. The stub prints a fenced JSON vote (or noise)
 to stdout, which is the documented --runner override contract.
+
+The panel's family list comes from a third-party agent roster (agents.json);
+these tests write ROSTER below — an inline copy of the finalized schema
+version 1 — to a temporary file and pass it with --roster. Every panel
+subprocess also gets an isolated HOME so a developer machine's own
+user-level ~/.nullius/agents.json can never leak into a test.
 """
 
 import json
@@ -22,6 +28,47 @@ SCRIPT = Path(run_panel.__file__)
 SKILL_DIR = SCRIPT.parents[1]
 CARD_A = SKILL_DIR / "examples" / "idea_card_a.json"
 CARD_B = SKILL_DIR / "examples" / "idea_card_b.json"
+
+# Inline agents.json fixture (schema version 1). Family labels are the roster
+# keys; the gemini family is declared unavailable, so every cross-family run
+# records it absent with the roster's own reason.
+ROSTER = {
+    "version": 1,
+    "families": {
+        "claude": {"runner": "native", "models": {"default": "fable", "strong": "opus"}},
+        "gpt": {
+            "runner": "codex",
+            "models": {
+                "default": "gpt-5.6-terra",
+                "strong": "gpt-5.6-sol",
+                "fast": "gpt-5.6-luna",
+            },
+        },
+        "glm": {
+            "runner": "opencode",
+            "models": {"default": "zhipuai-coding-plan/glm-5.2"},
+            "notes": "run review invocations in the foreground; background "
+            "concurrency has died silently",
+        },
+        "kimi": {"runner": "kimi", "models": {"default": "kimi-code/kimi-for-coding"}},
+        "gemini": {
+            "runner": "gemini",
+            "available": False,
+            "notes": "no local access on this machine",
+        },
+    },
+    "policy": {"cross_family_minimum": 3, "when_below_minimum": "native_subagents"},
+}
+
+GEMINI_ABSENT_REASON = (
+    "declared unavailable in the roster: no local access on this machine"
+)
+
+
+def write_roster(tmp_path, roster=None):
+    path = tmp_path / "agents.json"
+    path.write_text(json.dumps(roster or ROSTER), encoding="utf-8")
+    return path
 
 _CARD_A_DATA = json.loads(CARD_A.read_text(encoding="utf-8"))
 _CARD_B_DATA = json.loads(CARD_B.read_text(encoding="utf-8"))
@@ -127,7 +174,7 @@ def build_materials(tmp_path):
     return materials, commitment
 
 
-def run_panel_cli(materials, out_dir, extra, allow_shared_runners=True):
+def run_panel_cli(materials, out_dir, extra, allow_shared_runners=True, roster=None):
     argv = [
         sys.executable,
         str(SCRIPT),
@@ -137,8 +184,16 @@ def run_panel_cli(materials, out_dir, extra, allow_shared_runners=True):
         str(out_dir),
         "--timeout-secs",
         "60",
-    ] + extra
+    ]
+    if roster is not None:
+        argv += ["--roster", str(roster)]
+    argv += extra
     env = dict(os.environ)
+    # Isolate roster discovery: HOME points at the test's own temporary tree,
+    # so a user-level ~/.nullius/agents.json on the developer machine can
+    # never enter a test run. (The materials directory sits under the same
+    # tree, so the project-level walk-up finds nothing either.)
+    env["HOME"] = str(Path(materials).parent)
     # These end-to-end tests deliberately share one stub across seats; the
     # escape hatch is on by default here so the shared-command guard does not
     # trip. A dedicated test exercises the guard with the hatch off.
@@ -151,33 +206,41 @@ def run_panel_cli(materials, out_dir, extra, allow_shared_runners=True):
 
 def test_full_panel_collects_four_family_votes(tmp_path, stub):
     materials, commitment = build_materials(tmp_path)
+    roster = write_roster(tmp_path)
     out_dir = tmp_path / "panel"
     result = run_panel_cli(
         materials,
         out_dir,
         [
             "--runner", "claude=" + runner_arg(stub, "a"),
-            "--runner", "codex=" + runner_arg(stub, "a"),
-            "--runner", "opencode=" + runner_arg(stub, "b"),
+            "--runner", "gpt=" + runner_arg(stub, "a"),
+            "--runner", "glm=" + runner_arg(stub, "b"),
             "--runner", "kimi=" + runner_arg(stub, "tie"),
-            "--model-label", "codex=stub-model-for-test",
+            "--model-label", "gpt=stub-model-for-test",
         ],
+        roster=roster,
     )
     assert result.returncode == 0, result.stderr
     votes = sorted(path.name for path in (out_dir / "votes").glob("*.json"))
-    assert votes == ["claude.json", "codex.json", "kimi.json", "opencode.json"]
+    assert votes == ["claude.json", "glm.json", "gpt.json", "kimi.json"]
 
-    codex_vote = json.loads((out_dir / "votes" / "codex.json").read_text(encoding="utf-8"))
-    assert codex_vote["reviewer_family"] == "codex"
-    assert codex_vote["model"] == "stub-model-for-test"
-    assert codex_vote["vote"] == "a"
-    assert codex_vote["commitment_hash"] == commitment["commitment_hash"]
-    assert codex_vote["unanchored_arguments_discarded"] == 1
-    assert "extra_comment" not in codex_vote
+    gpt_vote = json.loads((out_dir / "votes" / "gpt.json").read_text(encoding="utf-8"))
+    assert gpt_vote["reviewer_family"] == "gpt"
+    assert gpt_vote["model"] == "stub-model-for-test"
+    assert gpt_vote["vote"] == "a"
+    assert gpt_vote["commitment_hash"] == commitment["commitment_hash"]
+    assert gpt_vote["unanchored_arguments_discarded"] == 1
+    assert "extra_comment" not in gpt_vote
+    assert "seat" not in gpt_vote
 
     report = json.loads((out_dir / "panel_run_report.json").read_text(encoding="utf-8"))
     assert report["panel_valid"] is True
-    assert report["absent"] == []
+    assert report["independence"] == "cross_family"
+    assert report["families_present"] == ["claude", "glm", "gpt", "kimi"]
+    assert report["roster"]["source"] == "explicit"
+    # The roster-declared unavailable family is absent with the roster's own
+    # notes as the reason, and was never invoked.
+    assert report["absent"] == [{"family": "gemini", "reason": GEMINI_ABSENT_REASON}]
 
     campaign = tmp_path / "campaign"
     campaign.mkdir()
@@ -194,15 +257,23 @@ def test_full_panel_collects_four_family_votes(tmp_path, stub):
     assert artifact["outcome"]["winner"] == "a"
     assert artifact["outcome"]["vote_margin"] == pytest.approx(0.25)
     assert tier == 3
+    # The panel composition record travels from the run report into the
+    # artifact, absent families and reasons included.
+    assert artifact["panel_independence"] == {
+        "mode": "cross_family",
+        "families_present": ["claude", "glm", "gpt", "kimi"],
+        "families_absent": [{"family": "gemini", "reason": GEMINI_ABSENT_REASON}],
+    }
     # These stub seats share one command, so the run report stamped
     # independent_runners = false; assembly reads it from the report next to the
     # votes and carries it into the artifact.
     assert artifact["independent_runners"] is False
 
 
-def test_injected_claude_vote(tmp_path, stub):
+def test_injected_native_vote(tmp_path, stub):
     materials, commitment = build_materials(tmp_path)
-    injected = tmp_path / "claude_reply.txt"
+    roster = write_roster(tmp_path)
+    injected = tmp_path / "native_reply.txt"
     injected.write_text(
         'Prose before.\n```json\n{"vote": "a", "anchored_arguments": [], '
         '"unanchored_arguments_discarded": 0}\n```\n',
@@ -213,62 +284,96 @@ def test_injected_claude_vote(tmp_path, stub):
         materials,
         out_dir,
         [
-            "--claude-vote", str(injected),
-            "--runner", "codex=" + runner_arg(stub, "a"),
-            "--runner", "opencode=" + runner_arg(stub, "b"),
+            "--native-vote", str(injected),
+            "--runner", "gpt=" + runner_arg(stub, "a"),
+            "--runner", "glm=" + runner_arg(stub, "b"),
             "--runner", "kimi=" + runner_arg(stub, "a"),
         ],
+        roster=roster,
     )
     assert result.returncode == 0, result.stderr
     claude_vote = json.loads((out_dir / "votes" / "claude.json").read_text(encoding="utf-8"))
-    assert claude_vote["model"] == "claude/host-subagent"
+    # The native seat records the roster's declared model for its family.
+    assert claude_vote["model"] == "claude/fable"
     assert claude_vote["collection"]["source"] == "injected"
+
+
+def test_native_seat_without_vote_file_is_absent(tmp_path, stub):
+    # The native-runner family has no CLI fallback: without an injected vote
+    # file it is recorded absent, honestly, and the panel proceeds on the
+    # remaining families.
+    materials, _ = build_materials(tmp_path)
+    roster = write_roster(tmp_path)
+    out_dir = tmp_path / "panel"
+    result = run_panel_cli(
+        materials,
+        out_dir,
+        [
+            "--runner", "gpt=" + runner_arg(stub, "a"),
+            "--runner", "glm=" + runner_arg(stub, "b"),
+            "--runner", "kimi=" + runner_arg(stub, "a"),
+        ],
+        roster=roster,
+    )
+    assert result.returncode == 0, result.stderr
+    report = json.loads((out_dir / "panel_run_report.json").read_text(encoding="utf-8"))
+    assert report["panel_valid"] is True
+    reasons = {item["family"]: item["reason"] for item in report["absent"]}
+    assert set(reasons) == {"claude", "gemini"}
+    assert "no vote file injected" in reasons["claude"]
 
 
 def test_absent_family_degrades_to_three(tmp_path, stub):
     materials, _ = build_materials(tmp_path)
+    roster = write_roster(tmp_path)
     out_dir = tmp_path / "panel"
     result = run_panel_cli(
         materials,
         out_dir,
         [
             "--runner", "claude=" + runner_arg(stub, "a"),
-            "--runner", "codex=" + runner_arg(stub, "a"),
-            "--runner", "opencode=" + runner_arg(stub, "b"),
+            "--runner", "gpt=" + runner_arg(stub, "a"),
+            "--runner", "glm=" + runner_arg(stub, "b"),
             "--runner", "kimi=" + runner_arg(stub, "garbage"),
         ],
+        roster=roster,
     )
     assert result.returncode == 0, result.stderr
     report = json.loads((out_dir / "panel_run_report.json").read_text(encoding="utf-8"))
     assert report["panel_valid"] is True
-    assert [item["family"] for item in report["absent"]] == ["kimi"]
-    assert "no JSON object" in report["absent"][0]["reason"]
+    reasons = {item["family"]: item["reason"] for item in report["absent"]}
+    assert set(reasons) == {"gemini", "kimi"}
+    assert "no JSON object" in reasons["kimi"]
     assert "family absent: kimi" in result.stdout
 
 
 def test_panel_invalid_below_three_families(tmp_path, stub):
     materials, _ = build_materials(tmp_path)
+    roster = write_roster(tmp_path)
     out_dir = tmp_path / "panel"
     result = run_panel_cli(
         materials,
         out_dir,
         [
             "--runner", "claude=" + runner_arg(stub, "a"),
-            "--runner", "codex=" + runner_arg(stub, "garbage"),
-            "--runner", "opencode=" + runner_arg(stub, "garbage"),
+            "--runner", "gpt=" + runner_arg(stub, "garbage"),
+            "--runner", "glm=" + runner_arg(stub, "garbage"),
             "--runner", "kimi=" + runner_arg(stub, "tie"),
         ],
+        roster=roster,
     )
     assert result.returncode == 2
     assert "match is terminated" in result.stderr
     report = json.loads((out_dir / "panel_run_report.json").read_text(encoding="utf-8"))
     assert report["panel_valid"] is False
     assert len(report["votes_collected"]) == 2
-    assert len(report["absent"]) == 2
+    # gpt and glm failed at runtime; gemini was roster-declared unavailable.
+    assert len(report["absent"]) == 3
 
 
 def test_retry_recovers_a_flaky_family(tmp_path, stub):
     materials, _ = build_materials(tmp_path)
+    roster = write_roster(tmp_path)
     out_dir = tmp_path / "panel"
     marker = tmp_path / "flaky_marker"
     result = run_panel_cli(
@@ -276,14 +381,15 @@ def test_retry_recovers_a_flaky_family(tmp_path, stub):
         out_dir,
         [
             "--runner", "claude=" + runner_arg(stub, "a"),
-            "--runner", "codex=" + runner_arg(stub, "flaky:%s" % marker),
-            "--runner", "opencode=" + runner_arg(stub, "b"),
+            "--runner", "gpt=" + runner_arg(stub, "flaky:%s" % marker),
+            "--runner", "glm=" + runner_arg(stub, "b"),
             "--runner", "kimi=" + runner_arg(stub, "a"),
         ],
+        roster=roster,
     )
     assert result.returncode == 0, result.stderr
-    codex_vote = json.loads((out_dir / "votes" / "codex.json").read_text(encoding="utf-8"))
-    attempts = codex_vote["collection"]["attempts"]
+    gpt_vote = json.loads((out_dir / "votes" / "gpt.json").read_text(encoding="utf-8"))
+    attempts = gpt_vote["collection"]["attempts"]
     assert len(attempts) == 2
     assert "failure" in attempts[0]
     assert attempts[1].get("ok") is True
@@ -306,6 +412,7 @@ def test_render_prompt_only(tmp_path):
 
 def test_materials_violation_blocks_before_any_runner(tmp_path, stub):
     materials, commitment = build_materials(tmp_path)
+    roster = write_roster(tmp_path)
     statement_b = materials / "statement_b.md"
     text = statement_b.read_text(encoding="utf-8")
     statement_b.write_text(
@@ -314,7 +421,7 @@ def test_materials_violation_blocks_before_any_runner(tmp_path, stub):
     )
     sentinels = {
         family: tmp_path / ("invoked_%s" % family)
-        for family in ("claude", "codex", "opencode", "kimi")
+        for family in ("claude", "gpt", "glm", "kimi")
     }
     out_dir = tmp_path / "panel"
     result = run_panel_cli(
@@ -322,10 +429,11 @@ def test_materials_violation_blocks_before_any_runner(tmp_path, stub):
         out_dir,
         [
             "--runner", "claude=" + runner_arg(stub, "flaky:%s" % sentinels["claude"]),
-            "--runner", "codex=" + runner_arg(stub, "flaky:%s" % sentinels["codex"]),
-            "--runner", "opencode=" + runner_arg(stub, "flaky:%s" % sentinels["opencode"]),
+            "--runner", "gpt=" + runner_arg(stub, "flaky:%s" % sentinels["gpt"]),
+            "--runner", "glm=" + runner_arg(stub, "flaky:%s" % sentinels["glm"]),
             "--runner", "kimi=" + runner_arg(stub, "flaky:%s" % sentinels["kimi"]),
         ],
+        roster=roster,
     )
     assert result.returncode == 1
     assert "mismatched materials" in result.stderr
@@ -343,11 +451,13 @@ def test_statement_without_hash_line_is_rejected(tmp_path):
 
 def test_unknown_family_is_rejected(tmp_path):
     materials, _ = build_materials(tmp_path)
+    roster = write_roster(tmp_path)
     result = run_panel_cli(
-        materials, tmp_path / "panel", ["--families", "claude,foo"]
+        materials, tmp_path / "panel", ["--families", "claude,foo"], roster=roster
     )
     assert result.returncode == 1
     assert "unknown family" in result.stderr
+    assert "the roster declares" in result.stderr
 
 
 # ---------------------------------------------------------------------------
@@ -379,14 +489,19 @@ def run_with_sentinels(tmp_path, materials, extra_after_runners=None):
     leaves none."""
     sentinels = {
         family: tmp_path / ("invoked_%s" % family)
-        for family in ("claude", "codex", "opencode", "kimi")
+        for family in ("claude", "gpt", "glm", "kimi")
     }
     stub_path = tmp_path / "stub_judge.py"
     stub_path.write_text(STUB_SOURCE, encoding="utf-8")
     runners = []
     for family, sentinel in sentinels.items():
         runners += ["--runner", "%s=%s" % (family, runner_arg(stub_path, "flaky:%s" % sentinel))]
-    result = run_panel_cli(materials, tmp_path / "panel", runners + (extra_after_runners or []))
+    result = run_panel_cli(
+        materials,
+        tmp_path / "panel",
+        runners + (extra_after_runners or []),
+        roster=write_roster(tmp_path),
+    )
     return result, sentinels
 
 
@@ -593,10 +708,11 @@ def test_unanchored_flood_is_counted_and_does_not_pass_silently(tmp_path):
         out_dir,
         [
             "--runner", "claude=" + runner_arg(stub_path, "a"),
-            "--runner", "codex=" + runner_arg(stub_path, "a"),
-            "--runner", "opencode=" + runner_arg(stub_path, "b"),
+            "--runner", "gpt=" + runner_arg(stub_path, "a"),
+            "--runner", "glm=" + runner_arg(stub_path, "b"),
             "--runner", "kimi=" + runner_arg(stub_path, "tie"),
         ],
+        roster=write_roster(tmp_path),
     )
     assert result.returncode == 0, result.stderr
     report = json.loads((out_dir / "panel_run_report.json").read_text(encoding="utf-8"))
@@ -697,11 +813,12 @@ def test_shared_runner_command_is_refused_without_escape_hatch(tmp_path):
         tmp_path / "panel",
         [
             "--runner", "claude=" + runner_arg(stub_path, "a"),
-            "--runner", "codex=" + runner_arg(stub_path, "a"),
-            "--runner", "opencode=" + runner_arg(stub_path, "b"),
+            "--runner", "gpt=" + runner_arg(stub_path, "a"),
+            "--runner", "glm=" + runner_arg(stub_path, "b"),
             "--runner", "kimi=" + runner_arg(stub_path, "tie"),
         ],
         allow_shared_runners=False,
+        roster=write_roster(tmp_path),
     )
     assert result.returncode == 1
     assert "same underlying command" in result.stderr
@@ -710,23 +827,27 @@ def test_shared_runner_command_is_refused_without_escape_hatch(tmp_path):
 
 def test_distinct_runner_commands_pass_the_independence_guard(tmp_path):
     materials, _ = build_materials(tmp_path)
-    # Two physically distinct stub scripts: different commands, so the guard
-    # does not trip even with the escape hatch off. Only two seats, so the
-    # panel itself is invalid, but it fails at the MIN_FAMILIES floor (exit 2),
-    # not at the independence guard (exit 1) -- proving the guard let it past.
-    stub_one = tmp_path / "stub_one.py"
-    stub_two = tmp_path / "stub_two.py"
-    stub_one.write_text(STUB_SOURCE, encoding="utf-8")
-    stub_two.write_text(STUB_SOURCE, encoding="utf-8")
+    # Three physically distinct stub scripts: different commands, so the guard
+    # does not trip even with the escape hatch off. The glm seat replies
+    # garbage and the claude seat has no injected vote, so only two votes
+    # arrive and the panel fails at the vote floor (exit 2), not at the
+    # independence guard (exit 1) -- proving the guard let it past.
+    stubs = {}
+    for name in ("one", "two", "three"):
+        stub_path = tmp_path / ("stub_%s.py" % name)
+        stub_path.write_text(STUB_SOURCE, encoding="utf-8")
+        stubs[name] = stub_path
     result = run_panel_cli(
         materials,
         tmp_path / "panel",
         [
-            "--families", "claude,codex",
-            "--runner", "claude=" + runner_arg(stub_one, "a"),
-            "--runner", "codex=" + runner_arg(stub_two, "a"),
+            "--families", "gpt,glm,kimi",
+            "--runner", "gpt=" + runner_arg(stubs["one"], "a"),
+            "--runner", "glm=" + runner_arg(stubs["two"], "garbage"),
+            "--runner", "kimi=" + runner_arg(stubs["three"], "a"),
         ],
         allow_shared_runners=False,
+        roster=write_roster(tmp_path),
     )
     assert result.returncode == 2
     assert "match is terminated" in result.stderr
@@ -740,11 +861,12 @@ def test_escape_hatch_stamps_independent_runners_false(tmp_path, stub):
         out_dir,
         [
             "--runner", "claude=" + runner_arg(stub, "a"),
-            "--runner", "codex=" + runner_arg(stub, "a"),
-            "--runner", "opencode=" + runner_arg(stub, "b"),
+            "--runner", "gpt=" + runner_arg(stub, "a"),
+            "--runner", "glm=" + runner_arg(stub, "b"),
             "--runner", "kimi=" + runner_arg(stub, "tie"),
         ],
         allow_shared_runners=True,
+        roster=write_roster(tmp_path),
     )
     assert result.returncode == 0, result.stderr
     report = json.loads((out_dir / "panel_run_report.json").read_text(encoding="utf-8"))

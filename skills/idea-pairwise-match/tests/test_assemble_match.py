@@ -47,16 +47,29 @@ def make_vote(family, vote, commitment, collected_at=None, discarded=0):
     }
 
 
-def write_votes(votes_dir, votes, names=None, independent_runners=True):
+def write_votes(votes_dir, votes, names=None, independent_runners=True,
+                families_present=None, absent=None):
     votes_dir.mkdir(parents=True, exist_ok=True)
+    votes_collected = {}
     for index, vote in enumerate(votes):
         name = (names or {}).get(index, "%s.json" % vote["reviewer_family"])
         commit_criteria.write_json_atomic(votes_dir / name, vote)
-    # assemble() reads independent_runners from the panel run report next to the
-    # votes; write a minimal report so the read path is exercised by default.
+        votes_collected[name[: -len(".json")]] = "votes/" + name
+    # assemble() reads the panel composition record from the run report next
+    # to the votes; write one so the read path is exercised by default.
+    if families_present is None:
+        families_present = sorted({vote["reviewer_family"] for vote in votes})
     commit_criteria.write_json_atomic(
         votes_dir.parent / "panel_run_report.json",
-        {"independent_runners": independent_runners},
+        {
+            "independent_runners": independent_runners,
+            "independence": "cross_family",
+            "families_present": families_present,
+            "absent": absent if absent is not None else [],
+            "min_families": 3,
+            "panel_valid": True,
+            "votes_collected": votes_collected,
+        },
     )
 
 
@@ -186,7 +199,7 @@ def test_mint_short_id_follows_engine_convention():
 def test_assemble_writes_valid_artifact(tmp_path):
     commitment_path, commitment, votes_dir, campaign = standard_setup(
         tmp_path,
-        [("claude", "a"), ("codex", "a"), ("opencode", "b"), ("kimi", "tie")],
+        [("claude", "a"), ("gpt", "a"), ("glm", "b"), ("kimi", "tie")],
     )
     artifact_path, artifact, tier, label = assemble_match.assemble(
         commitment_path, votes_dir, campaign, CAMPAIGN_ID, IDEA_A, IDEA_B
@@ -198,11 +211,17 @@ def test_assemble_writes_valid_artifact(tmp_path):
     assert artifact["outcome"]["winner"] == "a"
     assert artifact["outcome"]["vote_margin"] == pytest.approx(0.25)
     assert tier == 3
+    # Canonical artifact order for a cross-family panel: family label.
     families = [entry["reviewer_family"] for entry in artifact["panel"]]
-    assert families == ["claude", "codex", "opencode", "kimi"]
-    # The panel run report's independent_runners flag is carried into the
+    assert families == ["claude", "glm", "gpt", "kimi"]
+    # The panel composition record from the run report is carried into the
     # artifact, so a low-diversity panel is visible in the artifact itself.
     assert artifact["independent_runners"] is True
+    assert artifact["panel_independence"] == {
+        "mode": "cross_family",
+        "families_present": ["claude", "glm", "gpt", "kimi"],
+        "families_absent": [],
+    }
     assert artifact["observation_write"] == {"written": False}
     for entry in artifact["panel"]:
         assert set(entry) == assemble_match.PANEL_ENTRY_KEYS
@@ -217,7 +236,7 @@ def test_stub_backed_panel_flag_is_carried_into_artifact(tmp_path):
     commitment_path, commitment = make_commitment(tmp_path)
     votes = [
         make_vote(family, "a", commitment)
-        for family in ("claude", "codex", "opencode")
+        for family in ("claude", "gpt", "glm")
     ]
     votes_dir = tmp_path / "votes"
     write_votes(votes_dir, votes, independent_runners=False)
@@ -236,7 +255,7 @@ def test_assemble_refuses_when_panel_report_missing(tmp_path):
     commitment_path, commitment = make_commitment(tmp_path)
     votes = [
         make_vote(family, "a", commitment)
-        for family in ("claude", "codex", "opencode")
+        for family in ("claude", "gpt", "glm")
     ]
     votes_dir = tmp_path / "votes"
     write_votes(votes_dir, votes)
@@ -251,7 +270,7 @@ def test_assemble_refuses_when_panel_report_missing(tmp_path):
 
 def test_assemble_rejects_fewer_than_three_families(tmp_path):
     commitment_path, commitment, votes_dir, campaign = standard_setup(
-        tmp_path, [("claude", "a"), ("codex", "b")]
+        tmp_path, [("claude", "a"), ("gpt", "b")]
     )
     with pytest.raises(assemble_match.MatchError, match="minimum 3"):
         assemble_match.assemble(
@@ -262,12 +281,12 @@ def test_assemble_rejects_fewer_than_three_families(tmp_path):
 def test_assemble_rejects_duplicate_family(tmp_path):
     commitment_path, commitment = make_commitment(tmp_path)
     votes = [
-        make_vote("codex", "a", commitment),
-        make_vote("codex", "b", commitment),
+        make_vote("gpt", "a", commitment),
+        make_vote("gpt", "b", commitment),
         make_vote("kimi", "a", commitment),
     ]
     votes_dir = tmp_path / "votes"
-    write_votes(votes_dir, votes, names={1: "codex_second.json"})
+    write_votes(votes_dir, votes, names={1: "gpt_second.json"})
     campaign = tmp_path / "campaign"
     campaign.mkdir()
     with pytest.raises(assemble_match.MatchError, match="duplicate vote"):
@@ -278,9 +297,9 @@ def test_assemble_rejects_duplicate_family(tmp_path):
 
 def test_assemble_rejects_commitment_hash_mismatch(tmp_path):
     commitment_path, commitment, votes_dir, campaign = standard_setup(
-        tmp_path, [("claude", "a"), ("codex", "a"), ("kimi", "a")]
+        tmp_path, [("claude", "a"), ("gpt", "a"), ("kimi", "a")]
     )
-    tampered_path = votes_dir / "codex.json"
+    tampered_path = votes_dir / "gpt.json"
     record = json.loads(tampered_path.read_text(encoding="utf-8"))
     record["commitment_hash"] = "sha256:" + "0" * 64
     commit_criteria.write_json_atomic(tampered_path, record)
@@ -296,7 +315,7 @@ def test_assemble_rejects_votes_collected_before_commitment(tmp_path):
     )
     votes = [
         make_vote(family, "a", commitment)
-        for family in ("claude", "codex", "opencode")
+        for family in ("claude", "gpt", "glm")
     ]
     votes_dir = tmp_path / "votes"
     write_votes(votes_dir, votes)
@@ -310,7 +329,7 @@ def test_assemble_rejects_votes_collected_before_commitment(tmp_path):
 
 def test_assemble_rejects_bad_ids_and_same_pair(tmp_path):
     commitment_path, commitment, votes_dir, campaign = standard_setup(
-        tmp_path, [("claude", "a"), ("codex", "a"), ("kimi", "a")]
+        tmp_path, [("claude", "a"), ("gpt", "a"), ("kimi", "a")]
     )
     with pytest.raises(assemble_match.MatchError, match="not an engine short id"):
         assemble_match.assemble(
@@ -339,7 +358,7 @@ def test_assemble_rejects_bad_ids_and_same_pair(tmp_path):
 
 def test_rematch_requires_rationale(tmp_path):
     commitment_path, commitment, votes_dir, campaign = standard_setup(
-        tmp_path, [("claude", "a"), ("codex", "a"), ("kimi", "a")]
+        tmp_path, [("claude", "a"), ("gpt", "a"), ("kimi", "a")]
     )
     assemble_match.assemble(
         commitment_path, votes_dir, campaign, CAMPAIGN_ID, IDEA_A, IDEA_B
@@ -380,7 +399,7 @@ def _write_statement(path, commitment, node_id):
 
 def test_materials_cross_check(tmp_path):
     commitment_path, commitment, votes_dir, campaign = standard_setup(
-        tmp_path, [("claude", "a"), ("codex", "a"), ("kimi", "a")]
+        tmp_path, [("claude", "a"), ("gpt", "a"), ("kimi", "a")]
     )
     materials = tmp_path / "materials"
     materials.mkdir()
@@ -423,7 +442,7 @@ def test_materials_cross_check(tmp_path):
 def valid_artifact(tmp_path):
     commitment_path, commitment, votes_dir, campaign = standard_setup(
         tmp_path,
-        [("claude", "a"), ("codex", "a"), ("opencode", "b"), ("kimi", "tie")],
+        [("claude", "a"), ("gpt", "a"), ("glm", "b"), ("kimi", "tie")],
     )
     _, artifact, _, _ = assemble_match.assemble(
         commitment_path, votes_dir, campaign, CAMPAIGN_ID, IDEA_A, IDEA_B
@@ -469,15 +488,61 @@ def test_validator_accepts_the_assembled_artifact(valid_artifact):
             "does not match",
         ),
         (lambda a: a.__setitem__("panel", []), "non-empty array"),
+        # Family labels are roster keys; the pattern rejects anything that
+        # could not be one (uppercase, leading digit), not unfamiliar names.
         (
-            lambda a: a["panel"][0].__setitem__("reviewer_family", "gemini"),
-            "reviewer_family must be one of",
+            lambda a: a["panel"][0].__setitem__("reviewer_family", "GPT"),
+            "family label",
+        ),
+        # A trailing newline must fail: with re.match, the pattern's $ would
+        # tolerate it while the engine-side JS regex rejects it.
+        (
+            lambda a: a["panel"][0].__setitem__("reviewer_family", "gpt\n"),
+            "family label",
         ),
         (
             lambda a: a["panel"][1].__setitem__(
                 "reviewer_family", a["panel"][0]["reviewer_family"]
             ),
             "more than once",
+        ),
+        (
+            lambda a: a["panel"][0].__setitem__("seat", 1),
+            "do not number seats",
+        ),
+        (
+            lambda a: a.pop("panel_independence"),
+            "missing top-level key: panel_independence",
+        ),
+        (
+            lambda a: a["panel_independence"].__setitem__("mode", "mixed"),
+            "mode must be one of",
+        ),
+        (
+            lambda a: a["panel_independence"].__setitem__("families_present", []),
+            "non-empty array",
+        ),
+        (
+            lambda a: a["panel_independence"].__setitem__(
+                "families_present", ["claude", "glm", "gpt"]
+            ),
+            "do not match",
+        ),
+        (
+            lambda a: a["panel_independence"].__setitem__(
+                "families_absent", [{"family": "gemini"}]
+            ),
+            "reason must be a non-empty string",
+        ),
+        (
+            lambda a: a["panel_independence"]["families_absent"].append(
+                {"family": a["panel"][0]["reviewer_family"], "reason": "also voted"}
+            ),
+            "both present and absent",
+        ),
+        (
+            lambda a: a["panel_independence"].__setitem__("surprise", 1),
+            "panel_independence has unknown keys",
         ),
         (lambda a: a["panel"][0].__setitem__("vote", "abstain"), "vote must be one of"),
         (
@@ -598,7 +663,7 @@ def write_materials(materials_dir, commitment):
 def test_cli_smoke(tmp_path):
     commitment_path, commitment, votes_dir, campaign = standard_setup(
         tmp_path,
-        [("claude", "a"), ("codex", "a"), ("opencode", "b"), ("kimi", "tie")],
+        [("claude", "a"), ("gpt", "a"), ("glm", "b"), ("kimi", "tie")],
     )
     materials = write_materials(tmp_path / "materials", commitment)
     result = subprocess.run(
@@ -638,7 +703,7 @@ def test_cli_smoke(tmp_path):
 def test_cli_requires_materials_dir(tmp_path):
     commitment_path, commitment, votes_dir, campaign = standard_setup(
         tmp_path,
-        [("claude", "a"), ("codex", "a"), ("opencode", "b")],
+        [("claude", "a"), ("gpt", "a"), ("glm", "b")],
     )
     result = subprocess.run(
         [
