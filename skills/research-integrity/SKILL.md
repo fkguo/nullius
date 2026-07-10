@@ -664,8 +664,9 @@ human's decision is recorded with
 `nullius decision record "<what was decided>" --by <who>` — the
 engine-visible counterpart of the approval receipt. Open questions
 awaiting the project owner go in
-`nullius decision pending "<question>"` and stay in every status
-receipt until resolved.
+`nullius decision pending "<question>"` and stay counted in every
+status receipt (the oldest ten itemized; the rest via
+`nullius decision list`) until resolved.
 
 ## Integration with adjacent skills
 

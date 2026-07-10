@@ -87,7 +87,7 @@
   - staging / planning / execution: `orch_run_stage_idea` / `orch_run_stage_content` / `orch_run_plan_computation` / `orch_run_execute_manifest` / `orch_run_progress_followups`
   - verification / higher-conclusion gate: `nullius verify` / `orch_run_record_verification`，以及 `nullius final-conclusions` / `orch_run_request_final_conclusions`
   - proposal decisions / read models: `nullius proposal-decision`、`nullius status --json`、`orch_run_status`、`orch_run_export`
-  - conversational decisions: `nullius decision record|pending`（追加写 `.nullius/decisions.jsonl`）与 `nullius decision list`（只读回放）；open 项持续出现在 status receipt
+  - conversational decisions: `nullius decision record|pending`（追加写 `.nullius/decisions.jsonl`）与 `nullius decision list`（只读回放）；open 项计数始终出现在 status receipt（最旧十条列明，其余用 `decision list` 查看）
 - `hep_run_stage_content` 仍保留，但它只是 HEP run-artifact substrate adapter，不代表 generic 写作/评审 staging authority。
 
 ## B) Evidence 构建（写作/检索/回放的输入资产）
