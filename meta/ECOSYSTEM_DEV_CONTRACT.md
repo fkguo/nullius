@@ -246,14 +246,14 @@ make codegen-check  # 重新生成 → git diff --exit-code */generated/
 
 **规则**: 新增或实质改版一个 `skills/` 技能时，同一变更（或其收口 lane）必须同步检查并更新使用侧接线，不得只落技能本体。最低清单：
 
-1. `skills/research-harness/SKILL.md` 的路由与结果回填文本（现状为邻技能路由散文与 Fold Results Back 节；按结果类型的分派表落地后以该表为准）—— 若新技能承担某类结果的验证或产出职责，该路由文本必须能路由到它；
+1. `skills/research-harness/SKILL.md` 的按结果类型分派表与 Fold Results Back 节 —— 若新技能承担某类结果的验证或产出职责，分派表必须能路由到它；
 2. `packages/project-contracts/src/project_contracts/scaffold_templates/` 中面向项目的常驻文本（事件→工作流对照表等）—— 若技能应在某个工作时刻被默认想起；
 3. `packages/skills-market/` 目录条目与 `depends_on`（含 `generate_manifest_components.py --write` 再生成）；
 4. 相关邻居技能的 "Routing to Neighbor Skills" / 组合说明。
 
 背景：多个真实项目审计显示，技能落地后若无任何常驻文本引用，它对代理实际不存在（"孤儿技能"）；该漂移是结构性的，必须由验收项拦住。
 
-**CI 验证**: 人工 review 验收项 + `packages/skills-market` 校验测试（依赖目标存在性）；常驻文本↔技能清单的一致性测试随 harness 分派表落地后补充为自动锁。
+**CI 验证**: 人工 review 验收项 + `packages/skills-market` 校验测试（依赖目标存在性）；分派表已落地；常驻文本↔技能清单的自动一致性锁仍待补充。
 
 **违规行为**: **fail-open（review 阻断）** —— reviewer 在 PR/lane 收口时核对本清单；缺接线的新技能不得标记为已交付。
 
