@@ -6,6 +6,7 @@ import {
   writeIntegrityReceipt,
   type IntegrityMode,
 } from '@nullius/shared';
+import { shellQuote } from './decisions-ledger.js';
 import { handleOrchRunApprove } from './orch-tools/approval.js';
 import { createStateManager, requireState } from './orch-tools/common.js';
 import { handleOrchRunRequestFinalConclusions } from './orch-tools/final-conclusions.js';
@@ -25,9 +26,33 @@ function writeJson(io: CliIo, payload: unknown): void {
   io.stdout(`${JSON.stringify(payload, null, 2)}\n`);
 }
 
-function writeStatusText(io: CliIo, payload: Record<string, unknown>): void {
+// Ledger strings (decision text, authorship, timestamps) are arbitrary user
+// input rendered into a receipt other agents parse visually: raw control
+// characters could forge receipt-looking lines or reprogram the terminal.
+// Escape C0 controls, DEL, C1 controls, and the JS line separators with
+// explicit unicode escapes (JSON.stringify leaves DEL/C1/U+2028/U+2029
+// literal, so it cannot be used for this).
+const RENDER_ESCAPE_SHORTHAND: Record<string, string> = {
+  '\b': '\\b',
+  '\t': '\\t',
+  '\n': '\\n',
+  '\f': '\\f',
+  '\r': '\\r',
+};
+
+function renderInline(value: unknown): string {
+  return String(value ?? '').replace(
+    /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g,
+    ch => RENDER_ESCAPE_SHORTHAND[ch] ?? `\\u${ch.codePointAt(0)!.toString(16).padStart(4, '0')}`,
+  );
+}
+
+function writeStatusText(io: CliIo, payload: Record<string, unknown>, statusProjectRoot: string): void {
   io.stdout(`run_id: ${String(payload.run_id ?? '')}\n`);
   io.stdout(`run_status: ${String(payload.run_status ?? '')}\n`);
+  // Always stated: "undeclared" is itself load-bearing information for a
+  // reconnecting agent (see the undeclared-looks-file-mode drift hint).
+  io.stdout(`execution_mode: ${payload.execution_mode ? String(payload.execution_mode) : 'undeclared'}\n`);
   io.stdout(`workflow_id: ${String(payload.workflow_id ?? '')}\n`);
   io.stdout(`project_uri: ${String(payload.uri ?? '')}\n`);
   if (payload.current_step) {
@@ -154,6 +179,38 @@ function writeStatusText(io: CliIo, payload: Record<string, unknown>): void {
       }
     }
   }
+  // Conversational decisions: recorded totals plus every still-open item.
+  // Open items are exactly what a reconnecting agent must not lose — they are
+  // the questions a human still owes an answer to.
+  const decisionLedger = payload.decision_ledger;
+  if (decisionLedger && typeof decisionLedger === 'object') {
+    const ledger = decisionLedger as Record<string, unknown>;
+    const decidedCount = Number(ledger.decided_count ?? 0);
+    const openCount = Number(ledger.open_count ?? 0);
+    const invalidLines = Number(ledger.invalid_lines ?? 0);
+    // A ledger FILE that exists renders even at 0/0 — an emptied ledger is a
+    // deliberate state the operator should see, unlike the never-adopted case
+    // (no file), which stays silent.
+    if (ledger.exists === true || decidedCount > 0 || openCount > 0 || invalidLines > 0) {
+      io.stdout(`decisions: ${decidedCount} decided, ${openCount} open\n`);
+      const openItems = Array.isArray(ledger.open_items) ? ledger.open_items : [];
+      for (const rawItem of openItems) {
+        if (!rawItem || typeof rawItem !== 'object') continue;
+        const item = rawItem as Record<string, unknown>;
+        io.stdout(`  - [open] ${renderInline(item.id)} (${renderInline(item.ts)}): ${renderInline(item.text)}\n`);
+      }
+      const omitted = Number(ledger.open_items_omitted ?? 0);
+      if (omitted > 0) {
+        io.stdout(`  ... and ${omitted} more open (run: nullius decision list --project-root ${shellQuote(statusProjectRoot)})\n`);
+      }
+      if (invalidLines > 0) {
+        io.stdout(`  decisions_invalid_lines: ${invalidLines} (invalid, duplicate, or mis-resolving lines in ${String(ledger.path ?? 'the decisions ledger')})\n`);
+      }
+    }
+  }
+  if (payload.decision_ledger_error && typeof payload.decision_ledger_error === 'object') {
+    io.stdout(`decision_ledger_error: ${JSON.stringify(payload.decision_ledger_error)}\n`);
+  }
   const digestError = payload.project_recent_digest_error;
   if (digestError && typeof digestError === 'object') {
     io.stdout(`project_recent_digest_error: ${JSON.stringify(digestError)}\n`);
@@ -215,7 +272,7 @@ export async function runStatusCommand(projectRoot: string, json: boolean, io: C
     writeJson(io, payload);
     return;
   }
-  writeStatusText(io, payload);
+  writeStatusText(io, payload, projectRoot);
 }
 
 export async function runPauseCommand(projectRoot: string, note: string | null, io: CliIo): Promise<void> {
@@ -320,6 +377,73 @@ export async function runProposalDecisionCommand(
     ...(parsed.note ? { note: parsed.note } : {}),
   });
   writeJson(io, payload);
+}
+
+export async function runDecisionCommand(
+  projectRoot: string,
+  parsed: Extract<ParsedCliArgs, { command: 'decision' }>,
+  io: CliIo,
+): Promise<void> {
+  const { appendDecision, openDecisions, readDecisionsLedger } = await import('./decisions-ledger.js');
+  if (parsed.action === 'list') {
+    const snapshot = readDecisionsLedger(projectRoot);
+    const open = openDecisions(snapshot.records);
+    if (parsed.json) {
+      writeJson(io, {
+        path: snapshot.path,
+        exists: snapshot.exists,
+        invalid_lines: snapshot.invalid_lines,
+        records: snapshot.records,
+        open_ids: open.map((record) => record.id),
+      });
+      return;
+    }
+    if (!snapshot.exists || snapshot.records.length === 0) {
+      io.stdout('no decisions recorded\n');
+      if (snapshot.invalid_lines > 0) {
+        io.stdout(`invalid_lines: ${snapshot.invalid_lines} (invalid, duplicate, or mis-resolving lines in ${snapshot.path})\n`);
+      }
+      return;
+    }
+    const openIds = new Set(open.map((entry) => entry.id));
+    for (const record of snapshot.records) {
+      const openMark = record.kind === 'pending' && openIds.has(record.id) ? ' [open]' : '';
+      const resolvesMark = record.resolves ? ` resolves=${record.resolves}` : '';
+      io.stdout(`${record.id} ${record.kind}${openMark} @ ${renderInline(record.ts)} (${renderInline(record.by)})${resolvesMark}: ${renderInline(record.text)}\n`);
+    }
+    io.stdout(`decisions: ${snapshot.records.filter((record) => record.kind === 'decided').length} decided, ${open.length} open\n`);
+    if (snapshot.invalid_lines > 0) {
+      io.stdout(`invalid_lines: ${snapshot.invalid_lines}\n`);
+    }
+    return;
+  }
+  const record = appendDecision(projectRoot, {
+    kind: parsed.action === 'record' ? 'decided' : 'pending',
+    text: parsed.text ?? '',
+    by: parsed.by,
+    resolves: parsed.resolves,
+  });
+  // Mirror into the machine event log so the chronological ledger stays whole.
+  // .nullius/decisions.jsonl is the parse source of truth and is already
+  // durably written at this point; a mirror failure must not make a recorded
+  // decision look unrecorded (a retry would duplicate it), so it degrades to
+  // a warning instead of failing the command.
+  try {
+    const { manager } = createStateManager(projectRoot);
+    manager.appendLedger(record.kind === 'decided' ? 'decision_recorded' : 'decision_pending_recorded', {
+      details: {
+        decision_id: record.id,
+        by: record.by,
+        ...(record.resolves ? { resolves: record.resolves } : {}),
+      },
+    });
+  } catch (error) {
+    io.stderr(`[warn] decision ${record.id} recorded, but the ledger.jsonl mirror event failed: ${error instanceof Error ? error.message : String(error)}\n`);
+  }
+  io.stdout(`${record.kind === 'decided' ? 'recorded' : 'pending'}: ${record.id}\n`);
+  if (record.resolves) {
+    io.stdout(`resolved: ${record.resolves}\n`);
+  }
 }
 
 export async function runVerifyCommand(

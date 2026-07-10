@@ -76,11 +76,12 @@ export { sanitizePath, sanitizeFilename, sanitizeQueryString } from './sanitize.
 // Redaction (M-14a)
 export { redact } from './redaction.js';
 
-// Durable atomic writes (P1) — five primitives for POSIX-correct file writes
+// Durable atomic writes (P1) — primitives for POSIX-correct file writes
 export {
   writeBytesAtomicDurable,
   writeJsonAtomicDurable,
   appendJsonlDurable,
+  appendBytesDurable,
   writeExecutableAtomicDurable,
   commitStagedDurable,
   // Test-only: audit hook for sequence-locking regression tests.

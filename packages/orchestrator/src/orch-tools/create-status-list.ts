@@ -7,6 +7,7 @@ import {
   writeHarnessInvocationMarker,
 } from '@nullius/shared';
 import { z } from 'zod';
+import type { ExecutionMode } from '../types.js';
 import { createStateManager, requireState } from './common.js';
 import { buildRunStatusView, readRunListView } from './run-read-model.js';
 import { OrchRunCreateSchema, OrchRunListSchema, OrchRunStatusSchema } from './schemas.js';
@@ -34,6 +35,7 @@ function buildIdleState(runId: string, workflowId?: string) {
     artifacts: {},
     workflow_outputs: {},
     notes: '',
+    execution_mode: null as ExecutionMode | null,
   };
 }
 
@@ -42,8 +44,14 @@ export async function handleOrchRunCreate(
 ): Promise<unknown> {
   const { manager, projectRoot } = createStateManager(params.project_root);
   manager.ensureDirs();
+  // A declared execution mode is a project-level fact, not a per-run one;
+  // creating a run must not silently erase it.
+  let declaredMode: ExecutionMode | null = null;
   if (fs.existsSync(manager.statePath)) {
     const existing = JSON.parse(fs.readFileSync(manager.statePath, 'utf-8')) as Record<string, unknown>;
+    if (existing.execution_mode === 'engine' || existing.execution_mode === 'file') {
+      declaredMode = existing.execution_mode;
+    }
     const existingKey = typeof existing.idempotency_key === 'string' ? existing.idempotency_key : undefined;
     if (params.idempotency_key && existingKey === params.idempotency_key) {
       return {
@@ -63,6 +71,7 @@ export async function handleOrchRunCreate(
   }
 
   const state = buildIdleState(params.run_id, params.workflow_id);
+  state.execution_mode = declaredMode;
   if (params.idempotency_key) {
     (state as Record<string, unknown>).idempotency_key = params.idempotency_key;
   }

@@ -46,6 +46,16 @@ Pass-through options:
   --allow-nested
   --runtime-only
   --checkpoint-interval-seconds <seconds>
+  --mode <engine|file>   Declare where project truth lives. engine: the nullius
+                         run/approve lifecycle drives the project. file: work is
+                         executed by hand or external runners, durable truth lives in
+                         research_plan.md / research_contract.md and dated run
+                         directories, and run_status legitimately stays idle.
+                         Works on an already-initialized root (including with
+                         --runtime-only) to declare or change the mode; recorded in
+                         .nullius/state.json and surfaced by the status receipt.
+                         Without --mode the project stays undeclared and status may
+                         hint when the evidence looks file-mode.
 
 Use --project-root <path> to target a root explicitly.
 `,
@@ -128,6 +138,32 @@ Behavior:
   Writes local decision memory into \`.nullius/proposal_decisions_v1.json\`.
   Does not mutate the proposal artifact itself.
 `,
+  decision: `nullius decision <record|pending|list>
+
+Record human decisions made in conversation into an append-only project ledger.
+
+Actions:
+  record "<what was decided>" [--by <who>] [--resolves <id>]
+                         Append a decided entry; --resolves closes an open pending entry.
+  pending "<open question>" [--by <who>]
+                         Append an open item that still needs a decision.
+  list [--json]          Print the ledger with open items partitioned out.
+
+Behavior:
+  record and pending require an initialized external project root (\`nullius init\`);
+  list reads permissively and reports "no decisions recorded" on an uninitialized root.
+  Appends one JSON line per event to \`.nullius/decisions.jsonl\` (ids D1, D2, ...); never
+  rewrites, and takes a short cross-process lock so concurrent recordings get distinct ids.
+  --resolves only accepts a currently OPEN pending entry (unknown, decided, and
+  already-resolved targets are rejected).
+  Works in both execution modes and never gates any command: it replaces hand-built
+  decision ledgers, giving file-mode projects an engine-visible record of conversational
+  approvals. Open entries surface in the status receipt until a later
+  \`decision record --resolves <id>\` closes them (all counted; the oldest ten itemized,
+  the remainder via \`decision list\`).
+  --by defaults to "user". Text beginning with a hyphen goes after the conventional
+  end-of-options terminator: \`nullius decision record -- "-keep the negative branch"\`.
+`,
   status: `nullius status
 
 Show the current lifecycle state for the nearest project root.
@@ -144,6 +180,7 @@ Behavior:
   reuse bounded workflow outputs, and fall back to \`.nullius/bin/nullius status --json\`
   when the canonical \`nullius\` command is not available on PATH.
   Status JSON also includes \`project_surface_drift\`, a diagnostic-only warning block for stale legacy scaffold surfaces or optional host-local guidance noise in the current project root.
+  Status JSON also includes \`execution_mode\` (declared via \`nullius init --mode=<engine|file>\`; null when never declared) and \`decision_ledger\`, the conversational-decision record with any still-open items.
   When durable workflow outputs are missing for an older run, status rebuilds a best-effort legacy workflow projection from ledger/artifact conventions and reports the projection source.
 `,
 approve: `nullius approve <approval_id>

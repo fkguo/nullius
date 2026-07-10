@@ -7,9 +7,10 @@
  * new production-code site introduces a bare `fs.writeFileSync`,
  * `fs.renameSync`, `fs.appendFileSync`, `fs.promises.writeFile`,
  * `fs.promises.rename`, or `fs.promises.appendFile`. Every artifact write
- * in production paths must go through the durable primitives in
+ * in production paths must go through the six durable primitives in
  * `@nullius/shared` (`writeBytesAtomicDurable`, `writeJsonAtomicDurable`,
- * `appendJsonlDurable`, `writeExecutableAtomicDurable`, `commitStagedDurable`).
+ * `appendJsonlDurable`, `appendBytesDurable`, `writeExecutableAtomicDurable`,
+ * `commitStagedDurable`).
  *
  * Why this matters:
  *   - Bare writeFileSync/renameSync skips the file fsync + parent-dir fsync
@@ -201,6 +202,7 @@ function main() {
       '  - writeBytesAtomicDurable(filePath, bytes, mode?)\n' +
       '  - writeJsonAtomicDurable(filePath, payload, stringify?)\n' +
       '  - appendJsonlDurable(filePath, lineObject)\n' +
+      '  - appendBytesDurable(filePath, bytes)\n' +
       '  - writeExecutableAtomicDurable(filePath, script)\n' +
       '  - commitStagedDurable(stagedPath, finalPath)\n' +
       '\nIf the new call site genuinely cannot use a primitive (e.g. cross-parent\n' +

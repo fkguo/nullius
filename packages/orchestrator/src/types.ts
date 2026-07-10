@@ -11,6 +11,15 @@ export type RunStatus =
   | 'completed'
   | 'failed';
 
+/** Where project truth lives and which closeout surface applies.
+ *  'engine': the nullius run/approve lifecycle drives the project.
+ *  'file': work is executed by hand or by external runners; durable truth
+ *  lives in research_plan.md / research_contract.md and dated run
+ *  directories, and run_status legitimately stays 'idle'.
+ *  Absent/null: never declared (legacy projects); status may hint when the
+ *  observable evidence looks file-mode. */
+export type ExecutionMode = 'engine' | 'file';
+
 export interface PendingApproval {
   approval_id: string;
   category: string;
@@ -70,6 +79,8 @@ export interface RunState {
   artifacts: Record<string, string>;
   workflow_outputs: Record<string, WorkflowOutputView>;
   notes: string;
+  /** Declared via `nullius init --mode=<engine|file>`; never inferred. */
+  execution_mode?: ExecutionMode | null;
   /** Saved before pause so resume can restore the original status.
    *  Python uses pop/setdefault pattern; TS uses optional field. */
   paused_from_status?: RunStatus;

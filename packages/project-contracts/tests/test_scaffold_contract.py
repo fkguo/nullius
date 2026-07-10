@@ -406,6 +406,22 @@ class TestScaffoldContract(unittest.TestCase):
         # The integrity row states where run evidence lands.
         self.assertIn("land run evidence under `artifacts/runs/<run_id>/` or `team/runs/<run>/`", template)
 
+    def test_scaffold_agents_template_declares_execution_modes(self) -> None:
+        template = (scaffold_template_dir() / "AGENTS.md").read_text(encoding="utf-8")
+
+        self.assertIn("## Execution mode (engine vs file)", template)
+        self.assertIn("`nullius init --mode=<engine|file>`", template)
+        # Both modes are legitimate; file mode names where truth lives and why
+        # an idle run_status is not a defect there.
+        self.assertIn("`run_status` legitimately stays `idle`", template)
+        # Conversational decisions have an engine-visible recording surface,
+        # including the route that closes an open question.
+        self.assertIn('`nullius decision record "<what was decided>"`', template)
+        self.assertIn('`nullius decision pending "<question>"`', template)
+        self.assertIn('`nullius decision record "<answer>" --resolves <id>`', template)
+        # The verification trigger table is mode-independent.
+        self.assertIn("The verification triggers above apply identically in both modes.", template)
+
     def test_templates_recognize_team_runs_as_first_class_evidence_root(self) -> None:
         agents_template = (scaffold_template_dir() / "AGENTS.md").read_text(encoding="utf-8")
         contract_template = (scaffold_template_dir() / "research_contract.md").read_text(encoding="utf-8")

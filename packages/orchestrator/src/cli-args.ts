@@ -33,6 +33,15 @@ export type ParsedCliArgs =
     decision: 'accepted_for_later' | 'dismissed' | 'already_captured';
     note: string | null;
   }
+  | {
+    command: 'decision';
+    projectRoot: string | null;
+    action: 'record' | 'pending' | 'list';
+    text: string | null;
+    by: string | null;
+    resolves: string | null;
+    json: boolean;
+  }
   | { command: 'status'; projectRoot: string | null; json: boolean }
   | { command: 'pause'; projectRoot: string | null; note: string | null }
   | { command: 'resume'; projectRoot: string | null; note: string | null; force: boolean }
@@ -81,20 +90,68 @@ function readOptionValue(args: string[], index: number, name: string): string {
   return value;
 }
 
+// In-dispatch generation token: the project-local launcher passes this with
+// the REAL command (not only in a separate probe), so the invocation that
+// handles the trusted root proves its own parser generation. An
+// older-generation parser fails on the unknown token instead of proceeding
+// with different root semantics — closing the probe-then-exec swap window and
+// the mixed-build case where the banner is new but the parser is old.
+const LAUNCHER_GENERATION_TOKEN = '--launcher-generation=2';
+const LAUNCHER_GENERATION_PREFIX = '--launcher-generation=';
+
+/** Strips one leading generation token, failing closed on a mismatch. The
+ *  launcher-protocol handshake calls this too, so the banner is only emitted
+ *  when THIS module — the component whose root semantics actually matter —
+ *  accepted the token; a mixed build (new cli.js, stale cli-args.js) fails
+ *  the probe instead of advertising a fallback that dispatch would reject. */
+export function consumeLauncherGenerationToken(argv: string[]): string[] {
+  const [first, ...rest] = argv;
+  if (first === undefined || !first.startsWith(LAUNCHER_GENERATION_PREFIX)) return argv;
+  if (first !== LAUNCHER_GENERATION_TOKEN) {
+    throw new Error(`launcher generation mismatch: this CLI implements ${LAUNCHER_GENERATION_TOKEN}, launcher sent ${first}`);
+  }
+  return rest;
+}
+
 function extractProjectRoot(argv: string[]): { args: string[]; projectRoot: string | null } {
   const args: string[] = [];
   let projectRoot: string | null = null;
+  let optionsEnded = false;
+  const setRoot = (value: string) => {
+    // Duplicate explicit roots are ambiguous authority, never last-wins:
+    // silently preferring one could write into the wrong project.
+    if (projectRoot !== null && projectRoot !== value) {
+      throw new Error(`duplicate --project-root values: ${projectRoot} and ${value}`);
+    }
+    projectRoot = value;
+  };
   for (let index = 0; index < argv.length; index += 1) {
     const current = argv[index]!;
-    if (current.startsWith('--project-root=')) {
-      projectRoot = current.slice('--project-root='.length);
+    // Tokens after the end-of-options terminator are data (e.g. decision
+    // text), never a project-root override — otherwise recorded text could
+    // silently retarget the write to another root. The project-local
+    // launcher PREPENDS its trusted root, so it is always seen before any
+    // user-supplied terminator.
+    if (!optionsEnded && current === '--') {
+      optionsEnded = true;
+      args.push(current);
       continue;
     }
-    if (current !== '--project-root') {
+    if (!optionsEnded && current.startsWith(LAUNCHER_GENERATION_PREFIX)) {
+      // Consumed (stripped) when it names THIS generation; any other value
+      // means a launcher expecting different root semantics — fail closed.
+      consumeLauncherGenerationToken([current]);
+      continue;
+    }
+    if (!optionsEnded && current.startsWith('--project-root=')) {
+      setRoot(current.slice('--project-root='.length));
+      continue;
+    }
+    if (optionsEnded || current !== '--project-root') {
       args.push(argv[index]!);
       continue;
     }
-    projectRoot = readOptionValue(argv, index, '--project-root');
+    setRoot(readOptionValue(argv, index, '--project-root'));
     index += 1;
   }
   return { args, projectRoot };
@@ -296,6 +353,67 @@ function parseProposalDecisionArgs(args: string[]): {
   if (!proposalId) throw new Error('proposal-decision requires --proposal-id <id>');
   if (!decision) throw new Error('proposal-decision requires --decision <accepted_for_later|dismissed|already_captured>');
   return { proposalKind, proposalId, decision, note };
+}
+
+function parseDecisionArgs(args: string[]): {
+  action: 'record' | 'pending' | 'list';
+  text: string | null;
+  by: string | null;
+  resolves: string | null;
+  json: boolean;
+} {
+  const rawAction = args[0];
+  if (rawAction !== 'record' && rawAction !== 'pending' && rawAction !== 'list') {
+    throw new Error('decision requires an action: record | pending | list');
+  }
+  const action = rawAction;
+  let text: string | null = null;
+  let by: string | null = null;
+  let resolves: string | null = null;
+  let json = false;
+  let optionsEnded = false;
+  for (let index = 1; index < args.length; index += 1) {
+    const arg = args[index]!;
+    if (!optionsEnded && arg === '--') {
+      // Conventional end-of-options terminator so decision text may begin
+      // with a hyphen: nullius decision record -- "-keep the negative branch"
+      optionsEnded = true;
+      continue;
+    }
+    if (optionsEnded) {
+      if (text === null && action !== 'list') {
+        text = arg;
+        continue;
+      }
+      throw new Error(`unknown decision argument: ${arg}`);
+    }
+    if (arg === '--by') {
+      if (action === 'list') throw new Error('decision list does not take --by');
+      by = readOptionValue(args, index, '--by');
+      index += 1;
+      continue;
+    }
+    if (arg === '--resolves') {
+      if (action !== 'record') throw new Error('--resolves is only valid with decision record');
+      resolves = readOptionValue(args, index, '--resolves');
+      index += 1;
+      continue;
+    }
+    if (arg === '--json') {
+      if (action !== 'list') throw new Error('--json is only valid with decision list');
+      json = true;
+      continue;
+    }
+    if (!arg.startsWith('-') && text === null && action !== 'list') {
+      text = arg;
+      continue;
+    }
+    throw new Error(`unknown decision argument: ${arg}`);
+  }
+  if ((action === 'record' || action === 'pending') && (text === null || text.trim().length === 0)) {
+    throw new Error(`decision ${action} requires the text as one quoted argument`);
+  }
+  return { action, text, by, resolves, json };
 }
 
 function parseVerifyArgs(args: string[]): {
@@ -596,7 +714,11 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
   const [rawCommand, ...rest] = args;
   const command = rawCommand!;
   ensureKnownCommand(command);
-  if (rest.some(isHelpFlag)) {
+  // Help detection stops at the end-of-options terminator: after `--`,
+  // "--help" is data (e.g. decision text), not a request for help.
+  const terminatorAt = rest.indexOf('--');
+  const optionRest = terminatorAt === -1 ? rest : rest.slice(0, terminatorAt);
+  if (optionRest.some(isHelpFlag)) {
     return { command: 'help', projectRoot, topic: command };
   }
 
@@ -611,6 +733,8 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
       return { command: 'final-conclusions', projectRoot, ...parseFinalConclusionsArgs(rest) };
     case 'proposal-decision':
       return { command: 'proposal-decision', projectRoot, ...parseProposalDecisionArgs(rest) };
+    case 'decision':
+      return { command: 'decision', projectRoot, ...parseDecisionArgs(rest) };
     case 'export':
       return { command: 'export', projectRoot, passthrough: rest };
     case 'status':

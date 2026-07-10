@@ -75,6 +75,16 @@ Verification runs on events, not on reminders: each moment below is the trigger,
 - If any A1-A5 approval is pending, stop there. Silence is never approval.
 - If evidence is incomplete, mark the state `uncertain`, `abstained`, `unavailable`, or as a reading gap instead of writing a stronger conclusion.
 
+## Execution mode (engine vs file)
+
+Two legitimate ways to run a project, declared with `nullius init --mode=<engine|file>` (re-runnable any time to change the declaration) and surfaced as `execution_mode` in the status receipt:
+
+- `engine`: the nullius run/approve lifecycle drives the work; approvals flow through `nullius approve`.
+- `file`: work is executed by hand or by external runners; durable truth lives in `research_plan.md`, `research_contract.md`, and the run-evidence roots, and `run_status` legitimately stays `idle`.
+- In both modes, decisions made in conversation are recorded with `nullius decision record "<what was decided>"` (open questions with `nullius decision pending "<question>"`; close one with `nullius decision record "<answer>" --resolves <id>`); open items stay counted in every status receipt (the oldest ten itemized, the remainder via `nullius decision list`) until resolved. In file mode this ledger is the engine-visible record of conversational approvals.
+- An undeclared project whose engine state stays frozen while dated run evidence accumulates gets a status hint asking for the declaration; either declaration is honest and silences it.
+- The verification triggers above apply identically in both modes.
+
 ## Markdown and links
 
 - Prefer Markdown links over bare URLs in project docs and agent notes.

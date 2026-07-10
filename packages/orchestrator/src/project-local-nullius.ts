@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -39,16 +40,63 @@ function repairCommand(): string {
 }
 
 const SELF_DERIVE_PROJECT_ROOT_LINE = 'PROJECT_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)';
-const RESOLVE_NULLIUS_LINE = 'RESOLVED_NULLIUS=$(command -v nullius 2>/dev/null || true)';
+// Explicit PATH scan instead of `command -v`: shells disagree about what
+// command -v returns for empty PATH components (absolute cwd path on some,
+// bare or relative name on others) and about function shadowing — an
+// explicit loop over absolute components makes runtime and health follow one
+// spec: the FIRST executable regular file named nullius in an
+// absolute-directory PATH component; cwd-relative resolution is never
+// trusted with the project root.
+const RESOLVE_NULLIUS_BLOCK = [
+  'RESOLVED_NULLIUS=',
+  // set -f: an unquoted $PATH word-split would otherwise GLOB-expand
+  // wildcard components; components must stay literal strings on both sides.
+  '_nullius_ifs=$IFS; IFS=:; set -f',
+  'for _nullius_dir in $PATH; do',
+  '  case "$_nullius_dir" in /*) ;; *) continue;; esac',
+  '  if [ -f "$_nullius_dir/nullius" ] && [ -x "$_nullius_dir/nullius" ]; then',
+  '    RESOLVED_NULLIUS="$_nullius_dir/nullius"',
+  '    break',
+  '  fi',
+  'done',
+  'IFS=$_nullius_ifs; set +f',
+] as const;
+/** Machine-readable launcher-protocol handshake. Protocol 2 = the trusted
+ *  project root is PREPENDED before user args and the parser honors the `--`
+ *  end-of-options terminator with duplicate-root rejection. A PATH-resolved
+ *  nullius that cannot answer this exact banner may be an older-generation
+ *  parser (root appended, last-wins) — executing it could retarget writes to
+ *  another project root, so the launcher refuses it. */
+export const LAUNCHER_PROTOCOL_FLAG = '--launcher-protocol';
+export const LAUNCHER_PROTOCOL_BANNER = 'nullius-launcher-protocol 2';
+/** Passed WITH the real command by both exec branches, so the invocation
+ *  that handles the trusted root proves its own parser generation in-band
+ *  (cli-args.ts consumes it; an older parser fails on the unknown token).
+ *  The separate --launcher-protocol probe above only selects the branch;
+ *  correctness never depends on the probe-then-exec window. */
+export const LAUNCHER_GENERATION_TOKEN = '--launcher-generation=2';
+// The handshake used at runtime for BOTH exec branches: `BANNER_OUT=$(cmd)`
+// inside `if` requires command SUCCESS (a banner printed before a nonzero
+// exit does not count), and command substitution strips trailing newlines
+// before the exact string compare — answersLauncherProtocol mirrors both.
 // `-ef` compares real file identity (device+inode, following symlinks), so a PATH
 // entry that is — or symlinks back to — this launcher is rejected. A plain string
 // compare would miss a symlink-to-self and self-hop, corrupting --project-root.
-const PATH_PREFER_GUARD_LINE = 'if [ -n "$RESOLVED_NULLIUS" ] && [ ! "$RESOLVED_NULLIUS" -ef "$0" ]; then';
-const PATH_PREFER_EXEC_LINE = 'exec nullius "$@" --project-root "$PROJECT_ROOT"';
+// The trailing clause is the protocol handshake described above.
+const PATH_PREFER_GUARD_LINE = `if [ -n "$RESOLVED_NULLIUS" ] && [ "\${RESOLVED_NULLIUS#/}" != "$RESOLVED_NULLIUS" ] && [ -f "$RESOLVED_NULLIUS" ] && [ ! "$RESOLVED_NULLIUS" -ef "$0" ] && BANNER_OUT=$("$RESOLVED_NULLIUS" ${LAUNCHER_GENERATION_TOKEN} ${LAUNCHER_PROTOCOL_FLAG} 2>/dev/null) && [ "$BANNER_OUT" = "${LAUNCHER_PROTOCOL_BANNER}" ]; then`;
+// The trusted root is PREPENDED so it is parsed before any user-supplied
+// end-of-options terminator; appended it would be mistaken for data after a
+// `--` (and the CLI rejects a second, conflicting root outright). The exec
+// uses the checked resolved path, not a second PATH lookup.
+const PATH_PREFER_EXEC_LINE = `exec "$RESOLVED_NULLIUS" ${LAUNCHER_GENERATION_TOKEN} --project-root "$PROJECT_ROOT" "$@"`;
 
-function nulliusResolvableOnPath(launcherPath: string): boolean {
+/** First `command -v`-like candidate on PATH: the first executable regular
+ *  file named nullius. Returns 'self' when that FIRST candidate is the
+ *  launcher itself — the runtime `command -v` also stops there, so scanning
+ *  past it would claim a fallback the launcher will never use. */
+function launcherProtocolCandidateOnPath(launcherPath: string): string | 'self' | null {
   const pathEnv = process.env.PATH;
-  if (!pathEnv) return false;
+  if (!pathEnv) return null;
   let launcherStat: fs.Stats | null = null;
   try {
     launcherStat = fs.statSync(launcherPath);
@@ -56,27 +104,77 @@ function nulliusResolvableOnPath(launcherPath: string): boolean {
     launcherStat = null;
   }
   for (const dir of pathEnv.split(path.delimiter)) {
-    if (!dir) continue;
-    const candidate = path.join(dir, 'nullius');
+    // Shared spec with the launcher's explicit resolver loop: only absolute
+    // PATH components are scanned, and the FIRST executable regular file
+    // wins. Cwd-relative resolution is never trusted with the project root.
+    if (!path.isAbsolute(dir)) continue;
+    // Literal concatenation, NOT path.join: lexical normalization would
+    // resolve "missing/../bin" to "bin" even when "missing" does not exist,
+    // while the shell's [ -f "$dir/nullius" ] lets the OS resolve it (and
+    // fail). Both sides must hand the literal string to the OS.
+    const candidate = `${dir}${path.sep}nullius`;
     try {
       fs.accessSync(candidate, fs.constants.X_OK);
       const candidateStat = fs.statSync(candidate);
-      // Mirror the launcher's runtime `command -v nullius`: only a regular
-      // executable file counts (a directory named `nullius` carries the
-      // execute bit but is not a resolvable command).
+      // Mirror `command -v nullius`: only a regular executable file counts
+      // (a directory named `nullius` carries the execute bit but is not a
+      // resolvable command), and the FIRST such file is the answer.
       if (!candidateStat.isFile()) continue;
-      // Mirror the launcher's runtime `-ef` self-check (device+inode, following
-      // symlinks): a symlink OR hard link back to this launcher is the launcher
-      // itself and cannot satisfy itself, so it is not a usable on-PATH nullius.
       if (launcherStat !== null && candidateStat.dev === launcherStat.dev && candidateStat.ino === launcherStat.ino) {
-        continue;
+        return 'self';
       }
-      return true;
+      return candidate;
     } catch {
       // not resolvable here; keep scanning PATH
     }
   }
-  return false;
+  return null;
+}
+
+// Handshake results are cached per (path, mtime, size) with a bounded TTL:
+// health runs on every status call and must not spawn a process each time,
+// a rebuild of the target (mtime/size change) re-verifies immediately, and a
+// stable WRAPPER whose underlying CLI changed (fingerprint blind spot)
+// re-verifies within the TTL instead of never.
+const HANDSHAKE_CACHE_TTL_MS = 30_000;
+const handshakeCache = new Map<string, { result: boolean; expiresAt: number }>();
+
+/** Mirrors the runtime handshake exactly: command success required
+ *  (execFileSync throws on nonzero exit, like `BANNER_OUT=$(...)` failing in
+ *  the shell guard) and trailing newlines stripped before the exact compare
+ *  (what `$(...)` does) — no other whitespace tolerance. */
+export function answersLauncherProtocol(argv: string[]): boolean {
+  const key = argv
+    .map(part => {
+      try {
+        const stat = fs.statSync(part);
+        return `${part}:${stat.mtimeMs}:${stat.size}`;
+      } catch {
+        return part;
+      }
+    })
+    .join(' | ');
+  const cached = handshakeCache.get(key);
+  if (cached !== undefined && cached.expiresAt > Date.now()) return cached.result;
+  let result = false;
+  try {
+    const output = execFileSync(argv[0]!, [...argv.slice(1), LAUNCHER_GENERATION_TOKEN, LAUNCHER_PROTOCOL_FLAG], {
+      encoding: 'utf-8',
+      timeout: 5000,
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+    result = output.replace(/\n+$/u, '') === LAUNCHER_PROTOCOL_BANNER;
+  } catch {
+    result = false;
+  }
+  handshakeCache.set(key, { result, expiresAt: Date.now() + HANDSHAKE_CACHE_TTL_MS });
+  return result;
+}
+
+function nulliusResolvableOnPath(launcherPath: string): boolean {
+  const candidate = launcherProtocolCandidateOnPath(launcherPath);
+  if (candidate === null || candidate === 'self') return false;
+  return answersLauncherProtocol([candidate]);
 }
 
 function unquoteShellSingleQuoted(value: string): string {
@@ -97,17 +195,53 @@ function extractExecQuotedPaths(script: string): string[] {
   return paths;
 }
 
+// The baked branch's protocol-gated guard, generic over the machine-specific
+// absolute argv it embeds.
+const BAKED_GUARD_PATTERN = /^if \[ -e '\/.+ && BANNER_OUT=\$\('\/.+ --launcher-generation=2 --launcher-protocol 2>\/dev\/null\) && \[ "\$BANNER_OUT" = "nullius-launcher-protocol 2" \]; then$/u;
+const BAKED_EXEC_PATTERN = /^\s*exec\s+'\/.*--launcher-generation=2\s+--project-root\s+"\$PROJECT_ROOT"\s+"\$@"\s*$/u;
+
 function hasProjectLocalLauncherShape(script: string): boolean {
   const lines = script.split(/\r?\n/u);
   const hasSelfDerivedRoot = lines.includes(SELF_DERIVE_PROJECT_ROOT_LINE);
+  const resolverStart = lines.indexOf(RESOLVE_NULLIUS_BLOCK[0]!);
+  const hasExplicitResolver = resolverStart !== -1
+    && RESOLVE_NULLIUS_BLOCK.every((blockLine, offset) => lines[resolverStart + offset] === blockLine);
+  const resolverEnd = resolverStart + RESOLVE_NULLIUS_BLOCK.length;
   // Require the self-identity guard: an older unguarded PATH-prefer launcher would
   // self-recurse, so it must be reported unparseable (→ refresh) rather than healthy.
-  const hasSelfGuard = lines.some(line => line.trim() === PATH_PREFER_GUARD_LINE);
-  const hasPathPreferExec = lines.some(line => line.trim() === PATH_PREFER_EXEC_LINE);
-  const hasFallbackExec = lines.some(line =>
-    /^\s*exec\s+'\/.*\s"\$@"\s+--project-root\s+"\$PROJECT_ROOT"\s*$/u.test(line),
-  );
-  return hasSelfDerivedRoot && hasSelfGuard && hasPathPreferExec && hasFallbackExec;
+  const pathGuardAt = lines.findIndex(line => line.trim() === PATH_PREFER_GUARD_LINE);
+  const pathPreferExecAt = lines.findIndex(line => line.trim() === PATH_PREFER_EXEC_LINE);
+  const bakedGuardAt = lines.findIndex(line => BAKED_GUARD_PATTERN.test(line.trim()));
+  const bakedExecAt = lines.findIndex(line => BAKED_EXEC_PATTERN.test(line));
+  // The complete ordered branch structure is the shape: each exec is the
+  // line directly under ITS OWN guard, and the baked branch precedes the
+  // PATH branch — a guard floating elsewhere (e.g. below an unconditional
+  // exec) is the skew this design exists to prevent.
+  return hasSelfDerivedRoot
+    && hasExplicitResolver
+    && bakedGuardAt !== -1
+    && bakedExecAt === bakedGuardAt + 1
+    && pathGuardAt !== -1
+    && pathPreferExecAt === pathGuardAt + 1
+    && bakedGuardAt < pathGuardAt
+    // The PATH guard must sit DIRECTLY under the resolver block: a relocated
+    // block (e.g. below the guard) would leave RESOLVED_NULLIUS unset at the
+    // guard under `set -u`, aborting dispatch while health still resolves.
+    && pathGuardAt === resolverEnd;
+}
+
+/** The baked exec line's quoted absolute argv, for the health handshake. */
+function extractBakedExecArgv(script: string): string[] {
+  for (const line of script.split(/\r?\n/u)) {
+    if (!BAKED_EXEC_PATTERN.test(line)) continue;
+    const argv: string[] = [];
+    for (const match of line.matchAll(/'((?:[^']|'"'"')*)'/gu)) {
+      const value = unquoteShellSingleQuoted(match[1] ?? '');
+      if (path.isAbsolute(value)) argv.push(value);
+    }
+    return argv;
+  }
+  return [];
 }
 
 export function readProjectLocalNulliusLauncherHealth(projectRoot: string): ProjectLocalNulliusLauncherHealth {
@@ -153,11 +287,27 @@ export function readProjectLocalNulliusLauncherHealth(projectRoot: string): Proj
       message: `Project-local fallback launcher format is unrecognized; run ${repairCommand()} from the project root to refresh it.`,
     };
   }
-  // The portable launcher prefers an `nullius` on PATH and only falls back to
-  // the baked checkout paths. A missing baked target is therefore fatal only when
-  // PATH cannot satisfy the launcher either.
+  // Health mirrors the launcher's runtime decision: the baked CLI counts only
+  // when its files exist AND it answers the protocol handshake (a rebuilt
+  // checkout may be an older-generation parser); otherwise a PATH candidate
+  // counts only under the same handshake. Handshake results are cached per
+  // (path, mtime, size), so the common healthy path spawns nothing repeatedly.
   const missingPaths = checkedPaths.filter(candidate => !fs.existsSync(candidate));
-  if (missingPaths.length > 0 && !nulliusResolvableOnPath(launcherPath)) {
+  const bakedArgv = extractBakedExecArgv(script);
+  const bakedUsable = missingPaths.length === 0 && bakedArgv.length > 0 && answersLauncherProtocol(bakedArgv);
+  if (!bakedUsable && !nulliusResolvableOnPath(launcherPath)) {
+    if (missingPaths.length > 0) {
+      return {
+        ...base,
+        exists: true,
+        executable,
+        healthy: false,
+        checked_paths: checkedPaths,
+        missing_paths: missingPaths,
+        issue_code: 'PROJECT_LOCAL_LAUNCHER_TARGET_MISSING',
+        message: `Project-local fallback launcher points at a missing CLI target and no protocol-compatible nullius is on PATH; run ${repairCommand()} from the project root to refresh it.`,
+      };
+    }
     return {
       ...base,
       exists: true,
@@ -165,8 +315,8 @@ export function readProjectLocalNulliusLauncherHealth(projectRoot: string): Proj
       healthy: false,
       checked_paths: checkedPaths,
       missing_paths: missingPaths,
-      issue_code: 'PROJECT_LOCAL_LAUNCHER_TARGET_MISSING',
-      message: `Project-local fallback launcher points at a missing CLI target and no nullius is on PATH; run ${repairCommand()} from the project root to refresh it.`,
+      issue_code: 'PROJECT_LOCAL_LAUNCHER_TARGET_INCOMPATIBLE',
+      message: `Project-local fallback launcher's baked CLI does not answer the launcher-protocol handshake (older generation or broken build) and no protocol-compatible nullius is on PATH; rebuild the checkout or run ${repairCommand()} from the project root.`,
     };
   }
   return {
@@ -234,30 +384,47 @@ export function ensureProjectLocalNulliusLauncher(projectRoot: string): {
     .filter(arg => path.isAbsolute(arg))
     .flatMap(arg => [
       `if [ ! -e ${shellQuote(arg)} ]; then`,
-      "  printf '%s\\n' '[error] nullius is not on PATH and the project-local fallback target is missing.' >&2",
+      "  printf '%s\\n' '[error] no protocol-compatible nullius on PATH and the baked CLI target is missing.' >&2",
       `  printf '%s\\n' ${shellQuote(`[error] missing: ${arg}`)} >&2`,
       `  printf '%s\\n' ${shellQuote(`[error] run on this machine: ${repairCommand()}`)} >&2`,
       '  exit 127',
       'fi',
     ]);
+  const bakedArgvQuoted = launcher.argv.map(shellQuote).join(' ');
+  const bakedExistenceGuard = launcher.argv
+    .filter(arg => path.isAbsolute(arg))
+    .map(arg => `[ -e ${shellQuote(arg)} ]`)
+    .join(' && ');
+  // Existence is NOT generation: the baked path is a mutable checkout that a
+  // rebuild can flip to an older parser, so the baked branch runs the same
+  // in-band handshake as the PATH branch before it is trusted with the root.
+  const bakedGuard = `if ${bakedExistenceGuard} && BANNER_OUT=$(${bakedArgvQuoted} ${LAUNCHER_GENERATION_TOKEN} ${LAUNCHER_PROTOCOL_FLAG} 2>/dev/null) && [ "$BANNER_OUT" = "${LAUNCHER_PROTOCOL_BANNER}" ]; then`;
   const script = [
     '#!/bin/sh',
     'set -eu',
     '# Nullius project-local fallback launcher.',
-    '# Portable: the project root is derived from this script location, and an',
-    '# nullius on PATH is preferred, so the project keeps working after being',
-    `# moved or copied to another machine. If neither resolves, rerun: ${repairCommand()}`,
+    '# Portable: the project root is derived from this script location, so the',
+    `# project keeps working after being moved or copied. If nothing resolves, rerun: ${repairCommand()}`,
     SELF_DERIVE_PROJECT_ROOT_LINE,
-    '# Prefer an nullius on PATH, but never this launcher itself: -ef compares',
-    '# real file identity, so a PATH entry that is (or symlinks back to) this script',
-    '# is rejected. Without it a self-referential PATH would recurse and corrupt',
-    '# --project-root. If no other nullius resolves, fall through to the baked CLI.',
-    RESOLVE_NULLIUS_LINE,
+    '# The baked CLI comes FIRST, gated by the same machine-readable protocol',
+    '# handshake as the PATH branch: a rebuilt checkout or an older-generation',
+    '# parser whose root handling differs must never be trusted with the root.',
+    bakedGuard,
+    `  exec ${bakedArgvQuoted} ${LAUNCHER_GENERATION_TOKEN} --project-root "$PROJECT_ROOT" "$@"`,
+    'fi',
+    '# Never this launcher itself: -ef compares real file identity, so a PATH',
+    '# entry that is (or symlinks back to) this script is rejected — a',
+    '# self-referential PATH would recurse and corrupt --project-root.',
+    ...RESOLVE_NULLIUS_BLOCK,
     PATH_PREFER_GUARD_LINE,
     `  ${PATH_PREFER_EXEC_LINE}`,
     'fi',
+    // Reached when neither branch proved the protocol: the per-path checks
+    // name missing baked files, then the generic refusal names the handshake.
     ...fallbackChecks,
-    `exec ${launcher.argv.map(shellQuote).join(' ')} "$@" --project-root "$PROJECT_ROOT"`,
+    "printf '%s\\n' '[error] no nullius answered the launcher-protocol handshake (baked target or PATH candidate may be an older generation).' >&2",
+    `printf '%s\\n' ${shellQuote(`[error] run on this machine: ${repairCommand()}`)} >&2`,
+    'exit 127',
     '',
   ].join('\n');
   // Durable + race-free: mode is applied at openSync (create-time) AND

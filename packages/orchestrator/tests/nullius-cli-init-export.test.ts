@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { StateManager } from '../src/state-manager.js';
 import type { RunState } from '../src/types.js';
 import { runCli } from '../src/cli.js';
+import { readProjectLocalNulliusLauncherHealth } from '../src/project-local-nullius.js';
 import { ensureProjectScaffold } from '../src/project-scaffold.js';
 
 const CANONICAL_SCAFFOLD_FILES = [
@@ -219,9 +220,10 @@ describe('nullius CLI init/export', () => {
     // Portable launcher: self-derives the project root and prefers an nullius
     // on PATH — but never itself — so the project works on another machine.
     expect(launcherScript).toContain('PROJECT_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)');
-    expect(launcherScript).toContain('command -v nullius');
+    expect(launcherScript).toContain('case "$_nullius_dir" in /*) ;; *) continue;; esac');
     expect(launcherScript).toContain('-ef "$0"');
-    expect(launcherScript).toContain('exec nullius "$@" --project-root "$PROJECT_ROOT"');
+    expect(launcherScript).toContain('exec "$RESOLVED_NULLIUS" --launcher-generation=2 --project-root "$PROJECT_ROOT" "$@"');
+    expect(launcherScript).toContain('--launcher-protocol');
     expect(launcherScript).not.toContain("PROJECT_ROOT='");
     expect(launcherScript).toContain('nullius init --runtime-only');
     expect(fs.existsSync(path.join(projectRoot, 'project_charter.md'))).toBe(false);
@@ -257,6 +259,348 @@ describe('nullius CLI init/export', () => {
       expect.objectContaining({ code: 'RECOVERY_GUIDANCE_FILES_UNAVAILABLE' }),
     ]));
   });
+
+  it('answers the launcher-protocol handshake with the exact banner', async () => {
+    const { io, stdout } = makeIo(process.cwd());
+    expect(await runCli(['--launcher-protocol'], io)).toBe(0);
+    expect(stdout.join('')).toBe('nullius-launcher-protocol 2\n');
+  });
+
+  it('prefers the baked CLI and gates PATH fallback on the protocol handshake', async () => {
+    const parentDir = makeTempDir('nullius-cli-protocol-');
+    const projectRoot = path.join(parentDir, 'project-root');
+    expect(await runCli([`--project-root=${projectRoot}`, 'init', '--runtime-only'], makeIo(parentDir).io)).toBe(0);
+    const launcherPath = path.join(projectRoot, '.nullius', 'bin', 'nullius');
+
+    // An impostor on PATH that answers commands but NOT the handshake (the
+    // shape of an older-generation CLI whose root handling differs). It logs
+    // every argv line it ever receives.
+    const impostorDir = path.join(parentDir, 'impostorbin');
+    fs.mkdirSync(impostorDir, { recursive: true });
+    const impostorLog = path.join(parentDir, 'impostor-argv.log');
+    fs.writeFileSync(
+      path.join(impostorDir, 'nullius'),
+      `#!/bin/sh\nprintf '%s\\n' "$@" >> ${impostorLog}\nexit 0\n`,
+      'utf-8',
+    );
+    fs.chmodSync(path.join(impostorDir, 'nullius'), 0o755);
+    const pathWithImpostor = `${impostorDir}${path.delimiter}/usr/bin:/bin`;
+
+    // 1) Baked target present: the launcher execs the baked CLI and never
+    //    consults the impostor at all.
+    const statusJson = execFileSync(launcherPath, ['status', '--json'], {
+      cwd: projectRoot,
+      encoding: 'utf-8',
+      timeout: 20000,
+      env: { ...process.env, PATH: pathWithImpostor },
+    });
+    expect(JSON.parse(statusJson).run_status).toBe('idle');
+    expect(fs.existsSync(impostorLog)).toBe(false);
+
+    // 2) Baked target unavailable + non-protocol PATH candidate: the launcher
+    //    refuses (exit 127) instead of executing a parser whose root handling
+    //    it cannot trust — no cross-root write is possible.
+    const script = fs.readFileSync(launcherPath, 'utf-8');
+    const brokenScript = script.replaceAll('/dist/cli.js', '/dist/cli.js.gone');
+    fs.writeFileSync(launcherPath, brokenScript, 'utf-8');
+    fs.chmodSync(launcherPath, 0o755);
+    let failed: { status: number | null } | null = null;
+    try {
+      execFileSync(launcherPath, ['status', '--json'], {
+        cwd: projectRoot,
+        encoding: 'utf-8',
+        timeout: 20000,
+        env: { ...process.env, PATH: pathWithImpostor },
+      });
+    } catch (error) {
+      failed = error as { status: number | null };
+    }
+    expect(failed?.status).toBe(127);
+    // The impostor was consulted only for the handshake probe — it never
+    // received a real command, so no cross-root write was possible.
+    const probeLines = fs.readFileSync(impostorLog, 'utf-8').split('\n').filter(line => line.length > 0);
+    expect(new Set(probeLines)).toEqual(new Set(['--launcher-generation=2', '--launcher-protocol']));
+
+    // 3) Baked target unavailable + protocol-answering PATH candidate: used,
+    //    with the trusted root PREPENDED before user args.
+    const argvLog = path.join(parentDir, 'protocol-argv.log');
+    fs.writeFileSync(
+      path.join(impostorDir, 'nullius'),
+      [
+        '#!/bin/sh',
+        'if [ "${2:-}" = "--launcher-protocol" ] || [ "${1:-}" = "--launcher-protocol" ]; then',
+        "  printf '%s\\n' 'nullius-launcher-protocol 2'",
+        '  exit 0',
+        'fi',
+        `printf '%s\\n' "$@" > ${argvLog}`,
+        'exit 0',
+      ].join('\n') + '\n',
+      'utf-8',
+    );
+    fs.chmodSync(path.join(impostorDir, 'nullius'), 0o755);
+    execFileSync(launcherPath, ['status', '--json'], {
+      cwd: projectRoot,
+      encoding: 'utf-8',
+      timeout: 20000,
+      env: { ...process.env, PATH: pathWithImpostor },
+    });
+    const argvLines = fs.readFileSync(argvLog, 'utf-8').split('\n');
+    expect(argvLines[0]).toBe('--launcher-generation=2');
+    expect(argvLines[1]).toBe('--project-root');
+    expect(argvLines[2]).toBe(projectRoot);
+    expect(argvLines[3]).toBe('status');
+  }, 30000);
+
+  it('fails closed at dispatch when the probe passed but the parser generation is old', async () => {
+    const parentDir = makeTempDir('nullius-cli-genswap-');
+    const projectRoot = path.join(parentDir, 'project-root');
+    expect(await runCli([`--project-root=${projectRoot}`, 'init', '--runtime-only'], makeIo(parentDir).io)).toBe(0);
+    const launcherPath = path.join(projectRoot, '.nullius', 'bin', 'nullius');
+
+    // The swap-after-probe / mixed-build shape: the target ANSWERS the
+    // protocol probe, but its actual parser is an older generation that does
+    // not know the in-dispatch token (it errors like any unknown argument).
+    const trickLog = path.join(parentDir, 'trick-argv.log');
+    const trickCli = path.join(parentDir, 'trick-cli.js');
+    fs.writeFileSync(trickCli, [
+      "const fs = require('node:fs');",
+      `fs.appendFileSync(${JSON.stringify(trickLog)}, process.argv.slice(2).join(' ') + '\\n');`,
+      "if (process.argv.includes('--launcher-protocol')) { console.log('nullius-launcher-protocol 2'); process.exit(0); }",
+      "if (process.argv.some(arg => arg.startsWith('--launcher-generation='))) { console.error('unknown argument: --launcher-generation=2'); process.exit(2); }",
+      'process.exit(0);',
+    ].join('\n') + '\n', 'utf-8');
+    const script = fs.readFileSync(launcherPath, 'utf-8');
+    const cliMatch = script.match(/'(\/[^']*dist\/cli\.js)'/u);
+    expect(cliMatch).not.toBeNull();
+    fs.writeFileSync(launcherPath, script.replaceAll(cliMatch![1]!, trickCli), 'utf-8');
+    fs.chmodSync(launcherPath, 0o755);
+
+    let failed: { status: number | null } | null = null;
+    try {
+      execFileSync(launcherPath, ['status', '--json'], {
+        cwd: projectRoot,
+        encoding: 'utf-8',
+        timeout: 20000,
+        env: { ...process.env, PATH: '/usr/bin:/bin' },
+      });
+    } catch (error) {
+      failed = error as { status: number | null };
+    }
+    // The dispatch itself carried the generation token, so the old parser
+    // failed closed instead of proceeding with different root semantics.
+    expect(failed?.status).toBe(2);
+    const dispatchLines = fs.readFileSync(trickLog, 'utf-8').split('\n').filter(line => line.length > 0);
+    expect(dispatchLines.some(line => line.includes('--launcher-generation=2'))).toBe(true);
+  }, 30000);
+
+  it('strips the generation token in the current parser and rejects a mismatch', async () => {
+    const parentDir = makeTempDir('nullius-cli-gen-token-');
+    const projectRoot = path.join(parentDir, 'project-root');
+    expect(await runCli([`--project-root=${projectRoot}`, 'init', '--runtime-only'], makeIo(parentDir).io)).toBe(0);
+
+    const { io, stdout } = makeIo(projectRoot);
+    expect(await runCli(['--launcher-generation=2', `--project-root=${projectRoot}`, 'status', '--json'], io)).toBe(0);
+    expect((JSON.parse(stdout.join('')) as { run_status: string }).run_status).toBe('idle');
+
+    await expect(
+      runCli(['--launcher-generation=1', `--project-root=${projectRoot}`, 'status'], makeIo(projectRoot).io),
+    ).rejects.toThrow('launcher generation mismatch');
+  });
+
+  it('refuses a present-but-older-generation baked target instead of trusting it with the root', async () => {
+    const parentDir = makeTempDir('nullius-cli-stale-baked-');
+    const projectRoot = path.join(parentDir, 'project-root');
+    expect(await runCli([`--project-root=${projectRoot}`, 'init', '--runtime-only'], makeIo(parentDir).io)).toBe(0);
+    const launcherPath = path.join(projectRoot, '.nullius', 'bin', 'nullius');
+
+    // A baked target that EXISTS and answers commands, but speaks the WRONG
+    // protocol generation (the shape of a checkout rebuilt to an older
+    // commit). It logs every argv it receives.
+    const staleLog = path.join(parentDir, 'stale-argv.log');
+    const staleCli = path.join(parentDir, 'stale-cli.js');
+    fs.writeFileSync(staleCli, [
+      "const fs = require('node:fs');",
+      `fs.appendFileSync(${JSON.stringify(staleLog)}, process.argv.slice(2).join(' ') + '\\n');`,
+      "if (process.argv.includes('--launcher-protocol')) { console.log('nullius-launcher-protocol 1'); process.exit(0); }",
+      'process.exit(0);',
+    ].join('\n') + '\n', 'utf-8');
+    const script = fs.readFileSync(launcherPath, 'utf-8');
+    const cliMatch = script.match(/'(\/[^']*dist\/cli\.js)'/u);
+    expect(cliMatch).not.toBeNull();
+    fs.writeFileSync(launcherPath, script.replaceAll(cliMatch![1]!, staleCli), 'utf-8');
+    fs.chmodSync(launcherPath, 0o755);
+
+    let failed: { status: number | null } | null = null;
+    try {
+      execFileSync(launcherPath, ['status', '--json'], {
+        cwd: projectRoot,
+        encoding: 'utf-8',
+        timeout: 20000,
+        env: { ...process.env, PATH: '/usr/bin:/bin' },
+      });
+    } catch (error) {
+      failed = error as { status: number | null };
+    }
+    // Refused outright: the stale parser is never trusted with the root, and
+    // it only ever saw the handshake probe.
+    expect(failed?.status).toBe(127);
+    const staleLines = fs.readFileSync(staleLog, 'utf-8').split('\n').filter(line => line.length > 0);
+    expect(new Set(staleLines)).toEqual(new Set(['--launcher-generation=2 --launcher-protocol']));
+  }, 30000);
+
+  it('reports a mixed-generation baked target as incompatible in launcher health', async () => {
+    const parentDir = makeTempDir('nullius-cli-mixed-health-');
+    const projectRoot = path.join(parentDir, 'project-root');
+    expect(await runCli([`--project-root=${projectRoot}`, 'init', '--runtime-only'], makeIo(parentDir).io)).toBe(0);
+    const launcherPath = path.join(projectRoot, '.nullius', 'bin', 'nullius');
+
+    // Old-parser shape: it errors on the generation token BEFORE anything
+    // else — exactly what a stale cli-args module does. The token-carrying
+    // probe therefore fails, so health cannot advertise it.
+    const oldParserCli = path.join(parentDir, 'old-parser-cli.js');
+    fs.writeFileSync(oldParserCli, [
+      "if (process.argv.some(arg => arg.startsWith('--launcher-generation='))) { console.error('unknown argument'); process.exit(2); }",
+      "if (process.argv.includes('--launcher-protocol')) { console.log('nullius-launcher-protocol 2'); process.exit(0); }",
+      'process.exit(0);',
+    ].join('\n') + '\n', 'utf-8');
+    const script = fs.readFileSync(launcherPath, 'utf-8');
+    const cliMatch = script.match(/'(\/[^']*dist\/cli\.js)'/u);
+    expect(cliMatch).not.toBeNull();
+    fs.writeFileSync(launcherPath, script.replaceAll(cliMatch![1]!, oldParserCli), 'utf-8');
+    fs.chmodSync(launcherPath, 0o755);
+
+    const prevPath = process.env.PATH;
+    process.env.PATH = '/usr/bin:/bin';
+    try {
+      const health = readProjectLocalNulliusLauncherHealth(projectRoot);
+      expect(health.healthy).toBe(false);
+      expect(health.issue_code).toBe('PROJECT_LOCAL_LAUNCHER_TARGET_INCOMPATIBLE');
+    } finally {
+      if (prevPath === undefined) delete process.env.PATH;
+      else process.env.PATH = prevPath;
+    }
+  });
+
+  it('never advertises a cwd-relative PATH candidate the launcher guard would reject', async () => {
+    const parentDir = makeTempDir('nullius-cli-empty-path-');
+    const projectRoot = path.join(parentDir, 'project-root');
+    expect(await runCli([`--project-root=${projectRoot}`, 'init', '--runtime-only'], makeIo(parentDir).io)).toBe(0);
+    const launcherPath = path.join(projectRoot, '.nullius', 'bin', 'nullius');
+
+    // Break the baked target so health must consult PATH; put a
+    // protocol-answering nullius reachable only through the EMPTY leading
+    // PATH component (cwd). The launcher's runtime guard accepts only an
+    // ABSOLUTE regular file from command -v, so health must not advertise
+    // this candidate either — health mirrors the runtime authority.
+    const script = fs.readFileSync(launcherPath, 'utf-8');
+    fs.writeFileSync(launcherPath, script.replaceAll('/dist/cli.js', '/dist/cli.js.gone'), 'utf-8');
+    fs.chmodSync(launcherPath, 0o755);
+    const cwdDir = path.join(parentDir, 'cwdbin');
+    fs.mkdirSync(cwdDir, { recursive: true });
+    fs.writeFileSync(path.join(cwdDir, 'nullius'), [
+      '#!/bin/sh',
+      'if [ "${2:-}" = "--launcher-protocol" ] || [ "${1:-}" = "--launcher-protocol" ]; then',
+      "  printf '%s\\n' 'nullius-launcher-protocol 2'",
+      '  exit 0',
+      'fi',
+      'exit 0',
+    ].join('\n') + '\n', 'utf-8');
+    fs.chmodSync(path.join(cwdDir, 'nullius'), 0o755);
+
+    const prevPath = process.env.PATH;
+    const prevCwd = process.cwd();
+    process.env.PATH = `${path.delimiter}/usr/bin:/bin`;
+    try {
+      process.chdir(cwdDir);
+      const health = readProjectLocalNulliusLauncherHealth(projectRoot);
+      expect(health.healthy).toBe(false);
+      expect(health.issue_code).toBe('PROJECT_LOCAL_LAUNCHER_TARGET_MISSING');
+      // Runtime agrees byte-for-byte with health: the launcher's explicit
+      // resolver skips the empty (cwd) component too, so dispatch refuses.
+      let failed: { status: number | null } | null = null;
+      try {
+        execFileSync(launcherPath, ['status', '--json'], {
+          cwd: cwdDir,
+          encoding: 'utf-8',
+          timeout: 20000,
+          env: { ...process.env, PATH: `${path.delimiter}/usr/bin:/bin` },
+        });
+      } catch (error) {
+        failed = error as { status: number | null };
+      }
+      expect(failed?.status).toBe(127);
+    } finally {
+      process.chdir(prevCwd);
+      if (prevPath === undefined) delete process.env.PATH;
+      else process.env.PATH = prevPath;
+    }
+  });
+
+  it('keeps PATH components literal on both sides: glob and dot-dot parity', async () => {
+    const parentDir = makeTempDir('nullius-cli-path-literal-');
+    const projectRoot = path.join(parentDir, 'project-root');
+    expect(await runCli([`--project-root=${projectRoot}`, 'init', '--runtime-only'], makeIo(parentDir).io)).toBe(0);
+    const launcherPath = path.join(projectRoot, '.nullius', 'bin', 'nullius');
+    // Break the baked target so both sides must consult PATH.
+    const script = fs.readFileSync(launcherPath, 'utf-8');
+    fs.writeFileSync(launcherPath, script.replaceAll('/dist/cli.js', '/dist/cli.js.gone'), 'utf-8');
+    fs.chmodSync(launcherPath, 0o755);
+
+    // A protocol-answering candidate in .../real/bin.
+    const realBin = path.join(parentDir, 'real', 'bin');
+    fs.mkdirSync(realBin, { recursive: true });
+    fs.writeFileSync(path.join(realBin, 'nullius'), [
+      '#!/bin/sh',
+      'if [ "${2:-}" = "--launcher-protocol" ] || [ "${1:-}" = "--launcher-protocol" ]; then',
+      "  printf '%s\\n' 'nullius-launcher-protocol 2'",
+      '  exit 0',
+      'fi',
+      'exit 0',
+    ].join('\n') + '\n', 'utf-8');
+    fs.chmodSync(path.join(realBin, 'nullius'), 0o755);
+
+    const runLauncher = (pathEnv: string): number => {
+      try {
+        execFileSync(launcherPath, ['status', '--json'], {
+          cwd: projectRoot,
+          encoding: 'utf-8',
+          timeout: 20000,
+          env: { ...process.env, PATH: pathEnv },
+        });
+        return 0;
+      } catch (error) {
+        return (error as { status: number | null }).status ?? -1;
+      }
+    };
+    const healthUnder = (pathEnv: string): boolean => {
+      const prevPath = process.env.PATH;
+      process.env.PATH = pathEnv;
+      try {
+        return readProjectLocalNulliusLauncherHealth(projectRoot).healthy;
+      } finally {
+        if (prevPath === undefined) delete process.env.PATH;
+        else process.env.PATH = prevPath;
+      }
+    };
+
+    // Glob component: '<parent>/re*/bin' would expand to real/bin under an
+    // unquoted unprotected loop. Both sides must treat it literally — no
+    // usable candidate.
+    const globPath = `${path.join(parentDir, 're*', 'bin')}${path.delimiter}/usr/bin:/bin`;
+    expect(runLauncher(globPath)).toBe(127);
+    expect(healthUnder(globPath)).toBe(false);
+
+    // Dot-dot through a MISSING directory: lexical normalization would reach
+    // real/bin, OS resolution fails. Both sides must refuse.
+    const dotdotPath = `${parentDir}/missing/../real/bin${path.delimiter}/usr/bin:/bin`;
+    expect(runLauncher(dotdotPath)).toBe(127);
+    expect(healthUnder(dotdotPath)).toBe(false);
+
+    // Control: dot-dot through an EXISTING directory resolves for both.
+    const viaExisting = `${parentDir}/real/../real/bin${path.delimiter}/usr/bin:/bin`;
+    expect(runLauncher(viaExisting)).toBe(0);
+    expect(healthUnder(viaExisting)).toBe(true);
+  }, 30000);
 
   it('detects its own bin dir on PATH and falls back to the baked CLI without recursing', async () => {
     const parentDir = makeTempDir('nullius-cli-self-path-');

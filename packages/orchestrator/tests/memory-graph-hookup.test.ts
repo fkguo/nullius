@@ -735,5 +735,8 @@ describe('memory-graph hookup', () => {
     const listView = readRunListView(a5Manager, { limit: 20, status_filter: 'all' });
     expect(listView.runs[0]).not.toHaveProperty('latest_final_conclusions');
     expect(listView.runs[0]).not.toHaveProperty('latest_proposals');
-  });
+    // This test executes seven full runs (verification, final conclusions,
+    // approval, computation manifests) before asserting the digest; its wall
+    // time sits at 4-5s on an unloaded machine, i.e. at the 5s default budget.
+  }, 20000);
 });
