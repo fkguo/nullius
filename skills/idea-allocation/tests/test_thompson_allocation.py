@@ -38,14 +38,15 @@ def make_store(tmp_path: Path, nodes, campaign_id: str = CAMPAIGN_ID) -> Path:
     return path
 
 
-def active_node(node_id: str, value: float, count: int):
+def admitted_node(node_id: str, value: float, count: int):
     return {
         "node_id": node_id,
-        "lifecycle_state": "active",
+        "lifecycle_state": "admitted",
         "posterior": {
             "value": value,
             "evidence_count": count,
             "updated_at": "2026-07-01T00:00:00Z",
+            "status": "current",
         },
         "literature_coverage": {
             "status": "saturated",
@@ -72,8 +73,10 @@ def test_split_nodes_excludes_archived_and_waiting():
     _, nodes = load_fixture_nodes()
     groups = ta.split_nodes(nodes)
     assert {n["node_id"] for n in groups["sampled"]} == {"a1pha000", "beta0000", "eta00000"}
-    assert groups["literature_blocked"] == []
-    assert {n["node_id"] for n in groups["cold_start"]} == {"gamma000"}
+    assert groups["data_blocked"] == []
+    assert {n["node_id"] for n in groups["in_admission"]} == {"gamma000"}
+    assert {n["node_id"] for n in groups["needs_refresh"]} == {"nr000000"}
+    assert {n["node_id"] for n in groups["admission_blocked"]} == {"mx000000"}
     assert {n["node_id"] for n in groups["waiting"]} == {
         "de1ta000", "eps110n0", "10ta0000", "kappa000", "1ambda00",
     }
@@ -91,9 +94,10 @@ def test_slot_cut_counts_and_ranking():
     for entry in candidates:
         by_kind.setdefault(entry["allocation"], []).append(entry)
     assert len(by_kind["deep_investment"]) == 1
-    # 1 sampled reconnaissance slot + 1 cold-start tail entry
+    # 1 sampled reconnaissance slot + 1 admission-pipeline tail entry
     assert len(by_kind["reconnaissance"]) == 2
-    assert len(by_kind["hold"]) == 1
+    # 1 sampled below the cutoff + needs_refresh hold + admission_blocked hold
+    assert len(by_kind["hold"]) == 3
     sampled_entries = [e for e in candidates if e["sampled_value"] is not None]
     ranked = sorted(sampled_entries, key=lambda e: -e["sampled_value"])
     assert ranked[0]["allocation"] == "deep_investment"
@@ -106,10 +110,10 @@ def test_slot_cut_counts_and_ranking():
 def test_cold_start_never_takes_a_deep_slot(tmp_path):
     # More deep slots than sampled candidates: cold starts must NOT be promoted.
     nodes = [
-        active_node("a1pha000", 0.8, 20),
-        active_node("beta0000", 0.3, 4),
-        {"node_id": "gamma000", "lifecycle_state": "active"},
-        {"node_id": "mv000000", "lifecycle_state": "active"},
+        admitted_node("a1pha000", 0.8, 20),
+        admitted_node("beta0000", 0.3, 4),
+        {"node_id": "gamma000", "lifecycle_state": "candidate"},
+        {"node_id": "mv000000", "lifecycle_state": "candidate"},
     ]
     path = make_store(tmp_path, nodes)
     campaign_id, loaded = nodes_store.load_nodes_file(str(path))
@@ -134,7 +138,7 @@ def test_cold_start_never_takes_a_deep_slot(tmp_path):
 
 
 def test_coverage_incomplete_with_posterior_is_not_sampled_or_eligible(tmp_path):
-    blocked = active_node("a1pha000", 0.95, 30)
+    blocked = admitted_node("a1pha000", 0.95, 30)
     blocked["literature_coverage"] = {
         "status": "coverage_incomplete",
         "survey_ref": f"project://artifacts/literature/a1pha000-literature_survey_v1.json#sha256:{'c' * 64}",
@@ -142,13 +146,13 @@ def test_coverage_incomplete_with_posterior_is_not_sampled_or_eligible(tmp_path)
     }
     nodes = [
         blocked,
-        active_node("beta0000", 0.2, 3),
+        admitted_node("beta0000", 0.2, 3),
     ]
     path = make_store(tmp_path, nodes)
     campaign_id, loaded = nodes_store.load_nodes_file(str(path))
     groups = ta.split_nodes(loaded)
     assert {n["node_id"] for n in groups["sampled"]} == {"beta0000"}
-    assert {n["node_id"] for n in groups["literature_blocked"]} == {"a1pha000"}
+    assert {n["node_id"] for n in groups["data_blocked"]} == {"a1pha000"}
     decision = ta.build_decision(
         campaign_id, loaded, seed=5, deep_slots=2, recon_slots=0,
         generated_at="2026-07-05T00:00:00Z",
@@ -164,7 +168,7 @@ def test_coverage_incomplete_with_posterior_is_not_sampled_or_eligible(tmp_path)
 
 
 def test_coverage_incomplete_can_be_explicit_exploratory(tmp_path):
-    exploratory = active_node("a1pha000", 0.95, 30)
+    exploratory = admitted_node("a1pha000", 0.95, 30)
     exploratory["literature_coverage"] = {
         "status": "coverage_incomplete",
         "exploratory_allocation": True,
@@ -188,14 +192,14 @@ def test_coverage_incomplete_can_be_explicit_exploratory(tmp_path):
 
 
 def test_stale_posterior_is_not_sampled_even_with_saturated_coverage(tmp_path):
-    stale = active_node("a1pha000", 0.95, 30)
+    stale = admitted_node("a1pha000", 0.95, 30)
     stale["posterior"]["status"] = "stale"
-    fresh = active_node("beta0000", 0.2, 3)
+    fresh = admitted_node("beta0000", 0.2, 3)
     path = make_store(tmp_path, [stale, fresh])
     campaign_id, loaded = nodes_store.load_nodes_file(str(path))
     groups = ta.split_nodes(loaded)
     assert {n["node_id"] for n in groups["sampled"]} == {"beta0000"}
-    assert {n["node_id"] for n in groups["literature_blocked"]} == {"a1pha000"}
+    assert {n["node_id"] for n in groups["data_blocked"]} == {"a1pha000"}
     decision = ta.build_decision(
         campaign_id, loaded, seed=5, deep_slots=2, recon_slots=0,
         generated_at="2026-07-05T00:00:00Z",
@@ -208,6 +212,74 @@ def test_stale_posterior_is_not_sampled_even_with_saturated_coverage(tmp_path):
     assert "posterior status is stale" in by_id["a1pha000"]["budget_note"]
     assert by_id["beta0000"]["allocation"] == "deep_investment"
     assert ta.validate_allocation_decision(decision) == []
+
+
+def test_missing_posterior_status_is_not_current(tmp_path):
+    # The engine's ranking gate treats a missing status as not current; the
+    # decision layer must agree, or the same node would rank in one layer and
+    # be skipped in the other.
+    legacy = admitted_node("a1pha000", 0.9, 30)
+    del legacy["posterior"]["status"]
+    path = make_store(tmp_path, [legacy])
+    campaign_id, loaded = nodes_store.load_nodes_file(str(path))
+    groups = ta.split_nodes(loaded)
+    assert groups["sampled"] == []
+    assert {n["node_id"] for n in groups["data_blocked"]} == {"a1pha000"}
+    decision = ta.build_decision(
+        campaign_id, loaded, seed=5, deep_slots=1, recon_slots=0,
+        generated_at="2026-07-05T00:00:00Z",
+    )
+    entry = decision["candidates"][0]
+    assert entry["allocation"] == "hold"
+    assert entry["allocation_eligible"] is False
+    assert entry["posterior_status"] is None
+    assert "posterior status is missing" in entry["budget_note"]
+    assert ta.validate_allocation_decision(decision) == []
+
+
+def test_saturated_label_without_refs_is_not_eligible(tmp_path):
+    # The engine's isPortfolioScoringEligible requires BOTH close-prior refs;
+    # a bare saturated label (hand-migrated store) must hold here too, or the
+    # decision layer would allocate a slot the engine's gate rejects.
+    legacy = admitted_node("a1pha000", 0.9, 30)
+    legacy["literature_coverage"] = {"status": "saturated"}
+    path = make_store(tmp_path, [legacy])
+    campaign_id, loaded = nodes_store.load_nodes_file(str(path))
+    groups = ta.split_nodes(loaded)
+    assert groups["sampled"] == []
+    assert {n["node_id"] for n in groups["data_blocked"]} == {"a1pha000"}
+    decision = ta.build_decision(
+        campaign_id, loaded, seed=5, deep_slots=1, recon_slots=0,
+        generated_at="2026-07-05T00:00:00Z",
+    )
+    entry = decision["candidates"][0]
+    assert entry["allocation"] == "hold"
+    assert entry["allocation_eligible"] is False
+    assert "close-prior refs" in entry["budget_note"]
+    assert ta.validate_allocation_decision(decision) == []
+    # The waiting-return derivation agrees: without refs the node cannot
+    # return to admitted.
+    parked = dict(legacy)
+    parked["lifecycle_state"] = "waiting_activation"
+    assert nodes_store.waiting_return_state(parked) == "needs_refresh"
+
+
+def test_refs_must_be_strings_not_truthy_values():
+    # The engine's hasClosePriorRefs requires string refs; a non-string truthy
+    # value (as could appear in a hand-built in-memory node) must not count.
+    assert nodes_store.has_close_prior_refs({
+        "status": "saturated", "survey_ref": "s", "close_prior_matrix_ref": "m",
+    }) is True
+    for bad in ({"uri": "s"}, 7, True, ["s"]):
+        assert nodes_store.has_close_prior_refs({
+            "status": "saturated", "survey_ref": bad, "close_prior_matrix_ref": "m",
+        }) is False
+    assert nodes_store.has_close_prior_refs({
+        "status": "saturated", "survey_ref": "  ", "close_prior_matrix_ref": "m",
+    }) is False
+    assert nodes_store.allocation_eligible_from_coverage({
+        "status": "saturated", "survey_ref": 7, "close_prior_matrix_ref": "m",
+    }) is False
 
 
 def test_budget_notes_flag_exploration_vs_conservative():
@@ -373,7 +445,7 @@ def test_cli_rejects_dashed_uuid_campaign_id(tmp_path):
 
 
 def test_cli_rejects_bad_posterior(tmp_path):
-    nodes = [active_node("a1pha000", 1.5, 3)]
+    nodes = [admitted_node("a1pha000", 1.5, 3)]
     path = make_store(tmp_path, nodes)
     result = run_cli(
         ["--nodes", str(path), "--seed", "1", "--deep-slots", "1", "--recon-slots", "1"],
@@ -384,7 +456,7 @@ def test_cli_rejects_bad_posterior(tmp_path):
 
 
 def test_loader_defaults_missing_literature_coverage_to_metadata_only(tmp_path):
-    path = make_store(tmp_path, [{"node_id": "a1pha000", "lifecycle_state": "active"}])
+    path = make_store(tmp_path, [{"node_id": "a1pha000", "lifecycle_state": "candidate"}])
     _, nodes = nodes_store.load_nodes_file(str(path))
     assert nodes[0]["literature_coverage"] == {
         "status": "metadata_only",
@@ -393,7 +465,7 @@ def test_loader_defaults_missing_literature_coverage_to_metadata_only(tmp_path):
 
 
 def test_loader_rejects_exploratory_flag_outside_coverage_incomplete(tmp_path):
-    node = active_node("a1pha000", 0.5, 3)
+    node = admitted_node("a1pha000", 0.5, 3)
     node["literature_coverage"]["exploratory_allocation"] = True
     path = make_store(tmp_path, [node])
     with pytest.raises(nodes_store.StoreError) as excinfo:
@@ -427,10 +499,12 @@ def test_mapping_form_of_nodes_accepted(tmp_path):
                 "campaign_id": CAMPAIGN_ID,
                 "nodes": {
                     "a1pha000": {
+                        "lifecycle_state": "admitted",
                         "posterior": {
                             "value": 0.6,
                             "evidence_count": 10,
                             "updated_at": "2026-07-01T00:00:00Z",
+                            "status": "current",
                         },
                         "literature_coverage": {
                             "status": "saturated",
@@ -438,7 +512,7 @@ def test_mapping_form_of_nodes_accepted(tmp_path):
                             "close_prior_matrix_ref": f"project://artifacts/literature/a1pha000-close-prior-matrix.json#sha256:{'b' * 64}",
                         },
                     },
-                    "beta0000": {"lifecycle_state": "active"},
+                    "beta0000": {"lifecycle_state": "candidate"},
                 },
             }
         ),
@@ -464,8 +538,8 @@ def test_engine_top_level_node_map_accepted_with_campaign_id_inferred(tmp_path):
     path.write_text(
         json.dumps(
             {
-                "a1pha000": active_node("a1pha000", 0.6, 10),
-                "beta0000": {"lifecycle_state": "active"},
+                "a1pha000": admitted_node("a1pha000", 0.6, 10),
+                "beta0000": {"lifecycle_state": "candidate"},
             },
             indent=2,
         ),
@@ -492,7 +566,7 @@ def test_cli_reads_engine_top_level_node_map_directly(tmp_path):
     campaign_dir.mkdir(parents=True)
     path = campaign_dir / "nodes_latest.json"
     path.write_text(
-        json.dumps({"a1pha000": active_node("a1pha000", 0.6, 10)}, indent=2),
+        json.dumps({"a1pha000": admitted_node("a1pha000", 0.6, 10)}, indent=2),
         encoding="utf-8",
     )
 
@@ -556,7 +630,7 @@ def test_build_decision_id_reproducible_across_calls():
 def test_loader_rejects_retired_dashed_uuid_campaign_id(tmp_path):
     path = make_store(
         tmp_path,
-        [active_node("a1pha000", 0.5, 3)],
+        [admitted_node("a1pha000", 0.5, 3)],
         campaign_id="0f3c2c8e-5df1-4a3a-9b6e-2f1a7c9d4e10",
     )
     with pytest.raises(nodes_store.StoreError) as excinfo:
@@ -577,7 +651,7 @@ def test_loader_rejects_retired_dashed_uuid_campaign_id(tmp_path):
     ],
 )
 def test_loader_rejects_non_engine_node_ids(tmp_path, bad_node_id):
-    path = make_store(tmp_path, [active_node(bad_node_id, 0.5, 3)])
+    path = make_store(tmp_path, [admitted_node(bad_node_id, 0.5, 3)])
     with pytest.raises(nodes_store.StoreError) as excinfo:
         nodes_store.load_nodes_file(str(path))
     assert "engine short id" in str(excinfo.value)

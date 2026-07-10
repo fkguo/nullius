@@ -94,16 +94,18 @@ def extract_commands(report: str):
 def test_report_groups_by_kind_with_guidance(tmp_path):
     report = monitor_report(tmp_path)
     assert f"campaign {CAMPAIGN_ID}" in report
-    assert "waiting_activation nodes: 5" in report
+    assert "condition-carrying nodes: 6 (waiting_activation: 5, admission_blocked: 1)" in report
     for kind in ("tool_readiness", "data_release", "stage_reached",
-                 "exploratory_computation", "other"):
+                 "exploratory_computation", "required_evidence", "other"):
         assert f"== {kind} (1) ==" in report
         assert am.CHECK_GUIDANCE[kind].split(".")[0] in report
-    # Each waiting node appears under its kind with its description.
+    # Each condition-carrying node appears under its kind with its description.
     assert "de1ta000" in report and "seeded smoke run" in report
     assert "1ambda00" in report and "instrument logbook" in report
-    # Non-waiting nodes never appear.
-    for absent in ("a1pha000", "gamma000", "zeta0000"):
+    # admission_blocked nodes are scanned too.
+    assert "mx000000" in report and "independent reproduction" in report
+    # Nodes without a recorded condition never appear.
+    for absent in ("a1pha000", "gamma000", "zeta0000", "nr000000"):
         assert absent not in report
 
 
@@ -118,9 +120,11 @@ def test_last_checked_at_shown_and_note_present(tmp_path):
 def test_only_satisfied_nodes_get_commands(tmp_path):
     report = monitor_report(tmp_path)
     commands = extract_commands(report)
-    assert len(commands) == 1  # only eps110n0 has satisfied=true
+    # eps110n0 (waiting, satisfied) and mx000000 (blocked, satisfied)
+    assert len(commands) == 2
     assert "eps110n0" in commands[0]
-    ready_section = report.split("READY TO ACTIVATE")[1]
+    assert "mx000000" in commands[1]
+    ready_section = report.split("READY TO MOVE")[1]
     assert "eps110n0" in ready_section
     assert "de1ta000" not in ready_section.split("NOTE on last_checked_at")[0]
 
@@ -148,11 +152,25 @@ def test_suggested_command_shape_matches_pinned_interface(tmp_path):
     assert set(params) == {"campaign_id", "node_id", "idempotency_key", "lifecycle_state"}
     assert params["campaign_id"] == CAMPAIGN_ID
     assert params["node_id"] == "eps110n0"
-    assert params["lifecycle_state"] == "active"
+    # eps110n0 has no posterior, so the waiting node returns to candidate.
+    assert params["lifecycle_state"] == "candidate"
     # The engine RPC contract pins idempotency_key as a free-form non-empty
     # string (NOT an engine short id); the monitor's deterministic uuid5
     # derivation is deliberate and stays.
     uuid.UUID(params["idempotency_key"])  # parseable uuid
+
+
+WAITING_NODE = {
+    "node_id": "eps110n0",
+    "lifecycle_state": "waiting_activation",
+    "activation_condition": {"kind": "data_release", "description": "released", "satisfied": True},
+}
+
+BLOCKED_NODE = {
+    "node_id": "mx000000",
+    "lifecycle_state": "admission_blocked",
+    "activation_condition": {"kind": "required_evidence", "description": "artifact", "satisfied": True},
+}
 
 
 def test_idempotency_key_is_deterministic(tmp_path):
@@ -160,14 +178,32 @@ def test_idempotency_key_is_deterministic(tmp_path):
     report_two = monitor_report(tmp_path)
     assert extract_commands(report_one) == extract_commands(report_two)
     payload, _ = parse_command(extract_commands(report_one)[0])
-    rebuilt = am.build_rpc_payload(CAMPAIGN_ID, "eps110n0", "/campaigns/example-store")
+    rebuilt = am.build_rpc_payload(CAMPAIGN_ID, WAITING_NODE, "/campaigns/example-store")
     assert payload == rebuilt
+
+
+def test_transition_targets_respect_the_lifecycle_machine():
+    # blocked -> admission_review; waiting -> data-derived return state.
+    assert am.transition_target(BLOCKED_NODE) == "admission_review"
+    assert am.transition_target(WAITING_NODE) == "candidate"
+    admitted_return = dict(WAITING_NODE)
+    admitted_return["posterior"] = {
+        "value": 0.7, "evidence_count": 4,
+        "updated_at": "2026-07-01T00:00:00Z", "status": "current",
+    }
+    admitted_return["literature_coverage"] = {
+        "status": "saturated", "survey_ref": "s", "close_prior_matrix_ref": "m",
+    }
+    assert am.transition_target(admitted_return) == "admitted"
+    stale_return = dict(admitted_return)
+    stale_return["posterior"] = dict(admitted_return["posterior"], status="stale")
+    assert am.transition_target(stale_return) == "needs_refresh"
 
 
 def test_unquotable_payload_degrades_to_plain_json():
     # Node and campaign ids can no longer carry a single quote (engine short
     # ids), but store_root still can — the degradation path must survive.
-    payload = am.build_rpc_payload(CAMPAIGN_ID, "eps110n0", "/campaigns/o'brien-store")
+    payload = am.build_rpc_payload(CAMPAIGN_ID, WAITING_NODE, "/campaigns/o'brien-store")
     assert am.suggest_activation_command(payload, "rpc.mjs") is None
 
 
@@ -192,7 +228,7 @@ def test_suggested_command_round_trips_through_mock_rpc(tmp_path):
     response = json.loads(completed.stdout)
     assert response["result"]["ok"] is True
     assert response["result"]["node_id"] == "eps110n0"
-    assert response["result"]["lifecycle_state"] == "active"
+    assert response["result"]["lifecycle_state"] == "candidate"
 
 
 @pytest.mark.skipif(

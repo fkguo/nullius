@@ -109,15 +109,77 @@ export function ensureNodeInCampaign(options: {
   return node;
 }
 
-export type NodeLifecycleState = 'active' | 'waiting_activation' | 'archived';
+export type NodeLifecycleState =
+  | 'candidate'
+  | 'admission_review'
+  | 'admitted'
+  | 'needs_refresh'
+  | 'admission_blocked'
+  | 'waiting_activation'
+  | 'archived';
 
-/** lifecycle_state defaults to "active" when the field is absent (validator-side default). */
+export const NODE_LIFECYCLE_STATES: readonly NodeLifecycleState[] = [
+  'candidate',
+  'admission_review',
+  'admitted',
+  'needs_refresh',
+  'admission_blocked',
+  'waiting_activation',
+  'archived',
+];
+
+/**
+ * Enforced transition table for node.set_lifecycle. Self-transitions exist
+ * only for the two condition-carrying states (condition update); revival from
+ * archived is re-intake (candidate / needs_refresh), never a shortcut back to
+ * admitted. node.set_posterior enters admitted / needs_refresh through its own
+ * derivation, not through this table.
+ */
+export const LIFECYCLE_TRANSITIONS: Readonly<Record<NodeLifecycleState, readonly NodeLifecycleState[]>> = {
+  candidate: ['admission_review', 'admission_blocked', 'waiting_activation', 'archived'],
+  admission_review: ['candidate', 'admitted', 'needs_refresh', 'admission_blocked', 'waiting_activation', 'archived'],
+  admitted: ['needs_refresh', 'admission_blocked', 'waiting_activation', 'archived'],
+  needs_refresh: ['admitted', 'admission_blocked', 'waiting_activation', 'archived'],
+  admission_blocked: ['admission_review', 'admission_blocked', 'waiting_activation', 'archived'],
+  waiting_activation: ['candidate', 'admission_review', 'admitted', 'needs_refresh', 'admission_blocked', 'waiting_activation', 'archived'],
+  archived: ['candidate', 'needs_refresh'],
+};
+
+/** States whose nodes must carry an activation_condition (all others must not). */
+export const CONDITION_CARRYING_STATES: readonly NodeLifecycleState[] = ['waiting_activation', 'admission_blocked'];
+
+/** The only lifecycle states in which node.set_posterior may write. */
+export const POSTERIOR_WRITE_STATES: readonly NodeLifecycleState[] = ['admission_review', 'admitted', 'needs_refresh'];
+
+function isNodeLifecycleState(value: unknown): value is NodeLifecycleState {
+  return typeof value === 'string' && (NODE_LIFECYCLE_STATES as readonly string[]).includes(value);
+}
+
+/**
+ * Strict reader: lifecycle_state is required and must be one of the machine's
+ * states. A value outside the machine (typically an unmigrated store) fails
+ * loudly with a migration hint instead of being silently defaulted.
+ */
 export function nodeLifecycleState(node: Record<string, unknown>): NodeLifecycleState {
   const state = node.lifecycle_state;
-  if (state === 'waiting_activation' || state === 'archived') {
+  if (isNodeLifecycleState(state)) {
     return state;
   }
-  return 'active';
+  throw new RpcError(-32018, 'lifecycle_transition_invalid', {
+    reason: 'unknown_lifecycle_state',
+    ...(typeof node.campaign_id === 'string' ? { campaign_id: node.campaign_id } : {}),
+    ...(typeof node.node_id === 'string' ? { node_id: node.node_id } : {}),
+    details: {
+      found: node.lifecycle_state === undefined ? null : node.lifecycle_state,
+      allowed_states: [...NODE_LIFECYCLE_STATES],
+      message: 'stored lifecycle_state is outside the lifecycle state machine; migrate the store (map legacy active/absent by data: no posterior -> candidate, posterior.status=current with scoring-eligible coverage -> admitted, otherwise -> needs_refresh)',
+    },
+  });
+}
+
+/** Node lifecycle_reason (last transition's reason), null when absent. */
+export function nodeLifecycleReason(node: Record<string, unknown>): string | null {
+  return typeof node.lifecycle_reason === 'string' ? node.lifecycle_reason : null;
 }
 
 export interface NodePosterior {
@@ -178,4 +240,56 @@ export function isPortfolioScoringEligible(coverage: LiteratureCoverage): boolea
   }
   return coverage.status === 'saturated'
     || (coverage.status === 'coverage_incomplete' && coverage.exploratory_allocation === true);
+}
+
+export interface LifecyclePreconditionFailure {
+  requirement: string;
+  message: string;
+}
+
+/**
+ * Data-backed entry preconditions of the lifecycle machine. Only preconditions
+ * the store can check live here (posterior presence/status, coverage
+ * eligibility); the request-shaped requirements (activation_condition for the
+ * condition-carrying states, reason for archived) are validated by the
+ * set_lifecycle executor against the params.
+ */
+export function lifecycleEntryPreconditionFailure(
+  target: NodeLifecycleState,
+  node: Record<string, unknown>,
+): LifecyclePreconditionFailure | null {
+  const posterior = nodePosterior(node);
+  if (target === 'candidate' && posterior !== null) {
+    return {
+      requirement: 'posterior_must_be_null',
+      message: 'candidate means no posterior has been written; a node with a posterior history re-enters as needs_refresh instead',
+    };
+  }
+  if (target === 'needs_refresh' && posterior === null) {
+    return {
+      requirement: 'posterior_required',
+      message: 'needs_refresh means an existing posterior is not current guidance; a node without any posterior is a candidate instead',
+    };
+  }
+  if (target === 'admitted') {
+    if (posterior === null) {
+      return {
+        requirement: 'posterior_required',
+        message: 'admitted requires a store-backed posterior; write one via node.set_posterior (which derives admitted itself on status=current)',
+      };
+    }
+    if (posterior.status !== 'current') {
+      return {
+        requirement: 'posterior_status_current_required',
+        message: `admitted requires posterior.status=current, found ${posterior.status === undefined ? 'none' : String(posterior.status)}`,
+      };
+    }
+    if (!isPortfolioScoringEligible(nodeLiteratureCoverage(node))) {
+      return {
+        requirement: 'coverage_not_scoring_eligible',
+        message: 'admitted requires scoring-eligible close-prior coverage: survey_ref + close_prior_matrix_ref with status saturated, or coverage_incomplete with the explicit exploratory waiver',
+      };
+    }
+  }
+  return null;
 }

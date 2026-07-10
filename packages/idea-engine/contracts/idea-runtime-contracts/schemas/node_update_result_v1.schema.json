@@ -22,6 +22,7 @@
         "idea_id",
         "revision",
         "lifecycle_state",
+        "lifecycle_reason",
         "posterior",
         "activation_condition",
         "updated_at"
@@ -41,9 +42,19 @@
         },
         "lifecycle_state": {
           "enum": [
-            "active",
+            "candidate",
+            "admission_review",
+            "admitted",
+            "needs_refresh",
+            "admission_blocked",
             "waiting_activation",
             "archived"
+          ]
+        },
+        "lifecycle_reason": {
+          "type": [
+            "string",
+            "null"
           ]
         },
         "posterior": {
@@ -164,6 +175,7 @@
                     "data_release",
                     "stage_reached",
                     "exploratory_computation",
+                    "required_evidence",
                     "other"
                   ]
                 },

@@ -72,7 +72,7 @@ def _node(node_id: str, *, ref: str | None, value: float | None) -> dict:
     return {
         "node_id": node_id,
         "idea_card": {"thesis_statement": f"Thesis for {node_id}."},
-        "lifecycle_state": "under_investigation",
+        "lifecycle_state": "admission_review",
         "literature_coverage": {"status": "saturated"},
         "posterior": posterior,
     }
@@ -101,7 +101,7 @@ def test_report_renders_drivers_links_and_rounding(tmp_path: Path) -> None:
     assert code == 0
 
     # Table row: 3-decimal display, relative graph link, machine ref as code span only.
-    assert "| `nd000001` | under_investigation | saturated | 0.642 |" in md
+    assert "| `nd000001` | admission_review | saturated | 0.642 |" in md
     assert "[graph](../ideas/graphs/idea-one/starmap.html)" in md
     assert f"Machine ref: `{ref}`" in md
     assert f"[{ref}]" not in md  # machine refs are never clickable links
@@ -131,7 +131,7 @@ def test_store_graph_mismatch_flagged_as_stale(tmp_path: Path) -> None:
 def test_nodes_without_package_or_posterior_render_placeholders(tmp_path: Path) -> None:
     md, payload, code = _run(tmp_path, {"nd000003": _node("nd000003", ref=None, value=None)})
     assert code == 0
-    assert "| `nd000003` | under_investigation | saturated | — | — |" in md
+    assert "| `nd000003` | admission_review | saturated | — | — |" in md
     assert payload["rows"][0]["support_drivers"] == []
 
 

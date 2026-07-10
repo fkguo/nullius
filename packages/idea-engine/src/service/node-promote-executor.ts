@@ -28,7 +28,7 @@ function promotionBlockedError(options: {
   campaignId: string;
   contracts: IdeaEngineContractCatalog;
   nodeId: string;
-  reason: 'posterior_missing' | 'node_not_active';
+  reason: 'posterior_missing' | 'node_not_admitted';
 }): RpcError {
   const data = { campaign_id: options.campaignId, node_id: options.nodeId, reason: options.reason };
   options.contracts.validateErrorData(data);
@@ -62,7 +62,7 @@ function sanitizePromotedIdeaCard(ideaCard: Record<string, unknown>): Record<str
  * node.promote gates: the idea_card must be structurally complete
  * (schema-valid, formalization trace intact, and still schema-valid after
  * placeholder evidence URIs are stripped), grounding_audit.status must be
- * pass, the node must be in the active lifecycle state, and the node must
+ * pass, the node must be in the admitted lifecycle state, and the node must
  * carry a non-null posterior. Reviewers audit anchors, not scores, so no
  * numeric posterior threshold is applied here.
  */
@@ -123,8 +123,8 @@ export function executeNodePromote(options: {
       throw new RpcError(-32011, 'grounding_audit_failed', data);
     }
 
-    if (nodeLifecycleState(node) !== 'active') {
-      throw promotionBlockedError({ campaignId, contracts: options.contracts, nodeId, reason: 'node_not_active' });
+    if (nodeLifecycleState(node) !== 'admitted') {
+      throw promotionBlockedError({ campaignId, contracts: options.contracts, nodeId, reason: 'node_not_admitted' });
     }
     const posterior = nodePosterior(node);
     if (!posterior) {

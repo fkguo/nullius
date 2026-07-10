@@ -283,7 +283,8 @@ describe('node.import_generated', () => {
     const node = nodes[nodeId]!;
     expect(node.posterior).toBeNull();
     expect(node.grounding_audit).toBeNull();
-    expect(node.lifecycle_state).toBe('active');
+    expect(node.lifecycle_state).toBe('candidate');
+    expect(node.lifecycle_reason).toBeNull();
     expect(node.parent_node_ids).toEqual([]);
     expect(node.operator_id).toBe('litmine.tension_resolution.v1');
     const trace = node.operator_trace as Record<string, unknown>;
@@ -353,6 +354,12 @@ describe('node.import_generated', () => {
       timestamp: '2026-07-06T00:00:00Z',
     };
     service.node.store.saveNodes(campaignId, nodes);
+    service.handle('node.set_lifecycle', {
+      campaign_id: campaignId,
+      idempotency_key: 'review-1',
+      lifecycle_state: 'admission_review',
+      node_id: nodeId,
+    });
     service.handle('node.set_posterior', {
       campaign_id: campaignId,
       idempotency_key: 'posterior-1',
@@ -398,6 +405,12 @@ describe('node.import_generated', () => {
     const legacyRef = pathToFileURL(join('/Users/old-machine/moved-project/idea-store/campaigns', campaignId, 'artifacts/generation', basename(artifactFile))).href;
     const nodeId = String((first.imported as Array<Record<string, unknown>>)[0]!.node_id);
 
+    service.handle('node.set_lifecycle', {
+      campaign_id: campaignId,
+      idempotency_key: 'review-before-legacy-migration',
+      lifecycle_state: 'admission_review',
+      node_id: nodeId,
+    });
     service.handle('node.set_posterior', {
       campaign_id: campaignId,
       idempotency_key: 'posterior-before-legacy-migration',
@@ -1095,7 +1108,14 @@ describe('node.import_generated', () => {
       const result = importPack(service, campaignId, validPack(campaignId));
       const nodeId = importedNodeId(result);
 
-      // evaluation moved the node between crash and retry: posterior written
+      // evaluation moved the node between crash and retry: review declared,
+      // posterior written
+      service.handle('node.set_lifecycle', {
+        campaign_id: campaignId,
+        idempotency_key: 'review-mid-crash',
+        lifecycle_state: 'admission_review',
+        node_id: nodeId,
+      });
       service.handle('node.set_posterior', {
         campaign_id: campaignId,
         idempotency_key: 'posterior-mid-crash',

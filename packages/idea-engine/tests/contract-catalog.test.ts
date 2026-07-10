@@ -65,6 +65,7 @@ const VALID_ALLOCATION_DECISION = {
   candidates: [
     {
       node_id: 'ndae0001',
+      lifecycle_state: 'admitted',
       posterior_value: 0.62,
       evidence_count: 5,
       sampled_value: 0.71,
@@ -77,6 +78,7 @@ const VALID_ALLOCATION_DECISION = {
     },
     {
       node_id: 'ndbe0001',
+      lifecycle_state: 'admitted',
       posterior_value: 0.31,
       evidence_count: 2,
       sampled_value: 0.28,
@@ -164,6 +166,7 @@ describe('contract catalog: decision-layer schemas', () => {
     coldStart.candidates = [
       {
         node_id: 'ndae0001',
+        lifecycle_state: 'candidate',
         posterior_value: null,
         evidence_count: null,
         sampled_value: null,

@@ -2,7 +2,7 @@
   "node_id": "1f6c9d5e",
   "title": "Adaptive basis enrichment for a variational bound-state method",
   "gist": "Extend a variational bound-state method with an adaptive rule that enriches the trial basis where a residual-based error indicator is largest, aiming at faster convergence of low-lying states with an explicit error indicator reported alongside each level.",
-  "status": "active",
+  "status": "open",
   "claims": [
     {
       "claim": "Residual-based error indicators locate the regions where a variational trial basis is deficient.",
