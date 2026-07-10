@@ -281,7 +281,10 @@ def assign_allocations(
             }
         )
     for node in sorted(groups["data_blocked"], key=lambda n: n["node_id"]):
-        coverage_status = literature_coverage(node)["status"]
+        coverage = literature_coverage(node)
+        has_refs = bool(str(coverage.get("survey_ref", "")).strip()) and bool(
+            str(coverage.get("close_prior_matrix_ref", "")).strip()
+        )
         if node.get("posterior") is None:
             detail = "stored node is admitted but carries no posterior"
         elif posterior_status(node) != "current":
@@ -289,8 +292,13 @@ def assign_allocations(
                 "stored node is admitted but posterior status is "
                 f"{posterior_status(node) or 'missing'}"
             )
+        elif not has_refs:
+            detail = (
+                "stored node is admitted but the close-prior refs "
+                "(survey_ref + close_prior_matrix_ref) are missing"
+            )
         else:
-            detail = f"stored node is admitted but literature coverage is {coverage_status}"
+            detail = f"stored node is admitted but literature coverage is {coverage['status']}"
         candidates.append(_held_row(
             node,
             "hold",

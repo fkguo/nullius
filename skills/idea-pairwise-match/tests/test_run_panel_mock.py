@@ -667,7 +667,7 @@ def test_claimless_card_rejected_by_statement_path(tmp_path):
     commit_criteria.write_json_atomic(materials / "commitment.json", commitment)
     bad_card = tmp_path / "claimless.json"
     bad_card.write_text(
-        json.dumps({"node_id": IDEA_A, "title": "t", "gist": "g", "status": "active", "claims": []}),
+        json.dumps({"node_id": IDEA_A, "title": "t", "gist": "g", "status": "open", "claims": []}),
         encoding="utf-8",
     )
     for mode in ("--render-card-summaries", "--render-statement-prompts"):

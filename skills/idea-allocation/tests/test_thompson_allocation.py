@@ -237,6 +237,33 @@ def test_missing_posterior_status_is_not_current(tmp_path):
     assert ta.validate_allocation_decision(decision) == []
 
 
+def test_saturated_label_without_refs_is_not_eligible(tmp_path):
+    # The engine's isPortfolioScoringEligible requires BOTH close-prior refs;
+    # a bare saturated label (hand-migrated store) must hold here too, or the
+    # decision layer would allocate a slot the engine's gate rejects.
+    legacy = admitted_node("a1pha000", 0.9, 30)
+    legacy["literature_coverage"] = {"status": "saturated"}
+    path = make_store(tmp_path, [legacy])
+    campaign_id, loaded = nodes_store.load_nodes_file(str(path))
+    groups = ta.split_nodes(loaded)
+    assert groups["sampled"] == []
+    assert {n["node_id"] for n in groups["data_blocked"]} == {"a1pha000"}
+    decision = ta.build_decision(
+        campaign_id, loaded, seed=5, deep_slots=1, recon_slots=0,
+        generated_at="2026-07-05T00:00:00Z",
+    )
+    entry = decision["candidates"][0]
+    assert entry["allocation"] == "hold"
+    assert entry["allocation_eligible"] is False
+    assert "close-prior refs" in entry["budget_note"]
+    assert ta.validate_allocation_decision(decision) == []
+    # The waiting-return derivation agrees: without refs the node cannot
+    # return to admitted.
+    parked = dict(legacy)
+    parked["lifecycle_state"] = "waiting_activation"
+    assert nodes_store.waiting_return_state(parked) == "needs_refresh"
+
+
 def test_budget_notes_flag_exploration_vs_conservative():
     campaign_id, nodes = load_fixture_nodes()
     decision = ta.build_decision(
