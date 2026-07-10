@@ -481,15 +481,17 @@ describe('nullius CLI init/export', () => {
     }
   });
 
-  it('treats an empty PATH component as the current directory like the shell does', async () => {
+  it('never advertises a cwd-relative PATH candidate the launcher guard would reject', async () => {
     const parentDir = makeTempDir('nullius-cli-empty-path-');
     const projectRoot = path.join(parentDir, 'project-root');
     expect(await runCli([`--project-root=${projectRoot}`, 'init', '--runtime-only'], makeIo(parentDir).io)).toBe(0);
     const launcherPath = path.join(projectRoot, '.nullius', 'bin', 'nullius');
 
     // Break the baked target so health must consult PATH; put a
-    // protocol-answering nullius in a directory we make the cwd, reachable
-    // only through the EMPTY leading PATH component.
+    // protocol-answering nullius reachable only through the EMPTY leading
+    // PATH component (cwd). The launcher's runtime guard accepts only an
+    // ABSOLUTE regular file from command -v, so health must not advertise
+    // this candidate either — health mirrors the runtime authority.
     const script = fs.readFileSync(launcherPath, 'utf-8');
     fs.writeFileSync(launcherPath, script.replaceAll('/dist/cli.js', '/dist/cli.js.gone'), 'utf-8');
     fs.chmodSync(launcherPath, 0o755);
@@ -511,7 +513,8 @@ describe('nullius CLI init/export', () => {
     try {
       process.chdir(cwdDir);
       const health = readProjectLocalNulliusLauncherHealth(projectRoot);
-      expect(health.healthy).toBe(true);
+      expect(health.healthy).toBe(false);
+      expect(health.issue_code).toBe('PROJECT_LOCAL_LAUNCHER_TARGET_MISSING');
     } finally {
       process.chdir(prevCwd);
       if (prevPath === undefined) delete process.env.PATH;

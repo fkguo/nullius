@@ -797,6 +797,18 @@ describe('decision ledger', () => {
     ).rejects.toThrow('duplicate --project-root');
   });
 
+  it("records the literal probe flag as decision text after the terminator", async () => {
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot);
+
+    // Only the exact one/two-argument probe forms are a handshake; a longer
+    // argv ending in the flag is ordinary data.
+    const record = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', '--', '--launcher-protocol'], record.io)).toBe(0);
+    expect(record.stdout.join('')).toContain('recorded: D1');
+    expect(readDecisionLines(projectRoot)[0]).toMatchObject({ text: '--launcher-protocol' });
+  });
+
   it('records text beginning with a hyphen after the end-of-options terminator', async () => {
     const projectRoot = makeTempProjectRoot();
     await initRuntimeOnly(projectRoot);

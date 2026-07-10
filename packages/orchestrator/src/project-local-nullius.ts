@@ -84,9 +84,13 @@ function launcherProtocolCandidateOnPath(launcherPath: string): string | 'self' 
     launcherStat = null;
   }
   for (const dir of pathEnv.split(path.delimiter)) {
-    // POSIX: an empty PATH component means the current directory; skipping it
-    // would advertise a different candidate than the shell resolves.
-    const candidate = path.join(dir === '' ? '.' : dir, 'nullius');
+    // The generated launcher only accepts an ABSOLUTE regular file from
+    // `command -v` (relative answers — empty PATH components resolving via
+    // the cwd, or shell functions echoing a bare name — are rejected by its
+    // guard). Health mirrors the launcher, the runtime authority, so a
+    // cwd-relative candidate is never advertised as a usable fallback.
+    if (!path.isAbsolute(dir)) continue;
+    const candidate = path.join(dir, 'nullius');
     try {
       fs.accessSync(candidate, fs.constants.X_OK);
       const candidateStat = fs.statSync(candidate);
