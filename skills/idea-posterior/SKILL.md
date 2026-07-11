@@ -448,7 +448,10 @@ readable diagnosis (including the pinned install recipe) when a stage fails.
    solid blue when it raises belief, dashed warm red when it lowers it, line
    width and a weak/substantial/strong chip showing the likelihood ratio.
    Clicking a card opens the statement, posterior, likelihoods P(e|h) and
-   P(e|not h), rationale, and source anchors. The run also emits a static
+   P(e|not h), rationale, and source anchors. HTTP(S) anchors and existing
+   in-project Markdown anchors become links; project-root-relative artifact
+   paths are rewritten relative to the graph page, while missing, escaping,
+   non-Markdown, and engine references remain plain text. The run also emits a static
    `starmap.svg` when Graphviz is on `PATH` and a detailed-reasoning `docs/`
    render; each card's detail panel links into that document's matching
    section, and the link is generation-bound: a companion checksum records
