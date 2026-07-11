@@ -30,6 +30,7 @@ from test_run_panel_mock import (
     ROSTER,
     STUB_SOURCE,
     build_materials,
+    fake_cli_path_env,
     run_panel_cli,
     runner_arg,
     write_roster,
@@ -289,11 +290,13 @@ def roster_with_only(tmp_path, name, families):
 
 
 def discovery_layout(tmp_path):
-    """A project tree with a materials directory three levels below the
-    project root, plus a separate home directory."""
+    """A project tree (a git repository root, as docs/AGENTS_FILE.md defines
+    the project) with a materials directory three levels below the project
+    root, plus a separate home directory."""
     project = tmp_path / "project"
     materials = project / "campaign" / "matches" / "work"
     materials.mkdir(parents=True)
+    (project / ".git").mkdir()
     home = tmp_path / "home"
     home.mkdir()
     return project, materials, home
@@ -342,18 +345,147 @@ def test_missing_files_fall_back_to_builtin_without_error(tmp_path):
     assert list(roster["families"]) == ["host"]
 
 
-def test_project_walkup_finds_nearest_ancestor(tmp_path):
+def test_project_roster_is_read_at_the_git_root_only(tmp_path):
     project, materials, home = discovery_layout(tmp_path)
-    # Both the project root and an inner directory carry a roster; the walk-up
-    # from the materials directory must take the nearest one.
-    roster_with_only(project, ".nullius/agents.json", PROJECT_FAMILIES)
-    inner_path = roster_with_only(
-        project / "campaign", ".nullius/agents.json", CLI_FAMILIES
-    )
+    # docs/AGENTS_FILE.md defines the project-level roster as
+    # <project>/.nullius/agents.json at the git root. An extra
+    # .nullius/agents.json in an inner directory is not a documented
+    # location and is ignored; the git root's file is the one used.
+    root_path = roster_with_only(project, ".nullius/agents.json", PROJECT_FAMILIES)
+    roster_with_only(project / "campaign", ".nullius/agents.json", CLI_FAMILIES)
     roster, source, path = run_panel.resolve_roster(None, materials, home=home)
     assert source == "project"
-    assert path == inner_path
-    assert list(roster["families"]) == ["cli-only"]
+    assert path == root_path
+    assert list(roster["families"]) == ["project-only"]
+
+
+def test_walkup_stops_at_the_git_boundary(tmp_path):
+    # docs/AGENTS_FILE.md defines the project root as the first ancestor
+    # containing .git; a roster ABOVE that boundary belongs to some other
+    # context and must not be swallowed as source="project". The user-level
+    # roster applies in its normal place in the discovery order instead.
+    outer = tmp_path / "outer"
+    materials = outer / "repo" / "campaign" / "work"
+    materials.mkdir(parents=True)
+    (outer / "repo" / ".git").mkdir()
+    roster_with_only(outer, ".nullius/agents.json", PROJECT_FAMILIES)
+    home = tmp_path / "home"
+    home.mkdir()
+    user_path = roster_with_only(home, ".nullius/agents.json", USER_FAMILIES)
+    roster, source, path = run_panel.resolve_roster(None, materials, home=home)
+    assert source == "user"
+    assert path == user_path
+    assert list(roster["families"]) == ["user-only"]
+
+
+def test_walkup_outside_any_git_project_never_claims_a_project_roster(tmp_path):
+    # A materials directory that is not inside any git project has no
+    # project-level roster at all. In particular, when the walk-up passes
+    # through $HOME, the user-level ~/.nullius/agents.json must be found as
+    # source="user" (its normal place in the order), never re-labeled
+    # "project" by the unbounded walk.
+    home = tmp_path / "home"
+    materials = home / "work" / "campaign" / "materials"
+    materials.mkdir(parents=True)
+    user_path = roster_with_only(home, ".nullius/agents.json", USER_FAMILIES)
+    roster, source, path = run_panel.resolve_roster(None, materials, home=home)
+    assert source == "user"
+    assert path == user_path
+    assert list(roster["families"]) == ["user-only"]
+
+
+def test_home_as_git_repo_reports_its_roster_as_user_level(tmp_path):
+    # A $HOME that is itself a git repository (a dotfiles repo with ~/.git)
+    # makes the .git-bounded walk land exactly on ~/.nullius/agents.json.
+    # That file is the USER-level roster -- machine-local configuration,
+    # normally untracked -- whatever repository happens to contain $HOME,
+    # so it must be reported as source="user", never relabeled "project".
+    # resolve_roster detects this by file identity (samefile), so a symlink
+    # alias of the same file cannot dodge the check.
+    home = tmp_path / "home"
+    materials = home / "work" / "campaign" / "materials"
+    materials.mkdir(parents=True)
+    (home / ".git").mkdir()
+    user_path = roster_with_only(home, ".nullius/agents.json", USER_FAMILIES)
+    roster, source, path = run_panel.resolve_roster(None, materials, home=home)
+    assert source == "user"
+    assert path == user_path
+    assert list(roster["families"]) == ["user-only"]
+
+
+def test_unresolvable_home_never_breaks_a_valid_project_resolution(tmp_path, monkeypatch):
+    # The user path is the LOWER-priority discovery source: probing it (for
+    # the samefile identity check) must never be able to break a valid
+    # project resolution. Path.home() raises RuntimeError when the home
+    # directory cannot be resolved; with a project roster present, that
+    # failure means only "the identity probe cannot match" -- the project
+    # roster is returned exactly as if the user file did not exist.
+    project, materials, _home = discovery_layout(tmp_path)
+    root_path = roster_with_only(project, ".nullius/agents.json", PROJECT_FAMILIES)
+
+    def raising_home():
+        raise RuntimeError("could not determine home directory")
+
+    monkeypatch.setattr(run_panel.Path, "home", staticmethod(raising_home))
+    roster, source, path = run_panel.resolve_roster(None, materials, home=None)
+    assert source == "project"
+    assert path == root_path
+    assert list(roster["families"]) == ["project-only"]
+
+
+def test_failing_identity_probe_keeps_the_project_label(tmp_path, monkeypatch):
+    # Same guarantee one layer down: if os.path.samefile itself raises (a
+    # permissions problem, a filesystem race), the probe result is "not the
+    # user file" and the project resolution proceeds untouched.
+    project, materials, home = discovery_layout(tmp_path)
+    root_path = roster_with_only(project, ".nullius/agents.json", PROJECT_FAMILIES)
+    roster_with_only(home, ".nullius/agents.json", USER_FAMILIES)
+
+    def raising_samefile(a, b):
+        raise OSError("probe failed")
+
+    monkeypatch.setattr(run_panel.os.path, "samefile", raising_samefile)
+    roster, source, path = run_panel.resolve_roster(None, materials, home=home)
+    assert source == "project"
+    assert path == root_path
+    assert list(roster["families"]) == ["project-only"]
+
+
+def test_project_roster_symlinked_to_the_user_file_is_user_level(tmp_path):
+    # The samefile identity check is claimed to cover aliases: a project
+    # whose .nullius/agents.json is a SYMLINK to ~/.nullius/agents.json is
+    # one physical file wearing two paths, and the roster content genuinely
+    # comes from the user-level machine configuration -- so the honest
+    # source label is "user" here too. This pins the alias claim with its
+    # own test, distinct from the HOME-as-git-repo case above.
+    project, materials, home = discovery_layout(tmp_path)
+    user_path = roster_with_only(home, ".nullius/agents.json", USER_FAMILIES)
+    link_dir = project / ".nullius"
+    link_dir.mkdir()
+    (link_dir / "agents.json").symlink_to(user_path)
+    roster, source, path = run_panel.resolve_roster(None, materials, home=home)
+    assert source == "user"
+    assert path == user_path
+    assert list(roster["families"]) == ["user-only"]
+
+
+def test_git_file_counts_as_the_project_boundary(tmp_path):
+    # In a linked git worktree, .git is a FILE ("gitdir: ..."), not a
+    # directory. It must anchor project discovery exactly like a .git
+    # directory -- this locks the .exists() check against a future
+    # refactor to .is_dir().
+    project = tmp_path / "worktree"
+    materials = project / "campaign" / "work"
+    materials.mkdir(parents=True)
+    (project / ".git").write_text("gitdir: /somewhere/else\n", encoding="utf-8")
+    root_path = roster_with_only(project, ".nullius/agents.json", PROJECT_FAMILIES)
+    home = tmp_path / "home"
+    home.mkdir()
+    roster_with_only(home, ".nullius/agents.json", USER_FAMILIES)
+    roster, source, path = run_panel.resolve_roster(None, materials, home=home)
+    assert source == "project"
+    assert path == root_path
+    assert list(roster["families"]) == ["project-only"]
 
 
 def test_explicit_roster_must_exist(tmp_path):
@@ -424,6 +556,83 @@ def test_no_roster_anywhere_degrades_with_guidance(tmp_path):
     assert report["native_family"] == "host"
     assert report["seats_provided"] == 0
     assert report["roster"] == {"source": "builtin", "path": None}
+
+
+def test_missing_runner_executables_degrade_to_native_seats(tmp_path):
+    # docs/AGENTS_FILE.md: a family counts as USABLE when it is declared
+    # available AND its runner's executable is actually present on the
+    # machine (native always passes). The inline ROSTER declares native +
+    # codex + opencode + kimi available, but with PATH pointing at an empty
+    # directory none of the three CLI executables exists -- only the native
+    # family is usable, which is below the floor of three. The panel must
+    # honestly degrade to native subagent seats (exit 3 with the seat
+    # guidance), not nominally run cross-family, watch every CLI seat fail
+    # at run time, and terminate at the vote floor (exit 2).
+    materials, _ = build_materials(tmp_path)
+    roster = write_roster(tmp_path)
+    empty_bin = tmp_path / "empty_bin"
+    empty_bin.mkdir()
+    out_dir = tmp_path / "panel"
+    result = run_panel_cli(
+        materials, out_dir, [], roster=roster,
+        env_extra={"PATH": str(empty_bin)},
+    )
+    assert result.returncode == 3, result.stderr
+    assert "native_subagents" in result.stderr
+    assert "--native-vote" in result.stderr
+    report = json.loads((out_dir / "panel_run_report.json").read_text(encoding="utf-8"))
+    assert report["independence"] == "single_family"
+    assert report["panel_valid"] is False
+    reasons = {item["family"]: item["reason"] for item in report["absent"]}
+    # The three CLI families are absent because their executables are not
+    # present, per the usable definition; the roster-declared unavailable
+    # family keeps its own reason.
+    for family in ("gpt", "glm", "kimi"):
+        assert "executable" in reasons[family], reasons[family]
+    assert reasons["gemini"] == GEMINI_ABSENT_REASON
+
+
+def test_unusable_requested_family_is_absent_up_front_and_never_invoked(tmp_path):
+    # A cross-family panel that still fields the floor: the native seat is
+    # injected and two families run through --runner overrides (an override
+    # replaces the roster runner entirely, so the family stays usable
+    # whatever is on PATH). The kimi family has no override and its CLI
+    # executable is absent, so it is not usable: it must be recorded absent
+    # up front with the executable reason, and its runner must never be
+    # dispatched -- not invoked-and-failed with a runtime error as before.
+    materials, _ = build_materials(tmp_path)
+    roster = write_roster(tmp_path)
+    stub_path = tmp_path / "stub_judge.py"
+    stub_path.write_text(STUB_SOURCE, encoding="utf-8")
+    injected = tmp_path / "native_reply.txt"
+    from test_run_panel_mock import compute_prompt_sha
+    injected.write_text(
+        '{"vote": "a", "anchored_arguments": [], "unanchored_arguments_discarded": 0, '
+        '"judge_prompt_sha256": "%s"}\n' % compute_prompt_sha(materials),
+        encoding="utf-8",
+    )
+    empty_bin = tmp_path / "empty_bin"
+    empty_bin.mkdir()
+    out_dir = tmp_path / "panel"
+    result = run_panel_cli(
+        materials,
+        out_dir,
+        [
+            "--native-vote", str(injected),
+            "--runner", "gpt=" + runner_arg(stub_path, "a"),
+            "--runner", "glm=" + runner_arg(stub_path, "b"),
+        ],
+        roster=roster,
+        env_extra={"PATH": str(empty_bin)},
+    )
+    assert result.returncode == 0, result.stderr
+    report = json.loads((out_dir / "panel_run_report.json").read_text(encoding="utf-8"))
+    assert report["independence"] == "cross_family"
+    assert report["families_present"] == ["claude", "glm", "gpt"]
+    reasons = {item["family"]: item["reason"] for item in report["absent"]}
+    assert "executable" in reasons["kimi"], reasons["kimi"]
+    # Never dispatched: no attempt directory was created for the seat.
+    assert not (out_dir / "raw" / "kimi").exists()
 
 
 def test_native_panel_collects_three_seats_and_assembles(tmp_path):
@@ -779,8 +988,12 @@ def test_cross_family_panel_takes_exactly_one_native_vote(tmp_path):
     materials, _ = build_materials(tmp_path)
     roster = write_roster(tmp_path)
     files = write_native_votes(tmp_path, ["a", "a"], materials)
+    # Hermetic cross-family path: fake CLI executables keep the roster's
+    # CLI families usable whatever the host has installed, so this test
+    # reaches the one-native-vote check instead of degrading.
     result = run_panel_cli(
-        materials, tmp_path / "panel", native_vote_args(files), roster=roster
+        materials, tmp_path / "panel", native_vote_args(files), roster=roster,
+        env_extra=fake_cli_path_env(tmp_path),
     )
     assert result.returncode == 1
     assert "seats one native vote" in result.stderr
@@ -795,11 +1008,13 @@ def test_native_vote_conflicts_with_native_runner_override(tmp_path):
     stub_path = tmp_path / "stub_judge.py"
     stub_path.write_text(STUB_SOURCE, encoding="utf-8")
     files = write_native_votes(tmp_path, ["a"], materials)
+    # Hermetic cross-family path (see test_cross_family_panel_takes_exactly_one_native_vote).
     result = run_panel_cli(
         materials,
         tmp_path / "panel",
         ["--runner", "claude=" + runner_arg(stub_path, "a")] + native_vote_args(files),
         roster=roster,
+        env_extra=fake_cli_path_env(tmp_path),
     )
     assert result.returncode == 1
     assert "give one or the other" in result.stderr
@@ -884,7 +1099,7 @@ def test_resolve_execution_signature_keys_on_runner_and_model():
     assert override_sig[0] == "runner_override"
 
 
-def test_resolve_execution_signature_carries_the_env_resolved_direct_runner_path():
+def test_resolve_execution_signature_carries_the_env_resolved_direct_runner_path(tmp_path):
     # kimi/opencode/gemini are directly invoked scripts, redirectable via
     # IDEA_PAIRWISE_<FAMILY>_RUNNER; the signature must follow the actual
     # resolved path, not just the runner label, so two families whose env
@@ -898,22 +1113,30 @@ def test_resolve_execution_signature_carries_the_env_resolved_direct_runner_path
         # legitimately has IDEA_PAIRWISE_KIMI_RUNNER exported.
         os.environ.pop("IDEA_PAIRWISE_KIMI_RUNNER", None)
         default_sig = run_panel.resolve_execution_signature("kimi", roster, {}, {})
+        # The default runner script exists in the repo, so its identity is
+        # the file's (st_dev, st_ino) pair -- the physical file, not any of
+        # its path spellings (see _script_identity).
+        stat = os.stat(run_panel.DEFAULT_KIMI_RUNNER)
         assert default_sig == (
             "roster",
             "direct_runner",
-            os.path.realpath(str(run_panel.DEFAULT_KIMI_RUNNER)),
+            ("inode", stat.st_dev, stat.st_ino),
             "kimi-code/kimi-for-coding",
         )
 
-        os.environ["IDEA_PAIRWISE_KIMI_RUNNER"] = "/tmp/redirected-runner.sh"
+        # A guaranteed-missing path under the test's own tmp_path: a fixed
+        # literal like /tmp/redirected-runner.sh could actually exist on
+        # some machine and flip this onto the inode branch.
+        missing = tmp_path / "redirected-runner.sh"
+        os.environ["IDEA_PAIRWISE_KIMI_RUNNER"] = str(missing)
         redirected_sig = run_panel.resolve_execution_signature("kimi", roster, {}, {})
-        # The signature carries the REALPATH-canonicalized form (on macOS,
-        # /tmp itself is a symlink to /private/tmp), so a symlink, relative
-        # form, or dotted path naming the same physical script collides.
+        # A redirected path that names no file has no file identity; the
+        # signature falls back to the REALPATH-canonicalized string, which
+        # still folds symlink/relative/dotted spellings of one unbuilt path.
         assert redirected_sig == (
             "roster",
             "direct_runner",
-            os.path.realpath("/tmp/redirected-runner.sh"),
+            ("path", os.path.realpath(str(missing))),
             "kimi-code/kimi-for-coding",
         )
     finally:
@@ -961,6 +1184,110 @@ def test_check_runner_independence_catches_env_redirected_dedicated_runner_alias
                 os.environ.pop(name, None)
             else:
                 os.environ[name] = original
+
+
+def _redirect_direct_runners(paths):
+    """Context-manager-free helper: set the IDEA_PAIRWISE_*_RUNNER variables
+    in `paths` (family runner label -> script path) and return a restore
+    callable for the finally block."""
+    originals = {}
+    for name, value in paths.items():
+        env_name = "IDEA_PAIRWISE_%s_RUNNER" % name.upper()
+        originals[env_name] = os.environ.get(env_name)
+        os.environ[env_name] = str(value)
+
+    def restore():
+        for env_name, original in originals.items():
+            if original is None:
+                os.environ.pop(env_name, None)
+            else:
+                os.environ[env_name] = original
+
+    return restore
+
+
+def test_check_runner_independence_catches_hardlink_alias_of_one_script(tmp_path):
+    # A hardlink is a second NAME for the same physical script: realpath
+    # does not fold it (each name is its own real path), but the two seats
+    # execute the identical code. The signature must key on the file's
+    # identity (st_dev, st_ino), so a hardlink alias collides exactly like
+    # a symlink or a shared literal path.
+    roster_obj = make_roster()
+    roster_obj["families"]["gemini"] = {
+        "runner": "gemini",
+        "models": {"default": roster_obj["families"]["kimi"]["models"]["default"]},
+    }
+    roster = run_panel.parse_roster(roster_obj, "inline fixture")
+    script = tmp_path / "runner_script.sh"
+    script.write_text("#!/bin/sh\n", encoding="utf-8")
+    alias = tmp_path / "runner_alias.sh"
+    os.link(script, alias)
+    restore = _redirect_direct_runners({"kimi": script, "gemini": alias})
+    try:
+        signatures = {
+            family: run_panel.resolve_execution_signature(family, roster, {}, {})
+            for family in ("kimi", "gemini")
+        }
+        with pytest.raises(run_panel.PanelError, match="same underlying command"):
+            run_panel.check_runner_independence(signatures, allow_shared=False)
+    finally:
+        restore()
+
+
+def test_check_runner_independence_catches_case_alias_on_case_insensitive_fs(tmp_path):
+    # On a case-insensitive filesystem (the macOS default), two spellings of
+    # one path name the same physical script while their realpaths differ as
+    # strings. The (st_dev, st_ino) identity folds them. On a case-sensitive
+    # filesystem the second spelling names no file at all, so there is
+    # nothing to fold and this test does not apply.
+    roster_obj = make_roster()
+    roster_obj["families"]["gemini"] = {
+        "runner": "gemini",
+        "models": {"default": roster_obj["families"]["kimi"]["models"]["default"]},
+    }
+    roster = run_panel.parse_roster(roster_obj, "inline fixture")
+    script = tmp_path / "runner_script.sh"
+    script.write_text("#!/bin/sh\n", encoding="utf-8")
+    case_alias = tmp_path / "RUNNER_SCRIPT.SH"
+    if not case_alias.is_file():
+        pytest.skip("case-sensitive filesystem: the case alias names no file")
+    restore = _redirect_direct_runners({"kimi": script, "gemini": case_alias})
+    try:
+        signatures = {
+            family: run_panel.resolve_execution_signature(family, roster, {}, {})
+            for family in ("kimi", "gemini")
+        }
+        with pytest.raises(run_panel.PanelError, match="same underlying command"):
+            run_panel.check_runner_independence(signatures, allow_shared=False)
+    finally:
+        restore()
+
+
+def test_missing_direct_runner_scripts_fall_back_to_distinct_path_signatures(tmp_path):
+    # When a redirected runner script does not exist (yet), there is no file
+    # identity to key on; the signature falls back to the realpath STRING,
+    # and two genuinely different nonexistent paths stay distinct.
+    roster_obj = make_roster()
+    roster_obj["families"]["gemini"] = {
+        "runner": "gemini",
+        "models": {"default": roster_obj["families"]["kimi"]["models"]["default"]},
+    }
+    roster = run_panel.parse_roster(roster_obj, "inline fixture")
+    restore = _redirect_direct_runners(
+        {"kimi": tmp_path / "unbuilt_a.sh", "gemini": tmp_path / "unbuilt_b.sh"}
+    )
+    try:
+        signatures = {
+            family: run_panel.resolve_execution_signature(family, roster, {}, {})
+            for family in ("kimi", "gemini")
+        }
+        independent, shared = run_panel.check_runner_independence(
+            signatures, allow_shared=False
+        )
+        assert independent is True
+        assert shared == {}
+    finally:
+        restore()
 
 
 def test_check_runner_independence_catches_roster_only_collision():

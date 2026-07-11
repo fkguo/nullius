@@ -11,10 +11,11 @@ subprocess also gets an isolated HOME so a developer machine's own
 user-level ~/.nullius/agents.json can never leak into a test.
 """
 
-import hashlib
 import json
 import os
+import re
 import shlex
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -141,16 +142,25 @@ def runner_arg(stub_path, mode):
 
 
 def compute_prompt_sha(materials, word_cap=None):
-    """Pre-compute the judge-prompt BODY hash for a materials directory,
-    exactly as run_panel records it in the report and expects injected
-    native replies to echo it (the binding block appended to the on-disk
-    judge_prompt.md). Lets a test write a correctly-bound reply file
-    BEFORE the panel invocation that will collect it."""
-    texts, commitment = run_panel.load_materials(
-        materials, word_cap=word_cap or run_panel.DEFAULT_WORD_CAP
-    )
-    body = run_panel.render_judge_prompt(texts, commitment)
-    return "sha256:" + hashlib.sha256(body.encode("utf-8")).hexdigest()
+    """Obtain the judge-prompt hash for a materials directory end-to-end:
+    render the prompt with a --render-prompt-only pass into a scratch
+    directory and read the recorded hash back from the binding block of the
+    written judge_prompt.md -- the exact value run_panel records in the
+    report and expects injected native replies to echo. Reading the written
+    artifact rather than recomputing a formula keeps these tests locked to
+    what run_panel actually records, whatever the hash covers. Lets a test
+    write a correctly-bound reply file BEFORE the panel invocation that
+    will collect it."""
+    scratch = Path(materials).parent / "_prompt_sha_render"
+    extra = ["--render-prompt-only"]
+    if word_cap is not None:
+        extra += ["--word-cap", str(word_cap)]
+    result = run_panel_cli(materials, scratch, extra)
+    assert result.returncode == 0, result.stderr
+    text = (scratch / "judge_prompt.md").read_text(encoding="utf-8")
+    match = BINDING_HASH_RE.search(text)
+    assert match, "binding block with judge_prompt_sha256 not found"
+    return match.group(1)
 
 
 def build_materials(tmp_path):
@@ -188,7 +198,8 @@ def build_materials(tmp_path):
     return materials, commitment
 
 
-def run_panel_cli(materials, out_dir, extra, allow_shared_runners=True, roster=None):
+def run_panel_cli(materials, out_dir, extra, allow_shared_runners=True, roster=None,
+                  env_extra=None):
     argv = [
         sys.executable,
         str(SCRIPT),
@@ -215,7 +226,29 @@ def run_panel_cli(materials, out_dir, extra, allow_shared_runners=True, roster=N
         env["IDEA_PAIRWISE_ALLOW_STUB_RUNNERS"] = "1"
     else:
         env.pop("IDEA_PAIRWISE_ALLOW_STUB_RUNNERS", None)
+    # env_extra lets a test control the panel process environment directly --
+    # e.g. point PATH at an empty directory so no runner CLI executable can
+    # be found, exercising the usable-family probe.
+    if env_extra:
+        env.update(env_extra)
     return subprocess.run(argv, capture_output=True, text=True, env=env)
+
+
+def fake_cli_path_env(tmp_path):
+    """env_extra that makes every roster CLI family count as usable
+    regardless of what is installed on the host: a PATH whose first entry
+    holds fake codex/opencode/kimi/gemini executables (plus /usr/bin:/bin
+    for sh and bash). Tests that must exercise the cross-family code path
+    use this so the usable-family probe cannot degrade them on a machine
+    without the real CLIs -- and cannot depend on the real CLIs either."""
+    fake_bin = tmp_path / "fake_cli_bin"
+    if not fake_bin.exists():
+        fake_bin.mkdir()
+        for name in ("codex", "opencode", "kimi", "gemini"):
+            exe = fake_bin / name
+            exe.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            exe.chmod(0o755)
+    return {"PATH": "%s:/usr/bin:/bin" % fake_bin}
 
 
 def test_full_panel_collects_four_family_votes(tmp_path, stub):
@@ -550,6 +583,118 @@ def test_retry_recovers_a_flaky_family(tmp_path, stub):
     assert "failure" in attempts[0]
     assert attempts[1].get("ok") is True
     assert marker.exists()
+
+
+BINDING_HASH_RE = re.compile(r'"judge_prompt_sha256": "(sha256:[0-9a-f]{64})"')
+
+
+def render_prompt_hash_inprocess(materials, out_dir):
+    """Render the judge prompt in-process (so a monkeypatched module
+    attribute takes effect) and read the recorded hash back from the binding
+    block of the written judge_prompt.md."""
+    rc = run_panel.main(
+        [
+            "--materials-dir", str(materials),
+            "--out-dir", str(out_dir),
+            "--render-prompt-only",
+        ]
+    )
+    assert rc == 0
+    text = (out_dir / "judge_prompt.md").read_text(encoding="utf-8")
+    match = BINDING_HASH_RE.search(text)
+    assert match, "binding block with judge_prompt_sha256 not found"
+    return match.group(1)
+
+
+def test_prompt_hash_covers_the_judge_system_prompt(tmp_path, monkeypatch):
+    # judge_system.md is the system prompt every seat answers under, and it
+    # ships as a code-owned template: a code upgrade that changes it changes
+    # what the judges were instructed to do. The recorded judge_prompt_sha256
+    # must therefore change with it, so a native reply formed against the old
+    # system prompt can no longer echo its way past collection. The body
+    # template is left untouched here, isolating the system prompt's
+    # contribution to the hash.
+    materials, _ = build_materials(tmp_path)
+    baseline = render_prompt_hash_inprocess(materials, tmp_path / "render1")
+
+    patched_prompts = tmp_path / "prompts_variant"
+    shutil.copytree(run_panel.PROMPTS_DIR, patched_prompts)
+    system_path = patched_prompts / "judge_system.md"
+    system_path.write_text(
+        system_path.read_text(encoding="utf-8")
+        + "\nOne extra system-prompt sentence.\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(run_panel, "PROMPTS_DIR", patched_prompts)
+    variant = render_prompt_hash_inprocess(materials, tmp_path / "render2")
+    assert variant != baseline
+
+
+def test_prompt_hash_covers_the_binding_block_wording(tmp_path, monkeypatch):
+    # The binding block is instruction text appended to the on-disk prompt a
+    # native subagent answers from. Its RENDERED form embeds the hash itself,
+    # so the hash covers the block's TEMPLATE wording: a code upgrade that
+    # rewords the block must change the recorded hash, not leave old replies
+    # echo-valid against new instructions.
+    materials, _ = build_materials(tmp_path)
+    baseline = render_prompt_hash_inprocess(materials, tmp_path / "render1")
+    monkeypatch.setattr(
+        run_panel,
+        "INJECTED_BINDING_TEMPLATE",
+        run_panel.INJECTED_BINDING_TEMPLATE.replace(
+            "Native-seat binding", "Native-seat binding (reworded)"
+        ),
+    )
+    variant = render_prompt_hash_inprocess(materials, tmp_path / "render2")
+    assert variant != baseline
+
+
+def test_assembly_recomputes_the_same_composite_hash(tmp_path, stub, monkeypatch):
+    # Assembly must recompute the recorded hash from the current materials
+    # plus the repository's own templates, staying in lockstep with what
+    # run_panel records. Run a real panel, then assemble twice: unchanged
+    # templates assemble cleanly; a changed judge_system.md template must
+    # fail the rebuild-and-compare as a stale panel, because the judges
+    # answered under the old system prompt.
+    materials, _ = build_materials(tmp_path)
+    roster = write_roster(tmp_path)
+    out_dir = tmp_path / "panel"
+    result = run_panel_cli(
+        materials,
+        out_dir,
+        [
+            "--runner", "claude=" + runner_arg(stub, "a"),
+            "--runner", "gpt=" + runner_arg(stub, "a"),
+            "--runner", "glm=" + runner_arg(stub, "b"),
+            "--runner", "kimi=" + runner_arg(stub, "tie"),
+        ],
+        roster=roster,
+    )
+    assert result.returncode == 0, result.stderr
+
+    campaign = tmp_path / "campaign"
+    campaign.mkdir()
+    assemble_match.assemble(
+        materials / "commitment.json", out_dir / "votes", campaign,
+        CAMPAIGN_ID, IDEA_A, IDEA_B, materials_dir=materials,
+    )
+
+    patched_prompts = tmp_path / "prompts_variant"
+    shutil.copytree(run_panel.PROMPTS_DIR, patched_prompts)
+    system_path = patched_prompts / "judge_system.md"
+    system_path.write_text(
+        system_path.read_text(encoding="utf-8")
+        + "\nOne extra system-prompt sentence.\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(run_panel, "PROMPTS_DIR", patched_prompts)
+    campaign2 = tmp_path / "campaign2"
+    campaign2.mkdir()
+    with pytest.raises(assemble_match.MatchError, match="no longer rebuild"):
+        assemble_match.assemble(
+            materials / "commitment.json", out_dir / "votes", campaign2,
+            CAMPAIGN_ID, IDEA_A, IDEA_B, materials_dir=materials,
+        )
 
 
 def test_render_prompt_only(tmp_path):
@@ -1007,6 +1152,129 @@ def test_distinct_runner_commands_pass_the_independence_guard(tmp_path):
     )
     assert result.returncode == 2
     assert "match is terminated" in result.stderr
+
+
+RUNNER_SCRIPT_STUB = """#!/bin/sh
+# Minimal stand-in for a direct runner script (kimi/opencode/gemini CLI
+# wrappers): parse --out, write a fixed vote there, ignore everything else.
+out=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --out) out="$2"; shift 2 ;;
+    *) shift ;;
+  esac
+done
+{
+  echo '```json'
+  echo '{"vote": "%s", "anchored_arguments": [{"argument": "runner stub point", "anchor_type": "computation", "anchor_ref": "artifact://campaign/toy/computations/stub.json"}], "unanchored_arguments_discarded": 0}'
+  echo '```'
+} > "$out"
+"""
+
+
+def test_failed_override_seat_does_not_taint_independent_runners(tmp_path):
+    # The independence stamp describes the panel that actually VOTED. Here
+    # the counted votes are the injected native seat plus two roster-driven
+    # direct-runner seats redirected (via IDEA_PAIRWISE_*_RUNNER) at two
+    # physically distinct scripts -- signatures the collision check vouched
+    # for. The one --runner override seat (gpt) fails and contributes no
+    # vote, so it must not stamp independent_runners = false on a tally it
+    # took no part in. (An override seat that DOES vote still taints the
+    # stamp: an override command is not mechanically comparable to
+    # roster-resolved seats.)
+    materials, _ = build_materials(tmp_path)
+    roster = write_roster(tmp_path)
+
+    # Fake CLI binaries so the kimi/glm(opencode) families count as usable;
+    # keep /bin and /usr/bin for sh/bash.
+    fake_bin = tmp_path / "fake_bin"
+    fake_bin.mkdir()
+    for name in ("kimi", "opencode"):
+        exe = fake_bin / name
+        exe.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        exe.chmod(0o755)
+    path_value = "%s:/bin:/usr/bin" % fake_bin
+
+    runner_scripts = {}
+    for family, vote in (("kimi", "a"), ("glm", "b")):
+        script = tmp_path / ("runner_%s.sh" % family)
+        script.write_text(RUNNER_SCRIPT_STUB % vote, encoding="utf-8")
+        script.chmod(0o755)
+        runner_scripts[family] = script
+
+    garbage_stub = tmp_path / "stub_judge.py"
+    garbage_stub.write_text(STUB_SOURCE, encoding="utf-8")
+
+    injected = tmp_path / "native_reply.txt"
+    injected.write_text(
+        '{"vote": "a", "anchored_arguments": [], "unanchored_arguments_discarded": 0, '
+        '"judge_prompt_sha256": "%s"}\n' % compute_prompt_sha(materials),
+        encoding="utf-8",
+    )
+
+    out_dir = tmp_path / "panel"
+    result = run_panel_cli(
+        materials,
+        out_dir,
+        [
+            "--native-vote", str(injected),
+            "--runner", "gpt=" + runner_arg(garbage_stub, "garbage"),
+        ],
+        allow_shared_runners=False,
+        roster=roster,
+        env_extra={
+            "PATH": path_value,
+            "IDEA_PAIRWISE_KIMI_RUNNER": str(runner_scripts["kimi"]),
+            "IDEA_PAIRWISE_OPENCODE_RUNNER": str(runner_scripts["glm"]),
+        },
+    )
+    assert result.returncode == 0, result.stderr
+    report = json.loads((out_dir / "panel_run_report.json").read_text(encoding="utf-8"))
+    assert report["families_present"] == ["claude", "glm", "kimi"]
+    reasons = {item["family"]: item["reason"] for item in report["absent"]}
+    assert "gpt" in reasons
+    assert report["panel_valid"] is True
+    assert report["independent_runners"] is True
+
+
+def test_voted_override_seat_still_taints_independent_runners(tmp_path):
+    # The counterpart lock: when an override seat DOES vote, the stamp must
+    # be false -- an override command is an arbitrary template the collision
+    # check cannot compare against roster-resolved seats, so a tally
+    # containing its vote cannot be mechanically vouched for.
+    materials, _ = build_materials(tmp_path)
+    roster = write_roster(tmp_path)
+    fake_bin = tmp_path / "fake_bin"
+    fake_bin.mkdir()
+    for name in ("kimi", "opencode"):
+        exe = fake_bin / name
+        exe.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        exe.chmod(0o755)
+    runner_scripts = {}
+    for family, vote in (("kimi", "a"), ("glm", "b")):
+        script = tmp_path / ("runner_%s.sh" % family)
+        script.write_text(RUNNER_SCRIPT_STUB % vote, encoding="utf-8")
+        script.chmod(0o755)
+        runner_scripts[family] = script
+    voting_stub = tmp_path / "stub_judge.py"
+    voting_stub.write_text(STUB_SOURCE, encoding="utf-8")
+    out_dir = tmp_path / "panel"
+    result = run_panel_cli(
+        materials,
+        out_dir,
+        ["--runner", "gpt=" + runner_arg(voting_stub, "a")],
+        allow_shared_runners=False,
+        roster=roster,
+        env_extra={
+            "PATH": "%s:/bin:/usr/bin" % fake_bin,
+            "IDEA_PAIRWISE_KIMI_RUNNER": str(runner_scripts["kimi"]),
+            "IDEA_PAIRWISE_OPENCODE_RUNNER": str(runner_scripts["glm"]),
+        },
+    )
+    assert result.returncode == 0, result.stderr
+    report = json.loads((out_dir / "panel_run_report.json").read_text(encoding="utf-8"))
+    assert sorted(report["families_present"]) == ["glm", "gpt", "kimi"]
+    assert report["independent_runners"] is False
 
 
 def test_escape_hatch_stamps_independent_runners_false(tmp_path, stub):
