@@ -512,14 +512,24 @@ def write_clean_package(tmp_path):
     return tmp_path / "pkg"
 
 
-def write_fake_gaia_render(tmp_path, fixtures_dir, *, render_fails):
+def write_fake_gaia_render(tmp_path, fixtures_dir, *, render_fails, docs_writes=False):
     """Fake gaia that succeeds through infer (copying fixtures) and, for the
     render subcommands (`inspect starmap`, `run render`), either writes its
-    `--out` target or exits non-zero, per `render_fails`."""
+    `--out` target or exits non-zero, per `render_fails`. With `docs_writes`
+    the docs render actually writes docs/detailed-reasoning.md (the default
+    keeps the zero-exit/no-output shape the staleness test relies on)."""
     if render_fails:
         render_branch = '  echo "boom: renderer unavailable" >&2\n  exit 1'
     else:
         render_branch = '  [ -n "$out" ] && printf "<html></html>" > "$out"\n  exit 0'
+    if docs_writes and not render_fails:
+        docs_branch = (
+            '  mkdir -p "$last/docs"\n'
+            '  printf "#### worth\\n" > "$last/docs/detailed-reasoning.md"\n'
+            "  exit 0"
+        )
+    else:
+        docs_branch = render_branch
     fake = tmp_path / "fake-gaia-render"
     fake.write_text(
         "\n".join(
@@ -536,7 +546,7 @@ def write_fake_gaia_render(tmp_path, fixtures_dir, *, render_fails):
                 render_branch,
                 "fi",
                 'if [ "$1" = "run" ] && [ "$2" = "render" ]; then',
-                render_branch,
+                docs_branch,
                 "fi",
                 'if [ "$1" = "run" ] && [ "$2" = "infer" ]; then',
                 '  mkdir -p "$last/.gaia"',
@@ -621,3 +631,195 @@ def test_no_render_skips_rendering(tmp_path, fixtures_dir, capsys) -> None:
     assert not (package / "argument-graph.html").exists()
     assert not (package / "starmap.html").exists()
     assert "render" not in out.err
+
+
+def test_zero_exit_no_output_docs_render_leaves_no_stale_reasoning(
+    tmp_path, fixtures_dir, capsys
+) -> None:
+    # The fake gaia's success branch writes only --out targets; the docs
+    # render has no --out, so it exits 0 WITHOUT writing anything -- exactly
+    # the zero-exit/no-output shape. A stale detailed-reasoning.md seeded
+    # from "last run" must not survive it (it is removed before the render),
+    # so the fresh graph carries no deep-dive links to outdated reasoning.
+    package = write_clean_package(tmp_path)
+    fake_gaia = write_fake_gaia_render(tmp_path, fixtures_dir, render_fails=False)
+    docs = package / "docs"
+    docs.mkdir()
+    (docs / "detailed-reasoning.md").write_text("STALE", encoding="utf-8")
+    code = extract.main(
+        [
+            "--package", str(package),
+            "--project-root", str(tmp_path),
+            "--gaia-bin", str(fake_gaia),
+        ]
+    )
+    capsys.readouterr()
+    assert code == 0
+    assert not (docs / "detailed-reasoning.md").exists()
+    page = (package / "argument-graph.html").read_text(encoding="utf-8")
+    # The static JS template always mentions node.doc_href; the JSON key
+    # form only appears when some node actually carries a link.
+    assert '"doc_href":' not in page
+
+
+def test_cleanup_oserror_never_withholds_the_posterior(
+    tmp_path, fixtures_dir, capsys
+) -> None:
+    # Directories squatting on the cleanup targets make every unlink raise
+    # a real OSError (a non-empty directory cannot be unlinked). Optional
+    # rendering must warn and continue: the run still exits 0 and prints
+    # the sound posterior.
+    package = write_clean_package(tmp_path)
+    fake_gaia = write_fake_gaia_render(tmp_path, fixtures_dir, render_fails=False)
+    docs = package / "docs"
+    (docs / "detailed-reasoning.md").mkdir(parents=True)
+    (docs / "detailed-reasoning.md" / "occupant.txt").write_text("x", encoding="utf-8")
+    (package / "starmap.html").mkdir()
+    (package / "starmap.html" / "occupant.txt").write_text("x", encoding="utf-8")
+    code = extract.main(
+        [
+            "--package", str(package),
+            "--project-root", str(tmp_path),
+            "--gaia-bin", str(fake_gaia),
+        ]
+    )
+    out = capsys.readouterr()
+    assert code == 0
+    posterior = json.loads(out.out)
+    assert posterior["value"] == pytest.approx(0.8499370175790979)
+    assert "could not remove" in out.err
+    # The squatting directories genuinely remain; nothing pretended otherwise.
+    assert (docs / "detailed-reasoning.md").is_dir()
+    assert (package / "starmap.html").is_dir()
+
+
+def test_successful_docs_render_stamps_the_beliefs_generation(
+    tmp_path, fixtures_dir, capsys
+) -> None:
+    # After a successful docs render the pipeline writes the companion
+    # checksum binding the document to the CURRENT beliefs, and the fresh
+    # graph links the document.
+    import hashlib
+
+    package = write_clean_package(tmp_path)
+    fake_gaia = write_fake_gaia_render(
+        tmp_path, fixtures_dir, render_fails=False, docs_writes=True
+    )
+    code = extract.main(
+        [
+            "--package", str(package),
+            "--project-root", str(tmp_path),
+            "--gaia-bin", str(fake_gaia),
+        ]
+    )
+    capsys.readouterr()
+    assert code == 0
+    stamp = (package / "docs" / "detailed-reasoning.beliefs-sha256").read_text(
+        encoding="utf-8"
+    ).strip()
+    expected = "sha256:" + hashlib.sha256(
+        (package / ".gaia" / "beliefs.json").read_bytes()
+    ).hexdigest()
+    assert stamp == expected
+    page = (package / "argument-graph.html").read_text(encoding="utf-8")
+    assert '"doc_href":' in page
+
+
+def test_unremovable_survivor_is_never_restamped(
+    tmp_path, fixtures_dir, capsys, monkeypatch
+):
+    # The cross-generation trap: the pre-render cleanup FAILS while the
+    # directory stays writable (an immutable-flagged file, say), leaving
+    # last generation's document in place, and the zero-exit renderer
+    # writes nothing. The stamp step must recognize that the surviving
+    # bytes were not written by this run and refuse to stamp them with the
+    # current beliefs hash -- so the fresh graph carries no deep-dive link
+    # into another generation's reasoning. The unlink failure is injected
+    # for exactly one path (deletion fails, writing works), decoupling the
+    # two directions a directory-permission simulation would tie together.
+    from pathlib import Path as _Path
+
+    package = write_clean_package(tmp_path)
+    fake_gaia = write_fake_gaia_render(tmp_path, fixtures_dir, render_fails=False)
+    docs = package / "docs"
+    docs.mkdir()
+    survivor = docs / "detailed-reasoning.md"
+    survivor.write_text(
+        "#### worth\nLast generation's reasoning.\n", encoding="utf-8"
+    )
+
+    real_unlink = _Path.unlink
+
+    def stubborn_unlink(self, *args, **kwargs):
+        if self.name == "detailed-reasoning.md":
+            raise PermissionError(1, "Operation not permitted", str(self))
+        return real_unlink(self, *args, **kwargs)
+
+    monkeypatch.setattr(_Path, "unlink", stubborn_unlink)
+    code = extract.main(
+        [
+            "--package", str(package),
+            "--project-root", str(tmp_path),
+            "--gaia-bin", str(fake_gaia),
+        ]
+    )
+    out = capsys.readouterr()
+    assert code == 0
+    assert "could not remove" in out.err
+    # The survivor is still there (cleanup failed) but was NOT stamped.
+    assert survivor.is_file()
+    assert not (docs / "detailed-reasoning.beliefs-sha256").exists()
+    page = (package / "argument-graph.html").read_text(encoding="utf-8")
+    assert '"doc_href":' not in page
+
+
+def test_transient_preread_failure_never_stamps_the_survivor(
+    tmp_path, fixtures_dir, capsys, monkeypatch
+):
+    # The three-valued fingerprint: unlink fails (survivor stays), the
+    # PRE-render fingerprint read fails transiently (unknown state, not
+    # confirmed absence), the zero-exit renderer writes nothing, and the
+    # POST-render read succeeds. An unknown pre-state proves nothing, so
+    # the unchanged survivor must not be stamped as freshly written.
+    from pathlib import Path as _Path
+
+    package = write_clean_package(tmp_path)
+    fake_gaia = write_fake_gaia_render(tmp_path, fixtures_dir, render_fails=False)
+    docs = package / "docs"
+    docs.mkdir()
+    survivor = docs / "detailed-reasoning.md"
+    survivor.write_text(
+        "#### worth\nLast generation's reasoning.\n", encoding="utf-8"
+    )
+
+    real_unlink = _Path.unlink
+    real_read_bytes = _Path.read_bytes
+    reads = {"n": 0}
+
+    def stubborn_unlink(self, *args, **kwargs):
+        if self.name == "detailed-reasoning.md":
+            raise PermissionError(1, "Operation not permitted", str(self))
+        return real_unlink(self, *args, **kwargs)
+
+    def flaky_read_bytes(self):
+        if self.name == "detailed-reasoning.md":
+            reads["n"] += 1
+            if reads["n"] == 1:  # the pre-render fingerprint only
+                raise OSError(5, "Input/output error", str(self))
+        return real_read_bytes(self)
+
+    monkeypatch.setattr(_Path, "unlink", stubborn_unlink)
+    monkeypatch.setattr(_Path, "read_bytes", flaky_read_bytes)
+    code = extract.main(
+        [
+            "--package", str(package),
+            "--project-root", str(tmp_path),
+            "--gaia-bin", str(fake_gaia),
+        ]
+    )
+    capsys.readouterr()
+    assert code == 0
+    assert survivor.is_file()
+    assert not (docs / "detailed-reasoning.beliefs-sha256").exists()
+    page = (package / "argument-graph.html").read_text(encoding="utf-8")
+    assert '"doc_href":' not in page
