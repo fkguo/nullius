@@ -2,7 +2,6 @@
 artifact validation, rematch guard."""
 
 import copy
-import hashlib
 import json
 import subprocess
 import sys
@@ -784,7 +783,9 @@ def write_full_materials(materials_dir, commitment, word_cap=None, nodes=None):
         )
     texts, loaded_commitment = run_panel.load_materials(materials_dir, word_cap=word_cap)
     prompt = run_panel.render_judge_prompt(texts, loaded_commitment)
-    judge_prompt_sha256 = "sha256:" + hashlib.sha256(prompt.encode("utf-8")).hexdigest()
+    # The composite digest run_panel records (body + system prompt template
+    # + binding-block wording), via the one shared function.
+    judge_prompt_sha256 = run_panel.judge_prompt_sha256_of(prompt)
     return materials_dir, judge_prompt_sha256, word_cap
 
 

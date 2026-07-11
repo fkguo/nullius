@@ -59,8 +59,12 @@ MIN_FAMILIES distinct families were collected; otherwise this script exits
 nonzero and the match is terminated (assemble_match.py enforces the same
 floor independently).
 
-When the roster itself cannot field the cross-family floor (fewer available
-families than policy.cross_family_minimum), the panel degrades to NATIVE
+When the roster itself cannot field the cross-family floor (fewer USABLE
+families than policy.cross_family_minimum, where usable = declared
+available AND the runner's executable present on this machine, per
+docs/AGENTS_FILE.md; native always passes, and a --runner override
+replaces the roster runner so its family is usable regardless), the
+panel degrades to NATIVE
 SUBAGENT SEATS per the roster policy when_below_minimum = native_subagents:
 the host runs at least the floor's worth of independent subagent instances,
 each answering the rendered judge prompt blind, and injects one reply file
@@ -84,6 +88,7 @@ import json
 import os
 import re
 import shlex
+import shutil
 import subprocess
 import sys
 import unicodedata
@@ -104,8 +109,9 @@ MAX_ATTEMPTS = 2
 # The roster names the model families a panel can draw on, each family's
 # runner and model strings, per-family availability, and the degradation
 # policy. Discovery order: an explicit --roster path, then the project-level
-# <project root>/.nullius/agents.json found by walking up from the materials
-# directory, then the user-level ~/.nullius/agents.json, then the built-in
+# .nullius/agents.json found by walking up from the materials directory
+# (bounded by the first ancestor containing .git, per docs/AGENTS_FILE.md),
+# then the user-level ~/.nullius/agents.json, then the built-in
 # pure-native roster. A missing file is never an error (the next source is
 # used); a file that exists but does not parse or validate stops the run
 # loudly, because silently skipping a misconfigured roster would change panel
@@ -162,6 +168,32 @@ DIRECT_RUNNER_ENV = {
     "opencode": ("IDEA_PAIRWISE_OPENCODE_RUNNER", DEFAULT_OPENCODE_RUNNER),
     "gemini": ("IDEA_PAIRWISE_GEMINI_RUNNER", DEFAULT_GEMINI_RUNNER),
 }
+
+# The CLI executable each non-native runner ultimately calls, probed with
+# shutil.which for the usable-family check below. docs/AGENTS_FILE.md defines
+# a family as USABLE when it is declared available AND its runner's
+# executable actually exists on the machine ("native" always passes);
+# review-swarm and derivation-verify probe the same binaries in their own
+# self-contained resolvers.
+RUNNER_BINARIES = {
+    "codex": "codex",
+    "claude-cli": "claude",
+    "opencode": "opencode",
+    "gemini": "gemini",
+    "kimi": "kimi",
+}
+
+
+def runner_executable_exists(runner):
+    """Whether the runner's CLI executable is present on this machine. The
+    native runner is the host itself and always passes. The probe is the
+    CLI binary, not this skill's runner script: the script is part of the
+    repository, while the binary is the machine-dependent prerequisite the
+    usable definition is about."""
+    if runner == "native":
+        return True
+    binary = RUNNER_BINARIES.get(runner)
+    return bool(binary and shutil.which(binary))
 
 
 def builtin_roster():
@@ -382,13 +414,28 @@ def load_roster_file(path):
 
 
 def find_project_roster(start_dir):
-    """Walk up from start_dir to the filesystem root and return the first
-    <ancestor>/.nullius/agents.json that exists, else None."""
+    """Return <project>/.nullius/agents.json for the project containing
+    start_dir, where the project root is the first ancestor containing .git
+    (a .git FILE, as in a linked worktree, counts too) — the definition
+    docs/AGENTS_FILE.md gives, and the same logic review-swarm's discovery
+    uses. The walk starts from the materials directory so the roster follows
+    the campaign the materials belong to, but only the project root is
+    consulted. The previous unbounded walk treated ANY ancestor's
+    .nullius/agents.json as project-level; in particular, a walk passing
+    through $HOME reported the user-level ~/.nullius/agents.json as
+    source="project". Returns None when start_dir is not inside any git
+    project, or the project carries no roster file; the user-level roster
+    then applies in its normal place in the discovery order.
+
+    One edge is resolved a level up, in resolve_roster: if $HOME is itself
+    a git repository (a dotfiles repo with ~/.git) and the walk lands
+    exactly on ~/.nullius/agents.json, that file IS the user-level roster
+    and is reported as source="user", not "project"."""
     current = Path(start_dir).resolve()
     for ancestor in [current] + list(current.parents):
-        candidate = ancestor / ROSTER_FILE_RELATIVE
-        if candidate.is_file():
-            return candidate
+        if (ancestor / ".git").exists():
+            candidate = ancestor / ROSTER_FILE_RELATIVE
+            return candidate if candidate.is_file() else None
     return None
 
 
@@ -398,11 +445,40 @@ def resolve_roster(explicit_path, start_dir, home=None):
     source is one of "explicit", "project", "user", "builtin"; path is the
     file used, or None for the built-in roster. An explicit path must exist;
     for the two discovered locations a missing file just falls through.
+
+    When the .git-bounded project walk lands on the very same physical file
+    as the user-level roster -- a $HOME that is itself a git repository (a
+    dotfiles repo with ~/.git) contains ~/.nullius/agents.json inside its
+    own tree -- the file is reported as source="user": the user-level
+    roster is machine-local configuration (which CLIs this machine has,
+    their model strings) whatever repository happens to contain $HOME, and
+    normally is not even tracked. The identity check is by file (samefile),
+    so a symlink alias of the same file cannot re-earn the project label.
     """
     if explicit_path is not None:
         return load_roster_file(explicit_path), "explicit", Path(explicit_path)
     project = find_project_roster(start_dir)
     if project is not None:
+        # The identity probe consults the LOWER-priority user path only to
+        # decide the label, so no failure in it may break a valid project
+        # resolution: an unresolvable home directory (Path.home raises
+        # RuntimeError) or a probe that cannot stat (OSError from samefile
+        # or the filesystem) simply means "not the user file". Only the
+        # probe is guarded; loading the roster stays outside the guard, so
+        # a file that IS the user roster but fails to parse still stops
+        # the run loudly.
+        user_roster = None
+        same_as_user = False
+        try:
+            user = Path(home) if home is not None else Path.home()
+            user_roster = user / ROSTER_FILE_RELATIVE
+            same_as_user = user_roster.is_file() and os.path.samefile(
+                project, user_roster
+            )
+        except (OSError, RuntimeError):
+            same_as_user = False
+        if same_as_user:
+            return load_roster_file(user_roster), "user", user_roster
         return load_roster_file(project), "project", project
     user = Path(home) if home is not None else Path.home()
     user_roster = user / ROSTER_FILE_RELATIVE
@@ -440,10 +516,12 @@ ANCHOR_TYPES = ("literature", "computation")
 # separate invocation from the one that collects it, so the reply must
 # carry proof of WHICH rendered prompt it answered: the subagent echoes
 # this hash inside its vote JSON, and collection verifies the echo against
-# the current body hash (collect_injected_vote). CLI seats receive their
-# prompt and return their reply within one invocation, so they carry no
-# echo. clean_vote_payload drops the extra key after verification, keeping
-# the stored vote record and the pairwise_match_v1 artifact unchanged.
+# the current recorded digest (judge_prompt_sha256_of, which covers the
+# rendered body, the system prompt template, and this block's own wording;
+# see collect_injected_vote). CLI seats receive their prompt and return
+# their reply within one invocation, so they carry no echo.
+# clean_vote_payload drops the extra key after verification, keeping the
+# stored vote record and the pairwise_match_v1 artifact unchanged.
 INJECTED_BINDING_TEMPLATE = (
     "\n---\n\n"
     "Native-seat binding — the one exception to the exactly-three-keys rule\n"
@@ -841,6 +919,39 @@ def render_judge_prompt(texts, commitment):
     )
 
 
+def judge_prompt_sha256_of(body_text, system_text=None):
+    """The digest recorded as judge_prompt_sha256 in the panel report,
+    embedded in the on-disk binding block, and echoed by native replies.
+
+    It covers the three code-and-materials inputs a judge's answer depends
+    on: the rendered judge-prompt BODY (materials + judge_prompt.md
+    template), the judge SYSTEM prompt read from the skill's prompts/
+    template (every seat answers under it), and the native binding-block
+    TEMPLATE (the rendered block embeds this very digest, so its constant
+    wording is the part a hash can cover without self-reference). A digest
+    over the body alone left the other two out: a code upgrade changing the
+    system prompt or the binding-block wording kept old replies echo-valid
+    against text the judge never saw.
+
+    Each part is hashed separately and the three digests are hashed
+    together (fixed-length pieces, so no concatenation ambiguity between
+    parts). assemble_match.py recomputes this same digest from the current
+    materials plus the repository's templates via this same function, which
+    is what keeps collection and assembly in lockstep.
+
+    system_text lets the panel run pass the exact system-prompt text it is
+    about to hand the judges (read once, hashed and written as the same
+    bytes); when omitted, the current prompts/ template is read -- the
+    assembly path, where "the repository's current template" is precisely
+    the comparison intended."""
+    if system_text is None:
+        system_text = (PROMPTS_DIR / "judge_system.md").read_text(encoding="utf-8")
+    digest = hashlib.sha256()
+    for part in (body_text, system_text, INJECTED_BINDING_TEMPLATE):
+        digest.update(hashlib.sha256(part.encode("utf-8")).digest())
+    return "sha256:" + digest.hexdigest()
+
+
 def render_statement_prompt(label, card_json_text, commitment, word_cap):
     template = (PROMPTS_DIR / "statement_prompt.md").read_text(encoding="utf-8")
     card = json.loads(card_json_text)
@@ -1176,9 +1287,11 @@ def collect_injected_vote(vote_file, expected_prompt_sha256):
     """Parse a host-provided judge reply (a native seat). No retry is possible
     for an injected file; failures make the seat absent.
 
-    The reply must echo the judge-prompt body hash it answered
+    The reply must echo the recorded prompt digest it answered
     (judge_prompt_sha256, per the binding block appended to the on-disk
-    judge_prompt.md); a missing or mismatched echo means the reply was
+    judge_prompt.md; the digest covers the rendered body and the two
+    code-owned templates -- see judge_prompt_sha256_of); a missing or
+    mismatched echo means the reply was
     formed against some other rendering -- an earlier one, a different
     out-dir's, or none at all -- and the seat fails rather than binding a
     reply to a prompt it never saw. clean_vote_payload drops the key after
@@ -1231,6 +1344,34 @@ def runner_command_signature(command):
     return tuple(tokens)
 
 
+def _script_identity(path):
+    """Identity element for a directly invoked runner script inside an
+    execution signature. For a script that exists, the (st_dev, st_ino) pair
+    from os.stat (which follows symlinks): the file's PHYSICAL identity, so
+    every alias of one script collides — a symlink, a relative or dotted
+    path, a hardlink (a second directory entry realpath cannot fold, since
+    each name is its own real path), and two case spellings of one path on a
+    case-insensitive filesystem (the macOS default), where the realpath
+    STRINGS differ while the file is one. For a path that names no file
+    (an unbuilt runner), there is no file identity; fall back to the
+    realpath string, which still folds symlink/relative/dotted aliases and
+    never raises. The two forms carry distinct leading tags so an inode
+    pair can never accidentally equal a path string.
+
+    Known boundaries: the identity is read at the pre-dispatch check, so a
+    script replaced between the check and the seat actually running is not
+    re-verified (single-operator local CLI; the check is a guardrail, not a
+    security boundary against a concurrent adversary). And on filesystems
+    whose stat does not give every file a stable inode number (st_ino = 0),
+    distinct scripts could collide; this toolchain's runner scripts are
+    POSIX shell and the supported platforms give real inode numbers."""
+    try:
+        stat = os.stat(path)
+    except OSError:
+        return ("path", os.path.realpath(str(path)))
+    return ("inode", stat.st_dev, stat.st_ino)
+
+
 def resolve_execution_signature(family, roster, overrides, specs_override):
     """Return the true underlying execution identity for a family seat: the
     --runner override's command signature when the family is overridden
@@ -1244,15 +1385,17 @@ def resolve_execution_signature(family, roster, overrides, specs_override):
     escapes parse_roster's roster-only view.
 
     For a kimi/opencode/gemini family, the signature also carries the
-    ACTUAL resolved runner-script path (following its IDEA_PAIRWISE_*_RUNNER
-    env override, exactly as direct_runner_path does before invoking it),
-    not just the runner label: an operator who redirects two different
-    dedicated runner labels' env vars at the same literal script is caught
-    the same way a roster (runner, model) collision is, even though
-    parse_roster's static check cannot see an env var. For codex/claude-cli
-    (launcher-routed), the launcher backend tag is carried instead of a
-    resolved script path: review-swarm's own deeper config resolution is
-    not replicated here.
+    ACTUAL resolved runner script's identity (following its
+    IDEA_PAIRWISE_*_RUNNER env override, exactly as direct_runner_path does
+    before invoking it), not just the runner label: an operator who
+    redirects two different dedicated runner labels' env vars at the same
+    physical script — via the literal path, a symlink, a hardlink, or two
+    case spellings on a case-insensitive filesystem — is caught the same
+    way a roster (runner, model) collision is, even though parse_roster's
+    static check cannot see an env var (see _script_identity). For
+    codex/claude-cli (launcher-routed), the launcher backend tag is carried
+    instead of a script identity: review-swarm's own deeper config
+    resolution is not replicated here.
 
     Known boundary: the override and roster branches are tagged with
     different leading elements ("runner_override" vs "roster") and are
@@ -1277,15 +1420,11 @@ def resolve_execution_signature(family, roster, overrides, specs_override):
         # label: two DIFFERENT dedicated runner labels (e.g. kimi and
         # gemini) whose env vars happen to resolve to the identical script
         # path must collide on that path, not stay apart because their
-        # labels differ. os.path.realpath canonicalizes the comparison so a
-        # symlink, a relative form, or a path with ".." segments naming the
-        # same physical script still collides (realpath leaves a
-        # nonexistent path as-is after normalization, so this stays a pure
-        # comparison aid and never raises on an unbuilt path).
+        # labels differ.
         return (
             "roster",
             "direct_runner",
-            os.path.realpath(str(direct_runner_path(runner))),
+            _script_identity(direct_runner_path(runner)),
             model,
         )
     if runner in LAUNCHER_BACKENDS:
@@ -1352,7 +1491,8 @@ def main(argv=None):
         default=None,
         help="Explicit agent roster file (agents.json, schema version 1). "
         "When omitted, the roster is discovered by walking up from the "
-        "materials directory to a project-level .nullius/agents.json, then "
+        "materials directory to a project-level .nullius/agents.json "
+        "(the walk stops at the first directory containing .git), then "
         "the user-level ~/.nullius/agents.json, then the built-in "
         "pure-native roster.",
     )
@@ -1458,6 +1598,20 @@ def _unavailable_reason(entry):
     return reason
 
 
+def _executable_missing_reason(entry):
+    # parse_roster restricts runner to RUNNER_LABELS, so the lookup cannot
+    # actually miss for a parsed roster; the fallback just keeps the message
+    # honest if that invariant ever changes.
+    binary = RUNNER_BINARIES.get(entry["runner"]) or "<no known binary>"
+    return (
+        "declared available in the roster, but the %s runner's executable "
+        "(%s) is not present on this machine; a family is usable only when "
+        "its runner executable exists (docs/AGENTS_FILE.md), so it is "
+        "honestly absent, never substituted"
+        % (entry["runner"], binary)
+    )
+
+
 def _run(args):
     materials_dir = Path(args.materials_dir)
 
@@ -1507,22 +1661,26 @@ def _run(args):
     judge_prompt_path = out_dir / "judge_prompt.md"
     judge_system_path = out_dir / "judge_system.md"
     judge_prompt_text = render_judge_prompt(texts, commitment)
-    # The hash covers the rendered BODY (what assembly can rebuild from the
-    # materials alone); it is recorded in the report so assembly can rebuild
-    # this exact text from the CURRENT materials and refuse to assemble
-    # votes if the materials moved since this panel ran (see the cross-check
-    # in assemble_match.py's read_panel_report).
-    judge_prompt_sha256 = "sha256:" + hashlib.sha256(
-        judge_prompt_text.encode("utf-8")
-    ).hexdigest()
+    # The recorded hash covers the rendered body plus the two code-owned
+    # templates a judge's answer depends on (the system prompt and the
+    # binding-block wording; see judge_prompt_sha256_of). Assembly rebuilds
+    # the same digest from the CURRENT materials and templates and refuses
+    # to assemble votes if either moved since this panel ran (see the
+    # cross-check in assemble_match.py's read_panel_report). The system
+    # prompt is read ONCE here: the digest and the judge_system.md written
+    # below use the same bytes, so the recorded hash can never cover a
+    # different system-prompt text than the judges receive.
+    judge_system_text = (PROMPTS_DIR / "judge_system.md").read_text(encoding="utf-8")
+    judge_prompt_sha256 = judge_prompt_sha256_of(judge_prompt_text, judge_system_text)
     # The on-disk file a host subagent reads carries one extra block after
-    # the body: an instruction to echo the body hash back inside its vote
-    # JSON. An injected native reply is formed in a separate invocation from
-    # the one that collects it, so the reply itself must carry proof of
+    # the body: an instruction to echo the recorded digest back inside its
+    # vote JSON. An injected native reply is formed in a separate invocation
+    # from the one that collects it, so the reply itself must carry proof of
     # WHICH rendered prompt it answered; collection verifies the echoed
-    # hash against the current body (see collect_injected_vote). The block
-    # is a deterministic function of the body, so comparing full file texts
-    # below remains a pure materials-change detector.
+    # hash against the current digest (see collect_injected_vote). The block
+    # is a deterministic function of the digest's inputs (materials and the
+    # two templates), so comparing full file texts below detects exactly a
+    # change in what the judges would be answering.
     judge_prompt_file_text = judge_prompt_text + INJECTED_BINDING_TEMPLATE % judge_prompt_sha256
     # The documented native-vote workflow is two invocations: one
     # --render-prompt-only pass a host subagent reads and answers from, then
@@ -1554,9 +1712,7 @@ def _run(args):
             "then retry --native-vote" % judge_prompt_path
         )
     judge_prompt_path.write_text(judge_prompt_file_text, encoding="utf-8")
-    judge_system_path.write_text(
-        (PROMPTS_DIR / "judge_system.md").read_text(encoding="utf-8"), encoding="utf-8"
-    )
+    judge_system_path.write_text(judge_system_text, encoding="utf-8")
     print("rendered %s" % judge_prompt_path)
     if args.render_prompt_only:
         return 0
@@ -1600,12 +1756,28 @@ def _run(args):
     # into single-family mode by requesting fewer families (that request just
     # runs a cross-family panel that fails the vote floor). Degradation is
     # for a roster that genuinely cannot field the floor.
-    roster_available = [
-        label for label, entry in roster["families"].items() if entry["available"]
+    #
+    # The decision counts USABLE families, per docs/AGENTS_FILE.md: declared
+    # available AND the runner's executable present on this machine (native
+    # always passes). Counting declared availability alone would let a
+    # machine without the CLIs nominally run a cross-family panel whose
+    # seats all fail at run time and terminate at the vote floor, instead of
+    # honestly degrading to native subagent seats per when_below_minimum. A
+    # family with a --runner override is usable regardless of the probe: the
+    # override replaces the roster runner entirely, so the roster runner's
+    # executable is not what would run.
+    def family_usable(label, entry):
+        if not entry["available"]:
+            return False
+        return label in overrides or runner_executable_exists(entry["runner"])
+
+    roster_usable = [
+        label for label, entry in roster["families"].items()
+        if family_usable(label, entry)
     ]
-    available_requested = [f for f in families if roster["families"][f]["available"]]
+    usable_requested = [f for f in families if f in roster_usable]
     floor = roster["cross_family_minimum"]
-    degraded = len(roster_available) < floor
+    degraded = len(roster_usable) < floor
 
     multi_task = Path(os.environ.get("IDEA_PAIRWISE_MULTI_TASK", DEFAULT_MULTI_TASK))
 
@@ -1672,10 +1844,12 @@ def _run(args):
             "independence": independence,
             "independent_runners": independent_runners,
             "commitment_hash": commitment["commitment_hash"],
-            # The exact judge-prompt text this panel voted on, and the
-            # word_cap it was rendered with, so assembly can rebuild the same
-            # text from the CURRENT materials_dir and refuse to assemble
-            # votes if materials moved since this panel ran (see
+            # The digest of the judge prompt this panel voted on (rendered
+            # body + system prompt template + binding-block wording; see
+            # judge_prompt_sha256_of) and the word_cap it was rendered
+            # with, so assembly can rebuild the same digest from the
+            # CURRENT materials_dir and templates and refuse to assemble
+            # votes if either moved since this panel ran (see
             # read_panel_report in assemble_match.py).
             "judge_prompt_sha256": judge_prompt_sha256,
             "word_cap": args.word_cap,
@@ -1707,7 +1881,7 @@ def _run(args):
 
     if degraded:
         return _run_native_panel(
-            roster, families, roster_available, floor, native_family,
+            roster, families, roster_usable, floor, native_family,
             native_votes, overrides, specs_override, absent, seats_failed,
             store_vote, finish, votes, judge_prompt_path, judge_system_path,
             judge_prompt_sha256,
@@ -1715,7 +1889,7 @@ def _run(args):
 
     # ------------------------------------------------------------------
     # Cross-family panel (the roster fields at least the floor's worth of
-    # available families).
+    # usable families).
     # ------------------------------------------------------------------
     if len(native_votes) > 1:
         raise PanelError(
@@ -1747,20 +1921,25 @@ def _run(args):
             return
         store_vote(family, family, payload, model_label, detail)
 
-    # Families the roster declares unavailable are absent up front and are
-    # never invoked; their reason carries the roster's own notes.
+    # Families that are not usable are absent up front and are never
+    # invoked: a roster-declared unavailable family carries the roster's own
+    # notes, and a family whose runner executable is missing carries the
+    # probe's reason.
     for family in families:
-        if family not in available_requested:
-            absent.append(
-                {"family": family, "reason": _unavailable_reason(roster["families"][family])}
-            )
+        if family not in usable_requested:
+            entry = roster["families"][family]
+            if not entry["available"]:
+                reason = _unavailable_reason(entry)
+            else:
+                reason = _executable_missing_reason(entry)
+            absent.append({"family": family, "reason": reason})
 
     # The native seat is injected inline (no subprocess) unless a --runner
     # override replaces it for a test. Its recorded model is the roster's
     # declared model string for the native family (the model the host is
     # expected to run the subagent as); --model-label pins a different one.
-    runner_families = list(available_requested)
-    if native_family in available_requested and not overrides.get(native_family):
+    runner_families = list(usable_requested)
+    if native_family in usable_requested and not overrides.get(native_family):
         runner_families.remove(native_family)
         if native_votes:
             payload, failure = collect_injected_vote(native_votes[0], judge_prompt_sha256)
@@ -1797,17 +1976,6 @@ def _run(args):
         for family in runner_families
     }
     independent_runners, _shared = check_runner_independence(execution_signatures, allow_shared)
-    # --runner is a test/custom-runner escape hatch, and an override command
-    # is an arbitrary shell template this script deliberately does not parse
-    # deeply enough to compare against roster-resolved seats (the two
-    # signature namespaces are incomparable by design). So the moment ANY
-    # participating seat runs through an override, the panel's independence
-    # can no longer be vouched for mechanically -- stamp it false rather
-    # than let a mixed run carry a claim the check cannot actually back.
-    # The collision check above still runs first, so overrides that
-    # literally share one command are still refused outright.
-    if any(family in overrides for family in runner_families):
-        independent_runners = False
 
     def worker(family):
         family_dir = raw_dir / family
@@ -1837,6 +2005,21 @@ def _run(args):
             ):
                 handle_result(family, payload, model_label, failure, detail)
 
+    # --runner is a test/custom-runner escape hatch, and an override command
+    # is an arbitrary shell template this script deliberately does not parse
+    # deeply enough to compare against roster-resolved seats (the two
+    # signature namespaces are incomparable by design). So when an
+    # overridden seat's vote is COUNTED, the panel's independence can no
+    # longer be vouched for mechanically -- stamp it false rather than let
+    # a mixed tally carry a claim the check cannot actually back. The stamp
+    # describes the panel that actually voted, so an override seat that
+    # failed and contributed nothing to the tally does not taint the
+    # remaining, roster-resolved votes (the collision check above already
+    # ran over every dispatched seat, overrides included, and literal
+    # shared commands were refused outright before any seat ran).
+    if any(family in overrides for family in votes):
+        independent_runners = False
+
     panel_valid = len(votes) >= floor
     finish("cross_family", independent_runners, panel_valid, {})
     if not panel_valid:
@@ -1851,22 +2034,23 @@ def _run(args):
     return 0
 
 
-def _run_native_panel(roster, families, roster_available, floor, native_family,
+def _run_native_panel(roster, families, roster_usable, floor, native_family,
                       native_votes, overrides, specs_override, absent,
                       seats_failed, store_vote, finish, votes,
                       judge_prompt_path, judge_system_path,
                       judge_prompt_sha256):
-    """Degraded panel: the roster cannot field the cross-family floor, so per
-    policy when_below_minimum = native_subagents the seats are independent
-    host subagent instances of the roster's native-runner family, one injected
-    reply file per seat. The report and the artifact both carry independence =
-    "single_family" and independent_runners = false, so this panel is never
-    mistaken for a cross-family one."""
+    """Degraded panel: the roster cannot field the cross-family floor with
+    USABLE families (declared available AND runner executable present), so
+    per policy when_below_minimum = native_subagents the seats are
+    independent host subagent instances of the roster's native-runner
+    family, one injected reply file per seat. The report and the artifact
+    both carry independence = "single_family" and independent_runners =
+    false, so this panel is never mistaken for a cross-family one."""
     if overrides or specs_override:
         raise PanelError(
-            "the roster fields %d available families of the %d required; the "
+            "the roster fields %d usable families of the %d required; the "
             "panel degrades to native subagent seats, which take no --runner "
-            "or --model-spec" % (len(roster_available), floor)
+            "or --model-spec" % (len(roster_usable), floor)
         )
     if native_family is None or not roster["families"][native_family]["available"]:
         detail = (
@@ -1874,9 +2058,9 @@ def _run_native_panel(roster, families, roster_available, floor, native_family,
             else "declares its native-runner family %r unavailable" % native_family
         )
         raise PanelError(
-            "the roster fields %d available families of the %d required and "
+            "the roster fields %d usable families of the %d required and "
             "%s; the panel cannot run"
-            % (len(roster_available), floor, detail)
+            % (len(roster_usable), floor, detail)
         )
 
     # Two seats fed from the same reply cannot be independent: refuse a file
@@ -1888,19 +2072,22 @@ def _run_native_panel(roster, families, roster_available, floor, native_family,
             "every seat needs its own subagent's reply file"
         )
 
-    # Every requested family except the native seat is absent, with the reason
-    # split between roster-declared unavailability and the degradation itself.
+    # Every requested family except the native seat is absent, with the
+    # reason split between roster-declared unavailability, a missing runner
+    # executable, and the degradation itself.
     for family in families:
         if family == native_family:
             continue
         entry = roster["families"][family]
         if not entry["available"]:
             reason = _unavailable_reason(entry)
+        elif not runner_executable_exists(entry["runner"]):
+            reason = _executable_missing_reason(entry)
         else:
             reason = (
-                "cross-family floor not met (%d of %d available); the panel "
+                "cross-family floor not met (%d of %d usable); the panel "
                 "degraded to native subagent seats and this seat was not run"
-                % (len(roster_available), floor)
+                % (len(roster_usable), floor)
             )
         absent.append({"family": family, "reason": reason})
 
@@ -1909,15 +2096,16 @@ def _run_native_panel(roster, families, roster_available, floor, native_family,
     if len(native_votes) < floor:
         finish("single_family", False, False, dict(extra, seats_failed=seats_failed))
         print(
-            "cross-family floor not met: the roster fields %d available "
-            "families of the %d required (policy when_below_minimum = "
+            "cross-family floor not met: the roster fields %d usable "
+            "families of the %d required (usable = declared available with "
+            "the runner executable present; policy when_below_minimum = "
             "native_subagents). Run %d independent host subagent seats "
             "(roster model for the native family: %s), each answering %s "
             "(system prompt %s) blind to the other seats; save each seat's "
             "raw reply to its own file and re-run this command with one "
             "--native-vote FILE per seat (%d file(s) given so far)."
             % (
-                len(roster_available), floor, floor, native_model,
+                len(roster_usable), floor, floor, native_model,
                 judge_prompt_path, judge_system_path, len(native_votes),
             ),
             file=sys.stderr,

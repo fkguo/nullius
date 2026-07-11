@@ -762,17 +762,23 @@ def read_panel_report(votes_dir, materials_dir=None):
     artifact that silently omitted the composition record could hide a
     stub-backed or degraded panel.
 
-    The report also carries judge_prompt_sha256 and word_cap: the sha256 of
-    the exact judge-prompt text this panel voted on, and the word_cap it was
-    rendered with. When materials_dir is given, that same text is REBUILT
-    from the materials currently on disk (the identical deterministic
-    renderer run_panel.py itself uses) and its hash compared against the
-    recorded one. Without this check, editing the source materials AFTER a
-    panel already voted leaves no detectable trace: the existing statement
-    cross-check binds the CURRENT materials to the commitment and idea ids,
-    but never to what the judges actually read, so a report/votes pair from
-    before the edit would still assemble cleanly against the edited
-    materials. A mismatch here means the panel is stale and must be re-run.
+    The report also carries judge_prompt_sha256 and word_cap: the digest of
+    the judge prompt this panel voted on (the rendered body plus the two
+    code-owned templates a judge's answer depends on -- the system prompt
+    and the native binding-block wording; see judge_prompt_sha256_of in
+    run_panel.py), and the word_cap it was rendered with. When materials_dir
+    is given, the same digest is REBUILT from the materials currently on
+    disk and the repository's current templates (the identical deterministic
+    renderer and digest function run_panel.py itself uses) and compared
+    against the recorded one. Without this check, editing the source
+    materials AFTER a panel already voted leaves no detectable trace: the
+    existing statement cross-check binds the CURRENT materials to the
+    commitment and idea ids, but never to what the judges actually read, so
+    a report/votes pair from before the edit would still assemble cleanly
+    against the edited materials. The same applies to the templates: judges
+    answered under the system prompt and binding-block wording current at
+    collection time, so a template change equally makes the panel stale. A
+    mismatch here means the panel must be re-run.
 
     Known boundary: this is a single-operator, sequential local CLI tool
     with no file locking anywhere in its state (matching the rest of this
@@ -905,9 +911,11 @@ def read_panel_report(votes_dir, materials_dir=None):
                 % (report_path, materials_dir, exc)
             )
         rebuilt_prompt = run_panel.render_judge_prompt(current_texts, current_commitment)
-        rebuilt_sha256 = "sha256:" + hashlib.sha256(
-            rebuilt_prompt.encode("utf-8")
-        ).hexdigest()
+        # The same composite digest run_panel records: rendered body plus
+        # the system-prompt template and the binding-block wording, via the
+        # one shared function (judge_prompt_sha256_of), so collection and
+        # assembly can never drift apart on what the hash covers.
+        rebuilt_sha256 = run_panel.judge_prompt_sha256_of(rebuilt_prompt)
         if rebuilt_sha256 != judge_prompt_sha256:
             raise MatchError(
                 "%s: materials in %s no longer rebuild the judge prompt this "

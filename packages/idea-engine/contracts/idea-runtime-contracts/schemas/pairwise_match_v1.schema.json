@@ -224,7 +224,7 @@
     },
     "independent_runners": {
       "type": "boolean",
-      "description": "Whether the panel seats resolved to genuinely distinct underlying runner commands. False marks a stub-backed, single-command, or degraded native subagent panel whose votes carry no real cross-family diversity, so the belief layer can weight the observation accordingly. Read from the panel run report at assembly time."
+      "description": "Whether the counted votes' independence was mechanically established: distinct underlying runner commands for every counted seat, none of them a --runner override. False marks a stub-backed or single-command panel, a degraded native subagent panel, or a tally containing an override seat's vote (an override command cannot be mechanically compared against roster-resolved seats, so its independence is unvouched even when it is in fact a distinct backend). The belief layer weights the observation accordingly. Read from the panel run report at assembly time."
     },
     "statement_binding": {
       "type": "object",

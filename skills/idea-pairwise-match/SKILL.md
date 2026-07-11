@@ -179,8 +179,16 @@ string come from the third-party agent roster — an agents.json file, schema
 version 1. Discovery order, first hit wins:
 
 1. an explicit `--roster PATH` argument;
-2. the project-level roster: the first `.nullius/agents.json` found walking
-   up from the materials directory toward the filesystem root;
+2. the project-level roster: `<project>/.nullius/agents.json`, where the
+   project root is the first directory containing `.git` found walking up
+   from the materials directory (docs/AGENTS_FILE.md's definition; the walk
+   starts at the materials directory so the roster follows the campaign the
+   materials belong to). A materials directory outside any git project has
+   no project-level roster. If the walk lands on the same physical file as
+   the user-level roster (a `$HOME` that is itself a git repository, e.g. a
+   dotfiles repo), the file is reported as `source="user"`: the user-level
+   roster is machine-local configuration whatever repository happens to
+   contain `$HOME`;
 3. the user-level roster `~/.nullius/agents.json`;
 4. the built-in pure-native roster: one native seat, recorded under the
    neutral family label `host`, because `run_panel.py` cannot verify which
@@ -236,7 +244,10 @@ python3 scripts/run_panel.py --materials-dir WORK --out-dir WORK/panel \
 Because a native reply is formed in one invocation and collected by a
 later one, the reply must prove which rendered prompt it answered: the
 rendered judge prompt file ends with a binding block naming the prompt's
-body hash, the subagent copies that hash into its vote JSON as a
+recorded digest (it covers the rendered prompt body, the judge system
+prompt template, and the binding block's own wording, so a code upgrade
+changing any of the three invalidates replies formed against the old
+text), the subagent copies that hash into its vote JSON as a
 judge_prompt_sha256 key, and collection verifies the echo against the
 current rendering. A reply with no echo, or echoing a different
 rendering's hash, fails its seat (recorded reason, seat absent); the same
@@ -265,16 +276,23 @@ Validity and honest degradation:
 - With exactly the floor, proceed, and keep the absent families on record.
 - A family the roster declares `available: false` is recorded absent up
   front, with the roster's own notes as the reason, and is never invoked.
-- If at least the floor's worth of families is available but too many seats
+- A family counts as **usable** only when it is declared available AND its
+  runner's CLI executable is actually present on the machine (native always
+  passes; a `--runner` override replaces the roster runner, so the family
+  stays usable whatever is installed) — docs/AGENTS_FILE.md's definition.
+  A requested family that is not usable is recorded absent up front with
+  the probe's reason and is never dispatched.
+- If at least the floor's worth of families is usable but too many seats
   fail at run time, `run_panel.py` exits nonzero and the match is
   terminated; the run report remains as the record of the attempt.
   `assemble_match.py` enforces the same floor independently.
 - An absent family is never backfilled by a second vote from a present
   family, and never silently substituted by another model of the same
   family lineage.
-- If the roster itself cannot field the floor (fewer available families in
+- If the roster itself cannot field the floor (fewer USABLE families in
   the WHOLE roster than `policy.cross_family_minimum` — for example, no
-  roster file exists anywhere, so the built-in pure-native roster applies),
+  roster file exists anywhere, so the built-in pure-native roster applies;
+  or the CLIs the roster names are not installed on this machine),
   the panel degrades per
   `policy.when_below_minimum = native_subagents` to NATIVE SUBAGENT SEATS:
   run at least the floor's worth of independent host subagent instances,
@@ -302,7 +320,12 @@ Validity and honest degradation:
   `IDEA_PAIRWISE_ALLOW_STUB_RUNNERS=1` escape hatch exists only for tests and
   single-model dry runs; when it is used, the run report is stamped
   `independent_runners = false`, so a stub-backed panel can never be mistaken
-  for an independent cross-family one.
+  for an independent cross-family one. A `--runner` override whose seat's
+  vote is COUNTED likewise stamps `independent_runners = false` (an override
+  command is an arbitrary template that cannot be mechanically compared
+  against roster-resolved seats); an override seat that failed and
+  contributed no vote does not taint the tally the remaining roster-resolved
+  seats produced.
 
 ### Step 4: tally the votes and write the artifact
 
@@ -427,10 +450,15 @@ Top-level fields (unknown keys are rejected by the validator):
   `{family, reason}`. The validator cross-checks this block against the
   panel array.
 - `independent_runners`: boolean, read from `panel_run_report.json` at
-  assembly. It is `false` when the panel was run under the stub/single-model
-  escape hatch or as degraded native subagent seats, so a low-diversity
-  panel is visible in the artifact itself and the belief layer can weight
-  the observation's diversity from the record.
+  assembly. It is `false` in three cases: the panel ran under the
+  stub/single-model escape hatch (seats sharing one underlying command), it
+  degraded to native subagent seats, or a `--runner` override seat's vote
+  was counted (an override command's independence cannot be mechanically
+  vouched for, even when it is in fact a distinct backend). So `false`
+  means "independence not mechanically established", not necessarily
+  "seats shared one model"; either way a low-diversity or unvouched panel
+  is visible in the artifact itself and the belief layer can weight the
+  observation's diversity from the record.
 - `outcome`: exactly `{winner, vote_margin, decided_at}`; the validator
   recomputes winner and margin from the panel and rejects disagreement.
 - `observation_write`: `{written}` plus optional `gaia_package_ref`.
