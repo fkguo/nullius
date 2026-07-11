@@ -284,7 +284,7 @@ def _graph_link(row: dict[str, Any], out_md: Path) -> str:
     package_dir = row.get("package_dir")
     if not package_dir:
         return "—"
-    page = Path(package_dir) / "starmap.html"
+    page = Path(package_dir) / "argument-graph.html"
     if not page.exists():
         return "—"
     rel = os.path.relpath(page, out_md.parent)

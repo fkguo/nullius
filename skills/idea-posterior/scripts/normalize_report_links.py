@@ -2,7 +2,8 @@
 """Normalize and check clickable Markdown links in idea reports.
 
 Human-facing reports can live below ``artifacts/<campaign>/`` or deeper, so a
-repo-root-looking target such as ``ideas/gaia/.../starmap.html`` is ambiguous:
+repo-root-looking target such as ``ideas/gaia/.../argument-graph.html`` is
+ambiguous:
 standard Markdown resolves it relative to the report file and opens the wrong
 path. This helper resolves repo-local targets against both the report directory
 and the project root, then writes the Markdown target relative to the report

@@ -10,6 +10,22 @@ version is the lockstep number below.
 ## [Unreleased]
 
 ### Added
+- **Statement-first argument-graph render (`argument-graph.html`).**
+  `skills/idea-posterior/scripts/render_argument_graph.py` renders a compiled
+  and inferred Gaia package (`.gaia/ir.json` + `.gaia/beliefs.json`) into one
+  self-contained interactive HTML page: every node card carries the node's
+  full statement (variable labels only as small card headers), each `infer`
+  is drawn as an arrow from the evidence into the claim it updates — solid
+  blue when it raises belief, dashed warm red when it lowers it, line width
+  plus a weak/substantial/strong chip carrying the likelihood ratio — and
+  clicking a card opens the statement, posterior, likelihoods P(e|h) and
+  P(e|not h), rationale, and source anchors. Deterministic layout computed at
+  render time (observed evidence → intermediate claims → root claim), no
+  external dependencies, light/dark themes. `run_infer_and_extract.py` now
+  emits this page after inference instead of gaia's `starmap.html` (the
+  superseded page is removed; `starmap.svg` and the detailed-reasoning
+  `docs/` render are unchanged), and the portfolio status report links
+  `argument-graph.html`.
 - **Third-party agent roster (`agents.json`) + roster-wired review panels.**
   A user-level (`~/.nullius/agents.json`) or project-level
   (`.nullius/agents.json`) file declares each model family's execution runner

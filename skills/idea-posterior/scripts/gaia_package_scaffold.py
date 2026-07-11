@@ -94,9 +94,9 @@ Authoring rules (see the idea-posterior skill for the full discipline):
 from gaia.engine.lang import claim, infer, observe  # noqa: F401
 
 # The root claim is the package's public surface. Exporting it marks the
-# node `exported` in the compiled graph, which the renderer uses to single
-# out the root (star marker, root highlight) in starmap views. Inference is
-# unaffected. Keep sub-criteria and evidence nodes unexported: they are
+# node `exported` in the compiled graph; the argument-graph render also
+# highlights it structurally as the claim every update flows into. Inference
+# is unaffected. Keep sub-criteria and evidence nodes unexported: they are
 # internal structure, not the package's conclusion.
 __all__ = ["worth"]
 
