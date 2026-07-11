@@ -537,8 +537,7 @@ def test_classify_anchor_whitelist() -> None:
     assert web["href"] == "https://example.org/paper#sec2"
     plain_http = rag.classify_anchor("http://example.org/x")
     assert plain_http["href"] == "http://example.org/x"
-    md = rag.classify_anchor("../notes/deep_read.md")
-    assert md["href"] == "../notes/deep_read.md"
+    assert rag.classify_anchor("../notes/deep_read.md")["href"] is None
     md2 = rag.classify_anchor("docs/detailed-reasoning.md")
     assert md2["href"] == "docs/detailed-reasoning.md"
     # The Markdown boundary applies to the PATH: a fragment after a .md
@@ -554,8 +553,125 @@ def test_classify_anchor_whitelist() -> None:
         "javascript:alert(1)",
         "run 2026-07-08T03:10:30Z",
         "javascript:evil.md",
+        "docs/./notes.md",
+        "docs//notes.md",
     ):
         assert rag.classify_anchor(opaque)["href"] is None, opaque
+
+
+def test_renderer_without_project_root_links_only_existing_package_markdown(
+    tmp_path,
+) -> None:
+    ir = base_ir()
+    ir["strategies"][1]["steps"][0]["reasoning"] = (
+        "Weak worth update. anchor: notes/present.md; notes/missing.md"
+    )
+    package = write_package(tmp_path, ir, base_beliefs())
+    notes = package / "notes"
+    notes.mkdir()
+    (notes / "present.md").write_text("evidence", encoding="utf-8")
+
+    result = run_renderer(package)
+    assert result.returncode == 0, result.stderr
+    payload = payload_of((package / "argument-graph.html").read_text(encoding="utf-8"))
+    update = next(
+        edge
+        for edge in payload["edges"]
+        if edge["source"] == TENSION and edge["target"] == WORTH
+    )
+    assert update["anchors"] == [
+        {"text": "notes/present.md", "href": "notes/present.md"},
+        {"text": "notes/missing.md", "href": None},
+    ]
+
+
+def test_project_root_context_resolves_only_existing_in_project_markdown(tmp_path) -> None:
+    project = tmp_path / "project"
+    ir = base_ir()
+    ir["strategies"][1]["steps"][0]["reasoning"] = (
+        "Weak worth update. anchor: artifacts/demo/record_v1.md; "
+        "notes/local.md; artifacts/demo/missing.md; ../outside.md"
+    )
+    package = write_package(project / "ideas" / "gaia", ir, base_beliefs())
+    artifact = project / "artifacts" / "demo" / "record_v1.md"
+    artifact.parent.mkdir(parents=True)
+    artifact.write_text("evidence", encoding="utf-8")
+    local = package / "notes" / "local.md"
+    local.parent.mkdir()
+    local.write_text("local", encoding="utf-8")
+    (tmp_path / "outside.md").write_text("outside", encoding="utf-8")
+
+    result = run_renderer(package, "--project-root", str(project))
+    assert result.returncode == 0, result.stderr
+    payload = payload_of((package / "argument-graph.html").read_text(encoding="utf-8"))
+    update = next(
+        edge
+        for edge in payload["edges"]
+        if edge["source"] == TENSION and edge["target"] == WORTH
+    )
+    assert update["anchors"] == [
+        {
+            "text": "artifacts/demo/record_v1.md",
+            "href": "../../../artifacts/demo/record_v1.md",
+        },
+        {"text": "notes/local.md", "href": "notes/local.md"},
+        {"text": "artifacts/demo/missing.md", "href": None},
+        {"text": "../outside.md", "href": None},
+    ]
+
+
+def test_project_root_context_rejects_symlink_escape(tmp_path) -> None:
+    project = tmp_path / "project"
+    package = project / "ideas" / "gaia" / "demo-gaia"
+    package.mkdir(parents=True)
+    outside = tmp_path / "outside.md"
+    outside.write_text("outside", encoding="utf-8")
+    link = package / "outside-link.md"
+    try:
+        link.symlink_to(outside)
+    except OSError as exc:
+        pytest.skip(f"symlinks unavailable: {exc}")
+
+    anchor = rag.classify_anchor(
+        "outside-link.md",
+        package_dir=package,
+        output_dir=package,
+        project_root=project,
+    )
+    assert anchor == {"text": "outside-link.md", "href": None}
+
+
+def test_project_root_context_rejects_markdown_symlink_to_non_markdown(
+    tmp_path,
+) -> None:
+    project = tmp_path / "project"
+    package = project / "ideas" / "gaia" / "demo-gaia"
+    package.mkdir(parents=True)
+    target = project / "artifacts" / "record.txt"
+    target.parent.mkdir()
+    target.write_text("not Markdown", encoding="utf-8")
+    link = package / "record.md"
+    try:
+        link.symlink_to(target)
+    except OSError as exc:
+        pytest.skip(f"symlinks unavailable: {exc}")
+
+    anchor = rag.classify_anchor(
+        "record.md",
+        package_dir=package,
+        output_dir=package,
+        project_root=project,
+    )
+    assert anchor == {"text": "record.md", "href": None}
+
+
+def test_project_root_must_contain_the_package(tmp_path) -> None:
+    package = write_package(tmp_path / "package-parent", base_ir(), base_beliefs())
+    other_root = tmp_path / "other-project"
+    other_root.mkdir()
+    result = run_renderer(package, "--project-root", str(other_root))
+    assert result.returncode == 2
+    assert "package directory is not under project root" in result.stderr
 
 
 def test_detail_panel_links_the_detailed_reasoning_document(tmp_path) -> None:

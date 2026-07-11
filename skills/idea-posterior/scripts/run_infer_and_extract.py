@@ -508,7 +508,12 @@ def render_to_file(
         cleanup(tmp_path, "failed-render")
 
 
-def render_graph(gaia_bin: str, package_dir: Path, timeout: int = 120) -> None:
+def render_graph(
+    gaia_bin: str,
+    package_dir: Path,
+    project_root: Path,
+    timeout: int = 120,
+) -> None:
     """Emit human-viewable renderings of the argument graph after inference.
 
     Three best-effort outputs, in decreasing portability:
@@ -620,6 +625,8 @@ def render_graph(gaia_bin: str, package_dir: Path, timeout: int = 120) -> None:
             str(renderer),
             "--package",
             str(package_dir),
+            "--project-root",
+            str(project_root),
             "--out",
             str(tmp),
         ],
@@ -857,7 +864,7 @@ def main(argv: list[str] | None = None) -> int:
     run_stage(gaia_bin, ["run", "infer"], package_dir)
 
     if not args.no_render:
-        render_graph(gaia_bin, package_dir, args.render_timeout)
+        render_graph(gaia_bin, package_dir, project_root, args.render_timeout)
 
     try:
         posterior = extract_posterior(

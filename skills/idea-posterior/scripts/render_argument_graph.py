@@ -40,6 +40,7 @@ import hashlib
 import html
 import json
 import math
+import os
 import re
 import sys
 import textwrap
@@ -136,41 +137,86 @@ def split_anchors(rationale: str) -> tuple[str, list[str]]:
     return prose, [a for a in refs if a]
 
 
-def classify_anchor(anchor: str) -> dict:
+def classify_anchor(
+    anchor: str,
+    *,
+    package_dir: Path | None = None,
+    output_dir: Path | None = None,
+    project_root: Path | None = None,
+) -> dict:
     """Decide whether a source anchor is safe to render as a link.
 
     Whitelist, not blacklist: only two shapes ever get an href --
     absolute http(s) URLs, and relative Markdown paths (reader-facing
-    documents that travel with the package). Everything else -- JSON
-    artifacts, engine references like artifact:// ids, absolute
-    filesystem paths -- stays machine-readable plain text, and any
-    other URI scheme (javascript:, file:, data:) can never become a
+    documents that travel with the package). When filesystem context is
+    available, a relative path is authorized only after its target exists,
+    resolves inside the allowed root, and is itself Markdown. Everything
+    else -- JSON artifacts, engine references like artifact:// ids,
+    absolute filesystem paths -- stays machine-readable plain text, and
+    any other URI scheme (javascript:, file:, data:) can never become a
     link because it matches neither shape.
     """
     text = anchor.strip()
     lowered = text.lower()
-    href = None
     if lowered.startswith(("http://", "https://")):
-        href = text
-    else:
-        # The Markdown-only boundary applies to the PATH, not the whole
-        # string: "docs/foo.md#Section" is a valid deep link, while
-        # "artifacts/x.html#y.md" must not pass just because the fragment
-        # happens to end in .md. Character-set whitelist, not just shape
-        # checks: browsers normalize backslashes to slashes (a leading
-        # "\\" or an "\\\\host\\share" UNC form would become root- or
-        # protocol-relative) and strip some control characters, so only
-        # plain path characters survive, with no leading slash and no
-        # colon anywhere.
-        pure_path, _, fragment = text.partition("#")
-        if (
-            pure_path.lower().endswith(".md")
-            and re.fullmatch(r"[A-Za-z0-9._~/-]+", pure_path)
-            and (not fragment or re.fullmatch(r"[A-Za-z0-9._~/-]+", fragment))
-            and "#" not in fragment
-            and not pure_path.startswith("/")
-        ):
-            href = text
+        return {"text": text, "href": text}
+
+    # The Markdown-only boundary applies to the PATH, not the whole string:
+    # "docs/foo.md#Section" is a valid deep link, while
+    # "artifacts/x.html#y.md" must not pass merely because the fragment ends
+    # in .md. Browsers normalize backslashes, dot segments, repeated slashes,
+    # and some controls, so reject those forms before filesystem resolution.
+    pure_path, _, fragment = text.partition("#")
+    components = pure_path.split("/")
+    is_relative_markdown = (
+        pure_path.lower().endswith(".md")
+        and re.fullmatch(r"[A-Za-z0-9._~/-]+", pure_path)
+        and all(component not in {"", ".", ".."} for component in components)
+        and (not fragment or re.fullmatch(r"[A-Za-z0-9._~/-]+", fragment))
+        and "#" not in fragment
+        and not pure_path.startswith("/")
+    )
+    if not is_relative_markdown:
+        return {"text": text, "href": None}
+
+    # Direct calls without path context retain the shape-classification API.
+    # Every renderer call supplies package/output context and therefore takes
+    # the existence and containment checks below.
+    if package_dir is None and output_dir is None and project_root is None:
+        return {"text": text, "href": text}
+    if package_dir is None or output_dir is None:
+        return {"text": text, "href": None}
+
+    package = package_dir.resolve()
+    output = output_dir.resolve()
+    root = project_root.resolve() if project_root is not None else package
+    try:
+        package.relative_to(root)
+        output.relative_to(root)
+    except ValueError:
+        return {"text": text, "href": None}
+
+    # Package-relative references win when project-root context is available.
+    # Without it, the package itself is the only authorized root.
+    candidates = (package / pure_path,)
+    if project_root is not None:
+        candidates += (root / pure_path,)
+    target = None
+    for candidate in candidates:
+        try:
+            resolved = candidate.resolve(strict=True)
+            resolved.relative_to(root)
+        except (OSError, ValueError):
+            continue
+        if resolved.is_file() and resolved.suffix.lower() == ".md":
+            target = resolved
+            break
+    if target is None:
+        return {"text": text, "href": None}
+
+    href = Path(os.path.relpath(target, output)).as_posix()
+    if fragment:
+        href += f"#{fragment}"
     return {"text": text, "href": href}
 
 
@@ -689,8 +735,12 @@ def svg_edge(edge: Edge, index: int) -> str:
 
 
 def panel_payload(
-    nodes: dict[str, Node], edges: list[Edge], doc_path: str | None = None
+    nodes: dict[str, Node],
+    edges: list[Edge],
+    doc_path: str | None = None,
+    anchor_context: dict | None = None,
 ) -> dict:
+    anchor_context = anchor_context or {}
     payload_nodes = {}
     for node in nodes.values():
         # Junctions are not clickable, but flow edges name them; give them a
@@ -705,7 +755,9 @@ def panel_payload(
             "observed": node.observed,
             "pinned_prior": node.pinned_prior,
             "observation_note": node.obs_prose,
-            "observation_anchors": [classify_anchor(a) for a in node.obs_anchors],
+            "observation_anchors": [
+                classify_anchor(a, **anchor_context) for a in node.obs_anchors
+            ],
         }
         if doc_path and not node.junction and not node.label.startswith(HELPER_LABEL_PREFIXES):
             # The detailed-reasoning render precedes each node section with an
@@ -726,7 +778,9 @@ def panel_payload(
                 "p_e_given_h": edge.p_h,
                 "p_e_given_not_h": edge.p_nh,
                 "rationale": edge.rationale_prose,
-                "anchors": [classify_anchor(a) for a in edge.anchors],
+                "anchors": [
+                    classify_anchor(a, **anchor_context) for a in edge.anchors
+                ],
             }
         )
     return {"nodes": payload_nodes, "edges": payload_edges}
@@ -1170,6 +1224,7 @@ def render_page(
     edges: list[Edge],
     canvas: tuple[float, float],
     doc_path: str | None = None,
+    anchor_context: dict | None = None,
 ) -> str:
     canvas_w, canvas_h = canvas
     roots = [n for n in nodes.values() if n.is_root and not n.junction]
@@ -1202,7 +1257,14 @@ def render_page(
     # script double-escaped state. "<" only occurs inside JSON strings, and
     # the < escape decodes back to the same character on JSON.parse.
     payload = json.dumps(
-        panel_payload(nodes, edges, doc_path=doc_path), sort_keys=True, ensure_ascii=False
+        panel_payload(
+            nodes,
+            edges,
+            doc_path=doc_path,
+            anchor_context=anchor_context,
+        ),
+        sort_keys=True,
+        ensure_ascii=False,
     ).replace("<", "\\u003c")
 
     flow_row = (
@@ -1290,6 +1352,11 @@ def main() -> None:
     )
     parser.add_argument("--package", required=True, help="package directory")
     parser.add_argument(
+        "--project-root",
+        help="project root used to resolve project-relative Markdown source "
+        "anchors into links from the output page; unresolved anchors remain text",
+    )
+    parser.add_argument(
         "--out",
         help="output HTML path (default: <package>/argument-graph.html)",
     )
@@ -1307,6 +1374,17 @@ def main() -> None:
     package_dir = Path(args.package).resolve()
     if not package_dir.is_dir():
         raise fail(f"package directory not found: {package_dir}")
+    project_root = Path(args.project_root).resolve() if args.project_root else None
+    if project_root is not None:
+        if not project_root.is_dir():
+            raise fail(f"project root not found: {project_root}")
+        try:
+            package_dir.relative_to(project_root)
+        except ValueError:
+            raise fail(
+                f"package directory is not under project root: "
+                f"{package_dir} vs {project_root}"
+            )
     ir = load_json(package_dir / ".gaia" / "ir.json", "compiled IR")
     beliefs_doc = load_json(
         package_dir / ".gaia" / "beliefs.json", "inference output (beliefs)"
@@ -1377,6 +1455,11 @@ def main() -> None:
         edges=edges,
         canvas=canvas,
         doc_path=doc_path,
+        anchor_context={
+            "package_dir": package_dir,
+            "output_dir": out_path.parent.resolve(),
+            "project_root": project_root,
+        },
     )
     tmp_path = out_path.with_suffix(out_path.suffix + ".part")
     tmp_path.write_text(page, encoding="utf-8")
