@@ -78,6 +78,7 @@ graph. The cap is part of the honesty discipline on evidence weights.
 SHORT_ID_ALPHABET = "0123456789abcdefghjkmnpqrstvwxyz"
 SHORT_ID_LENGTH = 8
 SHORT_ID_RE = re.compile(r"^[%s]{%d}$" % (SHORT_ID_ALPHABET, SHORT_ID_LENGTH))
+JUDGE_PROMPT_SHA_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 
 PANEL_ENTRY_KEYS = {
     "reviewer_family",
@@ -748,7 +749,7 @@ def cross_check_materials(materials_dir, commitment, idea_a, idea_b):
     return {"a": binding["a"], "b": binding["b"]}
 
 
-def read_panel_report(votes_dir):
+def read_panel_report(votes_dir, materials_dir=None):
     """Read the panel composition record from the run report next to the votes.
 
     run_panel.py writes panel_run_report.json in the panel directory (the
@@ -760,6 +761,28 @@ def read_panel_report(votes_dir):
     required; a report that is missing or malformed stops assembly, because an
     artifact that silently omitted the composition record could hide a
     stub-backed or degraded panel.
+
+    The report also carries judge_prompt_sha256 and word_cap: the sha256 of
+    the exact judge-prompt text this panel voted on, and the word_cap it was
+    rendered with. When materials_dir is given, that same text is REBUILT
+    from the materials currently on disk (the identical deterministic
+    renderer run_panel.py itself uses) and its hash compared against the
+    recorded one. Without this check, editing the source materials AFTER a
+    panel already voted leaves no detectable trace: the existing statement
+    cross-check binds the CURRENT materials to the commitment and idea ids,
+    but never to what the judges actually read, so a report/votes pair from
+    before the edit would still assemble cleanly against the edited
+    materials. A mismatch here means the panel is stale and must be re-run.
+
+    Known boundary: this is a single-operator, sequential local CLI tool
+    with no file locking anywhere in its state (matching the rest of this
+    toolchain); it detects materials edited BETWEEN a completed panel run
+    and assembly, not two processes racing on the same out_dir/materials_dir
+    at once. (An injected native reply formed against an EARLIER rendering
+    is caught separately, at collection time, by the judge_prompt_sha256
+    echo the reply must carry -- see collect_injected_vote in
+    run_panel.py; this assembly-time rebuild-and-compare guards the
+    remaining window, between a completed collection and assembly.)
     """
     report_path = Path(votes_dir).parent / "panel_run_report.json"
     if not report_path.is_file():
@@ -856,6 +879,42 @@ def read_panel_report(votes_dir):
                 "%s: absent[%d] must be {family, reason} with a family label "
                 "and a non-empty reason" % (report_path, index)
             )
+    judge_prompt_sha256 = report.get("judge_prompt_sha256")
+    if not isinstance(judge_prompt_sha256, str) or not JUDGE_PROMPT_SHA_RE.fullmatch(
+        judge_prompt_sha256
+    ):
+        raise MatchError(
+            "%s: judge_prompt_sha256 must be a sha256:<hex> digest of the "
+            "rendered judge prompt this panel voted on" % report_path
+        )
+    word_cap = report.get("word_cap")
+    if isinstance(word_cap, bool) or not isinstance(word_cap, int) or word_cap <= 0:
+        raise MatchError(
+            "%s: word_cap must be a positive integer (the cap the judge "
+            "prompt was rendered with)" % report_path
+        )
+    if materials_dir is not None:
+        try:
+            current_texts, current_commitment = run_panel.load_materials(
+                materials_dir, word_cap=word_cap
+            )
+        except run_panel.PanelError as exc:
+            raise MatchError(
+                "%s: could not rebuild the judge prompt from %s to verify it "
+                "is unchanged since the panel ran: %s"
+                % (report_path, materials_dir, exc)
+            )
+        rebuilt_prompt = run_panel.render_judge_prompt(current_texts, current_commitment)
+        rebuilt_sha256 = "sha256:" + hashlib.sha256(
+            rebuilt_prompt.encode("utf-8")
+        ).hexdigest()
+        if rebuilt_sha256 != judge_prompt_sha256:
+            raise MatchError(
+                "%s: materials in %s no longer rebuild the judge prompt this "
+                "panel voted on (recorded %s, current %s); the panel is stale "
+                "-- re-run it against the current materials before assembling"
+                % (report_path, materials_dir, judge_prompt_sha256, rebuilt_sha256)
+            )
     return {
         "independent_runners": flag,
         "independence": mode,
@@ -863,6 +922,7 @@ def read_panel_report(votes_dir):
         "absent": absent,
         "min_families": min_families,
         "votes_collected": votes_collected,
+        "judge_prompt_sha256": judge_prompt_sha256,
         "report_path": report_path,
     }
 
@@ -939,7 +999,7 @@ def assemble(
             materials_dir, commitment, idea_a, idea_b
         )
 
-    report = read_panel_report(votes_dir)
+    report = read_panel_report(votes_dir, materials_dir=materials_dir)
     records = load_vote_records(votes_dir, commitment, report)
     independent_runners = report["independent_runners"]
 

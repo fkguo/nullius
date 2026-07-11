@@ -200,7 +200,10 @@ def parse_roster(obj, where):
     if not isinstance(obj, dict):
         raise PanelError("%s: roster must be a JSON object" % where)
     problems = []
-    unknown = sorted(set(obj) - {"version", "families", "policy"})
+    # "_notes" is a documentation-only field an operator may add to their own
+    # agents.json (and that the shipped docs/examples/agents.example.json
+    # uses); it is accepted and ignored, never consumed.
+    unknown = sorted(set(obj) - {"version", "families", "policy", "_notes"})
     if unknown:
         problems.append("unknown top-level keys: %s" % ", ".join(unknown))
     version = obj.get("version")
@@ -216,6 +219,17 @@ def parse_roster(obj, where):
         problems.append("families must be a non-empty object")
     else:
         native_labels = []
+        # Two configuration contradictions are rejected here, per
+        # docs/AGENTS_FILE.md: two families sharing one dedicated
+        # (non-native, non-opencode) runner -- one dedicated execution route
+        # is one model family, so two labels on it can only mean the same
+        # physical family counted twice; the fix is one family with several
+        # model tiers, not two families -- and two families sharing the
+        # exact same (runner, model) pair regardless of runner kind.
+        # opencode is the one exempt runner: it is a multi-provider gateway,
+        # so several families legitimately share it with distinct models.
+        dedicated_runner_labels = {}
+        runner_model_labels = {}
         for label, entry in families.items():
             frame = "families.%s" % label
             if not isinstance(label, str) or not FAMILY_LABEL_RE.fullmatch(label):
@@ -260,16 +274,38 @@ def parse_roster(obj, where):
                 for key, value in models.items():
                     if not isinstance(key, str) or not MODEL_TIER_KEY_RE.fullmatch(key):
                         problems.append("%s.models has a bad key %r" % (frame, key))
-                    if not isinstance(value, str) or not MODEL_STRING_RE.fullmatch(value):
+                    value_ok = isinstance(value, str) and MODEL_STRING_RE.fullmatch(value)
+                    if not value_ok:
                         problems.append(
                             "%s.models[%r] must be a plain model string "
                             "(pattern %s), got %r"
                             % (frame, key, MODEL_STRING_RE.pattern, value)
                         )
+                    # Every tier is tracked for the (runner, model) uniqueness
+                    # check below, not only "default": an operator selecting a
+                    # non-default tier via --model-spec at invocation time
+                    # (see resolve_execution_signature) can hit the same
+                    # collision a shared default would, and review-swarm's own
+                    # separate parser for this same agents.json contract
+                    # already checks every tier, not just default. A value
+                    # that failed the string/pattern check just above is
+                    # never tracked here: it is already recorded as a
+                    # problem, and tracking a non-string value as a dict-key
+                    # component would itself raise (dicts and lists are
+                    # unhashable). ONE family listing the same model string on
+                    # two of its own tiers is legal (a family is one backend;
+                    # duplicate tiers cannot double-count it), so each family
+                    # is recorded at most once per (runner, model) pair.
+                    if value_ok and runner in RUNNER_LABELS and runner != "native":
+                        seen_for_pair = runner_model_labels.setdefault((runner, value), [])
+                        if label not in seen_for_pair:
+                            seen_for_pair.append(label)
                 if "default" not in models:
                     problems.append('%s.models must carry a "default" entry' % frame)
                 else:
                     model = models["default"]
+            if runner in RUNNER_LABELS and runner not in ("native", "opencode"):
+                dedicated_runner_labels.setdefault(runner, []).append(label)
             notes = entry.get("notes", "")
             if not isinstance(notes, str):
                 problems.append("%s.notes must be a string" % frame)
@@ -285,6 +321,22 @@ def parse_roster(obj, where):
                 'families %s all declare runner "native"; the host provides '
                 "exactly one native seat" % ", ".join(sorted(native_labels))
             )
+        for runner, labels in sorted(dedicated_runner_labels.items()):
+            if len(labels) > 1:
+                problems.append(
+                    "families %s all declare the dedicated runner %r; one "
+                    "dedicated execution route is one model family -- merge "
+                    "them into one family with several model tiers instead "
+                    "of two families" % (sorted(labels), runner)
+                )
+        for (runner, model), labels in sorted(runner_model_labels.items()):
+            if len(labels) > 1:
+                problems.append(
+                    "families %s declare the identical (runner, model) pair "
+                    "(%s, %s); two family labels resolving to the exact same "
+                    "call are one physical family counted twice"
+                    % (sorted(labels), runner, model)
+                )
     policy = obj.get("policy", {})
     minimum = MIN_FAMILIES
     if not isinstance(policy, dict):
@@ -382,6 +434,27 @@ def direct_runner_path(runner):
 
 VOTE_VALUES = ("a", "b", "tie")
 ANCHOR_TYPES = ("literature", "computation")
+
+# Appended after the rendered judge-prompt body in the on-disk
+# judge_prompt.md a host subagent reads. A native reply is formed in a
+# separate invocation from the one that collects it, so the reply must
+# carry proof of WHICH rendered prompt it answered: the subagent echoes
+# this hash inside its vote JSON, and collection verifies the echo against
+# the current body hash (collect_injected_vote). CLI seats receive their
+# prompt and return their reply within one invocation, so they carry no
+# echo. clean_vote_payload drops the extra key after verification, keeping
+# the stored vote record and the pairwise_match_v1 artifact unchanged.
+INJECTED_BINDING_TEMPLATE = (
+    "\n---\n\n"
+    "Native-seat binding — the one exception to the exactly-three-keys rule\n"
+    "in the Required output section, and it applies ONLY when you are\n"
+    "answering from this file as a host subagent whose reply will be\n"
+    "injected with --native-vote. In that case (and no other), include one\n"
+    "extra key in your vote JSON, copied verbatim from this line:\n"
+    '"judge_prompt_sha256": "%s"\n'
+    "Every other judge ignores this block and replies with exactly the\n"
+    "three keys stated in the Required output section.\n"
+)
 
 REQUIRED_MATERIALS = {
     "commitment": "commitment.json",
@@ -1099,9 +1172,18 @@ def run_family(family, runner, model, override_cmd, judge_system, judge_prompt,
     return None, model_label, detail
 
 
-def collect_injected_vote(vote_file):
+def collect_injected_vote(vote_file, expected_prompt_sha256):
     """Parse a host-provided judge reply (a native seat). No retry is possible
-    for an injected file; failures make the seat absent."""
+    for an injected file; failures make the seat absent.
+
+    The reply must echo the judge-prompt body hash it answered
+    (judge_prompt_sha256, per the binding block appended to the on-disk
+    judge_prompt.md); a missing or mismatched echo means the reply was
+    formed against some other rendering -- an earlier one, a different
+    out-dir's, or none at all -- and the seat fails rather than binding a
+    reply to a prompt it never saw. clean_vote_payload drops the key after
+    this check, so the stored vote record is unchanged.
+    """
     try:
         raw_text = Path(vote_file).read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError) as exc:
@@ -1112,6 +1194,21 @@ def collect_injected_vote(vote_file):
     problems = validate_vote_payload(payload)
     if problems:
         return None, "invalid vote payload: " + "; ".join(problems)
+    echoed = payload.get("judge_prompt_sha256")
+    if echoed != expected_prompt_sha256:
+        if echoed is None:
+            return None, (
+                "injected vote carries no judge_prompt_sha256 echo; a native "
+                "reply must copy the hash from the binding block at the end "
+                "of judge_prompt.md so collection can verify which rendered "
+                "prompt it answered"
+            )
+        return None, (
+            "injected vote echoes judge_prompt_sha256 %s but the current "
+            "rendering is %s; the reply was formed against a different "
+            "prompt. Re-run --render-prompt-only, have the reply re-formed "
+            "against the fresh prompt, then retry" % (echoed, expected_prompt_sha256)
+        )
     return clean_vote_payload(payload), None
 
 
@@ -1134,15 +1231,78 @@ def runner_command_signature(command):
     return tuple(tokens)
 
 
-def check_runner_independence(overrides, allow_shared):
-    """Return (independent, groups). Raise PanelError when two or more family
-    seats resolve to the same underlying command and the escape hatch is off.
+def resolve_execution_signature(family, roster, overrides, specs_override):
+    """Return the true underlying execution identity for a family seat: the
+    --runner override's command signature when the family is overridden
+    (test/custom runner path), otherwise the roster-resolved (runner label,
+    effective model string) pair — what a normal, roster-driven run actually
+    invokes for this family. Two ROSTER-resolved families collapse to the
+    same signature exactly when they would call the identical (runner,
+    model) pair, which parse_roster itself already refuses at parse time
+    (see the dedicated-runner and runner-model-pair checks there); this
+    check is what remains live once a family is --runner-overridden and so
+    escapes parse_roster's roster-only view.
 
-    groups maps each shared command signature to the families that use it.
+    For a kimi/opencode/gemini family, the signature also carries the
+    ACTUAL resolved runner-script path (following its IDEA_PAIRWISE_*_RUNNER
+    env override, exactly as direct_runner_path does before invoking it),
+    not just the runner label: an operator who redirects two different
+    dedicated runner labels' env vars at the same literal script is caught
+    the same way a roster (runner, model) collision is, even though
+    parse_roster's static check cannot see an env var. For codex/claude-cli
+    (launcher-routed), the launcher backend tag is carried instead of a
+    resolved script path: review-swarm's own deeper config resolution is
+    not replicated here.
+
+    Known boundary: the override and roster branches are tagged with
+    different leading elements ("runner_override" vs "roster") and are
+    never compared against each other, so a --runner override that happens
+    to invoke the exact same underlying command as an un-overridden roster
+    family is not detected. --runner is documented as a test/custom-runner
+    escape hatch, not a normal production path; closing this would require
+    parsing arbitrary override command templates to recognize when one
+    denotes a known runner+model, which is not attempted here. Likewise not
+    covered: whether the "native" family is, on this particular host,
+    secretly the same underlying model as some other declared family (the
+    tool has no way to identify what model the host itself is running as —
+    see builtin_roster's docstring on the same limitation).
+    """
+    if family in overrides:
+        return ("runner_override",) + runner_command_signature(overrides[family])
+    entry = roster["families"][family]
+    runner = entry["runner"]
+    model = specs_override.get(family, entry["model"])
+    if runner in DIRECT_RUNNER_ENV:
+        # A constant discriminator, not the (possibly different) runner
+        # label: two DIFFERENT dedicated runner labels (e.g. kimi and
+        # gemini) whose env vars happen to resolve to the identical script
+        # path must collide on that path, not stay apart because their
+        # labels differ. os.path.realpath canonicalizes the comparison so a
+        # symlink, a relative form, or a path with ".." segments naming the
+        # same physical script still collides (realpath leaves a
+        # nonexistent path as-is after normalization, so this stays a pure
+        # comparison aid and never raises on an unbuilt path).
+        return (
+            "roster",
+            "direct_runner",
+            os.path.realpath(str(direct_runner_path(runner))),
+            model,
+        )
+    if runner in LAUNCHER_BACKENDS:
+        return ("roster", "launcher", LAUNCHER_BACKENDS[runner], model)
+    return ("roster", runner, model)
+
+
+def check_runner_independence(signatures_by_family, allow_shared):
+    """Return (independent, groups). Raise PanelError when two or more family
+    seats resolve to the same underlying execution signature (see
+    resolve_execution_signature) and the escape hatch is off.
+
+    groups maps each shared signature to the families that use it.
     """
     signatures = {}
-    for family, command in overrides.items():
-        signatures.setdefault(runner_command_signature(command), []).append(family)
+    for family, signature in signatures_by_family.items():
+        signatures.setdefault(signature, []).append(family)
     shared = {
         sig: sorted(fams) for sig, fams in signatures.items() if len(fams) > 1
     }
@@ -1346,7 +1506,54 @@ def _run(args):
     out_dir.mkdir(parents=True, exist_ok=True)
     judge_prompt_path = out_dir / "judge_prompt.md"
     judge_system_path = out_dir / "judge_system.md"
-    judge_prompt_path.write_text(render_judge_prompt(texts, commitment), encoding="utf-8")
+    judge_prompt_text = render_judge_prompt(texts, commitment)
+    # The hash covers the rendered BODY (what assembly can rebuild from the
+    # materials alone); it is recorded in the report so assembly can rebuild
+    # this exact text from the CURRENT materials and refuse to assemble
+    # votes if the materials moved since this panel ran (see the cross-check
+    # in assemble_match.py's read_panel_report).
+    judge_prompt_sha256 = "sha256:" + hashlib.sha256(
+        judge_prompt_text.encode("utf-8")
+    ).hexdigest()
+    # The on-disk file a host subagent reads carries one extra block after
+    # the body: an instruction to echo the body hash back inside its vote
+    # JSON. An injected native reply is formed in a separate invocation from
+    # the one that collects it, so the reply itself must carry proof of
+    # WHICH rendered prompt it answered; collection verifies the echoed
+    # hash against the current body (see collect_injected_vote). The block
+    # is a deterministic function of the body, so comparing full file texts
+    # below remains a pure materials-change detector.
+    judge_prompt_file_text = judge_prompt_text + INJECTED_BINDING_TEMPLATE % judge_prompt_sha256
+    # The documented native-vote workflow is two invocations: one
+    # --render-prompt-only pass a host subagent reads and answers from, then
+    # a SEPARATE --native-vote pass that injects the reply. If materials
+    # changed between those two invocations, the injected reply reflects a
+    # prompt this invocation is about to overwrite, not the one it is about
+    # to bind the vote to. Catch that here, before anything is overwritten:
+    # read whatever judge_prompt.md an earlier invocation already left, and
+    # if this invocation is injecting a native vote and that text differs
+    # from what this invocation just rendered, refuse rather than silently
+    # binding a stale reply to a fresh hash. (The hash echo verified at
+    # collection closes the remaining variants -- a deleted or missing
+    # earlier rendering, a different out-dir, an intermediate re-render --
+    # this early check just gives the clearest message for the common case.)
+    previous_prompt_text = (
+        judge_prompt_path.read_text(encoding="utf-8") if judge_prompt_path.is_file() else None
+    )
+    if (
+        args.native_vote
+        and previous_prompt_text is not None
+        and previous_prompt_text != judge_prompt_file_text
+    ):
+        raise PanelError(
+            "%s reflects an earlier rendering that no longer matches the "
+            "current materials, but --native-vote was given: the injected "
+            "reply may have been formed against that earlier prompt. "
+            "Re-run with --render-prompt-only against the current "
+            "materials, have the reply re-formed against the fresh prompt, "
+            "then retry --native-vote" % judge_prompt_path
+        )
+    judge_prompt_path.write_text(judge_prompt_file_text, encoding="utf-8")
     judge_system_path.write_text(
         (PROMPTS_DIR / "judge_system.md").read_text(encoding="utf-8"), encoding="utf-8"
     )
@@ -1465,6 +1672,13 @@ def _run(args):
             "independence": independence,
             "independent_runners": independent_runners,
             "commitment_hash": commitment["commitment_hash"],
+            # The exact judge-prompt text this panel voted on, and the
+            # word_cap it was rendered with, so assembly can rebuild the same
+            # text from the CURRENT materials_dir and refuse to assemble
+            # votes if materials moved since this panel ran (see
+            # read_panel_report in assemble_match.py).
+            "judge_prompt_sha256": judge_prompt_sha256,
+            "word_cap": args.word_cap,
             "min_families": floor,
             "panel_valid": panel_valid,
             "unanchored_arguments_discarded_by_parser": {
@@ -1496,6 +1710,7 @@ def _run(args):
             roster, families, roster_available, floor, native_family,
             native_votes, overrides, specs_override, absent, seats_failed,
             store_vote, finish, votes, judge_prompt_path, judge_system_path,
+            judge_prompt_sha256,
         )
 
     # ------------------------------------------------------------------
@@ -1522,9 +1737,6 @@ def _run(args):
             "both --native-vote and a --runner override target the native "
             "family %r; give one or the other" % native_family
         )
-    allow_shared = os.environ.get(ALLOW_SHARED_RUNNERS_ENV) == "1"
-    independent_runners, _shared = check_runner_independence(overrides, allow_shared)
-
     raw_dir = out_dir / "raw"
     raw_dir.mkdir(parents=True, exist_ok=True)
 
@@ -1551,7 +1763,7 @@ def _run(args):
     if native_family in available_requested and not overrides.get(native_family):
         runner_families.remove(native_family)
         if native_votes:
-            payload, failure = collect_injected_vote(native_votes[0])
+            payload, failure = collect_injected_vote(native_votes[0], judge_prompt_sha256)
             detail = {
                 "source": "injected",
                 "vote_file": str(native_votes[0]),
@@ -1568,6 +1780,34 @@ def _run(args):
                     "reason": "native seat: no vote file injected (--native-vote)",
                 }
             )
+
+    # Independence is checked over the true execution identity of every
+    # family this run actually dispatches through a subprocess seat
+    # (runner_families) — a roster-resolved (runner, model) pair when no
+    # --runner override applies, the override's command signature when one
+    # does. Checking only the override map would miss the far more common
+    # case: several roster family labels quietly pointing at the same
+    # physical backend, which a normal roster-driven run never touches
+    # overrides for at all. The native seat is not in this population: it is
+    # injected inline, not dispatched, and single_family mode already
+    # declares independent_runners = false on its own.
+    allow_shared = os.environ.get(ALLOW_SHARED_RUNNERS_ENV) == "1"
+    execution_signatures = {
+        family: resolve_execution_signature(family, roster, overrides, specs_override)
+        for family in runner_families
+    }
+    independent_runners, _shared = check_runner_independence(execution_signatures, allow_shared)
+    # --runner is a test/custom-runner escape hatch, and an override command
+    # is an arbitrary shell template this script deliberately does not parse
+    # deeply enough to compare against roster-resolved seats (the two
+    # signature namespaces are incomparable by design). So the moment ANY
+    # participating seat runs through an override, the panel's independence
+    # can no longer be vouched for mechanically -- stamp it false rather
+    # than let a mixed run carry a claim the check cannot actually back.
+    # The collision check above still runs first, so overrides that
+    # literally share one command are still refused outright.
+    if any(family in overrides for family in runner_families):
+        independent_runners = False
 
     def worker(family):
         family_dir = raw_dir / family
@@ -1614,7 +1854,8 @@ def _run(args):
 def _run_native_panel(roster, families, roster_available, floor, native_family,
                       native_votes, overrides, specs_override, absent,
                       seats_failed, store_vote, finish, votes,
-                      judge_prompt_path, judge_system_path):
+                      judge_prompt_path, judge_system_path,
+                      judge_prompt_sha256):
     """Degraded panel: the roster cannot field the cross-family floor, so per
     policy when_below_minimum = native_subagents the seats are independent
     host subagent instances of the roster's native-runner family, one injected
@@ -1723,6 +1964,25 @@ def _run_native_panel(roster, families, roster_available, floor, native_family,
             problems = validate_vote_payload(payload)
             if problems:
                 failure = "invalid vote payload: " + "; ".join(problems)
+            else:
+                # Same prompt binding as the cross-family injected seat
+                # (collect_injected_vote): each seat's reply is formed in a
+                # separate invocation, so it must echo the hash of the
+                # rendered prompt it actually answered.
+                echoed = payload.get("judge_prompt_sha256")
+                if echoed != judge_prompt_sha256:
+                    if echoed is None:
+                        failure = (
+                            "reply carries no judge_prompt_sha256 echo; copy "
+                            "the hash from the binding block at the end of "
+                            "judge_prompt.md into the vote JSON"
+                        )
+                    else:
+                        failure = (
+                            "reply echoes judge_prompt_sha256 %s but the "
+                            "current rendering is %s; the reply was formed "
+                            "against a different prompt" % (echoed, judge_prompt_sha256)
+                        )
         if failure is not None:
             seats_failed.append({"seat": seat, "reason": failure})
             continue

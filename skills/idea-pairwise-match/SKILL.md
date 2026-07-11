@@ -233,6 +233,19 @@ python3 scripts/run_panel.py --materials-dir WORK --out-dir WORK/panel \
   --native-vote WORK/panel/native_vote_raw.txt
 ```
 
+Because a native reply is formed in one invocation and collected by a
+later one, the reply must prove which rendered prompt it answered: the
+rendered judge prompt file ends with a binding block naming the prompt's
+body hash, the subagent copies that hash into its vote JSON as a
+judge_prompt_sha256 key, and collection verifies the echo against the
+current rendering. A reply with no echo, or echoing a different
+rendering's hash, fails its seat (recorded reason, seat absent); the same
+rule applies to every seat of the degraded native panel. If the materials
+change between the two invocations, re-run the render step and have the
+reply re-formed against the fresh prompt; the collecting invocation also
+refuses up front when the on-disk prompt left by the earlier rendering no
+longer matches the current materials.
+
 Every judge receives the identical self-contained prompt (commitment, both
 card summaries, both rebuilt statements) and no file access. The prompt pins
 three binding rules: judge only against the committed criteria; discard and

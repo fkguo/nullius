@@ -273,7 +273,35 @@
       },
       "then": {
         "properties": {
-          "independent_runners": { "const": false }
+          "independent_runners": { "const": false },
+          "panel": {
+            "items": {
+              "required": ["seat"]
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["panel_independence"],
+        "properties": {
+          "panel_independence": {
+            "type": "object",
+            "required": ["mode"],
+            "properties": {
+              "mode": { "const": "cross_family" }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "panel": {
+            "items": {
+              "not": { "required": ["seat"] }
+            }
+          }
         }
       }
     }

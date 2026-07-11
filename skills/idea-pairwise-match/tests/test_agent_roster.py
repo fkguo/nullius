@@ -4,10 +4,17 @@ walk-up, user level, built-in pure-native), and the degraded native subagent
 panel that runs when the roster cannot field the cross-family floor.
 
 All roster fixtures are inline in this file by design: the tests must not
-depend on any roster template shipped elsewhere in the repository.
+depend on any roster template shipped elsewhere in the repository. The one
+deliberate exception is test_shipped_example_file_still_parses below: its
+purpose IS to lock the shipped docs/examples/agents.example.json against
+this parser specifically (review-swarm and derivation-verify each parse
+that same file with their own separate, self-contained parser, so neither
+of those regression-locks run_panel.parse_roster).
 """
 
 import json
+import os
+from pathlib import Path
 
 import pytest
 
@@ -38,6 +45,29 @@ def make_roster(**overrides):
 # ---------------------------------------------------------------------------
 # Roster parsing and validation (in-process)
 # ---------------------------------------------------------------------------
+
+def test_shipped_example_file_still_parses():
+    # The documented convention (docs/AGENTS_FILE.md) is that a roster file
+    # may carry a top-level "_notes" comment key; the shipped example uses
+    # exactly that. This is the regression lock for that specific fact: it
+    # previously failed here (unknown top-level keys: _notes) before _notes
+    # was added to parse_roster's allowed top-level key set.
+    #
+    # In-repo vs standalone install, matching review-swarm's own
+    # test_agents_file.py pattern for the same shared fixture: a missing
+    # file in an in-repo run is a real failure (the lock silently stops
+    # locking anything), not something to quietly skip past.
+    repo_root = Path(__file__).resolve().parents[3]
+    example_path = repo_root / "docs" / "examples" / "agents.example.json"
+    in_repo = (repo_root / "meta" / "ECOSYSTEM_DEV_CONTRACT.md").is_file()
+    if not example_path.is_file():
+        if in_repo:
+            pytest.fail("in-repo run but the shared template fixture is missing: %s" % example_path)
+        pytest.skip("standalone skill install: shipped example not present at %s" % example_path)
+    example = json.loads(example_path.read_text(encoding="utf-8"))
+    parsed = run_panel.parse_roster(example, str(example_path))
+    assert "claude" in parsed["families"]
+
 
 def test_parse_roster_full_v1_fixture():
     parsed = run_panel.parse_roster(ROSTER, "inline fixture")
@@ -152,6 +182,96 @@ def test_parse_roster_accepts_minimum_above_the_floor():
     assert parsed["cross_family_minimum"] == 4
 
 
+def test_parse_roster_rejects_two_families_on_one_dedicated_runner():
+    # docs/AGENTS_FILE.md: one dedicated (non-opencode) execution route is
+    # one model family. Two family labels both declaring "kimi" -- even
+    # with distinct models -- must be rejected at parse time; the fix is
+    # one family with several model tiers, not two families.
+    roster = make_roster()
+    roster["families"]["glm"] = {
+        "runner": "kimi",
+        "models": {"default": "a-different-kimi-model"},
+    }
+    with pytest.raises(run_panel.PanelError, match="dedicated runner 'kimi'"):
+        run_panel.parse_roster(roster, "inline fixture")
+
+
+def test_parse_roster_rejects_two_families_on_the_identical_runner_model_pair():
+    # Even on opencode (the multi-provider gateway exempt from the
+    # dedicated-runner rule above), two families resolving to the exact
+    # same (runner, model) pair are one physical family counted twice.
+    roster = make_roster()
+    roster["families"]["kimi"] = dict(roster["families"]["glm"])
+    with pytest.raises(
+        run_panel.PanelError,
+        match=r"identical \(runner, model\) pair \(opencode, zhipuai-coding-plan/glm-5\.2\)",
+    ):
+        run_panel.parse_roster(roster, "inline fixture")
+
+
+def test_parse_roster_allows_one_family_repeating_a_model_across_its_own_tiers():
+    # ONE family listing the same model string on two of its own tiers is
+    # legal: a family is one backend, and duplicate tiers cannot make it
+    # count twice. (A previous revision falsely rejected this as a
+    # families-['gpt','gpt'] cross-family collision; this is the regression
+    # lock the fixing commit claimed but did not actually add -- added now.)
+    roster = make_roster()
+    roster["families"]["gpt"]["models"]["strong"] = (
+        roster["families"]["gpt"]["models"]["default"]
+    )
+    parsed = run_panel.parse_roster(roster, "inline fixture")
+    assert parsed["families"]["gpt"]["model"] == "gpt-5.6-terra"
+
+
+def test_parse_roster_allows_two_families_on_opencode_with_distinct_models():
+    # The stated exemption: opencode is a multi-provider gateway, so several
+    # families legitimately share it with distinct models.
+    roster = make_roster()
+    roster["families"]["kimi"] = {
+        "runner": "opencode",
+        "models": {"default": "a-distinct-opencode-model"},
+    }
+    parsed = run_panel.parse_roster(roster, "inline fixture")
+    assert parsed["families"]["kimi"]["runner"] == "opencode"
+    assert parsed["families"]["glm"]["runner"] == "opencode"
+
+
+def test_parse_roster_rejects_identical_pair_on_a_non_default_tier():
+    # The (runner, model) uniqueness check covers every declared tier, not
+    # only "default": both families here are on the SAME runner (opencode,
+    # the one runner kind allowed to host more than one family at all), and
+    # kimi's non-default "strong" tier -- not its default -- is what
+    # collides with glm's default. An operator selecting kimi's "strong"
+    # tier via --model-spec would hit glm's exact backend+model the same
+    # way two matching defaults would. review-swarm's own separate parser
+    # for this same agents.json contract already checks every tier; this
+    # keeps idea-pairwise-match's parser consistent with it.
+    roster = make_roster()
+    roster["families"]["kimi"] = {
+        "runner": "opencode",
+        "models": {
+            "default": "a-distinct-opencode-model",
+            "strong": roster["families"]["glm"]["models"]["default"],
+        },
+    }
+    with pytest.raises(
+        run_panel.PanelError,
+        match=r"identical \(runner, model\) pair \(opencode, zhipuai-coding-plan/glm-5\.2\)",
+    ):
+        run_panel.parse_roster(roster, "inline fixture")
+
+
+def test_parse_roster_rejects_a_non_string_model_value_without_crashing():
+    # A malformed default (a list instead of a plain model string) must
+    # raise the same graceful, roster-naming PanelError every other
+    # malformed-shape case does -- not an uncaught TypeError from being
+    # inserted, unvalidated, into the uniqueness dict's key.
+    roster = make_roster()
+    roster["families"]["gpt"]["models"]["default"] = ["not", "a", "string"]
+    with pytest.raises(run_panel.PanelError, match=r"models\['default'\] must be a plain model string"):
+        run_panel.parse_roster(roster, "inline fixture")
+
+
 # ---------------------------------------------------------------------------
 # Discovery order: explicit > project walk-up > user level > built-in
 # ---------------------------------------------------------------------------
@@ -259,17 +379,23 @@ def test_invalid_discovered_roster_is_a_loud_error(tmp_path):
 
 VOTE_REPLY = (
     'Reply of seat %d.\n```json\n{"vote": "%s", "anchored_arguments": [], '
-    '"unanchored_arguments_discarded": 0}\n```\n'
+    '"unanchored_arguments_discarded": 0, "judge_prompt_sha256": "%s"}\n```\n'
 )
 
 
-def write_native_votes(tmp_path, votes):
-    # Each seat's reply carries its own seat marker: independent subagents
-    # never produce byte-identical replies, and run_panel refuses them.
+def write_native_votes(tmp_path, votes, materials):
+    # Each seat's reply carries its own seat marker (independent subagents
+    # never produce byte-identical replies, and run_panel refuses them) and
+    # echoes the judge-prompt body hash for the given materials, as the
+    # binding block at the end of judge_prompt.md instructs a real subagent
+    # to do.
+    from test_run_panel_mock import compute_prompt_sha
+
+    prompt_sha = compute_prompt_sha(materials)
     files = []
     for index, vote in enumerate(votes, start=1):
         path = tmp_path / ("native_reply_%d.txt" % index)
-        path.write_text(VOTE_REPLY % (index, vote), encoding="utf-8")
+        path.write_text(VOTE_REPLY % (index, vote, prompt_sha), encoding="utf-8")
         files.append(path)
     return files
 
@@ -303,7 +429,7 @@ def test_no_roster_anywhere_degrades_with_guidance(tmp_path):
 def test_native_panel_collects_three_seats_and_assembles(tmp_path):
     materials, commitment = build_materials(tmp_path)
     out_dir = tmp_path / "panel"
-    files = write_native_votes(tmp_path, ["a", "a", "tie"])
+    files = write_native_votes(tmp_path, ["a", "a", "tie"], materials)
     result = run_panel_cli(materials, out_dir, native_vote_args(files))
     assert result.returncode == 0, result.stderr
     votes = sorted(path.name for path in (out_dir / "votes").glob("*.json"))
@@ -370,7 +496,7 @@ def test_native_panel_with_declared_unavailable_family_records_it(tmp_path):
         },
     )
     out_dir = tmp_path / "panel"
-    files = write_native_votes(tmp_path, ["b", "b", "b"])
+    files = write_native_votes(tmp_path, ["b", "b", "b"], materials)
     result = run_panel_cli(materials, out_dir, native_vote_args(files), roster=roster)
     assert result.returncode == 0, result.stderr
     report = json.loads((out_dir / "panel_run_report.json").read_text(encoding="utf-8"))
@@ -381,7 +507,7 @@ def test_native_panel_with_declared_unavailable_family_records_it(tmp_path):
 def test_native_panel_bad_seat_reply_fails_the_floor(tmp_path):
     materials, _ = build_materials(tmp_path)
     out_dir = tmp_path / "panel"
-    files = write_native_votes(tmp_path, ["a", "a"])
+    files = write_native_votes(tmp_path, ["a", "a"], materials)
     garbage = tmp_path / "native_reply_3.txt"
     garbage.write_text("no json here at all\n", encoding="utf-8")
     result = run_panel_cli(materials, out_dir, native_vote_args(files + [garbage]))
@@ -395,9 +521,41 @@ def test_native_panel_bad_seat_reply_fails_the_floor(tmp_path):
     assert "no JSON object" in report["seats_failed"][0]["reason"]
 
 
+def test_native_panel_seat_without_prompt_echo_fails_that_seat(tmp_path):
+    # The degraded collector implements the echo verification separately
+    # from the cross-family injected seat; this locks that path too. A seat
+    # whose reply omits the judge_prompt_sha256 echo fails with a recorded
+    # reason, exactly like any other malformed reply, and a seat echoing a
+    # different rendering's hash fails with the mismatch reason.
+    materials, _ = build_materials(tmp_path)
+    out_dir = tmp_path / "panel"
+    files = write_native_votes(tmp_path, ["a", "a"], materials)
+    no_echo = tmp_path / "native_reply_no_echo.txt"
+    no_echo.write_text(
+        '{"vote": "a", "anchored_arguments": [], "unanchored_arguments_discarded": 0}\n',
+        encoding="utf-8",
+    )
+    wrong_echo = tmp_path / "native_reply_wrong_echo.txt"
+    wrong_echo.write_text(
+        '{"vote": "a", "anchored_arguments": [], "unanchored_arguments_discarded": 0, '
+        '"judge_prompt_sha256": "sha256:%s"}\n' % ("0" * 64),
+        encoding="utf-8",
+    )
+    result = run_panel_cli(
+        materials, out_dir, native_vote_args(files + [no_echo, wrong_echo])
+    )
+    assert result.returncode == 2
+    report = json.loads((out_dir / "panel_run_report.json").read_text(encoding="utf-8"))
+    assert report["panel_valid"] is False
+    assert len(report["votes_collected"]) == 2
+    reasons = {item["seat"]: item["reason"] for item in report["seats_failed"]}
+    assert "no judge_prompt_sha256 echo" in reasons[3]
+    assert "formed against a different prompt" in reasons[4]
+
+
 def test_native_panel_refuses_runner_overrides(tmp_path):
     materials, _ = build_materials(tmp_path)
-    files = write_native_votes(tmp_path, ["a", "a", "a"])
+    files = write_native_votes(tmp_path, ["a", "a", "a"], materials)
     result = run_panel_cli(
         materials,
         tmp_path / "panel",
@@ -415,9 +573,14 @@ def test_native_seat_reply_hash_is_over_raw_bytes(tmp_path):
 
     materials, _ = build_materials(tmp_path)
     out_dir = tmp_path / "panel"
-    files = write_native_votes(tmp_path, ["a", "a"])
+    files = write_native_votes(tmp_path, ["a", "a"], materials)
+    from test_run_panel_mock import compute_prompt_sha
     crlf = tmp_path / "native_reply_crlf.txt"
-    crlf.write_bytes((VOTE_REPLY % (3, "tie")).replace("\n", "\r\n").encode("utf-8"))
+    crlf.write_bytes(
+        (VOTE_REPLY % (3, "tie", compute_prompt_sha(materials)))
+        .replace("\n", "\r\n")
+        .encode("utf-8")
+    )
     result = run_panel_cli(materials, out_dir, native_vote_args(files + [crlf]))
     assert result.returncode == 0, result.stderr
     seat_three = json.loads(
@@ -433,7 +596,7 @@ def test_native_seat_that_is_not_utf8_fails_that_seat_only(tmp_path):
     # panel then fails the floor.
     materials, _ = build_materials(tmp_path)
     out_dir = tmp_path / "panel"
-    files = write_native_votes(tmp_path, ["a", "a"])
+    files = write_native_votes(tmp_path, ["a", "a"], materials)
     binary = tmp_path / "native_reply_binary.txt"
     binary.write_bytes(b"\xff\xfe\x00 not text")
     result = run_panel_cli(materials, out_dir, native_vote_args(files + [binary]))
@@ -474,7 +637,7 @@ def test_native_panel_refuses_reused_reply_file(tmp_path):
     # One reply wearing three seat numbers is not a panel; the same file
     # given twice is refused before any seat is stored.
     materials, _ = build_materials(tmp_path)
-    files = write_native_votes(tmp_path, ["a", "a"])
+    files = write_native_votes(tmp_path, ["a", "a"], materials)
     result = run_panel_cli(
         materials,
         tmp_path / "panel",
@@ -486,7 +649,7 @@ def test_native_panel_refuses_reused_reply_file(tmp_path):
 
 def test_native_panel_refuses_byte_identical_replies(tmp_path):
     materials, _ = build_materials(tmp_path)
-    files = write_native_votes(tmp_path, ["a", "a", "tie"])
+    files = write_native_votes(tmp_path, ["a", "a", "tie"], materials)
     clone = tmp_path / "native_reply_clone.txt"
     clone.write_text(files[0].read_text(encoding="utf-8"), encoding="utf-8")
     result = run_panel_cli(
@@ -510,7 +673,7 @@ def test_failed_rerun_never_leaves_an_assemblable_hybrid(tmp_path):
     # changed; assembly then refuses for want of a report.
     materials, _ = build_materials(tmp_path)
     out_dir = tmp_path / "panel"
-    files = write_native_votes(tmp_path, ["a", "a", "tie"])
+    files = write_native_votes(tmp_path, ["a", "a", "tie"], materials)
 
     def valid_run():
         result = run_panel_cli(materials, out_dir, native_vote_args(files))
@@ -576,7 +739,7 @@ def test_thin_roster_with_unavailable_native_family_cannot_run(tmp_path):
             },
         },
     )
-    files = write_native_votes(tmp_path, ["a", "a", "a"])
+    files = write_native_votes(tmp_path, ["a", "a", "a"], materials)
     result = run_panel_cli(
         materials, tmp_path / "panel", native_vote_args(files), roster=roster
     )
@@ -615,7 +778,7 @@ def test_families_subset_never_degrades_a_capable_roster(tmp_path):
 def test_cross_family_panel_takes_exactly_one_native_vote(tmp_path):
     materials, _ = build_materials(tmp_path)
     roster = write_roster(tmp_path)
-    files = write_native_votes(tmp_path, ["a", "a"])
+    files = write_native_votes(tmp_path, ["a", "a"], materials)
     result = run_panel_cli(
         materials, tmp_path / "panel", native_vote_args(files), roster=roster
     )
@@ -631,7 +794,7 @@ def test_native_vote_conflicts_with_native_runner_override(tmp_path):
     roster = write_roster(tmp_path)
     stub_path = tmp_path / "stub_judge.py"
     stub_path.write_text(STUB_SOURCE, encoding="utf-8")
-    files = write_native_votes(tmp_path, ["a"])
+    files = write_native_votes(tmp_path, ["a"], materials)
     result = run_panel_cli(
         materials,
         tmp_path / "panel",
@@ -671,6 +834,173 @@ def test_roster_minimum_above_three_is_enforced_at_collection(tmp_path):
     assert report["panel_valid"] is False
 
 
+def test_roster_collision_is_refused_at_parse_time_without_any_runner_override(tmp_path):
+    # No --runner override anywhere: every seat resolves purely from the
+    # roster. The roster quietly points "glm" at the exact same (runner,
+    # model) pair as "gpt" -- three labels that look like three families but
+    # two of them are one physical backend. parse_roster's own (runner,
+    # model)-pair uniqueness check refuses this at parse time, before a
+    # panel even starts (an earlier, clearer stage than the runtime
+    # independence guard the pre-parse-time-check version of this test
+    # exercised; see test_check_runner_independence_catches_roster_only_collision
+    # for the runtime primitive's own unit coverage).
+    materials, _ = build_materials(tmp_path)
+    roster_obj = make_roster()
+    roster_obj["families"]["glm"] = dict(roster_obj["families"]["gpt"])
+    roster = write_roster(tmp_path, roster_obj)
+    out_dir = tmp_path / "panel"
+    result = run_panel_cli(
+        materials,
+        out_dir,
+        [],
+        allow_shared_runners=False,
+        roster=roster,
+    )
+    assert result.returncode == 1
+    assert "identical (runner, model) pair" in result.stderr
+    assert "gpt" in result.stderr and "glm" in result.stderr
+    assert not (out_dir / "votes").exists()
+
+
+def test_resolve_execution_signature_keys_on_runner_and_model():
+    roster = run_panel.parse_roster(ROSTER, "inline fixture")
+    gpt_sig = run_panel.resolve_execution_signature("gpt", roster, {}, {})
+    # codex is launcher-routed: the signature carries a constant "launcher"
+    # discriminator plus the launcher backend tag, not the roster label and
+    # not a resolved script path (review-swarm's deeper config resolution
+    # is not replicated here).
+    assert gpt_sig == ("roster", "launcher", "codex", "gpt-5.6-terra")
+    # A --model-spec override changes the effective model, so the signature
+    # must follow it, not the roster's declared default.
+    spec_sig = run_panel.resolve_execution_signature(
+        "gpt", roster, {}, {"gpt": "gpt-5.6-sol"}
+    )
+    assert spec_sig == ("roster", "launcher", "codex", "gpt-5.6-sol")
+    # A --runner override takes the command-signature path regardless of
+    # what the roster declares for that family.
+    override_sig = run_panel.resolve_execution_signature(
+        "gpt", roster, {"gpt": "python3 stub.py {prompt} {system}"}, {}
+    )
+    assert override_sig[0] == "runner_override"
+
+
+def test_resolve_execution_signature_carries_the_env_resolved_direct_runner_path():
+    # kimi/opencode/gemini are directly invoked scripts, redirectable via
+    # IDEA_PAIRWISE_<FAMILY>_RUNNER; the signature must follow the actual
+    # resolved path, not just the runner label, so two families whose env
+    # vars happen to point at the same physical script collide even though
+    # parse_roster's static check has no way to see an env var.
+    roster = run_panel.parse_roster(ROSTER, "inline fixture")
+    original = os.environ.get("IDEA_PAIRWISE_KIMI_RUNNER")
+    try:
+        # Isolate BOTH assertions from the invoking environment: the
+        # default-path assertion would otherwise fail on a machine that
+        # legitimately has IDEA_PAIRWISE_KIMI_RUNNER exported.
+        os.environ.pop("IDEA_PAIRWISE_KIMI_RUNNER", None)
+        default_sig = run_panel.resolve_execution_signature("kimi", roster, {}, {})
+        assert default_sig == (
+            "roster",
+            "direct_runner",
+            os.path.realpath(str(run_panel.DEFAULT_KIMI_RUNNER)),
+            "kimi-code/kimi-for-coding",
+        )
+
+        os.environ["IDEA_PAIRWISE_KIMI_RUNNER"] = "/tmp/redirected-runner.sh"
+        redirected_sig = run_panel.resolve_execution_signature("kimi", roster, {}, {})
+        # The signature carries the REALPATH-canonicalized form (on macOS,
+        # /tmp itself is a symlink to /private/tmp), so a symlink, relative
+        # form, or dotted path naming the same physical script collides.
+        assert redirected_sig == (
+            "roster",
+            "direct_runner",
+            os.path.realpath("/tmp/redirected-runner.sh"),
+            "kimi-code/kimi-for-coding",
+        )
+    finally:
+        if original is None:
+            os.environ.pop("IDEA_PAIRWISE_KIMI_RUNNER", None)
+        else:
+            os.environ["IDEA_PAIRWISE_KIMI_RUNNER"] = original
+
+
+def test_check_runner_independence_catches_env_redirected_dedicated_runner_alias(tmp_path):
+    # kimi and gemini are two DIFFERENT, individually-unique dedicated
+    # runner labels (parse_roster's dedicated-runner rule cannot see this,
+    # since each label appears exactly once) -- but if an operator
+    # redirects both env vars at the literal same script AND both resolve
+    # to the same model string, the two seats collide despite their
+    # distinct roster labels, exactly as a roster (runner, model) collision
+    # does. A shared script with a genuinely different model is still not
+    # a collision (see test_check_runner_independence_same_runner_different_model_is_not_a_collision's
+    # rationale) -- this test keeps the model identical to isolate the
+    # env-redirection path specifically.
+    roster_obj = make_roster()
+    roster_obj["families"]["gemini"] = {
+        "runner": "gemini",
+        "models": {"default": roster_obj["families"]["kimi"]["models"]["default"]},
+    }
+    roster = run_panel.parse_roster(roster_obj, "inline fixture")
+    shared_path = str(tmp_path / "shared_runner.sh")
+    original_kimi = os.environ.get("IDEA_PAIRWISE_KIMI_RUNNER")
+    original_gemini = os.environ.get("IDEA_PAIRWISE_GEMINI_RUNNER")
+    try:
+        os.environ["IDEA_PAIRWISE_KIMI_RUNNER"] = shared_path
+        os.environ["IDEA_PAIRWISE_GEMINI_RUNNER"] = shared_path
+        signatures = {
+            family: run_panel.resolve_execution_signature(family, roster, {}, {})
+            for family in ("kimi", "gemini")
+        }
+        with pytest.raises(run_panel.PanelError, match="same underlying command"):
+            run_panel.check_runner_independence(signatures, allow_shared=False)
+    finally:
+        for name, original in (
+            ("IDEA_PAIRWISE_KIMI_RUNNER", original_kimi),
+            ("IDEA_PAIRWISE_GEMINI_RUNNER", original_gemini),
+        ):
+            if original is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = original
+
+
+def test_check_runner_independence_catches_roster_only_collision():
+    signatures = {
+        "gpt": ("roster", "codex", "gpt-5.6-terra"),
+        "glm": ("roster", "codex", "gpt-5.6-terra"),
+        "kimi": ("roster", "kimi", "kimi-code/kimi-for-coding"),
+    }
+    with pytest.raises(run_panel.PanelError, match="same underlying command"):
+        run_panel.check_runner_independence(signatures, allow_shared=False)
+    # The escape hatch still works, and still reports which families shared.
+    independent, shared = run_panel.check_runner_independence(
+        signatures, allow_shared=True
+    )
+    assert independent is False
+    assert shared == {("roster", "codex", "gpt-5.6-terra"): ["glm", "gpt"]}
+
+
+def test_check_runner_independence_same_runner_different_model_is_not_a_collision():
+    # Same runner label, genuinely different pinned models: two families
+    # legitimately sharing a CLI backend with different models are not
+    # conflated. The signature is keyed on (runner, model), not runner
+    # alone. opencode is used here deliberately: it is the one runner kind
+    # parse_roster's dedicated-runner-uniqueness rule exempts as a
+    # multi-provider gateway (see test_parse_roster_rejects_two_families_on_one_dedicated_runner);
+    # any OTHER runner kind sharing a label across two families, even with
+    # distinct models, is rejected before a roster with that shape can ever
+    # reach this check.
+    signatures = {
+        "gpt": ("roster", "opencode", "gpt-5.6-terra"),
+        "glm": ("roster", "opencode", "a-genuinely-different-model"),
+        "kimi": ("roster", "kimi", "kimi-code/kimi-for-coding"),
+    }
+    independent, shared = run_panel.check_runner_independence(
+        signatures, allow_shared=False
+    )
+    assert independent is True
+    assert shared == {}
+
+
 # ---------------------------------------------------------------------------
 # Single-family assembly guards
 # ---------------------------------------------------------------------------
@@ -707,6 +1037,12 @@ def single_family_setup(tmp_path, votes, seats=None, families_present=None):
             "min_families": 3,
             "panel_valid": True,
             "votes_collected": votes_collected,
+            # Placeholder: no caller of single_family_setup passes
+            # materials_dir to assemble(), so the content-binding rebuild-
+            # and-compare never runs; these only need to satisfy the
+            # required-field shape check.
+            "judge_prompt_sha256": "sha256:" + "0" * 64,
+            "word_cap": run_panel.DEFAULT_WORD_CAP,
         },
     )
     campaign = tmp_path / "campaign"

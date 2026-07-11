@@ -2,6 +2,7 @@
 artifact validation, rematch guard."""
 
 import copy
+import hashlib
 import json
 import subprocess
 import sys
@@ -11,10 +12,18 @@ import pytest
 
 import assemble_match
 import commit_criteria
+import run_panel
 
 SCRIPT = Path(assemble_match.__file__)
 
 CRITERIA = ["tension resolution", "verification cost"]
+# A well-formed but arbitrary placeholder: correct for tests that never pass
+# materials_dir to assemble() (the content-binding rebuild-and-compare in
+# read_panel_report only runs when materials_dir is given), so most fixtures
+# only need judge_prompt_sha256/word_cap to satisfy the required-field shape
+# check, not to actually match any real rendered prompt.
+PLACEHOLDER_JUDGE_PROMPT_SHA256 = "sha256:" + "0" * 64
+PLACEHOLDER_WORD_CAP = run_panel.DEFAULT_WORD_CAP
 # Engine short ids: 8 chars of lowercase Crockford base32 (idea_node_v1 /
 # pairwise_match_v1 convention).
 IDEA_A = "1f6c9d5e"
@@ -48,7 +57,8 @@ def make_vote(family, vote, commitment, collected_at=None, discarded=0):
 
 
 def write_votes(votes_dir, votes, names=None, independent_runners=True,
-                families_present=None, absent=None):
+                families_present=None, absent=None,
+                judge_prompt_sha256=None, word_cap=None):
     votes_dir.mkdir(parents=True, exist_ok=True)
     votes_collected = {}
     for index, vote in enumerate(votes):
@@ -69,6 +79,8 @@ def write_votes(votes_dir, votes, names=None, independent_runners=True,
             "min_families": 3,
             "panel_valid": True,
             "votes_collected": votes_collected,
+            "judge_prompt_sha256": judge_prompt_sha256 or PLACEHOLDER_JUDGE_PROMPT_SHA256,
+            "word_cap": word_cap or PLACEHOLDER_WORD_CAP,
         },
     )
 
@@ -401,10 +413,10 @@ def test_materials_cross_check(tmp_path):
     commitment_path, commitment, votes_dir, campaign = standard_setup(
         tmp_path, [("claude", "a"), ("gpt", "a"), ("kimi", "a")]
     )
-    materials = tmp_path / "materials"
-    materials.mkdir()
-    _write_statement(materials / "statement_a.md", commitment, IDEA_A)
-    _write_statement(materials / "statement_b.md", commitment, IDEA_B)
+    materials, judge_prompt_sha256, word_cap = write_full_materials(
+        tmp_path / "materials", commitment
+    )
+    patch_report_judge_prompt_hash(votes_dir, judge_prompt_sha256, word_cap)
     artifact_path, artifact, _, _ = assemble_match.assemble(
         commitment_path,
         votes_dir,
@@ -431,6 +443,94 @@ def test_materials_cross_check(tmp_path):
             IDEA_A,
             IDEA_B,
             materials_dir=swapped,
+        )
+
+
+def test_stale_panel_refused_when_materials_edited_after_the_panel_ran(tmp_path):
+    # The panel voted on one version of statement_a.md; the source materials
+    # are then edited (a different sentence, but the hash-line, idea_node_id,
+    # and the one anchor reference are all left intact -- exactly what the
+    # PRE-EXISTING cross-check does not catch, because it only binds CURRENT
+    # materials to the commitment and node id, never to what the judges
+    # actually read). Assembly must refuse: this is precisely the gap the
+    # content-binding rebuild-and-compare closes.
+    commitment_path, commitment, votes_dir, campaign = standard_setup(
+        tmp_path, [("claude", "a"), ("gpt", "a"), ("kimi", "a")]
+    )
+    materials, judge_prompt_sha256, word_cap = write_full_materials(
+        tmp_path / "materials", commitment
+    )
+    patch_report_judge_prompt_hash(votes_dir, judge_prompt_sha256, word_cap)
+
+    statement_a = materials / "statement_a.md"
+    edited = statement_a.read_text(encoding="utf-8").replace(
+        "Resolves the standing tension.",
+        "Resolves the standing tension through a substantively different argument.",
+    )
+    assert edited != statement_a.read_text(encoding="utf-8")
+    statement_a.write_text(edited, encoding="utf-8")
+
+    with pytest.raises(assemble_match.MatchError, match="no longer rebuild the judge prompt"):
+        assemble_match.assemble(
+            commitment_path,
+            votes_dir,
+            campaign,
+            CAMPAIGN_ID,
+            IDEA_A,
+            IDEA_B,
+            materials_dir=materials,
+        )
+
+
+def test_placeholder_hash_is_refused_against_valid_unedited_materials(tmp_path):
+    # Complementary to the edited-materials case above: materials_dir is
+    # supplied and the materials on disk are entirely valid and unedited,
+    # but the report was never actually rebuilt against them (it still
+    # carries the placeholder judge_prompt_sha256 write_votes stamps by
+    # default). The rebuild-and-compare must still refuse: a hash that was
+    # never derived from these materials in the first place is exactly as
+    # stale as one that was but no longer matches.
+    commitment_path, commitment, votes_dir, campaign = standard_setup(
+        tmp_path, [("claude", "a"), ("gpt", "a"), ("kimi", "a")]
+    )
+    materials, _judge_prompt_sha256, _word_cap = write_full_materials(
+        tmp_path / "materials", commitment
+    )
+    # Deliberately do NOT call patch_report_judge_prompt_hash: the report
+    # keeps write_votes' PLACEHOLDER_JUDGE_PROMPT_SHA256/PLACEHOLDER_WORD_CAP.
+    with pytest.raises(assemble_match.MatchError, match="no longer rebuild the judge prompt"):
+        assemble_match.assemble(
+            commitment_path,
+            votes_dir,
+            campaign,
+            CAMPAIGN_ID,
+            IDEA_A,
+            IDEA_B,
+            materials_dir=materials,
+        )
+
+
+def test_assembly_requires_judge_prompt_sha256_and_word_cap_in_the_report(tmp_path):
+    commitment_path, commitment, votes_dir, campaign = standard_setup(
+        tmp_path, [("claude", "a"), ("gpt", "a"), ("kimi", "a")]
+    )
+    report_path = votes_dir.parent / "panel_run_report.json"
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+
+    missing_hash = dict(report)
+    del missing_hash["judge_prompt_sha256"]
+    commit_criteria.write_json_atomic(report_path, missing_hash)
+    with pytest.raises(assemble_match.MatchError, match="judge_prompt_sha256"):
+        assemble_match.assemble(
+            commitment_path, votes_dir, campaign, CAMPAIGN_ID, IDEA_A, IDEA_B
+        )
+
+    missing_cap = dict(report)
+    del missing_cap["word_cap"]
+    commit_criteria.write_json_atomic(report_path, missing_cap)
+    with pytest.raises(assemble_match.MatchError, match="word_cap"):
+        assemble_match.assemble(
+            commitment_path, votes_dir, campaign, CAMPAIGN_ID, IDEA_A, IDEA_B
         )
 
 
@@ -642,11 +742,16 @@ def test_validator_rejects_statement_binding_bad_hash(valid_artifact):
 # CLI smoke
 # ---------------------------------------------------------------------------
 
-def write_materials(materials_dir, commitment):
+def write_materials(materials_dir, commitment, nodes=None):
     """Write the two statements assemble_match needs for its mandatory
-    materials cross-check and statement binding."""
+    materials cross-check and statement binding. nodes optionally overrides
+    the {"a": ..., "b": ...} idea_node_id each side's statement declares
+    (default IDEA_A/IDEA_B), for tests that need a deliberately wrong
+    binding.
+    """
+    nodes = nodes or {"a": IDEA_A, "b": IDEA_B}
     materials_dir.mkdir(parents=True, exist_ok=True)
-    for side, node in (("a", IDEA_A), ("b", IDEA_B)):
+    for side in ("a", "b"):
         text = (
             "criteria_commitment: %s\n"
             "idea_node_id: %s\n\n"
@@ -654,10 +759,44 @@ def write_materials(materials_dir, commitment):
             "## tension resolution\n\n"
             "Resolves the standing tension. "
             "[anchor: literature -> https://example.org/reference]\n"
-            % (commitment["commitment_hash"], node, side.upper())
+            % (commitment["commitment_hash"], nodes[side], side.upper())
         )
         (materials_dir / ("statement_%s.md" % side)).write_text(text, encoding="utf-8")
     return materials_dir
+
+
+def write_full_materials(materials_dir, commitment, word_cap=None, nodes=None):
+    """Write a complete, load_materials-compatible materials directory (the
+    two statements plus commitment.json and both card summaries, matching
+    the same evidence reference the statements anchor to) and return
+    (materials_dir, judge_prompt_sha256, word_cap): the exact hash a
+    panel_run_report.json fixture must carry for read_panel_report's
+    content-binding rebuild-and-compare to accept these materials.
+    """
+    word_cap = word_cap or PLACEHOLDER_WORD_CAP
+    write_materials(materials_dir, commitment, nodes=nodes)
+    commit_criteria.write_json_atomic(materials_dir / "commitment.json", commitment)
+    for side in ("a", "b"):
+        (materials_dir / ("card_summary_%s.md" % side)).write_text(
+            "1. Placeholder card claim "
+            "[support: literature; evidence: https://example.org/reference]\n",
+            encoding="utf-8",
+        )
+    texts, loaded_commitment = run_panel.load_materials(materials_dir, word_cap=word_cap)
+    prompt = run_panel.render_judge_prompt(texts, loaded_commitment)
+    judge_prompt_sha256 = "sha256:" + hashlib.sha256(prompt.encode("utf-8")).hexdigest()
+    return materials_dir, judge_prompt_sha256, word_cap
+
+
+def patch_report_judge_prompt_hash(votes_dir, judge_prompt_sha256, word_cap):
+    """Overwrite judge_prompt_sha256/word_cap on an already-written
+    panel_run_report.json, for tests that build materials AFTER standard_setup
+    has already written a placeholder-hashed report."""
+    report_path = votes_dir.parent / "panel_run_report.json"
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    report["judge_prompt_sha256"] = judge_prompt_sha256
+    report["word_cap"] = word_cap
+    commit_criteria.write_json_atomic(report_path, report)
 
 
 def test_cli_smoke(tmp_path):
@@ -665,7 +804,10 @@ def test_cli_smoke(tmp_path):
         tmp_path,
         [("claude", "a"), ("gpt", "a"), ("glm", "b"), ("kimi", "tie")],
     )
-    materials = write_materials(tmp_path / "materials", commitment)
+    materials, judge_prompt_sha256, word_cap = write_full_materials(
+        tmp_path / "materials", commitment
+    )
+    patch_report_judge_prompt_hash(votes_dir, judge_prompt_sha256, word_cap)
     result = subprocess.run(
         [
             sys.executable,

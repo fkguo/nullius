@@ -73,6 +73,10 @@ must have exactly these three keys:
   from the anchor tag). Typically two to six entries.
 - "unanchored_arguments_discarded": integer count, zero or more.
 
+(One exception is stated at the very end of this prompt, and applies only
+to a native seat whose reply will be injected with --native-vote; every
+other judge replies with exactly the three keys above.)
+
 Shape example (values are illustrative only):
 
 ```json

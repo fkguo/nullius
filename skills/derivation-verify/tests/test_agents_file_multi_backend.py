@@ -100,7 +100,24 @@ def test_validate_allows_opencode_gateway_families():
     assert mb.validate_agents_roster(roster, source="test") is roster
 
 
-def test_validate_accepts_unknown_keys():
+def test_validate_rejects_unknown_keys_at_every_level():
+    # Unknown-key handling is a cross-parser contract (docs/AGENTS_FILE.md): a
+    # misspelled field name (modle, availble) must be a parse error, never a
+    # field silently treated as absent. All three self-contained parsers
+    # (this one, review-swarm's, idea-pairwise-match's) reject the same files.
+    bad = [
+        {"version": 1, "families": {}, "extra": 1},
+        {"version": 1, "families": {"gpt": {"runner": "codex", "modle": {"default": "m"}}}},
+        {"version": 1, "families": {"gpt": {"runner": "codex", "models": {"default": "m"}, "availble": False}}},
+        {"version": 1, "families": {}, "policy": {"cross_family_minimum": 3, "extra": 1}},
+    ]
+    for obj in bad:
+        with pytest.raises(ValueError, match="unknown"):
+            mb.validate_agents_roster(obj, source="test")
+
+
+def test_validate_accepts_top_level_notes():
+    # "_notes" is the one sanctioned comment carrier: top level only.
     roster = {"version": 1, "_notes": ["ok"], "families": {"gpt": {"runner": "codex"}}}
     assert mb.validate_agents_roster(roster, source="test") is roster
 
