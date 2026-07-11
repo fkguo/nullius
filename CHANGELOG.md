@@ -83,6 +83,27 @@ version is the lockstep number below.
   decisions, misaligned report indexes, and overrides that match nothing.
 
 ### Fixed
+- **Pairwise judge panel: votes are bound to the exact rendering they answered,
+  and independence claims are mechanically backed.** Two review-driven lanes
+  (six rounds and a three-round follow-up of dual cross-family review; ~19
+  independently verified findings fixed between them). The panel report records
+  a composite prompt digest (rendered body + judge system prompt + native
+  binding-block template) that assembly recomputes and injected native replies
+  must echo, failing the seat on a missing or mismatched echo; stale
+  panel_valid reports are invalidated the moment execution starts. The roster's
+  uniqueness rules (one dedicated route = one family; no duplicate
+  (runner, model) pairs) are enforced at parse time; direct-runner execution
+  identity is keyed on the physical file (device+inode), so case aliases,
+  hardlinks, and env-redirected paths of one script collide; any --runner
+  override among counted votes stamps independent_runners=false; project
+  roster discovery stops at the git root and reports a user-level file as
+  user-level even when \$HOME is itself a git repository; panel shape follows
+  the documented usable-family definition (declared available AND runner
+  executable present), so missing CLIs trigger the honest native degradation.
+- **All three agents.json parsers reject unknown keys at every level**
+  (top/family/policy, with top-level `_notes` as the one sanctioned comment
+  carrier), closing the strictness split where a misspelled family field was a
+  parse error for one consumer and a silently vanished field for the other two.
 - **Skill artifact ids converged to the engine 8-char short-id convention.**
   `idea-pairwise-match` (validator, minting, docs, fixtures) and
   `idea-allocation` (deterministic sha256-derived `decision_id`, id validation,
