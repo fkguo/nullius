@@ -110,6 +110,9 @@ def test_validate_rejects_unknown_keys_at_every_level():
         {"version": 1, "families": {"gpt": {"runner": "codex", "modle": {"default": "m"}}}},
         {"version": 1, "families": {"gpt": {"runner": "codex", "models": {"default": "m"}, "availble": False}}},
         {"version": 1, "families": {}, "policy": {"cross_family_minimum": 3, "extra": 1}},
+        # "_notes" is legal at the TOP level only; below it, it is an unknown key.
+        {"version": 1, "families": {"gpt": {"runner": "codex", "models": {"default": "m"}, "_notes": "x"}}},
+        {"version": 1, "families": {}, "policy": {"cross_family_minimum": 3, "_notes": "x"}},
     ]
     for obj in bad:
         with pytest.raises(ValueError, match="unknown"):
@@ -117,9 +120,10 @@ def test_validate_rejects_unknown_keys_at_every_level():
 
 
 def test_validate_accepts_top_level_notes():
-    # "_notes" is the one sanctioned comment carrier: top level only.
-    roster = {"version": 1, "_notes": ["ok"], "families": {"gpt": {"runner": "codex"}}}
-    assert mb.validate_agents_roster(roster, source="test") is roster
+    # "_notes" is the one sanctioned comment carrier: top level only, any JSON value.
+    for notes in (["ok"], "ok", {"k": "v"}, 7):
+        roster = {"version": 1, "_notes": notes, "families": {"gpt": {"runner": "codex"}}}
+        assert mb.validate_agents_roster(roster, source="test") is roster
 
 
 # ---------------------------------------------------------------- discovery order

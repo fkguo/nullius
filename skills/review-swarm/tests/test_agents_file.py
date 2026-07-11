@@ -181,13 +181,34 @@ class AgentsFileUnitTests(unittest.TestCase):
         }
         self.assertIs(self.mod._validate_agents_roster(roster, source="test"), roster)
 
-    def test_validate_accepts_unknown_keys_and_empty_policy(self):
-        roster = {
-            "version": 1,
-            "_notes": ["ignored"],
-            "families": {"gpt": {"runner": "codex", "models": {"default": "m"}, "extra": 1}},
-        }
-        self.assertIs(self.mod._validate_agents_roster(roster, source="test"), roster)
+    def test_validate_rejects_unknown_keys_at_every_level(self):
+        # Unknown-key handling is a cross-parser contract (docs/AGENTS_FILE.md):
+        # a misspelled field name (modle, availble) must be a parse error, never
+        # a field silently treated as absent. All three self-contained parsers
+        # (this one, derivation-verify's, idea-pairwise-match's) reject the
+        # same files.
+        cases = [
+            {"version": 1, "families": {}, "extra": 1},
+            {"version": 1, "families": {"gpt": {"runner": "codex", "modle": {"default": "m"}}}},
+            {"version": 1, "families": {"gpt": {"runner": "codex", "models": {"default": "m"}, "availble": False}}},
+            {"version": 1, "families": {}, "policy": {"cross_family_minimum": 3, "extra": 1}},
+            # "_notes" is legal at the TOP level only; below it, it is an unknown key.
+            {"version": 1, "families": {"gpt": {"runner": "codex", "models": {"default": "m"}, "_notes": "x"}}},
+            {"version": 1, "families": {}, "policy": {"cross_family_minimum": 3, "_notes": "x"}},
+        ]
+        for obj in cases:
+            with self.assertRaisesRegex(ValueError, "unknown", msg=repr(obj)):
+                self.mod._validate_agents_roster(obj, source="test")
+
+    def test_validate_accepts_top_level_notes_and_empty_policy(self):
+        # "_notes" is the one sanctioned comment carrier: top level only, any JSON value.
+        for notes in (["ignored"], "ignored", {"k": "v"}, 7):
+            roster = {
+                "version": 1,
+                "_notes": notes,
+                "families": {"gpt": {"runner": "codex", "models": {"default": "m"}}},
+            }
+            self.assertIs(self.mod._validate_agents_roster(roster, source="test"), roster)
 
     def test_resolve_family_spec_maps_each_runner(self):
         roster = _roster(_FULL_FAMILIES)

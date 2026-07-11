@@ -1392,6 +1392,17 @@ _FAMILY_SPEC_PREFIX = "family:"
 def _validate_agents_roster(obj: Any, *, source: Any) -> dict[str, Any]:
     if not isinstance(obj, dict):
         raise ValueError(f"{source}: agents file root must be a JSON object")
+    # Unknown keys at any level are rejected, matching the other two
+    # self-contained parsers of this contract (derivation-verify,
+    # idea-pairwise-match): a misspelled field would otherwise be silently
+    # treated as absent and change the run's semantics. Top-level "_notes"
+    # is the one sanctioned comment carrier.
+    unknown_top = sorted(set(obj) - {"version", "families", "policy", "_notes"})
+    if unknown_top:
+        raise ValueError(
+            f"{source}: unknown top-level keys: {', '.join(unknown_top)} "
+            "(expected only: version, families, policy, _notes)"
+        )
     version = obj.get("version")
     if not isinstance(version, int) or isinstance(version, bool) or version != 1:
         raise ValueError(f"{source}: unsupported agents file version: {version!r} (expected the integer 1)")
@@ -1415,6 +1426,12 @@ def _validate_agents_roster(obj: Any, *, source: Any) -> dict[str, Any]:
             raise ValueError(f"{source}: family names must be lowercase: {name!r}")
         if not isinstance(fam, dict):
             raise ValueError(f"{source}: family {name!r} must be a JSON object")
+        unknown_fam = sorted(set(fam) - {"runner", "models", "available", "notes"})
+        if unknown_fam:
+            raise ValueError(
+                f"{source}: family {name!r} has unknown keys: {', '.join(unknown_fam)} "
+                "(expected only: runner, models, available, notes)"
+            )
         runner = fam.get("runner")
         if runner not in _AGENTS_RUNNERS:
             raise ValueError(
@@ -1453,6 +1470,12 @@ def _validate_agents_roster(obj: Any, *, source: Any) -> dict[str, Any]:
     if "policy" in obj and not isinstance(obj["policy"], dict):
         raise ValueError(f"{source}: 'policy' must be a JSON object")
     policy = obj.get("policy") or {}
+    unknown_policy = sorted(set(policy) - {"cross_family_minimum", "when_below_minimum"})
+    if unknown_policy:
+        raise ValueError(
+            f"{source}: policy has unknown keys: {', '.join(unknown_policy)} "
+            "(expected only: cross_family_minimum, when_below_minimum)"
+        )
     minimum = policy.get("cross_family_minimum", 3)
     if isinstance(minimum, bool) or not isinstance(minimum, int) or minimum < 1:
         raise ValueError(f"{source}: policy.cross_family_minimum must be a positive integer")
