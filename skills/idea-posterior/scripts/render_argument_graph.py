@@ -1062,7 +1062,7 @@ def render_page(
     </defs>
     <g id="viewport">{edge_svg}{node_svg}</g>
   </svg>
-  {legend}
+{legend}
   <div id="zoombar">
     <button id="zout" title="Zoom out">−</button>
     <button id="zin" title="Zoom in">+</button>

@@ -323,6 +323,11 @@ def test_deterministic_output(tmp_path) -> None:
     assert first == second
 
 
+def test_rendered_page_has_no_trailing_whitespace(tmp_path) -> None:
+    page = rendered(tmp_path)
+    assert all(line == line.rstrip() for line in page.splitlines())
+
+
 def test_missing_beliefs_is_a_clear_error(tmp_path) -> None:
     package = write_package(tmp_path, base_ir(), beliefs=None)
     result = run_renderer(package)
