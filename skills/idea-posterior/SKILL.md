@@ -440,9 +440,17 @@ readable diagnosis (including the pinned install recipe) when a stage fails.
    authoring is review's business, and review stays the authority on
    substance either way. Then runs `gaia build compile`, `gaia build check`,
    `gaia run infer`, and — unless `--no-render` — renders a viewable graph
-   after inference: an interactive single-file `starmap.html` (no external
-   dependency; open it in a browser), plus a paper-ready `starmap.svg` when
-   Graphviz is on `PATH` and a detailed-reasoning `docs/` render. Rendering
+   after inference: an interactive single-file `argument-graph.html` built
+   by the sibling `render_argument_graph.py` (no external dependency; open
+   it in a browser). Every card on that page carries the node's full
+   statement — short variable labels appear only as card headers — and each
+   `infer` is drawn as an arrow from the evidence into the claim it updates:
+   solid blue when it raises belief, dashed warm red when it lowers it, line
+   width and a weak/substantial/strong chip showing the likelihood ratio.
+   Clicking a card opens the statement, posterior, likelihoods P(e|h) and
+   P(e|not h), rationale, and source anchors. The run also emits a static
+   `starmap.svg` when Graphviz is on `PATH` and a detailed-reasoning `docs/`
+   render. Rendering
    never gates the posterior — a render failure is reported and skipped. It
    then parses `.gaia/beliefs.json` (the entry labelled
    `worth`) and `.gaia/ir.json` (observation supports, one per
@@ -546,12 +554,13 @@ route, each sub-criterion's grade and its anchor, and the final posterior with
 its `gaia_package_ref`. Display the posterior value rounded to three decimals
 for humans, while the exact machine value remains in JSON artifacts and the
 idea-store snapshot. When the render step produced one, it also links the
-viewable argument graph (`starmap.html`) so a reader can open the graph the
-posterior came from. Treat the graph page as a topology and audit surface —
-what supports the graph's structure and where each number came from — not as
-the primary decision surface: the decision-readable statements (what raises
-the posterior, what lowers it, what evidence is still required) belong in
-this report and in the portfolio status report below.
+viewable argument graph (`argument-graph.html`) so a reader can open the
+graph the posterior came from. That page shows every statement in full and
+each update's direction and strength, so it doubles as a reading surface for
+a human weighing the idea — but the durable decision record (what raises the
+posterior, what lowers it, what evidence is still required) belongs in this
+report and in the portfolio status report below, which travel with the
+project and survive re-renders.
 
 The report must include a close-prior matrix. For every close prior, list the
 reference/link, read status, source link, locator, same-scope status, supported
@@ -573,10 +582,11 @@ earns its place only if a reader can reach it in one click:
 - Repo-local artifact links are written as Markdown targets that resolve from
   the report file's own directory, never as absolute local paths or `file://`
   URLs. Do not hand-write project-root-looking targets such as
-  `ideas/gaia/<slug>-gaia/starmap.html` inside a report stored under
+  `ideas/gaia/<slug>-gaia/argument-graph.html` inside a report stored under
   `artifacts/<campaign>/`: standard Markdown will resolve that as
   `artifacts/<campaign>/ideas/...`. Let the normalizer compute the correct
-  report-relative target, such as `../../ideas/gaia/<slug>-gaia/starmap.html`
+  report-relative target, such as
+  `../../ideas/gaia/<slug>-gaia/argument-graph.html`
   from `artifacts/<campaign>/posterior_report_v1.md`, or `posterior.json` for
   a sibling artifact in the same directory. The posterior's `gaia_package_ref`
   keeps its `project://...#sha256:` pin intact in machine artifacts — the pin

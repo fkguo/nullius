@@ -438,13 +438,11 @@ def run_stage(gaia_bin: str, stage: list[str], package_dir: Path) -> None:
 
 
 def render_optional(
-    gaia_bin: str,
-    stage: list[str],
-    package_dir: Path,
+    cmd: list[str],
     note: str,
     timeout: int = 120,
 ) -> bool:
-    """Run one presentation-render stage; never fatal. Returns True on success.
+    """Run one presentation-render command; never fatal. Returns True on success.
 
     Rendering is a viewability nicety, not part of the posterior: a failure
     here (a missing optional dependency such as Graphviz, a renderer defect, a
@@ -453,7 +451,6 @@ def render_optional(
     gate the result. The timeout is short by design — a healthy render finishes
     in seconds, and an optional graph must not hold a sound posterior hostage.
     """
-    cmd = [gaia_bin, *stage, str(package_dir)]
     try:
         result = subprocess.run(
             cmd, capture_output=True, text=True, timeout=timeout, check=False
@@ -471,19 +468,18 @@ def render_optional(
 
 
 def render_to_file(
-    gaia_bin: str,
-    fmt: str,
+    cmd_for_tmp,
     final_path: Path,
-    package_dir: Path,
     note: str,
     timeout: int,
 ) -> None:
-    """Render a starmap to `final_path` atomically.
+    """Run one renderer into `final_path` atomically.
 
-    A stale or half-written render must never survive: the report may link the
-    file as "the graph the posterior came from," so a failed render must leave
-    NO file rather than an old one. Remove any prior output, render to a temp
-    sibling, and move it onto the final path only on success.
+    `cmd_for_tmp` maps a temporary output path to the argv that renders into
+    it. A stale or half-written render must never survive: the report may link
+    the file as "the graph the posterior came from," so a failed render must
+    leave NO file rather than an old one. Remove any prior output, render to a
+    temp sibling, and move it onto the final path only on success.
     """
     tmp_path = final_path.with_suffix(final_path.suffix + ".tmp")
     for stale in (final_path, tmp_path):
@@ -491,13 +487,7 @@ def render_to_file(
             stale.unlink()
         except FileNotFoundError:
             pass
-    ok = render_optional(
-        gaia_bin,
-        ["inspect", "starmap", "--format", fmt, "--out", str(tmp_path)],
-        package_dir,
-        note,
-        timeout,
-    )
+    ok = render_optional(cmd_for_tmp(tmp_path), note, timeout)
     if ok and tmp_path.exists():
         tmp_path.replace(final_path)
     else:
@@ -511,27 +501,55 @@ def render_graph(gaia_bin: str, package_dir: Path, timeout: int = 120) -> None:
     """Emit human-viewable renderings of the argument graph after inference.
 
     Three best-effort outputs, in decreasing portability:
-    - `starmap.html`: a single-file interactive graph (no external dependency)
-      — the primary viewable artifact; open it in a browser.
-    - `starmap.svg`: a paper-ready figure — additionally needs Graphviz on PATH.
+    - `argument-graph.html`: a single-file interactive render of the argument
+      graph — full statement text on every card, update direction and strength
+      on the edges, click-through to likelihoods, rationales, and anchors.
+      Built by the sibling `render_argument_graph.py` from the compiled IR and
+      the fresh beliefs; needs nothing beyond this Python.
+    - `starmap.svg`: gaia's static figure — additionally needs Graphviz on PATH.
     - `docs/`: the detailed-reasoning render enriched with the fresh beliefs.
 
     None gate the posterior; each prints where it wrote or why it was skipped.
-    The two starmap files are written atomically so a failed render never leaves
+    The two graph files are written atomically so a failed render never leaves
     a stale graph the report could mislink.
     """
+    renderer = Path(__file__).resolve().parent / "render_argument_graph.py"
     render_to_file(
-        gaia_bin, "html", package_dir / "starmap.html", package_dir,
-        "interactive graph -> starmap.html", timeout,
+        lambda tmp: [
+            sys.executable,
+            str(renderer),
+            "--package",
+            str(package_dir),
+            "--out",
+            str(tmp),
+        ],
+        package_dir / "argument-graph.html",
+        "interactive graph -> argument-graph.html",
+        timeout,
     )
+    # Runs from before this renderer existed left a starmap.html next to the
+    # package; drop it so a stale interactive graph cannot shadow the fresh one.
+    try:
+        (package_dir / "starmap.html").unlink()
+    except FileNotFoundError:
+        pass
     render_to_file(
-        gaia_bin, "svg", package_dir / "starmap.svg", package_dir,
-        "figure -> starmap.svg (needs graphviz)", timeout,
+        lambda tmp: [
+            gaia_bin,
+            "inspect",
+            "starmap",
+            "--format",
+            "svg",
+            "--out",
+            str(tmp),
+            str(package_dir),
+        ],
+        package_dir / "starmap.svg",
+        "figure -> starmap.svg (needs graphviz)",
+        timeout,
     )
     render_optional(
-        gaia_bin,
-        ["run", "render", "--target", "docs"],
-        package_dir,
+        [gaia_bin, "run", "render", "--target", "docs", str(package_dir)],
         "detailed reasoning -> docs/",
         timeout,
     )
@@ -677,8 +695,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--no-render",
         action="store_true",
-        help="skip the post-inference graph rendering (starmap HTML/SVG and "
-        "the detailed-reasoning docs); the posterior is unaffected",
+        help="skip the post-inference graph rendering (the interactive "
+        "argument-graph HTML, the static SVG figure, and the "
+        "detailed-reasoning docs); the posterior is unaffected",
     )
     parser.add_argument(
         "--render-timeout",

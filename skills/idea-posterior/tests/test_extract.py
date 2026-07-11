@@ -557,10 +557,14 @@ def test_render_failure_is_non_fatal(tmp_path, fixtures_dir, capsys) -> None:
     # A render failure must never withhold a sound posterior.
     package = write_clean_package(tmp_path)
     fake_gaia = write_fake_gaia_render(tmp_path, fixtures_dir, render_fails=True)
-    # A stale render from a prior run must not survive a failed re-render, or
-    # the report would mislink it as "the graph the posterior came from".
-    stale = package / "starmap.html"
-    stale.write_text("STALE", encoding="utf-8")
+    # Stale renders from a prior run must not survive a failed re-render, or
+    # the report would mislink them as "the graph the posterior came from".
+    stale_svg = package / "starmap.svg"
+    stale_svg.write_text("STALE", encoding="utf-8")
+    stale_page = package / "argument-graph.html"
+    stale_page.write_text("STALE", encoding="utf-8")
+    legacy = package / "starmap.html"
+    legacy.write_text("LEGACY", encoding="utf-8")
     code = extract.main(
         [
             "--package", str(package),
@@ -574,10 +578,14 @@ def test_render_failure_is_non_fatal(tmp_path, fixtures_dir, capsys) -> None:
     assert posterior["value"] == pytest.approx(0.8499370175790979)
     assert "render skipped" in out.err  # reported, not fatal
     assert not posterior["gaia_package_ref"].startswith("exploration-only:")
-    assert not stale.exists()  # stale render removed, never left to mislead
+    # The gaia-side svg render failed: its stale output is removed, never
+    # left to mislead. The interactive page renders from .gaia and is fresh.
+    assert not stale_svg.exists()
+    assert stale_page.read_text(encoding="utf-8") != "STALE"
+    assert not legacy.exists()  # superseded render name never lingers
 
 
-def test_render_writes_starmap(tmp_path, fixtures_dir) -> None:
+def test_render_writes_graph_pages(tmp_path, fixtures_dir) -> None:
     package = write_clean_package(tmp_path)
     fake_gaia = write_fake_gaia_render(tmp_path, fixtures_dir, render_fails=False)
     code = extract.main(
@@ -588,8 +596,13 @@ def test_render_writes_starmap(tmp_path, fixtures_dir) -> None:
         ]
     )
     assert code == 0
-    assert (package / "starmap.html").is_file()
+    page = package / "argument-graph.html"
+    assert page.is_file()
+    # The interactive page is the sibling renderer's output, built from the
+    # package's own .gaia state, not a gaia starmap.
+    assert "graph-data" in page.read_text(encoding="utf-8")
     assert (package / "starmap.svg").is_file()
+    assert not (package / "starmap.html").exists()
 
 
 def test_no_render_skips_rendering(tmp_path, fixtures_dir, capsys) -> None:
@@ -605,5 +618,6 @@ def test_no_render_skips_rendering(tmp_path, fixtures_dir, capsys) -> None:
     )
     out = capsys.readouterr()
     assert code == 0
+    assert not (package / "argument-graph.html").exists()
     assert not (package / "starmap.html").exists()
     assert "render" not in out.err

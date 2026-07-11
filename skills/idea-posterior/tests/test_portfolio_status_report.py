@@ -13,7 +13,7 @@ def _write_package(
     rel: str,
     *,
     worth_value: float,
-    with_starmap: bool = True,
+    with_graph_page: bool = True,
 ) -> str:
     """Create a minimal compiled package under root/rel; return its project:// ref."""
     pkg = root / rel
@@ -56,8 +56,8 @@ def _write_package(
     }
     (pkg / ".gaia" / "ir.json").write_text(json.dumps(ir), encoding="utf-8")
     (pkg / ".gaia" / "beliefs.json").write_text(json.dumps(beliefs), encoding="utf-8")
-    if with_starmap:
-        (pkg / "starmap.html").write_text("<!doctype html>", encoding="utf-8")
+    if with_graph_page:
+        (pkg / "argument-graph.html").write_text("<!doctype html>", encoding="utf-8")
     return f"project://{rel}#sha256:{'a' * 64}"
 
 
@@ -102,7 +102,7 @@ def test_report_renders_drivers_links_and_rounding(tmp_path: Path) -> None:
 
     # Table row: 3-decimal display, relative graph link, machine ref as code span only.
     assert "| `nd000001` | admission_review | saturated | 0.642 |" in md
-    assert "[graph](../ideas/graphs/idea-one/starmap.html)" in md
+    assert "[graph](../ideas/graphs/idea-one/argument-graph.html)" in md
     assert f"Machine ref: `{ref}`" in md
     assert f"[{ref}]" not in md  # machine refs are never clickable links
 
