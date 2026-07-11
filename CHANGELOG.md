@@ -10,6 +10,23 @@ version is the lockstep number below.
 ## [Unreleased]
 
 ### Added
+- **Argument-graph field-audit fixes + generation-bound deep-dive links.**
+  From the first real-project render audit (data fidelity fully clean; all
+  defects presentation-layer): grade chips are placed collision-free by a
+  deterministic post-routing pass; card statements are never shortened
+  (cards grow with their text — the audit's clipped statements were scope
+  limits); narrow viewports open at a readable scale floor and pan; source
+  anchors are whitelist-classified into links (http(s) and relative
+  Markdown paths only, fragment-aware, plain character set) versus plain
+  machine-readable text. Each card's detail panel now deep-links its
+  node's section in `docs/detailed-reasoning.md`, and the link is a
+  generation-bound evidence reference: the pipeline stamps a companion
+  checksum of `.gaia/beliefs.json` after a successful docs render (only
+  when the renderer provably wrote the document this run — three-valued
+  pre/post fingerprint), and the graph links only a document rendered from
+  the current beliefs. A stale survivor from another generation is never
+  linked; hand-polishing the current generation's document keeps its link;
+  every optional-render file operation is never-fatal.
 - **Statement-first argument-graph render (`argument-graph.html`).**
   `skills/idea-posterior/scripts/render_argument_graph.py` renders a compiled
   and inferred Gaia package (`.gaia/ir.json` + `.gaia/beliefs.json`) into one
