@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+import hashlib
 import json
 import re
 import shutil
@@ -482,19 +483,29 @@ def render_to_file(
     temp sibling, and move it onto the final path only on success.
     """
     tmp_path = final_path.with_suffix(final_path.suffix + ".tmp")
-    for stale in (final_path, tmp_path):
+
+    def cleanup(target: Path, when: str) -> None:
+        # Never fatal: rendering is optional by contract, and a cleanup
+        # failure (permissions, a directory squatting on the name) must not
+        # withhold a sound posterior. The warning names what remains.
         try:
-            stale.unlink()
+            target.unlink()
         except FileNotFoundError:
             pass
+        except OSError as exc:
+            print(f"warning: could not remove {when} {target.name}: {exc}", file=sys.stderr)
+
+    for stale in (final_path, tmp_path):
+        cleanup(stale, "stale")
     ok = render_optional(cmd_for_tmp(tmp_path), note, timeout)
     if ok and tmp_path.exists():
-        tmp_path.replace(final_path)
-    else:
         try:
-            tmp_path.unlink()
-        except FileNotFoundError:
-            pass
+            tmp_path.replace(final_path)
+        except OSError as exc:
+            print(f"warning: could not move {tmp_path.name} into place: {exc}", file=sys.stderr)
+            cleanup(tmp_path, "orphaned")
+    else:
+        cleanup(tmp_path, "failed-render")
 
 
 def render_graph(gaia_bin: str, package_dir: Path, timeout: int = 120) -> None:
@@ -514,6 +525,95 @@ def render_graph(gaia_bin: str, package_dir: Path, timeout: int = 120) -> None:
     a stale graph the report could mislink.
     """
     renderer = Path(__file__).resolve().parent / "render_argument_graph.py"
+    # Detailed reasoning renders FIRST: the interactive graph's deep-dive
+    # links are emitted only when docs/detailed-reasoning.md exists, so
+    # rendering the graph first would leave a clean first run with no
+    # links at all. Same no-stale-file rule as render_to_file, applied on
+    # BOTH sides of the render: the old file is removed up front (a
+    # zero-exit render that wrote nothing must not leave last run's
+    # reasoning looking current), and whatever a failed render left
+    # behind is removed after. Cleanup failures only warn: rendering is
+    # optional and must never withhold a sound posterior; an unremovable
+    # survivor is simply never stamped (below), so the graph never links
+    # a document from another beliefs generation.
+    def drop_detailed_reasoning(when: str) -> None:
+        for name in ("detailed-reasoning.md", "detailed-reasoning.beliefs-sha256"):
+            target = package_dir / "docs" / name
+            try:
+                target.unlink()
+            except FileNotFoundError:
+                pass
+            except OSError as exc:
+                print(
+                    f"warning: could not remove {when} {name}: {exc}",
+                    file=sys.stderr,
+                )
+
+    # Three-valued fingerprint: a hash string (the bytes), None (confirmed
+    # absent), or UNREADABLE (an OSError other than absence -- transient
+    # IO, permissions). Confirmed absence and could-not-read must never be
+    # conflated: after a failed unlink, a transient pre-render read failure
+    # followed by a successful post-render read would otherwise make the
+    # unchanged survivor look freshly written and get it stamped.
+    UNREADABLE = object()
+
+    def detailed_reasoning_sha():
+        try:
+            return hashlib.sha256(
+                (package_dir / "docs" / "detailed-reasoning.md").read_bytes()
+            ).hexdigest()
+        except FileNotFoundError:
+            return None
+        except OSError:
+            return UNREADABLE
+
+    drop_detailed_reasoning("previous")
+    # Fingerprint whatever survived the pre-render cleanup (None when the
+    # cleanup worked): the stamp below requires PROOF that the renderer
+    # actually wrote the document this run. A pre-render unlink that
+    # failed, followed by a zero-exit renderer that wrote nothing, would
+    # otherwise leave last generation's document to be re-stamped with the
+    # current beliefs hash -- exactly the cross-generation link the stamp
+    # exists to prevent.
+    survivor_sha = detailed_reasoning_sha()
+    docs_ok = render_optional(
+        [gaia_bin, "run", "render", "--target", "docs", str(package_dir)],
+        "detailed reasoning -> docs/",
+        timeout,
+    )
+    rendered_sha = detailed_reasoning_sha()
+    # Stamp only on PROOF of a fresh write: the post-render read must have
+    # produced actual bytes, the pre-render state must be KNOWN (a hash or
+    # confirmed absence -- an unreadable pre-state proves nothing), and the
+    # bytes must differ from any survivor's.
+    if (
+        docs_ok
+        and rendered_sha is not None
+        and rendered_sha is not UNREADABLE
+        and survivor_sha is not UNREADABLE
+        and rendered_sha != survivor_sha
+    ):
+        # Generation binding: the graph links the document only when this
+        # companion checksum matches the CURRENT beliefs, so a stale
+        # document that survives a later failed cleanup can never be
+        # linked from a graph carrying newer posteriors. Never fatal, like
+        # everything else in this optional-render section: if the stamp
+        # cannot be written, the only consequence is a missing deep-dive
+        # link.
+        try:
+            beliefs_sha = hashlib.sha256(
+                (package_dir / ".gaia" / "beliefs.json").read_bytes()
+            ).hexdigest()
+            (package_dir / "docs" / "detailed-reasoning.beliefs-sha256").write_text(
+                f"sha256:{beliefs_sha}\n", encoding="utf-8"
+            )
+        except OSError as exc:
+            print(
+                f"warning: could not stamp detailed-reasoning.beliefs-sha256: {exc}",
+                file=sys.stderr,
+            )
+    elif not docs_ok:
+        drop_detailed_reasoning("partial")
     render_to_file(
         lambda tmp: [
             sys.executable,
@@ -528,11 +628,14 @@ def render_graph(gaia_bin: str, package_dir: Path, timeout: int = 120) -> None:
         timeout,
     )
     # Runs from before this renderer existed left a starmap.html next to the
-    # package; drop it so a stale interactive graph cannot shadow the fresh one.
+    # package; drop it so a stale interactive graph cannot shadow the fresh
+    # one. Same never-fatal rule as every other optional-render cleanup.
     try:
         (package_dir / "starmap.html").unlink()
     except FileNotFoundError:
         pass
+    except OSError as exc:
+        print(f"warning: could not remove legacy starmap.html: {exc}", file=sys.stderr)
     render_to_file(
         lambda tmp: [
             gaia_bin,
@@ -548,13 +651,6 @@ def render_graph(gaia_bin: str, package_dir: Path, timeout: int = 120) -> None:
         "figure -> starmap.svg (needs graphviz)",
         timeout,
     )
-    render_optional(
-        [gaia_bin, "run", "render", "--target", "docs", str(package_dir)],
-        "detailed reasoning -> docs/",
-        timeout,
-    )
-
-
 def extract_worth_belief(beliefs: dict, worth_label: str) -> float:
     """Pick the belief whose label equals worth_label; list labels on miss."""
     entries = beliefs.get("beliefs", [])

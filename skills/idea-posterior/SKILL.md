@@ -450,7 +450,13 @@ readable diagnosis (including the pinned install recipe) when a stage fails.
    Clicking a card opens the statement, posterior, likelihoods P(e|h) and
    P(e|not h), rationale, and source anchors. The run also emits a static
    `starmap.svg` when Graphviz is on `PATH` and a detailed-reasoning `docs/`
-   render. Rendering
+   render; each card's detail panel links into that document's matching
+   section, and the link is generation-bound: a companion checksum records
+   which beliefs state the document was rendered from, and the graph links
+   only a document rendered from the CURRENT beliefs (a stale survivor of a
+   failed cleanup is never linked; hand-polishing the document keeps its
+   link, since the binding is to the beliefs generation, not the document's
+   bytes). Rendering
    never gates the posterior — a render failure is reported and skipped. It
    then parses `.gaia/beliefs.json` (the entry labelled
    `worth`) and `.gaia/ir.json` (observation supports, one per

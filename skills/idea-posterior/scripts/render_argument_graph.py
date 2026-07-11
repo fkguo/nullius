@@ -36,9 +36,11 @@ page. Stdlib only.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import html
 import json
 import math
+import re
 import sys
 import textwrap
 from pathlib import Path
@@ -56,7 +58,6 @@ LINE_H = 17
 FOOTER_CLAIM = 30  # belief bar row
 FOOTER_PLAIN = 26  # "recorded observation" note row
 WRAP_CHARS = 38
-MAX_LINES = 12
 COL_GAP = 200
 ROW_GAP = 26
 MARGIN = 42
@@ -84,6 +85,33 @@ def load_json(path: Path, what: str) -> dict:
         raise fail(f"unreadable {what} at {path}: {exc}")
 
 
+def detailed_reasoning_matches_beliefs(package_dir: Path) -> bool:
+    """Whether docs/detailed-reasoning.md was rendered from the CURRENT
+    beliefs, per the companion checksum the pipeline writes after a
+    successful docs render (sha256 of .gaia/beliefs.json at that moment).
+
+    Existence alone does not establish freshness: after a failed render
+    whose cleanup also failed, last generation's document can survive on
+    disk, and a graph carrying this generation's posteriors must not send
+    readers into the other generation's reasoning. Missing document,
+    missing companion, unreadable bytes, or a hash mismatch all mean "do
+    not link" -- the safe side. Hand-polishing the document does NOT drop
+    the link: the binding is to the beliefs generation it was rendered
+    from, not to the document's own bytes.
+    """
+    doc_file = package_dir / "docs" / "detailed-reasoning.md"
+    stamp_file = package_dir / "docs" / "detailed-reasoning.beliefs-sha256"
+    beliefs_file = package_dir / ".gaia" / "beliefs.json"
+    try:
+        if not doc_file.is_file() or not stamp_file.is_file():
+            return False
+        recorded = stamp_file.read_text(encoding="utf-8").strip()
+        current = "sha256:" + hashlib.sha256(beliefs_file.read_bytes()).hexdigest()
+        return recorded == current
+    except OSError:
+        return False
+
+
 def local_name(knowledge_id: str) -> str:
     return knowledge_id.rsplit("::", 1)[-1]
 
@@ -108,6 +136,44 @@ def split_anchors(rationale: str) -> tuple[str, list[str]]:
     return prose, [a for a in refs if a]
 
 
+def classify_anchor(anchor: str) -> dict:
+    """Decide whether a source anchor is safe to render as a link.
+
+    Whitelist, not blacklist: only two shapes ever get an href --
+    absolute http(s) URLs, and relative Markdown paths (reader-facing
+    documents that travel with the package). Everything else -- JSON
+    artifacts, engine references like artifact:// ids, absolute
+    filesystem paths -- stays machine-readable plain text, and any
+    other URI scheme (javascript:, file:, data:) can never become a
+    link because it matches neither shape.
+    """
+    text = anchor.strip()
+    lowered = text.lower()
+    href = None
+    if lowered.startswith(("http://", "https://")):
+        href = text
+    else:
+        # The Markdown-only boundary applies to the PATH, not the whole
+        # string: "docs/foo.md#Section" is a valid deep link, while
+        # "artifacts/x.html#y.md" must not pass just because the fragment
+        # happens to end in .md. Character-set whitelist, not just shape
+        # checks: browsers normalize backslashes to slashes (a leading
+        # "\\" or an "\\\\host\\share" UNC form would become root- or
+        # protocol-relative) and strip some control characters, so only
+        # plain path characters survive, with no leading slash and no
+        # colon anywhere.
+        pure_path, _, fragment = text.partition("#")
+        if (
+            pure_path.lower().endswith(".md")
+            and re.fullmatch(r"[A-Za-z0-9._~/-]+", pure_path)
+            and (not fragment or re.fullmatch(r"[A-Za-z0-9._~/-]+", fragment))
+            and "#" not in fragment
+            and not pure_path.startswith("/")
+        ):
+            href = text
+    return {"text": text, "href": href}
+
+
 def grade_for(log_lr_abs: float) -> str:
     return min(GRADE_ANCHORS, key=lambda item: abs(item[1] - log_lr_abs))[0]
 
@@ -123,15 +189,16 @@ def factor_text(lr: float) -> str:
 
 
 def wrap_statement(text: str) -> list[str]:
-    lines = textwrap.wrap(
+    # Never shortened: the card IS the statement-first promise, and the one
+    # statement long enough to overflow a fixed line budget is typically a
+    # scope limit -- exactly the qualification an overview must not hide.
+    # Cards grow instead (size_nodes measures, place_nodes stacks by height).
+    return textwrap.wrap(
         " ".join(text.split()),
         width=WRAP_CHARS,
         break_long_words=True,
         break_on_hyphens=True,
     ) or [""]
-    if len(lines) > MAX_LINES:
-        lines = lines[: MAX_LINES - 1] + [lines[MAX_LINES - 1][: WRAP_CHARS - 2] + " …"]
-    return lines
 
 
 class Node:
@@ -424,8 +491,9 @@ def route_edges(nodes: dict[str, Node], edges: list[Edge]) -> None:
             target_y[(edge.source, edge.target, edge.strategy_id)] = (
                 node.y + node.h * spread(len(bundle), index)
             )
-            # Stagger the grade chips along the path so edges converging on
-            # one card (typically the root claim) do not stack their chips.
+            # A first stagger of the grade chips along the path; the real
+            # collision-free placement happens in place_chips once every
+            # edge's geometry is known.
             count = len(bundle)
             edge.chip_t = 0.5 if count == 1 else 0.30 + 0.45 * index / (count - 1)
 
@@ -439,6 +507,87 @@ def route_edges(nodes: dict[str, Node], edges: list[Edge]) -> None:
             target.x,
             target_y[key],
         )
+
+
+def chip_box(edge: Edge, t: float) -> tuple[float, float, float, float]:
+    """The (x, y, w, h) rectangle the grade chip occupies at path position t,
+    matching the geometry svg_edge draws (center at the bezier point)."""
+    text = f"{edge.grade} {factor_text(edge.lr)}"
+    width = 12 + 5.6 * len(text)
+    cx, cy = bezier_point(edge, t)
+    return (cx - width / 2.0, cy - 9.0, width, 17.0)
+
+
+def rects_overlap(a: tuple[float, float, float, float],
+                  b: tuple[float, float, float, float],
+                  margin: float = 2.0) -> bool:
+    ax, ay, aw, ah = a
+    bx, by, bw, bh = b
+    return not (
+        ax + aw + margin <= bx
+        or bx + bw + margin <= ax
+        or ay + ah + margin <= by
+        or by + bh + margin <= ay
+    )
+
+
+def overlap_area(a: tuple[float, float, float, float],
+                 b: tuple[float, float, float, float]) -> float:
+    ax, ay, aw, ah = a
+    bx, by, bw, bh = b
+    dx = min(ax + aw, bx + bw) - max(ax, bx)
+    dy = min(ay + ah, by + bh) - max(ay, by)
+    return max(0.0, dx) * max(0.0, dy)
+
+
+def place_chips(nodes: dict[str, Node], edges: list[Edge]) -> None:
+    """Deterministic collision-free placement of the grade chips.
+
+    The stagger route_edges assigns is only a starting point: with several
+    updates converging on one card (typically the root claim), chips at
+    evenly spread path positions still land on each other and on nearby
+    cards. For each chip, in a fixed processing order, this pass slides
+    along the edge path -- starting from the staggered position and probing
+    outward in both directions -- and takes the first position clear of
+    every card and every chip already placed; if no probed position is
+    fully clear, it takes the one with the least total overlap. Pure
+    geometry over sorted inputs, so the output stays byte-reproducible.
+    """
+    # Junctions included: a chip sitting on a derive/compose relay is just
+    # as unreadable as one sitting on a card.
+    obstacles = [
+        (node.x, node.y, node.w, node.h)
+        for node in sorted(nodes.values(), key=lambda n: n.id)
+    ]
+    placed: list[tuple[float, float, float, float]] = []
+    chip_edges = [e for e in edges if e.kind == "update" and e.effect != "neutral"]
+    chip_edges.sort(key=lambda e: (e.target, e.source, e.strategy_id))
+    for edge in chip_edges:
+        base = edge.chip_t
+        candidates = [base]
+        step = 0.04
+        for k in range(1, 18):
+            for direction in (1.0, -1.0):
+                t = base + direction * step * k
+                if 0.10 <= t <= 0.90:
+                    candidates.append(t)
+        best_t = base
+        best_cost = None
+        for t in candidates:
+            box = chip_box(edge, t)
+            cost = sum(overlap_area(box, other) for other in obstacles)
+            cost += sum(overlap_area(box, other) for other in placed)
+            clear = not any(rects_overlap(box, other) for other in obstacles) and not any(
+                rects_overlap(box, other) for other in placed
+            )
+            if clear:
+                best_t = t
+                best_cost = None
+                break
+            if best_cost is None or cost < best_cost:
+                best_t, best_cost = t, cost
+        edge.chip_t = best_t
+        placed.append(chip_box(edge, best_t))
 
 
 def bezier_point(edge: Edge, t: float) -> tuple[float, float]:
@@ -539,7 +688,9 @@ def svg_edge(edge: Edge, index: int) -> str:
     return "".join(parts)
 
 
-def panel_payload(nodes: dict[str, Node], edges: list[Edge]) -> dict:
+def panel_payload(
+    nodes: dict[str, Node], edges: list[Edge], doc_path: str | None = None
+) -> dict:
     payload_nodes = {}
     for node in nodes.values():
         # Junctions are not clickable, but flow edges name them; give them a
@@ -554,8 +705,14 @@ def panel_payload(nodes: dict[str, Node], edges: list[Edge]) -> dict:
             "observed": node.observed,
             "pinned_prior": node.pinned_prior,
             "observation_note": node.obs_prose,
-            "observation_anchors": node.obs_anchors,
+            "observation_anchors": [classify_anchor(a) for a in node.obs_anchors],
         }
+        if doc_path and not node.junction and not node.label.startswith(HELPER_LABEL_PREFIXES):
+            # The detailed-reasoning render precedes each node section with an
+            # explicit case-preserving <a id="{label}"></a>, so the label is
+            # used verbatim. Helper nodes have no section there, so they never
+            # link.
+            payload_nodes[node.id]["doc_href"] = f"{doc_path}#{node.label}"
     payload_edges = []
     for edge in edges:
         payload_edges.append(
@@ -569,7 +726,7 @@ def panel_payload(nodes: dict[str, Node], edges: list[Edge]) -> dict:
                 "p_e_given_h": edge.p_h,
                 "p_e_given_not_h": edge.p_nh,
                 "rationale": edge.rationale_prose,
-                "anchors": edge.anchors,
+                "anchors": [classify_anchor(a) for a in edge.anchors],
             }
         )
     return {"nodes": payload_nodes, "edges": payload_edges}
@@ -699,6 +856,9 @@ header nav a:hover { text-decoration: underline; }
 #panel .upd .rat { margin-top: 5px; line-height: 1.4; }
 #panel .anchors { margin: 5px 0 0; padding-left: 16px; }
 #panel .anchors li { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; word-break: break-all; color: var(--muted); }
+#panel .anchors a { color: var(--support); text-decoration: underline; }
+#panel .doclink { margin-top: 6px; font-size: 12px; }
+#panel .doclink a { color: var(--support); text-decoration: underline; }
 #panel .close { position: absolute; top: 10px; right: 12px; border: none; background: none; font-size: 18px; color: var(--muted); cursor: pointer; }
 #tooltip {
   position: fixed; z-index: 40; max-width: 360px; pointer-events: none;
@@ -731,9 +891,18 @@ PAGE_JS = """
   function fit() {
     var box = stage.getBoundingClientRect();
     fitScale = Math.min(box.width / W, box.height / H, 1.25);
-    scale = fitScale;
-    tx = (box.width - W * scale) / 2;
-    ty = (box.height - H * scale) / 2;
+    // Never open below a readable card size: fit-to-page on a narrow
+    // viewport would shrink 300px cards to ~85px. When the readable floor
+    // wins, start at the top-left and let pan/zoom take over.
+    var MIN_READABLE_SCALE = 0.7;
+    scale = Math.max(fitScale, Math.min(MIN_READABLE_SCALE, 1.25));
+    if (scale > fitScale) {
+      tx = 8;
+      ty = 8;
+    } else {
+      tx = (box.width - W * scale) / 2;
+      ty = (box.height - H * scale) / 2;
+    }
     apply();
   }
   svg.removeAttribute('viewBox');
@@ -844,7 +1013,21 @@ PAGE_JS = """
     list.className = 'anchors';
     anchors.forEach(function (anchor) {
       var item = document.createElement('li');
-      item.textContent = anchor;
+      // anchor.href is assigned by the renderer's whitelist (http(s) URLs
+      // and relative Markdown paths only); everything else stays plain
+      // machine-readable text. DOM assignment, never innerHTML.
+      if (anchor.href) {
+        var link = document.createElement('a');
+        link.href = anchor.href;
+        link.textContent = anchor.text;
+        if (anchor.href.indexOf('http') === 0) {
+          link.target = '_blank';
+          link.rel = 'noopener noreferrer';
+        }
+        item.appendChild(link);
+      } else {
+        item.textContent = anchor.text;
+      }
       list.appendChild(item);
     });
     return list;
@@ -901,6 +1084,17 @@ PAGE_JS = """
     statement.className = 'statement';
     statement.textContent = node.statement;
     panel.appendChild(statement);
+    if (node.doc_href) {
+      // Written by the renderer only when the package carries a rendered
+      // docs/detailed-reasoning.md; the anchor is the node's own heading.
+      var doc = document.createElement('div');
+      doc.className = 'doclink';
+      var docLink = document.createElement('a');
+      docLink.href = node.doc_href;
+      docLink.textContent = 'detailed reasoning \u2192';
+      doc.appendChild(docLink);
+      panel.appendChild(doc);
+    }
     if (!node.observed && node.belief !== null && node.belief !== undefined) {
       var belief = document.createElement('div');
       belief.className = 'kv';
@@ -975,6 +1169,7 @@ def render_page(
     nodes: dict[str, Node],
     edges: list[Edge],
     canvas: tuple[float, float],
+    doc_path: str | None = None,
 ) -> str:
     canvas_w, canvas_h = canvas
     roots = [n for n in nodes.values() if n.is_root and not n.junction]
@@ -1007,7 +1202,7 @@ def render_page(
     # script double-escaped state. "<" only occurs inside JSON strings, and
     # the < escape decodes back to the same character on JSON.parse.
     payload = json.dumps(
-        panel_payload(nodes, edges), sort_keys=True, ensure_ascii=False
+        panel_payload(nodes, edges, doc_path=doc_path), sort_keys=True, ensure_ascii=False
     ).replace("<", "\\u003c")
 
     flow_row = (
@@ -1137,6 +1332,7 @@ def main() -> None:
     size_nodes(nodes)
     canvas = place_nodes(columns)
     route_edges(nodes, edges)
+    place_chips(nodes, edges)
 
     package_name = ir.get("package_name") or package_dir.name
     title = args.title or pretty(str(package_name))
@@ -1154,6 +1350,24 @@ def main() -> None:
     )
     meta_line = f"{package_name}{version_note}{compiled_note}{hash_note}"
 
+    # Deep-dive links: when the package carries the rendered
+    # detailed-reasoning document, every card's detail panel links to that
+    # node's section. Existence is part of the package state, so the output
+    # stays a pure function of the package (byte-reproducible). The relative
+    # href assumes the page sits at the package root, its default location;
+    # a caller writing --out elsewhere keeps a working graph, only the
+    # deep-dive links would dangle, so they are dropped in that case.
+    out_path = Path(args.out) if args.out else package_dir / "argument-graph.html"
+    # The production pipeline renders through an atomic-rename temp file
+    # that is a SIBLING of the final page (package root), so the plain
+    # parent check covers it; only a page written into some other
+    # directory -- where the relative link would dangle -- drops links.
+    doc_path = (
+        "docs/detailed-reasoning.md"
+        if out_path.parent.resolve() == package_dir
+        and detailed_reasoning_matches_beliefs(package_dir)
+        else None
+    )
     page = render_page(
         title=title,
         subtitle=args.subtitle,
@@ -1162,8 +1376,8 @@ def main() -> None:
         nodes=nodes,
         edges=edges,
         canvas=canvas,
+        doc_path=doc_path,
     )
-    out_path = Path(args.out) if args.out else package_dir / "argument-graph.html"
     tmp_path = out_path.with_suffix(out_path.suffix + ".part")
     tmp_path.write_text(page, encoding="utf-8")
     tmp_path.replace(out_path)

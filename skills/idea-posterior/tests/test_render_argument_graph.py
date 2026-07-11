@@ -13,7 +13,9 @@ The renderer's display contract, pinned here:
 from __future__ import annotations
 
 import json
+import html
 import re
+import textwrap
 import subprocess
 import sys
 from pathlib import Path
@@ -161,6 +163,23 @@ def rendered(tmp_path: Path, *extra: str) -> str:
     return (package / "argument-graph.html").read_text(encoding="utf-8")
 
 
+def write_detailed_reasoning(package, body="#### worth\n"):
+    """Write docs/detailed-reasoning.md plus the matching generation stamp
+    (sha256 of the package's current .gaia/beliefs.json), exactly as the
+    pipeline does after a successful docs render."""
+    import hashlib as _hashlib
+    docs = package / "docs"
+    docs.mkdir(exist_ok=True)
+    (docs / "detailed-reasoning.md").write_text(body, encoding="utf-8")
+    beliefs_sha = _hashlib.sha256(
+        (package / ".gaia" / "beliefs.json").read_bytes()
+    ).hexdigest()
+    (docs / "detailed-reasoning.beliefs-sha256").write_text(
+        f"sha256:{beliefs_sha}\n", encoding="utf-8"
+    )
+    return docs
+
+
 def payload_of(page: str) -> dict:
     match = re.search(
         r'<script id="graph-data" type="application/json">(.*?)</script>',
@@ -219,8 +238,8 @@ def test_roles_and_observation_marking(tmp_path) -> None:
     assert payload["nodes"][EV_ANCHOR]["observed"] is True
     assert payload["nodes"][EV_ANCHOR]["pinned_prior"] == pytest.approx(0.999)
     assert payload["nodes"][EV_ANCHOR]["observation_anchors"] == [
-        "artifacts/demo/survey_v1.json",
-        "artifacts/demo/close_prior_matrix_v1.json",
+        {"text": "artifacts/demo/survey_v1.json", "href": None},
+        {"text": "artifacts/demo/close_prior_matrix_v1.json", "href": None},
     ]
     assert "recorded observation" in page
     assert "0.847" in page  # root posterior shown
@@ -235,7 +254,10 @@ def test_likelihoods_and_anchors_in_payload(tmp_path) -> None:
     assert update["p_e_given_not_h"] == pytest.approx(0.09)
     assert update["grade"] == "substantial"
     assert update["effect"] == "supports"
-    assert update["anchors"] == ["artifacts/demo/survey_v1.json"]
+    # Anchors are classified objects now; a JSON artifact stays plain text.
+    assert update["anchors"] == [
+        {"text": "artifacts/demo/survey_v1.json", "href": None}
+    ]
     lowering = next(
         e for e in payload["edges"] if (e["source"], e["target"]) == (EV_SCOPE, WORTH)
     )
@@ -387,3 +409,377 @@ def test_split_anchors() -> None:
     prose, anchors = rag.split_anchors("No anchor marker here.")
     assert prose == "No anchor marker here."
     assert anchors == []
+
+
+# ---------------------------------------------------------------------------
+# Render-audit follow-ups: full statements, chip separation, readable narrow
+# view, clickable safe anchors, and deep-dive links into the detailed
+# reasoning document.
+# ---------------------------------------------------------------------------
+
+LONG_SCOPE_TEXT = (
+    "The executed verification covers only the leading-order kernel on the "
+    "coarse operating point, so the extracted agreement cannot certify the "
+    "resummed kernel, the fine operating point, or any configuration in "
+    "which the subtracted background dominates the signal; every one of "
+    "those regimes needs its own directly executed check before the claim "
+    "may be reused there, because the agreement observed on the coarse "
+    "point is compatible with several mechanisms that diverge from each "
+    "other exactly where the background grows, and no interpolation "
+    "argument bridges that gap without a further executed check; this "
+    "limit is load-bearing for the whole argument and must stay visible "
+    "in any overview of it."
+)
+
+
+def test_long_statement_is_never_shortened(tmp_path) -> None:
+    # The overview card must carry the WHOLE statement (the render-audit
+    # found the shortened card was typically the scope limit, the one
+    # qualification an overview must not hide). Pre-fix, a fixed line
+    # budget replaced the tail with an ellipsis.
+    ir = base_ir()
+    for entry in ir["knowledges"]:
+        if entry.get("label") == "ev_scope_limit":
+            entry["content"] = LONG_SCOPE_TEXT
+    package = write_package(tmp_path, ir, base_beliefs())
+    result = run_renderer(package)
+    assert result.returncode == 0, result.stderr
+    page = (package / "argument-graph.html").read_text(encoding="utf-8")
+    # Every wrapped line of the long statement appears in the card; the
+    # pre-fix line budget replaced the tail lines with a shortened one.
+    # The expected lines are computed with textwrap directly -- NOT with
+    # the renderer's own wrap_statement -- so a renderer that shortens
+    # cannot also shorten the expectation (independent reference, the
+    # same shared-kernel rule the verification gates enforce).
+    expected_lines = textwrap.wrap(
+        " ".join(LONG_SCOPE_TEXT.split()),
+        width=38,
+        break_long_words=True,
+        break_on_hyphens=True,
+    )
+    assert len(expected_lines) > 12  # long enough to overflow the old budget
+    # Pin the assertion to the SVG card tspans: the detail-panel JSON
+    # always carries the full statement, so a bare substring check would
+    # pass even on a shortened card.
+    for line in expected_lines:
+        assert f">{html.escape(line)}</tspan>" in page
+
+
+def parse_chip_and_card_boxes(page: str):
+    chips = []
+    for match in re.finditer(
+        r'<g class="chip chip-[a-z]+"[^>]*'
+        r'transform="translate\(([-\d.]+),([-\d.]+)\)">'
+        r'<rect width="([\d.]+)" height="([\d.]+)"',
+        page,
+    ):
+        x, y, w, h = map(float, match.groups())
+        chips.append((x, y, w, h))
+    cards = []
+    for match in re.finditer(
+        r'<g class="node[^"]*"[^>]*'
+        r'transform="translate\(([-\d.]+),([-\d.]+)\)">'
+        r'<rect class="card" width="([\d.]+)" height="([\d.]+)"',
+        page,
+    ):
+        x, y, w, h = map(float, match.groups())
+        cards.append((x, y, w, h))
+    return chips, cards
+
+
+def test_grade_chips_clear_cards_and_each_other(tmp_path) -> None:
+    # The render audit found chip-on-chip and chip-on-card collisions in
+    # every real graph, worst where several weak updates converge on the
+    # root claim. Reproduce that shape: five claims all updating the root.
+    ir = base_ir()
+    beliefs = base_beliefs()
+    for i in range(3):
+        cid = f"{NS}::extra_claim_{i}"
+        ir["knowledges"].append(
+            knowledge(cid, f"extra_claim_{i}", f"Extra converging judgment {i}.", 10 + i)
+        )
+        ir["strategies"].append(
+            infer_strategy(
+                cid, WORTH, 0.25, 0.75, f"lcs_extra_{i}",
+                f"Weak converging update {i}. anchor: artifacts/demo/x{i}.json",
+            )
+        )
+        beliefs["beliefs"].append(
+            {"knowledge_id": cid, "label": f"extra_claim_{i}", "belief": 0.9}
+        )
+    package = write_package(tmp_path, ir, beliefs)
+    result = run_renderer(package)
+    assert result.returncode == 0, result.stderr
+    page = (package / "argument-graph.html").read_text(encoding="utf-8")
+    chips, cards = parse_chip_and_card_boxes(page)
+    assert len(chips) >= 5 and len(cards) >= 6
+    def overlap(a, b):
+        ax, ay, aw, ah = a
+        bx, by, bw, bh = b
+        return not (ax + aw <= bx or bx + bw <= ax or ay + ah <= by or by + bh <= ay)
+    for i, chip in enumerate(chips):
+        for other in chips[i + 1:]:
+            assert not overlap(chip, other), f"chip-chip overlap: {chip} vs {other}"
+        for card in cards:
+            assert not overlap(chip, card), f"chip-card overlap: {chip} vs {card}"
+
+
+def test_narrow_view_keeps_a_readable_floor(tmp_path) -> None:
+    # 390px-wide viewports must not open at fit-to-page card widths of
+    # ~85px; the page opens at a readable floor and pans instead.
+    page = rendered(tmp_path)
+    assert "MIN_READABLE_SCALE" in page
+    assert "Math.max(fitScale" in page
+
+
+def test_classify_anchor_whitelist() -> None:
+    web = rag.classify_anchor("https://example.org/paper#sec2")
+    assert web["href"] == "https://example.org/paper#sec2"
+    plain_http = rag.classify_anchor("http://example.org/x")
+    assert plain_http["href"] == "http://example.org/x"
+    md = rag.classify_anchor("../notes/deep_read.md")
+    assert md["href"] == "../notes/deep_read.md"
+    md2 = rag.classify_anchor("docs/detailed-reasoning.md")
+    assert md2["href"] == "docs/detailed-reasoning.md"
+    # The Markdown boundary applies to the PATH: a fragment after a .md
+    # path is fine, a non-.md path is never rescued by a .md fragment.
+    deep = rag.classify_anchor("docs/detailed-reasoning.md#Section_2")
+    assert deep["href"] == "docs/detailed-reasoning.md#Section_2"
+    assert rag.classify_anchor("artifacts/payload.html#x.md")["href"] is None
+    assert rag.classify_anchor("docs/a.md#one#two")["href"] is None
+    for opaque in (
+        "artifacts/demo/survey_v1.json",
+        "artifact://campaign/x/computations/y.json",
+        "/absolute/path/notes.md",
+        "javascript:alert(1)",
+        "run 2026-07-08T03:10:30Z",
+        "javascript:evil.md",
+    ):
+        assert rag.classify_anchor(opaque)["href"] is None, opaque
+
+
+def test_detail_panel_links_the_detailed_reasoning_document(tmp_path) -> None:
+    package = write_package(tmp_path, base_ir(), base_beliefs())
+    write_detailed_reasoning(package)
+    result = run_renderer(package)
+    assert result.returncode == 0, result.stderr
+    page = (package / "argument-graph.html").read_text(encoding="utf-8")
+    payload = payload_of(page)
+    worth = payload["nodes"][WORTH]
+    assert worth["doc_href"] == "docs/detailed-reasoning.md#worth"
+    # Junction relays never link.
+    for node in payload["nodes"].values():
+        if node["role"] == "junction":
+            assert "doc_href" not in node
+
+
+def test_no_doc_links_without_the_document_or_off_package_out(tmp_path) -> None:
+    # No docs/detailed-reasoning.md -> no links at all.
+    page = rendered(tmp_path)
+    for node in payload_of(page)["nodes"].values():
+        assert "doc_href" not in node
+    # Document present but the page written outside the package: relative
+    # links would dangle, so they are dropped.
+    package = write_package(tmp_path / "second", base_ir(), base_beliefs())
+    write_detailed_reasoning(package)
+    out = tmp_path / "elsewhere" / "graph.html"
+    out.parent.mkdir()
+    result = run_renderer(package, "--out", str(out))
+    assert result.returncode == 0, result.stderr
+    for node in payload_of(out.read_text(encoding="utf-8"))["nodes"].values():
+        assert "doc_href" not in node
+
+
+# ---------------------------------------------------------------------------
+# Review follow-ups on the render-audit fixes.
+# ---------------------------------------------------------------------------
+
+def test_classify_anchor_rejects_backslash_and_control_variants() -> None:
+    # Browsers normalize backslashes to slashes (a leading "\\" or an
+    # "\\\\host\\share" UNC form would become root- or protocol-relative)
+    # and strip some control characters; the whitelist is a character-set
+    # check, so none of these ever gets an href.
+    for probe in (
+        "\\\\evil.example\\share\\x.md",
+        "\\evil.md",
+        "notes\\sub.md",
+        "\x01docs/x.md",
+        "docs/x .md",
+    ):
+        assert rag.classify_anchor(probe)["href"] is None, repr(probe)
+
+
+def test_doc_href_preserves_label_case_and_skips_helpers(tmp_path) -> None:
+    # The detailed-reasoning render precedes each section with a
+    # case-preserving <a id="{label}"></a>; lowercasing would break valid
+    # mixed-case labels. Referenced helper nodes have no section at all.
+    ir = base_ir()
+    mixed = f"{NS}::MixedCase_Claim"
+    ir["knowledges"].append(knowledge(mixed, "MixedCase_Claim", "A mixed-case judgment.", 20))
+    ir["strategies"].append(
+        infer_strategy(mixed, WORTH, 0.3, 0.7, "lcs_mixed",
+                       "Mixed. anchor: artifacts/demo/m.json")
+    )
+    beliefs = base_beliefs()
+    beliefs["beliefs"].append(
+        {"knowledge_id": mixed, "label": "MixedCase_Claim", "belief": 0.8}
+    )
+    # Reference the helper from a derive strategy so build_model keeps it
+    # (unreferenced helpers are dropped and would make the assertion
+    # vacuous), then require that the kept helper still gets no doc link.
+    ir["strategies"].append(
+        {
+            "type": "derive",
+            "premises": [HELPER, TENSION],
+            "conclusion": WORTH,
+            "steps": [{"reasoning": "Helper-backed derivation."}],
+            "strategy_id": "derive_helper",
+        }
+    )
+    package = write_package(tmp_path, ir, beliefs)
+    write_detailed_reasoning(
+        package, '<a id="MixedCase_Claim"></a>\n#### MixedCase_Claim\n'
+    )
+    result = run_renderer(package)
+    assert result.returncode == 0, result.stderr
+    payload = payload_of((package / "argument-graph.html").read_text(encoding="utf-8"))
+    assert payload["nodes"][mixed]["doc_href"] == (
+        "docs/detailed-reasoning.md#MixedCase_Claim"
+    )
+    helper_nodes = [
+        n for n in payload["nodes"].values()
+        if n["raw_label"].startswith(("__", "_anon")) and n["role"] != "junction"
+    ]
+    assert helper_nodes, "a referenced helper must survive into the payload"
+    for node in helper_nodes:
+        assert "doc_href" not in node
+
+
+def test_junctions_never_get_doc_links_and_join_chip_obstacles(tmp_path) -> None:
+    # A derive strategy produces a junction relay. Junctions have no
+    # detailed-reasoning section (no doc link) and participate in the chip
+    # obstacle set like any card.
+    ir = base_ir()
+    ir["strategies"].append(
+        {
+            "type": "derive",
+            "premises": [TENSION, EV_ANCHOR],
+            "conclusion": WORTH,
+            "steps": [{"reasoning": "Composed derivation."}],
+            "strategy_id": "derive_1",
+        }
+    )
+    package = write_package(tmp_path, ir, base_beliefs())
+    write_detailed_reasoning(package, "x\n")
+    result = run_renderer(package)
+    assert result.returncode == 0, result.stderr
+    payload = payload_of((package / "argument-graph.html").read_text(encoding="utf-8"))
+    junctions = [n for n in payload["nodes"].values() if n["role"] == "junction"]
+    assert junctions, "derive strategy must produce a junction relay"
+    for node in junctions:
+        assert "doc_href" not in node
+
+
+def test_doc_links_survive_the_production_temp_sibling_out(tmp_path) -> None:
+    # The production pipeline (run_infer_and_extract.render_to_file) renders
+    # into an atomic-rename temp file that is a SIBLING of the final page,
+    # i.e. its parent IS the package root; deep-dive links must be emitted
+    # on exactly that shape.
+    package = write_package(tmp_path, base_ir(), base_beliefs())
+    write_detailed_reasoning(package, "x\n")
+    out = package / "argument-graph.html.tmp"
+    result = run_renderer(package, "--out", str(out))
+    assert result.returncode == 0, result.stderr
+    payload = payload_of(out.read_text(encoding="utf-8"))
+    assert payload["nodes"][WORTH]["doc_href"] == "docs/detailed-reasoning.md#worth"
+
+
+def test_place_chips_window_and_fallback_unit() -> None:
+    # Direct unit check on the placement pass: chip_t always stays inside
+    # the [0.10, 0.90] path window, and when every probed position overlaps
+    # something (cards blanket the whole path), the least-overlap fallback
+    # still assigns a position instead of failing.
+    class Stub:
+        pass
+
+    def stub_edge(y):
+        edge = Stub()
+        edge.kind = "update"
+        edge.effect = "supports"
+        edge.grade = "weak"
+        edge.lr = 3.0
+        edge.strategy_id = f"s{y}"
+        edge.source = "a"
+        edge.target = "b"
+        edge.points = (0.0, y, 400.0, y)
+        edge.chip_t = 0.5
+        return edge
+
+    # A wall of cards covering the entire corridor forces the fallback.
+    wall = Stub()
+    wall.id = "wall"
+    wall.junction = False
+    wall.x, wall.y, wall.w, wall.h = -50.0, -50.0, 600.0, 200.0
+    edges = [stub_edge(30.0), stub_edge(38.0)]
+    rag.place_chips({"wall": wall}, edges)
+    for edge in edges:
+        assert 0.10 <= edge.chip_t <= 0.90
+    # Two chips on parallel near-coincident paths started at the same t.
+    # Unequal chip_t alone would not prove separation (nearby values can
+    # still overlap), so assert the geometry directly: even under the
+    # least-overlap fallback (the wall is inescapable) the two chips must
+    # not overlap EACH OTHER -- and a no-op placement fails this too,
+    # since at the same t these 8px-apart 17px-tall chips coincide.
+    box_a = rag.chip_box(edges[0], edges[0].chip_t)
+    box_b = rag.chip_box(edges[1], edges[1].chip_t)
+    assert rag.overlap_area(box_a, box_b) == 0.0
+
+    # Junctions are obstacles too: an ellipse relay in the corridor must
+    # push the chip off its position exactly like a card would.
+    relay = Stub()
+    relay.id = "relay"
+    relay.junction = True
+    relay.x, relay.y, relay.w, relay.h = 180.0, 22.0, 40.0, 18.0
+    free_edge = stub_edge(31.0)  # passes straight through the relay at t=0.5
+    rag.place_chips({"relay": relay}, [free_edge])
+    from_relay = rag.overlap_area(rag.chip_box(free_edge, free_edge.chip_t),
+                                  (relay.x, relay.y, relay.w, relay.h))
+    assert from_relay == 0.0
+
+
+def test_stale_generation_reasoning_is_never_linked(tmp_path) -> None:
+    # The binding is to the beliefs GENERATION: a document whose companion
+    # stamp records some other beliefs state (a survivor of a failed
+    # render whose cleanup also failed) must not be linked from a graph
+    # carrying the current posteriors -- existence does not establish
+    # freshness. A missing stamp (document present, no companion) is the
+    # same safe side.
+    package = write_package(tmp_path, base_ir(), base_beliefs())
+    docs = write_detailed_reasoning(package)
+    (docs / "detailed-reasoning.beliefs-sha256").write_text(
+        "sha256:" + "0" * 64 + "\n", encoding="utf-8"
+    )
+    result = run_renderer(package)
+    assert result.returncode == 0, result.stderr
+    page = (package / "argument-graph.html").read_text(encoding="utf-8")
+    assert '"doc_href":' not in page
+
+    (docs / "detailed-reasoning.beliefs-sha256").unlink()
+    result = run_renderer(package)
+    assert result.returncode == 0, result.stderr
+    page = (package / "argument-graph.html").read_text(encoding="utf-8")
+    assert '"doc_href":' not in page
+
+
+def test_hand_polished_current_generation_document_keeps_its_link(tmp_path) -> None:
+    # Hand-editing the document does NOT drop the link: the stamp binds the
+    # beliefs generation it was rendered from, not the document's bytes.
+    package = write_package(tmp_path, base_ir(), base_beliefs())
+    docs = write_detailed_reasoning(package)
+    (docs / "detailed-reasoning.md").write_text(
+        "#### worth\nHand-polished wording, same generation.\n", encoding="utf-8"
+    )
+    result = run_renderer(package)
+    assert result.returncode == 0, result.stderr
+    payload = payload_of((package / "argument-graph.html").read_text(encoding="utf-8"))
+    assert payload["nodes"][WORTH]["doc_href"] == "docs/detailed-reasoning.md#worth"
