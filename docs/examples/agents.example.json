@@ -3,7 +3,7 @@
   "_notes": [
     "Annotated template for the third-party agents file; see docs/AGENTS_FILE.md for the schema.",
     "Copy to ~/.nullius/agents.json (user level) or <project>/.nullius/agents.json (project level).",
-    "Consumers ignore unknown keys, so these _notes travel with the file harmlessly.",
+    "Top-level _notes is the one sanctioned comment carrier; every parser rejects unknown keys at every level, so put comments only here or in a family's notes string.",
     "Every model string below is an example: confirm each one against the CLI actually installed",
     "on your machine (for kimi, read default_model from the kimi CLI config or run one minimal",
     "call and check the session record) before relying on it.",
