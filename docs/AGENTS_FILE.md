@@ -4,10 +4,11 @@ Cross-family review and verification skills (`review-swarm`, `derivation-verify`
 
 The agents file is that single update point. It is a plain JSON file describing the family → runner → model-string mapping plus a policy block for honest degradation when too few families are available.
 
-Two consumers read it today, each with its own self-contained parser (deliberately no shared library; the example template below is the shared parsing fixture that keeps the parsers aligned):
+Three consumers read it today, each with its own self-contained parser (deliberately no shared library; the example template below is the shared parsing fixture that keeps the parsers aligned):
 
 - `skills/review-swarm/scripts/bin/run_multi_task.py` (`--agents-file`)
 - `skills/derivation-verify/scripts/run_multi_backend.py` (`--agents-file`)
+- `skills/idea-pairwise-match/scripts/run_panel.py` (`--roster`)
 
 The five CLI runner skills (`claude-cli-runner`, `codex-cli-runner`, `gemini-cli-runner`, `opencode-cli-runner`, `kimi-cli-runner`) do NOT read this file. They keep accepting explicit arguments only; the agents file is resolved by the orchestrating scripts above, which then pass explicit model strings down.
 
@@ -15,8 +16,8 @@ The five CLI runner skills (`claude-cli-runner`, `codex-cli-runner`, `gemini-cli
 
 Each consumer resolves the agents file in this order; the first hit wins:
 
-1. An explicit CLI flag (`--agents-file PATH`). Highest priority; also the only source honored when auto-discovery is disabled (see below).
-2. Project level: `<project>/.nullius/agents.json`, where `<project>` is found by walking up from the current working directory to the first directory containing `.git` (the same walk `review-swarm` already uses for `review-swarm.json`).
+1. An explicit CLI flag (`--agents-file PATH` for review-swarm and derivation-verify; `--roster PATH` for idea-pairwise-match). Highest priority; also the only source honored when auto-discovery is disabled (see below).
+2. Project level: `<project>/.nullius/agents.json`, where `<project>` is found by walking up to the first directory containing `.git` — review-swarm and derivation-verify walk up from the current working directory (the same walk `review-swarm` already uses for `review-swarm.json`); idea-pairwise-match walks up from its materials directory, so the roster follows the campaign the materials belong to rather than wherever the command happened to be invoked from.
 3. User level: `~/.nullius/agents.json`.
 4. Nothing found: the run proceeds with the built-in default, which is equivalent to a pure-native configuration.
 
@@ -67,7 +68,7 @@ Per-family fields:
 | `available` | bool, optional | Explicit availability declaration. `false` means the family must be treated as absent on this machine. When omitted, the family is declared available, and the runtime still checks that the runner's executable actually exists before counting the family as usable. |
 | `notes` | string, optional | Free-text operational notes (quirks, invocation constraints). Surfaced in error messages where relevant. |
 
-Unknown keys at any level are ignored, so a file may carry its own comments in keys like `_notes`.
+Unknown-key handling is currently consumer-dependent, not a settled cross-parser contract. What every parser agrees on: a top-level `_notes` key is accepted, so a file may carry its own comment there alongside `version`/`families`/`policy`. Where they differ: `review-swarm` and `derivation-verify` ignore ANY unknown key at any level; `idea-pairwise-match`'s parser rejects unknown keys everywhere except that one top-level `_notes` (a typo in a per-family field, such as a misspelled `model`, is caught there as a parse error but silently ignored by the other two). Until the three parsers converge on one behavior, the portable subset is: comments only in top-level `_notes`, no other extra keys anywhere.
 
 Runner labels:
 
@@ -89,7 +90,7 @@ Policy fields:
 
 ## Family Specs
 
-Both consumers accept, anywhere a model spec is accepted (`--models` in `run_multi_task.py`; `--backends` / `--comparators` in `run_multi_backend.py`):
+review-swarm and derivation-verify accept, anywhere a model spec is accepted (`--models` in `run_multi_task.py`; `--backends` / `--comparators` in `run_multi_backend.py`):
 
 ```
 family:<name>          # resolves to the family's "default" tier
@@ -106,7 +107,7 @@ Explicit model specs (`codex/gpt-5.6-terra`, `zhipuai-coding-plan/glm-5.2`, ...)
 
 A family counts as **usable** when it is declared available (`available` is absent or `true`) AND its runner's executable is actually present on the machine (`native` always passes this check). A family that is not usable is honestly absent: consumers never substitute another family for it.
 
-When the number of usable families is below `cross_family_minimum`, the run itself still proceeds (the launcher never blocks on this), but the calling skill is expected to follow `when_below_minimum` and fall back to the host's native subagent panel. Either way, the run's outputs must make the situation visible rather than silent. Both consumers therefore record, in their result files (`meta.json` for review-swarm; the verification matrix for derivation-verify):
+When the number of usable families is below `cross_family_minimum`, the run itself still proceeds (the launcher never blocks on this), but the calling skill is expected to follow `when_below_minimum` and fall back to the host's native subagent panel. Either way, the run's outputs must make the situation visible rather than silent — every consumer records its panel/backends composition in its result files. review-swarm (`meta.json`) and derivation-verify (the verification matrix) share the exact field set below. idea-pairwise-match records the same information under its own field names, split across its two outputs: `panel_run_report.json` carries `roster.source`, `independence`, `independent_runners`, `families_present`, `absent`, and `min_families`, while the `pairwise_match_v1` artifact carries `independent_runners` and `panel_independence` (`mode` / `families_present` / `families_absent`) — see that skill's docs. Unlike the other two consumers it also enforces the degradation itself (the panel refuses to run cross-family below the floor) rather than delegating it to a calling skill. The shared review-swarm/derivation-verify field set:
 
 - `agents_file`: which file was used (`explicit` / `project` / `user`) or `none`.
 - `independence.level`: `cross_family` when at least two distinct families actually produced output, `single_family` when exactly one did, `none` when none did.
@@ -123,4 +124,4 @@ Family attribution for the independence record works on the resolved execution, 
 
 ## Example Template
 
-An annotated, copyable template lives at [`docs/examples/agents.example.json`](examples/agents.example.json). It is also the shared parsing fixture for both consumers' test suites, which is what keeps the two self-contained parsers behaviorally aligned. Copy it to `~/.nullius/agents.json`, replace the model strings with the ones your locally installed CLIs accept, and delete or adjust the `available: false` entries to match your machine.
+An annotated, copyable template lives at [`docs/examples/agents.example.json`](examples/agents.example.json). It is also the shared parsing fixture across the consumers' test suites, which is what keeps the self-contained parsers behaviorally aligned. Copy it to `~/.nullius/agents.json`, replace the model strings with the ones your locally installed CLIs accept, and delete or adjust the `available: false` entries to match your machine.

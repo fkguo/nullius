@@ -215,6 +215,44 @@ describe('contract catalog: decision-layer schemas', () => {
     )).toThrow(ContractRuntimeError);
   });
 
+  it('rejects a cross-family panel entry carrying a seat number', () => {
+    // panel_independence.mode = cross_family forbids seat on every panel
+    // entry (seats only number a degraded single-family panel).
+    const seatedCrossFamily = structuredClone(VALID_PAIRWISE_MATCH) as Record<string, unknown>;
+    (seatedCrossFamily.panel as Record<string, unknown>[])[0].seat = 1;
+    expect(() => catalog.validateAgainstRef(
+      './pairwise_match_v1.schema.json',
+      seatedCrossFamily,
+      'test/pairwise_match/cross-family-with-seat',
+    )).toThrow(ContractRuntimeError);
+  });
+
+  it('rejects a single-family panel entry missing its seat number', () => {
+    // panel_independence.mode = single_family requires seat on every panel
+    // entry (the schema conditional mirrors validate_pairwise_match's own
+    // enforcement in skills/idea-pairwise-match/scripts/assemble_match.py).
+    const unseatedSingleFamily = structuredClone(VALID_PAIRWISE_MATCH) as Record<string, unknown>;
+    unseatedSingleFamily.panel = [1, 2, 3].map((seat) => ({
+      reviewer_family: 'claude',
+      ...(seat === 1 ? {} : { seat }),
+      model: 'claude/host-subagent',
+      vote: 'a',
+      anchored_arguments: [],
+      unanchored_arguments_discarded: 0,
+    }));
+    unseatedSingleFamily.panel_independence = {
+      mode: 'single_family',
+      families_present: ['claude'],
+      families_absent: [],
+    };
+    unseatedSingleFamily.independent_runners = false;
+    expect(() => catalog.validateAgainstRef(
+      './pairwise_match_v1.schema.json',
+      unseatedSingleFamily,
+      'test/pairwise_match/single-family-missing-seat',
+    )).toThrow(ContractRuntimeError);
+  });
+
   it('accepts a valid allocation_decision_v1 record', () => {
     expect(() => catalog.validateAgainstRef(
       './allocation_decision_v1.schema.json',

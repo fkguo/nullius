@@ -11,6 +11,7 @@ subprocess also gets an isolated HOME so a developer machine's own
 user-level ~/.nullius/agents.json can never leak into a test.
 """
 
+import hashlib
 import json
 import os
 import shlex
@@ -137,6 +138,19 @@ def runner_arg(stub_path, mode):
         shlex.quote(str(stub_path)),
         mode,
     )
+
+
+def compute_prompt_sha(materials, word_cap=None):
+    """Pre-compute the judge-prompt BODY hash for a materials directory,
+    exactly as run_panel records it in the report and expects injected
+    native replies to echo it (the binding block appended to the on-disk
+    judge_prompt.md). Lets a test write a correctly-bound reply file
+    BEFORE the panel invocation that will collect it."""
+    texts, commitment = run_panel.load_materials(
+        materials, word_cap=word_cap or run_panel.DEFAULT_WORD_CAP
+    )
+    body = run_panel.render_judge_prompt(texts, commitment)
+    return "sha256:" + hashlib.sha256(body.encode("utf-8")).hexdigest()
 
 
 def build_materials(tmp_path):
@@ -276,7 +290,8 @@ def test_injected_native_vote(tmp_path, stub):
     injected = tmp_path / "native_reply.txt"
     injected.write_text(
         'Prose before.\n```json\n{"vote": "a", "anchored_arguments": [], '
-        '"unanchored_arguments_discarded": 0}\n```\n',
+        '"unanchored_arguments_discarded": 0, "judge_prompt_sha256": "%s"}\n```\n'
+        % compute_prompt_sha(materials),
         encoding="utf-8",
     )
     out_dir = tmp_path / "panel"
@@ -296,6 +311,147 @@ def test_injected_native_vote(tmp_path, stub):
     # The native seat records the roster's declared model for its family.
     assert claude_vote["model"] == "claude/fable"
     assert claude_vote["collection"]["source"] == "injected"
+
+
+def test_native_vote_refused_when_materials_changed_since_render_prompt_only(tmp_path, stub):
+    # The documented workflow (SKILL.md) is two invocations: a
+    # --render-prompt-only pass a host subagent reads and answers from, then
+    # a separate --native-vote pass that injects the reply. If materials
+    # change between those two invocations, the injected reply may reflect
+    # a prompt this second invocation is about to overwrite, not the one it
+    # is about to bind the vote to -- this must be refused, not silently
+    # accepted with a fresh hash the stale reply never actually saw.
+    materials, commitment = build_materials(tmp_path)
+    roster = write_roster(tmp_path)
+    out_dir = tmp_path / "panel"
+
+    render_only = run_panel_cli(materials, out_dir, ["--render-prompt-only"], roster=roster)
+    assert render_only.returncode == 0, render_only.stderr
+
+    statement_a = materials / "statement_a.md"
+    statement_a.write_text(
+        statement_a.read_text(encoding="utf-8").replace(
+            "addresses the standing tension directly",
+            "addresses the standing tension via a substantively different route",
+        ),
+        encoding="utf-8",
+    )
+
+    injected = tmp_path / "native_reply.txt"
+    injected.write_text(
+        '{"vote": "a", "anchored_arguments": [], "unanchored_arguments_discarded": 0}\n',
+        encoding="utf-8",
+    )
+    result = run_panel_cli(
+        materials,
+        out_dir,
+        [
+            "--native-vote", str(injected),
+            "--runner", "gpt=" + runner_arg(stub, "a"),
+            "--runner", "glm=" + runner_arg(stub, "b"),
+            "--runner", "kimi=" + runner_arg(stub, "a"),
+        ],
+        roster=roster,
+    )
+    assert result.returncode == 1
+    assert "reflects an earlier rendering" in result.stderr
+    assert "Re-run with --render-prompt-only" in result.stderr
+    assert not (out_dir / "votes").exists()
+
+
+def test_native_vote_accepted_when_materials_are_unchanged_since_render_prompt_only(tmp_path, stub):
+    # The same two-invocation workflow with materials left untouched between
+    # the two calls must proceed normally: the staleness check is keyed on
+    # an actual content change, not on there having been two invocations.
+    materials, commitment = build_materials(tmp_path)
+    roster = write_roster(tmp_path)
+    out_dir = tmp_path / "panel"
+
+    render_only = run_panel_cli(materials, out_dir, ["--render-prompt-only"], roster=roster)
+    assert render_only.returncode == 0, render_only.stderr
+
+    injected = tmp_path / "native_reply.txt"
+    injected.write_text(
+        '{"vote": "a", "anchored_arguments": [], "unanchored_arguments_discarded": 0, '
+        '"judge_prompt_sha256": "%s"}\n' % compute_prompt_sha(materials),
+        encoding="utf-8",
+    )
+    result = run_panel_cli(
+        materials,
+        out_dir,
+        [
+            "--native-vote", str(injected),
+            "--runner", "gpt=" + runner_arg(stub, "a"),
+            "--runner", "glm=" + runner_arg(stub, "b"),
+            "--runner", "kimi=" + runner_arg(stub, "a"),
+        ],
+        roster=roster,
+    )
+    assert result.returncode == 0, result.stderr
+    claude_vote = json.loads((out_dir / "votes" / "claude.json").read_text(encoding="utf-8"))
+    assert claude_vote["collection"]["source"] == "injected"
+
+
+def test_injected_vote_without_prompt_echo_fails_the_seat(tmp_path, stub):
+    # A native reply is formed in a separate invocation from the one that
+    # collects it, so it must echo the judge-prompt body hash (the binding
+    # block at the end of judge_prompt.md). A reply with no echo cannot
+    # prove which rendering it answered; the seat fails with a recorded
+    # reason instead of binding an unproven reply.
+    materials, _ = build_materials(tmp_path)
+    roster = write_roster(tmp_path)
+    injected = tmp_path / "native_reply.txt"
+    injected.write_text(
+        '{"vote": "a", "anchored_arguments": [], "unanchored_arguments_discarded": 0}\n',
+        encoding="utf-8",
+    )
+    out_dir = tmp_path / "panel"
+    result = run_panel_cli(
+        materials,
+        out_dir,
+        [
+            "--native-vote", str(injected),
+            "--runner", "gpt=" + runner_arg(stub, "a"),
+            "--runner", "glm=" + runner_arg(stub, "b"),
+            "--runner", "kimi=" + runner_arg(stub, "a"),
+        ],
+        roster=roster,
+    )
+    report = json.loads((out_dir / "panel_run_report.json").read_text(encoding="utf-8"))
+    absent = {item["family"]: item["reason"] for item in report["absent"]}
+    assert "claude" in absent
+    assert "no judge_prompt_sha256 echo" in absent["claude"]
+    assert not (out_dir / "votes" / "claude.json").exists()
+
+
+def test_injected_vote_with_wrong_prompt_echo_fails_the_seat(tmp_path, stub):
+    # A reply echoing some OTHER rendering's hash was formed against a
+    # different prompt (an earlier rendering, another out-dir's); the seat
+    # fails rather than binding it to the current one.
+    materials, _ = build_materials(tmp_path)
+    roster = write_roster(tmp_path)
+    injected = tmp_path / "native_reply.txt"
+    injected.write_text(
+        '{"vote": "a", "anchored_arguments": [], "unanchored_arguments_discarded": 0, '
+        '"judge_prompt_sha256": "sha256:%s"}\n' % ("0" * 64),
+        encoding="utf-8",
+    )
+    out_dir = tmp_path / "panel"
+    result = run_panel_cli(
+        materials,
+        out_dir,
+        [
+            "--native-vote", str(injected),
+            "--runner", "gpt=" + runner_arg(stub, "a"),
+            "--runner", "glm=" + runner_arg(stub, "b"),
+            "--runner", "kimi=" + runner_arg(stub, "a"),
+        ],
+        roster=roster,
+    )
+    report = json.loads((out_dir / "panel_run_report.json").read_text(encoding="utf-8"))
+    absent = {item["family"]: item["reason"] for item in report["absent"]}
+    assert "claude" in absent
+    assert "formed against a different prompt" in absent["claude"]
 
 
 def test_native_seat_without_vote_file_is_absent(tmp_path, stub):
