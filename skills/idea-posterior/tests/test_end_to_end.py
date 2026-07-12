@@ -15,15 +15,19 @@ import pytest
 import gaia_package_scaffold as scaffold
 import posterior_writeback as writeback
 import run_infer_and_extract as extract
+from test_writeback import write_close_prior_bundle
 
 EVIDENCE_SNIPPET = '''
 
 # Appended by the end-to-end test: one anchored observation moving one
 # sub-criterion, which moves worth.
 ev_tension = observe(
-    "A survey artifact records an unresolved tension between two established "
-    "approximation schemes.",
-    rationale="anchor: literature_survey_v1 tensions section (test fixture)",
+    "An executed discriminating trial rules out one competing explanation "
+    "within an explicitly stated scope.",
+    rationale=(
+        "evidence_family: executed-trial; correlation_model: single; "
+        "anchor: executed discriminating-trial artifact (test fixture)"
+    ),
 )
 infer(
     ev_tension,
@@ -31,8 +35,10 @@ infer(
     p_e_given_h=0.90,
     p_e_given_not_h=0.09,
     rationale=(
-        "Recorded tension supports the sub-criterion; substantial grade. "
-        "anchor: literature_survey_v1 tensions section (test fixture)"
+        "reader_reasoning: The executed trial demonstrates a scoped partial "
+        "resolution; substantial grade. "
+        "resolution_evidence: demonstrated_partial_resolution. "
+        "anchor: executed discriminating-trial artifact (test fixture)"
     ),
 )
 infer(
@@ -41,11 +47,39 @@ infer(
     p_e_given_h=0.75,
     p_e_given_not_h=0.25,
     rationale=(
-        "Tension resolution weakly raises worth; weak grade. "
+        "reader_reasoning: Demonstrated scoped resolution weakly raises worth; "
+        "weak grade. "
         "anchor: gate_result_v1 record (test fixture)"
     ),
 )
 '''
+
+IDEA_SPECIFIC_CLAIMS = {
+    "The idea merits sustained verification effort.": (
+        "The executed comparison merits sustained verification because it "
+        "can distinguish two recorded explanations."
+    ),
+    "The idea resolves an anchored open tension.": (
+        "The executed comparison rules out one recorded explanation within "
+        "the stated range."
+    ),
+    "The idea's results feed an anchored chain of downstream problems.": (
+        "The resulting discriminator can be applied to two subsequent "
+        "comparisons that use the same measured response."
+    ),
+    "The idea supplies a new, testable mechanistic understanding.": (
+        "The proposed mechanism predicts a response distinct from the "
+        "recorded alternative under the trial condition."
+    ),
+    "The idea is testable within an open verification window.": (
+        "The required response and comparison data are available for an "
+        "immediate discriminating trial."
+    ),
+    "A bounded, decisive first check of the idea exists.": (
+        "One bounded trial at the specified condition decides whether the "
+        "predicted separation is present."
+    ),
+}
 
 
 EXCLUSIVITY_SNIPPET = '''
@@ -105,6 +139,10 @@ def test_scaffold_infer_extract_writeback_chain(
     ).strip() == "3.12"
     capsys.readouterr()  # drop scaffold output
 
+    for generic, specific in IDEA_SPECIFIC_CLAIMS.items():
+        text = text.replace(generic, specific)
+    module_init.write_text(text, encoding="utf-8")
+
     # 2. The freshly generated skeleton compiles and infers: pure MaxEnt.
     posterior = run_extract(package_dir, gaia_bin, capsys)
     assert posterior["value"] == pytest.approx(0.5, abs=1e-9)
@@ -130,12 +168,23 @@ def test_scaffold_infer_extract_writeback_chain(
     # 4. Write the extracted posterior back through the stand-in RPC caller.
     posterior_file = tmp_path / "posterior.json"
     posterior_file.write_text(json.dumps(updated), encoding="utf-8")
+    survey_file, matrix_file, report_file = write_close_prior_bundle(tmp_path)
+    matrix = json.loads(matrix_file.read_text(encoding="utf-8"))
+    matrix["tension_resolution"] = {
+        "grade": "substantial",
+        "supporting_refs": ["Example2026"],
+        "challenge_refs": ["Example2026"],
+    }
+    matrix_file.write_text(json.dumps(matrix), encoding="utf-8")
     code = writeback.main(
         [
             "--posterior-json", str(posterior_file),
             "--campaign-id", "campaign-e2e",
             "--node-id", "node-e2e",
             "--store-root", str(tmp_path / "store"),
+            "--literature-survey-json", str(survey_file),
+            "--close-prior-matrix-json", str(matrix_file),
+            "--posterior-report-md", str(report_file),
             "--project-root", str(tmp_path),
             "--idea-rpc", str(fixtures_dir / "fake_rpc.py"),
             "--runner", sys.executable,

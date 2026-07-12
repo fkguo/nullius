@@ -1,4 +1,5 @@
 import { existsSync } from 'fs';
+import { payloadHash as artifactPayloadHash } from '../hash/payload-hash.js';
 import { IdeaEngineStore } from '../store/engine-store.js';
 import { budgetSnapshot } from './budget-snapshot.js';
 import { RpcError } from './errors.js';
@@ -23,6 +24,50 @@ function scopeCampaignId(method: string, campaignId: string | null): string | nu
 
 function idempotencyKey(method: string, key: string): string {
   return `${method}:${key}`;
+}
+
+function artifactExists(store: IdeaEngineStore, artifactRef: unknown): boolean {
+  if (typeof artifactRef !== 'string') {
+    return false;
+  }
+  try {
+    return existsSync(store.artifactPathFromRef(artifactRef));
+  } catch {
+    return false;
+  }
+}
+
+function migrateLegacyResultArtifactRef(
+  store: IdeaEngineStore,
+  method: string,
+  record: IdempotencyRecord,
+): boolean {
+  if (record.response.kind !== 'result') {
+    return false;
+  }
+  const field = method === 'rank.compute'
+    ? 'ranking_artifact_ref'
+    : method === 'node.promote'
+      ? 'handoff_artifact_ref'
+      : null;
+  if (field === null) {
+    return false;
+  }
+  const legacyRef = record.response.payload[field];
+  if (typeof legacyRef !== 'string' || !legacyRef.startsWith('file://')) {
+    return false;
+  }
+  try {
+    const artifactPath = store.artifactPathFromRef(legacyRef);
+    const artifact = store.loadArtifactFromRef<Record<string, unknown>>(legacyRef);
+    record.response.payload[field] = store.portableArtifactRef(
+      artifactPath,
+      artifactPayloadHash(artifact),
+    );
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function responseIdempotency(idempotencyKeyValue: string, payloadHash: string): Record<string, unknown> {
@@ -67,12 +112,10 @@ function preparedSideEffectsCommitted(store: IdeaEngineStore, method: string, re
       === JSON.stringify(expected.budget_snapshot);
   }
   if (method === 'rank.compute') {
-    const rankingRef = record.response.payload.ranking_artifact_ref;
-    return typeof rankingRef === 'string' && rankingRef.startsWith('file://') && existsSync(rankingRef.slice(7));
+    return artifactExists(store, record.response.payload.ranking_artifact_ref);
   }
   if (method === 'node.promote') {
-    const handoffRef = record.response.payload.handoff_artifact_ref;
-    return typeof handoffRef === 'string' && handoffRef.startsWith('file://') && existsSync(handoffRef.slice(7));
+    return artifactExists(store, record.response.payload.handoff_artifact_ref);
   }
   if (method === IMPORT_GENERATED_METHOD) {
     // Import-specific: the generic delete-prepared-and-re-execute fallback
@@ -159,6 +202,11 @@ export function recordOrReplay(options: {
       return null;
     }
     existing.state = 'committed';
+    idempotencyStore[key] = existing;
+    options.store.saveIdempotency(scopedCampaignId, idempotencyStore);
+  }
+
+  if (migrateLegacyResultArtifactRef(options.store, options.method, existing)) {
     idempotencyStore[key] = existing;
     options.store.saveIdempotency(scopedCampaignId, idempotencyStore);
   }

@@ -1,6 +1,6 @@
 import type { IdeaEngineContractCatalog } from '../contracts/catalog.js';
+import { payloadHash as artifactPayloadHash } from '../hash/payload-hash.js';
 import type { IdeaEngineStore } from '../store/engine-store.js';
-import { pathToFileURL } from 'url';
 import { budgetSnapshot } from './budget-snapshot.js';
 import { recordOrReplay, responseIdempotency, storeIdempotency } from './idempotency.js';
 import { RpcError, schemaValidationError } from './errors.js';
@@ -171,7 +171,6 @@ export function executeNodePromote(options: {
 
     const now = options.now();
     const handoffArtifactName = `handoff-${nodeId}.json`;
-    const handoffArtifactRef = pathToFileURL(options.store.artifactPath(campaignId, 'handoff', handoffArtifactName)).href;
     const handoffPayload: Record<string, unknown> = {
       campaign_id: campaignId,
       grounding_audit: groundingAudit,
@@ -185,6 +184,11 @@ export function executeNodePromote(options: {
       handoffPayload.reduction_report = node.reduction_report as Record<string, unknown>;
     }
     options.contracts.validateAgainstRef('./idea_handoff_c2_v1.schema.json', handoffPayload, `node.promote/handoff/${nodeId}`);
+    const handoffArtifactPath = options.store.artifactPath(campaignId, 'handoff', handoffArtifactName);
+    const handoffArtifactRef = options.store.portableArtifactRef(
+      handoffArtifactPath,
+      artifactPayloadHash(handoffPayload),
+    );
 
     const plannedCampaign = structuredClone(campaign);
     plannedCampaign.usage.steps_used = Number(plannedCampaign.usage.steps_used ?? 0) + 1;

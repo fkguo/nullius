@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import sys
@@ -10,7 +11,98 @@ import pytest
 
 import posterior_writeback as writeback
 
-PIN = "sha256:e314d88c63c80b8845d2c1347e0f20b77db5825076d847ecd1c143a925afc676"
+GAIA_IR_HASH = "sha256:e314d88c63c80b8845d2c1347e0f20b77db5825076d847ecd1c143a925afc676"
+
+
+def package_ir(ir_hash=GAIA_IR_HASH, *, exported=True):
+    return {
+        "ir_hash": ir_hash,
+        "knowledges": [
+            {
+                "id": "github:example_idea::worth",
+                "label": "worth",
+                "type": "claim",
+                "content": "The example comparison merits verification because it can distinguish two recorded explanations.",
+                "exported": exported,
+            },
+            {
+                "id": "github:example_idea::tension_resolution",
+                "label": "tension_resolution",
+                "type": "claim",
+                "content": "The comparison resolves one stated part of the disagreement between the two explanations.",
+                "exported": False,
+            },
+            {
+                "id": "github:example_idea::downstream_reach",
+                "label": "downstream_reach",
+                "type": "claim",
+                "content": "The resulting discriminator can be reused in a subsequent comparison of the same response.",
+                "exported": False,
+            },
+            {
+                "id": "github:example_idea::mechanism_insight",
+                "label": "mechanism_insight",
+                "type": "claim",
+                "content": "The compared mechanisms predict distinct responses under the recorded condition.",
+                "exported": False,
+            },
+            {
+                "id": "github:example_idea::testability_timing",
+                "label": "testability_timing",
+                "type": "claim",
+                "content": "The required response and comparison records are available now.",
+                "exported": False,
+            },
+            {
+                "id": "github:example_idea::verification_cost",
+                "label": "verification_cost",
+                "type": "claim",
+                "content": "One bounded comparison decides whether the response separation is present.",
+                "exported": False,
+            },
+        ],
+        "strategies": [],
+    }
+
+
+def package_ir_with_tension_grade(p_nh=0.09, p_h=0.9):
+    ir = package_ir()
+    tension_id = "github:example_idea::tension_resolution"
+    evidence_id = "github:example_idea::resolution_evidence"
+    next(
+        item for item in ir["knowledges"] if item.get("id") == tension_id
+    )["content"] = (
+        "The executed comparison resolves one stated part of the disagreement "
+        "between the two explanations."
+    )
+    ir["knowledges"].append(
+            {
+                "id": evidence_id,
+                "label": "resolution_evidence",
+                "type": "claim",
+                "content": "An executed discriminating test resolves a stated part of the tension.",
+                "exported": False,
+            }
+    )
+    ir["strategies"].append(
+        {
+            "type": "infer",
+            "premises": [tension_id],
+            "conclusion": evidence_id,
+            "conditional_probabilities": [p_nh, p_h],
+            "steps": [
+                {
+                    "reasoning": "reader_reasoning: The executed test bears directly on resolution. "
+                    "resolution_evidence: discriminating_test. anchor: fixture"
+                }
+            ],
+        }
+    )
+    return ir
+
+
+PACKAGE_IR_BYTES = json.dumps(package_ir(), sort_keys=True).encode("utf-8")
+PIN = "sha256:" + hashlib.sha256(PACKAGE_IR_BYTES).hexdigest()
 
 POSTERIOR = {
     "value": 0.8499370175790979,
@@ -166,12 +258,13 @@ def write_posterior_file(tmp_path):
     return path
 
 
-def make_package(tmp_path, rel="example-idea-gaia", ir_hash=PIN):
+def make_package(tmp_path, rel="example-idea-gaia", ir_hash=GAIA_IR_HASH, *, exported=True):
     """A package on disk that the reference under test resolves to."""
     gaia_dir = tmp_path / rel / ".gaia"
     gaia_dir.mkdir(parents=True, exist_ok=True)
     (gaia_dir / "ir.json").write_text(
-        json.dumps({"ir_hash": ir_hash}), encoding="utf-8"
+        json.dumps(package_ir(ir_hash, exported=exported), sort_keys=True),
+        encoding="utf-8",
     )
 
 
@@ -386,6 +479,44 @@ def test_ref_must_resolve_under_the_project_root(
     assert "run_infer_and_extract.py" in err
 
 
+def test_ref_symlink_cannot_escape_project_root(tmp_path) -> None:
+    outside = tmp_path.parent / f"{tmp_path.name}-outside-package"
+    gaia_dir = outside / ".gaia"
+    gaia_dir.mkdir(parents=True)
+    (gaia_dir / "ir.json").write_bytes(PACKAGE_IR_BYTES)
+    link = tmp_path / "example-idea-gaia"
+    try:
+        link.symlink_to(outside, target_is_directory=True)
+    except OSError as exc:
+        pytest.skip(f"directory symlinks unavailable: {exc}")
+
+    with pytest.raises(ValueError, match="escapes"):
+        writeback.verify_package_ref(
+            POSTERIOR["gaia_package_ref"], tmp_path
+        )
+
+
+def test_writeback_refuses_parallel_votes_from_reused_evidence_family(
+    tmp_path,
+) -> None:
+    from test_extract import evidence_family_ir
+
+    package = tmp_path / "reused-family-gaia"
+    gaia_dir = package / ".gaia"
+    gaia_dir.mkdir(parents=True)
+    ir_bytes = json.dumps(
+        evidence_family_ir(modeled_shared=False), sort_keys=True
+    ).encode("utf-8")
+    (gaia_dir / "ir.json").write_bytes(ir_bytes)
+    ref = (
+        "project://reused-family-gaia#sha256:"
+        + hashlib.sha256(ir_bytes).hexdigest()
+    )
+
+    with pytest.raises(ValueError, match="evidence family 'reused-result' is reused"):
+        writeback.verify_package_ref(ref, tmp_path)
+
+
 def test_ref_pin_must_match_package_state(
     tmp_path, fixtures_dir, capsys
 ) -> None:
@@ -393,6 +524,136 @@ def test_ref_pin_must_match_package_state(
     assert run_main(tmp_path, fixtures_dir, package=False) == 2
     err = capsys.readouterr().err
     assert "does not match the package's current compiled state" in err
+
+
+def test_writeback_refuses_stale_package_without_exported_worth(
+    tmp_path, fixtures_dir, capsys
+) -> None:
+    make_package(tmp_path, exported=False)
+    stale_path = tmp_path / "example-idea-gaia" / ".gaia" / "ir.json"
+    stale_pin = "sha256:" + hashlib.sha256(stale_path.read_bytes()).hexdigest()
+    posterior_path = write_posterior_file(tmp_path)
+    posterior = json.loads(posterior_path.read_text(encoding="utf-8"))
+    posterior["gaia_package_ref"] = f"project://example-idea-gaia#{stale_pin}"
+    posterior_path.write_text(json.dumps(posterior), encoding="utf-8")
+    survey_path, matrix_path, report_path = write_close_prior_bundle(tmp_path)
+    code = writeback.main(
+        [
+            "--posterior-json", str(posterior_path),
+            "--campaign-id", "campaign-1",
+            "--node-id", "node-7",
+            "--store-root", str(tmp_path / "store"),
+            "--literature-survey-json", str(survey_path),
+            "--close-prior-matrix-json", str(matrix_path),
+            "--posterior-report-md", str(report_path),
+            "--project-root", str(tmp_path),
+            "--idea-rpc", str(fixtures_dir / "fake_rpc.py"),
+            "--runner", sys.executable,
+        ]
+    )
+    assert code == 2
+    err = capsys.readouterr().err
+    assert '__all__ = ["worth"]' in err
+    assert "re-run run_infer_and_extract.py" in err
+
+
+def test_writeback_refuses_matrix_gaia_tension_grade_mismatch(
+    tmp_path, fixtures_dir, capsys
+) -> None:
+    gaia_dir = tmp_path / "example-idea-gaia" / ".gaia"
+    gaia_dir.mkdir(parents=True)
+    ir_bytes = json.dumps(
+        package_ir_with_tension_grade(), sort_keys=True
+    ).encode("utf-8")
+    (gaia_dir / "ir.json").write_bytes(ir_bytes)
+    pin = "sha256:" + hashlib.sha256(ir_bytes).hexdigest()
+    posterior_path = tmp_path / "posterior.json"
+    posterior_path.write_text(
+        json.dumps(
+            dict(
+                POSTERIOR,
+                gaia_package_ref=f"project://example-idea-gaia#{pin}",
+            )
+        ),
+        encoding="utf-8",
+    )
+    survey_path, matrix_path, report_path = write_close_prior_bundle(tmp_path)
+    matrix = json.loads(matrix_path.read_text(encoding="utf-8"))
+    matrix["tension_resolution"] = {
+        "grade": "weakest",
+        "supporting_refs": ["Example2026"],
+        "challenge_refs": ["Example2026"],
+    }
+    matrix_path.write_text(json.dumps(matrix), encoding="utf-8")
+
+    code = writeback.main(
+        [
+            "--posterior-json", str(posterior_path),
+            "--campaign-id", "campaign-1",
+            "--node-id", "node-7",
+            "--store-root", str(tmp_path / "store"),
+            "--literature-survey-json", str(survey_path),
+            "--close-prior-matrix-json", str(matrix_path),
+            "--posterior-report-md", str(report_path),
+            "--project-root", str(tmp_path),
+            "--idea-rpc", str(fixtures_dir / "fake_rpc.py"),
+            "--runner", sys.executable,
+        ]
+    )
+    assert code == 2
+    err = capsys.readouterr().err
+    assert "close-prior/Gaia consistency gate failed" in err
+    assert "does not match compiled Gaia raising grade 'substantial'" in err
+
+
+def test_writeback_refuses_resolution_raise_without_resolution_evidence_class(
+    tmp_path, fixtures_dir, capsys
+) -> None:
+    gaia_dir = tmp_path / "example-idea-gaia" / ".gaia"
+    gaia_dir.mkdir(parents=True)
+    ir = package_ir_with_tension_grade()
+    ir["strategies"][0]["steps"][0]["reasoning"] = (
+        "reader_reasoning: The observation establishes an open tension and proposes a future check. "
+        "anchor: fixture"
+    )
+    ir_bytes = json.dumps(ir, sort_keys=True).encode("utf-8")
+    (gaia_dir / "ir.json").write_bytes(ir_bytes)
+    pin = "sha256:" + hashlib.sha256(ir_bytes).hexdigest()
+    posterior_path = tmp_path / "posterior.json"
+    posterior_path.write_text(
+        json.dumps(
+            dict(
+                POSTERIOR,
+                gaia_package_ref=f"project://example-idea-gaia#{pin}",
+            )
+        ),
+        encoding="utf-8",
+    )
+    survey_path, matrix_path, report_path = write_close_prior_bundle(tmp_path)
+    matrix = json.loads(matrix_path.read_text(encoding="utf-8"))
+    matrix["tension_resolution"] = {
+        "grade": "substantial",
+        "supporting_refs": ["Example2026"],
+        "challenge_refs": ["Example2026"],
+    }
+    matrix_path.write_text(json.dumps(matrix), encoding="utf-8")
+
+    code = writeback.main(
+        [
+            "--posterior-json", str(posterior_path),
+            "--campaign-id", "campaign-1",
+            "--node-id", "node-7",
+            "--store-root", str(tmp_path / "store"),
+            "--literature-survey-json", str(survey_path),
+            "--close-prior-matrix-json", str(matrix_path),
+            "--posterior-report-md", str(report_path),
+            "--project-root", str(tmp_path),
+            "--idea-rpc", str(fixtures_dir / "fake_rpc.py"),
+            "--runner", sys.executable,
+        ]
+    )
+    assert code == 2
+    assert "tension existence or a plan alone is insufficient" in capsys.readouterr().err
 
 
 def test_project_root_defaults_to_nullius_ancestor_of_store(
