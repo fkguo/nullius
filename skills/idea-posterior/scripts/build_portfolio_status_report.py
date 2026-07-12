@@ -43,6 +43,7 @@ from idea_package_contract import (
     audit_evidence_families,
     compiled_ir_pin,
     load_compiled_ir,
+    reader_rationale_text,
     require_authored_infer_rationales,
     require_idea_specific_reasoning_claims,
     require_unique_exported_root,
@@ -158,9 +159,7 @@ def strategy_reason(strategy: dict[str, Any]) -> str:
             if isinstance(reasoning, str) and reasoning.strip():
                 parts.append(reasoning.strip())
     if parts:
-        return re.sub(
-            r"^reader_reasoning:\s*", "", " ".join(parts), count=1
-        ).strip()
+        return reader_rationale_text(" ".join(parts))
     metadata = strategy.get("metadata") or {}
     reason = metadata.get("reason") if isinstance(metadata, dict) else None
     return reason.strip() if isinstance(reason, str) else ""

@@ -80,7 +80,7 @@ def _write_package(
                 "premises": ["p:x::ev_b"],
                 "conclusion": "p:x::sub_a",
                 "conditional_probabilities": [0.09, 0.9],
-                "steps": [{"reasoning": "reader_reasoning: Substantial: the check directly supports criterion_a. anchor: fixture"}],
+                "steps": [{"reasoning": "reader_reasoning: Substantial: the check directly supports criterion_a. resolution_evidence: demonstrated_partial_resolution. anchor: fixture"}],
             },
             {
                 "type": "infer",
@@ -159,6 +159,8 @@ def test_report_renders_drivers_links_and_rounding(tmp_path: Path) -> None:
 
     # Both driver directions surface with sign, conclusion title, and reasoning.
     assert "+0.81 → criterion_a: Substantial: the check directly supports criterion_a." in md
+    assert "reader_reasoning:" not in md
+    assert "resolution_evidence:" not in md
     assert "-0.81 → evidence_lower: Substantial lowering: a close prior already covers this." in md
 
     # Exact machine value survives in JSON while the md shows 3 decimals.
