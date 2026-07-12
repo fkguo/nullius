@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import shutil
 
 import pytest
 
+from idea_package_contract import observation_rationale_parts
 import run_infer_and_extract as extract
 
 
@@ -57,6 +59,311 @@ def test_observation_count_ignores_non_observation_supports(ir) -> None:
     assert extract.count_observations(ir) == 1
 
 
+def evidence_family_ir(*, modeled_shared: bool) -> dict:
+    worth = "p::worth"
+    criterion = "p::criterion"
+    other = "p::other"
+    shared = "p::shared_input"
+    ev_one = "p::ev_one"
+    ev_two = "p::ev_two"
+    model = "single"
+
+    def observation(kid: str, label: str) -> dict:
+        return {
+            "id": kid,
+            "label": label,
+            "type": "claim",
+            "exported": False,
+            "metadata": {
+                "supported_by": [
+                    {
+                        "pattern": "observation",
+                        "rationale": (
+                            f"evidence_family: reused-result; "
+                            f"correlation_model: {model}; anchor: fixture"
+                        ),
+                    }
+                ]
+            },
+        }
+
+    knowledges = [
+        {
+            "id": worth,
+            "label": "worth",
+            "type": "claim",
+            "content": (
+                "The repeated-result comparison merits verification because "
+                "it can distinguish the recorded alternatives."
+            ),
+            "exported": True,
+        },
+        {"id": criterion, "label": "criterion", "type": "claim", "exported": False},
+        {"id": other, "label": "other", "type": "claim", "exported": False},
+        observation(ev_one, "ev_one"),
+        observation(ev_two, "ev_two"),
+        {
+            "id": "p::tension_resolution",
+            "label": "tension_resolution",
+            "type": "claim",
+            "content": "The repeated-result comparison resolves one stated part of the recorded disagreement.",
+            "exported": False,
+        },
+        {
+            "id": "p::downstream_reach",
+            "label": "downstream_reach",
+            "type": "claim",
+            "content": "The resulting discriminator can be reused in a subsequent comparison of the same response.",
+            "exported": False,
+        },
+        {
+            "id": "p::mechanism_insight",
+            "label": "mechanism_insight",
+            "type": "claim",
+            "content": "The compared mechanisms predict distinguishable responses under the recorded condition.",
+            "exported": False,
+        },
+        {
+            "id": "p::testability_timing",
+            "label": "testability_timing",
+            "type": "claim",
+            "content": "The required repeated-result records are available for the comparison now.",
+            "exported": False,
+        },
+        {
+            "id": "p::verification_cost",
+            "label": "verification_cost",
+            "type": "claim",
+            "content": "One bounded comparison decides whether the predicted response separation is present.",
+            "exported": False,
+        },
+    ]
+    strategies = []
+
+    def add(source: str, target: str, index: int) -> None:
+        strategies.append(
+            {
+                "type": "infer",
+                "premises": [target],
+                "conclusion": source,
+                "conditional_probabilities": [0.09, 0.9],
+                "steps": [
+                    {
+                        "reasoning": "reader_reasoning: the source updates the "
+                        f"target. anchor: fixture {index}"
+                    }
+                ],
+                "strategy_id": f"infer_{index}",
+            }
+        )
+
+    if modeled_shared:
+        knowledges.append(
+            {"id": shared, "label": "shared_input", "type": "claim", "exported": False}
+        )
+        add(ev_one, shared, 1)
+        add(ev_two, shared, 2)
+        add(shared, criterion, 3)
+        add(criterion, worth, 4)
+    else:
+        add(ev_one, criterion, 1)
+        add(criterion, worth, 2)
+        add(ev_two, other, 3)
+        add(other, worth, 4)
+    return {
+        "ir_hash": "sha256:" + "a" * 64,
+        "knowledges": knowledges,
+        "strategies": strategies,
+    }
+
+
+def test_rephrased_observations_from_one_family_are_not_independent_votes() -> None:
+    with pytest.raises(ValueError, match="evidence family 'reused-result' is reused"):
+        extract.audit_evidence_families(evidence_family_ir(modeled_shared=False))
+
+
+def test_gaia_generative_infer_is_inverted_for_reader_evidence_flow() -> None:
+    ir = evidence_family_ir(modeled_shared=False)
+    ir["knowledges"] = [
+        item for item in ir["knowledges"] if item.get("id") != "p::ev_two"
+    ]
+    ir["strategies"] = [
+        strategy
+        for strategy in ir["strategies"]
+        if strategy.get("conclusion") != "p::ev_two"
+        and strategy.get("conclusion") != "p::other"
+    ]
+    records = extract.audit_evidence_families(ir)
+    # Gaia stores hypothesis -> possible evidence as premise -> conclusion.
+    # The audit intentionally follows the inverse ev_one -> criterion -> worth.
+    assert records["p::ev_one"]["root_target"] == "p::criterion"
+    assert records["p::ev_one"]["root_path_count"] == 1
+
+
+def test_reused_evidence_family_still_fails_when_arrows_meet_at_one_claim() -> None:
+    with pytest.raises(ValueError, match="would multiply those likelihoods"):
+        extract.audit_evidence_families(evidence_family_ir(modeled_shared=True))
+
+
+@pytest.mark.parametrize(
+    "rationale",
+    (
+        "evidence_family: good; evidence_family: BAD; "
+        "correlation_model: single; anchor: fixture",
+        "evidence_family: good; correlation_model: single; "
+        "correlation_model: bogus; anchor: fixture",
+    ),
+)
+def test_evidence_family_parser_rejects_malformed_duplicate_declarations(
+    rationale,
+) -> None:
+    with pytest.raises(ValueError, match="exactly one"):
+        extract.parse_evidence_family_rationale(rationale)
+
+
+@pytest.mark.parametrize(
+    "rationale",
+    (
+        "evidence_family: valid-family; correlation_model: single-extra; anchor: fixture",
+        "evidence_family: invalid-; correlation_model: single; anchor: fixture",
+    ),
+)
+def test_evidence_family_parser_rejects_valid_prefix_with_invalid_suffix(
+    rationale,
+) -> None:
+    with pytest.raises(ValueError, match="exactly one"):
+        extract.parse_evidence_family_rationale(rationale)
+
+
+def test_evidence_family_parser_accepts_spacing_around_sentinel_colons() -> None:
+    assert extract.parse_evidence_family_rationale(
+        "evidence_family : spaced-token; correlation_model : single; "
+        "anchor: fixture"
+    ) == ("spaced-token", "single")
+
+
+def test_observation_rationale_parts_hide_contract_sentinels_from_context() -> None:
+    assert observation_rationale_parts(
+        "evidence_family: checked-result; correlation_model: single; "
+        "The calculation resolves the scoped comparison. anchor: report.md"
+    ) == (
+        "checked-result",
+        "single",
+        "The calculation resolves the scoped comparison.",
+        "report.md",
+    )
+
+
+@pytest.mark.parametrize(
+    "rationale",
+    (
+        "evidence_family: checked-result; correlation_model: single; no anchor",
+        "evidence_family: checked-result; correlation_model: single; anchor:   ",
+    ),
+)
+def test_observation_rationale_requires_nonempty_anchor(rationale) -> None:
+    with pytest.raises(ValueError, match="non-empty anchor"):
+        observation_rationale_parts(rationale)
+
+
+def test_correlation_model_rejects_unsupported_shared_declaration() -> None:
+    ir = evidence_family_ir(modeled_shared=False)
+    ir["knowledges"] = [
+        item for item in ir["knowledges"] if item.get("id") != "p::ev_two"
+    ]
+    ir["strategies"] = [
+        strategy
+        for strategy in ir["strategies"]
+        if strategy.get("conclusion") != "p::ev_two"
+    ]
+    rationale = ir["knowledges"][3]["metadata"]["supported_by"][0]["rationale"]
+    ir["knowledges"][3]["metadata"]["supported_by"][0]["rationale"] = (
+        rationale.replace("correlation_model: single", "correlation_model: shared:missing")
+    )
+    with pytest.raises(ValueError, match="does not encode a joint likelihood"):
+        extract.audit_evidence_families(ir)
+
+
+def test_one_observation_cannot_branch_into_multiple_worth_updates() -> None:
+    ir = evidence_family_ir(modeled_shared=True)
+    ir["knowledges"] = [
+        item for item in ir["knowledges"] if item.get("id") != "p::ev_two"
+    ]
+    ir["strategies"] = [
+        strategy
+        for strategy in ir["strategies"]
+        if strategy.get("conclusion") != "p::ev_two"
+    ]
+    ir["strategies"].extend(
+        [
+            {
+                "type": "infer",
+                "premises": ["p::other"],
+                "conclusion": "p::shared_input",
+                "conditional_probabilities": [0.25, 0.75],
+                "steps": [
+                    {
+                        "reasoning": "reader_reasoning: the same evidence path "
+                        "branches to another criterion. anchor: fixture"
+                    }
+                ],
+            },
+            {
+                "type": "infer",
+                "premises": ["p::worth"],
+                "conclusion": "p::other",
+                "conditional_probabilities": [0.25, 0.75],
+                "steps": [
+                    {
+                        "reasoning": "reader_reasoning: the second criterion also "
+                        "updates worth. anchor: fixture"
+                    }
+                ],
+            },
+        ]
+    )
+    with pytest.raises(ValueError, match="more than one likelihood-bearing path"):
+        extract.audit_evidence_families(ir)
+
+
+def test_evidence_family_audit_rejects_any_reader_flow_cycle() -> None:
+    ir = evidence_family_ir(modeled_shared=True)
+    ir["strategies"].append(
+        {
+            "type": "infer",
+            "premises": ["p::shared_input"],
+            "conclusion": "p::criterion",
+            "conditional_probabilities": [0.09, 0.9],
+            "steps": [
+                {
+                    "reasoning": "reader_reasoning: the back edge creates a "
+                    "cycle. anchor: fixture"
+                }
+            ],
+        }
+    )
+    with pytest.raises(ValueError, match="contains a cycle"):
+        extract.audit_evidence_families(ir)
+
+
+@pytest.mark.parametrize("bad_id", (123, ["not", "scalar"], ""))
+def test_compiled_knowledge_ids_must_be_nonempty_strings(bad_id) -> None:
+    ir = evidence_family_ir(modeled_shared=False)
+    ir["knowledges"][0]["id"] = bad_id
+    with pytest.raises(ValueError, match="id must be a non-empty string"):
+        extract.audit_evidence_families(ir)
+
+
+@pytest.mark.parametrize("bad_probability", ("0.9", True, -0.1, 1.1, float("inf")))
+def test_compiled_infer_probabilities_must_be_finite_unit_interval(
+    bad_probability,
+) -> None:
+    ir = evidence_family_ir(modeled_shared=False)
+    ir["strategies"][0]["conditional_probabilities"][0] = bad_probability
+    with pytest.raises(ValueError, match="finite conditional probabilities"):
+        extract.audit_evidence_families(ir)
+
+
 def test_extract_posterior_end_shape(tmp_path, fixtures_dir) -> None:
     gaia_dir = tmp_path / "pkg" / ".gaia"
     gaia_dir.mkdir(parents=True)
@@ -72,13 +379,60 @@ def test_extract_posterior_end_shape(tmp_path, fixtures_dir) -> None:
     # absolute path (synced projects land at different absolute paths).
     assert posterior["gaia_package_ref"] == (
         "project://pkg"
-        "#sha256:e314d88c63c80b8845d2c1347e0f20b77db5825076d847ecd1c143a925afc676"
+        "#sha256:"
+        + hashlib.sha256((gaia_dir / "ir.json").read_bytes()).hexdigest()
     )
+
+
+def test_extract_posterior_rejects_unchanged_scaffold_claim(
+    tmp_path, fixtures_dir
+) -> None:
+    gaia_dir = tmp_path / "pkg" / ".gaia"
+    gaia_dir.mkdir(parents=True)
+    shutil.copy(fixtures_dir / "beliefs_sample.json", gaia_dir / "beliefs.json")
+    ir = json.loads((fixtures_dir / "ir_sample.json").read_text(encoding="utf-8"))
+    next(item for item in ir["knowledges"] if item.get("label") == "worth")[
+        "content"
+    ] = "The idea merits sustained verification effort."
+    (gaia_dir / "ir.json").write_text(json.dumps(ir), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="generic axis text"):
+        extract.extract_posterior(tmp_path / "pkg", "worth", tmp_path)
 
 
 def test_extract_posterior_requires_artifacts(tmp_path) -> None:
     (tmp_path / "pkg").mkdir()
     with pytest.raises(FileNotFoundError, match="run the inference stages"):
+        extract.extract_posterior(tmp_path / "pkg", "worth", tmp_path)
+
+
+def test_extract_posterior_rejects_unmarked_infer_reasoning(
+    tmp_path, fixtures_dir
+) -> None:
+    gaia_dir = tmp_path / "pkg" / ".gaia"
+    gaia_dir.mkdir(parents=True)
+    shutil.copy(fixtures_dir / "beliefs_sample.json", gaia_dir / "beliefs.json")
+    ir = json.loads((fixtures_dir / "ir_sample.json").read_text(encoding="utf-8"))
+    ir["strategies"][0]["steps"][0]["reasoning"] = (
+        "The criterion is satisfied. anchor: fixture"
+    )
+    (gaia_dir / "ir.json").write_text(json.dumps(ir), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="reader_reasoning:"):
+        extract.extract_posterior(tmp_path / "pkg", "worth", tmp_path)
+
+
+def test_extract_posterior_requires_canonical_gaia_ir_hash(
+    tmp_path, fixtures_dir
+) -> None:
+    gaia_dir = tmp_path / "pkg" / ".gaia"
+    gaia_dir.mkdir(parents=True)
+    shutil.copy(fixtures_dir / "beliefs_sample.json", gaia_dir / "beliefs.json")
+    ir = json.loads((fixtures_dir / "ir_sample.json").read_text(encoding="utf-8"))
+    ir.pop("ir_hash")
+    (gaia_dir / "ir.json").write_text(json.dumps(ir), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="canonical Gaia ir_hash"):
         extract.extract_posterior(tmp_path / "pkg", "worth", tmp_path)
 
 
@@ -132,9 +486,9 @@ from gaia.engine.lang import claim, infer, observe, register_prior
 
 worth = claim("The idea merits sustained verification effort.", title="worth")
 sub = claim("A sub-criterion holds.", title="sub")
-ev = observe("An anchored fact.", rationale="context. anchor: survey artifact")
+ev = observe("An anchored fact.", rationale="evidence_family: anchored-fact; correlation_model: single; context. anchor: survey artifact")
 infer(ev, hypothesis=sub, p_e_given_h=0.90, p_e_given_not_h=0.09,
-      rationale="substantial grade. anchor: survey artifact")
+      rationale="reader_reasoning: the checked fact is expected under the sub-criterion; substantial grade. anchor: survey artifact")
 register_prior(sub, value=0.7,
                justification="external estimate. anchor: cited source")
 '''
@@ -152,11 +506,77 @@ def test_discipline_scan_flags_off_grade_pair() -> None:
 
 def test_discipline_scan_flags_missing_anchor_note() -> None:
     source = CLEAN_MODULE.replace(
-        'rationale="context. anchor: survey artifact"',
+        'rationale="evidence_family: anchored-fact; correlation_model: single; context. anchor: survey artifact"',
         'rationale="context with no note"',
     )
     violations, _ = extract.scan_discipline(source)
     assert any("does not end with an 'anchor:" in v for v in violations)
+
+
+def test_discipline_scan_rejects_anchor_only_infer_rationale() -> None:
+    source = CLEAN_MODULE.replace(
+        'rationale="reader_reasoning: the checked fact is expected under the sub-criterion; substantial grade. anchor: survey artifact"',
+        'rationale="anchor: survey artifact"',
+    )
+    violations, _ = extract.scan_discipline(source)
+    assert any("authored likelihood explanation" in v for v in violations)
+
+
+def test_discipline_scan_rejects_unmarked_generic_criterion_as_reasoning() -> None:
+    source = CLEAN_MODULE.replace(
+        "reader_reasoning: the checked fact is expected under the sub-criterion; substantial grade.",
+        "The sub-criterion holds.",
+    )
+    violations, _ = extract.scan_discipline(source)
+    assert any("reader_reasoning:" in problem for problem in violations)
+
+
+def test_discipline_scan_requires_observation_family_and_correlation_model() -> None:
+    source = CLEAN_MODULE.replace(
+        "evidence_family: anchored-fact; correlation_model: single; ", ""
+    )
+    violations, _ = extract.scan_discipline(source)
+    assert any("evidence_family:" in problem for problem in violations)
+    assert any("correlation_model:" in problem for problem in violations)
+
+
+@pytest.mark.parametrize(
+    "rationale",
+    (
+        "The survey proves the tension exists. anchor: survey artifact",
+        "A future check is planned. anchor: compute plan",
+    ),
+)
+def test_tension_existence_or_plan_cannot_raise_resolution(rationale) -> None:
+    source = f'''\
+from gaia.engine.lang import claim, infer, observe
+tension = claim("The idea resolves an open tension.", title="tension_resolution")
+ev = observe("The open tension is documented.", rationale="evidence_family: tension-record; correlation_model: single; anchor: survey artifact")
+infer(ev, hypothesis=tension, p_e_given_h=0.90, p_e_given_not_h=0.09,
+      rationale={rationale!r})
+'''
+    violations, _ = extract.scan_discipline(source)
+    assert any("resolution_evidence:" in problem for problem in violations)
+
+
+@pytest.mark.parametrize(
+    "evidence_class",
+    ("mechanism", "discriminating_test", "demonstrated_partial_resolution"),
+)
+def test_raising_tension_resolution_requires_explicit_resolution_class(
+    evidence_class,
+) -> None:
+    source = f'''\
+from gaia.engine.lang import claim, infer, observe
+tension = claim("The idea resolves an open tension.", title="tension_resolution")
+ev = observe("An idea-specific result resolves a stated part of the tension.",
+             rationale="evidence_family: executed-result; correlation_model: single; anchor: executed result")
+infer(ev, hypothesis=tension, p_e_given_h=0.90, p_e_given_not_h=0.09,
+      rationale="reader_reasoning: The executed result bears on resolution. "
+                "resolution_evidence: {evidence_class}. anchor: executed result")
+'''
+    violations, _ = extract.scan_discipline(source)
+    assert not any("raising tension_resolution" in problem for problem in violations)
 
 
 def test_discipline_scan_requires_anchor_on_the_last_line() -> None:
@@ -164,8 +584,8 @@ def test_discipline_scan_requires_anchor_on_the_last_line() -> None:
     # non-trailing (same-line trailing words are indistinguishable from a
     # multi-word reference and stay a reviewer question).
     source = CLEAN_MODULE.replace(
-        'rationale="context. anchor: survey artifact"',
-        'rationale="anchor: survey artifact\\nplus a second line of prose"',
+        'rationale="evidence_family: anchored-fact; correlation_model: single; context. anchor: survey artifact"',
+        'rationale="evidence_family: anchored-fact; correlation_model: single; anchor: survey artifact\\nplus a second line of prose"',
     )
     violations, _ = extract.scan_discipline(source)
     assert any("does not end with an 'anchor:" in v for v in violations)
@@ -225,10 +645,10 @@ STRONG_REACH = (
     "from gaia.engine.lang import claim, infer, observe\n"
     "worth = claim('Worth.', title='worth')\n"
     "downstream_reach = claim('Reach.', title='downstream_reach')\n"
-    "ev = observe('Chains recorded.', rationale='ctx. anchor: idea card')\n"
+    "ev = observe('Chains recorded.', rationale='evidence_family: reach-chain; correlation_model: single; ctx. anchor: idea card')\n"
     "infer(ev, hypothesis=downstream_reach, p_e_given_h=0.90,\n"
     "      p_e_given_not_h=0.03,\n"
-    "      rationale='{clause}broad reach. anchor: idea card')\n"
+    "      rationale='reader_reasoning: {clause}broad reach. anchor: idea card')\n"
 )
 
 
@@ -354,9 +774,9 @@ def test_scan_still_allows_direct_module_attribute_call() -> None:
     source = (
         "import gaia.engine.lang as lang\n"
         "h = lang.claim('H.', title='h')\n"
-        "e = lang.observe('Fact.', rationale='ctx. anchor: x')\n"
+        "e = lang.observe('Fact.', rationale='evidence_family: direct-fact; correlation_model: single; ctx. anchor: x')\n"
         "lang.infer(e, hypothesis=h, p_e_given_h=0.90, p_e_given_not_h=0.09,\n"
-        "           rationale='ctx. anchor: x')\n"
+        "           rationale='reader_reasoning: the fact supports h. anchor: x')\n"
     )
     assert extract.scan_discipline(source) == ([], [])
 
@@ -369,7 +789,7 @@ def test_strong_reach_identified_by_claim_title_needs_domains() -> None:
         "from gaia.engine.lang import claim, infer, observe\n"
         "worth = claim('Worth.', title='worth')\n"
         "reach = claim('Reach.', title='downstream_reach')\n"
-        "ev = observe('Chains.', rationale='ctx. anchor: idea card')\n"
+        "ev = observe('Chains.', rationale='evidence_family: titled-reach; correlation_model: single; ctx. anchor: idea card')\n"
         "infer(ev, hypothesis=reach, p_e_given_h=0.90, p_e_given_not_h=0.03,\n"
         "      rationale='broad reach. anchor: idea card')\n"
     )
@@ -384,9 +804,10 @@ def test_strong_reach_by_title_with_domains_passes() -> None:
         "from gaia.engine.lang import claim, infer, observe\n"
         "worth = claim('Worth.', title='worth')\n"
         "reach = claim('Reach.', title='downstream_reach')\n"
-        "ev = observe('Chains.', rationale='ctx. anchor: idea card')\n"
+        "ev = observe('Chains.', rationale='evidence_family: titled-reach; correlation_model: single; ctx. anchor: idea card')\n"
         "infer(ev, hypothesis=reach, p_e_given_h=0.90, p_e_given_not_h=0.03,\n"
-        "      rationale='domains: first; second; third. anchor: idea card')\n"
+        "      rationale='reader_reasoning: domains: first; second; third. "
+        "broad reach. anchor: idea card')\n"
     )
     assert extract.scan_discipline(source) == ([], [])
 
@@ -411,7 +832,7 @@ def test_strong_reach_with_domains_hidden_in_anchor_is_rejected() -> None:
         "from gaia.engine.lang import claim, infer, observe\n"
         "worth = claim('Worth.', title='worth')\n"
         "downstream_reach = claim('Reach.', title='downstream_reach')\n"
-        "ev = observe('Chains.', rationale='ctx. anchor: idea card')\n"
+        "ev = observe('Chains.', rationale='evidence_family: hidden-domain; correlation_model: single; ctx. anchor: idea card')\n"
         "infer(ev, hypothesis=downstream_reach, p_e_given_h=0.90,\n"
         "      p_e_given_not_h=0.03,\n"
         "      rationale='reach. anchor: idea card; domains: a; b; c')\n"
@@ -431,6 +852,10 @@ def write_fake_gaia(tmp_path, fixtures_dir=None):
     if fixtures_dir is not None:
         lines += [
             'eval "last=\\${$#}"',
+            'if [ "$1" = "build" ] && [ "$2" = "compile" ]; then',
+            '  mkdir -p "$last/.gaia"',
+            f'  cp "{fixtures_dir}/ir_sample.json" "$last/.gaia/ir.json"',
+            "fi",
             'if [ "$1" = "run" ]; then',
             '  mkdir -p "$last/.gaia"',
             f'  cp "{fixtures_dir}/beliefs_sample.json" "$last/.gaia/beliefs.json"',
@@ -493,14 +918,38 @@ def test_main_explicit_exception_marks_exploration_only(
     assert posterior["value"] == pytest.approx(0.8499370175790979)
 
 
-def test_extract_posterior_requires_ir_hash(tmp_path, fixtures_dir) -> None:
+def test_exact_ir_pin_binds_export_metadata_omitted_by_gaia_ir_hash(
+    tmp_path, fixtures_dir
+) -> None:
     gaia_dir = tmp_path / "pkg" / ".gaia"
     gaia_dir.mkdir(parents=True)
     shutil.copy(fixtures_dir / "beliefs_sample.json", gaia_dir / "beliefs.json")
     ir = json.loads((fixtures_dir / "ir_sample.json").read_text())
-    del ir["ir_hash"]
+    current_path = gaia_dir / "ir.json"
+    current_path.write_text(json.dumps(ir, sort_keys=True), encoding="utf-8")
+    current = extract.extract_posterior(tmp_path / "pkg", "worth", tmp_path)
+
+    for item in ir["knowledges"]:
+        if item.get("label") == "worth":
+            item["exported"] = False
+    stale_bytes = (json.dumps(ir, sort_keys=True)).encode("utf-8")
+    assert ir["ir_hash"] == json.loads(current_path.read_text())["ir_hash"]
+    assert hashlib.sha256(stale_bytes).hexdigest() not in current["gaia_package_ref"]
+    current_path.write_bytes(stale_bytes)
+    with pytest.raises(ValueError, match=r'__all__ = \["worth"\]'):
+        extract.extract_posterior(tmp_path / "pkg", "worth", tmp_path)
+
+
+def test_extract_refuses_multiple_exported_conclusions(tmp_path, fixtures_dir) -> None:
+    gaia_dir = tmp_path / "pkg" / ".gaia"
+    gaia_dir.mkdir(parents=True)
+    shutil.copy(fixtures_dir / "beliefs_sample.json", gaia_dir / "beliefs.json")
+    ir = json.loads((fixtures_dir / "ir_sample.json").read_text())
+    for item in ir["knowledges"]:
+        if item.get("label") == "tension_resolution":
+            item["exported"] = True
     (gaia_dir / "ir.json").write_text(json.dumps(ir), encoding="utf-8")
-    with pytest.raises(ValueError, match="ir_hash"):
+    with pytest.raises(ValueError, match="exactly one exported conclusion"):
         extract.extract_posterior(tmp_path / "pkg", "worth", tmp_path)
 
 
@@ -525,7 +974,10 @@ def write_fake_gaia_render(tmp_path, fixtures_dir, *, render_fails, docs_writes=
     if docs_writes and not render_fails:
         docs_branch = (
             '  mkdir -p "$last/docs"\n'
-            '  printf \'<a id="worth"></a>\\n\\n#### worth\\n\' > "$last/docs/detailed-reasoning.md"\n'
+            '  printf \'%s\\n\' \'<a id="worth"></a>\' \'\' \'#### worth\' '
+            '\'\' \'## Knowledge Graph\' \'\' \'```mermaid\' '
+            '\'flowchart LR\' \'  worth["worth (0.85)"]:::premise\' '
+            '\'```\' > "$last/docs/detailed-reasoning.md"\n'
             "  exit 0"
         )
     else:
@@ -542,6 +994,10 @@ def write_fake_gaia_render(tmp_path, fixtures_dir, *, render_fails, docs_writes=
                 '  prev="$a"',
                 "done",
                 'for a in "$@"; do last="$a"; done',
+                'if [ "$1" = "build" ] && [ "$2" = "compile" ]; then',
+                '  mkdir -p "$last/.gaia"',
+                f'  cp "{fixtures_dir}/ir_sample.json" "$last/.gaia/ir.json"',
+                "fi",
                 'if [ "$1" = "inspect" ]; then',
                 render_branch,
                 "fi",
@@ -693,12 +1149,12 @@ def test_cleanup_oserror_never_withholds_the_posterior(
     assert (package / "starmap.html").is_dir()
 
 
-def test_successful_docs_render_publishes_three_hash_bound_html(
+def test_successful_docs_render_publishes_four_hash_bound_html(
     tmp_path, fixtures_dir, capsys
 ) -> None:
     # After a successful Gaia docs render the standalone static renderer
-    # publishes HTML plus a manifest binding CURRENT beliefs, exact Markdown,
-    # and exact HTML bytes; the fresh graph links the browser page.
+    # publishes HTML plus a manifest binding CURRENT beliefs, exact IR,
+    # exact Markdown, and exact HTML bytes; the fresh graph links the page.
     import hashlib
 
     missing = [tool for tool in ("uv", "pandoc", "mmdc") if not shutil.which(tool)]
@@ -735,6 +1191,10 @@ def test_successful_docs_render_publishes_three_hash_bound_html(
         + hashlib.sha256((docs / "detailed-reasoning.html").read_bytes()).hexdigest()
     )
     assert manifest["beliefs_sha256"] == expected_beliefs
+    assert manifest["ir_sha256"] == (
+        "sha256:"
+        + hashlib.sha256((package / ".gaia" / "ir.json").read_bytes()).hexdigest()
+    )
     assert manifest["markdown_sha256"] == expected_markdown
     assert manifest["html_sha256"] == expected_html
     page = (package / "argument-graph.html").read_text(encoding="utf-8")

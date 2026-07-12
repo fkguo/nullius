@@ -78,6 +78,30 @@ Authoring rules (see the idea-posterior skill for the full discipline):
   "anchor: a projected/variational method paper, DOI:...".
   A number whose anchor does not survive review is deleted, and the claim
   falls back to MaxEnt. That fallback is the correct failure mode.
+- Every observe() rationale also declares one stable evidence family and its
+  correlation model before the anchor:
+    "evidence_family: <token>; correlation_model: single; anchor: ..."
+  Gaia 0.5.0a4 multiplies separate infer() likelihoods, so routing correlated
+  observations through one shared claim does not model their dependence. A
+  family may contribute at most one observation on one path to worth.
+  Correlated or redundant material is merged into one composite observation
+  with one likelihood update. Repeated family labels are allowed only on
+  disconnected source notes that cannot change worth.
+- Every infer() rationale introduces its substantive explanation with the
+  explicit sentinel "reader_reasoning: <why the evidence changes the
+  hypothesis>" before the anchor. This is a structural authorship contract;
+  generic criterion text or an anchor alone is not an explanation.
+- An open-tension source proves relevance or admission, not that this idea
+  resolves it. A raising infer() into tension_resolution must carry
+  idea-specific resolution evidence and classify it before the anchor as
+  "resolution_evidence: mechanism", "resolution_evidence:
+  discriminating_test", or "resolution_evidence:
+  demonstrated_partial_resolution". A plan alone belongs under
+  testability_timing or verification_cost; it does not establish resolution.
+- Do not copy one observed fact into several evidence nodes and count the
+  resulting paths as independent support. If one source bears on several
+  criteria, merge its consequence into one composite observation on one
+  likelihood-bearing path; Gaia 0.5.0a4 does not encode their joint likelihood.
 - No claim gets register_prior unless a real external prior exists. A
   register_prior justification follows the same anchor discipline as every
   other number: it ends with "anchor: <artifact reference or URI>", and a
@@ -103,10 +127,14 @@ __all__ = ["worth"]
 # --------------------------------------------------------------------------
 # Top-level hypothesis. Label must stay `worth`: the extraction script keys
 # on it. MaxEnt on purpose -- do not register a prior without a cited source.
+# Every claim sentence in this skeleton is generic axis text for authoring
+# guidance only. Replace all six with idea-specific research propositions;
+# the extractor and renderers reject the unchanged sentences.
 # --------------------------------------------------------------------------
 worth = claim(
     "The idea merits sustained verification effort.",
     title="worth",
+    reader_role="conclusion",
 )
 
 # --------------------------------------------------------------------------
@@ -115,10 +143,15 @@ worth = claim(
 # tensions carry the same weight as numerical ones (incompatible frameworks,
 # an approximation used without justification, a missing mechanism).
 # Evidence source: the tensions section of a literature survey artifact.
+# That source establishes that the tension exists. Raising this criterion
+# additionally requires idea-specific evidence that resolves all or a stated
+# part of it; use the required resolution_evidence clause in the infer
+# rationale. A proposed future check is not resolution evidence.
 # --------------------------------------------------------------------------
 tension_resolution = claim(
     "The idea resolves an anchored open tension.",
     title="tension_resolution",
+    reader_role="criterion",
 )
 
 # --------------------------------------------------------------------------
@@ -134,6 +167,7 @@ tension_resolution = claim(
 downstream_reach = claim(
     "The idea's results feed an anchored chain of downstream problems.",
     title="downstream_reach",
+    reader_role="criterion",
 )
 
 # --------------------------------------------------------------------------
@@ -145,6 +179,7 @@ downstream_reach = claim(
 mechanism_insight = claim(
     "The idea supplies a new, testable mechanistic understanding.",
     title="mechanism_insight",
+    reader_role="criterion",
 )
 
 # --------------------------------------------------------------------------
@@ -156,6 +191,7 @@ mechanism_insight = claim(
 testability_timing = claim(
     "The idea is testable within an open verification window.",
     title="testability_timing",
+    reader_role="criterion",
 )
 
 # --------------------------------------------------------------------------
@@ -169,6 +205,7 @@ testability_timing = claim(
 verification_cost = claim(
     "A bounded, decisive first check of the idea exists.",
     title="verification_cost",
+    reader_role="criterion",
 )
 
 # --------------------------------------------------------------------------
@@ -176,19 +213,19 @@ verification_cost = claim(
 #
 #   ev_x = observe(
 #       "<anchored fact, stated plainly>",
-#       rationale="... anchor: <artifact or URI>",
+#       rationale="evidence_family: <token>; correlation_model: single; anchor: <artifact or URI>",
 #   )
 #   infer(
 #       ev_x,
 #       hypothesis=<sub_criterion>,
 #       p_e_given_h=0.90, p_e_given_not_h=0.09,   # one of the three grades
-#       rationale="<why this grade> anchor: <artifact or URI>",
+#       rationale="reader_reasoning: <why this grade> anchor: <artifact or URI>",
 #   )
 #   infer(
 #       <sub_criterion>,
 #       hypothesis=worth,
 #       p_e_given_h=0.75, p_e_given_not_h=0.25,   # grade for worth-relevance
-#       rationale="<why this sub-criterion moves worth> anchor: <gate record>",
+#       rationale="reader_reasoning: <why this sub-criterion moves worth> anchor: <gate record>",
 #   )
 #
 # Tournament results (pairwise_match_v1 artifacts) also enter as observe():

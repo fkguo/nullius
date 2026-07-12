@@ -16,6 +16,9 @@ input is deep enough to be admissible for a posterior graph:
 
 `coverage_incomplete` can pass only as provisional posterior guidance; it cannot
 claim allocation eligibility unless explicit exploratory allocation is allowed.
+When compiled IR is supplied, the gate also compares every raising
+``tension_resolution`` likelihood grade with the matrix declaration. A matrix
+that declares ``posterior_status=stale`` never describes a current write.
 """
 
 from __future__ import annotations
@@ -52,6 +55,17 @@ MINIMUM_REPORT_HEADERS = {
 ARXIV_ID_RE = re.compile(r"(?:arxiv:)?(\d{4}\.\d{4,5})(?:v\d+)?", re.IGNORECASE)
 DOI_ID_RE = re.compile(r"(10\.\d{4,9}/[^\s,;]+)", re.IGNORECASE)
 RECID_ID_RE = re.compile(r"(?:recid|inspire|inspirehep)[^\d]*(\d{5,})", re.IGNORECASE)
+RAISING_GRADE_BY_PAIR = {
+    (0.75, 0.25): "weakest",
+    (0.9, 0.09): "substantial",
+    (0.9, 0.03): "strong",
+}
+TENSION_GRADES = {"weakest", "substantial", "strong"}
+TENSION_GRADE_ORDER = {"weakest": 0, "substantial": 1, "strong": 2}
+RESOLUTION_EVIDENCE_RE = re.compile(
+    r"resolution_evidence:\s*"
+    r"(mechanism|discriminating_test|demonstrated_partial_resolution)\b"
+)
 
 
 def load_json(path: Path) -> Any:
@@ -332,6 +346,21 @@ def _validate_matrix(matrix: Any, problems: list[str]) -> tuple[str, bool, bool 
         problems.append("close-prior matrix must record critique_search.top_hits_reviewed")
 
     tension = matrix.get("tension_resolution")
+    if _is_obj(tension):
+        grade = tension.get("grade")
+        if grade is not None and grade not in TENSION_GRADES:
+            problems.append(
+                "tension_resolution.grade must be weakest, substantial, or strong"
+            )
+        grades = tension.get("raising_likelihood_grades")
+        if grades is not None and (
+            not isinstance(grades, list)
+            or any(item not in TENSION_GRADES for item in grades)
+        ):
+            problems.append(
+                "tension_resolution.raising_likelihood_grades must be a list "
+                "containing only weakest, substantial, or strong"
+            )
     if _is_obj(tension) and tension.get("grade") not in {None, "weakest"}:
         if not _non_empty_list(tension.get("supporting_refs")):
             problems.append("tension_resolution above weakest must record supporting_refs")
@@ -385,7 +414,139 @@ def _validate_matrix(matrix: Any, problems: list[str]) -> tuple[str, bool, bool 
         problems.append("close-prior matrix.posterior_status must be current, provisional, or stale when provided")
     if status != "saturated" and posterior_status == "current":
         problems.append("coverage_incomplete/metadata_only cannot declare posterior_status current")
+    if posterior_status == "stale":
+        problems.append(
+            "close-prior matrix.posterior_status stale cannot enter current "
+            "posterior writeback; rebuild the matrix and graph, then declare "
+            "the resulting readiness state"
+        )
+    if status == "saturated" and posterior_status == "provisional":
+        problems.append(
+            "saturated close-prior coverage cannot declare posterior_status "
+            "provisional for current writeback; use current after rebuilding"
+        )
     return status, exploratory, allocation_eligible
+
+
+def validate_tension_resolution_consistency(
+    matrix: Any, ir: Any
+) -> list[str]:
+    """Compare matrix raising-grade declarations with compiled Gaia updates.
+
+    The matrix's singular ``grade`` covers one raising update. Packages with
+    several raising updates additionally declare the exact multiset in
+    ``raising_likelihood_grades``; this prevents one summary grade from hiding
+    stronger or duplicated likelihoods in the graph.
+    """
+    problems: list[str] = []
+    if not _is_obj(matrix) or not _is_obj(ir):
+        return ["close-prior matrix and compiled Gaia IR must be JSON objects"]
+    tension_nodes = [
+        item
+        for item in _as_list(ir.get("knowledges"))
+        if _is_obj(item) and item.get("label") == "tension_resolution"
+    ]
+    if len(tension_nodes) > 1:
+        return [
+            "compiled Gaia IR must contain at most one claim labelled "
+            "tension_resolution"
+        ]
+    actual: list[str] = []
+    if tension_nodes:
+        tension_id = tension_nodes[0].get("id")
+        for index, strategy in enumerate(_as_list(ir.get("strategies"))):
+            if not _is_obj(strategy) or strategy.get("type") != "infer":
+                continue
+            premises = _as_list(strategy.get("premises"))
+            probabilities = _as_list(strategy.get("conditional_probabilities"))
+            if premises != [tension_id] or len(probabilities) != 2:
+                continue
+            try:
+                pair = (float(probabilities[1]), float(probabilities[0]))
+            except (TypeError, ValueError):
+                problems.append(
+                    f"compiled tension_resolution infer[{index}] has non-numeric likelihoods"
+                )
+                continue
+            if pair[0] <= pair[1]:
+                continue
+            grade = RAISING_GRADE_BY_PAIR.get(pair)
+            if grade is None:
+                problems.append(
+                    f"compiled tension_resolution infer[{index}] uses off-grade "
+                    f"raising likelihood pair {pair}"
+                )
+            else:
+                actual.append(grade)
+                rationale = " ".join(
+                    str(step.get("reasoning") or "")
+                    for step in _as_list(strategy.get("steps"))
+                    if _is_obj(step)
+                )
+                before_anchor = re.split(r"anchor:", rationale, maxsplit=1)[0]
+                if RESOLUTION_EVIDENCE_RE.search(before_anchor) is None:
+                    problems.append(
+                        f"compiled tension_resolution infer[{index}] raises successful "
+                        "resolution without an idea-specific pre-anchor clause: use "
+                        "resolution_evidence: mechanism, discriminating_test, or "
+                        "demonstrated_partial_resolution; tension existence or a plan "
+                        "alone is insufficient"
+                    )
+    actual.sort(key=TENSION_GRADE_ORDER.__getitem__)
+
+    tension = matrix.get("tension_resolution")
+    declared_grade = tension.get("grade") if _is_obj(tension) else None
+    declared_many = (
+        tension.get("raising_likelihood_grades") if _is_obj(tension) else None
+    )
+    if not actual:
+        if declared_grade is not None or declared_many:
+            problems.append(
+                "close-prior matrix declares a tension_resolution raising grade, "
+                "but the compiled Gaia IR has no raising infer targeting that criterion"
+            )
+        return problems
+    if declared_grade is None:
+        problems.append(
+            "compiled Gaia IR raises tension_resolution, but the close-prior "
+            "matrix has no tension_resolution.grade"
+        )
+    elif len(actual) == 1 and declared_grade != actual[0]:
+        problems.append(
+            "close-prior matrix tension_resolution.grade "
+            f"{declared_grade!r} does not match compiled Gaia raising grade "
+            f"{actual[0]!r}"
+        )
+    elif len(actual) > 1:
+        strongest = actual[-1]
+        if declared_grade != strongest:
+            problems.append(
+                "close-prior matrix tension_resolution.grade must equal the "
+                f"strongest compiled raising grade {strongest!r}, got "
+                f"{declared_grade!r}"
+            )
+        if not isinstance(declared_many, list):
+            problems.append(
+                "multiple compiled raising likelihoods target tension_resolution; "
+                "the matrix must record their exact multiset in "
+                "tension_resolution.raising_likelihood_grades"
+            )
+        else:
+            normalized = sorted(
+                declared_many,
+                key=lambda grade: TENSION_GRADE_ORDER.get(grade, 99),
+            )
+            if normalized != actual:
+                problems.append(
+                    "close-prior matrix tension_resolution.raising_likelihood_grades "
+                    f"{normalized!r} does not match compiled Gaia grades {actual!r}"
+                )
+    elif isinstance(declared_many, list) and declared_many != actual:
+        problems.append(
+            "close-prior matrix tension_resolution.raising_likelihood_grades "
+            f"{declared_many!r} does not match compiled Gaia grades {actual!r}"
+        )
+    return problems
 
 
 def _validate_report(report_text: str | None, matrix: Any, problems: list[str]) -> None:
@@ -422,7 +583,7 @@ def validate_gate(survey: Any, matrix: Any, report_text: str | None, *, allow_ex
     if matrix_status == "saturated" and survey_status != "saturated":
         problems.append("close-prior matrix claims saturated but literature_survey_v1 is not saturated")
     if exploratory and not allow_exploratory:
-        problems.append("exploratory_allocation requires --allow-exploratory/--allow-exploratory-allocation")
+        problems.append("exploratory_allocation requires --allow-exploratory")
     eligible_status = matrix_status == "saturated" or (
         matrix_status == "coverage_incomplete" and exploratory and allow_exploratory
     )
@@ -452,6 +613,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--survey-json", required=True)
     parser.add_argument("--matrix-json", required=True)
     parser.add_argument("--report-md", required=True)
+    parser.add_argument(
+        "--gaia-ir-json",
+        help="optional compiled .gaia/ir.json for cross-artifact tension-grade checks",
+    )
     parser.add_argument("--allow-exploratory", action="store_true")
     args = parser.parse_args(argv)
 
@@ -459,10 +624,13 @@ def main(argv: list[str] | None = None) -> int:
         survey = load_json(Path(args.survey_json))
         matrix = load_json(Path(args.matrix_json))
         report_text = Path(args.report_md).read_text(encoding="utf-8")
+        ir = load_json(Path(args.gaia_ir_json)) if args.gaia_ir_json else None
     except (OSError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
     problems = validate_gate(survey, matrix, report_text, allow_exploratory=args.allow_exploratory)
+    if ir is not None:
+        problems.extend(validate_tension_resolution_consistency(matrix, ir))
     if problems:
         print("close-prior gate failed:", file=sys.stderr)
         for problem in problems:

@@ -9,17 +9,18 @@ then parse the produced artifacts:
 - ``.gaia/ir.json``: the number of observation supports — entries in
   ``knowledges[*].metadata.supported_by[*]`` with ``pattern == "observation"``
   — supplies ``evidence_count`` (one count per observe() statement).
-  ``ir_hash`` is embedded into ``gaia_package_ref`` so the reference pins the
-  exact compiled graph.
+  The SHA-256 digest of the exact file bytes is embedded into
+  ``gaia_package_ref`` so the reference also binds exported-root metadata that
+  Gaia 0.5.0a4's internal ``ir_hash`` omits.
 
 Output (stdout, JSON): {"value": float, "evidence_count": int,
-"gaia_package_ref": "project://<project-relative path>#<ir_hash>"}. The
+"gaia_package_ref": "project://<project-relative path>#sha256:<exact-ir-digest>"}. The
 reference is machine-portable on purpose: research projects are synced
 across machines, so it names the package RELATIVE to the enclosing project
 root (the nearest ancestor directory containing ``.nullius/``, or an
 explicit ``--project-root``) instead of embedding this machine's absolute
 path. Path segments are percent-encoded; the ``#sha256:`` fragment is the
-package's own compiled-graph hash. The idea-engine contract types the field
+exact compiled-IR artifact hash. The idea-engine contract types the field
 as format "uri", which this form satisfies. Diagnostics go to stderr.
 Standard library only; Gaia is invoked as a subprocess.
 """
@@ -37,6 +38,15 @@ import sys
 from pathlib import Path
 from urllib.parse import quote
 
+from idea_package_contract import (
+    audit_evidence_families,
+    compiled_ir_pin,
+    load_compiled_ir,
+    parse_evidence_family_rationale,
+    require_authored_infer_rationales,
+    require_idea_specific_reasoning_claims,
+    require_unique_exported_root,
+)
 from render_detailed_reasoning import (
     HTML_NAME as DETAILED_HTML_NAME,
     LEGACY_STAMP_NAME as DETAILED_LEGACY_STAMP_NAME,
@@ -114,6 +124,11 @@ TRAILING_ANCHOR_RE = re.compile(r"anchor:\s*\S[^\n]*$")
 # clause listing >= 3 independently anchored phenomenon domains, separated
 # by ";" or "|", e.g. "domains: first domain; second domain; third domain".
 DOMAINS_CLAUSE_RE = re.compile(r"domains:\s*([^\n]+)")
+RESOLUTION_EVIDENCE_RE = re.compile(
+    r"resolution_evidence:\s*"
+    r"(mechanism|discriminating_test|demonstrated_partial_resolution)\b"
+)
+READER_REASONING_RE = re.compile(r"^\s*reader_reasoning:\s*\S")
 
 
 def has_domains_clause(text: str) -> bool:
@@ -137,6 +152,12 @@ def has_domains_clause(text: str) -> bool:
         if entry.strip()
     ]
     return len(entries) >= 3
+
+
+def has_resolution_evidence_clause(text: str) -> bool:
+    """True when a pre-anchor clause classifies idea-specific resolution evidence."""
+    before_anchor = re.split(r"anchor:", text, maxsplit=1)[0]
+    return RESOLUTION_EVIDENCE_RE.search(before_anchor) is not None
 
 
 def scan_discipline(source: str) -> tuple[list[str], list[str]]:
@@ -284,8 +305,8 @@ def scan_discipline(source: str) -> tuple[list[str], list[str]]:
                 "is auditable in place"
             )
 
-    def is_downstream_reach(hyp: ast.Name) -> bool:
-        """True when the hypothesis variable IS the downstream_reach claim.
+    def is_claim_title(hyp: ast.Name, title: str) -> bool:
+        """True when the hypothesis variable is the claim with ``title``.
 
         Identity is the claim's title, not the variable spelling: a claim
         bound as `reach = claim(..., title="downstream_reach")` is the reach
@@ -293,10 +314,7 @@ def scan_discipline(source: str) -> tuple[list[str], list[str]]:
         `downstream_reach` is also honoured directly, covering the ordinary
         case where the variable and the title coincide.
         """
-        return (
-            hyp.id == "downstream_reach"
-            or claim_title_by_var.get(hyp.id) == "downstream_reach"
-        )
+        return hyp.id == title or claim_title_by_var.get(hyp.id) == title
 
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
@@ -330,7 +348,7 @@ def scan_discipline(source: str) -> tuple[list[str], list[str]]:
                             "claim variable; anything less is not "
                             "auditable at the strongest grade"
                         )
-                    elif is_downstream_reach(hyp):
+                    elif is_claim_title(hyp, "downstream_reach"):
                         note_text = (
                             note.value
                             if isinstance(note, ast.Constant)
@@ -351,6 +369,37 @@ def scan_discipline(source: str) -> tuple[list[str], list[str]]:
                     "literal numbers; the discipline requires one of the "
                     "three grades written as literals"
                 )
+            if (
+                isinstance(h, ast.Constant)
+                and isinstance(nh, ast.Constant)
+                and isinstance(h.value, (int, float))
+                and isinstance(nh.value, (int, float))
+                and h.value > nh.value
+            ):
+                hypothesis = kwargs.get("hypothesis")
+                note = kwargs.get("rationale")
+                if (
+                    isinstance(hypothesis, ast.Name)
+                    and is_claim_title(hypothesis, "tension_resolution")
+                ):
+                    note_text = (
+                        note.value
+                        if isinstance(note, ast.Constant)
+                        and isinstance(note.value, str)
+                        else ""
+                    )
+                    if not has_resolution_evidence_clause(note_text):
+                        violations.append(
+                            f"line {node.lineno}: raising tension_resolution "
+                            "update must classify idea-specific resolution "
+                            "evidence before the anchor as "
+                            "'resolution_evidence: mechanism', "
+                            "'resolution_evidence: discriminating_test', or "
+                            "'resolution_evidence: "
+                            "demonstrated_partial_resolution'; evidence that "
+                            "a tension exists or that a check is planned does "
+                            "not establish resolution"
+                        )
         if name == "register_prior":
             val = kwargs.get("value")
             if val is None and len(node.args) >= 2:
@@ -376,6 +425,21 @@ def scan_discipline(source: str) -> tuple[list[str], list[str]]:
                     f"line {node.lineno}: {name} {note_name} does not end "
                     "with an 'anchor: <reference>' note"
                 )
+            elif name == "infer":
+                before_anchor = note.value.split("anchor:", 1)[0].strip()
+                if READER_REASONING_RE.search(before_anchor) is None:
+                    violations.append(
+                        f"line {node.lineno}: infer rationale must declare an "
+                        "authored likelihood explanation before its trailing "
+                        "anchor using 'reader_reasoning: <why the evidence "
+                        "changes the hypothesis>'; an anchor or criterion label "
+                        "alone is not reader-facing reasoning"
+                    )
+            elif name == "observe":
+                try:
+                    parse_evidence_family_rationale(note.value)
+                except ValueError as exc:
+                    violations.append(f"line {node.lineno}: {exc}")
         else:
             violations.append(
                 f"line {node.lineno}: {name} {note_name} is not a literal "
@@ -750,7 +814,7 @@ def find_project_root(start: Path) -> Path | None:
     return None
 
 
-def package_ref(package_dir: Path, project_root: Path, ir_hash: str) -> str:
+def package_ref(package_dir: Path, project_root: Path, ir_pin: str) -> str:
     """Build the machine-portable ``project://`` package reference.
 
     The path is RELATIVE to the project root so the reference survives the
@@ -775,7 +839,7 @@ def package_ref(package_dir: Path, project_root: Path, ir_hash: str) -> str:
             "the package directory IS the project root; the package must "
             "be a subdirectory of the project (e.g. argument-graphs/<slug>-gaia)"
         )
-    return f"project://{quote(rel.as_posix(), safe='/')}#{ir_hash}"
+    return f"project://{quote(rel.as_posix(), safe='/')}#{ir_pin}"
 
 
 def extract_posterior(
@@ -791,17 +855,21 @@ def extract_posterior(
                 f"missing {path}; run the inference stages first"
             )
     beliefs = json.loads(beliefs_path.read_text(encoding="utf-8"))
-    ir = json.loads(ir_path.read_text(encoding="utf-8"))
+    ir_bytes = ir_path.read_bytes()
+    ir = load_compiled_ir(ir_bytes)
 
+    require_unique_exported_root(ir, worth_label)
+    require_idea_specific_reasoning_claims(ir)
+    require_authored_infer_rationales(ir)
+    audit_evidence_families(ir, worth_label)
     value = extract_worth_belief(beliefs, worth_label)
     evidence_count = count_observations(ir)
-    ir_hash = ir.get("ir_hash", "")
-    if not ir_hash:
-        raise ValueError(f"no ir_hash in {ir_path}; cannot pin the graph state")
     return {
         "value": value,
         "evidence_count": evidence_count,
-        "gaia_package_ref": package_ref(package_dir, project_root, ir_hash),
+        "gaia_package_ref": package_ref(
+            package_dir, project_root, compiled_ir_pin(ir_bytes)
+        ),
     }
 
 
@@ -809,11 +877,6 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--package", required=True, help="path to the Gaia package directory"
-    )
-    parser.add_argument(
-        "--worth-label",
-        default="worth",
-        help="module variable name of the top-level claim (default: worth)",
     )
     parser.add_argument(
         "--gaia-bin",
@@ -907,6 +970,17 @@ def main(argv: list[str] | None = None) -> int:
         )
 
     run_stage(gaia_bin, ["build", "compile"], package_dir)
+    try:
+        compiled_ir = load_compiled_ir(
+            (package_dir / ".gaia" / "ir.json").read_bytes()
+        )
+        require_unique_exported_root(compiled_ir)
+        require_idea_specific_reasoning_claims(compiled_ir)
+        require_authored_infer_rationales(compiled_ir)
+        audit_evidence_families(compiled_ir)
+    except (OSError, ValueError) as exc:
+        sys.stderr.write(f"error: {exc}\n")
+        return 2
     run_stage(gaia_bin, ["build", "check"], package_dir)
     run_stage(gaia_bin, ["run", "infer"], package_dir)
 
@@ -914,9 +988,7 @@ def main(argv: list[str] | None = None) -> int:
         render_graph(gaia_bin, package_dir, project_root, args.render_timeout)
 
     try:
-        posterior = extract_posterior(
-            package_dir, args.worth_label, project_root
-        )
+        posterior = extract_posterior(package_dir, "worth", project_root)
     except (FileNotFoundError, ValueError, json.JSONDecodeError) as exc:
         sys.stderr.write(f"error: {exc}\n")
         return 2

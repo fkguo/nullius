@@ -10,6 +10,34 @@ version is the lockstep number below.
 ## [Unreleased]
 
 ### Added
+- **Evidence-first idea-posterior reasoning and complete IR binding.** The
+  standalone detailed page now reconstructs static evidence-to-conclusion
+  paths from the compiled IR, showing concrete observations, authored
+  likelihood rationales, structural criterion updates, and both supporting
+  and lowering effects before Gaia's raw model report. Raw Gaia diagrams are
+  labelled as generative probability-model graphs whose hypothesis-to-evidence
+  arrows are distinct from reader evidence flow. The package contract now
+  requires `__all__ = ["worth"]` and checks that `worth` is the unique exported
+  conclusion at extraction, rendering, and writeback. Package references and
+  detailed-page manifests bind the exact `.gaia/ir.json` bytes, covering
+  exported-root metadata omitted by Gaia 0.5.0a4's internal `ir_hash`; older
+  packages and references migrate by setting the export, marking authored
+  infer explanations with `reader_reasoning:`, declaring each observation's
+  evidence family and correlation model, and re-extracting.
+  Infer rationales use an explicit `reader_reasoning:` authorship sentinel;
+  generic criterion prose and anchor-only notes cannot satisfy that contract.
+  Raising `tension_resolution` updates now require an explicit idea-specific
+  `resolution_evidence` class, so evidence that merely establishes an open
+  tension or proposes a future check cannot masquerade as successful
+  resolution. Writeback cross-checks the matrix's recorded tension grade(s)
+  against the compiled IR and rejects matrices that declare themselves stale;
+  reviewer guidance also treats repeated observations with a shared cause as
+  one evidential source rather than independent votes. Observe rationales now
+  carry explicit `evidence_family` and `correlation_model` declarations;
+  a family can contribute only one composite observation on one path to the
+  exported conclusion because Gaia's separate likelihoods otherwise multiply
+  even when their arrows meet at one claim. The reader page discloses every
+  family occurrence and whether it can affect the posterior.
 - **Argument-graph field-audit fixes + generation-bound deep-dive links.**
   From the first real-project render audit (data fidelity fully clean; all
   defects presentation-layer): grade chips are placed collision-free by a
@@ -25,8 +53,8 @@ version is the lockstep number below.
   static embedded SVG, and pinned nh3/Ammonia sanitization; raw HTML, active
   URL schemes, event handlers, and scripts cannot enter the page. A manifest
   written last binds
-  exact SHA-256 digests of current beliefs, Markdown, and HTML. The graph
-  independently verifies all three, so missing, edited, malformed, or stale
+  exact SHA-256 digests of current beliefs, compiled IR, Markdown, and HTML.
+  The graph independently verifies all four, so missing, edited, malformed, or stale
   artifacts yield no deep-dive link. Editing the Markdown requires the
   documented HTML-then-argument-graph regeneration order; every optional
   render remains non-fatal to posterior extraction.
