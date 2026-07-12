@@ -567,6 +567,143 @@ class ReviewOneTests(unittest.TestCase):
             self.assertEqual(rc, 2)
             self.assertIn("not a binary file", stderr.getvalue())
 
+    def test_source_fidelity_rejects_non_utf8_source(self):
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            out_dir = td_path / "out"
+            artifact = td_path / "artifact.md"
+            source = td_path / "source.tex"
+            artifact.write_text("content\n", encoding="utf-8")
+            # Invalid UTF-8 without a NUL byte: exercises the decode branch, not the binary guard.
+            source.write_bytes(b"valid start \x80\x81 invalid tail\n")
+            stderr = io.StringIO()
+            with contextlib.redirect_stderr(stderr), contextlib.redirect_stdout(io.StringIO()):
+                rc = self.mod.main(
+                    self._basic_argv(
+                        td_path,
+                        out_dir,
+                        artifact,
+                        "--role",
+                        "source-fidelity",
+                        "--source",
+                        str(source),
+                    )
+                )
+            self.assertEqual(rc, 2)
+            self.assertIn("not valid UTF-8 text", stderr.getvalue())
+            self.assertFalse((out_dir / "meta.json").exists())
+
+    def test_source_fidelity_rejects_non_utf8_artifact_target(self):
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            out_dir = td_path / "out"
+            artifact = td_path / "artifact.md"
+            source = td_path / "source.tex"
+            # A non-UTF-8 target would be embedded lossily (U+FFFD) by the generic reader; a
+            # literal source comparison must refuse it before launch instead.
+            artifact.write_bytes(b"candidate \x80\x81 transcription\n")
+            source.write_text("literal source content\n", encoding="utf-8")
+            stderr = io.StringIO()
+            with contextlib.redirect_stderr(stderr), contextlib.redirect_stdout(io.StringIO()):
+                rc = self.mod.main(
+                    self._basic_argv(
+                        td_path,
+                        out_dir,
+                        artifact,
+                        "--role",
+                        "source-fidelity",
+                        "--source",
+                        str(source),
+                    )
+                )
+            self.assertEqual(rc, 2)
+            self.assertIn("--artifact", stderr.getvalue())
+            self.assertIn("not valid UTF-8 text", stderr.getvalue())
+            self.assertFalse((out_dir / "meta.json").exists())
+
+    def test_source_fidelity_rejects_non_utf8_context(self):
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            out_dir = td_path / "out"
+            artifact = td_path / "artifact.md"
+            source = td_path / "source.tex"
+            context = td_path / "context.md"
+            artifact.write_text("candidate transcription\n", encoding="utf-8")
+            source.write_text("literal source content\n", encoding="utf-8")
+            context.write_bytes(b"context \x80\x81 body\n")
+            stderr = io.StringIO()
+            with contextlib.redirect_stderr(stderr), contextlib.redirect_stdout(io.StringIO()):
+                rc = self.mod.main(
+                    self._basic_argv(
+                        td_path,
+                        out_dir,
+                        artifact,
+                        "--role",
+                        "source-fidelity",
+                        "--source",
+                        str(source),
+                        "--context",
+                        str(context),
+                    )
+                )
+            self.assertEqual(rc, 2)
+            self.assertIn("--context", stderr.getvalue())
+            self.assertIn("not valid UTF-8 text", stderr.getvalue())
+            self.assertFalse((out_dir / "meta.json").exists())
+
+    def test_source_extraction_requires_extraction_request_when_diff_is_given(self):
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            out_dir = td_path / "out"
+            source = td_path / "source.tex"
+            runner = td_path / "run_codex.sh"
+            source.write_text("primary source\n", encoding="utf-8")
+            _write_stub_runner(runner)
+            # A candidate diff must not stand in for the neutral request; validation refuses
+            # before any git diff runs, symmetric to the --artifact case.
+            stderr = io.StringIO()
+            with contextlib.redirect_stderr(stderr), contextlib.redirect_stdout(io.StringIO()):
+                rc = self.mod.main(
+                    [
+                        "--model",
+                        "codex/default",
+                        "--diff",
+                        "HEAD~1..HEAD",
+                        "--role",
+                        "source-extraction",
+                        "--source",
+                        str(source),
+                        "--source-text-origin",
+                        "direct-original-text",
+                        "--correction-status",
+                        "not-applicable",
+                        "--codex-runner",
+                        str(runner),
+                        "--out-dir",
+                        str(out_dir),
+                    ]
+                )
+            self.assertEqual(rc, 2)
+            self.assertIn("requires --extraction-request", stderr.getvalue())
+            self.assertFalse((out_dir / "meta.json").exists())
+
+    def test_oserror_writing_freshness_report_maps_to_stale_acceptance(self):
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            out_dir = td_path / "out"
+            artifact = td_path / "artifact.md"
+            artifact.write_text("content\n", encoding="utf-8")
+            stderr = io.StringIO()
+            # A write failure while recording freshness must stay fail-closed on the contracted
+            # acceptance exit code, not escape as an unhandled traceback.
+            with mock.patch.object(
+                self.mod, "_record_post_review_freshness", side_effect=OSError("disk full")
+            ):
+                with contextlib.redirect_stderr(stderr), contextlib.redirect_stdout(io.StringIO()):
+                    rc = self.mod.main(self._basic_argv(td_path, out_dir, artifact))
+            self.assertEqual(rc, self.mod.STALE_ACCEPTANCE_EXIT_CODE)
+            self.assertIn("review freshness could not be verified", stderr.getvalue())
+
     def test_source_fidelity_rejects_duplicate_sources(self):
         with tempfile.TemporaryDirectory() as td:
             td_path = Path(td)
