@@ -227,7 +227,11 @@ Flags:
   rejected instead of being silently collapsed, and a context path identical to
   an `--artifact` target is rejected for every reviewer role.
 - `--out-dir DIR` — defaults to `./review-one-<UTC timestamp>/`; the assembled
-  inputs are persisted under `<out-dir>/inputs/` for audit.
+  inputs are persisted under `<out-dir>/inputs/` for audit. Every run also writes
+  `inputs/review_input_manifest.json`, which records the SHA-256 of each target,
+  primary source, correction source, correction-search record, source-provenance
+  record, context, persisted system prompt, and persisted packet, plus the exact
+  diff hash when applicable.
 - `--host-family FAMILY` — pass your own family to make the entry refuse when
   `--model` resolves to it, pointing you to host-native sub-agent review instead
   (mirrors "Host-aware execution" above).
@@ -244,9 +248,15 @@ Flags:
   the launcher unchanged.
 
 The assembled packet's first line is the advisory caveat ("single-family review —
-advisory; final verdicts require cross-family review"), and the command prints
-the verdict line, `contract_ok`, and the output/packet/meta/trace paths to
-stdout when the run finishes.
+advisory; final verdicts require cross-family review"). When the reviewer returns,
+the launcher recomputes every manifest hash, writes `post_review_freshness.json`,
+records the status in `meta.json`, and prints `acceptance_status` with the model
+verdict, `contract_ok`, and the output/packet/meta/trace paths. A successful model
+verdict with stale or unverifiable inputs exits with the dedicated status `86`; the
+model verdict remains historical evidence, not a verdict on the changed artifact.
+This immediate `FRESH` status means only that the inputs did not change while that
+review ran. Durable closeout still requires rerunning the standalone checker immediately
+before the verdict is folded into a conclusion.
 
 ## Backend overrides
 
@@ -540,6 +550,32 @@ a refactor that re-breaks an invariant — that exists only after the fix and is
 independent round. Skipping the confirmation round because the change "obviously" closed the finding is the
 failure mode this rule exists to stop. The leader integrates and decides, but does **not** declare
 convergence in place of the reviewers.
+
+The verdict is scoped to the exact hashes in `inputs/review_input_manifest.json`.
+Before counting an older run toward a later convergence or closeout, rerun the
+freshness check:
+
+```bash
+python3 <nullius-root>/skills/review-swarm/scripts/bin/verify_review_freshness.py \
+  --review-dir /path/to/review-out
+```
+
+Require `status: FRESH`. A target, source, correction record, context, system prompt,
+packet, or diff mismatch is `STALE`, even if the edit is one character and the prior
+model output says READY. Re-review the full current artifact or the complete exact delta
+from the reviewed hash. Running the checker once does not authorize later edits; any
+post-check mutation invalidates the acceptance state.
+
+The standalone checker returns `0` for `FRESH`, `3` for `STALE`, and `2` for an invalid
+or unreadable manifest. The `review_one.py` entry instead returns `86` when its model run
+succeeded but acceptance is `STALE` or `UNVERIFIABLE`, so it remains distinguishable from
+the delegated model result. Automation should treat the JSON `status` as authoritative
+rather than assuming both entry points share one numeric convention.
+
+The manifest is a trusted launch record, not a cryptographic signature over itself.
+This gate catches accidental or uncoordinated post-review drift. If deliberate co-editing
+of both an input and its manifest is in scope, commit the review directory or persist the
+reported manifest SHA-256 in an external closeout record before accepting the verdict.
 
 ## Contract checking (informational)
 

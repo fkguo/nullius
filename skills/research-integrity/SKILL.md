@@ -524,6 +524,12 @@ source, not against the note:
   adjacent formula-like condition in the declared scope, each with an explicit status.
   Unlisted auxiliary formulas, intermediate definitions, and prose inequalities remain
   unchecked even when the central derivation passes.
+- **(n) stale review verdict** — a reviewer returned a clean verdict for one set of
+  bytes, but the candidate, source, correction record, context, or assembled packet was
+  edited afterward and the old verdict was applied to the new version. A filename and a
+  prior READY/PASS are not provenance. Bind every accepted verdict to the exact reviewed
+  SHA-256 set; any mismatch makes it `STALE` until the complete current artifact or the
+  complete delta from the reviewed hash is independently re-reviewed.
 
 **Minimum disconfirming check.** Run a **line-by-line comparison of the note against
 the primary source with "do not trust the note"** — a falsification gate, not a
@@ -571,6 +577,18 @@ when the source-localized checks agree — never by majority vote or self-pronou
 (`derivation-verify` re-derives whether a re-derivable result is mathematically
 correct — a *separate* axis that does not check fidelity to the source; use it in
 addition to, never instead of, the literal comparison.)
+
+Immediately before folding a verdict into a durable conclusion, recompute the hashes of
+the target and every answer-bearing review input. For `review_one.py` runs, execute
+`<nullius-root>/skills/review-swarm/scripts/bin/verify_review_freshness.py` with
+`--review-dir <out-dir>` and require `status: FRESH`; the `review_one.py` entry also
+performs this check when its reviewer returns. Direct `run_multi_task.py` runs do not
+acquire this manifest merely by using `review-swarm`; they need an equivalent externally
+recorded hash check before closeout.
+`STALE`, missing, unreadable, or invalid inputs are fail-closed states. Preserve the
+historical model verdict, but do not count it toward current convergence. Any edit after
+the final freshness check invalidates that check and requires another exact-delta or
+full-artifact review.
 
 For PDF or scanned primary sources, include a direct visual comparison with the
 rendered source page or a lossless page crop. OCR and `pdftotext` are discovery
