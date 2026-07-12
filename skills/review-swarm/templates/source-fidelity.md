@@ -25,6 +25,11 @@ How to work:
    abbreviation, variable rewrite, interpretation, or expected answer embedded in a
    purported literal source payload as a BLOCKING source-layer contamination. Without
    an independently documented visual comparison, do not claim primary-page fidelity.
+   If independent visual transcriptions disagree and the original page pixels do not
+   resolve the disputed glyph, preserve that item as AMBIGUOUS. Do not select the
+   cleaner transcription, the majority reading, or the mathematically expected symbol
+   as a substitute for source evidence. A candidate may pass only if it records the
+   unresolved glyph and does not present either reading as settled.
 3. **Compare literally, line by line, before interpreting.** For every checked
    item keep four layers separate: (a) literal source text, (b) normalized
    transcription, (c) symbol dictionary, and (d) derived mapping or inference.
@@ -54,7 +59,7 @@ How to work:
 6. **Localize the first divergence.** Report the earliest source line, symbol,
    factor, locator, or mapping step where the artifact departs from the source;
    do not merely state that the final formulas differ. For each item report
-   MATCHES, DIVERGES (quote both sides verbatim), or UNCHECKABLE.
+   MATCHES, DIVERGES (quote both sides verbatim), AMBIGUOUS, or UNCHECKABLE.
 7. **Check dependency closure.** A displayed formula is not a sufficient source
    packet when its neighboring domain, boundary-value, branch/sheet, convention,
    or definition statements determine the requested result. Mark a derivation
@@ -70,7 +75,7 @@ How to work:
 10. **Do not overstate coverage.** If the artifact or verdict says a complete
     paper, section, or formula set was checked, require a locator inventory that
     enumerates every displayed equation and adjacent formula-like condition in
-    that scope, each with MATCHES, DIVERGES, or UNCHECKABLE status. A selective
+    that scope, each with MATCHES, DIVERGES, AMBIGUOUS, or UNCHECKABLE status. A selective
     load-bearing comparison remains partial and cannot support an exhaustive
     fidelity claim.
 

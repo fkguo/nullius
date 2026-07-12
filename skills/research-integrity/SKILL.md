@@ -546,6 +546,12 @@ conclusion claims complete-paper or complete-section coverage, require the
 formula-and-condition inventory described in failure mode (m); otherwise state that the
 pass was selective.
 
+When two independent visual reads disagree, return to the original page pixels. If a
+lossless crop still cannot decide the token, record `AMBIGUOUS` rather than choosing by
+majority, typographic expectation, algebraic convenience, or the formula's anticipated
+meaning. Mathematical consistency may motivate a separate derived interpretation, but
+it cannot upgrade an unresolved literal glyph.
+
 When the note will carry a central claim or be folded into a durable artifact, obtain
 at least one **candidate-withheld extraction**: a fresh reader receives the persisted
 source plus only a neutral locator/question list, not the candidate note, prior verdict,
