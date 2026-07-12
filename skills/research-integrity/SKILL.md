@@ -530,6 +530,11 @@ source, not against the note:
   prior READY/PASS are not provenance. Bind every accepted verdict to the exact reviewed
   SHA-256 set; any mismatch makes it `STALE` until the complete current artifact or the
   complete delta from the reviewed hash is independently re-reviewed.
+- **(o) source-error laundering** — a printed source item appears wrong, but the note
+  silently substitutes a mathematically preferred expression and presents it as literal
+  source text; or the note faithfully transcribes the source and then treats that fidelity
+  as proof that the printed item is scientifically correct. `checked-none-found` means no
+  published correction was located, not that the source was certified error-free.
 
 **Minimum disconfirming check.** Run a **line-by-line comparison of the note against
 the primary source with "do not trust the note"** — a falsification gate, not a
@@ -557,6 +562,28 @@ lossless crop still cannot decide the token, record `AMBIGUOUS` rather than choo
 majority, typographic expectation, algebraic convenience, or the formula's anticipated
 meaning. Mathematical consistency may motivate a separate derived interpretation, but
 it cannot upgrade an unresolved literal glyph.
+
+When a printed item is suspected to be wrong without a published correction, maintain two
+explicit tracks. The literal track records `PRINTED_FORM` and its source-fidelity verdict.
+The scientific track records `SCIENTIFIC_STATUS`, any `PROPOSED_CORRECTION`, the independent
+evidence and counterchecks, and the downstream policy. Never overwrite the literal track.
+Before using a proposed correction, run at least two blind, method-diverse derivations from
+the definitions, conventions, domain, and neighboring premises while withholding both the
+printed disputed expression and the proposed replacement. Compare those outputs with the
+printed and proposed forms only afterward. Audit premise provenance and exclude every later
+equation, summary, numerical target, or constraint that depends on the disputed item; using
+its downstream consequence as an input is circular confirmation. Agreement can justify
+`independently_supported_correction`; it cannot justify `published_correction` or
+`author_confirmed_correction` without those distinct records. If the correction is not
+unique or the premises are insufficient, retain `unresolved_source_error` and block silent
+downstream choice. For an empirical or reported numerical item that cannot be derived,
+replace the derivation lanes by independent reproduction from the underlying data,
+calculation, or measurement. A later source that simply repeats the printed item does not
+count as an independent reproduction. For a non-derivable convention, label, or prose
+statement, seek independent primary records, internal definitional closure, subsequent
+author clarification, or direct author confirmation. If those records do not decide the
+issue uniquely, retain `unresolved_source_error`; repetition or citation count is not a
+vote on correctness.
 
 When the note will carry a central claim or be folded into a durable artifact, obtain
 at least one **candidate-withheld extraction**: a fresh reader receives the persisted

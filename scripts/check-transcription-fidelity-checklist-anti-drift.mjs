@@ -3,7 +3,7 @@
 /**
  * Transcription-fidelity checklist anti-drift CI check.
  *
- * The "Extraction / transcription fidelity" failure checklist — currently items (a)–(m)
+ * The "Extraction / transcription fidelity" failure checklist — currently items (a)–(o)
  * — is defined CANONICALLY in skills/research-integrity/SKILL.md and is
  * restated / referenced by sibling skills. Nothing else keeps those copies in
  * sync, so a label edit in one file can silently diverge from the canonical
@@ -15,7 +15,7 @@
  *      deep-literature-review/SKILL.md.
  *
  *   2. LETTER-RANGE SYNC. Every "(a)–(x)" range reference to the checklist
- *      (today: review-swarm/SKILL.md and claim-grounding/SKILL.md) spans the
+ *      (today: claim-grounding/SKILL.md) spans the
  *      exact letters defined canonically — so adding an (h) item, or dropping
  *      (g), fails CI until the range references are updated to match.
  *
@@ -46,8 +46,8 @@
  *
  * 2. The letter-range scan flags any SKILL.md that references a "(a)–(x)"
  *    range, so a new range-referencing file is caught automatically. As of
- *    this writing the only such ranges in skills/ are the two
- *    transcription-fidelity references; if an unrelated "(a)–(x)" range is
+ *    this writing the only such range in skills/ is the transcription-fidelity
+ *    reference in claim-grounding/SKILL.md; if an unrelated "(a)–(x)" range is
  *    ever added to a skill, narrow RANGE_SCAN_RE or exempt that file.
  *
  * 3. Label comparison is normalized (lowercase, whitespace-collapsed). A
