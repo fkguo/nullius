@@ -37,9 +37,28 @@ notation normalization, and derived interpretation in one field.
 - Exact locator:
 - Neighboring domain/boundary/branch/sheet/convention text required by this item:
 - Dependency closure for the requested derivation:
-- Literal source text:
+- Literal source text: (canonical field `PRINTED_FORM`; preserve exactly as printed)
+- `SOURCE_FIDELITY_STATUS`: `unverified` / `match` / `diverge` / `ambiguous` /
+  `uncheckable`
 - Printed form superseded by a correction: no
 - Corrected source text and correction locator:
+- `SCIENTIFIC_STATUS`: `not_assessed` / `no_inconsistency_found` /
+  `suspected_source_error` / `unresolved_source_error` /
+  `independently_supported_correction` / `author_confirmed_correction` /
+  `published_correction`
+- `ITEM_CLASS`: `re-derivable` / `empirical-or-reported-numerical` /
+  `non-derivable-convention-or-prose`
+- Suspected uncorrected source error: no
+- `PROPOSED_CORRECTION` (never overwrite `PRINTED_FORM`):
+- Independent blind derivation artifact(s), methods, and SHA-256:
+- Were both printed and proposed expressions withheld from at least two derivation lanes:
+- Dependency audit: were all premises shown independent of the disputed item and its downstream consequences:
+- `EVIDENCE_AND_COUNTERCHECKS` (algebraic closure, dimensions, symmetries, limits,
+  numerical reproduction, later-source usage, author correspondence as applicable):
+- Does each later source independently derive/reproduce the item, or merely repeat it:
+- Alternative corrections tested and excluded:
+- `DOWNSTREAM_POLICY`: use printed / use independently supported correction with notice /
+  block pending resolution
 - Normalized transcription:
 - Literal-to-normalized change log (including primes and dummy-variable renames):
 - Token-class audit (signs, coefficients/factors, operators, indices/subscripts,
@@ -52,7 +71,9 @@ notation normalization, and derived interpretation in one field.
 - Candidate-visible source comparison:
 - Status: unverified
 
-Allowed status values: `unverified`, `match`, `diverge`, `uncheckable`.
+Allowed literal-fidelity status values: `unverified`, `match`, `diverge`, `ambiguous`,
+`uncheckable`. Scientific consistency status is separate and must not replace the literal
+status.
 
 When feedback is needed, send only the neutral question, source locator, and
 suspected divergence. Do not include the desired replacement as a premise.

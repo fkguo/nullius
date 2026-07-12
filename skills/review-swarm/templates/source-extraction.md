@@ -31,6 +31,10 @@ How to work:
    bare correction-status assertion without its required evidence is not enough.
    Search evidence should say what was queried and returned; completeness or
    correctness judgments belong in this extraction, not in the evidence layer.
+   `checked-none-found` means only that no published correction was located. It
+   does not certify that the printed equation or statement is scientifically correct.
+   If the printed item appears inconsistent, transcribe it exactly and open a separate
+   `SUSPECTED_SOURCE_ERROR` record; never repair the literal layer from expectation.
 4. **Extract literally before normalizing.** For every requested item report:
    exact source and hash, exact locator, literal source text, corrected source
    text when applicable, normalized transcription, and a complete change log.
@@ -61,6 +65,15 @@ How to work:
    a lossless crop. When the surviving pixels still do not distinguish the glyph,
    keep it AMBIGUOUS; do not choose by majority, typographic expectation,
    algebraic convenience, or anticipated meaning.
+
+For every suspected uncorrected source error, keep two tracks in the output:
+`PRINTED_FORM` and `SOURCE_FIDELITY_STATUS` describe what the source actually says;
+`SCIENTIFIC_STATUS`, `PROPOSED_CORRECTION`, `EVIDENCE_AND_COUNTERCHECKS`, and
+`DOWNSTREAM_POLICY` describe a separately derived interpretation. Allowed scientific
+statuses are `not_assessed`, `no_inconsistency_found`, `suspected_source_error`,
+`unresolved_source_error`, `independently_supported_correction`,
+`author_confirmed_correction`, and `published_correction`. Never promote an inferred
+correction to either of the last two statuses without the corresponding evidence.
 
 Severity: **BLOCKING** means the request leaks an expected answer, a required
 source/correction/search record is absent, a requested load-bearing item is

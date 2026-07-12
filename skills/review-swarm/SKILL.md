@@ -362,6 +362,23 @@ supersedes a formula or statement, give the reviewer both the printed source and
 correction, and require the artifact to distinguish the pre-correction and corrected
 forms. A literal match to the original but superseded text is not a fidelity pass.
 
+The reverse case needs equal care: a search that found no erratum does not certify the
+printed source as scientifically correct. If an equation or statement appears internally
+inconsistent, preserve the exact printed form and open a separate suspected-source-error
+record. Keep `PRINTED_FORM`/`SOURCE_FIDELITY_STATUS` distinct from
+`SCIENTIFIC_STATUS`/`PROPOSED_CORRECTION`/`EVIDENCE_AND_COUNTERCHECKS`/
+`DOWNSTREAM_POLICY`. Source-fidelity checks the first track only. For a re-derivable item,
+the second track needs candidate-withheld, method-diverse re-derivation through
+`derivation-verify`, with every premise checked to exclude downstream consequences of the
+disputed item. For an empirical or reported numerical item, it needs independent
+reproduction from the underlying data, calculation, or measurement; downstream sources
+that merely repeat the claim are not independent. For a non-derivable convention, label,
+or prose statement, require independent primary records, internal definitional closure,
+or author clarification; repetition and citation count are not votes. Agreement with a
+conjectured repair does not turn it into source text, a published correction, or an
+author-confirmed correction. If the repair is not unique, retain
+`unresolved_source_error` and block silent downstream selection.
+
 The manifest distinguishes each original file's SHA-256 from the SHA-256 of the UTF-8 text embedded in the
 packet. Primary-source text is strict UTF-8 and is inserted without trimming, so those two hashes agree;
 artifact/context decoding may use replacement characters and therefore records both hashes explicitly.

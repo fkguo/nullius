@@ -305,7 +305,8 @@ value, (c) wrong / stale locator, (d) stale / wrong mapping to the consuming art
 (e) false "verbatim", (f) inference-as-source, (g) silent factor drop,
 (h) correlated-input agreement, (i) bibliographic-relation conflation,
 (j) stale pre-correction source, (k) context-stripped extraction,
-(l) source-layer contamination, (m) coverage overclaim (full definitions: `research-integrity` →
+(l) source-layer contamination, (m) coverage overclaim, (n) stale review verdict,
+(o) source-error laundering (full definitions: `research-integrity` →
 *Extraction / transcription fidelity*).
 
 For a note that will anchor a central claim, enter a close-prior matrix, or be folded into a durable artifact, the gate is

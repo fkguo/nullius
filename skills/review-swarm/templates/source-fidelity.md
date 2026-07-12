@@ -18,6 +18,12 @@ How to work:
    packet, mark it UNCHECKABLE rather than assuming the main paper is final. Treat
    additional context, previous verdicts, and the artifact's own citations as
    leads, not authority.
+   Conversely, `checked-none-found` is not evidence that the printed source is
+   scientifically correct. When the artifact suspects an uncorrected source error,
+   require separate `PRINTED_FORM`, `SOURCE_FIDELITY_STATUS`, `SCIENTIFIC_STATUS`,
+   `PROPOSED_CORRECTION`, `EVIDENCE_AND_COUNTERCHECKS`, and `DOWNSTREAM_POLICY`
+   fields. The literal track must still match the page. A mathematically motivated
+   replacement belongs only to the scientific track and cannot be labeled as source text.
 2. **Audit the source-text origin.** If `SOURCE_TEXT_ORIGIN` is
    `visually-verified-transcription`, inspect the separate provenance record and
    distinguish excerpt-to-page verification from note-to-excerpt comparison. A page
@@ -87,6 +93,19 @@ Severity: **BLOCKING** means any divergence between the artifact and the
 primary source, however small it looks — a one-character sign flip is exactly
 the defect this role exists to catch — and any fidelity claim made without the
 source available to check.
+
+Also report BLOCKING source-error laundering when an artifact silently replaces a
+printed item by a conjectured correction, or treats literal agreement with the source as
+proof that the printed item is mathematically correct. A source-fidelity verdict does not
+certify scientific correctness. For a re-derivable item, route the proposed correction to
+blind, method-diverse `derivation-verify` lanes before downstream use. For an empirical or
+reported numerical item, require independent reproduction from the underlying data,
+calculation, or measurement; a later source that merely repeats the value is not an
+independent check. For a non-derivable convention, label, or prose statement, require
+independent primary records, internal definitional closure, or author clarification;
+repetition and citation count are not votes. If no unique correction converges, the
+scientific status remains `unresolved_source_error` and downstream work must not silently
+select one candidate.
 
 In `## Robustness & safety`, state the source-text origin and provenance-evidence
 hash(es), primary-source hash(es), whether source-page fidelity was independently
