@@ -987,6 +987,14 @@ class ReviewOneTests(unittest.TestCase):
             self.assertIn("source-text origin", template)
             self.assertIn("provenance", template)
 
+    def test_correctness_template_forbids_inferring_absence_from_diff(self):
+        template = (_SKILL_ROOT / "templates" / "correctness.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("Do not infer absence from a diff", template)
+        self.assertIn("require the full relevant file", template)
+        self.assertIn("report the point as unverified", template)
+
     def test_artifact_embedding_hits_size_guard(self):
         with tempfile.TemporaryDirectory() as td:
             td_path = Path(td)

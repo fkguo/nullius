@@ -180,6 +180,11 @@ Flags:
   `--extraction-request PATH` — mutually exclusive packet inputs. The first two
   are review targets. The last is a neutral locator/question list accepted only
   by `source-extraction`.
+- A `--diff` packet contains changed hunks, not every unchanged declaration or
+  invariant they depend on. Add the full relevant files with `--context` when a
+  correctness verdict may depend on surrounding definitions. A reviewer must
+  not infer that an implementation element is absent merely because it is not
+  visible in the diff.
 - `--role generic|correctness|execution-adversary|source-extraction|source-fidelity` — picks the
   system prompt from `templates/<role>.md` (default: `generic`). Each template
   embeds the required review-contract output format.
