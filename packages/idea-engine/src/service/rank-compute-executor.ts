@@ -1,6 +1,6 @@
 import type { IdeaEngineContractCatalog } from '../contracts/catalog.js';
+import { payloadHash as artifactPayloadHash } from '../hash/payload-hash.js';
 import type { IdeaEngineStore } from '../store/engine-store.js';
-import { pathToFileURL } from 'url';
 import { budgetSnapshot } from './budget-snapshot.js';
 import { filterNodes, type NodeListFilter, type NodeRecord } from './filter-nodes.js';
 import { recordOrReplay, responseIdempotency, storeIdempotency } from './idempotency.js';
@@ -141,7 +141,6 @@ export function executeRankCompute(options: {
 
     const now = options.now();
     const artifactName = `ranking-${now.replace(/[^0-9]/g, '')}.json`;
-    const rankingArtifactRef = pathToFileURL(options.store.artifactPath(campaignId, 'rankings', artifactName)).href;
     const rankingArtifact = {
       campaign_id: campaignId,
       generated_at: now,
@@ -149,6 +148,11 @@ export function executeRankCompute(options: {
       ranked_nodes: rankedNodes,
       skipped_nodes: skippedNodes,
     };
+    const rankingArtifactPath = options.store.artifactPath(campaignId, 'rankings', artifactName);
+    const rankingArtifactRef = options.store.portableArtifactRef(
+      rankingArtifactPath,
+      artifactPayloadHash(rankingArtifact),
+    );
 
     const plannedCampaign = structuredClone(campaign);
     plannedCampaign.usage.steps_used = Number(plannedCampaign.usage.steps_used ?? 0) + 1;
