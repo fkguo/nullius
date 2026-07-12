@@ -14,12 +14,16 @@ require cross-family review (see SKILL.md, "Host-aware execution").
 Examples:
     python3 review_one.py --model codex/default --artifact notes.md
     python3 review_one.py --model gemini/default --diff main..HEAD --role correctness
+    python3 review_one.py --model kimi/default --extraction-request questions.md \\
+        --source paper.tex --source-text-origin direct-original-text \\
+        --correction-status not-applicable --role source-extraction
 """
 
 from __future__ import annotations
 
 import argparse
 import contextlib
+import hashlib
 import json
 import os
 import subprocess
@@ -36,8 +40,26 @@ import run_multi_task  # same-directory launcher; single orchestration path
 
 _SKILL_ROOT = _SCRIPT_DIR.parents[1]
 _TEMPLATES_DIR = _SKILL_ROOT / "templates"
-_ROLES = ("generic", "correctness", "execution-adversary", "source-fidelity")
+_ROLES = (
+    "generic",
+    "correctness",
+    "execution-adversary",
+    "source-extraction",
+    "source-fidelity",
+)
 _RUNNER_BACKENDS = ("opencode", "claude", "codex", "gemini", "kimi")
+_SOURCE_EXTRACTION_ROLE = "source-extraction"
+_SOURCE_FIDELITY_ROLE = "source-fidelity"
+_SOURCE_ROLES = (_SOURCE_EXTRACTION_ROLE, _SOURCE_FIDELITY_ROLE)
+_CORRECTION_STATUSES = (
+    "not-applicable",
+    "checked-none-found",
+    "checked-corrections-included",
+)
+_SOURCE_TEXT_ORIGINS = (
+    "direct-original-text",
+    "visually-verified-transcription",
+)
 
 ADVISORY_BANNER = "single-family review — advisory; final verdicts require cross-family review"
 
@@ -52,11 +74,218 @@ then all required section headers.
 """
 
 
-def _read_input_file(raw: str, *, label: str) -> tuple[Path, str]:
+def _read_text_payload(raw: str, *, label: str) -> tuple[Path, str, str, int]:
     p = Path(raw).expanduser().resolve()
     if not p.is_file():
         raise ValueError(f"{label} file not found: {p}")
-    return p, p.read_text(encoding="utf-8", errors="replace")
+    data = p.read_bytes()
+    return p, data.decode("utf-8", errors="replace"), hashlib.sha256(data).hexdigest(), len(data)
+
+
+def _read_review_artifact(raw: str) -> tuple[Path, str, str, int]:
+    return _read_text_payload(raw, label="--artifact")
+
+
+def _embedded_text_sha256(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def _verbatim_packet_text(text: str) -> str:
+    """Preserve payload text exactly, adding only a delimiter newline if needed."""
+    return text if text.endswith("\n") else text + "\n"
+
+
+def _packet_delimiter_newline_added(text: str) -> bool:
+    return not text.endswith("\n")
+
+
+def _read_primary_source(raw: str, *, flag: str = "--source") -> tuple[Path, str, str, int]:
+    """Read an exact text source suitable for literal comparison."""
+    p = Path(raw).expanduser().resolve()
+    if not p.is_file():
+        raise ValueError(f"{flag} file not found: {p}")
+    data = p.read_bytes()
+    if not data:
+        raise ValueError(f"{flag} file is empty: {p}")
+    if b"\x00" in data:
+        raise ValueError(
+            f"{flag} must be an exact UTF-8 text/LaTeX/Markdown extract, not a binary file: {p}. "
+            "This text-only entry cannot certify a PDF or scan. Use a PDF/image-capable reviewer against "
+            "the original page, then persist its visually verified excerpt, locator, and source-page hash; "
+            "do not rely on lossy automatic decoding for formula fidelity."
+        )
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ValueError(
+            f"{flag} is not valid UTF-8 text: {p} (decode error at byte {exc.start}). "
+            "Persist an exact UTF-8 source extract before running a literal fidelity review."
+        ) from exc
+    if not text.strip():
+        raise ValueError(f"{flag} contains no non-whitespace text: {p}")
+    return p, text, hashlib.sha256(data).hexdigest(), len(data)
+
+
+def _validate_source_review_inputs(args: argparse.Namespace) -> None:
+    sources = list(args.source or [])
+    correction_sources = list(args.correction_source or [])
+    correction_search_evidence = list(args.correction_search_evidence or [])
+    source_provenance_evidence = list(args.source_provenance_evidence or [])
+    if args.role not in _SOURCE_ROLES:
+        if (
+            sources
+            or correction_sources
+            or correction_search_evidence
+            or source_provenance_evidence
+            or args.correction_status
+            or args.source_text_origin
+        ):
+            raise ValueError(
+                "--source, --source-text-origin, --source-provenance-evidence, "
+                "--correction-source, --correction-search-evidence, and --correction-status "
+                "are only valid with --role source-extraction or --role source-fidelity"
+            )
+        if args.extraction_request:
+            raise ValueError(
+                "--extraction-request is only valid with --role source-extraction"
+            )
+        return
+    if not sources:
+        raise ValueError(
+            f"--role {args.role} requires at least one --source containing the exact "
+            "primary-source text"
+        )
+    if not args.source_text_origin:
+        raise ValueError(
+            f"--role {args.role} requires --source-text-origin; distinguish direct "
+            "publisher/repository text from a manual transcription of a PDF or scan"
+        )
+    if (
+        args.source_text_origin == "visually-verified-transcription"
+        and not source_provenance_evidence
+    ):
+        raise ValueError(
+            "--source-text-origin visually-verified-transcription requires at least one "
+            "--source-provenance-evidence file recording the original document/page and "
+            "crop hashes, exact locators, and visual comparison"
+        )
+    if not args.correction_status:
+        raise ValueError(
+            f"--role {args.role} requires --correction-status; explicitly declare whether "
+            "a correction chain was checked instead of silently assuming the primary source is final"
+        )
+    if args.role == _SOURCE_EXTRACTION_ROLE:
+        if not args.extraction_request:
+            raise ValueError(
+                "--role source-extraction requires --extraction-request containing only a "
+                "neutral locator/question list"
+            )
+        if args.artifact or args.diff:
+            raise ValueError(
+                "--role source-extraction forbids --artifact and --diff so the candidate "
+                "answer is withheld by packet construction"
+            )
+        if args.context:
+            raise ValueError(
+                "--role source-extraction forbids --context because it could leak a candidate "
+                "answer, prior verdict, or proposed correction; put only neutral questions in "
+                "--extraction-request"
+            )
+    elif args.extraction_request:
+        raise ValueError(
+            "--extraction-request is only valid with --role source-extraction"
+        )
+    if args.correction_status == "checked-corrections-included" and not correction_sources:
+        raise ValueError(
+            "--correction-status checked-corrections-included requires at least one "
+            "--correction-source containing the exact correction text"
+        )
+    if args.correction_status != "checked-corrections-included" and correction_sources:
+        raise ValueError(
+            "--correction-source is only valid with "
+            "--correction-status checked-corrections-included"
+        )
+    if args.correction_status in (
+        "checked-none-found",
+        "checked-corrections-included",
+    ) and not correction_search_evidence:
+        raise ValueError(
+            f"--correction-status {args.correction_status} requires at least one "
+            "--correction-search-evidence file recording the searched indexes, identifiers, "
+            "and result; a bare status assertion is not auditable"
+        )
+    if args.correction_status == "not-applicable" and correction_search_evidence:
+        raise ValueError(
+            "--correction-search-evidence is not valid with --correction-status "
+            "not-applicable"
+        )
+
+    source_path_list = [Path(raw).expanduser().resolve() for raw in sources]
+    source_paths = set(source_path_list)
+    if len(source_paths) != len(source_path_list):
+        raise ValueError("duplicate --source paths are not allowed")
+    correction_path_list = [Path(raw).expanduser().resolve() for raw in correction_sources]
+    correction_paths = set(correction_path_list)
+    if len(correction_paths) != len(correction_path_list):
+        raise ValueError("duplicate --correction-source paths are not allowed")
+    correction_evidence_path_list = [
+        Path(raw).expanduser().resolve() for raw in correction_search_evidence
+    ]
+    correction_evidence_paths = set(correction_evidence_path_list)
+    if len(correction_evidence_paths) != len(correction_evidence_path_list):
+        raise ValueError("duplicate --correction-search-evidence paths are not allowed")
+    provenance_path_list = [
+        Path(raw).expanduser().resolve() for raw in source_provenance_evidence
+    ]
+    provenance_paths = set(provenance_path_list)
+    if len(provenance_paths) != len(provenance_path_list):
+        raise ValueError("duplicate --source-provenance-evidence paths are not allowed")
+    source_correction_overlap = source_paths & correction_paths
+    if source_correction_overlap:
+        joined = ", ".join(str(path) for path in sorted(source_correction_overlap))
+        raise ValueError(
+            "primary and correction sources must be distinct files; overlapping path(s): " + joined
+        )
+    source_evidence_overlap = (
+        source_paths | correction_paths
+    ) & (correction_evidence_paths | provenance_paths)
+    if source_evidence_overlap:
+        joined = ", ".join(str(path) for path in sorted(source_evidence_overlap))
+        raise ValueError(
+            "primary sources, correction sources, and provenance/search evidence must be "
+            "distinct files; overlapping path(s): " + joined
+        )
+    evidence_overlap = correction_evidence_paths & provenance_paths
+    if evidence_overlap:
+        joined = ", ".join(str(path) for path in sorted(evidence_overlap))
+        raise ValueError(
+            "source-provenance evidence and correction-search evidence must be distinct "
+            "files; overlapping path(s): " + joined
+        )
+    artifact_paths = {Path(raw).expanduser().resolve() for raw in (args.artifact or [])}
+    all_source_inputs = (
+        source_paths | correction_paths | correction_evidence_paths | provenance_paths
+    )
+    overlap = all_source_inputs & artifact_paths
+    if overlap:
+        joined = ", ".join(str(path) for path in sorted(overlap))
+        raise ValueError(
+            "the review target and source inputs must be distinct files; overlapping path(s): " + joined
+        )
+    if args.context:
+        context_path = Path(args.context).expanduser().resolve()
+        if context_path in all_source_inputs:
+            raise ValueError(
+                "source inputs and additional context must be distinct files; overlapping path: "
+                + str(context_path)
+            )
+    if args.extraction_request:
+        request_path = Path(args.extraction_request).expanduser().resolve()
+        if request_path in all_source_inputs:
+            raise ValueError(
+                "the neutral extraction request and source/evidence inputs must be distinct "
+                "files; overlapping path: " + str(request_path)
+            )
 
 
 def _run_git_diff(diff_range: str) -> str:
@@ -77,21 +306,256 @@ def _run_git_diff(diff_range: str) -> str:
     return proc.stdout
 
 
-def _assemble_packet(args: argparse.Namespace) -> str:
+def _assemble_packet(
+    args: argparse.Namespace,
+    *,
+    artifacts: list[tuple[Path, str, str, int]],
+    primary_sources: list[tuple[Path, str, str, int]],
+    correction_sources: list[tuple[Path, str, str, int]],
+    correction_search_evidence: list[tuple[Path, str, str, int]],
+    source_provenance_evidence: list[tuple[Path, str, str, int]],
+    extraction_request: Optional[tuple[Path, str, str, int]],
+    diff_text: Optional[str],
+    context: Optional[tuple[Path, str, str, int]],
+) -> str:
     parts = [ADVISORY_BANNER, "", _PACKET_FRAMING]
-    for raw in args.artifact or []:
-        path, text = _read_input_file(raw, label="--artifact")
-        parts.append(f"=== ARTIFACT: {path} ===\n\n{text.rstrip()}\n\n=== END ARTIFACT ===\n")
+    if args.role == _SOURCE_EXTRACTION_ROLE:
+        parts.append(
+            "=== SOURCE-EXTRACTION SCOPE ===\n\n"
+            "No candidate artifact, prior verdict, proposed correction, or comparison target is "
+            "included in this packet. Extract only what the primary and correction sources state "
+            "in response to the neutral request below. The request text is not machine-classified; "
+            "if it supplies an expected answer instead of a neutral question, report that as a "
+            "blocking loss of input independence.\n"
+            f"SOURCE_TEXT_ORIGIN: {args.source_text_origin}\n"
+            f"CORRECTION_STATUS: {args.correction_status}\n\n"
+            "=== END SOURCE-EXTRACTION SCOPE ===\n"
+        )
+    elif args.role == _SOURCE_FIDELITY_ROLE:
+        parts.append(
+            "=== SOURCE-FIDELITY SCOPE ===\n\n"
+            "The PRIMARY SOURCE and review target are distinct inputs. Compare them literally "
+            "before interpreting or normalizing notation. The review target is visible in this pass, so this "
+            "run is a comparison pass, not a candidate-withheld independent extraction.\n"
+            f"SOURCE_TEXT_ORIGIN: {args.source_text_origin}\n"
+            f"CORRECTION_STATUS: {args.correction_status}\n\n"
+            "=== END SOURCE-FIDELITY SCOPE ===\n"
+        )
+    if args.role in _SOURCE_ROLES:
+        for path, evidence_text, digest, size in source_provenance_evidence:
+            parts.append(
+                f"=== SOURCE PROVENANCE EVIDENCE: {path} ===\n"
+                f"EVIDENCE_FILE_SHA256: {digest}\n"
+                f"EVIDENCE_FILE_BYTES: {size}\n"
+                f"EMBEDDED_TEXT_SHA256: {_embedded_text_sha256(evidence_text)}\n"
+                "PACKET_DELIMITER_NEWLINE_ADDED: "
+                f"{str(_packet_delimiter_newline_added(evidence_text)).lower()}\n\n"
+                f"{_verbatim_packet_text(evidence_text)}"
+                "=== END SOURCE PROVENANCE EVIDENCE ===\n"
+            )
+        for path, source_text, digest, size in primary_sources:
+            parts.append(
+                f"=== PRIMARY SOURCE: {path} ===\n"
+                f"SOURCE_FILE_SHA256: {digest}\n"
+                f"SOURCE_FILE_BYTES: {size}\n"
+                f"EMBEDDED_TEXT_SHA256: {_embedded_text_sha256(source_text)}\n"
+                "PACKET_DELIMITER_NEWLINE_ADDED: "
+                f"{str(_packet_delimiter_newline_added(source_text)).lower()}\n\n"
+                f"{_verbatim_packet_text(source_text)}"
+                "=== END PRIMARY SOURCE ===\n"
+            )
+        for path, correction_text, digest, size in correction_sources:
+            parts.append(
+                f"=== CORRECTION SOURCE: {path} ===\n"
+                f"SOURCE_FILE_SHA256: {digest}\n"
+                f"SOURCE_FILE_BYTES: {size}\n"
+                f"EMBEDDED_TEXT_SHA256: {_embedded_text_sha256(correction_text)}\n"
+                "PACKET_DELIMITER_NEWLINE_ADDED: "
+                f"{str(_packet_delimiter_newline_added(correction_text)).lower()}\n\n"
+                f"{_verbatim_packet_text(correction_text)}"
+                "=== END CORRECTION SOURCE ===\n"
+            )
+        for path, evidence_text, digest, size in correction_search_evidence:
+            parts.append(
+                f"=== CORRECTION SEARCH EVIDENCE: {path} ===\n"
+                f"EVIDENCE_FILE_SHA256: {digest}\n"
+                f"EVIDENCE_FILE_BYTES: {size}\n"
+                f"EMBEDDED_TEXT_SHA256: {_embedded_text_sha256(evidence_text)}\n"
+                "PACKET_DELIMITER_NEWLINE_ADDED: "
+                f"{str(_packet_delimiter_newline_added(evidence_text)).lower()}\n\n"
+                f"{_verbatim_packet_text(evidence_text)}"
+                "=== END CORRECTION SEARCH EVIDENCE ===\n"
+            )
+        if extraction_request is not None:
+            path, request_text, digest, size = extraction_request
+            parts.append(
+                f"=== NEUTRAL EXTRACTION REQUEST: {path} ===\n"
+                f"REQUEST_FILE_SHA256: {digest}\n"
+                f"REQUEST_FILE_BYTES: {size}\n"
+                f"EMBEDDED_TEXT_SHA256: {_embedded_text_sha256(request_text)}\n"
+                "PACKET_DELIMITER_NEWLINE_ADDED: "
+                f"{str(_packet_delimiter_newline_added(request_text)).lower()}\n\n"
+                f"{_verbatim_packet_text(request_text)}"
+                "=== END NEUTRAL EXTRACTION REQUEST ===\n"
+            )
+    for path, artifact_text, _digest, _size in artifacts:
+        heading = "ARTIFACT UNDER REVIEW" if args.role == _SOURCE_FIDELITY_ROLE else "ARTIFACT"
+        parts.append(
+            f"=== {heading}: {path} ===\n\n"
+            f"{_verbatim_packet_text(artifact_text)}"
+            f"=== END {heading} ===\n"
+        )
     if args.diff:
-        diff_text = _run_git_diff(args.diff)
+        if diff_text is None:
+            raise ValueError("internal error: diff target was not loaded")
         parts.append(
             f"=== DIFF ({args.diff}) — output of `git diff {args.diff}` ===\n\n"
-            f"{diff_text.rstrip()}\n\n=== END DIFF ===\n"
+            f"{_verbatim_packet_text(diff_text)}"
+            "=== END DIFF ===\n"
         )
-    if args.context:
-        path, text = _read_input_file(args.context, label="--context")
-        parts.append(f"=== ADDITIONAL CONTEXT: {path} ===\n\n{text.rstrip()}\n\n=== END CONTEXT ===\n")
+    if context is not None:
+        path, context_text, _digest, _size = context
+        parts.append(
+            f"=== ADDITIONAL CONTEXT: {path} ===\n\n"
+            f"{_verbatim_packet_text(context_text)}"
+            "=== END CONTEXT ===\n"
+        )
     return "\n".join(parts)
+
+
+def _source_review_manifest(
+    args: argparse.Namespace,
+    *,
+    artifacts: list[tuple[Path, str, str, int]],
+    primary_sources: list[tuple[Path, str, str, int]],
+    correction_sources: list[tuple[Path, str, str, int]],
+    correction_search_evidence: list[tuple[Path, str, str, int]],
+    source_provenance_evidence: list[tuple[Path, str, str, int]],
+    extraction_request: Optional[tuple[Path, str, str, int]],
+    diff_text: Optional[str],
+    context: Optional[tuple[Path, str, str, int]],
+) -> dict:
+    sources = [
+        {
+            "path": str(path),
+            "sha256": digest,
+            "bytes": size,
+            "embedded_text_sha256": _embedded_text_sha256(text),
+            "packet_delimiter_newline_added": _packet_delimiter_newline_added(text),
+        }
+        for path, text, digest, size in primary_sources
+    ]
+    corrections = [
+        {
+            "path": str(path),
+            "sha256": digest,
+            "bytes": size,
+            "embedded_text_sha256": _embedded_text_sha256(text),
+            "packet_delimiter_newline_added": _packet_delimiter_newline_added(text),
+        }
+        for path, text, digest, size in correction_sources
+    ]
+    correction_evidence = [
+        {
+            "path": str(path),
+            "sha256": digest,
+            "bytes": size,
+            "embedded_text_sha256": _embedded_text_sha256(text),
+            "packet_delimiter_newline_added": _packet_delimiter_newline_added(text),
+            "content_classification": "search_record_content_not_machine_verified",
+        }
+        for path, text, digest, size in correction_search_evidence
+    ]
+    provenance_evidence = [
+        {
+            "path": str(path),
+            "sha256": digest,
+            "bytes": size,
+            "embedded_text_sha256": _embedded_text_sha256(text),
+            "packet_delimiter_newline_added": _packet_delimiter_newline_added(text),
+            "content_classification": "provenance_record_content_not_machine_verified",
+        }
+        for path, text, digest, size in source_provenance_evidence
+    ]
+    target_artifacts = [
+        {
+            "path": str(path),
+            "sha256": digest,
+            "bytes": size,
+            "embedded_text_sha256": _embedded_text_sha256(text),
+            "packet_delimiter_newline_added": _packet_delimiter_newline_added(text),
+        }
+        for path, text, digest, size in artifacts
+    ]
+    diff_bytes = diff_text.encode("utf-8") if diff_text is not None else None
+    context_entry = None
+    if context is not None:
+        path, text, digest, size = context
+        context_entry = {
+            "path": str(path),
+            "sha256": digest,
+            "bytes": size,
+            "embedded_text_sha256": _embedded_text_sha256(text),
+            "packet_delimiter_newline_added": _packet_delimiter_newline_added(text),
+        }
+    request_entry = None
+    if extraction_request is not None:
+        path, text, digest, size = extraction_request
+        request_entry = {
+            "path": str(path),
+            "sha256": digest,
+            "bytes": size,
+            "embedded_text_sha256": _embedded_text_sha256(text),
+            "packet_delimiter_newline_added": _packet_delimiter_newline_added(text),
+            "content_classification": "neutrality_not_machine_verified",
+        }
+    is_extraction = args.role == _SOURCE_EXTRACTION_ROLE
+    return {
+        "schema_version": 1,
+        "role": args.role,
+        "gate_input_valid": True,
+        "primary_sources": sources,
+        "source_text_origin": args.source_text_origin,
+        "source_provenance_evidence": provenance_evidence,
+        "source_page_fidelity": (
+            "claimed_by_provenance_evidence_not_machine_verified"
+            if args.source_text_origin == "visually-verified-transcription"
+            else "direct_original_text_claim_not_machine_verified"
+        ),
+        "correction_status": args.correction_status,
+        "correction_sources": corrections,
+        "correction_search_evidence": correction_evidence,
+        "target_kind": (
+            "neutral_extraction_request"
+            if is_extraction
+            else ("diff" if args.diff else "artifact")
+        ),
+        "target_paths": [entry["path"] for entry in target_artifacts],
+        "target_artifacts": target_artifacts,
+        "target_diff_range": args.diff,
+        "target_diff_sha256": hashlib.sha256(diff_bytes).hexdigest() if diff_bytes is not None else None,
+        "target_diff_embedded_text_sha256": (
+            _embedded_text_sha256(diff_text) if diff_text is not None else None
+        ),
+        "target_diff_bytes": len(diff_bytes) if diff_bytes is not None else None,
+        "target_diff_packet_delimiter_newline_added": (
+            _packet_delimiter_newline_added(diff_text) if diff_text is not None else None
+        ),
+        "additional_context": context_entry,
+        "additional_context_content_classification": "not_machine_verified",
+        "neutral_extraction_request": request_entry,
+        "candidate_visibility": (
+            "withheld_by_packet_structure" if is_extraction else "visible_in_same_packet"
+        ),
+        "candidate_withheld_packet_constructed_by_this_run": is_extraction,
+        "candidate_withheld_extraction_performed_by_this_run": False,
+        "candidate_withheld_extraction_outcome": "not_machine_verified",
+        "extraction_request_neutrality": (
+            "not_machine_verified" if is_extraction else "not_applicable"
+        ),
+        "source_dependency_closure": "not_machine_verified",
+        "literal_comparison_outcome": "not_machine_verified",
+    }
 
 
 def _parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
@@ -104,8 +568,29 @@ def _parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
                         help="File to embed as the review target. Repeatable.")
     source.add_argument("--diff", default=None, metavar="BASE..HEAD",
                         help="Embed the output of `git diff BASE..HEAD` as the review target.")
+    source.add_argument("--extraction-request", default=None, metavar="PATH",
+                        help="Neutral locator/question list for --role source-extraction; this "
+                             "mode forbids candidate artifacts, diffs, and additional context.")
     ap.add_argument("--role", choices=_ROLES, default="generic",
                     help="Reviewer role; the system prompt is templates/<role>.md (default: generic).")
+    ap.add_argument("--source", action="append", default=None, metavar="PATH",
+                    help="Exact UTF-8 primary-source text for source-extraction/source-fidelity. "
+                         "Repeatable; required for those roles and rejected for other roles.")
+    ap.add_argument("--source-text-origin", choices=_SOURCE_TEXT_ORIGINS, default=None,
+                    help="Required for source roles: declare whether --source is direct original "
+                         "machine-readable text or a visually verified transcription of a PDF/scan.")
+    ap.add_argument("--source-provenance-evidence", action="append", default=None,
+                    metavar="PATH",
+                    help="Exact UTF-8 provenance/visual-comparison record. Repeatable and required "
+                         "for --source-text-origin visually-verified-transcription.")
+    ap.add_argument("--correction-status", choices=_CORRECTION_STATUSES, default=None,
+                    help="Required for source-extraction/source-fidelity: explicit correction-chain status.")
+    ap.add_argument("--correction-source", action="append", default=None, metavar="PATH",
+                    help="Exact UTF-8 correction text. Repeatable and required when correction status "
+                         "is checked-corrections-included.")
+    ap.add_argument("--correction-search-evidence", action="append", default=None, metavar="PATH",
+                    help="Exact UTF-8 record of correction-chain searches. Repeatable and required "
+                         "for checked-none-found or checked-corrections-included.")
     ap.add_argument("--context", default=None, metavar="PATH",
                     help="Optional context file appended to the packet.")
     ap.add_argument("--out-dir", type=Path, default=None,
@@ -202,6 +687,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     args = _parse_args(argv)
     try:
         _validate_model(args)
+        _validate_source_review_inputs(args)
         template_path = _TEMPLATES_DIR / f"{args.role}.md"
         if not template_path.is_file():
             raise ValueError(f"role template not found: {template_path}")
@@ -211,9 +697,64 @@ def main(argv: Optional[list[str]] = None) -> int:
         inputs_dir = out_dir / "inputs"
         system_path, packet_path = inputs_dir / "system.md", inputs_dir / "packet.md"
 
-        packet_text = _assemble_packet(args)
+        artifacts = [_read_review_artifact(raw) for raw in (args.artifact or [])]
+        primary_sources = [_read_primary_source(raw) for raw in (args.source or [])]
+        correction_sources = [
+            _read_primary_source(raw, flag="--correction-source")
+            for raw in (args.correction_source or [])
+        ]
+        correction_search_evidence = [
+            _read_primary_source(raw, flag="--correction-search-evidence")
+            for raw in (args.correction_search_evidence or [])
+        ]
+        source_provenance_evidence = [
+            _read_primary_source(raw, flag="--source-provenance-evidence")
+            for raw in (args.source_provenance_evidence or [])
+        ]
+        extraction_request = (
+            _read_primary_source(args.extraction_request, flag="--extraction-request")
+            if args.extraction_request
+            else None
+        )
+        diff_text = _run_git_diff(args.diff) if args.diff else None
+        context = _read_text_payload(args.context, label="--context") if args.context else None
+        packet_text = _assemble_packet(
+            args,
+            artifacts=artifacts,
+            primary_sources=primary_sources,
+            correction_sources=correction_sources,
+            correction_search_evidence=correction_search_evidence,
+            source_provenance_evidence=source_provenance_evidence,
+            extraction_request=extraction_request,
+            diff_text=diff_text,
+            context=context,
+        )
         run_multi_task._atomic_write_text(system_path, template_path.read_text(encoding="utf-8"))
         run_multi_task._atomic_write_text(packet_path, packet_text)
+        if args.role in _SOURCE_ROLES:
+            manifest_name = (
+                "source_extraction_manifest.json"
+                if args.role == _SOURCE_EXTRACTION_ROLE
+                else "source_fidelity_manifest.json"
+            )
+            run_multi_task._atomic_write_text(
+                inputs_dir / manifest_name,
+                json.dumps(
+                    _source_review_manifest(
+                        args,
+                        artifacts=artifacts,
+                        primary_sources=primary_sources,
+                        correction_sources=correction_sources,
+                        correction_search_evidence=correction_search_evidence,
+                        source_provenance_evidence=source_provenance_evidence,
+                        extraction_request=extraction_request,
+                        diff_text=diff_text,
+                        context=context,
+                    ),
+                    indent=2,
+                    sort_keys=True,
+                ) + "\n",
+            )
         if args.max_prompt_bytes is not None or args.max_prompt_chars is not None:
             for label, path in (("system", system_path), ("prompt", packet_path)):
                 # Existing launcher guard semantics; overflow="fail" refuses an

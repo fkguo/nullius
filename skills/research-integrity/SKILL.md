@@ -481,27 +481,85 @@ source, not against the note:
 - **(d) stale / wrong mapping to the consuming artifact** — the note cites a symbol,
   function, file, or type in the consuming code / data that is wrong or no longer
   exists.
-- **(e) false "verbatim"** — a quote labeled verbatim when whitespace, markup, or
-  notation was silently normalized.
+- **(e) false "verbatim"** — a quote labeled verbatim when whitespace, markup,
+  primes, dummy-variable names, or notation were silently normalized. A
+  mathematically harmless rename still belongs in the normalized layer, not the
+  literal layer, because it can make a faithful source formula look defective.
 - **(f) inference-as-source** — a cross-source or derived inference presented as a
   direct statement of the cited source.
 - **(g) silent factor drop** — notation using a reduced / normalized / unit argument
   where the full object is meant, dropping a magnitude or degree factor.
+- **(h) correlated-input agreement** — several reviewers agree because they were all
+  given the same faulty extraction, prior verdict, expected classification, or proposed
+  correction. A search/evidence record that already contains the desired adjudication
+  is also answer-bearing input, even when its filename says "evidence." Cross-model
+  agreement does not remove this shared-input dependence.
+- **(i) bibliographic-relation conflation** — two works with similar authors, year,
+  title, or part numbering are treated as the same series, predecessor, erratum, or
+  companion without checking the primary paper's own preamble/references and independent
+  catalog identities. Correct metadata for each paper does not by itself prove the
+  relationship asserted between them.
+- **(j) stale pre-correction source** — a formula or claim is transcribed faithfully
+  from the main publication but a later erratum, corrigendum, revised version,
+  retraction, expression of concern, or explicit author correction is not searched
+  or applied. Literal agreement with superseded text is not fidelity to the corrected
+  scientific record.
+- **(k) context-stripped extraction** — a formula is copied without the neighboring
+  domain, boundary-value, branch, sheet, convention, or definition statements needed
+  to decide what it means. Reviewers then import a familiar default condition and can
+  agree on a derivation of a different analytic object. A source packet is not closed
+  merely because it contains every displayed equation named in the question.
+- **(l) source-layer contamination** — a manually prepared file presented as primary
+  source text already contains the transcriber's abbreviation, dummy-variable rewrite,
+  interpretation, inferred integration range, or expected answer. Candidate withholding
+  then hides the note but not the answer-bearing source preparation. Record whether the
+  bytes are direct original text or a visual transcription; for the latter, require a
+  separate page/crop provenance record and an independently documented visual comparison.
+  A file hash proves which contaminated bytes were reviewed, not that they match the page.
 
 **Minimum disconfirming check.** Run a **line-by-line comparison of the note against
 the primary source with "do not trust the note"** — a falsification gate, not a
-confirmation read. When the note will carry a central claim or be folded into a
-durable artifact, this check is **independent** (a fresh reader / subagent, not the
-note's author re-reading their own work), and at least one reviewer **must** be
-**cross-model-family** doing a literal (not loose-semantic) comparison — transcription
-fidelity is exactly where a same-family looser read misses sign / factor / locator
-drift. Run it through the gate harness (`review-swarm`'s source-fidelity reviewer),
-**re-reviewing after every fix** because a correction can introduce a fresh defect
-(e.g. a rewritten line that drops a magnitude factor), and declare convergence only
-when the independent reviewers agree — never self-pronounced after applying a fix.
+confirmation read. Separate each checked item into: (1) literal source text, (2)
+normalized transcription, (3) symbol dictionary, and (4) derived mapping/inference.
+Verify them in that order and localize the first divergent token or mapping step.
+Before accepting the literal layer, verify and record the source's correction status.
+If a correction exists, compare both the printed item and the correction, identify the
+affected items exactly, and carry the corrected form into normalization and derivation.
+Before deriving, enumerate the source-side conditions the derivation needs and verify
+that their exact neighboring text is present. If a domain, boundary-value prescription,
+branch, sheet, convention, or definition is absent, mark the step uncheckable rather
+than filling it from a standard but possibly inapplicable convention.
+
+When the note will carry a central claim or be folded into a durable artifact, obtain
+at least one **candidate-withheld extraction**: a fresh reader receives the persisted
+source plus only a neutral locator/question list, not the candidate note, prior verdict,
+or proposed answer. Use the `review-swarm` `source-extraction` role so candidate artifacts,
+diffs, and additional context are rejected by packet construction; separately inspect the
+request for answer anchoring because neutrality is not machine-decidable. Then run the
+candidate-visible literal comparison. At least one
+reviewer must also be **cross-model-family**, but model-family independence alone is not
+input/framing independence. Record all three axes separately: model family, method, and
+candidate/prior-verdict visibility.
+
+Run the comparison through the gate harness (`review-swarm`'s source-fidelity reviewer),
+**re-reviewing after every fix** because a correction can introduce a fresh defect. In
+feedback rounds, provide the suspected discrepancy and source locator as a hypothesis;
+do not supply the desired corrected expression as a premise. Declare convergence only
+when the source-localized checks agree — never by majority vote or self-pronouncement.
 (`derivation-verify` re-derives whether a re-derivable result is mathematically
 correct — a *separate* axis that does not check fidelity to the source; use it in
 addition to, never instead of, the literal comparison.)
+
+For PDF or scanned primary sources, include a direct visual comparison with the
+rendered source page or a lossless page crop. OCR and `pdftotext` are discovery
+aids, not formula-fidelity evidence. A text-only reviewer may certify note-to-excerpt
+agreement only after a PDF/image-capable reader has certified excerpt-to-page
+agreement and recorded the original-page and crop hashes.
+
+For a publication correction-chain claim, persist the indexes/identifiers searched and
+their result. The source-review entry must reject `checked-none-found` or
+`checked-corrections-included` unless `--correction-search-evidence` is supplied; a bare
+status flag is not evidence that the publication record was checked.
 
 **Tools that help.** `claim-grounding` is the active execution of this check for the
 quote / value / locator items — it fetches the cited source and records a span-backed

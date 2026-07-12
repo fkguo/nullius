@@ -3,18 +3,18 @@
 /**
  * Transcription-fidelity checklist anti-drift CI check.
  *
- * The "Extraction / transcription fidelity" failure checklist — items (a)–(g)
+ * The "Extraction / transcription fidelity" failure checklist — currently items (a)–(l)
  * — is defined CANONICALLY in skills/research-integrity/SKILL.md and is
  * restated / referenced by sibling skills. Nothing else keeps those copies in
  * sync, so a label edit in one file can silently diverge from the canonical
  * list. This lock asserts:
  *
- *   1. LABEL-SET SYNC. The short label of every item (a)–(g) parsed from the
+ *   1. LABEL-SET SYNC. The short label of every canonical item parsed from the
  *      canonical bullet list in research-integrity/SKILL.md is identical
  *      (letter -> normalized label) to the inline enumeration restated in
  *      deep-literature-review/SKILL.md.
  *
- *   2. LETTER-RANGE SYNC. Every "(a)–(g)" range reference to the checklist
+ *   2. LETTER-RANGE SYNC. Every "(a)–(x)" range reference to the checklist
  *      (today: review-swarm/SKILL.md and claim-grounding/SKILL.md) spans the
  *      exact letters defined canonically — so adding an (h) item, or dropping
  *      (g), fails CI until the range references are updated to match.
@@ -39,7 +39,7 @@
  * ## KNOWN LIMITATIONS
  *
  * 1. The restated inline enumeration is tracked explicitly
- *    (RESTATED_ENUMERATION_FILES). If a NEW skill restates the (a)–(g) labels
+ *    (RESTATED_ENUMERATION_FILES). If a NEW skill restates the canonical labels
  *    inline, add it to that list — the lock cannot discover an arbitrary new
  *    prose restatement of the labels. The letter-range scan (assertion 2) IS
  *    discovery-based and needs no such list.
@@ -62,7 +62,7 @@ import { fileURLToPath } from 'node:url';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-// Canonical owner of the (a)–(g) checklist (bullet-list form).
+// Canonical owner of the transcription-fidelity checklist (bullet-list form).
 const CANONICAL_FILE = 'skills/research-integrity/SKILL.md';
 
 // Files that restate the full short-label set inline. Each MUST carry the same
@@ -97,7 +97,7 @@ function readRepoFile(relPath) {
 // section heading. Scope the parse to that section so that OTHER lettered bullet
 // lists elsewhere in the same file — e.g. the "Validation-chain validity"
 // section, whose own "- **(a) …**" / "- **(b) …**" / "- **(c) …**" items are a
-// different, unrelated enumeration — cannot overwrite the canonical (a)–(g)
+// different, unrelated enumeration — cannot overwrite the canonical labels
 // labels in the flat scan.
 const CANONICAL_SECTION_RE = /^##\s+Extraction\s*\/\s*transcription\s+fidelity\b/i;
 const SECTION_HEADING_RE = /^##\s+/;
@@ -281,7 +281,8 @@ function main() {
     for (const e of errors) process.stderr.write(`  - ${e}\n`);
     process.stderr.write(
       `\nThe "Extraction / transcription fidelity" checklist is owned by ${CANONICAL_FILE}.\n` +
-      `Keep the restated label set (${RESTATED_ENUMERATION_FILES.join(', ')}) and every "(a)–(g)" ` +
+      `Keep the restated label set (${RESTATED_ENUMERATION_FILES.join(', ')}) and every ` +
+      `"(${canonicalLow})–(${canonicalHigh ?? '?'})" ` +
       `range reference in skills/**/SKILL.md in lockstep with it. If you intentionally added or ` +
       `removed an item, update all copies and the range references in the same change.\n`,
     );

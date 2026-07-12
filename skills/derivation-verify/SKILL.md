@@ -34,7 +34,9 @@ deriver) and report in a fixed canonical format.
   [`review-swarm`](../review-swarm/SKILL.md)'s cross-model-family literal source-comparison reviewer (with
   the `research-integrity` *Extraction / transcription fidelity* checklist). derivation-verify reconciles
   independent re-derivations by mathematical equivalence; it does not check a note against the bytes it was
-  copied from.
+  copied from. A derivation can be internally correct while starting from the same mistranscribed source
+  formula, so do not give independent derivation lanes a candidate note or expected correction as an
+  unexamined premise.
 - **A full milestone research cycle** with drafts/gates → use [`research-team`](../research-team/SKILL.md).
 - **A "the discretized / implemented operator preserves property P" or "method precondition X holds at
   scale S" claim** → NOT a symbolic-derivation claim, and it **cannot** be settled by blind re-derivation:
