@@ -1,4 +1,5 @@
 import { existsSync } from 'fs';
+import { payloadHash as artifactPayloadHash } from '../hash/payload-hash.js';
 import { IdeaEngineStore } from '../store/engine-store.js';
 import { budgetSnapshot } from './budget-snapshot.js';
 import { RpcError } from './errors.js';
@@ -31,6 +32,39 @@ function artifactExists(store: IdeaEngineStore, artifactRef: unknown): boolean {
   }
   try {
     return existsSync(store.artifactPathFromRef(artifactRef));
+  } catch {
+    return false;
+  }
+}
+
+function migrateLegacyResultArtifactRef(
+  store: IdeaEngineStore,
+  method: string,
+  record: IdempotencyRecord,
+): boolean {
+  if (record.response.kind !== 'result') {
+    return false;
+  }
+  const field = method === 'rank.compute'
+    ? 'ranking_artifact_ref'
+    : method === 'node.promote'
+      ? 'handoff_artifact_ref'
+      : null;
+  if (field === null) {
+    return false;
+  }
+  const legacyRef = record.response.payload[field];
+  if (typeof legacyRef !== 'string' || !legacyRef.startsWith('file://')) {
+    return false;
+  }
+  try {
+    const artifactPath = store.artifactPathFromRef(legacyRef);
+    const artifact = store.loadArtifactFromRef<Record<string, unknown>>(legacyRef);
+    record.response.payload[field] = store.portableArtifactRef(
+      artifactPath,
+      artifactPayloadHash(artifact),
+    );
+    return true;
   } catch {
     return false;
   }
@@ -168,6 +202,11 @@ export function recordOrReplay(options: {
       return null;
     }
     existing.state = 'committed';
+    idempotencyStore[key] = existing;
+    options.store.saveIdempotency(scopedCampaignId, idempotencyStore);
+  }
+
+  if (migrateLegacyResultArtifactRef(options.store, options.method, existing)) {
     idempotencyStore[key] = existing;
     options.store.saveIdempotency(scopedCampaignId, idempotencyStore);
   }
