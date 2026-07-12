@@ -18,15 +18,18 @@ version is the lockstep number below.
   limits); narrow viewports open at a readable scale floor and pan; source
   anchors are whitelist-classified into links (http(s) and relative
   Markdown paths only, fragment-aware, plain character set) versus plain
-  machine-readable text. Each card's detail panel now deep-links its
-  node's section in `docs/detailed-reasoning.md`, and the link is a
-  generation-bound evidence reference: the pipeline stamps a companion
-  checksum of `.gaia/beliefs.json` after a successful docs render (only
-  when the renderer provably wrote the document this run — three-valued
-  pre/post fingerprint), and the graph links only a document rendered from
-  the current beliefs. A stale survivor from another generation is never
-  linked; hand-polishing the current generation's document keeps its link;
-  every optional-render file operation is never-fatal.
+  machine-readable text. Each card's detail panel now deep-links its exact
+  case-preserving node section in a self-contained,
+  directly local-file-readable `docs/detailed-reasoning.html`. A PEP 723
+  standalone renderer uses Pandoc for Markdown and MathML, Mermaid CLI for
+  static embedded SVG, and pinned nh3/Ammonia sanitization; raw HTML, active
+  URL schemes, event handlers, and scripts cannot enter the page. A manifest
+  written last binds
+  exact SHA-256 digests of current beliefs, Markdown, and HTML. The graph
+  independently verifies all three, so missing, edited, malformed, or stale
+  artifacts yield no deep-dive link. Editing the Markdown requires the
+  documented HTML-then-argument-graph regeneration order; every optional
+  render remains non-fatal to posterior extraction.
 - **Statement-first argument-graph render (`argument-graph.html`).**
   `skills/idea-posterior/scripts/render_argument_graph.py` renders a compiled
   and inferred Gaia package (`.gaia/ir.json` + `.gaia/beliefs.json`) into one
