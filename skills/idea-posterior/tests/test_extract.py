@@ -525,7 +525,7 @@ def write_fake_gaia_render(tmp_path, fixtures_dir, *, render_fails, docs_writes=
     if docs_writes and not render_fails:
         docs_branch = (
             '  mkdir -p "$last/docs"\n'
-            '  printf "#### worth\\n" > "$last/docs/detailed-reasoning.md"\n'
+            '  printf \'<a id="worth"></a>\\n\\n#### worth\\n\' > "$last/docs/detailed-reasoning.md"\n'
             "  exit 0"
         )
     else:
@@ -693,13 +693,17 @@ def test_cleanup_oserror_never_withholds_the_posterior(
     assert (package / "starmap.html").is_dir()
 
 
-def test_successful_docs_render_stamps_the_beliefs_generation(
+def test_successful_docs_render_publishes_three_hash_bound_html(
     tmp_path, fixtures_dir, capsys
 ) -> None:
-    # After a successful docs render the pipeline writes the companion
-    # checksum binding the document to the CURRENT beliefs, and the fresh
-    # graph links the document.
+    # After a successful Gaia docs render the standalone static renderer
+    # publishes HTML plus a manifest binding CURRENT beliefs, exact Markdown,
+    # and exact HTML bytes; the fresh graph links the browser page.
     import hashlib
+
+    missing = [tool for tool in ("uv", "pandoc", "mmdc") if not shutil.which(tool)]
+    if missing:
+        pytest.skip(f"optional browser-render tools unavailable: {missing}")
 
     package = write_clean_package(tmp_path)
     fake_gaia = write_fake_gaia_render(
@@ -714,26 +718,120 @@ def test_successful_docs_render_stamps_the_beliefs_generation(
     )
     capsys.readouterr()
     assert code == 0
-    stamp = (package / "docs" / "detailed-reasoning.beliefs-sha256").read_text(
-        encoding="utf-8"
-    ).strip()
-    expected = "sha256:" + hashlib.sha256(
-        (package / ".gaia" / "beliefs.json").read_bytes()
-    ).hexdigest()
-    assert stamp == expected
+    docs = package / "docs"
+    manifest = json.loads(
+        (docs / "detailed-reasoning.manifest.json").read_text(encoding="utf-8")
+    )
+    expected_beliefs = (
+        "sha256:"
+        + hashlib.sha256((package / ".gaia" / "beliefs.json").read_bytes()).hexdigest()
+    )
+    expected_markdown = (
+        "sha256:"
+        + hashlib.sha256((docs / "detailed-reasoning.md").read_bytes()).hexdigest()
+    )
+    expected_html = (
+        "sha256:"
+        + hashlib.sha256((docs / "detailed-reasoning.html").read_bytes()).hexdigest()
+    )
+    assert manifest["beliefs_sha256"] == expected_beliefs
+    assert manifest["markdown_sha256"] == expected_markdown
+    assert manifest["html_sha256"] == expected_html
     page = (package / "argument-graph.html").read_text(encoding="utf-8")
     assert '"doc_href":' in page
+    assert "docs/detailed-reasoning.html#worth" in page
+    assert "detailed-reasoning.md#" not in page
 
 
-def test_unremovable_survivor_is_never_restamped(
+def test_unsafe_docs_symlink_is_never_cleaned_or_rendered(
+    tmp_path, fixtures_dir, capsys
+) -> None:
+    package = write_clean_package(tmp_path)
+    fake_gaia = write_fake_gaia_render(
+        tmp_path, fixtures_dir, render_fails=False, docs_writes=True
+    )
+    external_docs = tmp_path / "external-docs"
+    external_docs.mkdir()
+    html_sentinel = external_docs / "detailed-reasoning.html"
+    manifest_sentinel = external_docs / "detailed-reasoning.manifest.json"
+    html_sentinel.write_text("external html sentinel\n", encoding="utf-8")
+    manifest_sentinel.write_text("external manifest sentinel\n", encoding="utf-8")
+    try:
+        (package / "docs").symlink_to(external_docs, target_is_directory=True)
+    except OSError as exc:
+        pytest.skip(f"directory symlinks unavailable: {exc}")
+
+    code = extract.main(
+        [
+            "--package",
+            str(package),
+            "--project-root",
+            str(tmp_path),
+            "--gaia-bin",
+            str(fake_gaia),
+        ]
+    )
+    captured = capsys.readouterr()
+    assert code == 0
+    assert "unsafe docs directory" in captured.err
+    assert html_sentinel.read_text(encoding="utf-8") == "external html sentinel\n"
+    assert manifest_sentinel.read_text(encoding="utf-8") == (
+        "external manifest sentinel\n"
+    )
+    page = (package / "argument-graph.html").read_text(encoding="utf-8")
+    assert '"doc_href":' not in page
+
+
+def test_missing_uv_withholds_browser_page_and_uses_multistage_budget(
+    tmp_path, fixtures_dir, capsys, monkeypatch
+) -> None:
+    package = write_clean_package(tmp_path)
+    fake_gaia = write_fake_gaia_render(
+        tmp_path, fixtures_dir, render_fails=False, docs_writes=True
+    )
+    original_render_optional = extract.render_optional
+    browser_calls: list[tuple[list[str], int]] = []
+
+    def without_uv(cmd, note, timeout=120):
+        if note.startswith("detailed reasoning HTML"):
+            browser_calls.append((cmd, timeout))
+            return False
+        return original_render_optional(cmd, note, timeout)
+
+    monkeypatch.setattr(extract, "render_optional", without_uv)
+    code = extract.main(
+        [
+            "--package",
+            str(package),
+            "--project-root",
+            str(tmp_path),
+            "--gaia-bin",
+            str(fake_gaia),
+        ]
+    )
+    capsys.readouterr()
+    assert code == 0
+    assert len(browser_calls) == 1
+    command, outer_timeout = browser_calls[0]
+    assert command[:4] == ["uv", "run", "--quiet", "--script"]
+    assert outer_timeout > 120
+    docs = package / "docs"
+    assert (docs / extract.DETAILED_MARKDOWN_NAME).is_file()
+    assert not (docs / "detailed-reasoning.html").exists()
+    assert not (docs / "detailed-reasoning.manifest.json").exists()
+    page = (package / "argument-graph.html").read_text(encoding="utf-8")
+    assert '"doc_href":' not in page
+
+
+def test_unremovable_survivor_is_never_reauthorized(
     tmp_path, fixtures_dir, capsys, monkeypatch
 ):
     # The cross-generation trap: the pre-render cleanup FAILS while the
     # directory stays writable (an immutable-flagged file, say), leaving
     # last generation's document in place, and the zero-exit renderer
-    # writes nothing. The stamp step must recognize that the surviving
-    # bytes were not written by this run and refuse to stamp them with the
-    # current beliefs hash -- so the fresh graph carries no deep-dive link
+    # writes nothing. The pipeline must recognize that the surviving bytes
+    # were not written by this run and refuse to publish HTML/manifest -- so
+    # the fresh graph carries no deep-dive link
     # into another generation's reasoning. The unlink failure is injected
     # for exactly one path (deletion fails, writing works), decoupling the
     # two directions a directory-permission simulation would tie together.
@@ -766,21 +864,22 @@ def test_unremovable_survivor_is_never_restamped(
     out = capsys.readouterr()
     assert code == 0
     assert "could not remove" in out.err
-    # The survivor is still there (cleanup failed) but was NOT stamped.
+    # The survivor is still there (cleanup failed) but was not authorized.
     assert survivor.is_file()
-    assert not (docs / "detailed-reasoning.beliefs-sha256").exists()
+    assert not (docs / "detailed-reasoning.html").exists()
+    assert not (docs / "detailed-reasoning.manifest.json").exists()
     page = (package / "argument-graph.html").read_text(encoding="utf-8")
     assert '"doc_href":' not in page
 
 
-def test_transient_preread_failure_never_stamps_the_survivor(
+def test_transient_preread_failure_never_authorizes_the_survivor(
     tmp_path, fixtures_dir, capsys, monkeypatch
 ):
     # The three-valued fingerprint: unlink fails (survivor stays), the
     # PRE-render fingerprint read fails transiently (unknown state, not
     # confirmed absence), the zero-exit renderer writes nothing, and the
     # POST-render read succeeds. An unknown pre-state proves nothing, so
-    # the unchanged survivor must not be stamped as freshly written.
+    # the unchanged survivor must not be rendered or authorized as fresh.
     from pathlib import Path as _Path
 
     package = write_clean_package(tmp_path)
@@ -820,6 +919,7 @@ def test_transient_preread_failure_never_stamps_the_survivor(
     capsys.readouterr()
     assert code == 0
     assert survivor.is_file()
-    assert not (docs / "detailed-reasoning.beliefs-sha256").exists()
+    assert not (docs / "detailed-reasoning.html").exists()
+    assert not (docs / "detailed-reasoning.manifest.json").exists()
     page = (package / "argument-graph.html").read_text(encoding="utf-8")
     assert '"doc_href":' not in page
