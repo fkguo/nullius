@@ -46,6 +46,10 @@ import textwrap
 from html.parser import HTMLParser
 from pathlib import Path
 
+from idea_package_contract import (
+    require_idea_specific_reasoning_claims,
+    require_unique_exported_root,
+)
 from render_detailed_reasoning import (
     ARTIFACT as DETAILED_ARTIFACT,
     HTML_NAME as DETAILED_HTML_NAME,
@@ -109,8 +113,9 @@ class _FragmentCollector(HTMLParser):
 def current_detailed_reasoning_fragments(package_dir: Path) -> set[str] | None:
     """Return linkable fragments only for a provably current HTML page.
 
-    The standalone renderer owns the sidecar.  This verifier independently
-    rehashes current beliefs, the exact Markdown source, and the HTML bytes;
+    The standalone renderer owns the sidecar. This verifier independently
+    rehashes current beliefs, the exact compiled IR, the exact Markdown
+    source, and the HTML bytes;
     missing, malformed, unreadable, escaping, or mismatched artifacts all
     return ``None``.  There is intentionally no beliefs-only or legacy-stamp
     fallback.
@@ -118,6 +123,7 @@ def current_detailed_reasoning_fragments(package_dir: Path) -> set[str] | None:
     package = package_dir.resolve()
     paths = {
         "beliefs": package / ".gaia" / "beliefs.json",
+        "ir": package / ".gaia" / "ir.json",
         "markdown": package / "docs" / DETAILED_MARKDOWN_NAME,
         "html": package / "docs" / DETAILED_HTML_NAME,
         "manifest": package / "docs" / DETAILED_MANIFEST_NAME,
@@ -145,12 +151,18 @@ def current_detailed_reasoning_fragments(package_dir: Path) -> set[str] | None:
             "beliefs_sha256",
             "fragments",
             "html_sha256",
+            "ir_sha256",
             "markdown_sha256",
             "renderer",
         }
         if set(manifest) != expected_keys or not isinstance(manifest["renderer"], dict):
             return None
-        for key in ("beliefs_sha256", "markdown_sha256", "html_sha256"):
+        for key in (
+            "beliefs_sha256",
+            "ir_sha256",
+            "markdown_sha256",
+            "html_sha256",
+        ):
             if not isinstance(manifest.get(key), str) or not re.fullmatch(
                 r"sha256:[0-9a-f]{64}", manifest[key]
             ):
@@ -167,6 +179,7 @@ def current_detailed_reasoning_fragments(package_dir: Path) -> set[str] | None:
         ):
             return None
         beliefs_bytes = paths["beliefs"].read_bytes()
+        ir_bytes = paths["ir"].read_bytes()
         markdown_bytes = paths["markdown"].read_bytes()
         html_bytes = paths["html"].read_bytes()
         markdown_text = markdown_bytes.decode("utf-8")
@@ -174,6 +187,8 @@ def current_detailed_reasoning_fragments(package_dir: Path) -> set[str] | None:
         if portability_violation(markdown_text) or portability_violation(html_text):
             return None
         if manifest["beliefs_sha256"] != sha256_bytes(beliefs_bytes):
+            return None
+        if manifest["ir_sha256"] != sha256_bytes(ir_bytes):
             return None
         if manifest["markdown_sha256"] != sha256_bytes(markdown_bytes):
             return None
@@ -1469,6 +1484,11 @@ def main() -> None:
                 f"{package_dir} vs {project_root}"
             )
     ir = load_json(package_dir / ".gaia" / "ir.json", "compiled IR")
+    try:
+        require_unique_exported_root(ir)
+        require_idea_specific_reasoning_claims(ir)
+    except ValueError as exc:
+        raise fail(str(exc))
     beliefs_doc = load_json(
         package_dir / ".gaia" / "beliefs.json", "inference output (beliefs)"
     )
@@ -1498,7 +1518,11 @@ def main() -> None:
     package_name = ir.get("package_name") or package_dir.name
     title = args.title or pretty(str(package_name))
     ir_hash = str(ir.get("ir_hash") or compile_metadata.get("ir_hash") or "")
-    hash_note = f" · ir {ir_hash.removeprefix('sha256:')[:12]}" if ir_hash else ""
+    hash_note = (
+        f" · Gaia internal IR {ir_hash.removeprefix('sha256:')[:12]}"
+        if ir_hash
+        else ""
+    )
     compiled_note = (
         f" · compiled {compile_metadata['compiled_at']}"
         if compile_metadata.get("compiled_at")
@@ -1512,7 +1536,7 @@ def main() -> None:
     meta_line = f"{package_name}{version_note}{compiled_note}{hash_note}"
 
     # Deep-dive links: when the package carries the rendered
-    # detailed-reasoning HTML plus its exact three-hash binding, each card's
+    # detailed-reasoning HTML plus its exact four-hash binding, each card's
     # detail panel links to the verified node fragment. The relative href
     # assumes the page sits at the package root, its default location;
     # a caller writing --out elsewhere keeps a working graph, only the

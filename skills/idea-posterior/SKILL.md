@@ -72,6 +72,15 @@ pandoc --version
 mmdc --version
 ```
 
+The page begins with an evidence-to-conclusion view reconstructed from the
+compiled IR: concrete recorded evidence, the authored likelihood rationale,
+the structural criterion or intermediate claim being updated, and the unique
+exported conclusion. Lowering paths appear before supporting paths. Generic
+criterion sentences remain legal as structural hypotheses, but the page never
+uses them as their own explanation. Any retained Gaia diagram is labelled a
+generative probability-model graph: its arrows run from hypothesis to possible
+evidence, not in the reader's evidence-flow direction.
+
 The validated toolchain is uv 0.6.3, Pandoc 3.6.4, Mermaid CLI 11.9.0, and
 nh3 0.3.6. The renderer records fixed tool names and normalized version tokens
 in its manifest, never version-banner text or resolved executable paths. No
@@ -265,6 +274,19 @@ the idea reasons about are evidence for `mechanism_insight`, not anchors for
 `tension_resolution`: they show the machinery exists, not that the tension is
 real and open.
 
+Two obligations remain separate. The literature establishes that a tension
+exists and is relevant enough for admission; it does not establish that the
+proposed idea resolves it. A raising likelihood into `tension_resolution`
+requires idea-specific resolution evidence: a derived mechanism that closes
+the stated gap, an executed test that discriminates the competing accounts, or
+an explicitly scoped demonstrated partial resolution. Its rationale includes
+one machine-readable clause before the anchor:
+`resolution_evidence: mechanism`,
+`resolution_evidence: discriminating_test`, or
+`resolution_evidence: demonstrated_partial_resolution`. A proposed test or
+compute plan may support `testability_timing` or `verification_cost`; until it
+is executed and bears on resolution, it cannot raise `tension_resolution`.
+
 ## Parameter honesty discipline
 
 This section is where the method stands or falls. A posterior computed from
@@ -303,6 +325,29 @@ invented numbers is worse than no posterior: it looks like knowledge.
   claim falls back to MaxEnt (Gaia's default when no prior or evidence
   binds). MaxEnt is the correct failure mode: honest ignorance beats
   fabricated precision.
+
+  Every `observe()` rationale also declares exactly one stable
+  `evidence_family: <token>` and one `correlation_model: single` before its
+  anchor. The family identifies the underlying calculation, dataset, sample,
+  literature claim-chain, or other evidence-producing source—not the wording
+  of the observation. Gaia 0.5.0a4 multiplies separate `infer()` likelihoods;
+  routing correlated observations through one shared claim does not encode a
+  joint distribution and therefore does not make the votes independent. A
+  family may have at most one observation on one likelihood-bearing path to
+  `worth`. Completely redundant or correlated material is merged into one
+  composite observed fact with one authored likelihood update. Repeated family
+  labels are allowed only on disconnected source notes that cannot change
+  the exported posterior.
+
+  An `infer()` rationale also carries substantive authored prose before the
+  trailing anchor, introduced by the explicit sentinel
+  `reader_reasoning: <why the evidence changes the hypothesis>`.
+  `rationale="anchor: ..."`, criterion text alone, and prose without that
+  authorship sentinel are refused. The rationale contract is structural:
+  authors may state criteria in the language appropriate to the idea, while
+  the marked rationale records why the evidence changes that criterion at the
+  selected likelihood grade. Separately, the six exact scaffold axis
+  sentences are authoring placeholders and are refused if left unchanged.
 
 - **Grade promotion for breadth.** A `downstream_reach` update may use the
   strong grade (ratio 30) only when the reach claim has anchored impact
@@ -350,20 +395,47 @@ invented numbers is worse than no posterior: it looks like knowledge.
   project deliberately (move its history or accept the loss explicitly) —
   never delete a non-empty repository automatically.
 
-- **The top-level claim is named `worth` and gets no prior.** The module
-  variable name must be `worth` (extraction keys on that label). Do not
+- **The top-level claim is named and exported as `worth`, and gets no prior.**
+  The package module must declare `__all__ = ["worth"]`; after compilation,
+  `worth` must be the sole knowledge node marked `exported`. This is checked by
+  extraction, both renderers, and writeback. A package with an empty or
+  different `__all__` is refused with a migration command instead of producing
+  an unmarked conclusion. The module variable name must be `worth` (extraction
+  keys on that label). Do not
   `register_prior` it — or any claim — unless a genuine external prior
   exists. A `register_prior` justification follows the same anchor
   discipline as every other number: it ends with `anchor: <artifact
   reference or resolvable URI>`, and a prior whose anchor fails review is
   deleted so the claim reverts to MaxEnt. No prior means MaxEnt, by design.
 
+- **Reader roles are explicit metadata, not prose matching.** The scaffold
+  marks `worth` with `reader_role="conclusion"` and its five structural
+  criteria with `reader_role="criterion"`. Existing scientifically sound
+  packages without these markers remain readable as long as they carry
+  substantive infer rationales; the renderer labels their intermediate nodes
+  conservatively. Role detection does not inspect prose. Independently, each
+  of the six reasoning claims must state an idea-specific research proposition:
+  extraction, rendering, reporting, and writeback reject empty claims and the
+  scaffold's exact generic axis sentences. This prevents a comparison-axis
+  definition from being presented as the explanation of an idea's score.
+
 - **Standard wiring per sub-criterion.** Anchored facts enter as
   `observe()`; an `infer()` updates the sub-criterion claim from each
   observation with a graded likelihood pair; a second `infer()` updates
-  `worth` from the sub-criterion. Enter each piece of evidence once — if two
-  observations share a cause, model the cause as one claim and connect it
-  once (the CHEATSHEET's double-counting rule).
+  `worth` from the sub-criterion. Enter each piece of evidence once. If one
+  source bears on several criteria, do not give it several scored paths: state
+  the combined consequence in one composite observation and route it through
+  one criterion path. Gaia 0.5.0a4 has no correlated-likelihood factor that
+  would make several paths safe.
+
+  Copying one observation into several observed nodes does not create
+  independent evidence, and routing one observed node through several claims
+  still duplicates its effect on `worth`. The extractor groups observations
+  by their authored `evidence_family` rather than by prose or path strings and
+  refuses either form of parallel worth-connected likelihood update. During
+  review, compare family ids and anchors across criteria; assigning different
+  ids to paraphrases of one source is a contract violation, not a route around
+  the gate.
 
 - **Mutual exclusivity is pairwise.** In gaia-lang 0.5.0a4, `exclusive()`
   takes exactly two claims; three or more raises `TypeError`. Expand mutual
@@ -398,14 +470,18 @@ Absorb it into both contestants' graphs:
 match_win = observe(
     "The idea won its pairwise match against a rival idea under the "
     "committed judging criteria.",
-    rationale="anchor: pairwise_match_v1 <match_id> at <artifact path>",
+    rationale=(
+        "evidence_family: pairwise-match-id; correlation_model: single; "
+        "anchor: pairwise_match_v1 <match_id> at <artifact path>"
+    ),
 )
 infer(
     match_win,
     hypothesis=worth,
     p_e_given_h=0.90, p_e_given_not_h=0.09,   # unanimous verdict: substantial
     rationale=(
-        "Unanimous panel verdict under committed criteria. "
+        "reader_reasoning: A unanimous panel verdict under committed "
+        "criteria raises worth. "
         "anchor: pairwise_match_v1 <match_id> at <artifact path>"
     ),
 )
@@ -418,7 +494,7 @@ infer(
 - **Symmetry.** The loser's graph absorbs the same match with the same grade
   in the lowering direction (swap the two conditional probabilities). A win
   raises, a loss lowers, with equal strength.
-- The `rationale` must cite the match artifact path and end with
+- The `rationale` must carry `reader_reasoning:`, cite the match artifact path, and end with
   `anchor: pairwise_match_v1 <match_id>`; a match result with no artifact
   reference is not absorbable.
 
@@ -476,7 +552,8 @@ stage fails.
    script refuses to store it. What the scan does and does not promise is
    stated plainly under "Scan boundary" below; deliberately obfuscated
    authoring is review's business, and review stays the authority on
-   substance either way. Then runs `gaia build compile`, `gaia build check`,
+   substance either way. Then runs `gaia build compile`, verifies that `worth`
+   is the unique exported conclusion, runs `gaia build check`,
    `gaia run infer`, and — unless `--no-render` — renders a viewable graph
    after inference: an interactive single-file `argument-graph.html` built
    by the sibling `render_argument_graph.py` (no external dependency; open
@@ -493,7 +570,10 @@ stage fails.
    `starmap.svg` when Graphviz is on `PATH`, Gaia's exact
    `docs/detailed-reasoning.md`, and — when the optional browser-render
    dependencies are present — a self-contained
-   `docs/detailed-reasoning.html`. Pandoc supplies Markdown structure and
+   `docs/detailed-reasoning.html`. Its first section follows observed evidence
+   through the authored likelihood rationales and criterion updates into
+   `worth`; direct and indirect lowering paths are rendered alongside support.
+   Pandoc supplies Markdown structure and
    MathML; Mermaid CLI runs once per Pandoc-identified Mermaid code block
    under strict security and its static SVG is embedded as an image data URI;
    source raw HTML is removed from the Pandoc AST and the final fragment is
@@ -508,9 +588,10 @@ stage fails.
    mismatched anchors fail closed, so a later same-named human heading cannot
    move the target. The link is generation-bound by
    `docs/detailed-reasoning.manifest.json`, which carries deterministic
-   SHA-256 digests of the current `.gaia/beliefs.json`, the exact Markdown
-   bytes, and the generated HTML bytes. `render_argument_graph.py`
-   independently recomputes all three; missing, malformed, stale, unreadable,
+   SHA-256 digests of the current `.gaia/beliefs.json`, the exact compiled
+   `.gaia/ir.json`, the exact Markdown bytes, and the generated HTML bytes.
+   `render_argument_graph.py` independently recomputes all four; missing,
+   malformed, stale, unreadable,
    or escaping artifacts produce no `doc_href`. The HTML is installed first
    and the manifest last, so a crash can leave only an unverifiable page,
    never an authorized stale one. Rendering
@@ -549,11 +630,25 @@ stage fails.
    RELATIVE to the project root — the nearest ancestor containing
    `.nullius/`, or an explicit `--project-root` — never as this machine's
    absolute path (path segments are percent-encoded; the form satisfies
-   the engine's URI typing of this field). The `#sha256:` fragment embeds
-   the IR hash, so the reference pins the exact compiled graph the
-   posterior came from; a later re-run on a changed graph yields a visibly
-   different reference, and on any machine the pin can be checked against
-   the package's `.gaia/ir.json`.
+   the engine's URI typing of this field). The `#sha256:` fragment is the
+   SHA-256 digest of the exact `.gaia/ir.json` bytes. It deliberately does not
+   reuse Gaia 0.5.0a4's internal `ir_hash`: that upstream hash does not change
+   when an exported marker changes. Hashing the complete compiled artifact
+   binds graph structure and exported-root metadata in one reference. A later
+   recompile that changes either yields a visibly different reference.
+
+   **Migration for packages and references created before this contract:** set
+   `__all__ = ["worth"]` in the package module, replace all six scaffold claim
+   sentences with idea-specific research propositions, prefix every substantive
+   literal `infer()` explanation with `reader_reasoning:`, and add
+   `evidence_family` plus `correlation_model` declarations to every
+   `observe()` rationale before its trailing anchor. Merge every correlated or
+   redundant family into one composite observation and one likelihood-bearing
+   path, then re-run
+   `run_infer_and_extract.py`. Old references used Gaia's
+   narrower internal hash and are intentionally rejected by current
+   writeback; re-extraction emits the complete-artifact pin and refreshes the
+   render bindings.
 
 3. **Write the posterior back to the idea store.**
 
@@ -602,11 +697,23 @@ stage fails.
    allocation eligible only when `--allow-exploratory-allocation` is passed and
    the matrix declares the allocation exploratory.
 
+   The matrix and compiled graph are checked together. A singular
+   `tension_resolution.grade` must equal the actual raising likelihood grade
+   targeting that criterion in `.gaia/ir.json`. When several raising updates
+   target it, `grade` records the strongest and
+   `raising_likelihood_grades` records the exact multiset; a missing, weaker,
+   stronger, or incomplete declaration is refused. Matrix
+   `posterior_status` describes readiness for the write being attempted, not
+   pre-rebuild history: `stale` cannot enter current writeback even when
+   coverage is saturated and `allocation_eligible` is false. Rebuild the
+   matrix and graph, then declare the resulting readiness state.
+
    The `project://` reference is also verified against the project on disk: it
    must resolve under the project root (the
    nearest ancestor of `--store-root` containing `.nullius/`, or an
-   explicit `--project-root`) and its `#sha256:` pin must match the
-   package's current `.gaia/ir.json`. A reference nobody could follow, or
+   explicit `--project-root`) and its `#sha256:` pin must match the exact bytes
+   of the package's current `.gaia/ir.json`; the same check requires `worth` to
+   remain its unique exported conclusion. A reference nobody could follow, or
    one whose graph changed after extraction, is refused with the refresh
    command (re-run `run_infer_and_extract.py`) instead of being archived
    into the store. The idempotency key is a deterministic digest of
@@ -776,6 +883,14 @@ reviewer's call.
   3. Were both conditionals thought about — `p_e_given_h` *and*
      `p_e_given_not_h`? A grade chosen by imagining only the
      hypothesis-true world is not a considered grade.
+- For every raising `tension_resolution` update, the reviewer checks the
+  declared `resolution_evidence` class against the anchored content. A source
+  that only documents the open tension discharges admission relevance, not
+  resolution; an unexecuted plan discharges neither full nor partial
+  resolution.
+- Across criteria, the reviewer groups observations by statement, anchor, and
+  causal origin. Repeated or paraphrased copies of one fact are traced to one
+  shared source and are not accepted as independent updates.
 - Any number that fails these questions is deleted and the claim reverts to
   MaxEnt; then inference is re-run and the posterior re-extracted. Review
   outcomes change graphs, not narratives.

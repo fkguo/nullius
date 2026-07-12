@@ -30,12 +30,22 @@ NS = "github:demo_idea"
 
 WORTH = f"{NS}::worth"
 TENSION = f"{NS}::tension_resolution"
+REACH = f"{NS}::downstream_reach"
+MECHANISM = f"{NS}::mechanism_insight"
+TIMING = f"{NS}::testability_timing"
+COST = f"{NS}::verification_cost"
 EV_ANCHOR = f"{NS}::ev_anchor"
 EV_SCOPE = f"{NS}::ev_scope_limit"
 HELPER = f"{NS}::_anon_000"
 
-WORTH_TEXT = "The idea merits sustained verification effort."
-TENSION_TEXT = "The idea resolves an anchored open tension."
+WORTH_TEXT = (
+    "The controlled comparison merits sustained verification because it can "
+    "separate two recorded explanations."
+)
+TENSION_TEXT = (
+    "The comparison can resolve which explanation accounts for the recorded "
+    "effect within the tested range."
+)
 ANCHOR_TEXT = (
     "A grounded survey records the tension between calibration papers "
     "& regulator discussions."
@@ -50,6 +60,7 @@ def knowledge(kid: str, label: str, content: str, index: int, observed: bool = F
         "type": "claim",
         "content": content,
         "declaration_index": index,
+        "exported": kid == WORTH,
         "metadata": {},
     }
     if observed:
@@ -59,6 +70,7 @@ def knowledge(kid: str, label: str, content: str, index: int, observed: bool = F
                 {
                     "pattern": "observation",
                     "rationale": (
+                        "evidence_family: graph-demo; correlation_model: single; "
                         "Recorded observation for the demo. "
                         "anchor: artifacts/demo/survey_v1.json; "
                         "artifacts/demo/close_prior_matrix_v1.json"
@@ -91,9 +103,33 @@ def base_ir() -> dict:
         "knowledges": [
             knowledge(WORTH, "worth", WORTH_TEXT, 0),
             knowledge(TENSION, "tension_resolution", TENSION_TEXT, 1),
-            knowledge(EV_ANCHOR, "ev_anchor", ANCHOR_TEXT, 2, observed=True),
-            knowledge(EV_SCOPE, "ev_scope_limit", SCOPE_TEXT, 3, observed=True),
-            {"id": HELPER, "type": "claim"},
+            knowledge(
+                REACH,
+                "downstream_reach",
+                "The resulting discriminator can be reused in two subsequent comparisons.",
+                2,
+            ),
+            knowledge(
+                MECHANISM,
+                "mechanism_insight",
+                "The compared mechanisms predict distinct responses under the recorded condition.",
+                3,
+            ),
+            knowledge(
+                TIMING,
+                "testability_timing",
+                "The required response and comparison records are available now.",
+                4,
+            ),
+            knowledge(
+                COST,
+                "verification_cost",
+                "One bounded comparison decides whether the response separation is present.",
+                5,
+            ),
+            knowledge(EV_ANCHOR, "ev_anchor", ANCHOR_TEXT, 6, observed=True),
+            knowledge(EV_SCOPE, "ev_scope_limit", SCOPE_TEXT, 7, observed=True),
+            {"id": HELPER, "type": "claim", "exported": False},
         ],
         "strategies": [
             infer_strategy(
@@ -164,7 +200,7 @@ def rendered(tmp_path: Path, *extra: str) -> str:
 
 
 def write_detailed_reasoning(package, body="#### worth\n", fragments=None):
-    """Install a three-hash-bound detailed-page fixture for graph unit tests.
+    """Install a four-hash-bound detailed-page fixture for graph unit tests.
 
     Positive end-to-end coverage invokes the standalone renderer itself; this
     helper keeps graph-only tests fast while malformed/stale tests mutate the
@@ -202,6 +238,9 @@ def write_detailed_reasoning(package, body="#### worth\n", fragments=None):
                 ),
                 "fragments": fragments,
                 "html_sha256": rag.sha256_bytes(html_page.read_bytes()),
+                "ir_sha256": rag.sha256_bytes(
+                    (package / ".gaia" / "ir.json").read_bytes()
+                ),
                 "markdown_sha256": rag.sha256_bytes(markdown.read_bytes()),
                 "renderer": {"fixture": "graph-unit-test"},
             },
@@ -232,8 +271,8 @@ def test_cards_show_full_statements(tmp_path) -> None:
     # Wrapping splits statements across tspans; check phrase fragments that
     # fit within one wrapped line.
     for fragment in (
-        "The idea merits sustained",
-        "The idea resolves an anchored open",
+        "The controlled comparison merits sustained",
+        "The comparison can resolve which explanation",
         "regulator discussions.",
         "single channel only,",
     ):
@@ -389,6 +428,18 @@ def test_missing_beliefs_is_a_clear_error(tmp_path) -> None:
     result = run_renderer(package)
     assert result.returncode == 2
     assert "beliefs" in result.stderr
+    assert not (package / "argument-graph.html").exists()
+
+
+def test_renderer_refuses_stale_package_without_unique_exported_worth(tmp_path) -> None:
+    ir = base_ir()
+    for item in ir["knowledges"]:
+        if item.get("label") == "worth":
+            item["exported"] = False
+    package = write_package(tmp_path, ir, base_beliefs())
+    result = run_renderer(package)
+    assert result.returncode == 2
+    assert '__all__ = ["worth"]' in result.stderr
     assert not (package / "argument-graph.html").exists()
 
 

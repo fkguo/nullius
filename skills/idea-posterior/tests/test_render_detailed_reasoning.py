@@ -87,10 +87,34 @@ def write_package(tmp_path: Path, markdown: str) -> Path:
     (docs / rdr.MARKDOWN_NAME).write_text(markdown, encoding="utf-8")
     (docs / "reference-note.md").write_text("# Safe note\n", encoding="utf-8")
     knowledge_id = "github:generic_browser::MixedCase_Claim"
+    worth_id = "github:generic_browser::worth"
+    criterion_id = "github:generic_browser::mechanism_insight"
+    tension_id = "github:generic_browser::tension_resolution"
+    reach_id = "github:generic_browser::downstream_reach"
+    timing_id = "github:generic_browser::testability_timing"
+    cost_id = "github:generic_browser::verification_cost"
+    support_id = "github:generic_browser::ev_documented_mechanism"
+    lowering_id = "github:generic_browser::ev_scope_limit"
     (gaia / "beliefs.json").write_text(
         json.dumps(
             {
                 "beliefs": [
+                    {"knowledge_id": worth_id, "label": "worth", "belief": 0.68},
+                    {
+                        "knowledge_id": criterion_id,
+                        "label": "mechanism_insight",
+                        "belief": 0.84,
+                    },
+                    {
+                        "knowledge_id": support_id,
+                        "label": "ev_documented_mechanism",
+                        "belief": 0.999,
+                    },
+                    {
+                        "knowledge_id": lowering_id,
+                        "label": "ev_scope_limit",
+                        "belief": 0.999,
+                    },
                     {
                         "knowledge_id": knowledge_id,
                         "label": "MixedCase_Claim",
@@ -109,15 +133,139 @@ def write_package(tmp_path: Path, markdown: str) -> Path:
                 "package_name": "generic-browser-gaia",
                 "knowledges": [
                     {
+                        "id": worth_id,
+                        "label": "worth",
+                        "type": "claim",
+                        "content": "The documented mechanism merits sustained verification because it predicts a distinct measured response.",
+                        "declaration_index": 0,
+                        "exported": True,
+                        "metadata": {"reader_role": "conclusion"},
+                    },
+                    {
+                        "id": criterion_id,
+                        "label": "mechanism_insight",
+                        "type": "claim",
+                        "content": "The proposed mechanism predicts a response that differs from the recorded alternative under the stated condition.",
+                        "declaration_index": 1,
+                        "exported": False,
+                        "metadata": {"reader_role": "criterion"},
+                    },
+                    {
+                        "id": tension_id,
+                        "label": "tension_resolution",
+                        "type": "claim",
+                        "content": "The documented comparison resolves one stated part of the disagreement between the two explanations.",
+                        "declaration_index": 2,
+                        "exported": False,
+                        "metadata": {"reader_role": "criterion"},
+                    },
+                    {
+                        "id": reach_id,
+                        "label": "downstream_reach",
+                        "type": "claim",
+                        "content": "The resulting discriminator can be reused in a subsequent comparison of the same response.",
+                        "declaration_index": 3,
+                        "exported": False,
+                        "metadata": {"reader_role": "criterion"},
+                    },
+                    {
+                        "id": timing_id,
+                        "label": "testability_timing",
+                        "type": "claim",
+                        "content": "The required response and comparison records are available for an immediate trial.",
+                        "declaration_index": 4,
+                        "exported": False,
+                        "metadata": {"reader_role": "criterion"},
+                    },
+                    {
+                        "id": cost_id,
+                        "label": "verification_cost",
+                        "type": "claim",
+                        "content": "One bounded comparison decides whether the predicted response separation is present.",
+                        "declaration_index": 5,
+                        "exported": False,
+                        "metadata": {"reader_role": "criterion"},
+                    },
+                    {
+                        "id": support_id,
+                        "label": "ev_documented_mechanism",
+                        "type": "claim",
+                        "content": "A checked report states a distinct mechanism and a discriminating prediction.",
+                        "declaration_index": 6,
+                        "exported": False,
+                        "metadata": {
+                            "supported_by": [
+                                {
+                                    "pattern": "observation",
+                                    "rationale": "evidence_family: documented-mechanism; correlation_model: single; The statement was checked directly. anchor: survey fixture",
+                                }
+                            ]
+                        },
+                    },
+                    {
+                        "id": lowering_id,
+                        "label": "ev_scope_limit",
+                        "type": "claim",
+                        "content": "The available check covers only one operating condition and cannot distinguish the broader hypothesis.",
+                        "declaration_index": 7,
+                        "exported": False,
+                        "metadata": {
+                            "supported_by": [
+                                {
+                                    "pattern": "observation",
+                                    "rationale": "evidence_family: scope-limit; correlation_model: single; The limitation is recorded explicitly. anchor: trial fixture",
+                                }
+                            ]
+                        },
+                    },
+                    {
                         "id": knowledge_id,
                         "label": "MixedCase_Claim",
                         "type": "claim",
                         "content": "A generic claim with a browser-readable explanation.",
                         "declaration_index": 0,
+                        "exported": False,
                         "metadata": {},
                     }
                 ],
-                "strategies": [],
+                "strategies": [
+                    {
+                        "type": "infer",
+                        "premises": [criterion_id],
+                        "conclusion": support_id,
+                        "conditional_probabilities": [0.09, 0.9],
+                        "steps": [
+                            {
+                                "reasoning": "reader_reasoning: The prediction makes the mechanism criterion substantially more plausible. anchor: survey fixture"
+                            }
+                        ],
+                        "strategy_id": "support_criterion",
+                    },
+                    {
+                        "type": "infer",
+                        "premises": [worth_id],
+                        "conclusion": criterion_id,
+                        "conditional_probabilities": [0.25, 0.75],
+                        "steps": [
+                            {
+                                "reasoning": "reader_reasoning: A genuinely discriminating mechanism weakly raises overall worth. anchor: gate fixture"
+                            }
+                        ],
+                        "strategy_id": "criterion_worth",
+                    },
+                    {
+                        "type": "infer",
+                        "premises": [worth_id],
+                        "conclusion": lowering_id,
+                        "conditional_probabilities": [0.75, 0.25],
+                        "steps": [
+                            {
+                                "reasoning": "reader_reasoning: Narrow coverage weakly lowers the case for sustained verification. anchor: trial fixture"
+                            }
+                        ],
+                        "strategy_id": "scope_worth",
+                    },
+                ],
             }
         ),
         encoding="utf-8",
@@ -188,6 +336,7 @@ def test_static_page_renders_math_mermaid_links_and_strips_active_content(
     first_html = html_path.read_bytes()
     first_manifest = manifest_path.read_bytes()
     page = first_html.decode("utf-8")
+    normalized_page = " ".join(page.split())
     manifest = json.loads(first_manifest)
 
     probe = PageProbe()
@@ -206,15 +355,63 @@ def test_static_page_renders_math_mermaid_links_and_strips_active_content(
     assert all(not name.lower().startswith("on") for name, _value in probe.attrs)
     assert "javascript:" not in page.lower()
     assert "```mermaid" not in page
+    assert "Local path polarity" in normalized_page
+    assert "Evidence-source accounting" in normalized_page
+    assert "documented-mechanism" in normalized_page
+    assert "correlation model single" in normalized_page
+    assert "local likelihood ratios are not multiplied" in normalized_page
+    assert "Net effect on the exported conclusion" not in page
+    # The fixture's local ratios are 10 and 3. Their product, 30, is not the
+    # end-to-end Bayes factor after marginalizing the latent criterion.
+    assert "likelihood ratio ×30" not in normalized_page
     assert '<math display="inline"' in page
     assert '<math display="block"' in page
     assert page.count('id="MixedCase_Claim"') == 1
     assert "render-meta" not in page
+    assert "Evidence-to-conclusion reasoning" in normalized_page
+    assert normalized_page.index("Lowering paths") < normalized_page.index(
+        "Supporting paths"
+    )
+    assert (
+        "A checked report states a distinct mechanism and a discriminating prediction."
+        in normalized_page
+    )
+    assert (
+        "The prediction makes the mechanism criterion substantially more plausible."
+        in normalized_page
+    )
+    assert (
+        "The available check covers only one operating condition and cannot "
+        "distinguish the broader hypothesis."
+        in normalized_page
+    )
+    assert (
+        "Narrow coverage weakly lowers the case for sustained verification."
+        in normalized_page
+    )
+    assert "The statement was checked directly." in normalized_page
+    assert "The limitation is recorded explicitly." in normalized_page
+    assert "evidence_family:" not in normalized_page
+    assert "correlation_model:" not in normalized_page
+    assert "structural criterion update" in normalized_page
+    assert (
+        "Criterion statements are structural hypotheses, not explanations."
+        in normalized_page
+    )
+    assert "Raw Gaia generative probability-model graph" in normalized_page
+    assert "Arrows run from a hypothesis to possible evidence." in normalized_page
+    assert "They do not show the reader's evidence flow." in normalized_page
+    assert "The star marks the sole exported conclusion." in normalized_page
+    assert "white dashed orphan node" in normalized_page
+    assert "$P(H" not in page
 
     beliefs = (package / ".gaia" / "beliefs.json").read_bytes()
     source = (docs / rdr.MARKDOWN_NAME).read_bytes()
     assert manifest["artifact"] == rdr.ARTIFACT
     assert manifest["beliefs_sha256"] == rdr.sha256_bytes(beliefs)
+    assert manifest["ir_sha256"] == rdr.sha256_bytes(
+        (package / ".gaia" / "ir.json").read_bytes()
+    )
     assert manifest["markdown_sha256"] == rdr.sha256_bytes(source)
     assert manifest["html_sha256"] == rdr.sha256_bytes(first_html)
     assert manifest["fragments"] == ["MixedCase_Claim"]
@@ -224,6 +421,7 @@ def test_static_page_renders_math_mermaid_links_and_strips_active_content(
         "pandoc": "3.6.4",
     }
     assert manifest["beliefs_sha256"] not in page
+    assert manifest["ir_sha256"] not in page
     assert manifest["markdown_sha256"] not in page
     assert manifest["html_sha256"] not in page
     assert "Pandoc" not in page
@@ -258,6 +456,45 @@ def _raw_anchor(label: str) -> dict:
             {"t": "RawInline", "c": ["html", "</a>"]},
         ],
     }
+
+
+def test_raw_gaia_graph_marks_exactly_one_exported_conclusion() -> None:
+    document = {
+        "blocks": [
+            {
+                "t": "CodeBlock",
+                "c": [
+                    ["", ["mermaid"], []],
+                    'flowchart LR\n  worth["worth (0.68)"]:::premise\n'
+                    '  ev["Recorded evidence"]:::derived',
+                ],
+            }
+        ]
+    }
+    rdr._label_mermaid_direction(document, "worth")
+    source = next(
+        block["c"][1]
+        for block in document["blocks"]
+        if block.get("t") == "CodeBlock"
+    )
+    assert source.count("★") == 1
+    assert 'worth["worth ★ (0.68)"]:::premise' in source
+
+
+def test_raw_gaia_graph_rejects_missing_exported_conclusion() -> None:
+    document = {
+        "blocks": [
+            {
+                "t": "CodeBlock",
+                "c": [
+                    ["", ["mermaid"], []],
+                    'flowchart LR\n  other["other (0.50)"]:::orphan',
+                ],
+            }
+        ]
+    }
+    with pytest.raises(RuntimeError, match="exactly one exported-conclusion"):
+        rdr._label_mermaid_direction(document, "worth")
 
 
 def _header(label: str, automatic_id: str, *, root: bool = False) -> dict:
@@ -369,6 +606,54 @@ def test_post_edit_requires_html_rerender_before_graph_link_returns(
     )
 
 
+def test_ir_edit_invalidates_bound_page_while_beliefs_and_markdown_stay_current(
+    tmp_path, fixtures_dir
+) -> None:
+    uv, pandoc, mmdc = browser_tools()
+    package = write_package(
+        tmp_path,
+        (fixtures_dir / "detailed_reasoning_sample.md").read_text(encoding="utf-8"),
+    )
+    result = run_renderer(package, uv, pandoc, mmdc)
+    assert result.returncode == 0, result.stderr
+    node_id = "github:generic_browser::MixedCase_Claim"
+    assert run_graph(package)["nodes"][node_id]["doc_href"].endswith(
+        "#MixedCase_Claim"
+    )
+
+    ir_path = package / ".gaia" / "ir.json"
+    ir = json.loads(ir_path.read_text(encoding="utf-8"))
+    for item in ir["knowledges"]:
+        if item.get("id") == node_id:
+            item["content"] += " The compiled statement changed."
+    ir_path.write_text(json.dumps(ir), encoding="utf-8")
+
+    payload = run_graph(package)
+    assert "doc_href" not in payload["nodes"][node_id]
+
+
+def test_detailed_renderer_refuses_stale_root_export_contract(
+    tmp_path, fixtures_dir
+) -> None:
+    uv, pandoc, mmdc = browser_tools()
+    package = write_package(
+        tmp_path,
+        (fixtures_dir / "detailed_reasoning_sample.md").read_text(encoding="utf-8"),
+    )
+    ir_path = package / ".gaia" / "ir.json"
+    ir = json.loads(ir_path.read_text(encoding="utf-8"))
+    for item in ir["knowledges"]:
+        if item.get("label") == "worth":
+            item["exported"] = False
+    ir_path.write_text(json.dumps(ir), encoding="utf-8")
+
+    result = run_renderer(package, uv, pandoc, mmdc)
+    assert result.returncode == 2
+    assert '__all__ = ["worth"]' in result.stderr
+    assert not (package / "docs" / rdr.HTML_NAME).exists()
+    assert not (package / "docs" / rdr.MANIFEST_NAME).exists()
+
+
 @pytest.mark.parametrize("missing_tool", ("pandoc", "mmdc"))
 def test_missing_required_renderer_invalidates_page_and_manifest(
     tmp_path, fixtures_dir, missing_tool
@@ -406,6 +691,67 @@ def test_machine_specific_markdown_is_refused_without_persisted_browser_output(
     assert "machine-local" in result.stderr
     assert not (package / "docs" / rdr.HTML_NAME).exists()
     assert not (package / "docs" / rdr.MANIFEST_NAME).exists()
+
+
+def test_static_link_policy_rejects_local_path_escape() -> None:
+    assert rdr._safe_link("reference-note.md")
+    assert rdr._safe_link("#local-fragment")
+    assert not rdr._safe_link("../private-note.md")
+    assert not rdr._safe_link("%2e%2e/private-note.md")
+    assert not rdr._safe_link(" javascript:alert(1)")
+
+
+def test_reader_reasoning_discloses_reuse_outside_the_posterior_path() -> None:
+    from test_extract import evidence_family_ir
+
+    ir = evidence_family_ir(modeled_shared=True)
+    ir["strategies"] = [
+        strategy
+        for strategy in ir["strategies"]
+        if strategy.get("conclusion") != "p::ev_two"
+    ]
+    markdown = rdr._reader_reasoning_markdown(ir)
+    assert "Evidence-source accounting" in markdown
+    assert "`reused-result`: 2 recorded occurrences" in markdown
+    assert "correlation model `single`" in markdown
+    assert "sole occurrence on a path to the exported conclusion" in markdown
+    assert "disconnected source notes" in markdown
+
+
+def test_two_lowering_latent_edges_have_supporting_path_polarity() -> None:
+    edges = [
+        rdr._ReaderEdge("e", "c", 0.09, 0.9, "", "one"),
+        rdr._ReaderEdge("c", "h", 0.25, 0.75, "", "two"),
+    ]
+    # Exact marginalization, not LR multiplication:
+    # P(e|h) = .09*.25 + .90*.75 = .6975
+    # P(e|not h) = .09*.75 + .90*.25 = .2925
+    assert rdr._path_polarity(edges) == "supporting"
+
+
+def test_neutral_edge_makes_the_latent_path_neutral() -> None:
+    edges = [
+        rdr._ReaderEdge("e", "c", 0.5, 0.5, "", "neutral"),
+        rdr._ReaderEdge("c", "h", 0.75, 0.25, "", "supporting"),
+    ]
+    assert rdr._path_polarity(edges) == "neutral"
+
+
+def test_zero_over_zero_likelihood_is_rejected() -> None:
+    with pytest.raises(ValueError, match="both conditional"):
+        rdr._likelihood_effect(0.0, 0.0)
+
+
+@pytest.mark.parametrize(
+    ("p_h", "p_nh", "direction"),
+    ((0.9, 0.0, "raises"), (0.0, 0.9, "lowers")),
+)
+def test_infinite_likelihood_ratio_is_reported_as_strong(
+    p_h: float, p_nh: float, direction: str
+) -> None:
+    actual_direction, strength, _ratio = rdr._likelihood_effect(p_h, p_nh)
+    assert actual_direction == direction
+    assert strength.startswith("strong,")
 
 
 def test_docs_symlink_escape_preserves_external_sentinels(
