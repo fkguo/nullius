@@ -27,7 +27,8 @@ notation normalization, and derived interpretation in one field.
 - Candidate note visible during extraction: no
 - Prior verdict or proposed correction visible during extraction: no
 - Declared comparison scope: selected items / complete section / complete paper
-- Formula-and-condition inventory path and SHA-256 (required for complete scope):
+- Formula-and-condition inventory path and SHA-256 (required for complete scope;
+  the hash binds the reviewed bytes but does not establish completeness):
 - Inventory completeness independently checked:
 
 ## Item 1
