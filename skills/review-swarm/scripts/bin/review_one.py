@@ -279,6 +279,11 @@ def _validate_source_review_inputs(args: argparse.Namespace) -> None:
                 "source inputs and additional context must be distinct files; overlapping path: "
                 + str(context_path)
             )
+        if context_path in artifact_paths:
+            raise ValueError(
+                "the review target and additional context must be distinct files; overlapping "
+                "path: " + str(context_path)
+            )
     if args.extraction_request:
         request_path = Path(args.extraction_request).expanduser().resolve()
         if request_path in all_source_inputs:

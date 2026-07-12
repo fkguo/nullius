@@ -352,7 +352,8 @@ forms. A literal match to the original but superseded text is not a fidelity pas
 The manifest distinguishes each original file's SHA-256 from the SHA-256 of the UTF-8 text embedded in the
 packet. Primary-source text is strict UTF-8 and is inserted without trimming, so those two hashes agree;
 artifact/context decoding may use replacement characters and therefore records both hashes explicitly.
-Diff targets likewise record both the raw diff hash and the embedded UTF-8-text hash.
+Diff targets likewise record raw and embedded-text hash fields for schema symmetry; because `git diff`
+is decoded and embedded as the same UTF-8 text, those two values currently agree.
 Each entry also records whether one delimiter newline was added after a payload that lacked a terminal
 newline; that delimiter is packet framing and is not part of the embedded-text hash.
 
