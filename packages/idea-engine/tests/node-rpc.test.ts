@@ -1,6 +1,7 @@
 import { mkdtempSync, readFileSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import { pathToFileURL } from 'url';
 import { afterEach, describe, expect, it } from 'vitest';
 import { IdeaEngineRpcService } from '../src/service/rpc-service.js';
 import { RpcError } from '../src/service/errors.js';
@@ -176,7 +177,13 @@ describe('node-side RPC surface (posterior portfolio)', () => {
     expect((rankingArtifact.ranked_nodes as unknown[]).length).toBe(2);
 
     const rankIdempotency = service.read.store.loadIdempotency<Record<string, unknown>>(campaignId);
-    rankIdempotency['rank.compute:rank-1']!.state = 'prepared';
+    const rankRecord = rankIdempotency['rank.compute:rank-1']!;
+    rankRecord.state = 'prepared';
+    const rankResponse = rankRecord.response as Record<string, unknown>;
+    const rankPayload = rankResponse.payload as Record<string, unknown>;
+    rankPayload.ranking_artifact_ref = pathToFileURL(
+      service.read.store.artifactPathFromRef(String(rank.ranking_artifact_ref)),
+    ).href;
     service.read.store.saveIdempotency(campaignId, rankIdempotency);
     const replayedRank = service.handle('rank.compute', {
       campaign_id: campaignId,
@@ -185,6 +192,12 @@ describe('node-side RPC surface (posterior portfolio)', () => {
     });
     expect((replayedRank.idempotency as Record<string, unknown>).is_replay).toBe(true);
     expect(replayedRank.ranking_artifact_ref).toBe(rank.ranking_artifact_ref);
+    expect(
+      ((service.read.store.loadIdempotency<Record<string, unknown>>(campaignId)[
+        'rank.compute:rank-1'
+      ]!.response as Record<string, unknown>).payload as Record<string, unknown>)
+        .ranking_artifact_ref,
+    ).toBe(rank.ranking_artifact_ref);
 
     setGroundingPass(service, campaignId, n1!);
     const promoted = service.handle('node.promote', {
@@ -206,7 +219,13 @@ describe('node-side RPC surface (posterior portfolio)', () => {
     expect(handoff).not.toHaveProperty('evidence_support');
 
     const promoteIdempotency = service.read.store.loadIdempotency<Record<string, unknown>>(campaignId);
-    promoteIdempotency['node.promote:promote-1']!.state = 'prepared';
+    const promoteRecord = promoteIdempotency['node.promote:promote-1']!;
+    promoteRecord.state = 'prepared';
+    const promoteResponse = promoteRecord.response as Record<string, unknown>;
+    const promotePayload = promoteResponse.payload as Record<string, unknown>;
+    promotePayload.handoff_artifact_ref = pathToFileURL(
+      service.read.store.artifactPathFromRef(String(promoted.handoff_artifact_ref)),
+    ).href;
     service.read.store.saveIdempotency(campaignId, promoteIdempotency);
     const replayedPromotion = service.handle('node.promote', {
       campaign_id: campaignId,
@@ -215,6 +234,12 @@ describe('node-side RPC surface (posterior portfolio)', () => {
     });
     expect((replayedPromotion.idempotency as Record<string, unknown>).is_replay).toBe(true);
     expect(replayedPromotion.handoff_artifact_ref).toBe(promoted.handoff_artifact_ref);
+    expect(
+      ((service.read.store.loadIdempotency<Record<string, unknown>>(campaignId)[
+        'node.promote:promote-1'
+      ]!.response as Record<string, unknown>).payload as Record<string, unknown>)
+        .handoff_artifact_ref,
+    ).toBe(promoted.handoff_artifact_ref);
   });
 
   it('ranks by posterior value, breaking ties by evidence_count then stable order', () => {
