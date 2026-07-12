@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
+
+import pytest
 
 import build_portfolio_status_report as report
 
@@ -19,10 +22,57 @@ def _write_package(
     pkg = root / rel
     (pkg / ".gaia").mkdir(parents=True)
     ir = {
+        "ir_hash": "sha256:" + "a" * 64,
         "knowledges": [
-            {"id": "p:x::worth", "title": "worth", "type": "claim"},
-            {"id": "p:x::sub_a", "title": "criterion_a", "type": "claim"},
-            {"id": "p:x::ev_b", "title": "evidence_b", "type": "claim"},
+            {
+                "id": "p:x::worth",
+                "label": "worth",
+                "title": "worth",
+                "type": "claim",
+                "content": (
+                    "The recorded comparison merits verification because it "
+                    "can distinguish the two stated responses."
+                ),
+                "exported": True,
+            },
+            {
+                "id": "p:x::tension_resolution",
+                "label": "tension_resolution",
+                "type": "claim",
+                "content": "The comparison resolves one stated part of the recorded disagreement.",
+                "exported": False,
+            },
+            {
+                "id": "p:x::downstream_reach",
+                "label": "downstream_reach",
+                "type": "claim",
+                "content": "The resulting discriminator can be reused in a subsequent comparison.",
+                "exported": False,
+            },
+            {
+                "id": "p:x::mechanism_insight",
+                "label": "mechanism_insight",
+                "type": "claim",
+                "content": "The compared mechanisms predict distinct recorded responses.",
+                "exported": False,
+            },
+            {
+                "id": "p:x::testability_timing",
+                "label": "testability_timing",
+                "type": "claim",
+                "content": "The required response and comparison records are available now.",
+                "exported": False,
+            },
+            {
+                "id": "p:x::verification_cost",
+                "label": "verification_cost",
+                "type": "claim",
+                "content": "One bounded comparison decides whether the response separation is present.",
+                "exported": False,
+            },
+            {"id": "p:x::sub_a", "label": "criterion_a", "title": "criterion_a", "type": "claim", "exported": False},
+            {"id": "p:x::ev_b", "label": "evidence_b", "title": "evidence_b", "type": "claim", "exported": False},
+            {"id": "p:x::ev_lower", "label": "evidence_lower", "title": "evidence_lower", "type": "claim", "exported": False},
         ],
         "strategies": [
             {
@@ -30,14 +80,14 @@ def _write_package(
                 "premises": ["p:x::ev_b"],
                 "conclusion": "p:x::sub_a",
                 "conditional_probabilities": [0.09, 0.9],
-                "steps": [{"reasoning": "Substantial: the check directly supports criterion_a."}],
+                "steps": [{"reasoning": "reader_reasoning: Substantial: the check directly supports criterion_a. resolution_evidence: demonstrated_partial_resolution. anchor: fixture"}],
             },
             {
                 "type": "infer",
-                "premises": ["p:x::sub_a"],
-                "conclusion": "p:x::ev_b",
+                "premises": ["p:x::ev_b"],
+                "conclusion": "p:x::ev_lower",
                 "conditional_probabilities": [0.9, 0.09],
-                "steps": [{"reasoning": "Substantial lowering: a close prior already covers this."}],
+                "steps": [{"reasoning": "reader_reasoning: Substantial lowering: a close prior already covers this. anchor: fixture"}],
             },
             {
                 # unscored form: no conditional probabilities -> never a driver
@@ -54,11 +104,12 @@ def _write_package(
             {"knowledge_id": "p:x::sub_a", "label": "criterion_a", "belief": 0.7},
         ]
     }
-    (pkg / ".gaia" / "ir.json").write_text(json.dumps(ir), encoding="utf-8")
+    ir_bytes = json.dumps(ir).encode("utf-8")
+    (pkg / ".gaia" / "ir.json").write_bytes(ir_bytes)
     (pkg / ".gaia" / "beliefs.json").write_text(json.dumps(beliefs), encoding="utf-8")
     if with_graph_page:
         (pkg / "argument-graph.html").write_text("<!doctype html>", encoding="utf-8")
-    return f"project://{rel}#sha256:{'a' * 64}"
+    return f"project://{rel}#sha256:{hashlib.sha256(ir_bytes).hexdigest()}"
 
 
 def _node(node_id: str, *, ref: str | None, value: float | None) -> dict:
@@ -108,7 +159,9 @@ def test_report_renders_drivers_links_and_rounding(tmp_path: Path) -> None:
 
     # Both driver directions surface with sign, conclusion title, and reasoning.
     assert "+0.81 → criterion_a: Substantial: the check directly supports criterion_a." in md
-    assert "-0.81 → evidence_b: Substantial lowering: a close prior already covers this." in md
+    assert "reader_reasoning:" not in md
+    assert "resolution_evidence:" not in md
+    assert "-0.81 → evidence_lower: Substantial lowering: a close prior already covers this." in md
 
     # Exact machine value survives in JSON while the md shows 3 decimals.
     row = payload["rows"][0]
@@ -116,6 +169,15 @@ def test_report_renders_drivers_links_and_rounding(tmp_path: Path) -> None:
     assert row["graph_root_belief"] == 0.6417
     assert row["store_graph_mismatch"] is False
     assert payload["warnings"] == []
+
+
+def test_multi_premise_probability_table_is_not_scored_as_one_driver() -> None:
+    strategy = {
+        "type": "infer",
+        "premises": ["p::one", "p::two"],
+        "conditional_probabilities": [0.1, 0.2, 0.3, 0.9],
+    }
+    assert report.strategy_effect(strategy) is None
 
 
 def test_store_graph_mismatch_flagged_as_stale(tmp_path: Path) -> None:
@@ -154,12 +216,44 @@ def test_unresolvable_ref_warns_but_still_reports(tmp_path: Path) -> None:
 
 def test_percent_encoded_ref_resolves(tmp_path: Path) -> None:
     """The extractor percent-encodes ref paths; the canonical encoded form must resolve."""
-    _write_package(tmp_path, "ideas/graphs/idea one", worth_value=0.5)
-    encoded = f"project://ideas/graphs/idea%20one#sha256:{'c' * 64}"
+    ref = _write_package(tmp_path, "ideas/graphs/idea one", worth_value=0.5)
+    encoded = ref.replace("idea one", "idea%20one")
     md, payload, code = _run(tmp_path, {"nd000006": _node("nd000006", ref=encoded, value=0.5)})
     assert code == 0
     assert payload["warnings"] == []
     assert "+0.81 →" in md  # drivers were read, so the package resolved
+
+
+def test_stale_exact_ir_pin_withholds_graph_data(tmp_path: Path) -> None:
+    ref = _write_package(tmp_path, "ideas/graphs/idea-stale", worth_value=0.5)
+    stale = ref.rsplit("#", 1)[0] + f"#sha256:{'e' * 64}"
+    md, payload, code = _run(
+        tmp_path,
+        {"nd000008": _node("nd000008", ref=stale, value=0.5)},
+    )
+    assert code == 0
+    row = payload["rows"][0]
+    assert row["support_drivers"] == []
+    assert row["graph_root_belief"] is None
+    assert any("exact compiled ir.json" in warning for warning in payload["warnings"])
+    assert "+0.81 →" not in md
+
+
+def test_stale_unexported_root_withholds_graph_data(tmp_path: Path) -> None:
+    ref = _write_package(tmp_path, "ideas/graphs/idea-unexported", worth_value=0.5)
+    ir_path = tmp_path / "ideas/graphs/idea-unexported/.gaia/ir.json"
+    ir = json.loads(ir_path.read_text(encoding="utf-8"))
+    ir["knowledges"][0]["exported"] = False
+    ir_bytes = json.dumps(ir).encode("utf-8")
+    ir_path.write_bytes(ir_bytes)
+    current_ref = ref.rsplit("#", 1)[0] + f"#sha256:{hashlib.sha256(ir_bytes).hexdigest()}"
+    _, payload, code = _run(
+        tmp_path,
+        {"nd000009": _node("nd000009", ref=current_ref, value=0.5)},
+    )
+    assert code == 0
+    assert payload["rows"][0]["support_drivers"] == []
+    assert any('__all__ = ["worth"]' in warning for warning in payload["warnings"])
 
 
 def test_root_escaping_ref_is_refused(tmp_path: Path) -> None:
@@ -171,3 +265,44 @@ def test_root_escaping_ref_is_refused(tmp_path: Path) -> None:
     assert code == 0
     assert payload["rows"][0]["package_dir"] is None
     assert any("does not resolve" in w for w in payload["warnings"])
+
+
+def test_package_directory_symlink_cannot_escape_project_root(tmp_path: Path) -> None:
+    outside_rel = f"{tmp_path.name}-outside-report-package"
+    outside_ref = _write_package(tmp_path.parent, outside_rel, worth_value=0.5)
+    link = tmp_path / "ideas" / "graphs" / "linked-package"
+    link.parent.mkdir(parents=True)
+    try:
+        link.symlink_to(tmp_path.parent / outside_rel, target_is_directory=True)
+    except OSError as exc:
+        pytest.skip(f"directory symlinks unavailable: {exc}")
+    pin = outside_ref.rsplit("#", 1)[1]
+    ref = f"project://ideas/graphs/linked-package#{pin}"
+
+    _, payload, code = _run(
+        tmp_path, {"nd000010": _node("nd000010", ref=ref, value=0.5)}
+    )
+    assert code == 0
+    assert payload["rows"][0]["package_dir"] is None
+    assert any("does not resolve" in warning for warning in payload["warnings"])
+
+
+def test_package_input_symlink_cannot_escape_package(tmp_path: Path) -> None:
+    ref = _write_package(tmp_path, "ideas/graphs/contained", worth_value=0.5)
+    beliefs_path = tmp_path / "ideas/graphs/contained/.gaia/beliefs.json"
+    outside = tmp_path.parent / f"{tmp_path.name}-outside-beliefs.json"
+    beliefs_path.replace(outside)
+    try:
+        beliefs_path.symlink_to(outside)
+    except OSError as exc:
+        pytest.skip(f"file symlinks unavailable: {exc}")
+
+    _, payload, code = _run(
+        tmp_path, {"nd000011": _node("nd000011", ref=ref, value=0.5)}
+    )
+    assert code == 0
+    row = payload["rows"][0]
+    assert row["support_drivers"] == []
+    assert row["graph_root_belief"] is None
+    assert any("cannot read" in warning for warning in payload["warnings"])
+    assert any("beliefs.json" in warning for warning in payload["warnings"])

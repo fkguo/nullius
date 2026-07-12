@@ -7,25 +7,31 @@
       "id": "github:trial_idea::worth",
       "label": "worth",
       "type": "claim",
-      "metadata": {}
+      "content": "The controlled trial idea merits sustained verification because it can distinguish two recorded explanations.",
+      "exported": true,
+      "metadata": {"reader_role": "conclusion"}
     },
     {
       "id": "github:trial_idea::tension_resolution",
       "label": "tension_resolution",
       "type": "claim",
-      "metadata": {}
+      "content": "The controlled trial rules out one of two recorded explanations within a stated operating range.",
+      "exported": false,
+      "metadata": {"reader_role": "criterion"}
     },
     {
       "id": "github:trial_idea::ev_tension",
       "label": "ev_tension",
       "type": "claim",
+      "content": "An executed discriminating check rules out one competing explanation within an explicitly stated scope.",
+      "exported": false,
       "metadata": {
         "prior": 0.999,
         "supported_by": [
           {
             "action_label": "github:trial_idea::action::_anon_action_000",
             "pattern": "observation",
-            "rationale": "anchor: literature_survey_v1 tensions section (trial fixture)",
+            "rationale": "evidence_family: executed-check; correlation_model: single; anchor: executed discriminating-check artifact (trial fixture)",
             "warrants": ["github:trial_idea::_anon_000"]
           }
         ]
@@ -33,30 +39,84 @@
     },
     {
       "id": "github:trial_idea::_anon_000",
-      "type": "claim"
+      "type": "claim",
+      "exported": false
     },
     {
       "id": "github:trial_idea::verification_cost",
       "label": "verification_cost",
       "type": "claim",
-      "metadata": {}
+      "content": "One bounded trial at a specified operating point can decide whether the predicted separation is present.",
+      "exported": false,
+      "metadata": {"reader_role": "criterion"}
     },
     {
       "id": "github:trial_idea::ev_cost",
       "label": "ev_cost",
       "type": "claim",
+      "content": "The available trial covers one operating condition and cannot distinguish the broader hypothesis.",
+      "exported": false,
       "metadata": {
         "prior": 0.999,
         "supported_by": [
           {
             "action_label": "github:trial_idea::action::_anon_action_003",
             "pattern": "observation",
-            "rationale": "anchor: idea_card minimal_compute_plan (trial fixture)",
+            "rationale": "evidence_family: scope-limitation; correlation_model: single; anchor: idea_card minimal_compute_plan (trial fixture)",
             "warrants": ["github:trial_idea::_anon_003"]
           }
         ]
       }
+    },
+    {
+      "id": "github:trial_idea::downstream_reach",
+      "label": "downstream_reach",
+      "type": "claim",
+      "content": "The trial discriminator can be reused in two subsequent comparisons of the same measured response.",
+      "exported": false,
+      "metadata": {"reader_role": "criterion"}
+    },
+    {
+      "id": "github:trial_idea::mechanism_insight",
+      "label": "mechanism_insight",
+      "type": "claim",
+      "content": "The proposed mechanism predicts a response distinct from the recorded alternative under the trial condition.",
+      "exported": false,
+      "metadata": {"reader_role": "criterion"}
+    },
+    {
+      "id": "github:trial_idea::testability_timing",
+      "label": "testability_timing",
+      "type": "claim",
+      "content": "The required response and comparison data are available for an immediate discriminating trial.",
+      "exported": false,
+      "metadata": {"reader_role": "criterion"}
     }
   ],
-  "strategies": []
+  "strategies": [
+    {
+      "type": "infer",
+      "premises": ["github:trial_idea::tension_resolution"],
+      "conclusion": "github:trial_idea::ev_tension",
+      "conditional_probabilities": [0.09, 0.9],
+      "steps": [{"reasoning": "reader_reasoning: The executed check demonstrates a scoped partial resolution rather than merely documenting the tension. resolution_evidence: demonstrated_partial_resolution. anchor: executed discriminating-check artifact (trial fixture)"}],
+      "strategy_id": "infer_tension"
+    },
+    {
+      "type": "infer",
+      "premises": ["github:trial_idea::worth"],
+      "conclusion": "github:trial_idea::tension_resolution",
+      "conditional_probabilities": [0.25, 0.75],
+      "steps": [{"reasoning": "reader_reasoning: Demonstrating a scoped resolution weakly increases the case for sustained verification. anchor: gate_result_v1 generic fixture"}],
+      "strategy_id": "infer_tension_worth"
+    },
+    {
+      "type": "infer",
+      "premises": ["github:trial_idea::worth"],
+      "conclusion": "github:trial_idea::ev_cost",
+      "conditional_probabilities": [0.75, 0.25],
+      "steps": [{"reasoning": "reader_reasoning: Limited discriminatory coverage weakly lowers the case for sustained verification. anchor: trial_report_v1 generic fixture"}],
+      "strategy_id": "infer_scope_worth"
+    }
+  ]
 }

@@ -9,17 +9,18 @@ then parse the produced artifacts:
 - ``.gaia/ir.json``: the number of observation supports — entries in
   ``knowledges[*].metadata.supported_by[*]`` with ``pattern == "observation"``
   — supplies ``evidence_count`` (one count per observe() statement).
-  ``ir_hash`` is embedded into ``gaia_package_ref`` so the reference pins the
-  exact compiled graph.
+  The SHA-256 digest of the exact file bytes is embedded into
+  ``gaia_package_ref`` so the reference also binds exported-root metadata that
+  Gaia 0.5.0a4's internal ``ir_hash`` omits.
 
 Output (stdout, JSON): {"value": float, "evidence_count": int,
-"gaia_package_ref": "project://<project-relative path>#<ir_hash>"}. The
+"gaia_package_ref": "project://<project-relative path>#sha256:<exact-ir-digest>"}. The
 reference is machine-portable on purpose: research projects are synced
 across machines, so it names the package RELATIVE to the enclosing project
 root (the nearest ancestor directory containing ``.nullius/``, or an
 explicit ``--project-root``) instead of embedding this machine's absolute
 path. Path segments are percent-encoded; the ``#sha256:`` fragment is the
-package's own compiled-graph hash. The idea-engine contract types the field
+exact compiled-IR artifact hash. The idea-engine contract types the field
 as format "uri", which this form satisfies. Diagnostics go to stderr.
 Standard library only; Gaia is invoked as a subprocess.
 """
@@ -36,6 +37,23 @@ import subprocess
 import sys
 from pathlib import Path
 from urllib.parse import quote
+
+from idea_package_contract import (
+    audit_evidence_families,
+    compiled_ir_pin,
+    load_compiled_ir,
+    parse_evidence_family_rationale,
+    require_authored_infer_rationales,
+    require_idea_specific_reasoning_claims,
+    require_unique_exported_root,
+)
+from render_detailed_reasoning import (
+    HTML_NAME as DETAILED_HTML_NAME,
+    LEGACY_STAMP_NAME as DETAILED_LEGACY_STAMP_NAME,
+    MANIFEST_NAME as DETAILED_MANIFEST_NAME,
+    MARKDOWN_NAME as DETAILED_MARKDOWN_NAME,
+    portability_violation,
+)
 
 GAIA_PIN = "0.5.0a4"
 
@@ -106,6 +124,11 @@ TRAILING_ANCHOR_RE = re.compile(r"anchor:\s*\S[^\n]*$")
 # clause listing >= 3 independently anchored phenomenon domains, separated
 # by ";" or "|", e.g. "domains: first domain; second domain; third domain".
 DOMAINS_CLAUSE_RE = re.compile(r"domains:\s*([^\n]+)")
+RESOLUTION_EVIDENCE_RE = re.compile(
+    r"resolution_evidence:\s*"
+    r"(mechanism|discriminating_test|demonstrated_partial_resolution)\b"
+)
+READER_REASONING_RE = re.compile(r"^\s*reader_reasoning:\s*\S")
 
 
 def has_domains_clause(text: str) -> bool:
@@ -129,6 +152,12 @@ def has_domains_clause(text: str) -> bool:
         if entry.strip()
     ]
     return len(entries) >= 3
+
+
+def has_resolution_evidence_clause(text: str) -> bool:
+    """True when a pre-anchor clause classifies idea-specific resolution evidence."""
+    before_anchor = re.split(r"anchor:", text, maxsplit=1)[0]
+    return RESOLUTION_EVIDENCE_RE.search(before_anchor) is not None
 
 
 def scan_discipline(source: str) -> tuple[list[str], list[str]]:
@@ -276,8 +305,8 @@ def scan_discipline(source: str) -> tuple[list[str], list[str]]:
                 "is auditable in place"
             )
 
-    def is_downstream_reach(hyp: ast.Name) -> bool:
-        """True when the hypothesis variable IS the downstream_reach claim.
+    def is_claim_title(hyp: ast.Name, title: str) -> bool:
+        """True when the hypothesis variable is the claim with ``title``.
 
         Identity is the claim's title, not the variable spelling: a claim
         bound as `reach = claim(..., title="downstream_reach")` is the reach
@@ -285,10 +314,7 @@ def scan_discipline(source: str) -> tuple[list[str], list[str]]:
         `downstream_reach` is also honoured directly, covering the ordinary
         case where the variable and the title coincide.
         """
-        return (
-            hyp.id == "downstream_reach"
-            or claim_title_by_var.get(hyp.id) == "downstream_reach"
-        )
+        return hyp.id == title or claim_title_by_var.get(hyp.id) == title
 
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
@@ -322,7 +348,7 @@ def scan_discipline(source: str) -> tuple[list[str], list[str]]:
                             "claim variable; anything less is not "
                             "auditable at the strongest grade"
                         )
-                    elif is_downstream_reach(hyp):
+                    elif is_claim_title(hyp, "downstream_reach"):
                         note_text = (
                             note.value
                             if isinstance(note, ast.Constant)
@@ -343,6 +369,37 @@ def scan_discipline(source: str) -> tuple[list[str], list[str]]:
                     "literal numbers; the discipline requires one of the "
                     "three grades written as literals"
                 )
+            if (
+                isinstance(h, ast.Constant)
+                and isinstance(nh, ast.Constant)
+                and isinstance(h.value, (int, float))
+                and isinstance(nh.value, (int, float))
+                and h.value > nh.value
+            ):
+                hypothesis = kwargs.get("hypothesis")
+                note = kwargs.get("rationale")
+                if (
+                    isinstance(hypothesis, ast.Name)
+                    and is_claim_title(hypothesis, "tension_resolution")
+                ):
+                    note_text = (
+                        note.value
+                        if isinstance(note, ast.Constant)
+                        and isinstance(note.value, str)
+                        else ""
+                    )
+                    if not has_resolution_evidence_clause(note_text):
+                        violations.append(
+                            f"line {node.lineno}: raising tension_resolution "
+                            "update must classify idea-specific resolution "
+                            "evidence before the anchor as "
+                            "'resolution_evidence: mechanism', "
+                            "'resolution_evidence: discriminating_test', or "
+                            "'resolution_evidence: "
+                            "demonstrated_partial_resolution'; evidence that "
+                            "a tension exists or that a check is planned does "
+                            "not establish resolution"
+                        )
         if name == "register_prior":
             val = kwargs.get("value")
             if val is None and len(node.args) >= 2:
@@ -368,6 +425,21 @@ def scan_discipline(source: str) -> tuple[list[str], list[str]]:
                     f"line {node.lineno}: {name} {note_name} does not end "
                     "with an 'anchor: <reference>' note"
                 )
+            elif name == "infer":
+                before_anchor = note.value.split("anchor:", 1)[0].strip()
+                if READER_REASONING_RE.search(before_anchor) is None:
+                    violations.append(
+                        f"line {node.lineno}: infer rationale must declare an "
+                        "authored likelihood explanation before its trailing "
+                        "anchor using 'reader_reasoning: <why the evidence "
+                        "changes the hypothesis>'; an anchor or criterion label "
+                        "alone is not reader-facing reasoning"
+                    )
+            elif name == "observe":
+                try:
+                    parse_evidence_family_rationale(note.value)
+                except ValueError as exc:
+                    violations.append(f"line {node.lineno}: {exc}")
         else:
             violations.append(
                 f"line {node.lineno}: {name} {note_name} is not a literal "
@@ -508,37 +580,67 @@ def render_to_file(
         cleanup(tmp_path, "failed-render")
 
 
-def render_graph(gaia_bin: str, package_dir: Path, timeout: int = 120) -> None:
+def render_graph(
+    gaia_bin: str,
+    package_dir: Path,
+    project_root: Path,
+    timeout: int = 120,
+) -> None:
     """Emit human-viewable renderings of the argument graph after inference.
 
-    Three best-effort outputs, in decreasing portability:
+    Four best-effort outputs, in decreasing portability:
     - `argument-graph.html`: a single-file interactive render of the argument
       graph — full statement text on every card, update direction and strength
       on the edges, click-through to likelihoods, rationales, and anchors.
       Built by the sibling `render_argument_graph.py` from the compiled IR and
       the fresh beliefs; needs nothing beyond this Python.
     - `starmap.svg`: gaia's static figure — additionally needs Graphviz on PATH.
-    - `docs/`: the detailed-reasoning render enriched with the fresh beliefs.
+    - `docs/detailed-reasoning.md`: Gaia's exact detailed-reasoning source.
+    - `docs/detailed-reasoning.html`: a static, self-contained browser page
+      generated from that exact Markdown by the sibling renderer. Its manifest
+      binds current beliefs, Markdown, and HTML bytes; Pandoc, Mermaid CLI, and
+      the pinned sanitizer are optional presentation dependencies.
 
     None gate the posterior; each prints where it wrote or why it was skipped.
     The two graph files are written atomically so a failed render never leaves
     a stale graph the report could mislink.
     """
-    renderer = Path(__file__).resolve().parent / "render_argument_graph.py"
-    # Detailed reasoning renders FIRST: the interactive graph's deep-dive
-    # links are emitted only when docs/detailed-reasoning.md exists, so
-    # rendering the graph first would leave a clean first run with no
-    # links at all. Same no-stale-file rule as render_to_file, applied on
-    # BOTH sides of the render: the old file is removed up front (a
-    # zero-exit render that wrote nothing must not leave last run's
-    # reasoning looking current), and whatever a failed render left
-    # behind is removed after. Cleanup failures only warn: rendering is
-    # optional and must never withhold a sound posterior; an unremovable
-    # survivor is simply never stamped (below), so the graph never links
-    # a document from another beliefs generation.
+    scripts_dir = Path(__file__).resolve().parent
+    renderer = scripts_dir / "render_argument_graph.py"
+    detailed_renderer = scripts_dir / "render_detailed_reasoning.py"
+    # Detailed reasoning renders FIRST. Refuse an indirect docs directory
+    # before cleanup or before Gaia can write through it; presentation output
+    # must never mutate a path outside the package.
+    docs_candidate = package_dir / "docs"
+    try:
+        if docs_candidate.is_symlink():
+            raise ValueError("indirect docs directory")
+        docs_candidate.mkdir(exist_ok=True)
+        docs_dir = docs_candidate.resolve(strict=True)
+        docs_dir.relative_to(package_dir)
+        if not docs_dir.is_dir():
+            raise ValueError("docs path is not a directory")
+    except (OSError, ValueError) as exc:
+        docs_dir = None
+        print(
+            f"render skipped (detailed reasoning): unsafe docs directory ({exc})",
+            file=sys.stderr,
+        )
+
+    # Same no-stale-file rule as render_to_file, applied on both sides of
+    # Gaia's render. An old document is never rebound to current beliefs.
     def drop_detailed_reasoning(when: str) -> None:
-        for name in ("detailed-reasoning.md", "detailed-reasoning.beliefs-sha256"):
-            target = package_dir / "docs" / name
+        if docs_dir is None:
+            return
+        for name in (
+            DETAILED_MARKDOWN_NAME,
+            DETAILED_HTML_NAME,
+            DETAILED_HTML_NAME + ".tmp",
+            DETAILED_MANIFEST_NAME,
+            DETAILED_MANIFEST_NAME + ".tmp",
+            DETAILED_LEGACY_STAMP_NAME,
+        ):
+            target = docs_dir / name
             try:
                 target.unlink()
             except FileNotFoundError:
@@ -549,70 +651,84 @@ def render_graph(gaia_bin: str, package_dir: Path, timeout: int = 120) -> None:
                     file=sys.stderr,
                 )
 
-    # Three-valued fingerprint: a hash string (the bytes), None (confirmed
-    # absent), or UNREADABLE (an OSError other than absence -- transient
-    # IO, permissions). Confirmed absence and could-not-read must never be
-    # conflated: after a failed unlink, a transient pre-render read failure
-    # followed by a successful post-render read would otherwise make the
-    # unchanged survivor look freshly written and get it stamped.
+    # Three-valued fingerprint: a hash, confirmed absence, or an unknown
+    # read failure. An unknown pre-state can never prove a fresh write.
     UNREADABLE = object()
 
     def detailed_reasoning_sha():
+        if docs_dir is None:
+            return UNREADABLE
         try:
             return hashlib.sha256(
-                (package_dir / "docs" / "detailed-reasoning.md").read_bytes()
+                (docs_dir / DETAILED_MARKDOWN_NAME).read_bytes()
             ).hexdigest()
         except FileNotFoundError:
             return None
         except OSError:
             return UNREADABLE
 
-    drop_detailed_reasoning("previous")
-    # Fingerprint whatever survived the pre-render cleanup (None when the
-    # cleanup worked): the stamp below requires PROOF that the renderer
-    # actually wrote the document this run. A pre-render unlink that
-    # failed, followed by a zero-exit renderer that wrote nothing, would
-    # otherwise leave last generation's document to be re-stamped with the
-    # current beliefs hash -- exactly the cross-generation link the stamp
-    # exists to prevent.
-    survivor_sha = detailed_reasoning_sha()
-    docs_ok = render_optional(
-        [gaia_bin, "run", "render", "--target", "docs", str(package_dir)],
-        "detailed reasoning -> docs/",
-        timeout,
-    )
-    rendered_sha = detailed_reasoning_sha()
-    # Stamp only on PROOF of a fresh write: the post-render read must have
-    # produced actual bytes, the pre-render state must be KNOWN (a hash or
-    # confirmed absence -- an unreadable pre-state proves nothing), and the
-    # bytes must differ from any survivor's.
+    if docs_dir is not None:
+        drop_detailed_reasoning("previous")
+        survivor_sha = detailed_reasoning_sha()
+        docs_ok = render_optional(
+            [gaia_bin, "run", "render", "--target", "docs", str(package_dir)],
+            "detailed reasoning -> docs/",
+            timeout,
+        )
+        rendered_sha = detailed_reasoning_sha()
+    else:
+        survivor_sha = rendered_sha = UNREADABLE
+        docs_ok = False
     if (
-        docs_ok
+        docs_dir is not None
+        and docs_ok
         and rendered_sha is not None
         and rendered_sha is not UNREADABLE
         and survivor_sha is not UNREADABLE
         and rendered_sha != survivor_sha
     ):
-        # Generation binding: the graph links the document only when this
-        # companion checksum matches the CURRENT beliefs, so a stale
-        # document that survives a later failed cleanup can never be
-        # linked from a graph carrying newer posteriors. Never fatal, like
-        # everything else in this optional-render section: if the stamp
-        # cannot be written, the only consequence is a missing deep-dive
-        # link.
         try:
-            beliefs_sha = hashlib.sha256(
-                (package_dir / ".gaia" / "beliefs.json").read_bytes()
-            ).hexdigest()
-            (package_dir / "docs" / "detailed-reasoning.beliefs-sha256").write_text(
-                f"sha256:{beliefs_sha}\n", encoding="utf-8"
+            markdown_text = (docs_dir / DETAILED_MARKDOWN_NAME).read_text(
+                encoding="utf-8"
             )
-        except OSError as exc:
+            nonportable = portability_violation(markdown_text)
+        except (OSError, UnicodeError) as exc:
             print(
-                f"warning: could not stamp detailed-reasoning.beliefs-sha256: {exc}",
+                f"warning: could not validate {DETAILED_MARKDOWN_NAME}: {exc}",
                 file=sys.stderr,
             )
-    elif not docs_ok:
+            drop_detailed_reasoning("unreadable")
+        else:
+            if nonportable:
+                print(
+                    "render skipped (detailed reasoning HTML): "
+                    f"{DETAILED_MARKDOWN_NAME} contains a {nonportable}",
+                    file=sys.stderr,
+                )
+                drop_detailed_reasoning("non-portable")
+            else:
+                # The standalone script bounds each Pandoc/mmdc subprocess.
+                # Its outer budget covers uv bootstrap, both version probes,
+                # two Pandoc passes, and every Mermaid block rather than
+                # reusing a single-stage timeout for the whole pipeline.
+                mermaid_stages = max(1, markdown_text.lower().count("mermaid"))
+                outer_timeout = timeout * (6 + mermaid_stages) + 60
+                render_optional(
+                    [
+                        "uv",
+                        "run",
+                        "--quiet",
+                        "--script",
+                        str(detailed_renderer),
+                        "--package",
+                        str(package_dir),
+                        "--timeout",
+                        str(timeout),
+                    ],
+                    "detailed reasoning HTML -> docs/detailed-reasoning.html",
+                    outer_timeout,
+                )
+    elif docs_dir is not None and not docs_ok:
         drop_detailed_reasoning("partial")
     render_to_file(
         lambda tmp: [
@@ -620,6 +736,8 @@ def render_graph(gaia_bin: str, package_dir: Path, timeout: int = 120) -> None:
             str(renderer),
             "--package",
             str(package_dir),
+            "--project-root",
+            str(project_root),
             "--out",
             str(tmp),
         ],
@@ -696,7 +814,7 @@ def find_project_root(start: Path) -> Path | None:
     return None
 
 
-def package_ref(package_dir: Path, project_root: Path, ir_hash: str) -> str:
+def package_ref(package_dir: Path, project_root: Path, ir_pin: str) -> str:
     """Build the machine-portable ``project://`` package reference.
 
     The path is RELATIVE to the project root so the reference survives the
@@ -721,7 +839,7 @@ def package_ref(package_dir: Path, project_root: Path, ir_hash: str) -> str:
             "the package directory IS the project root; the package must "
             "be a subdirectory of the project (e.g. argument-graphs/<slug>-gaia)"
         )
-    return f"project://{quote(rel.as_posix(), safe='/')}#{ir_hash}"
+    return f"project://{quote(rel.as_posix(), safe='/')}#{ir_pin}"
 
 
 def extract_posterior(
@@ -737,17 +855,21 @@ def extract_posterior(
                 f"missing {path}; run the inference stages first"
             )
     beliefs = json.loads(beliefs_path.read_text(encoding="utf-8"))
-    ir = json.loads(ir_path.read_text(encoding="utf-8"))
+    ir_bytes = ir_path.read_bytes()
+    ir = load_compiled_ir(ir_bytes)
 
+    require_unique_exported_root(ir, worth_label)
+    require_idea_specific_reasoning_claims(ir)
+    require_authored_infer_rationales(ir)
+    audit_evidence_families(ir, worth_label)
     value = extract_worth_belief(beliefs, worth_label)
     evidence_count = count_observations(ir)
-    ir_hash = ir.get("ir_hash", "")
-    if not ir_hash:
-        raise ValueError(f"no ir_hash in {ir_path}; cannot pin the graph state")
     return {
         "value": value,
         "evidence_count": evidence_count,
-        "gaia_package_ref": package_ref(package_dir, project_root, ir_hash),
+        "gaia_package_ref": package_ref(
+            package_dir, project_root, compiled_ir_pin(ir_bytes)
+        ),
     }
 
 
@@ -755,11 +877,6 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--package", required=True, help="path to the Gaia package directory"
-    )
-    parser.add_argument(
-        "--worth-label",
-        default="worth",
-        help="module variable name of the top-level claim (default: worth)",
     )
     parser.add_argument(
         "--gaia-bin",
@@ -853,16 +970,25 @@ def main(argv: list[str] | None = None) -> int:
         )
 
     run_stage(gaia_bin, ["build", "compile"], package_dir)
+    try:
+        compiled_ir = load_compiled_ir(
+            (package_dir / ".gaia" / "ir.json").read_bytes()
+        )
+        require_unique_exported_root(compiled_ir)
+        require_idea_specific_reasoning_claims(compiled_ir)
+        require_authored_infer_rationales(compiled_ir)
+        audit_evidence_families(compiled_ir)
+    except (OSError, ValueError) as exc:
+        sys.stderr.write(f"error: {exc}\n")
+        return 2
     run_stage(gaia_bin, ["build", "check"], package_dir)
     run_stage(gaia_bin, ["run", "infer"], package_dir)
 
     if not args.no_render:
-        render_graph(gaia_bin, package_dir, args.render_timeout)
+        render_graph(gaia_bin, package_dir, project_root, args.render_timeout)
 
     try:
-        posterior = extract_posterior(
-            package_dir, args.worth_label, project_root
-        )
+        posterior = extract_posterior(package_dir, "worth", project_root)
     except (FileNotFoundError, ValueError, json.JSONDecodeError) as exc:
         sys.stderr.write(f"error: {exc}\n")
         return 2

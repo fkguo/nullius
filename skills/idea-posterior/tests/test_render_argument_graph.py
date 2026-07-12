@@ -30,12 +30,22 @@ NS = "github:demo_idea"
 
 WORTH = f"{NS}::worth"
 TENSION = f"{NS}::tension_resolution"
+REACH = f"{NS}::downstream_reach"
+MECHANISM = f"{NS}::mechanism_insight"
+TIMING = f"{NS}::testability_timing"
+COST = f"{NS}::verification_cost"
 EV_ANCHOR = f"{NS}::ev_anchor"
 EV_SCOPE = f"{NS}::ev_scope_limit"
 HELPER = f"{NS}::_anon_000"
 
-WORTH_TEXT = "The idea merits sustained verification effort."
-TENSION_TEXT = "The idea resolves an anchored open tension."
+WORTH_TEXT = (
+    "The controlled comparison merits sustained verification because it can "
+    "separate two recorded explanations."
+)
+TENSION_TEXT = (
+    "The comparison can resolve which explanation accounts for the recorded "
+    "effect within the tested range."
+)
 ANCHOR_TEXT = (
     "A grounded survey records the tension between calibration papers "
     "& regulator discussions."
@@ -50,6 +60,7 @@ def knowledge(kid: str, label: str, content: str, index: int, observed: bool = F
         "type": "claim",
         "content": content,
         "declaration_index": index,
+        "exported": kid == WORTH,
         "metadata": {},
     }
     if observed:
@@ -59,6 +70,7 @@ def knowledge(kid: str, label: str, content: str, index: int, observed: bool = F
                 {
                     "pattern": "observation",
                     "rationale": (
+                        "evidence_family: graph-demo; correlation_model: single; "
                         "Recorded observation for the demo. "
                         "anchor: artifacts/demo/survey_v1.json; "
                         "artifacts/demo/close_prior_matrix_v1.json"
@@ -91,23 +103,49 @@ def base_ir() -> dict:
         "knowledges": [
             knowledge(WORTH, "worth", WORTH_TEXT, 0),
             knowledge(TENSION, "tension_resolution", TENSION_TEXT, 1),
-            knowledge(EV_ANCHOR, "ev_anchor", ANCHOR_TEXT, 2, observed=True),
-            knowledge(EV_SCOPE, "ev_scope_limit", SCOPE_TEXT, 3, observed=True),
-            {"id": HELPER, "type": "claim"},
+            knowledge(
+                REACH,
+                "downstream_reach",
+                "The resulting discriminator can be reused in two subsequent comparisons.",
+                2,
+            ),
+            knowledge(
+                MECHANISM,
+                "mechanism_insight",
+                "The compared mechanisms predict distinct responses under the recorded condition.",
+                3,
+            ),
+            knowledge(
+                TIMING,
+                "testability_timing",
+                "The required response and comparison records are available now.",
+                4,
+            ),
+            knowledge(
+                COST,
+                "verification_cost",
+                "One bounded comparison decides whether the response separation is present.",
+                5,
+            ),
+            knowledge(EV_ANCHOR, "ev_anchor", ANCHOR_TEXT, 6, observed=True),
+            knowledge(EV_SCOPE, "ev_scope_limit", SCOPE_TEXT, 7, observed=True),
+            {"id": HELPER, "type": "claim", "exported": False},
         ],
         "strategies": [
             infer_strategy(
                 EV_ANCHOR, TENSION, 0.09, 0.90, "lcs_anchor",
-                "Substantial support for the anchored tension. "
+                "reader_reasoning: Substantial support for the anchored tension. "
+                "resolution_evidence: mechanism. "
                 "anchor: artifacts/demo/survey_v1.json",
             ),
             infer_strategy(
                 TENSION, WORTH, 0.25, 0.75, "lcs_worth",
-                "Weak worth update. anchor: artifacts/demo/record_v1.json",
+                "reader_reasoning: Weak worth update. "
+                "anchor: artifacts/demo/record_v1.json",
             ),
             infer_strategy(
                 EV_SCOPE, WORTH, 0.75, 0.25, "lcs_scope",
-                "Weak lowering: the executed check does not cover the claim. "
+                "reader_reasoning: Weak lowering: the executed check does not cover the claim. "
                 "anchor: artifacts/demo/scope_v1.json",
             ),
         ],
@@ -163,19 +201,56 @@ def rendered(tmp_path: Path, *extra: str) -> str:
     return (package / "argument-graph.html").read_text(encoding="utf-8")
 
 
-def write_detailed_reasoning(package, body="#### worth\n"):
-    """Write docs/detailed-reasoning.md plus the matching generation stamp
-    (sha256 of the package's current .gaia/beliefs.json), exactly as the
-    pipeline does after a successful docs render."""
-    import hashlib as _hashlib
+def write_detailed_reasoning(package, body="#### worth\n", fragments=None):
+    """Install a four-hash-bound detailed-page fixture for graph unit tests.
+
+    Positive end-to-end coverage invokes the standalone renderer itself; this
+    helper keeps graph-only tests fast while malformed/stale tests mutate the
+    same public manifest shape.
+    """
     docs = package / "docs"
     docs.mkdir(exist_ok=True)
-    (docs / "detailed-reasoning.md").write_text(body, encoding="utf-8")
-    beliefs_sha = _hashlib.sha256(
-        (package / ".gaia" / "beliefs.json").read_bytes()
-    ).hexdigest()
-    (docs / "detailed-reasoning.beliefs-sha256").write_text(
-        f"sha256:{beliefs_sha}\n", encoding="utf-8"
+    markdown = docs / rag.DETAILED_MARKDOWN_NAME
+    html_page = docs / rag.DETAILED_HTML_NAME
+    manifest = docs / rag.DETAILED_MANIFEST_NAME
+    markdown.write_text(body, encoding="utf-8")
+    if fragments is None:
+        ir = json.loads((package / ".gaia" / "ir.json").read_text(encoding="utf-8"))
+        fragments = sorted(
+            item["label"]
+            for item in ir.get("knowledges", [])
+            if item.get("label")
+            and not item["label"].startswith(rag.HELPER_LABEL_PREFIXES)
+        )
+    html_page.write_text(
+        "<!doctype html>\n"
+        + "\n".join(
+            f'<h4 id="{html.escape(fragment)}">{html.escape(fragment)}</h4>'
+            for fragment in fragments
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    manifest.write_text(
+        json.dumps(
+            {
+                "artifact": rag.DETAILED_ARTIFACT,
+                "beliefs_sha256": rag.sha256_bytes(
+                    (package / ".gaia" / "beliefs.json").read_bytes()
+                ),
+                "fragments": fragments,
+                "html_sha256": rag.sha256_bytes(html_page.read_bytes()),
+                "ir_sha256": rag.sha256_bytes(
+                    (package / ".gaia" / "ir.json").read_bytes()
+                ),
+                "markdown_sha256": rag.sha256_bytes(markdown.read_bytes()),
+                "renderer": {"fixture": "graph-unit-test"},
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
     )
     return docs
 
@@ -198,8 +273,8 @@ def test_cards_show_full_statements(tmp_path) -> None:
     # Wrapping splits statements across tspans; check phrase fragments that
     # fit within one wrapped line.
     for fragment in (
-        "The idea merits sustained",
-        "The idea resolves an anchored open",
+        "The controlled comparison merits sustained",
+        "The comparison can resolve which explanation",
         "regulator discussions.",
         "single channel only,",
     ):
@@ -241,6 +316,8 @@ def test_roles_and_observation_marking(tmp_path) -> None:
         {"text": "artifacts/demo/survey_v1.json", "href": None},
         {"text": "artifacts/demo/close_prior_matrix_v1.json", "href": None},
     ]
+    assert "evidence_family:" not in payload["nodes"][EV_ANCHOR]["observation_note"]
+    assert "correlation_model:" not in payload["nodes"][EV_ANCHOR]["observation_note"]
     assert "recorded observation" in page
     assert "0.847" in page  # root posterior shown
 
@@ -358,6 +435,31 @@ def test_missing_beliefs_is_a_clear_error(tmp_path) -> None:
     assert not (package / "argument-graph.html").exists()
 
 
+def test_renderer_refuses_stale_package_without_unique_exported_worth(tmp_path) -> None:
+    ir = base_ir()
+    for item in ir["knowledges"]:
+        if item.get("label") == "worth":
+            item["exported"] = False
+    package = write_package(tmp_path, ir, base_beliefs())
+    result = run_renderer(package)
+    assert result.returncode == 2
+    assert '__all__ = ["worth"]' in result.stderr
+    assert not (package / "argument-graph.html").exists()
+
+
+def test_renderer_refuses_to_persist_machine_specific_paths(tmp_path) -> None:
+    ir = base_ir()
+    machine_local = "/" + "Users" + "/example/private-note.md"
+    ir["knowledges"][0]["content"] = (
+        f"A forbidden local reference appears at {machine_local}."
+    )
+    package = write_package(tmp_path, ir, base_beliefs())
+    result = run_renderer(package)
+    assert result.returncode == 2
+    assert "machine-local" in result.stderr
+    assert not (package / "argument-graph.html").exists()
+
+
 def test_header_links_and_title(tmp_path) -> None:
     page = rendered(
         tmp_path, "--title", "Demo idea", "--link", "All graphs=../../index.html"
@@ -402,7 +504,8 @@ def test_factor_text_formats() -> None:
 
 def test_split_anchors() -> None:
     prose, anchors = rag.split_anchors(
-        "Weak update. anchor: artifacts/a.json; artifacts/b.md"
+        "reader_reasoning: Weak update. resolution_evidence: mechanism. "
+        "anchor: artifacts/a.json; artifacts/b.md"
     )
     assert prose == "Weak update."
     assert anchors == ["artifacts/a.json", "artifacts/b.md"]
@@ -537,8 +640,7 @@ def test_classify_anchor_whitelist() -> None:
     assert web["href"] == "https://example.org/paper#sec2"
     plain_http = rag.classify_anchor("http://example.org/x")
     assert plain_http["href"] == "http://example.org/x"
-    md = rag.classify_anchor("../notes/deep_read.md")
-    assert md["href"] == "../notes/deep_read.md"
+    assert rag.classify_anchor("../notes/deep_read.md")["href"] is None
     md2 = rag.classify_anchor("docs/detailed-reasoning.md")
     assert md2["href"] == "docs/detailed-reasoning.md"
     # The Markdown boundary applies to the PATH: a fragment after a .md
@@ -554,8 +656,125 @@ def test_classify_anchor_whitelist() -> None:
         "javascript:alert(1)",
         "run 2026-07-08T03:10:30Z",
         "javascript:evil.md",
+        "docs/./notes.md",
+        "docs//notes.md",
     ):
         assert rag.classify_anchor(opaque)["href"] is None, opaque
+
+
+def test_renderer_without_project_root_links_only_existing_package_markdown(
+    tmp_path,
+) -> None:
+    ir = base_ir()
+    ir["strategies"][1]["steps"][0]["reasoning"] = (
+        "Weak worth update. anchor: notes/present.md; notes/missing.md"
+    )
+    package = write_package(tmp_path, ir, base_beliefs())
+    notes = package / "notes"
+    notes.mkdir()
+    (notes / "present.md").write_text("evidence", encoding="utf-8")
+
+    result = run_renderer(package)
+    assert result.returncode == 0, result.stderr
+    payload = payload_of((package / "argument-graph.html").read_text(encoding="utf-8"))
+    update = next(
+        edge
+        for edge in payload["edges"]
+        if edge["source"] == TENSION and edge["target"] == WORTH
+    )
+    assert update["anchors"] == [
+        {"text": "notes/present.md", "href": "notes/present.md"},
+        {"text": "notes/missing.md", "href": None},
+    ]
+
+
+def test_project_root_context_resolves_only_existing_in_project_markdown(tmp_path) -> None:
+    project = tmp_path / "project"
+    ir = base_ir()
+    ir["strategies"][1]["steps"][0]["reasoning"] = (
+        "Weak worth update. anchor: artifacts/demo/record_v1.md; "
+        "notes/local.md; artifacts/demo/missing.md; ../outside.md"
+    )
+    package = write_package(project / "ideas" / "gaia", ir, base_beliefs())
+    artifact = project / "artifacts" / "demo" / "record_v1.md"
+    artifact.parent.mkdir(parents=True)
+    artifact.write_text("evidence", encoding="utf-8")
+    local = package / "notes" / "local.md"
+    local.parent.mkdir()
+    local.write_text("local", encoding="utf-8")
+    (tmp_path / "outside.md").write_text("outside", encoding="utf-8")
+
+    result = run_renderer(package, "--project-root", str(project))
+    assert result.returncode == 0, result.stderr
+    payload = payload_of((package / "argument-graph.html").read_text(encoding="utf-8"))
+    update = next(
+        edge
+        for edge in payload["edges"]
+        if edge["source"] == TENSION and edge["target"] == WORTH
+    )
+    assert update["anchors"] == [
+        {
+            "text": "artifacts/demo/record_v1.md",
+            "href": "../../../artifacts/demo/record_v1.md",
+        },
+        {"text": "notes/local.md", "href": "notes/local.md"},
+        {"text": "artifacts/demo/missing.md", "href": None},
+        {"text": "../outside.md", "href": None},
+    ]
+
+
+def test_project_root_context_rejects_symlink_escape(tmp_path) -> None:
+    project = tmp_path / "project"
+    package = project / "ideas" / "gaia" / "demo-gaia"
+    package.mkdir(parents=True)
+    outside = tmp_path / "outside.md"
+    outside.write_text("outside", encoding="utf-8")
+    link = package / "outside-link.md"
+    try:
+        link.symlink_to(outside)
+    except OSError as exc:
+        pytest.skip(f"symlinks unavailable: {exc}")
+
+    anchor = rag.classify_anchor(
+        "outside-link.md",
+        package_dir=package,
+        output_dir=package,
+        project_root=project,
+    )
+    assert anchor == {"text": "outside-link.md", "href": None}
+
+
+def test_project_root_context_rejects_markdown_symlink_to_non_markdown(
+    tmp_path,
+) -> None:
+    project = tmp_path / "project"
+    package = project / "ideas" / "gaia" / "demo-gaia"
+    package.mkdir(parents=True)
+    target = project / "artifacts" / "record.txt"
+    target.parent.mkdir()
+    target.write_text("not Markdown", encoding="utf-8")
+    link = package / "record.md"
+    try:
+        link.symlink_to(target)
+    except OSError as exc:
+        pytest.skip(f"symlinks unavailable: {exc}")
+
+    anchor = rag.classify_anchor(
+        "record.md",
+        package_dir=package,
+        output_dir=package,
+        project_root=project,
+    )
+    assert anchor == {"text": "record.md", "href": None}
+
+
+def test_project_root_must_contain_the_package(tmp_path) -> None:
+    package = write_package(tmp_path / "package-parent", base_ir(), base_beliefs())
+    other_root = tmp_path / "other-project"
+    other_root.mkdir()
+    result = run_renderer(package, "--project-root", str(other_root))
+    assert result.returncode == 2
+    assert "package directory is not under project root" in result.stderr
 
 
 def test_detail_panel_links_the_detailed_reasoning_document(tmp_path) -> None:
@@ -566,7 +785,7 @@ def test_detail_panel_links_the_detailed_reasoning_document(tmp_path) -> None:
     page = (package / "argument-graph.html").read_text(encoding="utf-8")
     payload = payload_of(page)
     worth = payload["nodes"][WORTH]
-    assert worth["doc_href"] == "docs/detailed-reasoning.md#worth"
+    assert worth["doc_href"] == "docs/detailed-reasoning.html#worth"
     # Junction relays never link.
     for node in payload["nodes"].values():
         if node["role"] == "junction":
@@ -574,7 +793,7 @@ def test_detail_panel_links_the_detailed_reasoning_document(tmp_path) -> None:
 
 
 def test_no_doc_links_without_the_document_or_off_package_out(tmp_path) -> None:
-    # No docs/detailed-reasoning.md -> no links at all.
+    # No bound docs/detailed-reasoning.html -> no links at all.
     page = rendered(tmp_path)
     for node in payload_of(page)["nodes"].values():
         assert "doc_href" not in node
@@ -610,9 +829,9 @@ def test_classify_anchor_rejects_backslash_and_control_variants() -> None:
 
 
 def test_doc_href_preserves_label_case_and_skips_helpers(tmp_path) -> None:
-    # The detailed-reasoning render precedes each section with a
-    # case-preserving <a id="{label}"></a>; lowercasing would break valid
-    # mixed-case labels. Referenced helper nodes have no section at all.
+    # The detailed-page renderer installs the exact case-preserving IR label
+    # on each node heading; lowercasing would break mixed-case fragments.
+    # Referenced helper nodes have no section at all.
     ir = base_ir()
     mixed = f"{NS}::MixedCase_Claim"
     ir["knowledges"].append(knowledge(mixed, "MixedCase_Claim", "A mixed-case judgment.", 20))
@@ -638,13 +857,15 @@ def test_doc_href_preserves_label_case_and_skips_helpers(tmp_path) -> None:
     )
     package = write_package(tmp_path, ir, beliefs)
     write_detailed_reasoning(
-        package, '<a id="MixedCase_Claim"></a>\n#### MixedCase_Claim\n'
+        package,
+        "#### MixedCase_Claim\n",
+        fragments=["MixedCase_Claim"],
     )
     result = run_renderer(package)
     assert result.returncode == 0, result.stderr
     payload = payload_of((package / "argument-graph.html").read_text(encoding="utf-8"))
     assert payload["nodes"][mixed]["doc_href"] == (
-        "docs/detailed-reasoning.md#MixedCase_Claim"
+        "docs/detailed-reasoning.html#MixedCase_Claim"
     )
     helper_nodes = [
         n for n in payload["nodes"].values()
@@ -691,7 +912,7 @@ def test_doc_links_survive_the_production_temp_sibling_out(tmp_path) -> None:
     result = run_renderer(package, "--out", str(out))
     assert result.returncode == 0, result.stderr
     payload = payload_of(out.read_text(encoding="utf-8"))
-    assert payload["nodes"][WORTH]["doc_href"] == "docs/detailed-reasoning.md#worth"
+    assert payload["nodes"][WORTH]["doc_href"] == "docs/detailed-reasoning.html#worth"
 
 
 def test_place_chips_window_and_fallback_unit() -> None:
@@ -748,32 +969,72 @@ def test_place_chips_window_and_fallback_unit() -> None:
 
 
 def test_stale_generation_reasoning_is_never_linked(tmp_path) -> None:
-    # The binding is to the beliefs GENERATION: a document whose companion
-    # stamp records some other beliefs state (a survivor of a failed
-    # render whose cleanup also failed) must not be linked from a graph
-    # carrying the current posteriors -- existence does not establish
-    # freshness. A missing stamp (document present, no companion) is the
-    # same safe side.
+    # A manifest carrying another beliefs generation is stale even when its
+    # Markdown and HTML files survive. A missing manifest is the same safe
+    # side; there is no legacy beliefs-only fallback.
     package = write_package(tmp_path, base_ir(), base_beliefs())
     docs = write_detailed_reasoning(package)
-    (docs / "detailed-reasoning.beliefs-sha256").write_text(
-        "sha256:" + "0" * 64 + "\n", encoding="utf-8"
-    )
+    manifest_path = docs / rag.DETAILED_MANIFEST_NAME
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["beliefs_sha256"] = "sha256:" + "0" * 64
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
     result = run_renderer(package)
     assert result.returncode == 0, result.stderr
     page = (package / "argument-graph.html").read_text(encoding="utf-8")
     assert '"doc_href":' not in page
 
-    (docs / "detailed-reasoning.beliefs-sha256").unlink()
+    manifest_path.unlink()
     result = run_renderer(package)
     assert result.returncode == 0, result.stderr
     page = (package / "argument-graph.html").read_text(encoding="utf-8")
     assert '"doc_href":' not in page
 
 
-def test_hand_polished_current_generation_document_keeps_its_link(tmp_path) -> None:
-    # Hand-editing the document does NOT drop the link: the stamp binds the
-    # beliefs generation it was rendered from, not the document's bytes.
+@pytest.mark.parametrize(
+    "mutation",
+    (
+        "missing_html",
+        "edited_html",
+        "edited_markdown",
+        "malformed_manifest",
+        "manifest_fragment_missing_from_html",
+    ),
+)
+def test_missing_or_stale_detailed_page_suppresses_all_deep_links(
+    tmp_path, mutation
+) -> None:
+    package = write_package(tmp_path, base_ir(), base_beliefs())
+    docs = write_detailed_reasoning(package)
+    if mutation == "missing_html":
+        (docs / rag.DETAILED_HTML_NAME).unlink()
+    elif mutation == "edited_html":
+        (docs / rag.DETAILED_HTML_NAME).write_text("STALE\n", encoding="utf-8")
+    elif mutation == "edited_markdown":
+        (docs / rag.DETAILED_MARKDOWN_NAME).write_text(
+            "#### worth\nEdited after rendering.\n", encoding="utf-8"
+        )
+    elif mutation == "malformed_manifest":
+        (docs / rag.DETAILED_MANIFEST_NAME).write_text("{not json", encoding="utf-8")
+    else:
+        html_path = docs / rag.DETAILED_HTML_NAME
+        html_path.write_text(
+            "<!doctype html><p>No node target.</p>\n", encoding="utf-8"
+        )
+        manifest_path = docs / rag.DETAILED_MANIFEST_NAME
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["html_sha256"] = rag.sha256_bytes(html_path.read_bytes())
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    result = run_renderer(package)
+    assert result.returncode == 0, result.stderr
+    page = (package / "argument-graph.html").read_text(encoding="utf-8")
+    assert '"doc_href":' not in page
+
+
+def test_edited_markdown_invalidates_link_until_html_is_regenerated(tmp_path) -> None:
+    # The binding covers exact Markdown bytes as well as beliefs. Editing the
+    # source correctly makes the old HTML stale until the standalone renderer
+    # regenerates both the page and the manifest.
     package = write_package(tmp_path, base_ir(), base_beliefs())
     docs = write_detailed_reasoning(package)
     (docs / "detailed-reasoning.md").write_text(
@@ -781,5 +1042,5 @@ def test_hand_polished_current_generation_document_keeps_its_link(tmp_path) -> N
     )
     result = run_renderer(package)
     assert result.returncode == 0, result.stderr
-    payload = payload_of((package / "argument-graph.html").read_text(encoding="utf-8"))
-    assert payload["nodes"][WORTH]["doc_href"] == "docs/detailed-reasoning.md#worth"
+    page = (package / "argument-graph.html").read_text(encoding="utf-8")
+    assert '"doc_href":' not in page

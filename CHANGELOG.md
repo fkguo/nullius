@@ -10,6 +10,34 @@ version is the lockstep number below.
 ## [Unreleased]
 
 ### Added
+- **Evidence-first idea-posterior reasoning and complete IR binding.** The
+  standalone detailed page now reconstructs static evidence-to-conclusion
+  paths from the compiled IR, showing concrete observations, authored
+  likelihood rationales, structural criterion updates, and both supporting
+  and lowering effects before Gaia's raw model report. Raw Gaia diagrams are
+  labelled as generative probability-model graphs whose hypothesis-to-evidence
+  arrows are distinct from reader evidence flow. The package contract now
+  requires `__all__ = ["worth"]` and checks that `worth` is the unique exported
+  conclusion at extraction, rendering, and writeback. Package references and
+  detailed-page manifests bind the exact `.gaia/ir.json` bytes, covering
+  exported-root metadata omitted by Gaia 0.5.0a4's internal `ir_hash`; older
+  packages and references migrate by setting the export, marking authored
+  infer explanations with `reader_reasoning:`, declaring each observation's
+  evidence family and correlation model, and re-extracting.
+  Infer rationales use an explicit `reader_reasoning:` authorship sentinel;
+  generic criterion prose and anchor-only notes cannot satisfy that contract.
+  Raising `tension_resolution` updates now require an explicit idea-specific
+  `resolution_evidence` class, so evidence that merely establishes an open
+  tension or proposes a future check cannot masquerade as successful
+  resolution. Writeback cross-checks the matrix's recorded tension grade(s)
+  against the compiled IR and rejects matrices that declare themselves stale;
+  reviewer guidance also treats repeated observations with a shared cause as
+  one evidential source rather than independent votes. Observe rationales now
+  carry explicit `evidence_family` and `correlation_model` declarations;
+  a family can contribute only one composite observation on one path to the
+  exported conclusion because Gaia's separate likelihoods otherwise multiply
+  even when their arrows meet at one claim. The reader page discloses every
+  family occurrence and whether it can affect the posterior.
 - **Argument-graph field-audit fixes + generation-bound deep-dive links.**
   From the first real-project render audit (data fidelity fully clean; all
   defects presentation-layer): grade chips are placed collision-free by a
@@ -18,15 +46,18 @@ version is the lockstep number below.
   limits); narrow viewports open at a readable scale floor and pan; source
   anchors are whitelist-classified into links (http(s) and relative
   Markdown paths only, fragment-aware, plain character set) versus plain
-  machine-readable text. Each card's detail panel now deep-links its
-  node's section in `docs/detailed-reasoning.md`, and the link is a
-  generation-bound evidence reference: the pipeline stamps a companion
-  checksum of `.gaia/beliefs.json` after a successful docs render (only
-  when the renderer provably wrote the document this run — three-valued
-  pre/post fingerprint), and the graph links only a document rendered from
-  the current beliefs. A stale survivor from another generation is never
-  linked; hand-polishing the current generation's document keeps its link;
-  every optional-render file operation is never-fatal.
+  machine-readable text. Each card's detail panel now deep-links its exact
+  case-preserving node section in a self-contained,
+  directly local-file-readable `docs/detailed-reasoning.html`. A PEP 723
+  standalone renderer uses Pandoc for Markdown and MathML, Mermaid CLI for
+  static embedded SVG, and pinned nh3/Ammonia sanitization; raw HTML, active
+  URL schemes, event handlers, and scripts cannot enter the page. A manifest
+  written last binds
+  exact SHA-256 digests of current beliefs, compiled IR, Markdown, and HTML.
+  The graph independently verifies all four, so missing, edited, malformed, or stale
+  artifacts yield no deep-dive link. Editing the Markdown requires the
+  documented HTML-then-argument-graph regeneration order; every optional
+  render remains non-fatal to posterior extraction.
 - **Statement-first argument-graph render (`argument-graph.html`).**
   `skills/idea-posterior/scripts/render_argument_graph.py` renders a compiled
   and inferred Gaia package (`.gaia/ir.json` + `.gaia/beliefs.json`) into one

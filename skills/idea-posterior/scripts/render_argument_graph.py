@@ -36,14 +36,30 @@ page. Stdlib only.
 from __future__ import annotations
 
 import argparse
-import hashlib
 import html
 import json
 import math
+import os
 import re
 import sys
 import textwrap
+from html.parser import HTMLParser
 from pathlib import Path
+
+from idea_package_contract import (
+    observation_rationale_parts,
+    reader_rationale_text,
+    require_idea_specific_reasoning_claims,
+    require_unique_exported_root,
+)
+from render_detailed_reasoning import (
+    ARTIFACT as DETAILED_ARTIFACT,
+    HTML_NAME as DETAILED_HTML_NAME,
+    MANIFEST_NAME as DETAILED_MANIFEST_NAME,
+    MARKDOWN_NAME as DETAILED_MARKDOWN_NAME,
+    portability_violation,
+    sha256_bytes,
+)
 
 # Helper-label prefixes mirror gaia.engine.ir.coarsen.HELPER_LABEL_PREFIXES
 # exactly: compiler-minted warrants/actions that no reader authored. They are
@@ -85,31 +101,108 @@ def load_json(path: Path, what: str) -> dict:
         raise fail(f"unreadable {what} at {path}: {exc}")
 
 
-def detailed_reasoning_matches_beliefs(package_dir: Path) -> bool:
-    """Whether docs/detailed-reasoning.md was rendered from the CURRENT
-    beliefs, per the companion checksum the pipeline writes after a
-    successful docs render (sha256 of .gaia/beliefs.json at that moment).
+class _FragmentCollector(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.ids: set[str] = set()
 
-    Existence alone does not establish freshness: after a failed render
-    whose cleanup also failed, last generation's document can survive on
-    disk, and a graph carrying this generation's posteriors must not send
-    readers into the other generation's reasoning. Missing document,
-    missing companion, unreadable bytes, or a hash mismatch all mean "do
-    not link" -- the safe side. Hand-polishing the document does NOT drop
-    the link: the binding is to the beliefs generation it was rendered
-    from, not to the document's own bytes.
+    def handle_starttag(self, _tag: str, attrs) -> None:
+        for name, value in attrs:
+            if name == "id" and value:
+                self.ids.add(value)
+
+
+def current_detailed_reasoning_fragments(package_dir: Path) -> set[str] | None:
+    """Return linkable fragments only for a provably current HTML page.
+
+    The standalone renderer owns the sidecar. This verifier independently
+    rehashes current beliefs, the exact compiled IR, the exact Markdown
+    source, and the HTML bytes;
+    missing, malformed, unreadable, escaping, or mismatched artifacts all
+    return ``None``.  There is intentionally no beliefs-only or legacy-stamp
+    fallback.
     """
-    doc_file = package_dir / "docs" / "detailed-reasoning.md"
-    stamp_file = package_dir / "docs" / "detailed-reasoning.beliefs-sha256"
-    beliefs_file = package_dir / ".gaia" / "beliefs.json"
+    package = package_dir.resolve()
+    paths = {
+        "beliefs": package / ".gaia" / "beliefs.json",
+        "ir": package / ".gaia" / "ir.json",
+        "markdown": package / "docs" / DETAILED_MARKDOWN_NAME,
+        "html": package / "docs" / DETAILED_HTML_NAME,
+        "manifest": package / "docs" / DETAILED_MANIFEST_NAME,
+    }
     try:
-        if not doc_file.is_file() or not stamp_file.is_file():
-            return False
-        recorded = stamp_file.read_text(encoding="utf-8").strip()
-        current = "sha256:" + hashlib.sha256(beliefs_file.read_bytes()).hexdigest()
-        return recorded == current
-    except OSError:
-        return False
+        for path in paths.values():
+            resolved = path.resolve(strict=True)
+            resolved.relative_to(package)
+            if not resolved.is_file():
+                return None
+        manifest_bytes = paths["manifest"].read_bytes()
+        if len(manifest_bytes) > 1_000_000:
+            return None
+        manifest_text = manifest_bytes.decode("utf-8")
+        if portability_violation(manifest_text):
+            return None
+        manifest = json.loads(manifest_text)
+        if (
+            not isinstance(manifest, dict)
+            or manifest.get("artifact") != DETAILED_ARTIFACT
+        ):
+            return None
+        expected_keys = {
+            "artifact",
+            "beliefs_sha256",
+            "fragments",
+            "html_sha256",
+            "ir_sha256",
+            "markdown_sha256",
+            "renderer",
+        }
+        if set(manifest) != expected_keys or not isinstance(manifest["renderer"], dict):
+            return None
+        for key in (
+            "beliefs_sha256",
+            "ir_sha256",
+            "markdown_sha256",
+            "html_sha256",
+        ):
+            if not isinstance(manifest.get(key), str) or not re.fullmatch(
+                r"sha256:[0-9a-f]{64}", manifest[key]
+            ):
+                return None
+        fragments = manifest.get("fragments")
+        if (
+            not isinstance(fragments, list)
+            or len(fragments) != len(set(fragments))
+            or any(
+                not isinstance(fragment, str)
+                or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", fragment)
+                for fragment in fragments
+            )
+        ):
+            return None
+        beliefs_bytes = paths["beliefs"].read_bytes()
+        ir_bytes = paths["ir"].read_bytes()
+        markdown_bytes = paths["markdown"].read_bytes()
+        html_bytes = paths["html"].read_bytes()
+        markdown_text = markdown_bytes.decode("utf-8")
+        html_text = html_bytes.decode("utf-8")
+        if portability_violation(markdown_text) or portability_violation(html_text):
+            return None
+        if manifest["beliefs_sha256"] != sha256_bytes(beliefs_bytes):
+            return None
+        if manifest["ir_sha256"] != sha256_bytes(ir_bytes):
+            return None
+        if manifest["markdown_sha256"] != sha256_bytes(markdown_bytes):
+            return None
+        if manifest["html_sha256"] != sha256_bytes(html_bytes):
+            return None
+        collector = _FragmentCollector()
+        collector.feed(html_text)
+        if not set(fragments).issubset(collector.ids):
+            return None
+        return set(fragments)
+    except (OSError, UnicodeError, ValueError, json.JSONDecodeError, TypeError):
+        return None
 
 
 def local_name(knowledge_id: str) -> str:
@@ -130,47 +223,92 @@ def split_anchors(rationale: str) -> tuple[str, list[str]]:
     """Split an authored rationale into prose and its 'anchor:' references."""
     marker = rationale.find("anchor:")
     if marker == -1:
-        return rationale.strip(), []
-    prose = rationale[:marker].strip()
+        return reader_rationale_text(rationale), []
+    prose = reader_rationale_text(rationale[:marker])
     refs = [a.strip() for a in rationale[marker + len("anchor:") :].split(";")]
     return prose, [a for a in refs if a]
 
 
-def classify_anchor(anchor: str) -> dict:
+def classify_anchor(
+    anchor: str,
+    *,
+    package_dir: Path | None = None,
+    output_dir: Path | None = None,
+    project_root: Path | None = None,
+) -> dict:
     """Decide whether a source anchor is safe to render as a link.
 
     Whitelist, not blacklist: only two shapes ever get an href --
     absolute http(s) URLs, and relative Markdown paths (reader-facing
-    documents that travel with the package). Everything else -- JSON
-    artifacts, engine references like artifact:// ids, absolute
-    filesystem paths -- stays machine-readable plain text, and any
-    other URI scheme (javascript:, file:, data:) can never become a
+    documents that travel with the package). When filesystem context is
+    available, a relative path is authorized only after its target exists,
+    resolves inside the allowed root, and is itself Markdown. Everything
+    else -- JSON artifacts, engine references like artifact:// ids,
+    absolute filesystem paths -- stays machine-readable plain text, and
+    any other URI scheme (javascript:, file:, data:) can never become a
     link because it matches neither shape.
     """
     text = anchor.strip()
     lowered = text.lower()
-    href = None
     if lowered.startswith(("http://", "https://")):
-        href = text
-    else:
-        # The Markdown-only boundary applies to the PATH, not the whole
-        # string: "docs/foo.md#Section" is a valid deep link, while
-        # "artifacts/x.html#y.md" must not pass just because the fragment
-        # happens to end in .md. Character-set whitelist, not just shape
-        # checks: browsers normalize backslashes to slashes (a leading
-        # "\\" or an "\\\\host\\share" UNC form would become root- or
-        # protocol-relative) and strip some control characters, so only
-        # plain path characters survive, with no leading slash and no
-        # colon anywhere.
-        pure_path, _, fragment = text.partition("#")
-        if (
-            pure_path.lower().endswith(".md")
-            and re.fullmatch(r"[A-Za-z0-9._~/-]+", pure_path)
-            and (not fragment or re.fullmatch(r"[A-Za-z0-9._~/-]+", fragment))
-            and "#" not in fragment
-            and not pure_path.startswith("/")
-        ):
-            href = text
+        return {"text": text, "href": text}
+
+    # The Markdown-only boundary applies to the PATH, not the whole string:
+    # "docs/foo.md#Section" is a valid deep link, while
+    # "artifacts/x.html#y.md" must not pass merely because the fragment ends
+    # in .md. Browsers normalize backslashes, dot segments, repeated slashes,
+    # and some controls, so reject those forms before filesystem resolution.
+    pure_path, _, fragment = text.partition("#")
+    components = pure_path.split("/")
+    is_relative_markdown = (
+        pure_path.lower().endswith(".md")
+        and re.fullmatch(r"[A-Za-z0-9._~/-]+", pure_path)
+        and all(component not in {"", ".", ".."} for component in components)
+        and (not fragment or re.fullmatch(r"[A-Za-z0-9._~/-]+", fragment))
+        and "#" not in fragment
+        and not pure_path.startswith("/")
+    )
+    if not is_relative_markdown:
+        return {"text": text, "href": None}
+
+    # Direct calls without path context retain the shape-classification API.
+    # Every renderer call supplies package/output context and therefore takes
+    # the existence and containment checks below.
+    if package_dir is None and output_dir is None and project_root is None:
+        return {"text": text, "href": text}
+    if package_dir is None or output_dir is None:
+        return {"text": text, "href": None}
+
+    package = package_dir.resolve()
+    output = output_dir.resolve()
+    root = project_root.resolve() if project_root is not None else package
+    try:
+        package.relative_to(root)
+        output.relative_to(root)
+    except ValueError:
+        return {"text": text, "href": None}
+
+    # Package-relative references win when project-root context is available.
+    # Without it, the package itself is the only authorized root.
+    candidates = (package / pure_path,)
+    if project_root is not None:
+        candidates += (root / pure_path,)
+    target = None
+    for candidate in candidates:
+        try:
+            resolved = candidate.resolve(strict=True)
+            resolved.relative_to(root)
+        except (OSError, ValueError):
+            continue
+        if resolved.is_file() and resolved.suffix.lower() == ".md":
+            target = resolved
+            break
+    if target is None:
+        return {"text": text, "href": None}
+
+    href = Path(os.path.relpath(target, output)).as_posix()
+    if fragment:
+        href += f"#{fragment}"
     return {"text": text, "href": href}
 
 
@@ -217,7 +355,15 @@ class Node:
         self.observed = bool(observations)
         self.pinned_prior = metadata.get("prior")
         obs_rationale = observations[0].get("rationale", "") if observations else ""
-        self.obs_prose, self.obs_anchors = split_anchors(obs_rationale)
+        if observations:
+            _family, _model, self.obs_prose, anchor_text = (
+                observation_rationale_parts(obs_rationale)
+            )
+            self.obs_anchors = [
+                anchor.strip() for anchor in anchor_text.split(";") if anchor.strip()
+            ]
+        else:
+            self.obs_prose, self.obs_anchors = "", []
         self.is_root = False
         self.junction = False
         # Layout slots, filled later.
@@ -689,8 +835,13 @@ def svg_edge(edge: Edge, index: int) -> str:
 
 
 def panel_payload(
-    nodes: dict[str, Node], edges: list[Edge], doc_path: str | None = None
+    nodes: dict[str, Node],
+    edges: list[Edge],
+    doc_path: str | None = None,
+    doc_fragments: set[str] | None = None,
+    anchor_context: dict | None = None,
 ) -> dict:
+    anchor_context = anchor_context or {}
     payload_nodes = {}
     for node in nodes.values():
         # Junctions are not clickable, but flow edges name them; give them a
@@ -705,13 +856,20 @@ def panel_payload(
             "observed": node.observed,
             "pinned_prior": node.pinned_prior,
             "observation_note": node.obs_prose,
-            "observation_anchors": [classify_anchor(a) for a in node.obs_anchors],
+            "observation_anchors": [
+                classify_anchor(a, **anchor_context) for a in node.obs_anchors
+            ],
         }
-        if doc_path and not node.junction and not node.label.startswith(HELPER_LABEL_PREFIXES):
-            # The detailed-reasoning render precedes each node section with an
-            # explicit case-preserving <a id="{label}"></a>, so the label is
-            # used verbatim. Helper nodes have no section there, so they never
-            # link.
+        if (
+            doc_path
+            and doc_fragments is not None
+            and node.label in doc_fragments
+            and not node.junction
+            and not node.label.startswith(HELPER_LABEL_PREFIXES)
+        ):
+            # The static renderer assigns the exact case-preserving IR label
+            # to the node heading and records only verified IDs in its bound
+            # manifest. Helper nodes have no section and never link.
             payload_nodes[node.id]["doc_href"] = f"{doc_path}#{node.label}"
     payload_edges = []
     for edge in edges:
@@ -726,7 +884,9 @@ def panel_payload(
                 "p_e_given_h": edge.p_h,
                 "p_e_given_not_h": edge.p_nh,
                 "rationale": edge.rationale_prose,
-                "anchors": [classify_anchor(a) for a in edge.anchors],
+                "anchors": [
+                    classify_anchor(a, **anchor_context) for a in edge.anchors
+                ],
             }
         )
     return {"nodes": payload_nodes, "edges": payload_edges}
@@ -1086,7 +1246,7 @@ PAGE_JS = """
     panel.appendChild(statement);
     if (node.doc_href) {
       // Written by the renderer only when the package carries a rendered
-      // docs/detailed-reasoning.md; the anchor is the node's own heading.
+      // docs/detailed-reasoning.html; the anchor is the node's own heading.
       var doc = document.createElement('div');
       doc.className = 'doclink';
       var docLink = document.createElement('a');
@@ -1170,6 +1330,8 @@ def render_page(
     edges: list[Edge],
     canvas: tuple[float, float],
     doc_path: str | None = None,
+    doc_fragments: set[str] | None = None,
+    anchor_context: dict | None = None,
 ) -> str:
     canvas_w, canvas_h = canvas
     roots = [n for n in nodes.values() if n.is_root and not n.junction]
@@ -1202,7 +1364,15 @@ def render_page(
     # script double-escaped state. "<" only occurs inside JSON strings, and
     # the < escape decodes back to the same character on JSON.parse.
     payload = json.dumps(
-        panel_payload(nodes, edges, doc_path=doc_path), sort_keys=True, ensure_ascii=False
+        panel_payload(
+            nodes,
+            edges,
+            doc_path=doc_path,
+            doc_fragments=doc_fragments,
+            anchor_context=anchor_context,
+        ),
+        sort_keys=True,
+        ensure_ascii=False,
     ).replace("<", "\\u003c")
 
     flow_row = (
@@ -1290,6 +1460,11 @@ def main() -> None:
     )
     parser.add_argument("--package", required=True, help="package directory")
     parser.add_argument(
+        "--project-root",
+        help="project root used to resolve project-relative Markdown source "
+        "anchors into links from the output page; unresolved anchors remain text",
+    )
+    parser.add_argument(
         "--out",
         help="output HTML path (default: <package>/argument-graph.html)",
     )
@@ -1307,7 +1482,23 @@ def main() -> None:
     package_dir = Path(args.package).resolve()
     if not package_dir.is_dir():
         raise fail(f"package directory not found: {package_dir}")
+    project_root = Path(args.project_root).resolve() if args.project_root else None
+    if project_root is not None:
+        if not project_root.is_dir():
+            raise fail(f"project root not found: {project_root}")
+        try:
+            package_dir.relative_to(project_root)
+        except ValueError:
+            raise fail(
+                f"package directory is not under project root: "
+                f"{package_dir} vs {project_root}"
+            )
     ir = load_json(package_dir / ".gaia" / "ir.json", "compiled IR")
+    try:
+        require_unique_exported_root(ir)
+        require_idea_specific_reasoning_claims(ir)
+    except ValueError as exc:
+        raise fail(str(exc))
     beliefs_doc = load_json(
         package_dir / ".gaia" / "beliefs.json", "inference output (beliefs)"
     )
@@ -1337,7 +1528,11 @@ def main() -> None:
     package_name = ir.get("package_name") or package_dir.name
     title = args.title or pretty(str(package_name))
     ir_hash = str(ir.get("ir_hash") or compile_metadata.get("ir_hash") or "")
-    hash_note = f" · ir {ir_hash.removeprefix('sha256:')[:12]}" if ir_hash else ""
+    hash_note = (
+        f" · Gaia internal IR {ir_hash.removeprefix('sha256:')[:12]}"
+        if ir_hash
+        else ""
+    )
     compiled_note = (
         f" · compiled {compile_metadata['compiled_at']}"
         if compile_metadata.get("compiled_at")
@@ -1351,10 +1546,9 @@ def main() -> None:
     meta_line = f"{package_name}{version_note}{compiled_note}{hash_note}"
 
     # Deep-dive links: when the package carries the rendered
-    # detailed-reasoning document, every card's detail panel links to that
-    # node's section. Existence is part of the package state, so the output
-    # stays a pure function of the package (byte-reproducible). The relative
-    # href assumes the page sits at the package root, its default location;
+    # detailed-reasoning HTML plus its exact four-hash binding, each card's
+    # detail panel links to the verified node fragment. The relative href
+    # assumes the page sits at the package root, its default location;
     # a caller writing --out elsewhere keeps a working graph, only the
     # deep-dive links would dangle, so they are dropped in that case.
     out_path = Path(args.out) if args.out else package_dir / "argument-graph.html"
@@ -1362,12 +1556,12 @@ def main() -> None:
     # that is a SIBLING of the final page (package root), so the plain
     # parent check covers it; only a page written into some other
     # directory -- where the relative link would dangle -- drops links.
-    doc_path = (
-        "docs/detailed-reasoning.md"
+    doc_fragments = (
+        current_detailed_reasoning_fragments(package_dir)
         if out_path.parent.resolve() == package_dir
-        and detailed_reasoning_matches_beliefs(package_dir)
         else None
     )
+    doc_path = f"docs/{DETAILED_HTML_NAME}" if doc_fragments is not None else None
     page = render_page(
         title=title,
         subtitle=args.subtitle,
@@ -1377,7 +1571,18 @@ def main() -> None:
         edges=edges,
         canvas=canvas,
         doc_path=doc_path,
+        doc_fragments=doc_fragments,
+        anchor_context={
+            "package_dir": package_dir,
+            "output_dir": out_path.parent.resolve(),
+            "project_root": project_root,
+        },
     )
+    nonportable = portability_violation(page)
+    if nonportable:
+        raise fail(
+            f"refusing to persist argument-graph.html containing a {nonportable}"
+        )
     tmp_path = out_path.with_suffix(out_path.suffix + ".part")
     tmp_path.write_text(page, encoding="utf-8")
     tmp_path.replace(out_path)
