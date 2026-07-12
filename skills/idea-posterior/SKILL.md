@@ -343,10 +343,11 @@ invented numbers is worse than no posterior: it looks like knowledge.
   trailing anchor, introduced by the explicit sentinel
   `reader_reasoning: <why the evidence changes the hypothesis>`.
   `rationale="anchor: ..."`, criterion text alone, and prose without that
-  authorship sentinel are refused. This contract is structural rather than a
-  list of forbidden English sentences: authors may state criteria in the
-  language appropriate to the idea, while the marked rationale records why
-  the evidence changes that criterion at the selected likelihood grade.
+  authorship sentinel are refused. The rationale contract is structural:
+  authors may state criteria in the language appropriate to the idea, while
+  the marked rationale records why the evidence changes that criterion at the
+  selected likelihood grade. Separately, the six exact scaffold axis
+  sentences are authoring placeholders and are refused if left unchanged.
 
 - **Grade promotion for breadth.** A `downstream_reach` update may use the
   strong grade (ratio 30) only when the reach claim has anchored impact
@@ -412,8 +413,11 @@ invented numbers is worse than no posterior: it looks like knowledge.
   criteria with `reader_role="criterion"`. Existing scientifically sound
   packages without these markers remain readable as long as they carry
   substantive infer rationales; the renderer labels their intermediate nodes
-  conservatively. Do not detect generic criterion wording by exact sentence
-  matching.
+  conservatively. Role detection does not inspect prose. Independently, each
+  of the six reasoning claims must state an idea-specific research proposition:
+  extraction, rendering, reporting, and writeback reject empty claims and the
+  scaffold's exact generic axis sentences. This prevents a comparison-axis
+  definition from being presented as the explanation of an idea's score.
 
 - **Standard wiring per sub-criterion.** Anchored facts enter as
   `observe()`; an `infer()` updates the sub-criterion claim from each
@@ -634,7 +638,8 @@ stage fails.
    recompile that changes either yields a visibly different reference.
 
    **Migration for packages and references created before this contract:** set
-   `__all__ = ["worth"]` in the package module, prefix every substantive
+   `__all__ = ["worth"]` in the package module, replace all six scaffold claim
+   sentences with idea-specific research propositions, prefix every substantive
    literal `infer()` explanation with `reader_reasoning:`, and add
    `evidence_family` plus `correlation_model` declarations to every
    `observe()` rationale before its trailing anchor. Merge every correlated or

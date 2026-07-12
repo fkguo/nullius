@@ -72,6 +72,7 @@ from idea_package_contract import (  # noqa: E402
     compiled_ir_pin,
     load_compiled_ir,
     require_authored_infer_rationales,
+    require_idea_specific_reasoning_claims,
     require_unique_exported_root,
 )
 
@@ -224,6 +225,7 @@ def verify_package_ref(ref: str, project_root: Path) -> dict:
             "come from the same compiled graph"
         )
     require_unique_exported_root(ir_doc)
+    require_idea_specific_reasoning_claims(ir_doc)
     require_authored_infer_rationales(ir_doc)
     audit_evidence_families(ir_doc)
     return ir_doc

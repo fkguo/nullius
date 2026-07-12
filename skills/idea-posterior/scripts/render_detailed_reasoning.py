@@ -45,8 +45,11 @@ from urllib.parse import unquote, urlsplit
 
 from idea_package_contract import (
     audit_evidence_families,
+    compiled_knowledge_map,
     load_compiled_ir,
+    observation_rationale_parts,
     require_authored_infer_rationales,
+    require_idea_specific_reasoning_claims,
     require_unique_exported_root,
 )
 
@@ -152,14 +155,11 @@ def _tool_version(tool: str, tool_name: str, timeout: int) -> str:
     return matches[-1].group(1)
 
 
-def _load_labels(ir_bytes: bytes) -> set[str]:
-    try:
-        ir = json.loads(ir_bytes)
-    except json.JSONDecodeError as exc:
-        raise RuntimeError(f"unreadable .gaia/ir.json: {exc}") from exc
+def _load_labels(ir: dict) -> set[str]:
+    knowledges = compiled_knowledge_map(ir)
     labels = {
         str(item.get("label") or "")
-        for item in ir.get("knowledges", [])
+        for item in knowledges.values()
         if item.get("label")
     }
     return {label for label in labels if not label.startswith(HELPER_LABEL_PREFIXES)}
@@ -185,9 +185,11 @@ def _rationale_parts(text: str) -> tuple[str, str]:
 
 
 def _likelihood_effect(p_h: float, p_nh: float) -> tuple[str, str, float]:
+    if p_h == 0 and p_nh == 0:
+        raise ValueError("both conditional evidence probabilities are zero")
+    if abs(p_h - p_nh) < 1e-12:
+        return "does not move", "neutral", 1.0
     ratio = p_h / p_nh if p_nh > 0 else float("inf")
-    if abs(ratio - 1.0) < 1e-12:
-        return "does not move", "neutral", ratio
     magnitude = ratio if ratio > 1.0 else (1.0 / ratio if ratio > 0 else float("inf"))
     if math.isfinite(magnitude):
         grade = min(
@@ -203,7 +205,13 @@ def _likelihood_effect(p_h: float, p_nh: float) -> tuple[str, str, float]:
 
 
 def _path_polarity(edges: list["_ReaderEdge"]) -> str:
-    """Return direction only; local likelihood ratios are not composable BFs."""
+    """Return the sign of a marginalized binary latent chain.
+
+    For H -> A -> E, the marginal difference factorizes as
+    (P(E|A)-P(E|not A)) * (P(A|H)-P(A|not H)). Recursing gives
+    sign parity across directed edges, while any neutral edge makes the whole
+    path neutral. This is not multiplication of local likelihood ratios.
+    """
     lowering_edges = 0
     for edge in edges:
         if abs(edge.p_h - edge.p_nh) < 1e-12:
@@ -231,14 +239,11 @@ def _reader_reasoning_markdown(ir: dict) -> str:
     likelihood rationales into the unique exported conclusion.
     """
     root = require_unique_exported_root(ir)
+    require_idea_specific_reasoning_claims(ir)
     require_authored_infer_rationales(ir)
     family_records = audit_evidence_families(ir)
     root_id = str(root["id"])
-    knowledges = {
-        str(item["id"]): item
-        for item in ir.get("knowledges", [])
-        if isinstance(item, dict) and item.get("id")
-    }
+    knowledges = compiled_knowledge_map(ir)
     observed_ids = []
     for kid, item in knowledges.items():
         metadata = item.get("metadata") or {}
@@ -269,6 +274,8 @@ def _reader_reasoning_markdown(ir: dict) -> str:
             or premises[0] not in knowledges
         ):
             continue
+        # Gaia's compiled edge is hypothesis -> possible evidence:
+        # premises=[hypothesis], conclusion=evidence. Invert it for readers.
         rationale = " ".join(
             str(step.get("reasoning") or "").strip()
             for step in strategy.get("steps", [])
@@ -338,7 +345,7 @@ def _reader_reasoning_markdown(ir: dict) -> str:
     if family_records:
         lines.extend(
             [
-                "## Evidence-family accounting",
+                "## Evidence-source accounting",
                 "",
                 "Evidence-family identifiers disclose shared provenance. Gaia "
                 "0.5.0a4 multiplies separate likelihood factors, so at most one "
@@ -356,8 +363,10 @@ def _reader_reasoning_markdown(ir: dict) -> str:
         for family in sorted(families):
             records = families[family]
             model = records[0]["correlation_model"]
+            count = len(records)
+            occurrence = "1 recorded input" if count == 1 else f"{count} recorded occurrences"
             lines.append(
-                f"- `{family}`: {len(records)} recorded observation(s); "
+                f"- `{family}`: {occurrence}; "
                 f"correlation model `{model}`."
             )
         lines.append("")
@@ -391,24 +400,51 @@ def _reader_reasoning_markdown(ir: dict) -> str:
                 if isinstance(item, dict) and item.get("pattern") == "observation"
             ]
             if observation_notes:
-                lines.extend(
-                    [
-                        "**Observation record**",
-                        "",
-                        _quote_markdown(" ".join(observation_notes)),
-                        "",
-                    ]
-                )
+                contexts = []
+                source_anchors = []
+                for note in observation_notes:
+                    _family, _model, context, source_anchor = (
+                        observation_rationale_parts(note)
+                    )
+                    if context:
+                        contexts.append(context)
+                    if source_anchor:
+                        source_anchors.append(source_anchor)
+                if contexts:
+                    lines.extend(
+                        [
+                            "**Evidence context**",
+                            "",
+                            _quote_markdown(" ".join(contexts)),
+                            "",
+                        ]
+                    )
+                if source_anchors:
+                    lines.extend(
+                        [
+                            "**Evidence source anchor**",
+                            "",
+                            _quote_markdown("; ".join(source_anchors)),
+                            "",
+                        ]
+                    )
             family_record = family_records.get(source_id)
             if family_record:
+                reuse_count = family_record["reuse_count"]
+                if reuse_count == 1:
+                    counting = "recorded once and enters through this one path"
+                else:
+                    counting = (
+                        f"{reuse_count} recorded occurrences; this is the sole "
+                        "occurrence on a path to the exported conclusion"
+                    )
                 lines.extend(
                     [
-                        "**Evidence-family declaration**",
+                        "**Evidence counting**",
                         "",
                         _quote_markdown(
                             f"{family_record['family']}; correlation model "
-                            f"{family_record['correlation_model']}; reused by "
-                            f"{family_record['reuse_count']} recorded observation(s)."
+                            f"{family_record['correlation_model']}; {counting}."
                         ),
                         "",
                     ]
@@ -500,12 +536,35 @@ def _text_inlines(text: str) -> list[dict]:
     return result
 
 
-def _label_mermaid_direction(document: dict) -> None:
-    """Attach an explicit generative-direction label to every raw diagram."""
+def _mark_exported_root(source: str, root_label: str) -> tuple[str, int]:
+    """Mark the exported conclusion inside a Gaia Mermaid node declaration."""
+    marker = " ★"
+    pattern = re.compile(
+        r'(?m)^(\s*[^\s\[]+\s*\[\s*")'
+        + re.escape(root_label)
+        + r'(?P<marker>\s+★)?(?P<suffix>(?:\s+\([^"\n]*\))?"\]\s*'
+        r'(?:\:\:\:[A-Za-z_][A-Za-z0-9_-]*)?\s*)$'
+    )
+
+    def replace(match: re.Match[str]) -> str:
+        existing = match.group("marker") or marker
+        return (
+            match.group(1)
+            + root_label
+            + existing
+            + match.group("suffix")
+        )
+
+    return pattern.subn(replace, source)
+
+
+def _label_mermaid_direction(document: dict, root_label: str) -> None:
+    """Label raw Gaia diagrams and mark their sole exported conclusion."""
     blocks = document.get("blocks")
     if not isinstance(blocks, list):
-        return
+        raise RuntimeError("Pandoc document has no block list")
     output = []
+    root_markers = 0
     for block in blocks:
         if isinstance(block, dict) and block.get("t") == "CodeBlock":
             content = block.get("c") or []
@@ -514,6 +573,16 @@ def _label_mermaid_direction(document: dict) -> None:
                 attrs[1] if isinstance(attrs, list) and len(attrs) == 3 else []
             )
             if "mermaid" in classes:
+                if not isinstance(content[1], str):
+                    raise RuntimeError("Mermaid code block has no text source")
+                marked_source, count = _mark_exported_root(
+                    content[1], root_label
+                )
+                root_markers += count
+                block = {
+                    **block,
+                    "c": [attrs, marked_source],
+                }
                 output.extend(
                     [
                         {
@@ -533,9 +602,24 @@ def _label_mermaid_direction(document: dict) -> None:
                                 "They do not show the reader's evidence flow."
                             ),
                         },
+                        {
+                            "t": "Para",
+                            "c": _text_inlines(
+                                "The star marks the sole exported conclusion. "
+                                "A white dashed orphan node is currently "
+                                "disconnected from that conclusion. Other "
+                                "colors and shapes follow the Gaia diagram "
+                                "legend below the figure."
+                            ),
+                        },
                     ]
                 )
         output.append(block)
+    if root_markers != 1:
+        raise RuntimeError(
+            "expected exactly one exported-conclusion node in the raw Gaia "
+            f"Mermaid graph, found {root_markers} for label {root_label!r}"
+        )
     document["blocks"] = output
 
 
@@ -681,7 +765,7 @@ def _assign_exact_fragment_ids(document: dict, labels: set[str]) -> set[str]:
 
 
 def _safe_link(target: str) -> bool:
-    if not target or any(ord(ch) < 32 for ch in target):
+    if not target or target != target.strip() or any(ord(ch) < 32 for ch in target):
         return False
     if "\\" in target or target.startswith("//"):
         return False
@@ -1162,9 +1246,10 @@ def render_package(
     beliefs_sha = sha256_bytes(beliefs_bytes)
     ir_sha = sha256_bytes(ir_bytes)
     markdown_sha = sha256_bytes(markdown_bytes)
-    labels = _load_labels(ir_bytes)
     ir = load_compiled_ir(ir_bytes)
-    require_unique_exported_root(ir)
+    labels = _load_labels(ir)
+    root = require_unique_exported_root(ir)
+    require_idea_specific_reasoning_claims(ir)
     require_authored_infer_rationales(ir)
     audit_evidence_families(ir)
     reader_markdown = _reader_reasoning_markdown(ir).encode("utf-8")
@@ -1204,7 +1289,7 @@ def render_package(
         except json.JSONDecodeError as exc:
             raise RuntimeError(f"Pandoc returned invalid JSON AST: {exc}") from exc
         expected_fragments = _assign_exact_fragment_ids(document, labels)
-        _label_mermaid_direction(document)
+        _label_mermaid_direction(document, str(root["label"]))
         document, trusted_images = _transform_document(
             document,
             mmdc=mmdc,

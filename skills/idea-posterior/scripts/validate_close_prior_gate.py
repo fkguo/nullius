@@ -583,7 +583,7 @@ def validate_gate(survey: Any, matrix: Any, report_text: str | None, *, allow_ex
     if matrix_status == "saturated" and survey_status != "saturated":
         problems.append("close-prior matrix claims saturated but literature_survey_v1 is not saturated")
     if exploratory and not allow_exploratory:
-        problems.append("exploratory_allocation requires --allow-exploratory/--allow-exploratory-allocation")
+        problems.append("exploratory_allocation requires --allow-exploratory")
     eligible_status = matrix_status == "saturated" or (
         matrix_status == "coverage_incomplete" and exploratory and allow_exploratory
     )

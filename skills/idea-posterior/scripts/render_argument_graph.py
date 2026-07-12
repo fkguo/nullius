@@ -46,7 +46,10 @@ import textwrap
 from html.parser import HTMLParser
 from pathlib import Path
 
-from idea_package_contract import require_unique_exported_root
+from idea_package_contract import (
+    require_idea_specific_reasoning_claims,
+    require_unique_exported_root,
+)
 from render_detailed_reasoning import (
     ARTIFACT as DETAILED_ARTIFACT,
     HTML_NAME as DETAILED_HTML_NAME,
@@ -1483,6 +1486,7 @@ def main() -> None:
     ir = load_json(package_dir / ".gaia" / "ir.json", "compiled IR")
     try:
         require_unique_exported_root(ir)
+        require_idea_specific_reasoning_claims(ir)
     except ValueError as exc:
         raise fail(str(exc))
     beliefs_doc = load_json(

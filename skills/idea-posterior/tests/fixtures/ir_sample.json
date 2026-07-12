@@ -7,7 +7,7 @@
       "id": "github:trial_idea::worth",
       "label": "worth",
       "type": "claim",
-      "content": "The idea merits sustained verification effort.",
+      "content": "The controlled trial idea merits sustained verification because it can distinguish two recorded explanations.",
       "exported": true,
       "metadata": {"reader_role": "conclusion"}
     },
@@ -15,7 +15,7 @@
       "id": "github:trial_idea::tension_resolution",
       "label": "tension_resolution",
       "type": "claim",
-      "content": "The idea resolves an anchored open tension.",
+      "content": "The controlled trial rules out one of two recorded explanations within a stated operating range.",
       "exported": false,
       "metadata": {"reader_role": "criterion"}
     },
@@ -46,7 +46,7 @@
       "id": "github:trial_idea::verification_cost",
       "label": "verification_cost",
       "type": "claim",
-      "content": "A bounded, decisive first check of the idea exists.",
+      "content": "One bounded trial at a specified operating point can decide whether the predicted separation is present.",
       "exported": false,
       "metadata": {"reader_role": "criterion"}
     },
@@ -67,6 +67,30 @@
           }
         ]
       }
+    },
+    {
+      "id": "github:trial_idea::downstream_reach",
+      "label": "downstream_reach",
+      "type": "claim",
+      "content": "The trial discriminator can be reused in two subsequent comparisons of the same measured response.",
+      "exported": false,
+      "metadata": {"reader_role": "criterion"}
+    },
+    {
+      "id": "github:trial_idea::mechanism_insight",
+      "label": "mechanism_insight",
+      "type": "claim",
+      "content": "The proposed mechanism predicts a response distinct from the recorded alternative under the trial condition.",
+      "exported": false,
+      "metadata": {"reader_role": "criterion"}
+    },
+    {
+      "id": "github:trial_idea::testability_timing",
+      "label": "testability_timing",
+      "type": "claim",
+      "content": "The required response and comparison data are available for an immediate discriminating trial.",
+      "exported": false,
+      "metadata": {"reader_role": "criterion"}
     }
   ],
   "strategies": [

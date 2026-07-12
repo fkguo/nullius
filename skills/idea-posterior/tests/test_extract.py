@@ -8,6 +8,7 @@ import shutil
 
 import pytest
 
+from idea_package_contract import observation_rationale_parts
 import run_infer_and_extract as extract
 
 
@@ -87,11 +88,55 @@ def evidence_family_ir(*, modeled_shared: bool) -> dict:
         }
 
     knowledges = [
-        {"id": worth, "label": "worth", "type": "claim", "exported": True},
+        {
+            "id": worth,
+            "label": "worth",
+            "type": "claim",
+            "content": (
+                "The repeated-result comparison merits verification because "
+                "it can distinguish the recorded alternatives."
+            ),
+            "exported": True,
+        },
         {"id": criterion, "label": "criterion", "type": "claim", "exported": False},
         {"id": other, "label": "other", "type": "claim", "exported": False},
         observation(ev_one, "ev_one"),
         observation(ev_two, "ev_two"),
+        {
+            "id": "p::tension_resolution",
+            "label": "tension_resolution",
+            "type": "claim",
+            "content": "The repeated-result comparison resolves one stated part of the recorded disagreement.",
+            "exported": False,
+        },
+        {
+            "id": "p::downstream_reach",
+            "label": "downstream_reach",
+            "type": "claim",
+            "content": "The resulting discriminator can be reused in a subsequent comparison of the same response.",
+            "exported": False,
+        },
+        {
+            "id": "p::mechanism_insight",
+            "label": "mechanism_insight",
+            "type": "claim",
+            "content": "The compared mechanisms predict distinguishable responses under the recorded condition.",
+            "exported": False,
+        },
+        {
+            "id": "p::testability_timing",
+            "label": "testability_timing",
+            "type": "claim",
+            "content": "The required repeated-result records are available for the comparison now.",
+            "exported": False,
+        },
+        {
+            "id": "p::verification_cost",
+            "label": "verification_cost",
+            "type": "claim",
+            "content": "One bounded comparison decides whether the predicted response separation is present.",
+            "exported": False,
+        },
     ]
     strategies = []
 
@@ -137,6 +182,24 @@ def test_rephrased_observations_from_one_family_are_not_independent_votes() -> N
         extract.audit_evidence_families(evidence_family_ir(modeled_shared=False))
 
 
+def test_gaia_generative_infer_is_inverted_for_reader_evidence_flow() -> None:
+    ir = evidence_family_ir(modeled_shared=False)
+    ir["knowledges"] = [
+        item for item in ir["knowledges"] if item.get("id") != "p::ev_two"
+    ]
+    ir["strategies"] = [
+        strategy
+        for strategy in ir["strategies"]
+        if strategy.get("conclusion") != "p::ev_two"
+        and strategy.get("conclusion") != "p::other"
+    ]
+    records = extract.audit_evidence_families(ir)
+    # Gaia stores hypothesis -> possible evidence as premise -> conclusion.
+    # The audit intentionally follows the inverse ev_one -> criterion -> worth.
+    assert records["p::ev_one"]["root_target"] == "p::criterion"
+    assert records["p::ev_one"]["root_path_count"] == 1
+
+
 def test_reused_evidence_family_still_fails_when_arrows_meet_at_one_claim() -> None:
     with pytest.raises(ValueError, match="would multiply those likelihoods"):
         extract.audit_evidence_families(evidence_family_ir(modeled_shared=True))
@@ -158,11 +221,49 @@ def test_evidence_family_parser_rejects_malformed_duplicate_declarations(
         extract.parse_evidence_family_rationale(rationale)
 
 
+@pytest.mark.parametrize(
+    "rationale",
+    (
+        "evidence_family: valid-family; correlation_model: single-extra; anchor: fixture",
+        "evidence_family: invalid-; correlation_model: single; anchor: fixture",
+    ),
+)
+def test_evidence_family_parser_rejects_valid_prefix_with_invalid_suffix(
+    rationale,
+) -> None:
+    with pytest.raises(ValueError, match="exactly one"):
+        extract.parse_evidence_family_rationale(rationale)
+
+
 def test_evidence_family_parser_accepts_spacing_around_sentinel_colons() -> None:
     assert extract.parse_evidence_family_rationale(
         "evidence_family : spaced-token; correlation_model : single; "
         "anchor: fixture"
     ) == ("spaced-token", "single")
+
+
+def test_observation_rationale_parts_hide_contract_sentinels_from_context() -> None:
+    assert observation_rationale_parts(
+        "evidence_family: checked-result; correlation_model: single; "
+        "The calculation resolves the scoped comparison. anchor: report.md"
+    ) == (
+        "checked-result",
+        "single",
+        "The calculation resolves the scoped comparison.",
+        "report.md",
+    )
+
+
+@pytest.mark.parametrize(
+    "rationale",
+    (
+        "evidence_family: checked-result; correlation_model: single; no anchor",
+        "evidence_family: checked-result; correlation_model: single; anchor:   ",
+    ),
+)
+def test_observation_rationale_requires_nonempty_anchor(rationale) -> None:
+    with pytest.raises(ValueError, match="non-empty anchor"):
+        observation_rationale_parts(rationale)
 
 
 def test_correlation_model_rejects_unsupported_shared_declaration() -> None:
@@ -245,6 +346,24 @@ def test_evidence_family_audit_rejects_any_reader_flow_cycle() -> None:
         extract.audit_evidence_families(ir)
 
 
+@pytest.mark.parametrize("bad_id", (123, ["not", "scalar"], ""))
+def test_compiled_knowledge_ids_must_be_nonempty_strings(bad_id) -> None:
+    ir = evidence_family_ir(modeled_shared=False)
+    ir["knowledges"][0]["id"] = bad_id
+    with pytest.raises(ValueError, match="id must be a non-empty string"):
+        extract.audit_evidence_families(ir)
+
+
+@pytest.mark.parametrize("bad_probability", ("0.9", True, -0.1, 1.1, float("inf")))
+def test_compiled_infer_probabilities_must_be_finite_unit_interval(
+    bad_probability,
+) -> None:
+    ir = evidence_family_ir(modeled_shared=False)
+    ir["strategies"][0]["conditional_probabilities"][0] = bad_probability
+    with pytest.raises(ValueError, match="finite conditional probabilities"):
+        extract.audit_evidence_families(ir)
+
+
 def test_extract_posterior_end_shape(tmp_path, fixtures_dir) -> None:
     gaia_dir = tmp_path / "pkg" / ".gaia"
     gaia_dir.mkdir(parents=True)
@@ -263,6 +382,22 @@ def test_extract_posterior_end_shape(tmp_path, fixtures_dir) -> None:
         "#sha256:"
         + hashlib.sha256((gaia_dir / "ir.json").read_bytes()).hexdigest()
     )
+
+
+def test_extract_posterior_rejects_unchanged_scaffold_claim(
+    tmp_path, fixtures_dir
+) -> None:
+    gaia_dir = tmp_path / "pkg" / ".gaia"
+    gaia_dir.mkdir(parents=True)
+    shutil.copy(fixtures_dir / "beliefs_sample.json", gaia_dir / "beliefs.json")
+    ir = json.loads((fixtures_dir / "ir_sample.json").read_text(encoding="utf-8"))
+    next(item for item in ir["knowledges"] if item.get("label") == "worth")[
+        "content"
+    ] = "The idea merits sustained verification effort."
+    (gaia_dir / "ir.json").write_text(json.dumps(ir), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="generic axis text"):
+        extract.extract_posterior(tmp_path / "pkg", "worth", tmp_path)
 
 
 def test_extract_posterior_requires_artifacts(tmp_path) -> None:
@@ -839,7 +974,10 @@ def write_fake_gaia_render(tmp_path, fixtures_dir, *, render_fails, docs_writes=
     if docs_writes and not render_fails:
         docs_branch = (
             '  mkdir -p "$last/docs"\n'
-            '  printf \'<a id="worth"></a>\\n\\n#### worth\\n\' > "$last/docs/detailed-reasoning.md"\n'
+            '  printf \'%s\\n\' \'<a id="worth"></a>\' \'\' \'#### worth\' '
+            '\'\' \'## Knowledge Graph\' \'\' \'```mermaid\' '
+            '\'flowchart LR\' \'  worth["worth (0.85)"]:::premise\' '
+            '\'```\' > "$last/docs/detailed-reasoning.md"\n'
             "  exit 0"
         )
     else:
