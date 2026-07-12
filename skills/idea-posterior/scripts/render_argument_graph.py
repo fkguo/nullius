@@ -36,7 +36,6 @@ page. Stdlib only.
 from __future__ import annotations
 
 import argparse
-import hashlib
 import html
 import json
 import math
@@ -44,7 +43,17 @@ import os
 import re
 import sys
 import textwrap
+from html.parser import HTMLParser
 from pathlib import Path
+
+from render_detailed_reasoning import (
+    ARTIFACT as DETAILED_ARTIFACT,
+    HTML_NAME as DETAILED_HTML_NAME,
+    MANIFEST_NAME as DETAILED_MANIFEST_NAME,
+    MARKDOWN_NAME as DETAILED_MARKDOWN_NAME,
+    portability_violation,
+    sha256_bytes,
+)
 
 # Helper-label prefixes mirror gaia.engine.ir.coarsen.HELPER_LABEL_PREFIXES
 # exactly: compiler-minted warrants/actions that no reader authored. They are
@@ -86,31 +95,97 @@ def load_json(path: Path, what: str) -> dict:
         raise fail(f"unreadable {what} at {path}: {exc}")
 
 
-def detailed_reasoning_matches_beliefs(package_dir: Path) -> bool:
-    """Whether docs/detailed-reasoning.md was rendered from the CURRENT
-    beliefs, per the companion checksum the pipeline writes after a
-    successful docs render (sha256 of .gaia/beliefs.json at that moment).
+class _FragmentCollector(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.ids: set[str] = set()
 
-    Existence alone does not establish freshness: after a failed render
-    whose cleanup also failed, last generation's document can survive on
-    disk, and a graph carrying this generation's posteriors must not send
-    readers into the other generation's reasoning. Missing document,
-    missing companion, unreadable bytes, or a hash mismatch all mean "do
-    not link" -- the safe side. Hand-polishing the document does NOT drop
-    the link: the binding is to the beliefs generation it was rendered
-    from, not to the document's own bytes.
+    def handle_starttag(self, _tag: str, attrs) -> None:
+        for name, value in attrs:
+            if name == "id" and value:
+                self.ids.add(value)
+
+
+def current_detailed_reasoning_fragments(package_dir: Path) -> set[str] | None:
+    """Return linkable fragments only for a provably current HTML page.
+
+    The standalone renderer owns the sidecar.  This verifier independently
+    rehashes current beliefs, the exact Markdown source, and the HTML bytes;
+    missing, malformed, unreadable, escaping, or mismatched artifacts all
+    return ``None``.  There is intentionally no beliefs-only or legacy-stamp
+    fallback.
     """
-    doc_file = package_dir / "docs" / "detailed-reasoning.md"
-    stamp_file = package_dir / "docs" / "detailed-reasoning.beliefs-sha256"
-    beliefs_file = package_dir / ".gaia" / "beliefs.json"
+    package = package_dir.resolve()
+    paths = {
+        "beliefs": package / ".gaia" / "beliefs.json",
+        "markdown": package / "docs" / DETAILED_MARKDOWN_NAME,
+        "html": package / "docs" / DETAILED_HTML_NAME,
+        "manifest": package / "docs" / DETAILED_MANIFEST_NAME,
+    }
     try:
-        if not doc_file.is_file() or not stamp_file.is_file():
-            return False
-        recorded = stamp_file.read_text(encoding="utf-8").strip()
-        current = "sha256:" + hashlib.sha256(beliefs_file.read_bytes()).hexdigest()
-        return recorded == current
-    except OSError:
-        return False
+        for path in paths.values():
+            resolved = path.resolve(strict=True)
+            resolved.relative_to(package)
+            if not resolved.is_file():
+                return None
+        manifest_bytes = paths["manifest"].read_bytes()
+        if len(manifest_bytes) > 1_000_000:
+            return None
+        manifest_text = manifest_bytes.decode("utf-8")
+        if portability_violation(manifest_text):
+            return None
+        manifest = json.loads(manifest_text)
+        if (
+            not isinstance(manifest, dict)
+            or manifest.get("artifact") != DETAILED_ARTIFACT
+        ):
+            return None
+        expected_keys = {
+            "artifact",
+            "beliefs_sha256",
+            "fragments",
+            "html_sha256",
+            "markdown_sha256",
+            "renderer",
+        }
+        if set(manifest) != expected_keys or not isinstance(manifest["renderer"], dict):
+            return None
+        for key in ("beliefs_sha256", "markdown_sha256", "html_sha256"):
+            if not isinstance(manifest.get(key), str) or not re.fullmatch(
+                r"sha256:[0-9a-f]{64}", manifest[key]
+            ):
+                return None
+        fragments = manifest.get("fragments")
+        if (
+            not isinstance(fragments, list)
+            or len(fragments) != len(set(fragments))
+            or any(
+                not isinstance(fragment, str)
+                or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", fragment)
+                for fragment in fragments
+            )
+        ):
+            return None
+        beliefs_bytes = paths["beliefs"].read_bytes()
+        markdown_bytes = paths["markdown"].read_bytes()
+        html_bytes = paths["html"].read_bytes()
+        markdown_text = markdown_bytes.decode("utf-8")
+        html_text = html_bytes.decode("utf-8")
+        if portability_violation(markdown_text) or portability_violation(html_text):
+            return None
+        if manifest["beliefs_sha256"] != sha256_bytes(beliefs_bytes):
+            return None
+        if manifest["markdown_sha256"] != sha256_bytes(markdown_bytes):
+            return None
+        if manifest["html_sha256"] != sha256_bytes(html_bytes):
+            return None
+        collector = _FragmentCollector()
+        collector.feed(html_text)
+        if not set(fragments).issubset(collector.ids):
+            return None
+        return set(fragments)
+    except (OSError, UnicodeError, ValueError, json.JSONDecodeError, TypeError):
+        return None
 
 
 def local_name(knowledge_id: str) -> str:
@@ -738,6 +813,7 @@ def panel_payload(
     nodes: dict[str, Node],
     edges: list[Edge],
     doc_path: str | None = None,
+    doc_fragments: set[str] | None = None,
     anchor_context: dict | None = None,
 ) -> dict:
     anchor_context = anchor_context or {}
@@ -759,11 +835,16 @@ def panel_payload(
                 classify_anchor(a, **anchor_context) for a in node.obs_anchors
             ],
         }
-        if doc_path and not node.junction and not node.label.startswith(HELPER_LABEL_PREFIXES):
-            # The detailed-reasoning render precedes each node section with an
-            # explicit case-preserving <a id="{label}"></a>, so the label is
-            # used verbatim. Helper nodes have no section there, so they never
-            # link.
+        if (
+            doc_path
+            and doc_fragments is not None
+            and node.label in doc_fragments
+            and not node.junction
+            and not node.label.startswith(HELPER_LABEL_PREFIXES)
+        ):
+            # The static renderer assigns the exact case-preserving IR label
+            # to the node heading and records only verified IDs in its bound
+            # manifest. Helper nodes have no section and never link.
             payload_nodes[node.id]["doc_href"] = f"{doc_path}#{node.label}"
     payload_edges = []
     for edge in edges:
@@ -1140,7 +1221,7 @@ PAGE_JS = """
     panel.appendChild(statement);
     if (node.doc_href) {
       // Written by the renderer only when the package carries a rendered
-      // docs/detailed-reasoning.md; the anchor is the node's own heading.
+      // docs/detailed-reasoning.html; the anchor is the node's own heading.
       var doc = document.createElement('div');
       doc.className = 'doclink';
       var docLink = document.createElement('a');
@@ -1224,6 +1305,7 @@ def render_page(
     edges: list[Edge],
     canvas: tuple[float, float],
     doc_path: str | None = None,
+    doc_fragments: set[str] | None = None,
     anchor_context: dict | None = None,
 ) -> str:
     canvas_w, canvas_h = canvas
@@ -1261,6 +1343,7 @@ def render_page(
             nodes,
             edges,
             doc_path=doc_path,
+            doc_fragments=doc_fragments,
             anchor_context=anchor_context,
         ),
         sort_keys=True,
@@ -1429,10 +1512,9 @@ def main() -> None:
     meta_line = f"{package_name}{version_note}{compiled_note}{hash_note}"
 
     # Deep-dive links: when the package carries the rendered
-    # detailed-reasoning document, every card's detail panel links to that
-    # node's section. Existence is part of the package state, so the output
-    # stays a pure function of the package (byte-reproducible). The relative
-    # href assumes the page sits at the package root, its default location;
+    # detailed-reasoning HTML plus its exact three-hash binding, each card's
+    # detail panel links to the verified node fragment. The relative href
+    # assumes the page sits at the package root, its default location;
     # a caller writing --out elsewhere keeps a working graph, only the
     # deep-dive links would dangle, so they are dropped in that case.
     out_path = Path(args.out) if args.out else package_dir / "argument-graph.html"
@@ -1440,12 +1522,12 @@ def main() -> None:
     # that is a SIBLING of the final page (package root), so the plain
     # parent check covers it; only a page written into some other
     # directory -- where the relative link would dangle -- drops links.
-    doc_path = (
-        "docs/detailed-reasoning.md"
+    doc_fragments = (
+        current_detailed_reasoning_fragments(package_dir)
         if out_path.parent.resolve() == package_dir
-        and detailed_reasoning_matches_beliefs(package_dir)
         else None
     )
+    doc_path = f"docs/{DETAILED_HTML_NAME}" if doc_fragments is not None else None
     page = render_page(
         title=title,
         subtitle=args.subtitle,
@@ -1455,12 +1537,18 @@ def main() -> None:
         edges=edges,
         canvas=canvas,
         doc_path=doc_path,
+        doc_fragments=doc_fragments,
         anchor_context={
             "package_dir": package_dir,
             "output_dir": out_path.parent.resolve(),
             "project_root": project_root,
         },
     )
+    nonportable = portability_violation(page)
+    if nonportable:
+        raise fail(
+            f"refusing to persist argument-graph.html containing a {nonportable}"
+        )
     tmp_path = out_path.with_suffix(out_path.suffix + ".part")
     tmp_path.write_text(page, encoding="utf-8")
     tmp_path.replace(out_path)

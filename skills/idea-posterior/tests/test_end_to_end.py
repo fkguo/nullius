@@ -15,6 +15,7 @@ import pytest
 import gaia_package_scaffold as scaffold
 import posterior_writeback as writeback
 import run_infer_and_extract as extract
+from test_writeback import write_close_prior_bundle
 
 EVIDENCE_SNIPPET = '''
 
@@ -130,12 +131,16 @@ def test_scaffold_infer_extract_writeback_chain(
     # 4. Write the extracted posterior back through the stand-in RPC caller.
     posterior_file = tmp_path / "posterior.json"
     posterior_file.write_text(json.dumps(updated), encoding="utf-8")
+    survey_file, matrix_file, report_file = write_close_prior_bundle(tmp_path)
     code = writeback.main(
         [
             "--posterior-json", str(posterior_file),
             "--campaign-id", "campaign-e2e",
             "--node-id", "node-e2e",
             "--store-root", str(tmp_path / "store"),
+            "--literature-survey-json", str(survey_file),
+            "--close-prior-matrix-json", str(matrix_file),
+            "--posterior-report-md", str(report_file),
             "--project-root", str(tmp_path),
             "--idea-rpc", str(fixtures_dir / "fake_rpc.py"),
             "--runner", sys.executable,
