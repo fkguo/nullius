@@ -61,6 +61,13 @@ def test_template_exports_only_the_root_claim() -> None:
         assert f'"{name}"' not in text.split("worth = claim(")[0], name
 
 
+def test_template_marks_structural_reader_roles_without_matching_prose() -> None:
+    text = scaffold.render_template("example-idea")
+    root_block = text.split("worth = claim(", 1)[1].split(")", 1)[0]
+    assert 'reader_role="conclusion"' in root_block
+    assert text.count('reader_role="criterion"') == len(SUB_CRITERIA)
+
+
 def test_template_restates_the_three_likelihood_grades() -> None:
     text = scaffold.render_template("example-idea")
     assert "p_e_given_h=0.75, p_e_given_not_h=0.25" in text
@@ -74,6 +81,18 @@ def test_template_carries_anchor_and_exclusivity_guidance() -> None:
     assert "pairwise" in text
     assert "exclusive()" in text
     assert "0.5.0a4" in text  # the pin is restated in authored guidance
+
+
+def test_template_separates_tension_existence_from_resolution_evidence() -> None:
+    text = scaffold.render_template("example-idea")
+    assert "open-tension source proves relevance or admission" in text
+    assert "resolution_evidence: mechanism" in text
+    assert "resolution_evidence:\n  discriminating_test" in text
+    assert "A plan alone belongs under" in text
+    assert "Do not copy one observed fact into several evidence nodes" in text
+    assert "evidence_family: <token>" in text
+    assert "routing correlated" in text
+    assert "one composite observation" in text
 
 
 def test_template_is_domain_neutral_and_jargon_free() -> None:

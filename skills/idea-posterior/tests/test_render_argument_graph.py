@@ -50,6 +50,7 @@ def knowledge(kid: str, label: str, content: str, index: int, observed: bool = F
         "type": "claim",
         "content": content,
         "declaration_index": index,
+        "exported": kid == WORTH,
         "metadata": {},
     }
     if observed:
@@ -59,6 +60,7 @@ def knowledge(kid: str, label: str, content: str, index: int, observed: bool = F
                 {
                     "pattern": "observation",
                     "rationale": (
+                        "evidence_family: graph-demo; correlation_model: single; "
                         "Recorded observation for the demo. "
                         "anchor: artifacts/demo/survey_v1.json; "
                         "artifacts/demo/close_prior_matrix_v1.json"
@@ -93,7 +95,7 @@ def base_ir() -> dict:
             knowledge(TENSION, "tension_resolution", TENSION_TEXT, 1),
             knowledge(EV_ANCHOR, "ev_anchor", ANCHOR_TEXT, 2, observed=True),
             knowledge(EV_SCOPE, "ev_scope_limit", SCOPE_TEXT, 3, observed=True),
-            {"id": HELPER, "type": "claim"},
+            {"id": HELPER, "type": "claim", "exported": False},
         ],
         "strategies": [
             infer_strategy(
@@ -164,7 +166,7 @@ def rendered(tmp_path: Path, *extra: str) -> str:
 
 
 def write_detailed_reasoning(package, body="#### worth\n", fragments=None):
-    """Install a three-hash-bound detailed-page fixture for graph unit tests.
+    """Install a four-hash-bound detailed-page fixture for graph unit tests.
 
     Positive end-to-end coverage invokes the standalone renderer itself; this
     helper keeps graph-only tests fast while malformed/stale tests mutate the
@@ -202,6 +204,9 @@ def write_detailed_reasoning(package, body="#### worth\n", fragments=None):
                 ),
                 "fragments": fragments,
                 "html_sha256": rag.sha256_bytes(html_page.read_bytes()),
+                "ir_sha256": rag.sha256_bytes(
+                    (package / ".gaia" / "ir.json").read_bytes()
+                ),
                 "markdown_sha256": rag.sha256_bytes(markdown.read_bytes()),
                 "renderer": {"fixture": "graph-unit-test"},
             },
@@ -389,6 +394,18 @@ def test_missing_beliefs_is_a_clear_error(tmp_path) -> None:
     result = run_renderer(package)
     assert result.returncode == 2
     assert "beliefs" in result.stderr
+    assert not (package / "argument-graph.html").exists()
+
+
+def test_renderer_refuses_stale_package_without_unique_exported_worth(tmp_path) -> None:
+    ir = base_ir()
+    for item in ir["knowledges"]:
+        if item.get("label") == "worth":
+            item["exported"] = False
+    package = write_package(tmp_path, ir, base_beliefs())
+    result = run_renderer(package)
+    assert result.returncode == 2
+    assert '__all__ = ["worth"]' in result.stderr
     assert not (package / "argument-graph.html").exists()
 
 

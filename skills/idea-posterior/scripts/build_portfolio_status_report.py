@@ -33,10 +33,19 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 from pathlib import Path
 from typing import Any
 from urllib.parse import unquote
+
+from idea_package_contract import (
+    audit_evidence_families,
+    compiled_ir_pin,
+    load_compiled_ir,
+    require_authored_infer_rationales,
+    require_unique_exported_root,
+)
 
 # Store posterior vs graph root belief agreement tolerance. Writeback copies
 # the exact extracted value, so any real divergence means a re-run happened
@@ -47,6 +56,7 @@ MISMATCH_TOLERANCE = 1e-9
 REASON_MAX_CHARS = 240
 
 PROJECT_REF_PREFIX = "project://"
+PACKAGE_PIN_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 
 
 def load_nodes(path: Path) -> list[dict[str, Any]]:
@@ -84,14 +94,37 @@ def package_dir_from_ref(ref: Any, project_root: Path) -> Path | None:
     """
     if not isinstance(ref, str) or not ref.startswith(PROJECT_REF_PREFIX):
         return None
-    encoded = ref[len(PROJECT_REF_PREFIX):].split("#", 1)[0]
+    parts = ref[len(PROJECT_REF_PREFIX):].split("#", 1)
+    if len(parts) != 2 or PACKAGE_PIN_RE.fullmatch(parts[1]) is None:
+        return None
+    encoded = parts[0]
     if not encoded:
         return None
     relative = unquote(encoded)
     if any(segment in ("", ".", "..") for segment in relative.split("/")):
         return None
-    candidate = (project_root / relative).resolve()
+    root = project_root.resolve()
+    candidate = (root / relative).resolve()
+    try:
+        candidate.relative_to(root)
+    except ValueError:
+        return None
     return candidate if candidate.is_dir() else None
+
+
+def package_pin_from_ref(ref: str) -> str:
+    """Return the already grammar-checked exact-IR pin from a package ref."""
+    return ref.rsplit("#", 1)[1]
+
+
+def contained_package_file(package_dir: Path, project_root: Path, relative: str) -> Path:
+    """Resolve one package input without following a symlink out of scope."""
+    resolved = (package_dir / relative).resolve(strict=True)
+    resolved.relative_to(project_root.resolve(strict=True))
+    resolved.relative_to(package_dir.resolve(strict=True))
+    if not resolved.is_file():
+        raise ValueError(f"package input is not a file: {relative}")
+    return resolved
 
 
 def strategy_effect(strategy: dict[str, Any]) -> float | None:
@@ -103,11 +136,14 @@ def strategy_effect(strategy: dict[str, Any]) -> float | None:
     and negative when it lowers it. Strategy forms without such a table are
     left unscored rather than guessed.
     """
+    premises = strategy.get("premises")
     cp = strategy.get("conditional_probabilities")
-    if not isinstance(cp, list) or len(cp) < 2:
+    if not isinstance(premises, list) or len(premises) != 1:
+        return None
+    if not isinstance(cp, list) or len(cp) != 2:
         return None
     try:
-        return float(cp[-1]) - float(cp[-2])
+        return float(cp[1]) - float(cp[0])
     except (TypeError, ValueError):
         return None
 
@@ -121,7 +157,9 @@ def strategy_reason(strategy: dict[str, Any]) -> str:
             if isinstance(reasoning, str) and reasoning.strip():
                 parts.append(reasoning.strip())
     if parts:
-        return " ".join(parts)
+        return re.sub(
+            r"^reader_reasoning:\s*", "", " ".join(parts), count=1
+        ).strip()
     metadata = strategy.get("metadata") or {}
     reason = metadata.get("reason") if isinstance(metadata, dict) else None
     return reason.strip() if isinstance(reason, str) else ""
@@ -240,8 +278,35 @@ def collect_row(
     ir_path = package_dir / ".gaia" / "ir.json"
     beliefs_path = package_dir / ".gaia" / "beliefs.json"
     try:
-        ir = json.loads(ir_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+        ir_path = contained_package_file(
+            package_dir, project_root, ".gaia/ir.json"
+        )
+    except (OSError, ValueError) as exc:
+        warnings.append(f"{node_id}: cannot read {ir_path}: {exc}")
+        return row
+    try:
+        beliefs_path = contained_package_file(
+            package_dir, project_root, ".gaia/beliefs.json"
+        )
+    except (OSError, ValueError) as exc:
+        warnings.append(f"{node_id}: cannot read {beliefs_path}: {exc}")
+        return row
+    try:
+        ir_bytes = ir_path.read_bytes()
+        current_pin = compiled_ir_pin(ir_bytes)
+        expected_pin = package_pin_from_ref(ref)
+        if current_pin != expected_pin:
+            warnings.append(
+                f"{node_id}: package ref pins {expected_pin}, but the exact compiled "
+                f"ir.json is {current_pin} — report drivers are withheld until the "
+                "package is re-extracted and written back"
+            )
+            return row
+        ir = load_compiled_ir(ir_bytes)
+        require_unique_exported_root(ir, worth_label)
+        require_authored_infer_rationales(ir)
+        audit_evidence_families(ir, worth_label)
+    except (OSError, ValueError) as exc:
         warnings.append(f"{node_id}: cannot read {ir_path}: {exc}")
         return row
     drivers = graph_drivers(ir, top=top)
@@ -250,7 +315,7 @@ def collect_row(
 
     try:
         beliefs = json.loads(beliefs_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
         warnings.append(
             f"{node_id}: cannot read {beliefs_path}: {exc} — staleness check skipped"
         )
