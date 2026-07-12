@@ -397,6 +397,7 @@ class ReviewOneTests(unittest.TestCase):
                 (out_dir / "inputs" / "source_fidelity_manifest.json").read_text(encoding="utf-8")
             )
             self.assertTrue(manifest["gate_input_valid"])
+            self.assertEqual(manifest["schema_version"], 2)
             self.assertEqual(manifest["candidate_visibility"], "visible_in_same_packet")
             self.assertFalse(manifest["candidate_withheld_extraction_performed_by_this_run"])
             self.assertEqual(manifest["correction_status"], "not-applicable")
@@ -495,6 +496,30 @@ class ReviewOneTests(unittest.TestCase):
                 )
             self.assertEqual(rc, 2)
             self.assertIn("duplicate --context paths", stderr.getvalue())
+
+    def test_non_source_role_rejects_target_reused_as_context(self):
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            artifact = td_path / "artifact.md"
+            artifact.write_text("candidate\n", encoding="utf-8")
+            stderr = io.StringIO()
+            with contextlib.redirect_stderr(stderr), contextlib.redirect_stdout(io.StringIO()):
+                rc = self.mod.main(
+                    self._basic_argv(
+                        td_path,
+                        td_path / "out",
+                        artifact,
+                        "--role",
+                        "correctness",
+                        "--context",
+                        str(artifact),
+                    )
+                )
+            self.assertEqual(rc, 2)
+            self.assertIn(
+                "review target and additional context must be distinct",
+                stderr.getvalue(),
+            )
 
     def test_source_fidelity_rejects_same_file_as_source_and_target(self):
         with tempfile.TemporaryDirectory() as td:

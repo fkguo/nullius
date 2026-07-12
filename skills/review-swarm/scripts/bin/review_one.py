@@ -528,7 +528,7 @@ def _source_review_manifest(
         }
     is_extraction = args.role == _SOURCE_EXTRACTION_ROLE
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "role": args.role,
         "gate_input_valid": True,
         "primary_sources": sources,

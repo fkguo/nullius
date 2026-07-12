@@ -224,7 +224,8 @@ Flags:
   reviewer must block if it contains an expected answer or proposed correction.
 - `--context PATH` — optional extra material appended to the packet. Repeatable;
   every file is embedded and recorded in command-line order. Duplicate paths are
-  rejected instead of being silently collapsed.
+  rejected instead of being silently collapsed, and a context path identical to
+  an `--artifact` target is rejected for every reviewer role.
 - `--out-dir DIR` — defaults to `./review-one-<UTC timestamp>/`; the assembled
   inputs are persisted under `<out-dir>/inputs/` for audit.
 - `--host-family FAMILY` — pass your own family to make the entry refuse when
