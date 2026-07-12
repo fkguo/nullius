@@ -156,6 +156,13 @@ def test_valid_gate_passes():
     assert problems() == []
 
 
+def test_saturated_stale_matrix_cannot_enter_current_writeback() -> None:
+    matrix = valid_matrix()
+    matrix["posterior_status"] = "stale"
+    matrix["allocation_eligible"] = False
+    assert_problem_contains(problems(matrix), "posterior_status stale")
+
+
 def test_coverage_incomplete_can_pass_only_as_provisional_not_allocation_eligible():
     matrix = valid_matrix()
     matrix["coverage_status"] = "coverage_incomplete"
@@ -238,6 +245,79 @@ def test_tension_resolution_above_weakest_requires_challenge_pool():
     }
     issues = problems(matrix)
     assert_problem_contains(issues, "challenge_refs")
+
+
+def tension_ir(*pairs):
+    tension_id = "github:fixture::tension_resolution"
+    return {
+        "knowledges": [
+            {
+                "id": tension_id,
+                "label": "tension_resolution",
+                "type": "claim",
+            }
+        ],
+        "strategies": [
+            {
+                "type": "infer",
+                "premises": [tension_id],
+                "conclusion": f"github:fixture::evidence_{index}",
+                "conditional_probabilities": [p_nh, p_h],
+                "steps": [
+                    {
+                        "reasoning": "reader_reasoning: An executed check demonstrates the scoped "
+                        "resolution. resolution_evidence: discriminating_test. "
+                        "anchor: fixture"
+                    }
+                ],
+            }
+            for index, (p_h, p_nh) in enumerate(pairs)
+        ],
+    }
+
+
+def test_tension_grade_must_match_compiled_gaia_likelihood() -> None:
+    matrix = valid_matrix()
+    matrix["tension_resolution"] = {"grade": "weakest"}
+    issues = gate.validate_tension_resolution_consistency(
+        matrix, tension_ir((0.9, 0.09))
+    )
+    assert_problem_contains(issues, "does not match compiled Gaia")
+
+
+def test_multiple_tension_updates_require_exact_grade_multiset() -> None:
+    matrix = valid_matrix()
+    matrix["tension_resolution"] = {"grade": "substantial"}
+    ir = tension_ir((0.75, 0.25), (0.9, 0.09))
+    issues = gate.validate_tension_resolution_consistency(matrix, ir)
+    assert_problem_contains(issues, "raising_likelihood_grades")
+
+    matrix["tension_resolution"]["raising_likelihood_grades"] = [
+        "weakest",
+        "substantial",
+    ]
+    assert gate.validate_tension_resolution_consistency(matrix, ir) == []
+
+
+def test_tension_existence_or_plan_cannot_raise_resolution_at_write_gate() -> None:
+    matrix = valid_matrix()
+    matrix["tension_resolution"] = {"grade": "substantial"}
+    ir = tension_ir((0.9, 0.09))
+    ir["strategies"][0]["steps"][0]["reasoning"] = (
+        "reader_reasoning: The observation anchors the existence of an open tension and the idea "
+        "proposes a future check. anchor: fixture"
+    )
+    issues = gate.validate_tension_resolution_consistency(matrix, ir)
+    assert_problem_contains(issues, "tension existence or a plan alone is insufficient")
+
+
+def test_null_reasoning_is_treated_as_missing_resolution_evidence() -> None:
+    matrix = valid_matrix()
+    matrix["tension_resolution"] = {"grade": "substantial"}
+    ir = tension_ir((0.9, 0.09))
+    ir["strategies"][0]["steps"][0]["reasoning"] = None
+    issues = gate.validate_tension_resolution_consistency(matrix, ir)
+    assert_problem_contains(issues, "idea-specific pre-anchor clause")
 
 
 def test_close_prior_entry_requires_read_status_source_link_locator_and_identity():

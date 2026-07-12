@@ -19,14 +19,14 @@ guidance and cannot claim allocation eligibility unless exploratory allocation
 is explicit. Then ``gaia_package_ref`` is verified against the project on disk:
 the ``project://`` reference must resolve under the project root
 (``--project-root``, or the nearest ancestor of the store root containing
-``.nullius/``) and its ``#sha256:`` pin must match the package's current
-compiled state. A reference nobody could follow — or one whose graph changed
+``.nullius/``) and its ``#sha256:`` pin must match the exact bytes of the
+package's current compiled IR. A reference nobody could follow — or one whose graph changed
 after extraction — is refused with the refresh command instead of being
 archived into the store.
 
 The idempotency key defaults to a deterministic digest of campaign, node,
-package reference (which pins the compiled graph via its ir_hash), value, and
-evidence count — re-running the same write is a no-op at the store, while any
+package reference (which pins the exact compiled ``ir.json`` artifact), value,
+and evidence count — re-running the same write is a no-op at the store, while any
 change in the posterior produces a new key.
 
 The deterministic default has one sharp corner: a posterior identical to an
@@ -60,17 +60,25 @@ from validate_close_prior_gate import (  # noqa: E402
     literature_coverage_from_gate,
     load_json,
     validate_gate,
+    validate_tension_resolution_consistency,
 )
 from normalize_report_links import (  # noqa: E402
     normalize_file as report_links_need_normalization,
     report_link_issues,
 )
 from normalize_report_posteriors import normalize_file as report_posteriors_need_normalization  # noqa: E402
+from idea_package_contract import (  # noqa: E402
+    audit_evidence_families,
+    compiled_ir_pin,
+    load_compiled_ir,
+    require_authored_infer_rationales,
+    require_unique_exported_root,
+)
 
 REQUIRED_POSTERIOR_FIELDS = ("value", "evidence_count", "gaia_package_ref")
 
-# The package reference must be machine-portable AND pin the compiled graph
-# state: project://<project-relative path>#sha256:<64 lowercase hex>, resolved against
+# The package reference must be machine-portable AND pin the exact compiled IR
+# bytes: project://<project-relative path>#sha256:<64 lowercase hex>, resolved against
 # the enclosing project root (the nearest ancestor with .nullius/). Research
 # projects sync across machines, so machine-absolute forms (file:// URIs,
 # bare paths) are refused — they go stale the moment the project lands on
@@ -173,7 +181,7 @@ def find_project_root(start: Path) -> Path | None:
     return None
 
 
-def verify_package_ref(ref: str, project_root: Path) -> None:
+def verify_package_ref(ref: str, project_root: Path) -> dict:
     """Check the reference resolves under this project and matches its pin.
 
     A reference that does not resolve, or whose pin disagrees with the
@@ -184,33 +192,41 @@ def verify_package_ref(ref: str, project_root: Path) -> None:
     rel, pin = split_package_ref(ref)
     package_dir = project_root / rel
     ir_path = package_dir / ".gaia" / "ir.json"
-    if not ir_path.is_file():
+    try:
+        resolved_ir_path = ir_path.resolve(strict=True)
+        resolved_ir_path.relative_to(project_root.resolve(strict=True))
+        resolved_ir_path.relative_to(package_dir.resolve(strict=True))
+    except (OSError, ValueError) as exc:
         raise ValueError(
-            f"gaia_package_ref does not resolve: {ir_path} not found under "
+            f"gaia_package_ref does not resolve inside the project root: "
+            f"{ir_path} is missing or escapes "
             f"project root {project_root}. If the package moved or the "
             "reference is stale, re-run run_infer_and_extract.py on the "
             "package to produce a fresh posterior and reference; if the "
             "reference was extracted against a different root (nested "
             "projects), pass that root via --project-root"
-        )
+        ) from exc
+    if not resolved_ir_path.is_file():
+        raise ValueError(f"gaia_package_ref target is not a file: {ir_path}")
     try:
-        ir_doc = json.loads(ir_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        raise ValueError(f"could not read {ir_path}: {exc}") from exc
-    if not isinstance(ir_doc, dict):
-        raise ValueError(
-            f"{ir_path} is not a JSON object; the package's compiled "
-            "state cannot be checked — re-run the inference stages"
-        )
-    ir_hash = ir_doc.get("ir_hash")
-    if ir_hash != pin:
+        ir_bytes = resolved_ir_path.read_bytes()
+        ir_doc = load_compiled_ir(ir_bytes)
+    except (OSError, ValueError) as exc:
+        raise ValueError(f"could not read {resolved_ir_path}: {exc}") from exc
+    current_pin = compiled_ir_pin(ir_bytes)
+    if current_pin != pin:
         raise ValueError(
             f"gaia_package_ref pin {pin!r} does not match the package's "
-            f"current compiled state {ir_hash!r} at {package_dir}. The "
+            f"current compiled state (exact IR pin {current_pin!r}) at "
+            f"{package_dir}. The "
             "graph changed after extraction — re-run "
             "run_infer_and_extract.py so the posterior and its reference "
             "come from the same compiled graph"
         )
+    require_unique_exported_root(ir_doc)
+    require_authored_infer_rationales(ir_doc)
+    audit_evidence_families(ir_doc)
+    return ir_doc
 
 
 def derive_idempotency_key(campaign_id: str, node_id: str, posterior: dict) -> str:
@@ -361,9 +377,19 @@ def main(argv: list[str] | None = None) -> int:
             return 2
 
     try:
-        verify_package_ref(posterior["gaia_package_ref"], project_root)
+        compiled_ir = verify_package_ref(
+            posterior["gaia_package_ref"], project_root
+        )
     except ValueError as exc:
         sys.stderr.write(f"error: {exc}\n")
+        return 2
+    consistency_problems = validate_tension_resolution_consistency(
+        matrix, compiled_ir
+    )
+    if consistency_problems:
+        sys.stderr.write("error: close-prior/Gaia consistency gate failed:\n")
+        for problem in consistency_problems:
+            sys.stderr.write(f"  - {problem}\n")
         return 2
 
     report_path = Path(args.posterior_report_md).resolve()

@@ -22,9 +22,12 @@ EVIDENCE_SNIPPET = '''
 # Appended by the end-to-end test: one anchored observation moving one
 # sub-criterion, which moves worth.
 ev_tension = observe(
-    "A survey artifact records an unresolved tension between two established "
-    "approximation schemes.",
-    rationale="anchor: literature_survey_v1 tensions section (test fixture)",
+    "An executed discriminating trial rules out one competing explanation "
+    "within an explicitly stated scope.",
+    rationale=(
+        "evidence_family: executed-trial; correlation_model: single; "
+        "anchor: executed discriminating-trial artifact (test fixture)"
+    ),
 )
 infer(
     ev_tension,
@@ -32,8 +35,10 @@ infer(
     p_e_given_h=0.90,
     p_e_given_not_h=0.09,
     rationale=(
-        "Recorded tension supports the sub-criterion; substantial grade. "
-        "anchor: literature_survey_v1 tensions section (test fixture)"
+        "reader_reasoning: The executed trial demonstrates a scoped partial "
+        "resolution; substantial grade. "
+        "resolution_evidence: demonstrated_partial_resolution. "
+        "anchor: executed discriminating-trial artifact (test fixture)"
     ),
 )
 infer(
@@ -42,7 +47,8 @@ infer(
     p_e_given_h=0.75,
     p_e_given_not_h=0.25,
     rationale=(
-        "Tension resolution weakly raises worth; weak grade. "
+        "reader_reasoning: Demonstrated scoped resolution weakly raises worth; "
+        "weak grade. "
         "anchor: gate_result_v1 record (test fixture)"
     ),
 )
@@ -132,6 +138,13 @@ def test_scaffold_infer_extract_writeback_chain(
     posterior_file = tmp_path / "posterior.json"
     posterior_file.write_text(json.dumps(updated), encoding="utf-8")
     survey_file, matrix_file, report_file = write_close_prior_bundle(tmp_path)
+    matrix = json.loads(matrix_file.read_text(encoding="utf-8"))
+    matrix["tension_resolution"] = {
+        "grade": "substantial",
+        "supporting_refs": ["Example2026"],
+        "challenge_refs": ["Example2026"],
+    }
+    matrix_file.write_text(json.dumps(matrix), encoding="utf-8")
     code = writeback.main(
         [
             "--posterior-json", str(posterior_file),

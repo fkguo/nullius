@@ -14,11 +14,11 @@ HTML with pinned nh3/Ammonia, and publishes two files atomically:
 
 * ``docs/detailed-reasoning.html`` -- a script-free, self-contained page;
 * ``docs/detailed-reasoning.manifest.json`` -- exact SHA-256 bindings for the
-  current beliefs, Markdown, and HTML bytes.
+  current beliefs, compiled IR, Markdown, and HTML bytes.
 
-The manifest is installed last.  Missing dependencies or any failed stage
+The manifest is installed last. Missing dependencies or any failed stage
 invalidates the manifest and withholds the page; callers must never fabricate
-the sidecar.  The argument-graph renderer independently rehashes all three
+the sidecar. The argument-graph renderer independently rehashes all four
 inputs before it emits a deep-dive link.
 """
 
@@ -29,6 +29,7 @@ import base64
 import hashlib
 import html
 import json
+import math
 import os
 import re
 import shutil
@@ -40,9 +41,16 @@ from dataclasses import dataclass
 from html.parser import HTMLParser
 from importlib.metadata import PackageNotFoundError, version as package_version
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import unquote, urlsplit
 
-ARTIFACT = "detailed_reasoning_html_binding_v1"
+from idea_package_contract import (
+    audit_evidence_families,
+    load_compiled_ir,
+    require_authored_infer_rationales,
+    require_unique_exported_root,
+)
+
+ARTIFACT = "detailed_reasoning_html_binding_v2"
 NH3_PIN = "0.3.6"
 HELPER_LABEL_PREFIXES = ("__", "_anon")
 HTML_NAME = "detailed-reasoning.html"
@@ -157,6 +165,313 @@ def _load_labels(ir_bytes: bytes) -> set[str]:
     return {label for label in labels if not label.startswith(HELPER_LABEL_PREFIXES)}
 
 
+def _quote_markdown(text: str) -> str:
+    """Render authored Markdown as a contained quotation block."""
+    normalized = text.strip() or "(no statement recorded)"
+    return "\n".join("> " + line if line else ">" for line in normalized.splitlines())
+
+
+def _rationale_parts(text: str) -> tuple[str, str]:
+    marker = text.find("anchor:")
+    if marker < 0:
+        rationale, anchor = text.strip(), ""
+    else:
+        rationale = text[:marker].strip()
+        anchor = text[marker + len("anchor:") :].strip()
+    rationale = re.sub(
+        r"^reader_reasoning:\s*", "", rationale, count=1
+    ).strip()
+    return rationale, anchor
+
+
+def _likelihood_effect(p_h: float, p_nh: float) -> tuple[str, str, float]:
+    ratio = p_h / p_nh if p_nh > 0 else float("inf")
+    if abs(ratio - 1.0) < 1e-12:
+        return "does not move", "neutral", ratio
+    magnitude = ratio if ratio > 1.0 else (1.0 / ratio if ratio > 0 else float("inf"))
+    if math.isfinite(magnitude):
+        grade = min(
+            ((3.0, "weak"), (10.0, "substantial"), (30.0, "strong")),
+            key=lambda item: abs(item[0] - magnitude),
+        )[1]
+    else:
+        grade = "strong"
+    factor = f"{magnitude:.2g}"
+    if ratio > 1.0:
+        return "raises", f"{grade}, likelihood ratio ×{factor}", ratio
+    return "lowers", f"{grade}, likelihood ratio ÷{factor}", ratio
+
+
+def _path_polarity(edges: list["_ReaderEdge"]) -> str:
+    """Return direction only; local likelihood ratios are not composable BFs."""
+    lowering_edges = 0
+    for edge in edges:
+        if abs(edge.p_h - edge.p_nh) < 1e-12:
+            return "neutral"
+        if edge.p_h < edge.p_nh:
+            lowering_edges += 1
+    return "lowering" if lowering_edges % 2 else "supporting"
+
+
+@dataclass(frozen=True)
+class _ReaderEdge:
+    source: str
+    target: str
+    p_h: float
+    p_nh: float
+    rationale: str
+    strategy_id: str
+
+
+def _reader_reasoning_markdown(ir: dict) -> str:
+    """Build an evidence-first reading surface from authored IR content.
+
+    Gaia stores infer relations in generative direction. This view inverts
+    them exactly once and follows recorded observations through authored
+    likelihood rationales into the unique exported conclusion.
+    """
+    root = require_unique_exported_root(ir)
+    require_authored_infer_rationales(ir)
+    family_records = audit_evidence_families(ir)
+    root_id = str(root["id"])
+    knowledges = {
+        str(item["id"]): item
+        for item in ir.get("knowledges", [])
+        if isinstance(item, dict) and item.get("id")
+    }
+    observed_ids = []
+    for kid, item in knowledges.items():
+        metadata = item.get("metadata") or {}
+        supports = metadata.get("supported_by") or []
+        if any(
+            isinstance(support, dict) and support.get("pattern") == "observation"
+            for support in supports
+        ):
+            observed_ids.append(kid)
+
+    def declaration_index(item: dict) -> int:
+        try:
+            return int(item.get("declaration_index", 0))
+        except (TypeError, ValueError):
+            return 0
+
+    outgoing: dict[str, list[_ReaderEdge]] = {kid: [] for kid in knowledges}
+    for index, strategy in enumerate(ir.get("strategies", [])):
+        if not isinstance(strategy, dict) or strategy.get("type") != "infer":
+            continue
+        premises = strategy.get("premises") or []
+        probabilities = strategy.get("conditional_probabilities") or []
+        evidence = strategy.get("conclusion")
+        if (
+            len(premises) != 1
+            or len(probabilities) != 2
+            or evidence not in knowledges
+            or premises[0] not in knowledges
+        ):
+            continue
+        rationale = " ".join(
+            str(step.get("reasoning") or "").strip()
+            for step in strategy.get("steps", [])
+            if isinstance(step, dict) and str(step.get("reasoning") or "").strip()
+        )
+        outgoing[evidence].append(
+            _ReaderEdge(
+                source=str(evidence),
+                target=str(premises[0]),
+                p_h=float(probabilities[1]),
+                p_nh=float(probabilities[0]),
+                rationale=rationale,
+                strategy_id=str(strategy.get("strategy_id") or f"infer-{index}"),
+            )
+        )
+    for edges in outgoing.values():
+        edges.sort(
+            key=lambda edge: (
+                declaration_index(knowledges[edge.target]),
+                edge.strategy_id,
+            )
+        )
+
+    paths: list[tuple[str, list[_ReaderEdge]]] = []
+
+    def walk(source_id: str, current: str, edges: list[_ReaderEdge], seen: set[str]) -> None:
+        if current == root_id:
+            paths.append((source_id, list(edges)))
+            if len(paths) > 1000:
+                raise RuntimeError(
+                    "reader reasoning view exceeds 1000 evidence-to-conclusion paths"
+                )
+            return
+        for edge in outgoing.get(current, []):
+            if edge.target in seen:
+                raise RuntimeError("reader evidence-flow graph contains a cycle")
+            walk(source_id, edge.target, [*edges, edge], {*seen, edge.target})
+
+    observed_ids.sort(
+        key=lambda kid: (declaration_index(knowledges[kid]), kid)
+    )
+    for source_id in observed_ids:
+        walk(source_id, source_id, [], {source_id})
+
+    lowering = []
+    supporting = []
+    neutral = []
+    for path in paths:
+        polarity = _path_polarity(path[1])
+        if polarity == "lowering":
+            lowering.append(path)
+        elif polarity == "supporting":
+            supporting.append(path)
+        else:
+            neutral.append(path)
+
+    lines = [
+        "# Evidence-to-conclusion reasoning",
+        "",
+        "Read these chains from concrete recorded evidence to the exported conclusion. "
+        "Each intermediate statement is a structural criterion or claim; it is not the "
+        "explanation. The explanation is the authored likelihood rationale shown at each "
+        "update. Lowering evidence is listed before supporting evidence.",
+        "",
+    ]
+
+    if family_records:
+        lines.extend(
+            [
+                "## Evidence-family accounting",
+                "",
+                "Evidence-family identifiers disclose shared provenance. Gaia "
+                "0.5.0a4 multiplies separate likelihood factors, so at most one "
+                "observation from a family may lie on a path to the exported "
+                "conclusion. Correlated material is represented by one composite "
+                "observation and one likelihood update; any repeated occurrences "
+                "shown here are disconnected source notes and do not change "
+                "the posterior.",
+                "",
+            ]
+        )
+        families: dict[str, list[dict]] = {}
+        for record in family_records.values():
+            families.setdefault(record["family"], []).append(record)
+        for family in sorted(families):
+            records = families[family]
+            model = records[0]["correlation_model"]
+            lines.append(
+                f"- `{family}`: {len(records)} recorded observation(s); "
+                f"correlation model `{model}`."
+            )
+        lines.append("")
+
+    def append_group(title: str, group: list[tuple[str, list[_ReaderEdge]]]) -> None:
+        lines.extend([f"## {title}", ""])
+        if not group:
+            lines.extend(["No such evidence-to-conclusion path is recorded.", ""])
+            return
+        for path_index, (source_id, edges) in enumerate(group, 1):
+            source = knowledges[source_id]
+            path_polarity = _path_polarity(edges)
+            lines.extend(
+                [
+                    f"### {title[:-1]} {path_index}",
+                    "",
+                    f"**Local path polarity:** {path_polarity}. This is direction "
+                    "only; local likelihood ratios are not multiplied into an "
+                    "end-to-end Bayes factor or a global posterior update.",
+                    "",
+                    "#### Step 1 — recorded evidence",
+                    "",
+                    _quote_markdown(str(source.get("content") or "")),
+                    "",
+                ]
+            )
+            supports = (source.get("metadata") or {}).get("supported_by") or []
+            observation_notes = [
+                str(item.get("rationale") or "")
+                for item in supports
+                if isinstance(item, dict) and item.get("pattern") == "observation"
+            ]
+            if observation_notes:
+                lines.extend(
+                    [
+                        "**Observation record**",
+                        "",
+                        _quote_markdown(" ".join(observation_notes)),
+                        "",
+                    ]
+                )
+            family_record = family_records.get(source_id)
+            if family_record:
+                lines.extend(
+                    [
+                        "**Evidence-family declaration**",
+                        "",
+                        _quote_markdown(
+                            f"{family_record['family']}; correlation model "
+                            f"{family_record['correlation_model']}; reused by "
+                            f"{family_record['reuse_count']} recorded observation(s)."
+                        ),
+                        "",
+                    ]
+                )
+            for step_index, edge in enumerate(edges, 2):
+                target = knowledges[edge.target]
+                direction, strength, _ = _likelihood_effect(edge.p_h, edge.p_nh)
+                metadata = target.get("metadata") or {}
+                reader_role = metadata.get("reader_role")
+                if edge.target == root_id:
+                    target_role = "exported conclusion"
+                elif reader_role == "criterion":
+                    target_role = "structural criterion"
+                else:
+                    target_role = "intermediate criterion or claim"
+                rationale, anchors = _rationale_parts(edge.rationale)
+                lines.extend(
+                    [
+                        f"#### Step {step_index} — {target_role} update",
+                        "",
+                        _quote_markdown(str(target.get("content") or "")),
+                        "",
+                        f"**Likelihood effect:** {direction} ({strength}).",
+                        "",
+                        "**Authored likelihood rationale**",
+                        "",
+                        _quote_markdown(
+                            rationale or "No authored likelihood rationale is recorded."
+                        ),
+                        "",
+                    ]
+                )
+                if anchors:
+                    lines.extend(
+                        ["**Source anchor**", "", _quote_markdown(anchors), ""]
+                    )
+
+    append_group("Lowering paths", lowering)
+    append_group("Supporting paths", supporting)
+    if neutral:
+        append_group("Neutral paths", neutral)
+    connected = {source_id for source_id, _edges in paths}
+    unconnected = [kid for kid in observed_ids if kid not in connected]
+    if unconnected:
+        lines.extend(["## Recorded evidence outside the exported conclusion", ""])
+        for kid in unconnected:
+            lines.extend([_quote_markdown(str(knowledges[kid].get("content") or "")), ""])
+
+    lines.extend(
+        [
+            "# Gaia model details",
+            "",
+            "The material below is Gaia's raw model report. Criterion statements are "
+            "structural hypotheses, not explanations. Any raw Gaia graph is a "
+            "generative probability-model graph: its arrows run from a hypothesis to "
+            "possible evidence. That arrow direction is not the reader's evidence "
+            "flow; use the evidence-to-conclusion chains above for that reading.",
+            "",
+        ]
+    )
+    return "\n".join(lines)
+
+
 def _inline_text(value) -> str:
     if isinstance(value, list):
         return "".join(_inline_text(item) for item in value)
@@ -173,6 +488,55 @@ def _inline_text(value) -> str:
     if kind == "Math" and isinstance(content, list) and len(content) == 2:
         return str(content[1])
     return _inline_text(content)
+
+
+def _text_inlines(text: str) -> list[dict]:
+    words = text.split()
+    result: list[dict] = []
+    for index, word in enumerate(words):
+        if index:
+            result.append({"t": "Space"})
+        result.append({"t": "Str", "c": word})
+    return result
+
+
+def _label_mermaid_direction(document: dict) -> None:
+    """Attach an explicit generative-direction label to every raw diagram."""
+    blocks = document.get("blocks")
+    if not isinstance(blocks, list):
+        return
+    output = []
+    for block in blocks:
+        if isinstance(block, dict) and block.get("t") == "CodeBlock":
+            content = block.get("c") or []
+            attrs = content[0] if len(content) == 2 else []
+            classes = set(
+                attrs[1] if isinstance(attrs, list) and len(attrs) == 3 else []
+            )
+            if "mermaid" in classes:
+                output.extend(
+                    [
+                        {
+                            "t": "Header",
+                            "c": [
+                                4,
+                                ["", [], []],
+                                _text_inlines(
+                                    "Raw Gaia generative probability-model graph"
+                                ),
+                            ],
+                        },
+                        {
+                            "t": "Para",
+                            "c": _text_inlines(
+                                "Arrows run from a hypothesis to possible evidence. "
+                                "They do not show the reader's evidence flow."
+                            ),
+                        },
+                    ]
+                )
+        output.append(block)
+    document["blocks"] = output
 
 
 class _ExactAnchorProbe(HTMLParser):
@@ -305,6 +669,8 @@ def _assign_exact_fragment_ids(document: dict, labels: set[str]) -> set[str]:
             other is not heading
             and isinstance(other.get("c"), list)
             and len(other["c"]) == 3
+            and isinstance(other["c"][1], list)
+            and bool(other["c"][1])
             and other["c"][1][0] == label
             for other in all_headers
         ):
@@ -323,6 +689,11 @@ def _safe_link(target: str) -> bool:
     if parsed.scheme:
         return parsed.scheme.lower() in {"http", "https", "mailto"}
     # Relative links and same-document fragments remain useful under file://.
+    decoded_path = unquote(parsed.path)
+    if "\\" in decoded_path or any(
+        segment in {".", ".."} for segment in decoded_path.split("/")
+    ):
+        return False
     return not target.startswith("/") and portability_violation(target) is None
 
 
@@ -789,8 +1160,14 @@ def render_package(
     pandoc_version = _tool_version(pandoc, "Pandoc", timeout)
     mmdc_version = _tool_version(mmdc, "Mermaid CLI", timeout)
     beliefs_sha = sha256_bytes(beliefs_bytes)
+    ir_sha = sha256_bytes(ir_bytes)
     markdown_sha = sha256_bytes(markdown_bytes)
     labels = _load_labels(ir_bytes)
+    ir = load_compiled_ir(ir_bytes)
+    require_unique_exported_root(ir)
+    require_authored_infer_rationales(ir)
+    audit_evidence_families(ir)
+    reader_markdown = _reader_reasoning_markdown(ir).encode("utf-8")
 
     with tempfile.TemporaryDirectory(prefix=".detailed-render-", dir=docs) as tmp_name:
         tmp = Path(tmp_name)
@@ -819,7 +1196,7 @@ def render_package(
         )
         ast_bytes = _run(
             [pandoc, "--from=gfm", "--to=json", "--fail-if-warnings"],
-            input_bytes=markdown_bytes,
+            input_bytes=reader_markdown + b"\n\n" + markdown_bytes,
             timeout=timeout,
         )
         try:
@@ -827,6 +1204,7 @@ def render_package(
         except json.JSONDecodeError as exc:
             raise RuntimeError(f"Pandoc returned invalid JSON AST: {exc}") from exc
         expected_fragments = _assign_exact_fragment_ids(document, labels)
+        _label_mermaid_direction(document)
         document, trusted_images = _transform_document(
             document,
             mmdc=mmdc,
@@ -865,6 +1243,7 @@ def render_package(
             "beliefs_sha256": beliefs_sha,
             "fragments": fragments,
             "html_sha256": html_sha,
+            "ir_sha256": ir_sha,
             "markdown_sha256": markdown_sha,
             "renderer": {
                 "nh3": NH3_PIN,
@@ -883,6 +1262,8 @@ def render_package(
         # the renderer must produce no authoritative sidecar.
         if sha256_bytes(beliefs_path.read_bytes()) != beliefs_sha:
             raise RuntimeError("beliefs changed during detailed-page rendering")
+        if sha256_bytes(ir_path.read_bytes()) != ir_sha:
+            raise RuntimeError("compiled IR changed during detailed-page rendering")
         if sha256_bytes(markdown_path.read_bytes()) != markdown_sha:
             raise RuntimeError("Markdown changed during detailed-page rendering")
 
@@ -896,6 +1277,19 @@ def render_package(
         # Publish authority last. A crash before this rename leaves an
         # unverifiable page, never a falsely current one.
         manifest_tmp.replace(manifest_path)
+
+        # A source edit detected immediately after publication invalidates
+        # both outputs. No finite sequence of filesystem reads can prevent a
+        # later edit, so every consumer also rechecks all four hashes.
+        if (
+            sha256_bytes(beliefs_path.read_bytes()) != beliefs_sha
+            or sha256_bytes(ir_path.read_bytes()) != ir_sha
+            or sha256_bytes(markdown_path.read_bytes()) != markdown_sha
+        ):
+            _invalidate(docs, package)
+            raise RuntimeError(
+                "detailed-page inputs changed at publication; outputs invalidated"
+            )
 
     return docs / HTML_NAME, docs / MANIFEST_NAME
 
@@ -934,7 +1328,7 @@ def main(argv: list[str] | None = None) -> int:
     except (OSError, RuntimeError, ValueError, json.JSONDecodeError) as exc:
         # Invalidate again in case the failure landed between the HTML rename
         # and the manifest rename. An unremovable survivor still cannot pass
-        # the graph's independent three-hash verification.
+        # the graph's independent four-hash verification.
         try:
             docs = _contained_docs_dir(package.resolve(), create=False)
             if docs is not None:
