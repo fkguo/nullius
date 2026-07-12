@@ -26,6 +26,11 @@ CORRELATION_MODEL_RE = re.compile(
     r"\bcorrelation_model\s*:\s*"
     r"(single)(?=\s*;)"
 )
+RESOLUTION_EVIDENCE_RE = re.compile(
+    r"(?:^|\s+)resolution_evidence\s*:\s*"
+    r"(?:mechanism|discriminating_test|demonstrated_partial_resolution)\s*\.?",
+    re.IGNORECASE,
+)
 REQUIRED_REASONING_LABELS = (
     "worth",
     "tension_resolution",
@@ -183,6 +188,16 @@ def require_authored_infer_rationales(ir: dict) -> None:
                 "'reader_reasoning: <why the evidence changes the hypothesis> "
                 "anchor: <source>', then re-run run_infer_and_extract.py"
             )
+
+
+def reader_rationale_text(text: str) -> str:
+    """Remove contract sentinels while preserving authored reader prose."""
+    cleaned = re.sub(
+        r"^\s*reader_reasoning\s*:\s*", "", text, count=1, flags=re.IGNORECASE
+    )
+    cleaned = RESOLUTION_EVIDENCE_RE.sub(" ", cleaned)
+    cleaned = re.sub(r"\s+([,.;:])", r"\1", cleaned)
+    return re.sub(r"\s+", " ", cleaned).strip()
 
 
 def parse_evidence_family_rationale(rationale: str) -> tuple[str, str]:

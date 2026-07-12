@@ -236,7 +236,7 @@ def write_package(tmp_path: Path, markdown: str) -> Path:
                         "conditional_probabilities": [0.09, 0.9],
                         "steps": [
                             {
-                                "reasoning": "reader_reasoning: The prediction makes the mechanism criterion substantially more plausible. anchor: survey fixture"
+                                "reasoning": "reader_reasoning: The prediction makes the mechanism criterion substantially more plausible. resolution_evidence: mechanism. anchor: survey fixture"
                             }
                         ],
                         "strategy_id": "support_criterion",
@@ -393,6 +393,8 @@ def test_static_page_renders_math_mermaid_links_and_strips_active_content(
     assert "The limitation is recorded explicitly." in normalized_page
     assert "evidence_family:" not in normalized_page
     assert "correlation_model:" not in normalized_page
+    assert "reader_reasoning:" not in normalized_page
+    assert "resolution_evidence:" not in normalized_page
     assert "structural criterion update" in normalized_page
     assert (
         "Criterion statements are structural hypotheses, not explanations."
