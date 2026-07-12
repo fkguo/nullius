@@ -36,6 +36,12 @@ How to work:
    text when applicable, normalized transcription, and a complete change log.
    A prime, dummy-variable rename, glyph replacement, expanded abbreviation, or
    notation cleanup belongs in the change log even when mathematically harmless.
+   Perform an explicit token-class sweep over relation operators and interval
+   endpoints (`<` versus `<=`, open versus closed), signs, overall factors,
+   numerator/denominator placement, exponents, subscripts, primes, function
+   arguments, and integration limits. A prose condition and a displayed domain
+   are separate source items; do not manufacture or erase a distinction between
+   them by normalization.
 5. **Check dependency closure before deriving.** List the exact source statements
    that fix the formula's domain, boundary value, branch/sheet, conventions, and
    definitions. If any needed premise is absent, mark the derivation UNCHECKABLE;
@@ -45,7 +51,11 @@ How to work:
    such; never rewrite it as source wording.
 7. **Report coverage item by item.** Mark each requested item EXTRACTED,
    AMBIGUOUS, or UNCHECKABLE. Quote the first ambiguous token or locator rather
-   than resolving it from expectation.
+   than resolving it from expectation. A claim of complete-paper, complete-section,
+   or all-formula coverage additionally requires a locator inventory of every
+   displayed equation and every adjacent formula-like condition in that declared
+   scope. Without that inventory, label the extraction partial even when every
+   requested load-bearing item was extracted.
 
 Severity: **BLOCKING** means the request leaks an expected answer, a required
 source/correction/search record is absent, a requested load-bearing item is

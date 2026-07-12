@@ -41,7 +41,12 @@ How to work:
    matching authors/year/title fragments do not prove a Part-II, predecessor,
    erratum, or companion relationship. A source match against a superseded
    pre-correction formula is still a BLOCKING fidelity defect if the artifact
-   presents that formula as current.
+   presents that formula as current. Run a separate token-class sweep over
+   relation operators and interval endpoints (`<` versus `<=`, open versus
+   closed), signs, prefactors, numerator/denominator placement, exponents,
+   subscripts, primes, function arguments, and integration limits. Compare a
+   prose condition and a displayed domain independently before deciding whether
+   they differ.
 5. **Require the source.** If the packet does not embed the primary source
    (the exact text that was transcribed), you cannot certify fidelity: say so
    explicitly, mark the review "not a fidelity pass", and review only what is
@@ -62,6 +67,12 @@ How to work:
 9. **Treat feedback as a hypothesis.** If the packet mentions a suspected
    correction, re-read the source locator and determine the result yourself.
    Do not accept the proposed replacement merely because the prompt states it.
+10. **Do not overstate coverage.** If the artifact or verdict says a complete
+    paper, section, or formula set was checked, require a locator inventory that
+    enumerates every displayed equation and adjacent formula-like condition in
+    that scope, each with MATCHES, DIVERGES, or UNCHECKABLE status. A selective
+    load-bearing comparison remains partial and cannot support an exhaustive
+    fidelity claim.
 
 Severity: **BLOCKING** means any divergence between the artifact and the
 primary source, however small it looks — a one-character sign flip is exactly

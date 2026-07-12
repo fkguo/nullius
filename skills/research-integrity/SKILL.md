@@ -472,8 +472,9 @@ mode introduced.
 **The transcription / extraction failure checklist.** Walk every item against the
 source, not against the note:
 
-- **(a) equation misquote** — a sign, coefficient, index, operator, or argument has
-  drifted from the source equation.
+- **(a) equation misquote** — a sign, coefficient, index, relation operator,
+  interval endpoint, numerator/denominator placement, exponent, subscript, prime,
+  function argument, or integration limit has drifted from the source equation.
 - **(b) wrong numeric value** — a transposed digit, the wrong table row / column, or
   the wrong reported uncertainty.
 - **(c) wrong / stale locator** — a pointer (line / section / equation / page) that
@@ -516,6 +517,12 @@ source, not against the note:
   bytes are direct original text or a visual transcription; for the latter, require a
   separate page/crop provenance record and an independently documented visual comparison.
   A file hash proves which contaminated bytes were reviewed, not that they match the page.
+- **(m) coverage overclaim** — selected load-bearing equations were checked, but the
+  note or verdict claims that every formula in a paper or section was verified. An
+  exhaustive claim requires a locator inventory of every displayed equation and every
+  adjacent formula-like condition in the declared scope, each with an explicit status.
+  Unlisted auxiliary formulas, intermediate definitions, and prose inequalities remain
+  unchecked even when the central derivation passes.
 
 **Minimum disconfirming check.** Run a **line-by-line comparison of the note against
 the primary source with "do not trust the note"** — a falsification gate, not a
@@ -529,6 +536,13 @@ Before deriving, enumerate the source-side conditions the derivation needs and v
 that their exact neighboring text is present. If a domain, boundary-value prescription,
 branch, sheet, convention, or definition is absent, mark the step uncheckable rather
 than filling it from a standard but possibly inapplicable convention.
+
+For each literal formula, perform a token-class sweep over relation operators and
+interval endpoints, signs, overall factors, numerator/denominator placement, exponents,
+subscripts, primes, function arguments, and integration limits. Compare prose conditions
+and displayed domains as separate source items. If the conclusion claims complete-paper
+or complete-section coverage, require the formula-and-condition inventory described in
+failure mode (m); otherwise state that the pass was selective.
 
 When the note will carry a central claim or be folded into a durable artifact, obtain
 at least one **candidate-withheld extraction**: a fresh reader receives the persisted

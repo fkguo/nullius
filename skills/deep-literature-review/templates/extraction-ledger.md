@@ -26,6 +26,9 @@ notation normalization, and derived interpretation in one field.
 - Reader:
 - Candidate note visible during extraction: no
 - Prior verdict or proposed correction visible during extraction: no
+- Declared comparison scope: selected items / complete section / complete paper
+- Formula-and-condition inventory path and SHA-256 (required for complete scope):
+- Inventory completeness independently checked:
 
 ## Item 1
 
@@ -38,6 +41,8 @@ notation normalization, and derived interpretation in one field.
 - Corrected source text and correction locator:
 - Normalized transcription:
 - Literal-to-normalized change log (including primes and dummy-variable renames):
+- Token-class audit (relations/endpoints, signs, factors, numerator/denominator,
+  exponents, subscripts, primes, arguments, integration limits):
 - Symbol dictionary:
 - Derived mapping or inference:
 - First ambiguity or divergence:
