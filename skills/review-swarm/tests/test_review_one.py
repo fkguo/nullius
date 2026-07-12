@@ -246,6 +246,8 @@ class ReviewOneTests(unittest.TestCase):
             system_text = (out_dir / "inputs" / "system.md").read_text(encoding="utf-8")
             template_text = (_SKILL_ROOT / "templates" / "source-fidelity.md").read_text(encoding="utf-8")
             self.assertEqual(system_text, template_text)
+            self.assertIn("preserve that item as AMBIGUOUS", system_text)
+            self.assertIn("majority reading", system_text)
 
     def test_source_fidelity_requires_primary_source_before_delegation(self):
         with tempfile.TemporaryDirectory() as td:
@@ -982,6 +984,9 @@ class ReviewOneTests(unittest.TestCase):
             self.assertIn("=== SOURCE-EXTRACTION SCOPE ===", packet)
             self.assertIn(f"=== NEUTRAL EXTRACTION REQUEST: {request.resolve()} ===", packet)
             self.assertNotIn("ARTIFACT UNDER REVIEW", packet)
+            system_text = (out_dir / "inputs" / "system.md").read_text(encoding="utf-8")
+            self.assertIn("keep it AMBIGUOUS", system_text)
+            self.assertIn("do not choose by majority", system_text)
             manifest = json.loads(
                 (out_dir / "inputs" / "source_extraction_manifest.json").read_text(
                     encoding="utf-8"

@@ -57,6 +57,10 @@ How to work:
    scope, using the same EXTRACTED, AMBIGUOUS, or UNCHECKABLE status set for each
    inventory entry. Without that inventory, label the extraction partial even
    when every requested load-bearing item was extracted.
+   If independent visual transcriptions conflict, reinspect the original page or
+   a lossless crop. When the surviving pixels still do not distinguish the glyph,
+   keep it AMBIGUOUS; do not choose by majority, typographic expectation,
+   algebraic convenience, or anticipated meaning.
 
 Severity: **BLOCKING** means the request leaks an expected answer, a required
 source/correction/search record is absent, a requested load-bearing item is

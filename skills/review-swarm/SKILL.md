@@ -365,6 +365,11 @@ transcription**, **symbol dictionary**, and **derived mapping/inference**. A cor
 wrongly transcribed formula does not certify the transcription. Require the reviewer to localize the first
 divergent source token or mapping step rather than only compare final formulas.
 
+Conflicting visual transcriptions do not become source truth by vote. Reinspect the original page or a
+lossless crop; if the surviving pixels still do not distinguish the disputed glyph, keep the inventory item
+`AMBIGUOUS` and require the candidate artifact to preserve that uncertainty. Do not collapse it to the
+mathematically expected sign, exponent, relation operator, or endpoint convention.
+
 An exhaustive source-fidelity claim needs an exhaustive comparison surface. If the verdict says that all
 formulas in a paper or section were checked, persist a locator inventory of every displayed equation and
 every adjacent formula-like condition in that scope, with an item-level status. A selected-item pass cannot
