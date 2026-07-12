@@ -472,9 +472,10 @@ mode introduced.
 **The transcription / extraction failure checklist.** Walk every item against the
 source, not against the note:
 
-- **(a) equation misquote** — a sign, coefficient, index, relation operator,
-  interval endpoint, numerator/denominator placement, exponent, subscript, prime,
-  function argument, or integration limit has drifted from the source equation.
+- **(a) equation misquote** — a sign, coefficient or factor, operator, index or
+  subscript, relation operator or interval endpoint, numerator/denominator
+  placement, exponent, prime, function argument, or integration limit has drifted
+  from the source equation.
 - **(b) wrong numeric value** — a transposed digit, the wrong table row / column, or
   the wrong reported uncertainty.
 - **(c) wrong / stale locator** — a pointer (line / section / equation / page) that
@@ -537,12 +538,13 @@ that their exact neighboring text is present. If a domain, boundary-value prescr
 branch, sheet, convention, or definition is absent, mark the step uncheckable rather
 than filling it from a standard but possibly inapplicable convention.
 
-For each literal formula, perform a token-class sweep over relation operators and
-interval endpoints, signs, overall factors, numerator/denominator placement, exponents,
-subscripts, primes, function arguments, and integration limits. Compare prose conditions
-and displayed domains as separate source items. If the conclusion claims complete-paper
-or complete-section coverage, require the formula-and-condition inventory described in
-failure mode (m); otherwise state that the pass was selective.
+For each literal formula, perform a token-class sweep over signs, coefficients or
+factors, operators, indices or subscripts, relation operators or interval endpoints,
+numerator/denominator placement, exponents, primes, function arguments, and integration
+limits. Compare prose conditions and displayed domains as separate source items. If the
+conclusion claims complete-paper or complete-section coverage, require the
+formula-and-condition inventory described in failure mode (m); otherwise state that the
+pass was selective.
 
 When the note will carry a central claim or be folded into a durable artifact, obtain
 at least one **candidate-withheld extraction**: a fresh reader receives the persisted

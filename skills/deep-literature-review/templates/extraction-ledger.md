@@ -41,8 +41,9 @@ notation normalization, and derived interpretation in one field.
 - Corrected source text and correction locator:
 - Normalized transcription:
 - Literal-to-normalized change log (including primes and dummy-variable renames):
-- Token-class audit (relations/endpoints, signs, factors, numerator/denominator,
-  exponents, subscripts, primes, arguments, integration limits):
+- Token-class audit (signs, coefficients/factors, operators, indices/subscripts,
+  relations/endpoints, numerator/denominator, exponents, primes, arguments,
+  integration limits):
 - Symbol dictionary:
 - Derived mapping or inference:
 - First ambiguity or divergence:
