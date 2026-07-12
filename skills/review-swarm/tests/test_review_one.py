@@ -898,7 +898,7 @@ class ReviewOneTests(unittest.TestCase):
                 manifest["neutral_extraction_request"]["path"], str(request.resolve())
             )
 
-    def test_source_extraction_rejects_candidate_artifact(self):
+    def test_source_extraction_requires_extraction_request_when_artifact_is_given(self):
         with tempfile.TemporaryDirectory() as td:
             td_path = Path(td)
             artifact = td_path / "candidate.md"
@@ -924,6 +924,34 @@ class ReviewOneTests(unittest.TestCase):
                 )
             self.assertEqual(rc, 2)
             self.assertIn("requires --extraction-request", stderr.getvalue())
+
+    def test_source_fidelity_rejects_target_reused_as_context(self):
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            artifact = td_path / "candidate.md"
+            source = td_path / "source.tex"
+            artifact.write_text("candidate answer\n", encoding="utf-8")
+            source.write_text("primary source\n", encoding="utf-8")
+            stderr = io.StringIO()
+            with contextlib.redirect_stderr(stderr), contextlib.redirect_stdout(io.StringIO()):
+                rc = self.mod.main(
+                    self._basic_argv(
+                        td_path,
+                        td_path / "out",
+                        artifact,
+                        "--role",
+                        "source-fidelity",
+                        "--source",
+                        str(source),
+                        "--context",
+                        str(artifact),
+                    )
+                )
+            self.assertEqual(rc, 2)
+            self.assertIn(
+                "review target and additional context must be distinct",
+                stderr.getvalue(),
+            )
 
     def test_source_extraction_rejects_additional_context(self):
         with tempfile.TemporaryDirectory() as td:
