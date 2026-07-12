@@ -362,6 +362,13 @@ transcription**, **symbol dictionary**, and **derived mapping/inference**. A cor
 wrongly transcribed formula does not certify the transcription. Require the reviewer to localize the first
 divergent source token or mapping step rather than only compare final formulas.
 
+An exhaustive source-fidelity claim needs an exhaustive comparison surface. If the verdict says that all
+formulas in a paper or section were checked, persist a locator inventory of every displayed equation and
+every adjacent formula-like condition in that scope, with an item-level status. A selected-item pass cannot
+be promoted to complete coverage. In either scope, explicitly sweep relation operators and interval
+endpoints, signs, factors, numerator/denominator placement, exponents, subscripts, primes, function
+arguments, and integration limits; algebraic or dimensional consistency is a separate check.
+
 Model-family independence, method independence, and input/framing independence are different axes. A
 cross-family reviewer that sees the same faulty note, prior verdict, or proposed correction is not an
 input-independent extraction. For a load-bearing source item, first obtain at least one

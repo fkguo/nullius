@@ -183,6 +183,15 @@ silently substitute a corrected expression for the printed source form. A prime,
 dummy-variable rename, or notation cleanup is a normalization and must appear in the
 change log even when it leaves the mathematics unchanged.
 
+If a note claims that all formulas in a paper or section were checked, first make a
+scope inventory containing every displayed equation and every adjacent formula-like
+condition in that scope. Record a locator and fidelity status for each entry. A
+load-bearing-item ledger is not evidence for an exhaustive claim about unlisted
+auxiliary formulas. For every literal formula, separately audit relation operators
+and interval endpoints, signs, factors, numerator/denominator placement, exponents,
+subscripts, primes, function arguments, and integration limits; dimensional or
+algebraic consistency does not substitute for this token-level comparison.
+
 Then fill **every** field the KB note template leaves blank, each backed by a
 verbatim quote + a locator (section / equation / table / figure / page):
 
@@ -295,7 +304,7 @@ value, (c) wrong / stale locator, (d) stale / wrong mapping to the consuming art
 (e) false "verbatim", (f) inference-as-source, (g) silent factor drop,
 (h) correlated-input agreement, (i) bibliographic-relation conflation,
 (j) stale pre-correction source, (k) context-stripped extraction,
-(l) source-layer contamination (full definitions: `research-integrity` →
+(l) source-layer contamination, (m) coverage overclaim (full definitions: `research-integrity` →
 *Extraction / transcription fidelity*).
 
 For a note that will anchor a central claim, enter a close-prior matrix, or be folded into a durable artifact, the gate is
