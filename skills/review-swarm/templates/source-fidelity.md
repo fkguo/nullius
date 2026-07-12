@@ -41,12 +41,12 @@ How to work:
    matching authors/year/title fragments do not prove a Part-II, predecessor,
    erratum, or companion relationship. A source match against a superseded
    pre-correction formula is still a BLOCKING fidelity defect if the artifact
-   presents that formula as current. Run a separate token-class sweep over
-   relation operators and interval endpoints (`<` versus `<=`, open versus
-   closed), signs, prefactors, numerator/denominator placement, exponents,
-   subscripts, primes, function arguments, and integration limits. Compare a
-   prose condition and a displayed domain independently before deciding whether
-   they differ.
+   presents that formula as current. Run a separate token-class sweep over signs,
+   coefficients or factors, operators, indices or subscripts, relation operators
+   or interval endpoints (`<` versus `<=`, open versus closed),
+   numerator/denominator placement, exponents, primes, function arguments, and
+   integration limits. Compare a prose condition and a displayed domain
+   independently before deciding whether they differ.
 5. **Require the source.** If the packet does not embed the primary source
    (the exact text that was transcribed), you cannot certify fidelity: say so
    explicitly, mark the review "not a fidelity pass", and review only what is

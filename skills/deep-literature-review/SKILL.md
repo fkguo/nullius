@@ -187,10 +187,11 @@ If a note claims that all formulas in a paper or section were checked, first mak
 scope inventory containing every displayed equation and every adjacent formula-like
 condition in that scope. Record a locator and fidelity status for each entry. A
 load-bearing-item ledger is not evidence for an exhaustive claim about unlisted
-auxiliary formulas. For every literal formula, separately audit relation operators
-and interval endpoints, signs, factors, numerator/denominator placement, exponents,
-subscripts, primes, function arguments, and integration limits; dimensional or
-algebraic consistency does not substitute for this token-level comparison.
+auxiliary formulas. For every literal formula, separately audit signs, coefficients
+or factors, operators, indices or subscripts, relation operators or interval
+endpoints, numerator/denominator placement, exponents, primes, function arguments,
+and integration limits; dimensional or algebraic consistency does not substitute
+for this token-level comparison.
 
 Then fill **every** field the KB note template leaves blank, each backed by a
 verbatim quote + a locator (section / equation / table / figure / page):

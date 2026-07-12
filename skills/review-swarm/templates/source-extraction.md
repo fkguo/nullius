@@ -36,12 +36,12 @@ How to work:
    text when applicable, normalized transcription, and a complete change log.
    A prime, dummy-variable rename, glyph replacement, expanded abbreviation, or
    notation cleanup belongs in the change log even when mathematically harmless.
-   Perform an explicit token-class sweep over relation operators and interval
-   endpoints (`<` versus `<=`, open versus closed), signs, overall factors,
-   numerator/denominator placement, exponents, subscripts, primes, function
-   arguments, and integration limits. A prose condition and a displayed domain
-   are separate source items; do not manufacture or erase a distinction between
-   them by normalization.
+   Perform an explicit token-class sweep over signs, coefficients or factors,
+   operators, indices or subscripts, relation operators or interval endpoints
+   (`<` versus `<=`, open versus closed), numerator/denominator placement,
+   exponents, primes, function arguments, and integration limits. A prose
+   condition and a displayed domain are separate source items; do not manufacture
+   or erase a distinction between them by normalization.
 5. **Check dependency closure before deriving.** List the exact source statements
    that fix the formula's domain, boundary value, branch/sheet, conventions, and
    definitions. If any needed premise is absent, mark the derivation UNCHECKABLE;
