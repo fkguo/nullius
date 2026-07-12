@@ -230,8 +230,8 @@ Flags:
   inputs are persisted under `<out-dir>/inputs/` for audit. Every run also writes
   `inputs/review_input_manifest.json`, which records the SHA-256 of each target,
   primary source, correction source, correction-search record, source-provenance
-  record, context, persisted system prompt, and persisted packet, plus the exact
-  diff hash when applicable.
+  record, context, neutral extraction request, persisted system prompt, and
+  persisted packet, plus the exact diff hash when applicable.
 - `--host-family FAMILY` — pass your own family to make the entry refuse when
   `--model` resolves to it, pointing you to host-native sub-agent review instead
   (mirrors "Host-aware execution" above).
@@ -349,9 +349,11 @@ and each applicable correction through repeatable `--correction-source`. The lau
 when applicable, ordered additional-context paths and hashes, correction status, and candidate visibility. Context content is
 explicitly marked as not machine-classified because the launcher cannot know whether it contains a prior
 verdict or proposed answer. Both roles fail closed before model launch if required source, correction,
-or correction-search evidence is absent or invalid. Both manifests also mark request neutrality and
-source dependency closure as `not_machine_verified`; the reviewer, not the packet assembler, must decide
-whether the question leaks an answer and whether all required domain/branch/convention premises are present.
+or correction-search evidence is absent or invalid. Both manifests mark source dependency closure as
+`not_machine_verified`, and the extraction manifest marks request neutrality `not_machine_verified` (the
+fidelity manifest records it as `not_applicable`, since that pass carries no neutral request); the reviewer,
+not the packet assembler, must decide whether the question leaks an answer and whether all required
+domain/branch/convention premises are present.
 The extraction input manifest certifies only that a candidate-withheld packet was constructed; it does not
 claim the extraction was completed. Completion belongs to the reviewer output and `meta.json` verdict.
 
