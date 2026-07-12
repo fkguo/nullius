@@ -33,6 +33,44 @@ python3 scripts/bin/review_one.py \
   --role correctness
 ```
 
+For source-fidelity work, supply the primary source and explicitly declare the
+correction-chain status. If a correction exists, include its exact text as a
+separate input:
+
+```bash
+python3 scripts/bin/review_one.py \
+  --model codex/default \
+  --artifact /path/to/extraction_note.md \
+  --source /path/to/primary_source.tex \
+  --source-text-origin direct-original-text \
+  --correction-status checked-corrections-included \
+  --correction-source /path/to/erratum.tex \
+  --correction-search-evidence /path/to/correction_search_record.md \
+  --role source-fidelity
+```
+
+Before that candidate-visible comparison, create a structurally
+candidate-withheld extraction:
+
+```bash
+python3 scripts/bin/review_one.py \
+  --model codex/default \
+  --extraction-request /path/to/neutral_questions.md \
+  --source /path/to/visually_transcribed_source.txt \
+  --source-text-origin visually-verified-transcription \
+  --source-provenance-evidence /path/to/page_crop_check.md \
+  --correction-status checked-none-found \
+  --correction-search-evidence /path/to/correction_search_record.md \
+  --role source-extraction
+```
+
+`source-extraction` rejects candidate artifacts, diffs, and additional context.
+The reviewer must still reject a request that itself leaks an expected answer.
+Both source roles also require `--source-text-origin`. A visual transcription of
+a PDF or scan requires a separate `--source-provenance-evidence` record; its
+presence and hash are enforced, while its scientific accuracy remains a reviewer
+responsibility.
+
 Cross-family review with contract checking — list only families OTHER than your
 own; your own family reviews natively in-host, the other families go through the
 launcher (example driven from a Claude host: three non-Claude reviewers):
