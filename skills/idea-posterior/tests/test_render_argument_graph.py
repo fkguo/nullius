@@ -163,19 +163,53 @@ def rendered(tmp_path: Path, *extra: str) -> str:
     return (package / "argument-graph.html").read_text(encoding="utf-8")
 
 
-def write_detailed_reasoning(package, body="#### worth\n"):
-    """Write docs/detailed-reasoning.md plus the matching generation stamp
-    (sha256 of the package's current .gaia/beliefs.json), exactly as the
-    pipeline does after a successful docs render."""
-    import hashlib as _hashlib
+def write_detailed_reasoning(package, body="#### worth\n", fragments=None):
+    """Install a three-hash-bound detailed-page fixture for graph unit tests.
+
+    Positive end-to-end coverage invokes the standalone renderer itself; this
+    helper keeps graph-only tests fast while malformed/stale tests mutate the
+    same public manifest shape.
+    """
     docs = package / "docs"
     docs.mkdir(exist_ok=True)
-    (docs / "detailed-reasoning.md").write_text(body, encoding="utf-8")
-    beliefs_sha = _hashlib.sha256(
-        (package / ".gaia" / "beliefs.json").read_bytes()
-    ).hexdigest()
-    (docs / "detailed-reasoning.beliefs-sha256").write_text(
-        f"sha256:{beliefs_sha}\n", encoding="utf-8"
+    markdown = docs / rag.DETAILED_MARKDOWN_NAME
+    html_page = docs / rag.DETAILED_HTML_NAME
+    manifest = docs / rag.DETAILED_MANIFEST_NAME
+    markdown.write_text(body, encoding="utf-8")
+    if fragments is None:
+        ir = json.loads((package / ".gaia" / "ir.json").read_text(encoding="utf-8"))
+        fragments = sorted(
+            item["label"]
+            for item in ir.get("knowledges", [])
+            if item.get("label")
+            and not item["label"].startswith(rag.HELPER_LABEL_PREFIXES)
+        )
+    html_page.write_text(
+        "<!doctype html>\n"
+        + "\n".join(
+            f'<h4 id="{html.escape(fragment)}">{html.escape(fragment)}</h4>'
+            for fragment in fragments
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    manifest.write_text(
+        json.dumps(
+            {
+                "artifact": rag.DETAILED_ARTIFACT,
+                "beliefs_sha256": rag.sha256_bytes(
+                    (package / ".gaia" / "beliefs.json").read_bytes()
+                ),
+                "fragments": fragments,
+                "html_sha256": rag.sha256_bytes(html_page.read_bytes()),
+                "markdown_sha256": rag.sha256_bytes(markdown.read_bytes()),
+                "renderer": {"fixture": "graph-unit-test"},
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
     )
     return docs
 
@@ -355,6 +389,19 @@ def test_missing_beliefs_is_a_clear_error(tmp_path) -> None:
     result = run_renderer(package)
     assert result.returncode == 2
     assert "beliefs" in result.stderr
+    assert not (package / "argument-graph.html").exists()
+
+
+def test_renderer_refuses_to_persist_machine_specific_paths(tmp_path) -> None:
+    ir = base_ir()
+    machine_local = "/" + "Users" + "/example/private-note.md"
+    ir["knowledges"][0]["content"] = (
+        f"A forbidden local reference appears at {machine_local}."
+    )
+    package = write_package(tmp_path, ir, base_beliefs())
+    result = run_renderer(package)
+    assert result.returncode == 2
+    assert "machine-local" in result.stderr
     assert not (package / "argument-graph.html").exists()
 
 
@@ -682,7 +729,7 @@ def test_detail_panel_links_the_detailed_reasoning_document(tmp_path) -> None:
     page = (package / "argument-graph.html").read_text(encoding="utf-8")
     payload = payload_of(page)
     worth = payload["nodes"][WORTH]
-    assert worth["doc_href"] == "docs/detailed-reasoning.md#worth"
+    assert worth["doc_href"] == "docs/detailed-reasoning.html#worth"
     # Junction relays never link.
     for node in payload["nodes"].values():
         if node["role"] == "junction":
@@ -690,7 +737,7 @@ def test_detail_panel_links_the_detailed_reasoning_document(tmp_path) -> None:
 
 
 def test_no_doc_links_without_the_document_or_off_package_out(tmp_path) -> None:
-    # No docs/detailed-reasoning.md -> no links at all.
+    # No bound docs/detailed-reasoning.html -> no links at all.
     page = rendered(tmp_path)
     for node in payload_of(page)["nodes"].values():
         assert "doc_href" not in node
@@ -726,9 +773,9 @@ def test_classify_anchor_rejects_backslash_and_control_variants() -> None:
 
 
 def test_doc_href_preserves_label_case_and_skips_helpers(tmp_path) -> None:
-    # The detailed-reasoning render precedes each section with a
-    # case-preserving <a id="{label}"></a>; lowercasing would break valid
-    # mixed-case labels. Referenced helper nodes have no section at all.
+    # The detailed-page renderer installs the exact case-preserving IR label
+    # on each node heading; lowercasing would break mixed-case fragments.
+    # Referenced helper nodes have no section at all.
     ir = base_ir()
     mixed = f"{NS}::MixedCase_Claim"
     ir["knowledges"].append(knowledge(mixed, "MixedCase_Claim", "A mixed-case judgment.", 20))
@@ -754,13 +801,15 @@ def test_doc_href_preserves_label_case_and_skips_helpers(tmp_path) -> None:
     )
     package = write_package(tmp_path, ir, beliefs)
     write_detailed_reasoning(
-        package, '<a id="MixedCase_Claim"></a>\n#### MixedCase_Claim\n'
+        package,
+        "#### MixedCase_Claim\n",
+        fragments=["MixedCase_Claim"],
     )
     result = run_renderer(package)
     assert result.returncode == 0, result.stderr
     payload = payload_of((package / "argument-graph.html").read_text(encoding="utf-8"))
     assert payload["nodes"][mixed]["doc_href"] == (
-        "docs/detailed-reasoning.md#MixedCase_Claim"
+        "docs/detailed-reasoning.html#MixedCase_Claim"
     )
     helper_nodes = [
         n for n in payload["nodes"].values()
@@ -807,7 +856,7 @@ def test_doc_links_survive_the_production_temp_sibling_out(tmp_path) -> None:
     result = run_renderer(package, "--out", str(out))
     assert result.returncode == 0, result.stderr
     payload = payload_of(out.read_text(encoding="utf-8"))
-    assert payload["nodes"][WORTH]["doc_href"] == "docs/detailed-reasoning.md#worth"
+    assert payload["nodes"][WORTH]["doc_href"] == "docs/detailed-reasoning.html#worth"
 
 
 def test_place_chips_window_and_fallback_unit() -> None:
@@ -864,32 +913,72 @@ def test_place_chips_window_and_fallback_unit() -> None:
 
 
 def test_stale_generation_reasoning_is_never_linked(tmp_path) -> None:
-    # The binding is to the beliefs GENERATION: a document whose companion
-    # stamp records some other beliefs state (a survivor of a failed
-    # render whose cleanup also failed) must not be linked from a graph
-    # carrying the current posteriors -- existence does not establish
-    # freshness. A missing stamp (document present, no companion) is the
-    # same safe side.
+    # A manifest carrying another beliefs generation is stale even when its
+    # Markdown and HTML files survive. A missing manifest is the same safe
+    # side; there is no legacy beliefs-only fallback.
     package = write_package(tmp_path, base_ir(), base_beliefs())
     docs = write_detailed_reasoning(package)
-    (docs / "detailed-reasoning.beliefs-sha256").write_text(
-        "sha256:" + "0" * 64 + "\n", encoding="utf-8"
-    )
+    manifest_path = docs / rag.DETAILED_MANIFEST_NAME
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["beliefs_sha256"] = "sha256:" + "0" * 64
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
     result = run_renderer(package)
     assert result.returncode == 0, result.stderr
     page = (package / "argument-graph.html").read_text(encoding="utf-8")
     assert '"doc_href":' not in page
 
-    (docs / "detailed-reasoning.beliefs-sha256").unlink()
+    manifest_path.unlink()
     result = run_renderer(package)
     assert result.returncode == 0, result.stderr
     page = (package / "argument-graph.html").read_text(encoding="utf-8")
     assert '"doc_href":' not in page
 
 
-def test_hand_polished_current_generation_document_keeps_its_link(tmp_path) -> None:
-    # Hand-editing the document does NOT drop the link: the stamp binds the
-    # beliefs generation it was rendered from, not the document's bytes.
+@pytest.mark.parametrize(
+    "mutation",
+    (
+        "missing_html",
+        "edited_html",
+        "edited_markdown",
+        "malformed_manifest",
+        "manifest_fragment_missing_from_html",
+    ),
+)
+def test_missing_or_stale_detailed_page_suppresses_all_deep_links(
+    tmp_path, mutation
+) -> None:
+    package = write_package(tmp_path, base_ir(), base_beliefs())
+    docs = write_detailed_reasoning(package)
+    if mutation == "missing_html":
+        (docs / rag.DETAILED_HTML_NAME).unlink()
+    elif mutation == "edited_html":
+        (docs / rag.DETAILED_HTML_NAME).write_text("STALE\n", encoding="utf-8")
+    elif mutation == "edited_markdown":
+        (docs / rag.DETAILED_MARKDOWN_NAME).write_text(
+            "#### worth\nEdited after rendering.\n", encoding="utf-8"
+        )
+    elif mutation == "malformed_manifest":
+        (docs / rag.DETAILED_MANIFEST_NAME).write_text("{not json", encoding="utf-8")
+    else:
+        html_path = docs / rag.DETAILED_HTML_NAME
+        html_path.write_text(
+            "<!doctype html><p>No node target.</p>\n", encoding="utf-8"
+        )
+        manifest_path = docs / rag.DETAILED_MANIFEST_NAME
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["html_sha256"] = rag.sha256_bytes(html_path.read_bytes())
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    result = run_renderer(package)
+    assert result.returncode == 0, result.stderr
+    page = (package / "argument-graph.html").read_text(encoding="utf-8")
+    assert '"doc_href":' not in page
+
+
+def test_edited_markdown_invalidates_link_until_html_is_regenerated(tmp_path) -> None:
+    # The binding covers exact Markdown bytes as well as beliefs. Editing the
+    # source correctly makes the old HTML stale until the standalone renderer
+    # regenerates both the page and the manifest.
     package = write_package(tmp_path, base_ir(), base_beliefs())
     docs = write_detailed_reasoning(package)
     (docs / "detailed-reasoning.md").write_text(
@@ -897,5 +986,5 @@ def test_hand_polished_current_generation_document_keeps_its_link(tmp_path) -> N
     )
     result = run_renderer(package)
     assert result.returncode == 0, result.stderr
-    payload = payload_of((package / "argument-graph.html").read_text(encoding="utf-8"))
-    assert payload["nodes"][WORTH]["doc_href"] == "docs/detailed-reasoning.md#worth"
+    page = (package / "argument-graph.html").read_text(encoding="utf-8")
+    assert '"doc_href":' not in page

@@ -37,6 +37,14 @@ import sys
 from pathlib import Path
 from urllib.parse import quote
 
+from render_detailed_reasoning import (
+    HTML_NAME as DETAILED_HTML_NAME,
+    LEGACY_STAMP_NAME as DETAILED_LEGACY_STAMP_NAME,
+    MANIFEST_NAME as DETAILED_MANIFEST_NAME,
+    MARKDOWN_NAME as DETAILED_MARKDOWN_NAME,
+    portability_violation,
+)
+
 GAIA_PIN = "0.5.0a4"
 
 # The three likelihood grades (Jeffreys scale) and their reversals. Literal
@@ -516,34 +524,59 @@ def render_graph(
 ) -> None:
     """Emit human-viewable renderings of the argument graph after inference.
 
-    Three best-effort outputs, in decreasing portability:
+    Four best-effort outputs, in decreasing portability:
     - `argument-graph.html`: a single-file interactive render of the argument
       graph — full statement text on every card, update direction and strength
       on the edges, click-through to likelihoods, rationales, and anchors.
       Built by the sibling `render_argument_graph.py` from the compiled IR and
       the fresh beliefs; needs nothing beyond this Python.
     - `starmap.svg`: gaia's static figure — additionally needs Graphviz on PATH.
-    - `docs/`: the detailed-reasoning render enriched with the fresh beliefs.
+    - `docs/detailed-reasoning.md`: Gaia's exact detailed-reasoning source.
+    - `docs/detailed-reasoning.html`: a static, self-contained browser page
+      generated from that exact Markdown by the sibling renderer. Its manifest
+      binds current beliefs, Markdown, and HTML bytes; Pandoc, Mermaid CLI, and
+      the pinned sanitizer are optional presentation dependencies.
 
     None gate the posterior; each prints where it wrote or why it was skipped.
     The two graph files are written atomically so a failed render never leaves
     a stale graph the report could mislink.
     """
-    renderer = Path(__file__).resolve().parent / "render_argument_graph.py"
-    # Detailed reasoning renders FIRST: the interactive graph's deep-dive
-    # links are emitted only when docs/detailed-reasoning.md exists, so
-    # rendering the graph first would leave a clean first run with no
-    # links at all. Same no-stale-file rule as render_to_file, applied on
-    # BOTH sides of the render: the old file is removed up front (a
-    # zero-exit render that wrote nothing must not leave last run's
-    # reasoning looking current), and whatever a failed render left
-    # behind is removed after. Cleanup failures only warn: rendering is
-    # optional and must never withhold a sound posterior; an unremovable
-    # survivor is simply never stamped (below), so the graph never links
-    # a document from another beliefs generation.
+    scripts_dir = Path(__file__).resolve().parent
+    renderer = scripts_dir / "render_argument_graph.py"
+    detailed_renderer = scripts_dir / "render_detailed_reasoning.py"
+    # Detailed reasoning renders FIRST. Refuse an indirect docs directory
+    # before cleanup or before Gaia can write through it; presentation output
+    # must never mutate a path outside the package.
+    docs_candidate = package_dir / "docs"
+    try:
+        if docs_candidate.is_symlink():
+            raise ValueError("indirect docs directory")
+        docs_candidate.mkdir(exist_ok=True)
+        docs_dir = docs_candidate.resolve(strict=True)
+        docs_dir.relative_to(package_dir)
+        if not docs_dir.is_dir():
+            raise ValueError("docs path is not a directory")
+    except (OSError, ValueError) as exc:
+        docs_dir = None
+        print(
+            f"render skipped (detailed reasoning): unsafe docs directory ({exc})",
+            file=sys.stderr,
+        )
+
+    # Same no-stale-file rule as render_to_file, applied on both sides of
+    # Gaia's render. An old document is never rebound to current beliefs.
     def drop_detailed_reasoning(when: str) -> None:
-        for name in ("detailed-reasoning.md", "detailed-reasoning.beliefs-sha256"):
-            target = package_dir / "docs" / name
+        if docs_dir is None:
+            return
+        for name in (
+            DETAILED_MARKDOWN_NAME,
+            DETAILED_HTML_NAME,
+            DETAILED_HTML_NAME + ".tmp",
+            DETAILED_MANIFEST_NAME,
+            DETAILED_MANIFEST_NAME + ".tmp",
+            DETAILED_LEGACY_STAMP_NAME,
+        ):
+            target = docs_dir / name
             try:
                 target.unlink()
             except FileNotFoundError:
@@ -554,70 +587,84 @@ def render_graph(
                     file=sys.stderr,
                 )
 
-    # Three-valued fingerprint: a hash string (the bytes), None (confirmed
-    # absent), or UNREADABLE (an OSError other than absence -- transient
-    # IO, permissions). Confirmed absence and could-not-read must never be
-    # conflated: after a failed unlink, a transient pre-render read failure
-    # followed by a successful post-render read would otherwise make the
-    # unchanged survivor look freshly written and get it stamped.
+    # Three-valued fingerprint: a hash, confirmed absence, or an unknown
+    # read failure. An unknown pre-state can never prove a fresh write.
     UNREADABLE = object()
 
     def detailed_reasoning_sha():
+        if docs_dir is None:
+            return UNREADABLE
         try:
             return hashlib.sha256(
-                (package_dir / "docs" / "detailed-reasoning.md").read_bytes()
+                (docs_dir / DETAILED_MARKDOWN_NAME).read_bytes()
             ).hexdigest()
         except FileNotFoundError:
             return None
         except OSError:
             return UNREADABLE
 
-    drop_detailed_reasoning("previous")
-    # Fingerprint whatever survived the pre-render cleanup (None when the
-    # cleanup worked): the stamp below requires PROOF that the renderer
-    # actually wrote the document this run. A pre-render unlink that
-    # failed, followed by a zero-exit renderer that wrote nothing, would
-    # otherwise leave last generation's document to be re-stamped with the
-    # current beliefs hash -- exactly the cross-generation link the stamp
-    # exists to prevent.
-    survivor_sha = detailed_reasoning_sha()
-    docs_ok = render_optional(
-        [gaia_bin, "run", "render", "--target", "docs", str(package_dir)],
-        "detailed reasoning -> docs/",
-        timeout,
-    )
-    rendered_sha = detailed_reasoning_sha()
-    # Stamp only on PROOF of a fresh write: the post-render read must have
-    # produced actual bytes, the pre-render state must be KNOWN (a hash or
-    # confirmed absence -- an unreadable pre-state proves nothing), and the
-    # bytes must differ from any survivor's.
+    if docs_dir is not None:
+        drop_detailed_reasoning("previous")
+        survivor_sha = detailed_reasoning_sha()
+        docs_ok = render_optional(
+            [gaia_bin, "run", "render", "--target", "docs", str(package_dir)],
+            "detailed reasoning -> docs/",
+            timeout,
+        )
+        rendered_sha = detailed_reasoning_sha()
+    else:
+        survivor_sha = rendered_sha = UNREADABLE
+        docs_ok = False
     if (
-        docs_ok
+        docs_dir is not None
+        and docs_ok
         and rendered_sha is not None
         and rendered_sha is not UNREADABLE
         and survivor_sha is not UNREADABLE
         and rendered_sha != survivor_sha
     ):
-        # Generation binding: the graph links the document only when this
-        # companion checksum matches the CURRENT beliefs, so a stale
-        # document that survives a later failed cleanup can never be
-        # linked from a graph carrying newer posteriors. Never fatal, like
-        # everything else in this optional-render section: if the stamp
-        # cannot be written, the only consequence is a missing deep-dive
-        # link.
         try:
-            beliefs_sha = hashlib.sha256(
-                (package_dir / ".gaia" / "beliefs.json").read_bytes()
-            ).hexdigest()
-            (package_dir / "docs" / "detailed-reasoning.beliefs-sha256").write_text(
-                f"sha256:{beliefs_sha}\n", encoding="utf-8"
+            markdown_text = (docs_dir / DETAILED_MARKDOWN_NAME).read_text(
+                encoding="utf-8"
             )
-        except OSError as exc:
+            nonportable = portability_violation(markdown_text)
+        except (OSError, UnicodeError) as exc:
             print(
-                f"warning: could not stamp detailed-reasoning.beliefs-sha256: {exc}",
+                f"warning: could not validate {DETAILED_MARKDOWN_NAME}: {exc}",
                 file=sys.stderr,
             )
-    elif not docs_ok:
+            drop_detailed_reasoning("unreadable")
+        else:
+            if nonportable:
+                print(
+                    "render skipped (detailed reasoning HTML): "
+                    f"{DETAILED_MARKDOWN_NAME} contains a {nonportable}",
+                    file=sys.stderr,
+                )
+                drop_detailed_reasoning("non-portable")
+            else:
+                # The standalone script bounds each Pandoc/mmdc subprocess.
+                # Its outer budget covers uv bootstrap, both version probes,
+                # two Pandoc passes, and every Mermaid block rather than
+                # reusing a single-stage timeout for the whole pipeline.
+                mermaid_stages = max(1, markdown_text.lower().count("mermaid"))
+                outer_timeout = timeout * (6 + mermaid_stages) + 60
+                render_optional(
+                    [
+                        "uv",
+                        "run",
+                        "--quiet",
+                        "--script",
+                        str(detailed_renderer),
+                        "--package",
+                        str(package_dir),
+                        "--timeout",
+                        str(timeout),
+                    ],
+                    "detailed reasoning HTML -> docs/detailed-reasoning.html",
+                    outer_timeout,
+                )
+    elif docs_dir is not None and not docs_ok:
         drop_detailed_reasoning("partial")
     render_to_file(
         lambda tmp: [
