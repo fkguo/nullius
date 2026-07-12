@@ -25,6 +25,17 @@ function idempotencyKey(method: string, key: string): string {
   return `${method}:${key}`;
 }
 
+function artifactExists(store: IdeaEngineStore, artifactRef: unknown): boolean {
+  if (typeof artifactRef !== 'string') {
+    return false;
+  }
+  try {
+    return existsSync(store.artifactPathFromRef(artifactRef));
+  } catch {
+    return false;
+  }
+}
+
 export function responseIdempotency(idempotencyKeyValue: string, payloadHash: string): Record<string, unknown> {
   return {
     idempotency_key: idempotencyKeyValue,
@@ -67,12 +78,10 @@ function preparedSideEffectsCommitted(store: IdeaEngineStore, method: string, re
       === JSON.stringify(expected.budget_snapshot);
   }
   if (method === 'rank.compute') {
-    const rankingRef = record.response.payload.ranking_artifact_ref;
-    return typeof rankingRef === 'string' && rankingRef.startsWith('file://') && existsSync(rankingRef.slice(7));
+    return artifactExists(store, record.response.payload.ranking_artifact_ref);
   }
   if (method === 'node.promote') {
-    const handoffRef = record.response.payload.handoff_artifact_ref;
-    return typeof handoffRef === 'string' && handoffRef.startsWith('file://') && existsSync(handoffRef.slice(7));
+    return artifactExists(store, record.response.payload.handoff_artifact_ref);
   }
   if (method === IMPORT_GENERATED_METHOD) {
     // Import-specific: the generic delete-prepared-and-re-execute fallback
