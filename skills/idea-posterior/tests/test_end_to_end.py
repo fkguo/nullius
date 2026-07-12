@@ -54,6 +54,33 @@ infer(
 )
 '''
 
+IDEA_SPECIFIC_CLAIMS = {
+    "The idea merits sustained verification effort.": (
+        "The executed comparison merits sustained verification because it "
+        "can distinguish two recorded explanations."
+    ),
+    "The idea resolves an anchored open tension.": (
+        "The executed comparison rules out one recorded explanation within "
+        "the stated range."
+    ),
+    "The idea's results feed an anchored chain of downstream problems.": (
+        "The resulting discriminator can be applied to two subsequent "
+        "comparisons that use the same measured response."
+    ),
+    "The idea supplies a new, testable mechanistic understanding.": (
+        "The proposed mechanism predicts a response distinct from the "
+        "recorded alternative under the trial condition."
+    ),
+    "The idea is testable within an open verification window.": (
+        "The required response and comparison data are available for an "
+        "immediate discriminating trial."
+    ),
+    "A bounded, decisive first check of the idea exists.": (
+        "One bounded trial at the specified condition decides whether the "
+        "predicted separation is present."
+    ),
+}
+
 
 EXCLUSIVITY_SNIPPET = '''
 
@@ -111,6 +138,10 @@ def test_scaffold_infer_extract_writeback_chain(
         encoding="utf-8"
     ).strip() == "3.12"
     capsys.readouterr()  # drop scaffold output
+
+    for generic, specific in IDEA_SPECIFIC_CLAIMS.items():
+        text = text.replace(generic, specific)
+    module_init.write_text(text, encoding="utf-8")
 
     # 2. The freshly generated skeleton compiles and infers: pure MaxEnt.
     posterior = run_extract(package_dir, gaia_bin, capsys)

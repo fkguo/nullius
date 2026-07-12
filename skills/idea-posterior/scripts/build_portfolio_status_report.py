@@ -44,6 +44,7 @@ from idea_package_contract import (
     compiled_ir_pin,
     load_compiled_ir,
     require_authored_infer_rationales,
+    require_idea_specific_reasoning_claims,
     require_unique_exported_root,
 )
 
@@ -304,6 +305,7 @@ def collect_row(
             return row
         ir = load_compiled_ir(ir_bytes)
         require_unique_exported_root(ir, worth_label)
+        require_idea_specific_reasoning_claims(ir)
         require_authored_infer_rationales(ir)
         audit_evidence_families(ir, worth_label)
     except (OSError, ValueError) as exc:

@@ -30,12 +30,22 @@ NS = "github:demo_idea"
 
 WORTH = f"{NS}::worth"
 TENSION = f"{NS}::tension_resolution"
+REACH = f"{NS}::downstream_reach"
+MECHANISM = f"{NS}::mechanism_insight"
+TIMING = f"{NS}::testability_timing"
+COST = f"{NS}::verification_cost"
 EV_ANCHOR = f"{NS}::ev_anchor"
 EV_SCOPE = f"{NS}::ev_scope_limit"
 HELPER = f"{NS}::_anon_000"
 
-WORTH_TEXT = "The idea merits sustained verification effort."
-TENSION_TEXT = "The idea resolves an anchored open tension."
+WORTH_TEXT = (
+    "The controlled comparison merits sustained verification because it can "
+    "separate two recorded explanations."
+)
+TENSION_TEXT = (
+    "The comparison can resolve which explanation accounts for the recorded "
+    "effect within the tested range."
+)
 ANCHOR_TEXT = (
     "A grounded survey records the tension between calibration papers "
     "& regulator discussions."
@@ -93,8 +103,32 @@ def base_ir() -> dict:
         "knowledges": [
             knowledge(WORTH, "worth", WORTH_TEXT, 0),
             knowledge(TENSION, "tension_resolution", TENSION_TEXT, 1),
-            knowledge(EV_ANCHOR, "ev_anchor", ANCHOR_TEXT, 2, observed=True),
-            knowledge(EV_SCOPE, "ev_scope_limit", SCOPE_TEXT, 3, observed=True),
+            knowledge(
+                REACH,
+                "downstream_reach",
+                "The resulting discriminator can be reused in two subsequent comparisons.",
+                2,
+            ),
+            knowledge(
+                MECHANISM,
+                "mechanism_insight",
+                "The compared mechanisms predict distinct responses under the recorded condition.",
+                3,
+            ),
+            knowledge(
+                TIMING,
+                "testability_timing",
+                "The required response and comparison records are available now.",
+                4,
+            ),
+            knowledge(
+                COST,
+                "verification_cost",
+                "One bounded comparison decides whether the response separation is present.",
+                5,
+            ),
+            knowledge(EV_ANCHOR, "ev_anchor", ANCHOR_TEXT, 6, observed=True),
+            knowledge(EV_SCOPE, "ev_scope_limit", SCOPE_TEXT, 7, observed=True),
             {"id": HELPER, "type": "claim", "exported": False},
         ],
         "strategies": [
@@ -237,8 +271,8 @@ def test_cards_show_full_statements(tmp_path) -> None:
     # Wrapping splits statements across tspans; check phrase fragments that
     # fit within one wrapped line.
     for fragment in (
-        "The idea merits sustained",
-        "The idea resolves an anchored open",
+        "The controlled comparison merits sustained",
+        "The comparison can resolve which explanation",
         "regulator discussions.",
         "single channel only,",
     ):

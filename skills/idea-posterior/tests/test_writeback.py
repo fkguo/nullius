@@ -22,9 +22,44 @@ def package_ir(ir_hash=GAIA_IR_HASH, *, exported=True):
                 "id": "github:example_idea::worth",
                 "label": "worth",
                 "type": "claim",
-                "content": "The idea merits sustained verification effort.",
+                "content": "The example comparison merits verification because it can distinguish two recorded explanations.",
                 "exported": exported,
-            }
+            },
+            {
+                "id": "github:example_idea::tension_resolution",
+                "label": "tension_resolution",
+                "type": "claim",
+                "content": "The comparison resolves one stated part of the disagreement between the two explanations.",
+                "exported": False,
+            },
+            {
+                "id": "github:example_idea::downstream_reach",
+                "label": "downstream_reach",
+                "type": "claim",
+                "content": "The resulting discriminator can be reused in a subsequent comparison of the same response.",
+                "exported": False,
+            },
+            {
+                "id": "github:example_idea::mechanism_insight",
+                "label": "mechanism_insight",
+                "type": "claim",
+                "content": "The compared mechanisms predict distinct responses under the recorded condition.",
+                "exported": False,
+            },
+            {
+                "id": "github:example_idea::testability_timing",
+                "label": "testability_timing",
+                "type": "claim",
+                "content": "The required response and comparison records are available now.",
+                "exported": False,
+            },
+            {
+                "id": "github:example_idea::verification_cost",
+                "label": "verification_cost",
+                "type": "claim",
+                "content": "One bounded comparison decides whether the response separation is present.",
+                "exported": False,
+            },
         ],
         "strategies": [],
     }
@@ -34,23 +69,20 @@ def package_ir_with_tension_grade(p_nh=0.09, p_h=0.9):
     ir = package_ir()
     tension_id = "github:example_idea::tension_resolution"
     evidence_id = "github:example_idea::resolution_evidence"
-    ir["knowledges"].extend(
-        [
-            {
-                "id": tension_id,
-                "label": "tension_resolution",
-                "type": "claim",
-                "content": "The idea resolves an anchored open tension.",
-                "exported": False,
-            },
+    next(
+        item for item in ir["knowledges"] if item.get("id") == tension_id
+    )["content"] = (
+        "The executed comparison resolves one stated part of the disagreement "
+        "between the two explanations."
+    )
+    ir["knowledges"].append(
             {
                 "id": evidence_id,
                 "label": "resolution_evidence",
                 "type": "claim",
                 "content": "An executed discriminating test resolves a stated part of the tension.",
                 "exported": False,
-            },
-        ]
+            }
     )
     ir["strategies"].append(
         {

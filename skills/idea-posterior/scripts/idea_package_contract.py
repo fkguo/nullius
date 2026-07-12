@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 
 
@@ -19,11 +20,30 @@ READER_REASONING_RE = re.compile(r"^\s*reader_reasoning:\s*\S")
 GAIA_IR_HASH_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 EVIDENCE_FAMILY_RE = re.compile(
     r"\bevidence_family\s*:\s*"
-    r"([a-z0-9](?:[a-z0-9._-]{0,62}[a-z0-9])?)\b"
+    r"([a-z0-9](?:[a-z0-9._-]{0,62}[a-z0-9])?)(?=\s*;)"
 )
 CORRELATION_MODEL_RE = re.compile(
     r"\bcorrelation_model\s*:\s*"
-    r"(single)\b"
+    r"(single)(?=\s*;)"
+)
+REQUIRED_REASONING_LABELS = (
+    "worth",
+    "tension_resolution",
+    "downstream_reach",
+    "mechanism_insight",
+    "testability_timing",
+    "verification_cost",
+)
+STOCK_REASONING_CONTENT = frozenset(
+    {
+        "The idea merits sustained verification effort.",
+        "The idea resolves an anchored open tension.",
+        "The idea's results feed an anchored chain of downstream problems.",
+        "The idea supplies a new, testable mechanistic understanding.",
+        "The idea is testable within an open verification window.",
+        "A bounded next check or executed first check is recorded.",
+        "A bounded, decisive first check of the idea exists.",
+    }
 )
 
 
@@ -47,6 +67,26 @@ def load_compiled_ir(ir_bytes: bytes) -> dict:
             "supplements this compiled-IR marker rather than replacing it"
         )
     return ir
+
+
+def compiled_knowledge_map(ir: dict) -> dict[str, dict]:
+    """Return the compiled knowledge table after fail-closed id validation."""
+    knowledges = ir.get("knowledges")
+    if not isinstance(knowledges, list):
+        raise ValueError("compiled ir.json has no knowledges list")
+    result: dict[str, dict] = {}
+    for index, item in enumerate(knowledges):
+        if not isinstance(item, dict):
+            raise ValueError(f"compiled knowledge[{index}] is not an object")
+        knowledge_id = item.get("id")
+        if not isinstance(knowledge_id, str) or not knowledge_id:
+            raise ValueError(
+                f"compiled knowledge[{index}] id must be a non-empty string"
+            )
+        if knowledge_id in result:
+            raise ValueError(f"duplicate compiled knowledge id {knowledge_id!r}")
+        result[knowledge_id] = item
+    return result
 
 
 def require_unique_exported_root(ir: dict, root_label: str = "worth") -> dict:
@@ -79,6 +119,43 @@ def require_unique_exported_root(ir: dict, root_label: str = "worth") -> dict:
         "re-run run_infer_and_extract.py to recompile, infer, render, and "
         "issue a fresh package reference"
     )
+
+
+def require_idea_specific_reasoning_claims(ir: dict) -> None:
+    """Reject missing, empty, or unchanged scaffold reasoning claims.
+
+    Criterion labels define the comparison axes. Their claim contents must
+    instead state the idea-specific proposition being assessed; repeating an
+    axis definition gives a reader no account of what the evidence bears on.
+    """
+    knowledges = compiled_knowledge_map(ir)
+    by_label: dict[str, list[dict]] = {
+        label: [] for label in REQUIRED_REASONING_LABELS
+    }
+    for item in knowledges.values():
+        label = item.get("label")
+        if label in by_label:
+            by_label[label].append(item)
+
+    for label, items in by_label.items():
+        if len(items) != 1:
+            raise ValueError(
+                "idea-posterior package contract violation: expected exactly "
+                f"one reasoning claim labelled {label!r}, found {len(items)}"
+            )
+        content = str(items[0].get("content") or "").strip()
+        if not content:
+            raise ValueError(
+                "idea-posterior package contract violation: reasoning claim "
+                f"{label!r} is empty"
+            )
+        if content in STOCK_REASONING_CONTENT:
+            raise ValueError(
+                "idea-posterior package contract violation: reasoning claim "
+                f"{label!r} still uses the scaffold's generic axis text. "
+                "Replace it with the idea-specific research proposition that "
+                "the recorded evidence raises or lowers"
+            )
 
 
 def require_authored_infer_rationales(ir: dict) -> None:
@@ -131,6 +208,23 @@ def parse_evidence_family_rationale(rationale: str) -> tuple[str, str]:
     return families[0], models[0]
 
 
+def observation_rationale_parts(rationale: str) -> tuple[str, str, str, str]:
+    """Split an observation rationale into accounting, context, and anchor.
+
+    Contract sentinels remain available for deterministic audits but are not
+    part of the reader-facing physical explanation.
+    """
+    family, model = parse_evidence_family_rationale(rationale)
+    before_anchor, separator, anchor = rationale.partition("anchor:")
+    if not separator or not anchor.strip():
+        raise ValueError(
+            "every observe rationale must end with a non-empty anchor: clause"
+        )
+    context = EVIDENCE_FAMILY_RE.sub("", before_anchor, count=1)
+    context = CORRELATION_MODEL_RE.sub("", context, count=1).strip(" ;")
+    return family, model, context, anchor.strip() if separator else ""
+
+
 def audit_evidence_families(ir: dict, root_label: str = "worth") -> dict[str, dict]:
     """Fail closed on duplicated independent votes from one evidence family.
 
@@ -145,11 +239,7 @@ def audit_evidence_families(ir: dict, root_label: str = "worth") -> dict[str, di
     """
     root = require_unique_exported_root(ir, root_label)
     root_id = str(root.get("id"))
-    knowledges = {
-        str(item["id"]): item
-        for item in ir.get("knowledges") or []
-        if isinstance(item, dict) and item.get("id")
-    }
+    knowledges = compiled_knowledge_map(ir)
     outgoing: dict[str, list[str]] = {kid: [] for kid in knowledges}
     for strategy in ir.get("strategies") or []:
         if not isinstance(strategy, dict) or strategy.get("type") != "infer":
@@ -158,12 +248,29 @@ def audit_evidence_families(ir: dict, root_label: str = "worth") -> dict[str, di
         conclusion = strategy.get("conclusion")
         probabilities = strategy.get("conditional_probabilities") or []
         if (
-            len(premises) == 1
-            and len(probabilities) == 2
-            and conclusion in knowledges
-            and premises[0] in knowledges
+            len(premises) != 1
+            or len(probabilities) != 2
+            or any(
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or not math.isfinite(float(value))
+                or not 0.0 <= float(value) <= 1.0
+                for value in probabilities
+            )
+            or not isinstance(conclusion, str)
+            or not isinstance(premises[0], str)
+            or conclusion not in knowledges
+            or premises[0] not in knowledges
         ):
-            outgoing[str(conclusion)].append(str(premises[0]))
+            strategy_id = strategy.get("strategy_id") or "(unlabelled infer)"
+            raise ValueError(
+                f"compiled infer strategy {strategy_id!r} must contain one "
+                "known string premise, one known string conclusion, and two "
+                "finite conditional probabilities in [0, 1]"
+            )
+        # Gaia compiles infer(E, hypothesis=H) in generative direction as
+        # premises=[H], conclusion=E. Reader flow is the exact inverse E -> H.
+        outgoing[conclusion].append(premises[0])
 
     visit_state: dict[str, int] = {}
 
@@ -228,7 +335,9 @@ def audit_evidence_families(ir: dict, root_label: str = "worth") -> dict[str, di
             )
         rationale = str(observation_supports[0].get("rationale") or "")
         try:
-            family, correlation_model = parse_evidence_family_rationale(rationale)
+            family, correlation_model, _context, _anchor = (
+                observation_rationale_parts(rationale)
+            )
         except ValueError as exc:
             raise ValueError(f"observed knowledge {kid!r}: {exc}") from exc
         root_targets = [

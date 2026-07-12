@@ -24,7 +24,52 @@ def _write_package(
     ir = {
         "ir_hash": "sha256:" + "a" * 64,
         "knowledges": [
-            {"id": "p:x::worth", "label": "worth", "title": "worth", "type": "claim", "exported": True},
+            {
+                "id": "p:x::worth",
+                "label": "worth",
+                "title": "worth",
+                "type": "claim",
+                "content": (
+                    "The recorded comparison merits verification because it "
+                    "can distinguish the two stated responses."
+                ),
+                "exported": True,
+            },
+            {
+                "id": "p:x::tension_resolution",
+                "label": "tension_resolution",
+                "type": "claim",
+                "content": "The comparison resolves one stated part of the recorded disagreement.",
+                "exported": False,
+            },
+            {
+                "id": "p:x::downstream_reach",
+                "label": "downstream_reach",
+                "type": "claim",
+                "content": "The resulting discriminator can be reused in a subsequent comparison.",
+                "exported": False,
+            },
+            {
+                "id": "p:x::mechanism_insight",
+                "label": "mechanism_insight",
+                "type": "claim",
+                "content": "The compared mechanisms predict distinct recorded responses.",
+                "exported": False,
+            },
+            {
+                "id": "p:x::testability_timing",
+                "label": "testability_timing",
+                "type": "claim",
+                "content": "The required response and comparison records are available now.",
+                "exported": False,
+            },
+            {
+                "id": "p:x::verification_cost",
+                "label": "verification_cost",
+                "type": "claim",
+                "content": "One bounded comparison decides whether the response separation is present.",
+                "exported": False,
+            },
             {"id": "p:x::sub_a", "label": "criterion_a", "title": "criterion_a", "type": "claim", "exported": False},
             {"id": "p:x::ev_b", "label": "evidence_b", "title": "evidence_b", "type": "claim", "exported": False},
             {"id": "p:x::ev_lower", "label": "evidence_lower", "title": "evidence_lower", "type": "claim", "exported": False},

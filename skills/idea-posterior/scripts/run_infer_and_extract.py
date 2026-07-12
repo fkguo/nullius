@@ -44,6 +44,7 @@ from idea_package_contract import (
     load_compiled_ir,
     parse_evidence_family_rationale,
     require_authored_infer_rationales,
+    require_idea_specific_reasoning_claims,
     require_unique_exported_root,
 )
 from render_detailed_reasoning import (
@@ -858,6 +859,7 @@ def extract_posterior(
     ir = load_compiled_ir(ir_bytes)
 
     require_unique_exported_root(ir, worth_label)
+    require_idea_specific_reasoning_claims(ir)
     require_authored_infer_rationales(ir)
     audit_evidence_families(ir, worth_label)
     value = extract_worth_belief(beliefs, worth_label)
@@ -973,6 +975,7 @@ def main(argv: list[str] | None = None) -> int:
             (package_dir / ".gaia" / "ir.json").read_bytes()
         )
         require_unique_exported_root(compiled_ir)
+        require_idea_specific_reasoning_claims(compiled_ir)
         require_authored_infer_rationales(compiled_ir)
         audit_evidence_families(compiled_ir)
     except (OSError, ValueError) as exc:

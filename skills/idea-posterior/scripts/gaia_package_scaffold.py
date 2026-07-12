@@ -127,6 +127,9 @@ __all__ = ["worth"]
 # --------------------------------------------------------------------------
 # Top-level hypothesis. Label must stay `worth`: the extraction script keys
 # on it. MaxEnt on purpose -- do not register a prior without a cited source.
+# Every claim sentence in this skeleton is generic axis text for authoring
+# guidance only. Replace all six with idea-specific research propositions;
+# the extractor and renderers reject the unchanged sentences.
 # --------------------------------------------------------------------------
 worth = claim(
     "The idea merits sustained verification effort.",

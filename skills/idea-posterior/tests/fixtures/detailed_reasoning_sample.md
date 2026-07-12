@@ -18,7 +18,10 @@ $$
 
 ```mermaid
 flowchart LR
-  evidence["Recorded evidence"] --> MixedCase_Claim["Auditable claim"]
+  worth["worth (0.68)"]
+  evidence["Recorded evidence"]
+  worth --> evidence
+  evidence --> MixedCase_Claim["Auditable claim"]
 ```
 
 <script>globalThis.sourceScriptRan = true</script>
