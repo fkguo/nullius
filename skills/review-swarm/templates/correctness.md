@@ -20,6 +20,12 @@ How to work:
 3. **Separate verified from unverified.** State explicitly which claims you
    re-checked and which you could not check from the packet alone; never let an
    unchecked claim pass silently as verified.
+4. **Do not infer absence from a diff.** A diff shows changed hunks, not the
+   complete surrounding implementation. Before reporting a blocker that depends
+   on a declaration, validation, import, invariant, or test outside the visible
+   hunks, require the full relevant file or supplied dependency context. If that
+   context is absent, report the point as unverified rather than claiming the
+   implementation lacks it.
 
 Severity: **BLOCKING** means a defect that makes a result, derivation, or
 behavior wrong (or unverifiable where verification is the artifact's point).

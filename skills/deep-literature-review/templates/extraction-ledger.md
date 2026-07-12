@@ -17,7 +17,7 @@ notation normalization, and derived interpretation in one field.
 - Persisted source path:
 - Source SHA-256:
 - Source form:
-- Source-text origin: direct original text / visually verified transcription
+- Source-text origin: `direct-original-text` / `visually-verified-transcription`
 - Source-provenance evidence path and SHA-256:
 - Original page/crop path and SHA-256 (PDF or scan):
 - Excerpt-to-rendered-page visual check:
