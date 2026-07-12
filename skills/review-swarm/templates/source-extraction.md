@@ -54,8 +54,9 @@ How to work:
    than resolving it from expectation. A claim of complete-paper, complete-section,
    or all-formula coverage additionally requires a locator inventory of every
    displayed equation and every adjacent formula-like condition in that declared
-   scope. Without that inventory, label the extraction partial even when every
-   requested load-bearing item was extracted.
+   scope, using the same EXTRACTED, AMBIGUOUS, or UNCHECKABLE status set for each
+   inventory entry. Without that inventory, label the extraction partial even
+   when every requested load-bearing item was extracted.
 
 Severity: **BLOCKING** means the request leaks an expected answer, a required
 source/correction/search record is absent, a requested load-bearing item is
