@@ -34,7 +34,22 @@ deriver) and report in a fixed canonical format.
   [`review-swarm`](../review-swarm/SKILL.md)'s cross-model-family literal source-comparison reviewer (with
   the `research-integrity` *Extraction / transcription fidelity* checklist). derivation-verify reconciles
   independent re-derivations by mathematical equivalence; it does not check a note against the bytes it was
-  copied from.
+  copied from. A derivation can be internally correct while starting from the same mistranscribed source
+  formula, so do not give independent derivation lanes a candidate note or expected correction as an
+  unexamined premise.
+- **A suspected source typo with no published correction uses both skills, in order.** First use
+  `review-swarm` source extraction/fidelity to freeze the exact `PRINTED_FORM`; do not repair it.
+  Then formulate a derivation claim from the quantity's definitions, domain, conventions, and neighboring
+  premises, withholding both the disputed printed expression and every proposed replacement from at least
+  two blind, method-diverse lanes. Exclude every later equation, summary, numerical target, or constraint
+  whose derivation depends on the disputed item; feeding a downstream consequence back as a premise is a
+  circular confirmation, not an independent derivation. Only after the lane outputs are frozen may the comparator test them against
+  the printed form and proposed corrections. If the lanes converge uniquely to an expression that matches
+  neither the printed form nor an existing proposal, register that expression as a fresh
+  `PROPOSED_CORRECTION` and subject it to the same counterchecks; do not adopt it silently. A converged unique result supports the scientific status
+  `independently_supported_correction`, not `published_correction` or
+  `author_confirmed_correction`. If the lanes do not converge uniquely, return
+  `unresolved_source_error` and do not choose a downstream formula by majority or convenience.
 - **A full milestone research cycle** with drafts/gates → use [`research-team`](../research-team/SKILL.md).
 - **A "the discretized / implemented operator preserves property P" or "method precondition X holds at
   scale S" claim** → NOT a symbolic-derivation claim, and it **cannot** be settled by blind re-derivation:

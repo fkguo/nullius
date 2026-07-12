@@ -144,10 +144,31 @@ also opts in to one orchestrator-level empty-output retry
 ```bash
 python3 scripts/bin/review_one.py \
   --model gemini/default \
-  --diff main..HEAD \
-  --role generic \
-  --context /path/to/acceptance_notes.md \
+  --artifact /path/to/extraction_note.md \
+  --source /path/to/exact_source_excerpt.tex \
+  --source-text-origin direct-original-text \
+  --correction-status checked-corrections-included \
+  --correction-source /path/to/exact_erratum_excerpt.tex \
+  --correction-search-evidence /path/to/correction_search_record.md \
+  --role source-fidelity \
   --out-dir /tmp/one_review
+```
+
+For the candidate-withheld pass that must precede comparison of a load-bearing
+source item, use the separate role. Its packet structure accepts a neutral
+request but rejects candidate artifacts, diffs, and additional context:
+
+```bash
+python3 scripts/bin/review_one.py \
+  --model gemini/default \
+  --extraction-request /path/to/neutral_questions.md \
+  --source /path/to/visually_transcribed_source.txt \
+  --source-text-origin visually-verified-transcription \
+  --source-provenance-evidence /path/to/page_crop_check.md \
+  --correction-status checked-none-found \
+  --correction-search-evidence /path/to/correction_search_record.md \
+  --role source-extraction \
+  --out-dir /tmp/source_extraction
 ```
 
 Flags:
@@ -155,14 +176,62 @@ Flags:
 - `--model SPEC` — **required, exactly one**, no default (`codex/default`,
   `gemini/default`, `kimi/default`, `claude/<model>`, or an OpenCode
   `provider/model`).
-- `--artifact PATH` (repeatable) **or** `--diff BASE..HEAD` — the review target;
-  artifact text or `git diff` output is embedded in full.
-- `--role generic|correctness|execution-adversary|source-fidelity` — picks the
+- `--artifact PATH` (repeatable), `--diff BASE..HEAD`, **or**
+  `--extraction-request PATH` — mutually exclusive packet inputs. The first two
+  are review targets. The last is a neutral locator/question list accepted only
+  by `source-extraction`.
+- A `--diff` packet contains changed hunks, not every unchanged declaration or
+  invariant they depend on. Add the full relevant files with repeatable `--context`
+  flags when a correctness verdict may depend on surrounding definitions. A reviewer must
+  not infer that an implementation element is absent merely because it is not
+  visible in the diff.
+- `--role generic|correctness|execution-adversary|source-extraction|source-fidelity` — picks the
   system prompt from `templates/<role>.md` (default: `generic`). Each template
   embeds the required review-contract output format.
-- `--context PATH` — optional extra material appended to the packet.
+- `--source PATH` (repeatable) — exact UTF-8 text/LaTeX/Markdown primary-source
+  input for the two source roles. They fail closed before model
+  launch when no source is supplied, when source and target are the same file,
+  or when the source is binary/non-UTF-8. A PDF/image-capable reviewer must
+  first check PDF/scan passages against the original rendered page. Persist
+  the visually verified excerpt, locator, original-page hash, and crop hash;
+  lossy automatic PDF decoding is not formula-level evidence. A later
+  text-only pass checks note against excerpt, not excerpt against original page.
+- `--source-text-origin direct-original-text|visually-verified-transcription` —
+  **required** for both source roles. This prevents a manually normalized extract
+  from being silently treated as publisher/repository bytes. The declaration is
+  recorded but not machine-proven.
+- `--source-provenance-evidence PATH` (repeatable) — exact UTF-8 record of the
+  original document/page/crop locators and hashes plus the visual comparison.
+  Required for `visually-verified-transcription`. It must be separate from the
+  source and correction-search files. The launcher verifies presence, separation,
+  UTF-8 validity, and hashes; the reviewer must still inspect it for source-layer
+  normalization, answer leakage, and lack of an independent visual verifier.
+- `--correction-status not-applicable|checked-none-found|checked-corrections-included`
+  — **required** for both source roles; it prevents silent reliance on an
+  unchecked main publication. Use `not-applicable` only when a correction chain
+  is genuinely inapplicable, not as a shortcut for an unperformed search.
+- `--correction-source PATH` (repeatable) — exact UTF-8 correction text. It is
+  required with `checked-corrections-included`, rejected with the other statuses,
+  and persisted separately from the primary source in the packet and manifest.
+- `--correction-search-evidence PATH` (repeatable) — exact UTF-8 record of the
+  indexes/identifiers searched and their result. It is required for both
+  `checked-none-found` and `checked-corrections-included`, so a negative or
+  positive correction-chain claim cannot be represented by an unsupported flag.
+- `--extraction-request PATH` — exact UTF-8 neutral questions/locators for
+  `source-extraction`. That role rejects `--artifact`, `--diff`, and `--context`
+  to keep the candidate and prior verdict out of the packet by construction.
+  The launcher cannot semantically prove that the request is neutral, so the
+  reviewer must block if it contains an expected answer or proposed correction.
+- `--context PATH` — optional extra material appended to the packet. Repeatable;
+  every file is embedded and recorded in command-line order. Duplicate paths are
+  rejected instead of being silently collapsed, and a context path identical to
+  an `--artifact` target is rejected for every reviewer role.
 - `--out-dir DIR` — defaults to `./review-one-<UTC timestamp>/`; the assembled
-  inputs are persisted under `<out-dir>/inputs/` for audit.
+  inputs are persisted under `<out-dir>/inputs/` for audit. Every run also writes
+  `inputs/review_input_manifest.json`, which records the SHA-256 of each target,
+  primary source, correction source, correction-search record, source-provenance
+  record, context, persisted system prompt, and persisted packet, plus the exact
+  diff hash when applicable.
 - `--host-family FAMILY` — pass your own family to make the entry refuse when
   `--model` resolves to it, pointing you to host-native sub-agent review instead
   (mirrors "Host-aware execution" above).
@@ -179,9 +248,15 @@ Flags:
   the launcher unchanged.
 
 The assembled packet's first line is the advisory caveat ("single-family review —
-advisory; final verdicts require cross-family review"), and the command prints
-the verdict line, `contract_ok`, and the output/packet/meta/trace paths to
-stdout when the run finishes.
+advisory; final verdicts require cross-family review"). When the reviewer returns,
+the launcher recomputes every manifest hash, writes `post_review_freshness.json`,
+records the status in `meta.json`, and prints `acceptance_status` with the model
+verdict, `contract_ok`, and the output/packet/meta/trace paths. A successful model
+verdict with stale or unverifiable inputs exits with the dedicated status `86`; the
+model verdict remains historical evidence, not a verdict on the changed artifact.
+This immediate `FRESH` status means only that the inputs did not change while that
+review ran. Durable closeout still requires rerunning the standalone checker immediately
+before the verdict is folded into a conclusion.
 
 ## Backend overrides
 
@@ -260,11 +335,93 @@ consuming artifact) reads as plausible and is caught only by literal comparison.
 diversity materially strengthens this gate: a same-family looser read tends to pass exactly the defects it
 is meant to catch.
 
-Give that reviewer the **persisted primary source** (the exact bytes that were transcribed), not the note
+Give that reviewer the **persisted primary source** (the exact text that was transcribed), not the note
 alone, plus the transcription/extraction failure checklist (`research-integrity` → *Extraction /
-transcription fidelity*, items (a)–(g)). Record in `meta.json` whether a literal cross-family source
-comparison was performed; a swarm that only read the note, or stayed within one model family, is **not** a
-fidelity pass and must be labeled as such.
+transcription fidelity*). Declare whether those bytes are direct original text or a visual transcription;
+the latter also requires separate source-provenance evidence. With `review_one.py`, first run
+`source-extraction` with repeatable `--source`, an exact `--extraction-request`, explicit
+`--source-text-origin`, explicit `--correction-status`, and the required correction-search
+evidence. This role rejects candidate artifacts, diffs, and additional context and writes
+`inputs/source_extraction_manifest.json`. Then run the candidate-visible `source-fidelity` comparison,
+passing the candidate via `--artifact`/`--diff`, the same source separately through repeatable `--source`,
+and each applicable correction through repeatable `--correction-source`. The launcher writes
+`inputs/source_fidelity_manifest.json` with primary/correction/search-evidence and target hashes, diff range
+when applicable, ordered additional-context paths and hashes, correction status, and candidate visibility. Context content is
+explicitly marked as not machine-classified because the launcher cannot know whether it contains a prior
+verdict or proposed answer. Both roles fail closed before model launch if required source, correction,
+or correction-search evidence is absent or invalid. Both manifests also mark request neutrality and
+source dependency closure as `not_machine_verified`; the reviewer, not the packet assembler, must decide
+whether the question leaks an answer and whether all required domain/branch/convention premises are present.
+The extraction input manifest certifies only that a candidate-withheld packet was constructed; it does not
+claim the extraction was completed. Completion belongs to the reviewer output and `meta.json` verdict.
+
+The source set must include the applicable correction chain. For a load-bearing paper,
+record whether an erratum, corrigendum, expression of concern, retraction, revised
+version, or later explicit author correction was searched and found. If a correction
+supersedes a formula or statement, give the reviewer both the printed source and the
+correction, and require the artifact to distinguish the pre-correction and corrected
+forms. A literal match to the original but superseded text is not a fidelity pass.
+
+The reverse case needs equal care: a search that found no erratum does not certify the
+printed source as scientifically correct. If an equation or statement appears internally
+inconsistent, preserve the exact printed form and open a separate suspected-source-error
+record. Keep `PRINTED_FORM`/`SOURCE_FIDELITY_STATUS` distinct from
+`SCIENTIFIC_STATUS`/`PROPOSED_CORRECTION`/`EVIDENCE_AND_COUNTERCHECKS`/
+`DOWNSTREAM_POLICY`. Source-fidelity checks the first track only. For a re-derivable item,
+the second track needs candidate-withheld, method-diverse re-derivation through
+`derivation-verify`, with every premise checked to exclude downstream consequences of the
+disputed item. For an empirical or reported numerical item, it needs independent
+reproduction from the underlying data, calculation, or measurement; downstream sources
+that merely repeat the claim are not independent. For a non-derivable convention, label,
+or prose statement, require independent primary records, internal definitional closure,
+or author clarification; repetition and citation count are not votes. Agreement with a
+conjectured repair does not turn it into source text, a published correction, or an
+author-confirmed correction. If the repair is not unique, retain
+`unresolved_source_error` and block silent downstream selection.
+
+The manifest distinguishes each original file's SHA-256 from the SHA-256 of the UTF-8 text embedded in the
+packet. Primary-source text is strict UTF-8 and is inserted without trimming, so those two hashes agree;
+artifact/context decoding may use replacement characters and therefore records both hashes explicitly.
+Diff targets likewise record raw and embedded-text hash fields for schema symmetry; because `git diff`
+is decoded and embedded as the same UTF-8 text, those two values currently agree.
+Each entry also records whether one delimiter newline was added after a payload that lacked a terminal
+newline; that delimiter is packet framing and is not part of the embedded-text hash.
+
+Keep four layers separate in both the packet and the verdict: **literal source**, **normalized
+transcription**, **symbol dictionary**, and **derived mapping/inference**. A correct derivation from a
+wrongly transcribed formula does not certify the transcription. Require the reviewer to localize the first
+divergent source token or mapping step rather than only compare final formulas.
+
+Conflicting visual transcriptions do not become source truth by vote. Reinspect the original page or a
+lossless crop; if the surviving pixels still do not distinguish the disputed glyph, keep the inventory item
+`AMBIGUOUS` and require the candidate artifact to preserve that uncertainty. Do not collapse it to the
+mathematically expected sign, exponent, relation operator, or endpoint convention.
+
+An exhaustive source-fidelity claim needs an exhaustive comparison surface. If the verdict says that all
+formulas in a paper or section were checked, persist a locator inventory of every displayed equation and
+every adjacent formula-like condition in that scope, with an item-level status. A selected-item pass cannot
+be promoted to complete coverage. In either scope, explicitly sweep signs, coefficients or factors,
+operators, indices or subscripts, relation operators or interval endpoints, numerator/denominator
+placement, exponents, primes, function arguments, and integration limits; algebraic or dimensional
+consistency is a separate check.
+
+Model-family independence, method independence, and input/framing independence are different axes. A
+cross-family reviewer that sees the same faulty note, prior verdict, or proposed correction is not an
+input-independent extraction. For a load-bearing source item, first obtain at least one
+**candidate-withheld extraction** with the `source-extraction` role; only then show the candidate note for
+the literal `source-fidelity` comparison. The extraction manifest records
+`candidate_visibility=withheld_by_packet_structure`, while also stating that request neutrality is not
+machine-verified. Feedback iterations state a discrepancy and source locator as a hypothesis; they must
+not feed the desired corrected formula back as an assumption.
+
+Record whether a literal cross-family source comparison was performed; a swarm that only read the note,
+stayed within one model family, or shared one candidate-anchored input without a candidate-withheld pass is
+**not** a full fidelity pass and must be labeled as such.
+
+For PDF or scanned sources, a text-only packet cannot establish source fidelity by itself. The gate also
+requires a PDF/image-capable reader to compare the original rendered page (or a lossless page crop) with
+the persisted excerpt. Record both the original file/page hash and crop hash. OCR or `pdftotext` output is
+a discovery aid only; agreement between the note and OCR cannot certify a formula that OCR misread.
 
 ### Artifact-integration reviewer (for rendered research artifacts)
 
@@ -410,6 +567,32 @@ a refactor that re-breaks an invariant — that exists only after the fix and is
 independent round. Skipping the confirmation round because the change "obviously" closed the finding is the
 failure mode this rule exists to stop. The leader integrates and decides, but does **not** declare
 convergence in place of the reviewers.
+
+The verdict is scoped to the exact hashes in `inputs/review_input_manifest.json`.
+Before counting an older run toward a later convergence or closeout, rerun the
+freshness check:
+
+```bash
+python3 <nullius-root>/skills/review-swarm/scripts/bin/verify_review_freshness.py \
+  --review-dir /path/to/review-out
+```
+
+Require `status: FRESH`. A target, source, correction record, context, system prompt,
+packet, or diff mismatch is `STALE`, even if the edit is one character and the prior
+model output says READY. Re-review the full current artifact or the complete exact delta
+from the reviewed hash. Running the checker once does not authorize later edits; any
+post-check mutation invalidates the acceptance state.
+
+The standalone checker returns `0` for `FRESH`, `3` for `STALE`, and `2` for an invalid
+or unreadable manifest. The `review_one.py` entry instead returns `86` when its model run
+succeeded but acceptance is `STALE` or `UNVERIFIABLE`, so it remains distinguishable from
+the delegated model result. Automation should treat the JSON `status` as authoritative
+rather than assuming both entry points share one numeric convention.
+
+The manifest is a trusted launch record, not a cryptographic signature over itself.
+This gate catches accidental or uncoordinated post-review drift. If deliberate co-editing
+of both an input and its manifest is in scope, commit the review directory or persist the
+reported manifest SHA-256 in an external closeout record before accepting the verdict.
 
 ## Contract checking (informational)
 
