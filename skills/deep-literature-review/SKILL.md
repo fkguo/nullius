@@ -144,11 +144,54 @@ authors, DOI/arXiv/INSPIRE/OpenAlex identifiers, and same-work aliases. A
 conflict such as an INSPIRE recid paired with the wrong arXiv id blocks core
 admission until resolved; subagent-provided metadata is only a lead.
 
+Identity agreement does not establish a **relationship between distinct works**.
+Any claim that a paper is “Part II,” a predecessor/successor, erratum, companion,
+or continuation must also be grounded in the primary paper's own preamble,
+reference list, or explicit cross-reference and checked against catalog identities
+for every work involved. Similar authors, year, title words, or numbering are not
+enough; record the relationship locator in the extraction ledger.
+
+**Check the correction chain before extracting load-bearing content.** For every
+core paper, search the bibliographic record and the paper's citation/relationship
+metadata for an erratum, corrigendum, expression of concern, retraction, revised
+version, or explicit author correction in a later work. Record the result even when
+no correction is found. If a correction exists, persist and read it alongside the
+main paper, record its identifier and exact affected items, and use the corrected
+form in downstream derivations. The originally printed form may be retained only
+when it is labeled as pre-correction. A full read of the main paper does not by
+itself establish that the publication's final formula or claim was read.
+Keep the correction-search record evidential: queries, indexes, identifiers,
+returned relations, and exact correction locators. Do not preload it with the
+scientific verdict about which correction is complete or which formula is right;
+that conclusion belongs to the candidate-withheld extraction.
+
 **Persist the source you read.** When a fetch/source tool returns the primary source to an
 ephemeral or temporary path, persist that exact source to a stable, auditable location (e.g.
 alongside the note) so the fidelity gate (step 5) — and any later reviewer — reads exactly the
 bytes you transcribed, not a re-fetch that may have changed. This is a workflow discipline
 (where *you* save the source), not a change to any fetch tool's behavior.
+
+For every load-bearing equation, value, definition, or attribution, create an
+**extraction ledger** before writing synthesis prose. Use
+`templates/extraction-ledger.md` or an equivalent structured artifact and keep these
+fields distinct: persisted source path/hash, exact locator, literal source text,
+normalized transcription, symbol dictionary, derived project mapping/inference, and
+fidelity status. Also record the correction-chain search, every correction source and
+hash, and whether the item is unchanged or superseded. Never put a normalized formula
+in the literal field, never present a derived mapping as source wording, and never
+silently substitute a corrected expression for the printed source form. A prime,
+dummy-variable rename, or notation cleanup is a normalization and must appear in the
+change log even when it leaves the mathematics unchanged.
+
+If a note claims that all formulas in a paper or section were checked, first make a
+scope inventory containing every displayed equation and every adjacent formula-like
+condition in that scope. Record a locator and fidelity status for each entry. A
+load-bearing-item ledger is not evidence for an exhaustive claim about unlisted
+auxiliary formulas. For every literal formula, separately audit signs, coefficients
+or factors, operators, indices or subscripts, relation operators or interval
+endpoints, numerator/denominator placement, exponents, primes, function arguments,
+and integration limits; dimensional or algebraic consistency does not substitute
+for this token-level comparison.
 
 Then fill **every** field the KB note template leaves blank, each backed by a
 verbatim quote + a locator (section / equation / table / figure / page):
@@ -259,21 +302,64 @@ primary source with "do not trust the note"** — a falsification pass, not a co
 
 Self-check every transcribed item before handoff: (a) equation misquote, (b) wrong numeric
 value, (c) wrong / stale locator, (d) stale / wrong mapping to the consuming artifact,
-(e) false "verbatim", (f) inference-as-source, (g) silent factor drop (full definitions:
-`research-integrity` → *Extraction / transcription fidelity*).
+(e) false "verbatim", (f) inference-as-source, (g) silent factor drop,
+(h) correlated-input agreement, (i) bibliographic-relation conflation,
+(j) stale pre-correction source, (k) context-stripped extraction,
+(l) source-layer contamination, (m) coverage overclaim, (n) stale review verdict,
+(o) source-error laundering (full definitions: `research-integrity` →
+*Extraction / transcription fidelity*).
 
 For a note that will anchor a central claim, enter a close-prior matrix, or be folded into a durable artifact, the gate is
 **independent** (a fresh reader / subagent, not the note's author) and at least one reviewer
 **must** be **cross-model-family** doing a literal comparison — loose semantic agreement is
-insufficient for transcription fidelity. Run it through `review-swarm` (the source-fidelity reviewer role); re-review after
-**every** fix (a correction can introduce a fresh defect) and call convergence only when the
-independent reviewers agree — never self-declare it after applying a fix. (`derivation-verify`
+insufficient for transcription fidelity. Before that candidate-visible comparison, obtain
+at least one **candidate-withheld extraction**: give a fresh reader the persisted source and
+a neutral locator/question list, but not the candidate note, prior verdict, expected
+classification, or proposed corrected expression. This separates model-family independence
+from input/framing independence. Use `review_one.py --role source-extraction` with
+`--extraction-request`; that entry rejects candidate artifacts, diffs, and additional
+context by construction. The reviewer must still reject an answer-anchored request because
+request neutrality cannot be established from file shape alone.
+
+Before that pass, classify the source bytes with `--source-text-origin`. Use
+`direct-original-text` only for publisher/repository text that was not manually rewritten.
+For a PDF/scan transcription, use `visually-verified-transcription` and supply a separate
+`--source-provenance-evidence` record with document/page/crop hashes, locators, the visual
+comparison, and whether the visual verifier was distinct from the transcriber. Do not place
+normalization, symbol mapping, inferred limits, or scientific adjudication inside the source
+payload. A hash fixes the bytes under review but cannot establish that those bytes match the page.
+
+Run the comparison through `review-swarm` (the source-fidelity reviewer role), supplying
+the note via `--artifact`, each exact main source via `--source`, an explicit
+`--source-text-origin`, an explicit `--correction-status`, the correction-chain query record via
+`--correction-search-evidence`, and every applicable correction via
+`--correction-source`. The launcher must reject a source-fidelity run that has no
+separate primary-source payload, no source-origin declaration/provenance evidence when
+required, no correction-chain declaration/evidence, or a declaration that corrections
+exist without their exact text. Re-review after **every**
+fix and call convergence only when the source-localized checks agree — never self-declare it
+after applying a fix or resolve a conflict by majority vote. (`derivation-verify`
 is a *separate* axis: it re-derives whether a re-derivable result is mathematically correct,
 which does not check whether the note faithfully copied the source — use it in addition to,
 never instead of, the source comparison.)
 
+If the primary source is a PDF or scan, include a direct PDF/image-capable comparison
+against the rendered page or a lossless crop. Record the original file/page hash, crop
+hash, and locator in the extraction ledger. OCR or `pdftotext` can locate a passage but
+cannot serve as formula-fidelity evidence; a text-only note-to-excerpt pass is only the
+second half of the check.
+
+The persisted excerpt must be **dependency-closed for the requested check**. Alongside
+each displayed formula, include the neighboring source text that fixes its domain,
+boundary value, branch/sheet, conventions, and definitions. Before a reviewer derives
+anything, it lists those required premises and marks the step uncheckable if one is
+absent. A formula-only excerpt can be literally accurate and still force every reader
+to analyze the wrong object.
+
 Record the result in the survey as `source_fidelity_audit`: reviewer/auditor id,
-checked locators, status `pass | partial | fail`, and notes. The summary itself
+source path/hash, checked locators, candidate visibility, whether a candidate-withheld
+extraction was completed, correction-search evidence path/hash, status
+`pass | partial | fail`, and notes. The summary itself
 is audited: every important paraphrase must be traceable to a quoted span or
 locator, and any unsupported summary sentence is removed or downgraded to
 inference. A core paper requires `source_fidelity_audit.status: pass`; `partial`

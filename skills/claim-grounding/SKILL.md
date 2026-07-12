@@ -139,7 +139,7 @@ quote/value/locator against the span you fetched in step 3:
   both checks.
 
 This is the active execution of the `research-integrity` *Extraction / transcription fidelity*
-checklist (items (a)–(g)); `deep-literature-review` produces the notes this dimension grounds.
+checklist (items (a)–(o)); `deep-literature-review` produces the notes this dimension grounds.
 
 ## Output — `claim_grounding_report_v1`
 

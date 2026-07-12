@@ -18,10 +18,10 @@ DISPLAY_MATH_BRACKET_START_RE = re.compile(r"^\s*\\\[\s*$")
 DISPLAY_MATH_BRACKET_END_RE = re.compile(r"^\s*\\\]\s*$")
 DISPLAY_MATH_DOLLAR_RE = re.compile(r"^\s*\$\$\s*$")
 DISPLAY_MATH_ENV_START_RE = re.compile(
-    r"\\begin\{(?:equation|equation\*|align|align\*|aligned|gather|gather\*|multline|multline\*|split)\}"
+    r"\\begin\{(?:equation|equation\*|align|align\*|gather|gather\*|multline|multline\*)\}"
 )
 DISPLAY_MATH_ENV_END_RE = re.compile(
-    r"\\end\{(?:equation|equation\*|align|align\*|aligned|gather|gather\*|multline|multline\*|split)\}"
+    r"\\end\{(?:equation|equation\*|align|align\*|gather|gather\*|multline|multline\*)\}"
 )
 DISPLAY_MATH_LEADING_CONTINUATION_RE = re.compile(r"^(\s*)([=+-])(.*)$")
 TABLE_DELIMITER_RE = re.compile(r"^\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)*\|?\s*$")

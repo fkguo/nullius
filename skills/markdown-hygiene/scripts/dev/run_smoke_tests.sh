@@ -97,6 +97,56 @@ python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" check --root "${BAD_PLUS_
 grep -F '{}+ y' "${BAD_PLUS_MINUS}" >/dev/null
 grep -F '{}- z' "${BAD_PLUS_MINUS}" >/dev/null
 
+NESTED_ALIGNED="${TMP_DIR}/nested-aligned.md"
+cat >"${NESTED_ALIGNED}" <<'MD'
+$$
+\begin{aligned}
+x &= y \\
++ z
+\end{aligned}
+$$
+
+- $a^2$ remains a Markdown list item.
+MD
+
+if python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" check --root "${NESTED_ALIGNED}"; then
+  echo "expected check to fail for a continuation inside nested aligned" >&2
+  exit 1
+fi
+python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" fix --root "${NESTED_ALIGNED}"
+python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" check --root "${NESTED_ALIGNED}"
+grep -F '{}+ z' "${NESTED_ALIGNED}" >/dev/null
+grep -F -- '- $a^2$ remains a Markdown list item.' "${NESTED_ALIGNED}" >/dev/null
+if grep -F '{}- $a^2$' "${NESTED_ALIGNED}" >/dev/null; then
+  echo "nested aligned state leaked into the following Markdown list" >&2
+  exit 1
+fi
+
+NESTED_SPLIT="${TMP_DIR}/nested-split.md"
+cat >"${NESTED_SPLIT}" <<'MD'
+$$
+\begin{split}
+x &= y \\
+- z
+\end{split}
+$$
+
+- $b^2$ remains a Markdown list item.
+MD
+
+if python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" check --root "${NESTED_SPLIT}"; then
+  echo "expected check to fail for a continuation inside nested split" >&2
+  exit 1
+fi
+python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" fix --root "${NESTED_SPLIT}"
+python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" check --root "${NESTED_SPLIT}"
+grep -F '{}- z' "${NESTED_SPLIT}" >/dev/null
+grep -F -- '- $b^2$ remains a Markdown list item.' "${NESTED_SPLIT}" >/dev/null
+if grep -F '{}- $b^2$' "${NESTED_SPLIT}" >/dev/null; then
+  echo "nested split state leaked into the following Markdown list" >&2
+  exit 1
+fi
+
 LINKS_DIR="${TMP_DIR}/links"
 mkdir -p "${LINKS_DIR}/notes"
 printf '# Linked note\n' >"${LINKS_DIR}/notes/source.md"
