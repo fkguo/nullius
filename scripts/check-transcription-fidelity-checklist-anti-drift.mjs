@@ -3,7 +3,7 @@
 /**
  * Transcription-fidelity checklist anti-drift CI check.
  *
- * The "Extraction / transcription fidelity" failure checklist — currently items (a)–(l)
+ * The "Extraction / transcription fidelity" failure checklist — currently items (a)–(m)
  * — is defined CANONICALLY in skills/research-integrity/SKILL.md and is
  * restated / referenced by sibling skills. Nothing else keeps those copies in
  * sync, so a label edit in one file can silently diverge from the canonical
