@@ -128,6 +128,31 @@ def _read_primary_source(raw: str, *, flag: str = "--source") -> tuple[Path, str
     return p, text, hashlib.sha256(data).hexdigest(), len(data)
 
 
+def _require_strict_utf8_comparison_target(path: Path, *, flag: str) -> None:
+    """A source role's literal comparison target must be exact UTF-8, not lossily decoded.
+
+    Generic roles may embed an artifact with replacement characters (the manifest records both
+    the raw and embedded-text hashes for that reason), but a source comparison reads bytes
+    literally, so a non-UTF-8 target could hide a transcription discrepancy behind U+FFFD. A
+    missing file is left to the downstream reader so its canonical not-found wording is kept.
+    """
+    if not path.is_file():
+        return
+    data = path.read_bytes()
+    if b"\x00" in data:
+        raise ValueError(
+            f"{flag} must be exact UTF-8 text for a literal source comparison, not a binary "
+            f"file: {path}"
+        )
+    try:
+        data.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ValueError(
+            f"{flag} is not valid UTF-8 text: {path} (decode error at byte {exc.start}); a "
+            "source comparison must not lossily replace target bytes with U+FFFD"
+        ) from exc
+
+
 def _validate_source_review_inputs(args: argparse.Namespace) -> None:
     sources = list(args.source or [])
     correction_sources = list(args.correction_source or [])
@@ -298,6 +323,10 @@ def _validate_source_review_inputs(args: argparse.Namespace) -> None:
                 "the neutral extraction request and source/evidence inputs must be distinct "
                 "files; overlapping path: " + str(request_path)
             )
+    for artifact_path in sorted(artifact_paths):
+        _require_strict_utf8_comparison_target(artifact_path, flag="--artifact")
+    for context_path in context_path_list:
+        _require_strict_utf8_comparison_target(context_path, flag="--context")
 
 
 def _run_git_diff(diff_range: str) -> str:
@@ -914,7 +943,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     rc = _delegate(args, out_dir=out_dir, system_path=system_path, packet_path=packet_path)
     try:
         freshness = _record_post_review_freshness(out_dir=out_dir)
-    except ValueError as exc:
+    except (ValueError, OSError) as exc:
         print(f"ERROR: review freshness could not be verified: {exc}", file=sys.stderr)
         _print_summary(
             out_dir=out_dir,
