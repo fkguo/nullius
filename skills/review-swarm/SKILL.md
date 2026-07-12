@@ -181,8 +181,8 @@ Flags:
   are review targets. The last is a neutral locator/question list accepted only
   by `source-extraction`.
 - A `--diff` packet contains changed hunks, not every unchanged declaration or
-  invariant they depend on. Add the full relevant files with `--context` when a
-  correctness verdict may depend on surrounding definitions. A reviewer must
+  invariant they depend on. Add the full relevant files with repeatable `--context`
+  flags when a correctness verdict may depend on surrounding definitions. A reviewer must
   not infer that an implementation element is absent merely because it is not
   visible in the diff.
 - `--role generic|correctness|execution-adversary|source-extraction|source-fidelity` — picks the
@@ -222,7 +222,9 @@ Flags:
   to keep the candidate and prior verdict out of the packet by construction.
   The launcher cannot semantically prove that the request is neutral, so the
   reviewer must block if it contains an expected answer or proposed correction.
-- `--context PATH` — optional extra material appended to the packet.
+- `--context PATH` — optional extra material appended to the packet. Repeatable;
+  every file is embedded and recorded in command-line order. Duplicate paths are
+  rejected instead of being silently collapsed.
 - `--out-dir DIR` — defaults to `./review-one-<UTC timestamp>/`; the assembled
   inputs are persisted under `<out-dir>/inputs/` for audit.
 - `--host-family FAMILY` — pass your own family to make the entry refuse when
@@ -333,7 +335,7 @@ evidence. This role rejects candidate artifacts, diffs, and additional context a
 passing the candidate via `--artifact`/`--diff`, the same source separately through repeatable `--source`,
 and each applicable correction through repeatable `--correction-source`. The launcher writes
 `inputs/source_fidelity_manifest.json` with primary/correction/search-evidence and target hashes, diff range
-when applicable, additional-context hash, correction status, and candidate visibility. Context content is
+when applicable, ordered additional-context paths and hashes, correction status, and candidate visibility. Context content is
 explicitly marked as not machine-classified because the launcher cannot know whether it contains a prior
 verdict or proposed answer. Both roles fail closed before model launch if required source, correction,
 or correction-search evidence is absent or invalid. Both manifests also mark request neutrality and

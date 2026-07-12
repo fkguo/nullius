@@ -415,9 +415,86 @@ class ReviewOneTests(unittest.TestCase):
             self.assertEqual(manifest["target_artifacts"][0]["path"], str(artifact.resolve()))
             self.assertEqual(len(manifest["target_artifacts"][0]["sha256"]), 64)
             self.assertEqual(manifest["additional_context"]["path"], str(context.resolve()))
+            self.assertEqual(manifest["additional_context_count"], 1)
+            self.assertEqual(
+                manifest["additional_contexts"][0]["path"], str(context.resolve())
+            )
             self.assertEqual(
                 manifest["additional_context_content_classification"], "not_machine_verified"
             )
+
+    def test_repeatable_contexts_are_embedded_and_manifested_in_order(self):
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            out_dir = td_path / "out"
+            artifact = td_path / "artifact.md"
+            source = td_path / "source.tex"
+            context_a = td_path / "context-a.md"
+            context_b = td_path / "context-b.md"
+            artifact.write_text("candidate transcription\n", encoding="utf-8")
+            source.write_text("literal source equation\n", encoding="utf-8")
+            context_a.write_text("first full-file context\n", encoding="utf-8")
+            context_b.write_text("second full-file context\n", encoding="utf-8")
+
+            with contextlib.redirect_stdout(io.StringIO()):
+                rc = self.mod.main(
+                    self._basic_argv(
+                        td_path,
+                        out_dir,
+                        artifact,
+                        "--role",
+                        "source-fidelity",
+                        "--source",
+                        str(source),
+                        "--context",
+                        str(context_a),
+                        "--context",
+                        str(context_b),
+                    )
+                )
+            self.assertEqual(rc, 0)
+            packet = (out_dir / "inputs" / "packet.md").read_text(encoding="utf-8")
+            marker_a = f"=== ADDITIONAL CONTEXT: {context_a.resolve()} ==="
+            marker_b = f"=== ADDITIONAL CONTEXT: {context_b.resolve()} ==="
+            self.assertIn(marker_a, packet)
+            self.assertIn(marker_b, packet)
+            self.assertLess(packet.index(marker_a), packet.index(marker_b))
+            self.assertEqual(packet.count("CONTEXT_FILE_SHA256:"), 2)
+
+            manifest = json.loads(
+                (out_dir / "inputs" / "source_fidelity_manifest.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertIsNone(manifest["additional_context"])
+            self.assertEqual(manifest["additional_context_count"], 2)
+            self.assertEqual(
+                [entry["path"] for entry in manifest["additional_contexts"]],
+                [str(context_a.resolve()), str(context_b.resolve())],
+            )
+
+    def test_duplicate_context_paths_are_rejected(self):
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            artifact = td_path / "artifact.md"
+            context = td_path / "context.md"
+            artifact.write_text("candidate\n", encoding="utf-8")
+            context.write_text("context\n", encoding="utf-8")
+            stderr = io.StringIO()
+            with contextlib.redirect_stderr(stderr), contextlib.redirect_stdout(io.StringIO()):
+                rc = self.mod.main(
+                    self._basic_argv(
+                        td_path,
+                        td_path / "out",
+                        artifact,
+                        "--context",
+                        str(context),
+                        "--context",
+                        str(context),
+                    )
+                )
+            self.assertEqual(rc, 2)
+            self.assertIn("duplicate --context paths", stderr.getvalue())
 
     def test_source_fidelity_rejects_same_file_as_source_and_target(self):
         with tempfile.TemporaryDirectory() as td:

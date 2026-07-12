@@ -2,7 +2,7 @@
 """review_one.py — one-command single-reviewer entry for review-swarm.
 
 Assembles the whole review packet (system prompt from templates/<role>.md; user
-packet embedding artifact files or a git diff, plus optional context) and then
+packet embedding artifact files or a git diff, plus optional context files) and then
 delegates to run_multi_task.py in this same directory, so runner discovery,
 per-backend read-only tool modes, process-group timeouts, trace.jsonl/meta.json
 artifacts and contract checking are inherited from the one launcher — there is
@@ -131,6 +131,18 @@ def _validate_source_review_inputs(args: argparse.Namespace) -> None:
     correction_sources = list(args.correction_source or [])
     correction_search_evidence = list(args.correction_search_evidence or [])
     source_provenance_evidence = list(args.source_provenance_evidence or [])
+    context_path_list = [Path(raw).expanduser().resolve() for raw in (args.context or [])]
+    context_paths = set(context_path_list)
+    if len(context_paths) != len(context_path_list):
+        raise ValueError("duplicate --context paths are not allowed")
+    artifact_paths = {Path(raw).expanduser().resolve() for raw in (args.artifact or [])}
+    context_target_overlap = context_paths & artifact_paths
+    if context_target_overlap:
+        joined = ", ".join(str(path) for path in sorted(context_target_overlap))
+        raise ValueError(
+            "the review target and additional context must be distinct files; overlapping "
+            "path(s): " + joined
+        )
     if args.role not in _SOURCE_ROLES:
         if (
             sources
@@ -262,7 +274,6 @@ def _validate_source_review_inputs(args: argparse.Namespace) -> None:
             "source-provenance evidence and correction-search evidence must be distinct "
             "files; overlapping path(s): " + joined
         )
-    artifact_paths = {Path(raw).expanduser().resolve() for raw in (args.artifact or [])}
     all_source_inputs = (
         source_paths | correction_paths | correction_evidence_paths | provenance_paths
     )
@@ -272,17 +283,11 @@ def _validate_source_review_inputs(args: argparse.Namespace) -> None:
         raise ValueError(
             "the review target and source inputs must be distinct files; overlapping path(s): " + joined
         )
-    if args.context:
-        context_path = Path(args.context).expanduser().resolve()
+    for context_path in context_path_list:
         if context_path in all_source_inputs:
             raise ValueError(
                 "source inputs and additional context must be distinct files; overlapping path: "
                 + str(context_path)
-            )
-        if context_path in artifact_paths:
-            raise ValueError(
-                "the review target and additional context must be distinct files; overlapping "
-                "path: " + str(context_path)
             )
     if args.extraction_request:
         request_path = Path(args.extraction_request).expanduser().resolve()
@@ -321,7 +326,7 @@ def _assemble_packet(
     source_provenance_evidence: list[tuple[Path, str, str, int]],
     extraction_request: Optional[tuple[Path, str, str, int]],
     diff_text: Optional[str],
-    context: Optional[tuple[Path, str, str, int]],
+    contexts: list[tuple[Path, str, str, int]],
 ) -> str:
     parts = [ADVISORY_BANNER, "", _PACKET_FRAMING]
     if args.role == _SOURCE_EXTRACTION_ROLE:
@@ -418,10 +423,14 @@ def _assemble_packet(
             f"{_verbatim_packet_text(diff_text)}"
             "=== END DIFF ===\n"
         )
-    if context is not None:
-        path, context_text, _digest, _size = context
+    for path, context_text, digest, size in contexts:
         parts.append(
-            f"=== ADDITIONAL CONTEXT: {path} ===\n\n"
+            f"=== ADDITIONAL CONTEXT: {path} ===\n"
+            f"CONTEXT_FILE_SHA256: {digest}\n"
+            f"CONTEXT_FILE_BYTES: {size}\n"
+            f"EMBEDDED_TEXT_SHA256: {_embedded_text_sha256(context_text)}\n"
+            "PACKET_DELIMITER_NEWLINE_ADDED: "
+            f"{str(_packet_delimiter_newline_added(context_text)).lower()}\n\n"
             f"{_verbatim_packet_text(context_text)}"
             "=== END CONTEXT ===\n"
         )
@@ -438,7 +447,7 @@ def _source_review_manifest(
     source_provenance_evidence: list[tuple[Path, str, str, int]],
     extraction_request: Optional[tuple[Path, str, str, int]],
     diff_text: Optional[str],
-    context: Optional[tuple[Path, str, str, int]],
+    contexts: list[tuple[Path, str, str, int]],
 ) -> dict:
     sources = [
         {
@@ -493,16 +502,19 @@ def _source_review_manifest(
         for path, text, digest, size in artifacts
     ]
     diff_bytes = diff_text.encode("utf-8") if diff_text is not None else None
-    context_entry = None
-    if context is not None:
-        path, text, digest, size = context
-        context_entry = {
+    context_entries = [
+        {
             "path": str(path),
             "sha256": digest,
             "bytes": size,
             "embedded_text_sha256": _embedded_text_sha256(text),
             "packet_delimiter_newline_added": _packet_delimiter_newline_added(text),
         }
+        for path, text, digest, size in contexts
+    ]
+    # Preserve the historical singular field only when it is unambiguous. New
+    # consumers should read additional_contexts.
+    context_entry = context_entries[0] if len(context_entries) == 1 else None
     request_entry = None
     if extraction_request is not None:
         path, text, digest, size = extraction_request
@@ -547,6 +559,8 @@ def _source_review_manifest(
             _packet_delimiter_newline_added(diff_text) if diff_text is not None else None
         ),
         "additional_context": context_entry,
+        "additional_contexts": context_entries,
+        "additional_context_count": len(context_entries),
         "additional_context_content_classification": "not_machine_verified",
         "neutral_extraction_request": request_entry,
         "candidate_visibility": (
@@ -596,8 +610,9 @@ def _parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
     ap.add_argument("--correction-search-evidence", action="append", default=None, metavar="PATH",
                     help="Exact UTF-8 record of correction-chain searches. Repeatable and required "
                          "for checked-none-found or checked-corrections-included.")
-    ap.add_argument("--context", default=None, metavar="PATH",
-                    help="Optional context file appended to the packet.")
+    ap.add_argument("--context", action="append", default=[], metavar="PATH",
+                    help="Optional context file appended to the packet. Repeatable; all files are "
+                         "embedded in command-line order.")
     ap.add_argument("--out-dir", type=Path, default=None,
                     help="Output directory (default: ./review-one-<UTC timestamp>/).")
     ap.add_argument("--host-family", default=None, metavar="FAMILY",
@@ -722,7 +737,9 @@ def main(argv: Optional[list[str]] = None) -> int:
             else None
         )
         diff_text = _run_git_diff(args.diff) if args.diff else None
-        context = _read_text_payload(args.context, label="--context") if args.context else None
+        contexts = [
+            _read_text_payload(raw, label="--context") for raw in (args.context or [])
+        ]
         packet_text = _assemble_packet(
             args,
             artifacts=artifacts,
@@ -732,7 +749,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             source_provenance_evidence=source_provenance_evidence,
             extraction_request=extraction_request,
             diff_text=diff_text,
-            context=context,
+            contexts=contexts,
         )
         run_multi_task._atomic_write_text(system_path, template_path.read_text(encoding="utf-8"))
         run_multi_task._atomic_write_text(packet_path, packet_text)
@@ -754,7 +771,7 @@ def main(argv: Optional[list[str]] = None) -> int:
                         source_provenance_evidence=source_provenance_evidence,
                         extraction_request=extraction_request,
                         diff_text=diff_text,
-                        context=context,
+                        contexts=contexts,
                     ),
                     indent=2,
                     sort_keys=True,
