@@ -48,6 +48,7 @@ from idea_package_contract import (
     compiled_knowledge_map,
     load_compiled_ir,
     observation_rationale_parts,
+    reader_rationale_text,
     require_authored_infer_rationales,
     require_idea_specific_reasoning_claims,
     require_unique_exported_root,
@@ -178,10 +179,7 @@ def _rationale_parts(text: str) -> tuple[str, str]:
     else:
         rationale = text[:marker].strip()
         anchor = text[marker + len("anchor:") :].strip()
-    rationale = re.sub(
-        r"^reader_reasoning:\s*", "", rationale, count=1
-    ).strip()
-    return rationale, anchor
+    return reader_rationale_text(rationale), anchor
 
 
 def _likelihood_effect(p_h: float, p_nh: float) -> tuple[str, str, float]:

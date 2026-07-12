@@ -47,6 +47,8 @@ from html.parser import HTMLParser
 from pathlib import Path
 
 from idea_package_contract import (
+    observation_rationale_parts,
+    reader_rationale_text,
     require_idea_specific_reasoning_claims,
     require_unique_exported_root,
 )
@@ -221,8 +223,8 @@ def split_anchors(rationale: str) -> tuple[str, list[str]]:
     """Split an authored rationale into prose and its 'anchor:' references."""
     marker = rationale.find("anchor:")
     if marker == -1:
-        return rationale.strip(), []
-    prose = rationale[:marker].strip()
+        return reader_rationale_text(rationale), []
+    prose = reader_rationale_text(rationale[:marker])
     refs = [a.strip() for a in rationale[marker + len("anchor:") :].split(";")]
     return prose, [a for a in refs if a]
 
@@ -353,7 +355,15 @@ class Node:
         self.observed = bool(observations)
         self.pinned_prior = metadata.get("prior")
         obs_rationale = observations[0].get("rationale", "") if observations else ""
-        self.obs_prose, self.obs_anchors = split_anchors(obs_rationale)
+        if observations:
+            _family, _model, self.obs_prose, anchor_text = (
+                observation_rationale_parts(obs_rationale)
+            )
+            self.obs_anchors = [
+                anchor.strip() for anchor in anchor_text.split(";") if anchor.strip()
+            ]
+        else:
+            self.obs_prose, self.obs_anchors = "", []
         self.is_root = False
         self.junction = False
         # Layout slots, filled later.

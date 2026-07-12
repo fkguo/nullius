@@ -134,16 +134,18 @@ def base_ir() -> dict:
         "strategies": [
             infer_strategy(
                 EV_ANCHOR, TENSION, 0.09, 0.90, "lcs_anchor",
-                "Substantial support for the anchored tension. "
+                "reader_reasoning: Substantial support for the anchored tension. "
+                "resolution_evidence: mechanism. "
                 "anchor: artifacts/demo/survey_v1.json",
             ),
             infer_strategy(
                 TENSION, WORTH, 0.25, 0.75, "lcs_worth",
-                "Weak worth update. anchor: artifacts/demo/record_v1.json",
+                "reader_reasoning: Weak worth update. "
+                "anchor: artifacts/demo/record_v1.json",
             ),
             infer_strategy(
                 EV_SCOPE, WORTH, 0.75, 0.25, "lcs_scope",
-                "Weak lowering: the executed check does not cover the claim. "
+                "reader_reasoning: Weak lowering: the executed check does not cover the claim. "
                 "anchor: artifacts/demo/scope_v1.json",
             ),
         ],
@@ -314,6 +316,8 @@ def test_roles_and_observation_marking(tmp_path) -> None:
         {"text": "artifacts/demo/survey_v1.json", "href": None},
         {"text": "artifacts/demo/close_prior_matrix_v1.json", "href": None},
     ]
+    assert "evidence_family:" not in payload["nodes"][EV_ANCHOR]["observation_note"]
+    assert "correlation_model:" not in payload["nodes"][EV_ANCHOR]["observation_note"]
     assert "recorded observation" in page
     assert "0.847" in page  # root posterior shown
 
@@ -500,7 +504,8 @@ def test_factor_text_formats() -> None:
 
 def test_split_anchors() -> None:
     prose, anchors = rag.split_anchors(
-        "Weak update. anchor: artifacts/a.json; artifacts/b.md"
+        "reader_reasoning: Weak update. resolution_evidence: mechanism. "
+        "anchor: artifacts/a.json; artifacts/b.md"
     )
     assert prose == "Weak update."
     assert anchors == ["artifacts/a.json", "artifacts/b.md"]
