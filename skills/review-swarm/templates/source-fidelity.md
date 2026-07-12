@@ -78,6 +78,10 @@ How to work:
     that scope, each with MATCHES, DIVERGES, AMBIGUOUS, or UNCHECKABLE status. A selective
     load-bearing comparison remains partial and cannot support an exhaustive
     fidelity claim.
+11. **Scope the verdict to the reviewed hashes.** Name the target artifact or diff
+    hash actually present in this packet. Do not describe a same-named later file as
+    reviewed. Any post-review change makes the verdict stale until the complete current
+    artifact or the complete delta from the reviewed hash is checked again.
 
 Severity: **BLOCKING** means any divergence between the artifact and the
 primary source, however small it looks — a one-character sign flip is exactly

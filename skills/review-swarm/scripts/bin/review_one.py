@@ -37,6 +37,7 @@ if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
 import run_multi_task  # same-directory launcher; single orchestration path
+import verify_review_freshness
 
 _SKILL_ROOT = _SCRIPT_DIR.parents[1]
 _TEMPLATES_DIR = _SKILL_ROOT / "templates"
@@ -62,6 +63,7 @@ _SOURCE_TEXT_ORIGINS = (
 )
 
 ADVISORY_BANNER = "single-family review — advisory; final verdicts require cross-family review"
+STALE_ACCEPTANCE_EXIT_CODE = 86
 
 _PACKET_FRAMING = """\
 === REVIEW TASK ===
@@ -308,12 +310,23 @@ def _run_git_diff(diff_range: str) -> str:
             "git option, not a revision range (git refs cannot start with '-'); "
             "pass a BASE..HEAD revision range"
         )
-    proc = subprocess.run(["git", "diff", diff_range], check=False, capture_output=True, text=True)
+    proc = subprocess.run(
+        ["git", "diff", "--no-ext-diff", "--no-textconv", diff_range],
+        check=False,
+        capture_output=True,
+    )
     if proc.returncode != 0:
-        raise ValueError(f"`git diff {diff_range}` failed: {proc.stderr.strip()}")
+        stderr = proc.stderr.decode("utf-8", errors="replace").strip()
+        raise ValueError(f"`git diff {diff_range}` failed: {stderr}")
     if not proc.stdout.strip():
         raise ValueError(f"`git diff {diff_range}` produced no output — nothing to review")
-    return proc.stdout
+    try:
+        return proc.stdout.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ValueError(
+            f"`git diff {diff_range}` is not valid UTF-8 at byte {exc.start}; "
+            "persist a UTF-8 review artifact instead of silently replacing bytes"
+        ) from exc
 
 
 def _assemble_packet(
@@ -577,6 +590,84 @@ def _source_review_manifest(
     }
 
 
+def _review_input_manifest(
+    args: argparse.Namespace,
+    *,
+    artifacts: list[tuple[Path, str, str, int]],
+    primary_sources: list[tuple[Path, str, str, int]],
+    correction_sources: list[tuple[Path, str, str, int]],
+    correction_search_evidence: list[tuple[Path, str, str, int]],
+    source_provenance_evidence: list[tuple[Path, str, str, int]],
+    extraction_request: Optional[tuple[Path, str, str, int]],
+    diff_text: Optional[str],
+    contexts: list[tuple[Path, str, str, int]],
+    persisted_review_inputs: list[tuple[Path, str, str, int]],
+) -> dict:
+    file_inputs = []
+
+    def add(kind: str, payloads: list[tuple[Path, str, str, int]]) -> None:
+        for path, _text, digest, size in payloads:
+            file_inputs.append(
+                {
+                    "kind": kind,
+                    "path": str(path),
+                    "sha256": digest,
+                    "bytes": size,
+                }
+            )
+
+    add("target_artifact", artifacts)
+    add("primary_source", primary_sources)
+    add("correction_source", correction_sources)
+    add("correction_search_evidence", correction_search_evidence)
+    add("source_provenance_evidence", source_provenance_evidence)
+    if extraction_request is not None:
+        add("neutral_extraction_request", [extraction_request])
+    add("additional_context", contexts)
+    add("persisted_review_input", persisted_review_inputs)
+
+    target_diff = None
+    if diff_text is not None:
+        diff_bytes = diff_text.encode("utf-8")
+        target_diff = {
+            "range": args.diff,
+            "sha256": hashlib.sha256(diff_bytes).hexdigest(),
+            "bytes": len(diff_bytes),
+        }
+    return {
+        "schema_version": 1,
+        "role": args.role,
+        "working_directory": str(Path.cwd().resolve()),
+        "file_inputs": file_inputs,
+        "target_diff": target_diff,
+    }
+
+
+def _record_post_review_freshness(*, out_dir: Path) -> dict:
+    report, manifest_path = verify_review_freshness.verify_review_dir(out_dir)
+    report["manifest_path"] = str(manifest_path)
+    report_path = out_dir / verify_review_freshness.REPORT_FILENAME
+    run_multi_task._atomic_write_text(
+        report_path,
+        json.dumps(report, indent=2, sort_keys=True) + "\n",
+    )
+
+    meta_path = out_dir / "meta.json"
+    if meta_path.is_file():
+        with contextlib.suppress(OSError, UnicodeError, json.JSONDecodeError):
+            meta = json.loads(meta_path.read_text(encoding="utf-8"))
+            meta["review_input_freshness"] = {
+                "status": report["status"],
+                "report": str(report_path),
+                "manifest": str(manifest_path),
+            }
+            run_multi_task._atomic_write_text(
+                meta_path,
+                json.dumps(meta, indent=2, sort_keys=True) + "\n",
+            )
+    return report
+
+
 def _parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--model", required=True,
@@ -687,7 +778,9 @@ def _delegate(args: argparse.Namespace, *, out_dir: Path, system_path: Path, pac
             os.environ["REVIEW_SWARM_NO_AUTO_CONFIG"] = prior_env
 
 
-def _print_summary(*, out_dir: Path, packet_path: Path) -> None:
+def _print_summary(
+    *, out_dir: Path, packet_path: Path, acceptance_status: Optional[str] = None
+) -> None:
     meta_path = out_dir / "meta.json"
     agent: dict = {}
     with contextlib.suppress(Exception):
@@ -695,6 +788,12 @@ def _print_summary(*, out_dir: Path, packet_path: Path) -> None:
         if agents and isinstance(agents[0], dict):
             agent = agents[0]
     print(f"note: {ADVISORY_BANNER}")
+    freshness_path = out_dir / verify_review_freshness.REPORT_FILENAME
+    freshness_status = acceptance_status or "UNKNOWN"
+    if acceptance_status is None:
+        with contextlib.suppress(Exception):
+            freshness_status = json.loads(freshness_path.read_text(encoding="utf-8"))["status"]
+    print(f"acceptance_status: {freshness_status}")
     print(f"verdict: {agent.get('verdict') or 'NONE'}")
     print(f"contract_ok: {json.dumps(agent.get('contract_ok'))}")
     print(f"output: {agent.get('out') or ''}")
@@ -753,6 +852,29 @@ def main(argv: Optional[list[str]] = None) -> int:
         )
         run_multi_task._atomic_write_text(system_path, template_path.read_text(encoding="utf-8"))
         run_multi_task._atomic_write_text(packet_path, packet_text)
+        persisted_review_inputs = [
+            _read_text_payload(str(system_path), label="persisted system prompt"),
+            _read_text_payload(str(packet_path), label="persisted review packet"),
+        ]
+        run_multi_task._atomic_write_text(
+            inputs_dir / "review_input_manifest.json",
+            json.dumps(
+                _review_input_manifest(
+                    args,
+                    artifacts=artifacts,
+                    primary_sources=primary_sources,
+                    correction_sources=correction_sources,
+                    correction_search_evidence=correction_search_evidence,
+                    source_provenance_evidence=source_provenance_evidence,
+                    extraction_request=extraction_request,
+                    diff_text=diff_text,
+                    contexts=contexts,
+                    persisted_review_inputs=persisted_review_inputs,
+                ),
+                indent=2,
+                sort_keys=True,
+            ) + "\n",
+        )
         if args.role in _SOURCE_ROLES:
             manifest_name = (
                 "source_extraction_manifest.json"
@@ -790,7 +912,23 @@ def main(argv: Optional[list[str]] = None) -> int:
         return 2
 
     rc = _delegate(args, out_dir=out_dir, system_path=system_path, packet_path=packet_path)
-    _print_summary(out_dir=out_dir, packet_path=packet_path)
+    try:
+        freshness = _record_post_review_freshness(out_dir=out_dir)
+    except ValueError as exc:
+        print(f"ERROR: review freshness could not be verified: {exc}", file=sys.stderr)
+        _print_summary(
+            out_dir=out_dir,
+            packet_path=packet_path,
+            acceptance_status="UNVERIFIABLE",
+        )
+        return STALE_ACCEPTANCE_EXIT_CODE if rc == 0 else rc
+    _print_summary(
+        out_dir=out_dir,
+        packet_path=packet_path,
+        acceptance_status=freshness["status"],
+    )
+    if rc == 0 and freshness["status"] != "FRESH":
+        return STALE_ACCEPTANCE_EXIT_CODE
     return rc
 
 
