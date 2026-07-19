@@ -47,8 +47,12 @@ Falsification labels (all fail-closed):
 Strictness notes (each closes a fail-open hole):
   - `contract_version` must be the exact integer 1: True / 1.0 do not pass.
   - The placeholder sweep covers the WHOLE contract, optional fields
-    included (a supplied `<placeholder>` value is an unfilled template);
-    only "_"-prefixed documentation keys are exempt.
+    included (a supplied `<placeholder>` value is an unfilled template).
+    The ONE deliberate exemption: values under a "_"-prefixed key are
+    skipped, because those keys are documentation notes (the shipped
+    template's `_note` fields describe the schema in prose that may contain
+    angle-bracketed examples). No required or budget-bearing field is
+    "_"-prefixed, so the exemption cannot hide an unfilled real field.
   - `tolerance_ceiling.anchor_note` must be a single line.
   - A delegations path that exists but is not a directory, a non-boolean
     `features.delegation_budget_gate` / `delegation_budget.required`
@@ -221,9 +225,14 @@ def _schema_safe_key(path: Path, taken: set[str]) -> str:
 def _is_finite_positive_number(value: Any) -> bool:
     if isinstance(value, bool):
         return False
-    if not isinstance(value, (int, float)):
-        return False
-    return math.isfinite(value) and value > 0
+    # int is exact and always finite — never route it through float
+    # (math.isfinite(10**400) raises OverflowError, which would crash the
+    # gate on a valid, if enormous, integer instead of validating the field).
+    if isinstance(value, int):
+        return value > 0
+    if isinstance(value, float):
+        return math.isfinite(value) and value > 0
+    return False
 
 
 def _is_positive_int(value: Any) -> bool:
@@ -654,32 +663,50 @@ def _run(args: argparse.Namespace, base_meta: dict[str, Any], _input_error: Any)
             delegations_dir = project_root / rel
         # A dangling symlink anywhere on the lexical path (the leaf OR an
         # ancestor, e.g. team -> missing) is a broken setup, not an absent
-        # directory — check BEFORE resolution, which would erase the links.
-        for component in (delegations_dir, *delegations_dir.parents):
-            if component.is_symlink() and not component.exists():
-                return _input_error(
-                    [f"delegations path traverses a dangling symlink: {component}"]
-                )
+        # directory. `lexical_dir` keeps the pre-resolution path so this
+        # walk can be repeated if resolution/listing races.
+        lexical_dir = delegations_dir
+
+        def _dangling_component() -> Path | None:
+            for component in (lexical_dir, *lexical_dir.parents):
+                if component.is_symlink() and not component.exists():
+                    return component
+            return None
+
+        dangling = _dangling_component()
+        if dangling is not None:
+            return _input_error(
+                [f"delegations path traverses a dangling symlink: {dangling}"]
+            )
         # Bind the scan directory BEFORE enumeration: listing a symlinked
         # directory and resolving entries afterwards would let a retarget
         # between the two substitute a different contract set for the one
         # just enumerated.
-        delegations_dir = delegations_dir.resolve()
+        resolved_dir = lexical_dir.resolve()
         # Enumerate with os.listdir directly: Path.glob suppresses OSError,
         # and Path.exists()/is_dir() swallow ENOTDIR on nested bad paths
         # (e.g. <file>/subdir), which would silently SKIP. Only a genuinely
         # absent directory is "no delegations"; every other failure —
         # NotADirectoryError, PermissionError, ENOTDIR — is an input error.
         try:
-            names: list[str] | None = sorted(os.listdir(delegations_dir))
+            names: list[str] | None = sorted(os.listdir(resolved_dir))
         except FileNotFoundError:
+            # ENOENT here can mean the symlink went live -> dangling between
+            # the lexical check and resolve()/listdir. Re-run the walk: a now
+            # dangling component is a broken setup (input error); only a
+            # genuinely absent non-symlink directory is "no delegations".
+            dangling = _dangling_component()
+            if dangling is not None:
+                return _input_error(
+                    [f"delegations path traverses a dangling symlink: {dangling}"]
+                )
             names = None
         except OSError as e:
-            return _input_error([f"cannot read delegations directory {delegations_dir}: {e}"])
+            return _input_error([f"cannot read delegations directory {resolved_dir}: {e}"])
         contract_entries = (
             []
             if names is None
-            else [(n, (delegations_dir / n).resolve()) for n in names if n.endswith(".json")]
+            else [(n, (resolved_dir / n).resolve()) for n in names if n.endswith(".json")]
         )
 
     if not contract_entries:

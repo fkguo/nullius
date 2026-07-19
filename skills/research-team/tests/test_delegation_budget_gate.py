@@ -124,8 +124,8 @@ def test_complete_contract_passes(tmp_path: Path) -> None:
     assert verdict["status"] == "converged"
     (summary,) = verdict["report_status"].values()
     assert summary["verdict"] == "ready"
-    # stdout carries the same verdict for callers that only capture stdout
-    assert json.loads(proc.stdout.strip())["status"] == "converged"
+    # stdout carries exactly the same verdict as the persisted one.
+    assert json.loads(proc.stdout.strip()) == verdict
 
 
 def test_multiple_complete_contracts_pass(tmp_path: Path) -> None:
@@ -159,6 +159,9 @@ def _assert_fails_with(tmp_path: Path, contract: dict | str, label: str) -> None
     _assert_verdict_valid(verdict)
     assert verdict["status"] == "not_converged"
     assert any(label in r for r in verdict["reasons"]), (label, verdict["reasons"])
+    # An evaluated gate must emit exactly one stdout verdict equal to the
+    # persisted one — the stdout contract cannot silently drift.
+    assert json.loads(proc.stdout.strip()) == verdict
 
 
 def test_missing_tolerance_ceiling_fails(tmp_path: Path) -> None:
@@ -377,6 +380,7 @@ def test_no_contracts_not_required_skips_without_verdict(tmp_path: Path) -> None
     assert proc.returncode == 0, proc.stderr
     assert verdict is None, "SKIP must not emit a machine verdict (nothing evaluated)"
     assert "SKIP" in proc.stderr
+    assert proc.stdout.strip() == "", "SKIP must emit nothing on stdout"
 
 
 def test_no_contracts_required_by_config_fails(tmp_path: Path) -> None:
@@ -404,6 +408,7 @@ def test_feature_disabled_skips_even_with_bad_contract(tmp_path: Path) -> None:
     assert proc.returncode == 0
     assert verdict is None
     assert "SKIP" in proc.stderr
+    assert proc.stdout.strip() == "", "SKIP must emit nothing on stdout"
 
 
 def test_missing_notes_is_input_error(tmp_path: Path) -> None:
@@ -602,6 +607,7 @@ def test_no_config_file_no_contracts_skips(tmp_path: Path) -> None:
     assert proc.returncode == 0, proc.stderr
     assert verdict is None
     assert "SKIP" in proc.stderr
+    assert proc.stdout.strip() == "", "SKIP must emit nothing on stdout"
 
 
 # --------------------------------------- exhaustive type/range negative controls
@@ -1232,3 +1238,112 @@ def test_delegations_dir_symlink_retarget_during_listdir_keeps_original_set(
     # Bound to dir_a (resolved before listdir) → invalid contract → FAIL 1.
     # Resolving entries through the retargeted link would land in dir_b → 0.
     assert mod.main() == 1
+
+
+# ------------------------------------------- round-15 completeness controls
+
+
+def test_missing_contract_version_fails(tmp_path: Path) -> None:
+    contract = _complete_contract()
+    del contract["contract_version"]
+    _assert_fails_with(tmp_path, contract, "UNSUPPORTED_CONTRACT_VERSION")
+
+
+def test_missing_tolerance_value_fails(tmp_path: Path) -> None:
+    contract = _complete_contract()
+    del contract["tolerance_ceiling"]["value"]
+    _assert_fails_with(tmp_path, contract, "MISSING_TOLERANCE_VALUE")
+
+
+def test_missing_time_box_seconds_fails(tmp_path: Path) -> None:
+    contract = _complete_contract()
+    del contract["time_box"]["seconds"]
+    _assert_fails_with(tmp_path, contract, "MISSING_TIME_BOX")
+
+
+def test_config_delegations_dir_relative(tmp_path: Path) -> None:
+    """A relative delegation_budget.delegations_dir resolves under the project root."""
+    proj = tmp_path / "proj"
+    _write(
+        proj / "research_team_config.json",
+        json.dumps({"delegation_budget": {"delegations_dir": "custom/deleg"}}),
+    )
+    _write(proj / "notes.md", "# notes\n")
+    _write(proj / "custom" / "deleg" / "c.json", json.dumps(_complete_contract()))
+    proc, verdict = _run_gate(proj)
+    assert proc.returncode == 0, proc.stderr
+    assert verdict is not None and verdict["status"] == "converged"
+
+
+def test_config_delegations_dir_absolute(tmp_path: Path) -> None:
+    """An absolute delegation_budget.delegations_dir is used verbatim."""
+    outside = tmp_path / "outside_deleg"
+    _write(outside / "c.json", json.dumps(_complete_contract()))
+    proj = tmp_path / "proj"
+    _write(
+        proj / "research_team_config.json",
+        json.dumps({"delegation_budget": {"delegations_dir": str(outside)}}),
+    )
+    _write(proj / "notes.md", "# notes\n")
+    proc, verdict = _run_gate(proj)
+    assert proc.returncode == 0, proc.stderr
+    assert verdict is not None and verdict["status"] == "converged"
+
+
+def test_huge_integer_field_validated_not_crashed(tmp_path: Path) -> None:
+    """A valid but enormous integer must validate deterministically, not crash
+    the gate via math.isfinite(OverflowError)."""
+    body = json.dumps(_complete_contract())
+    body = body.replace("7200", "1" + "0" * 400, 1)  # time_box.seconds = 10**400
+    proj = _make_project(tmp_path, contracts={"c.json": body})
+    proc, verdict = _run_gate(proj)
+    assert proc.returncode == 0, proc.stderr
+    assert verdict is not None and verdict["status"] == "converged"
+
+
+def test_placeholder_under_underscore_key_is_exempt(tmp_path: Path) -> None:
+    """The documented sweep exemption: an angle-bracketed value under a
+    '_'-prefixed documentation key does NOT fail (template _note fields)."""
+    contract = _complete_contract()
+    contract["_note"] = "<this is documentation prose, not an unfilled field>"
+    proj = _make_project(tmp_path, contracts={"c.json": contract})
+    proc, verdict = _run_gate(proj)
+    assert proc.returncode == 0, proc.stderr
+    assert verdict is not None and verdict["status"] == "converged"
+
+
+def test_live_to_dangling_delegations_symlink_is_input_error(
+    tmp_path: Path, monkeypatch: object
+) -> None:
+    """Race regression: a delegations symlink that goes live -> dangling
+    between the lexical check and listdir must be an input error, never a
+    silent 'no contracts' SKIP."""
+    import importlib.util
+
+    real = tmp_path / "real_deleg"
+    real.mkdir()
+    proj = _make_project(tmp_path)
+    link = proj / "team" / "delegations"
+    link.parent.mkdir(parents=True, exist_ok=True)
+    link.symlink_to(real)
+
+    spec = importlib.util.spec_from_file_location("check_delegation_budget_live_dangling", GATE)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    real_listdir = mod.os.listdir
+
+    def _retargeting_listdir(p):
+        # Between the lexical dangling check and the real listdir, drop the
+        # target so the resolved path 404s (simulating the live->dangling race).
+        if link.is_symlink() and real.exists():
+            real.rmdir()
+        return real_listdir(p)
+
+    monkeypatch.setattr(mod.os, "listdir", _retargeting_listdir)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["check_delegation_budget.py", "--notes", str(proj / "notes.md"), "--project-root", str(proj)],
+    )
+    assert mod.main() == 2  # input error, not SKIP(0)
