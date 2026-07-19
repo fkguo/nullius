@@ -5,6 +5,7 @@ import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 
 DEFAULT_CONFIG: dict = {
@@ -442,13 +443,80 @@ def find_broken_config_path(seed_path: Path) -> Path | None:
     return None
 
 
-def load_config_object(path: Path) -> dict | None:
-    """Public strict-parse entry point: return the config file's top-level
-    object, or None when the file is missing, unparseable, or not an object.
+def _reject_duplicate_config_keys(pairs: list) -> dict:
+    obj: dict = {}
+    for key, value in pairs:
+        if key in obj:
+            raise ValueError(f"duplicate key {key!r}")
+        obj[key] = value
+    return obj
 
-    Fail-closed callers (e.g. the delegation budget gate) use this to detect
-    "config exists but is broken" instead of silently inheriting defaults."""
-    return _load_config_file(path)
+
+def load_config_object(path: Path) -> dict:
+    """Public STRICT config parse for fail-closed callers (e.g. the delegation
+    budget gate): raises ValueError instead of degrading, because a config
+    file is a control input — the lenient loader's last-wins duplicate keys
+    or replacement-decoded UTF-8 could silently flip an enforcement flag.
+
+    Strictness: bytes must decode as strict UTF-8; JSON must have no
+    duplicate keys and no nonstandard NaN/Infinity constants; YAML mappings
+    must have no duplicate keys (and a YAML config without an importable
+    yaml module is an error, not "no config"); the top level must be a
+    mapping."""
+    try:
+        raw = path.read_bytes()
+    except OSError as e:
+        raise ValueError(f"cannot read config: {e}") from e
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError as e:
+        raise ValueError(f"config is not valid UTF-8: {e}") from e
+
+    if path.suffix.lower() in (".yaml", ".yml"):
+        try:
+            import yaml  # type: ignore
+        except Exception as e:
+            raise ValueError(
+                "YAML config present but the yaml module is unavailable — cannot validate"
+            ) from e
+
+        class _StrictLoader(yaml.SafeLoader):
+            pass
+
+        def _construct_no_dupes(loader: Any, node: Any) -> dict:
+            mapping: dict = {}
+            for key_node, value_node in node.value:
+                key = loader.construct_object(key_node, deep=True)
+                if key in mapping:
+                    raise ValueError(f"duplicate key {key!r} in YAML mapping")
+                mapping[key] = loader.construct_object(value_node, deep=True)
+            return mapping
+
+        _StrictLoader.add_constructor(
+            yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _construct_no_dupes
+        )
+        try:
+            data = yaml.load(text, Loader=_StrictLoader)  # noqa: S506 (SafeLoader subclass)
+        except ValueError:
+            raise
+        except Exception as e:
+            raise ValueError(f"config is not parseable YAML: {e}") from e
+    else:
+        def _reject_constant(token: str) -> Any:
+            raise ValueError(f"nonstandard JSON constant {token!r} in config")
+
+        try:
+            data = json.loads(
+                text,
+                object_pairs_hook=_reject_duplicate_config_keys,
+                parse_constant=_reject_constant,
+            )
+        except ValueError:
+            raise
+
+    if not isinstance(data, dict):
+        raise ValueError(f"config top level must be a mapping (got {type(data).__name__})")
+    return data
 
 
 def find_config_path(seed_path: Path) -> Path | None:
