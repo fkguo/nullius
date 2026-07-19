@@ -438,9 +438,51 @@ def test_output_aliasing_an_input_is_refused(tmp_path, capsys):
     proj = _project(tmp_path)
     plan_path = proj["root"] / "plan.md"
     code, result = _run(proj, capsys, extra_args=["--output", str(plan_path)])
+    # the checks themselves pass (verdict authorized in the printed artifact),
+    # but the aliased audit write is refused with exit 2
+    assert code == 2
+    assert result["verdict"] == "authorized"
+    assert any("alias" in e for e in result["errors"])
+    # the frozen plan bytes were not clobbered by the audit artifact
+    assert plan_path.read_text(encoding="utf-8") == PLAN_TEXT
+
+
+def test_output_aliasing_record_is_refused_even_on_early_refusal(tmp_path, capsys):
+    # an early exit path (malformed record) must not write the refusal
+    # artifact over the record it is refusing
+    proj = _project(tmp_path)
+    proj["record_path"].write_text("{not json", encoding="utf-8")
+    original = proj["record_path"].read_bytes()
+    code, result = _run(proj, capsys,
+                        extra_args=["--output", str(proj["record_path"])])
     assert code == 2
     assert result["verdict"] == "invalid_record"
-    # the frozen plan bytes were not clobbered by the audit artifact
+    assert proj["record_path"].read_bytes() == original
+
+
+def test_output_aliasing_plan_is_refused_when_record_fails_validation(tmp_path, capsys):
+    # validation-refused record + --output pointing at the declared plan:
+    # the plan file must survive untouched
+    proj = _project(tmp_path)
+    record = json.loads(proj["record_path"].read_text(encoding="utf-8"))
+    record["required_approvals"] = 5
+    _write_json(proj["record_path"], record)
+    plan_path = proj["root"] / "plan.md"
+    code, result = _run(proj, capsys, extra_args=["--output", str(plan_path)])
+    assert code == 2
+    assert result["verdict"] == "invalid_record"
+    assert plan_path.read_text(encoding="utf-8") == PLAN_TEXT
+
+
+def test_output_case_alias_of_plan_is_refused_on_case_insensitive_fs(tmp_path, capsys):
+    import pytest
+    proj = _project(tmp_path)
+    plan_path = proj["root"] / "plan.md"
+    if not (proj["root"] / "PLAN.MD").exists():
+        pytest.skip("filesystem is case-sensitive; case aliasing not possible here")
+    code, result = _run(proj, capsys,
+                        extra_args=["--output", str(proj["root"] / "PLAN.MD")])
+    assert code == 2
     assert plan_path.read_text(encoding="utf-8") == PLAN_TEXT
 
 
