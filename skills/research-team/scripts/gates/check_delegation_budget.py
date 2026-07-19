@@ -120,6 +120,31 @@ def _reject_json_constant(token: str) -> Any:
     raise ValueError(f"nonstandard JSON constant {token!r} is not valid contract JSON")
 
 
+def _read_regular_file_text(path: Path) -> str:
+    """Read a contract file without blocking on non-regular entries: a FIFO
+    (or a symlink to one) named *.json would hang read_text() forever and
+    leave preflight with no verdict at all. Open nonblocking, fstat-verify a
+    regular file on the OPEN descriptor (no stat/open race), then read."""
+    import stat as stat_module
+
+    fd = os.open(path, os.O_RDONLY | getattr(os, "O_NONBLOCK", 0))
+    try:
+        st = os.fstat(fd)
+        if not stat_module.S_ISREG(st.st_mode):
+            raise ValueError(
+                f"not a regular file (mode {stat_module.filemode(st.st_mode)}) — refusing to read"
+            )
+        chunks: list[bytes] = []
+        while True:
+            chunk = os.read(fd, 1 << 16)
+            if not chunk:
+                break
+            chunks.append(chunk)
+    finally:
+        os.close(fd)
+    return b"".join(chunks).decode("utf-8")
+
+
 def _reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     """json.loads is silently last-wins on duplicate keys — an earlier
     placeholder value would be discarded before the placeholder sweep ever
@@ -514,6 +539,12 @@ def _run(args: argparse.Namespace, base_meta: dict[str, Any], _input_error: Any)
             ]
         )
     config_path = find_config_path(args.notes)
+    if config_path is not None:
+        # Resolve ONCE at discovery: both the strict read below and the
+        # default project root derive from this resolved path, so retargeting
+        # a config symlink between the two cannot bind snapshot A's flags to
+        # tree B's (possibly empty) delegations directory.
+        config_path = config_path.resolve()
     strict_raw: dict[str, Any] | None = None
     if config_path is not None:
         # Strict validation of the control input itself: the lenient loader's
@@ -552,8 +583,9 @@ def _run(args: argparse.Namespace, base_meta: dict[str, Any], _input_error: Any)
         # FileNotFoundError and silently SKIP — fail closed instead.
         if not project_root.is_dir():
             return _input_error([f"--project-root is not an existing directory: {project_root}"])
-    elif cfg.path is not None:
-        project_root = cfg.path.resolve().parent
+    elif config_path is not None:
+        # Already resolved above — no fresh symlink resolution here.
+        project_root = config_path.parent
     else:
         project_root = args.notes.resolve().parent
 
@@ -641,7 +673,7 @@ def _run(args: argparse.Namespace, base_meta: dict[str, Any], _input_error: Any)
             # literals that standard JSON consumers reject — a contract other
             # tools cannot parse must not pass a fail-closed gate.
             contract = json.loads(
-                path.read_text(encoding="utf-8"),
+                _read_regular_file_text(path),
                 parse_constant=_reject_json_constant,
                 object_pairs_hook=_reject_duplicate_keys,
             )

@@ -937,3 +937,55 @@ def test_gate_uses_strict_config_snapshot(tmp_path: Path, monkeypatch: object) -
     # required=True from the snapshot + no contracts on disk → FAIL, proving
     # the snapshot (not the lenient re-read) is the authority.
     assert mod.main() == 1
+
+
+def test_fifo_contract_entry_fails_without_blocking(tmp_path: Path) -> None:
+    """A FIFO named *.json must fail as UNREADABLE_CONTRACT, not hang the
+    preflight forever on read()."""
+    if not hasattr(os, "mkfifo"):
+        return  # platform without FIFOs
+    proj = _make_project(tmp_path, contracts={"good.json": _complete_contract()})
+    os.mkfifo(proj / "team" / "delegations" / "a_fifo.json")
+    proc, verdict = _run_gate(proj)
+    assert proc.returncode == 1
+    assert verdict is not None
+    assert any("UNREADABLE_CONTRACT" in r for r in verdict["reasons"])
+
+
+def test_symlink_to_fifo_contract_entry_fails_without_blocking(tmp_path: Path) -> None:
+    if not hasattr(os, "mkfifo"):
+        return
+    proj = _make_project(tmp_path, contracts={"good.json": _complete_contract()})
+    fifo = tmp_path / "outside.fifo"
+    os.mkfifo(fifo)
+    (proj / "team" / "delegations" / "linked.json").symlink_to(fifo)
+    proc, verdict = _run_gate(proj)
+    assert proc.returncode == 1
+    assert verdict is not None
+    assert any("UNREADABLE_CONTRACT" in r for r in verdict["reasons"])
+
+
+def test_symlinked_config_binds_root_to_resolved_parent(tmp_path: Path) -> None:
+    """With no --project-root, the default root derives from the RESOLVED
+    config path: the strict snapshot and the delegations tree bind to the
+    same target, so retargeting the symlink cannot pair snapshot A with
+    tree B."""
+    real = tmp_path / "real"
+    bad = _complete_contract()
+    del bad["time_box"]
+    _write(real / "research_team_config.json", json.dumps({"features": {"delegation_budget_gate": True}}))
+    _write(real / "team" / "delegations" / "bad.json", json.dumps(bad))
+    link_dir = tmp_path / "link_dir"
+    link_dir.mkdir()
+    (link_dir / "research_team_config.json").symlink_to(real / "research_team_config.json")
+    _write(link_dir / "notes.md", "# notes\n")
+    proc = subprocess.run(
+        [sys.executable, str(GATE), "--notes", str(link_dir / "notes.md")],
+        capture_output=True,
+        text=True,
+    )
+    # Root = resolved parent (real/), whose delegations tree carries the bad
+    # contract → FAIL. If the root were the symlink's directory, the empty
+    # link_dir would silently SKIP.
+    assert proc.returncode == 1, proc.stderr
+    assert "MISSING_TIME_BOX" in proc.stdout
