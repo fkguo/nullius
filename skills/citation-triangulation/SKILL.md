@@ -169,8 +169,9 @@ compared after deterministic normalization:
 - **doi** — case-insensitive equality after stripping URL and `doi:`
   prefixes; URL forms also lose their query/fragment tail and
   percent-encoding, which are transport artifacts rather than part of the
-  DOI name. A preprint-registry DOI (the DataCite-registered `10.48550/`
-  prefix) additionally drops a trailing version suffix (`v1`, `v2`, ...):
+  DOI name. A preprint-registry DOI (the DataCite-registered
+  `10.48550/arxiv.` prefix) additionally drops a trailing version suffix
+  (`v1`, `v2`, ...):
   that registry's identifier denotes the work, not a version of it, so the
   versioned and unversioned spellings must compare equal. The fold applies
   only under that prefix — elsewhere a trailing `v` plus digits can be a
@@ -217,18 +218,21 @@ disagreeing key field while every content field (title, authors, year)
 agrees, that alone is not sufficient evidence of a metadata conflict: check
 whether the two values are the preprint/publisher pair for one work before
 rejecting the entry. Version spellings are part of the same trap; the
-comparator folds them under the preprint-registry prefix (one unfolded
-version suffix once manufactured ten spurious conflicts in a single
-public-benchmark run). What remains serious is two *publisher* DOIs
+comparator folds them under that registry's `10.48550/arxiv.` DOI prefix
+(one unfolded version suffix once manufactured ten spurious conflicts in a
+single public-benchmark run). What remains serious is two *publisher* DOIs
 disagreeing on otherwise-agreeing content — an identifier pointing at some
 other work than the one the text describes. And `year` stays a content field
 on purpose: preprint year versus journal year is a real discrepancy worth
 seeing, and fabricated dates live in that field.
 
 **Preprint presented as published.** When the entry under test claims a
-journal or proceedings venue but every index that returned a record knows
-the work only as a preprint (venue empty or a preprint marker), treat that
-as a strong signal that a preprint is being dressed up as a published paper.
+journal or proceedings venue but every index venue actually on record is a
+preprint marker, treat that as a strong signal that a preprint is being
+dressed up as a published paper. Records whose venue is empty contribute no
+evidence to this check: an index that is silent about venue has not said
+"preprint" — when no record carries a venue at all, the status simply
+cannot be checked and no flag is raised.
 The check is advisory and stays outside the verdict — venue naming varies
 too much across indexes to carry one — and it has a known false-alarm mode:
 a genuinely published work whose published record simply did not surface
@@ -237,8 +241,10 @@ the publisher's record; do not auto-reject. When the entry and at least one
 index both name a non-preprint venue, compare venues conservatively before
 flagging a mismatch: tokenize, drop filler words (proceedings,
 international, conference, ...), let an abbreviated token match as a prefix
-of the full word, and compare initialisms built from the remaining tokens.
-Flag only when nothing matches. In the same public-benchmark evaluation this
+of the full word, compare initialisms built from the remaining tokens, and
+as a last resort accept a lenient fuzzy match between the concatenated
+names and initialisms — err toward matching. Flag only when nothing
+matches. In the same public-benchmark evaluation this
 conservative venue comparison raised 46 flags with zero false alarms; the
 value is in the conservatism, because indexes rename and abbreviate venues
 freely.

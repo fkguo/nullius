@@ -12,7 +12,7 @@ version is the lockstep number below.
 ### Added
 - **Citation-triangulation: benchmark-validated admission and identifier
   disciplines.** The comparator now folds a trailing version suffix on
-  preprint-registry (`10.48550/`) DOIs, whose DataCite identifier is
+  preprint-registry (`10.48550/arxiv.`) DOIs, whose DataCite identifier is
   version-agnostic, with negative controls locking that distinct identifiers
   never merge and that the fold never fires outside that registrant prefix.
   SKILL.md gains three operating rules validated in a public benchmark
