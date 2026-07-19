@@ -123,7 +123,7 @@ jobs:
 
       - name: Python tests (project contracts)
         run: |
-          python -m pip install pytest
+          python -m pip install pytest pyyaml
           python -m pytest packages/project-contracts/tests -q
 
       - name: Python tests (independent-reproduction gate behavior)

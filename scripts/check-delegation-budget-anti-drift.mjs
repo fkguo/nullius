@@ -89,7 +89,24 @@ requireAll(GATE_FILE, read(GATE_FILE), [
   ['unreadable-contract falsification label', 'UNREADABLE_CONTRACT'],
   ['machine-contract emission', 'build_gate_meta("delegation_budget")'],
   ['executor-drift motivation', 'refine precision indefinitely'],
+  ['single-read strict config authority', 'build_team_config(config_path, strict_raw)'],
 ]);
+// The gate must never re-read the config leniently after strict validation
+// (swap-between-reads would reopen a fail-open hole on a control input).
+{
+  const gateText = read(GATE_FILE);
+  if (gateText !== null && gateText.includes('load_team_config(')) {
+    errors.push(`${GATE_FILE}: gate re-reads config via load_team_config (must build from the strict snapshot only)`);
+  }
+}
+
+// Strict config-parser legs in the shared library.
+requireAll('skills/research-team/scripts/lib/team_config.py',
+  read('skills/research-team/scripts/lib/team_config.py'), [
+    ['strict parser entry point', 'def load_config_object'],
+    ['config duplicate-key rejection', '_reject_duplicate_config_keys'],
+    ['snapshot-based config assembly', 'def build_team_config'],
+  ]);
 
 // 2. Schema authority.
 const schemaText = read(SCHEMA_FILE);
@@ -227,6 +244,9 @@ requireAll(TESTS_FILE, testsText, [
   ['shared-validator import', 'validate_convergence_result'],
   ['verdict schema assertion helper', '_assert_verdict_valid'],
   ['schema-safe report_status key assertion', 'REPORT_STATUS_KEY_PATTERN'],
+  ['strict-snapshot authority regression test', 'test_gate_uses_strict_config_snapshot'],
+  ['YAML duplicate-config-key control', 'test_yaml_duplicate_config_key_is_input_error'],
+  ['missing-yaml-module control', 'test_yaml_config_without_yaml_module_is_input_error'],
 ]);
 
 // The runner-integration brake tests (text lock cannot prove the runner

@@ -563,7 +563,16 @@ def load_team_config(seed_path: Path) -> TeamConfig:
     raw: dict | None = None
     if path is not None:
         raw = _load_config_file(path)
+    return build_team_config(path, raw)
 
+
+def build_team_config(path: Path | None, raw: dict | None) -> TeamConfig:
+    """Assemble a TeamConfig from an already-loaded raw config object.
+
+    Public so fail-closed callers that strict-parse the config themselves
+    (load_config_object) can build the merged config from that single
+    snapshot instead of re-reading the file — a second, lenient read would
+    reopen a swap-between-reads hole on a control input."""
     mode = "theory_numerics"
     if isinstance(raw, dict):
         mode = str(raw.get("mode", mode)).strip() or mode
