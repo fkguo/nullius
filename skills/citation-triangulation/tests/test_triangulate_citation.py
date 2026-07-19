@@ -205,6 +205,21 @@ class DoiNormalizationTests(unittest.TestCase):
             MOD.normalize_doi("10.48550/arXiv.2109.01038v12."),
             "10.48550/arxiv.2109.01038",
         )
+        # Casefolding runs before the fold, so an uppercase suffix (and an
+        # uppercase registry spelling) folds identically.
+        self.assertEqual(
+            MOD.normalize_doi("10.48550/ARXIV.2109.01038V2"),
+            "10.48550/arxiv.2109.01038",
+        )
+
+    def test_mixed_trailing_junk_is_fully_stripped(self):
+        # Trailing copy-paste tails mixing slashes and punctuation strip to
+        # a fixed point, so they cannot block the version fold.
+        self.assertEqual(MOD.normalize_doi("10.1000/xyz/."), "10.1000/xyz")
+        self.assertEqual(
+            MOD.normalize_doi("10.48550/arxiv.2109.01038v2/."),
+            "10.48550/arxiv.2109.01038",
+        )
 
     def test_version_folding_never_merges_distinct_ids(self):
         # Negative controls: folding must not make genuinely different
