@@ -61,7 +61,8 @@
     "clean_room_gate": true,
     "logic_isolation_gate": true,
     "independent_reproduction_gate": true,
-    "convention_mapping_gate": true
+    "convention_mapping_gate": true,
+    "delegation_budget_gate": true
   },
   "_optional_claim_dag_gates": "Claim DAG / Evidence gates (default off): claim_graph_gate, evidence_manifest_gate, claim_trajectory_link_gate.",
   "claim_graph": {
@@ -92,6 +93,11 @@
   "independent_reproduction": {
     "_note": "Names of the kernel-under-test modules/packages. A reproduction that imports/includes/`using`s one of these is a call-through of the tested kernel, not an independent path (verdict not_independent, fail-closed). Declared kernels override allowed_local_import_roots. Independent of declarations, the gate also fails when BOTH members' reproduction sources import/include the same project-local module.",
     "kernel_modules": []
+  },
+  "delegation_budget": {
+    "_note": "Delegation budget contracts (delegation_budget_contract_v1) for delegated computation / verification workstreams, validated fail-closed by check_delegation_budget.py: tolerance ceiling + anchor note, time box, attempt cap, scope negative list, dry-run peak RSS + heap cap. Any contract present under delegations_dir is always validated. Set required=true when this milestone dispatches delegated workstreams, so a run with NO contract at all also fails (NO_CONTRACTS_FOUND).",
+    "required": false,
+    "delegations_dir": "team/delegations"
   },
   "convention_mapping": {
     "_note": "Set required=true when a run depends on cross-paper/module normalization mappings; convention_mapping_gate enforces evidence.json fields when triggered.",
