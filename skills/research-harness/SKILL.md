@@ -1,6 +1,6 @@
 ---
 name: research-harness
-description: Use when working inside an external research project that has or may need nullius state, research_plan.md, research_contract.md, artifacts/runs, team/runs, Codex/Claude Code continuation, recovery, verification, approval, export, handoff, compute environment/tool readiness validation (import + seeded witness + agent-follows-doc), surviving long-running / kill-prone compute jobs (checkpoint + heartbeat + deadline + resume), or an opt-in independent reproduction check (fresh-checkout rerun compared against declared expected values).
+description: Use when working inside an external research project that has or may need nullius state, research_plan.md, research_contract.md, artifacts/runs, team/runs, Codex/Claude Code continuation, recovery, verification, approval, export, handoff, compute environment/tool readiness validation (import + seeded witness + agent-follows-doc), surviving long-running / kill-prone compute jobs (checkpoint + heartbeat + deadline + resume), an opt-in independent reproduction check (fresh-checkout rerun compared against declared expected values), or a production launch authorization preflight (frozen plan hash + hash-bound review verdicts + exact environment fingerprint before a large production run may start).
 ---
 
 # Research Harness
@@ -208,6 +208,69 @@ Semantics, fail-closed by design:
 - **What it verifies — and what it does not.** The check catches *accidental* contamination — a result that inadvertently depends on uncommitted edits, stale artifacts, or original-tree code leaking in through the environment. It does not verify that the entry command computes the right thing: the manifest's entry command and extraction rules are trusted input, so an entry that reads the original tree by absolute path or emits numbers without computing them is not caught here. Correctness of the computation itself rests with the numerical-reliability-gate checks and with human review of the entry command recorded in every report; container-level sandboxing is out of scope by design.
 
 This is the execution arm of the [`numerical-reliability-gate`](../numerical-reliability-gate/SKILL.md) reproduction discipline: its G8 demands that a claimed match to a reference number be *computed, not asserted* — the fresh-checkout rerun is that computation in its strongest form — and its G7 production-setting rule applies to the manifest itself: declare the entry and configuration that produce the recorded values at their production setting, not a cheaper stand-in.
+
+## Production Launch Authorization (A3 Preflight)
+
+Adopt this preflight when a project is about to start a **large production run** — a computation whose output will be trusted downstream and whose cost makes "rerun it under the corrected conditions" expensive. It machine-decides whether the launch preconditions actually hold, instead of trusting the agent's recollection that they do. It targets three observed AI failure modes:
+
+1. A missing or timed-out review silently treated as consent — silence read as a green light.
+2. A plan modified after review still riding on the old verdict — the review approved a different plan than the one about to run.
+3. An execution environment (code version, solver build, key dependencies) that differs from the one the review actually covered.
+
+The discipline, all machine-checked and all required:
+
+1. **Frozen plan.** The authorization record registers the production plan's content hash (SHA-256); the live plan file must hash to exactly that value.
+2. **Review verdicts bound to the plan hash.** Each independent review verdict file states the hash of the plan it reviewed; an approval counts only when that hash equals the live plan hash. Editing the plan after review voids the old verdict — the refusal is `stale_review`.
+3. **Reviewer unavailability is never approval.** Whoever runs the review must record a timed-out or errored reviewer with verdict `unavailable`; that entry never counts toward the quorum. An absent verdict file refuses as `missing_review`. When the quorum is met by genuine hash-bound approvals, an unavailable extra reviewer is not a veto — it just never counts as a yes.
+4. **Exact environment fingerprint.** The record registers the fingerprint of the reviewed environment as string key-value pairs; the launcher supplies the fingerprint it observes at launch time; the two must be exactly, symmetrically equal — any missing key on either side or any unequal value refuses with `fingerprint_mismatch`. String-typed values on both sides keep semantically equal numbers from diverging by representation.
+
+Any unmet precondition makes the checker exit non-zero, so a launcher chained on it produces **zero production output** on refusal.
+
+**Artifacts** (all domain-neutral JSON; commit them like any other run evidence, recommended under `artifacts/runs/<run_id>/`):
+
+```json
+{
+  "record_version": 1,
+  "plan_path": "artifacts/runs/<run_id>/production_plan.md",
+  "plan_sha256": "<64 lowercase hex of the frozen plan content>",
+  "required_approvals": 1,
+  "reviews": [
+    {"reviewer": "reviewer-one", "verdict_path": "artifacts/runs/<run_id>/reviews/reviewer-one.json"}
+  ],
+  "environment_fingerprint": {
+    "code_commit": "<git commit of the production code>",
+    "solver_version": "9.9.1",
+    "dependency_lock_sha256": "<hash of the committed lockfile>"
+  }
+}
+```
+
+Each review verdict file (written by whoever ran that review, after the plan hash was frozen):
+
+```json
+{"verdict_version": 1, "reviewer": "reviewer-one", "verdict": "approved",
+ "reviewed_plan_sha256": "<the plan hash this reviewer actually reviewed>"}
+```
+
+`verdict` is one of `approved`, `changes_needed`, `unavailable`; the bound hash is mandatory for the first two (an unbound approval never counts). The launcher produces the observed fingerprint as a flat JSON object of string values — typically from `git rev-parse HEAD`, the solver's version query, and the lockfile hash — then runs:
+
+```bash
+python3 scripts/check_launch_authorization.py \
+    --record artifacts/runs/<run_id>/launch_authorization_record.json \
+    --observed-fingerprint /tmp/observed_fingerprint.json \
+    --output artifacts/runs/<run_id>/launch_authorization.json \
+  && exec <production command>
+```
+
+Semantics, default refuse:
+
+- The result is a `launch_authorization_v1` artifact (the shared contract in `@nullius/shared` and `meta/schemas/`). Verdict is one of `authorized | invalid_record | missing_plan_hash | stale_review | missing_review | review_rejected | reviewer_unavailable | fingerprint_mismatch` — every refusal names what was falsified. Exit code is `0` only for `authorized`, `2` for an unusable record, `3` for every other refusal.
+- Checks run in a fixed order — `plan_frozen`, `review_binding`, `fingerprint_match` — and the verdict is the first failing check's label. Each check is still evaluated independently for the audit record where possible; a check that cannot be evaluated is recorded `not_evaluated`, which is never a pass.
+- Within `review_binding`, when the quorum is unmet the refusal priority is `stale_review` over `review_rejected` over `reviewer_unavailable` over `missing_review`: the sharpest falsification wins, an active rejection outranks unavailability, and unavailability outranks absence.
+- One reviewer never counts twice (duplicate reviewer ids make the record invalid), and a quorum larger than the listed reviews is invalid by construction.
+- **Honest limits.** The plan file is read once and that content hashed for every comparison, so the check itself has no read-then-reuse window; but it cannot prevent the plan or environment changing *after* it exits — run it immediately before launch in the same command chain, as above. The record and verdict files are trusted filesystem inputs: the gate proves *consistency* (hashes bound, fingerprints equal), not *authenticity* — protecting those files is commit discipline. Independence of the reviewers is governed by the review process itself (see `review-swarm`), not by this checker.
+
+This preflight is the machine arm of the A3 (`compute_runs`) gate — the shared gate registry's A3 policy names `launch_authorization_v1` as its result contract. In projects using the engine's approval flow, `nullius approve <A3-...>` records the *human* go-ahead; this preflight checks the *technical* launch preconditions at the moment of launch. They are complementary: neither substitutes for the other.
 
 ## Literature Research Gate
 
