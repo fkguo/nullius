@@ -410,6 +410,15 @@ def _load_config_file(path: Path) -> dict | None:
         return None
 
 
+def load_config_object(path: Path) -> dict | None:
+    """Public strict-parse entry point: return the config file's top-level
+    object, or None when the file is missing, unparseable, or not an object.
+
+    Fail-closed callers (e.g. the delegation budget gate) use this to detect
+    "config exists but is broken" instead of silently inheriting defaults."""
+    return _load_config_file(path)
+
+
 def find_config_path(seed_path: Path) -> Path | None:
     """
     Search order:

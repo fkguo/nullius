@@ -97,8 +97,8 @@ from convergence_schema import (  # type: ignore
     validate_convergence_result,
 )
 from team_config import (  # type: ignore
-    _load_config_file,
     find_config_path,
+    load_config_object,
     load_team_config,
 )
 
@@ -354,14 +354,31 @@ def _emit(
                 "report_status": {"gate": _contract_summary([reason], parse_ok=False)},
                 "meta": meta,
             }
+            # Same discipline as the schema-fallback path: never print an
+            # unvalidated fallback. (If the schema SSOT itself is unavailable
+            # no emission can validate; the exit code stays the load-bearing
+            # signal and the reasons carry the diagnostics.)
+            for err in validate_convergence_result(err_result):
+                err_result["reasons"].append(f"fallback verdict validation: {err}")
             print(json.dumps(err_result, ensure_ascii=False, sort_keys=True))
             return 2
     print(json.dumps(result, ensure_ascii=False, sort_keys=True))
     return exit_code
 
 
+class _CliInputError(Exception):
+    """Raised instead of argparse's SystemExit so malformed CLI input still
+    produces one schema-valid parse_error machine verdict (--help keeps its
+    normal exit-0 behavior)."""
+
+
+class _Parser(argparse.ArgumentParser):
+    def error(self, message: str) -> Any:  # type: ignore[override]
+        raise _CliInputError(message)
+
+
 def _parse_args() -> argparse.Namespace:
-    ap = argparse.ArgumentParser(description="Delegation budget contract gate (fail-closed)")
+    ap = _Parser(description="Delegation budget contract gate (fail-closed)")
     ap.add_argument("--notes", type=Path, required=True, help="research notebook path (locates team config)")
     ap.add_argument("--project-root", type=Path, default=None, help="project root (default: config/notes dir)")
     ap.add_argument(
@@ -388,7 +405,19 @@ def _parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
-    args = _parse_args()
+    try:
+        args = _parse_args()
+    except _CliInputError as e:
+        reason = f"invalid command line: {e}"
+        print(f"ERROR: {reason}", file=sys.stderr)
+        return _emit(
+            status="parse_error",
+            exit_code=2,
+            reasons=[reason],
+            report_status={"gate": _contract_summary([reason], parse_ok=False)},
+            meta=build_gate_meta("delegation_budget"),
+            out_json=None,
+        )
     base_meta = build_gate_meta("delegation_budget")
     if args.tag.strip():
         base_meta["tag"] = args.tag.strip()
@@ -422,8 +451,23 @@ def _run(args: argparse.Namespace, base_meta: dict[str, Any], _input_error: Any)
     # defaults when a config file exists but cannot be parsed — for this gate
     # that would be fail-open (a broken config carrying required=true or a
     # custom delegations_dir would silently SKIP). Detect that case first.
+    # A RESEARCH_TEAM_CONFIG env override pointing at a missing file is the
+    # same hazard: find_config_path returns None WITHOUT falling back to
+    # local discovery, so the project's real config would be ignored.
+    env_override = os.environ.get("RESEARCH_TEAM_CONFIG", "").strip()
+    if env_override:
+        env_path = Path(env_override)
+        if not env_path.is_absolute():
+            env_path = Path.cwd() / env_path
+        if not env_path.is_file():
+            return _input_error(
+                [
+                    f"RESEARCH_TEAM_CONFIG points to a missing config file: {env_path} "
+                    "(fail-closed: a stale override would silently suppress the project config)"
+                ]
+            )
     config_path = find_config_path(args.notes)
-    if config_path is not None and _load_config_file(config_path) is None:
+    if config_path is not None and load_config_object(config_path) is None:
         return _input_error(
             [
                 f"team config exists but could not be parsed as an object: {config_path} "
@@ -480,20 +524,20 @@ def _run(args: argparse.Namespace, base_meta: dict[str, Any], _input_error: Any)
             if not isinstance(rel, str) or not rel.strip():
                 return _input_error(["config `delegation_budget.delegations_dir` must be a non-empty string"])
             delegations_dir = project_root / rel
-        # A scan path that exists but is not a directory is a broken setup,
-        # and an unreadable directory is not an empty delegation set — neither
-        # may silently SKIP. Path.glob suppresses OSError, so enumerate
-        # explicitly.
+        # Enumerate with os.listdir directly: Path.glob suppresses OSError,
+        # and Path.exists()/is_dir() swallow ENOTDIR on nested bad paths
+        # (e.g. <file>/subdir), which would silently SKIP. Only a genuinely
+        # absent directory is "no delegations"; every other failure —
+        # NotADirectoryError, PermissionError, ENOTDIR — is an input error.
         try:
-            if delegations_dir.exists() and not delegations_dir.is_dir():
-                return _input_error([f"delegations path is not a directory: {delegations_dir}"])
-            if delegations_dir.is_dir():
-                names = sorted(os.listdir(delegations_dir))
-            else:
-                names = []
+            names: list[str] | None = sorted(os.listdir(delegations_dir))
+        except FileNotFoundError:
+            names = None
         except OSError as e:
             return _input_error([f"cannot read delegations directory {delegations_dir}: {e}"])
-        contract_paths = [delegations_dir / n for n in names if n.endswith(".json")]
+        contract_paths = (
+            [] if names is None else [delegations_dir / n for n in names if n.endswith(".json")]
+        )
 
     if not contract_paths:
         if required:

@@ -213,3 +213,78 @@ def test_draft_gate_label_drift_is_parse_error(tmp_path: Path):
     assert proc.returncode == 2
     assert payload["status"] == "parse_error"
     assert payload["exit_code"] == 2
+
+
+# ------------------------------------------- shared-validator strictness (SSOT)
+# Direct contract tests for validate_convergence_result: booleans must not
+# pass as integers (JSON Schema draft 2020-12 semantics) and report_status
+# keys must satisfy the SSOT member-key pattern with ECMA-262 anchoring.
+
+sys.path.insert(0, str(ROOT / "scripts" / "gates"))
+from convergence_schema import build_gate_meta, validate_convergence_result  # noqa: E402
+
+
+def _valid_meta() -> dict:
+    return build_gate_meta("team_convergence")
+
+
+def _member(verdict: str = "ready", blocking: object = 0) -> dict:
+    return {"verdict": verdict, "blocking_count": blocking, "parse_ok": True}
+
+
+def test_validator_rejects_boolean_exit_code() -> None:
+    verdict = {
+        "status": "converged",
+        "exit_code": True,
+        "reasons": [],
+        "report_status": {"gate": _member()},
+        "meta": _valid_meta(),
+    }
+    assert any("exit_code" in e for e in validate_convergence_result(verdict))
+
+
+def test_validator_rejects_boolean_blocking_count() -> None:
+    verdict = {
+        "status": "converged",
+        "exit_code": 0,
+        "reasons": [],
+        "report_status": {"gate": _member(blocking=True)},
+        "meta": _valid_meta(),
+    }
+    assert any("blocking_count" in e for e in validate_convergence_result(verdict))
+
+
+def test_validator_rejects_boolean_schema_version() -> None:
+    meta = _valid_meta()
+    meta["schema_version"] = True
+    verdict = {
+        "status": "converged",
+        "exit_code": 0,
+        "reasons": [],
+        "report_status": {"gate": _member()},
+        "meta": meta,
+    }
+    assert any("schema_version" in e for e in validate_convergence_result(verdict))
+
+
+def test_validator_rejects_pattern_violating_key() -> None:
+    verdict = {
+        "status": "converged",
+        "exit_code": 0,
+        "reasons": [],
+        "report_status": {"team/delegations/c.json": _member()},
+        "meta": _valid_meta(),
+    }
+    assert any("does not match the shared schema" in e for e in validate_convergence_result(verdict))
+
+
+def test_validator_rejects_trailing_newline_key() -> None:
+    """ECMA-262 `$` does not match before a trailing newline; ours must not either."""
+    verdict = {
+        "status": "converged",
+        "exit_code": 0,
+        "reasons": [],
+        "report_status": {"gate\n": _member()},
+        "meta": _valid_meta(),
+    }
+    assert any("does not match the shared schema" in e for e in validate_convergence_result(verdict))
