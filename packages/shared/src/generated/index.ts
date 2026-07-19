@@ -25,6 +25,7 @@ export type {
 } from "./computation-result-v1.js";
 export * from "./convergence-gate-result-v1.js";
 export * from "./delegation-budget-gate-result-v1.js";
+export * from "./display-gate-result-v1.js";
 export * from "./domain-pack-manifest-v1.js";
 export type {
   EvidenceType,
