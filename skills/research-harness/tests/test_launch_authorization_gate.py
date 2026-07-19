@@ -270,6 +270,157 @@ def test_quorum_requires_all_required_approvals(tmp_path, capsys):
     assert result["approvals_counted"] == 1
 
 
+def test_stale_surplus_approval_does_not_veto_met_quorum(tmp_path, capsys):
+    # Deliberate semantics, same principle as unavailable-not-veto: a verdict
+    # bound to a superseded hash is void — it never counts as approval, and it
+    # does not veto a quorum already met by approvals bound to the live plan.
+    # The declared quorum is the requirement.
+    proj = _project(tmp_path, reviews=[
+        ("reviewer-one", "approved", _sha(PLAN_TEXT)),
+        ("reviewer-two", "approved", "c" * 64),
+    ], required_approvals=1)
+    code, result = _run(proj, capsys)
+    assert code == 0
+    assert result["verdict"] == "authorized"
+    assert result["approvals_counted"] == 1
+    stale_entry = next(r for r in result["reviews"] if r["reviewer"] == "reviewer-two")
+    assert stale_entry["counts_as_approval"] is False
+
+
+def test_stale_approval_blocks_when_quorum_needs_it(tmp_path, capsys):
+    plan_sha = _sha(PLAN_TEXT)
+    proj = _project(tmp_path, reviews=[
+        ("reviewer-one", "approved", plan_sha),
+        ("reviewer-two", "approved", "c" * 64),
+    ], required_approvals=2)
+    code, result = _run(proj, capsys)
+    assert code == 3
+    assert result["verdict"] == "stale_review"
+
+
+# --- crash-free labeled refusals on hostile inputs ---
+
+def test_boolean_record_version_is_invalid(tmp_path, capsys):
+    # bool == 1 in Python; version fields must be exactly the integer 1
+    proj = _project(tmp_path)
+    record = json.loads(proj["record_path"].read_text(encoding="utf-8"))
+    record["record_version"] = True
+    _write_json(proj["record_path"], record)
+    code, result = _run(proj, capsys)
+    assert code == 2
+    assert result["verdict"] == "invalid_record"
+
+
+def test_wrong_record_version_is_invalid(tmp_path, capsys):
+    proj = _project(tmp_path)
+    record = json.loads(proj["record_path"].read_text(encoding="utf-8"))
+    record["record_version"] = 2
+    _write_json(proj["record_path"], record)
+    code, result = _run(proj, capsys)
+    assert code == 2
+    assert result["verdict"] == "invalid_record"
+
+
+def test_boolean_verdict_version_never_counts(tmp_path, capsys):
+    proj = _project(tmp_path)
+    doc = _verdict_doc("reviewer-one", "approved", proj["plan_sha"])
+    doc["verdict_version"] = True
+    _write_json(proj["root"] / "reviews" / "reviewer-one.json", doc)
+    code, result = _run(proj, capsys)
+    assert code == 3
+    assert result["verdict"] == "missing_review"
+    assert result["reviews"][0]["verdict"] == "invalid"
+
+
+def test_nul_byte_in_plan_path_is_invalid_record(tmp_path, capsys):
+    proj = _project(tmp_path)
+    record = json.loads(proj["record_path"].read_text(encoding="utf-8"))
+    record["plan_path"] = "plan\x00.md"
+    _write_json(proj["record_path"], record)
+    code, result = _run(proj, capsys)
+    assert code == 2
+    assert result["verdict"] == "invalid_record"
+
+
+def test_absolute_plan_path_is_invalid_record(tmp_path, capsys):
+    proj = _project(tmp_path)
+    record = json.loads(proj["record_path"].read_text(encoding="utf-8"))
+    record["plan_path"] = str(proj["root"] / "plan.md")
+    _write_json(proj["record_path"], record)
+    code, result = _run(proj, capsys)
+    assert code == 2
+    assert result["verdict"] == "invalid_record"
+
+
+def test_deeply_nested_record_refuses_with_labeled_artifact(tmp_path, capsys):
+    proj = _project(tmp_path)
+    proj["record_path"].write_text("[" * 100000 + "]" * 100000, encoding="utf-8")
+    code, result = _run(proj, capsys)
+    assert code == 2
+    assert result["verdict"] == "invalid_record"
+
+
+def test_deeply_nested_observed_fingerprint_refuses(tmp_path, capsys):
+    proj = _project(tmp_path)
+    proj["observed_path"].write_text("[" * 100000 + "]" * 100000, encoding="utf-8")
+    code, result = _run(proj, capsys)
+    assert code == 3
+    assert result["verdict"] == "fingerprint_mismatch"
+
+
+def test_non_utf8_verdict_file_never_counts(tmp_path, capsys):
+    proj = _project(tmp_path)
+    (proj["root"] / "reviews" / "reviewer-one.json").write_bytes(b"\xff\xfe junk")
+    code, result = _run(proj, capsys)
+    assert code == 3
+    assert result["verdict"] == "missing_review"
+    assert result["reviews"][0]["verdict"] == "invalid"
+
+
+def test_verdict_file_list_root_never_counts(tmp_path, capsys):
+    proj = _project(tmp_path)
+    (proj["root"] / "reviews" / "reviewer-one.json").write_text("[1, 2]", encoding="utf-8")
+    code, result = _run(proj, capsys)
+    assert code == 3
+    assert result["verdict"] == "missing_review"
+    assert result["reviews"][0]["verdict"] == "invalid"
+
+
+def test_verdict_path_directory_never_counts(tmp_path, capsys):
+    proj = _project(tmp_path)
+    (proj["root"] / "reviews" / "reviewer-one.json").unlink()
+    (proj["root"] / "reviews" / "reviewer-one.json").mkdir()
+    code, result = _run(proj, capsys)
+    assert code == 3
+    assert result["verdict"] == "missing_review"
+    assert result["reviews"][0]["verdict"] == "missing"
+
+
+def test_non_string_observed_value_refuses_and_result_stays_schema_clean(tmp_path, capsys):
+    observed = dict(FINGERPRINT, solver_version=9)
+    proj = _project(tmp_path, observed=observed)
+    code, result = _run(proj, capsys)
+    assert code == 3
+    assert result["verdict"] == "fingerprint_mismatch"
+    assert "solver_version" in result["fingerprint"]["mismatched_keys"]
+    # the echoed observed object must satisfy the result schema (string
+    # values only), so a non-string-valued observation is left null
+    assert result["fingerprint"]["observed"] is None
+
+
+def test_failed_output_write_refuses_even_when_authorized(tmp_path, capsys):
+    proj = _project(tmp_path)
+    blocker = tmp_path / "blocker"
+    blocker.write_text("a regular file where a directory is needed", encoding="utf-8")
+    code, result = _run(proj, capsys,
+                        extra_args=["--output", str(blocker / "out.json")])
+    # stdout still carries the full artifact (verdict authorized), but an
+    # authorization whose requested audit artifact cannot be persisted is
+    # refused with exit 2
+    assert code == 2
+    assert result["verdict"] == "authorized"
+
+
 # --- invalid record (exit 2) ---
 
 def test_invalid_record_missing_plan_hash_field(tmp_path, capsys):

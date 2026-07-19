@@ -30,6 +30,13 @@ export type GatePolicy = Readonly<Record<string, unknown>>;
  * a missing review silently treated as consent; a plan modified after review
  * still riding on the old verdict; and an execution environment that differs
  * from the one the review actually covered.
+ *
+ * Enforcement locus: the policy is a contract declaration, not engine
+ * enforcement. Project-side production launchers enforce it by chaining the
+ * research-harness preflight (check_launch_authorization.py) before the
+ * production command; the engine's bounded-computation runner keeps its own
+ * A3 human-approval flow and does not invoke the preflight. The two are
+ * complementary.
  */
 export const LAUNCH_AUTHORIZATION_RESULT_SCHEMA = 'launch_authorization_v1';
 

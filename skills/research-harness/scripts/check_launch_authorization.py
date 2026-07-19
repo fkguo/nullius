@@ -58,11 +58,13 @@ SKILL.md under "Production Launch Authorization"):
 Verdict, one of (default refuse — authorized is the only pass):
   authorized            every check passed.
   invalid_record        the authorization record is missing, unreadable,
-                        or malformed (including an impossible quorum:
-                        required_approvals > len(reviews), or a duplicate
-                        reviewer id — one reviewer never counts twice).
-  missing_plan_hash     no registered plan hash, or the plan file is
-                        missing/unreadable/escaping the project root.
+                        or malformed — including an absent/malformed
+                        registered plan hash, an impossible quorum
+                        (required_approvals > len(reviews)), or a duplicate
+                        reviewer id (one reviewer never counts twice).
+  missing_plan_hash     the plan file named by the record is missing,
+                        unreadable, or escapes the project root, so no
+                        live plan hash can be computed.
   stale_review          the live plan content differs from the hash the
                         record and/or the review verdicts bound — the plan
                         was changed after authorization or review, so the
@@ -89,12 +91,26 @@ stale_review > review_rejected > reviewer_unavailable > missing_review
 (the sharpest falsification wins; an active rejection outranks
 unavailability, which outranks absence). A quorum met by genuine
 hash-bound approvals passes even if some OTHER listed reviewer is
-unavailable: unavailability never counts as approval, and it is not a
-veto on approvals that were actually given.
+unavailable or bound to a superseded hash: a void verdict (unavailable,
+stale-bound, missing, malformed) never counts as approval, and it is not
+a veto on approvals of the live plan that were actually given — the
+quorum the record declares is the requirement.
+
+Enforcement locus: this checker is the machine gate for PROJECT-SIDE
+production launchers (chain it before the production command, as the
+skill documents). The engine's own A3 approval flow records the human
+go-ahead for engine-managed runs; it does not invoke this checker. The
+two are complementary, and the shared gate registry's A3 policy names
+this result contract so launchers know what to produce.
 
 Exit codes: 0 ONLY for authorized; 2 for invalid_record and usage errors;
 3 for every other refusal. The full launch_authorization_v1 result JSON is
-printed on stdout and optionally written atomically to --output.
+always printed on stdout; --output additionally writes it atomically, and
+a --output write that fails makes the checker exit 2 even for an
+authorized verdict — an authorization whose requested audit artifact
+cannot be persisted is refused (the printed exit_code field reflects the
+verdict alone). Any internal defect still emits a labeled invalid_record
+artifact instead of a bare traceback.
 
 Honest limitations. The plan file is read ONCE and that byte content is
 hashed and compared everywhere, so the check itself has no read-then-reuse
@@ -113,6 +129,7 @@ import json
 import os
 import re
 import subprocess
+import sys
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
@@ -150,20 +167,26 @@ def _is_sha256(value) -> bool:
 
 
 def _is_safe_rel_path(s) -> bool:
-    """A non-empty relative path, strictly below its base directory."""
-    if not isinstance(s, str) or not s.strip():
+    """A non-empty relative path, strictly below its base directory: no
+    absolute paths, no '..' or '.' components, no NUL bytes."""
+    if not isinstance(s, str) or not s.strip() or "\x00" in s:
         return False
     parts = Path(s).parts
     return bool(parts) and not Path(s).is_absolute() and ".." not in parts and "." not in parts
 
 
+def _is_version_one(value) -> bool:
+    """Exactly the integer 1 — not True (bool == 1 in Python) and not 1.0."""
+    return isinstance(value, int) and not isinstance(value, bool) and value == 1
+
+
 def _try_resolve(path: Path) -> "Path | None":
     """Path.resolve() that returns None instead of raising (symlink loops
-    raise OSError or RuntimeError depending on the Python version); every
-    caller fails closed on None."""
+    raise OSError or RuntimeError depending on the Python version; embedded
+    NUL bytes raise ValueError); every caller fails closed on None."""
     try:
         return path.resolve()
-    except (OSError, RuntimeError):
+    except (OSError, RuntimeError, ValueError):
         return None
 
 
@@ -200,15 +223,15 @@ def write_text_atomic(path: Path, text: str) -> None:
 
 def _read_json(path: Path) -> "tuple[object | None, str | None]":
     """(document, error). UTF-8 strictly; every failure is a reason string,
-    never an exception."""
+    never an exception (RecursionError covers pathologically nested JSON)."""
     try:
         raw = path.read_bytes()
-    except OSError as exc:
+    except (OSError, ValueError) as exc:
         return None, f"unreadable: {exc}"
     try:
         return json.loads(raw.decode("utf-8")), None
-    except (UnicodeDecodeError, ValueError) as exc:
-        return None, f"not valid UTF-8 JSON: {exc}"
+    except (UnicodeDecodeError, ValueError, RecursionError) as exc:
+        return None, f"not valid UTF-8 JSON: {exc!r}"
 
 
 # --- record validation ---
@@ -219,11 +242,11 @@ def validate_record(doc) -> list[str]:
     if not isinstance(doc, dict):
         return ["authorization record root must be a JSON object"]
     errors: list[str] = []
-    if doc.get("record_version") != 1:
-        errors.append("record_version must be present and equal to 1")
+    if not _is_version_one(doc.get("record_version")):
+        errors.append("record_version must be present and exactly the integer 1")
     if not _is_safe_rel_path(doc.get("plan_path")):
         errors.append("plan_path must be a non-empty project-root-relative path "
-                      "(no absolute paths, no '..')")
+                      "(no absolute paths, no '..' or '.' components, no NUL bytes)")
     if not _is_sha256(doc.get("plan_sha256")):
         errors.append("plan_sha256 must be 64 lowercase hex characters (SHA-256 of the "
                       "frozen plan content)")
@@ -313,9 +336,10 @@ def evaluate_review(project_root: Path, entry: dict, live_plan_sha256: str) -> d
         result["verdict"] = "missing" if err.startswith("unreadable") else "invalid"
         result["detail"] = f"verdict file {err}"
         return result
-    if not isinstance(doc, dict) or doc.get("verdict_version") != 1:
+    if not isinstance(doc, dict) or not _is_version_one(doc.get("verdict_version")):
         result["verdict"] = "invalid"
-        result["detail"] = "verdict file must be an object with verdict_version 1"
+        result["detail"] = ("verdict file must be an object with verdict_version exactly "
+                            "the integer 1")
         return result
     if doc.get("reviewer") != reviewer:
         result["verdict"] = "invalid"
@@ -434,13 +458,23 @@ def _set_check(result: dict, check_id: str, status: str, detail: str) -> None:
 
 
 def finish(result: dict, verdict: str, output: "Path | None") -> int:
+    """Emit the result. Stdout always carries the full artifact; a --output
+    write that fails downgrades the run to exit 2 even when the verdict is
+    authorized — an authorization whose requested audit artifact cannot be
+    persisted is refused (the printed exit_code field reflects the verdict
+    alone)."""
     result["verdict"] = verdict
     result["launch_authorized"] = verdict == "authorized"
     result["exit_code"] = EXIT_CODES[verdict]
     text = json.dumps(result, indent=2, ensure_ascii=False) + "\n"
-    if output is not None:
-        write_text_atomic(output, text)
     print(text, end="")
+    if output is not None:
+        try:
+            write_text_atomic(output, text)
+        except (OSError, ValueError) as exc:
+            print(f"launch refused: could not write --output audit artifact: {exc}",
+                  file=sys.stderr)
+            return EXIT_CODES["invalid_record"]
     return result["exit_code"]
 
 
@@ -470,18 +504,25 @@ def main(argv: "list[str] | None" = None) -> int:
     args = parser.parse_args(argv)
 
     result = build_result(str(args.record), None)
+    try:
+        return _run_checks(args, result)
+    except Exception as exc:  # the artifact contract must survive any internal defect
+        result["errors"].append(f"internal error: {exc!r}")
+        return finish(result, "invalid_record", args.output)
 
+
+def _run_checks(args, result: dict) -> int:
     # -- record bytes + parse + validation --
     try:
         raw = args.record.read_bytes()
-    except OSError as exc:
+    except (OSError, ValueError) as exc:
         result["errors"].append(f"cannot read authorization record: {exc}")
         return finish(result, "invalid_record", args.output)
     result["record_sha256"] = _sha256_hex(raw)
     try:
         record = json.loads(raw.decode("utf-8"))
-    except (UnicodeDecodeError, ValueError) as exc:
-        result["errors"].append(f"authorization record is not valid UTF-8 JSON: {exc}")
+    except (UnicodeDecodeError, ValueError, RecursionError) as exc:
+        result["errors"].append(f"authorization record is not valid UTF-8 JSON: {exc!r}")
         return finish(result, "invalid_record", args.output)
     errors = validate_record(record)
     if errors:
@@ -548,7 +589,11 @@ def main(argv: "list[str] | None" = None) -> int:
     else:
         equal, mismatched, fp_detail = compare_fingerprints(
             record["environment_fingerprint"], observed)
-        result["fingerprint"]["observed"] = observed if isinstance(observed, dict) else None
+        # the result artifact must itself satisfy its schema: observed is
+        # echoed only when it is a string-valued object, else left null
+        # (the mismatch detail still names the offending keys)
+        if isinstance(observed, dict) and all(isinstance(v, str) for v in observed.values()):
+            result["fingerprint"]["observed"] = observed
     result["fingerprint"]["equal"] = equal
     result["fingerprint"]["mismatched_keys"] = mismatched
     _set_check(result, "fingerprint_match", "pass" if equal else "fail", fp_detail)
