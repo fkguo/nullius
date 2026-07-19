@@ -596,6 +596,43 @@ def test_output_under_mistyped_project_root_protects_declared_slots(tmp_path, ca
     assert not typo_root.exists()
 
 
+def test_nested_record_non_git_refusal_protects_real_declared_slots(tmp_path, capsys):
+    # documented layout: the record lives at artifacts/runs/<id>/ INSIDE the
+    # project, declared paths are project-root-relative. In a non-git
+    # project without --project-root the run refuses early — and even
+    # though the root is unknowable then, the declared slots (which live
+    # under SOME ancestor of the record) must survive any --output aim
+    root = tmp_path / "project"
+    run_dir = root / "artifacts" / "runs" / "R"
+    run_dir.mkdir(parents=True)
+    plan = run_dir / "production_plan.md"
+    plan.write_text(PLAN_TEXT, encoding="utf-8")
+    plan_sha = _sha(PLAN_TEXT)
+    verdict_path = run_dir / "reviews" / "reviewer-one.json"
+    _write_json(verdict_path, _verdict_doc("reviewer-one", "approved", plan_sha))
+    record_path = run_dir / "launch_authorization_record.json"
+    _write_json(record_path, {
+        "record_version": 1,
+        "plan_path": "artifacts/runs/R/production_plan.md",
+        "plan_sha256": plan_sha,
+        "required_approvals": 1,
+        "reviews": [{"reviewer": "reviewer-one",
+                     "verdict_path": "artifacts/runs/R/reviews/reviewer-one.json"}],
+        "environment_fingerprint": dict(FINGERPRINT),
+    })
+    observed_path = tmp_path / "observed.json"
+    _write_json(observed_path, dict(FINGERPRINT))
+    verdict_bytes = verdict_path.read_bytes()
+    for target in (plan, verdict_path):
+        code = la.main(["--record", str(record_path),
+                        "--observed-fingerprint", str(observed_path),
+                        "--output", str(target)])
+        json.loads(capsys.readouterr().out)
+        assert code == 2
+    assert plan.read_text(encoding="utf-8") == PLAN_TEXT
+    assert verdict_path.read_bytes() == verdict_bytes
+
+
 def test_same_slot_identity_logic(tmp_path):
     base = tmp_path / "anchor"
     base.mkdir()
