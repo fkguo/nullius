@@ -158,6 +158,17 @@ function preparedSideEffectsCommitted(store: IdeaEngineStore, method: string, re
         && JSON.stringify(node.literature_coverage ?? null) === JSON.stringify(summary.literature_coverage ?? null);
     }
     if (method === 'node.set_grounding_audit') {
+      // Same updated_at-gated value-equality probe as its siblings, and the same
+      // accepted tradeoff: an intervening mutation moves updated_at, so recovery
+      // re-executes rather than replays. For an absolute overwrite that is
+      // harmless. The one residual: if a rewrite_provenance nulls this audit
+      // between the crash and the retry, re-execution re-applies the pre-rewrite
+      // audit. That is report-CONTENT freshness (does the grounding report still
+      // cover the current card?), which the engine never gates — the contract
+      // assigns report-content verification to project-side audit — so it is not
+      // closed here. rewrite_provenance's eager reset covers the common
+      // (no-crash) case; this narrow crash-window residual is the same class as
+      // set_posterior/set_lifecycle resurrecting an overwritten value on retry.
       return JSON.stringify(node.grounding_audit ?? null) === JSON.stringify(summary.grounding_audit ?? null);
     }
     return nodeLifecycleState(node) === summary.lifecycle_state

@@ -778,6 +778,21 @@ describe('node.import_generated', () => {
     expectRpcError(() => importPack(service, campaignId, pack), -32002, 'trace_key_reserved');
   });
 
+  it('reserves the novelty-delta claim prefix: a generator-supplied twin is rejected', () => {
+    const service = freshService();
+    const campaignId = initCampaign(service);
+    // The engine appends exactly one 'Novelty delta vs closest prior (…)' claim
+    // at import; a candidate that supplies its own with that prefix would leave
+    // two matches and make the node un-correctable by node.rewrite_provenance.
+    const pack = mutateCandidate(validPack(campaignId), candidate => {
+      const claims = (candidate.card_fields as Record<string, unknown>).claims as Array<Record<string, unknown>>;
+      // Re-label an already schema-valid claim so it collides with the reserved
+      // prefix (schema shape unchanged; only the text triggers the reservation).
+      claims[0]!.claim_text = 'Novelty delta vs closest prior (spoofed): a generator-authored twin of the engine claim';
+    });
+    expectRpcError(() => importPack(service, campaignId, pack), -32002, 'reserved_claim_prefix');
+  });
+
   it('bans the placeholder URI anywhere in the candidate, including gap anchors and receipts', () => {
     const service = freshService();
     const campaignId = initCampaign(service);
