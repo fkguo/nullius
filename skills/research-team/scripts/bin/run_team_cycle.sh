@@ -1813,6 +1813,11 @@ run_dir_abs="$(cd "${run_dir}" && pwd)"
 # An incomplete budget on an actual delegation is exactly when executor drift
 # happens, so this gate fails fast in every project stage.
 DELEGATION_BUDGET_GATE_SCRIPT="${GATES_DIR}/check_delegation_budget.py"
+if [[ ! -f "${DELEGATION_BUDGET_GATE_SCRIPT}" ]]; then
+  # Fail-closed: a missing gate script must not silently disable the discipline.
+  echo "ERROR: missing delegation budget gate script: ${DELEGATION_BUDGET_GATE_SCRIPT}" >&2
+  exit 2
+fi
 if [[ -f "${DELEGATION_BUDGET_GATE_SCRIPT}" ]]; then
   set +e
   python3 "${DELEGATION_BUDGET_GATE_SCRIPT}" \

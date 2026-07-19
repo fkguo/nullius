@@ -106,7 +106,9 @@ if (schemaText !== null) {
   }
 }
 
-// 3. Runner wiring.
+// 3. Runner wiring — presence is not enough: the enforcement legs (exit on
+// gate failure, error on missing gate script) must survive too, or the gate
+// silently turns advisory.
 const runnerText = read(RUNNER_FILE);
 if (runnerText !== null) {
   if (!runnerText.includes('check_delegation_budget.py')) {
@@ -115,6 +117,15 @@ if (runnerText !== null) {
   const wiringBlock = runnerText.split('check_delegation_budget.py')[1] ?? '';
   if (!wiringBlock.includes('_delegation_budget_gate.json')) {
     errors.push(`${RUNNER_FILE}: delegation budget gate no longer persists its machine verdict via --out-json`);
+  }
+  if (!wiringBlock.includes('delegation_budget_code} -ne 0')) {
+    errors.push(`${RUNNER_FILE}: delegation budget gate exit code is no longer checked (gate turned advisory)`);
+  }
+  if (!wiringBlock.includes('exit ${delegation_budget_code}')) {
+    errors.push(`${RUNNER_FILE}: run no longer aborts on delegation budget gate failure (gate turned advisory)`);
+  }
+  if (!runnerText.includes('missing delegation budget gate script')) {
+    errors.push(`${RUNNER_FILE}: missing-gate-script fail-closed check removed (absent script would silently disable the discipline)`);
   }
 }
 
@@ -140,7 +151,7 @@ requireAll(CONFIG_TEMPLATE_FILE, read(CONFIG_TEMPLATE_FILE), [
 
 // 5. Prose + tests.
 requireAll(TEAM_SKILL_FILE, read(TEAM_SKILL_FILE), [
-  ['budgets-before-dispatch discipline', 'a delegation without\nexplicit budgets is drift by construction'],
+  ['budgets-before-dispatch discipline', 'drift by construction'],
   ['tolerance ceiling field', '`tolerance_ceiling`'],
   ['time box field', '`time_box`'],
   ['max attempts field', '`max_attempts`'],
@@ -154,9 +165,24 @@ requireAll(HARNESS_SKILL_FILE, read(HARNESS_SKILL_FILE), [
   ['measured-memory clause', 'Estimating wall-clock alone is not a resource estimate'],
 ]);
 
-if (!existsSync(path.join(repoRoot, TESTS_FILE))) {
-  errors.push(`behavior tests missing: ${TESTS_FILE}`);
-}
+// Behavior tests must exist AND still validate emitted verdicts against the
+// shared validator (the leg that catches schema-invalid verdict shapes).
+const testsText = read(TESTS_FILE);
+requireAll(TESTS_FILE, testsText, [
+  ['shared-validator import', 'validate_convergence_result'],
+  ['verdict schema assertion helper', '_assert_verdict_valid'],
+  ['schema-safe report_status key assertion', 'REPORT_STATUS_KEY_PATTERN'],
+]);
+
+// The shared validator must keep enforcing the report_status member key
+// pattern from the schema SSOT (the gap that once let path-shaped keys emit
+// schema-invalid verdicts while every test stayed green).
+requireAll('skills/research-team/scripts/gates/convergence_schema.py',
+  read('skills/research-team/scripts/gates/convergence_schema.py'), [
+    ['report_status key-pattern authority', 'REPORT_STATUS_KEY_PATTERN'],
+    ['patternProperties extraction from SSOT', 'patternProperties'],
+    ['key-pattern enforcement message', 'does not match the shared schema'],
+  ]);
 
 if (errors.length > 0) {
   console.error('[check-delegation-budget-anti-drift] FAIL');

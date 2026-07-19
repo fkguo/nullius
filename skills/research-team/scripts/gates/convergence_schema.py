@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import datetime as _dt
 import json
+import re as _re
 from pathlib import Path
 from typing import Any
 
@@ -39,13 +40,14 @@ def _find_convergence_result_schema_path() -> Path | None:
     return None
 
 
-def _load_convergence_result_schema_authority() -> tuple[frozenset[str], str, int, str | None]:
+def _load_convergence_result_schema_authority() -> tuple[frozenset[str], str, int, str | None, str | None]:
     schema_path = _find_convergence_result_schema_path()
     if schema_path is None:
         return (
             frozenset(),
             "__shared_schema_unavailable__",
             0,
+            None,
             "shared convergence schema SSOT not found (expected meta/schemas/"
             f"{_CONVERGENCE_RESULT_SCHEMA_BASENAME} reachable from this skill install); "
             "install `research-team` via a symlink into an nullius worktree (not a copy-only install).",
@@ -58,6 +60,7 @@ def _load_convergence_result_schema_authority() -> tuple[frozenset[str], str, in
             frozenset(),
             "__shared_schema_unavailable__",
             0,
+            None,
             f"failed to read shared convergence schema SSOT at {schema_path}: {e}",
         )
 
@@ -66,11 +69,15 @@ def _load_convergence_result_schema_authority() -> tuple[frozenset[str], str, in
         gate_ids = meta_props["gate_id"]["enum"]
         schema_id = meta_props["schema_id"]["const"]
         schema_version = meta_props["schema_version"]["const"]
+        member_key_patterns = list(
+            schema["properties"]["report_status"]["patternProperties"].keys()
+        )
     except Exception as e:  # CONTRACT-EXEMPT: CODE-01.5 explicit fail-closed diagnostics
         return (
             frozenset(),
             "__shared_schema_unavailable__",
             0,
+            None,
             f"shared convergence schema SSOT at {schema_path} missing expected meta authority fields: {e}",
         )
 
@@ -79,6 +86,7 @@ def _load_convergence_result_schema_authority() -> tuple[frozenset[str], str, in
             frozenset(),
             "__shared_schema_unavailable__",
             0,
+            None,
             f"shared convergence schema SSOT at {schema_path} has invalid meta.gate_id enum: {gate_ids!r}",
         )
     if not isinstance(schema_id, str) or not schema_id.strip():
@@ -86,6 +94,7 @@ def _load_convergence_result_schema_authority() -> tuple[frozenset[str], str, in
             frozenset(),
             "__shared_schema_unavailable__",
             0,
+            None,
             f"shared convergence schema SSOT at {schema_path} has invalid meta.schema_id const: {schema_id!r}",
         )
     if not isinstance(schema_version, int) or isinstance(schema_version, bool):
@@ -93,15 +102,45 @@ def _load_convergence_result_schema_authority() -> tuple[frozenset[str], str, in
             frozenset(),
             "__shared_schema_unavailable__",
             0,
+            None,
             f"shared convergence schema SSOT at {schema_path} has invalid meta.schema_version const: {schema_version!r}",
         )
 
-    return frozenset(gate_ids), schema_id, schema_version, None
+    if (
+        len(member_key_patterns) != 1
+        or not isinstance(member_key_patterns[0], str)
+        or not member_key_patterns[0].strip()
+    ):
+        return (
+            frozenset(),
+            "__shared_schema_unavailable__",
+            0,
+            None,
+            f"shared convergence schema SSOT at {schema_path} has invalid "
+            f"report_status patternProperties: {member_key_patterns!r}",
+        )
+    try:
+        _re.compile(member_key_patterns[0])
+    except _re.error as e:
+        return (
+            frozenset(),
+            "__shared_schema_unavailable__",
+            0,
+            None,
+            f"shared convergence schema SSOT at {schema_path} has an uncompilable "
+            f"report_status key pattern {member_key_patterns[0]!r}: {e}",
+        )
+
+    return frozenset(gate_ids), schema_id, schema_version, member_key_patterns[0], None
 
 
-GATE_ID_VALUES, SCHEMA_ID, SCHEMA_VERSION, _SCHEMA_AUTHORITY_ERROR = (
-    _load_convergence_result_schema_authority()
-)
+(
+    GATE_ID_VALUES,
+    SCHEMA_ID,
+    SCHEMA_VERSION,
+    REPORT_STATUS_KEY_PATTERN,
+    _SCHEMA_AUTHORITY_ERROR,
+) = _load_convergence_result_schema_authority()
 
 
 def _utc_now() -> str:
@@ -199,6 +238,16 @@ def validate_convergence_result(result: Any) -> list[str]:
             if not isinstance(member, str) or not member:
                 errors.append("report_status keys must be non-empty strings")
                 continue
+            # JSON Schema patternProperties uses regex *search* semantics; with
+            # additionalProperties=false on report_status, a non-matching key
+            # makes the whole verdict schema-invalid.
+            if REPORT_STATUS_KEY_PATTERN is not None and not _re.search(
+                REPORT_STATUS_KEY_PATTERN, member
+            ):
+                errors.append(
+                    f"report_status key {member!r} does not match the shared schema "
+                    f"key pattern {REPORT_STATUS_KEY_PATTERN!r}"
+                )
             errors.extend(_validate_member_summary(member, payload))
 
     meta = result.get("meta")

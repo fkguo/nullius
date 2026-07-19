@@ -19,7 +19,10 @@ GATE = ROOT / "scripts" / "gates" / "check_delegation_budget.py"
 TEMPLATE = ROOT / "assets" / "delegation_budget_contract_template.json"
 
 sys.path.insert(0, str(ROOT / "scripts" / "gates"))
-from convergence_schema import validate_convergence_result  # noqa: E402
+from convergence_schema import (  # noqa: E402
+    REPORT_STATUS_KEY_PATTERN,
+    validate_convergence_result,
+)
 
 
 def _write(path: Path, content: str) -> Path:
@@ -96,6 +99,15 @@ def _assert_verdict_valid(verdict: dict) -> None:
     errors = validate_convergence_result(verdict)
     assert not errors, f"machine verdict fails schema validation: {errors}"
     assert verdict["meta"]["gate_id"] == "delegation_budget"
+    # Every report_status key must satisfy the schema SSOT's member key
+    # pattern (path-shaped keys once emitted schema-invalid verdicts).
+    assert REPORT_STATUS_KEY_PATTERN is not None
+    import re as _re
+
+    for key in verdict["report_status"]:
+        assert _re.search(REPORT_STATUS_KEY_PATTERN, key), (
+            f"report_status key {key!r} violates schema pattern {REPORT_STATUS_KEY_PATTERN!r}"
+        )
 
 
 # ---------------------------------------------------------------- positive
@@ -237,6 +249,32 @@ def test_unknown_contract_version_fails_closed(tmp_path: Path) -> None:
     _assert_fails_with(tmp_path, contract, "UNSUPPORTED_CONTRACT_VERSION")
 
 
+def test_boolean_contract_version_fails(tmp_path: Path) -> None:
+    """True == 1 in Python; a boolean must not pass as version 1."""
+    contract = _complete_contract()
+    contract["contract_version"] = True
+    _assert_fails_with(tmp_path, contract, "UNSUPPORTED_CONTRACT_VERSION")
+
+
+def test_float_contract_version_fails(tmp_path: Path) -> None:
+    """1.0 == 1 in Python; a float must not pass as version 1."""
+    contract = _complete_contract()
+    contract["contract_version"] = 1.0
+    _assert_fails_with(tmp_path, contract, "UNSUPPORTED_CONTRACT_VERSION")
+
+
+def test_float_time_box_seconds_fails(tmp_path: Path) -> None:
+    contract = _complete_contract()
+    contract["time_box"]["seconds"] = 7200.0
+    _assert_fails_with(tmp_path, contract, "MISSING_TIME_BOX")
+
+
+def test_multiline_anchor_note_fails(tmp_path: Path) -> None:
+    contract = _complete_contract()
+    contract["tolerance_ceiling"]["anchor_note"] = "line one\nline two"
+    _assert_fails_with(tmp_path, contract, "MISSING_TOLERANCE_ANCHOR")
+
+
 def test_missing_delegation_identity_fails(tmp_path: Path) -> None:
     contract = _complete_contract()
     del contract["delegation_id"]
@@ -258,9 +296,27 @@ def test_one_bad_contract_fails_the_run(tmp_path: Path) -> None:
     proc, verdict = _run_gate(proj)
     assert proc.returncode == 1
     assert verdict is not None
+    _assert_verdict_valid(verdict)
     statuses = {k: v["verdict"] for k, v in verdict["report_status"].items()}
-    assert statuses["team/delegations/good.json"] == "ready"
-    assert statuses["team/delegations/bad.json"] == "needs_revision"
+    assert statuses["good"] == "ready"
+    assert statuses["bad"] == "needs_revision"
+    sources = {k: v["source_path"] for k, v in verdict["report_status"].items()}
+    assert sources["good"] == "team/delegations/good.json"
+    assert sources["bad"] == "team/delegations/bad.json"
+
+
+def test_report_status_keys_schema_safe_for_hyphenated_filenames(tmp_path: Path) -> None:
+    """File names with hyphens/digits must map to schema-pattern-safe keys."""
+    proj = _make_project(
+        tmp_path, contracts={"lane-scan-01.json": _complete_contract()}
+    )
+    proc, verdict = _run_gate(proj)
+    assert proc.returncode == 0, proc.stderr
+    assert verdict is not None
+    _assert_verdict_valid(verdict)
+    (key,) = verdict["report_status"].keys()
+    assert key == "lane_scan_01"
+    assert verdict["report_status"][key]["source_path"] == "team/delegations/lane-scan-01.json"
 
 
 # -------------------------------------------------- template stays fail-closed
@@ -280,6 +336,25 @@ def test_placeholder_anchor_note_fails(tmp_path: Path) -> None:
     contract = _complete_contract()
     contract["tolerance_ceiling"]["anchor_note"] = "<one line: which task requirement derives this ceiling>"
     _assert_fails_with(tmp_path, contract, "PLACEHOLDER_VALUE")
+
+
+def test_placeholder_in_optional_field_fails(tmp_path: Path) -> None:
+    """Optional fields are swept too: a supplied placeholder is an unfilled template."""
+    contract = _complete_contract()
+    contract["peak_memory_estimate"]["dry_run_ref"] = "<optional: pointer to the dry-run log>"
+    _assert_fails_with(tmp_path, contract, "PLACEHOLDER_VALUE")
+
+
+def test_placeholder_in_scope_entry_reported_even_with_blank_entry(tmp_path: Path) -> None:
+    """A blank entry must not mask a placeholder entry: both labels surface."""
+    contract = _complete_contract()
+    contract["scope_negative_list"] = ["  ", "<no infrastructure rewrites>"]
+    proj = _make_project(tmp_path, contracts={"c.json": contract})
+    proc, verdict = _run_gate(proj)
+    assert proc.returncode == 1
+    assert verdict is not None
+    assert any("MISSING_SCOPE_NEGATIVE_LIST" in r for r in verdict["reasons"])
+    assert any("PLACEHOLDER_VALUE" in r for r in verdict["reasons"])
 
 
 def test_legitimate_angle_brackets_in_prose_pass(tmp_path: Path) -> None:
@@ -345,3 +420,117 @@ def test_missing_explicit_contract_is_input_error(tmp_path: Path) -> None:
     proc, verdict = _run_gate(proj, "--contract", str(proj / "absent.json"))
     assert proc.returncode == 2
     assert verdict is not None and verdict["status"] == "parse_error"
+
+
+# ------------------------------------------- strict config + wiring hardening
+
+
+def test_tag_flag_produces_schema_valid_verdict(tmp_path: Path) -> None:
+    """run_team_cycle.sh always passes --tag; the tagged verdict must validate."""
+    proj = _make_project(tmp_path, contracts={"c.json": _complete_contract()})
+    proc, verdict = _run_gate(proj, "--tag", "20260719T000000Z-m1-r1")
+    assert proc.returncode == 0, proc.stderr
+    assert verdict is not None
+    _assert_verdict_valid(verdict)
+    assert verdict["meta"]["tag"] == "20260719T000000Z-m1-r1"
+
+
+def test_non_boolean_feature_flag_is_input_error(tmp_path: Path) -> None:
+    """A malformed flag must not silently disable a fail-closed gate."""
+    proj = tmp_path / "proj"
+    _write(
+        proj / "research_team_config.json",
+        json.dumps({"features": {"delegation_budget_gate": "false"}}),
+    )
+    _write(proj / "notes.md", "# notes\n")
+    proc, verdict = _run_gate(proj)
+    assert proc.returncode == 2
+    assert verdict is not None and verdict["status"] == "parse_error"
+
+
+def test_non_boolean_required_is_input_error(tmp_path: Path) -> None:
+    proj = tmp_path / "proj"
+    _write(
+        proj / "research_team_config.json",
+        json.dumps({"delegation_budget": {"required": "yes"}}),
+    )
+    _write(proj / "notes.md", "# notes\n")
+    proc, verdict = _run_gate(proj)
+    assert proc.returncode == 2
+    assert verdict is not None and verdict["status"] == "parse_error"
+
+
+def test_empty_delegations_dir_config_is_input_error(tmp_path: Path) -> None:
+    proj = tmp_path / "proj"
+    _write(
+        proj / "research_team_config.json",
+        json.dumps({"delegation_budget": {"delegations_dir": "  "}}),
+    )
+    _write(proj / "notes.md", "# notes\n")
+    proc, verdict = _run_gate(proj)
+    assert proc.returncode == 2
+    assert verdict is not None and verdict["status"] == "parse_error"
+
+
+def test_non_dict_delegation_budget_block_is_input_error(tmp_path: Path) -> None:
+    proj = tmp_path / "proj"
+    _write(
+        proj / "research_team_config.json",
+        json.dumps({"delegation_budget": "team/delegations"}),
+    )
+    _write(proj / "notes.md", "# notes\n")
+    proc, verdict = _run_gate(proj)
+    assert proc.returncode == 2
+    assert verdict is not None and verdict["status"] == "parse_error"
+
+
+def test_delegations_path_that_is_a_file_is_input_error(tmp_path: Path) -> None:
+    """A broken scan path must not silently SKIP as an empty delegation set."""
+    proj = _make_project(tmp_path)
+    _write(proj / "team" / "delegations", "")  # regular file, not a directory
+    proc, verdict = _run_gate(proj)
+    assert proc.returncode == 2
+    assert verdict is not None and verdict["status"] == "parse_error"
+
+
+def test_delegations_dir_flag_relative(tmp_path: Path) -> None:
+    proj = _make_project(tmp_path)
+    _write(proj / "elsewhere" / "c.json", json.dumps(_complete_contract()))
+    proc, verdict = _run_gate(proj, "--delegations-dir", "elsewhere")
+    assert proc.returncode == 0, proc.stderr
+    assert verdict is not None and verdict["status"] == "converged"
+
+
+def test_delegations_dir_flag_absolute(tmp_path: Path) -> None:
+    proj = _make_project(tmp_path)
+    outside = tmp_path / "outside_dir"
+    _write(outside / "c.json", json.dumps(_complete_contract()))
+    proc, verdict = _run_gate(proj, "--delegations-dir", str(outside))
+    assert proc.returncode == 0, proc.stderr
+    assert verdict is not None and verdict["status"] == "converged"
+
+
+def test_unwritable_out_json_is_input_error_with_single_verdict(tmp_path: Path) -> None:
+    """--out-json persistence failure: one stdout verdict, exit 2, no traceback."""
+    proj = _make_project(tmp_path, contracts={"c.json": _complete_contract()})
+    blocked = proj / "blocked_dir"
+    blocked.mkdir()
+    proc = subprocess.run(
+        [
+            sys.executable,
+            str(GATE),
+            "--notes",
+            str(proj / "notes.md"),
+            "--project-root",
+            str(proj),
+            "--out-json",
+            str(blocked),  # a directory: the write must fail
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert proc.returncode == 2
+    assert "Traceback" not in proc.stderr
+    lines = [ln for ln in proc.stdout.strip().splitlines() if ln.strip()]
+    assert len(lines) == 1, f"expected exactly one stdout verdict line, got: {lines}"
+    assert json.loads(lines[0])["status"] == "converged"

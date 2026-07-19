@@ -44,6 +44,21 @@ Falsification labels (all fail-closed):
   MISSING_DRY_RUN_PEAK_RSS, MISSING_HEAP_LIMIT,
   HEAP_LIMIT_BELOW_DRY_RUN_PEAK, PLACEHOLDER_VALUE
 
+Strictness notes (each closes a fail-open hole):
+  - `contract_version` must be the exact integer 1: True / 1.0 do not pass.
+  - The placeholder sweep covers the WHOLE contract, optional fields
+    included (a supplied `<placeholder>` value is an unfilled template);
+    only "_"-prefixed documentation keys are exempt.
+  - `tolerance_ceiling.anchor_note` must be a single line.
+  - A delegations path that exists but is not a directory, a non-boolean
+    `features.delegation_budget_gate` / `delegation_budget.required`
+    config value, or a failed --out-json persistence are input errors
+    (exit 2), never silent skips or passes.
+  - `report_status` keys are schema-safe slugs derived from each contract
+    file stem (the shared schema restricts member keys to
+    `^[a-z][a-z0-9_]*$`); the contract's project-relative path is carried
+    in the member summary's `source_path`.
+
 Budget-exhaustion semantics (enforced as prose contract, see the
 research-harness skill): when the time box or attempt cap is exhausted,
 the workstream wraps up from the atomic results already flushed to disk —
@@ -96,6 +111,43 @@ def _is_placeholder(value: str) -> bool:
     return bool(_PLACEHOLDER_RE.match(value.strip()))
 
 
+def _scan_placeholders(node: Any, path: str, issues: list[str]) -> None:
+    """Fail-closed sweep for unfilled template placeholders anywhere in the
+    contract — optional fields included: a supplied value that is still a
+    placeholder is an unfilled template, not a filled contract. Keys starting
+    with "_" (documentation notes) are skipped."""
+    if isinstance(node, str):
+        if _is_placeholder(node):
+            issues.append(
+                f"PLACEHOLDER_VALUE: `{path}` still carries the template placeholder {node.strip()!r}"
+            )
+    elif isinstance(node, dict):
+        for key, value in node.items():
+            if isinstance(key, str) and key.startswith("_"):
+                continue
+            _scan_placeholders(value, f"{path}.{key}" if path else str(key), issues)
+    elif isinstance(node, list):
+        for idx, value in enumerate(node):
+            _scan_placeholders(value, f"{path}[{idx}]", issues)
+
+
+def _schema_safe_key(path: Path, taken: set[str]) -> str:
+    """Derive a report_status key that satisfies the shared schema's member key
+    pattern (^[a-z][a-z0-9_]*$) from the contract file stem; the full relative
+    path is carried in the member summary's `source_path` instead."""
+    stem = re.sub(r"[^a-z0-9_]", "_", path.stem.lower())
+    stem = stem.lstrip("_0123456789") or "contract"
+    if not re.fullmatch(r"[a-z][a-z0-9_]*", stem):
+        stem = "contract"
+    key = stem
+    counter = 2
+    while key in taken:
+        key = f"{stem}_{counter}"
+        counter += 1
+    taken.add(key)
+    return key
+
+
 def _is_finite_positive_number(value: Any) -> bool:
     if isinstance(value, bool):
         return False
@@ -114,8 +166,6 @@ def _check_required_string(
     value = contract.get(key)
     if not isinstance(value, str) or not value.strip():
         issues.append(f"{label}: `{key}` must be a non-empty string")
-    elif _is_placeholder(value):
-        issues.append(f"PLACEHOLDER_VALUE: `{key}` still carries the template placeholder {value.strip()!r}")
 
 
 def _validate_contract(contract: Any) -> list[str]:
@@ -126,9 +176,15 @@ def _validate_contract(contract: Any) -> list[str]:
     issues: list[str] = []
 
     version = contract.get("contract_version")
-    if version != SUPPORTED_CONTRACT_VERSION:
+    # Strict identity, not Python equality: True == 1 and 1.0 == 1 must NOT
+    # pass as version 1.
+    if (
+        not isinstance(version, int)
+        or isinstance(version, bool)
+        or version != SUPPORTED_CONTRACT_VERSION
+    ):
         issues.append(
-            "UNSUPPORTED_CONTRACT_VERSION: `contract_version` must be "
+            "UNSUPPORTED_CONTRACT_VERSION: `contract_version` must be the integer "
             f"{SUPPORTED_CONTRACT_VERSION} (got {version!r}); unknown versions fail closed"
         )
 
@@ -156,10 +212,10 @@ def _validate_contract(contract: Any) -> list[str]:
                 "non-empty one-line statement of which task requirement derives the "
                 "ceiling — an unanchored tolerance is a number nobody can audit"
             )
-        elif _is_placeholder(anchor):
+        elif "\n" in anchor or "\r" in anchor:
             issues.append(
-                "PLACEHOLDER_VALUE: `tolerance_ceiling.anchor_note` still carries the "
-                f"template placeholder {anchor.strip()!r}"
+                "MISSING_TOLERANCE_ANCHOR: `tolerance_ceiling.anchor_note` must be a "
+                "single line (embedded newlines found) — one auditable sentence, not an essay"
             )
 
     # time_box: hard wall-clock budget.
@@ -188,10 +244,6 @@ def _validate_contract(contract: Any) -> list[str]:
             "MISSING_SCOPE_NEGATIVE_LIST: `scope_negative_list` must be a non-empty "
             "list of non-empty strings naming expansions the executor must NOT "
             "undertake on its own initiative"
-        )
-    elif any(_is_placeholder(item) for item in scope):
-        issues.append(
-            "PLACEHOLDER_VALUE: `scope_negative_list` still carries a template placeholder entry"
         )
 
     # peak_memory_estimate: single-unit dry-run peak RSS + explicit heap cap.
@@ -222,15 +274,22 @@ def _validate_contract(contract: Any) -> list[str]:
                 "the full run would exceed its own cap"
             )
 
+    # Whole-contract placeholder sweep, optional fields included.
+    _scan_placeholders(contract, "", issues)
+
     return issues
 
 
-def _contract_summary(issues: list[str], *, parse_ok: bool) -> dict[str, Any]:
+def _contract_summary(
+    issues: list[str], *, parse_ok: bool, source_path: str | None = None
+) -> dict[str, Any]:
     out: dict[str, Any] = {
         "verdict": "ready" if parse_ok and not issues else ("needs_revision" if parse_ok else "unknown"),
         "blocking_count": len(issues),
         "parse_ok": parse_ok,
     }
+    if source_path is not None:
+        out["source_path"] = source_path
     if issues:
         out["errors"] = issues
     return out
@@ -262,7 +321,16 @@ def _emit(
             "meta": meta,
         }
         exit_code = 2
-    emit_convergence_result(result, out_json=out_json)
+    try:
+        emit_convergence_result(result, out_json=out_json)
+    except OSError as e:
+        # The stdout emission (inside emit_convergence_result) already
+        # happened; only the --out-json persistence failed. Do not emit a
+        # second verdict: report the persistence failure and exit as an
+        # input/execution error so no caller mistakes an unpersisted verdict
+        # for a recorded one.
+        print(f"ERROR: failed to write --out-json {out_json}: {e}", file=sys.stderr)
+        return 2
     return exit_code
 
 
@@ -325,6 +393,15 @@ def _run(args: argparse.Namespace, base_meta: dict[str, Any], _input_error: Any)
         return _input_error([f"notes not found: {args.notes}"])
 
     cfg = load_team_config(args.notes)
+    # Strict feature-flag typing: a malformed flag must not silently disable a
+    # fail-closed gate (e.g. "false"/""/0 in JSON where a boolean belongs).
+    feats = cfg.data.get("features", {}) if isinstance(cfg.data, dict) else {}
+    if isinstance(feats, dict) and "delegation_budget_gate" in feats:
+        flag = feats["delegation_budget_gate"]
+        if not isinstance(flag, bool):
+            return _input_error(
+                [f"config `features.delegation_budget_gate` must be a boolean (got {flag!r})"]
+            )
     if not cfg.feature_enabled("delegation_budget_gate", default=True):
         print(f"- Notes: `{args.notes}`", file=sys.stderr)
         print("- Gate: SKIP (delegation_budget_gate disabled by config)", file=sys.stderr)
@@ -340,7 +417,12 @@ def _run(args: argparse.Namespace, base_meta: dict[str, Any], _input_error: Any)
     block = cfg.data.get("delegation_budget", {}) if isinstance(cfg.data, dict) else {}
     if not isinstance(block, dict):
         return _input_error(["config `delegation_budget` must be an object when present"])
-    required = bool(args.require or block.get("required", False))
+    required_cfg = block.get("required", False)
+    if not isinstance(required_cfg, bool):
+        return _input_error(
+            [f"config `delegation_budget.required` must be a boolean (got {required_cfg!r})"]
+        )
+    required = bool(args.require) or required_cfg
 
     if args.contract:
         contract_paths = [p if p.is_absolute() else (project_root / p) for p in args.contract]
@@ -359,6 +441,10 @@ def _run(args: argparse.Namespace, base_meta: dict[str, Any], _input_error: Any)
             if not isinstance(rel, str) or not rel.strip():
                 return _input_error(["config `delegation_budget.delegations_dir` must be a non-empty string"])
             delegations_dir = project_root / rel
+        # A scan path that exists but is not a directory is a broken setup, not
+        # an empty delegation set — it must not silently SKIP.
+        if delegations_dir.exists() and not delegations_dir.is_dir():
+            return _input_error([f"delegations path is not a directory: {delegations_dir}"])
         contract_paths = sorted(delegations_dir.glob("*.json")) if delegations_dir.is_dir() else []
 
     if not contract_paths:
@@ -383,25 +469,30 @@ def _run(args: argparse.Namespace, base_meta: dict[str, Any], _input_error: Any)
 
     report_status: dict[str, Any] = {}
     reasons: list[str] = []
+    taken_keys: set[str] = set()
     for path in contract_paths:
         try:
-            key = str(path.resolve().relative_to(project_root))
+            source_path = str(path.resolve().relative_to(project_root))
         except ValueError:
-            key = str(path)
+            source_path = str(path)
+        key = _schema_safe_key(path, taken_keys)
         try:
             contract = json.loads(path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError, UnicodeDecodeError) as e:
             issue = f"UNREADABLE_CONTRACT: {e}"
-            report_status[key] = _contract_summary([issue], parse_ok=False)
-            reasons.append(f"{key}: {issue}")
+            report_status[key] = _contract_summary([issue], parse_ok=False, source_path=source_path)
+            reasons.append(f"{source_path}: {issue}")
             continue
         issues = _validate_contract(contract)
-        report_status[key] = _contract_summary(issues, parse_ok=True)
-        reasons.extend(f"{key}: {issue}" for issue in issues)
+        report_status[key] = _contract_summary(issues, parse_ok=True, source_path=source_path)
+        reasons.extend(f"{source_path}: {issue}" for issue in issues)
 
     for key, summary in report_status.items():
         marker = "ok" if summary["verdict"] == "ready" else "FAIL"
-        print(f"- Contract {key}: {marker} ({summary['blocking_count']} issue(s))", file=sys.stderr)
+        print(
+            f"- Contract {summary.get('source_path', key)}: {marker} ({summary['blocking_count']} issue(s))",
+            file=sys.stderr,
+        )
     for reason in reasons:
         print(f"  * {reason}", file=sys.stderr)
 
