@@ -184,7 +184,9 @@ def _validate_member_summary(member: str, payload: Any) -> list[str]:
         errors.append(f"report_status.{member}.verdict must be one of {sorted(VERDICT_VALUES)}")
 
     blocking = payload.get("blocking_count")
-    if blocking is not None and (not isinstance(blocking, int) or blocking < 0):
+    if blocking is not None and (
+        not isinstance(blocking, int) or isinstance(blocking, bool) or blocking < 0
+    ):
         errors.append(f"report_status.{member}.blocking_count must be null or non-negative integer")
 
     parse_ok = payload.get("parse_ok")
@@ -218,7 +220,9 @@ def validate_convergence_result(result: Any) -> list[str]:
         errors.append(f"status must be one of {sorted(STATUS_VALUES)}")
 
     exit_code = result.get("exit_code")
-    if exit_code not in EXIT_CODE_VALUES:
+    # bool is an int subclass in Python (True == 1); JSON Schema draft
+    # 2020-12 rejects booleans where integers are required, so mirror that.
+    if isinstance(exit_code, bool) or exit_code not in EXIT_CODE_VALUES:
         errors.append(f"exit_code must be one of {sorted(EXIT_CODE_VALUES)}")
 
     if isinstance(status, str) and isinstance(exit_code, int):
@@ -238,11 +242,12 @@ def validate_convergence_result(result: Any) -> list[str]:
             if not isinstance(member, str) or not member:
                 errors.append("report_status keys must be non-empty strings")
                 continue
-            # JSON Schema patternProperties uses regex *search* semantics; with
-            # additionalProperties=false on report_status, a non-matching key
-            # makes the whole verdict schema-invalid.
-            if REPORT_STATUS_KEY_PATTERN is not None and not _re.search(
-                REPORT_STATUS_KEY_PATTERN, member
+            # JSON Schema patternProperties uses ECMA-262 regexes, where `$`
+            # does NOT match before a trailing newline (Python's does).
+            # fullmatch reproduces the ECMA behavior for the SSOT's anchored
+            # pattern and is strictly fail-closed for any unanchored one.
+            if REPORT_STATUS_KEY_PATTERN is not None and not _re.fullmatch(
+                f"(?:{REPORT_STATUS_KEY_PATTERN})", member
             ):
                 errors.append(
                     f"report_status key {member!r} does not match the shared schema "
@@ -268,7 +273,8 @@ def validate_convergence_result(result: Any) -> list[str]:
             errors.append("meta.parser_version must be a non-empty string")
         if meta.get("schema_id") != SCHEMA_ID:
             errors.append(f"meta.schema_id must be {SCHEMA_ID!r}")
-        if meta.get("schema_version") != SCHEMA_VERSION:
+        meta_version = meta.get("schema_version")
+        if isinstance(meta_version, bool) or meta_version != SCHEMA_VERSION:
             errors.append(f"meta.schema_version must be {SCHEMA_VERSION}")
 
     return errors

@@ -114,20 +114,42 @@ if (runnerText !== null) {
   if (!runnerText.includes('check_delegation_budget.py')) {
     errors.push(`${RUNNER_FILE}: no longer invokes check_delegation_budget.py`);
   }
-  const wiringBlock = runnerText.split('check_delegation_budget.py')[1] ?? '';
+  // Bound the wiring block to the delegation-gate section: from the gate
+  // script assignment to the next section ("Validate and set up tool-access"),
+  // so the exploration-downgrade absence check below cannot false-positive on
+  // later gates' legitimate exploration handling.
+  const afterGate = runnerText.split('check_delegation_budget.py')[1] ?? '';
+  const wiringBlock = afterGate.split('Validate and set up tool-access')[0] ?? afterGate;
+  if (!wiringBlock.trim()) {
+    errors.push(`${RUNNER_FILE}: delegation budget wiring block not found after gate script reference`);
+  }
   if (!wiringBlock.includes('_delegation_budget_gate.json')) {
     errors.push(`${RUNNER_FILE}: delegation budget gate no longer persists its machine verdict via --out-json`);
   }
-  if (!wiringBlock.includes('delegation_budget_code} -ne 0')) {
+  if (!/delegation_budget_code\}?"?\s+-ne\s+0/.test(wiringBlock)) {
     errors.push(`${RUNNER_FILE}: delegation budget gate exit code is no longer checked (gate turned advisory)`);
   }
-  if (!wiringBlock.includes('exit ${delegation_budget_code}')) {
+  if (!/exit\s+"?\$\{?delegation_budget_code\}?"?/.test(wiringBlock)) {
     errors.push(`${RUNNER_FILE}: run no longer aborts on delegation budget gate failure (gate turned advisory)`);
   }
   if (!runnerText.includes('missing delegation budget gate script')) {
     errors.push(`${RUNNER_FILE}: missing-gate-script fail-closed check removed (absent script would silently disable the discipline)`);
   }
+  // The gate must never grow an exploration-stage downgrade: an incomplete
+  // budget on an actual delegation is exactly when executor drift happens.
+  if (wiringBlock.includes('should_warn_gate_in_exploration')) {
+    errors.push(`${RUNNER_FILE}: delegation budget gate gained an exploration downgrade (must fail fast in every project stage)`);
+  }
 }
+
+// Default-ON authority: the gate's feature flag must stay default-enabled in
+// the shared DEFAULT_CONFIG (a silent default flip would disable enforcement
+// for every project that does not set the flag explicitly).
+requireAll('skills/research-team/scripts/lib/team_config.py',
+  read('skills/research-team/scripts/lib/team_config.py'), [
+    ['default-ON feature flag', '"delegation_budget_gate": True'],
+    ['delegation_budget config block default', '"delegations_dir": "team/delegations"'],
+  ]);
 
 // 4. Template ships the five mandated field groups.
 requireAll(TEMPLATE_FILE, read(TEMPLATE_FILE), [
