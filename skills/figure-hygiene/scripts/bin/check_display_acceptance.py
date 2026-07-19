@@ -51,9 +51,15 @@ CATEGORY_PRIORITY = (
     RESULT_MISSING_OVERVIEW_FIGURE,
 )
 
-RESULT_VALUES = (RESULT_PASS,) + tuple(
-    c for c in CATEGORY_PRIORITY if c != RESULT_INVALID_MANIFEST
-) + (RESULT_INVALID_MANIFEST,)
+# Mirrors the result enum order in display_gate_result_v1.schema.json; the
+# behavior tests and the anti-drift lock hold the two in sync.
+RESULT_VALUES = (
+    RESULT_PASS,
+    RESULT_MISSING_VERDICT_BINDING,
+    RESULT_VERDICT_MISMATCH,
+    RESULT_MISSING_OVERVIEW_FIGURE,
+    RESULT_INVALID_MANIFEST,
+)
 
 # The accepted outcome is fixed by the gate, never by the manifest: letting the
 # caller widen acceptance would hand the verdict back to the party being judged.
@@ -63,7 +69,7 @@ _BLOCK_FIELDS = frozenset({"plotted_quantities", "verdict_bindings", "overview_f
 _BINDING_FIELDS = frozenset({"quantity", "verdict_path", "verdict_sha256"})
 _OVERVIEW_FIELDS = frozenset({"path", "archived", "sha256"})
 
-_SHA256 = re.compile(r"(?:sha256:)?([0-9a-fA-F]{64})\Z")
+_SHA256 = re.compile(r"(?:sha256:)?([0-9a-fA-F]{64})\Z", re.IGNORECASE)
 
 
 def _normalise_sha256(raw: Any) -> str | None:
