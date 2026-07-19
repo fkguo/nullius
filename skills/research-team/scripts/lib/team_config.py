@@ -410,6 +410,38 @@ def _load_config_file(path: Path) -> dict | None:
         return None
 
 
+def find_broken_config_path(seed_path: Path) -> Path | None:
+    """Mirror find_config_path's search order, but surface a reserved config
+    path that is lexically present yet not a regular file (a dangling symlink
+    or a directory). find_config_path silently ignores such paths and callers
+    then inherit defaults — for fail-closed callers that is a fail-open hole.
+
+    Returns the first broken candidate encountered BEFORE any real config file
+    in the search order, or None when the search finds a real file first (or
+    nothing lexically present at all)."""
+    env = os.environ.get("RESEARCH_TEAM_CONFIG", "").strip()
+    if env:
+        p = Path(env)
+        if not p.is_absolute():
+            p = Path.cwd() / p
+        return p if os.path.lexists(p) and not p.is_file() else None
+
+    base = seed_path.parent if seed_path.is_file() else seed_path
+    root = _find_project_root(base)
+    cur = base.resolve()
+    while True:
+        for name in _CONFIG_FILENAMES:
+            cand = cur / name
+            if cand.is_file():
+                return None
+            if os.path.lexists(cand):
+                return cand
+        if cur == root or cur.parent == cur:
+            break
+        cur = cur.parent
+    return None
+
+
 def load_config_object(path: Path) -> dict | None:
     """Public strict-parse entry point: return the config file's top-level
     object, or None when the file is missing, unparseable, or not an object.
