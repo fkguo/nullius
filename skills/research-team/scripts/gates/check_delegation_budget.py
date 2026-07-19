@@ -120,6 +120,18 @@ def _reject_json_constant(token: str) -> Any:
     raise ValueError(f"nonstandard JSON constant {token!r} is not valid contract JSON")
 
 
+def _reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    """json.loads is silently last-wins on duplicate keys — an earlier
+    placeholder value would be discarded before the placeholder sweep ever
+    sees it, and different parsers disagree on which duplicate wins."""
+    obj: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in obj:
+            raise ValueError(f"duplicate key {key!r} in contract JSON")
+        obj[key] = value
+    return obj
+
+
 def _scan_placeholders(node: Any, path: str, issues: list[str]) -> None:
     """Fail-closed sweep for unfilled template placeholders anywhere in the
     contract — optional fields included: a supplied value that is still a
@@ -221,10 +233,12 @@ def _validate_contract(contract: Any) -> list[str]:
                 "non-empty one-line statement of which task requirement derives the "
                 "ceiling — an unanchored tolerance is a number nobody can audit"
             )
-        elif any(ch in anchor for ch in "\n\r\v\f\x85\u2028\u2029"):
-            # Reject ANY Unicode line-boundary character, terminal ones
-            # included ("x\n".splitlines() has length 1, so a splitlines
-            # count alone would let a trailing separator through).
+        elif anchor.splitlines() != [anchor]:
+            # One line means NO line-boundary character at all \u2014 embedded or
+            # terminal. Comparing splitlines() against [anchor] covers exactly
+            # Python's full boundary set (LF, CR, VT, FF, FS, GS, RS, NEL,
+            # U+2028, U+2029): any embedded boundary yields multiple elements,
+            # and a terminal one makes the single element differ from anchor.
             issues.append(
                 "MISSING_TOLERANCE_ANCHOR: `tolerance_ceiling.anchor_note` must be a "
                 "single line with no line-break characters — one auditable sentence, not an essay"
@@ -616,7 +630,9 @@ def _run(args: argparse.Namespace, base_meta: dict[str, Any], _input_error: Any)
             # literals that standard JSON consumers reject — a contract other
             # tools cannot parse must not pass a fail-closed gate.
             contract = json.loads(
-                path.read_text(encoding="utf-8"), parse_constant=_reject_json_constant
+                path.read_text(encoding="utf-8"),
+                parse_constant=_reject_json_constant,
+                object_pairs_hook=_reject_duplicate_keys,
             )
         except (ValueError, OSError, UnicodeDecodeError) as e:
             issue = f"UNREADABLE_CONTRACT: {e}"
