@@ -90,6 +90,9 @@ requireAll(GATE_FILE, read(GATE_FILE), [
   ['machine-contract emission', 'build_gate_meta("delegation_budget")'],
   ['executor-drift motivation', 'refine precision indefinitely'],
   ['single-read strict config authority', 'build_team_config(config_path, strict_raw)'],
+  ['resolve-once config binding', 'config_path = config_path.resolve()'],
+  ['nonblocking regular-file contract reader', 'def _read_regular_file_text'],
+  ['descriptor-verified regular file (no stat/open race)', 'os.fstat(fd)'],
 ]);
 // The gate must never re-read the config leniently after strict validation
 // (swap-between-reads would reopen a fail-open hole on a control input).
@@ -247,7 +250,18 @@ requireAll(TESTS_FILE, testsText, [
   ['strict-snapshot authority regression test', 'test_gate_uses_strict_config_snapshot'],
   ['YAML duplicate-config-key control', 'test_yaml_duplicate_config_key_is_input_error'],
   ['missing-yaml-module control', 'test_yaml_config_without_yaml_module_is_input_error'],
+  ['symlink-retarget resolve-once regression', 'test_config_symlink_retarget_between_reads_keeps_original_root'],
+  ['nonblocking FIFO contract control', 'test_fifo_contract_entry_fails_without_blocking'],
 ]);
+
+// The runner's config finder must print the RESOLVED path (the runner
+// exports it and derives PROJECT_ROOT from its parent; a lexical path would
+// let a symlink retarget pair one tree's config with another tree's
+// delegations).
+requireAll('skills/research-team/scripts/bin/team_cycle_find_config_path.py',
+  read('skills/research-team/scripts/bin/team_cycle_find_config_path.py'), [
+    ['resolved-path printing', 'print(str(p.resolve()))'],
+  ]);
 
 // The runner-integration brake tests (text lock cannot prove the runner
 // actually calls the gate; these do) must survive, with their exploration
@@ -256,6 +270,7 @@ requireAll('skills/research-team/tests/test_delegation_budget_runner_integration
   read('skills/research-team/tests/test_delegation_budget_runner_integration.py'), [
     ['exploration no-downgrade brake test', 'test_bad_contract_fails_preflight_even_in_exploration'],
     ['full-cycle brake test (non --preflight-only)', 'test_bad_contract_brakes_full_cycle_before_any_runner'],
+    ['symlinked-config target-tree brake test', 'test_symlinked_config_brakes_on_target_tree_contract'],
     ['required-contract brake test', 'test_required_with_no_contract_fails_preflight'],
     ['positive control', 'test_complete_contract_passes_preflight'],
   ]);

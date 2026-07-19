@@ -25,7 +25,13 @@ def main() -> int:
         return 0
 
     if p is not None and p.is_file():
-        print(str(p))
+        # Resolve ONCE at discovery: the runner exports this path
+        # (RESEARCH_TEAM_CONFIG) and derives PROJECT_ROOT from its parent, so
+        # printing the resolved path binds the config content and the project
+        # root to the same target even when the config file is a symlink —
+        # a lexical parent would let a symlink retarget pair one tree's
+        # config with another tree's delegations.
+        print(str(p.resolve()))
     return 0
 
 

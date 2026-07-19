@@ -91,6 +91,7 @@ def _run_gate(proj: Path, *extra: str) -> tuple[subprocess.CompletedProcess, dic
         ],
         capture_output=True,
         text=True,
+        timeout=60,
     )
     verdict = json.loads(out_json.read_text(encoding="utf-8")) if out_json.is_file() else None
     return proc, verdict
@@ -989,3 +990,47 @@ def test_symlinked_config_binds_root_to_resolved_parent(tmp_path: Path) -> None:
     # link_dir would silently SKIP.
     assert proc.returncode == 1, proc.stderr
     assert "MISSING_TIME_BOX" in proc.stdout
+
+
+def test_config_symlink_retarget_between_reads_keeps_original_root(
+    tmp_path: Path, monkeypatch: object
+) -> None:
+    """Discriminating regression for resolve-once binding: the strict-read
+    hook retargets the config symlink; the root must stay bound to the tree
+    resolved at DISCOVERY (real_a, which carries a bad contract), not follow
+    the retargeted link to real_b's empty tree."""
+    import importlib.util
+
+    real_a = tmp_path / "real_a"
+    bad = _complete_contract()
+    del bad["time_box"]
+    _write(real_a / "research_team_config.json", "{}")
+    _write(real_a / "team" / "delegations" / "bad.json", json.dumps(bad))
+    real_b = tmp_path / "real_b"
+    _write(real_b / "research_team_config.json", "{}")
+
+    link_dir = tmp_path / "link_dir"
+    link_dir.mkdir()
+    link = link_dir / "research_team_config.json"
+    link.symlink_to(real_a / "research_team_config.json")
+    _write(link_dir / "notes.md", "# notes\n")
+
+    spec = importlib.util.spec_from_file_location("check_delegation_budget_retarget_test", GATE)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    real_strict = mod.load_config_object
+
+    def _retargeting_strict_read(path):
+        result = real_strict(path)
+        link.unlink()
+        link.symlink_to(real_b / "research_team_config.json")
+        return result
+
+    monkeypatch.setattr(mod, "load_config_object", _retargeting_strict_read)
+    monkeypatch.setattr(
+        sys, "argv", ["check_delegation_budget.py", "--notes", str(link_dir / "notes.md")]
+    )
+    # Bound to real_a (resolved at discovery) → bad contract → FAIL 1.
+    # A post-read re-resolution would land in real_b and SKIP with 0.
+    assert mod.main() == 1
