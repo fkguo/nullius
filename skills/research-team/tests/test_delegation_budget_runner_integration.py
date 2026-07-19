@@ -215,6 +215,28 @@ def test_required_with_no_contract_fails_preflight(project: Path) -> None:
     assert any("NO_CONTRACTS_FOUND" in r for r in verdict["reasons"])
 
 
+def test_symlinked_config_brakes_on_target_tree_contract(project: Path) -> None:
+    """The runner resolves the discovered config path once: with a symlinked
+    config, PROJECT_ROOT derives from the RESOLVED parent, so an invalid
+    contract under the symlink TARGET's tree must brake preflight (a lexical
+    parent would scan the link directory's empty tree and pass)."""
+    shared = project.parent / "shared_target"
+    shared.mkdir()
+    real_cfg = shared / "research_team_config.json"
+    (project / "research_team_config.json").rename(real_cfg)
+    (project / "research_team_config.json").symlink_to(real_cfg)
+    bad = {"contract_version": 1, "delegation_id": "x"}
+    _write(shared / "team" / "delegations" / "bad.json", json.dumps(bad))
+    tag = "20260719T000000Z-m0-it-symlink-r1"
+    proc = _run_preflight(project, tag)
+    assert proc.returncode == 1, (
+        f"preflight should brake on the symlink target's bad contract; log:\n{proc.stderr[-2000:]}"
+    )
+    verdict_path = shared / "team" / "runs" / tag / f"{tag}_delegation_budget_gate.json"
+    if verdict_path.is_file():
+        assert json.loads(verdict_path.read_text(encoding="utf-8"))["status"] == "not_converged"
+
+
 def test_complete_contract_passes_preflight(project: Path) -> None:
     _write(
         project / "team" / "delegations" / "good.json",
