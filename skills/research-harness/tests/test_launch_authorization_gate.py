@@ -474,6 +474,49 @@ def test_output_aliasing_plan_is_refused_when_record_fails_validation(tmp_path, 
     assert plan_path.read_text(encoding="utf-8") == PLAN_TEXT
 
 
+def test_output_aliasing_unsafely_declared_plan_is_refused(tmp_path, capsys):
+    # a record declaring the plan through a '..' traversal fails validation,
+    # but the file its declaration points at is still protected from the
+    # refusal artifact's --output write
+    proj = _project(tmp_path)
+    record = json.loads(proj["record_path"].read_text(encoding="utf-8"))
+    record["plan_path"] = "plans/../plan.md"
+    _write_json(proj["record_path"], record)
+    plan_path = proj["root"] / "plan.md"
+    code, result = _run(proj, capsys, extra_args=["--output", str(plan_path)])
+    assert code == 2
+    assert result["verdict"] == "invalid_record"
+    assert plan_path.read_text(encoding="utf-8") == PLAN_TEXT
+
+
+def test_output_case_alias_of_missing_verdict_slot_is_refused(tmp_path, capsys):
+    # the declared verdict file is MISSING (no inode for samefile), and the
+    # output differs only by case: casefold comparison must still refuse,
+    # so the refusal artifact can never be written into an input slot
+    proj = _project(tmp_path)
+    (proj["root"] / "reviews" / "reviewer-one.json").unlink()
+    alias = proj["root"] / "reviews" / "REVIEWER-ONE.JSON"
+    code, result = _run(proj, capsys, extra_args=["--output", str(alias)])
+    assert code == 2
+    assert list((proj["root"] / "reviews").iterdir()) == []
+
+
+def test_output_aliasing_plan_is_refused_on_non_git_project_root_failure(tmp_path, capsys):
+    # non-git project without --project-root: the early refusal must still
+    # protect the declared plan (resolved against the record's directory)
+    proj = _project(tmp_path)
+    plan_path = proj["root"] / "plan.md"
+    argv = ["--record", str(proj["record_path"]),
+            "--observed-fingerprint", str(proj["observed_path"]),
+            "--output", str(plan_path)]
+    code = la.main(argv)
+    json.loads(capsys.readouterr().out)  # the artifact is still emitted
+    # exit 2 either way: non-git refusal in the expected environment, or —
+    # if the temp dir happens to sit inside some git repo — the alias guard
+    assert code == 2
+    assert plan_path.read_text(encoding="utf-8") == PLAN_TEXT
+
+
 def test_output_case_alias_of_plan_is_refused_on_case_insensitive_fs(tmp_path, capsys):
     import pytest
     proj = _project(tmp_path)
