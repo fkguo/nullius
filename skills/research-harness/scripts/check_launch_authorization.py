@@ -107,15 +107,17 @@ this result contract so launchers know what to produce.
 Exit codes: 0 ONLY for authorized; 2 for invalid_record and usage errors;
 3 for every other refusal. The full launch_authorization_v1 result JSON is
 always printed on stdout; --output additionally writes it atomically. The
---output write is guarded on every exit path: a --output that aliases any
-input the run consumed (the record, the plan, a verdict file, the
-observed fingerprint — including case-insensitive-filesystem aliases and
-hard links) is never written and the run exits 2, and a --output write
-that fails likewise makes the checker exit 2 even for an authorized
-verdict — an authorization whose requested audit artifact cannot be
-persisted is refused (the printed exit_code field reflects the verdict
-alone). Any internal defect still emits a labeled invalid_record artifact
-instead of a bare traceback.
+--output write is guarded on every exit path: a --output that names — at
+any ancestor level — the directory-entry slot of any input path the
+record declares or the run consumed (the record, the plan, a verdict
+file, the observed fingerprint; hard links, symlinks, case and
+Unicode-normalization collisions, and firmlink spellings included, for
+existing and not-yet-existing files alike) is never written and the run
+exits 2, and a --output write that fails likewise makes the checker exit
+2 even for an authorized verdict — an authorization whose requested
+audit artifact cannot be persisted is refused (the printed exit_code
+field reflects the verdict alone). Any internal defect still emits a
+labeled invalid_record artifact instead of a bare traceback.
 
 Honest limitations. The plan file is read ONCE and that byte content is
 hashed and compared everywhere, so the check itself has no read-then-reuse
@@ -520,19 +522,25 @@ def _same_slot(a: Path, b: Path) -> bool:
 
 
 def _output_aliases_input(output: Path, protected: "frozenset[Path] | set[Path]") -> bool:
-    """True when --output must never be written: it names — or cannot be
-    distinguished from — the directory-entry slot of one of the protected
-    input paths. After symlink resolution, slot identity (_same_slot) covers
-    exact equality, hard links and existing-file aliases (inode identity),
-    case and Unicode-normalization variants of files that do not exist yet,
-    and firmlink spellings of the enclosing directory. An unresolvable
+    """True when --output must never be written: it — or ANY of its
+    ancestors, since the atomic writer creates missing parent directories —
+    names, or cannot be distinguished from, the directory-entry slot of a
+    protected input path (an output nested below a missing declared input
+    would otherwise occupy that slot with a directory). After symlink
+    resolution, slot identity (_same_slot) covers exact equality, hard
+    links and existing-file aliases (inode identity), case and
+    Unicode-normalization variants of files that do not exist yet, and
+    firmlink spellings of the enclosing directory. An unresolvable
     --output is refused outright (fail-closed)."""
     resolved = _try_resolve(output)
     if resolved is None:
         return True
-    if resolved in protected:
-        return True
-    return any(_same_slot(resolved, known) for known in protected)
+    for candidate in (resolved, *resolved.parents):
+        if candidate in protected:
+            return True
+        if any(_same_slot(candidate, known) for known in protected):
+            return True
+    return False
 
 
 def _protect_declared_paths(record, bases: "list[Path]",

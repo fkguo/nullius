@@ -551,6 +551,18 @@ def test_output_unicode_normalization_alias_of_missing_verdict_is_refused(tmp_pa
     assert {p.name for p in (proj["root"] / "reviews").iterdir()} == before
 
 
+def test_output_nested_below_missing_verdict_slot_is_refused(tmp_path, capsys):
+    # an output NESTED below a missing declared input would occupy that
+    # slot with a directory (the atomic writer creates missing parents)
+    proj = _project(tmp_path)
+    (proj["root"] / "reviews" / "reviewer-one.json").unlink()
+    nested = proj["root"] / "reviews" / "reviewer-one.json" / "launch_authorization.json"
+    code, result = _run(proj, capsys, extra_args=["--output", str(nested)])
+    assert code == 2
+    # the declared slot was not occupied by a directory
+    assert not (proj["root"] / "reviews" / "reviewer-one.json").exists()
+
+
 def test_same_slot_identity_logic(tmp_path):
     base = tmp_path / "anchor"
     base.mkdir()
