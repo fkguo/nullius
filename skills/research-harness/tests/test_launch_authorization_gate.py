@@ -517,6 +517,53 @@ def test_output_aliasing_plan_is_refused_on_non_git_project_root_failure(tmp_pat
     assert plan_path.read_text(encoding="utf-8") == PLAN_TEXT
 
 
+def test_output_aliasing_whitespace_declared_path_is_refused(tmp_path, capsys):
+    # a whitespace-only declared path fails validation, but it is still a
+    # valid filesystem name the refusal artifact must not occupy
+    proj = _project(tmp_path)
+    record = json.loads(proj["record_path"].read_text(encoding="utf-8"))
+    record["plan_path"] = " "
+    _write_json(proj["record_path"], record)
+    target = proj["root"] / " "
+    code, result = _run(proj, capsys, extra_args=["--output", str(target)])
+    assert code == 2
+    assert result["verdict"] == "invalid_record"
+    assert not target.exists()
+
+
+def test_output_unicode_normalization_alias_of_missing_verdict_is_refused(tmp_path, capsys):
+    # declared verdict name in NFD (e + combining acute), missing on disk;
+    # output spelled precomposed (NFC) and upper-cased: the same
+    # directory-entry slot on an APFS-style volume, so the write is refused
+    # on any volume (conservatively)
+    nfd_name = "review-e\u0301.json"
+    nfc_name = "REVIEW-\u00c9.JSON"
+    proj = _project(tmp_path)
+    record = json.loads(proj["record_path"].read_text(encoding="utf-8"))
+    record["reviews"][0]["verdict_path"] = f"reviews/{nfd_name}"
+    _write_json(proj["record_path"], record)
+    before = {p.name for p in (proj["root"] / "reviews").iterdir()}
+    code, result = _run(proj, capsys,
+                        extra_args=["--output", str(proj["root"] / "reviews" / nfc_name)])
+    assert code == 2
+    assert result["verdict"] == "missing_review"
+    # the declared (missing) verdict slot was not occupied by the artifact
+    assert {p.name for p in (proj["root"] / "reviews").iterdir()} == before
+
+
+def test_same_slot_identity_logic(tmp_path):
+    base = tmp_path / "anchor"
+    base.mkdir()
+    # NFC spelling vs NFD + case variant; nothing below base exists
+    a = base / "reviews" / "sub" / "r-\u00e9.json"
+    b = base / "reviews" / "sub" / "R-e\u0301.JSON"
+    assert la._same_slot(a, b)
+    c = base / "reviews" / "other" / "x.json"
+    assert not la._same_slot(a, c)
+    d = base / "reviews" / "r-\u00e9.json"
+    assert not la._same_slot(a, d)
+
+
 def test_output_case_alias_of_plan_is_refused_on_case_insensitive_fs(tmp_path, capsys):
     import pytest
     proj = _project(tmp_path)

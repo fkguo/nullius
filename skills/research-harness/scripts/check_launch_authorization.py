@@ -136,6 +136,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import unicodedata
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -469,31 +470,69 @@ def _set_check(result: dict, check_id: str, status: str, detail: str) -> None:
             return
 
 
+def _normalized_name(name: str) -> str:
+    """Directory-entry name normalized the way an APFS-style volume treats
+    it: Unicode-normalization-insensitive (NFC) and case-insensitive
+    (casefold)."""
+    return unicodedata.normalize("NFC", name).casefold()
+
+
+def _existing_ancestor(path: Path) -> "tuple[Path, tuple[str, ...]]":
+    """(nearest existing ancestor, remaining path components below it).
+    For an existing path the tail is empty. exists() follows the same
+    fail-closed spirit as the rest of this module: an unstattable ancestor
+    counts as non-existing and stays in the tail."""
+    tail: list[str] = []
+    cur = path
+    while cur != cur.parent:
+        try:
+            if cur.exists():
+                break
+        except OSError:
+            pass
+        tail.append(cur.name)
+        cur = cur.parent
+    return cur, tuple(reversed(tail))
+
+
+def _same_slot(a: Path, b: Path) -> bool:
+    """True when the two (resolved) paths name the same directory-entry slot
+    on a case- or normalization-insensitive volume, existing or not:
+    identical string, or the same nearest EXISTING ancestor (by inode, which
+    also identifies macOS firmlink spellings of the same directory) with the
+    remaining components pairwise equal under case folding and Unicode
+    normalization. On a fully sensitive volume this over-refuses a
+    distinct-but-colliding name — the safe direction."""
+    if str(a) == str(b):
+        return True
+    base_a, tail_a = _existing_ancestor(a)
+    base_b, tail_b = _existing_ancestor(b)
+    if len(tail_a) != len(tail_b):
+        return False
+    if tuple(map(_normalized_name, tail_a)) != tuple(map(_normalized_name, tail_b)):
+        return False
+    if str(base_a) == str(base_b):
+        return True
+    try:
+        return os.path.samefile(str(base_a), str(base_b))
+    except (OSError, ValueError):
+        return False
+
+
 def _output_aliases_input(output: Path, protected: "frozenset[Path] | set[Path]") -> bool:
-    """True when --output must never be written: it resolves onto — or cannot
-    be distinguished from — one of the protected input paths. Three tests,
-    each fail-closed where it is blind: resolved-path equality;
-    os.path.samefile() identity for paths that exist (hard links, and
-    case-insensitive-filesystem aliases of EXISTING files); and case-folded
-    string equality, which covers case aliases of paths that do not exist
-    yet (no inode to compare) — on a case-sensitive volume this over-refuses
-    a distinct-but-case-colliding output name, which is the safe direction.
-    An unresolvable --output is refused outright."""
+    """True when --output must never be written: it names — or cannot be
+    distinguished from — the directory-entry slot of one of the protected
+    input paths. After symlink resolution, slot identity (_same_slot) covers
+    exact equality, hard links and existing-file aliases (inode identity),
+    case and Unicode-normalization variants of files that do not exist yet,
+    and firmlink spellings of the enclosing directory. An unresolvable
+    --output is refused outright (fail-closed)."""
     resolved = _try_resolve(output)
     if resolved is None:
         return True
     if resolved in protected:
         return True
-    resolved_folded = str(resolved).casefold()
-    for known in protected:
-        if str(known).casefold() == resolved_folded:
-            return True
-        try:
-            if os.path.samefile(str(resolved), str(known)):
-                return True
-        except (OSError, ValueError):
-            continue
-    return False
+    return any(_same_slot(resolved, known) for known in protected)
 
 
 def _protect_declared_paths(record, bases: "list[Path]",
@@ -511,7 +550,10 @@ def _protect_declared_paths(record, bases: "list[Path]",
         declared.extend(entry.get("verdict_path")
                         for entry in record["reviews"] if isinstance(entry, dict))
     for rel in declared:
-        if isinstance(rel, str) and rel.strip():
+        # any non-empty string is protected — whitespace-only names included:
+        # validation rejects them for CONSUMPTION, but they are still valid
+        # filesystem names the --output write must not occupy
+        if isinstance(rel, str) and rel:
             for base in bases:
                 resolved = _try_resolve(base / rel)
                 if resolved is not None:
