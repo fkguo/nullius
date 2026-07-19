@@ -137,30 +137,158 @@ requireAll(SKILL_FILE, read(SKILL_FILE), [
 ]);
 
 // 4. Tests: the negative controls must keep asserting failure, not merely
-// exist as names. Function-name needles pin the controls' existence; the
-// assertion-body needles pin that each falsification label is still demanded
-// of the payload (a gutted test body that stops asserting would break these).
-requireAll(TESTS_FILE, read(TESTS_FILE), [
-  ['positive control', 'def test_full_bundle_passes'],
-  ['missing-binding negative control', 'def test_missing_verdict_binding_fails'],
-  ['undeclared-block negative control', 'def test_display_acceptance_block_absent_fails'],
-  ['tampered-verdict negative control', 'def test_verdict_hash_mismatch_fails'],
-  ['wrong-quantity negative control', 'def test_verdict_not_covering_quantity_fails'],
-  ['failing-outcome negative control', 'def test_failing_verdict_outcome_fails'],
-  ['caller-widening negative control', 'def test_caller_cannot_widen_accepted_verdicts'],
-  ['missing-overview negative control', 'def test_missing_overview_figure_file_fails'],
-  ['unarchived-overview negative control', 'def test_overview_not_archived_fails'],
-  ['usage-error payload control', 'def test_usage_error_emits_invalid_manifest_payload'],
-  ['schema-sync assertion', 'def test_result_enum_matches_schema_authority'],
-  ['pass assertion body', 'assert payload["result"] == "pass"'],
-  ['missing-binding assertion body', 'assert payload["result"] == "missing_verdict_binding"'],
-  ['verdict-mismatch assertion body', 'assert payload["result"] == "verdict_mismatch"'],
-  ['missing-overview assertion body', 'assert payload["result"] == "missing_overview_figure"'],
-  ['invalid-manifest assertion body', 'assert payload["result"] == "invalid_manifest"'],
-  ['pass exit-code assertion', 'assert code == 0'],
-  ['fail exit-code assertion', 'assert code == 1'],
-  ['error exit-code assertion', 'assert code == 2'],
-  ['non-pass-implies-findings invariant', 'if payload["result"] != "pass":'],
+// exist as names. Each control's OWN body must still demand its exit code,
+// its falsification label, and its finding kind — a shared string elsewhere
+// in the file must not satisfy another control's pin, so the needles are
+// checked inside the named top-level function body, not globally.
+const testsText = read(TESTS_FILE);
+const testBodies = {};
+if (testsText !== null) {
+  for (const chunk of testsText.split(/^(?=def )/m)) {
+    const m = chunk.match(/^def (\w+)/);
+    if (m) testBodies[m[1]] = chunk;
+  }
+}
+
+function requireInTestBody(name, label, needles) {
+  if (testsText === null) return;
+  const body = testBodies[name];
+  if (body === undefined) {
+    errors.push(`${TESTS_FILE}: missing ${label}: expected top-level function ${name}`);
+    return;
+  }
+  for (const needle of needles) {
+    if (!body.includes(needle)) {
+      errors.push(
+        `${TESTS_FILE}: ${label} (${name}) no longer asserts ${JSON.stringify(needle)} in its own body`,
+      );
+    }
+  }
+}
+
+requireInTestBody('test_full_bundle_passes', 'positive control', [
+  'assert code == 0',
+  'assert payload["result"] == "pass"',
+]);
+requireInTestBody('test_missing_verdict_binding_fails', 'missing-binding negative control', [
+  'assert code == 1',
+  'assert payload["result"] == "missing_verdict_binding"',
+  '"missing-binding"',
+]);
+requireInTestBody('test_display_acceptance_block_absent_fails', 'undeclared-block negative control', [
+  'assert code == 1',
+  'assert payload["result"] == "missing_verdict_binding"',
+  '"display-acceptance-missing"',
+]);
+requireInTestBody('test_empty_plotted_quantities_fails', 'empty-denominator negative control', [
+  'assert code == 1',
+  'assert payload["result"] == "missing_verdict_binding"',
+  '"plotted-quantities-undeclared"',
+]);
+requireInTestBody('test_verdict_hash_mismatch_fails', 'tampered-verdict negative control', [
+  'assert code == 1',
+  'assert payload["result"] == "verdict_mismatch"',
+  '"verdict-hash-mismatch"',
+]);
+requireInTestBody('test_verdict_not_covering_quantity_fails', 'wrong-quantity negative control', [
+  'assert code == 1',
+  'assert payload["result"] == "verdict_mismatch"',
+  '"quantity-not-covered"',
+]);
+requireInTestBody('test_failing_verdict_outcome_fails', 'failing-outcome negative control', [
+  'assert code == 1',
+  'assert payload["result"] == "verdict_mismatch"',
+  '"verdict-not-accepted"',
+]);
+requireInTestBody('test_caller_cannot_widen_accepted_verdicts', 'caller-widening negative control', [
+  'assert code == 1',
+  '"unexpected-field"',
+  '"verdict-not-accepted"',
+]);
+requireInTestBody('test_unexpected_block_field_fails', 'closed-contract negative control', [
+  'assert code == 1',
+  '"unexpected-field"',
+]);
+requireInTestBody('test_binding_unknown_quantity_fails', 'unknown-quantity binding negative control', [
+  'assert code == 1',
+  'assert payload["result"] == "verdict_mismatch"',
+  '"binding-unknown-quantity"',
+]);
+requireInTestBody('test_duplicate_binding_fails', 'duplicate-binding negative control', [
+  'assert code == 1',
+  '"duplicate-binding"',
+]);
+requireInTestBody('test_duplicate_plotted_quantity_fails', 'duplicate-quantity negative control', [
+  'assert code == 1',
+  '"duplicate-plotted-quantity"',
+]);
+requireInTestBody('test_unreadable_verdict_artifact_fails', 'unreadable-verdict negative control', [
+  'assert code == 1',
+  'assert payload["result"] == "verdict_mismatch"',
+  '"verdict-unreadable"',
+]);
+requireInTestBody('test_missing_overview_figure_file_fails', 'missing-overview negative control', [
+  'assert code == 1',
+  'assert payload["result"] == "missing_overview_figure"',
+  '"overview-file-missing"',
+]);
+requireInTestBody('test_overview_not_archived_fails', 'unarchived-overview negative control', [
+  'assert code == 1',
+  'assert payload["result"] == "missing_overview_figure"',
+  '"overview-not-archived"',
+]);
+requireInTestBody('test_overview_undeclared_fails', 'undeclared-overview negative control', [
+  'assert code == 1',
+  'assert payload["result"] == "missing_overview_figure"',
+  '"overview-undeclared"',
+]);
+requireInTestBody('test_overview_hash_pinned_passes', 'overview-hash positive control', [
+  'assert code == 0',
+  'assert payload["result"] == "pass"',
+]);
+requireInTestBody('test_overview_hash_mismatch_fails', 'overview-hash-mismatch negative control', [
+  'assert code == 1',
+  '"overview-hash-mismatch"',
+]);
+requireInTestBody('test_overview_hash_malformed_fails', 'overview-hash-malformed negative control', [
+  'assert code == 1',
+  '"overview-hash-malformed"',
+]);
+requireInTestBody('test_binding_priority_over_overview', 'deterministic roll-up control', [
+  'assert payload["result"] == "missing_verdict_binding"',
+]);
+requireInTestBody('test_binding_not_object_fails', 'malformed-binding negative control', [
+  'assert code == 1',
+  '"binding-malformed"',
+]);
+requireInTestBody('test_verdict_artifact_not_found_fails', 'dead-reference negative control', [
+  'assert code == 1',
+  'assert payload["result"] == "missing_verdict_binding"',
+  '"verdict-not-found"',
+]);
+requireInTestBody('test_empty_display_acceptance_block_fails', 'empty-block negative control', [
+  'assert code == 1',
+  '"plotted-quantities-undeclared"',
+  '"overview-undeclared"',
+]);
+requireInTestBody('test_usage_error_emits_invalid_manifest_payload', 'usage-error payload control', [
+  'assert proc.returncode == 2',
+  'assert payload["result"] == "invalid_manifest"',
+]);
+requireInTestBody('test_unreadable_manifest_is_invalid', 'unreadable-manifest control', [
+  'assert code == 2',
+  'assert payload["result"] == "invalid_manifest"',
+]);
+requireInTestBody('test_result_enum_matches_schema_authority', 'schema-sync assertion', [
+  'RESULT_VALUES',
+  'CATEGORY_PRIORITY',
+]);
+requireInTestBody('_assert_payload_matches_schema', 'structural payload validator', [
+  'if payload["result"] != "pass":',
+  'assert payload["findings"]',
+]);
+requireInTestBody('test_failing_payload_satisfies_schema_and_explains_itself', 'failing-payload structural control', [
+  '_assert_payload_matches_schema(payload)',
 ]);
 
 // CI wiring: both the behavior tests and this lock must actually run.

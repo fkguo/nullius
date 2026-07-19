@@ -321,6 +321,59 @@ def test_overview_hash_malformed_fails(tmp_path: Path) -> None:
     assert "overview-hash-malformed" in _kinds(payload)
 
 
+def test_binding_not_object_fails(tmp_path: Path) -> None:
+    block = _bundle(tmp_path)
+    block["verdict_bindings"][0] = "gates/quantity_a.verdict.json"
+    manifest = _write_manifest(tmp_path, block)
+    code, payload = _run(manifest)
+    assert code == 1
+    assert payload["result"] == "missing_verdict_binding"
+    assert "binding-malformed" in _kinds(payload)
+
+
+def test_verdict_artifact_not_found_fails(tmp_path: Path) -> None:
+    block = _bundle(tmp_path)
+    (tmp_path / "gates" / "quantity_a.verdict.json").unlink()
+    manifest = _write_manifest(tmp_path, block)
+    code, payload = _run(manifest)
+    assert code == 1
+    assert payload["result"] == "missing_verdict_binding"
+    assert "verdict-not-found" in _kinds(payload)
+
+
+def test_empty_display_acceptance_block_fails(tmp_path: Path) -> None:
+    manifest = _write_manifest(tmp_path, {})
+    code, payload = _run(manifest)
+    assert code == 1
+    assert payload["result"] == "missing_verdict_binding"
+    assert {"plotted-quantities-undeclared", "overview-undeclared"} <= _kinds(payload)
+
+
+def test_out_json_persists_same_payload(tmp_path: Path) -> None:
+    manifest = _write_manifest(tmp_path, _bundle(tmp_path))
+    out_path = tmp_path / "artifacts" / "display_gate.json"
+    proc = subprocess.run(
+        [sys.executable, str(GATE), "--manifest", str(manifest), "--json", "--out-json", str(out_path)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert proc.returncode == 0
+    assert json.loads(proc.stdout) == json.loads(out_path.read_text(encoding="utf-8"))
+
+
+def test_human_output_states_verdict(tmp_path: Path) -> None:
+    manifest = _write_manifest(tmp_path, _bundle(tmp_path))
+    proc = subprocess.run(
+        [sys.executable, str(GATE), "--manifest", str(manifest)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert proc.returncode == 0
+    assert "display acceptance pass" in proc.stdout
+
+
 def test_usage_error_emits_invalid_manifest_payload(tmp_path: Path) -> None:
     proc = subprocess.run(
         [sys.executable, str(GATE)],  # missing required --manifest
@@ -376,6 +429,10 @@ def _assert_payload_matches_schema(payload: dict) -> None:
         assert isinstance(finding["kind"], str) and finding["kind"]
         assert finding["category"] in category_enum
         assert isinstance(finding["message"], str) and finding["message"]
+        if "quantity" in finding:
+            assert isinstance(finding["quantity"], str) and finding["quantity"]
+        if "path" in finding:
+            assert isinstance(finding["path"], str) and finding["path"]
     # Invariant the schema cannot express: a non-pass verdict is always
     # explained by at least one finding.
     if payload["result"] != "pass":
