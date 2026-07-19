@@ -186,6 +186,73 @@ class DoiNormalizationTests(unittest.TestCase):
     def test_trailing_copy_paste_punctuation_is_stripped(self):
         self.assertEqual(MOD.normalize_doi("10.1000/xyz;"), "10.1000/xyz")
 
+    def test_preprint_registry_version_suffix_folds(self):
+        # The preprint registry's DataCite DOIs are version-agnostic: the
+        # versioned and unversioned spellings denote the same work.
+        self.assertEqual(
+            MOD.normalize_doi("10.48550/arXiv.2109.01038v2"),
+            MOD.normalize_doi("10.48550/arxiv.2109.01038"),
+        )
+        self.assertEqual(
+            MOD.normalize_doi("https://doi.org/10.48550/arXiv.2109.01038v1"),
+            "10.48550/arxiv.2109.01038",
+        )
+        self.assertEqual(
+            MOD.normalize_doi("10.48550/arXiv.hep-ph/9901234v3"),
+            MOD.normalize_doi("10.48550/arxiv.hep-ph/9901234"),
+        )
+        self.assertEqual(
+            MOD.normalize_doi("10.48550/arXiv.2109.01038v12."),
+            "10.48550/arxiv.2109.01038",
+        )
+        # Casefolding runs before the fold, so an uppercase suffix (and an
+        # uppercase registry spelling) folds identically.
+        self.assertEqual(
+            MOD.normalize_doi("10.48550/ARXIV.2109.01038V2"),
+            "10.48550/arxiv.2109.01038",
+        )
+
+    def test_mixed_trailing_junk_is_fully_stripped(self):
+        # Trailing copy-paste tails mixing slashes and punctuation strip to
+        # a fixed point, so they cannot block the version fold.
+        self.assertEqual(MOD.normalize_doi("10.1000/xyz/."), "10.1000/xyz")
+        self.assertEqual(
+            MOD.normalize_doi("10.48550/arxiv.2109.01038v2/."),
+            "10.48550/arxiv.2109.01038",
+        )
+
+    def test_version_folding_never_merges_distinct_ids(self):
+        # Negative controls: folding must not make genuinely different
+        # identifiers compare equal.
+        self.assertNotEqual(
+            MOD.normalize_doi("10.48550/arxiv.2109.01038v2"),
+            MOD.normalize_doi("10.48550/arxiv.2109.01039"),
+        )
+        self.assertNotEqual(
+            MOD.normalize_doi("10.48550/arxiv.2109.01038"),
+            MOD.normalize_doi("10.48550/arxiv.2109.0103"),
+        )
+
+    def test_version_suffix_outside_preprint_registry_is_kept(self):
+        # Elsewhere a trailing "v" + digits can be a legitimate part of the
+        # registered DOI name, so the fold is scoped to the preprint-registry
+        # prefix and must not fire on other registrants.
+        self.assertEqual(MOD.normalize_doi("10.1000/xyzv2"), "10.1000/xyzv2")
+        self.assertNotEqual(
+            MOD.normalize_doi("10.1000/xyzv2"), MOD.normalize_doi("10.1000/xyz")
+        )
+        self.assertEqual(
+            MOD.normalize_doi("10.5555/collection.123.v2"),
+            "10.5555/collection.123.v2",
+        )
+
+    def test_bare_version_only_suffix_is_not_folded(self):
+        # A degenerate "id" that is nothing but a version marker is left
+        # alone rather than folded to an empty identifier.
+        self.assertEqual(
+            MOD.normalize_doi("10.48550/arxiv.v2"), "10.48550/arxiv.v2"
+        )
+
 
 class VerdictTests(unittest.TestCase):
     def _report(self, blocks, citation_key=None):
@@ -263,6 +330,45 @@ class VerdictTests(unittest.TestCase):
         self.assertEqual(report["fields"]["year"]["status"], "missing")
         self.assertEqual(report["fields"]["doi"]["status"], "missing")
         self.assertEqual(report["verdict"], "consistent")
+
+    def test_doi_version_variant_is_not_a_conflict(self):
+        # A versioned preprint-registry DOI and its unversioned form are the
+        # same identifier; records differing only in the version suffix must
+        # not read as an identifier conflict.
+        report = self._report(
+            [
+                _block(
+                    "arxiv",
+                    title="Same title",
+                    doi="10.48550/arXiv.2109.01038v2",
+                ),
+                _block(
+                    "openalex",
+                    title="Same title",
+                    doi="10.48550/arxiv.2109.01038",
+                ),
+            ]
+        )
+        self.assertEqual(report["fields"]["doi"]["status"], "agree")
+        self.assertEqual(report["verdict"], "consistent")
+
+    def test_different_preprint_ids_still_conflict(self):
+        report = self._report(
+            [
+                _block(
+                    "arxiv",
+                    title="Same title",
+                    doi="10.48550/arXiv.2109.01038v2",
+                ),
+                _block(
+                    "openalex",
+                    title="Same title",
+                    doi="10.48550/arxiv.2109.01039",
+                ),
+            ]
+        )
+        self.assertEqual(report["fields"]["doi"]["status"], "disagree")
+        self.assertEqual(report["verdict"], "conflicted")
 
     def test_venue_difference_never_conflicts(self):
         report = self._report(
