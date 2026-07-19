@@ -257,8 +257,22 @@ requireAll(TESTS_FILE, testsText, [
   ['nonblocking FIFO out-json control', 'test_fifo_out_json_fails_fast_with_single_verdict'],
   ['active-reader fstat-rejection control', 'test_out_json_fifo_with_active_reader_rejected_by_fstat'],
   ['contract-retarget resolve-once regression', 'test_contract_symlink_retarget_after_discovery_keeps_original_target'],
-  ['hang-guard subprocess timeout', 'timeout=60'],
+  ['scan-dir-retarget bind-before-listdir regression', 'test_delegations_dir_symlink_retarget_during_listdir_keeps_original_set'],
+  ['fstat-diagnostic assertion in active-reader control', 'assert "not a regular file" in proc.stderr'],
 ]);
+
+// The hang-guard timeout must live INSIDE the FIFO config-loader control —
+// a global needle would stay green if that one test dropped its timeout
+// while other tests kept theirs.
+{
+  const t = read(TESTS_FILE);
+  if (t !== null) {
+    const fn = (t.split('def test_fifo_config_target_raises_instead_of_blocking')[1] ?? '').split('\ndef ')[0];
+    if (!fn.includes('timeout=60')) {
+      errors.push(`${TESTS_FILE}: FIFO config-loader control lost its hang-guard timeout=60`);
+    }
+  }
+}
 
 // Strict config loader and verdict writer must stay descriptor-verified and
 // nonblocking (a FIFO would otherwise hang preflight with no verdict).
