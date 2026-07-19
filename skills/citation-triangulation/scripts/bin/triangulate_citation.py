@@ -35,7 +35,9 @@ Comparison (key fields: title, authors, year, doi):
     initials versus full given names are tolerated by design.
   - year: integer equality.
   - doi: case-insensitive equality after stripping URL/doi: prefixes; URL
-    forms additionally lose their query/fragment tail and percent-encoding.
+    forms additionally lose their query/fragment tail and percent-encoding;
+    preprint-registry DOIs (10.48550/) also drop a trailing version suffix
+    (v1, v2, ...) — that registry's identifier is version-agnostic.
   - venue, identifier: reported for the human reader only; indexes disagree
     on venue naming conventions too often for venue to carry a verdict.
 
@@ -388,6 +390,13 @@ _DOI_PREFIXES = (
     ("doi:", False),
 )
 
+# The preprint registry's DataCite DOIs (10.48550/arxiv.<id>) identify the
+# work, not a version of it, yet versioned spellings ("...v2") occur in the
+# wild. The fold is scoped to that prefix: under it a trailing "v" + digits
+# can only be a version marker (both id styles end in digits), while in an
+# arbitrary DOI it can be a legitimate part of the registered name.
+_RE_PREPRINT_DOI_VERSION = re.compile(r"^(10\.48550/arxiv\..+)v\d+$")
+
 
 def normalize_doi(value: str) -> str:
     """Normalize a DOI to a canonical comparison form.
@@ -395,7 +404,8 @@ def normalize_doi(value: str) -> str:
     Strips URL and doi: prefixes; for URL forms also strips the query and
     fragment tail and decodes percent-encoding; strips surrounding slashes
     and trailing copy-paste punctuation; casefolds (DOI names are
-    case-insensitive).
+    case-insensitive); drops a trailing version suffix on preprint-registry
+    (10.48550/) DOIs, whose identifier is version-agnostic.
     """
     doi = value.strip()
     lowered = doi.casefold()
@@ -406,7 +416,11 @@ def normalize_doi(value: str) -> str:
                 doi = doi.split("?", 1)[0].split("#", 1)[0]
                 doi = urllib.parse.unquote(doi)
             break
-    return doi.strip().strip("/").rstrip(".,;").casefold()
+    doi = doi.strip().strip("/").rstrip(".,;").casefold()
+    version_match = _RE_PREPRINT_DOI_VERSION.match(doi)
+    if version_match:
+        doi = version_match.group(1)
+    return doi
 
 
 # ---------------------------------------------------------------------------

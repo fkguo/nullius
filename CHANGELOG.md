@@ -10,6 +10,20 @@ version is the lockstep number below.
 ## [Unreleased]
 
 ### Added
+- **Citation-triangulation: benchmark-validated admission and identifier
+  disciplines.** The comparator now folds a trailing version suffix on
+  preprint-registry (`10.48550/`) DOIs, whose DataCite identifier is
+  version-agnostic, with negative controls locking that distinct identifiers
+  never merge and that the fold never fires outside that registrant prefix.
+  SKILL.md gains three operating rules validated in a public benchmark
+  evaluation of the skill as a citation-hallucination detector: a same-work
+  admission rule for fetched records (identifier equality, or a strong title
+  match, or a weak title match plus a shared author family name — retrieval
+  admission at least as strict as the comparison it feeds), interpretation
+  guidance for identifier-only disagreement (a preprint-registry DOI and a
+  publisher DOI are two legitimate identifiers of one work), and an advisory
+  preprint-presented-as-published check that stays outside the verdict. The
+  comparator's test suite is now wired into CI.
 - **Evidence-first idea-posterior reasoning and complete IR binding.** The
   standalone detailed page now reconstructs static evidence-to-conclusion
   paths from the compiled IR, showing concrete observations, authored
