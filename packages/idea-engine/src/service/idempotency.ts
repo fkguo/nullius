@@ -167,9 +167,9 @@ function preparedSideEffectsCommitted(store: IdeaEngineStore, method: string, re
   if (method === 'node.rewrite_provenance') {
     const campaignId = record.response.payload.campaign_id;
     const nodeId = record.response.payload.node_id;
-    const updatedAt = record.response.payload.updated_at;
-    const newValue = record.response.payload.new_value;
-    if (typeof campaignId !== 'string' || typeof nodeId !== 'string' || typeof updatedAt !== 'string') {
+    const idempotency = record.response.payload.idempotency as Record<string, unknown> | undefined;
+    const opKey = idempotency?.idempotency_key;
+    if (typeof campaignId !== 'string' || typeof nodeId !== 'string' || typeof opKey !== 'string') {
       return false;
     }
     const node = store.loadNodes<Record<string, unknown>>(campaignId)[nodeId];
@@ -180,12 +180,14 @@ function preparedSideEffectsCommitted(store: IdeaEngineStore, method: string, re
     // a harmless overwrite — rewrite_provenance re-execution is NOT idempotent:
     // its rewrite_value_unchanged guard would reject the already-applied value.
     // So the committed effect must be recognized by the history entry this
-    // operation appended (stamped with its own `now`, equal to the recorded
-    // updated_at, and carrying new_value), NOT by the node's top-level
-    // updated_at — a later unrelated mutation may have moved that stamp, and
-    // gating on it would wrongly delete the prepared record and re-execute into
-    // rewrite_value_unchanged. The history entry uniquely identifies the effect
-    // and survives intervening mutations.
+    // operation appended, NOT by the node's top-level updated_at (a later
+    // unrelated mutation moves that stamp, which would wrongly force
+    // re-execution into rewrite_value_unchanged). The entry is keyed on the
+    // request's idempotency_key: (rewritten_at, new_value) is NOT unique —
+    // repeated identical corrections at the same clock tick (an A->B, B->A,
+    // A->B oscillation) collide, and matching a sibling entry would replay a
+    // rewrite whose store effect never landed. The idempotency_key is unique
+    // per operation and survives every intervening mutation's structuredClone.
     const operatorTrace = node.operator_trace as Record<string, unknown> | undefined;
     const inputs = operatorTrace?.inputs as Record<string, unknown> | undefined;
     const history = Array.isArray(inputs?.provenance_rewrites)
@@ -193,8 +195,7 @@ function preparedSideEffectsCommitted(store: IdeaEngineStore, method: string, re
       : [];
     return history.some(entry =>
       !!entry && typeof entry === 'object'
-      && (entry as Record<string, unknown>).rewritten_at === updatedAt
-      && (entry as Record<string, unknown>).new_value === newValue);
+      && (entry as Record<string, unknown>).idempotency_key === opKey);
   }
   return false;
 }

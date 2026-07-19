@@ -464,6 +464,80 @@ describe('node.set_grounding_audit', () => {
   });
 });
 
+describe('node.set_grounding_audit — additional guards', () => {
+  const tempDirs: string[] = [];
+
+  afterEach(() => {
+    for (const dir of tempDirs.splice(0)) {
+      rmSync(dir, { force: true, recursive: true });
+    }
+  });
+
+  function freshService(): IdeaEngineRpcService {
+    const rootDir = mkdtempSync(join(tmpdir(), 'idea-engine-grounding-guard-'));
+    tempDirs.push(rootDir);
+    return new IdeaEngineRpcService({ createId: makeIdSequence(), rootDir });
+  }
+
+  it('rejects a blank (whitespace-only) report_ref that slips past params minLength', () => {
+    const service = freshService();
+    const campaignId = initCampaign(service);
+    const [nodeId] = allNodeIds(service, campaignId);
+    setPosterior(service, campaignId, nodeId!, 'sp-1', 0.42, 3);
+    expectRpcError(() => service.handle('node.set_grounding_audit', {
+      campaign_id: campaignId,
+      grounding_audit: { failures: [], folklore_risk_score: 0.1, report_ref: '   ', status: 'pass' },
+      idempotency_key: 'ga-blankref',
+      node_id: nodeId,
+    }), -32002, 'schema_invalid');
+  });
+
+  it('rejects a client-supplied timestamp inside grounding_audit (the engine stamps it)', () => {
+    const service = freshService();
+    const campaignId = initCampaign(service);
+    const [nodeId] = allNodeIds(service, campaignId);
+    setPosterior(service, campaignId, nodeId!, 'sp-1', 0.42, 3);
+    // additionalProperties:false on the params object: a client timestamp is the
+    // exact field whose forgery the engine-stamping guarantee must prevent.
+    expect(() => service.handle('node.set_grounding_audit', {
+      campaign_id: campaignId,
+      grounding_audit: {
+        failures: [], folklore_risk_score: 0.1, report_ref: 'project://r.json#sha256:' + 'a'.repeat(64),
+        status: 'pass', timestamp: '2000-01-01T00:00:00Z',
+      },
+      idempotency_key: 'ga-clientts',
+      node_id: nodeId,
+    })).toThrow();
+  });
+
+  it('stores a partial audit honestly (no upgrade) and keeps promote blocked', () => {
+    const service = freshService();
+    const campaignId = initCampaign(service);
+    const [nodeId] = allNodeIds(service, campaignId);
+    setPosterior(service, campaignId, nodeId!, 'sp-1', 0.42, 3);
+    const result = setGroundingAudit(service, campaignId, nodeId!, 'ga-partial', { status: 'partial', folklore_risk_score: 0.4 });
+    expect((result.node as Record<string, unknown>).grounding_audit).toMatchObject({ status: 'partial' });
+    expect(((loadNode(service, campaignId, nodeId!).grounding_audit as Record<string, unknown>).status)).toBe('partial');
+    expectRpcError(() => service.handle('node.promote', {
+      campaign_id: campaignId, idempotency_key: 'promote-partial', node_id: nodeId,
+    }), -32011, 'grounding_audit_not_pass');
+  });
+
+  it('overwrites an existing audit: revision bumps, a second log entry lands, report_ref replaced', () => {
+    const service = freshService();
+    const campaignId = initCampaign(service);
+    const [nodeId] = allNodeIds(service, campaignId);
+    setPosterior(service, campaignId, nodeId!, 'sp-1', 0.42, 3);
+    setGroundingAudit(service, campaignId, nodeId!, 'ga-first', { report_ref: 'project://first.json#sha256:' + 'a'.repeat(64) });
+    const revAfterFirst = Number(loadNode(service, campaignId, nodeId!).revision);
+    setGroundingAudit(service, campaignId, nodeId!, 'ga-second', { report_ref: 'project://second.json#sha256:' + 'b'.repeat(64) });
+    const node = loadNode(service, campaignId, nodeId!);
+    expect(Number(node.revision)).toBe(revAfterFirst + 1);
+    expect((node.grounding_audit as Record<string, unknown>).report_ref).toBe('project://second.json#sha256:' + 'b'.repeat(64));
+    expect(countLogEntries(service, campaignId, nodeId!, 'set_grounding_audit')).toBe(2);
+  });
+});
+
 describe('node.rewrite_provenance', () => {
   const tempDirs: string[] = [];
 
@@ -478,6 +552,23 @@ describe('node.rewrite_provenance', () => {
     tempDirs.push(rootDir);
     return new IdeaEngineRpcService({ createId: makeIdSequence(), rootDir });
   }
+
+  it('rejects a node whose novelty_delta.closest_prior is an empty string (provenance_field_missing second clause)', () => {
+    const service = freshService();
+    const campaignId = initCampaign(service);
+    const [seedNodeId] = allNodeIds(service, campaignId);
+    const generatedId = importGeneratedNode(service, campaignId, seedNodeId!);
+    // Hand-migrated store corner: novelty_delta present but closest_prior blanked.
+    const nodes = service.read.store.loadNodes<Record<string, unknown>>(campaignId);
+    const novelty = ((nodes[generatedId] as Record<string, unknown>).operator_trace as Record<string, unknown>);
+    ((novelty.inputs as Record<string, unknown>).novelty_delta as Record<string, unknown>).closest_prior = '';
+    service.read.store.saveNodes(campaignId, nodes);
+    expectRpcError(
+      () => rewriteProvenance(service, campaignId, generatedId, 'rw-empty', URI_A),
+      -32002,
+      'provenance_field_missing',
+    );
+  });
 
   it('rewrites a node-id closest_prior to a receipted URI, syncing trace, card claim, and history', () => {
     const service = freshService();
@@ -724,24 +815,149 @@ describe('node.rewrite_provenance', () => {
     );
   });
 
-  it('reports delta_claim_updated=false and still rewrites the trace when no card claim carries the prefix', () => {
+  it('fails closed (delta_claim_missing) and changes nothing when no card claim carries the prefix', () => {
     const service = freshService();
     const campaignId = initCampaign(service);
     const [seedNodeId] = allNodeIds(service, campaignId);
     const generatedId = importGeneratedNode(service, campaignId, seedNodeId!);
-    // Drop the engine-assembled novelty-delta claim, leaving the base claim so
-    // the idea_card stays schema-valid; the rewrite must still correct the
-    // trace and report that no card claim was synced.
+    // Drop the engine-assembled novelty-delta claim: a malformed generated node.
+    // The rewrite must refuse rather than move the trace while the card keeps
+    // citing the retracted reference (a silent card/trace divergence).
     const nodes = service.read.store.loadNodes<Record<string, unknown>>(campaignId);
     const card = (nodes[generatedId] as Record<string, unknown>).idea_card as Record<string, unknown>;
     card.claims = (card.claims as Array<Record<string, unknown>>).filter(
       claim => !String(claim.claim_text).startsWith('Novelty delta vs closest prior ('),
     );
     service.read.store.saveNodes(campaignId, nodes);
+    const before = JSON.stringify(loadNode(service, campaignId, generatedId));
 
-    const result = rewriteProvenance(service, campaignId, generatedId, 'rw-noclaim', URI_A);
-    expect(result.delta_claim_updated).toBe(false);
+    expectRpcError(
+      () => rewriteProvenance(service, campaignId, generatedId, 'rw-noclaim', URI_A),
+      -32002,
+      'delta_claim_missing',
+    );
+    // Nothing moved: trace still cites the old value, no history entry appended.
+    expect(JSON.stringify(loadNode(service, campaignId, generatedId))).toBe(before);
+  });
+
+  it('rejects a node-id-shaped new_value from any campaign (8 base32 chars), not only current-campaign handles', () => {
+    const service = freshService();
+    const campaignId = initCampaign(service);
+    const [seedNodeId] = allNodeIds(service, campaignId);
+    const generatedId = importGeneratedNode(service, campaignId, seedNodeId!);
+    // A short-id-shaped string that is NOT a handle in this campaign (would pass
+    // the handleIds check) must still be rejected on shape alone — a foreign
+    // node id is the same defect class the method removes.
+    expectRpcError(
+      () => rewriteProvenance(service, campaignId, generatedId, 'rw-foreign', 'zzzz0000'),
+      -32002,
+      'closest_prior_node_reference',
+    );
+  });
+
+  it('rejects a blank or whitespace-padded new_value and a blank reason', () => {
+    const service = freshService();
+    const campaignId = initCampaign(service);
+    const [seedNodeId] = allNodeIds(service, campaignId);
+    const generatedId = importGeneratedNode(service, campaignId, seedNodeId!);
+    expectRpcError(
+      () => rewriteProvenance(service, campaignId, generatedId, 'rw-blank', '   '),
+      -32002,
+      'schema_invalid',
+    );
+    // Leading/trailing whitespace on an otherwise-valid ref key is rejected too.
+    expectRpcError(
+      () => rewriteProvenance(service, campaignId, generatedId, 'rw-pad', ' Guo:2024femto'),
+      -32002,
+      'schema_invalid',
+    );
+    expectRpcError(
+      () => service.handle('node.rewrite_provenance', {
+        campaign_id: campaignId,
+        field: 'novelty_delta.closest_prior',
+        idempotency_key: 'rw-blankreason',
+        new_value: URI_A,
+        node_id: generatedId,
+        reason: '   ',
+      }),
+      -32002,
+      'schema_invalid',
+    );
+  });
+
+  it('resets a stale grounding_audit when the rewrite changes the certified claim', () => {
+    const service = freshService();
+    const campaignId = initCampaign(service);
+    const [seedNodeId] = allNodeIds(service, campaignId);
+    const generatedId = importGeneratedNode(service, campaignId, seedNodeId!);
+    // Move the generated node into a grounding-write state and record a pass.
+    service.handle('node.set_lifecycle', {
+      campaign_id: campaignId,
+      idempotency_key: 'ga-review',
+      lifecycle_state: 'admission_review',
+      node_id: generatedId,
+    });
+    setGroundingAudit(service, campaignId, generatedId, 'ga-pass');
+    expect(loadNode(service, campaignId, generatedId).grounding_audit).not.toBeNull();
+
+    const result = rewriteProvenance(service, campaignId, generatedId, 'rw-reset', URI_A);
+    expect(result.grounding_audit_reset).toBe(true);
+    // The certified claim changed, so the audit is gone; promote would refuse.
+    expect(loadNode(service, campaignId, generatedId).grounding_audit ?? null).toBeNull();
+  });
+
+  it('reports grounding_audit_reset=false when there was no grounding_audit to reset', () => {
+    const service = freshService();
+    const campaignId = initCampaign(service);
+    const [seedNodeId] = allNodeIds(service, campaignId);
+    const generatedId = importGeneratedNode(service, campaignId, seedNodeId!);
+    const result = rewriteProvenance(service, campaignId, generatedId, 'rw-noreset', URI_A);
+    expect(result.grounding_audit_reset).toBe(false);
+  });
+
+  it('does not false-positive on a same-timestamp same-new_value collision: the probe keys on idempotency_key', () => {
+    const service = freshService();
+    const campaignId = initCampaign(service);
+    const [seedNodeId] = allNodeIds(service, campaignId);
+    const generatedId = importGeneratedNode(service, campaignId, seedNodeId!);
+    // K1 sets ...->URI_A (lands, history entry keyed rw-k1). K2 sets URI_A->URI_B
+    // (lands). Now forge a prepared record for a THIRD op rw-k3 that "would set
+    // ->URI_A" but crashed before saveNodes — so NO history entry carries key
+    // rw-k3. rw-k3's params equal K1's (same new_value URI_A, same default
+    // reason), hence the SAME payload_hash, and we stamp the forged result's
+    // updated_at with K1's rewritten_at. A probe keyed on (rewritten_at,
+    // new_value) — the version this replaced — would match K1's entry and replay
+    // a success while the store still says URI_B (a lie). The idempotency_key
+    // probe must instead find no rw-k3 entry, re-execute, and truly move the value.
+    rewriteProvenance(service, campaignId, generatedId, 'rw-k1', URI_A);
+    const k1Hash = (JSON.parse(readFileSync(service.read.store.campaignIdempotencyPath(campaignId), 'utf8')) as Record<string, IdemRecord>)['node.rewrite_provenance:rw-k1']!.payload_hash;
+    const k1RewrittenAt = nodeRewriteHistory(loadNode(service, campaignId, generatedId))[0]!.rewritten_at as string;
+    rewriteProvenance(service, campaignId, generatedId, 'rw-k2', URI_B);
+    expect(nodeCloseestPrior(loadNode(service, campaignId, generatedId))).toBe(URI_B);
+
+    const path = service.read.store.campaignIdempotencyPath(campaignId);
+    const records = JSON.parse(readFileSync(path, 'utf8')) as Record<string, IdemRecord>;
+    records['node.rewrite_provenance:rw-k3'] = {
+      created_at: k1RewrittenAt,
+      payload_hash: k1Hash,
+      response: {
+        kind: 'result',
+        payload: {
+          campaign_id: campaignId,
+          node_id: generatedId,
+          new_value: URI_A,
+          updated_at: k1RewrittenAt,
+          idempotency: { idempotency_key: 'rw-k3', is_replay: false, payload_hash: k1Hash },
+        },
+      },
+      state: 'prepared',
+    };
+    writeFileSync(path, `${JSON.stringify(records, null, 2)}\n`, 'utf8');
+
+    const result = rewriteProvenance(service, campaignId, generatedId, 'rw-k3', URI_A);
+    expect((result.idempotency as Record<string, unknown>).is_replay).toBe(false);
     expect(nodeCloseestPrior(loadNode(service, campaignId, generatedId))).toBe(URI_A);
-    expect(nodeRewriteHistory(loadNode(service, campaignId, generatedId))).toHaveLength(1);
+    // rw-k3 genuinely ran: its own history entry now exists.
+    expect(nodeRewriteHistory(loadNode(service, campaignId, generatedId)).some(e => e.idempotency_key === 'rw-k3')).toBe(true);
   });
 });

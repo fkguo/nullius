@@ -1,3 +1,4 @@
+import { SHORT_ID_JSON_PATTERN } from '@nullius/shared';
 import type { IdeaEngineContractCatalog } from '../contracts/catalog.js';
 import type { IdeaEngineStore } from '../store/engine-store.js';
 import { budgetSnapshot } from './budget-snapshot.js';
@@ -5,6 +6,9 @@ import { recordOrReplay, responseIdempotency, storeIdempotency } from './idempot
 import { RpcError } from './errors.js';
 import { ensureNodeInCampaign } from './node-shared.js';
 import { ensureCampaignNotCompleted, loadCampaignOrError } from './campaign-state.js';
+
+/** An engine short id (8 base32 chars): a closest_prior must never be a bare handle. */
+const SHORT_ID_RE = new RegExp(SHORT_ID_JSON_PATTERN);
 
 function rewriteValidationError(
   reason: string,
@@ -100,15 +104,26 @@ export function executeNodeRewriteProvenance(options: {
       nodes,
     });
 
-    // The params schema enforces minLength 1, but a whitespace-only value slips
-    // through it; a blank string is neither a URI nor a survey ref key, so it is
-    // never a legitimate closest_prior correction.
-    if (newValue.trim().length === 0) {
+    // The params schema enforces minLength 1, but it does not reject surrounding
+    // whitespace: a blank value ("   ") or a padded one (" refA") slips through
+    // and would be stored verbatim — and embedded into the card claim prefix,
+    // where an auditor comparing against the pinned survey key sees a mismatch
+    // that is invisible in most UIs. A URI or survey ref key never carries
+    // leading/trailing whitespace.
+    if (newValue !== newValue.trim()) {
       throw rewriteValidationError(
         'schema_invalid',
         campaignId,
         nodeId,
-        'new_value is blank (whitespace only) — closest_prior must be a non-blank URI or survey reference key',
+        'new_value has leading/trailing whitespace (or is blank) — closest_prior must be a trimmed URI or survey reference key',
+      );
+    }
+    if (reasonText.trim().length === 0) {
+      throw rewriteValidationError(
+        'schema_invalid',
+        campaignId,
+        nodeId,
+        'reason is blank (whitespace only) — a provenance correction must record why it was made',
       );
     }
 
@@ -140,12 +155,14 @@ export function executeNodeRewriteProvenance(options: {
         handleIds.add(ideaId);
       }
     }
-    if (handleIds.has(newValue)) {
+    if (handleIds.has(newValue) || SHORT_ID_RE.test(newValue)) {
       throw rewriteValidationError(
         'closest_prior_node_reference',
         campaignId,
         nodeId,
-        'new_value is a campaign node or idea id — closest_prior must reference the prior WORK (URI or survey ref_key), which is exactly the defect this method removes',
+        handleIds.has(newValue)
+          ? 'new_value is a campaign node or idea id — closest_prior must reference the prior WORK (URI or survey ref_key), which is exactly the defect this method removes'
+          : 'new_value has the shape of an engine short id (8 base32 chars) — closest_prior must reference the prior WORK (URI or survey ref_key), never a bare handle (rejected regardless of which campaign minted it, since a foreign-campaign id is the same defect class)',
       );
     }
     if (newValue.includes('://')) {
@@ -171,33 +188,59 @@ export function executeNodeRewriteProvenance(options: {
     const updatedNovelty = updatedInputs.novelty_delta as Record<string, unknown>;
     updatedNovelty.closest_prior = newValue;
 
-    // The import-time Formalize stage placed the novelty delta on the idea
-    // card as a claim with a deterministic prefix; rewrite it in the same
-    // mutation so the card never keeps citing the retracted reference.
+    // The import-time Formalize stage placed the novelty delta on the idea card
+    // as a claim with a deterministic prefix. Syncing it is MANDATORY: a node
+    // carrying a closest_prior is a generated node, which always holds exactly
+    // that claim (generated-node.ts). If no claim carries the expected prefix
+    // the node is malformed/tampered — fail closed rather than move the trace
+    // while the card keeps citing the retracted reference. A half-correction
+    // that still reports success is exactly the silent card/trace divergence
+    // this method exists to remove. More than one match is equally malformed.
     const expectedPrefix = `Novelty delta vs closest prior (${previousValue}): `;
-    let deltaClaimUpdated = false;
     const ideaCard = asRecord(updatedNode.idea_card);
-    if (ideaCard && Array.isArray(ideaCard.claims)) {
-      for (const claim of ideaCard.claims) {
-        const claimRecord = asRecord(claim);
-        if (!claimRecord || typeof claimRecord.claim_text !== 'string') {
-          continue;
-        }
-        if (!claimRecord.claim_text.startsWith(expectedPrefix)) {
-          continue;
-        }
-        claimRecord.claim_text = `Novelty delta vs closest prior (${newValue}): ${claimRecord.claim_text.slice(expectedPrefix.length)}`;
-        claimRecord.evidence_uris = newValue.includes('://') ? [newValue] : [];
-        deltaClaimUpdated = true;
-      }
+    const claims = ideaCard && Array.isArray(ideaCard.claims) ? ideaCard.claims : [];
+    const matchingClaims = claims
+      .map(asRecord)
+      .filter((claim): claim is Record<string, unknown> =>
+        !!claim && typeof claim.claim_text === 'string' && claim.claim_text.startsWith(expectedPrefix));
+    if (matchingClaims.length !== 1) {
+      throw rewriteValidationError(
+        'delta_claim_missing',
+        campaignId,
+        nodeId,
+        matchingClaims.length === 0
+          ? 'the idea card carries no novelty-delta claim with the expected prefix — a well-formed generated node always does; refusing rather than leaving the card citing the retracted reference while the trace moves'
+          : 'the idea card carries multiple novelty-delta claims with the expected prefix — ambiguous to synchronize; the node is malformed',
+        { matching_claim_count: matchingClaims.length },
+      );
+    }
+    const claimRecord = matchingClaims[0]!;
+    claimRecord.claim_text = `Novelty delta vs closest prior (${newValue}): ${(claimRecord.claim_text as string).slice(expectedPrefix.length)}`;
+    claimRecord.evidence_uris = newValue.includes('://') ? [newValue] : [];
+
+    // The novelty-delta claim just changed. Any grounding_audit certified the
+    // PRIOR claim text and no longer covers the current card, so a stale pass
+    // must not ride the changed claim into a promotion handoff. Reset it (null
+    // fails node.promote's status=pass gate); the node must be re-grounded via
+    // node.set_grounding_audit after the correction.
+    const groundingAuditReset = updatedNode.grounding_audit != null;
+    if (groundingAuditReset) {
+      updatedNode.grounding_audit = null;
     }
 
+    // Each entry records the idempotency_key of the request that produced it so
+    // the committed effect is identified UNIQUELY during crash recovery. The
+    // pair (rewritten_at, new_value) is NOT unique: repeated identical
+    // corrections at the same clock tick (e.g. an A->B, B->A, A->B oscillation
+    // in a scripted batch) collide, and a probe keyed on them would replay a
+    // rewrite whose store effect never landed.
     const rewriteEntry = {
       field,
       previous_value: previousValue,
       new_value: newValue,
       reason: reasonText,
       rewritten_at: now,
+      idempotency_key: idempotencyKeyValue,
     };
     const rewriteHistory = Array.isArray(updatedInputs.provenance_rewrites)
       ? updatedInputs.provenance_rewrites as unknown[]
@@ -212,8 +255,9 @@ export function executeNodeRewriteProvenance(options: {
     const result = {
       budget_snapshot: budgetSnapshot(campaign),
       campaign_id: campaignId,
-      delta_claim_updated: deltaClaimUpdated,
+      delta_claim_updated: true,
       field,
+      grounding_audit_reset: groundingAuditReset,
       idea_id: String(updatedNode.idea_id),
       idempotency: responseIdempotency(idempotencyKeyValue, options.payloadHash),
       new_value: newValue,
@@ -239,6 +283,7 @@ export function executeNodeRewriteProvenance(options: {
     options.store.saveNodes(campaignId, nodes);
     options.store.appendNodeLog(campaignId, updatedNode, 'rewrite_provenance', {
       field,
+      grounding_audit_reset: groundingAuditReset,
       new_value: newValue,
       previous_value: previousValue,
       reason: reasonText,
