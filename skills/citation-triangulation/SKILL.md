@@ -49,7 +49,38 @@ replacement for either.
    means the host provides and write it as one more provider block. Two
    providers are the floor; three or more strengthen the verdict.
 
-2. **Write one JSON block per provider** with the fetched values. Every field
+2. **Admit a fetched record as denoting the same work — before transcribing
+   it.** An identifier lookup that resolves is authoritative. A title search
+   is not: its top hit is a candidate, and an over-admitted wrong-paper
+   record poisons every downstream comparison — the comparator then
+   faithfully reports disagreements about a work that was never the one
+   being cited. Admit a search candidate only when at least one of these
+   holds against the entry under test:
+
+   - its DOI equals the entry's DOI (under the normalization below), or
+   - its title matches the entry's title strongly after normalization, or
+   - its title matches weakly and at least one author family name is shared.
+
+   The working rule: **retrieval admission must be at least as strict as the
+   comparison it feeds.** A bare title-similarity gate with no identifier or
+   author corroboration sits below the comparator's strictness and admits
+   near-title neighbors (a survey of the cited work, a follow-up paper, an
+   unrelated paper with a generic title). In a public benchmark evaluation
+   of this skill as a citation-hallucination detector, wrong-paper records
+   admitted through such a gate caused roughly three-fifths of all false
+   flags; the rule above removed that class. (That evaluation's adapter read
+   a normalized title similarity of at least 0.85 as strong and at least
+   0.60 as weak; the exact scale matters less than the shape — identifier
+   equality, or overwhelming title agreement, or title plus author
+   corroboration.)
+
+   A provider whose search returns no admissible candidate contributes no
+   block — never the least-bad hit. Note the outcome next to the run
+   ("queried, no admissible match"): consistent absence across independent
+   indexes is itself evidence about the entry, while a wrong record admitted
+   to fill the slot is only noise.
+
+3. **Write one JSON block per provider** with the fetched values. Every field
    key must be present; anything the provider does not supply is an explicit
    `null` — never an absent key, and never a guessed value. If a provider
    truncates the author list (an "et al." tail), set `authors` to `null`
@@ -85,7 +116,7 @@ replacement for either.
    comparator concatenates all blocks it is given. Transcribe faithfully —
    copying values by hand and "fixing" them in passing defeats the check.
 
-3. **Run the comparator** (offline, deterministic, standard library only — it
+4. **Run the comparator** (offline, deterministic, standard library only — it
    performs no network calls and sees only the JSON it is fed):
 
    ```bash
@@ -97,7 +128,7 @@ replacement for either.
    Both reports are written atomically. Keep them with the run's artifacts so
    the verdict is auditable next to the inputs that produced it.
 
-4. **Disposition by verdict** (the exit code is fail-closed so upstream
+5. **Disposition by verdict** (the exit code is fail-closed so upstream
    automation can gate on it):
 
    | Verdict | Exit | Disposition |
@@ -138,7 +169,12 @@ compared after deterministic normalization:
 - **doi** — case-insensitive equality after stripping URL and `doi:`
   prefixes; URL forms also lose their query/fragment tail and
   percent-encoding, which are transport artifacts rather than part of the
-  DOI name.
+  DOI name. A preprint-registry DOI (the DataCite-registered `10.48550/`
+  prefix) additionally drops a trailing version suffix (`v1`, `v2`, ...):
+  that registry's identifier denotes the work, not a version of it, so the
+  versioned and unversioned spellings must compare equal. The fold applies
+  only under that prefix — elsewhere a trailing `v` plus digits can be a
+  legitimate part of the registered name.
 
 `venue` and `identifier` are **report-only** and never enter the verdict:
 indexes abbreviate and rename venues inconsistently (the same journal appears
@@ -168,6 +204,45 @@ two provider records were given or no key field has two comparable values;
   weaker evidence than agreement between an index and the publisher record;
   prefer provider sets with distinct provenance when available.
 
+## Follow-up checks the matrix supports
+
+Two verified read-outs of the report go beyond the verdict — one guards
+against over-rejection, the other against under-rejection.
+
+**Identifier-only disagreement is not yet a conviction.** A work that moved
+from a preprint server to a journal legitimately carries two identifiers —
+the preprint registry's DataCite DOI (`10.48550/...`) and the publisher's
+DOI — and indexes differ in which one they surface. When `doi` is the only
+disagreeing key field while every content field (title, authors, year)
+agrees, that alone is not sufficient evidence of a metadata conflict: check
+whether the two values are the preprint/publisher pair for one work before
+rejecting the entry. Version spellings are part of the same trap; the
+comparator folds them under the preprint-registry prefix (one unfolded
+version suffix once manufactured ten spurious conflicts in a single
+public-benchmark run). What remains serious is two *publisher* DOIs
+disagreeing on otherwise-agreeing content — an identifier pointing at some
+other work than the one the text describes. And `year` stays a content field
+on purpose: preprint year versus journal year is a real discrepancy worth
+seeing, and fabricated dates live in that field.
+
+**Preprint presented as published.** When the entry under test claims a
+journal or proceedings venue but every index that returned a record knows
+the work only as a preprint (venue empty or a preprint marker), treat that
+as a strong signal that a preprint is being dressed up as a published paper.
+The check is advisory and stays outside the verdict — venue naming varies
+too much across indexes to carry one — and it has a known false-alarm mode:
+a genuinely published work whose published record simply did not surface
+among an index's top search hits. So flag the entry for confirmation against
+the publisher's record; do not auto-reject. When the entry and at least one
+index both name a non-preprint venue, compare venues conservatively before
+flagging a mismatch: tokenize, drop filler words (proceedings,
+international, conference, ...), let an abbreviated token match as a prefix
+of the full word, and compare initialisms built from the remaining tokens.
+Flag only when nothing matches. In the same public-benchmark evaluation this
+conservative venue comparison raised 46 flags with zero false alarms; the
+value is in the conservatism, because indexes rename and abbreviate venues
+freely.
+
 ## What this skill is NOT
 
 - Not a network client. The comparator never fetches anything; the agent
@@ -176,8 +251,10 @@ two provider records were given or no key field has two comparable values;
 - Not a re-implementation of any provider tool: the atoms listed above
   already fetch metadata; this skill defines the interchange block, the
   normalization rules, and the fail-closed verdict.
-- Not a venue checker or a citation-style linter; formatting hygiene belongs
-  to bibliography tooling.
+- Not a venue-agreement gate: venue never enters the verdict, and
+  citation-style/formatting hygiene belongs to bibliography tooling. The
+  publication-status check above reads venue evidence, but only as an
+  advisory flag.
 - Not a shared contract. The block schema is v1, validated by the comparator
   itself; it graduates to a shared contract only when a second code consumer
   appears.

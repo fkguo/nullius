@@ -124,6 +124,9 @@ jobs:
       - name: Python tests (literature-to-package phase gates)
         run: python -m pytest skills/literature-to-package/tests/test_phase_gates.py -q
 
+      - name: Python tests (citation-triangulation comparator)
+        run: python -m pytest skills/citation-triangulation/tests -q
+
   skills-market-checks:
     runs-on: ubuntu-latest
     defaults:
