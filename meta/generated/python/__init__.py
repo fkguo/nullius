@@ -20,6 +20,7 @@ from .gate_spec_v1 import *  # noqa: F401,F403
 from .gene_v1 import *  # noqa: F401,F403
 from .integrity_check_v1 import *  # noqa: F401,F403
 from .integrity_report_v1 import *  # noqa: F401,F403
+from .launch_authorization_v1 import *  # noqa: F401,F403
 from .memory_graph_edge_v1 import *  # noqa: F401,F403
 from .memory_graph_event_v1 import *  # noqa: F401,F403
 from .memory_graph_node_v1 import *  # noqa: F401,F403

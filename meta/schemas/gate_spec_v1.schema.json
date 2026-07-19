@@ -34,6 +34,29 @@
       "type": "object",
       "description": "Gate-specific policy metadata or parameters.",
       "default": {},
+      "properties": {
+        "launch_authorization": {
+          "type": "object",
+          "description": "Machine-checkable launch-precondition policy for production compute runs. When present, launchers must obtain a launch_authorization_v1 result whose verdict is authorized before starting production output; every listed check must pass, and a reviewer recorded unavailable never counts as an approval.",
+          "required": ["result_schema", "required_checks"],
+          "properties": {
+            "result_schema": {
+              "type": "string",
+              "const": "launch_authorization_v1"
+            },
+            "required_checks": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "enum": ["plan_frozen", "review_binding", "fingerprint_match"]
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      },
       "additionalProperties": true
     },
     "fail_behavior": {

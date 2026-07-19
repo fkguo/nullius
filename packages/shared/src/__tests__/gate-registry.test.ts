@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
   APPROVAL_GATE_IDS,
@@ -5,9 +8,13 @@ import {
   APPROVAL_REQUIRED_DEFAULTS,
   GATE_REGISTRY,
   GateValidationError,
+  LAUNCH_AUTHORIZATION_CHECKS,
+  LAUNCH_AUTHORIZATION_RESULT_SCHEMA,
+  LAUNCH_AUTHORIZATION_VERDICTS,
   getApprovalGateSpecs,
   getApprovalPolicyKey,
   getGateSpec,
+  getLaunchAuthorizationPolicy,
   getRegisteredGateNames,
   isApprovalGateId,
   isRegisteredGate,
@@ -136,6 +143,77 @@ describe('isRegisteredGate', () => {
   it('should return false for unregistered gates', () => {
     expect(isRegisteredGate('A6')).toBe(false);
     expect(isRegisteredGate('')).toBe(false);
+  });
+});
+
+describe('A3 launch authorization policy', () => {
+  const repoRoot = path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    '../../../..',
+  );
+  const readSchema = (name: string): Record<string, unknown> =>
+    JSON.parse(readFileSync(path.join(repoRoot, 'meta/schemas', name), 'utf8'));
+
+  it('should carry the launch-authorization policy on A3 and only on A3', () => {
+    const policy = getLaunchAuthorizationPolicy('A3');
+    expect(policy).toBeDefined();
+    expect(policy!.result_schema).toBe(LAUNCH_AUTHORIZATION_RESULT_SCHEMA);
+    expect(policy!.required_checks).toEqual(LAUNCH_AUTHORIZATION_CHECKS);
+    for (const gate of GATE_REGISTRY) {
+      if (gate.gate_id !== 'A3') {
+        expect(getLaunchAuthorizationPolicy(gate.gate_id)).toBeUndefined();
+      }
+    }
+    expect(getLaunchAuthorizationPolicy('unknown_gate')).toBeUndefined();
+  });
+
+  it('should keep verdicts and checks aligned with launch_authorization_v1.schema.json', () => {
+    const schema = readSchema('launch_authorization_v1.schema.json') as {
+      properties: {
+        verdict: { enum: string[] };
+        checks: { items: { properties: { check_id: { enum: string[] } } } };
+      };
+    };
+    expect(schema.properties.verdict.enum).toEqual([...LAUNCH_AUTHORIZATION_VERDICTS]);
+    expect(schema.properties.checks.items.properties.check_id.enum).toEqual([
+      ...LAUNCH_AUTHORIZATION_CHECKS,
+    ]);
+  });
+
+  it('should keep the gate_spec_v1 policy shape aligned with the registry constants', () => {
+    const schema = readSchema('gate_spec_v1.schema.json') as {
+      properties: {
+        policy: {
+          properties: {
+            launch_authorization: {
+              properties: {
+                result_schema: { const: string };
+                required_checks: { items: { enum: string[] } };
+              };
+            };
+          };
+        };
+      };
+    };
+    const shape = schema.properties.policy.properties.launch_authorization;
+    expect(shape.properties.result_schema.const).toBe(LAUNCH_AUTHORIZATION_RESULT_SCHEMA);
+    expect(shape.properties.required_checks.items.enum).toEqual([
+      ...LAUNCH_AUTHORIZATION_CHECKS,
+    ]);
+  });
+
+  it('should refuse on every non-authorized verdict label', () => {
+    // Every refusal verdict names what was falsified; authorized is the only pass.
+    const refusals = LAUNCH_AUTHORIZATION_VERDICTS.filter((v) => v !== 'authorized');
+    expect(refusals).toEqual([
+      'invalid_record',
+      'missing_plan_hash',
+      'stale_review',
+      'missing_review',
+      'review_rejected',
+      'reviewer_unavailable',
+      'fingerprint_mismatch',
+    ]);
   });
 });
 

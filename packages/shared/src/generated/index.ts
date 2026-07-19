@@ -39,6 +39,7 @@ export * from "./gate-spec-v1.js";
 export type { GeneV1, ConstraintPolicy, EpigeneticMark } from "./gene-v1.js";
 export * from "./integrity-check-v1.js";
 export * from "./integrity-report-v1.js";
+export * from "./launch-authorization-v1.js";
 export * from "./memory-graph-edge-v1.js";
 export * from "./memory-graph-event-v1.js";
 export type {
