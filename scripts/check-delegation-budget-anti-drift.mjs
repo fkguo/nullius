@@ -94,18 +94,26 @@ requireAll(GATE_FILE, read(GATE_FILE), [
 // 2. Schema authority.
 const schemaText = read(SCHEMA_FILE);
 if (schemaText !== null) {
-  let parsed = null;
+  let parsed;
+  let parseFailed = false;
   try {
     parsed = JSON.parse(schemaText);
   } catch (e) {
+    parseFailed = true;
     errors.push(`${SCHEMA_FILE}: not parseable JSON: ${e.message}`);
   }
-  if (parsed !== null) {
-    const gateIds = parsed?.properties?.meta?.properties?.gate_id?.enum;
-    if (!Array.isArray(gateIds)) {
-      errors.push(`${SCHEMA_FILE}: meta.gate_id enum missing or structurally moved (schema-authority leg broken)`);
-    } else if (!gateIds.includes('delegation_budget')) {
-      errors.push(`${SCHEMA_FILE}: meta.gate_id enum no longer contains "delegation_budget"`);
+  if (!parseFailed) {
+    // A literal JSON null (or any non-object) must fail this leg too — a
+    // `parsed !== null` guard would silently skip the enum assertion.
+    if (parsed === null || typeof parsed !== 'object') {
+      errors.push(`${SCHEMA_FILE}: schema is not a JSON object (schema-authority leg broken)`);
+    } else {
+      const gateIds = parsed?.properties?.meta?.properties?.gate_id?.enum;
+      if (!Array.isArray(gateIds)) {
+        errors.push(`${SCHEMA_FILE}: meta.gate_id enum missing or structurally moved (schema-authority leg broken)`);
+      } else if (!gateIds.includes('delegation_budget')) {
+        errors.push(`${SCHEMA_FILE}: meta.gate_id enum no longer contains "delegation_budget"`);
+      }
     }
   }
 }
@@ -129,10 +137,13 @@ if (runnerText !== null) {
   if (!runnerText.includes(SECTION_START)) {
     errors.push(`${RUNNER_FILE}: delegation gate section marker ${JSON.stringify(SECTION_START)} missing (wiring-block bound broken)`);
   }
-  if (!runnerText.includes(SECTION_END)) {
-    errors.push(`${RUNNER_FILE}: section end marker ${JSON.stringify(SECTION_END)} missing (wiring-block bound broken)`);
-  }
   const afterStart = runnerText.split(SECTION_START)[1] ?? '';
+  // The end marker must appear AFTER the start marker — a global includes()
+  // would stay green if the end marker moved before the start and the block
+  // silently widened.
+  if (!afterStart.includes(SECTION_END)) {
+    errors.push(`${RUNNER_FILE}: section end marker ${JSON.stringify(SECTION_END)} not found after the start marker (wiring-block bound broken)`);
+  }
   const wiringBlock = afterStart.split(SECTION_END)[0] ?? afterStart;
   if (!wiringBlock.trim()) {
     errors.push(`${RUNNER_FILE}: delegation budget wiring block not found after section marker`);
@@ -158,6 +169,9 @@ if (runnerText !== null) {
   }
   if (wiringBlock.includes('PROJECT_STAGE')) {
     errors.push(`${RUNNER_FILE}: delegation budget gate wiring references PROJECT_STAGE (stage-conditional enforcement is forbidden)`);
+  }
+  if (wiringBlock.includes('PREFLIGHT_ONLY')) {
+    errors.push(`${RUNNER_FILE}: delegation budget gate wiring references PREFLIGHT_ONLY (mode-conditional enforcement is forbidden — the gate must brake full cycles too)`);
   }
 }
 

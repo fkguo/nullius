@@ -114,46 +114,59 @@ Anti-goals / non-goals:
     cfg["project_stage"] = "exploration"
     cfg_path.write_text(json.dumps(cfg, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
+    # The stub records every invocation in a marker file, so tests can assert
+    # the preflight brake fired BEFORE any member runner was dispatched.
     stub = tmp_path / "stub_runner.sh"
-    _write(stub, "#!/usr/bin/env bash\nexit 0\n")
+    _write(
+        stub,
+        '#!/usr/bin/env bash\necho invoked >> "$(dirname "$0")/runner_invocations.marker"\nexit 0\n',
+    )
     stub.chmod(0o755)
     return root
 
 
-def _run_preflight(root: Path, tag: str) -> subprocess.CompletedProcess:
+def _runner_marker(root: Path) -> Path:
+    return root.parent / "runner_invocations.marker"
+
+
+def _run_cycle(root: Path, tag: str, *, preflight_only: bool = True) -> subprocess.CompletedProcess:
     stub = root.parent / "stub_runner.sh"
-    return subprocess.run(
-        [
-            "bash",
-            str(RUN_TEAM),
-            "--tag",
-            tag,
-            "--notes",
-            "research_contract.md",
-            "--out-dir",
-            "team",
-            "--member-a-system",
-            "prompts/_system_member_a.txt",
-            "--member-b-system",
-            "prompts/_system_member_b.txt",
-            "--member-a-runner-kind",
-            "codex",
-            "--member-b-runner-kind",
-            "codex",
-            "--member-a-runner",
-            str(stub),
-            "--member-b-runner",
-            str(stub),
-            "--no-sidecar",
-            "--preflight-only",
-        ],
-        cwd=root,
-        capture_output=True,
-        text=True,
-    )
+    argv = [
+        "bash",
+        str(RUN_TEAM),
+        "--tag",
+        tag,
+        "--notes",
+        "research_contract.md",
+        "--out-dir",
+        "team",
+        "--member-a-system",
+        "prompts/_system_member_a.txt",
+        "--member-b-system",
+        "prompts/_system_member_b.txt",
+        "--member-a-runner-kind",
+        "codex",
+        "--member-b-runner-kind",
+        "codex",
+        "--member-a-runner",
+        str(stub),
+        "--member-b-runner",
+        str(stub),
+        "--no-sidecar",
+    ]
+    if preflight_only:
+        argv.append("--preflight-only")
+    return subprocess.run(argv, cwd=root, capture_output=True, text=True)
+
+
+def _run_preflight(root: Path, tag: str) -> subprocess.CompletedProcess:
+    return _run_cycle(root, tag, preflight_only=True)
 
 
 def _persisted_verdict(root: Path, tag: str) -> dict:
+    # Assumes safe_tag == tag: every tag used in this module is chosen from
+    # the runner's already-sanitized alphabet, so the run dir is named by the
+    # tag verbatim.
     verdict_path = root / "team" / "runs" / tag / f"{tag}_delegation_budget_gate.json"
     assert verdict_path.is_file(), f"machine verdict not persisted at {verdict_path}"
     return json.loads(verdict_path.read_text(encoding="utf-8"))
@@ -170,6 +183,24 @@ def test_bad_contract_fails_preflight_even_in_exploration(project: Path) -> None
     verdict = _persisted_verdict(project, tag)
     assert verdict["status"] == "not_converged"
     assert any("MISSING_TIME_BOX" in r for r in verdict["reasons"])
+
+
+def test_bad_contract_brakes_full_cycle_before_any_runner(project: Path) -> None:
+    """A normal (non --preflight-only) cycle must brake on a bad contract at
+    preflight, before dispatching any member runner — a future PREFLIGHT_ONLY
+    guard around the gate would flip this test red."""
+    _write(
+        project / "team" / "delegations" / "bad.json",
+        json.dumps({"contract_version": 1, "delegation_id": "x"}),
+    )
+    tag = "20260719T000000Z-m0-it-fullcycle-r1"
+    proc = _run_cycle(project, tag, preflight_only=False)
+    assert proc.returncode == 1, f"full cycle should brake on bad contract; log:\n{proc.stderr[-2000:]}"
+    verdict = _persisted_verdict(project, tag)
+    assert verdict["status"] == "not_converged"
+    assert not _runner_marker(project).exists(), (
+        "member runners were dispatched despite a failing delegation budget contract"
+    )
 
 
 def test_required_with_no_contract_fails_preflight(project: Path) -> None:

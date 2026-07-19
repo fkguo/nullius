@@ -333,6 +333,12 @@ def _emit(
             result["report_status"] = {
                 "gate": _contract_summary(list(result["reasons"]), parse_ok=False)
             }
+            # Post-collapse check, same discipline as the persistence-failure
+            # path: never print an unvalidated fallback silently. (When the
+            # schema SSOT itself is unavailable nothing can validate; the
+            # exit code stays the load-bearing signal.)
+            for err in validate_convergence_result(result):
+                result["reasons"].append(f"fallback verdict validation: {err}")
 
     # Persist FIRST, then print: the stdout verdict and the process exit code
     # must never disagree. On persistence failure, the single stdout verdict
@@ -375,6 +381,14 @@ class _CliInputError(Exception):
 class _Parser(argparse.ArgumentParser):
     def error(self, message: str) -> Any:  # type: ignore[override]
         raise _CliInputError(message)
+
+    def exit(self, status: int = 0, message: str | None = None) -> Any:  # type: ignore[override]
+        # --help exits 0 normally; any nonzero argparse exit must become a
+        # machine verdict, even if a future argparse routes an error through
+        # exit() instead of error().
+        if status:
+            raise _CliInputError(message or f"argument parsing failed (status {status})")
+        super().exit(status, message)
 
 
 def _parse_args() -> argparse.Namespace:
