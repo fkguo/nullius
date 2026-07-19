@@ -85,8 +85,12 @@ requireAll(GATE_FILE, read(GATE_FILE), [
   ['hash recomputation over artifact bytes', 'def _sha256_file'],
   ['quantity-coverage demand on the artifact', '"quantity-not-covered"'],
   ['accepted-outcome demand on the artifact', '"verdict-not-accepted"'],
+  ['gate-fixed accepted outcome (manifest cannot widen acceptance)', 'ACCEPTED_VERDICT = "pass"'],
+  ['fixed-outcome comparison in the binding check', 'if outcome != ACCEPTED_VERDICT:'],
+  ['closed manifest contract (unsupported fields refused)', '"unexpected-field"'],
   ['overview archival affirmation check', '"overview-not-archived"'],
   ['overview on-disk existence check', '"overview-file-missing"'],
+  ['fail-closed payload on usage errors', '"usage-error"'],
   ['machine-only verdict rule', 'callers must not self-assess'],
 ]);
 
@@ -127,12 +131,15 @@ requireAll(SKILL_FILE, read(SKILL_FILE), [
   ['overview-figure field in prose', '`overview_figure`'],
   ['gate invocation', 'check_display_acceptance.py'],
   ['machine-only verdict rule', 'the caller must not self-assess'],
+  ['gate-fixed acceptance prose', 'the manifest cannot widen acceptance'],
   ['fail-closed default', 'fail-closed'],
   ['new-display-new-observable discipline', 'A new display is a new observable.'],
 ]);
 
 // 4. Tests: the negative controls must keep asserting failure, not merely
-// exist as names — each control pins the exit code and the falsification label.
+// exist as names. Function-name needles pin the controls' existence; the
+// assertion-body needles pin that each falsification label is still demanded
+// of the payload (a gutted test body that stops asserting would break these).
 requireAll(TESTS_FILE, read(TESTS_FILE), [
   ['positive control', 'def test_full_bundle_passes'],
   ['missing-binding negative control', 'def test_missing_verdict_binding_fails'],
@@ -140,9 +147,20 @@ requireAll(TESTS_FILE, read(TESTS_FILE), [
   ['tampered-verdict negative control', 'def test_verdict_hash_mismatch_fails'],
   ['wrong-quantity negative control', 'def test_verdict_not_covering_quantity_fails'],
   ['failing-outcome negative control', 'def test_failing_verdict_outcome_fails'],
+  ['caller-widening negative control', 'def test_caller_cannot_widen_accepted_verdicts'],
   ['missing-overview negative control', 'def test_missing_overview_figure_file_fails'],
   ['unarchived-overview negative control', 'def test_overview_not_archived_fails'],
+  ['usage-error payload control', 'def test_usage_error_emits_invalid_manifest_payload'],
   ['schema-sync assertion', 'def test_result_enum_matches_schema_authority'],
+  ['pass assertion body', 'assert payload["result"] == "pass"'],
+  ['missing-binding assertion body', 'assert payload["result"] == "missing_verdict_binding"'],
+  ['verdict-mismatch assertion body', 'assert payload["result"] == "verdict_mismatch"'],
+  ['missing-overview assertion body', 'assert payload["result"] == "missing_overview_figure"'],
+  ['invalid-manifest assertion body', 'assert payload["result"] == "invalid_manifest"'],
+  ['pass exit-code assertion', 'assert code == 0'],
+  ['fail exit-code assertion', 'assert code == 1'],
+  ['error exit-code assertion', 'assert code == 2'],
+  ['non-pass-implies-findings invariant', 'if payload["result"] != "pass":'],
 ]);
 
 // CI wiring: both the behavior tests and this lock must actually run.
