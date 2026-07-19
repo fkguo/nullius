@@ -443,6 +443,34 @@ def find_broken_config_path(seed_path: Path) -> Path | None:
     return None
 
 
+def _read_regular_file_bytes(path: Path) -> bytes:
+    """Descriptor-based nonblocking read for the STRICT config loader: a FIFO
+    substituted for the resolved config target between discovery and read
+    would hang a blocking read_bytes() forever. Open O_NONBLOCK, fstat-verify
+    a regular file on the OPEN descriptor, then read."""
+    import stat as stat_module
+
+    try:
+        fd = os.open(path, os.O_RDONLY | getattr(os, "O_NONBLOCK", 0))
+    except OSError as e:
+        raise ValueError(f"cannot open config: {e}") from e
+    try:
+        st = os.fstat(fd)
+        if not stat_module.S_ISREG(st.st_mode):
+            raise ValueError(
+                f"config is not a regular file (mode {stat_module.filemode(st.st_mode)}) — refusing to read"
+            )
+        chunks: list[bytes] = []
+        while True:
+            chunk = os.read(fd, 1 << 16)
+            if not chunk:
+                break
+            chunks.append(chunk)
+    finally:
+        os.close(fd)
+    return b"".join(chunks)
+
+
 def _reject_duplicate_config_keys(pairs: list) -> dict:
     obj: dict = {}
     for key, value in pairs:
@@ -463,10 +491,7 @@ def load_config_object(path: Path) -> dict:
     must have no duplicate keys (and a YAML config without an importable
     yaml module is an error, not "no config"); the top level must be a
     mapping."""
-    try:
-        raw = path.read_bytes()
-    except OSError as e:
-        raise ValueError(f"cannot read config: {e}") from e
+    raw = _read_regular_file_bytes(path)
     try:
         text = raw.decode("utf-8")
     except UnicodeDecodeError as e:

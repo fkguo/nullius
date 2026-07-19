@@ -232,9 +232,11 @@ def test_symlinked_config_brakes_on_target_tree_contract(project: Path) -> None:
     assert proc.returncode == 1, (
         f"preflight should brake on the symlink target's bad contract; log:\n{proc.stderr[-2000:]}"
     )
-    verdict_path = shared / "team" / "runs" / tag / f"{tag}_delegation_budget_gate.json"
-    if verdict_path.is_file():
-        assert json.loads(verdict_path.read_text(encoding="utf-8"))["status"] == "not_converged"
+    # The runner's --out-dir is cwd-relative, so the verdict persists under
+    # the project tree even though the scanned delegations live in shared/.
+    verdict = _persisted_verdict(project, tag)
+    assert verdict["status"] == "not_converged"
+    assert any("MISSING_TIME_BOX" in r for r in verdict["reasons"])
 
 
 def test_complete_contract_passes_preflight(project: Path) -> None:

@@ -252,6 +252,20 @@ requireAll(TESTS_FILE, testsText, [
   ['missing-yaml-module control', 'test_yaml_config_without_yaml_module_is_input_error'],
   ['symlink-retarget resolve-once regression', 'test_config_symlink_retarget_between_reads_keeps_original_root'],
   ['nonblocking FIFO contract control', 'test_fifo_contract_entry_fails_without_blocking'],
+  ['nonblocking symlink-to-FIFO contract control', 'test_symlink_to_fifo_contract_entry_fails_without_blocking'],
+  ['nonblocking FIFO config-loader control', 'test_fifo_config_target_raises_instead_of_blocking'],
+  ['nonblocking FIFO out-json control', 'test_fifo_out_json_fails_fast_with_single_verdict'],
+  ['hang-guard subprocess timeout', 'timeout=60'],
+]);
+
+// Strict config loader and verdict writer must stay descriptor-verified and
+// nonblocking (a FIFO would otherwise hang preflight with no verdict).
+requireAll('skills/research-team/scripts/lib/team_config.py',
+  read('skills/research-team/scripts/lib/team_config.py'), [
+    ['nonblocking config reader', 'def _read_regular_file_bytes'],
+  ]);
+requireAll(GATE_FILE, read(GATE_FILE), [
+  ['FIFO-safe verdict writer', 'def _write_regular_file_text'],
 ]);
 
 // The runner's config finder must print the RESOLVED path (the runner
