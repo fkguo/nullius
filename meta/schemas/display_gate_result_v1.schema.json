@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://nullius.dev/schemas/display_gate_result_v1.schema.json",
-  "title": "DisplayGateResult V1",
+  "title": "Display Gate Result V1",
   "description": "Machine verdict of the display-acceptance gate: before a figure or table becomes durable or outward-facing, its provenance bundle must bind every plotted quantity to a verification-gate verdict artifact and archive a human-review overview figure spanning all output components. The verdict is computed only by the gate script; callers must not self-assess. Fail-closed: missing or unverifiable evidence is a failure, never a pass.",
   "type": "object",
   "required": [

@@ -218,6 +218,122 @@ def test_binding_priority_over_overview(tmp_path: Path) -> None:
     assert "overview-undeclared" in _kinds(payload)
 
 
+def test_caller_cannot_widen_accepted_verdicts(tmp_path: Path) -> None:
+    # The accepted outcome is fixed by the gate. A manifest that tries to
+    # declare its own acceptance vocabulary (the caller judging itself) must
+    # fail twice over: the unsupported field is refused, and the failing
+    # outcome stays refused.
+    block = _bundle(tmp_path)
+    failing_hash = _write_verdict(tmp_path / "gates" / "quantity_a.verdict.json", ["quantity_a"], verdict="fail")
+    block["verdict_bindings"][0]["verdict_sha256"] = failing_hash
+    block["verdict_bindings"][0]["accepted_verdicts"] = ["fail"]
+    manifest = _write_manifest(tmp_path, block)
+    code, payload = _run(manifest)
+    assert code == 1
+    assert payload["result"] != "pass"
+    assert {"unexpected-field", "verdict-not-accepted"} <= _kinds(payload)
+
+
+def test_unexpected_block_field_fails(tmp_path: Path) -> None:
+    block = _bundle(tmp_path)
+    block["gate_disabled"] = True
+    manifest = _write_manifest(tmp_path, block)
+    code, payload = _run(manifest)
+    assert code == 1
+    assert payload["result"] == "missing_verdict_binding"
+    assert "unexpected-field" in _kinds(payload)
+
+
+def test_binding_unknown_quantity_fails(tmp_path: Path) -> None:
+    block = _bundle(tmp_path)
+    extra_hash = _write_verdict(tmp_path / "gates" / "extra.verdict.json", ["quantity_c"])
+    block["verdict_bindings"].append(
+        {"quantity": "quantity_c", "verdict_path": "gates/extra.verdict.json", "verdict_sha256": extra_hash}
+    )
+    manifest = _write_manifest(tmp_path, block)
+    code, payload = _run(manifest)
+    assert code == 1
+    assert payload["result"] == "verdict_mismatch"
+    assert "binding-unknown-quantity" in _kinds(payload)
+
+
+def test_duplicate_binding_fails(tmp_path: Path) -> None:
+    block = _bundle(tmp_path)
+    block["verdict_bindings"].append(dict(block["verdict_bindings"][0]))
+    manifest = _write_manifest(tmp_path, block)
+    code, payload = _run(manifest)
+    assert code == 1
+    assert payload["result"] == "verdict_mismatch"
+    assert "duplicate-binding" in _kinds(payload)
+
+
+def test_duplicate_plotted_quantity_fails(tmp_path: Path) -> None:
+    block = _bundle(tmp_path)
+    block["plotted_quantities"].append("quantity_a")
+    manifest = _write_manifest(tmp_path, block)
+    code, payload = _run(manifest)
+    assert code == 1
+    assert payload["result"] == "missing_verdict_binding"
+    assert "duplicate-plotted-quantity" in _kinds(payload)
+
+
+def test_unreadable_verdict_artifact_fails(tmp_path: Path) -> None:
+    # The artifact hashes correctly (the pin is honest) but is not readable
+    # as a JSON verdict: it cannot demonstrate coverage, so it must fail.
+    block = _bundle(tmp_path)
+    garbled = tmp_path / "gates" / "quantity_a.verdict.json"
+    garbled.write_bytes(b"\x00not json")
+    block["verdict_bindings"][0]["verdict_sha256"] = _sha256(garbled)
+    manifest = _write_manifest(tmp_path, block)
+    code, payload = _run(manifest)
+    assert code == 1
+    assert payload["result"] == "verdict_mismatch"
+    assert "verdict-unreadable" in _kinds(payload)
+
+
+def test_overview_hash_pinned_passes(tmp_path: Path) -> None:
+    block = _bundle(tmp_path)
+    overview = tmp_path / "figs" / "review" / "overview_all_components.pdf"
+    block["overview_figure"]["sha256"] = _sha256(overview)
+    manifest = _write_manifest(tmp_path, block)
+    code, payload = _run(manifest)
+    assert code == 0
+    assert payload["result"] == "pass"
+
+
+def test_overview_hash_mismatch_fails(tmp_path: Path) -> None:
+    block = _bundle(tmp_path)
+    block["overview_figure"]["sha256"] = "0" * 64
+    manifest = _write_manifest(tmp_path, block)
+    code, payload = _run(manifest)
+    assert code == 1
+    assert payload["result"] == "missing_overview_figure"
+    assert "overview-hash-mismatch" in _kinds(payload)
+
+
+def test_overview_hash_malformed_fails(tmp_path: Path) -> None:
+    block = _bundle(tmp_path)
+    block["overview_figure"]["sha256"] = "not-a-digest"
+    manifest = _write_manifest(tmp_path, block)
+    code, payload = _run(manifest)
+    assert code == 1
+    assert payload["result"] == "missing_overview_figure"
+    assert "overview-hash-malformed" in _kinds(payload)
+
+
+def test_usage_error_emits_invalid_manifest_payload(tmp_path: Path) -> None:
+    proc = subprocess.run(
+        [sys.executable, str(GATE)],  # missing required --manifest
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert proc.returncode == 2
+    payload = json.loads(proc.stdout)
+    assert payload["result"] == "invalid_manifest"
+    assert payload["findings"]
+
+
 def test_unreadable_manifest_is_invalid(tmp_path: Path) -> None:
     manifest = tmp_path / "broken.provenance.json"
     manifest.write_text("{not json", encoding="utf-8")
@@ -237,10 +353,46 @@ def test_result_enum_matches_schema_authority() -> None:
     assert set(module.CATEGORY_PRIORITY) == set(category_enum)
 
 
-def test_payload_satisfies_schema_required_fields(tmp_path: Path) -> None:
-    manifest = _write_manifest(tmp_path, _bundle(tmp_path))
-    _, payload = _run(manifest)
+def _assert_payload_matches_schema(payload: dict) -> None:
+    """Structural validation against the schema SSOT without an external
+    jsonschema dependency: required keys, closed key set, enum membership,
+    finding shape, and field types."""
     schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
     for key in schema["required"]:
         assert key in payload
     assert set(payload) <= set(schema["properties"])
+    assert payload["schema_version"] == 1
+    assert isinstance(payload["manifest"], str) and payload["manifest"]
+    assert payload["result"] in schema["properties"]["result"]["enum"]
+    assert isinstance(payload["quantities_declared"], int) and payload["quantities_declared"] >= 0
+    assert isinstance(payload["bindings_checked"], int) and payload["bindings_checked"] >= 0
+    assert payload["overview_figure"] is None or isinstance(payload["overview_figure"], str)
+    finding_schema = schema["$defs"]["DisplayGateFinding"]
+    category_enum = finding_schema["properties"]["category"]["enum"]
+    for finding in payload["findings"]:
+        assert set(finding) <= set(finding_schema["properties"])
+        for key in finding_schema["required"]:
+            assert key in finding
+        assert isinstance(finding["kind"], str) and finding["kind"]
+        assert finding["category"] in category_enum
+        assert isinstance(finding["message"], str) and finding["message"]
+    # Invariant the schema cannot express: a non-pass verdict is always
+    # explained by at least one finding.
+    if payload["result"] != "pass":
+        assert payload["findings"]
+
+
+def test_payload_satisfies_schema(tmp_path: Path) -> None:
+    manifest = _write_manifest(tmp_path, _bundle(tmp_path))
+    _, payload = _run(manifest)
+    _assert_payload_matches_schema(payload)
+
+
+def test_failing_payload_satisfies_schema_and_explains_itself(tmp_path: Path) -> None:
+    block = _bundle(tmp_path)
+    block["verdict_bindings"] = []
+    del block["overview_figure"]
+    manifest = _write_manifest(tmp_path, block)
+    _, payload = _run(manifest)
+    assert payload["result"] != "pass"
+    _assert_payload_matches_schema(payload)

@@ -55,7 +55,7 @@ class DisplayGateFinding(BaseModel):
     ] = None
 
 
-class DisplaygateresultV1(BaseModel):
+class DisplayGateResultV1(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )

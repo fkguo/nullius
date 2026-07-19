@@ -55,7 +55,13 @@ RESULT_VALUES = (RESULT_PASS,) + tuple(
     c for c in CATEGORY_PRIORITY if c != RESULT_INVALID_MANIFEST
 ) + (RESULT_INVALID_MANIFEST,)
 
-DEFAULT_ACCEPTED_VERDICTS = ("pass",)
+# The accepted outcome is fixed by the gate, never by the manifest: letting the
+# caller widen acceptance would hand the verdict back to the party being judged.
+ACCEPTED_VERDICT = "pass"
+
+_BLOCK_FIELDS = frozenset({"plotted_quantities", "verdict_bindings", "overview_figure"})
+_BINDING_FIELDS = frozenset({"quantity", "verdict_path", "verdict_sha256"})
+_OVERVIEW_FIELDS = frozenset({"path", "archived", "sha256"})
 
 _SHA256 = re.compile(r"(?:sha256:)?([0-9a-fA-F]{64})\Z")
 
@@ -111,6 +117,16 @@ def _check_binding(
         findings.append(_finding("binding-malformed", RESULT_MISSING_VERDICT_BINDING, f"{label} is not an object"))
         return None
 
+    for key in sorted(set(binding) - _BINDING_FIELDS):
+        findings.append(
+            _finding(
+                "unexpected-field",
+                RESULT_MISSING_VERDICT_BINDING,
+                f"{label} declares unsupported field {key!r}: the gate's acceptance contract is "
+                "fixed and cannot be widened or reconfigured from the manifest",
+            )
+        )
+
     quantity = binding.get("quantity")
     if not isinstance(quantity, str) or not quantity.strip():
         findings.append(
@@ -149,19 +165,6 @@ def _check_binding(
                 "verdict-hash-malformed",
                 RESULT_VERDICT_MISMATCH,
                 f"{label} ({quantity!r}) verdict_sha256 is missing or not a SHA-256 digest",
-                quantity=quantity,
-            )
-        )
-        return quantity
-
-    accepted_raw = binding.get("accepted_verdicts", list(DEFAULT_ACCEPTED_VERDICTS))
-    accepted = _string_list(accepted_raw)
-    if accepted is None:
-        findings.append(
-            _finding(
-                "binding-malformed",
-                RESULT_MISSING_VERDICT_BINDING,
-                f"{label} ({quantity!r}) accepted_verdicts must be a non-empty list of non-empty strings",
                 quantity=quantity,
             )
         )
@@ -260,13 +263,14 @@ def _check_binding(
         return quantity
 
     outcome = artifact.get("verdict")
-    if not isinstance(outcome, str) or outcome not in accepted:
+    if outcome != ACCEPTED_VERDICT:
         findings.append(
             _finding(
                 "verdict-not-accepted",
                 RESULT_VERDICT_MISMATCH,
-                f"{label} ({quantity!r}) verdict artifact records outcome {outcome!r}, which is not "
-                f"among the accepted outcomes {accepted!r}",
+                f"{label} ({quantity!r}) verdict artifact records outcome {outcome!r}; only "
+                f"{ACCEPTED_VERDICT!r} is accepted, and the accepted outcome is fixed by the gate, "
+                "never by the manifest",
                 quantity=quantity,
                 path=str(verdict_path),
             )
@@ -297,6 +301,16 @@ def _check_overview(overview: Any, base_dir: Path, findings: list[dict[str, Any]
             )
         )
         return None
+
+    for key in sorted(set(overview) - _OVERVIEW_FIELDS):
+        findings.append(
+            _finding(
+                "unexpected-field",
+                RESULT_MISSING_OVERVIEW_FIGURE,
+                f"overview_figure declares unsupported field {key!r}: the gate's acceptance "
+                "contract is fixed and cannot be widened or reconfigured from the manifest",
+            )
+        )
 
     path_s = overview.get("path")
     declared_path = path_s.strip() if isinstance(path_s, str) and path_s.strip() else None
@@ -408,6 +422,16 @@ def check_manifest(manifest_path: Path) -> dict[str, Any]:
                 )
             )
         else:
+            for key in sorted(set(block) - _BLOCK_FIELDS):
+                findings.append(
+                    _finding(
+                        "unexpected-field",
+                        RESULT_MISSING_VERDICT_BINDING,
+                        f"display_acceptance declares unsupported field {key!r}: the gate's "
+                        "acceptance contract is fixed and cannot be widened or reconfigured "
+                        "from the manifest",
+                    )
+                )
             plotted = _string_list(block.get("plotted_quantities"))
             if plotted is None:
                 findings.append(
@@ -500,7 +524,30 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--manifest", required=True, help="figure provenance manifest (JSON sidecar)")
     parser.add_argument("--json", action="store_true", help="emit the display_gate_result_v1 payload on stdout")
     parser.add_argument("--out-json", type=Path, default=None, help="also persist the payload to this path")
-    args = parser.parse_args(argv)
+    try:
+        args = parser.parse_args(argv)
+    except SystemExit as exc:
+        if exc.code == 0:  # --help
+            return 0
+        # A machine consumer reading only the payload must still see a
+        # fail-closed verdict when the invocation itself was malformed.
+        payload = {
+            "schema_version": SCHEMA_VERSION,
+            "manifest": "(usage-error)",
+            "result": RESULT_INVALID_MANIFEST,
+            "findings": [
+                _finding(
+                    "usage-error",
+                    RESULT_INVALID_MANIFEST,
+                    "invalid command-line invocation (see stderr); no manifest was judged",
+                )
+            ],
+            "quantities_declared": 0,
+            "bindings_checked": 0,
+            "overview_figure": None,
+        }
+        print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
+        return 2
 
     result = check_manifest(Path(args.manifest))
 
