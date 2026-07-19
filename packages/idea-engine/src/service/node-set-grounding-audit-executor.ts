@@ -79,13 +79,28 @@ export function executeNodeSetGroundingAudit(options: {
     }
 
     const auditParams = options.params.grounding_audit as Record<string, unknown>;
+    // The params schema enforces report_ref minLength 1, but a whitespace-only
+    // value slips through and would promote without a usable reference to the
+    // independent-verification record it is supposed to name. report_ref is the
+    // whole point of the mandatory field, so a blank one is rejected.
+    const reportRef = String(auditParams.report_ref);
+    if (reportRef.trim().length === 0) {
+      const data = {
+        reason: 'schema_invalid',
+        campaign_id: campaignId,
+        node_id: nodeId,
+        details: { message: 'grounding_audit.report_ref is blank (whitespace only) — it must name the independent grounding record this audit summarizes' },
+      };
+      options.contracts.validateErrorData(data);
+      throw new RpcError(-32002, 'schema_validation_failed', data);
+    }
     const now = options.now();
     const groundingAudit: Record<string, unknown> = {
       status: String(auditParams.status),
       folklore_risk_score: Number(auditParams.folklore_risk_score),
       failures: (auditParams.failures as unknown[]).map(String),
       timestamp: now,
-      report_ref: String(auditParams.report_ref),
+      report_ref: reportRef,
     };
 
     const updatedNode = structuredClone(node);
