@@ -652,6 +652,19 @@ def _run(args: argparse.Namespace, base_meta: dict[str, Any], _input_error: Any)
             if not isinstance(rel, str) or not rel.strip():
                 return _input_error(["config `delegation_budget.delegations_dir` must be a non-empty string"])
             delegations_dir = project_root / rel
+        # A dangling symlink anywhere on the lexical path (the leaf OR an
+        # ancestor, e.g. team -> missing) is a broken setup, not an absent
+        # directory — check BEFORE resolution, which would erase the links.
+        for component in (delegations_dir, *delegations_dir.parents):
+            if component.is_symlink() and not component.exists():
+                return _input_error(
+                    [f"delegations path traverses a dangling symlink: {component}"]
+                )
+        # Bind the scan directory BEFORE enumeration: listing a symlinked
+        # directory and resolving entries afterwards would let a retarget
+        # between the two substitute a different contract set for the one
+        # just enumerated.
+        delegations_dir = delegations_dir.resolve()
         # Enumerate with os.listdir directly: Path.glob suppresses OSError,
         # and Path.exists()/is_dir() swallow ENOTDIR on nested bad paths
         # (e.g. <file>/subdir), which would silently SKIP. Only a genuinely
@@ -660,14 +673,6 @@ def _run(args: argparse.Namespace, base_meta: dict[str, Any], _input_error: Any)
         try:
             names: list[str] | None = sorted(os.listdir(delegations_dir))
         except FileNotFoundError:
-            # Genuinely absent is "no delegations" — but a dangling symlink
-            # anywhere on the path (the leaf OR an ancestor, e.g.
-            # team -> missing) is a broken setup, not an absent directory.
-            for component in (delegations_dir, *delegations_dir.parents):
-                if component.is_symlink() and not component.exists():
-                    return _input_error(
-                        [f"delegations path traverses a dangling symlink: {component}"]
-                    )
             names = None
         except OSError as e:
             return _input_error([f"cannot read delegations directory {delegations_dir}: {e}"])

@@ -1113,30 +1113,25 @@ def test_symlink_to_fifo_out_json_fails_fast(tmp_path: Path) -> None:
 
 def test_out_json_fifo_with_active_reader_rejected_by_fstat(tmp_path: Path) -> None:
     """With an ACTIVE reader on the FIFO, open() succeeds and the writer's
-    fstat regular-file rejection (not just readerless ENXIO) must fire."""
+    fstat regular-file rejection (not just readerless ENXIO) must fire. The
+    reader descriptor is held open BEFORE the gate starts (nonblocking
+    read-open needs no writer), so the test cannot race back into ENXIO."""
     if not hasattr(os, "mkfifo"):
         return
-    import threading
-
     proj = _make_project(tmp_path, contracts={"c.json": _complete_contract()})
     fifo = proj / "verdict_fifo_reader.json"
     os.mkfifo(fifo)
-
-    drained: list[bytes] = []
-
-    def _drain() -> None:
-        with open(fifo, "rb") as f:
-            drained.append(f.read())
-
-    reader = threading.Thread(target=_drain, daemon=True)
-    reader.start()
+    reader_fd = os.open(fifo, os.O_RDONLY | os.O_NONBLOCK)
     try:
         proc = _run_gate_with_out_json(proj, fifo)
+        assert proc.returncode == 2
+        assert json.loads(proc.stdout.strip())["status"] == "parse_error"
+        # fstat-specific diagnostic — proves the rejection path, not ENXIO.
+        assert "not a regular file" in proc.stderr
+        # Nothing must ever be written to the non-regular target.
+        assert os.read(reader_fd, 4096) == b""
     finally:
-        reader.join(timeout=10)
-    assert proc.returncode == 2
-    assert json.loads(proc.stdout.strip())["status"] == "parse_error"
-    assert drained == [] or drained == [b""], "nothing must ever be written to a non-regular target"
+        os.close(reader_fd)
 
 
 def test_contract_symlink_retarget_after_discovery_keeps_original_target(
@@ -1185,4 +1180,55 @@ def test_contract_symlink_retarget_after_discovery_keeps_original_target(
     )
     # Bound to target_a (resolved at discovery) → invalid contract → FAIL 1.
     # A read-time re-follow would land on target_b and PASS with 0.
+    assert mod.main() == 1
+
+
+def test_delegations_dir_symlink_retarget_during_listdir_keeps_original_set(
+    tmp_path: Path, monkeypatch: object
+) -> None:
+    """Discriminating regression for scan-directory binding: retargeting a
+    delegations-dir symlink right after enumeration must not substitute the
+    other tree's (valid) contract set — entries bind to the directory
+    resolved BEFORE listdir."""
+    import importlib.util
+
+    dir_a = tmp_path / "dir_a"
+    invalid = _complete_contract()
+    del invalid["time_box"]
+    _write(dir_a / "lane.json", json.dumps(invalid))
+    dir_b = tmp_path / "dir_b"
+    _write(dir_b / "lane.json", json.dumps(_complete_contract()))
+
+    proj = _make_project(tmp_path)
+    link = proj / "team" / "delegations"
+    link.parent.mkdir(parents=True, exist_ok=True)
+    link.symlink_to(dir_a)
+
+    spec = importlib.util.spec_from_file_location("check_delegation_budget_dir_retarget", GATE)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    real_listdir = mod.os.listdir
+
+    def _retargeting_listdir(p):
+        names = real_listdir(p)
+        if link.is_symlink():
+            link.unlink()
+            link.symlink_to(dir_b)
+        return names
+
+    monkeypatch.setattr(mod.os, "listdir", _retargeting_listdir)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "check_delegation_budget.py",
+            "--notes",
+            str(proj / "notes.md"),
+            "--project-root",
+            str(proj),
+        ],
+    )
+    # Bound to dir_a (resolved before listdir) → invalid contract → FAIL 1.
+    # Resolving entries through the retargeted link would land in dir_b → 0.
     assert mod.main() == 1
