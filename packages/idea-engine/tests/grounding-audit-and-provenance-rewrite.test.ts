@@ -1,5 +1,5 @@
 import { createHash } from 'crypto';
-import { mkdtempSync, readFileSync, rmSync } from 'fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -250,6 +250,30 @@ function lastLogEntry(service: IdeaEngineRpcService, campaignId: string): Record
   return JSON.parse(lines[lines.length - 1]!) as Record<string, unknown>;
 }
 
+interface IdemRecord {
+  created_at: string;
+  payload_hash: string;
+  response: { kind: string; payload: Record<string, unknown> };
+  state: string;
+}
+
+/** Reopen a committed idempotency record as `prepared`, simulating a crash between saveNodes and the committed write. */
+function reopenPrepared(service: IdeaEngineRpcService, campaignId: string, method: string, key: string): void {
+  const path = service.read.store.campaignIdempotencyPath(campaignId);
+  const records = JSON.parse(readFileSync(path, 'utf8')) as Record<string, IdemRecord>;
+  records[`${method}:${key}`]!.state = 'prepared';
+  writeFileSync(path, `${JSON.stringify(records, null, 2)}\n`, 'utf8');
+}
+
+function countLogEntries(service: IdeaEngineRpcService, campaignId: string, nodeId: string, mutation: string): number {
+  return readFileSync(service.read.store.nodesLogPath(campaignId), 'utf8')
+    .split('\n')
+    .filter(line => line.trim().length > 0)
+    .map(line => JSON.parse(line) as Record<string, unknown>)
+    .filter(entry => entry.mutation === mutation && entry.node_id === nodeId)
+    .length;
+}
+
 function expectRpcError(fn: () => unknown, code: number, reason: string): RpcError {
   try {
     fn();
@@ -419,6 +443,24 @@ describe('node.set_grounding_audit', () => {
       idempotency_key: 'ga-no-ref',
       node_id: nodeId,
     }), -32002, 'schema_invalid');
+  });
+
+  it('recovers a prepared record without re-writing: the crash-recovery probe recognizes the committed audit', () => {
+    const service = freshService();
+    const campaignId = initCampaign(service);
+    const [nodeId] = allNodeIds(service, campaignId);
+    setPosterior(service, campaignId, nodeId!, 'sp-1', 0.42, 3);
+    const first = setGroundingAudit(service, campaignId, nodeId!, 'ga-1');
+    const revisionAfterFirst = Number(loadNode(service, campaignId, nodeId!).revision);
+
+    // Simulate a crash between saveNodes and the committed idempotency write.
+    reopenPrepared(service, campaignId, 'node.set_grounding_audit', 'ga-1');
+    const recovered = setGroundingAudit(service, campaignId, nodeId!, 'ga-1');
+    expect((recovered.idempotency as Record<string, unknown>).is_replay).toBe(true);
+    expect(recovered.node).toEqual(first.node);
+    // The probe recognized the landed audit — no re-write, no second log entry.
+    expect(Number(loadNode(service, campaignId, nodeId!).revision)).toBe(revisionAfterFirst);
+    expect(countLogEntries(service, campaignId, nodeId!, 'set_grounding_audit')).toBe(1);
   });
 });
 
@@ -596,5 +638,110 @@ describe('node.rewrite_provenance', () => {
       -32002,
       'idempotency_key_conflict',
     );
+  });
+
+  it('recovers a prepared record across an intervening mutation without re-executing into rewrite_value_unchanged', () => {
+    const service = freshService();
+    const campaignId = initCampaign(service);
+    const [seedNodeId] = allNodeIds(service, campaignId);
+    const generatedId = importGeneratedNode(service, campaignId, seedNodeId!);
+
+    const first = rewriteProvenance(service, campaignId, generatedId, 'rw-1', URI_A);
+    const revisionAfterRewrite = Number(loadNode(service, campaignId, generatedId).revision);
+
+    // Simulate a crash between saveNodes and the committed idempotency write,
+    // then an UNRELATED mutation that moves the node's top-level updated_at
+    // before the client retries. A probe keyed on updated_at would delete the
+    // prepared record and re-execute — and re-execution would now read
+    // closest_prior === URI_A and throw rewrite_value_unchanged. The
+    // history-entry probe must recognize the landed correction instead.
+    reopenPrepared(service, campaignId, 'node.rewrite_provenance', 'rw-1');
+    service.handle('node.set_lifecycle', {
+      campaign_id: campaignId,
+      idempotency_key: 'intervening-review',
+      lifecycle_state: 'admission_review',
+      node_id: generatedId,
+    });
+
+    const recovered = rewriteProvenance(service, campaignId, generatedId, 'rw-1', URI_A);
+    expect((recovered.idempotency as Record<string, unknown>).is_replay).toBe(true);
+    expect(recovered.new_value).toBe(first.new_value);
+    expect(nodeCloseestPrior(loadNode(service, campaignId, generatedId))).toBe(URI_A);
+    // No re-execution: the rewrite revision is unchanged (only the intervening
+    // set_lifecycle advanced it), and the history was not double-appended.
+    expect(Number(loadNode(service, campaignId, generatedId).revision)).toBe(revisionAfterRewrite + 1);
+    expect(nodeRewriteHistory(loadNode(service, campaignId, generatedId))).toHaveLength(1);
+    expect(countLogEntries(service, campaignId, generatedId, 'rewrite_provenance')).toBe(1);
+  });
+
+  it('rejects a blank (whitespace-only) new_value that slips past the params minLength', () => {
+    const service = freshService();
+    const campaignId = initCampaign(service);
+    const [seedNodeId] = allNodeIds(service, campaignId);
+    const generatedId = importGeneratedNode(service, campaignId, seedNodeId!);
+    expectRpcError(
+      () => rewriteProvenance(service, campaignId, generatedId, 'rw-blank', '   '),
+      -32002,
+      'schema_invalid',
+    );
+  });
+
+  it('rejects a URI in evidence_uris_used but lacking a retrieval receipt (single-condition guard branch)', () => {
+    const service = freshService();
+    const campaignId = initCampaign(service);
+    const [seedNodeId] = allNodeIds(service, campaignId);
+    const generatedId = importGeneratedNode(service, campaignId, seedNodeId!);
+    // Add a URI to evidence_uris_used WITHOUT a matching retrieval receipt.
+    const nodes = service.read.store.loadNodes<Record<string, unknown>>(campaignId);
+    const trace = (nodes[generatedId] as Record<string, unknown>).operator_trace as Record<string, unknown>;
+    (trace.evidence_uris_used as string[]).push('https://example.com/no-receipt');
+    service.read.store.saveNodes(campaignId, nodes);
+    expectRpcError(
+      () => rewriteProvenance(service, campaignId, generatedId, 'rw-noreceipt', 'https://example.com/no-receipt'),
+      -32002,
+      'evidence_receipt_missing',
+    );
+  });
+
+  it('rejects a receipted URI absent from evidence_uris_used (the other single-condition guard branch)', () => {
+    const service = freshService();
+    const campaignId = initCampaign(service);
+    const [seedNodeId] = allNodeIds(service, campaignId);
+    const generatedId = importGeneratedNode(service, campaignId, seedNodeId!);
+    // Add a retrieval receipt WITHOUT listing the URI in evidence_uris_used.
+    const nodes = service.read.store.loadNodes<Record<string, unknown>>(campaignId);
+    const trace = (nodes[generatedId] as Record<string, unknown>).operator_trace as Record<string, unknown>;
+    const inputs = trace.inputs as Record<string, unknown>;
+    (inputs.retrieval_receipts as Array<Record<string, unknown>>).push({
+      source: 'manual fixture receipt',
+      uri: 'https://example.com/receipt-only',
+    });
+    service.read.store.saveNodes(campaignId, nodes);
+    expectRpcError(
+      () => rewriteProvenance(service, campaignId, generatedId, 'rw-notused', 'https://example.com/receipt-only'),
+      -32002,
+      'evidence_receipt_missing',
+    );
+  });
+
+  it('reports delta_claim_updated=false and still rewrites the trace when no card claim carries the prefix', () => {
+    const service = freshService();
+    const campaignId = initCampaign(service);
+    const [seedNodeId] = allNodeIds(service, campaignId);
+    const generatedId = importGeneratedNode(service, campaignId, seedNodeId!);
+    // Drop the engine-assembled novelty-delta claim, leaving the base claim so
+    // the idea_card stays schema-valid; the rewrite must still correct the
+    // trace and report that no card claim was synced.
+    const nodes = service.read.store.loadNodes<Record<string, unknown>>(campaignId);
+    const card = (nodes[generatedId] as Record<string, unknown>).idea_card as Record<string, unknown>;
+    card.claims = (card.claims as Array<Record<string, unknown>>).filter(
+      claim => !String(claim.claim_text).startsWith('Novelty delta vs closest prior ('),
+    );
+    service.read.store.saveNodes(campaignId, nodes);
+
+    const result = rewriteProvenance(service, campaignId, generatedId, 'rw-noclaim', URI_A);
+    expect(result.delta_claim_updated).toBe(false);
+    expect(nodeCloseestPrior(loadNode(service, campaignId, generatedId))).toBe(URI_A);
+    expect(nodeRewriteHistory(loadNode(service, campaignId, generatedId))).toHaveLength(1);
   });
 });

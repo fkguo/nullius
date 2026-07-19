@@ -100,6 +100,18 @@ export function executeNodeRewriteProvenance(options: {
       nodes,
     });
 
+    // The params schema enforces minLength 1, but a whitespace-only value slips
+    // through it; a blank string is neither a URI nor a survey ref key, so it is
+    // never a legitimate closest_prior correction.
+    if (newValue.trim().length === 0) {
+      throw rewriteValidationError(
+        'schema_invalid',
+        campaignId,
+        nodeId,
+        'new_value is blank (whitespace only) — closest_prior must be a non-blank URI or survey reference key',
+      );
+    }
+
     const operatorTrace = asRecord(node.operator_trace);
     const traceInputs = operatorTrace ? asRecord(operatorTrace.inputs) : null;
     const noveltyDelta = traceInputs ? asRecord(traceInputs.novelty_delta) : null;
