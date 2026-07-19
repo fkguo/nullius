@@ -743,11 +743,12 @@ def test_dangling_symlink_delegations_dir_is_input_error(tmp_path: Path) -> None
     assert verdict is not None and verdict["status"] == "parse_error"
 
 
-def test_nonstandard_json_nan_constant_fails(tmp_path: Path) -> None:
+@pytest.mark.parametrize("token", ["NaN", "Infinity", "-Infinity"])
+def test_nonstandard_json_nan_constant_fails(tmp_path: Path, token: str) -> None:
     """Python json accepts NaN/Infinity literals; standard JSON consumers do
     not — such a contract must fail as unreadable."""
     body = json.dumps(_complete_contract())
-    body = body.replace("1800", "NaN", 1)
+    body = body.replace("1800", token, 1)
     _assert_fails_with(tmp_path, body, "UNREADABLE_CONTRACT")
 
 
@@ -755,3 +756,43 @@ def test_unicode_line_separator_anchor_note_fails(tmp_path: Path) -> None:
     contract = _complete_contract()
     contract["tolerance_ceiling"]["anchor_note"] = "line one line two"
     _assert_fails_with(tmp_path, contract, "MISSING_TOLERANCE_ANCHOR")
+
+
+@pytest.mark.parametrize("anchor", ["ends with newline\n", "ends with separator\u2028"])
+def test_terminal_line_separator_anchor_note_fails(tmp_path: Path, anchor: str) -> None:
+    """A TERMINAL line separator also violates the one-line rule (a splitlines
+    count alone would let it through)."""
+    contract = _complete_contract()
+    contract["tolerance_ceiling"]["anchor_note"] = anchor
+    _assert_fails_with(tmp_path, contract, "MISSING_TOLERANCE_ANCHOR")
+
+
+def test_dangling_symlink_ancestor_of_delegations_dir_is_input_error(tmp_path: Path) -> None:
+    """team -> missing: the dangling link is an ANCESTOR of the scan path, so
+    the leaf never lexically exists — must still be an input error, not SKIP."""
+    proj = _make_project(tmp_path)
+    (proj / "team").symlink_to(tmp_path / "missing_target")
+    proc, verdict = _run_gate(proj)
+    assert proc.returncode == 2
+    assert verdict is not None and verdict["status"] == "parse_error"
+
+
+def test_config_path_as_directory_is_input_error(tmp_path: Path) -> None:
+    """A reserved config path that is a directory is silently ignored by
+    find_config_path (defaults inherited) — must be an input error."""
+    proj = tmp_path / "proj"
+    (proj / "research_team_config.json").mkdir(parents=True)
+    _write(proj / "notes.md", "# notes\n")
+    proc, verdict = _run_gate(proj)
+    assert proc.returncode == 2
+    assert verdict is not None and verdict["status"] == "parse_error"
+
+
+def test_config_path_as_dangling_symlink_is_input_error(tmp_path: Path) -> None:
+    proj = tmp_path / "proj"
+    proj.mkdir(parents=True)
+    (proj / "research_team_config.json").symlink_to(tmp_path / "gone.json")
+    _write(proj / "notes.md", "# notes\n")
+    proc, verdict = _run_gate(proj)
+    assert proc.returncode == 2
+    assert verdict is not None and verdict["status"] == "parse_error"

@@ -97,6 +97,7 @@ from convergence_schema import (  # type: ignore
     validate_convergence_result,
 )
 from team_config import (  # type: ignore
+    find_broken_config_path,
     find_config_path,
     load_config_object,
     load_team_config,
@@ -220,12 +221,13 @@ def _validate_contract(contract: Any) -> list[str]:
                 "non-empty one-line statement of which task requirement derives the "
                 "ceiling — an unanchored tolerance is a number nobody can audit"
             )
-        elif len(anchor.splitlines()) != 1:
-            # str.splitlines covers every Unicode line boundary (LF, CR,
-            # U+2028, U+2029, VT, FF, NEL), not just CR/LF.
+        elif any(ch in anchor for ch in "\n\r\v\f\x85\u2028\u2029"):
+            # Reject ANY Unicode line-boundary character, terminal ones
+            # included ("x\n".splitlines() has length 1, so a splitlines
+            # count alone would let a trailing separator through).
             issues.append(
                 "MISSING_TOLERANCE_ANCHOR: `tolerance_ceiling.anchor_note` must be a "
-                "single line (embedded line breaks found) — one auditable sentence, not an essay"
+                "single line with no line-break characters — one auditable sentence, not an essay"
             )
 
     # time_box: hard wall-clock budget.
@@ -486,6 +488,15 @@ def _run(args: argparse.Namespace, base_meta: dict[str, Any], _input_error: Any)
                     "(fail-closed: a stale override would silently suppress the project config)"
                 ]
             )
+    broken_config = find_broken_config_path(args.notes)
+    if broken_config is not None:
+        return _input_error(
+            [
+                f"reserved team config path is present but not a regular file "
+                f"(dangling symlink or directory): {broken_config} — fail-closed: "
+                "fix or remove it before running the delegation budget gate"
+            ]
+        )
     config_path = find_config_path(args.notes)
     if config_path is not None and load_config_object(config_path) is None:
         return _input_error(
@@ -556,12 +567,14 @@ def _run(args: argparse.Namespace, base_meta: dict[str, Any], _input_error: Any)
         try:
             names: list[str] | None = sorted(os.listdir(delegations_dir))
         except FileNotFoundError:
-            # Genuinely absent is "no delegations" — but a dangling symlink is
-            # a broken setup, not an absent directory.
-            if delegations_dir.is_symlink():
-                return _input_error(
-                    [f"delegations path is a dangling symlink: {delegations_dir}"]
-                )
+            # Genuinely absent is "no delegations" — but a dangling symlink
+            # anywhere on the path (the leaf OR an ancestor, e.g.
+            # team -> missing) is a broken setup, not an absent directory.
+            for component in (delegations_dir, *delegations_dir.parents):
+                if component.is_symlink() and not component.exists():
+                    return _input_error(
+                        [f"delegations path traverses a dangling symlink: {component}"]
+                    )
             names = None
         except OSError as e:
             return _input_error([f"cannot read delegations directory {delegations_dir}: {e}"])
