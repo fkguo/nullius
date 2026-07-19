@@ -168,19 +168,33 @@ function preparedSideEffectsCommitted(store: IdeaEngineStore, method: string, re
     const campaignId = record.response.payload.campaign_id;
     const nodeId = record.response.payload.node_id;
     const updatedAt = record.response.payload.updated_at;
+    const newValue = record.response.payload.new_value;
     if (typeof campaignId !== 'string' || typeof nodeId !== 'string' || typeof updatedAt !== 'string') {
       return false;
     }
     const node = store.loadNodes<Record<string, unknown>>(campaignId)[nodeId];
-    if (!node || String(node.updated_at ?? '') !== updatedAt) {
+    if (!node) {
       return false;
     }
-    // Same value-equality discipline: the stored trace must carry exactly the
-    // corrected value this operation produced.
+    // Unlike set_posterior/set_lifecycle — absolute writes whose re-execution is
+    // a harmless overwrite — rewrite_provenance re-execution is NOT idempotent:
+    // its rewrite_value_unchanged guard would reject the already-applied value.
+    // So the committed effect must be recognized by the history entry this
+    // operation appended (stamped with its own `now`, equal to the recorded
+    // updated_at, and carrying new_value), NOT by the node's top-level
+    // updated_at — a later unrelated mutation may have moved that stamp, and
+    // gating on it would wrongly delete the prepared record and re-execute into
+    // rewrite_value_unchanged. The history entry uniquely identifies the effect
+    // and survives intervening mutations.
     const operatorTrace = node.operator_trace as Record<string, unknown> | undefined;
     const inputs = operatorTrace?.inputs as Record<string, unknown> | undefined;
-    const noveltyDelta = inputs?.novelty_delta as Record<string, unknown> | undefined;
-    return noveltyDelta?.closest_prior === record.response.payload.new_value;
+    const history = Array.isArray(inputs?.provenance_rewrites)
+      ? inputs.provenance_rewrites as Array<Record<string, unknown>>
+      : [];
+    return history.some(entry =>
+      !!entry && typeof entry === 'object'
+      && (entry as Record<string, unknown>).rewritten_at === updatedAt
+      && (entry as Record<string, unknown>).new_value === newValue);
   }
   return false;
 }
