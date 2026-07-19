@@ -604,6 +604,9 @@ def test_no_config_file_no_contracts_skips(tmp_path: Path) -> None:
 
 
 # --------------------------------------- exhaustive type/range negative controls
+# (Nonfinite NaN/Infinity cannot reach field validation through standard JSON:
+#  the gate rejects those literals at parse level — see
+#  test_nonstandard_json_nan_constant_fails.)
 
 
 import pytest
@@ -616,21 +619,21 @@ def test_bad_max_attempts_fails(tmp_path: Path, bad: object) -> None:
     _assert_fails_with(tmp_path, contract, "MISSING_MAX_ATTEMPTS")
 
 
-@pytest.mark.parametrize("bad", [0, -1e-6, float("nan"), float("inf")])
+@pytest.mark.parametrize("bad", [0, -1e-6])
 def test_bad_tolerance_value_fails(tmp_path: Path, bad: float) -> None:
     contract = _complete_contract()
     contract["tolerance_ceiling"]["value"] = bad
     _assert_fails_with(tmp_path, contract, "MISSING_TOLERANCE_VALUE")
 
 
-@pytest.mark.parametrize("bad", [0, -100, float("nan"), float("inf"), True, "1800"])
+@pytest.mark.parametrize("bad", [0, -100, True, "1800"])
 def test_bad_dry_run_peak_rss_fails(tmp_path: Path, bad: object) -> None:
     contract = _complete_contract()
     contract["peak_memory_estimate"]["dry_run_peak_rss_mb"] = bad
     _assert_fails_with(tmp_path, contract, "MISSING_DRY_RUN_PEAK_RSS")
 
 
-@pytest.mark.parametrize("bad", [0, -4096, float("nan"), float("inf"), True, "4096"])
+@pytest.mark.parametrize("bad", [0, -4096, True, "4096"])
 def test_bad_heap_limit_fails(tmp_path: Path, bad: object) -> None:
     contract = _complete_contract()
     contract["peak_memory_estimate"]["heap_limit_mb"] = bad
@@ -710,3 +713,45 @@ def test_nested_bad_delegations_path_is_input_error(tmp_path: Path) -> None:
     )
     assert proc.returncode == 2
     assert verdict is not None and verdict["status"] == "parse_error"
+
+
+def test_nonexistent_project_root_is_input_error(tmp_path: Path) -> None:
+    """A broken explicit --project-root must not SKIP as 'no delegations'."""
+    proj = _make_project(tmp_path, contracts={"c.json": _complete_contract()})
+    proc = subprocess.run(
+        [
+            sys.executable,
+            str(GATE),
+            "--notes",
+            str(proj / "notes.md"),
+            "--project-root",
+            str(tmp_path / "no_such_root"),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert proc.returncode == 2
+    assert json.loads(proc.stdout.strip())["status"] == "parse_error"
+
+
+def test_dangling_symlink_delegations_dir_is_input_error(tmp_path: Path) -> None:
+    proj = _make_project(tmp_path)
+    (proj / "team").mkdir(parents=True, exist_ok=True)
+    (proj / "team" / "delegations").symlink_to(tmp_path / "gone")
+    proc, verdict = _run_gate(proj)
+    assert proc.returncode == 2
+    assert verdict is not None and verdict["status"] == "parse_error"
+
+
+def test_nonstandard_json_nan_constant_fails(tmp_path: Path) -> None:
+    """Python json accepts NaN/Infinity literals; standard JSON consumers do
+    not — such a contract must fail as unreadable."""
+    body = json.dumps(_complete_contract())
+    body = body.replace("1800", "NaN", 1)
+    _assert_fails_with(tmp_path, body, "UNREADABLE_CONTRACT")
+
+
+def test_unicode_line_separator_anchor_note_fails(tmp_path: Path) -> None:
+    contract = _complete_contract()
+    contract["tolerance_ceiling"]["anchor_note"] = "line one line two"
+    _assert_fails_with(tmp_path, contract, "MISSING_TOLERANCE_ANCHOR")
