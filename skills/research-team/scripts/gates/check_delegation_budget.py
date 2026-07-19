@@ -97,10 +97,10 @@ from convergence_schema import (  # type: ignore
     validate_convergence_result,
 )
 from team_config import (  # type: ignore
+    build_team_config,
     find_broken_config_path,
     find_config_path,
     load_config_object,
-    load_team_config,
 )
 
 SUPPORTED_CONTRACT_VERSION = 1
@@ -187,6 +187,8 @@ def _check_required_string(
     value = contract.get(key)
     if not isinstance(value, str) or not value.strip():
         issues.append(f"{label}: `{key}` must be a non-empty string")
+    elif value.splitlines() != [value]:
+        issues.append(f"{label}: `{key}` must be a single line with no line-break characters")
 
 
 def _validate_contract(contract: Any) -> list[str]:
@@ -512,12 +514,13 @@ def _run(args: argparse.Namespace, base_meta: dict[str, Any], _input_error: Any)
             ]
         )
     config_path = find_config_path(args.notes)
+    strict_raw: dict[str, Any] | None = None
     if config_path is not None:
         # Strict validation of the control input itself: the lenient loader's
         # last-wins duplicate keys or replacement-decoded UTF-8 could silently
         # flip delegation_budget_gate / required.
         try:
-            load_config_object(config_path)
+            strict_raw = load_config_object(config_path)
         except ValueError as e:
             return _input_error(
                 [
@@ -526,7 +529,9 @@ def _run(args: argparse.Namespace, base_meta: dict[str, Any], _input_error: Any)
                 ]
             )
 
-    cfg = load_team_config(args.notes)
+    # Build the merged config from the SAME strict snapshot — a second,
+    # lenient read of the file would reopen a swap-between-reads hole.
+    cfg = build_team_config(config_path, strict_raw)
     # Strict feature-flag typing: a malformed flag must not silently disable a
     # fail-closed gate (e.g. "false"/""/0 in JSON where a boolean belongs).
     feats = cfg.data.get("features", {}) if isinstance(cfg.data, dict) else {}

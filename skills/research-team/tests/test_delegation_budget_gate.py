@@ -838,3 +838,102 @@ def test_invalid_utf8_config_is_input_error(tmp_path: Path) -> None:
     proc, verdict = _run_gate(proj)
     assert proc.returncode == 2
     assert verdict is not None and verdict["status"] == "parse_error"
+
+
+def test_multiline_workstream_fails(tmp_path: Path) -> None:
+    contract = _complete_contract()
+    contract["workstream"] = "line one\nline two"
+    _assert_fails_with(tmp_path, contract, "MISSING_WORKSTREAM")
+
+
+def test_json_constant_in_config_is_input_error(tmp_path: Path) -> None:
+    proj = tmp_path / "proj"
+    _write(proj / "research_team_config.json", '{"delegation_budget": {"x": NaN}}')
+    _write(proj / "notes.md", "# notes\n")
+    proc, verdict = _run_gate(proj)
+    assert proc.returncode == 2
+    assert verdict is not None and verdict["status"] == "parse_error"
+
+
+def test_yaml_duplicate_config_key_is_input_error(tmp_path: Path) -> None:
+    pytest.importorskip("yaml")
+    proj = tmp_path / "proj"
+    _write(
+        proj / "research_team_config.yaml",
+        "features:\n  delegation_budget_gate: true\n  delegation_budget_gate: false\n",
+    )
+    _write(proj / "notes.md", "# notes\n")
+    proc, verdict = _run_gate(proj)
+    assert proc.returncode == 2
+    assert verdict is not None and verdict["status"] == "parse_error"
+
+
+def test_yaml_non_mapping_config_is_input_error(tmp_path: Path) -> None:
+    pytest.importorskip("yaml")
+    proj = tmp_path / "proj"
+    _write(proj / "research_team_config.yaml", "- just\n- a\n- list\n")
+    _write(proj / "notes.md", "# notes\n")
+    proc, verdict = _run_gate(proj)
+    assert proc.returncode == 2
+    assert verdict is not None and verdict["status"] == "parse_error"
+
+
+def test_yaml_config_without_yaml_module_is_input_error(tmp_path: Path) -> None:
+    """A YAML config that cannot be validated (no yaml module) must be an
+    input error, not silently 'no config'. A stub yaml module that raises on
+    import simulates the missing dependency."""
+    shim = tmp_path / "shim"
+    _write(shim / "yaml.py", 'raise ImportError("yaml deliberately unavailable for this test")\n')
+    proj = tmp_path / "proj"
+    _write(proj / "research_team_config.yaml", "features:\n  delegation_budget_gate: true\n")
+    _write(proj / "notes.md", "# notes\n")
+    env = dict(os.environ)
+    env["PYTHONPATH"] = f"{shim}{os.pathsep}" + env.get("PYTHONPATH", "")
+    proc = subprocess.run(
+        [
+            sys.executable,
+            str(GATE),
+            "--notes",
+            str(proj / "notes.md"),
+            "--project-root",
+            str(proj),
+        ],
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert proc.returncode == 2
+    verdict = json.loads(proc.stdout.strip())
+    assert verdict["status"] == "parse_error"
+
+
+def test_gate_uses_strict_config_snapshot(tmp_path: Path, monkeypatch: object) -> None:
+    """The merged config must come from the SAME strict snapshot that was
+    validated — not from a second, lenient re-read of the file (a swap
+    between reads could flip required/enabled)."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("check_delegation_budget_snapshot_test", GATE)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    proj = tmp_path / "proj"
+    # On-disk config says NOT required; the strict snapshot says required.
+    _write(proj / "research_team_config.json", json.dumps({"delegation_budget": {"required": False}}))
+    _write(proj / "notes.md", "# notes\n")
+
+    monkeypatch.setattr(mod, "load_config_object", lambda path: {"delegation_budget": {"required": True}})
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "check_delegation_budget.py",
+            "--notes",
+            str(proj / "notes.md"),
+            "--project-root",
+            str(proj),
+        ],
+    )
+    # required=True from the snapshot + no contracts on disk → FAIL, proving
+    # the snapshot (not the lenient re-read) is the authority.
+    assert mod.main() == 1
