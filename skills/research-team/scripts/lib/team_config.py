@@ -73,9 +73,20 @@ DEFAULT_CONFIG: dict = {
         "logic_isolation_gate": False,
         "independent_reproduction_gate": False,
         "convention_mapping_gate": False,
+        # Delegation budget contracts for delegated computation/verification
+        # workstreams (default ON: the gate SKIPs when no contract exists and
+        # none is required, and fail-closed validates any contract present).
+        "delegation_budget_gate": True,
     },
     "claim_graph": {
         "base_dir": "knowledge_graph",
+    },
+    # Delegation budget contracts for delegated computation/verification
+    # workstreams. Contracts under delegations_dir are always validated
+    # fail-closed; required=True additionally fails when no contract exists.
+    "delegation_budget": {
+        "required": False,
+        "delegations_dir": "team/delegations",
     },
     "pointer_lint": {
         "strategy": "python_import",
