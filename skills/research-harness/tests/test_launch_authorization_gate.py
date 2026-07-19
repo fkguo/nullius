@@ -563,6 +563,39 @@ def test_output_nested_below_missing_verdict_slot_is_refused(tmp_path, capsys):
     assert not (proj["root"] / "reviews" / "reviewer-one.json").exists()
 
 
+def test_output_lexical_dotdot_through_missing_slot_is_neutralized(tmp_path, capsys):
+    # a raw spelling like slot/../artifact.json resolves cleanly, but a
+    # naive writer would mkdir the missing slot as a directory on the raw
+    # path; the writer must target the resolved path instead
+    proj = _project(tmp_path)
+    (proj["root"] / "reviews" / "reviewer-one.json").unlink()
+    raw = proj["root"] / "reviews" / "reviewer-one.json" / ".." / "launch_authorization.json"
+    code, result = _run(proj, capsys, extra_args=["--output", str(raw)])
+    assert code == 3
+    assert result["verdict"] == "missing_review"
+    # the declared slot was never created as a directory ...
+    assert not (proj["root"] / "reviews" / "reviewer-one.json").exists()
+    # ... and the artifact landed at the resolved location
+    assert (proj["root"] / "reviews" / "launch_authorization.json").is_file()
+
+
+def test_output_under_mistyped_project_root_protects_declared_slots(tmp_path, capsys):
+    # an explicit --project-root that does not exist refuses early, but the
+    # refusal artifact must not occupy a declared slot under that root
+    proj = _project(tmp_path)
+    typo_root = tmp_path / "typo-root"
+    target = typo_root / "reviews" / "reviewer-one.json"
+    argv = ["--record", str(proj["record_path"]),
+            "--observed-fingerprint", str(proj["observed_path"]),
+            "--project-root", str(typo_root),
+            "--output", str(target)]
+    code = la.main(argv)
+    result = json.loads(capsys.readouterr().out)
+    assert code == 2
+    assert result["verdict"] == "invalid_record"
+    assert not typo_root.exists()
+
+
 def test_same_slot_identity_logic(tmp_path):
     base = tmp_path / "anchor"
     base.mkdir()
