@@ -810,3 +810,31 @@ def test_config_path_as_dangling_symlink_is_input_error(tmp_path: Path) -> None:
     proc, verdict = _run_gate(proj)
     assert proc.returncode == 2
     assert verdict is not None and verdict["status"] == "parse_error"
+
+
+def test_duplicate_config_key_is_input_error(tmp_path: Path) -> None:
+    """A duplicate enforcement flag in the config (true then false) is a
+    last-wins ambiguity that could silently disable the gate — must be an
+    input error, never a SKIP."""
+    proj = tmp_path / "proj"
+    _write(
+        proj / "research_team_config.json",
+        '{"features": {"delegation_budget_gate": true, "delegation_budget_gate": false}}',
+    )
+    _write(proj / "notes.md", "# notes\n")
+    bad = _complete_contract()
+    del bad["time_box"]
+    _write(proj / "team" / "delegations" / "bad.json", json.dumps(bad))
+    proc, verdict = _run_gate(proj)
+    assert proc.returncode == 2
+    assert verdict is not None and verdict["status"] == "parse_error"
+
+
+def test_invalid_utf8_config_is_input_error(tmp_path: Path) -> None:
+    proj = tmp_path / "proj"
+    proj.mkdir(parents=True)
+    (proj / "research_team_config.json").write_bytes(b'{"features": {\xff\xfe}}')
+    _write(proj / "notes.md", "# notes\n")
+    proc, verdict = _run_gate(proj)
+    assert proc.returncode == 2
+    assert verdict is not None and verdict["status"] == "parse_error"

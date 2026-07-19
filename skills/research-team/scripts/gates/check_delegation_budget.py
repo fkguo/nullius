@@ -512,13 +512,19 @@ def _run(args: argparse.Namespace, base_meta: dict[str, Any], _input_error: Any)
             ]
         )
     config_path = find_config_path(args.notes)
-    if config_path is not None and load_config_object(config_path) is None:
-        return _input_error(
-            [
-                f"team config exists but could not be parsed as an object: {config_path} "
-                "(fail-closed: fix the config before running the delegation budget gate)"
-            ]
-        )
+    if config_path is not None:
+        # Strict validation of the control input itself: the lenient loader's
+        # last-wins duplicate keys or replacement-decoded UTF-8 could silently
+        # flip delegation_budget_gate / required.
+        try:
+            load_config_object(config_path)
+        except ValueError as e:
+            return _input_error(
+                [
+                    f"team config failed strict validation: {e} — {config_path} "
+                    "(fail-closed: fix the config before running the delegation budget gate)"
+                ]
+            )
 
     cfg = load_team_config(args.notes)
     # Strict feature-flag typing: a malformed flag must not silently disable a
