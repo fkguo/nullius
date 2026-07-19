@@ -255,6 +255,8 @@ requireAll(TESTS_FILE, testsText, [
   ['nonblocking symlink-to-FIFO contract control', 'test_symlink_to_fifo_contract_entry_fails_without_blocking'],
   ['nonblocking FIFO config-loader control', 'test_fifo_config_target_raises_instead_of_blocking'],
   ['nonblocking FIFO out-json control', 'test_fifo_out_json_fails_fast_with_single_verdict'],
+  ['active-reader fstat-rejection control', 'test_out_json_fifo_with_active_reader_rejected_by_fstat'],
+  ['contract-retarget resolve-once regression', 'test_contract_symlink_retarget_after_discovery_keeps_original_target'],
   ['hang-guard subprocess timeout', 'timeout=60'],
 ]);
 

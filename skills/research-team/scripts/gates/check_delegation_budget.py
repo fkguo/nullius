@@ -623,9 +623,21 @@ def _run(args: argparse.Namespace, base_meta: dict[str, Any], _input_error: Any)
         )
     required = bool(args.require) or required_cfg
 
+    # Contract entries are carried as (display_name, resolved_path) pairs:
+    # each path is resolved ONCE at discovery, and enumeration, provenance
+    # (source_path) and the read all use that same resolved target — a
+    # symlink retargeted after discovery cannot substitute a different
+    # contract for the one that was selected.
     if args.contract:
-        contract_paths = [p if p.is_absolute() else (project_root / p) for p in args.contract]
-        missing_explicit = [str(p) for p in contract_paths if not p.is_file()]
+        contract_entries: list[tuple[str, Path]] = []
+        missing_explicit: list[str] = []
+        for p in args.contract:
+            abs_p = p if p.is_absolute() else (project_root / p)
+            resolved = abs_p.resolve()
+            if not resolved.is_file():
+                missing_explicit.append(str(abs_p))
+            else:
+                contract_entries.append((abs_p.name, resolved))
         if missing_explicit:
             return _input_error([f"contract file not found: {p}" for p in missing_explicit])
     else:
@@ -659,11 +671,13 @@ def _run(args: argparse.Namespace, base_meta: dict[str, Any], _input_error: Any)
             names = None
         except OSError as e:
             return _input_error([f"cannot read delegations directory {delegations_dir}: {e}"])
-        contract_paths = (
-            [] if names is None else [delegations_dir / n for n in names if n.endswith(".json")]
+        contract_entries = (
+            []
+            if names is None
+            else [(n, (delegations_dir / n).resolve()) for n in names if n.endswith(".json")]
         )
 
-    if not contract_paths:
+    if not contract_entries:
         if required:
             reason = (
                 "NO_CONTRACTS_FOUND: delegation budget contracts are required but none "
@@ -686,12 +700,14 @@ def _run(args: argparse.Namespace, base_meta: dict[str, Any], _input_error: Any)
     report_status: dict[str, Any] = {}
     reasons: list[str] = []
     taken_keys: set[str] = set()
-    for path in contract_paths:
+    for entry_name, path in contract_entries:
+        # `path` is the once-resolved target; provenance records it (relative
+        # to the project root when possible) and the read below uses it too.
         try:
-            source_path = str(path.resolve().relative_to(project_root))
+            source_path = str(path.relative_to(project_root))
         except ValueError:
             source_path = str(path)
-        key = _schema_safe_key(path, taken_keys)
+        key = _schema_safe_key(Path(entry_name), taken_keys)
         try:
             # parse_constant: Python's json accepts nonstandard NaN/Infinity
             # literals that standard JSON consumers reject — a contract other
