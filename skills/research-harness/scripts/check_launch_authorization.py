@@ -583,12 +583,20 @@ def finish(result: dict, verdict: str, output: "Path | None",
     result["launch_authorized"] = verdict == "authorized"
     result["exit_code"] = EXIT_CODES[verdict]
     alias_refusal = None
-    if output is not None and _output_aliases_input(output, protected):
-        alias_refusal = ("--output must not alias the record, the plan, a verdict "
-                         "file, or the observed fingerprint — refusing to overwrite "
-                         "an input")
-        result["errors"].append(alias_refusal)
-        output = None
+    if output is not None:
+        # guard and writer must act on the SAME canonical path: a raw
+        # spelling like slot/../artifact.json resolves cleanly for the guard
+        # but would make the writer's mkdir(parents=True) create `slot` as a
+        # directory — so the write itself targets the resolved path
+        resolved_output = _try_resolve(output)
+        if resolved_output is None or _output_aliases_input(resolved_output, protected):
+            alias_refusal = ("--output must not alias the record, the plan, a verdict "
+                             "file, or the observed fingerprint — refusing to overwrite "
+                             "an input")
+            result["errors"].append(alias_refusal)
+            output = None
+        else:
+            output = resolved_output
     text = json.dumps(result, indent=2, ensure_ascii=False) + "\n"
     try:
         text.encode("utf-8")
@@ -674,6 +682,11 @@ def _run_checks(args, result: dict, protected: "set[Path]") -> int:
     # -- project root: explicit, or the git toplevel enclosing the record --
     if args.project_root is not None:
         project_root = _try_resolve(args.project_root)
+        if project_root is not None:
+            # protect the declared slots under the REQUESTED root even when
+            # it is not (yet) a directory: the refusal artifact must not
+            # occupy a declared slot under a mistyped root either
+            _protect_declared_paths(record, [project_root], protected)
         if project_root is None or not project_root.is_dir():
             result["errors"].append("--project-root is not a resolvable directory")
             return finish(result, "invalid_record", args.output, protected)
