@@ -96,12 +96,31 @@ if (resultSchemaText !== null) {
       CHECKS,
     );
     sameList(RESULT_SCHEMA_FILE, 'exit_code enum', schema.properties?.exit_code?.enum, [0, 2, 3]);
-    const authorizedBranch = (schema.allOf ?? []).find(
-      (clause) => clause?.if?.properties?.verdict?.const === 'authorized',
+    const allOf = schema.allOf ?? [];
+    const constBranch = (verdict) =>
+      allOf.find((clause) => clause?.if?.properties?.verdict?.const === verdict);
+    const enumBranch = allOf.find((clause) =>
+      Array.isArray(clause?.if?.properties?.verdict?.enum),
     );
-    if (authorizedBranch?.then?.properties?.exit_code?.const !== 0) {
-      errors.push(`${RESULT_SCHEMA_FILE}: allOf must bind verdict "authorized" to exit_code 0`);
-    }
+    const assertBranch = (branch, label, exitCode, authorized) => {
+      if (
+        branch?.then?.properties?.exit_code?.const !== exitCode ||
+        branch?.then?.properties?.launch_authorized?.const !== authorized
+      ) {
+        errors.push(
+          `${RESULT_SCHEMA_FILE}: allOf must bind ${label} to exit_code ${exitCode} and launch_authorized ${authorized}`,
+        );
+      }
+    };
+    assertBranch(constBranch('authorized'), 'verdict "authorized"', 0, true);
+    assertBranch(constBranch('invalid_record'), 'verdict "invalid_record"', 2, false);
+    assertBranch(enumBranch, 'the refusal-verdict set', 3, false);
+    sameList(
+      RESULT_SCHEMA_FILE,
+      'refusal-branch verdict enum',
+      enumBranch?.if?.properties?.verdict?.enum,
+      VERDICTS.filter((verdict) => verdict !== 'authorized' && verdict !== 'invalid_record'),
+    );
   }
 }
 
@@ -134,7 +153,8 @@ if (gateSpecText !== null) {
   }
 }
 
-// 3. Registry SSOT still carries the constants and wires them into A3.
+// 3. Registry SSOT still carries the constants (exact list equality, so an
+//    added, dropped, or reordered entry fires) and wires them into A3.
 const registryText = read(REGISTRY_FILE);
 if (registryText !== null) {
   requireAll(REGISTRY_FILE, registryText, [
@@ -143,9 +163,13 @@ if (registryText !== null) {
     ['A3 policy result schema', 'result_schema: LAUNCH_AUTHORIZATION_RESULT_SCHEMA'],
     ['A3 policy checks', 'required_checks: LAUNCH_AUTHORIZATION_CHECKS'],
     ['policy accessor', 'export function getLaunchAuthorizationPolicy('],
-    ...VERDICTS.map((verdict) => [`verdict '${verdict}'`, `'${verdict}',`]),
-    ...CHECKS.map((check) => [`check '${check}'`, `'${check}',`]),
   ]);
+  const parseTsArray = (constName) => {
+    const match = registryText.match(new RegExp(`${constName} = \\[([^\\]]*)\\]`, 's'));
+    return match ? [...match[1].matchAll(/'([a-z_]+)'/g)].map((m) => m[1]) : null;
+  };
+  sameList(REGISTRY_FILE, 'LAUNCH_AUTHORIZATION_VERDICTS', parseTsArray('LAUNCH_AUTHORIZATION_VERDICTS'), VERDICTS);
+  sameList(REGISTRY_FILE, 'LAUNCH_AUTHORIZATION_CHECKS', parseTsArray('LAUNCH_AUTHORIZATION_CHECKS'), CHECKS);
 }
 
 // 4. The checker's tuples match the canonical enums, and the discipline

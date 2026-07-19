@@ -262,15 +262,18 @@ python3 scripts/check_launch_authorization.py \
   && exec <production command>
 ```
 
+The record's relative paths resolve against `--project-root`, which defaults to the git toplevel enclosing the record; a project outside git must pass `--project-root` explicitly.
+
 Semantics, default refuse:
 
 - The result is a `launch_authorization_v1` artifact (the shared contract in `@nullius/shared` and `meta/schemas/`). Verdict is one of `authorized | invalid_record | missing_plan_hash | stale_review | missing_review | review_rejected | reviewer_unavailable | fingerprint_mismatch` — every refusal names what was falsified. Exit code is `0` only for `authorized`, `2` for an unusable record, `3` for every other refusal.
 - Checks run in a fixed order — `plan_frozen`, `review_binding`, `fingerprint_match` — and the verdict is the first failing check's label. Each check is still evaluated independently for the audit record where possible; a check that cannot be evaluated is recorded `not_evaluated`, which is never a pass.
 - Within `review_binding`, when the quorum is unmet the refusal priority is `stale_review` over `review_rejected` over `reviewer_unavailable` over `missing_review`: the sharpest falsification wins, an active rejection outranks unavailability, and unavailability outranks absence.
-- One reviewer never counts twice (duplicate reviewer ids make the record invalid), and a quorum larger than the listed reviews is invalid by construction.
+- One reviewer never counts twice (duplicate reviewer ids make the record invalid), and a quorum larger than the listed reviews is invalid by construction. A void verdict — unavailable, bound to a superseded hash, missing, or malformed — never counts as approval, and it also never vetoes a quorum already met by approvals bound to the live plan hash: the quorum the record declares is the requirement, so list only reviewers whose approval you require (or raise `required_approvals`) if every listed verdict must be live.
+- The result JSON is always printed on stdout; `--output` additionally persists it atomically, and a failed `--output` write makes the checker exit `2` even for an authorized verdict — an authorization whose requested audit artifact cannot be persisted is refused.
 - **Honest limits.** The plan file is read once and that content hashed for every comparison, so the check itself has no read-then-reuse window; but it cannot prevent the plan or environment changing *after* it exits — run it immediately before launch in the same command chain, as above. The record and verdict files are trusted filesystem inputs: the gate proves *consistency* (hashes bound, fingerprints equal), not *authenticity* — protecting those files is commit discipline. Independence of the reviewers is governed by the review process itself (see `review-swarm`), not by this checker.
 
-This preflight is the machine arm of the A3 (`compute_runs`) gate — the shared gate registry's A3 policy names `launch_authorization_v1` as its result contract. In projects using the engine's approval flow, `nullius approve <A3-...>` records the *human* go-ahead; this preflight checks the *technical* launch preconditions at the moment of launch. They are complementary: neither substitutes for the other.
+This preflight is the machine arm of the A3 (`compute_runs`) gate — the shared gate registry's A3 policy names `launch_authorization_v1` as its result contract, so launchers know what to produce. The enforcement locus is the **project-side launcher**: chain the checker before the production command as shown above; the engine's bounded-computation runner does not invoke it. In projects using the engine's approval flow, `nullius approve <A3-...>` records the *human* go-ahead; this preflight checks the *technical* launch preconditions at the moment of launch. They are complementary: neither substitutes for the other.
 
 ## Literature Research Gate
 
