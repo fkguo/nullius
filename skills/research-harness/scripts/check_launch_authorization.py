@@ -471,23 +471,51 @@ def _set_check(result: dict, check_id: str, status: str, detail: str) -> None:
 
 def _output_aliases_input(output: Path, protected: "frozenset[Path] | set[Path]") -> bool:
     """True when --output must never be written: it resolves onto — or cannot
-    be distinguished from — one of the input files the run consumed.
-    Resolved-path equality alone misses case-insensitive-filesystem aliases
-    (PLAN.md vs plan.md on a default macOS volume) and hard links, so
-    os.path.samefile() identity is checked as well for paths that exist.
-    An unresolvable --output is refused outright (fail-closed)."""
+    be distinguished from — one of the protected input paths. Three tests,
+    each fail-closed where it is blind: resolved-path equality;
+    os.path.samefile() identity for paths that exist (hard links, and
+    case-insensitive-filesystem aliases of EXISTING files); and case-folded
+    string equality, which covers case aliases of paths that do not exist
+    yet (no inode to compare) — on a case-sensitive volume this over-refuses
+    a distinct-but-case-colliding output name, which is the safe direction.
+    An unresolvable --output is refused outright."""
     resolved = _try_resolve(output)
     if resolved is None:
         return True
     if resolved in protected:
         return True
+    resolved_folded = str(resolved).casefold()
     for known in protected:
+        if str(known).casefold() == resolved_folded:
+            return True
         try:
             if os.path.samefile(str(resolved), str(known)):
                 return True
         except (OSError, ValueError):
             continue
     return False
+
+
+def _protect_declared_paths(record, bases: "list[Path]",
+                            protected: "set[Path]") -> None:
+    """Best-effort: add every path the record DECLARES — however malformed
+    the declaration ('..' traversals and absolute paths included) — to the
+    protected set, resolved against every candidate base directory.
+    Protection is deliberately more permissive than consumption:
+    over-protecting only makes the --output guard stricter, while the
+    checks themselves still go through the strict safe-path validation."""
+    if not isinstance(record, dict):
+        return
+    declared = [record.get("plan_path")]
+    if isinstance(record.get("reviews"), list):
+        declared.extend(entry.get("verdict_path")
+                        for entry in record["reviews"] if isinstance(entry, dict))
+    for rel in declared:
+        if isinstance(rel, str) and rel.strip():
+            for base in bases:
+                resolved = _try_resolve(base / rel)
+                if resolved is not None:
+                    protected.add(resolved)
 
 
 def finish(result: dict, verdict: str, output: "Path | None",
@@ -573,6 +601,26 @@ def main(argv: "list[str] | None" = None) -> int:
 
 
 def _run_checks(args, result: dict, protected: "set[Path]") -> int:
+    # -- record bytes + parse (before anything else, so the paths the record
+    #    declares can be protected on every later exit) --
+    try:
+        raw = args.record.read_bytes()
+    except (OSError, ValueError) as exc:
+        result["errors"].append(f"cannot read authorization record: {exc}")
+        return finish(result, "invalid_record", args.output, protected)
+    result["record_sha256"] = _sha256_hex(raw)
+    try:
+        record = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, ValueError, RecursionError) as exc:
+        result["errors"].append(f"authorization record is not valid UTF-8 JSON: {exc!r}")
+        return finish(result, "invalid_record", args.output, protected)
+    # protect the declared paths against the record's own directory already
+    # here: the project-root-failure exit below must not be able to clobber
+    # the plan or a verdict file either
+    resolved_record = _try_resolve(args.record)
+    if resolved_record is not None:
+        _protect_declared_paths(record, [resolved_record.parent], protected)
+
     # -- project root: explicit, or the git toplevel enclosing the record --
     if args.project_root is not None:
         project_root = _try_resolve(args.project_root)
@@ -580,7 +628,6 @@ def _run_checks(args, result: dict, protected: "set[Path]") -> int:
             result["errors"].append("--project-root is not a resolvable directory")
             return finish(result, "invalid_record", args.output, protected)
     else:
-        resolved_record = _try_resolve(args.record)
         if resolved_record is None:
             result["errors"].append("record path is not resolvable")
             return finish(result, "invalid_record", args.output, protected)
@@ -596,31 +643,11 @@ def _run_checks(args, result: dict, protected: "set[Path]") -> int:
             return finish(result, "invalid_record", args.output, protected)
         project_root = Path(top.stdout.strip())
 
-    # -- record bytes + parse + validation --
-    try:
-        raw = args.record.read_bytes()
-    except (OSError, ValueError) as exc:
-        result["errors"].append(f"cannot read authorization record: {exc}")
-        return finish(result, "invalid_record", args.output, protected)
-    result["record_sha256"] = _sha256_hex(raw)
-    try:
-        record = json.loads(raw.decode("utf-8"))
-    except (UnicodeDecodeError, ValueError, RecursionError) as exc:
-        result["errors"].append(f"authorization record is not valid UTF-8 JSON: {exc!r}")
-        return finish(result, "invalid_record", args.output, protected)
-    # best-effort path protection BEFORE validation, so even a
-    # validation-refused record cannot have its declared plan or verdict
-    # files clobbered by the --output write of the refusal artifact
-    if isinstance(record, dict):
-        declared = [record.get("plan_path")]
-        if isinstance(record.get("reviews"), list):
-            declared.extend(entry.get("verdict_path")
-                            for entry in record["reviews"] if isinstance(entry, dict))
-        for rel in declared:
-            if _is_safe_rel_path(rel):
-                resolved = _resolved_under(project_root, rel)
-                if resolved is not None:
-                    protected.add(resolved)
+    # -- re-protect the declared paths against the actual project root, then
+    #    validate; a validation-refused record cannot have its declared plan
+    #    or verdict files clobbered by the --output write of the refusal
+    #    artifact, however malformed the declarations are --
+    _protect_declared_paths(record, [project_root], protected)
     errors = validate_record(record)
     if errors:
         result["errors"].extend(errors)
