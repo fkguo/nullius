@@ -106,12 +106,16 @@ this result contract so launchers know what to produce.
 
 Exit codes: 0 ONLY for authorized; 2 for invalid_record and usage errors;
 3 for every other refusal. The full launch_authorization_v1 result JSON is
-always printed on stdout; --output additionally writes it atomically, and
-a --output write that fails makes the checker exit 2 even for an
-authorized verdict — an authorization whose requested audit artifact
-cannot be persisted is refused (the printed exit_code field reflects the
-verdict alone). Any internal defect still emits a labeled invalid_record
-artifact instead of a bare traceback.
+always printed on stdout; --output additionally writes it atomically. The
+--output write is guarded on every exit path: a --output that aliases any
+input the run consumed (the record, the plan, a verdict file, the
+observed fingerprint — including case-insensitive-filesystem aliases and
+hard links) is never written and the run exits 2, and a --output write
+that fails likewise makes the checker exit 2 even for an authorized
+verdict — an authorization whose requested audit artifact cannot be
+persisted is refused (the printed exit_code field reflects the verdict
+alone). Any internal defect still emits a labeled invalid_record artifact
+instead of a bare traceback.
 
 Honest limitations. The plan file is read ONCE and that byte content is
 hashed and compared everywhere, so the check itself has no read-then-reuse
@@ -401,7 +405,7 @@ def decide_review_binding(reviews: list, required_approvals: int,
     unavailable = [r for r in reviews if r["verdict"] == "unavailable"]
     if stale:
         label, culprits = "stale_review", stale
-        why = "approval(s) bound to a superseded plan hash"
+        why = "verdict(s) bound to a superseded plan hash"
     elif rejected:
         label, culprits = "review_rejected", rejected
         why = "reviewer(s) returned changes_needed"
@@ -465,15 +469,48 @@ def _set_check(result: dict, check_id: str, status: str, detail: str) -> None:
             return
 
 
-def finish(result: dict, verdict: str, output: "Path | None") -> int:
-    """Emit the result. Stdout always carries the full artifact; a --output
-    write that fails downgrades the run to exit 2 even when the verdict is
-    authorized — an authorization whose requested audit artifact cannot be
-    persisted is refused (the printed exit_code field reflects the verdict
-    alone)."""
+def _output_aliases_input(output: Path, protected: "frozenset[Path] | set[Path]") -> bool:
+    """True when --output must never be written: it resolves onto — or cannot
+    be distinguished from — one of the input files the run consumed.
+    Resolved-path equality alone misses case-insensitive-filesystem aliases
+    (PLAN.md vs plan.md on a default macOS volume) and hard links, so
+    os.path.samefile() identity is checked as well for paths that exist.
+    An unresolvable --output is refused outright (fail-closed)."""
+    resolved = _try_resolve(output)
+    if resolved is None:
+        return True
+    if resolved in protected:
+        return True
+    for known in protected:
+        try:
+            if os.path.samefile(str(resolved), str(known)):
+                return True
+        except (OSError, ValueError):
+            continue
+    return False
+
+
+def finish(result: dict, verdict: str, output: "Path | None",
+           protected: "frozenset[Path] | set[Path]" = frozenset()) -> int:
+    """Emit the result. Stdout always carries the full artifact. The --output
+    write is guarded here — on EVERY exit path, early refusals included — so
+    the audit artifact can never overwrite the record, the plan, a verdict
+    file, or the observed fingerprint (os.replace would silently clobber the
+    very bytes that were just checked); an aliased --output is not written
+    and the run exits 2. A --output write that fails likewise downgrades the
+    run to exit 2 even when the verdict is authorized — an authorization
+    whose requested audit artifact cannot be persisted is refused (the
+    printed exit_code field reflects the verdict alone)."""
     result["verdict"] = verdict
     result["launch_authorized"] = verdict == "authorized"
     result["exit_code"] = EXIT_CODES[verdict]
+    alias_refusal = None
+    if output is not None and _output_aliases_input(output, protected):
+        alias_refusal = ("--output must not alias the record, the plan, a verdict "
+                         "file, or the observed fingerprint — refusing to overwrite "
+                         "an input")
+        result["errors"].append(alias_refusal)
+        output = None
     text = json.dumps(result, indent=2, ensure_ascii=False) + "\n"
     try:
         text.encode("utf-8")
@@ -482,6 +519,9 @@ def finish(result: dict, verdict: str, output: "Path | None") -> int:
         # emit itself crash; escape everything instead of losing the artifact
         text = json.dumps(result, indent=2, ensure_ascii=True) + "\n"
     print(text, end="")
+    if alias_refusal is not None:
+        print(f"launch refused: {alias_refusal}", file=sys.stderr)
+        return EXIT_CODES["invalid_record"]
     if output is not None:
         try:
             write_text_atomic(output, text)
@@ -518,42 +558,32 @@ def main(argv: "list[str] | None" = None) -> int:
     args = parser.parse_args(argv)
 
     result = build_result(str(args.record), None)
+    # every path the run reads is protected from the --output write on every
+    # exit path; the set grows as more input paths become known
+    protected: "set[Path]" = set()
+    for input_path in (args.record, args.observed_fingerprint):
+        resolved = _try_resolve(input_path)
+        if resolved is not None:
+            protected.add(resolved)
     try:
-        return _run_checks(args, result)
+        return _run_checks(args, result, protected)
     except Exception as exc:  # the artifact contract must survive any internal defect
         result["errors"].append(f"internal error: {exc!r}")
-        return finish(result, "invalid_record", args.output)
+        return finish(result, "invalid_record", args.output, protected)
 
 
-def _run_checks(args, result: dict) -> int:
-    # -- record bytes + parse + validation --
-    try:
-        raw = args.record.read_bytes()
-    except (OSError, ValueError) as exc:
-        result["errors"].append(f"cannot read authorization record: {exc}")
-        return finish(result, "invalid_record", args.output)
-    result["record_sha256"] = _sha256_hex(raw)
-    try:
-        record = json.loads(raw.decode("utf-8"))
-    except (UnicodeDecodeError, ValueError, RecursionError) as exc:
-        result["errors"].append(f"authorization record is not valid UTF-8 JSON: {exc!r}")
-        return finish(result, "invalid_record", args.output)
-    errors = validate_record(record)
-    if errors:
-        result["errors"].extend(errors)
-        return finish(result, "invalid_record", args.output)
-
+def _run_checks(args, result: dict, protected: "set[Path]") -> int:
     # -- project root: explicit, or the git toplevel enclosing the record --
     if args.project_root is not None:
         project_root = _try_resolve(args.project_root)
         if project_root is None or not project_root.is_dir():
             result["errors"].append("--project-root is not a resolvable directory")
-            return finish(result, "invalid_record", args.output)
+            return finish(result, "invalid_record", args.output, protected)
     else:
         resolved_record = _try_resolve(args.record)
         if resolved_record is None:
             result["errors"].append("record path is not resolvable")
-            return finish(result, "invalid_record", args.output)
+            return finish(result, "invalid_record", args.output, protected)
         try:
             top = subprocess.run(["git", "rev-parse", "--show-toplevel"],
                                  cwd=str(resolved_record.parent), capture_output=True,
@@ -563,26 +593,38 @@ def _run_checks(args, result: dict) -> int:
         if top is None or top.returncode != 0:
             result["errors"].append("record is not inside a git repository; pass "
                                     "--project-root explicitly")
-            return finish(result, "invalid_record", args.output)
+            return finish(result, "invalid_record", args.output, protected)
         project_root = Path(top.stdout.strip())
 
-    # -- refuse an --output that aliases an input: the audit artifact must
-    #    never overwrite the plan, the record, a verdict file, or the
-    #    observed fingerprint (os.replace would silently clobber the very
-    #    bytes that were just authorized) --
-    if args.output is not None:
-        out_resolved = _try_resolve(args.output)
-        input_paths = {p for p in (
-            [_try_resolve(args.record), _try_resolve(args.observed_fingerprint),
-             _resolved_under(project_root, record["plan_path"])]
-            + [_resolved_under(project_root, entry["verdict_path"])
-               for entry in record["reviews"]]
-        ) if p is not None}
-        if out_resolved is None or out_resolved in input_paths:
-            result["errors"].append("--output must not alias the record, the plan, a "
-                                    "verdict file, or the observed fingerprint — "
-                                    "refusing to overwrite an input")
-            return finish(result, "invalid_record", None)
+    # -- record bytes + parse + validation --
+    try:
+        raw = args.record.read_bytes()
+    except (OSError, ValueError) as exc:
+        result["errors"].append(f"cannot read authorization record: {exc}")
+        return finish(result, "invalid_record", args.output, protected)
+    result["record_sha256"] = _sha256_hex(raw)
+    try:
+        record = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, ValueError, RecursionError) as exc:
+        result["errors"].append(f"authorization record is not valid UTF-8 JSON: {exc!r}")
+        return finish(result, "invalid_record", args.output, protected)
+    # best-effort path protection BEFORE validation, so even a
+    # validation-refused record cannot have its declared plan or verdict
+    # files clobbered by the --output write of the refusal artifact
+    if isinstance(record, dict):
+        declared = [record.get("plan_path")]
+        if isinstance(record.get("reviews"), list):
+            declared.extend(entry.get("verdict_path")
+                            for entry in record["reviews"] if isinstance(entry, dict))
+        for rel in declared:
+            if _is_safe_rel_path(rel):
+                resolved = _resolved_under(project_root, rel)
+                if resolved is not None:
+                    protected.add(resolved)
+    errors = validate_record(record)
+    if errors:
+        result["errors"].extend(errors)
+        return finish(result, "invalid_record", args.output, protected)
 
     result["required_approvals"] = record["required_approvals"]
     result["plan"]["path"] = record["plan_path"]
@@ -633,12 +675,12 @@ def _run_checks(args, result: dict) -> int:
     # -- verdict: first failing check in fixed order; authorized only when
     #    all three pass --
     if plan_label:
-        return finish(result, plan_label, args.output)
+        return finish(result, plan_label, args.output, protected)
     if review_label:
-        return finish(result, review_label, args.output)
+        return finish(result, review_label, args.output, protected)
     if not equal:
-        return finish(result, "fingerprint_mismatch", args.output)
-    return finish(result, "authorized", args.output)
+        return finish(result, "fingerprint_mismatch", args.output, protected)
+    return finish(result, "authorized", args.output, protected)
 
 
 if __name__ == "__main__":
