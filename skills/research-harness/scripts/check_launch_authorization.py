@@ -672,12 +672,17 @@ def _run_checks(args, result: dict, protected: "set[Path]") -> int:
     except (UnicodeDecodeError, ValueError, RecursionError) as exc:
         result["errors"].append(f"authorization record is not valid UTF-8 JSON: {exc!r}")
         return finish(result, "invalid_record", args.output, protected)
-    # protect the declared paths against the record's own directory already
-    # here: the project-root-failure exit below must not be able to clobber
-    # the plan or a verdict file either
+    # protect the declared paths before the project root is known: the
+    # project-root-failure exits below must not be able to clobber the plan
+    # or a verdict file either. The real project root, wherever it is, is
+    # SOME ancestor of the record in any layout where the record lives
+    # inside the project (e.g. artifacts/runs/<run_id>/), so the declared
+    # slots are protected against EVERY ancestor of the record's directory —
+    # over-protection only tightens the --output guard
     resolved_record = _try_resolve(args.record)
     if resolved_record is not None:
-        _protect_declared_paths(record, [resolved_record.parent], protected)
+        record_dir = resolved_record.parent
+        _protect_declared_paths(record, [record_dir, *record_dir.parents], protected)
 
     # -- project root: explicit, or the git toplevel enclosing the record --
     if args.project_root is not None:
