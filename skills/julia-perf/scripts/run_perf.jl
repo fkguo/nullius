@@ -272,9 +272,14 @@ function load_suite_cases(suite_file::String)
 
     raw = nothing
     if isdefined(Main, :JULIA_PERF_BENCHMARKS)
-        raw = getfield(Main, :JULIA_PERF_BENCHMARKS)
+        raw = Base.invokelatest(getfield, Main, :JULIA_PERF_BENCHMARKS)
     elseif isdefined(Main, :julia_perf_benchmarks)
-        raw = Main.julia_perf_benchmarks()
+        # Both the binding read and the call must run in the latest world:
+        # the suite file was included inside this method, so its bindings
+        # (world-age-checked since Julia 1.12) and methods (always checked)
+        # are newer than this method's fixed world.
+        suite_fn = Base.invokelatest(getfield, Main, :julia_perf_benchmarks)
+        raw = Base.invokelatest(suite_fn)
     else
         push!(warnings, "suite did not define JULIA_PERF_BENCHMARKS or julia_perf_benchmarks()")
         return Tuple{String, Function}[], warnings
@@ -420,11 +425,11 @@ function main(args::Vector{String})
     artifact_root = resolve_path(config_dir, opts["artifact_root"] === nothing ? get_nested(cfg, ["integration", "artifact_root"], nothing) : opts["artifact_root"])
     tag = opts["tag"] === nothing ? get_nested(cfg, ["integration", "tag"], nothing) : opts["tag"]
     if tag !== nothing
-        tag = strip(string(tag))
+        tag = String(strip(string(tag)))
         isempty(tag) && (tag = nothing)
     end
     agent_id = opts["agent_id"] === nothing ? get_nested(cfg, ["integration", "agent_id"], "") : opts["agent_id"]
-    agent_id = strip(string(agent_id))
+    agent_id = String(strip(string(agent_id)))
     if isempty(agent_id)
         agent_id = nothing
     end
