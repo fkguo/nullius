@@ -271,6 +271,14 @@ requireInTestBody('test_empty_display_acceptance_block_fails', 'empty-block nega
   '"plotted-quantities-undeclared"',
   '"overview-undeclared"',
 ]);
+requireInTestBody('test_out_json_persists_same_payload', 'out-json round-trip control', [
+  'assert proc.returncode == 0',
+  'json.loads(out_path.read_text(encoding="utf-8"))',
+]);
+requireInTestBody('test_human_output_states_verdict', 'human-summary control', [
+  'assert proc.returncode == 0',
+  '"display acceptance pass"',
+]);
 requireInTestBody('test_usage_error_emits_invalid_manifest_payload', 'usage-error payload control', [
   'assert proc.returncode == 2',
   'assert payload["result"] == "invalid_manifest"',
