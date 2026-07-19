@@ -1291,10 +1291,16 @@ def test_config_delegations_dir_absolute(tmp_path: Path) -> None:
 
 
 def test_huge_integer_field_validated_not_crashed(tmp_path: Path) -> None:
-    """A valid but enormous integer must validate deterministically, not crash
-    the gate via math.isfinite(OverflowError)."""
-    body = json.dumps(_complete_contract())
-    body = body.replace("7200", "1" + "0" * 400, 1)  # time_box.seconds = 10**400
+    """A valid but enormous integer in a field validated by
+    _is_finite_positive_number (the repaired path — NOT time_box.seconds,
+    which uses the int-only _is_positive_int) must validate deterministically
+    instead of crashing the gate via math.isfinite(OverflowError). Uses an
+    integer tolerance_ceiling.value so the number reaches
+    _is_finite_positive_number as a huge int."""
+    contract = _complete_contract()
+    contract["tolerance_ceiling"]["value"] = 42  # placeholder; overwritten as a raw int below
+    body = json.dumps(contract)
+    body = body.replace('"value": 42', '"value": ' + "1" + "0" * 400, 1)
     proj = _make_project(tmp_path, contracts={"c.json": body})
     proc, verdict = _run_gate(proj)
     assert proc.returncode == 0, proc.stderr
