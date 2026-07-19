@@ -11,6 +11,7 @@ Experimental runtime bridge (MCP side) onto the **probability-managed idea portf
 By design, the following stay inside `@nullius/idea-engine` and are not MCP tools:
 
 - `node.set_posterior` and `node.set_lifecycle` belief/lifecycle updates
+- `node.set_grounding_audit` grounding-audit recording and `node.rewrite_provenance` scoped provenance correction
 - `node.import_generated` generation-pack import (the derived-node entry point)
 - Posterior-based `rank.compute` and `node.promote`
 - Direct campaign-state mutation outside the documented tool list

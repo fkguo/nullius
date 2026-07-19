@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "provenance_rewrite_result_v1.schema.json",
+  "title": "ProvenanceRewriteResult v1",
+  "description": "Result of node.rewrite_provenance: the correction actually applied (field, previous and new value, whether the engine-assembled novelty-delta card claim was synchronized), plus idempotency metadata and the current budget snapshot.",
+  "type": "object",
+  "required": [
+    "campaign_id",
+    "node_id",
+    "idea_id",
+    "field",
+    "previous_value",
+    "new_value",
+    "delta_claim_updated",
+    "revision",
+    "updated_at",
+    "budget_snapshot",
+    "idempotency"
+  ],
+  "properties": {
+    "campaign_id": {
+      "type": "string",
+      "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$"
+    },
+    "node_id": {
+      "type": "string",
+      "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$"
+    },
+    "idea_id": {
+      "type": "string",
+      "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$"
+    },
+    "field": {
+      "enum": [
+        "novelty_delta.closest_prior"
+      ]
+    },
+    "previous_value": {
+      "type": "string",
+      "minLength": 1
+    },
+    "new_value": {
+      "type": "string",
+      "minLength": 1
+    },
+    "delta_claim_updated": {
+      "type": "boolean",
+      "description": "True when the engine-assembled novelty-delta claim on the idea card was rewritten in the same mutation; false when no card claim carried the expected prefix (the trace rewrite still applied)."
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "budget_snapshot": {
+      "$ref": "./budget_snapshot_v1.schema.json"
+    },
+    "idempotency": {
+      "$ref": "./idempotency_meta_v1.schema.json"
+    }
+  },
+  "additionalProperties": false
+}
