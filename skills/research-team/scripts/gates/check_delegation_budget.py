@@ -115,6 +115,10 @@ def _is_placeholder(value: str) -> bool:
     return bool(_PLACEHOLDER_RE.match(value.strip()))
 
 
+def _reject_json_constant(token: str) -> Any:
+    raise ValueError(f"nonstandard JSON constant {token!r} is not valid contract JSON")
+
+
 def _scan_placeholders(node: Any, path: str, issues: list[str]) -> None:
     """Fail-closed sweep for unfilled template placeholders anywhere in the
     contract — optional fields included: a supplied value that is still a
@@ -216,10 +220,12 @@ def _validate_contract(contract: Any) -> list[str]:
                 "non-empty one-line statement of which task requirement derives the "
                 "ceiling — an unanchored tolerance is a number nobody can audit"
             )
-        elif "\n" in anchor or "\r" in anchor:
+        elif len(anchor.splitlines()) != 1:
+            # str.splitlines covers every Unicode line boundary (LF, CR,
+            # U+2028, U+2029, VT, FF, NEL), not just CR/LF.
             issues.append(
                 "MISSING_TOLERANCE_ANCHOR: `tolerance_ceiling.anchor_note` must be a "
-                "single line (embedded newlines found) — one auditable sentence, not an essay"
+                "single line (embedded line breaks found) — one auditable sentence, not an essay"
             )
 
     # time_box: hard wall-clock budget.
@@ -506,6 +512,10 @@ def _run(args: argparse.Namespace, base_meta: dict[str, Any], _input_error: Any)
 
     if args.project_root is not None:
         project_root = args.project_root.resolve()
+        # A broken explicit root would make every relative scan path
+        # FileNotFoundError and silently SKIP — fail closed instead.
+        if not project_root.is_dir():
+            return _input_error([f"--project-root is not an existing directory: {project_root}"])
     elif cfg.path is not None:
         project_root = cfg.path.resolve().parent
     else:
@@ -546,6 +556,12 @@ def _run(args: argparse.Namespace, base_meta: dict[str, Any], _input_error: Any)
         try:
             names: list[str] | None = sorted(os.listdir(delegations_dir))
         except FileNotFoundError:
+            # Genuinely absent is "no delegations" — but a dangling symlink is
+            # a broken setup, not an absent directory.
+            if delegations_dir.is_symlink():
+                return _input_error(
+                    [f"delegations path is a dangling symlink: {delegations_dir}"]
+                )
             names = None
         except OSError as e:
             return _input_error([f"cannot read delegations directory {delegations_dir}: {e}"])
@@ -583,8 +599,13 @@ def _run(args: argparse.Namespace, base_meta: dict[str, Any], _input_error: Any)
             source_path = str(path)
         key = _schema_safe_key(path, taken_keys)
         try:
-            contract = json.loads(path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError, UnicodeDecodeError) as e:
+            # parse_constant: Python's json accepts nonstandard NaN/Infinity
+            # literals that standard JSON consumers reject — a contract other
+            # tools cannot parse must not pass a fail-closed gate.
+            contract = json.loads(
+                path.read_text(encoding="utf-8"), parse_constant=_reject_json_constant
+            )
+        except (ValueError, OSError, UnicodeDecodeError) as e:
             issue = f"UNREADABLE_CONTRACT: {e}"
             report_status[key] = _contract_summary([issue], parse_ok=False, source_path=source_path)
             reasons.append(f"{source_path}: {issue}")
