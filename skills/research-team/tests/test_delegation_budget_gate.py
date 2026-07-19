@@ -758,13 +758,27 @@ def test_unicode_line_separator_anchor_note_fails(tmp_path: Path) -> None:
     _assert_fails_with(tmp_path, contract, "MISSING_TOLERANCE_ANCHOR")
 
 
-@pytest.mark.parametrize("anchor", ["ends with newline\n", "ends with separator\u2028"])
-def test_terminal_line_separator_anchor_note_fails(tmp_path: Path, anchor: str) -> None:
-    """A TERMINAL line separator also violates the one-line rule (a splitlines
-    count alone would let it through)."""
+_LINE_BOUNDARIES = ["\n", "\r", "\v", "\f", "\x1c", "\x1d", "\x1e", "\x85", "\u2028", "\u2029"]
+
+
+@pytest.mark.parametrize("sep", _LINE_BOUNDARIES)
+@pytest.mark.parametrize("position", ["embedded", "terminal"])
+def test_any_line_boundary_in_anchor_note_fails(tmp_path: Path, sep: str, position: str) -> None:
+    """EVERY line boundary Python recognizes violates the one-line rule,
+    embedded or terminal (a splitlines count alone misses terminal ones;
+    an explicit character set misses FS/GS/RS)."""
     contract = _complete_contract()
+    anchor = f"part one{sep}part two" if position == "embedded" else f"one line{sep}"
     contract["tolerance_ceiling"]["anchor_note"] = anchor
     _assert_fails_with(tmp_path, contract, "MISSING_TOLERANCE_ANCHOR")
+
+
+def test_duplicate_json_keys_fail(tmp_path: Path) -> None:
+    """json.loads is last-wins on duplicate keys: an earlier placeholder
+    would vanish before the placeholder sweep — duplicates must fail."""
+    body = json.dumps(_complete_contract())
+    dup = body[:-1] + ', "max_attempts": 3}'
+    _assert_fails_with(tmp_path, dup, "UNREADABLE_CONTRACT")
 
 
 def test_dangling_symlink_ancestor_of_delegations_dir_is_input_error(tmp_path: Path) -> None:
