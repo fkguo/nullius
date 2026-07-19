@@ -1034,3 +1034,65 @@ def test_config_symlink_retarget_between_reads_keeps_original_root(
     # Bound to real_a (resolved at discovery) → bad contract → FAIL 1.
     # A post-read re-resolution would land in real_b and SKIP with 0.
     assert mod.main() == 1
+
+
+def test_fifo_config_target_raises_instead_of_blocking(tmp_path: Path) -> None:
+    """The strict config loader must refuse a non-regular file instead of
+    blocking: exercises the descriptor-based reader directly (discovery
+    filters FIFOs out, so the reader is the last line of defense against a
+    substitution after discovery)."""
+    if not hasattr(os, "mkfifo"):
+        return
+    sys.path.insert(0, str(ROOT / "scripts" / "lib"))
+    from team_config import load_config_object
+
+    fifo = tmp_path / "research_team_config.json"
+    os.mkfifo(fifo)
+    with pytest.raises(ValueError):
+        load_config_object(fifo)
+
+
+def _run_gate_with_out_json(proj: Path, out_json: Path) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        [
+            sys.executable,
+            str(GATE),
+            "--notes",
+            str(proj / "notes.md"),
+            "--project-root",
+            str(proj),
+            "--out-json",
+            str(out_json),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+
+
+def test_fifo_out_json_fails_fast_with_single_verdict(tmp_path: Path) -> None:
+    """--out-json pointing at a FIFO must not block before the stdout verdict:
+    exactly one stdout parse_error verdict, exit 2, within the timeout."""
+    if not hasattr(os, "mkfifo"):
+        return
+    proj = _make_project(tmp_path, contracts={"c.json": _complete_contract()})
+    fifo = proj / "verdict_fifo.json"
+    os.mkfifo(fifo)
+    proc = _run_gate_with_out_json(proj, fifo)
+    assert proc.returncode == 2
+    lines = [ln for ln in proc.stdout.strip().splitlines() if ln.strip()]
+    assert len(lines) == 1
+    assert json.loads(lines[0])["status"] == "parse_error"
+
+
+def test_symlink_to_fifo_out_json_fails_fast(tmp_path: Path) -> None:
+    if not hasattr(os, "mkfifo"):
+        return
+    proj = _make_project(tmp_path, contracts={"c.json": _complete_contract()})
+    fifo = tmp_path / "outside.fifo"
+    os.mkfifo(fifo)
+    link = proj / "verdict_link.json"
+    link.symlink_to(fifo)
+    proc = _run_gate_with_out_json(proj, link)
+    assert proc.returncode == 2
+    assert json.loads(proc.stdout.strip())["status"] == "parse_error"

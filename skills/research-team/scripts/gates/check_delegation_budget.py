@@ -145,6 +145,30 @@ def _read_regular_file_text(path: Path) -> str:
     return b"".join(chunks).decode("utf-8")
 
 
+def _write_regular_file_text(path: Path, text: str) -> None:
+    """FIFO-safe verdict persistence: a FIFO (or symlink to one) at the
+    --out-json path would block open/write BEFORE the stdout verdict is
+    emitted, leaving an evaluated gate with neither verdict nor exit code.
+    Open O_NONBLOCK (a reader-less FIFO fails with ENXIO instead of
+    blocking), fstat-verify a regular file on the OPEN descriptor, then
+    write."""
+    import stat as stat_module
+
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, "O_NONBLOCK", 0), 0o644)
+    try:
+        st = os.fstat(fd)
+        if not stat_module.S_ISREG(st.st_mode):
+            raise ValueError(
+                f"--out-json target is not a regular file (mode {stat_module.filemode(st.st_mode)}) — refusing to write"
+            )
+        data = text.encode("utf-8")
+        while data:
+            written = os.write(fd, data)
+            data = data[written:]
+    finally:
+        os.close(fd)
+
+
 def _reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     """json.loads is silently last-wins on duplicate keys — an earlier
     placeholder value would be discarded before the placeholder sweep ever
@@ -395,11 +419,11 @@ def _emit(
     if out_json is not None:
         try:
             out_json.parent.mkdir(parents=True, exist_ok=True)
-            out_json.write_text(
+            _write_regular_file_text(
+                out_json,
                 json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
-                encoding="utf-8",
             )
-        except OSError as e:
+        except (OSError, ValueError) as e:
             reason = f"failed to persist machine verdict to --out-json {out_json}: {e}"
             print(f"ERROR: {reason}", file=sys.stderr)
             err_result = {
