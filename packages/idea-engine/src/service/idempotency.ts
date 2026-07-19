@@ -126,7 +126,7 @@ function preparedSideEffectsCommitted(store: IdeaEngineStore, method: string, re
     // a value mismatch it cannot complete.
     return recoverImportGenerated(store, record);
   }
-  if (method === 'node.set_posterior' || method === 'node.set_lifecycle') {
+  if (method === 'node.set_posterior' || method === 'node.set_lifecycle' || method === 'node.set_grounding_audit') {
     const campaignId = record.response.payload.campaign_id;
     const nodeSummary = record.response.payload.node;
     if (typeof campaignId !== 'string' || !nodeSummary || typeof nodeSummary !== 'object' || Array.isArray(nodeSummary)) {
@@ -157,9 +157,30 @@ function preparedSideEffectsCommitted(store: IdeaEngineStore, method: string, re
       return JSON.stringify(node.posterior ?? null) === JSON.stringify(summary.posterior ?? null)
         && JSON.stringify(node.literature_coverage ?? null) === JSON.stringify(summary.literature_coverage ?? null);
     }
+    if (method === 'node.set_grounding_audit') {
+      return JSON.stringify(node.grounding_audit ?? null) === JSON.stringify(summary.grounding_audit ?? null);
+    }
     return nodeLifecycleState(node) === summary.lifecycle_state
       && (node.lifecycle_reason ?? null) === (summary.lifecycle_reason ?? null)
       && JSON.stringify(node.activation_condition ?? null) === JSON.stringify(summary.activation_condition ?? null);
+  }
+  if (method === 'node.rewrite_provenance') {
+    const campaignId = record.response.payload.campaign_id;
+    const nodeId = record.response.payload.node_id;
+    const updatedAt = record.response.payload.updated_at;
+    if (typeof campaignId !== 'string' || typeof nodeId !== 'string' || typeof updatedAt !== 'string') {
+      return false;
+    }
+    const node = store.loadNodes<Record<string, unknown>>(campaignId)[nodeId];
+    if (!node || String(node.updated_at ?? '') !== updatedAt) {
+      return false;
+    }
+    // Same value-equality discipline: the stored trace must carry exactly the
+    // corrected value this operation produced.
+    const operatorTrace = node.operator_trace as Record<string, unknown> | undefined;
+    const inputs = operatorTrace?.inputs as Record<string, unknown> | undefined;
+    const noveltyDelta = inputs?.novelty_delta as Record<string, unknown> | undefined;
+    return noveltyDelta?.closest_prior === record.response.payload.new_value;
   }
   return false;
 }

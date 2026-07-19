@@ -2,8 +2,8 @@
   "openrpc": "1.2.6",
   "info": {
     "title": "Idea Campaign RPC (v1)",
-    "version": "2.0.0",
-    "description": "JSON-RPC interface for the public idea campaign host surface, currently implemented by the TS idea-engine runtime. Contract schemas are referenced via $ref to sibling files in this directory.\n\nScope note: the search/eval runtime has been archived. The engine manages an idea portfolio: campaign lifecycle, node reads, externally computed belief posteriors (node.set_posterior), lifecycle transitions (node.set_lifecycle), posterior-based ranking (rank.compute), and promotion (node.promote).\n\nRef resolution: All external schema $ref values are relative to this OpenRPC document's directory.\n\nIdempotency semantics (MUST):\n1) Side-effecting methods require idempotency_key.\n2) Engine deduplicates by (method, campaign_id, idempotency_key). For campaign.init (no campaign_id yet), dedupe by (method, idempotency_key).\n2b) If the same idempotency_key is reused with a different request payload, the engine MUST reject with schema_validation_failed (-32002) and MUST NOT execute the request. The error MUST include error.data.reason=\"idempotency_key_conflict\" and MUST include error.data.idempotency_key + error.data.payload_hash.\n2c) Payload identity MUST be machine-defined: compute payload_hash = sha256(JCS(params_without_idempotency_key)). JCS = RFC 8785 JSON Canonicalization Scheme (deterministic object key order + number formatting). Engines SHOULD apply default-value filling (e.g., node.list.limit omitted → 50) before hashing to avoid false conflicts for semantically identical intents.\n3) On duplicate, engine MUST return the same logical response as the first call (result or error), without repeating side-effects. The response MUST include idempotency metadata (idempotency_key + is_replay); is_replay MUST be true on duplicate hits and false on first execution. All other fields MUST match the first response. For non-deterministic methods, this MUST be implemented by storing and replaying the first response, not by re-execution.\n4) Idempotency records MUST be retained for the campaign lifetime (or until an explicit campaign.delete is added).\n\nError data contract (MUST):\nAll error responses MUST include a machine-readable JSON-RPC error.data object. Minimum fields: {\"reason\": string, \"details\"?: object}.\n- For code -32001 (budget_exhausted), error.data.reason MUST be \"dimension_exhausted\" and error.data.details.exhausted_dimensions MUST list one or more exhausted budget dimensions.\n- For code -32002 (schema_validation_failed), error.data.reason MUST distinguish at least: schema_invalid, idempotency_key_conflict, activation_condition_required, activation_condition_unexpected, archived_reason_required, posterior_status_not_supported_by_coverage.\n- For code -32017 (promotion_blocked), error.data.reason MUST be posterior_missing or node_not_admitted.\n- For code -32018 (lifecycle_transition_invalid), error.data.reason MUST distinguish at least: illegal_transition, entry_precondition_failed, posterior_write_lifecycle_invalid, unknown_lifecycle_state. error.data.details MUST carry, per reason: illegal_transition — current_state, requested_state, allowed_next; entry_precondition_failed — current_state, requested_state, requirement; posterior_write_lifecycle_invalid — current_state, allowed_states; unknown_lifecycle_state — found, allowed_states plus a migration hint."
+    "version": "2.1.0",
+    "description": "JSON-RPC interface for the public idea campaign host surface, currently implemented by the TS idea-engine runtime. Contract schemas are referenced via $ref to sibling files in this directory.\n\nScope note: the search/eval runtime has been archived. The engine manages an idea portfolio: campaign lifecycle, node reads, externally computed belief posteriors (node.set_posterior), lifecycle transitions (node.set_lifecycle), independently produced grounding-audit records (node.set_grounding_audit), scoped provenance corrections (node.rewrite_provenance), posterior-based ranking (rank.compute), and promotion (node.promote).\n\nRef resolution: All external schema $ref values are relative to this OpenRPC document's directory.\n\nIdempotency semantics (MUST):\n1) Side-effecting methods require idempotency_key.\n2) Engine deduplicates by (method, campaign_id, idempotency_key). For campaign.init (no campaign_id yet), dedupe by (method, idempotency_key).\n2b) If the same idempotency_key is reused with a different request payload, the engine MUST reject with schema_validation_failed (-32002) and MUST NOT execute the request. The error MUST include error.data.reason=\"idempotency_key_conflict\" and MUST include error.data.idempotency_key + error.data.payload_hash.\n2c) Payload identity MUST be machine-defined: compute payload_hash = sha256(JCS(params_without_idempotency_key)). JCS = RFC 8785 JSON Canonicalization Scheme (deterministic object key order + number formatting). Engines SHOULD apply default-value filling (e.g., node.list.limit omitted → 50) before hashing to avoid false conflicts for semantically identical intents.\n3) On duplicate, engine MUST return the same logical response as the first call (result or error), without repeating side-effects. The response MUST include idempotency metadata (idempotency_key + is_replay); is_replay MUST be true on duplicate hits and false on first execution. All other fields MUST match the first response. For non-deterministic methods, this MUST be implemented by storing and replaying the first response, not by re-execution.\n4) Idempotency records MUST be retained for the campaign lifetime (or until an explicit campaign.delete is added).\n\nError data contract (MUST):\nAll error responses MUST include a machine-readable JSON-RPC error.data object. Minimum fields: {\"reason\": string, \"details\"?: object}.\n- For code -32001 (budget_exhausted), error.data.reason MUST be \"dimension_exhausted\" and error.data.details.exhausted_dimensions MUST list one or more exhausted budget dimensions.\n- For code -32002 (schema_validation_failed), error.data.reason MUST distinguish at least: schema_invalid, idempotency_key_conflict, activation_condition_required, activation_condition_unexpected, archived_reason_required, posterior_status_not_supported_by_coverage.\n- For code -32017 (promotion_blocked), error.data.reason MUST be posterior_missing or node_not_admitted.\n- For code -32018 (lifecycle_transition_invalid), error.data.reason MUST distinguish at least: illegal_transition, entry_precondition_failed, posterior_write_lifecycle_invalid, grounding_audit_write_lifecycle_invalid, unknown_lifecycle_state. error.data.details MUST carry, per reason: illegal_transition — current_state, requested_state, allowed_next; entry_precondition_failed — current_state, requested_state, requirement; posterior_write_lifecycle_invalid / grounding_audit_write_lifecycle_invalid — current_state, allowed_states; unknown_lifecycle_state — found, allowed_states plus a migration hint."
   },
   "x-error-data-contract": {
     "schema": {
@@ -21,6 +21,7 @@
         "archived_reason_required",
         "posterior_status_not_supported_by_coverage",
         "anchor_missing",
+        "closest_prior_node_reference",
         "dedup_inconsistent",
         "evidence_receipt_missing",
         "evidence_snapshot_missing",
@@ -35,6 +36,8 @@
         "parent_revisions_missing",
         "placeholder_evidence_forbidden",
         "prompt_snapshot_missing",
+        "provenance_field_missing",
+        "rewrite_value_unchanged",
         "trace_key_reserved",
         "trigger_not_enabled"
       ],
@@ -51,6 +54,7 @@
         "illegal_transition",
         "entry_precondition_failed",
         "posterior_write_lifecycle_invalid",
+        "grounding_audit_write_lifecycle_invalid",
         "unknown_lifecycle_state"
       ]
     }
@@ -676,6 +680,199 @@
       ]
     },
     {
+      "name": "node.set_grounding_audit",
+      "summary": "Record an independently produced grounding-audit result for a node.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "campaign_id",
+          "schema": {
+            "type": "string",
+            "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$"
+          },
+          "required": true
+        },
+        {
+          "name": "node_id",
+          "schema": {
+            "type": "string",
+            "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$"
+          },
+          "required": true
+        },
+        {
+          "name": "grounding_audit",
+          "schema": {
+            "type": "object",
+            "required": [
+              "status",
+              "folklore_risk_score",
+              "failures",
+              "report_ref"
+            ],
+            "properties": {
+              "status": {
+                "enum": [
+                  "pass",
+                  "fail",
+                  "partial"
+                ],
+                "description": "Outcome of the independent grounding check. Honest fail/partial results are recordable; node.promote gates on pass."
+              },
+              "folklore_risk_score": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "failures": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "report_ref": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Portable reference to the independently produced grounding record (e.g. a claim_grounding_report artifact) this audit result summarizes. The engine stores the declared reference; content verification stays with project-side audits."
+              }
+            },
+            "additionalProperties": false
+          },
+          "required": true,
+          "description": "The grounding-audit result to record. The engine stamps grounding_audit.timestamp itself."
+        },
+        {
+          "name": "idempotency_key",
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          },
+          "required": true
+        }
+      ],
+      "description": "Side-effecting. The ONLY write path for node grounding_audit records: writes the result of an independently produced grounding check (statement-support verification of the idea card's cited claims) onto the node, stamps grounding_audit.timestamp, increments the node revision, and appends a set_grounding_audit entry to the node mutation log. Direct store edits of grounding_audit are not a sanctioned path. Does not consume step budget. Permitted in any campaign status except completed (campaign_not_active).\n\nLifecycle coupling (MUST): the write is legal only while the node's lifecycle_state is admission_review, admitted, or needs_refresh — the same review window as posterior writes: a candidate must first declare admission_review via node.set_lifecycle, and admission_blocked / waiting_activation / archived nodes must be transitioned out first (else lifecycle_transition_invalid/grounding_audit_write_lifecycle_invalid, -32018, with current_state and allowed_states in error.data.details). The write does not derive lifecycle: a failing audit is recorded as data, and any consequent transition (e.g. into admission_blocked with the missing evidence as the activation condition) is an explicit node.set_lifecycle decision.\n\nreport_ref (MUST): every record names the independently produced grounding record it summarizes. The engine stores the declared reference verbatim (symmetric with node.set_posterior's survey_ref / close_prior_matrix_ref); whether the referenced report actually supports the recorded status stays a project-side audit concern.",
+      "result": {
+        "name": "node_update_result",
+        "schema": {
+          "$ref": "./node_update_result_v1.schema.json"
+        }
+      },
+      "errors": [
+        {
+          "code": -32002,
+          "message": "schema_validation_failed"
+        },
+        {
+          "code": -32003,
+          "message": "campaign_not_found"
+        },
+        {
+          "code": -32004,
+          "message": "node_not_found"
+        },
+        {
+          "code": -32014,
+          "message": "node_not_in_campaign"
+        },
+        {
+          "code": -32015,
+          "message": "campaign_not_active"
+        },
+        {
+          "code": -32018,
+          "message": "lifecycle_transition_invalid"
+        }
+      ]
+    },
+    {
+      "name": "node.rewrite_provenance",
+      "summary": "Correct a single allowlisted provenance field on a generated node, with the rewrite recorded as engine-owned history.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "campaign_id",
+          "schema": {
+            "type": "string",
+            "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$"
+          },
+          "required": true
+        },
+        {
+          "name": "node_id",
+          "schema": {
+            "type": "string",
+            "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$"
+          },
+          "required": true
+        },
+        {
+          "name": "field",
+          "schema": {
+            "enum": [
+              "novelty_delta.closest_prior"
+            ]
+          },
+          "required": true,
+          "description": "The provenance field to rewrite. The allowlist is deliberate: this method is a scoped correction path, not a general node editor. Extending it is a contract change."
+        },
+        {
+          "name": "new_value",
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          },
+          "required": true,
+          "description": "The corrected value. For novelty_delta.closest_prior: a survey reference key or a URI of the closest prior work — never a campaign node id."
+        },
+        {
+          "name": "reason",
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          },
+          "required": true,
+          "description": "Why this rewrite is a legitimate correction (non-empty; recorded in the engine-owned rewrite history and the node mutation log)."
+        },
+        {
+          "name": "idempotency_key",
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          },
+          "required": true
+        }
+      ],
+      "description": "Side-effecting. Scoped provenance-correction path for generated nodes whose recorded provenance violates the contract's documented semantics — currently only operator_trace.inputs.novelty_delta.closest_prior, whose contract requires a URI or survey ref_key of the closest prior work (a campaign node id is not a durable literature reference). The engine rewrites the field, keeps the correction auditable, increments the node revision, and appends a rewrite_provenance entry to the node mutation log. Does not consume step budget. Permitted in any campaign status except completed (campaign_not_active) and in any lifecycle state (a provenance correction is record maintenance, not portfolio progression). The archived generation pack is immutable and retains the original value; the provenance chain is original (pack, content-pinned) -> rewrite history (engine-owned) -> current node value.\n\nValidation (all -32002 schema_validation_failed; error.data.reason values): provenance_field_missing (the node carries no operator_trace.inputs.novelty_delta.closest_prior string — e.g. a seed node; there is nothing to rewrite); rewrite_value_unchanged (new_value equals the stored value — a rewrite must change the record; replays of the SAME correction are handled by idempotency, not by re-execution); closest_prior_node_reference (new_value equals an existing node_id or idea_id in the campaign — the exact defect this method exists to remove); evidence_receipt_missing (a URI-shaped new_value — one containing '://' — is absent from the node's operator_trace.evidence_uris_used or has no retrieval receipt in operator_trace.inputs.retrieval_receipts; no retrieval receipt, no URI — same rule as import). A non-URI new_value is recorded as a survey reference key; resolving it against the pinned survey stays a project-side audit concern.\n\nEffects (MUST): (1) operator_trace.inputs.novelty_delta.closest_prior is set to new_value; (2) the engine-assembled novelty-delta claim on the idea card (claim_text prefix 'Novelty delta vs closest prior (<current value>): ') is rewritten in the same mutation — its claim_text prefix carries new_value and its evidence_uris become [new_value] when URI-shaped, [] otherwise — so card and trace cannot diverge; the result reports delta_claim_updated; (3) an entry {field, previous_value, new_value, reason, rewritten_at} is appended to operator_trace.inputs.provenance_rewrites, which is engine-owned (import rejects packs supplying it: trace_key_reserved) and preserves every correction in order.",
+      "result": {
+        "name": "provenance_rewrite_result",
+        "schema": {
+          "$ref": "./provenance_rewrite_result_v1.schema.json"
+        }
+      },
+      "errors": [
+        {
+          "code": -32002,
+          "message": "schema_validation_failed"
+        },
+        {
+          "code": -32003,
+          "message": "campaign_not_found"
+        },
+        {
+          "code": -32004,
+          "message": "node_not_found"
+        },
+        {
+          "code": -32014,
+          "message": "node_not_in_campaign"
+        },
+        {
+          "code": -32015,
+          "message": "campaign_not_active"
+        }
+      ]
+    },
+    {
       "name": "node.import_generated",
       "summary": "Import one generation burst (a generation_pack_v1) as derived idea nodes.",
       "paramStructure": "by-name",
@@ -705,7 +902,7 @@
           "required": true
         }
       ],
-      "description": "Side-effecting. The ONLY entry point for derived (non-seed) nodes. The engine: (1) validates the pack against generation_pack_v1 plus the semantic rules below; (2) refuses unless the campaign is running and the batch fits the nodes budget (budget_exhausted with details.exhausted_dimensions=[\"nodes\"] when the batch would exceed max_nodes); (3) mints node_id/idea_id per candidate; (3b) rejects reserved engine-owned trace keys; (4) assembles each idea_card deterministically from card_fields (thesis_statement derived from rationale_draft by the same rule as seed import) and computes operator_trace.params.formalization engine-side (mode explain_then_formalize_deterministic_v1, source_artifact rationale_draft, rationale_hash over the engine's own sanitization) so node.promote can never drift; (5) validates every assembled node against idea_node_v1; (6) archives the pack (verbatim pack plus the engine-assembled nodes) as campaign artifact artifacts/generation/pack-<pack_id>.json and records a portable project://...#sha256:<pack_hash> pack_artifact_ref; the bin/idea-rpc.mjs bridge reads project_root as a top-level stdin envelope field sibling to store_root, not as a method param, so it does not enter idempotency payload hashes; (7) writes nodes, one create node-log entry per node, and recomputed campaign usage (usage.nodes_used = total node count; steps are NOT consumed — import spends the nodes dimension only) under the campaign mutation lock with prepared->committed idempotency. Imported nodes are born with posterior=null and grounding_audit=null — evaluation authority stays with the belief layer; the pack carries no scores.\n\nSemantic validation (all -32002 schema_validation_failed; error.data.reason values): pack_campaign_mismatch (pack.campaign_id != campaign_id param); operator_family_unknown (family outside the committed arity table below); operator_family_not_enabled (family in the table but outside the enabled set: LiteratureMining, FailureRouting — the remaining families are committed vocabulary rejected until their evidence disciplines land in this validator); operator_arity_invalid (parent_node_ids count violates the family's arity, duplicate parents, or AnalogyTransfer without a non-empty rationale_draft.analogy_mapping); trigger_not_enabled (trigger.kind outside the enabled set: manual, survey_updated, failure_recorded; the remaining vocabulary kinds are reserved and rejected until their seam is exercised; non-manual triggers additionally require trigger.artifact_ref); evidence_receipt_missing (an evidence URI in claims, rationale_draft.references, or a URI-shaped novelty_delta.closest_prior lacks a retrieval receipt in trace_inputs.retrieval_receipts [{uri, source}] or is absent from evidence_uris_used); placeholder_evidence_forbidden (the seed placeholder URI appears anywhere in a generated candidate — the scan walks every string in the candidate, including anchors, receipts, references, and novelty fields); evidence_snapshot_missing (a LiteratureMining candidate in a pack whose evidence_snapshot does not pin survey_artifact_ref + survey_content_hash); anchor_missing (LiteratureMining candidate without trace_inputs.anchor: kind=tension requires statement + non-empty ref_keys; FailureRouting with zero parents requires non-empty trace_inputs.failed_approach_refs, each pinned in evidence_snapshot.failed_approach_refs; FailureRouting with a parent requires that parent to be ARCHIVED — rerouting only makes sense around a node that died); gap_unanchored (LiteratureMining anchor.kind=gap without non-empty anchor.resolved_refs, each receipted); novelty_delta_non_novel (delta_type is parameter_tweak or rewording — declared non-novel by construction); parent_revisions_missing (a candidate's parent id is absent from evidence_snapshot.parent_revisions); parent_revision_invalid (a recorded read-time revision is not one the parent has actually had); intra_pack_duplicate (two candidates in one pack share the same normalized rationale draft — the engine's exact backstop behind the skill-side vector dedup, which must also compare within the burst); dedup_inconsistent (dedup.decision=unique with nearest_similarity >= 0.95, the fixed auto-drop bound); prompt_snapshot_missing (prompt provenance is MANDATORY: every candidate must declare provenance.prompt_snapshot_hash, a pack.prompt_snapshots entry's content must hash to it, every snapshot entry's content must match its own hash, and origin.prompt_hash must equal prompt_snapshot_hash — both hash the same rendered prompt, archived with the pack and verified at import); trace_key_reserved (trace_params carries a formalization key, or trace_inputs carries any of the six engine-owned keys: trigger, pack_artifact, parent_revisions, target_admission_route, dedup, novelty_delta). Parent nodes must exist in the campaign (node_not_found otherwise). dedup.decision=flagged without override_reason is rejected by the pack schema itself.\n\nArity table (operator_family -> required parent_node_ids count): Seed -> not importable here (seed import is campaign.init); LiteratureMining -> exactly 0; Mutation -> exactly 1; Recombination -> at least 2; AnalogyTransfer -> 0 or 1 (plus non-empty analogy_mapping); FailureRouting -> 0 or 1 (zero-parent form requires failed_approach_refs).\n\nCrash recovery (import-specific; the generic delete-prepared-and-re-execute path is NOT used when any effect landed): the prepared idempotency record's result payload carries the minted ids, created_at, pack_artifact_ref, pack_hash, and archive_hash. pack_artifact_ref is a project-root-relative project://...#sha256:<pack_hash> reference; pack_hash is the content hash embedded in that ref and archive_hash is sha256 over the ENTIRE archived artifact including the engine-assembled node payloads — recovery verifies both before completing any effect, so completion re-writes only content the original execution produced and validated. On retry, the engine probes all four effect classes — pack artifact resolves with matching pack_hash; every recorded node present with a value-equal IMMUTABLE projection (created_at, lineage, origin, operator_trace, rationale_draft — mutable fields may legitimately have moved); one create node-log entry per node; campaign usage consistent (nodes_used equals the store's node count). Missing effects are COMPLETED from the archived pack artifact — ids are never re-minted and content is never regenerated; only when NOTHING landed (no artifact, no recorded node) does the engine fall back to fresh execution. A value mismatch that cannot be completed refuses with internal_error/import_recovery_conflict for manual repair.\n\nAdditional semantics: the pack artifact filename is collision-guarded against artifacts already on disk (an id draw never overwrites an earlier burst's archived audit unit). Recovery completion deliberately does NOT re-check the nodes budget or campaign lifecycle: the burst's budget decision was made at prepare time, so completing an approved burst after an interleaved import may transiently overshoot max_nodes — the recomputed usage makes the overshoot visible and flips a running campaign to exhausted. A mutation attempted while another live process holds the campaign lock fails with internal_error/store_locked (holder pid + lock path in details); locks left by provably dead processes are reclaimed automatically.",
+      "description": "Side-effecting. The ONLY entry point for derived (non-seed) nodes. The engine: (1) validates the pack against generation_pack_v1 plus the semantic rules below; (2) refuses unless the campaign is running and the batch fits the nodes budget (budget_exhausted with details.exhausted_dimensions=[\"nodes\"] when the batch would exceed max_nodes); (3) mints node_id/idea_id per candidate; (3b) rejects reserved engine-owned trace keys; (4) assembles each idea_card deterministically from card_fields (thesis_statement derived from rationale_draft by the same rule as seed import) and computes operator_trace.params.formalization engine-side (mode explain_then_formalize_deterministic_v1, source_artifact rationale_draft, rationale_hash over the engine's own sanitization) so node.promote can never drift; (5) validates every assembled node against idea_node_v1; (6) archives the pack (verbatim pack plus the engine-assembled nodes) as campaign artifact artifacts/generation/pack-<pack_id>.json and records a portable project://...#sha256:<pack_hash> pack_artifact_ref; the bin/idea-rpc.mjs bridge reads project_root as a top-level stdin envelope field sibling to store_root, not as a method param, so it does not enter idempotency payload hashes; (7) writes nodes, one create node-log entry per node, and recomputed campaign usage (usage.nodes_used = total node count; steps are NOT consumed — import spends the nodes dimension only) under the campaign mutation lock with prepared->committed idempotency. Imported nodes are born with posterior=null and grounding_audit=null — evaluation authority stays with the belief layer; the pack carries no scores.\n\nSemantic validation (all -32002 schema_validation_failed; error.data.reason values): pack_campaign_mismatch (pack.campaign_id != campaign_id param); operator_family_unknown (family outside the committed arity table below); operator_family_not_enabled (family in the table but outside the enabled set: LiteratureMining, FailureRouting — the remaining families are committed vocabulary rejected until their evidence disciplines land in this validator); operator_arity_invalid (parent_node_ids count violates the family's arity, duplicate parents, or AnalogyTransfer without a non-empty rationale_draft.analogy_mapping); trigger_not_enabled (trigger.kind outside the enabled set: manual, survey_updated, failure_recorded; the remaining vocabulary kinds are reserved and rejected until their seam is exercised; non-manual triggers additionally require trigger.artifact_ref); evidence_receipt_missing (an evidence URI in claims, rationale_draft.references, or a URI-shaped novelty_delta.closest_prior lacks a retrieval receipt in trace_inputs.retrieval_receipts [{uri, source}] or is absent from evidence_uris_used); placeholder_evidence_forbidden (the seed placeholder URI appears anywhere in a generated candidate — the scan walks every string in the candidate, including anchors, receipts, references, and novelty fields); evidence_snapshot_missing (a LiteratureMining candidate in a pack whose evidence_snapshot does not pin survey_artifact_ref + survey_content_hash); anchor_missing (LiteratureMining candidate without trace_inputs.anchor: kind=tension requires statement + non-empty ref_keys; FailureRouting with zero parents requires non-empty trace_inputs.failed_approach_refs, each pinned in evidence_snapshot.failed_approach_refs; FailureRouting with a parent requires that parent to be ARCHIVED — rerouting only makes sense around a node that died); gap_unanchored (LiteratureMining anchor.kind=gap without non-empty anchor.resolved_refs, each receipted); novelty_delta_non_novel (delta_type is parameter_tweak or rewording — declared non-novel by construction); parent_revisions_missing (a candidate's parent id is absent from evidence_snapshot.parent_revisions); parent_revision_invalid (a recorded read-time revision is not one the parent has actually had); intra_pack_duplicate (two candidates in one pack share the same normalized rationale draft — the engine's exact backstop behind the skill-side vector dedup, which must also compare within the burst); dedup_inconsistent (dedup.decision=unique with nearest_similarity >= 0.95, the fixed auto-drop bound); prompt_snapshot_missing (prompt provenance is MANDATORY: every candidate must declare provenance.prompt_snapshot_hash, a pack.prompt_snapshots entry's content must hash to it, every snapshot entry's content must match its own hash, and origin.prompt_hash must equal prompt_snapshot_hash — both hash the same rendered prompt, archived with the pack and verified at import); trace_key_reserved (trace_params carries a formalization key, or trace_inputs carries any of the seven engine-owned keys: trigger, pack_artifact, parent_revisions, target_admission_route, dedup, novelty_delta, provenance_rewrites). Parent nodes must exist in the campaign (node_not_found otherwise). dedup.decision=flagged without override_reason is rejected by the pack schema itself.\n\nArity table (operator_family -> required parent_node_ids count): Seed -> not importable here (seed import is campaign.init); LiteratureMining -> exactly 0; Mutation -> exactly 1; Recombination -> at least 2; AnalogyTransfer -> 0 or 1 (plus non-empty analogy_mapping); FailureRouting -> 0 or 1 (zero-parent form requires failed_approach_refs).\n\nCrash recovery (import-specific; the generic delete-prepared-and-re-execute path is NOT used when any effect landed): the prepared idempotency record's result payload carries the minted ids, created_at, pack_artifact_ref, pack_hash, and archive_hash. pack_artifact_ref is a project-root-relative project://...#sha256:<pack_hash> reference; pack_hash is the content hash embedded in that ref and archive_hash is sha256 over the ENTIRE archived artifact including the engine-assembled node payloads — recovery verifies both before completing any effect, so completion re-writes only content the original execution produced and validated. On retry, the engine probes all four effect classes — pack artifact resolves with matching pack_hash; every recorded node present with a value-equal IMMUTABLE projection (created_at, lineage, origin, operator_trace, rationale_draft — mutable fields may legitimately have moved); one create node-log entry per node; campaign usage consistent (nodes_used equals the store's node count). Missing effects are COMPLETED from the archived pack artifact — ids are never re-minted and content is never regenerated; only when NOTHING landed (no artifact, no recorded node) does the engine fall back to fresh execution. A value mismatch that cannot be completed refuses with internal_error/import_recovery_conflict for manual repair.\n\nAdditional semantics: the pack artifact filename is collision-guarded against artifacts already on disk (an id draw never overwrites an earlier burst's archived audit unit). Recovery completion deliberately does NOT re-check the nodes budget or campaign lifecycle: the burst's budget decision was made at prepare time, so completing an approved burst after an interleaved import may transiently overshoot max_nodes — the recomputed usage makes the overshoot visible and flips a running campaign to exhausted. A mutation attempted while another live process holds the campaign lock fails with internal_error/store_locked (holder pid + lock path in details); locks left by provably dead processes are reclaimed automatically.",
       "result": {
         "name": "import_generated_result",
         "schema": {

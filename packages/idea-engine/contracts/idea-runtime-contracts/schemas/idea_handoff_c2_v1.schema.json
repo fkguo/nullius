@@ -49,6 +49,11 @@
           "minimum": 0,
           "maximum": 1
         },
+        "report_ref": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Portable reference to the independently produced grounding record backing this pass (carried over from the node's grounding_audit; optional for records that predate node.set_grounding_audit)."
+        },
         "failures": {
           "type": "array",
           "items": {

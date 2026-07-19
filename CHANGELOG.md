@@ -10,6 +10,28 @@ version is the lockstep number below.
 ## [Unreleased]
 
 ### Added
+- **Idea-engine: grounding-audit write path and scoped provenance correction**
+  (RPC contract 2.1.0). `node.set_grounding_audit` becomes the only sanctioned
+  write path for node grounding-audit records — it stores the result of an
+  independently produced grounding check with a mandatory `report_ref` naming
+  the record it summarizes, stamps the timestamp engine-side, and is legal in
+  the same review window as posterior writes; honest fail/partial results are
+  recordable data, and `node.promote` keeps gating on `pass`. A campaign-store
+  audit had flagged that promotion was unreachable without direct store edits,
+  which are not a sanctioned path. `node.rewrite_provenance` corrects a single
+  allowlisted provenance field on generated nodes — currently
+  `novelty_delta.closest_prior`, whose contract requires a URI or survey ref
+  key of the closest prior work rather than a campaign node id (the recorded
+  defect that motivated the method). The corrected value is validated against
+  the node's own retrieval receipts (URI-shaped values must be receipted; node
+  and idea ids are rejected), the engine-assembled novelty-delta card claim is
+  rewritten in the same mutation so card and trace cannot diverge, and every
+  correction is appended to the engine-owned, import-reserved
+  `operator_trace.inputs.provenance_rewrites` history while the archived
+  generation pack retains the original value — original (content-pinned) →
+  corrections → current stays auditable. Both methods carry prepared/committed
+  idempotency with crash-recovery probes; node `grounding_audit` records (and
+  the C2 handoff embedding them) gain an optional `report_ref`.
 - **Citation-triangulation: benchmark-validated admission and identifier
   disciplines.** The comparator now folds a trailing version suffix on
   preprint-registry (`10.48550/arxiv.`) DOIs, whose DataCite identifier is

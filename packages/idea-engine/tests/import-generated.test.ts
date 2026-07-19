@@ -768,6 +768,14 @@ describe('node.import_generated', () => {
       params.formalization = { mode: 'spoofed' };
     });
     expectRpcError(() => importPack(service, campaignId, pack), -32002, 'trace_key_reserved');
+
+    // The rewrite history is written only by node.rewrite_provenance; a
+    // generator pre-seeding it would fabricate correction provenance.
+    pack = mutateCandidate(validPack(campaignId), candidate => {
+      const inputs = (candidate.provenance as Record<string, unknown>).trace_inputs as Record<string, unknown>;
+      inputs.provenance_rewrites = [{ field: 'novelty_delta.closest_prior', spoofed: true }];
+    });
+    expectRpcError(() => importPack(service, campaignId, pack), -32002, 'trace_key_reserved');
   });
 
   it('bans the placeholder URI anywhere in the candidate, including gap anchors and receipts', () => {

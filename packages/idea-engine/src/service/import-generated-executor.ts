@@ -58,6 +58,7 @@ const RESERVED_TRACE_INPUT_KEYS = [
   'target_admission_route',
   'dedup',
   'novelty_delta',
+  'provenance_rewrites',
 ] as const;
 
 /**
