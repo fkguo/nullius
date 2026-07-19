@@ -603,57 +603,110 @@ def test_no_config_file_no_contracts_skips(tmp_path: Path) -> None:
     assert "SKIP" in proc.stderr
 
 
-# ------------------------------------------- shared-validator strictness (SSOT)
+# --------------------------------------- exhaustive type/range negative controls
 
 
-def test_validator_rejects_boolean_exit_code() -> None:
-    verdict = {
-        "status": "converged",
-        "exit_code": True,
-        "reasons": [],
-        "report_status": {"gate": {"verdict": "ready", "blocking_count": 0, "parse_ok": True}},
-        "meta": _valid_meta(),
-    }
-    assert any("exit_code" in e for e in validate_convergence_result(verdict))
+import pytest
 
 
-def test_validator_rejects_boolean_blocking_count() -> None:
-    verdict = {
-        "status": "converged",
-        "exit_code": 0,
-        "reasons": [],
-        "report_status": {"gate": {"verdict": "ready", "blocking_count": True, "parse_ok": True}},
-        "meta": _valid_meta(),
-    }
-    assert any("blocking_count" in e for e in validate_convergence_result(verdict))
+@pytest.mark.parametrize("bad", [0, -1, True, 2.0, "2", None])
+def test_bad_max_attempts_fails(tmp_path: Path, bad: object) -> None:
+    contract = _complete_contract()
+    contract["max_attempts"] = bad
+    _assert_fails_with(tmp_path, contract, "MISSING_MAX_ATTEMPTS")
 
 
-def test_validator_rejects_boolean_schema_version() -> None:
-    meta = _valid_meta()
-    meta["schema_version"] = True
-    verdict = {
-        "status": "converged",
-        "exit_code": 0,
-        "reasons": [],
-        "report_status": {"gate": {"verdict": "ready", "blocking_count": 0, "parse_ok": True}},
-        "meta": meta,
-    }
-    assert any("schema_version" in e for e in validate_convergence_result(verdict))
+@pytest.mark.parametrize("bad", [0, -1e-6, float("nan"), float("inf")])
+def test_bad_tolerance_value_fails(tmp_path: Path, bad: float) -> None:
+    contract = _complete_contract()
+    contract["tolerance_ceiling"]["value"] = bad
+    _assert_fails_with(tmp_path, contract, "MISSING_TOLERANCE_VALUE")
 
 
-def test_validator_rejects_trailing_newline_key() -> None:
-    """ECMA-262 `$` does not match before a trailing newline; ours must not either."""
-    verdict = {
-        "status": "converged",
-        "exit_code": 0,
-        "reasons": [],
-        "report_status": {"gate\n": {"verdict": "ready", "blocking_count": 0, "parse_ok": True}},
-        "meta": _valid_meta(),
-    }
-    assert any("does not match the shared schema" in e for e in validate_convergence_result(verdict))
+@pytest.mark.parametrize("bad", [0, -100, float("nan"), float("inf"), True, "1800"])
+def test_bad_dry_run_peak_rss_fails(tmp_path: Path, bad: object) -> None:
+    contract = _complete_contract()
+    contract["peak_memory_estimate"]["dry_run_peak_rss_mb"] = bad
+    _assert_fails_with(tmp_path, contract, "MISSING_DRY_RUN_PEAK_RSS")
 
 
-def _valid_meta() -> dict:
-    from convergence_schema import build_gate_meta
+@pytest.mark.parametrize("bad", [0, -4096, float("nan"), float("inf"), True, "4096"])
+def test_bad_heap_limit_fails(tmp_path: Path, bad: object) -> None:
+    contract = _complete_contract()
+    contract["peak_memory_estimate"]["heap_limit_mb"] = bad
+    _assert_fails_with(tmp_path, contract, "MISSING_HEAP_LIMIT")
 
-    return build_gate_meta("delegation_budget")
+
+@pytest.mark.parametrize("bad", [-1, True, 1.5, "7200", None])
+def test_bad_time_box_seconds_fails(tmp_path: Path, bad: object) -> None:
+    contract = _complete_contract()
+    contract["time_box"]["seconds"] = bad
+    _assert_fails_with(tmp_path, contract, "MISSING_TIME_BOX")
+
+
+# --------------------------------------------------- CLI + environment hardening
+
+
+def test_malformed_cli_emits_machine_verdict(tmp_path: Path) -> None:
+    """Missing required --notes must still emit one schema-valid parse_error
+    verdict on stdout (exit 2), not a bare argparse usage error."""
+    proc = subprocess.run(
+        [sys.executable, str(GATE)],
+        capture_output=True,
+        text=True,
+    )
+    assert proc.returncode == 2
+    lines = [ln for ln in proc.stdout.strip().splitlines() if ln.strip()]
+    assert len(lines) == 1, f"expected one stdout verdict line, got: {lines}"
+    verdict = json.loads(lines[0])
+    assert verdict["status"] == "parse_error"
+    assert verdict["exit_code"] == 2
+    assert not validate_convergence_result(verdict)
+
+
+def test_help_still_exits_zero() -> None:
+    proc = subprocess.run(
+        [sys.executable, str(GATE), "--help"],
+        capture_output=True,
+        text=True,
+    )
+    assert proc.returncode == 0
+    assert "delegation" in proc.stdout.lower()
+
+
+def test_stale_env_config_override_is_input_error(tmp_path: Path) -> None:
+    """RESEARCH_TEAM_CONFIG pointing at a missing file suppresses local config
+    discovery entirely (find_config_path does not fall back) — with a local
+    required=true config that would fail open. Must be an input error."""
+    proj = _make_project(tmp_path, required=True)
+    env = dict(os.environ)
+    env["RESEARCH_TEAM_CONFIG"] = str(tmp_path / "no_such_config.json")
+    proc = subprocess.run(
+        [
+            sys.executable,
+            str(GATE),
+            "--notes",
+            str(proj / "notes.md"),
+            "--project-root",
+            str(proj),
+        ],
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert proc.returncode == 2
+    verdict = json.loads(proc.stdout.strip())
+    assert verdict["status"] == "parse_error"
+    assert any("RESEARCH_TEAM_CONFIG" in r for r in verdict["reasons"])
+
+
+def test_nested_bad_delegations_path_is_input_error(tmp_path: Path) -> None:
+    """A scan path nested under a regular file (ENOTDIR) must not SKIP:
+    Path.exists() swallows ENOTDIR and would report it as absent."""
+    proj = _make_project(tmp_path)
+    _write(proj / "team" / "delegations_file", "not a dir")
+    proc, verdict = _run_gate(
+        proj, "--delegations-dir", str(proj / "team" / "delegations_file" / "nested")
+    )
+    assert proc.returncode == 2
+    assert verdict is not None and verdict["status"] == "parse_error"

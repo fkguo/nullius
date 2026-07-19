@@ -94,15 +94,19 @@ requireAll(GATE_FILE, read(GATE_FILE), [
 // 2. Schema authority.
 const schemaText = read(SCHEMA_FILE);
 if (schemaText !== null) {
-  let gateIds = null;
+  let parsed = null;
   try {
-    const schema = JSON.parse(schemaText);
-    gateIds = schema?.properties?.meta?.properties?.gate_id?.enum ?? null;
+    parsed = JSON.parse(schemaText);
   } catch (e) {
     errors.push(`${SCHEMA_FILE}: not parseable JSON: ${e.message}`);
   }
-  if (gateIds !== null && !gateIds.includes('delegation_budget')) {
-    errors.push(`${SCHEMA_FILE}: meta.gate_id enum no longer contains "delegation_budget"`);
+  if (parsed !== null) {
+    const gateIds = parsed?.properties?.meta?.properties?.gate_id?.enum;
+    if (!Array.isArray(gateIds)) {
+      errors.push(`${SCHEMA_FILE}: meta.gate_id enum missing or structurally moved (schema-authority leg broken)`);
+    } else if (!gateIds.includes('delegation_budget')) {
+      errors.push(`${SCHEMA_FILE}: meta.gate_id enum no longer contains "delegation_budget"`);
+    }
   }
 }
 
@@ -114,14 +118,24 @@ if (runnerText !== null) {
   if (!runnerText.includes('check_delegation_budget.py')) {
     errors.push(`${RUNNER_FILE}: no longer invokes check_delegation_budget.py`);
   }
-  // Bound the wiring block to the delegation-gate section: from the gate
-  // script assignment to the next section ("Validate and set up tool-access"),
-  // so the exploration-downgrade absence check below cannot false-positive on
-  // later gates' legitimate exploration handling.
-  const afterGate = runnerText.split('check_delegation_budget.py')[1] ?? '';
-  const wiringBlock = afterGate.split('Validate and set up tool-access')[0] ?? afterGate;
+  // Bound the wiring block to the delegation-gate section: from the section
+  // comment to the next section ("Validate and set up tool-access"), so the
+  // stage-guard checks below cannot false-positive on later gates' legitimate
+  // exploration handling. Both bounds are themselves pinned: if either marker
+  // is reworded, the lock fails loudly instead of silently widening/narrowing
+  // the window.
+  const SECTION_START = 'Preflight: delegation budget contracts';
+  const SECTION_END = 'Validate and set up tool-access';
+  if (!runnerText.includes(SECTION_START)) {
+    errors.push(`${RUNNER_FILE}: delegation gate section marker ${JSON.stringify(SECTION_START)} missing (wiring-block bound broken)`);
+  }
+  if (!runnerText.includes(SECTION_END)) {
+    errors.push(`${RUNNER_FILE}: section end marker ${JSON.stringify(SECTION_END)} missing (wiring-block bound broken)`);
+  }
+  const afterStart = runnerText.split(SECTION_START)[1] ?? '';
+  const wiringBlock = afterStart.split(SECTION_END)[0] ?? afterStart;
   if (!wiringBlock.trim()) {
-    errors.push(`${RUNNER_FILE}: delegation budget wiring block not found after gate script reference`);
+    errors.push(`${RUNNER_FILE}: delegation budget wiring block not found after section marker`);
   }
   if (!wiringBlock.includes('_delegation_budget_gate.json')) {
     errors.push(`${RUNNER_FILE}: delegation budget gate no longer persists its machine verdict via --out-json`);
@@ -135,10 +149,15 @@ if (runnerText !== null) {
   if (!runnerText.includes('missing delegation budget gate script')) {
     errors.push(`${RUNNER_FILE}: missing-gate-script fail-closed check removed (absent script would silently disable the discipline)`);
   }
-  // The gate must never grow an exploration-stage downgrade: an incomplete
+  // The gate must never grow a stage downgrade or stage guard: an incomplete
   // budget on an actual delegation is exactly when executor drift happens.
+  // Checking the block from the section comment onward also catches a
+  // conditional wrapped around the whole gate invocation.
   if (wiringBlock.includes('should_warn_gate_in_exploration')) {
     errors.push(`${RUNNER_FILE}: delegation budget gate gained an exploration downgrade (must fail fast in every project stage)`);
+  }
+  if (wiringBlock.includes('PROJECT_STAGE')) {
+    errors.push(`${RUNNER_FILE}: delegation budget gate wiring references PROJECT_STAGE (stage-conditional enforcement is forbidden)`);
   }
 }
 
@@ -195,6 +214,16 @@ requireAll(TESTS_FILE, testsText, [
   ['verdict schema assertion helper', '_assert_verdict_valid'],
   ['schema-safe report_status key assertion', 'REPORT_STATUS_KEY_PATTERN'],
 ]);
+
+// The runner-integration brake tests (text lock cannot prove the runner
+// actually calls the gate; these do) must survive, with their exploration
+// no-downgrade scenario.
+requireAll('skills/research-team/tests/test_delegation_budget_runner_integration.py',
+  read('skills/research-team/tests/test_delegation_budget_runner_integration.py'), [
+    ['exploration no-downgrade brake test', 'test_bad_contract_fails_preflight_even_in_exploration'],
+    ['required-contract brake test', 'test_required_with_no_contract_fails_preflight'],
+    ['positive control', 'test_complete_contract_passes_preflight'],
+  ]);
 
 // The shared validator must keep enforcing the report_status member key
 // pattern from the schema SSOT (the gap that once let path-shaped keys emit
