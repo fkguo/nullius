@@ -10,6 +10,7 @@ field at a time.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -105,7 +106,7 @@ def _assert_verdict_valid(verdict: dict) -> None:
     import re as _re
 
     for key in verdict["report_status"]:
-        assert _re.search(REPORT_STATUS_KEY_PATTERN, key), (
+        assert _re.fullmatch(f"(?:{REPORT_STATUS_KEY_PATTERN})", key), (
             f"report_status key {key!r} violates schema pattern {REPORT_STATUS_KEY_PATTERN!r}"
         )
 
@@ -508,10 +509,12 @@ def test_delegations_dir_flag_absolute(tmp_path: Path) -> None:
     proc, verdict = _run_gate(proj, "--delegations-dir", str(outside))
     assert proc.returncode == 0, proc.stderr
     assert verdict is not None and verdict["status"] == "converged"
+    _assert_verdict_valid(verdict)
 
 
 def test_unwritable_out_json_is_input_error_with_single_verdict(tmp_path: Path) -> None:
-    """--out-json persistence failure: one stdout verdict, exit 2, no traceback."""
+    """--out-json persistence failure: exactly one stdout verdict, and it is a
+    parse_error whose exit_code field agrees with the process exit code 2."""
     proj = _make_project(tmp_path, contracts={"c.json": _complete_contract()})
     blocked = proj / "blocked_dir"
     blocked.mkdir()
@@ -533,4 +536,124 @@ def test_unwritable_out_json_is_input_error_with_single_verdict(tmp_path: Path) 
     assert "Traceback" not in proc.stderr
     lines = [ln for ln in proc.stdout.strip().splitlines() if ln.strip()]
     assert len(lines) == 1, f"expected exactly one stdout verdict line, got: {lines}"
-    assert json.loads(lines[0])["status"] == "converged"
+    verdict = json.loads(lines[0])
+    assert verdict["status"] == "parse_error"
+    assert verdict["exit_code"] == 2
+    _assert_verdict_valid(verdict)
+
+
+def test_malformed_config_json_is_input_error(tmp_path: Path) -> None:
+    """A config file that exists but cannot be parsed must not silently fall
+    back to defaults (a broken required=true would otherwise SKIP)."""
+    proj = tmp_path / "proj"
+    _write(proj / "research_team_config.json", "{broken json")
+    _write(proj / "notes.md", "# notes\n")
+    proc, verdict = _run_gate(proj)
+    assert proc.returncode == 2
+    assert verdict is not None and verdict["status"] == "parse_error"
+
+
+def test_non_object_config_json_is_input_error(tmp_path: Path) -> None:
+    proj = tmp_path / "proj"
+    _write(proj / "research_team_config.json", json.dumps(["not", "an", "object"]))
+    _write(proj / "notes.md", "# notes\n")
+    proc, verdict = _run_gate(proj)
+    assert proc.returncode == 2
+    assert verdict is not None and verdict["status"] == "parse_error"
+
+
+def test_unreadable_delegations_dir_is_input_error(tmp_path: Path) -> None:
+    """An existing but unreadable delegations directory must not SKIP as empty."""
+    if hasattr(os, "geteuid") and os.geteuid() == 0:
+        return  # root bypasses permission bits; nothing to test
+    proj = _make_project(tmp_path, contracts={"c.json": _complete_contract()})
+    locked = proj / "team" / "delegations"
+    locked.chmod(0o000)
+    try:
+        proc, verdict = _run_gate(proj)
+    finally:
+        locked.chmod(0o755)
+    assert proc.returncode == 2
+    assert verdict is not None and verdict["status"] == "parse_error"
+
+
+# --------------------------------------------------- default-ON without config
+
+
+def test_no_config_file_defaults_gate_on(tmp_path: Path) -> None:
+    """With no team config at all, the gate is still enforced (default-ON)."""
+    proj = tmp_path / "proj"
+    _write(proj / "notes.md", "# notes\n")
+    bad = _complete_contract()
+    del bad["time_box"]
+    _write(proj / "team" / "delegations" / "bad.json", json.dumps(bad))
+    proc, verdict = _run_gate(proj)
+    assert proc.returncode == 1
+    assert verdict is not None
+    _assert_verdict_valid(verdict)
+    assert any("MISSING_TIME_BOX" in r for r in verdict["reasons"])
+
+
+def test_no_config_file_no_contracts_skips(tmp_path: Path) -> None:
+    proj = tmp_path / "proj"
+    _write(proj / "notes.md", "# notes\n")
+    proc, verdict = _run_gate(proj)
+    assert proc.returncode == 0, proc.stderr
+    assert verdict is None
+    assert "SKIP" in proc.stderr
+
+
+# ------------------------------------------- shared-validator strictness (SSOT)
+
+
+def test_validator_rejects_boolean_exit_code() -> None:
+    verdict = {
+        "status": "converged",
+        "exit_code": True,
+        "reasons": [],
+        "report_status": {"gate": {"verdict": "ready", "blocking_count": 0, "parse_ok": True}},
+        "meta": _valid_meta(),
+    }
+    assert any("exit_code" in e for e in validate_convergence_result(verdict))
+
+
+def test_validator_rejects_boolean_blocking_count() -> None:
+    verdict = {
+        "status": "converged",
+        "exit_code": 0,
+        "reasons": [],
+        "report_status": {"gate": {"verdict": "ready", "blocking_count": True, "parse_ok": True}},
+        "meta": _valid_meta(),
+    }
+    assert any("blocking_count" in e for e in validate_convergence_result(verdict))
+
+
+def test_validator_rejects_boolean_schema_version() -> None:
+    meta = _valid_meta()
+    meta["schema_version"] = True
+    verdict = {
+        "status": "converged",
+        "exit_code": 0,
+        "reasons": [],
+        "report_status": {"gate": {"verdict": "ready", "blocking_count": 0, "parse_ok": True}},
+        "meta": meta,
+    }
+    assert any("schema_version" in e for e in validate_convergence_result(verdict))
+
+
+def test_validator_rejects_trailing_newline_key() -> None:
+    """ECMA-262 `$` does not match before a trailing newline; ours must not either."""
+    verdict = {
+        "status": "converged",
+        "exit_code": 0,
+        "reasons": [],
+        "report_status": {"gate\n": {"verdict": "ready", "blocking_count": 0, "parse_ok": True}},
+        "meta": _valid_meta(),
+    }
+    assert any("does not match the shared schema" in e for e in validate_convergence_result(verdict))
+
+
+def _valid_meta() -> dict:
+    from convergence_schema import build_gate_meta
+
+    return build_gate_meta("delegation_budget")

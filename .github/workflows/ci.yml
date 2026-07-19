@@ -141,6 +141,9 @@ jobs:
       - name: Python tests (delegation-budget gate behavior)
         run: python -m pytest skills/research-team/tests/test_delegation_budget_gate.py -q
 
+      - name: Python tests (convergence gate machine-verdict contract)
+        run: python -m pytest skills/research-team/tests/test_convergence_gate_json.py -q
+
   skills-market-checks:
     runs-on: ubuntu-latest
     defaults:

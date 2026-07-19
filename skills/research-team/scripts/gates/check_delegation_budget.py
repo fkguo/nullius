@@ -83,6 +83,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 import re
 import sys
 from pathlib import Path
@@ -93,10 +94,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from convergence_schema import (  # type: ignore
     build_gate_meta,
-    emit_convergence_result,
     validate_convergence_result,
 )
-from team_config import load_team_config  # type: ignore
+from team_config import (  # type: ignore
+    _load_config_file,
+    find_config_path,
+    load_team_config,
+)
 
 SUPPORTED_CONTRACT_VERSION = 1
 DEFAULT_DELEGATIONS_DIR = "team/delegations"
@@ -321,16 +325,38 @@ def _emit(
             "meta": meta,
         }
         exit_code = 2
-    try:
-        emit_convergence_result(result, out_json=out_json)
-    except OSError as e:
-        # The stdout emission (inside emit_convergence_result) already
-        # happened; only the --out-json persistence failed. Do not emit a
-        # second verdict: report the persistence failure and exit as an
-        # input/execution error so no caller mistakes an unpersisted verdict
-        # for a recorded one.
-        print(f"ERROR: failed to write --out-json {out_json}: {e}", file=sys.stderr)
-        return 2
+        # Defense in depth: if the fallback itself would still be
+        # schema-invalid (e.g. a key that violates the member key pattern
+        # leaked in), collapse to a minimal, always-valid report_status
+        # rather than emitting invalid JSON on the error path.
+        if validate_convergence_result(result):
+            result["report_status"] = {
+                "gate": _contract_summary(list(result["reasons"]), parse_ok=False)
+            }
+
+    # Persist FIRST, then print: the stdout verdict and the process exit code
+    # must never disagree. On persistence failure, the single stdout verdict
+    # is a parse_error (exit 2), not the original verdict.
+    if out_json is not None:
+        try:
+            out_json.parent.mkdir(parents=True, exist_ok=True)
+            out_json.write_text(
+                json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+        except OSError as e:
+            reason = f"failed to persist machine verdict to --out-json {out_json}: {e}"
+            print(f"ERROR: {reason}", file=sys.stderr)
+            err_result = {
+                "status": "parse_error",
+                "exit_code": 2,
+                "reasons": [reason],
+                "report_status": {"gate": _contract_summary([reason], parse_ok=False)},
+                "meta": meta,
+            }
+            print(json.dumps(err_result, ensure_ascii=False, sort_keys=True))
+            return 2
+    print(json.dumps(result, ensure_ascii=False, sort_keys=True))
     return exit_code
 
 
@@ -392,6 +418,19 @@ def _run(args: argparse.Namespace, base_meta: dict[str, Any], _input_error: Any)
     if not args.notes.is_file():
         return _input_error([f"notes not found: {args.notes}"])
 
+    # Fail-closed config loading: load_team_config silently falls back to
+    # defaults when a config file exists but cannot be parsed — for this gate
+    # that would be fail-open (a broken config carrying required=true or a
+    # custom delegations_dir would silently SKIP). Detect that case first.
+    config_path = find_config_path(args.notes)
+    if config_path is not None and _load_config_file(config_path) is None:
+        return _input_error(
+            [
+                f"team config exists but could not be parsed as an object: {config_path} "
+                "(fail-closed: fix the config before running the delegation budget gate)"
+            ]
+        )
+
     cfg = load_team_config(args.notes)
     # Strict feature-flag typing: a malformed flag must not silently disable a
     # fail-closed gate (e.g. "false"/""/0 in JSON where a boolean belongs).
@@ -441,11 +480,20 @@ def _run(args: argparse.Namespace, base_meta: dict[str, Any], _input_error: Any)
             if not isinstance(rel, str) or not rel.strip():
                 return _input_error(["config `delegation_budget.delegations_dir` must be a non-empty string"])
             delegations_dir = project_root / rel
-        # A scan path that exists but is not a directory is a broken setup, not
-        # an empty delegation set — it must not silently SKIP.
-        if delegations_dir.exists() and not delegations_dir.is_dir():
-            return _input_error([f"delegations path is not a directory: {delegations_dir}"])
-        contract_paths = sorted(delegations_dir.glob("*.json")) if delegations_dir.is_dir() else []
+        # A scan path that exists but is not a directory is a broken setup,
+        # and an unreadable directory is not an empty delegation set — neither
+        # may silently SKIP. Path.glob suppresses OSError, so enumerate
+        # explicitly.
+        try:
+            if delegations_dir.exists() and not delegations_dir.is_dir():
+                return _input_error([f"delegations path is not a directory: {delegations_dir}"])
+            if delegations_dir.is_dir():
+                names = sorted(os.listdir(delegations_dir))
+            else:
+                names = []
+        except OSError as e:
+            return _input_error([f"cannot read delegations directory {delegations_dir}: {e}"])
+        contract_paths = [delegations_dir / n for n in names if n.endswith(".json")]
 
     if not contract_paths:
         if required:

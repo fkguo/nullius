@@ -1818,24 +1818,22 @@ if [[ ! -f "${DELEGATION_BUDGET_GATE_SCRIPT}" ]]; then
   echo "ERROR: missing delegation budget gate script: ${DELEGATION_BUDGET_GATE_SCRIPT}" >&2
   exit 2
 fi
-if [[ -f "${DELEGATION_BUDGET_GATE_SCRIPT}" ]]; then
-  set +e
-  python3 "${DELEGATION_BUDGET_GATE_SCRIPT}" \
-    --notes "${NOTEBOOK_PATH}" \
-    --project-root "${PROJECT_ROOT}" \
-    --tag "${RESOLVED_TAG}" \
-    --out-json "${run_dir}/${safe_tag}_delegation_budget_gate.json"
-  delegation_budget_code=$?
-  set -e
-  if [[ ${delegation_budget_code} -ne 0 ]]; then
-    echo "" >&2
-    if [[ ${delegation_budget_code} -eq 2 ]]; then
-      echo "[error] delegation budget gate errored (input/config). Fix the config/paths and rerun." >&2
-      exit ${delegation_budget_code}
-    fi
-    echo "[gate] Fail-fast: delegation budget contract check failed. Fill every required budget field (tolerance ceiling + anchor, time box, attempt cap, scope negative list, dry-run peak RSS + heap cap) in team/delegations/*.json before dispatching delegated workstreams." >&2
+set +e
+python3 "${DELEGATION_BUDGET_GATE_SCRIPT}" \
+  --notes "${NOTEBOOK_PATH}" \
+  --project-root "${PROJECT_ROOT}" \
+  --tag "${RESOLVED_TAG}" \
+  --out-json "${run_dir}/${safe_tag}_delegation_budget_gate.json"
+delegation_budget_code=$?
+set -e
+if [[ ${delegation_budget_code} -ne 0 ]]; then
+  echo "" >&2
+  if [[ ${delegation_budget_code} -eq 2 ]]; then
+    echo "[error] delegation budget gate errored (input/config). Fix the config/paths and rerun." >&2
     exit ${delegation_budget_code}
   fi
+  echo "[gate] Fail-fast: delegation budget contract check failed. Fill every required budget field (tolerance ceiling + anchor, time box, attempt cap, scope negative list, dry-run peak RSS + heap cap) in team/delegations/*.json before dispatching delegated workstreams." >&2
+  exit ${delegation_budget_code}
 fi
 
 # Validate and set up tool-access / workspace isolation.
