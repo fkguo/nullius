@@ -11,9 +11,10 @@ The preconditions (all machine-checked, none waivable here):
 
 1. Frozen plan. The authorization record registers the production plan's
    content hash (SHA-256). The live plan file must hash to exactly that
-   value. No registered hash, or no readable plan file -> missing_plan_hash;
-   a live plan whose content differs from the registered hash -> the plan
-   changed after authorization -> stale_review.
+   value. An absent or malformed registered hash makes the whole record
+   invalid (invalid_record); a missing or unreadable plan file ->
+   missing_plan_hash; a live plan whose content differs from the registered
+   hash -> the plan changed after authorization -> stale_review.
 2. Review verdicts bound to the plan hash. Each independent review verdict
    file states the plan hash it reviewed. An approval counts ONLY when its
    bound hash equals the live plan hash; a plan edited after review turns
@@ -379,17 +380,24 @@ def evaluate_review(project_root: Path, entry: dict, live_plan_sha256: str) -> d
     return result
 
 
-def decide_review_binding(reviews: list, required_approvals: int) -> "tuple[str, str]":
+def decide_review_binding(reviews: list, required_approvals: int,
+                          live_plan_sha256: str) -> "tuple[str, str]":
     """(refusal_label_or_empty, detail) for the review_binding check, given
-    per-review observations. Pure and unit-testable."""
+    per-review observations. Pure and unit-testable. Any verdict bound to a
+    superseded hash is stale, whether it approved or rejected that older
+    plan version — a stale changes_needed is not an active rejection of the
+    live plan; review_rejected is reserved for a changes_needed bound to
+    exactly the live plan hash."""
     approvals = sum(1 for r in reviews if r["counts_as_approval"])
     if approvals >= required_approvals:
         return "", (f"{approvals} approval(s) bound to the live plan hash meet the "
                     f"required quorum of {required_approvals}")
     stale = [r for r in reviews
-             if r["reviewed_plan_sha256"] is not None and not r["counts_as_approval"]
-             and r["verdict"] == "approved"]
-    rejected = [r for r in reviews if r["verdict"] == "changes_needed"]
+             if r["verdict"] in ("approved", "changes_needed")
+             and r["reviewed_plan_sha256"] is not None
+             and r["reviewed_plan_sha256"] != live_plan_sha256]
+    rejected = [r for r in reviews if r["verdict"] == "changes_needed"
+                and r["reviewed_plan_sha256"] == live_plan_sha256]
     unavailable = [r for r in reviews if r["verdict"] == "unavailable"]
     if stale:
         label, culprits = "stale_review", stale
@@ -467,6 +475,12 @@ def finish(result: dict, verdict: str, output: "Path | None") -> int:
     result["launch_authorized"] = verdict == "authorized"
     result["exit_code"] = EXIT_CODES[verdict]
     text = json.dumps(result, indent=2, ensure_ascii=False) + "\n"
+    try:
+        text.encode("utf-8")
+    except UnicodeEncodeError:
+        # a parser-accepted lone surrogate in an input string would make the
+        # emit itself crash; escape everything instead of losing the artifact
+        text = json.dumps(result, indent=2, ensure_ascii=True) + "\n"
     print(text, end="")
     if output is not None:
         try:
@@ -552,6 +566,24 @@ def _run_checks(args, result: dict) -> int:
             return finish(result, "invalid_record", args.output)
         project_root = Path(top.stdout.strip())
 
+    # -- refuse an --output that aliases an input: the audit artifact must
+    #    never overwrite the plan, the record, a verdict file, or the
+    #    observed fingerprint (os.replace would silently clobber the very
+    #    bytes that were just authorized) --
+    if args.output is not None:
+        out_resolved = _try_resolve(args.output)
+        input_paths = {p for p in (
+            [_try_resolve(args.record), _try_resolve(args.observed_fingerprint),
+             _resolved_under(project_root, record["plan_path"])]
+            + [_resolved_under(project_root, entry["verdict_path"])
+               for entry in record["reviews"]]
+        ) if p is not None}
+        if out_resolved is None or out_resolved in input_paths:
+            result["errors"].append("--output must not alias the record, the plan, a "
+                                    "verdict file, or the observed fingerprint — "
+                                    "refusing to overwrite an input")
+            return finish(result, "invalid_record", None)
+
     result["required_approvals"] = record["required_approvals"]
     result["plan"]["path"] = record["plan_path"]
     result["plan"]["registered_sha256"] = record["plan_sha256"]
@@ -575,7 +607,7 @@ def _run_checks(args, result: dict) -> int:
         result["approvals_counted"] = sum(
             1 for r in result["reviews"] if r["counts_as_approval"])
         review_label, review_detail = decide_review_binding(
-            result["reviews"], record["required_approvals"])
+            result["reviews"], record["required_approvals"], live_sha256)
         _set_check(result, "review_binding", "fail" if review_label else "pass",
                    review_detail)
 

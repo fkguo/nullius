@@ -421,6 +421,40 @@ def test_failed_output_write_refuses_even_when_authorized(tmp_path, capsys):
     assert result["verdict"] == "authorized"
 
 
+def test_stale_rejection_is_labeled_stale_not_rejected(tmp_path, capsys):
+    # a changes_needed bound to a superseded hash is a void (stale) verdict,
+    # not an active rejection of the live plan
+    plan_sha = _sha(PLAN_TEXT)
+    proj = _project(tmp_path, reviews=[
+        ("reviewer-one", "approved", plan_sha),
+        ("reviewer-two", "changes_needed", "d" * 64),
+    ], required_approvals=2)
+    code, result = _run(proj, capsys)
+    assert code == 3
+    assert result["verdict"] == "stale_review"
+
+
+def test_output_aliasing_an_input_is_refused(tmp_path, capsys):
+    proj = _project(tmp_path)
+    plan_path = proj["root"] / "plan.md"
+    code, result = _run(proj, capsys, extra_args=["--output", str(plan_path)])
+    assert code == 2
+    assert result["verdict"] == "invalid_record"
+    # the frozen plan bytes were not clobbered by the audit artifact
+    assert plan_path.read_text(encoding="utf-8") == PLAN_TEXT
+
+
+def test_lone_surrogate_in_observed_value_still_emits_artifact(tmp_path, capsys):
+    proj = _project(tmp_path)
+    proj["observed_path"].write_text(
+        '{"code_commit": "\\ud800", "solver_version": "9.9.1", '
+        '"dependency_lock_sha256": "' + "f" * 64 + '"}', encoding="utf-8")
+    code, result = _run(proj, capsys)  # would crash on emit without the fallback
+    assert code == 3
+    assert result["verdict"] == "fingerprint_mismatch"
+    assert "code_commit" in result["fingerprint"]["mismatched_keys"]
+
+
 # --- invalid record (exit 2) ---
 
 def test_invalid_record_missing_plan_hash_field(tmp_path, capsys):
