@@ -1,14 +1,10 @@
-import { SHORT_ID_JSON_PATTERN } from '@nullius/shared';
 import type { IdeaEngineContractCatalog } from '../contracts/catalog.js';
 import type { IdeaEngineStore } from '../store/engine-store.js';
 import { budgetSnapshot } from './budget-snapshot.js';
 import { recordOrReplay, responseIdempotency, storeIdempotency } from './idempotency.js';
 import { RpcError } from './errors.js';
-import { ensureNodeInCampaign } from './node-shared.js';
+import { NOVELTY_DELTA_CLAIM_PREFIX, ensureNodeInCampaign } from './node-shared.js';
 import { ensureCampaignNotCompleted, loadCampaignOrError } from './campaign-state.js';
-
-/** An engine short id (8 base32 chars): a closest_prior must never be a bare handle. */
-const SHORT_ID_RE = new RegExp(SHORT_ID_JSON_PATTERN);
 
 function rewriteValidationError(
   reason: string,
@@ -155,16 +151,20 @@ export function executeNodeRewriteProvenance(options: {
         handleIds.add(ideaId);
       }
     }
-    if (handleIds.has(newValue) || SHORT_ID_RE.test(newValue)) {
+    if (handleIds.has(newValue)) {
       throw rewriteValidationError(
         'closest_prior_node_reference',
         campaignId,
         nodeId,
-        handleIds.has(newValue)
-          ? 'new_value is a campaign node or idea id — closest_prior must reference the prior WORK (URI or survey ref_key), which is exactly the defect this method removes'
-          : 'new_value has the shape of an engine short id (8 base32 chars) — closest_prior must reference the prior WORK (URI or survey ref_key), never a bare handle (rejected regardless of which campaign minted it, since a foreign-campaign id is the same defect class)',
+        'new_value is a campaign node or idea id — closest_prior must reference the prior WORK (URI or survey ref_key), which is exactly the defect this method removes',
       );
     }
+    // A non-URI new_value that is not a handle in THIS campaign is recorded as a
+    // survey ref key and resolved project-side (see the method contract). We do
+    // not reject on short-id SHAPE: an id from a different campaign is opaque to
+    // this store, and a shape filter would also false-reject a legitimate ref
+    // key that happens to be eight base32 characters — a hard failure on valid
+    // input is worse than the documented project-side-audit boundary.
     if (newValue.includes('://')) {
       const evidenceUris = Array.isArray(operatorTrace?.evidence_uris_used)
         ? (operatorTrace.evidence_uris_used as unknown[]).filter(isNonEmptyString)
@@ -196,7 +196,7 @@ export function executeNodeRewriteProvenance(options: {
     // while the card keeps citing the retracted reference. A half-correction
     // that still reports success is exactly the silent card/trace divergence
     // this method exists to remove. More than one match is equally malformed.
-    const expectedPrefix = `Novelty delta vs closest prior (${previousValue}): `;
+    const expectedPrefix = `${NOVELTY_DELTA_CLAIM_PREFIX}${previousValue}): `;
     const ideaCard = asRecord(updatedNode.idea_card);
     const claims = ideaCard && Array.isArray(ideaCard.claims) ? ideaCard.claims : [];
     const matchingClaims = claims
@@ -215,7 +215,7 @@ export function executeNodeRewriteProvenance(options: {
       );
     }
     const claimRecord = matchingClaims[0]!;
-    claimRecord.claim_text = `Novelty delta vs closest prior (${newValue}): ${(claimRecord.claim_text as string).slice(expectedPrefix.length)}`;
+    claimRecord.claim_text = `${NOVELTY_DELTA_CLAIM_PREFIX}${newValue}): ${(claimRecord.claim_text as string).slice(expectedPrefix.length)}`;
     claimRecord.evidence_uris = newValue.includes('://') ? [newValue] : [];
 
     // The novelty-delta claim just changed. Any grounding_audit certified the

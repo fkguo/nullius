@@ -840,19 +840,17 @@ describe('node.rewrite_provenance', () => {
     expect(JSON.stringify(loadNode(service, campaignId, generatedId))).toBe(before);
   });
 
-  it('rejects a node-id-shaped new_value from any campaign (8 base32 chars), not only current-campaign handles', () => {
+  it('accepts a non-handle short-id-shaped survey ref key (no shape rejection; project-side boundary)', () => {
     const service = freshService();
     const campaignId = initCampaign(service);
     const [seedNodeId] = allNodeIds(service, campaignId);
     const generatedId = importGeneratedNode(service, campaignId, seedNodeId!);
-    // A short-id-shaped string that is NOT a handle in this campaign (would pass
-    // the handleIds check) must still be rejected on shape alone — a foreign
-    // node id is the same defect class the method removes.
-    expectRpcError(
-      () => rewriteProvenance(service, campaignId, generatedId, 'rw-foreign', 'zzzz0000'),
-      -32002,
-      'closest_prior_node_reference',
-    );
+    // 'hepph001' is 8 base32 chars but is NOT a handle in this campaign — it is a
+    // survey ref key, resolved project-side. It must NOT be rejected on shape
+    // (false-rejecting valid input is worse than the documented boundary).
+    const result = rewriteProvenance(service, campaignId, generatedId, 'rw-refkey', 'hepph001');
+    expect(result.new_value).toBe('hepph001');
+    expect(nodeCloseestPrior(loadNode(service, campaignId, generatedId))).toBe('hepph001');
   });
 
   it('rejects a blank or whitespace-padded new_value and a blank reason', () => {

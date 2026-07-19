@@ -7,7 +7,7 @@ import { budgetSnapshot } from './budget-snapshot.js';
 import { RpcError } from './errors.js';
 import { recordOrReplay, responseIdempotency, storeIdempotency } from './idempotency.js';
 import { ensureCampaignRunning, loadCampaignOrError, setCampaignRunningIfBudgetAvailable } from './campaign-state.js';
-import { nodeLifecycleState, PLACEHOLDER_EVIDENCE_URI } from './node-shared.js';
+import { NOVELTY_DELTA_CLAIM_PREFIX, nodeLifecycleState, PLACEHOLDER_EVIDENCE_URI } from './node-shared.js';
 import { drawUniqueId } from './seed-node.js';
 import { buildGeneratedNode, type GeneratedCandidate } from './generated-node.js';
 import { IMPORT_ARTIFACT_TYPE, IMPORT_GENERATED_METHOD, refreshImportGeneratedReplay } from './import-generated-recovery.js';
@@ -279,6 +279,25 @@ function validateCandidateSemantics(options: {
       campaignId,
       `${label}: the seed placeholder evidence URI is forbidden anywhere in a generated candidate — real anchors or claims typed llm_inference/assumption`,
     );
+  }
+
+  // The engine appends its own novelty-delta claim (NOVELTY_DELTA_CLAIM_PREFIX)
+  // to the card at import. That prefix is reserved so a generated node carries
+  // EXACTLY one claim with it — the unambiguous identity node.rewrite_provenance
+  // uses to correct that claim later. A candidate that supplies its own claim
+  // with the same prefix would produce two matches and make the node forever
+  // un-correctable, so it is rejected here.
+  const candidateClaims = Array.isArray(candidate.card_fields.claims) ? candidate.card_fields.claims : [];
+  for (const claim of candidateClaims) {
+    if (!claim || typeof claim !== 'object' || Array.isArray(claim)) continue;
+    const claimText = (claim as Record<string, unknown>).claim_text;
+    if (typeof claimText === 'string' && claimText.startsWith(NOVELTY_DELTA_CLAIM_PREFIX)) {
+      throw importValidationError(
+        'reserved_claim_prefix',
+        campaignId,
+        `${label}: a card claim begins with the engine-reserved novelty-delta prefix ${JSON.stringify(NOVELTY_DELTA_CLAIM_PREFIX)} — that claim is engine-assembled at import; the generator must not supply it`,
+      );
+    }
   }
 
   const evidenceUsed = (provenance.evidence_uris_used as string[] | undefined) ?? [];
