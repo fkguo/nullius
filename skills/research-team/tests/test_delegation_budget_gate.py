@@ -1038,18 +1038,31 @@ def test_config_symlink_retarget_between_reads_keeps_original_root(
 
 def test_fifo_config_target_raises_instead_of_blocking(tmp_path: Path) -> None:
     """The strict config loader must refuse a non-regular file instead of
-    blocking: exercises the descriptor-based reader directly (discovery
-    filters FIFOs out, so the reader is the last line of defense against a
-    substitution after discovery)."""
+    blocking: exercises the descriptor-based reader in a TIMED subprocess so
+    a regression to a blocking read fails deterministically instead of
+    hanging CI (discovery filters FIFOs out, so the reader is the last line
+    of defense against a substitution after discovery)."""
     if not hasattr(os, "mkfifo"):
         return
-    sys.path.insert(0, str(ROOT / "scripts" / "lib"))
-    from team_config import load_config_object
-
     fifo = tmp_path / "research_team_config.json"
     os.mkfifo(fifo)
-    with pytest.raises(ValueError):
-        load_config_object(fifo)
+    snippet = (
+        "import sys; sys.path.insert(0, sys.argv[1]);\n"
+        "from team_config import load_config_object\n"
+        "from pathlib import Path\n"
+        "try:\n"
+        "    load_config_object(Path(sys.argv[2]))\n"
+        "except ValueError:\n"
+        "    sys.exit(7)\n"
+        "sys.exit(0)\n"
+    )
+    proc = subprocess.run(
+        [sys.executable, "-c", snippet, str(ROOT / "scripts" / "lib"), str(fifo)],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert proc.returncode == 7, proc.stderr
 
 
 def _run_gate_with_out_json(proj: Path, out_json: Path) -> subprocess.CompletedProcess:
@@ -1096,3 +1109,80 @@ def test_symlink_to_fifo_out_json_fails_fast(tmp_path: Path) -> None:
     proc = _run_gate_with_out_json(proj, link)
     assert proc.returncode == 2
     assert json.loads(proc.stdout.strip())["status"] == "parse_error"
+
+
+def test_out_json_fifo_with_active_reader_rejected_by_fstat(tmp_path: Path) -> None:
+    """With an ACTIVE reader on the FIFO, open() succeeds and the writer's
+    fstat regular-file rejection (not just readerless ENXIO) must fire."""
+    if not hasattr(os, "mkfifo"):
+        return
+    import threading
+
+    proj = _make_project(tmp_path, contracts={"c.json": _complete_contract()})
+    fifo = proj / "verdict_fifo_reader.json"
+    os.mkfifo(fifo)
+
+    drained: list[bytes] = []
+
+    def _drain() -> None:
+        with open(fifo, "rb") as f:
+            drained.append(f.read())
+
+    reader = threading.Thread(target=_drain, daemon=True)
+    reader.start()
+    try:
+        proc = _run_gate_with_out_json(proj, fifo)
+    finally:
+        reader.join(timeout=10)
+    assert proc.returncode == 2
+    assert json.loads(proc.stdout.strip())["status"] == "parse_error"
+    assert drained == [] or drained == [b""], "nothing must ever be written to a non-regular target"
+
+
+def test_contract_symlink_retarget_after_discovery_keeps_original_target(
+    tmp_path: Path, monkeypatch: object
+) -> None:
+    """Discriminating regression for contract-path binding: retargeting a
+    contract symlink AFTER discovery must not substitute a different
+    contract — the gate reads the once-resolved original target."""
+    import importlib.util
+
+    proj = _make_project(tmp_path)
+    invalid = _complete_contract()
+    del invalid["time_box"]
+    target_a = tmp_path / "target_a.json"
+    _write(target_a, json.dumps(invalid))
+    target_b = tmp_path / "target_b.json"
+    _write(target_b, json.dumps(_complete_contract()))
+    link = proj / "team" / "delegations" / "lane.json"
+    link.parent.mkdir(parents=True, exist_ok=True)
+    link.symlink_to(target_a)
+
+    spec = importlib.util.spec_from_file_location("check_delegation_budget_retarget_contract", GATE)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    real_key = mod._schema_safe_key
+
+    def _retargeting_key(path, taken):
+        # Runs between enumeration and the contract read.
+        if link.is_symlink():
+            link.unlink()
+            link.symlink_to(target_b)
+        return real_key(path, taken)
+
+    monkeypatch.setattr(mod, "_schema_safe_key", _retargeting_key)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "check_delegation_budget.py",
+            "--notes",
+            str(proj / "notes.md"),
+            "--project-root",
+            str(proj),
+        ],
+    )
+    # Bound to target_a (resolved at discovery) → invalid contract → FAIL 1.
+    # A read-time re-follow would land on target_b and PASS with 0.
+    assert mod.main() == 1
