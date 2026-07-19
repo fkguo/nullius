@@ -93,6 +93,8 @@ requireAll(GATE_FILE, read(GATE_FILE), [
   ['resolve-once config binding', 'config_path = config_path.resolve()'],
   ['nonblocking regular-file contract reader', 'def _read_regular_file_text'],
   ['descriptor-verified regular file (no stat/open race)', 'os.fstat(fd)'],
+  ['live->dangling ENOENT recheck', '_dangling_component()'],
+  ['huge-int no-OverflowError guard', 'never route it through float'],
 ]);
 // The gate must never re-read the config leniently after strict validation
 // (swap-between-reads would reopen a fail-open hole on a control input).
@@ -258,7 +260,10 @@ requireAll(TESTS_FILE, testsText, [
   ['active-reader fstat-rejection control', 'test_out_json_fifo_with_active_reader_rejected_by_fstat'],
   ['contract-retarget resolve-once regression', 'test_contract_symlink_retarget_after_discovery_keeps_original_target'],
   ['scan-dir-retarget bind-before-listdir regression', 'test_delegations_dir_symlink_retarget_during_listdir_keeps_original_set'],
+  ['live->dangling scan-dir race regression', 'test_live_to_dangling_delegations_symlink_is_input_error'],
   ['fstat-diagnostic assertion in active-reader control', 'assert "not a regular file" in proc.stderr'],
+  ['huge-integer no-crash control', 'test_huge_integer_field_validated_not_crashed'],
+  ['stdout==persisted verdict assertion', 'assert json.loads(proc.stdout.strip()) == verdict'],
 ]);
 
 // The hang-guard timeout must live INSIDE the FIFO config-loader control —
