@@ -1809,6 +1809,33 @@ fi
 mkdir -p "${run_dir}"
 run_dir_abs="$(cd "${run_dir}" && pwd)"
 
+# Preflight: delegation budget contracts (fail-closed; no exploration downgrade).
+# An incomplete budget on an actual delegation is exactly when executor drift
+# happens, so this gate fails fast in every project stage.
+DELEGATION_BUDGET_GATE_SCRIPT="${GATES_DIR}/check_delegation_budget.py"
+if [[ ! -f "${DELEGATION_BUDGET_GATE_SCRIPT}" ]]; then
+  # Fail-closed: a missing gate script must not silently disable the discipline.
+  echo "ERROR: missing delegation budget gate script: ${DELEGATION_BUDGET_GATE_SCRIPT}" >&2
+  exit 2
+fi
+set +e
+python3 "${DELEGATION_BUDGET_GATE_SCRIPT}" \
+  --notes "${NOTEBOOK_PATH}" \
+  --project-root "${PROJECT_ROOT}" \
+  --tag "${RESOLVED_TAG}" \
+  --out-json "${run_dir}/${safe_tag}_delegation_budget_gate.json"
+delegation_budget_code=$?
+set -e
+if [[ ${delegation_budget_code} -ne 0 ]]; then
+  echo "" >&2
+  if [[ ${delegation_budget_code} -eq 2 ]]; then
+    echo "[error] delegation budget gate errored (input/config). Fix the config/paths and rerun." >&2
+    exit ${delegation_budget_code}
+  fi
+  echo "[gate] Fail-fast: delegation budget contract check failed. Fill every required budget field (tolerance ceiling + anchor, time box, attempt cap, scope negative list, dry-run peak RSS + heap cap) in team/delegations/*.json before dispatching delegated workstreams." >&2
+  exit ${delegation_budget_code}
+fi
+
 # Validate and set up tool-access / workspace isolation.
 case "${MEMBER_A_TOOL_ACCESS}" in
   restricted|full) ;;

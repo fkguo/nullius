@@ -1,0 +1,260 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nullius.dev/schemas/launch_authorization_v1.schema.json",
+  "title": "Launch Authorization Result V1",
+  "description": "Machine-decided preflight verdict for starting a large production run. Authorization holds only when every precondition is demonstrated: the frozen plan's content hash is registered and matches the live plan file, at least the required number of independent review verdicts are bound to exactly that hash, and the live execution-environment fingerprint equals the fingerprint registered at authorization time. Any missing or mismatched precondition refuses the launch with a falsification-labeled verdict; a reviewer recorded as unavailable never counts as an approval.",
+  "type": "object",
+  "required": [
+    "schema_id",
+    "schema_version",
+    "verdict",
+    "launch_authorized",
+    "exit_code",
+    "generated_at",
+    "required_approvals",
+    "approvals_counted",
+    "plan",
+    "reviews",
+    "fingerprint",
+    "checks",
+    "errors"
+  ],
+  "properties": {
+    "schema_id": {
+      "type": "string",
+      "const": "launch_authorization_v1"
+    },
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "verdict": {
+      "type": "string",
+      "enum": [
+        "authorized",
+        "invalid_record",
+        "missing_plan_hash",
+        "stale_review",
+        "missing_review",
+        "review_rejected",
+        "reviewer_unavailable",
+        "fingerprint_mismatch"
+      ],
+      "description": "authorized only when every check passes. Refusal verdicts name what was falsified: invalid_record (authorization record missing, unreadable, or malformed — including an absent/malformed registered plan hash, an impossible quorum, or a duplicate reviewer id), missing_plan_hash (the plan file named by the record is missing, unreadable, or escapes the project root, so no live plan hash can be computed), stale_review (the live plan content differs from the hash the record and/or the review verdicts bound — the plan changed after authorization or review), missing_review (a listed review verdict is absent, unreadable, malformed, unbound, or attributed to a different reviewer, and the quorum is unmet), review_rejected (a reviewer returned changes_needed and the quorum is unmet), reviewer_unavailable (a reviewer was explicitly recorded unavailable and the quorum is unmet — unavailability is never approval), fingerprint_mismatch (the observed execution-environment fingerprint is not exactly equal to the registered one, or is missing/unreadable)."
+    },
+    "launch_authorized": {
+      "type": "boolean",
+      "description": "Convenience boolean for launchers; true exactly when verdict is authorized."
+    },
+    "exit_code": {
+      "type": "integer",
+      "enum": [0, 2, 3],
+      "description": "0 only for authorized; 2 for invalid_record (unusable authorization record); 3 for every other refusal."
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "record_path": {
+      "type": "string",
+      "description": "Path of the authorization record that was evaluated."
+    },
+    "record_sha256": {
+      "type": ["string", "null"],
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "SHA-256 of the authorization record bytes, for audit."
+    },
+    "required_approvals": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Approval quorum declared by the record (0 only when the record itself was invalid)."
+    },
+    "approvals_counted": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of review verdicts that counted as approvals: verdict approved AND reviewed_plan_sha256 exactly equal to the live plan hash."
+    },
+    "plan": {
+      "type": "object",
+      "required": ["path", "registered_sha256", "live_sha256"],
+      "properties": {
+        "path": {
+          "type": ["string", "null"],
+          "description": "Plan path as declared by the record (project-root-relative)."
+        },
+        "registered_sha256": {
+          "type": ["string", "null"],
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "Plan content hash frozen in the authorization record."
+        },
+        "live_sha256": {
+          "type": ["string", "null"],
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "SHA-256 of the plan file as read at preflight time."
+        }
+      },
+      "additionalProperties": false
+    },
+    "reviews": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["reviewer", "verdict", "reviewed_plan_sha256", "counts_as_approval", "detail"],
+        "properties": {
+          "reviewer": {
+            "type": "string",
+            "minLength": 1
+          },
+          "verdict_path": {
+            "type": "string"
+          },
+          "verdict": {
+            "type": "string",
+            "enum": ["approved", "changes_needed", "unavailable", "missing", "invalid"],
+            "description": "Observed state of this review at preflight time. approved/changes_needed/unavailable come from the verdict file; missing means the file is absent or unreadable; invalid means the file exists but is malformed, unbound, or attributed to a different reviewer."
+          },
+          "reviewed_plan_sha256": {
+            "type": ["string", "null"],
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "Plan hash the verdict file states it reviewed; null when absent."
+          },
+          "counts_as_approval": {
+            "type": "boolean",
+            "description": "True only for verdict approved with reviewed_plan_sha256 exactly equal to the live plan hash. Unavailability, rejection, malformation, or a stale bound hash never count."
+          },
+          "detail": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "fingerprint": {
+      "type": "object",
+      "required": ["expected", "observed", "equal", "mismatched_keys"],
+      "properties": {
+        "expected": {
+          "type": ["object", "null"],
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Environment fingerprint registered at authorization time (string values only, so semantically equal values cannot diverge by representation)."
+        },
+        "observed": {
+          "type": ["object", "null"],
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Environment fingerprint observed at the launch site."
+        },
+        "equal": {
+          "type": "boolean",
+          "description": "True only for exact symmetric equality: identical key sets and identical string values."
+        },
+        "mismatched_keys": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Keys missing on either side or carrying unequal values."
+        }
+      },
+      "additionalProperties": false
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["check_id", "status", "detail"],
+        "properties": {
+          "check_id": {
+            "type": "string",
+            "enum": ["plan_frozen", "review_binding", "fingerprint_match"]
+          },
+          "status": {
+            "type": "string",
+            "enum": ["pass", "fail", "not_evaluated"],
+            "description": "not_evaluated appears only after an earlier check already refused the launch; it is never a pass."
+          },
+          "detail": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "errors": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "verdict": {
+            "const": "authorized"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "exit_code": {
+            "const": 0
+          },
+          "launch_authorized": {
+            "const": true
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "verdict": {
+            "const": "invalid_record"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "exit_code": {
+            "const": 2
+          },
+          "launch_authorized": {
+            "const": false
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "verdict": {
+            "enum": [
+              "missing_plan_hash",
+              "stale_review",
+              "missing_review",
+              "review_rejected",
+              "reviewer_unavailable",
+              "fingerprint_mismatch"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "exit_code": {
+            "const": 3
+          },
+          "launch_authorized": {
+            "const": false
+          }
+        }
+      }
+    }
+  ],
+  "additionalProperties": false
+}
