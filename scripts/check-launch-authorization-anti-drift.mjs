@@ -191,7 +191,20 @@ if (checkerText !== null) {
     ['unavailable-never-approval discipline', 'never counts as approval'],
     ['silence-is-refusal discipline', 'Silence is refusal'],
     ['single-read plan hash discipline', 'read ONCE'],
+    ['shared strict JSON decoder', 'def _loads_json_strict(raw: bytes)'],
+    ['recursive duplicate-key rejection', 'object_pairs_hook=_reject_duplicate_json_keys'],
+    ['ambiguous-record output refusal', 'RECORD_PARSE_OUTPUT_REFUSAL = ('],
+    [
+      'ambiguous-record output suppression wiring',
+      'output_blocked_reason=RECORD_PARSE_OUTPUT_REFUSAL',
+    ],
   ]);
+  const jsonLoadCalls = checkerText.match(/json\.loads\(/g) ?? [];
+  if (jsonLoadCalls.length !== 1) {
+    errors.push(
+      `${CHECKER_FILE}: every JSON input must use the shared strict decoder (expected one json.loads call, found ${jsonLoadCalls.length})`,
+    );
+  }
 }
 
 // 5. Operator-facing contract in the skill prose.
@@ -208,6 +221,11 @@ if (skillText !== null) {
     ['unavailable-never-approval discipline', 'Reviewer unavailability is never approval'],
     ['zero-production-output contract', 'zero production output'],
     ['stale-review discipline', 'Editing the plan after review voids the old verdict'],
+    ['recursive duplicate-key refusal', 'Duplicate JSON object keys are rejected at every nesting level'],
+    [
+      'ambiguous-record output suppression',
+      'no `--output` file is written at all because its declared input paths cannot be recovered safely',
+    ],
   ]);
 }
 
@@ -223,6 +241,25 @@ if (testsText !== null) {
     ['negative control: rejection', 'def test_refuses_review_rejected'],
     ['negative control: unavailable reviewer', 'def test_refuses_reviewer_unavailable'],
     ['negative control: fingerprint', 'def test_refuses_fingerprint_value_mismatch'],
+    ['negative control: duplicate plan hash', 'def test_duplicate_plan_sha256_is_invalid_record'],
+    ['negative control: duplicate verdict', 'def test_duplicate_verdict_never_counts'],
+    [
+      'negative control: duplicate reviewed plan hash',
+      'def test_duplicate_reviewed_plan_sha256_never_counts',
+    ],
+    [
+      'negative control: duplicate observed fingerprint key',
+      'def test_duplicate_observed_fingerprint_key_refuses',
+    ],
+    ['negative control: nested duplicate key', 'def test_nested_duplicate_record_key_is_invalid'],
+    [
+      'negative control: duplicate record cannot overwrite plan',
+      'def test_duplicate_record_suppresses_output_aliasing_declared_plan',
+    ],
+    [
+      'negative control: duplicate record cannot overwrite verdict',
+      'def test_duplicate_record_suppresses_output_aliasing_declared_verdict',
+    ],
     ['contract alignment', 'def test_verdicts_and_checks_match_schema_contract'],
   ]);
 }

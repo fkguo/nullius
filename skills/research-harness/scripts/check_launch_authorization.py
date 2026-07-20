@@ -158,6 +158,9 @@ VERDICTS = (
 EXIT_CODES = {v: (0 if v == "authorized" else 2 if v == "invalid_record" else 3) for v in VERDICTS}
 CHECK_IDS = ("plan_frozen", "review_binding", "fingerprint_match")
 REVIEW_FILE_VERDICTS = ("approved", "changes_needed", "unavailable")
+RECORD_PARSE_OUTPUT_REFUSAL = (
+    "--output was not written because the authorization record is unreadable or "
+    "cannot be parsed unambiguously; its declared input paths cannot be protected")
 
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
@@ -229,6 +232,25 @@ def write_text_atomic(path: Path, text: str) -> None:
         raise
 
 
+def _reject_duplicate_json_keys(pairs: "list[tuple[str, object]]") -> dict:
+    """Build one JSON object while rejecting ambiguous duplicate names.
+
+    ``object_pairs_hook`` invokes this for every object, including nested
+    objects, so one decoder enforces the rule across every input shape.
+    """
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate JSON object key {key!r}")
+        result[key] = value
+    return result
+
+
+def _loads_json_strict(raw: bytes):
+    return json.loads(
+        raw.decode("utf-8"), object_pairs_hook=_reject_duplicate_json_keys)
+
+
 def _read_json(path: Path) -> "tuple[object | None, str | None]":
     """(document, error). UTF-8 strictly; every failure is a reason string,
     never an exception (RecursionError covers pathologically nested JSON)."""
@@ -237,7 +259,7 @@ def _read_json(path: Path) -> "tuple[object | None, str | None]":
     except (OSError, ValueError) as exc:
         return None, f"unreadable: {exc}"
     try:
-        return json.loads(raw.decode("utf-8")), None
+        return _loads_json_strict(raw), None
     except (UnicodeDecodeError, ValueError, RecursionError) as exc:
         return None, f"not valid UTF-8 JSON: {exc!r}"
 
@@ -569,7 +591,8 @@ def _protect_declared_paths(record, bases: "list[Path]",
 
 
 def finish(result: dict, verdict: str, output: "Path | None",
-           protected: "frozenset[Path] | set[Path]" = frozenset()) -> int:
+           protected: "frozenset[Path] | set[Path]" = frozenset(), *,
+           output_blocked_reason: "str | None" = None) -> int:
     """Emit the result. Stdout always carries the full artifact. The --output
     write is guarded here — on EVERY exit path, early refusals included — so
     the audit artifact can never overwrite the record, the plan, a verdict
@@ -578,25 +601,33 @@ def finish(result: dict, verdict: str, output: "Path | None",
     and the run exits 2. A --output write that fails likewise downgrades the
     run to exit 2 even when the verdict is authorized — an authorization
     whose requested audit artifact cannot be persisted is refused (the
-    printed exit_code field reflects the verdict alone)."""
+    printed exit_code field reflects the verdict alone). Callers that cannot
+    recover every declared input path block persistence entirely via
+    output_blocked_reason while preserving the stdout artifact."""
     result["verdict"] = verdict
     result["launch_authorized"] = verdict == "authorized"
     result["exit_code"] = EXIT_CODES[verdict]
-    alias_refusal = None
+    persistence_refusal = None
     if output is not None:
-        # guard and writer must act on the SAME canonical path: a raw
-        # spelling like slot/../artifact.json resolves cleanly for the guard
-        # but would make the writer's mkdir(parents=True) create `slot` as a
-        # directory — so the write itself targets the resolved path
-        resolved_output = _try_resolve(output)
-        if resolved_output is None or _output_aliases_input(resolved_output, protected):
-            alias_refusal = ("--output must not alias the record, the plan, a verdict "
-                             "file, or the observed fingerprint — refusing to overwrite "
-                             "an input")
-            result["errors"].append(alias_refusal)
+        if output_blocked_reason is not None:
+            persistence_refusal = output_blocked_reason
+            result["errors"].append(persistence_refusal)
             output = None
         else:
-            output = resolved_output
+            # guard and writer must act on the SAME canonical path: a raw
+            # spelling like slot/../artifact.json resolves cleanly for the guard
+            # but would make the writer's mkdir(parents=True) create `slot` as a
+            # directory — so the write itself targets the resolved path
+            resolved_output = _try_resolve(output)
+            if (resolved_output is None
+                    or _output_aliases_input(resolved_output, protected)):
+                persistence_refusal = (
+                    "--output must not alias the record, the plan, a verdict file, or "
+                    "the observed fingerprint — refusing to overwrite an input")
+                result["errors"].append(persistence_refusal)
+                output = None
+            else:
+                output = resolved_output
     text = json.dumps(result, indent=2, ensure_ascii=False) + "\n"
     try:
         text.encode("utf-8")
@@ -605,8 +636,8 @@ def finish(result: dict, verdict: str, output: "Path | None",
         # emit itself crash; escape everything instead of losing the artifact
         text = json.dumps(result, indent=2, ensure_ascii=True) + "\n"
     print(text, end="")
-    if alias_refusal is not None:
-        print(f"launch refused: {alias_refusal}", file=sys.stderr)
+    if persistence_refusal is not None:
+        print(f"launch refused: {persistence_refusal}", file=sys.stderr)
         return EXIT_CODES["invalid_record"]
     if output is not None:
         try:
@@ -665,13 +696,15 @@ def _run_checks(args, result: dict, protected: "set[Path]") -> int:
         raw = args.record.read_bytes()
     except (OSError, ValueError) as exc:
         result["errors"].append(f"cannot read authorization record: {exc}")
-        return finish(result, "invalid_record", args.output, protected)
+        return finish(result, "invalid_record", args.output, protected,
+                      output_blocked_reason=RECORD_PARSE_OUTPUT_REFUSAL)
     result["record_sha256"] = _sha256_hex(raw)
     try:
-        record = json.loads(raw.decode("utf-8"))
+        record = _loads_json_strict(raw)
     except (UnicodeDecodeError, ValueError, RecursionError) as exc:
         result["errors"].append(f"authorization record is not valid UTF-8 JSON: {exc!r}")
-        return finish(result, "invalid_record", args.output, protected)
+        return finish(result, "invalid_record", args.output, protected,
+                      output_blocked_reason=RECORD_PARSE_OUTPUT_REFUSAL)
     # protect the declared paths before the project root is known: the
     # project-root-failure exits below must not be able to clobber the plan
     # or a verdict file either. The real project root, wherever it is, is
