@@ -34,6 +34,18 @@ def _write_json(path: Path, doc) -> None:
     path.write_text(json.dumps(doc, indent=2), encoding="utf-8")
 
 
+def _replace_raw_once(path: Path, original: str, replacement: str) -> None:
+    raw = path.read_text(encoding="utf-8")
+    assert raw.count(original) == 1
+    path.write_text(raw.replace(original, replacement, 1), encoding="utf-8")
+
+
+def _add_duplicate_plan_sha256(proj: dict) -> None:
+    accepted = f'  "plan_sha256": "{proj["plan_sha"]}",'
+    conflicting = f'  "plan_sha256": "{"0" * 64}",\n{accepted}'
+    _replace_raw_once(proj["record_path"], accepted, conflicting)
+
+
 def _verdict_doc(reviewer: str, verdict: str, bound_sha: "str | None") -> dict:
     doc = {"verdict_version": 1, "reviewer": reviewer, "verdict": verdict}
     if bound_sha is not None:
@@ -332,6 +344,84 @@ def test_boolean_verdict_version_never_counts(tmp_path, capsys):
     assert result["reviews"][0]["verdict"] == "invalid"
 
 
+def test_duplicate_plan_sha256_is_invalid_record(tmp_path, capsys):
+    proj = _project(tmp_path)
+    _add_duplicate_plan_sha256(proj)
+
+    code, result = _run(proj, capsys)
+
+    assert code == 2
+    assert result["verdict"] == "invalid_record"
+    assert result["launch_authorized"] is False
+    assert any("duplicate JSON object key 'plan_sha256'" in error
+               for error in result["errors"])
+
+
+def test_duplicate_verdict_never_counts(tmp_path, capsys):
+    proj = _project(tmp_path)
+    verdict_path = proj["root"] / "reviews" / "reviewer-one.json"
+    accepted = '  "verdict": "approved",'
+    conflicting = '  "verdict": "changes_needed",\n' + accepted
+    _replace_raw_once(verdict_path, accepted, conflicting)
+
+    code, result = _run(proj, capsys)
+
+    assert code == 3
+    assert result["verdict"] == "missing_review"
+    assert result["launch_authorized"] is False
+    assert result["approvals_counted"] == 0
+    assert result["reviews"][0]["verdict"] == "invalid"
+    assert "duplicate JSON object key 'verdict'" in result["reviews"][0]["detail"]
+
+
+def test_duplicate_reviewed_plan_sha256_never_counts(tmp_path, capsys):
+    proj = _project(tmp_path)
+    verdict_path = proj["root"] / "reviews" / "reviewer-one.json"
+    accepted = f'  "reviewed_plan_sha256": "{proj["plan_sha"]}"'
+    conflicting = f'  "reviewed_plan_sha256": "{"0" * 64}",\n{accepted}'
+    _replace_raw_once(verdict_path, accepted, conflicting)
+
+    code, result = _run(proj, capsys)
+
+    assert code == 3
+    assert result["verdict"] == "missing_review"
+    assert result["launch_authorized"] is False
+    assert result["approvals_counted"] == 0
+    assert result["reviews"][0]["verdict"] == "invalid"
+    assert ("duplicate JSON object key 'reviewed_plan_sha256'"
+            in result["reviews"][0]["detail"])
+
+
+def test_duplicate_observed_fingerprint_key_refuses(tmp_path, capsys):
+    proj = _project(tmp_path)
+    accepted = '  "code_commit": "0123abcd",'
+    conflicting = '  "code_commit": "different-commit",\n' + accepted
+    _replace_raw_once(proj["observed_path"], accepted, conflicting)
+
+    code, result = _run(proj, capsys)
+
+    assert code == 3
+    assert result["verdict"] == "fingerprint_mismatch"
+    assert result["launch_authorized"] is False
+    assert result["fingerprint"]["equal"] is False
+    assert "duplicate JSON object key 'code_commit'" in result["checks"][2]["detail"]
+
+
+def test_nested_duplicate_record_key_is_invalid(tmp_path, capsys):
+    proj = _project(tmp_path)
+    accepted = '    "code_commit": "0123abcd",'
+    conflicting = '    "code_commit": "different-commit",\n' + accepted
+    _replace_raw_once(proj["record_path"], accepted, conflicting)
+
+    code, result = _run(proj, capsys)
+
+    assert code == 2
+    assert result["verdict"] == "invalid_record"
+    assert result["launch_authorized"] is False
+    assert any("duplicate JSON object key 'code_commit'" in error
+               for error in result["errors"])
+
+
 def test_nul_byte_in_plan_path_is_invalid_record(tmp_path, capsys):
     proj = _project(tmp_path)
     record = json.loads(proj["record_path"].read_text(encoding="utf-8"))
@@ -458,6 +548,44 @@ def test_output_aliasing_record_is_refused_even_on_early_refusal(tmp_path, capsy
     assert code == 2
     assert result["verdict"] == "invalid_record"
     assert proj["record_path"].read_bytes() == original
+
+
+def test_duplicate_record_suppresses_output_aliasing_declared_plan(tmp_path, capsys):
+    proj = _project(tmp_path)
+    _add_duplicate_plan_sha256(proj)
+    plan_path = proj["root"] / "plan.md"
+    verdict_path = proj["root"] / "reviews" / "reviewer-one.json"
+    input_paths = (proj["record_path"], plan_path, verdict_path, proj["observed_path"])
+    original = {path: path.read_bytes() for path in input_paths}
+
+    code, result = _run(proj, capsys, extra_args=["--output", str(plan_path)])
+
+    assert code == 2
+    assert result["schema_id"] == "launch_authorization_v1"
+    assert result["verdict"] == "invalid_record"
+    assert result["launch_authorized"] is False
+    assert any("declared input paths cannot be protected" in error
+               for error in result["errors"])
+    assert all(path.read_bytes() == content for path, content in original.items())
+
+
+def test_duplicate_record_suppresses_output_aliasing_declared_verdict(tmp_path, capsys):
+    proj = _project(tmp_path)
+    _add_duplicate_plan_sha256(proj)
+    plan_path = proj["root"] / "plan.md"
+    verdict_path = proj["root"] / "reviews" / "reviewer-one.json"
+    input_paths = (proj["record_path"], plan_path, verdict_path, proj["observed_path"])
+    original = {path: path.read_bytes() for path in input_paths}
+
+    code, result = _run(proj, capsys, extra_args=["--output", str(verdict_path)])
+
+    assert code == 2
+    assert result["schema_id"] == "launch_authorization_v1"
+    assert result["verdict"] == "invalid_record"
+    assert result["launch_authorized"] is False
+    assert any("declared input paths cannot be protected" in error
+               for error in result["errors"])
+    assert all(path.read_bytes() == content for path, content in original.items())
 
 
 def test_output_aliasing_plan_is_refused_when_record_fails_validation(tmp_path, capsys):
