@@ -1,6 +1,6 @@
 ---
 name: figure-hygiene
-description: "Correctness and legibility checklist for data/results figures in any field: charts, parameter scans, spectra, distributions, fit comparisons, constraint contours, heatmaps, and low-dimensional projection scatters. Use when an agent plots computed or measured data, revises a results figure for a manuscript, or audits whether a data figure is publication-ready. Covers data fidelity (excluded rows never enter plotted summaries, connected-series evaluator fingerprints are homogeneous, claim-titles true against every axis category, one canonical value per claim), label economy floor and ceiling, colour threading with a CVD-safe palette, role-mapped typography, chart choice by data shape, a render-then-verify QA loop (bbox overlap check plus per-panel perceptual crops), and a figure-reproduction provenance bundle. For schematic/topological figures such as process diagrams, integral-equation schematics, and geometry sketches, use physics-diagrams instead; this skill owns figures whose content is data."
+description: "Correctness and legibility checklist for data/results figures in any field: charts, parameter scans, spectra, distributions, fit comparisons, constraint contours, heatmaps, and low-dimensional projection scatters. Use when an agent plots computed or measured data, revises a results figure for a manuscript, or audits whether a data figure is publication-ready. Covers data fidelity (excluded rows never enter plotted summaries, connected-series evaluator fingerprints are homogeneous, claim-titles true against every axis category, one canonical value per claim), label economy floor and ceiling, colour threading with a CVD-safe palette, role-mapped typography, chart choice by data shape, a render-then-verify QA loop (bbox overlap check plus per-panel perceptual crops), a figure-reproduction provenance bundle, and a fail-closed display-acceptance gate that refuses durable or outward-facing use until every plotted quantity is bound to a verification-gate verdict and an all-component human-review overview figure is archived. For schematic/topological figures such as process diagrams, integral-equation schematics, and geometry sketches, use physics-diagrams instead; this skill owns figures whose content is data."
 ---
 
 # Figure Hygiene
@@ -137,6 +137,25 @@ A durable or submission-bound figure must re-render from recorded inputs. Bind t
     "fingerprint_column": "evaluator_fingerprint",
     "check_command": "python3 $SKILL_DIR/scripts/bin/check_series_provenance.py --data data/scan_results.csv"
   },
+  "display_acceptance": {
+    "plotted_quantities": ["quantity_a", "quantity_b"],
+    "verdict_bindings": [
+      {
+        "quantity": "quantity_a",
+        "verdict_path": "gates/quantity_a.verdict.json",
+        "verdict_sha256": "<hex digest>"
+      },
+      {
+        "quantity": "quantity_b",
+        "verdict_path": "gates/quantity_b.verdict.json",
+        "verdict_sha256": "<hex digest>"
+      }
+    ],
+    "overview_figure": {
+      "path": "figs/review/overview_all_components.pdf",
+      "archived": true
+    }
+  },
   "sha256": {
     "figs/scan_summary.pdf": "<hex digest>",
     "data/scan_results.csv": "<hex digest>"
@@ -145,6 +164,33 @@ A durable or submission-bound figure must re-render from recorded inputs. Bind t
 ```
 
 Anyone (including a later agent) must be able to re-run the command and diff the output against the checksum. Run the series-provenance command before rendering; it must fail if any connected series has a missing or mixed fingerprint. If the regenerated figure differs beyond recorded nondeterminism, or the provenance check fails, the figure and its numbers are out of sync: stop and reconcile before the figure is used anywhere. This bundle is what makes the checklist enforceable — a figure that cannot be regenerated cannot be re-verified. When the figure enters a manuscript gated by the research-writer skill, this bundle is the figure-side instantiation of that skill's traceability manifest: mirror the figure's checksum into the manifest entry so the manuscript-side result-traceability gate verifies the same bytes.
+
+## Display Acceptance Gate
+
+A new display is a new observable. An agent naturally builds acceptance checks only for the conclusions it has declared, so output components that were never declared are never checked; and a figure that enters a manuscript before its verification ("ship the figure now, backfill the check later") lets an error survive behind a smooth-looking rendering. Before a figure or table becomes durable or outward-facing — a manuscript, a report, a shared summary — its provenance bundle must therefore also demonstrate that what it shows has been checked. The bundle's `display_acceptance` block binds the display surface to the acceptance surface:
+
+- **`plotted_quantities`** — one identifier per quantity the figure draws. This is the declared denominator: anything plotted but not listed here is unchecked by construction, so list everything the marks encode.
+- **`verdict_bindings`** — one entry per plotted quantity, pointing at the verification-gate verdict artifact that checked it (`verdict_path`) and pinning that artifact's bytes (`verdict_sha256`). Every bound artifact must satisfy the shared, domain-neutral `quantity_verdict_v1` schema: the closed JSON object carries `schema_id: "quantity_verdict_v1"`, `schema_version: 1`, a non-empty unique `quantities` list, and a `verdict` in the schema's closed outcome vocabulary. Only the gate-fixed outcome `pass` satisfies a binding. A verification gate whose native outcome vocabulary differs must re-emit a conforming verdict artifact; the manifest cannot widen acceptance, and an unversioned, wrong-schema, or open-ended artifact is rejected rather than field-probed.
+- **`overview_figure`** — the archived human-review overview figure spanning **all** output components, with `path`, an explicit `archived: true`, and optionally a `sha256` pinning its bytes. Rendering one cheap everything-at-once figure for a human to look at is itself an effective acceptance step: key errors are often caught by a person reading the overview, not by an automated gate.
+
+A minimal bound verdict artifact is:
+
+```json
+{
+  "schema_id": "quantity_verdict_v1",
+  "schema_version": 1,
+  "quantities": ["quantity_a"],
+  "verdict": "pass"
+}
+```
+
+The verdict is computed by the gate script and only there; the caller must not self-assess or override it:
+
+```bash
+python3 "$SKILL_DIR/scripts/bin/check_display_acceptance.py" --manifest figs/scan_summary.provenance.json --json
+```
+
+The gate is fail-closed — missing or unverifiable evidence is a failure, never a pass — and emits a `display_gate_result_v1` payload whose `result` carries a falsification label: `pass`, `missing_verdict_binding` (a plotted quantity has no binding, or the block/denominator is undeclared), `verdict_mismatch` (the bound artifact's hash does not match the pinned digest, it does not satisfy `quantity_verdict_v1`, it does not cover the plotted quantity, or its outcome is not accepted), `missing_overview_figure` (the overview checkbox is absent, unaffirmed, or the file is gone), or `invalid_manifest` (the manifest itself is unreadable). Exit codes: 0 pass, 1 gate failure, 2 unreadable manifest, invalid invocation, or unsafe output persistence (all emit a machine-readable fail-closed payload). Every consumed JSON document rejects duplicate keys recursively. Optional `--out-json` output is written by same-directory atomic replacement and is refused if it aliases, contains, or is contained by the manifest, any bound verdict artifact, or the overview input—even when a declared input does not yet exist. If an ambiguous or unreadable manifest prevents complete input-slot discovery, no output file is persisted. Run the gate as the last step before the figure leaves the project: a figure whose gate does not return `pass` does not enter any display surface, and "the figure is already in the draft" is not an exemption — it is the failure mode.
 
 ## Review Gate
 

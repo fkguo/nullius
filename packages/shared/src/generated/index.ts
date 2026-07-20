@@ -24,6 +24,8 @@ export type {
   ArtifactRefV16,
 } from "./computation-result-v1.js";
 export * from "./convergence-gate-result-v1.js";
+export * from "./delegation-budget-gate-result-v1.js";
+export * from "./display-gate-result-v1.js";
 export * from "./domain-pack-manifest-v1.js";
 export type {
   EvidenceType,
@@ -39,6 +41,7 @@ export * from "./gate-spec-v1.js";
 export type { GeneV1, ConstraintPolicy, EpigeneticMark } from "./gene-v1.js";
 export * from "./integrity-check-v1.js";
 export * from "./integrity-report-v1.js";
+export * from "./launch-authorization-v1.js";
 export * from "./memory-graph-edge-v1.js";
 export * from "./memory-graph-event-v1.js";
 export type {
@@ -56,6 +59,7 @@ export type {
 export * from "./migration-registry-v1.js";
 export * from "./mutation-proposal-v1.js";
 export * from "./paper-manifest-v2.js";
+export * from "./quantity-verdict-v1.js";
 export * from "./rep-envelope-v1.js";
 export * from "./reproducibility-report-v1.js";
 export * from "./research-event-v1.js";

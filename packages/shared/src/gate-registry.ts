@@ -10,6 +10,60 @@ export type GateType = 'approval' | 'quality' | 'convergence';
 export type GateFailBehavior = 'fail-open' | 'fail-closed';
 export type GatePolicy = Readonly<Record<string, unknown>>;
 
+/**
+ * Launch-authorization preflight for production compute runs (A3 policy).
+ *
+ * The preconditions a launcher must demonstrate — machine-decided, all
+ * required, default refuse — before a large production run may start:
+ *
+ * 1. plan_frozen: the production plan's content hash (SHA-256) is registered
+ *    in the authorization record and equals the live plan file's hash.
+ * 2. review_binding: independent review verdicts state the plan hash they
+ *    reviewed, and that hash equals the live plan hash. A plan edited after
+ *    review invalidates the old verdict (stale_review). A reviewer recorded
+ *    unavailable never counts as an approval.
+ * 3. fingerprint_match: the execution-environment fingerprint observed at the
+ *    launch site is exactly equal to the fingerprint registered at
+ *    authorization time.
+ *
+ * These preconditions exist because of three observed AI failure modes:
+ * a missing review silently treated as consent; a plan modified after review
+ * still riding on the old verdict; and an execution environment that differs
+ * from the one the review actually covered.
+ *
+ * Enforcement locus: the policy is a contract declaration, not engine
+ * enforcement. Project-side production launchers enforce it by chaining the
+ * research-harness preflight (check_launch_authorization.py) before the
+ * production command; the engine's bounded-computation runner keeps its own
+ * A3 human-approval flow and does not invoke the preflight. The two are
+ * complementary.
+ */
+export const LAUNCH_AUTHORIZATION_RESULT_SCHEMA = 'launch_authorization_v1';
+
+export const LAUNCH_AUTHORIZATION_CHECKS = [
+  'plan_frozen',
+  'review_binding',
+  'fingerprint_match',
+] as const;
+export type LaunchAuthorizationCheck = (typeof LAUNCH_AUTHORIZATION_CHECKS)[number];
+
+export const LAUNCH_AUTHORIZATION_VERDICTS = [
+  'authorized',
+  'invalid_record',
+  'missing_plan_hash',
+  'stale_review',
+  'missing_review',
+  'review_rejected',
+  'reviewer_unavailable',
+  'fingerprint_mismatch',
+] as const;
+export type LaunchAuthorizationVerdict = (typeof LAUNCH_AUTHORIZATION_VERDICTS)[number];
+
+export interface LaunchAuthorizationPolicy {
+  readonly result_schema: typeof LAUNCH_AUTHORIZATION_RESULT_SCHEMA;
+  readonly required_checks: readonly LaunchAuthorizationCheck[];
+}
+
 export interface GateSpec {
   gate_id: string;
   gate_type: GateType;
@@ -40,7 +94,13 @@ export const GATE_REGISTRY: readonly GateSpec[] = [
     gate_id: 'A3',
     gate_type: 'approval',
     scope: 'compute_runs',
-    policy: { approval_category: 'compute_runs' },
+    policy: {
+      approval_category: 'compute_runs',
+      launch_authorization: {
+        result_schema: LAUNCH_AUTHORIZATION_RESULT_SCHEMA,
+        required_checks: LAUNCH_AUTHORIZATION_CHECKS,
+      },
+    },
     fail_behavior: 'fail-closed',
     audit_required: true,
   },
@@ -73,6 +133,14 @@ export const GATE_REGISTRY: readonly GateSpec[] = [
     gate_type: 'quality',
     scope: 'evidence_grounding',
     policy: { check: 'originality' },
+    fail_behavior: 'fail-closed',
+    audit_required: true,
+  },
+  {
+    gate_id: 'delegation_budget',
+    gate_type: 'quality',
+    scope: 'delegated_workstreams',
+    policy: { result_schema: 'delegation_budget_gate_result_v1' },
     fail_behavior: 'fail-closed',
     audit_required: true,
   },
@@ -152,6 +220,20 @@ export const APPROVAL_REQUIRED_DEFAULTS = Object.freeze(
 
 export function getGateSpec(gateId: string): GateSpec | undefined {
   return GATE_BY_ID.get(gateId);
+}
+
+/**
+ * The launch-authorization policy carried by a gate, or undefined when the
+ * gate does not declare one. Today only A3 (compute_runs) carries it.
+ */
+export function getLaunchAuthorizationPolicy(
+  gateId: string,
+): LaunchAuthorizationPolicy | undefined {
+  const gate = GATE_BY_ID.get(gateId);
+  const policy = gate?.policy as
+    | { launch_authorization?: LaunchAuthorizationPolicy }
+    | undefined;
+  return policy?.launch_authorization;
 }
 
 export function getApprovalGateSpecs(): readonly ApprovalGateSpec[] {

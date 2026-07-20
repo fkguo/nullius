@@ -27,6 +27,12 @@ pnpm codegen:check     # regenerate and fail if the working tree drifts
 
 A long-term symbol must not adopt drift-prone suffixes like `v2`, `new_*`, `legacy_*`, or `W1/W2` — see [AGENTS.md](../../AGENTS.md) §Stable Public Invariants.
 
+Gate-result envelopes follow the gate's actual semantics. Team/draft/reproduction
+convergence uses `convergence_gate_result_v1`; the pre-dispatch delegation-budget
+quality gate uses `delegation_budget_gate_result_v1` with
+`pass | fail | input_error`. Do not add non-convergence gate ids to the
+convergence envelope.
+
 ## Build & test
 
 ```bash

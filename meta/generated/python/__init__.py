@@ -10,6 +10,8 @@ from .computation_evidence_catalog_item_v1 import *  # noqa: F401,F403
 from .computation_manifest_v1 import *  # noqa: F401,F403
 from .computation_result_v1 import *  # noqa: F401,F403
 from .convergence_gate_result_v1 import *  # noqa: F401,F403
+from .delegation_budget_gate_result_v1 import *  # noqa: F401,F403
+from .display_gate_result_v1 import *  # noqa: F401,F403
 from .domain_pack_manifest_v1 import *  # noqa: F401,F403
 from .evidence_catalog_item_v1 import *  # noqa: F401,F403
 from .execution_plan_v1 import *  # noqa: F401,F403
@@ -20,12 +22,14 @@ from .gate_spec_v1 import *  # noqa: F401,F403
 from .gene_v1 import *  # noqa: F401,F403
 from .integrity_check_v1 import *  # noqa: F401,F403
 from .integrity_report_v1 import *  # noqa: F401,F403
+from .launch_authorization_v1 import *  # noqa: F401,F403
 from .memory_graph_edge_v1 import *  # noqa: F401,F403
 from .memory_graph_event_v1 import *  # noqa: F401,F403
 from .memory_graph_node_v1 import *  # noqa: F401,F403
 from .migration_registry_v1 import *  # noqa: F401,F403
 from .mutation_proposal_v1 import *  # noqa: F401,F403
 from .paper_manifest_v2 import *  # noqa: F401,F403
+from .quantity_verdict_v1 import *  # noqa: F401,F403
 from .rep_envelope_v1 import *  # noqa: F401,F403
 from .reproducibility_report_v1 import *  # noqa: F401,F403
 from .research_event_v1 import *  # noqa: F401,F403
