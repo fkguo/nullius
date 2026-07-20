@@ -419,11 +419,18 @@ requireInTestBody('test_quantity_verdict_schema_matches_runtime_contract', 'inpu
   '_VERDICT_FIELDS',
 ]);
 requireInTestBody('test_generated_quantity_verdict_api_has_schema_specific_symbols', 'generated API collision control', [
-  'aggregate.Verdict is LaunchAuthorizationVerdict',
-  'not hasattr(quantity_verdict_v1, "Verdict")',
-  'not hasattr(quantity_verdict_v1, "Quantity")',
-  'aggregate.QuantityVerdictIdentifier is QuantityVerdictIdentifier',
-  'aggregate.QuantityVerdictOutcome is QuantityVerdictOutcome',
+  'ast.parse(',
+  'assert "quantity_verdict_v1" in aggregate_modules',
+  'assert not leaf_wildcard_imports',
+  'symtable.symtable(',
+  '.is_assigned()',
+  '.is_imported()',
+  'assert "__all__" not in bound_names',
+  'quantity_public_names.isdisjoint({"Verdict", "Quantity"})',
+  '_last_exporting_module("Verdict") == "launch_authorization_v1"',
+  '_last_exporting_module("QuantityVerdictIdentifier") == "quantity_verdict_v1"',
+  '_last_exporting_module("QuantityVerdictOutcome") == "quantity_verdict_v1"',
+  '_last_exporting_module("QuantityVerdictV1") == "quantity_verdict_v1"',
 ]);
 requireInTestBody('_assert_payload_matches_schema', 'structural payload validator', [
   'if payload["result"] != "pass":',
