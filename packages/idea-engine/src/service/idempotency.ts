@@ -126,7 +126,7 @@ function preparedSideEffectsCommitted(store: IdeaEngineStore, method: string, re
     // a value mismatch it cannot complete.
     return recoverImportGenerated(store, record);
   }
-  if (method === 'node.set_posterior' || method === 'node.set_lifecycle') {
+  if (method === 'node.set_posterior' || method === 'node.set_lifecycle' || method === 'node.set_grounding_audit') {
     const campaignId = record.response.payload.campaign_id;
     const nodeSummary = record.response.payload.node;
     if (typeof campaignId !== 'string' || !nodeSummary || typeof nodeSummary !== 'object' || Array.isArray(nodeSummary)) {
@@ -157,9 +157,56 @@ function preparedSideEffectsCommitted(store: IdeaEngineStore, method: string, re
       return JSON.stringify(node.posterior ?? null) === JSON.stringify(summary.posterior ?? null)
         && JSON.stringify(node.literature_coverage ?? null) === JSON.stringify(summary.literature_coverage ?? null);
     }
+    if (method === 'node.set_grounding_audit') {
+      // Same updated_at-gated value-equality probe as its siblings, and the same
+      // accepted tradeoff: an intervening mutation moves updated_at, so recovery
+      // re-executes rather than replays. For an absolute overwrite that is
+      // harmless. The one residual: if a rewrite_provenance nulls this audit
+      // between the crash and the retry, re-execution re-applies the pre-rewrite
+      // audit. That is report-CONTENT freshness (does the grounding report still
+      // cover the current card?), which the engine never gates — the contract
+      // assigns report-content verification to project-side audit — so it is not
+      // closed here. rewrite_provenance's eager reset covers the common
+      // (no-crash) case; this narrow crash-window residual is the same class as
+      // set_posterior/set_lifecycle resurrecting an overwritten value on retry.
+      return JSON.stringify(node.grounding_audit ?? null) === JSON.stringify(summary.grounding_audit ?? null);
+    }
     return nodeLifecycleState(node) === summary.lifecycle_state
       && (node.lifecycle_reason ?? null) === (summary.lifecycle_reason ?? null)
       && JSON.stringify(node.activation_condition ?? null) === JSON.stringify(summary.activation_condition ?? null);
+  }
+  if (method === 'node.rewrite_provenance') {
+    const campaignId = record.response.payload.campaign_id;
+    const nodeId = record.response.payload.node_id;
+    const idempotency = record.response.payload.idempotency as Record<string, unknown> | undefined;
+    const opKey = idempotency?.idempotency_key;
+    if (typeof campaignId !== 'string' || typeof nodeId !== 'string' || typeof opKey !== 'string') {
+      return false;
+    }
+    const node = store.loadNodes<Record<string, unknown>>(campaignId)[nodeId];
+    if (!node) {
+      return false;
+    }
+    // Unlike set_posterior/set_lifecycle — absolute writes whose re-execution is
+    // a harmless overwrite — rewrite_provenance re-execution is NOT idempotent:
+    // its rewrite_value_unchanged guard would reject the already-applied value.
+    // So the committed effect must be recognized by the history entry this
+    // operation appended, NOT by the node's top-level updated_at (a later
+    // unrelated mutation moves that stamp, which would wrongly force
+    // re-execution into rewrite_value_unchanged). The entry is keyed on the
+    // request's idempotency_key: (rewritten_at, new_value) is NOT unique —
+    // repeated identical corrections at the same clock tick (an A->B, B->A,
+    // A->B oscillation) collide, and matching a sibling entry would replay a
+    // rewrite whose store effect never landed. The idempotency_key is unique
+    // per operation and survives every intervening mutation's structuredClone.
+    const operatorTrace = node.operator_trace as Record<string, unknown> | undefined;
+    const inputs = operatorTrace?.inputs as Record<string, unknown> | undefined;
+    const history = Array.isArray(inputs?.provenance_rewrites)
+      ? inputs.provenance_rewrites as Array<Record<string, unknown>>
+      : [];
+    return history.some(entry =>
+      !!entry && typeof entry === 'object'
+      && (entry as Record<string, unknown>).idempotency_key === opKey);
   }
   return false;
 }

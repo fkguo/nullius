@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "node_update_result_v1.schema.json",
   "title": "NodeUpdateResult v1",
-  "description": "Result of a side-effecting node mutation (node.set_posterior / node.set_lifecycle): updated node summary plus idempotency metadata and the current budget snapshot.",
+  "description": "Result of a side-effecting node mutation (node.set_posterior / node.set_lifecycle / node.set_grounding_audit): updated node summary plus idempotency metadata and the current budget snapshot. grounding_audit appears in the summary only for node.set_grounding_audit results.",
   "type": "object",
   "required": [
     "campaign_id",
@@ -185,6 +185,51 @@
                 },
                 "satisfied": {
                   "type": "boolean"
+                }
+              },
+              "additionalProperties": false
+            }
+          ]
+        },
+        "grounding_audit": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "required": [
+                "status",
+                "folklore_risk_score",
+                "failures",
+                "timestamp"
+              ],
+              "properties": {
+                "status": {
+                  "enum": [
+                    "pass",
+                    "fail",
+                    "partial"
+                  ]
+                },
+                "folklore_risk_score": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "failures": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "timestamp": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "report_ref": {
+                  "type": "string",
+                  "minLength": 1
                 }
               },
               "additionalProperties": false

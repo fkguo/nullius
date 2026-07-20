@@ -334,6 +334,11 @@
             "timestamp": {
               "type": "string",
               "format": "date-time"
+            },
+            "report_ref": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Portable reference to the independently produced grounding record this audit result summarizes. Always written by node.set_grounding_audit (the only sanctioned write path); optional here so records that predate the write path stay readable."
             }
           },
           "additionalProperties": false
