@@ -43,6 +43,12 @@ function allNodeIds(service: IdeaEngineRpcService, campaignId: string): string[]
   return Object.keys(service.read.store.loadNodes<Record<string, unknown>>(campaignId));
 }
 
+/**
+ * Direct-store fixture shortcut: several promote-gate tests need a grounding
+ * record on nodes in states where the sanctioned write path
+ * (node.set_grounding_audit; see grounding-audit-and-provenance-rewrite.test.ts)
+ * legitimately refuses to write, so the gate under test is reached in isolation.
+ */
 function setGroundingPass(service: IdeaEngineRpcService, campaignId: string, nodeId: string): void {
   const nodes = service.read.store.loadNodes<Record<string, unknown>>(campaignId);
   nodes[nodeId]!.grounding_audit = {

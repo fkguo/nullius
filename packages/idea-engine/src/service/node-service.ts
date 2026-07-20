@@ -5,6 +5,8 @@ import { IdeaEngineStore } from '../store/engine-store.js';
 import { RpcError } from './errors.js';
 import { executeImportGenerated } from './import-generated-executor.js';
 import { executeNodePromote } from './node-promote-executor.js';
+import { executeNodeRewriteProvenance } from './node-rewrite-provenance-executor.js';
+import { executeNodeSetGroundingAudit } from './node-set-grounding-audit-executor.js';
 import { executeNodeSetLifecycle } from './node-set-lifecycle-executor.js';
 import { executeNodeSetPosterior } from './node-set-posterior-executor.js';
 import { executeRankCompute } from './rank-compute-executor.js';
@@ -15,6 +17,8 @@ const NODE_METHODS = new Set([
   'node.promote',
   'node.set_posterior',
   'node.set_lifecycle',
+  'node.set_grounding_audit',
+  'node.rewrite_provenance',
   'node.import_generated',
 ]);
 
@@ -62,6 +66,12 @@ export class IdeaEngineNodeService {
       }
       if (method === 'node.set_lifecycle') {
         return executeNodeSetLifecycle(executorOptions);
+      }
+      if (method === 'node.set_grounding_audit') {
+        return executeNodeSetGroundingAudit(executorOptions);
+      }
+      if (method === 'node.rewrite_provenance') {
+        return executeNodeRewriteProvenance(executorOptions);
       }
       if (method === 'node.import_generated') {
         return executeImportGenerated({ ...executorOptions, createId: this.createId });
