@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nullius.dev/schemas/display_gate_result_v1.schema.json",
+  "title": "Display Gate Result V1",
+  "description": "Machine verdict of the display-acceptance gate: before a figure or table becomes durable or outward-facing, its provenance bundle must bind every plotted quantity to a verification-gate verdict artifact and archive a human-review overview figure spanning all output components. The verdict is computed only by the gate script; callers must not self-assess. Fail-closed: missing or unverifiable evidence is a failure, never a pass.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "manifest",
+    "result",
+    "findings",
+    "quantities_declared",
+    "bindings_checked",
+    "overview_figure"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "manifest": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Path of the figure provenance manifest that was judged."
+    },
+    "result": {
+      "type": "string",
+      "enum": [
+        "pass",
+        "missing_verdict_binding",
+        "verdict_mismatch",
+        "missing_overview_figure",
+        "invalid_manifest"
+      ],
+      "description": "Falsification-labelled verdict. pass only when every plotted quantity has a binding whose verdict artifact exists, hashes to the recorded digest, covers that quantity, and records an accepted outcome, AND the all-component overview figure is archived and present on disk."
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/DisplayGateFinding"
+      }
+    },
+    "quantities_declared": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of plotted quantities declared in the manifest."
+    },
+    "bindings_checked": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of verdict bindings inspected."
+    },
+    "overview_figure": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Declared path of the archived human-review overview figure, or null when undeclared."
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "DisplayGateFinding": {
+      "type": "object",
+      "required": [
+        "kind",
+        "category",
+        "message"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Fine-grained finding label, e.g. missing-binding, verdict-hash-mismatch, quantity-not-covered, overview-file-missing."
+        },
+        "category": {
+          "type": "string",
+          "enum": [
+            "missing_verdict_binding",
+            "verdict_mismatch",
+            "missing_overview_figure",
+            "invalid_manifest"
+          ],
+          "description": "The result-level category this finding rolls up into."
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1
+        },
+        "quantity": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Plotted-quantity identifier the finding concerns, when applicable."
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "description": "File path the finding concerns, when applicable."
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

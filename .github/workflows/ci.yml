@@ -89,6 +89,10 @@ jobs:
         if: ${{ matrix.node-version == 22 }}
         run: node scripts/check-delegation-budget-anti-drift.mjs
 
+      - name: Check figure-gate coverage anti-drift (display-acceptance discipline)
+        if: ${{ matrix.node-version == 22 }}
+        run: node scripts/check-figure-gate-coverage-anti-drift.mjs
+
       - name: Check codegen drift (meta/schemas ↔ generated)
         if: ${{ matrix.node-version == 22 }}
         run: pnpm codegen:check
@@ -146,6 +150,9 @@ jobs:
 
       - name: Python tests (delegation-budget preflight brake, runner integration)
         run: python -m pytest skills/research-team/tests/test_delegation_budget_runner_integration.py -q
+
+      - name: Python tests (figure display-acceptance gate behavior)
+        run: python -m pytest skills/figure-hygiene/tests/test_display_acceptance_gate.py -q
 
   skills-market-checks:
     runs-on: ubuntu-latest
