@@ -85,6 +85,10 @@ jobs:
         if: ${{ matrix.node-version == 22 }}
         run: node scripts/check-launch-authorization-anti-drift.mjs
 
+      - name: Check delegation-budget gate anti-drift (budgets-before-dispatch discipline)
+        if: ${{ matrix.node-version == 22 }}
+        run: node scripts/check-delegation-budget-anti-drift.mjs
+
       - name: Check codegen drift (meta/schemas ↔ generated)
         if: ${{ matrix.node-version == 22 }}
         run: pnpm codegen:check
@@ -119,7 +123,7 @@ jobs:
 
       - name: Python tests (project contracts)
         run: |
-          python -m pip install pytest
+          python -m pip install pytest pyyaml
           python -m pytest packages/project-contracts/tests -q
 
       - name: Python tests (independent-reproduction gate behavior)
@@ -133,6 +137,15 @@ jobs:
 
       - name: Python tests (launch authorization gate behavior)
         run: python -m pytest skills/research-harness/tests/test_launch_authorization_gate.py -q
+
+      - name: Python tests (delegation-budget gate behavior)
+        run: python -m pytest skills/research-team/tests/test_delegation_budget_gate.py -q
+
+      - name: Python tests (convergence gate machine-verdict contract)
+        run: python -m pytest skills/research-team/tests/test_convergence_gate_json.py -q
+
+      - name: Python tests (delegation-budget preflight brake, runner integration)
+        run: python -m pytest skills/research-team/tests/test_delegation_budget_runner_integration.py -q
 
   skills-market-checks:
     runs-on: ubuntu-latest

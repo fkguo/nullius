@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import datetime as _dt
 import json
+import re as _re
 from pathlib import Path
 from typing import Any
 
@@ -39,13 +40,14 @@ def _find_convergence_result_schema_path() -> Path | None:
     return None
 
 
-def _load_convergence_result_schema_authority() -> tuple[frozenset[str], str, int, str | None]:
+def _load_convergence_result_schema_authority() -> tuple[frozenset[str], str, int, str | None, str | None]:
     schema_path = _find_convergence_result_schema_path()
     if schema_path is None:
         return (
             frozenset(),
             "__shared_schema_unavailable__",
             0,
+            None,
             "shared convergence schema SSOT not found (expected meta/schemas/"
             f"{_CONVERGENCE_RESULT_SCHEMA_BASENAME} reachable from this skill install); "
             "install `research-team` via a symlink into an nullius worktree (not a copy-only install).",
@@ -58,6 +60,7 @@ def _load_convergence_result_schema_authority() -> tuple[frozenset[str], str, in
             frozenset(),
             "__shared_schema_unavailable__",
             0,
+            None,
             f"failed to read shared convergence schema SSOT at {schema_path}: {e}",
         )
 
@@ -66,11 +69,15 @@ def _load_convergence_result_schema_authority() -> tuple[frozenset[str], str, in
         gate_ids = meta_props["gate_id"]["enum"]
         schema_id = meta_props["schema_id"]["const"]
         schema_version = meta_props["schema_version"]["const"]
+        member_key_patterns = list(
+            schema["properties"]["report_status"]["patternProperties"].keys()
+        )
     except Exception as e:  # CONTRACT-EXEMPT: CODE-01.5 explicit fail-closed diagnostics
         return (
             frozenset(),
             "__shared_schema_unavailable__",
             0,
+            None,
             f"shared convergence schema SSOT at {schema_path} missing expected meta authority fields: {e}",
         )
 
@@ -79,6 +86,7 @@ def _load_convergence_result_schema_authority() -> tuple[frozenset[str], str, in
             frozenset(),
             "__shared_schema_unavailable__",
             0,
+            None,
             f"shared convergence schema SSOT at {schema_path} has invalid meta.gate_id enum: {gate_ids!r}",
         )
     if not isinstance(schema_id, str) or not schema_id.strip():
@@ -86,6 +94,7 @@ def _load_convergence_result_schema_authority() -> tuple[frozenset[str], str, in
             frozenset(),
             "__shared_schema_unavailable__",
             0,
+            None,
             f"shared convergence schema SSOT at {schema_path} has invalid meta.schema_id const: {schema_id!r}",
         )
     if not isinstance(schema_version, int) or isinstance(schema_version, bool):
@@ -93,19 +102,54 @@ def _load_convergence_result_schema_authority() -> tuple[frozenset[str], str, in
             frozenset(),
             "__shared_schema_unavailable__",
             0,
+            None,
             f"shared convergence schema SSOT at {schema_path} has invalid meta.schema_version const: {schema_version!r}",
         )
 
-    return frozenset(gate_ids), schema_id, schema_version, None
+    if (
+        len(member_key_patterns) != 1
+        or not isinstance(member_key_patterns[0], str)
+        or not member_key_patterns[0].strip()
+    ):
+        return (
+            frozenset(),
+            "__shared_schema_unavailable__",
+            0,
+            None,
+            f"shared convergence schema SSOT at {schema_path} has invalid "
+            f"report_status patternProperties: {member_key_patterns!r}",
+        )
+    try:
+        _re.compile(member_key_patterns[0])
+    except _re.error as e:
+        return (
+            frozenset(),
+            "__shared_schema_unavailable__",
+            0,
+            None,
+            f"shared convergence schema SSOT at {schema_path} has an uncompilable "
+            f"report_status key pattern {member_key_patterns[0]!r}: {e}",
+        )
+
+    return frozenset(gate_ids), schema_id, schema_version, member_key_patterns[0], None
 
 
-GATE_ID_VALUES, SCHEMA_ID, SCHEMA_VERSION, _SCHEMA_AUTHORITY_ERROR = (
-    _load_convergence_result_schema_authority()
-)
+(
+    GATE_ID_VALUES,
+    SCHEMA_ID,
+    SCHEMA_VERSION,
+    REPORT_STATUS_KEY_PATTERN,
+    _SCHEMA_AUTHORITY_ERROR,
+) = _load_convergence_result_schema_authority()
 
 
 def _utc_now() -> str:
-    return _dt.datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+    return (
+        _dt.datetime.now(_dt.timezone.utc)
+        .replace(microsecond=0)
+        .isoformat()
+        .replace("+00:00", "Z")
+    )
 
 
 def build_gate_meta(gate_id: str) -> dict[str, Any]:
@@ -145,7 +189,9 @@ def _validate_member_summary(member: str, payload: Any) -> list[str]:
         errors.append(f"report_status.{member}.verdict must be one of {sorted(VERDICT_VALUES)}")
 
     blocking = payload.get("blocking_count")
-    if blocking is not None and (not isinstance(blocking, int) or blocking < 0):
+    if blocking is not None and (
+        not isinstance(blocking, int) or isinstance(blocking, bool) or blocking < 0
+    ):
         errors.append(f"report_status.{member}.blocking_count must be null or non-negative integer")
 
     parse_ok = payload.get("parse_ok")
@@ -179,7 +225,9 @@ def validate_convergence_result(result: Any) -> list[str]:
         errors.append(f"status must be one of {sorted(STATUS_VALUES)}")
 
     exit_code = result.get("exit_code")
-    if exit_code not in EXIT_CODE_VALUES:
+    # bool is an int subclass in Python (True == 1); JSON Schema draft
+    # 2020-12 rejects booleans where integers are required, so mirror that.
+    if isinstance(exit_code, bool) or exit_code not in EXIT_CODE_VALUES:
         errors.append(f"exit_code must be one of {sorted(EXIT_CODE_VALUES)}")
 
     if isinstance(status, str) and isinstance(exit_code, int):
@@ -199,6 +247,17 @@ def validate_convergence_result(result: Any) -> list[str]:
             if not isinstance(member, str) or not member:
                 errors.append("report_status keys must be non-empty strings")
                 continue
+            # JSON Schema patternProperties uses ECMA-262 regexes, where `$`
+            # does NOT match before a trailing newline (Python's does).
+            # fullmatch reproduces the ECMA behavior for the SSOT's anchored
+            # pattern and is strictly fail-closed for any unanchored one.
+            if REPORT_STATUS_KEY_PATTERN is not None and not _re.fullmatch(
+                f"(?:{REPORT_STATUS_KEY_PATTERN})", member
+            ):
+                errors.append(
+                    f"report_status key {member!r} does not match the shared schema "
+                    f"key pattern {REPORT_STATUS_KEY_PATTERN!r}"
+                )
             errors.extend(_validate_member_summary(member, payload))
 
     meta = result.get("meta")
@@ -219,7 +278,8 @@ def validate_convergence_result(result: Any) -> list[str]:
             errors.append("meta.parser_version must be a non-empty string")
         if meta.get("schema_id") != SCHEMA_ID:
             errors.append(f"meta.schema_id must be {SCHEMA_ID!r}")
-        if meta.get("schema_version") != SCHEMA_VERSION:
+        meta_version = meta.get("schema_version")
+        if isinstance(meta_version, bool) or meta_version != SCHEMA_VERSION:
             errors.append(f"meta.schema_version must be {SCHEMA_VERSION}")
 
     return errors

@@ -206,6 +206,50 @@ recorded here as the standing contract:
   waiting-on, artifact paths, last-heartbeat) in a gitignored scratch area is
   enough for the coordinator to poll; keep it out of the durable artifact tree.
 
+## Delegation budget contract: every delegated workstream gets explicit budgets
+
+A delegated executing agent's default drift is to refine precision
+indefinitely and to expand scope on its own initiative; a delegation without
+explicit budgets is drift by construction. So every delegated computation or
+verification workstream (a lane, a compute job, a verification pass handed to
+another agent) gets a **budget contract** written by the coordinator **before
+dispatch** — one JSON file per delegation under `team/delegations/`, from
+`assets/delegation_budget_contract_template.json`
+(`delegation_budget_contract_v1`). Required field groups, all machine-checked:
+
+- **`tolerance_ceiling`** — the numeric tolerance the result must reach and
+  must **not** be refined beyond, plus a one-line `anchor_note` stating which
+  requirement of the task derives the ceiling (what the result is *for* —
+  e.g. the precision at which the downstream decision changes — never what
+  the method can achieve). Reaching the ceiling means **stop**.
+- **`time_box`** — a hard wall-clock budget for the workstream.
+- **`max_attempts`** — a cap on "one last attempt" retries; exhausting it
+  means wrap up, not retry.
+- **`scope_negative_list`** — expansions the executor must **not** undertake
+  on its own initiative (e.g. infrastructure rewrites, building a full test
+  suite beyond the delegated checks, third-party benchmarking).
+- **`peak_memory_estimate`** — peak resident-set size measured on a
+  **single-unit dry run before the full launch**, plus the explicit heap cap
+  the full run is launched with (estimating wall-clock alone is not a
+  resource estimate).
+
+The check is fail-closed and machine-judged
+(`scripts/gates/check_delegation_budget.py`, machine verdict
+`delegation_budget_gate_result_v1`): a contract
+missing any required field, still carrying an unfilled template placeholder,
+or using an unknown contract version does **not** pass. `run_team_cycle.sh`
+validates every contract present at preflight in every project stage (no
+exploration downgrade); set `delegation_budget.required=true` in the team
+config when a milestone dispatches delegated workstreams, so a run with no
+contract at all also fails (`NO_CONTRACTS_FOUND`).
+
+When a budget is exhausted, the workstream **wraps up from the atomic
+results already flushed to disk — it never voids the batch** — and abandoned
+approaches go into the failed-approaches ledger (`failed_approaches_v1`);
+both semantics are specified in the `research-harness` skill's long-running
+compute jobs contract, which is where a delegated long job's checkpointing,
+deadline, and resume behavior live.
+
 ## Plan-summary / milestone-handoff: roadmap dependency-map
 
 At a **plan-summary or milestone-handoff moment** (communicating a multi-phase

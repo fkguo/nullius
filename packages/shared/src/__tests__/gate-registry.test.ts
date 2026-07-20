@@ -54,15 +54,26 @@ describe('GATE_REGISTRY', () => {
     }
   });
 
-  it('should contain expected approval and convergence gates', () => {
+  it('should contain expected approval, quality, and convergence gates', () => {
     const gateIds = GATE_REGISTRY.map((gate) => gate.gate_id);
     expect(gateIds).toContain('A1');
     expect(gateIds).toContain('A2');
     expect(gateIds).toContain('A3');
     expect(gateIds).toContain('A4');
     expect(gateIds).toContain('A5');
+    expect(gateIds).toContain('delegation_budget');
     expect(gateIds).toContain('team_convergence');
     expect(gateIds).toContain('draft_convergence');
+  });
+
+  it('should bind delegation budget to its dedicated result schema', () => {
+    expect(getGateSpec('delegation_budget')).toMatchObject({
+      gate_type: 'quality',
+      scope: 'delegated_workstreams',
+      policy: { result_schema: 'delegation_budget_gate_result_v1' },
+      fail_behavior: 'fail-closed',
+      audit_required: true,
+    });
   });
 
   it('should derive approval ids and policy keys from shared GateSpec without A0', () => {

@@ -137,6 +137,14 @@ export const GATE_REGISTRY: readonly GateSpec[] = [
     audit_required: true,
   },
   {
+    gate_id: 'delegation_budget',
+    gate_type: 'quality',
+    scope: 'delegated_workstreams',
+    policy: { result_schema: 'delegation_budget_gate_result_v1' },
+    fail_behavior: 'fail-closed',
+    audit_required: true,
+  },
+  {
     gate_id: 'team_convergence',
     gate_type: 'convergence',
     scope: 'research_team',
