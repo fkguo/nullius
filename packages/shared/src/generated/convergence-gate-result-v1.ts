@@ -32,8 +32,7 @@ export interface ConvergenceGateResultV1 {
     gate_id:
       | "team_convergence"
       | "draft_convergence"
-      | "independent_reproduction"
-      | "delegation_budget";
+      | "independent_reproduction";
     generated_at: string;
     parser_version: string;
     schema_id: "convergence_gate_result_v1";

@@ -58,8 +58,8 @@ Strictness notes (each closes a fail-open hole):
     `features.delegation_budget_gate` / `delegation_budget.required`
     config value, or a failed --out-json persistence are input errors
     (exit 2), never silent skips or passes.
-  - `report_status` keys are schema-safe slugs derived from each contract
-    file stem (the shared schema restricts member keys to
+  - `contract_status` keys are schema-safe slugs derived from each contract
+    file stem (the shared schema restricts contract keys to
     `^[a-z][a-z0-9_]*$`); the contract's project-relative path is carried
     in the member summary's `source_path`.
 
@@ -70,7 +70,7 @@ it never voids the whole batch; abandoned approaches are recorded in the
 failed-approaches ledger (`failed_approaches_v1`).
 
 Machine verdict:
-  Emits a `convergence_gate_result_v1` JSON object on stdout (and to
+  Emits a `delegation_budget_gate_result_v1` JSON object on stdout (and to
   --out-json when given) whenever the gate actually evaluates
   (PASS / FAIL / input error). Human diagnostics go to stderr. On SKIP
   (feature disabled, or no contracts exist and none are required) no
@@ -90,18 +90,20 @@ import math
 import os
 import re
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from convergence_schema import (  # type: ignore
-    build_gate_meta,
-    validate_convergence_result,
+from delegation_budget_schema import (  # type: ignore
+    build_delegation_budget_meta,
+    validate_delegation_budget_result,
 )
 from team_config import (  # type: ignore
     build_team_config,
+    config_candidate_paths,
     find_broken_config_path,
     find_config_path,
     load_config_object,
@@ -149,28 +151,109 @@ def _read_regular_file_text(path: Path) -> str:
     return b"".join(chunks).decode("utf-8")
 
 
-def _write_regular_file_text(path: Path, text: str) -> None:
-    """FIFO-safe verdict persistence: a FIFO (or symlink to one) at the
-    --out-json path would block open/write BEFORE the stdout verdict is
-    emitted, leaving an evaluated gate with neither verdict nor exit code.
-    Open O_NONBLOCK (a reader-less FIFO fails with ENXIO instead of
-    blocking), fstat-verify a regular file on the OPEN descriptor, then
-    write."""
+def _paths_alias(candidate: Path, protected: Path) -> bool:
+    """Return true for lexical/resolved aliases and existing hard links."""
+    try:
+        if candidate.resolve(strict=False) == protected.resolve(strict=False):
+            return True
+    except OSError:
+        # samefile below still gives a descriptor-backed answer when both
+        # entries exist. Any later path failure remains fail-closed at write.
+        pass
+    try:
+        return os.path.samefile(candidate, protected)
+    except (FileNotFoundError, OSError):
+        return False
+
+
+def _guard_output_path(path: Path, protected_inputs: set[Path]) -> None:
+    try:
+        resolved_output = path.resolve(strict=False)
+    except OSError as e:
+        raise ValueError(f"OUTPUT_TARGET_INVALID: cannot resolve --out-json {path}: {e}") from e
+
+    ordered_inputs = sorted(protected_inputs, key=str)
+    for protected in ordered_inputs:
+        if _paths_alias(path, protected):
+            raise ValueError(
+                f"OUTPUT_ALIASES_INPUT: --out-json {path} aliases consumed input {protected}"
+            )
+
+    for protected in ordered_inputs:
+        try:
+            resolved_protected = protected.resolve(strict=False)
+        except OSError as e:
+            raise ValueError(
+                f"OUTPUT_TARGET_INVALID: cannot resolve protected input {protected}: {e}"
+            ) from e
+        if resolved_protected in resolved_output.parents:
+            raise ValueError(
+                f"OUTPUT_NESTED_UNDER_INPUT: --out-json {path} is nested under consumed "
+                f"input slot {protected}"
+            )
+        if resolved_output in resolved_protected.parents:
+            raise ValueError(
+                f"OUTPUT_ANCESTOR_OF_INPUT: --out-json {path} would occupy an ancestor "
+                f"of consumed input slot {protected}"
+            )
+
+    # Atomic replacement does not follow a leaf symlink, but accepting one is
+    # surprising and would weaken the explicit no-alias contract. Reject every
+    # existing symlink and every non-regular output target deterministically.
     import stat as stat_module
 
-    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, "O_NONBLOCK", 0), 0o644)
     try:
-        st = os.fstat(fd)
-        if not stat_module.S_ISREG(st.st_mode):
-            raise ValueError(
-                f"--out-json target is not a regular file (mode {stat_module.filemode(st.st_mode)}) — refusing to write"
-            )
+        st = path.lstat()
+    except FileNotFoundError:
+        return
+    if stat_module.S_ISLNK(st.st_mode):
+        raise ValueError("OUTPUT_TARGET_INVALID: --out-json target must not be a symlink")
+    if not stat_module.S_ISREG(st.st_mode):
+        raise ValueError(
+            "OUTPUT_TARGET_INVALID: --out-json target is not a regular file "
+            f"(mode {stat_module.filemode(st.st_mode)})"
+        )
+
+
+def _write_atomic_result(path: Path, text: str, protected_inputs: set[Path]) -> None:
+    """Persist a verdict by same-directory temporary file + atomic replace.
+
+    No consumed input may be the output target, including via a symlink or
+    hard link. The input guard is repeated immediately before replace so a
+    target swap during the write cannot turn persistence into evidence
+    truncation. A failed write/replace leaves the old output intact.
+    """
+    _guard_output_path(path, protected_inputs)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    _guard_output_path(path, protected_inputs)
+
+    fd, temporary_name = tempfile.mkstemp(
+        prefix=f".{path.name}.", suffix=".tmp", dir=str(path.parent)
+    )
+    temporary: Path | None = Path(temporary_name)
+    try:
         data = text.encode("utf-8")
         while data:
             written = os.write(fd, data)
+            if written <= 0:
+                raise OSError("atomic verdict write made no progress")
             data = data[written:]
-    finally:
+        os.fsync(fd)
+        os.fchmod(fd, 0o644)
         os.close(fd)
+        fd = -1
+
+        _guard_output_path(path, protected_inputs)
+        os.replace(temporary_name, path)
+        temporary = None
+    finally:
+        if fd >= 0:
+            os.close(fd)
+        if temporary is not None:
+            try:
+                temporary.unlink()
+            except FileNotFoundError:
+                pass
 
 
 def _reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -206,7 +289,7 @@ def _scan_placeholders(node: Any, path: str, issues: list[str]) -> None:
 
 
 def _schema_safe_key(path: Path, taken: set[str]) -> str:
-    """Derive a report_status key that satisfies the shared schema's member key
+    """Derive a contract_status key that satisfies the shared schema's key
     pattern (^[a-z][a-z0-9_]*$) from the contract file stem; the full relative
     path is carried in the member summary's `source_path` instead."""
     stem = re.sub(r"[^a-z0-9_]", "_", path.stem.lower())
@@ -386,67 +469,68 @@ def _emit(
     status: str,
     exit_code: int,
     reasons: list[str],
-    report_status: dict[str, Any],
+    contract_status: dict[str, Any],
     meta: dict[str, Any],
     out_json: Path | None,
+    protected_inputs: set[Path],
 ) -> int:
     result: dict[str, Any] = {
         "status": status,
         "exit_code": exit_code,
         "reasons": reasons,
-        "report_status": report_status,
+        "contract_status": contract_status,
         "meta": meta,
     }
-    schema_errors = validate_convergence_result(result)
+    schema_errors = validate_delegation_budget_result(result)
     if schema_errors:
         result = {
-            "status": "parse_error",
+            "status": "input_error",
             "exit_code": 2,
             "reasons": ["schema validation failed", *schema_errors],
-            "report_status": {k: {**v, "parse_ok": False} for k, v in report_status.items()},
+            "contract_status": {k: {**v, "parse_ok": False} for k, v in contract_status.items()},
             "meta": meta,
         }
         exit_code = 2
         # Defense in depth: if the fallback itself would still be
-        # schema-invalid (e.g. a key that violates the member key pattern
-        # leaked in), collapse to a minimal, always-valid report_status
+        # schema-invalid (e.g. a key that violates the contract key pattern
+        # leaked in), collapse to a minimal, always-valid contract_status
         # rather than emitting invalid JSON on the error path.
-        if validate_convergence_result(result):
-            result["report_status"] = {
+        if validate_delegation_budget_result(result):
+            result["contract_status"] = {
                 "gate": _contract_summary(list(result["reasons"]), parse_ok=False)
             }
             # Post-collapse check, same discipline as the persistence-failure
             # path: never print an unvalidated fallback silently. (When the
             # schema SSOT itself is unavailable nothing can validate; the
             # exit code stays the load-bearing signal.)
-            for err in validate_convergence_result(result):
+            for err in validate_delegation_budget_result(result):
                 result["reasons"].append(f"fallback verdict validation: {err}")
 
     # Persist FIRST, then print: the stdout verdict and the process exit code
     # must never disagree. On persistence failure, the single stdout verdict
-    # is a parse_error (exit 2), not the original verdict.
+    # is an input_error (exit 2), not the original verdict.
     if out_json is not None:
         try:
-            out_json.parent.mkdir(parents=True, exist_ok=True)
-            _write_regular_file_text(
+            _write_atomic_result(
                 out_json,
                 json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+                protected_inputs,
             )
         except (OSError, ValueError) as e:
-            reason = f"failed to persist machine verdict to --out-json {out_json}: {e}"
+            reason = f"OUTPUT_PERSISTENCE_ERROR: failed to persist machine verdict to --out-json {out_json}: {e}"
             print(f"ERROR: {reason}", file=sys.stderr)
             err_result = {
-                "status": "parse_error",
+                "status": "input_error",
                 "exit_code": 2,
                 "reasons": [reason],
-                "report_status": {"gate": _contract_summary([reason], parse_ok=False)},
+                "contract_status": {"gate": _contract_summary([reason], parse_ok=False)},
                 "meta": meta,
             }
             # Same discipline as the schema-fallback path: never print an
             # unvalidated fallback. (If the schema SSOT itself is unavailable
             # no emission can validate; the exit code stays the load-bearing
             # signal and the reasons carry the diagnostics.)
-            for err in validate_convergence_result(err_result):
+            for err in validate_delegation_budget_result(err_result):
                 err_result["reasons"].append(f"fallback verdict validation: {err}")
             print(json.dumps(err_result, ensure_ascii=False, sort_keys=True))
             return 2
@@ -456,7 +540,7 @@ def _emit(
 
 class _CliInputError(Exception):
     """Raised instead of argparse's SystemExit so malformed CLI input still
-    produces one schema-valid parse_error machine verdict (--help keeps its
+    produces one schema-valid input_error machine verdict (--help keeps its
     normal exit-0 behavior)."""
 
 
@@ -507,39 +591,48 @@ def main() -> int:
         reason = f"invalid command line: {e}"
         print(f"ERROR: {reason}", file=sys.stderr)
         return _emit(
-            status="parse_error",
+            status="input_error",
             exit_code=2,
             reasons=[reason],
-            report_status={"gate": _contract_summary([reason], parse_ok=False)},
-            meta=build_gate_meta("delegation_budget"),
+            contract_status={"gate": _contract_summary([reason], parse_ok=False)},
+            meta=build_delegation_budget_meta(),
             out_json=None,
+            protected_inputs=set(),
         )
-    base_meta = build_gate_meta("delegation_budget")
+    base_meta = build_delegation_budget_meta()
     if args.tag.strip():
         base_meta["tag"] = args.tag.strip()
+
+    protected_inputs = {args.notes.resolve(strict=False)}
 
     def _input_error(reasons: list[str]) -> int:
         for r in reasons:
             print(f"ERROR: {r}", file=sys.stderr)
         return _emit(
-            status="parse_error",
+            status="input_error",
             exit_code=2,
             reasons=reasons,
-            report_status={"delegations": _contract_summary(reasons, parse_ok=False)},
+            contract_status={"delegations": _contract_summary(reasons, parse_ok=False)},
             meta=base_meta,
             out_json=args.out_json,
+            protected_inputs=protected_inputs,
         )
 
     try:
-        return _run(args, base_meta, _input_error)
+        return _run(args, base_meta, _input_error, protected_inputs)
     except Exception as e:
         # Fail-closed: an unforeseen crash must still leave a machine-readable
-        # parse_error verdict on stdout (exit 2), not a bare traceback whose
+        # input_error verdict on stdout (exit 2), not a bare traceback whose
         # missing verdict a caller could mistake for "gate not run".
         return _input_error([f"unexpected gate error: {type(e).__name__}: {e}"])
 
 
-def _run(args: argparse.Namespace, base_meta: dict[str, Any], _input_error: Any) -> int:
+def _run(
+    args: argparse.Namespace,
+    base_meta: dict[str, Any],
+    _input_error: Any,
+    protected_inputs: set[Path],
+) -> int:
     if not args.notes.is_file():
         return _input_error([f"notes not found: {args.notes}"])
 
@@ -555,6 +648,7 @@ def _run(args: argparse.Namespace, base_meta: dict[str, Any], _input_error: Any)
         env_path = Path(env_override)
         if not env_path.is_absolute():
             env_path = Path.cwd() / env_path
+        protected_inputs.add(env_path.resolve(strict=False))
         if not env_path.is_file():
             return _input_error(
                 [
@@ -562,6 +656,9 @@ def _run(args: argparse.Namespace, base_meta: dict[str, Any], _input_error: Any)
                     "(fail-closed: a stale override would silently suppress the project config)"
                 ]
             )
+    protected_inputs.update(
+        path.resolve(strict=False) for path in config_candidate_paths(args.notes)
+    )
     broken_config = find_broken_config_path(args.notes)
     if broken_config is not None:
         return _input_error(
@@ -578,6 +675,7 @@ def _run(args: argparse.Namespace, base_meta: dict[str, Any], _input_error: Any)
         # a config symlink between the two cannot bind snapshot A's flags to
         # tree B's (possibly empty) delegations directory.
         config_path = config_path.resolve()
+        protected_inputs.add(config_path)
     strict_raw: dict[str, Any] | None = None
     if config_path is not None:
         # Strict validation of the control input itself: the lenient loader's
@@ -643,6 +741,7 @@ def _run(args: argparse.Namespace, base_meta: dict[str, Any], _input_error: Any)
         for p in args.contract:
             abs_p = p if p.is_absolute() else (project_root / p)
             resolved = abs_p.resolve()
+            protected_inputs.add(resolved)
             if not resolved.is_file():
                 missing_explicit.append(str(abs_p))
             else:
@@ -666,6 +765,7 @@ def _run(args: argparse.Namespace, base_meta: dict[str, Any], _input_error: Any)
         # directory. `lexical_dir` keeps the pre-resolution path so this
         # walk can be repeated if resolution/listing races.
         lexical_dir = delegations_dir
+        protected_inputs.add(lexical_dir.resolve(strict=False))
 
         def _dangling_component() -> Path | None:
             for component in (lexical_dir, *lexical_dir.parents):
@@ -709,6 +809,8 @@ def _run(args: argparse.Namespace, base_meta: dict[str, Any], _input_error: Any)
             else [(n, (resolved_dir / n).resolve()) for n in names if n.endswith(".json")]
         )
 
+    protected_inputs.update(path for _, path in contract_entries)
+
     if not contract_entries:
         if required:
             reason = (
@@ -718,18 +820,19 @@ def _run(args: argparse.Namespace, base_meta: dict[str, Any], _input_error: Any)
             )
             print(f"ERROR: {reason}", file=sys.stderr)
             return _emit(
-                status="not_converged",
+                status="fail",
                 exit_code=1,
                 reasons=[reason],
-                report_status={"delegations": _contract_summary([reason], parse_ok=True)},
+                contract_status={"delegations": _contract_summary([reason], parse_ok=True)},
                 meta=base_meta,
                 out_json=args.out_json,
+                protected_inputs=protected_inputs,
             )
         print(f"- Notes: `{args.notes}`", file=sys.stderr)
         print("- Gate: SKIP (no delegation contracts found and none required; nothing evaluated)", file=sys.stderr)
         return 0
 
-    report_status: dict[str, Any] = {}
+    contract_status: dict[str, Any] = {}
     reasons: list[str] = []
     taken_keys: set[str] = set()
     for entry_name, path in contract_entries:
@@ -751,14 +854,14 @@ def _run(args: argparse.Namespace, base_meta: dict[str, Any], _input_error: Any)
             )
         except (ValueError, OSError, UnicodeDecodeError) as e:
             issue = f"UNREADABLE_CONTRACT: {e}"
-            report_status[key] = _contract_summary([issue], parse_ok=False, source_path=source_path)
+            contract_status[key] = _contract_summary([issue], parse_ok=False, source_path=source_path)
             reasons.append(f"{source_path}: {issue}")
             continue
         issues = _validate_contract(contract)
-        report_status[key] = _contract_summary(issues, parse_ok=True, source_path=source_path)
+        contract_status[key] = _contract_summary(issues, parse_ok=True, source_path=source_path)
         reasons.extend(f"{source_path}: {issue}" for issue in issues)
 
-    for key, summary in report_status.items():
+    for key, summary in contract_status.items():
         marker = "ok" if summary["verdict"] == "ready" else "FAIL"
         print(
             f"- Contract {summary.get('source_path', key)}: {marker} ({summary['blocking_count']} issue(s))",
@@ -775,21 +878,23 @@ def _run(args: argparse.Namespace, base_meta: dict[str, Any], _input_error: Any)
             file=sys.stderr,
         )
         return _emit(
-            status="not_converged",
+            status="fail",
             exit_code=1,
             reasons=reasons,
-            report_status=report_status,
+            contract_status=contract_status,
             meta=base_meta,
             out_json=args.out_json,
+            protected_inputs=protected_inputs,
         )
 
     return _emit(
-        status="converged",
+        status="pass",
         exit_code=0,
         reasons=[],
-        report_status=report_status,
+        contract_status=contract_status,
         meta=base_meta,
         out_json=args.out_json,
+        protected_inputs=protected_inputs,
     )
 
 

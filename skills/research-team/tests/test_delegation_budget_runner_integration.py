@@ -181,7 +181,7 @@ def test_bad_contract_fails_preflight_even_in_exploration(project: Path) -> None
     proc = _run_preflight(project, tag)
     assert proc.returncode == 1, f"preflight should brake on bad contract; log:\n{proc.stderr[-2000:]}"
     verdict = _persisted_verdict(project, tag)
-    assert verdict["status"] == "not_converged"
+    assert verdict["status"] == "fail"
     assert any("MISSING_TIME_BOX" in r for r in verdict["reasons"])
 
 
@@ -197,7 +197,7 @@ def test_bad_contract_brakes_full_cycle_before_any_runner(project: Path) -> None
     proc = _run_cycle(project, tag, preflight_only=False)
     assert proc.returncode == 1, f"full cycle should brake on bad contract; log:\n{proc.stderr[-2000:]}"
     verdict = _persisted_verdict(project, tag)
-    assert verdict["status"] == "not_converged"
+    assert verdict["status"] == "fail"
     assert not _runner_marker(project).exists(), (
         "member runners were dispatched despite a failing delegation budget contract"
     )
@@ -235,7 +235,7 @@ def test_symlinked_config_brakes_on_target_tree_contract(project: Path) -> None:
     # The runner's --out-dir is cwd-relative, so the verdict persists under
     # the project tree even though the scanned delegations live in shared/.
     verdict = _persisted_verdict(project, tag)
-    assert verdict["status"] == "not_converged"
+    assert verdict["status"] == "fail"
     assert any("MISSING_TIME_BOX" in r for r in verdict["reasons"])
 
 
@@ -252,7 +252,7 @@ def test_complete_contract_passes_preflight(project: Path) -> None:
     proc = _run_preflight(project, tag)
     assert proc.returncode == 0, f"preflight should pass with a complete contract; log:\n{proc.stderr[-2000:]}\n{proc.stdout[-2000:]}"
     verdict = _persisted_verdict(project, tag)
-    assert verdict["status"] == "converged"
+    assert verdict["status"] == "pass"
 
 
 if __name__ == "__main__":

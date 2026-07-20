@@ -336,12 +336,16 @@ pnpm --filter @nullius/hep-mcp test -- tests/toolContracts.test.ts
 | `A3` | approval | compute_runs | fail-closed |
 | `A4` | approval | paper_edits | fail-closed |
 | `A5` | approval | final_conclusions | fail-closed |
+| `quality_compile` | quality | paper_compile | fail-closed |
+| `quality_originality` | quality | evidence_grounding | fail-closed |
+| `delegation_budget` | quality | delegated_workstreams | fail-closed |
+| `team_convergence` | convergence | research_team | fail-closed |
+| `draft_convergence` | convergence | draft_review | fail-closed |
 
 **CI 验证**:
 ```bash
-# 当前没有独立的 repo-local gate-registry linter。
-# 至少保持 orchestrator / hep-mcp gate contract tests 通过。
-pnpm --filter @nullius/hep-mcp test -- tests/contracts/executeManifestApprovalContract.test.ts
+# Gate registry entries, types, uniqueness, and fail-closed policy.
+pnpm --filter @nullius/shared test -- --run src/__tests__/gate-registry.test.ts
 ```
 
 **违规行为**: **fail-closed** — 未注册 gate 在编译期（run_card 验证）即报错，不等到运行期
