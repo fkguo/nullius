@@ -170,8 +170,19 @@ Anyone (including a later agent) must be able to re-run the command and diff the
 A new display is a new observable. An agent naturally builds acceptance checks only for the conclusions it has declared, so output components that were never declared are never checked; and a figure that enters a manuscript before its verification ("ship the figure now, backfill the check later") lets an error survive behind a smooth-looking rendering. Before a figure or table becomes durable or outward-facing — a manuscript, a report, a shared summary — its provenance bundle must therefore also demonstrate that what it shows has been checked. The bundle's `display_acceptance` block binds the display surface to the acceptance surface:
 
 - **`plotted_quantities`** — one identifier per quantity the figure draws. This is the declared denominator: anything plotted but not listed here is unchecked by construction, so list everything the marks encode.
-- **`verdict_bindings`** — one entry per plotted quantity, pointing at the verification-gate verdict artifact that checked it (`verdict_path`) and pinning that artifact's bytes (`verdict_sha256`). The bound artifact is a JSON object that declares the quantities it covers in a `quantities` list and its outcome in a `verdict` field; only the gate-fixed outcome `pass` satisfies a binding. A verification gate whose native outcome vocabulary differs must re-emit a conforming verdict artifact; the manifest cannot widen acceptance, and any unsupported field in the block is itself a failure.
+- **`verdict_bindings`** — one entry per plotted quantity, pointing at the verification-gate verdict artifact that checked it (`verdict_path`) and pinning that artifact's bytes (`verdict_sha256`). Every bound artifact must satisfy the shared, domain-neutral `quantity_verdict_v1` schema: the closed JSON object carries `schema_id: "quantity_verdict_v1"`, `schema_version: 1`, a non-empty unique `quantities` list, and a `verdict` in the schema's closed outcome vocabulary. Only the gate-fixed outcome `pass` satisfies a binding. A verification gate whose native outcome vocabulary differs must re-emit a conforming verdict artifact; the manifest cannot widen acceptance, and an unversioned, wrong-schema, or open-ended artifact is rejected rather than field-probed.
 - **`overview_figure`** — the archived human-review overview figure spanning **all** output components, with `path`, an explicit `archived: true`, and optionally a `sha256` pinning its bytes. Rendering one cheap everything-at-once figure for a human to look at is itself an effective acceptance step: key errors are often caught by a person reading the overview, not by an automated gate.
+
+A minimal bound verdict artifact is:
+
+```json
+{
+  "schema_id": "quantity_verdict_v1",
+  "schema_version": 1,
+  "quantities": ["quantity_a"],
+  "verdict": "pass"
+}
+```
 
 The verdict is computed by the gate script and only there; the caller must not self-assess or override it:
 
@@ -179,7 +190,7 @@ The verdict is computed by the gate script and only there; the caller must not s
 python3 "$SKILL_DIR/scripts/bin/check_display_acceptance.py" --manifest figs/scan_summary.provenance.json --json
 ```
 
-The gate is fail-closed — missing or unverifiable evidence is a failure, never a pass — and emits a `display_gate_result_v1` payload whose `result` carries a falsification label: `pass`, `missing_verdict_binding` (a plotted quantity has no binding, or the block/denominator is undeclared), `verdict_mismatch` (the bound artifact's hash does not match the pinned digest, it does not cover the plotted quantity, or its outcome is not accepted), `missing_overview_figure` (the overview checkbox is absent, unaffirmed, or the file is gone), or `invalid_manifest` (the manifest itself is unreadable). Exit codes: 0 pass, 1 gate failure, 2 unreadable manifest or invalid invocation (both roll up under `invalid_manifest`, still with a machine-readable payload). Run it as the last step before the figure leaves the project: a figure whose gate does not return `pass` does not enter any display surface, and "the figure is already in the draft" is not an exemption — it is the failure mode.
+The gate is fail-closed — missing or unverifiable evidence is a failure, never a pass — and emits a `display_gate_result_v1` payload whose `result` carries a falsification label: `pass`, `missing_verdict_binding` (a plotted quantity has no binding, or the block/denominator is undeclared), `verdict_mismatch` (the bound artifact's hash does not match the pinned digest, it does not satisfy `quantity_verdict_v1`, it does not cover the plotted quantity, or its outcome is not accepted), `missing_overview_figure` (the overview checkbox is absent, unaffirmed, or the file is gone), or `invalid_manifest` (the manifest itself is unreadable). Exit codes: 0 pass, 1 gate failure, 2 unreadable manifest, invalid invocation, or unsafe output persistence (all emit a machine-readable fail-closed payload). Every consumed JSON document rejects duplicate keys recursively. Optional `--out-json` output is written by same-directory atomic replacement and is refused if it aliases, contains, or is contained by the manifest, any bound verdict artifact, or the overview input—even when a declared input does not yet exist. If an ambiguous or unreadable manifest prevents complete input-slot discovery, no output file is persisted. Run the gate as the last step before the figure leaves the project: a figure whose gate does not return `pass` does not enter any display surface, and "the figure is already in the draft" is not an exemption — it is the failure mode.
 
 ## Review Gate
 

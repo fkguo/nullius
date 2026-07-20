@@ -13,6 +13,7 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -20,6 +21,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[3]
 GATE = REPO_ROOT / "skills" / "figure-hygiene" / "scripts" / "bin" / "check_display_acceptance.py"
 SCHEMA = REPO_ROOT / "meta" / "schemas" / "display_gate_result_v1.schema.json"
+VERDICT_SCHEMA = REPO_ROOT / "meta" / "schemas" / "quantity_verdict_v1.schema.json"
 
 
 def _load_gate_module():
@@ -35,7 +37,17 @@ def _sha256(path: Path) -> str:
 
 def _write_verdict(path: Path, quantities: list[str], verdict: str = "pass") -> str:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps({"quantities": quantities, "verdict": verdict}), encoding="utf-8")
+    path.write_text(
+        json.dumps(
+            {
+                "schema_id": "quantity_verdict_v1",
+                "schema_version": 1,
+                "quantities": quantities,
+                "verdict": verdict,
+            }
+        ),
+        encoding="utf-8",
+    )
     return _sha256(path)
 
 
@@ -291,6 +303,65 @@ def test_unreadable_verdict_artifact_fails(tmp_path: Path) -> None:
     assert "verdict-unreadable" in _kinds(payload)
 
 
+def test_verdict_without_schema_identity_fails(tmp_path: Path) -> None:
+    block = _bundle(tmp_path)
+    verdict_path = tmp_path / "gates" / "quantity_a.verdict.json"
+    verdict_path.write_text(
+        json.dumps({"schema_version": 1, "quantities": ["quantity_a"], "verdict": "pass"}),
+        encoding="utf-8",
+    )
+    block["verdict_bindings"][0]["verdict_sha256"] = _sha256(verdict_path)
+    manifest = _write_manifest(tmp_path, block)
+    code, payload = _run(manifest)
+    assert code == 1
+    assert payload["result"] == "verdict_mismatch"
+    assert "verdict-schema-invalid" in _kinds(payload)
+
+
+def test_verdict_wrong_schema_version_fails(tmp_path: Path) -> None:
+    block = _bundle(tmp_path)
+    verdict_path = tmp_path / "gates" / "quantity_a.verdict.json"
+    verdict = json.loads(verdict_path.read_text(encoding="utf-8"))
+    verdict["schema_version"] = 2
+    verdict_path.write_text(json.dumps(verdict), encoding="utf-8")
+    block["verdict_bindings"][0]["verdict_sha256"] = _sha256(verdict_path)
+    manifest = _write_manifest(tmp_path, block)
+    code, payload = _run(manifest)
+    assert code == 1
+    assert payload["result"] == "verdict_mismatch"
+    assert "verdict-schema-invalid" in _kinds(payload)
+
+
+def test_verdict_with_extra_field_fails_closed_shape(tmp_path: Path) -> None:
+    block = _bundle(tmp_path)
+    verdict_path = tmp_path / "gates" / "quantity_a.verdict.json"
+    verdict = json.loads(verdict_path.read_text(encoding="utf-8"))
+    verdict["accepted_by_caller"] = True
+    verdict_path.write_text(json.dumps(verdict), encoding="utf-8")
+    block["verdict_bindings"][0]["verdict_sha256"] = _sha256(verdict_path)
+    manifest = _write_manifest(tmp_path, block)
+    code, payload = _run(manifest)
+    assert code == 1
+    assert payload["result"] == "verdict_mismatch"
+    assert "verdict-schema-invalid" in _kinds(payload)
+
+
+def test_duplicate_verdict_key_fails_closed(tmp_path: Path) -> None:
+    block = _bundle(tmp_path)
+    verdict_path = tmp_path / "gates" / "quantity_a.verdict.json"
+    verdict_path.write_text(
+        '{"schema_id":"quantity_verdict_v1","schema_version":1,'
+        '"quantities":["quantity_a"],"verdict":"fail","verdict":"pass"}',
+        encoding="utf-8",
+    )
+    block["verdict_bindings"][0]["verdict_sha256"] = _sha256(verdict_path)
+    manifest = _write_manifest(tmp_path, block)
+    code, payload = _run(manifest)
+    assert code == 1
+    assert payload["result"] == "verdict_mismatch"
+    assert "verdict-unreadable" in _kinds(payload)
+
+
 def test_overview_hash_pinned_passes(tmp_path: Path) -> None:
     block = _bundle(tmp_path)
     overview = tmp_path / "figs" / "review" / "overview_all_components.pdf"
@@ -360,6 +431,172 @@ def test_out_json_persists_same_payload(tmp_path: Path) -> None:
     )
     assert proc.returncode == 0
     assert json.loads(proc.stdout) == json.loads(out_path.read_text(encoding="utf-8"))
+    assert not list(out_path.parent.glob(f".{out_path.name}.*.tmp"))
+
+
+def test_out_json_rejects_manifest_alias_without_clobbering(tmp_path: Path) -> None:
+    manifest = _write_manifest(tmp_path, _bundle(tmp_path))
+    before = manifest.read_bytes()
+    proc = subprocess.run(
+        [sys.executable, str(GATE), "--manifest", str(manifest), "--out-json", str(manifest)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    payload = json.loads(proc.stdout)
+    assert proc.returncode == 2
+    assert payload["result"] == "invalid_manifest"
+    assert "out-json-protected-input" in _kinds(payload)
+    assert manifest.read_bytes() == before
+
+
+def test_out_json_rejects_bound_verdict_alias_without_clobbering(tmp_path: Path) -> None:
+    block = _bundle(tmp_path)
+    manifest = _write_manifest(tmp_path, block)
+    verdict_path = tmp_path / block["verdict_bindings"][0]["verdict_path"]
+    before = verdict_path.read_bytes()
+    proc = subprocess.run(
+        [sys.executable, str(GATE), "--manifest", str(manifest), "--out-json", str(verdict_path)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    payload = json.loads(proc.stdout)
+    assert proc.returncode == 2
+    assert payload["result"] == "invalid_manifest"
+    assert "out-json-protected-input" in _kinds(payload)
+    assert verdict_path.read_bytes() == before
+
+
+def test_out_json_rejects_overview_alias_without_clobbering(tmp_path: Path) -> None:
+    block = _bundle(tmp_path)
+    manifest = _write_manifest(tmp_path, block)
+    overview_path = tmp_path / block["overview_figure"]["path"]
+    before = overview_path.read_bytes()
+    proc = subprocess.run(
+        [sys.executable, str(GATE), "--manifest", str(manifest), "--out-json", str(overview_path)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    payload = json.loads(proc.stdout)
+    assert proc.returncode == 2
+    assert payload["result"] == "invalid_manifest"
+    assert "out-json-protected-input" in _kinds(payload)
+    assert overview_path.read_bytes() == before
+
+
+def test_out_json_rejects_existing_hard_link_alias(tmp_path: Path) -> None:
+    block = _bundle(tmp_path)
+    manifest = _write_manifest(tmp_path, block)
+    verdict_path = tmp_path / block["verdict_bindings"][0]["verdict_path"]
+    hard_link = tmp_path / "hard-link-output.json"
+    os.link(verdict_path, hard_link)
+    before = verdict_path.read_bytes()
+    proc = subprocess.run(
+        [sys.executable, str(GATE), "--manifest", str(manifest), "--out-json", str(hard_link)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    payload = json.loads(proc.stdout)
+    assert proc.returncode == 2
+    assert payload["result"] == "invalid_manifest"
+    assert "out-json-protected-input" in _kinds(payload)
+    assert verdict_path.read_bytes() == before
+
+
+def test_out_json_rejects_missing_verdict_slot_without_creating_it(tmp_path: Path) -> None:
+    block = _bundle(tmp_path)
+    manifest = _write_manifest(tmp_path, block)
+    missing_verdict = tmp_path / block["verdict_bindings"][0]["verdict_path"]
+    missing_verdict.unlink()
+    proc = subprocess.run(
+        [sys.executable, str(GATE), "--manifest", str(manifest), "--out-json", str(missing_verdict)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    payload = json.loads(proc.stdout)
+    assert proc.returncode == 2
+    assert payload["result"] == "invalid_manifest"
+    assert "out-json-protected-input" in _kinds(payload)
+    assert not missing_verdict.exists()
+
+
+def test_out_json_rejects_ancestor_of_missing_verdict_slot(tmp_path: Path) -> None:
+    block = _bundle(tmp_path)
+    missing_verdict = tmp_path / "missing-verdict-dir" / "verdict.json"
+    block["verdict_bindings"][0]["verdict_path"] = "missing-verdict-dir/verdict.json"
+    manifest = _write_manifest(tmp_path, block)
+    ancestor = missing_verdict.parent
+    proc = subprocess.run(
+        [sys.executable, str(GATE), "--manifest", str(manifest), "--out-json", str(ancestor)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    payload = json.loads(proc.stdout)
+    assert proc.returncode == 2
+    assert payload["result"] == "invalid_manifest"
+    assert "out-json-protected-input" in _kinds(payload)
+    assert not ancestor.exists()
+    assert not missing_verdict.exists()
+
+
+def test_out_json_rejects_descendant_of_missing_overview_slot(tmp_path: Path) -> None:
+    block = _bundle(tmp_path)
+    manifest = _write_manifest(tmp_path, block)
+    missing_overview = tmp_path / block["overview_figure"]["path"]
+    missing_overview.unlink()
+    descendant = missing_overview / "result.json"
+    proc = subprocess.run(
+        [sys.executable, str(GATE), "--manifest", str(manifest), "--out-json", str(descendant)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    payload = json.loads(proc.stdout)
+    assert proc.returncode == 2
+    assert payload["result"] == "invalid_manifest"
+    assert "out-json-protected-input" in _kinds(payload)
+    assert not missing_overview.exists()
+    assert not descendant.exists()
+
+
+def test_out_json_directory_failure_emits_deterministic_json(tmp_path: Path) -> None:
+    manifest = _write_manifest(tmp_path, _bundle(tmp_path))
+    out_path = tmp_path / "output-directory"
+    out_path.mkdir()
+    command = [sys.executable, str(GATE), "--manifest", str(manifest), "--out-json", str(out_path)]
+    first = subprocess.run(command, capture_output=True, text=True, check=False)
+    second = subprocess.run(command, capture_output=True, text=True, check=False)
+    assert first.returncode == second.returncode == 2
+    assert first.stdout == second.stdout
+    payload = json.loads(first.stdout)
+    assert payload["result"] == "invalid_manifest"
+    assert "out-json-write-failed" in _kinds(payload)
+    assert first.stderr == second.stderr == ""
+
+
+def test_atomic_writer_uses_same_directory_replace(tmp_path: Path, monkeypatch) -> None:
+    module = _load_gate_module()
+    target = tmp_path / "nested" / "result.json"
+    target.parent.mkdir()
+    calls = []
+    real_replace = module.os.replace
+
+    def recording_replace(source, destination):
+        calls.append((Path(source), Path(destination)))
+        real_replace(source, destination)
+
+    monkeypatch.setattr(module.os, "replace", recording_replace)
+    module._atomic_write_text(target, "{}\n")
+    assert target.read_text(encoding="utf-8") == "{}\n"
+    assert len(calls) == 1
+    assert calls[0][0].parent == target.parent
+    assert calls[0][1] == target
+    assert not list(target.parent.glob(f".{target.name}.*.tmp"))
 
 
 def test_human_output_states_verdict(tmp_path: Path) -> None:
@@ -395,6 +632,33 @@ def test_unreadable_manifest_is_invalid(tmp_path: Path) -> None:
     assert payload["result"] == "invalid_manifest"
 
 
+def test_nested_duplicate_manifest_key_suppresses_output_persistence(tmp_path: Path) -> None:
+    manifest = tmp_path / "ambiguous.provenance.json"
+    manifest.write_text(
+        '{"display_acceptance":{"plotted_quantities":["quantity_a"],'
+        '"verdict_bindings":[],"overview_figure":{'
+        '"path":"first.pdf","path":"second.pdf","archived":true}}}',
+        encoding="utf-8",
+    )
+    code, semantic_payload = _run(manifest)
+    assert code == 2
+    assert semantic_payload["result"] == "invalid_manifest"
+    assert "manifest-unreadable" in _kinds(semantic_payload)
+
+    out_path = tmp_path / "result.json"
+    proc = subprocess.run(
+        [sys.executable, str(GATE), "--manifest", str(manifest), "--json", "--out-json", str(out_path)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    payload = json.loads(proc.stdout)
+    assert proc.returncode == 2
+    assert payload["result"] == "invalid_manifest"
+    assert "out-json-input-discovery-failed" in _kinds(payload)
+    assert not out_path.exists()
+
+
 def test_result_enum_matches_schema_authority() -> None:
     # The falsification labels in the script and the shared schema SSOT must
     # not drift apart; the anti-drift lock enforces the same invariant in CI.
@@ -404,6 +668,34 @@ def test_result_enum_matches_schema_authority() -> None:
     assert list(module.RESULT_VALUES) == schema_enum
     category_enum = schema["$defs"]["DisplayGateFinding"]["properties"]["category"]["enum"]
     assert set(module.CATEGORY_PRIORITY) == set(category_enum)
+
+
+def test_quantity_verdict_schema_matches_runtime_contract() -> None:
+    module = _load_gate_module()
+    schema = json.loads(VERDICT_SCHEMA.read_text(encoding="utf-8"))
+    assert schema["properties"]["schema_id"]["const"] == module.VERDICT_SCHEMA_ID
+    assert schema["properties"]["schema_version"]["const"] == module.VERDICT_SCHEMA_VERSION
+    assert set(schema["required"]) == set(module._VERDICT_FIELDS)
+    assert schema["additionalProperties"] is False
+    assert set(schema["$defs"]["QuantityVerdictOutcome"]["enum"]) == module.VERDICT_VALUES
+
+
+def test_generated_quantity_verdict_api_has_schema_specific_symbols() -> None:
+    from meta.generated import python as aggregate
+    from meta.generated.python.launch_authorization_v1 import Verdict as LaunchAuthorizationVerdict
+    from meta.generated.python import quantity_verdict_v1
+    from meta.generated.python.quantity_verdict_v1 import (
+        QuantityVerdictIdentifier,
+        QuantityVerdictOutcome,
+        QuantityVerdictV1,
+    )
+
+    assert aggregate.Verdict is LaunchAuthorizationVerdict
+    assert not hasattr(quantity_verdict_v1, "Verdict")
+    assert not hasattr(quantity_verdict_v1, "Quantity")
+    assert aggregate.QuantityVerdictIdentifier is QuantityVerdictIdentifier
+    assert aggregate.QuantityVerdictOutcome is QuantityVerdictOutcome
+    assert aggregate.QuantityVerdictV1 is QuantityVerdictV1
 
 
 def _assert_payload_matches_schema(payload: dict) -> None:

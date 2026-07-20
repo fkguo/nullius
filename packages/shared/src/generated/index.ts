@@ -59,6 +59,7 @@ export type {
 export * from "./migration-registry-v1.js";
 export * from "./mutation-proposal-v1.js";
 export * from "./paper-manifest-v2.js";
+export * from "./quantity-verdict-v1.js";
 export * from "./rep-envelope-v1.js";
 export * from "./reproducibility-report-v1.js";
 export * from "./research-event-v1.js";
