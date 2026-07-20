@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 from enum import StrEnum
-from typing import Annotated, Any
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -13,6 +13,32 @@ class GateType(StrEnum):
     approval = "approval"
     quality = "quality"
     convergence = "convergence"
+
+
+class RequiredCheck(StrEnum):
+    plan_frozen = "plan_frozen"
+    review_binding = "review_binding"
+    fingerprint_match = "fingerprint_match"
+
+
+class LaunchAuthorization(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    result_schema: Literal["launch_authorization_v1"]
+    required_checks: Annotated[list[RequiredCheck], Field(min_length=1)]
+
+
+class Policy(BaseModel):
+    model_config = ConfigDict(
+        extra="allow",
+    )
+    launch_authorization: Annotated[
+        LaunchAuthorization | None,
+        Field(
+            description="Machine-checkable launch-precondition policy for production compute runs. When present, launchers must obtain a launch_authorization_v1 result whose verdict is authorized before starting production output; every listed check must pass, and a reviewer recorded unavailable never counts as an approval."
+        ),
+    ] = None
 
 
 class FailBehavior(StrEnum):
@@ -47,8 +73,7 @@ class GatespecV1(BaseModel):
         ),
     ]
     policy: Annotated[
-        dict[str, Any],
-        Field(description="Gate-specific policy metadata or parameters."),
+        Policy, Field(description="Gate-specific policy metadata or parameters.")
     ]
     fail_behavior: Annotated[
         FailBehavior,
