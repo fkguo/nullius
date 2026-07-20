@@ -70,7 +70,6 @@ class GateId(StrEnum):
     team_convergence = "team_convergence"
     draft_convergence = "draft_convergence"
     independent_reproduction = "independent_reproduction"
-    delegation_budget = "delegation_budget"
 
 
 class WorkflowMode(StrEnum):

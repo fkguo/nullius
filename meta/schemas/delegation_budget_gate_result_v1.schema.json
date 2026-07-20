@@ -1,0 +1,156 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nullius.dev/schemas/delegation_budget_gate_result_v1.schema.json",
+  "title": "Delegation Budget Gate Result V1",
+  "description": "Structured machine-readable output contract for the domain-neutral delegation budget pre-dispatch gate.",
+  "type": "object",
+  "required": ["status", "exit_code", "reasons", "contract_status", "meta"],
+  "properties": {
+    "status": {
+      "$ref": "#/$defs/DelegationBudgetGateStatus"
+    },
+    "exit_code": {
+      "$ref": "#/$defs/DelegationBudgetGateExitCode"
+    },
+    "reasons": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "contract_status": {
+      "type": "object",
+      "minProperties": 1,
+      "patternProperties": {
+        "^[a-z][a-z0-9_]*$": {
+          "$ref": "#/$defs/DelegationBudgetContractStatus"
+        }
+      },
+      "additionalProperties": false
+    },
+    "meta": {
+      "$ref": "#/$defs/DelegationBudgetGateMeta"
+    }
+  },
+  "$defs": {
+    "DelegationBudgetGateStatus": {
+      "type": "string",
+      "enum": ["pass", "fail", "input_error"]
+    },
+    "DelegationBudgetGateExitCode": {
+      "type": "integer",
+      "enum": [0, 1, 2]
+    },
+    "DelegationBudgetContractVerdict": {
+      "type": "string",
+      "enum": ["ready", "needs_revision", "unknown"]
+    },
+    "DelegationBudgetContractStatus": {
+      "type": "object",
+      "required": ["verdict", "blocking_count", "parse_ok"],
+      "properties": {
+        "verdict": {
+          "$ref": "#/$defs/DelegationBudgetContractVerdict"
+        },
+        "blocking_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "parse_ok": {
+          "type": "boolean"
+        },
+        "source_path": {
+          "type": "string"
+        },
+        "errors": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "DelegationBudgetGateMeta": {
+      "type": "object",
+      "required": ["gate_id", "generated_at", "parser_version", "schema_id", "schema_version"],
+      "properties": {
+        "gate_id": {
+          "type": "string",
+          "const": "delegation_budget"
+        },
+        "generated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "parser_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "schema_id": {
+          "type": "string",
+          "const": "delegation_budget_gate_result_v1"
+        },
+        "schema_version": {
+          "type": "integer",
+          "const": 1
+        },
+        "tag": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "pass"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "exit_code": {
+            "const": 0
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "fail"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "exit_code": {
+            "const": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "input_error"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "exit_code": {
+            "const": 2
+          }
+        }
+      }
+    }
+  ],
+  "additionalProperties": false
+}

@@ -17,11 +17,11 @@
  *   1. GATE SUBSTANCE. The gate script still carries every falsification
  *      label for the mandated field groups, validates fail-closed on unknown
  *      contract versions and unfilled placeholders, and emits the shared
- *      machine contract via build_gate_meta("delegation_budget").
+ *      machine contract via build_delegation_budget_meta().
  *
- *   2. SCHEMA AUTHORITY. meta/schemas/convergence_gate_result_v1.schema.json
- *      keeps "delegation_budget" in the meta.gate_id enum (the gate's
- *      emitted verdict validates against the shared SSOT).
+ *   2. SCHEMA AUTHORITY. The dedicated, domain-neutral
+ *      delegation_budget_gate_result_v1 schema owns pass/fail/input_error
+ *      semantics; the convergence schema must not claim this gate.
  *
  *   3. RUNNER WIRING. run_team_cycle.sh still validates delegation contracts
  *      at preflight AND persists the machine verdict via --out-json.
@@ -43,13 +43,19 @@ import { fileURLToPath } from 'node:url';
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 const GATE_FILE = 'skills/research-team/scripts/gates/check_delegation_budget.py';
-const SCHEMA_FILE = 'meta/schemas/convergence_gate_result_v1.schema.json';
+const SCHEMA_FILE = 'meta/schemas/delegation_budget_gate_result_v1.schema.json';
+const CONVERGENCE_SCHEMA_FILE = 'meta/schemas/convergence_gate_result_v1.schema.json';
+const SCHEMA_HELPER_FILE = 'skills/research-team/scripts/gates/delegation_budget_schema.py';
+const GATE_REGISTRY_FILE = 'packages/shared/src/gate-registry.ts';
 const RUNNER_FILE = 'skills/research-team/scripts/bin/run_team_cycle.sh';
 const TEMPLATE_FILE = 'skills/research-team/assets/delegation_budget_contract_template.json';
 const CONFIG_TEMPLATE_FILE = 'skills/research-team/assets/research_team_config_template.json';
 const TEAM_SKILL_FILE = 'skills/research-team/SKILL.md';
 const HARNESS_SKILL_FILE = 'skills/research-harness/SKILL.md';
 const TESTS_FILE = 'skills/research-team/tests/test_delegation_budget_gate.py';
+const SHARED_README_FILE = 'packages/shared/README.md';
+const ARCHITECTURE_FILE = 'docs/ARCHITECTURE.md';
+const DEV_CONTRACT_FILE = 'meta/ECOSYSTEM_DEV_CONTRACT.md';
 
 const errors = [];
 
@@ -87,7 +93,7 @@ requireAll(GATE_FILE, read(GATE_FILE), [
   ['unknown-version fail-closed label', 'UNSUPPORTED_CONTRACT_VERSION'],
   ['contracts-required falsification label', 'NO_CONTRACTS_FOUND'],
   ['unreadable-contract falsification label', 'UNREADABLE_CONTRACT'],
-  ['machine-contract emission', 'build_gate_meta("delegation_budget")'],
+  ['machine-contract emission', 'build_delegation_budget_meta()'],
   ['executor-drift motivation', 'refine precision indefinitely'],
   ['single-read strict config authority', 'build_team_config(config_path, strict_raw)'],
   ['resolve-once config binding', 'config_path = config_path.resolve()'],
@@ -95,6 +101,13 @@ requireAll(GATE_FILE, read(GATE_FILE), [
   ['descriptor-verified regular file (no stat/open race)', 'os.fstat(fd)'],
   ['live->dangling ENOENT recheck', '_dangling_component()'],
   ['huge-int no-OverflowError guard', 'never route it through float'],
+  ['input-alias fail-closed label', 'OUTPUT_ALIASES_INPUT'],
+  ['input-ancestor fail-closed label', 'OUTPUT_NESTED_UNDER_INPUT'],
+  ['output-ancestor fail-closed label', 'OUTPUT_ANCESTOR_OF_INPUT'],
+  ['same-directory atomic writer', 'def _write_atomic_result'],
+  ['same-directory temporary file', 'tempfile.mkstemp'],
+  ['atomic replacement', 'os.replace'],
+  ['consumed-input protection', 'protected_inputs'],
 ]);
 // The gate must never re-read the config leniently after strict validation
 // (swap-between-reads would reopen a fail-open hole on a control input).
@@ -111,6 +124,7 @@ requireAll('skills/research-team/scripts/lib/team_config.py',
     ['strict parser entry point', 'def load_config_object'],
     ['config duplicate-key rejection', '_reject_duplicate_config_keys'],
     ['snapshot-based config assembly', 'def build_team_config'],
+    ['reserved config-slot enumeration', 'def config_candidate_paths'],
   ]);
 
 // 2. Schema authority.
@@ -130,15 +144,78 @@ if (schemaText !== null) {
     if (parsed === null || typeof parsed !== 'object') {
       errors.push(`${SCHEMA_FILE}: schema is not a JSON object (schema-authority leg broken)`);
     } else {
-      const gateIds = parsed?.properties?.meta?.properties?.gate_id?.enum;
-      if (!Array.isArray(gateIds)) {
-        errors.push(`${SCHEMA_FILE}: meta.gate_id enum missing or structurally moved (schema-authority leg broken)`);
-      } else if (!gateIds.includes('delegation_budget')) {
-        errors.push(`${SCHEMA_FILE}: meta.gate_id enum no longer contains "delegation_budget"`);
+      const definitions = parsed?.$defs;
+      const meta = definitions?.DelegationBudgetGateMeta?.properties;
+      const statuses = definitions?.DelegationBudgetGateStatus?.enum;
+      const contractStatus = parsed?.properties?.contract_status;
+      if (meta?.gate_id?.const !== 'delegation_budget') {
+        errors.push(`${SCHEMA_FILE}: meta.gate_id must be the delegation_budget const`);
+      }
+      if (meta?.schema_id?.const !== 'delegation_budget_gate_result_v1') {
+        errors.push(`${SCHEMA_FILE}: meta.schema_id must bind the dedicated result schema`);
+      }
+      if (JSON.stringify(statuses) !== JSON.stringify(['pass', 'fail', 'input_error'])) {
+        errors.push(`${SCHEMA_FILE}: status enum must remain pass/fail/input_error`);
+      }
+      if (contractStatus === null || typeof contractStatus !== 'object') {
+        errors.push(`${SCHEMA_FILE}: contract_status authority is missing`);
+      }
+      const helperDefinitions = [
+        'DelegationBudgetGateStatus',
+        'DelegationBudgetGateExitCode',
+        'DelegationBudgetContractStatus',
+        'DelegationBudgetContractVerdict',
+        'DelegationBudgetGateMeta',
+      ];
+      const missingDefinitions = helperDefinitions.filter((name) => !(name in (definitions ?? {})));
+      if (missingDefinitions.length > 0) {
+        errors.push(`${SCHEMA_FILE}: missing schema-specific helper definitions: ${missingDefinitions.join(', ')}`);
+      }
+      const expectedRefs = [
+        parsed?.properties?.status?.$ref,
+        parsed?.properties?.exit_code?.$ref,
+        parsed?.properties?.contract_status?.patternProperties?.['^[a-z][a-z0-9_]*$']?.$ref,
+        definitions?.DelegationBudgetContractStatus?.properties?.verdict?.$ref,
+        parsed?.properties?.meta?.$ref,
+      ];
+      const requiredRefs = helperDefinitions.map((name) => `#/$defs/${name}`);
+      if (JSON.stringify(expectedRefs) !== JSON.stringify(requiredRefs)) {
+        errors.push(`${SCHEMA_FILE}: result fields must reference schema-specific helper definitions`);
       }
     }
   }
 }
+
+// A pre-dispatch contract check is not convergence. Keep the old shared
+// envelope free of the delegation gate id so the semantic split cannot drift.
+{
+  const convergenceText = read(CONVERGENCE_SCHEMA_FILE);
+  if (convergenceText !== null) {
+    try {
+      const parsed = JSON.parse(convergenceText);
+      const gateIds = parsed?.properties?.meta?.properties?.gate_id?.enum;
+      if (!Array.isArray(gateIds) || gateIds.includes('delegation_budget')) {
+        errors.push(`${CONVERGENCE_SCHEMA_FILE}: delegation_budget must not use convergence semantics`);
+      }
+    } catch (e) {
+      errors.push(`${CONVERGENCE_SCHEMA_FILE}: not parseable JSON: ${e.message}`);
+    }
+  }
+}
+
+requireAll(SCHEMA_HELPER_FILE, read(SCHEMA_HELPER_FILE), [
+  ['dedicated schema basename', 'delegation_budget_gate_result_v1.schema.json'],
+  ['dedicated validator', 'def validate_delegation_budget_result'],
+  ['dedicated metadata builder', 'def build_delegation_budget_meta'],
+  ['timezone-aware timestamp', 'datetime.now(_dt.timezone.utc)'],
+  ['contract-status key authority', 'CONTRACT_STATUS_KEY_PATTERN'],
+]);
+
+requireAll(GATE_REGISTRY_FILE, read(GATE_REGISTRY_FILE), [
+  ['registered delegation budget gate', "gate_id: 'delegation_budget'"],
+  ['quality gate classification', "gate_type: 'quality'"],
+  ['dedicated result-schema binding', "result_schema: 'delegation_budget_gate_result_v1'"],
+]);
 
 // 3. Runner wiring — presence is not enough: the enforcement legs (exit on
 // gate failure, error on missing gate script) must survive too, or the gate
@@ -241,14 +318,24 @@ requireAll(HARNESS_SKILL_FILE, read(HARNESS_SKILL_FILE), [
   ['failed-approaches routing for abandoned budgets', 'failed-approaches ledger'],
   ['measured-memory clause', 'Estimating wall-clock alone is not a resource estimate'],
 ]);
+requireAll(SHARED_README_FILE, read(SHARED_README_FILE), [
+  ['dedicated gate-result contract', '`delegation_budget_gate_result_v1`'],
+  ['non-convergence boundary', 'Do not add non-convergence gate ids to the'],
+]);
+requireAll(ARCHITECTURE_FILE, read(ARCHITECTURE_FILE), [
+  ['semantic gate-result boundary', 'preflight validation is not modeled as convergence'],
+]);
+requireAll(DEV_CONTRACT_FILE, read(DEV_CONTRACT_FILE), [
+  ['delegation budget registry row', '| `delegation_budget` | quality | delegated_workstreams | fail-closed |'],
+]);
 
 // Behavior tests must exist AND still validate emitted verdicts against the
 // shared validator (the leg that catches schema-invalid verdict shapes).
 const testsText = read(TESTS_FILE);
 requireAll(TESTS_FILE, testsText, [
-  ['shared-validator import', 'validate_convergence_result'],
+  ['shared-validator import', 'validate_delegation_budget_result'],
   ['verdict schema assertion helper', '_assert_verdict_valid'],
-  ['schema-safe report_status key assertion', 'REPORT_STATUS_KEY_PATTERN'],
+  ['schema-safe contract_status key assertion', 'CONTRACT_STATUS_KEY_PATTERN'],
   ['strict-snapshot authority regression test', 'test_gate_uses_strict_config_snapshot'],
   ['YAML duplicate-config-key control', 'test_yaml_duplicate_config_key_is_input_error'],
   ['missing-yaml-module control', 'test_yaml_config_without_yaml_module_is_input_error'],
@@ -264,6 +351,17 @@ requireAll(TESTS_FILE, testsText, [
   ['fstat-diagnostic assertion in active-reader control', 'assert "not a regular file" in proc.stderr'],
   ['huge-integer no-crash control', 'test_huge_integer_field_validated_not_crashed'],
   ['stdout==persisted verdict assertion', 'assert json.loads(proc.stdout.strip()) == verdict'],
+  ['contract output-alias regression', 'test_out_json_cannot_alias_consumed_contract'],
+  ['config output-alias regression', 'test_out_json_cannot_alias_research_team_config'],
+  ['notes output-alias regression', 'test_out_json_cannot_alias_notes_locator_input'],
+  ['hardlink output-alias regression', 'test_out_json_hardlink_to_consumed_contract_is_rejected'],
+  ['missing contract-slot ancestor regression', 'test_out_json_nested_under_missing_declared_contract_does_not_create_slot'],
+  ['absent config-slot ancestor regression', 'test_out_json_nested_under_absent_config_slot_does_not_create_slot'],
+  ['contract-slot output-ancestor regression', 'test_out_json_ancestor_of_missing_declared_contract_does_not_occupy_slot'],
+  ['config-slot output-ancestor regression', 'test_out_json_ancestor_of_missing_config_does_not_occupy_slot'],
+  ['generated helper namespace regression', 'test_generated_delegation_helpers_are_schema_specific'],
+  ['atomic success cleanup regression', 'test_atomic_output_success_leaves_no_temporary_file'],
+  ['atomic failure preservation regression', 'test_atomic_replace_failure_preserves_previous_output_and_cleans_temp'],
 ]);
 
 // The hang-guard timeout must live INSIDE the FIFO config-loader control —
@@ -286,7 +384,7 @@ requireAll('skills/research-team/scripts/lib/team_config.py',
     ['nonblocking config reader', 'def _read_regular_file_bytes'],
   ]);
 requireAll(GATE_FILE, read(GATE_FILE), [
-  ['FIFO-safe verdict writer', 'def _write_regular_file_text'],
+  ['FIFO-safe atomic verdict writer', 'def _write_atomic_result'],
 ]);
 
 // The runner's config finder must print the RESOLVED path (the runner
@@ -310,12 +408,12 @@ requireAll('skills/research-team/tests/test_delegation_budget_runner_integration
     ['positive control', 'test_complete_contract_passes_preflight'],
   ]);
 
-// The shared validator must keep enforcing the report_status member key
+// The dedicated validator must keep enforcing the contract_status key
 // pattern from the schema SSOT (the gap that once let path-shaped keys emit
 // schema-invalid verdicts while every test stayed green).
-requireAll('skills/research-team/scripts/gates/convergence_schema.py',
-  read('skills/research-team/scripts/gates/convergence_schema.py'), [
-    ['report_status key-pattern authority', 'REPORT_STATUS_KEY_PATTERN'],
+requireAll(SCHEMA_HELPER_FILE,
+  read(SCHEMA_HELPER_FILE), [
+    ['contract_status key-pattern authority', 'CONTRACT_STATUS_KEY_PATTERN'],
     ['patternProperties extraction from SSOT', 'patternProperties'],
     ['key-pattern enforcement message', 'does not match the shared schema'],
   ]);

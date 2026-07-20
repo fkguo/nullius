@@ -235,7 +235,7 @@ dispatch** — one JSON file per delegation under `team/delegations/`, from
 
 The check is fail-closed and machine-judged
 (`scripts/gates/check_delegation_budget.py`, machine verdict
-`convergence_gate_result_v1` with gate id `delegation_budget`): a contract
+`delegation_budget_gate_result_v1`): a contract
 missing any required field, still carrying an unfilled template placeholder,
 or using an unknown contract version does **not** pass. `run_team_cycle.sh`
 validates every contract present at preflight in every project stage (no

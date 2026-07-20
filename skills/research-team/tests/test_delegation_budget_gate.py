@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Behavior tests for the delegation budget gate (fail-closed contract
-validation + convergence_gate_result_v1 emission).
+validation + delegation_budget_gate_result_v1 emission).
 
 Negative controls are the point: each mandated budget field group must
 individually fail the gate when absent, so the discipline cannot erode one
@@ -9,6 +9,7 @@ field at a time.
 
 from __future__ import annotations
 
+import ast
 import json
 import os
 import subprocess
@@ -20,9 +21,9 @@ GATE = ROOT / "scripts" / "gates" / "check_delegation_budget.py"
 TEMPLATE = ROOT / "assets" / "delegation_budget_contract_template.json"
 
 sys.path.insert(0, str(ROOT / "scripts" / "gates"))
-from convergence_schema import (  # noqa: E402
-    REPORT_STATUS_KEY_PATTERN,
-    validate_convergence_result,
+from delegation_budget_schema import (  # noqa: E402
+    CONTRACT_STATUS_KEY_PATTERN,
+    validate_delegation_budget_result,
 )
 
 
@@ -98,17 +99,17 @@ def _run_gate(proj: Path, *extra: str) -> tuple[subprocess.CompletedProcess, dic
 
 
 def _assert_verdict_valid(verdict: dict) -> None:
-    errors = validate_convergence_result(verdict)
+    errors = validate_delegation_budget_result(verdict)
     assert not errors, f"machine verdict fails schema validation: {errors}"
     assert verdict["meta"]["gate_id"] == "delegation_budget"
-    # Every report_status key must satisfy the schema SSOT's member key
+    # Every contract_status key must satisfy the schema SSOT's member key
     # pattern (path-shaped keys once emitted schema-invalid verdicts).
-    assert REPORT_STATUS_KEY_PATTERN is not None
+    assert CONTRACT_STATUS_KEY_PATTERN is not None
     import re as _re
 
-    for key in verdict["report_status"]:
-        assert _re.fullmatch(f"(?:{REPORT_STATUS_KEY_PATTERN})", key), (
-            f"report_status key {key!r} violates schema pattern {REPORT_STATUS_KEY_PATTERN!r}"
+    for key in verdict["contract_status"]:
+        assert _re.fullmatch(f"(?:{CONTRACT_STATUS_KEY_PATTERN})", key), (
+            f"contract_status key {key!r} violates schema pattern {CONTRACT_STATUS_KEY_PATTERN!r}"
         )
 
 
@@ -121,8 +122,8 @@ def test_complete_contract_passes(tmp_path: Path) -> None:
     assert proc.returncode == 0, proc.stderr
     assert verdict is not None
     _assert_verdict_valid(verdict)
-    assert verdict["status"] == "converged"
-    (summary,) = verdict["report_status"].values()
+    assert verdict["status"] == "pass"
+    (summary,) = verdict["contract_status"].values()
     assert summary["verdict"] == "ready"
     # stdout carries exactly the same verdict as the persisted one.
     assert json.loads(proc.stdout.strip()) == verdict
@@ -137,7 +138,7 @@ def test_multiple_complete_contracts_pass(tmp_path: Path) -> None:
     )
     proc, verdict = _run_gate(proj)
     assert proc.returncode == 0, proc.stderr
-    assert verdict is not None and len(verdict["report_status"]) == 2
+    assert verdict is not None and len(verdict["contract_status"]) == 2
 
 
 def test_explicit_contract_flag(tmp_path: Path) -> None:
@@ -145,7 +146,7 @@ def test_explicit_contract_flag(tmp_path: Path) -> None:
     contract = _write(proj / "elsewhere" / "c.json", json.dumps(_complete_contract()))
     proc, verdict = _run_gate(proj, "--contract", str(contract))
     assert proc.returncode == 0, proc.stderr
-    assert verdict is not None and verdict["status"] == "converged"
+    assert verdict is not None and verdict["status"] == "pass"
 
 
 # ------------------------------------------------- negative controls (mandate)
@@ -157,7 +158,7 @@ def _assert_fails_with(tmp_path: Path, contract: dict | str, label: str) -> None
     assert proc.returncode == 1, f"expected FAIL for {label}; stderr: {proc.stderr}"
     assert verdict is not None
     _assert_verdict_valid(verdict)
-    assert verdict["status"] == "not_converged"
+    assert verdict["status"] == "fail"
     assert any(label in r for r in verdict["reasons"]), (label, verdict["reasons"])
     # An evaluated gate must emit exactly one stdout verdict equal to the
     # persisted one — the stdout contract cannot silently drift.
@@ -302,15 +303,15 @@ def test_one_bad_contract_fails_the_run(tmp_path: Path) -> None:
     assert proc.returncode == 1
     assert verdict is not None
     _assert_verdict_valid(verdict)
-    statuses = {k: v["verdict"] for k, v in verdict["report_status"].items()}
+    statuses = {k: v["verdict"] for k, v in verdict["contract_status"].items()}
     assert statuses["good"] == "ready"
     assert statuses["bad"] == "needs_revision"
-    sources = {k: v["source_path"] for k, v in verdict["report_status"].items()}
+    sources = {k: v["source_path"] for k, v in verdict["contract_status"].items()}
     assert sources["good"] == "team/delegations/good.json"
     assert sources["bad"] == "team/delegations/bad.json"
 
 
-def test_report_status_keys_schema_safe_for_hyphenated_filenames(tmp_path: Path) -> None:
+def test_contract_status_keys_schema_safe_for_hyphenated_filenames(tmp_path: Path) -> None:
     """File names with hyphens/digits must map to schema-pattern-safe keys."""
     proj = _make_project(
         tmp_path, contracts={"lane-scan-01.json": _complete_contract()}
@@ -319,9 +320,9 @@ def test_report_status_keys_schema_safe_for_hyphenated_filenames(tmp_path: Path)
     assert proc.returncode == 0, proc.stderr
     assert verdict is not None
     _assert_verdict_valid(verdict)
-    (key,) = verdict["report_status"].keys()
+    (key,) = verdict["contract_status"].keys()
     assert key == "lane_scan_01"
-    assert verdict["report_status"][key]["source_path"] == "team/delegations/lane-scan-01.json"
+    assert verdict["contract_status"][key]["source_path"] == "team/delegations/lane-scan-01.json"
 
 
 # -------------------------------------------------- template stays fail-closed
@@ -419,14 +420,14 @@ def test_missing_notes_is_input_error(tmp_path: Path) -> None:
     )
     assert proc.returncode == 2
     verdict = json.loads(proc.stdout.strip())
-    assert verdict["status"] == "parse_error"
+    assert verdict["status"] == "input_error"
 
 
 def test_missing_explicit_contract_is_input_error(tmp_path: Path) -> None:
     proj = _make_project(tmp_path)
     proc, verdict = _run_gate(proj, "--contract", str(proj / "absent.json"))
     assert proc.returncode == 2
-    assert verdict is not None and verdict["status"] == "parse_error"
+    assert verdict is not None and verdict["status"] == "input_error"
 
 
 # ------------------------------------------- strict config + wiring hardening
@@ -452,7 +453,7 @@ def test_non_boolean_feature_flag_is_input_error(tmp_path: Path) -> None:
     _write(proj / "notes.md", "# notes\n")
     proc, verdict = _run_gate(proj)
     assert proc.returncode == 2
-    assert verdict is not None and verdict["status"] == "parse_error"
+    assert verdict is not None and verdict["status"] == "input_error"
 
 
 def test_non_boolean_required_is_input_error(tmp_path: Path) -> None:
@@ -464,7 +465,7 @@ def test_non_boolean_required_is_input_error(tmp_path: Path) -> None:
     _write(proj / "notes.md", "# notes\n")
     proc, verdict = _run_gate(proj)
     assert proc.returncode == 2
-    assert verdict is not None and verdict["status"] == "parse_error"
+    assert verdict is not None and verdict["status"] == "input_error"
 
 
 def test_empty_delegations_dir_config_is_input_error(tmp_path: Path) -> None:
@@ -476,7 +477,7 @@ def test_empty_delegations_dir_config_is_input_error(tmp_path: Path) -> None:
     _write(proj / "notes.md", "# notes\n")
     proc, verdict = _run_gate(proj)
     assert proc.returncode == 2
-    assert verdict is not None and verdict["status"] == "parse_error"
+    assert verdict is not None and verdict["status"] == "input_error"
 
 
 def test_non_dict_delegation_budget_block_is_input_error(tmp_path: Path) -> None:
@@ -488,7 +489,7 @@ def test_non_dict_delegation_budget_block_is_input_error(tmp_path: Path) -> None
     _write(proj / "notes.md", "# notes\n")
     proc, verdict = _run_gate(proj)
     assert proc.returncode == 2
-    assert verdict is not None and verdict["status"] == "parse_error"
+    assert verdict is not None and verdict["status"] == "input_error"
 
 
 def test_delegations_path_that_is_a_file_is_input_error(tmp_path: Path) -> None:
@@ -497,7 +498,7 @@ def test_delegations_path_that_is_a_file_is_input_error(tmp_path: Path) -> None:
     _write(proj / "team" / "delegations", "")  # regular file, not a directory
     proc, verdict = _run_gate(proj)
     assert proc.returncode == 2
-    assert verdict is not None and verdict["status"] == "parse_error"
+    assert verdict is not None and verdict["status"] == "input_error"
 
 
 def test_delegations_dir_flag_relative(tmp_path: Path) -> None:
@@ -505,7 +506,7 @@ def test_delegations_dir_flag_relative(tmp_path: Path) -> None:
     _write(proj / "elsewhere" / "c.json", json.dumps(_complete_contract()))
     proc, verdict = _run_gate(proj, "--delegations-dir", "elsewhere")
     assert proc.returncode == 0, proc.stderr
-    assert verdict is not None and verdict["status"] == "converged"
+    assert verdict is not None and verdict["status"] == "pass"
 
 
 def test_delegations_dir_flag_absolute(tmp_path: Path) -> None:
@@ -514,13 +515,13 @@ def test_delegations_dir_flag_absolute(tmp_path: Path) -> None:
     _write(outside / "c.json", json.dumps(_complete_contract()))
     proc, verdict = _run_gate(proj, "--delegations-dir", str(outside))
     assert proc.returncode == 0, proc.stderr
-    assert verdict is not None and verdict["status"] == "converged"
+    assert verdict is not None and verdict["status"] == "pass"
     _assert_verdict_valid(verdict)
 
 
 def test_unwritable_out_json_is_input_error_with_single_verdict(tmp_path: Path) -> None:
     """--out-json persistence failure: exactly one stdout verdict, and it is a
-    parse_error whose exit_code field agrees with the process exit code 2."""
+    input_error whose exit_code field agrees with the process exit code 2."""
     proj = _make_project(tmp_path, contracts={"c.json": _complete_contract()})
     blocked = proj / "blocked_dir"
     blocked.mkdir()
@@ -543,7 +544,7 @@ def test_unwritable_out_json_is_input_error_with_single_verdict(tmp_path: Path) 
     lines = [ln for ln in proc.stdout.strip().splitlines() if ln.strip()]
     assert len(lines) == 1, f"expected exactly one stdout verdict line, got: {lines}"
     verdict = json.loads(lines[0])
-    assert verdict["status"] == "parse_error"
+    assert verdict["status"] == "input_error"
     assert verdict["exit_code"] == 2
     _assert_verdict_valid(verdict)
 
@@ -556,7 +557,7 @@ def test_malformed_config_json_is_input_error(tmp_path: Path) -> None:
     _write(proj / "notes.md", "# notes\n")
     proc, verdict = _run_gate(proj)
     assert proc.returncode == 2
-    assert verdict is not None and verdict["status"] == "parse_error"
+    assert verdict is not None and verdict["status"] == "input_error"
 
 
 def test_non_object_config_json_is_input_error(tmp_path: Path) -> None:
@@ -565,7 +566,7 @@ def test_non_object_config_json_is_input_error(tmp_path: Path) -> None:
     _write(proj / "notes.md", "# notes\n")
     proc, verdict = _run_gate(proj)
     assert proc.returncode == 2
-    assert verdict is not None and verdict["status"] == "parse_error"
+    assert verdict is not None and verdict["status"] == "input_error"
 
 
 def test_unreadable_delegations_dir_is_input_error(tmp_path: Path) -> None:
@@ -580,7 +581,7 @@ def test_unreadable_delegations_dir_is_input_error(tmp_path: Path) -> None:
     finally:
         locked.chmod(0o755)
     assert proc.returncode == 2
-    assert verdict is not None and verdict["status"] == "parse_error"
+    assert verdict is not None and verdict["status"] == "input_error"
 
 
 # --------------------------------------------------- default-ON without config
@@ -658,7 +659,7 @@ def test_bad_time_box_seconds_fails(tmp_path: Path, bad: object) -> None:
 
 
 def test_malformed_cli_emits_machine_verdict(tmp_path: Path) -> None:
-    """Missing required --notes must still emit one schema-valid parse_error
+    """Missing required --notes must still emit one schema-valid input_error
     verdict on stdout (exit 2), not a bare argparse usage error."""
     proc = subprocess.run(
         [sys.executable, str(GATE)],
@@ -669,9 +670,9 @@ def test_malformed_cli_emits_machine_verdict(tmp_path: Path) -> None:
     lines = [ln for ln in proc.stdout.strip().splitlines() if ln.strip()]
     assert len(lines) == 1, f"expected one stdout verdict line, got: {lines}"
     verdict = json.loads(lines[0])
-    assert verdict["status"] == "parse_error"
+    assert verdict["status"] == "input_error"
     assert verdict["exit_code"] == 2
-    assert not validate_convergence_result(verdict)
+    assert not validate_delegation_budget_result(verdict)
 
 
 def test_help_still_exits_zero() -> None:
@@ -706,7 +707,7 @@ def test_stale_env_config_override_is_input_error(tmp_path: Path) -> None:
     )
     assert proc.returncode == 2
     verdict = json.loads(proc.stdout.strip())
-    assert verdict["status"] == "parse_error"
+    assert verdict["status"] == "input_error"
     assert any("RESEARCH_TEAM_CONFIG" in r for r in verdict["reasons"])
 
 
@@ -719,7 +720,7 @@ def test_nested_bad_delegations_path_is_input_error(tmp_path: Path) -> None:
         proj, "--delegations-dir", str(proj / "team" / "delegations_file" / "nested")
     )
     assert proc.returncode == 2
-    assert verdict is not None and verdict["status"] == "parse_error"
+    assert verdict is not None and verdict["status"] == "input_error"
 
 
 def test_nonexistent_project_root_is_input_error(tmp_path: Path) -> None:
@@ -738,7 +739,7 @@ def test_nonexistent_project_root_is_input_error(tmp_path: Path) -> None:
         text=True,
     )
     assert proc.returncode == 2
-    assert json.loads(proc.stdout.strip())["status"] == "parse_error"
+    assert json.loads(proc.stdout.strip())["status"] == "input_error"
 
 
 def test_dangling_symlink_delegations_dir_is_input_error(tmp_path: Path) -> None:
@@ -747,7 +748,7 @@ def test_dangling_symlink_delegations_dir_is_input_error(tmp_path: Path) -> None
     (proj / "team" / "delegations").symlink_to(tmp_path / "gone")
     proc, verdict = _run_gate(proj)
     assert proc.returncode == 2
-    assert verdict is not None and verdict["status"] == "parse_error"
+    assert verdict is not None and verdict["status"] == "input_error"
 
 
 @pytest.mark.parametrize("token", ["NaN", "Infinity", "-Infinity"])
@@ -795,7 +796,7 @@ def test_dangling_symlink_ancestor_of_delegations_dir_is_input_error(tmp_path: P
     (proj / "team").symlink_to(tmp_path / "missing_target")
     proc, verdict = _run_gate(proj)
     assert proc.returncode == 2
-    assert verdict is not None and verdict["status"] == "parse_error"
+    assert verdict is not None and verdict["status"] == "input_error"
 
 
 def test_config_path_as_directory_is_input_error(tmp_path: Path) -> None:
@@ -806,7 +807,7 @@ def test_config_path_as_directory_is_input_error(tmp_path: Path) -> None:
     _write(proj / "notes.md", "# notes\n")
     proc, verdict = _run_gate(proj)
     assert proc.returncode == 2
-    assert verdict is not None and verdict["status"] == "parse_error"
+    assert verdict is not None and verdict["status"] == "input_error"
 
 
 def test_config_path_as_dangling_symlink_is_input_error(tmp_path: Path) -> None:
@@ -816,7 +817,7 @@ def test_config_path_as_dangling_symlink_is_input_error(tmp_path: Path) -> None:
     _write(proj / "notes.md", "# notes\n")
     proc, verdict = _run_gate(proj)
     assert proc.returncode == 2
-    assert verdict is not None and verdict["status"] == "parse_error"
+    assert verdict is not None and verdict["status"] == "input_error"
 
 
 def test_duplicate_config_key_is_input_error(tmp_path: Path) -> None:
@@ -834,7 +835,7 @@ def test_duplicate_config_key_is_input_error(tmp_path: Path) -> None:
     _write(proj / "team" / "delegations" / "bad.json", json.dumps(bad))
     proc, verdict = _run_gate(proj)
     assert proc.returncode == 2
-    assert verdict is not None and verdict["status"] == "parse_error"
+    assert verdict is not None and verdict["status"] == "input_error"
 
 
 def test_invalid_utf8_config_is_input_error(tmp_path: Path) -> None:
@@ -844,7 +845,7 @@ def test_invalid_utf8_config_is_input_error(tmp_path: Path) -> None:
     _write(proj / "notes.md", "# notes\n")
     proc, verdict = _run_gate(proj)
     assert proc.returncode == 2
-    assert verdict is not None and verdict["status"] == "parse_error"
+    assert verdict is not None and verdict["status"] == "input_error"
 
 
 def test_multiline_workstream_fails(tmp_path: Path) -> None:
@@ -859,7 +860,7 @@ def test_json_constant_in_config_is_input_error(tmp_path: Path) -> None:
     _write(proj / "notes.md", "# notes\n")
     proc, verdict = _run_gate(proj)
     assert proc.returncode == 2
-    assert verdict is not None and verdict["status"] == "parse_error"
+    assert verdict is not None and verdict["status"] == "input_error"
 
 
 def test_yaml_duplicate_config_key_is_input_error(tmp_path: Path) -> None:
@@ -872,7 +873,7 @@ def test_yaml_duplicate_config_key_is_input_error(tmp_path: Path) -> None:
     _write(proj / "notes.md", "# notes\n")
     proc, verdict = _run_gate(proj)
     assert proc.returncode == 2
-    assert verdict is not None and verdict["status"] == "parse_error"
+    assert verdict is not None and verdict["status"] == "input_error"
 
 
 def test_yaml_non_mapping_config_is_input_error(tmp_path: Path) -> None:
@@ -882,7 +883,7 @@ def test_yaml_non_mapping_config_is_input_error(tmp_path: Path) -> None:
     _write(proj / "notes.md", "# notes\n")
     proc, verdict = _run_gate(proj)
     assert proc.returncode == 2
-    assert verdict is not None and verdict["status"] == "parse_error"
+    assert verdict is not None and verdict["status"] == "input_error"
 
 
 def test_yaml_config_without_yaml_module_is_input_error(tmp_path: Path) -> None:
@@ -911,7 +912,7 @@ def test_yaml_config_without_yaml_module_is_input_error(tmp_path: Path) -> None:
     )
     assert proc.returncode == 2
     verdict = json.loads(proc.stdout.strip())
-    assert verdict["status"] == "parse_error"
+    assert verdict["status"] == "input_error"
 
 
 def test_gate_uses_strict_config_snapshot(tmp_path: Path, monkeypatch: object) -> None:
@@ -1091,7 +1092,7 @@ def _run_gate_with_out_json(proj: Path, out_json: Path) -> subprocess.CompletedP
 
 def test_fifo_out_json_fails_fast_with_single_verdict(tmp_path: Path) -> None:
     """--out-json pointing at a FIFO must not block before the stdout verdict:
-    exactly one stdout parse_error verdict, exit 2, within the timeout."""
+    exactly one stdout input_error verdict, exit 2, within the timeout."""
     if not hasattr(os, "mkfifo"):
         return
     proj = _make_project(tmp_path, contracts={"c.json": _complete_contract()})
@@ -1101,7 +1102,7 @@ def test_fifo_out_json_fails_fast_with_single_verdict(tmp_path: Path) -> None:
     assert proc.returncode == 2
     lines = [ln for ln in proc.stdout.strip().splitlines() if ln.strip()]
     assert len(lines) == 1
-    assert json.loads(lines[0])["status"] == "parse_error"
+    assert json.loads(lines[0])["status"] == "input_error"
 
 
 def test_symlink_to_fifo_out_json_fails_fast(tmp_path: Path) -> None:
@@ -1114,7 +1115,7 @@ def test_symlink_to_fifo_out_json_fails_fast(tmp_path: Path) -> None:
     link.symlink_to(fifo)
     proc = _run_gate_with_out_json(proj, link)
     assert proc.returncode == 2
-    assert json.loads(proc.stdout.strip())["status"] == "parse_error"
+    assert json.loads(proc.stdout.strip())["status"] == "input_error"
 
 
 def test_out_json_fifo_with_active_reader_rejected_by_fstat(tmp_path: Path) -> None:
@@ -1131,13 +1132,240 @@ def test_out_json_fifo_with_active_reader_rejected_by_fstat(tmp_path: Path) -> N
     try:
         proc = _run_gate_with_out_json(proj, fifo)
         assert proc.returncode == 2
-        assert json.loads(proc.stdout.strip())["status"] == "parse_error"
+        assert json.loads(proc.stdout.strip())["status"] == "input_error"
         # fstat-specific diagnostic — proves the rejection path, not ENXIO.
         assert "not a regular file" in proc.stderr
         # Nothing must ever be written to the non-regular target.
         assert os.read(reader_fd, 4096) == b""
     finally:
         os.close(reader_fd)
+
+
+def _assert_output_alias_rejected(
+    proj: Path, output_path: Path, protected_path: Path
+) -> None:
+    before = protected_path.read_bytes()
+    proc = _run_gate_with_out_json(proj, output_path)
+    assert proc.returncode == 2
+    assert protected_path.read_bytes() == before
+    lines = [line for line in proc.stdout.splitlines() if line.strip()]
+    assert len(lines) == 1
+    verdict = json.loads(lines[0])
+    _assert_verdict_valid(verdict)
+    assert verdict["status"] == "input_error"
+    assert verdict["exit_code"] == 2
+    assert any("OUTPUT_ALIASES_INPUT" in reason for reason in verdict["reasons"])
+
+
+def test_out_json_cannot_alias_consumed_contract(tmp_path: Path) -> None:
+    proj = _make_project(tmp_path, contracts={"c.json": _complete_contract()})
+    contract = proj / "team" / "delegations" / "c.json"
+    _assert_output_alias_rejected(proj, contract, contract)
+
+
+def test_out_json_cannot_alias_research_team_config(tmp_path: Path) -> None:
+    proj = _make_project(tmp_path, contracts={"c.json": _complete_contract()})
+    config = proj / "research_team_config.json"
+    _assert_output_alias_rejected(proj, config, config)
+
+
+def test_out_json_cannot_alias_notes_locator_input(tmp_path: Path) -> None:
+    proj = _make_project(tmp_path, contracts={"c.json": _complete_contract()})
+    notes = proj / "notes.md"
+    _assert_output_alias_rejected(proj, notes, notes)
+
+
+def test_out_json_hardlink_to_consumed_contract_is_rejected(tmp_path: Path) -> None:
+    proj = _make_project(tmp_path, contracts={"c.json": _complete_contract()})
+    contract = proj / "team" / "delegations" / "c.json"
+    alias = proj / "contract-hardlink.json"
+    os.link(contract, alias)
+    _assert_output_alias_rejected(proj, alias, contract)
+
+
+def test_out_json_nested_under_missing_declared_contract_does_not_create_slot(
+    tmp_path: Path,
+) -> None:
+    proj = _make_project(tmp_path)
+    missing_contract = proj / "missing-contract.json"
+    proc = subprocess.run(
+        [
+            sys.executable,
+            str(GATE),
+            "--notes",
+            str(proj / "notes.md"),
+            "--project-root",
+            str(proj),
+            "--contract",
+            str(missing_contract),
+            "--out-json",
+            str(missing_contract / "result.json"),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert proc.returncode == 2
+    assert not missing_contract.exists()
+    verdict = json.loads(proc.stdout.strip())
+    assert verdict["status"] == "input_error"
+    assert any("OUTPUT_NESTED_UNDER_INPUT" in reason for reason in verdict["reasons"])
+
+
+def test_out_json_nested_under_absent_config_slot_does_not_create_slot(
+    tmp_path: Path,
+) -> None:
+    proj = tmp_path / "proj"
+    _write(proj / "notes.md", "# notes\n")
+    _write(
+        proj / "team" / "delegations" / "c.json",
+        json.dumps(_complete_contract()),
+    )
+    config_slot = proj / "research_team_config.json"
+    proc = _run_gate_with_out_json(proj, config_slot / "result.json")
+    assert proc.returncode == 2
+    assert not config_slot.exists()
+    verdict = json.loads(proc.stdout.strip())
+    assert verdict["status"] == "input_error"
+    assert any("OUTPUT_NESTED_UNDER_INPUT" in reason for reason in verdict["reasons"])
+
+
+def test_out_json_ancestor_of_missing_declared_contract_does_not_occupy_slot(
+    tmp_path: Path,
+) -> None:
+    proj = _make_project(tmp_path)
+    output_slot = proj / "missing-contract-slot"
+    missing_contract = output_slot / "contract.json"
+    config = proj / "research_team_config.json"
+    config_before = config.read_bytes()
+    proc = subprocess.run(
+        [
+            sys.executable,
+            str(GATE),
+            "--notes",
+            str(proj / "notes.md"),
+            "--project-root",
+            str(proj),
+            "--contract",
+            str(missing_contract),
+            "--out-json",
+            str(output_slot),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert proc.returncode == 2
+    assert config.read_bytes() == config_before
+    assert not output_slot.exists()
+    assert not missing_contract.exists()
+    verdict = json.loads(proc.stdout.strip())
+    assert verdict["status"] == "input_error"
+    assert any("OUTPUT_ANCESTOR_OF_INPUT" in reason for reason in verdict["reasons"])
+
+
+def test_out_json_ancestor_of_missing_config_does_not_occupy_slot(
+    tmp_path: Path,
+) -> None:
+    proj = _make_project(tmp_path)
+    output_slot = proj / "missing-config-slot"
+    missing_config = output_slot / "research_team_config.json"
+    real_config = proj / "research_team_config.json"
+    real_config_before = real_config.read_bytes()
+    env = os.environ.copy()
+    env["RESEARCH_TEAM_CONFIG"] = str(missing_config)
+    proc = subprocess.run(
+        [
+            sys.executable,
+            str(GATE),
+            "--notes",
+            str(proj / "notes.md"),
+            "--project-root",
+            str(proj),
+            "--out-json",
+            str(output_slot),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        env=env,
+    )
+    assert proc.returncode == 2
+    assert real_config.read_bytes() == real_config_before
+    assert not output_slot.exists()
+    assert not missing_config.exists()
+    verdict = json.loads(proc.stdout.strip())
+    assert verdict["status"] == "input_error"
+    assert any("OUTPUT_ANCESTOR_OF_INPUT" in reason for reason in verdict["reasons"])
+
+
+def test_generated_delegation_helpers_are_schema_specific() -> None:
+    """Wildcard aggregation must not shadow pre-existing generic helpers."""
+    repo_root = ROOT.parents[1]
+    generated = (
+        repo_root / "meta" / "generated" / "python" / "delegation_budget_gate_result_v1.py"
+    )
+    tree = ast.parse(generated.read_text(encoding="utf-8"))
+    class_names = {node.name for node in tree.body if isinstance(node, ast.ClassDef)}
+    assert {
+        "DelegationBudgetGateStatus",
+        "DelegationBudgetGateExitCode",
+        "DelegationBudgetContractVerdict",
+        "DelegationBudgetContractStatus",
+        "DelegationBudgetGateMeta",
+        "DelegationBudgetGateResultV1",
+    } <= class_names
+    assert class_names.isdisjoint({"Status", "ExitCode", "Verdict", "ContractStatus", "Meta"})
+
+
+def test_atomic_output_success_leaves_no_temporary_file(tmp_path: Path) -> None:
+    proj = _make_project(tmp_path, contracts={"c.json": _complete_contract()})
+    out_json = proj / "verdict.json"
+    proc = _run_gate_with_out_json(proj, out_json)
+    assert proc.returncode == 0, proc.stderr
+    assert json.loads(out_json.read_text(encoding="utf-8"))["status"] == "pass"
+    assert list(proj.glob(".verdict.json.*.tmp")) == []
+
+
+def test_atomic_replace_failure_preserves_previous_output_and_cleans_temp(
+    tmp_path: Path, monkeypatch: object, capsys: object
+) -> None:
+    import importlib.util
+
+    proj = _make_project(tmp_path, contracts={"c.json": _complete_contract()})
+    out_json = proj / "verdict.json"
+    old = b"previous durable verdict\n"
+    out_json.write_bytes(old)
+
+    spec = importlib.util.spec_from_file_location("check_delegation_budget_atomic_test", GATE)
+    assert spec is not None and spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    def _replace_fails(_source: object, _destination: object) -> None:
+        raise OSError("injected replace failure")
+
+    monkeypatch.setattr(mod.os, "replace", _replace_fails)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "check_delegation_budget.py",
+            "--notes",
+            str(proj / "notes.md"),
+            "--project-root",
+            str(proj),
+            "--out-json",
+            str(out_json),
+        ],
+    )
+    assert mod.main() == 2
+    captured = capsys.readouterr()
+    verdict = json.loads(captured.out.strip())
+    assert verdict["status"] == "input_error"
+    assert any("OUTPUT_PERSISTENCE_ERROR" in reason for reason in verdict["reasons"])
+    assert out_json.read_bytes() == old
+    assert list(proj.glob(".verdict.json.*.tmp")) == []
 
 
 def test_contract_symlink_retarget_after_discovery_keeps_original_target(
@@ -1272,7 +1500,7 @@ def test_config_delegations_dir_relative(tmp_path: Path) -> None:
     _write(proj / "custom" / "deleg" / "c.json", json.dumps(_complete_contract()))
     proc, verdict = _run_gate(proj)
     assert proc.returncode == 0, proc.stderr
-    assert verdict is not None and verdict["status"] == "converged"
+    assert verdict is not None and verdict["status"] == "pass"
 
 
 def test_config_delegations_dir_absolute(tmp_path: Path) -> None:
@@ -1287,7 +1515,7 @@ def test_config_delegations_dir_absolute(tmp_path: Path) -> None:
     _write(proj / "notes.md", "# notes\n")
     proc, verdict = _run_gate(proj)
     assert proc.returncode == 0, proc.stderr
-    assert verdict is not None and verdict["status"] == "converged"
+    assert verdict is not None and verdict["status"] == "pass"
 
 
 def test_huge_integer_field_validated_not_crashed(tmp_path: Path) -> None:
@@ -1304,7 +1532,7 @@ def test_huge_integer_field_validated_not_crashed(tmp_path: Path) -> None:
     proj = _make_project(tmp_path, contracts={"c.json": body})
     proc, verdict = _run_gate(proj)
     assert proc.returncode == 0, proc.stderr
-    assert verdict is not None and verdict["status"] == "converged"
+    assert verdict is not None and verdict["status"] == "pass"
 
 
 def test_placeholder_under_underscore_key_is_exempt(tmp_path: Path) -> None:
@@ -1315,7 +1543,7 @@ def test_placeholder_under_underscore_key_is_exempt(tmp_path: Path) -> None:
     proj = _make_project(tmp_path, contracts={"c.json": contract})
     proc, verdict = _run_gate(proj)
     assert proc.returncode == 0, proc.stderr
-    assert verdict is not None and verdict["status"] == "converged"
+    assert verdict is not None and verdict["status"] == "pass"
 
 
 def test_live_to_dangling_delegations_symlink_is_input_error(

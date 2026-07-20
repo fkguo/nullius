@@ -387,6 +387,32 @@ def _find_project_root(start: Path) -> Path:
         cur = cur.parent
 
 
+def config_candidate_paths(seed_path: Path) -> tuple[Path, ...]:
+    """Return reserved config slots in the exact discovery order.
+
+    Fail-closed consumers use this not only to discover an existing config,
+    but also to prevent an output writer from turning an absent config file
+    slot into a directory (for example, `research_team_config.json/result`).
+    """
+    env = os.environ.get("RESEARCH_TEAM_CONFIG", "").strip()
+    if env:
+        path = Path(env)
+        if not path.is_absolute():
+            path = Path.cwd() / path
+        return (path,)
+
+    base = seed_path.parent if seed_path.is_file() else seed_path
+    root = _find_project_root(base)
+    cur = base.resolve()
+    candidates: list[Path] = []
+    while True:
+        candidates.extend(cur / name for name in _CONFIG_FILENAMES)
+        if cur == root or cur.parent == cur:
+            break
+        cur = cur.parent
+    return tuple(candidates)
+
+
 def _try_load_yaml(path: Path) -> dict | None:
     try:
         import yaml  # type: ignore
@@ -420,26 +446,11 @@ def find_broken_config_path(seed_path: Path) -> Path | None:
     Returns the first broken candidate encountered BEFORE any real config file
     in the search order, or None when the search finds a real file first (or
     nothing lexically present at all)."""
-    env = os.environ.get("RESEARCH_TEAM_CONFIG", "").strip()
-    if env:
-        p = Path(env)
-        if not p.is_absolute():
-            p = Path.cwd() / p
-        return p if os.path.lexists(p) and not p.is_file() else None
-
-    base = seed_path.parent if seed_path.is_file() else seed_path
-    root = _find_project_root(base)
-    cur = base.resolve()
-    while True:
-        for name in _CONFIG_FILENAMES:
-            cand = cur / name
-            if cand.is_file():
-                return None
-            if os.path.lexists(cand):
-                return cand
-        if cur == root or cur.parent == cur:
-            break
-        cur = cur.parent
+    for candidate in config_candidate_paths(seed_path):
+        if candidate.is_file():
+            return None
+        if os.path.lexists(candidate):
+            return candidate
     return None
 
 
@@ -550,24 +561,9 @@ def find_config_path(seed_path: Path) -> Path | None:
     1) RESEARCH_TEAM_CONFIG env var (absolute or relative to cwd)
     2) notebook dir and parents up to project root (or filesystem root)
     """
-    env = os.environ.get("RESEARCH_TEAM_CONFIG", "").strip()
-    if env:
-        p = Path(env)
-        if not p.is_absolute():
-            p = Path.cwd() / p
-        return p if p.is_file() else None
-
-    base = seed_path.parent if seed_path.is_file() else seed_path
-    root = _find_project_root(base)
-    cur = base.resolve()
-    while True:
-        for name in _CONFIG_FILENAMES:
-            cand = cur / name
-            if cand.is_file():
-                return cand
-        if cur == root or cur.parent == cur:
-            break
-        cur = cur.parent
+    for candidate in config_candidate_paths(seed_path):
+        if candidate.is_file():
+            return candidate
     return None
 
 

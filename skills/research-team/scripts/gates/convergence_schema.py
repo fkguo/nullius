@@ -144,7 +144,12 @@ def _load_convergence_result_schema_authority() -> tuple[frozenset[str], str, in
 
 
 def _utc_now() -> str:
-    return _dt.datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+    return (
+        _dt.datetime.now(_dt.timezone.utc)
+        .replace(microsecond=0)
+        .isoformat()
+        .replace("+00:00", "Z")
+    )
 
 
 def build_gate_meta(gate_id: str) -> dict[str, Any]:
