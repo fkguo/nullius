@@ -10,18 +10,21 @@ tampered with; the gate must be fail-closed, never pass-by-default.
 
 from __future__ import annotations
 
+import ast
 import hashlib
 import importlib.util
 import json
 import os
 import subprocess
 import sys
+import symtable
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 GATE = REPO_ROOT / "skills" / "figure-hygiene" / "scripts" / "bin" / "check_display_acceptance.py"
 SCHEMA = REPO_ROOT / "meta" / "schemas" / "display_gate_result_v1.schema.json"
 VERDICT_SCHEMA = REPO_ROOT / "meta" / "schemas" / "quantity_verdict_v1.schema.json"
+GENERATED_PYTHON = REPO_ROOT / "meta" / "generated" / "python"
 
 
 def _load_gate_module():
@@ -681,21 +684,72 @@ def test_quantity_verdict_schema_matches_runtime_contract() -> None:
 
 
 def test_generated_quantity_verdict_api_has_schema_specific_symbols() -> None:
-    from meta.generated import python as aggregate
-    from meta.generated.python.launch_authorization_v1 import Verdict as LaunchAuthorizationVerdict
-    from meta.generated.python import quantity_verdict_v1
-    from meta.generated.python.quantity_verdict_v1 import (
-        QuantityVerdictIdentifier,
-        QuantityVerdictOutcome,
-        QuantityVerdictV1,
-    )
+    aggregate_tree = ast.parse((GENERATED_PYTHON / "__init__.py").read_text(encoding="utf-8"))
+    aggregate_modules = [
+        node.module
+        for node in aggregate_tree.body
+        if isinstance(node, ast.ImportFrom)
+        and node.level == 1
+        and node.module is not None
+        and any(alias.name == "*" for alias in node.names)
+    ]
+    assert "quantity_verdict_v1" in aggregate_modules
 
-    assert aggregate.Verdict is LaunchAuthorizationVerdict
-    assert not hasattr(quantity_verdict_v1, "Verdict")
-    assert not hasattr(quantity_verdict_v1, "Quantity")
-    assert aggregate.QuantityVerdictIdentifier is QuantityVerdictIdentifier
-    assert aggregate.QuantityVerdictOutcome is QuantityVerdictOutcome
-    assert aggregate.QuantityVerdictV1 is QuantityVerdictV1
+    class_names_by_module = {}
+    public_names_by_module = {}
+    for module_name in aggregate_modules:
+        module_path = GENERATED_PYTHON / f"{module_name}.py"
+        module_source = module_path.read_text(encoding="utf-8")
+        module_tree = ast.parse(module_source)
+        leaf_wildcard_imports = [
+            node
+            for node in module_tree.body
+            if isinstance(node, ast.ImportFrom)
+            and any(alias.name == "*" for alias in node.names)
+        ]
+        assert not leaf_wildcard_imports
+        class_names_by_module[module_name] = {
+            node.name for node in module_tree.body if isinstance(node, ast.ClassDef)
+        }
+        future_imports = {
+            alias.asname or alias.name
+            for node in module_tree.body
+            if isinstance(node, ast.ImportFrom) and node.module == "__future__"
+            for alias in node.names
+        }
+        symbol_table = symtable.symtable(module_source, str(module_path), "exec")
+        bound_names = {
+            name
+            for name in symbol_table.get_identifiers()
+            if symbol_table.lookup(name).is_assigned() or symbol_table.lookup(name).is_imported()
+        } - future_imports
+        assert "__all__" not in bound_names
+        public_names_by_module[module_name] = {
+            name for name in bound_names if not name.startswith("_")
+        }
+
+    quantity_classes = class_names_by_module["quantity_verdict_v1"]
+    quantity_public_names = public_names_by_module["quantity_verdict_v1"]
+    assert {
+        "QuantityVerdictIdentifier",
+        "QuantityVerdictOutcome",
+        "QuantityVerdictV1",
+    } <= quantity_classes
+    assert quantity_public_names.isdisjoint({"Verdict", "Quantity"})
+
+    def _last_exporting_module(symbol: str) -> str:
+        exporting_modules = [
+            module_name
+            for module_name in aggregate_modules
+            if symbol in public_names_by_module[module_name]
+        ]
+        assert exporting_modules
+        return exporting_modules[-1]
+
+    assert _last_exporting_module("Verdict") == "launch_authorization_v1"
+    assert _last_exporting_module("QuantityVerdictIdentifier") == "quantity_verdict_v1"
+    assert _last_exporting_module("QuantityVerdictOutcome") == "quantity_verdict_v1"
+    assert _last_exporting_module("QuantityVerdictV1") == "quantity_verdict_v1"
 
 
 def _assert_payload_matches_schema(payload: dict) -> None:
