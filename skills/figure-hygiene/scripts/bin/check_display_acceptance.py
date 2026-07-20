@@ -22,7 +22,8 @@ The gate reads the figure's provenance manifest and judges its
 The verdict is computed here and only here; callers must not self-assess.
 Fail-closed: missing or unverifiable evidence is a failure, never a pass.
 
-Exit codes: 0 pass, 1 gate failure (findings), 2 usage / unreadable manifest.
+Exit codes: 0 pass, 1 gate failure (findings), 2 usage, unreadable manifest,
+or unsafe/unwritable --out-json.
 """
 
 from __future__ import annotations
@@ -30,8 +31,10 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -64,12 +67,37 @@ RESULT_VALUES = (
 # The accepted outcome is fixed by the gate, never by the manifest: letting the
 # caller widen acceptance would hand the verdict back to the party being judged.
 ACCEPTED_VERDICT = "pass"
+VERDICT_SCHEMA_ID = "quantity_verdict_v1"
+VERDICT_SCHEMA_VERSION = 1
+VERDICT_VALUES = frozenset({"pass", "fail"})
 
 _BLOCK_FIELDS = frozenset({"plotted_quantities", "verdict_bindings", "overview_figure"})
 _BINDING_FIELDS = frozenset({"quantity", "verdict_path", "verdict_sha256"})
 _OVERVIEW_FIELDS = frozenset({"path", "archived", "sha256"})
+_VERDICT_FIELDS = frozenset({"schema_id", "schema_version", "quantities", "verdict"})
 
 _SHA256 = re.compile(r"(?:sha256:)?([0-9a-fA-F]{64})\Z", re.IGNORECASE)
+
+
+class DuplicateJsonKeyError(ValueError):
+    """Raised when any object in a consumed JSON document repeats a key."""
+
+
+def _reject_duplicate_json_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    obj: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in obj:
+            raise DuplicateJsonKeyError(f"duplicate JSON key {key!r}")
+        obj[key] = value
+    return obj
+
+
+def _read_json_document(path: Path) -> Any:
+    """Decode one JSON document with recursive duplicate-key rejection."""
+    return json.loads(
+        path.read_text(encoding="utf-8"),
+        object_pairs_hook=_reject_duplicate_json_keys,
+    )
 
 
 def _normalise_sha256(raw: Any) -> str | None:
@@ -107,6 +135,138 @@ def _string_list(value: Any) -> list[str] | None:
 def _resolve(base_dir: Path, path_s: str) -> Path:
     p = Path(path_s)
     return p if p.is_absolute() else base_dir / p
+
+
+def _validate_quantity_verdict_v1(artifact: Any) -> tuple[list[str] | None, str | None, str | None]:
+    """Validate the complete closed shape of quantity_verdict_v1.
+
+    The checked-in JSON Schema is the public contract and generates shared
+    Python/TypeScript surfaces. This dependency-free runtime validation keeps
+    the installed skill fail-closed without requiring a JSON-Schema package.
+    """
+    if not isinstance(artifact, dict):
+        return None, None, "artifact must be a JSON object"
+
+    unexpected = sorted(set(artifact) - _VERDICT_FIELDS)
+    missing = sorted(_VERDICT_FIELDS - set(artifact))
+    if unexpected:
+        return None, None, f"unsupported fields: {unexpected!r}"
+    if missing:
+        return None, None, f"missing required fields: {missing!r}"
+    if artifact.get("schema_id") != VERDICT_SCHEMA_ID:
+        return None, None, f"schema_id must be {VERDICT_SCHEMA_ID!r}"
+    version = artifact.get("schema_version")
+    if type(version) is not int or version != VERDICT_SCHEMA_VERSION:
+        return None, None, f"schema_version must be integer {VERDICT_SCHEMA_VERSION}"
+
+    quantities = _string_list(artifact.get("quantities"))
+    if quantities is None:
+        return None, None, "quantities must be a non-empty list of non-blank strings"
+    if len(set(quantities)) != len(quantities):
+        return None, None, "quantities must contain unique identifiers"
+
+    verdict = artifact.get("verdict")
+    if not isinstance(verdict, str) or verdict not in VERDICT_VALUES:
+        return None, None, f"verdict must be one of {sorted(VERDICT_VALUES)!r}"
+    return quantities, verdict, None
+
+
+def _protected_input_paths(manifest_path: Path) -> tuple[list[Path], bool]:
+    """Return every on-disk input that --out-json must never replace.
+
+    Manifest inspection is best-effort because an invalid manifest still has
+    to produce a fail-closed result. The manifest itself is always protected.
+    """
+    protected = [manifest_path]
+    try:
+        manifest = _read_json_document(manifest_path)
+    except (OSError, ValueError):
+        return protected, False
+    if not isinstance(manifest, dict):
+        return protected, False
+    block = manifest.get("display_acceptance")
+    if not isinstance(block, dict):
+        return protected, True
+
+    base_dir = manifest_path.resolve().parent
+    bindings = block.get("verdict_bindings")
+    if isinstance(bindings, list):
+        for binding in bindings:
+            if not isinstance(binding, dict):
+                continue
+            value = binding.get("verdict_path")
+            if isinstance(value, str) and value.strip():
+                protected.append(_resolve(base_dir, value.strip()))
+    overview = block.get("overview_figure")
+    if isinstance(overview, dict):
+        value = overview.get("path")
+        if isinstance(value, str) and value.strip():
+            protected.append(_resolve(base_dir, value.strip()))
+    return protected, True
+
+
+def _path_conflicts_with_input_slot(output: Path, input_slot: Path) -> bool:
+    """Detect aliases and ancestor/descendant paths that could mutate a slot.
+
+    Descendants matter even when an input is currently missing: creating
+    ``missing-input/result.json`` would turn the declared file slot into a
+    directory before the gate reports that the evidence is absent. Ancestors
+    matter too: writing ``missing-dir`` would turn the required parent of
+    ``missing-dir/verdict.json`` into a file.
+    """
+    try:
+        canonical_output = output.expanduser().resolve(strict=False)
+        canonical_input = input_slot.expanduser().resolve(strict=False)
+        if (
+            canonical_output == canonical_input
+            or canonical_input in canonical_output.parents
+            or canonical_output in canonical_input.parents
+        ):
+            return True
+    except (OSError, RuntimeError):
+        pass
+    try:
+        return output.exists() and input_slot.exists() and os.path.samefile(output, input_slot)
+    except OSError:
+        return False
+
+
+def _atomic_write_text(path: Path, text: str) -> None:
+    """Persist text through a same-directory temporary file and os.replace."""
+    target = path.expanduser()
+    parent = target.parent
+    parent.mkdir(parents=True, exist_ok=True)
+    if target.is_dir():
+        raise IsADirectoryError(str(target))
+
+    temp_path: Path | None = None
+    try:
+        fd, temp_name = tempfile.mkstemp(prefix=f".{target.name}.", suffix=".tmp", dir=str(parent))
+        temp_path = Path(temp_name)
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as handle:
+            handle.write(text)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temp_path, target)
+        temp_path = None
+    finally:
+        if temp_path is not None:
+            try:
+                temp_path.unlink()
+            except FileNotFoundError:
+                pass
+
+
+def _out_json_failure(manifest_path: Path, kind: str, message: str) -> dict[str, Any]:
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "manifest": str(manifest_path),
+        "result": RESULT_INVALID_MANIFEST,
+        "findings": [_finding(kind, RESULT_INVALID_MANIFEST, message)],
+        "quantities_declared": 0,
+        "bindings_checked": 0,
+        "overview_figure": None,
+    }
 
 
 def _check_binding(
@@ -218,7 +378,7 @@ def _check_binding(
         return quantity
 
     try:
-        artifact = json.loads(verdict_path.read_text(encoding="utf-8"))
+        artifact = _read_json_document(verdict_path)
     except (OSError, ValueError) as exc:
         findings.append(
             _finding(
@@ -230,31 +390,21 @@ def _check_binding(
             )
         )
         return quantity
-    if not isinstance(artifact, dict):
+    covered, outcome, schema_error = _validate_quantity_verdict_v1(artifact)
+    if schema_error is not None:
         findings.append(
             _finding(
-                "verdict-unreadable",
+                "verdict-schema-invalid",
                 RESULT_VERDICT_MISMATCH,
-                f"{label} ({quantity!r}) verdict artifact is not a JSON object",
+                f"{label} ({quantity!r}) verdict artifact does not satisfy "
+                f"{VERDICT_SCHEMA_ID}: {schema_error}",
                 quantity=quantity,
                 path=str(verdict_path),
             )
         )
         return quantity
 
-    covered = _string_list(artifact.get("quantities"))
-    if covered is None:
-        findings.append(
-            _finding(
-                "verdict-quantities-undeclared",
-                RESULT_VERDICT_MISMATCH,
-                f"{label} ({quantity!r}) verdict artifact declares no quantities[] list, so it "
-                "cannot demonstrate that it covers the plotted quantity",
-                quantity=quantity,
-                path=str(verdict_path),
-            )
-        )
-        return quantity
+    assert covered is not None
 
     if quantity not in covered:
         findings.append(
@@ -268,7 +418,6 @@ def _check_binding(
         )
         return quantity
 
-    outcome = artifact.get("verdict")
     if outcome != ACCEPTED_VERDICT:
         findings.append(
             _finding(
@@ -404,7 +553,7 @@ def check_manifest(manifest_path: Path) -> dict[str, Any]:
     base_dir = manifest_path.resolve().parent
 
     try:
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest = _read_json_document(manifest_path)
     except (OSError, ValueError) as exc:
         findings.append(
             _finding("manifest-unreadable", RESULT_INVALID_MANIFEST, f"cannot read manifest as JSON: {exc}")
@@ -558,8 +707,38 @@ def main(argv: list[str] | None = None) -> int:
     result = check_manifest(Path(args.manifest))
 
     if args.out_json is not None:
-        args.out_json.parent.mkdir(parents=True, exist_ok=True)
-        args.out_json.write_text(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        manifest_path = Path(args.manifest)
+        protected_inputs, declarations_recovered = _protected_input_paths(manifest_path)
+        if not declarations_recovered:
+            failure = _out_json_failure(
+                manifest_path,
+                "out-json-input-discovery-failed",
+                "refusing --out-json because manifest input declarations could not be recovered unambiguously",
+            )
+            print(json.dumps(failure, ensure_ascii=False, indent=2, sort_keys=True))
+            return 2
+        if any(_path_conflicts_with_input_slot(args.out_json, input_path) for input_path in protected_inputs):
+            failure = _out_json_failure(
+                manifest_path,
+                "out-json-protected-input",
+                "--out-json must not alias, contain, or be contained by the manifest, "
+                "a bound verdict artifact, or the overview input",
+            )
+            print(json.dumps(failure, ensure_ascii=False, indent=2, sort_keys=True))
+            return 2
+        try:
+            _atomic_write_text(
+                args.out_json,
+                json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+            )
+        except Exception:
+            failure = _out_json_failure(
+                manifest_path,
+                "out-json-write-failed",
+                "could not persist --out-json through a same-directory atomic write",
+            )
+            print(json.dumps(failure, ensure_ascii=False, indent=2, sort_keys=True))
+            return 2
 
     if args.json:
         print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
