@@ -1,0 +1,29 @@
+{
+  "_note": "Delegation budget contract (delegation_budget_contract_v1): one file per delegated computation / verification workstream, written by the coordinator BEFORE dispatch, kept under team/delegations/. A delegated executor's default drift is to refine precision indefinitely and to expand scope; a delegation without explicit budgets is drift by construction. Validation is fail-closed (check_delegation_budget.py): a missing field, an unfilled <placeholder>, or an unknown contract_version does not pass.",
+  "contract_version": 1,
+  "delegation_id": "<short-stable-id>",
+  "workstream": "<one line: what is delegated (the computation / verification task, its deliverable)>",
+  "tolerance_ceiling": {
+    "_note": "Numeric tolerance ceiling the result must reach and must NOT be refined beyond: reaching the ceiling means STOP, not 'keep improving'. The anchor note states which requirement of the task derives the ceiling (what the result is for — e.g. the precision at which the downstream decision changes), never what the method can achieve.",
+    "value": "<finite positive number>",
+    "anchor_note": "<one line: which task requirement derives this ceiling>"
+  },
+  "time_box": {
+    "_note": "Hard wall-clock budget for the whole workstream. On expiry the executor wraps up from the atomic results already flushed to disk (see the research-harness long-running-jobs contract) — it never voids the batch.",
+    "seconds": "<positive integer>"
+  },
+  "max_attempts": "<positive integer: cap on 'one last attempt' retries; exhausting it means wrap up, not retry>",
+  "scope_negative_list": [
+    "<expansions the executor must NOT undertake on its own initiative, e.g.:>",
+    "<no infrastructure / build-system rewrites>",
+    "<no building a full test suite beyond the delegated checks>",
+    "<no third-party benchmarking>"
+  ],
+  "peak_memory_estimate": {
+    "_note": "Measured on a single-unit dry run BEFORE the full launch; estimating wall-clock alone is not a resource estimate. heap_limit_mb is the explicit cap the full run is launched with and must be >= dry_run_peak_rss_mb.",
+    "dry_run_peak_rss_mb": "<finite positive number: peak RSS of the single-unit dry run, in MB>",
+    "heap_limit_mb": "<finite positive number: explicit heap cap for the full run, in MB>",
+    "dry_run_ref": "<optional: pointer to the dry-run log / checkpoint that produced the measurement>"
+  },
+  "on_budget_exhausted": "wrap up from flushed atomic results; record abandoned approaches in the failed-approaches ledger (failed_approaches_v1)"
+}

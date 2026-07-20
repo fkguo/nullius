@@ -24,6 +24,7 @@ export type {
   ArtifactRefV16,
 } from "./computation-result-v1.js";
 export * from "./convergence-gate-result-v1.js";
+export * from "./delegation-budget-gate-result-v1.js";
 export * from "./domain-pack-manifest-v1.js";
 export type {
   EvidenceType,

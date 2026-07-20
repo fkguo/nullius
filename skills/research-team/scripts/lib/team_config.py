@@ -5,6 +5,7 @@ import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 
 DEFAULT_CONFIG: dict = {
@@ -73,9 +74,20 @@ DEFAULT_CONFIG: dict = {
         "logic_isolation_gate": False,
         "independent_reproduction_gate": False,
         "convention_mapping_gate": False,
+        # Delegation budget contracts for delegated computation/verification
+        # workstreams (default ON: the gate SKIPs when no contract exists and
+        # none is required, and fail-closed validates any contract present).
+        "delegation_budget_gate": True,
     },
     "claim_graph": {
         "base_dir": "knowledge_graph",
+    },
+    # Delegation budget contracts for delegated computation/verification
+    # workstreams. Contracts under delegations_dir are always validated
+    # fail-closed; required=True additionally fails when no contract exists.
+    "delegation_budget": {
+        "required": False,
+        "delegations_dir": "team/delegations",
     },
     "pointer_lint": {
         "strategy": "python_import",
@@ -375,6 +387,32 @@ def _find_project_root(start: Path) -> Path:
         cur = cur.parent
 
 
+def config_candidate_paths(seed_path: Path) -> tuple[Path, ...]:
+    """Return reserved config slots in the exact discovery order.
+
+    Fail-closed consumers use this not only to discover an existing config,
+    but also to prevent an output writer from turning an absent config file
+    slot into a directory (for example, `research_team_config.json/result`).
+    """
+    env = os.environ.get("RESEARCH_TEAM_CONFIG", "").strip()
+    if env:
+        path = Path(env)
+        if not path.is_absolute():
+            path = Path.cwd() / path
+        return (path,)
+
+    base = seed_path.parent if seed_path.is_file() else seed_path
+    root = _find_project_root(base)
+    cur = base.resolve()
+    candidates: list[Path] = []
+    while True:
+        candidates.extend(cur / name for name in _CONFIG_FILENAMES)
+        if cur == root or cur.parent == cur:
+            break
+        cur = cur.parent
+    return tuple(candidates)
+
+
 def _try_load_yaml(path: Path) -> dict | None:
     try:
         import yaml  # type: ignore
@@ -399,30 +437,133 @@ def _load_config_file(path: Path) -> dict | None:
         return None
 
 
+def find_broken_config_path(seed_path: Path) -> Path | None:
+    """Mirror find_config_path's search order, but surface a reserved config
+    path that is lexically present yet not a regular file (a dangling symlink
+    or a directory). find_config_path silently ignores such paths and callers
+    then inherit defaults — for fail-closed callers that is a fail-open hole.
+
+    Returns the first broken candidate encountered BEFORE any real config file
+    in the search order, or None when the search finds a real file first (or
+    nothing lexically present at all)."""
+    for candidate in config_candidate_paths(seed_path):
+        if candidate.is_file():
+            return None
+        if os.path.lexists(candidate):
+            return candidate
+    return None
+
+
+def _read_regular_file_bytes(path: Path) -> bytes:
+    """Descriptor-based nonblocking read for the STRICT config loader: a FIFO
+    substituted for the resolved config target between discovery and read
+    would hang a blocking read_bytes() forever. Open O_NONBLOCK, fstat-verify
+    a regular file on the OPEN descriptor, then read."""
+    import stat as stat_module
+
+    try:
+        fd = os.open(path, os.O_RDONLY | getattr(os, "O_NONBLOCK", 0))
+    except OSError as e:
+        raise ValueError(f"cannot open config: {e}") from e
+    try:
+        st = os.fstat(fd)
+        if not stat_module.S_ISREG(st.st_mode):
+            raise ValueError(
+                f"config is not a regular file (mode {stat_module.filemode(st.st_mode)}) — refusing to read"
+            )
+        chunks: list[bytes] = []
+        while True:
+            chunk = os.read(fd, 1 << 16)
+            if not chunk:
+                break
+            chunks.append(chunk)
+    finally:
+        os.close(fd)
+    return b"".join(chunks)
+
+
+def _reject_duplicate_config_keys(pairs: list) -> dict:
+    obj: dict = {}
+    for key, value in pairs:
+        if key in obj:
+            raise ValueError(f"duplicate key {key!r}")
+        obj[key] = value
+    return obj
+
+
+def load_config_object(path: Path) -> dict:
+    """Public STRICT config parse for fail-closed callers (e.g. the delegation
+    budget gate): raises ValueError instead of degrading, because a config
+    file is a control input — the lenient loader's last-wins duplicate keys
+    or replacement-decoded UTF-8 could silently flip an enforcement flag.
+
+    Strictness: bytes must decode as strict UTF-8; JSON must have no
+    duplicate keys and no nonstandard NaN/Infinity constants; YAML mappings
+    must have no duplicate keys (and a YAML config without an importable
+    yaml module is an error, not "no config"); the top level must be a
+    mapping."""
+    raw = _read_regular_file_bytes(path)
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError as e:
+        raise ValueError(f"config is not valid UTF-8: {e}") from e
+
+    if path.suffix.lower() in (".yaml", ".yml"):
+        try:
+            import yaml  # type: ignore
+        except Exception as e:
+            raise ValueError(
+                "YAML config present but the yaml module is unavailable — cannot validate"
+            ) from e
+
+        class _StrictLoader(yaml.SafeLoader):
+            pass
+
+        def _construct_no_dupes(loader: Any, node: Any) -> dict:
+            mapping: dict = {}
+            for key_node, value_node in node.value:
+                key = loader.construct_object(key_node, deep=True)
+                if key in mapping:
+                    raise ValueError(f"duplicate key {key!r} in YAML mapping")
+                mapping[key] = loader.construct_object(value_node, deep=True)
+            return mapping
+
+        _StrictLoader.add_constructor(
+            yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _construct_no_dupes
+        )
+        try:
+            data = yaml.load(text, Loader=_StrictLoader)  # noqa: S506 (SafeLoader subclass)
+        except ValueError:
+            raise
+        except Exception as e:
+            raise ValueError(f"config is not parseable YAML: {e}") from e
+    else:
+        def _reject_constant(token: str) -> Any:
+            raise ValueError(f"nonstandard JSON constant {token!r} in config")
+
+        try:
+            data = json.loads(
+                text,
+                object_pairs_hook=_reject_duplicate_config_keys,
+                parse_constant=_reject_constant,
+            )
+        except ValueError:
+            raise
+
+    if not isinstance(data, dict):
+        raise ValueError(f"config top level must be a mapping (got {type(data).__name__})")
+    return data
+
+
 def find_config_path(seed_path: Path) -> Path | None:
     """
     Search order:
     1) RESEARCH_TEAM_CONFIG env var (absolute or relative to cwd)
     2) notebook dir and parents up to project root (or filesystem root)
     """
-    env = os.environ.get("RESEARCH_TEAM_CONFIG", "").strip()
-    if env:
-        p = Path(env)
-        if not p.is_absolute():
-            p = Path.cwd() / p
-        return p if p.is_file() else None
-
-    base = seed_path.parent if seed_path.is_file() else seed_path
-    root = _find_project_root(base)
-    cur = base.resolve()
-    while True:
-        for name in _CONFIG_FILENAMES:
-            cand = cur / name
-            if cand.is_file():
-                return cand
-        if cur == root or cur.parent == cur:
-            break
-        cur = cur.parent
+    for candidate in config_candidate_paths(seed_path):
+        if candidate.is_file():
+            return candidate
     return None
 
 
@@ -443,7 +584,16 @@ def load_team_config(seed_path: Path) -> TeamConfig:
     raw: dict | None = None
     if path is not None:
         raw = _load_config_file(path)
+    return build_team_config(path, raw)
 
+
+def build_team_config(path: Path | None, raw: dict | None) -> TeamConfig:
+    """Assemble a TeamConfig from an already-loaded raw config object.
+
+    Public so fail-closed callers that strict-parse the config themselves
+    (load_config_object) can build the merged config from that single
+    snapshot instead of re-reading the file — a second, lenient read would
+    reopen a swap-between-reads hole on a control input."""
     mode = "theory_numerics"
     if isinstance(raw, dict):
         mode = str(raw.get("mode", mode)).strip() or mode
