@@ -330,7 +330,7 @@ export function executeNodeRewriteProvenance(options: {
         'delta_claim_missing',
         campaignId,
         nodeId,
-        'the current idea card carries no reserved novelty-delta claim and the append-only ledger contains no valid node.revise_card event that withdrew it; refusing to treat an unrecorded deletion as reviewed withdrawal',
+        'the current idea card carries no reserved novelty-delta claim and the append-only ledger contains no valid node.revise_card event that withdrew it; refusing to treat an unrecorded deletion as reviewed withdrawal — manual repair is required because node.revise_card cannot recreate the reserved prefix',
         { recorded_withdrawal: false, reserved_claim_count: 0 },
       );
     }

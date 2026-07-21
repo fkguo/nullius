@@ -1188,7 +1188,7 @@ describe('node.import_generated', () => {
       expect(inputs.provenance_rewrites).toHaveLength(1);
     });
 
-    it('refuses import recovery after an unrecorded closest-prior trace edit', () => {
+    it('refuses import recovery when a fabricated rewrite chain has no idempotency witness', () => {
       const service = freshService();
       const campaignId = initCampaign(service);
       const pack = validPack(campaignId);
@@ -1197,6 +1197,14 @@ describe('node.import_generated', () => {
       const nodes = service.node.store.loadNodes<Record<string, unknown>>(campaignId);
       const inputs = (nodes[nodeId]!.operator_trace as Record<string, unknown>).inputs as Record<string, unknown>;
       (inputs.novelty_delta as Record<string, unknown>).closest_prior = URI_B;
+      inputs.provenance_rewrites = [{
+        field: 'novelty_delta.closest_prior',
+        previous_value: URI_A,
+        new_value: URI_B,
+        reason: 'fabricated history without a corresponding engine operation',
+        rewritten_at: '2026-07-06T01:00:00Z',
+        idempotency_key: 'fabricated-rewrite',
+      }];
       service.node.store.saveNodes(campaignId, nodes);
       reopenPrepared(service, campaignId, 'import-key-1');
 
