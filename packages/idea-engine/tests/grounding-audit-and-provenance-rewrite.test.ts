@@ -899,6 +899,68 @@ describe('node.rewrite_provenance', () => {
     expect(JSON.stringify(loadNode(service, campaignId, generatedId))).toBe(before);
   });
 
+  it('maps unreadable withdrawal-ledger bytes to the card-revision recovery conflict contract', () => {
+    const service = freshService();
+    const campaignId = initCampaign(service);
+    const [seedNodeId] = allNodeIds(service, campaignId);
+    const generatedId = importGeneratedNode(service, campaignId, seedNodeId!);
+    const beforeRevision = loadNode(service, campaignId, generatedId);
+    const card = structuredClone(beforeRevision.idea_card) as Record<string, unknown>;
+    card.claims = (card.claims as Array<Record<string, unknown>>).filter(
+      claim => !String(claim.claim_text).startsWith('Novelty delta vs closest prior ('),
+    );
+    service.handle('node.revise_card', {
+      campaign_id: campaignId,
+      expected_revision: beforeRevision.revision,
+      idempotency_key: 'withdraw-before-torn-ledger',
+      node_id: generatedId,
+      reason: 'reviewed evidence withdraws the generated novelty hypothesis',
+      replacement_idea_card: card,
+    });
+    const logPath = service.read.store.nodesLogPath(campaignId);
+    writeFileSync(logPath, `${readFileSync(logPath, 'utf8')}{"torn":`, 'utf8');
+
+    const error = expectRpcError(
+      () => rewriteProvenance(service, campaignId, generatedId, 'rw-torn-withdrawal-ledger', URI_A),
+      -32603,
+      'idea_card_revision_recovery_conflict',
+    );
+    expect((error.data.details as Record<string, unknown>).corruption_kind).toBe('torn_final');
+  });
+
+  it('validates all relevant card-revision events before accepting a recorded withdrawal', () => {
+    const service = freshService();
+    const campaignId = initCampaign(service);
+    const [seedNodeId] = allNodeIds(service, campaignId);
+    const generatedId = importGeneratedNode(service, campaignId, seedNodeId!);
+    const beforeRevision = loadNode(service, campaignId, generatedId);
+    const card = structuredClone(beforeRevision.idea_card) as Record<string, unknown>;
+    card.claims = (card.claims as Array<Record<string, unknown>>).filter(
+      claim => !String(claim.claim_text).startsWith('Novelty delta vs closest prior ('),
+    );
+    service.handle('node.revise_card', {
+      campaign_id: campaignId,
+      expected_revision: beforeRevision.revision,
+      idempotency_key: 'withdraw-before-malformed-event',
+      node_id: generatedId,
+      reason: 'reviewed evidence withdraws the generated novelty hypothesis',
+      replacement_idea_card: card,
+    });
+    const current = loadNode(service, campaignId, generatedId);
+    service.read.store.appendNodeLogEntry(campaignId, {
+      mutation: 'revise_card',
+      node_id: generatedId,
+      revision: current.revision,
+    });
+
+    const error = expectRpcError(
+      () => rewriteProvenance(service, campaignId, generatedId, 'rw-malformed-withdrawal-event', URI_A),
+      -32603,
+      'idea_card_revision_recovery_conflict',
+    );
+    expect((error.data.details as Record<string, unknown>).entry_index).toBeTypeOf('number');
+  });
+
   it('preserves a falsification while synchronizing its retained closest-prior identity', () => {
     const service = freshService();
     const campaignId = initCampaign(service);
