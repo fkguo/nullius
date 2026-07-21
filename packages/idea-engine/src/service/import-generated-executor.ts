@@ -7,7 +7,7 @@ import { budgetSnapshot } from './budget-snapshot.js';
 import { RpcError } from './errors.js';
 import { recordOrReplay, responseIdempotency, storeIdempotency } from './idempotency.js';
 import { ensureCampaignRunning, loadCampaignOrError, setCampaignRunningIfBudgetAvailable } from './campaign-state.js';
-import { NOVELTY_DELTA_CLAIM_PREFIX, nodeLifecycleState, PLACEHOLDER_EVIDENCE_URI } from './node-shared.js';
+import { NOVELTY_DELTA_CLAIM_DELIMITER, NOVELTY_DELTA_CLAIM_PREFIX, nodeLifecycleState, PLACEHOLDER_EVIDENCE_URI } from './node-shared.js';
 import { drawUniqueId } from './seed-node.js';
 import { buildGeneratedNode, type GeneratedCandidate } from './generated-node.js';
 import { IMPORT_ARTIFACT_TYPE, IMPORT_GENERATED_METHOD, refreshImportGeneratedReplay } from './import-generated-recovery.js';
@@ -305,6 +305,13 @@ function validateCandidateSemantics(options: {
     ? candidate.rationale_draft.references
     : []).filter((uri): uri is string => typeof uri === 'string');
   const closestPrior = String(candidate.novelty_delta.closest_prior ?? '');
+  if (closestPrior.includes(NOVELTY_DELTA_CLAIM_DELIMITER)) {
+    throw importValidationError(
+      'schema_invalid',
+      campaignId,
+      `${label}: novelty_delta.closest_prior contains the reserved claim delimiter ${JSON.stringify(NOVELTY_DELTA_CLAIM_DELIMITER)} and cannot be represented unambiguously in the engine-assembled novelty claim`,
+    );
+  }
   const uriShapedClosestPrior = looksLikeUri(closestPrior) ? [closestPrior] : [];
 
   const receipts = receiptUris(traceInputs);

@@ -840,7 +840,7 @@ describe('node.rewrite_provenance', () => {
     );
   });
 
-  it('rewrites immutable provenance without resurrecting a novelty claim withdrawn by node.revise_card', () => {
+  it('rewrites current provenance without resurrecting a novelty claim withdrawn by node.revise_card', () => {
     const service = freshService();
     const campaignId = initCampaign(service);
     const [seedNodeId] = allNodeIds(service, campaignId);
@@ -875,6 +875,28 @@ describe('node.rewrite_provenance', () => {
     expect(nodeRewriteHistory(after)).toHaveLength(1);
     const logEntry = lastLogEntry(service, campaignId);
     expect(logEntry.delta_claim_updated).toBe(false);
+  });
+
+  it('refuses an unrecorded deletion of the reserved claim instead of inferring reviewed withdrawal', () => {
+    const service = freshService();
+    const campaignId = initCampaign(service);
+    const [seedNodeId] = allNodeIds(service, campaignId);
+    const generatedId = importGeneratedNode(service, campaignId, seedNodeId!);
+    const nodes = service.read.store.loadNodes<Record<string, unknown>>(campaignId);
+    const card = nodes[generatedId]!.idea_card as Record<string, unknown>;
+    card.claims = (card.claims as Array<Record<string, unknown>>).filter(
+      claim => !String(claim.claim_text).startsWith('Novelty delta vs closest prior ('),
+    );
+    service.read.store.saveNodes(campaignId, nodes);
+    const before = JSON.stringify(loadNode(service, campaignId, generatedId));
+
+    const error = expectRpcError(
+      () => rewriteProvenance(service, campaignId, generatedId, 'rw-unrecorded-withdrawal', URI_A),
+      -32002,
+      'delta_claim_missing',
+    );
+    expect((error.data.details as Record<string, unknown>).recorded_withdrawal).toBe(false);
+    expect(JSON.stringify(loadNode(service, campaignId, generatedId))).toBe(before);
   });
 
   it('preserves a falsification while synchronizing its retained closest-prior identity', () => {
@@ -968,6 +990,18 @@ describe('node.rewrite_provenance', () => {
     const result = rewriteProvenance(service, campaignId, generatedId, 'rw-refkey', 'hepph001');
     expect(result.new_value).toBe('hepph001');
     expect(nodeCloseestPrior(loadNode(service, campaignId, generatedId))).toBe('hepph001');
+  });
+
+  it('rejects a closest-prior value containing the reserved claim delimiter', () => {
+    const service = freshService();
+    const campaignId = initCampaign(service);
+    const [seedNodeId] = allNodeIds(service, campaignId);
+    const generatedId = importGeneratedNode(service, campaignId, seedNodeId!);
+    expectRpcError(
+      () => rewriteProvenance(service, campaignId, generatedId, 'rw-reserved-delimiter', 'refA): ambiguous'),
+      -32002,
+      'schema_invalid',
+    );
   });
 
   it('rejects a blank or whitespace-padded new_value and a blank reason', () => {

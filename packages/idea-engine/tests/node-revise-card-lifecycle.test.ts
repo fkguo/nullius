@@ -222,22 +222,62 @@ describe('node.revise_card lifecycle and provenance', () => {
     });
 
     const afterWithdrawal = currentNode(service, campaignId, nodeId);
-    const reintroduced = replacementCard(afterWithdrawal, 'A later revision attempts to forge an engine-looking claim.');
+    const ordinaryRevision = replacementCard(afterWithdrawal, 'A later ordinary revision keeps the reviewed withdrawal in force.');
+    const ordinaryResult = service.handle('node.revise_card', {
+      ...reviseParams(campaignId, nodeId, afterWithdrawal, 'ordinary-after-withdrawal'),
+      replacement_idea_card: ordinaryRevision,
+    });
+    expect((ordinaryResult.node as Record<string, unknown>).idea_card).toEqual(ordinaryRevision);
+
+    const afterOrdinaryRevision = currentNode(service, campaignId, nodeId);
+    const reintroduced = replacementCard(afterOrdinaryRevision, 'A later revision attempts to forge an engine-looking claim.');
     (reintroduced.claims as Array<Record<string, unknown>>).push({
       claim_text: `Novelty delta vs closest prior (${prior}): manually recreated claim`,
       support_type: 'assumption',
       evidence_uris: [],
       verification_plan: 'This claim must be rejected before review.',
     });
-    const beforeRejectedWrite = JSON.stringify(afterWithdrawal);
+    const beforeRejectedWrite = JSON.stringify(afterOrdinaryRevision);
     expectRpcError(
       () => service.handle('node.revise_card', {
-        ...reviseParams(campaignId, nodeId, afterWithdrawal, 'reserved-reintroduced'),
+        ...reviseParams(campaignId, nodeId, afterOrdinaryRevision, 'reserved-reintroduced'),
         replacement_idea_card: reintroduced,
       }),
       -32002,
       'reserved_provenance_claim_changed',
     );
     expect(JSON.stringify(currentNode(service, campaignId, nodeId))).toBe(beforeRejectedWrite);
+  });
+
+  it('repairs an out-of-contract retained claim identity without changing trace provenance', () => {
+    const { service } = fresh(tempDirs, 'idea-revise-reserved-repair-');
+    const { campaignId, nodeId } = initCampaign(service);
+    const nodes = service.read.store.loadNodes<Record<string, unknown>>(campaignId);
+    const node = nodes[nodeId]!;
+    const prior = 'ref-a';
+    const card = structuredClone(node.idea_card) as Record<string, unknown>;
+    (card.claims as Array<Record<string, unknown>>).push({
+      claim_text: 'Novelty delta vs closest prior (wrong-ref): malformed retained claim',
+      support_type: 'assumption',
+      evidence_uris: [],
+      verification_plan: 'Repair the card identity before review.',
+    });
+    const trace = node.operator_trace as Record<string, unknown>;
+    (trace.inputs as Record<string, unknown>).novelty_delta = { closest_prior: prior };
+    node.idea_card = card;
+    service.read.store.saveNodes(campaignId, nodes);
+
+    const repaired = replacementCard(node, 'The retained claim identity is repaired against the unchanged trace.');
+    const repairedClaims = repaired.claims as Array<Record<string, unknown>>;
+    repairedClaims[repairedClaims.length - 1] = {
+      ...repairedClaims[repairedClaims.length - 1],
+      claim_text: `Novelty delta vs closest prior (${prior}): repaired retained claim`,
+    };
+    const result = service.handle('node.revise_card', {
+      ...reviseParams(campaignId, nodeId, node, 'reserved-identity-repair'),
+      replacement_idea_card: repaired,
+    });
+    expect((result.node as Record<string, unknown>).idea_card).toEqual(repaired);
+    expect(((result.node as Record<string, unknown>).operator_trace as Record<string, unknown>)).toEqual(trace);
   });
 });

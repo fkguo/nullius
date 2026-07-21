@@ -1,5 +1,5 @@
 import { RpcError } from './errors.js';
-import { NOVELTY_DELTA_CLAIM_PREFIX } from './node-shared.js';
+import { NOVELTY_DELTA_CLAIM_DELIMITER, NOVELTY_DELTA_CLAIM_PREFIX } from './node-shared.js';
 
 export const CARD_REVISION_LIFECYCLE_STATES = ['candidate', 'admission_review', 'admitted', 'needs_refresh'] as const;
 
@@ -91,7 +91,7 @@ export function ensureReservedProvenanceClaimCoherent(options: {
       },
     );
   }
-  const expectedPrefix = `${NOVELTY_DELTA_CLAIM_PREFIX}${closestPrior}): `;
+  const expectedPrefix = `${NOVELTY_DELTA_CLAIM_PREFIX}${closestPrior}${NOVELTY_DELTA_CLAIM_DELIMITER}`;
   const replacementExact = replacementReserved.filter((claim) => String(claim.claim_text).startsWith(expectedPrefix));
   if (replacementReserved.length === 1 && replacementExact.length === 1) return;
   throw revisionValidationError(
