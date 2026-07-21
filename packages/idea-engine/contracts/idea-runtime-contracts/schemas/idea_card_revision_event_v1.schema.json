@@ -1,0 +1,135 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "idea_card_revision_event_v1.schema.json",
+  "title": "IdeaCardRevisionEvent v1",
+  "description": "Engine-owned append-only mutation event for node.revise_card. It embeds the prior card/revision and the complete resulting node so crash recovery never has to regenerate either side.",
+  "type": "object",
+  "required": [
+    "mutation",
+    "campaign_id",
+    "node_id",
+    "idea_id",
+    "expected_revision",
+    "revision",
+    "reason",
+    "before_idea_card_hash",
+    "after_idea_card_hash",
+    "before_node",
+    "before",
+    "invalidations",
+    "occurred_at",
+    "idempotency",
+    "node"
+  ],
+  "properties": {
+    "mutation": { "const": "revise_card" },
+    "campaign_id": {
+      "type": "string",
+      "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$"
+    },
+    "node_id": {
+      "type": "string",
+      "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$"
+    },
+    "idea_id": {
+      "type": "string",
+      "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$"
+    },
+    "expected_revision": { "type": "integer", "minimum": 1 },
+    "revision": { "type": "integer", "minimum": 2 },
+    "reason": { "type": "string", "minLength": 1 },
+    "before_idea_card_hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "after_idea_card_hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "before_node": {
+      "$ref": "./idea_node_v1.schema.json",
+      "description": "Exact complete node before the revision. Recovery compares this value before completing a prepared-only operation, so it never overwrites an intervening same-revision store edit or regenerates timestamps."
+    },
+    "before": {
+      "type": "object",
+      "required": [
+        "revision",
+        "idea_card",
+        "grounding_audit",
+        "posterior",
+        "literature_coverage",
+        "reduction_report",
+        "reduction_audit",
+        "lifecycle_state",
+        "lifecycle_reason",
+        "activation_condition",
+        "updated_at"
+      ],
+      "properties": {
+        "revision": {
+          "$ref": "./idea_node_v1.schema.json#/properties/revision"
+        },
+        "idea_card": {
+          "$ref": "./idea_node_v1.schema.json#/properties/idea_card"
+        },
+        "grounding_audit": {
+          "$ref": "./idea_node_v1.schema.json#/properties/grounding_audit"
+        },
+        "posterior": {
+          "$ref": "./idea_node_v1.schema.json#/properties/posterior"
+        },
+        "literature_coverage": {
+          "$ref": "./idea_node_v1.schema.json#/properties/literature_coverage"
+        },
+        "reduction_report": {
+          "$ref": "./idea_node_v1.schema.json#/properties/reduction_report"
+        },
+        "reduction_audit": {
+          "$ref": "./idea_node_v1.schema.json#/properties/reduction_audit"
+        },
+        "lifecycle_state": {
+          "$ref": "./idea_node_v1.schema.json#/properties/lifecycle_state"
+        },
+        "lifecycle_reason": {
+          "$ref": "./idea_node_v1.schema.json#/properties/lifecycle_reason"
+        },
+        "activation_condition": {
+          "$ref": "./idea_node_v1.schema.json#/properties/activation_condition"
+        },
+        "updated_at": {
+          "oneOf": [
+            { "$ref": "./idea_node_v1.schema.json#/properties/updated_at" },
+            { "type": "null" }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "invalidations": {
+      "type": "object",
+      "required": [
+        "grounding_audit",
+        "posterior",
+        "literature_coverage",
+        "reduction_report",
+        "reduction_audit",
+        "activation_condition",
+        "allocation_eligibility"
+      ],
+      "properties": {
+        "grounding_audit": { "type": "boolean" },
+        "posterior": { "type": "boolean" },
+        "literature_coverage": { "type": "boolean" },
+        "reduction_report": { "type": "boolean" },
+        "reduction_audit": { "type": "boolean" },
+        "activation_condition": { "type": "boolean" },
+        "allocation_eligibility": { "const": true }
+      },
+      "additionalProperties": false
+    },
+    "occurred_at": { "type": "string", "format": "date-time" },
+    "idempotency": { "$ref": "./idempotency_meta_v1.schema.json" },
+    "node": { "$ref": "./idea_node_v1.schema.json" }
+  },
+  "additionalProperties": false
+}

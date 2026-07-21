@@ -1,34 +1,14 @@
 import { existsSync, mkdirSync } from 'fs';
-import { basename, dirname, isAbsolute, relative, resolve, sep } from 'path';
+import { isAbsolute, relative, resolve } from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
 import { appendJsonLine, readJsonFile, writeJsonFileAtomic } from './file-io.js';
 import { withLock } from './file-lock.js';
+import { loadNodeLogEntriesStrict, repairTornFinalNodeLogEntry } from './node-log-store.js';
+import { defaultProjectRoot, encodeProjectPath, insideOrEqual } from './store-paths.js';
+
+export { NodeLogCorruptionError, type NodeLogCorruptionKind } from './node-log-store.js';
 
 const SHA256_HASH_RE = /^sha256:[0-9a-f]{64}$/;
-
-function defaultProjectRoot(rootDir: string): string {
-  let current = rootDir;
-  while (true) {
-    if (existsSync(resolve(current, '.nullius'))) {
-      return current;
-    }
-    const parent = dirname(current);
-    if (parent === current) {
-      break;
-    }
-    current = parent;
-  }
-  return basename(rootDir) === 'idea-store' ? dirname(rootDir) : rootDir;
-}
-
-function insideOrEqual(path: string, root: string): boolean {
-  const rel = relative(root, path);
-  return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
-}
-
-function encodeProjectPath(path: string): string {
-  return path.split(sep).join('/').split('/').map(encodeURIComponent).join('/');
-}
 
 export class IdeaEngineStore {
   readonly rootDir: string;
@@ -102,13 +82,30 @@ export class IdeaEngineStore {
     mutation: string,
     extra?: Record<string, unknown>,
   ): void {
-    appendJsonLine(this.nodesLogPath(campaignId), {
+    this.appendNodeLogEntry(campaignId, {
       mutation,
       node_id: node.node_id,
       revision: node.revision,
       ...(extra ?? {}),
       node,
     });
+  }
+
+  appendNodeLogEntry(campaignId: string, entry: Record<string, unknown>): void {
+    appendJsonLine(this.nodesLogPath(campaignId), entry);
+  }
+
+  loadNodeLogEntriesStrict(campaignId: string): Array<Record<string, unknown>> {
+    return loadNodeLogEntriesStrict(this.nodesLogPath(campaignId));
+  }
+
+  /**
+   * Remove a torn final fragment only when its bytes are a strict prefix of
+   * the exact event held in the prepared idempotency record. This is the sole
+   * safe repair: unrelated or interior malformed bytes remain fail-closed.
+   */
+  repairTornFinalNodeLogEntry(campaignId: string, expectedEntry: Record<string, unknown>): boolean {
+    return repairTornFinalNodeLogEntry(this.nodesLogPath(campaignId), expectedEntry);
   }
 
   writeArtifact(

@@ -1,9 +1,11 @@
+// # CONTRACT-EXEMPT: CODE-01.1 — pre-existing cross-method replay facade; card-revision recovery is extracted, while this lane retains only the required dispatch and shared error-record persistence change.
 import { existsSync } from 'fs';
 import { payloadHash as artifactPayloadHash } from '../hash/payload-hash.js';
 import { IdeaEngineStore } from '../store/engine-store.js';
 import { budgetSnapshot } from './budget-snapshot.js';
 import { RpcError } from './errors.js';
 import { IMPORT_GENERATED_METHOD, recoverImportGenerated } from './import-generated-recovery.js';
+import { recoverIdeaCardRevision } from './node-revise-card-recovery.js';
 import { nodeLifecycleState } from './node-shared.js';
 
 interface IdempotencyResponse {
@@ -11,7 +13,7 @@ interface IdempotencyResponse {
   payload: Record<string, unknown>;
 }
 
-interface IdempotencyRecord {
+export interface IdempotencyRecord {
   created_at: string;
   payload_hash: string;
   response: IdempotencyResponse;
@@ -125,6 +127,9 @@ function preparedSideEffectsCommitted(store: IdeaEngineStore, method: string, re
     // only for the zero-effects case, and throws import_recovery_conflict on
     // a value mismatch it cannot complete.
     return recoverImportGenerated(store, record);
+  }
+  if (method === 'node.revise_card') {
+    return recoverIdeaCardRevision(store, record);
   }
   if (method === 'node.set_posterior' || method === 'node.set_lifecycle' || method === 'node.set_grounding_audit') {
     const campaignId = record.response.payload.campaign_id;
@@ -276,9 +281,6 @@ export function storeIdempotency(options: {
   state?: 'committed' | 'prepared';
   store: IdeaEngineStore;
 }): void {
-  if (options.kind === 'error') {
-    return;
-  }
   const scopedCampaignId = scopeCampaignId(options.method, options.campaignId);
   const idempotencyStore = options.store.loadIdempotency<Record<string, unknown>>(scopedCampaignId) as unknown as Record<
     string,
