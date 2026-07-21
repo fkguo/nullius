@@ -78,6 +78,7 @@ auto_qft:
   formcalc:
     enable: false
     pave_reduce: LoopTools
+    memory_limit_mb: 2048
   export:
     diagrams: true
     amplitude_md: true
@@ -86,10 +87,14 @@ auto_qft:
 ```
 
 说明：
+- 显式的 `auto_qft.enable` 与 `auto_qft.formcalc.enable` 必须是严格布尔值。YAML/JSON 数字、字符串和 null
+  会在环境检查或计算之前被拒绝；省略字段时仍采用文档规定的默认值或隐式开启规则。
 - `process.in/out` 推荐填 **ParticleName/AntiParticleName** 字符串（如 `e-`, `e+`）。  
   若解析有歧义/失败，可用 `process.in_fa/out_fa` 直接写 FeynArts 字段（如 `F[2,{1}]`, `-F[2,{1}]`）。
 - 一圈默认输出为 **未重整化** 振幅；若启用 FormCalc 进一步约化（`auto_qft.formcalc.enable: true`），通常可得到更接近“显式 UV pole（1/ε）”的形式。若未启用 FormCalc，则输出通常是原始 FeynArts 表达式，UV 发散多为隐式（未展开/未约化）。
 - `formcalc.enable: true` 时会尝试运行 FormCalc 做进一步化简/约化；若禁用（默认）则输出原始 FeynArts 振幅表达式（更稳健）。
+- 请求 FormCalc 时，完整 FeynArts 振幅会交给新的 Wolfram kernel 约化；内存上限由
+  `auto_qft.formcalc.memory_limit_mb` 指定（正整数，默认 2048）。
 - 关键产物位于：`out_dir/auto_qft/`（图：`diagrams/diagrams.pdf` + `diagrams/index.md`，振幅：`amplitude/amplitude_summed.m` + `amplitude/amplitude_summed.md`）。
 
 可直接运行的示例 job：
@@ -210,9 +215,19 @@ mathematica:
 传给 `HepCalcExportSymbolic[<|...|>]` 的关联会经 **JSON 归一化** 后写入顶层 `data` 键
 （`{schema_version, generated_at, data: <归一化后的关联>}`）。归一化（`scripts/mma/run_job.wls` 的
 `HepCalcNormalizeForJSON`）：JSON 原子值、列表、字符串键的关联会原样保留；非字符串键会被转成字符串；任何
-非 JSON 的 Wolfram 值会变成其 `InputForm` **字符串**。因此请让 `tasks`/`checks`/`notes` 的值保持 JSON 友好
-（数字、字符串、布尔、字符串键的关联、列表）。按约定 `data` 含三个可选键：
+非 JSON 的 Wolfram 值会变成其 `InputForm` **字符串**。因此请让 `assertions`/`tasks`/`checks`/`notes` 的值保持
+JSON 友好（数字、字符串、布尔、字符串键的关联、列表）。按约定 `data` 含四个可选键：
 
+- `data.assertions`（列表，可选）：fail-closed 符号断言。每项必须含非空字符串 `id` 与严格布尔值 `passed`，
+  且同一列表中的 ID 必须唯一。
+  也可同时给出 `residual` 和 `tolerance`；两者必须是有限、非负的实数，且 `passed` 必须与
+  `residual <= tolerance` 一致。任何 false 或无效断言都会使 `symbolic/status.json` 为 `FAIL`、完整 runner
+  返回非零，并使根级 overall status 为 `FAIL`。符号阶段状态、根级 summary 与人类报告都会给出断言总数、
+  pass/fail 数、无效数及失败 ID。若不含 `data.assertions`，断言数为零，旧 job 保持原有阶段语义。
+  顶层 `data` 对象本身是必需的。缺失或畸形 `data`、重复 ID、省略 `symbolic/status.json` 的提前零退出，
+  以及 export 后的入口错误，都会由 runner 外部 postcondition 检查，不能绕过断言结果。
+  外部比较会把 JSON 小数按精确十进制解析，并保留任意长度的 JSON 整数；在判断
+  `residual <= tolerance` 前不会把两边舍入为二进制浮点数。
 - `data.tasks`（list）：交给 Julia 数值阶段（`scripts/julia/eval_numeric.jl`）。每个 task 是带 `id` 和 `kind` 的关联：
   - `kind: looptools` → Julia 在 `LoopTools` 模块中按名解析 `fn` 并以 `args` 调用之。`fn` 为任意 LoopTools.jl
     函数名（`B0`、`B0i`、`C0`…）；`args` 为位置参数列表。**LoopTools/Passarino–Veltman 约定：动量不变量与质量都取

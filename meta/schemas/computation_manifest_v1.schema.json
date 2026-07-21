@@ -46,7 +46,7 @@
         "env": {
           "type": "object",
           "additionalProperties": { "type": "string" },
-          "description": "Environment variables required by the entry script."
+          "description": "Explicit runtime-specific variables accepted by the Nullius production allowlist. Nullius fixed safety variables and loader, module, project, depot, library-path, and shell-startup selectors are rejected."
         }
       },
       "additionalProperties": false,
@@ -80,6 +80,11 @@
             "type": "array",
             "items": { "type": "string" },
             "description": "Arguments passed to the script."
+          },
+          "env": {
+            "type": "object",
+            "additionalProperties": { "type": "string" },
+            "description": "Explicit runtime-specific variables accepted by the Nullius production allowlist. Host environment is never inherited; fixed safety variables and loader, module, project, depot, library-path, and shell-startup selectors are rejected."
           },
           "expected_outputs": {
             "type": "array",
@@ -156,7 +161,26 @@
         "data_files": {
           "type": "array",
           "items": { "type": "string" },
-          "description": "External data files required (relative paths or URIs)."
+          "description": "Workspace-relative data files copied into the computation workspace and included in its adjacent snapshots. Absolute paths and URIs are not accepted here; use external_dependency_refs for content-addressed external files."
+        },
+        "lock_files": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Workspace-relative lock or environment files whose content pins declared package and library dependencies."
+        },
+        "external_dependency_refs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["path", "sha256"],
+            "properties": {
+              "path": { "type": "string", "minLength": 1 },
+              "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+              "size_bytes": { "type": "integer", "minimum": 0 }
+            },
+            "additionalProperties": false
+          },
+          "description": "Explicit content-addressed local dependency files outside the computation workspace. Every path must be absolute so its meaning never depends on the caller working directory. Each file is live-rehashed before and after every step and at decisive verification."
         }
       },
       "additionalProperties": false,

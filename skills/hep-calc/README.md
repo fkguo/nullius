@@ -4,6 +4,14 @@ A general-purpose reproduction/audit runner for HEP calculations. It drives
 Mathematica (FeynCalc / FeynArts / FormCalc / LoopTools / FeynRules) and/or Julia
 (LoopTools.jl) from a single job file, and every stage writes an auditable status —
 missing tools surface as `SKIPPED`/`ERROR` with a reason rather than a silent pass.
+Declared symbolic assertions fail closed: any false or malformed assertion makes
+the symbolic stage and overall run fail, while legacy `data.checks` remain uninterpreted.
+The shell runner also validates required stage artifacts after each Wolfram process exits;
+a zero process exit without a completed status artifact is not accepted as success.
+When `--out` is reused, prior symbolic/auto_qft acceptance artifacts and root status
+surfaces are invalidated before the new job is parsed, so stale PASS files cannot satisfy
+the new run. `auto_qft.enable` and `auto_qft.formcalc.enable`, when present, must be JSON/YAML
+Booleans rather than truthy numbers or strings.
 It can reproduce a computation, audit LaTeX values against a recomputation,
 auto-generate one-loop (unrenormalized) amplitudes, and optionally scaffold a model
 from LaTeX.
@@ -32,6 +40,10 @@ directory outside this repo:
 ```bash
 bash scripts/run_hep_calc.sh --job assets/demo_job.yml --out /tmp/hep_calc_demo
 ```
+
+When `auto_qft.formcalc.enable: true`, the FeynArts producer and FormCalc reducer run in separate Wolfram kernels.
+The reducer defaults to a 2048 MB Wolfram-memory cap and publishes a reduced amplitude only after a current-run
+hash-bound handoff succeeds.
 
 Read `<out>/report/audit_report.md`; on any failure or skip, follow the per-stage
 `status.json` and `logs/*.log`. Re-export the manifest/summary for an existing run:

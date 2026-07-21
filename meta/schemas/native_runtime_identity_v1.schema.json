@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nullius.dev/schemas/native_runtime_identity_v1.schema.json",
+  "title": "NativeRuntimeIdentity V1",
+  "type": "object",
+  "required": ["requested_token", "canonical_path", "sha256", "size_bytes", "executable_format"],
+  "properties": {
+    "requested_token": { "type": "string", "pattern": "^(?:node|python|python3(?:\\.\\d+)?|bash|julia|wolframscript)$" },
+    "canonical_path": { "type": "string", "minLength": 1 },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "size_bytes": { "type": "integer", "minimum": 0 },
+    "executable_format": { "type": "string", "enum": ["elf", "mach_o", "pe"] }
+  },
+  "additionalProperties": false
+}

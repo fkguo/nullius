@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nullius.dev/schemas/step_execution_snapshot_v1.schema.json",
+  "title": "StepExecutionSnapshot V1",
+  "description": "Content-addressed provenance captured immediately before process spawn and immediately after process exit. The closure is declared and locked but is not claimed to be OS-syscall traced.",
+  "oneOf": [
+    { "$ref": "#/$defs/PreSpawnStepExecutionSnapshot" },
+    { "$ref": "#/$defs/PostExitStepExecutionSnapshot" }
+  ],
+  "$defs": {
+    "StepExecutionSnapshotBase": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "step_id",
+        "captured_at",
+        "manifest_ref",
+        "script_ref",
+        "runtime_identity",
+        "execution_environment",
+        "external_dependency_closure"
+      ],
+      "properties": {
+        "schema_version": { "type": "integer", "const": 1 },
+        "phase": { "type": "string", "enum": ["pre_spawn", "post_exit"] },
+        "step_id": { "type": "string", "minLength": 1 },
+        "captured_at": { "type": "string", "format": "date-time" },
+        "manifest_ref": { "$ref": "#/$defs/WorkspaceFileSnapshotEntry" },
+        "script_ref": { "$ref": "#/$defs/WorkspaceFileSnapshotEntry" },
+        "runtime_identity": { "$ref": "https://nullius.dev/schemas/native_runtime_identity_v1.schema.json" },
+        "execution_environment": { "$ref": "#/$defs/ProductionEnvironment" },
+        "workspace_file_refs": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/WorkspaceFileSnapshotEntry" }
+        },
+        "external_dependency_refs": {
+          "type": "array",
+          "items": { "$ref": "https://nullius.dev/schemas/external_dependency_snapshot_entry_v1.schema.json" }
+        },
+        "output_refs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/WorkspaceFileSnapshotEntry" }
+        },
+        "external_dependency_closure": {
+          "type": "string",
+          "const": "declared_and_locked_not_syscall_traced"
+        }
+      },
+      "additionalProperties": false
+    },
+    "PreSpawnStepExecutionSnapshot": {
+      "allOf": [
+        { "$ref": "#/$defs/StepExecutionSnapshotBase" },
+        {
+          "type": "object",
+          "required": ["phase", "workspace_file_refs"],
+          "properties": {
+            "phase": { "type": "string", "const": "pre_spawn" },
+            "workspace_file_refs": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "$ref": "#/$defs/WorkspaceFileSnapshotEntry" }
+            }
+          }
+        }
+      ]
+    },
+    "PostExitStepExecutionSnapshot": {
+      "allOf": [
+        { "$ref": "#/$defs/StepExecutionSnapshotBase" },
+        {
+          "type": "object",
+          "required": ["phase", "workspace_file_refs", "output_refs"],
+          "properties": {
+            "phase": { "type": "string", "const": "post_exit" },
+            "workspace_file_refs": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "$ref": "#/$defs/WorkspaceFileSnapshotEntry" }
+            },
+            "output_refs": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/WorkspaceFileSnapshotEntry" }
+            }
+          }
+        }
+      ]
+    },
+    "WorkspaceFileSnapshotEntry": {
+      "type": "object",
+      "required": ["relative_path", "sha256", "size_bytes"],
+      "properties": {
+        "relative_path": { "type": "string", "minLength": 1 },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "size_bytes": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "ProductionEnvironment": {
+      "type": "object",
+      "required": ["policy", "variables", "sha256"],
+      "properties": {
+        "policy": { "type": "string", "const": "nullius_production_allowlist_v1" },
+        "variables": { "type": "object", "additionalProperties": { "type": "string" } },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

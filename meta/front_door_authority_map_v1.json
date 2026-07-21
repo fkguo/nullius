@@ -22,7 +22,7 @@
         },
         {
           "command": "verify",
-          "usage": "nullius verify --run-id <id> --status <passed|failed|blocked> --summary \"...\" --evidence-path <path> [--evidence-path <path> ...]"
+          "usage": "nullius verify --run-id <id> --status <passed|failed|blocked> --summary \"...\" --evidence-path <path> --checker-path <path> --checker-runtime <python3|node> --quantity-id <id> --layer-id <id> --reference-provenance-json <object> --disputed-dimension <name> --required-negative-control-id <id>"
         },
         {
           "command": "final-conclusions",

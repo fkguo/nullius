@@ -5,13 +5,14 @@ import argparse
 import hashlib
 import json
 import os
+import stat
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional
 
 
-HEP_CALC_VERSION = "0.1.0"
+HEP_CALC_VERSION = "0.1.1"
 
 
 def utc_now() -> str:
@@ -47,24 +48,107 @@ def git_info(cwd: str, report_dir: Path) -> dict:
         if inside != "true":
             return {}
         head = subprocess.check_output(["git", "-C", cwd, "rev-parse", "HEAD"], text=True).strip()
-        status = subprocess.check_output(["git", "-C", cwd, "status", "--porcelain=v1"], text=True).splitlines()
+        root = Path(
+            subprocess.check_output(
+                ["git", "-C", cwd, "rev-parse", "--show-toplevel"], text=True
+            ).strip()
+        )
+        status = subprocess.check_output(
+            ["git", "-C", cwd, "status", "--porcelain=v1", "--untracked-files=all"],
+            text=True,
+        ).splitlines()
         dirty = len(status) > 0
         out = {"head": head, "dirty": dirty}
         if dirty:
+            report_dir.mkdir(parents=True, exist_ok=True)
+            diff = subprocess.run(
+                ["git", "-C", cwd, "diff", "--binary", "HEAD", "--"],
+                check=True,
+                stdout=subprocess.PIPE,
+                text=True,
+                encoding="utf-8",
+                errors="surrogateescape",
+            ).stdout
+            diff_path = report_dir / "git_diff.patch"
+            diff_path.write_text(diff, encoding="utf-8", errors="surrogateescape")
             try:
-                diff = subprocess.check_output(["git", "-C", cwd, "diff", "HEAD"], text=True)
-                report_dir.mkdir(parents=True, exist_ok=True)
-                diff_path = report_dir / "git_diff.patch"
-                diff_path.write_text(diff, encoding="utf-8")
-                try:
-                    out["diff_path"] = str(diff_path.relative_to(report_dir.parent))
-                except Exception:
-                    out["diff_path"] = str(diff_path)
-                out["diff_sha256"] = sha256(diff_path)
+                out["diff_path"] = str(diff_path.relative_to(report_dir.parent))
             except Exception:
-                pass
+                out["diff_path"] = str(diff_path)
+            out["diff_sha256"] = sha256(diff_path)
+
+            def git_paths(*git_args: str) -> set[str]:
+                raw = subprocess.check_output(["git", "-C", cwd, *git_args])
+                return {
+                    item.decode("utf-8")
+                    for item in raw.split(b"\0")
+                    if item
+                }
+
+            tracked_changed = git_paths("diff", "--name-only", "-z", "HEAD", "--")
+            untracked = git_paths("ls-files", "--others", "--exclude-standard", "-z", "--")
+            entries: list[dict[str, Any]] = []
+            for relative in sorted(tracked_changed | untracked):
+                relative_path = Path(relative)
+                if relative_path.is_absolute() or ".." in relative_path.parts:
+                    raise ValueError(f"unsafe_git_source_path:{relative}")
+                path = root / relative_path
+                state = "untracked" if relative in untracked else "tracked_changed"
+                if not os.path.lexists(path):
+                    entries.append({"path": relative, "state": "deleted", "kind": "missing"})
+                    continue
+                file_stat = path.lstat()
+                mode = stat.S_IMODE(file_stat.st_mode)
+                if stat.S_ISLNK(file_stat.st_mode):
+                    target = os.readlink(path)
+                    target_bytes = os.fsencode(target)
+                    entries.append(
+                        {
+                            "path": relative,
+                            "state": state,
+                            "kind": "symlink",
+                            "mode": f"{mode:04o}",
+                            "target": target,
+                            "bytes": len(target_bytes),
+                            "sha256": hashlib.sha256(target_bytes).hexdigest(),
+                        }
+                    )
+                    continue
+                if not stat.S_ISREG(file_stat.st_mode):
+                    raise ValueError(f"unsupported_git_source_kind:{relative}")
+                digest = sha256(path)
+                if digest is None:
+                    raise ValueError(f"unreadable_git_source:{relative}")
+                entries.append(
+                    {
+                        "path": relative,
+                        "state": state,
+                        "kind": "file",
+                        "mode": f"{mode:04o}",
+                        "bytes": file_stat.st_size,
+                        "sha256": digest,
+                    }
+                )
+            source_manifest = {
+                "schema_version": 1,
+                "kind": "git-dirty-source-byte-manifest",
+                "head": head,
+                "entries": entries,
+            }
+            source_manifest_path = report_dir / "source_tree_manifest.json"
+            dump_json(source_manifest_path, source_manifest)
+            try:
+                out["source_manifest_path"] = str(
+                    source_manifest_path.relative_to(report_dir.parent)
+                )
+            except Exception:
+                out["source_manifest_path"] = str(source_manifest_path)
+            out["source_manifest_sha256"] = sha256(source_manifest_path)
+            out["source_file_count"] = len(entries)
         return out
-    except Exception:
+    except Exception as exc:
+        if locals().get("inside") == "true":
+            raise RuntimeError("git_source_binding_failed") from exc
         return {}
 
 
@@ -194,6 +278,17 @@ def main() -> int:
     n_fail = sum(1 for r in results if r.get("status") == "FAIL")
     n_skip = sum(1 for r in results if r.get("status") == "SKIPPED")
 
+    symbolic_assertions_raw = sym_status.get("assertions") or {}
+    symbolic_assertions = {
+        "contract_valid": bool(symbolic_assertions_raw.get("contract_valid", True)),
+        "total": int(symbolic_assertions_raw.get("total") or 0),
+        "pass": int(symbolic_assertions_raw.get("pass") or 0),
+        "fail": int(symbolic_assertions_raw.get("fail") or 0),
+        "invalid": int(symbolic_assertions_raw.get("invalid") or 0),
+        "failed_ids": [str(x) for x in (symbolic_assertions_raw.get("failed_ids") or [])],
+        "contract_errors": [str(x) for x in (symbolic_assertions_raw.get("contract_errors") or [])],
+    }
+
     latex = job.get("latex") or {}
     tex_targets_requested = bool(latex.get("targets") or [])
     run_mode = "tex_audit" if tex_targets_requested else "compute_only"
@@ -211,13 +306,13 @@ def main() -> int:
     compute_statuses = [fa_fc_status.get("status"), auto_qft_status.get("status"), sym_status.get("status"), num_status.get("status")]
     compute_passed = any(s == "PASS" for s in compute_statuses)
     any_error = any(s == "ERROR" for s in stage_statuses)
-    any_fail = n_fail > 0
+    any_fail = n_fail > 0 or any(s == "FAIL" for s in stage_statuses)
     any_target = (n_pass + n_fail + n_skip) > 0
 
-    if any_error:
-        overall = "ERROR"
-    elif any_fail:
+    if any_fail:
         overall = "FAIL"
+    elif any_error:
+        overall = "ERROR"
     else:
         if tex_targets_requested:
             # TeX audit mode: targets exist, so missing values are an incomplete audit (PARTIAL).
@@ -335,6 +430,15 @@ def main() -> int:
                 f"- auto_qft_enable_mode: {meta.get('auto_qft_enable_mode','')}",
                 f"- auto_qft_enable_implicit_reason: {json.dumps(meta.get('auto_qft_enable_implicit_reason') or {}, sort_keys=True)}",
                 "",
+                "## Symbolic assertion summary",
+                "",
+                f"- assertions_total: {symbolic_assertions['total']}",
+                f"- pass: {symbolic_assertions['pass']}",
+                f"- fail: {symbolic_assertions['fail']}",
+                f"- invalid: {symbolic_assertions['invalid']}",
+                f"- failed_ids: {', '.join(symbolic_assertions['failed_ids']) if symbolic_assertions['failed_ids'] else 'None'}",
+                f"- contract_errors: {', '.join(symbolic_assertions['contract_errors']) if symbolic_assertions['contract_errors'] else 'None'}",
+                "",
                 "## Environment (snapshot)",
                 "",
                 f"- full_toolchain_ok: {env.get('ok_full_toolchain','')}",
@@ -351,7 +455,7 @@ def main() -> int:
                 f"- looptools_bin_sha256: {(tools.get('looptools_bin') or {}).get('sha256','') if isinstance(tools.get('looptools_bin'), dict) else ''}",
                 f"- tool_paths: {json.dumps({k: _redact_path(v.get('path')) for k, v in tools.items() if isinstance(v, dict) and 'path' in v}, sort_keys=True)}",
                 "",
-                "## Target summary",
+                "## TeX target summary",
                 "",
                 f"- targets_total: {n_pass + n_fail + n_skip}",
                 f"- pass: {n_pass}",
@@ -462,6 +566,13 @@ def main() -> int:
         headline.append({"id": "auto_qft.status", "value": auto_qft_status.get("status"), "definition": "Status of the auto_qft stage (diagrams + one-loop amplitude)."})
     if isinstance(sym_status, dict):
         headline.append({"id": "symbolic.status", "value": sym_status.get("status"), "definition": "Status of the Mathematica symbolic stage."})
+        headline.extend(
+            [
+                {"id": "symbolic.assertions_total", "value": symbolic_assertions["total"], "definition": "Number of declared fail-closed symbolic assertions."},
+                {"id": "symbolic.assertions_pass", "value": symbolic_assertions["pass"], "definition": "Count of passing fail-closed symbolic assertions."},
+                {"id": "symbolic.assertions_fail", "value": symbolic_assertions["fail"], "definition": "Count of failing or invalid fail-closed symbolic assertions."},
+            ]
+        )
     if isinstance(num_status, dict):
         headline.append({"id": "numeric.status", "value": num_status.get("status"), "definition": "Status of the Julia numeric stage."})
 
@@ -473,6 +584,7 @@ def main() -> int:
         "tex_compare_performed": tex_compare_performed,
         "compute_passed": compute_passed,
         "counts": {"pass": n_pass, "fail": n_fail, "skipped": n_skip, "total": n_pass + n_fail + n_skip},
+        "symbolic_assertions": symbolic_assertions,
         "headline": headline,
         "fingerprints": {"job_resolved_wo_meta_sha256": job_resolved_wo_meta_sha256},
         "out_dir": out_dir_rel,
@@ -488,6 +600,7 @@ def main() -> int:
         "tex_compare_requested": tex_targets_requested,
         "tex_compare_performed": tex_compare_performed,
         "comparison": results,
+        "symbolic_assertions": symbolic_assertions,
         "steps": steps,
         "auto_qft_summary": auto_qft_summary,
         "inputs": inputs,

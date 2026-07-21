@@ -7,6 +7,7 @@ import type {
   ComputationResultV1,
   FinalConclusionsV1,
   VerificationCoverageV1,
+  VerificationCheckRunV1,
   VerificationSubjectV1,
   VerificationSubjectVerdictV1,
 } from '@nullius/shared';
@@ -32,6 +33,12 @@ import { recordFinalConclusionsToMemoryGraph } from '../computation/memory-graph
 import { createStateManager, requireState } from './common.js';
 import { OrchRunRequestFinalConclusionsSchema } from './schemas.js';
 import type { RunState } from '../types.js';
+import {
+  assertBoundVerificationCheckRunValid,
+  assertVerificationCheckRunValid,
+  loadVerifiedRunJson,
+  validateValidationChainBinding,
+} from './validation-chain-binding.js';
 
 type GateOutcome = ReturnType<typeof evaluateVerificationKernelGateV1>;
 
@@ -97,31 +104,6 @@ function parseJsonFromBuffer<T>(bytes: Buffer, label: string): T {
   }
 }
 
-function runArtifactPathFromUri(runDir: string, uri: string): string {
-  const prefix = 'rep://runs/';
-  if (!uri.startsWith(prefix)) {
-    throw invalidParams(`final-conclusions gate only supports rep://runs artifact refs, got: ${uri}`);
-  }
-  const artifactMarker = '/artifact/';
-  const artifactIndex = uri.indexOf(artifactMarker);
-  if (artifactIndex < 0) {
-    throw invalidParams(`final-conclusions gate requires artifact refs, got: ${uri}`);
-  }
-  const relativePath = decodeURIComponent(uri.slice(artifactIndex + artifactMarker.length));
-  const filePath = path.resolve(runDir, relativePath);
-  if (filePath !== runDir && !filePath.startsWith(`${runDir}${path.sep}`)) {
-    throw invalidParams(`final-conclusions gate artifact ref escapes run dir: ${uri}`);
-  }
-  if (!fs.existsSync(filePath)) {
-    throw notFound(`final-conclusions gate artifact ref not found: ${uri}`);
-  }
-  return filePath;
-}
-
-function loadJsonArtifact<T>(runDir: string, ref: ArtifactRefV1): T {
-  return JSON.parse(fs.readFileSync(runArtifactPathFromUri(runDir, ref.uri), 'utf-8')) as T;
-}
-
 function assertFinalConclusionsValid(raw: unknown): FinalConclusionsV1 {
   if (!finalConclusionsValidator(raw)) {
     throw invalidParams('final_conclusions_v1 validation failed', {
@@ -158,7 +140,7 @@ function evaluateFinalConclusionsGate(projectRoot: string, runId: string): {
 } {
   const { computationResult, computationResultPath, runDir } = loadComputationResult(projectRoot, runId);
   const refs = computationResult.verification_refs;
-  if (!refs?.subject_refs?.length || !refs.subject_verdict_refs?.length || !refs.coverage_refs?.length) {
+  if (!refs?.subject_refs?.length || !refs.check_run_refs?.length || !refs.subject_verdict_refs?.length || !refs.coverage_refs?.length) {
     return {
       gate: {
         decision: 'unavailable',
@@ -169,20 +151,132 @@ function evaluateFinalConclusionsGate(projectRoot: string, runId: string): {
       runDir,
     };
   }
-  const subject = loadJsonArtifact<VerificationSubjectV1>(runDir, refs.subject_refs[0]!);
-  const verdict = loadJsonArtifact<VerificationSubjectVerdictV1>(runDir, refs.subject_verdict_refs[0]!);
-  const coverage = loadJsonArtifact<VerificationCoverageV1>(runDir, refs.coverage_refs[0]!);
-  return {
-    gate: evaluateVerificationKernelGateV1({
+  try {
+    const refKey = (ref: ArtifactRefV1) => `${ref.uri}\n${ref.sha256}`;
+    const sameRefSet = (left: ArtifactRefV1[], right: ArtifactRefV1[]) => {
+      const leftKeys = left.map(refKey).sort();
+      const rightKeys = right.map(refKey).sort();
+      return leftKeys.length === rightKeys.length
+        && leftKeys.every((value, index) => value === rightKeys[index]);
+    };
+    const subjects = refs.subject_refs.map((ref, index) => ({
+      ref,
+      value: loadVerifiedRunJson<VerificationSubjectV1>(runDir, runId, ref, `verification subject ${index}`),
+    }));
+    const checkRuns = refs.check_run_refs.map((ref, index) => ({
+      ref,
+      value: assertVerificationCheckRunValid(
+        loadVerifiedRunJson<unknown>(runDir, runId, ref, `verification check run ${index}`),
+      ),
+    }));
+    const verdicts = refs.subject_verdict_refs.map((ref, index) => ({
+      ref,
+      value: loadVerifiedRunJson<VerificationSubjectVerdictV1>(runDir, runId, ref, `verification verdict ${index}`),
+    }));
+    const coverages = refs.coverage_refs.map((ref, index) => ({
+      ref,
+      value: loadVerifiedRunJson<VerificationCoverageV1>(runDir, runId, ref, `verification coverage ${index}`),
+    }));
+    if (subjects.length !== 1 || verdicts.length !== 1 || coverages.length !== 1) {
+      throw invalidParams('A5 currently requires exactly one canonical subject, verdict, and run-level coverage artifact; ambiguous extra refs are rejected rather than ignored.', {
+        subject_refs: subjects.length,
+        subject_verdict_refs: verdicts.length,
+        coverage_refs: coverages.length,
+      });
+    }
+    const { ref: subjectRef, value: subject } = subjects[0]!;
+    const { value: verdict } = verdicts[0]!;
+    const { value: coverage } = coverages[0]!;
+    if (subject.run_id !== runId || verdict.run_id !== runId || verdict.subject_id !== subject.subject_id) {
+      throw invalidParams('verification subject and verdict do not match the current run and subject.', {});
+    }
+    if (!sameRefSet(coverage.subject_refs, refs.subject_refs)
+      || !sameRefSet(coverage.subject_verdict_refs, refs.subject_verdict_refs)) {
+      throw invalidParams('verification coverage does not bind every canonical subject and verdict ref.', {});
+    }
+    if (!sameRefSet(verdict.check_run_refs, refs.check_run_refs)) {
+      throw invalidParams('verification verdict does not bind every canonical check-run ref.', {});
+    }
+    const decisiveRuns: VerificationCheckRunV1[] = [];
+    let dependencyClosureIncomplete = false;
+    for (const { ref: checkRunRef, value: checkRun } of checkRuns) {
+      if (
+        checkRun.run_id !== runId
+        || checkRun.subject_id !== subject.subject_id
+        || refKey(checkRun.subject_ref) !== refKey(subjectRef)
+      ) {
+        throw invalidParams('canonical verification check run is not bound to the current subject.', {
+          check_run_ref: checkRunRef.uri,
+        });
+      }
+      if (checkRun.check_role !== 'decisive') continue;
+      const boundCheckRun = assertBoundVerificationCheckRunValid(checkRun);
+      const binding = validateValidationChainBinding({
+        bindingRef: boundCheckRun.validation_chain_binding_ref,
+        checkRun: boundCheckRun,
+        computationResult,
+        expectedSubjectId: subject.subject_id,
+        projectRoot,
+        runDir,
+        runId,
+      });
+      dependencyClosureIncomplete ||= binding.dependency_closure_status === 'incomplete_declared_and_locked_not_syscall_traced';
+      decisiveRuns.push(boundCheckRun);
+    }
+    if (decisiveRuns.length === 0) {
+      throw invalidParams('A5 requires at least one canonical decisive check run.', {});
+    }
+    if (decisiveRuns.some(checkRun => checkRun.status === 'failed' || checkRun.status === 'blocked')) {
+      return {
+        gate: {
+          decision: 'block',
+          summary: 'At least one content-bound decisive check run failed or was blocked.',
+        },
+        computationResult,
+        computationResultPath,
+        runDir,
+      };
+    }
+    if (dependencyClosureIncomplete) {
+      return {
+        gate: {
+          decision: 'unavailable',
+          summary: 'Decisive output observations passed, but the effective dependency/import closure is explicitly incomplete and not syscall traced.',
+        },
+        computationResult,
+        computationResultPath,
+        runDir,
+      };
+    }
+    if (decisiveRuns.some(checkRun => checkRun.status !== 'passed')) {
+      return {
+        gate: {
+          decision: 'unavailable',
+          summary: 'At least one decisive check run is inconclusive.',
+        },
+        computationResult,
+        computationResultPath,
+        runDir,
+      };
+    }
+    const gate = evaluateVerificationKernelGateV1({
       expected_run_id: runId,
       subject,
       verdict,
       coverage,
-    }),
-    computationResult,
-    computationResultPath,
-    runDir,
-  };
+    });
+    return { gate, computationResult, computationResultPath, runDir };
+  } catch (error) {
+    return {
+      gate: {
+        decision: 'unavailable',
+        summary: `Validation-chain receipt is unavailable or invalid: ${error instanceof Error ? error.message : String(error)}`,
+      },
+      computationResult,
+      computationResultPath,
+      runDir,
+    };
+  }
 }
 
 function pendingPacketJsonPath(projectRoot: string, packetPathRel: string): string {
@@ -237,6 +331,7 @@ function formatOutputs(computationResult: ComputationResultV1): string[] {
   return [
     'artifacts/computation_result_v1.json',
     ...(computationResult.verification_refs?.subject_refs ?? []).map(ref => artifactRelativePathFromUri(ref.uri) ?? ''),
+    ...(computationResult.verification_refs?.check_run_refs ?? []).map(ref => artifactRelativePathFromUri(ref.uri) ?? ''),
     ...(computationResult.verification_refs?.subject_verdict_refs ?? []).map(ref => artifactRelativePathFromUri(ref.uri) ?? ''),
     ...(computationResult.verification_refs?.coverage_refs ?? []).map(ref => artifactRelativePathFromUri(ref.uri) ?? ''),
   ].filter((value, index, array) => value.length > 0 && array.indexOf(value) === index);
@@ -253,6 +348,7 @@ function buildApprovalPacket(params: {
   const verificationRefs = params.computationResult.verification_refs;
   const verificationRefLines = [
     ...(verificationRefs?.subject_refs ?? []).map(ref => `- subject: ${ref.uri}`),
+    ...(verificationRefs?.check_run_refs ?? []).map(ref => `- check run: ${ref.uri}`),
     ...(verificationRefs?.subject_verdict_refs ?? []).map(ref => `- verdict: ${ref.uri}`),
     ...(verificationRefs?.coverage_refs ?? []).map(ref => `- coverage: ${ref.uri}`),
   ];
@@ -337,7 +433,7 @@ function writeApprovalPacketArtifacts(params: {
   };
 }
 
-function existingPendingA5(projectRoot: string, state: RunState, runId: string) {
+function existingPendingA5(projectRoot: string, state: RunState, runId: string, gate: GateOutcome) {
   const pending = state.pending_approval;
   if (!pending || pending.category !== 'A5') {
     return null;
@@ -350,12 +446,28 @@ function existingPendingA5(projectRoot: string, state: RunState, runId: string) 
   if (!fs.existsSync(packetJsonPath)) {
     throw notFound(`approval_packet_v1.json not found at ${packetJsonPath}`);
   }
+  if (gate.decision !== 'pass') {
+    return {
+      status: gate.decision === 'block' ? 'blocked' as const : 'unavailable' as const,
+      requires_approval: false,
+      ready_for_final_conclusions: false,
+      gate_id: 'A5' as const,
+      gate_decision: gate.decision,
+      gate_summary: gate.summary,
+      run_id: runId,
+      approval_id: pending.approval_id,
+      packet_path: packetPathRel,
+      packet_json_path: path.relative(projectRoot, packetJsonPath).split(path.sep).join('/'),
+      uri: `orch://runs/${runId}`,
+      message: 'The pending A5 request is stale because decisive verification no longer passes.',
+    };
+  }
   return {
     status: 'requires_approval' as const,
     requires_approval: true,
     gate_id: 'A5' as const,
     gate_decision: 'pass' as const,
-    gate_summary: 'A5 approval request already exists for this run.',
+    gate_summary: gate.summary,
     run_id: runId,
     approval_id: pending.approval_id,
     approval_packet_sha256: createHash('sha256').update(fs.readFileSync(packetJsonPath)).digest('hex'),
@@ -687,15 +799,17 @@ export async function handleOrchRunRequestFinalConclusions(
     });
   }
 
-  const pendingA5 = existingPendingA5(projectRoot, state, params.run_id);
+  const evaluated = evaluateFinalConclusionsGate(projectRoot, params.run_id);
+  const pendingA5 = existingPendingA5(projectRoot, state, params.run_id, evaluated.gate);
   if (pendingA5) {
     return pendingA5;
   }
 
-  const { gate, computationResult } = evaluateFinalConclusionsGate(projectRoot, params.run_id);
+  const { gate, computationResult } = evaluated;
   if (gate.decision !== 'pass') {
     return {
       status: gate.decision === 'block' ? 'blocked' : gate.decision === 'hold' ? 'not_ready' : 'unavailable',
+      requires_approval: false,
       ready_for_final_conclusions: false,
       gate_id: 'A5',
       gate_decision: gate.decision,

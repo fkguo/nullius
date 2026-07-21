@@ -44,6 +44,7 @@ fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SKILL_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+POSTCONDITION_VALIDATOR="${SCRIPT_DIR}/validate_stage_postconditions.py"
 REPO_ROOT="$(git -C "${SKILL_DIR}" rev-parse --show-toplevel 2>/dev/null || true)"
 if [[ -z "${REPO_ROOT}" ]]; then
   REPO_ROOT="$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "${SKILL_DIR}/../..")"
@@ -54,6 +55,10 @@ ALLOW_REPO_LOCAL_OUT="${HEP_CALC_ALLOW_REPO_LOCAL_OUT:-0}"
 
 job_abs="$(python3 -c 'import os,sys; print(os.path.abspath(sys.argv[1]))' "${JOB_PATH}")"
 job_ext="${job_abs##*.}"
+case "${job_ext}" in
+  json|yml|yaml) ;;
+  *) job_ext="input" ;;
+esac
 
 timestamp="$(python3 - <<'PY'
 from datetime import datetime, timezone
@@ -86,42 +91,44 @@ if [[ "${out_inside_repo}" == "1" && "${ALLOW_REPO_LOCAL_OUT}" != "1" ]]; then
   exit 2
 fi
 
-mkdir -p "${out_abs}"/{logs,inputs,meta,symbolic,numeric,tex,report,feynarts_formcalc,auto_qft}
+if ! invalidated_count="$(python3 "${POSTCONDITION_VALIDATOR}" --stage prepare_out_dir --out "${out_abs}")"; then
+  echo "ERROR: unsafe --out path; refusing all runner writes and cleanup: ${out_abs}" >&2
+  exit 2
+fi
+if [[ ! "${invalidated_count}" =~ ^[0-9]+$ ]]; then
+  echo "ERROR: malformed secure out-dir preparation result" >&2
+  exit 2
+fi
 
 main_log="${out_abs}/logs/run_hep_calc.log"
 env_log="${out_abs}/logs/env_check.log"
 fa_fc_log="${out_abs}/logs/fa_fc.log"
 auto_qft_log="${out_abs}/logs/auto_qft.log"
+formcalc_reducer_log="${out_abs}/logs/formcalc_reducer.log"
 tex_model_log="${out_abs}/logs/tex_model_preprocess.log"
 mma_log="${out_abs}/logs/mma.log"
 julia_log="${out_abs}/logs/julia.log"
 tex_log="${out_abs}/logs/compare_tex.log"
 report_log="${out_abs}/logs/generate_report.log"
 
-: > "${env_log}"
-: > "${fa_fc_log}"
-: > "${auto_qft_log}"
-: > "${tex_model_log}"
-: > "${mma_log}"
-: > "${julia_log}"
-: > "${tex_log}"
-: > "${report_log}"
-
 {
   echo "[hep-calc] start_utc=${timestamp}"
   echo "[hep-calc] out_dir=${out_abs}"
   echo "[hep-calc] job=${job_abs}"
   echo "[hep-calc] argv=$(printf '%q ' "${orig_argv[@]}")"
+  echo "[hep-calc] invalidated_prior_acceptance_artifacts=${invalidated_count}"
 } | tee -a "${main_log}" >/dev/null
 
-printf '%q ' "$0" "${orig_argv[@]}" > "${out_abs}/meta/command_line.txt"
-printf '\n' >> "${out_abs}/meta/command_line.txt"
+{
+  printf '%q ' "$0" "${orig_argv[@]}"
+  printf '\n'
+} | python3 "${POSTCONDITION_VALIDATOR}" --stage secure_write --destination "${out_abs}/meta/command_line.txt" >/dev/null
 
 job_copy="${out_abs}/inputs/job.original.${job_ext}"
-cp -f "${job_abs}" "${job_copy}"
+python3 "${POSTCONDITION_VALIDATOR}" --stage secure_copy --source "${job_abs}" --destination "${job_copy}" >/dev/null
 
 resolved_job="${out_abs}/job.resolved.json"
-python3 - "${job_abs}" "${out_abs}" > "${resolved_job}" <<'PY'
+python3 - "${job_abs}" "${out_abs}" <<'PY' | python3 "${POSTCONDITION_VALIDATOR}" --stage secure_write --destination "${resolved_job}" >/dev/null
 import json
 import os
 import sys
@@ -212,6 +219,34 @@ def _resolve_paths_in_job(job, job_dir):
     return job
 
 
+def _require_optional_boolean(mapping, key, path):
+    if key in mapping and type(mapping[key]) is not bool:
+        raise SystemExit(f"{path} must be a Boolean, got {type(mapping[key]).__name__}")
+
+
+def _validate_raw_enable_fields(raw):
+    auto = raw.get("auto_qft")
+    if auto is None or not isinstance(auto, dict):
+        return
+    _require_optional_boolean(auto, "enable", "auto_qft.enable")
+
+    if "formcalc" not in auto:
+        return
+    formcalc = auto.get("formcalc")
+    if formcalc is None or not isinstance(formcalc, dict):
+        raise SystemExit(
+            f"auto_qft.formcalc must be a mapping/object, got {type(formcalc).__name__}"
+        )
+    _require_optional_boolean(formcalc, "enable", "auto_qft.formcalc.enable")
+    if "memory_limit_mb" in formcalc:
+        value = formcalc["memory_limit_mb"]
+        if type(value) is not int or value <= 0:
+            raise SystemExit(
+                "auto_qft.formcalc.memory_limit_mb must be a positive integer, "
+                f"got {value!r}"
+            )
+
+
 def _defaults():
     return {
         "schema_version": 1,
@@ -226,7 +261,7 @@ def _defaults():
             "lagrangian_symbol": "LSM",
             "process": {"in": [], "out": [], "in_fa": [], "out_fa": []},
             "feynarts": {"loop_order": 1, "insertion_level": "Particles", "exclude_topologies": ["Tadpoles"], "counterterms": False},
-            "formcalc": {"enable": False, "pave_reduce": "LoopTools"},
+            "formcalc": {"enable": False, "pave_reduce": "LoopTools", "memory_limit_mb": 2048},
             "export": {"diagrams": True, "amplitude_md": True, "amplitude_tex": False, "per_diagram": False},
             "model_build": {
                 "enable": False,
@@ -268,6 +303,8 @@ def main():
 
     if not isinstance(raw, dict):
         raise SystemExit("job must be a mapping/object at top-level")
+
+    _validate_raw_enable_fields(raw)
 
     merged = _deep_update(_defaults(), raw)
     merged = _resolve_paths_in_job(merged, job_dir)
@@ -563,31 +600,16 @@ else
 fi
 
 auto_qft_rc=0
-auto_qft_enabled="$(python3 - "${resolved_job}" <<'PY'
-import json, sys
-job=json.load(open(sys.argv[1], 'r', encoding='utf-8'))
-auto=job.get('auto_qft') or {}
-print('1' if auto.get('enable', False) else '0')
-PY
-)"
-
-auto_qft_formcalc_enable="$(python3 - "${resolved_job}" <<'PY'
-import json, sys
-job=json.load(open(sys.argv[1], 'r', encoding='utf-8'))
-auto=job.get('auto_qft') or {}
-fc=auto.get('formcalc') or {}
-print('1' if isinstance(fc, dict) and fc.get('enable', False) else '0')
-PY
-)"
-
-auto_qft_feynarts_only="$(python3 - "${resolved_job}" <<'PY'
-import json, sys
-job=json.load(open(sys.argv[1], 'r', encoding='utf-8'))
-auto=job.get('auto_qft') or {}
-v=(auto.get('feynarts_model') or '')
-print('1' if isinstance(v, str) and v.strip() else '0')
-PY
-)"
+if ! auto_qft_binding_record="$(python3 "${POSTCONDITION_VALIDATOR}" --stage bind_auto_qft_job --job "${resolved_job}" --out "${out_abs}")"; then
+  echo "[hep-calc] ERROR: failed to bind exact resolved job for auto_qft" | tee -a "${main_log}" >&2
+  exit 2
+fi
+IFS=$'\t' read -r auto_qft_enabled auto_qft_formcalc_enable auto_qft_feynarts_only auto_qft_job_bytes auto_qft_job_sha256 <<< "${auto_qft_binding_record}"
+if [[ ! "${auto_qft_enabled}" =~ ^[01]$ || ! "${auto_qft_formcalc_enable}" =~ ^[01]$ || ! "${auto_qft_feynarts_only}" =~ ^[01]$ || ! "${auto_qft_job_bytes}" =~ ^[1-9][0-9]*$ || ! "${auto_qft_job_sha256}" =~ ^[0-9a-f]{64}$ ]]; then
+  echo "[hep-calc] ERROR: malformed auto_qft job binding" | tee -a "${main_log}" >&2
+  exit 2
+fi
+auto_qft_job_path="${out_abs}/auto_qft/formcalc/job_snapshot.json"
 
 if [[ "${auto_qft_enabled}" != "1" ]]; then
   python3 - "${out_abs}" <<'PY'
@@ -726,11 +748,37 @@ PY
   echo "[hep-calc] auto_qft stage ERROR (missing formcalc)" | tee -a "${main_log}" >/dev/null
   echo "[hep-calc] ERROR: missing_formcalc" >> "${auto_qft_log}"
 else
-  if wolframscript -noprompt -file "${SCRIPT_DIR}/mma/run_auto_qft.wls" -- "${resolved_job}" "${out_abs}" >"${auto_qft_log}" 2>&1; then
-    echo "[hep-calc] auto_qft stage OK; log=${auto_qft_log}" | tee -a "${main_log}" >/dev/null
+  if HEP_CALC_POSTCONDITION_VALIDATOR="${POSTCONDITION_VALIDATOR}" wolframscript -noprompt -file "${SCRIPT_DIR}/mma/run_auto_qft.wls" -- "${auto_qft_job_path}" "${out_abs}" "${auto_qft_job_bytes}" "${auto_qft_job_sha256}" >"${auto_qft_log}" 2>&1; then
+    echo "[hep-calc] auto_qft producer exited zero" | tee -a "${main_log}" >/dev/null
   else
     auto_qft_rc=$?
     echo "[hep-calc] auto_qft stage ERROR (rc=${auto_qft_rc}); see ${auto_qft_log}" | tee -a "${main_log}" >/dev/null
+  fi
+fi
+
+if [[ "${auto_qft_enabled}" == "1" && "${auto_qft_formcalc_enable}" == "1" && "${auto_qft_rc}" -eq 0 ]]; then
+  if HEP_CALC_POSTCONDITION_VALIDATOR="${POSTCONDITION_VALIDATOR}" wolframscript -noprompt -file "${SCRIPT_DIR}/mma/run_formcalc_reducer.wls" -- "${auto_qft_job_path}" "${out_abs}" "${auto_qft_job_bytes}" "${auto_qft_job_sha256}" >"${formcalc_reducer_log}" 2>&1; then
+    echo "[hep-calc] fresh-kernel FormCalc reducer exited zero; validating stage postconditions" | tee -a "${main_log}" >/dev/null
+  else
+    auto_qft_rc=$?
+    echo "[hep-calc] fresh-kernel FormCalc reducer ERROR (rc=${auto_qft_rc}); see ${formcalc_reducer_log}" | tee -a "${main_log}" >/dev/null
+  fi
+elif [[ "${auto_qft_enabled}" == "1" && "${auto_qft_formcalc_enable}" != "1" && "${auto_qft_rc}" -eq 0 ]]; then
+  echo "[hep-calc] auto_qft producer exited zero; validating stage postconditions" | tee -a "${main_log}" >/dev/null
+fi
+
+if [[ "${auto_qft_enabled}" == "1" ]]; then
+  auto_qft_post_rc=0
+  if python3 "${POSTCONDITION_VALIDATOR}" --stage auto_qft --job "${auto_qft_job_path}" --out "${out_abs}" --expected-job-bytes "${auto_qft_job_bytes}" --expected-job-sha256 "${auto_qft_job_sha256}" --observed-process-rc "${auto_qft_rc}" >>"${auto_qft_log}" 2>&1; then
+    if [[ "${auto_qft_rc}" -eq 0 ]]; then
+      echo "[hep-calc] auto_qft stage PASS; postconditions satisfied" | tee -a "${main_log}" >/dev/null
+    fi
+  else
+    auto_qft_post_rc=$?
+    if [[ "${auto_qft_rc}" -eq 0 ]]; then
+      auto_qft_rc=${auto_qft_post_rc}
+    fi
+    echo "[hep-calc] auto_qft postcondition FAIL (rc=${auto_qft_post_rc}); see ${auto_qft_log}" | tee -a "${main_log}" >/dev/null
   fi
 fi
 
@@ -820,10 +868,25 @@ PY
   echo "[hep-calc] mathematica stage ERROR (missing Mathematica packages)" | tee -a "${main_log}" >/dev/null
 else
   if wolframscript -noprompt -file "${SCRIPT_DIR}/mma/run_job.wls" -- "${resolved_job}" "${out_abs}" >"${mma_log}" 2>&1; then
-    echo "[hep-calc] mathematica stage OK; log=${mma_log}" | tee -a "${main_log}" >/dev/null
+    echo "[hep-calc] mathematica process exited zero; validating stage postconditions" | tee -a "${main_log}" >/dev/null
   else
     mma_rc=$?
     echo "[hep-calc] mathematica stage ERROR (rc=${mma_rc}); see ${mma_log}" | tee -a "${main_log}" >/dev/null
+  fi
+fi
+
+if [[ -n "${mma_entry}" ]]; then
+  mma_post_rc=0
+  if python3 "${POSTCONDITION_VALIDATOR}" --stage symbolic --out "${out_abs}" --observed-process-rc "${mma_rc}" >>"${mma_log}" 2>&1; then
+    if [[ "${mma_rc}" -eq 0 ]]; then
+      echo "[hep-calc] mathematica stage PASS; postconditions satisfied" | tee -a "${main_log}" >/dev/null
+    fi
+  else
+    mma_post_rc=$?
+    if [[ "${mma_rc}" -eq 0 ]]; then
+      mma_rc=${mma_post_rc}
+    fi
+    echo "[hep-calc] mathematica postcondition FAIL (rc=${mma_post_rc}); see ${mma_log}" | tee -a "${main_log}" >/dev/null
   fi
 fi
 

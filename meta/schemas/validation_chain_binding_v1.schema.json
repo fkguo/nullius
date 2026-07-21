@@ -1,0 +1,196 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nullius.dev/schemas/validation_chain_binding_v1.schema.json",
+  "title": "ValidationChainBinding V1",
+  "description": "Domain-neutral receipt created after Nullius executes one checker. It records content-bound declared adjacent production snapshots, checker/runtime identity, process logs, and checker self-reported matching observations. It does not prove actual output reads, negative-control execution, semantic independence, or complete dependency/import closure; dependency_closure_status is currently literal incomplete.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "run_id",
+    "subject_id",
+    "production_entry_ref",
+    "production_config_ref",
+    "production_execution_status_ref",
+    "production_steps",
+    "input_refs",
+    "quantity_id",
+    "layer_id",
+    "reference_provenance",
+    "disputed_dimensions",
+    "required_negative_control_ids",
+    "checker_ref",
+    "checker_helper_refs",
+    "checker_runtime",
+    "checker_environment",
+    "checker_request_ref",
+    "structured_verdict_ref",
+    "dependency_closure_status",
+    "execution"
+  ],
+  "properties": {
+    "schema_version": { "type": "integer", "const": 1 },
+    "run_id": { "type": "string", "minLength": 1 },
+    "subject_id": { "type": "string", "minLength": 1 },
+    "production_entry_ref": { "$ref": "https://nullius.dev/schemas/artifact_ref_v1.schema.json" },
+    "production_config_ref": { "$ref": "https://nullius.dev/schemas/artifact_ref_v1.schema.json" },
+    "production_execution_status_ref": { "$ref": "https://nullius.dev/schemas/artifact_ref_v1.schema.json" },
+    "production_steps": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/ProductionStepBinding" }
+    },
+    "input_refs": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "https://nullius.dev/schemas/artifact_ref_v1.schema.json" }
+    },
+    "quantity_id": { "type": "string", "minLength": 1 },
+    "layer_id": { "type": "string", "minLength": 1 },
+    "reference_provenance": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["reference_id", "uri", "sha256"],
+        "properties": {
+          "reference_id": { "type": "string", "minLength": 1 },
+          "uri": { "type": "string", "minLength": 1 },
+          "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "disputed_dimensions": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+    "required_negative_control_ids": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+    "checker_ref": { "$ref": "https://nullius.dev/schemas/artifact_ref_v1.schema.json" },
+    "checker_helper_refs": { "type": "array", "items": { "$ref": "https://nullius.dev/schemas/artifact_ref_v1.schema.json" } },
+    "checker_runtime": { "$ref": "#/$defs/NativeRuntimeIdentity" },
+    "checker_environment": { "$ref": "#/$defs/SanitizedCheckerEnvironment" },
+    "checker_request_ref": { "$ref": "https://nullius.dev/schemas/artifact_ref_v1.schema.json" },
+    "structured_verdict_ref": { "$ref": "https://nullius.dev/schemas/artifact_ref_v1.schema.json" },
+    "dependency_closure_status": { "type": "string", "const": "incomplete_declared_and_locked_not_syscall_traced" },
+    "execution": { "$ref": "#/$defs/ValidationExecution" }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "ProductionStepBinding": {
+      "type": "object",
+      "required": [
+        "id",
+        "command",
+        "runtime_identity",
+        "execution_environment",
+        "script_ref",
+        "pre_snapshot_ref",
+        "post_snapshot_ref",
+        "implementation_input_refs",
+        "external_dependency_refs",
+        "output_refs",
+        "exit_status",
+        "stdout_ref",
+        "stderr_ref",
+        "meta_ref"
+      ],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "command": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "runtime_identity": { "$ref": "#/$defs/NativeRuntimeIdentity" },
+        "execution_environment": { "$ref": "#/$defs/ProductionEnvironment" },
+        "script_ref": { "$ref": "https://nullius.dev/schemas/artifact_ref_v1.schema.json" },
+        "pre_snapshot_ref": { "$ref": "https://nullius.dev/schemas/artifact_ref_v1.schema.json" },
+        "post_snapshot_ref": { "$ref": "https://nullius.dev/schemas/artifact_ref_v1.schema.json" },
+        "implementation_input_refs": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "https://nullius.dev/schemas/artifact_ref_v1.schema.json" }
+        },
+        "external_dependency_refs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ExternalDependencySnapshotEntry" }
+        },
+        "output_refs": {
+          "type": "array",
+          "items": { "$ref": "https://nullius.dev/schemas/artifact_ref_v1.schema.json" }
+        },
+        "exit_status": { "type": "integer" },
+        "stdout_ref": { "$ref": "https://nullius.dev/schemas/artifact_ref_v1.schema.json" },
+        "stderr_ref": { "$ref": "https://nullius.dev/schemas/artifact_ref_v1.schema.json" },
+        "meta_ref": { "$ref": "https://nullius.dev/schemas/artifact_ref_v1.schema.json" }
+      },
+      "additionalProperties": false
+    },
+    "NativeRuntimeIdentity": {
+      "type": "object",
+      "required": ["requested_token", "canonical_path", "sha256", "size_bytes", "executable_format"],
+      "properties": {
+        "requested_token": { "type": "string", "pattern": "^(?:node|python|python3(?:\\.\\d+)?|bash|julia|wolframscript)$" },
+        "canonical_path": { "type": "string", "minLength": 1 },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "size_bytes": { "type": "integer", "minimum": 0 },
+        "executable_format": { "type": "string", "enum": ["elf", "mach_o", "pe"] }
+      },
+      "additionalProperties": false
+    },
+    "SanitizedCheckerEnvironment": {
+      "type": "object",
+      "required": ["policy", "variables", "sha256"],
+      "properties": {
+        "policy": { "type": "string", "const": "nullius_checker_sanitized_v1" },
+        "variables": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": { "type": "string" }
+        },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      },
+      "additionalProperties": false
+    },
+    "ProductionEnvironment": {
+      "type": "object",
+      "required": ["policy", "variables", "sha256"],
+      "properties": {
+        "policy": { "type": "string", "const": "nullius_production_allowlist_v1" },
+        "variables": { "type": "object", "additionalProperties": { "type": "string" } },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      },
+      "additionalProperties": false
+    },
+    "ExternalDependencySnapshotEntry": {
+      "type": "object",
+      "required": ["canonical_path", "sha256", "size_bytes"],
+      "properties": {
+        "canonical_path": { "type": "string", "minLength": 1 },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "size_bytes": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "ValidationExecution": {
+      "type": "object",
+      "required": [
+        "command",
+        "exit_status",
+        "stdout_ref",
+        "stderr_ref",
+        "started_at",
+        "finished_at"
+      ],
+      "properties": {
+        "command": {
+          "type": "array",
+          "minItems": 4,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "exit_status": { "type": "integer" },
+        "stdout_ref": { "$ref": "https://nullius.dev/schemas/artifact_ref_v1.schema.json" },
+        "stderr_ref": { "$ref": "https://nullius.dev/schemas/artifact_ref_v1.schema.json" },
+        "started_at": { "type": "string", "format": "date-time" },
+        "finished_at": { "type": "string", "format": "date-time" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

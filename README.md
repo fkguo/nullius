@@ -230,10 +230,14 @@ If you want the generic lifecycle/control-plane smoke path first:
 
 1. `nullius init --project-root /absolute/path/to/external-project`
 1. `nullius status --project-root /absolute/path/to/external-project`
-1. After a completed run has evidence, `nullius verify --project-root /absolute/path/to/external-project --run-id <run_id> --status passed --summary "..." --evidence-path <path>`
-1. Then `nullius final-conclusions --project-root /absolute/path/to/external-project --run-id <run_id>`
-1. Record the M1–M7 integrity receipt the approval gate requires: `nullius integrity-record --approval-id <approval_id> --modes M1,M2,M3,M4,M5,M6,M7 --notes "..."` (the `approve` gate fail-closes with `INTEGRITY_RECEIPT_REQUIRED` otherwise)
-1. Resolve the pending A5 with `nullius approve <approval_id>` to write `artifacts/runs/<run_id>/final_conclusions_v1.json`
+1. After a completed run has declared evidence and a decisive checker, run the complete verification command (repeat the evidence/reference/dimension/control flags when needed):
+
+   ```bash
+   nullius verify --project-root /absolute/path/to/external-project --run-id <run_id> --status passed --summary "operator expectation note" --evidence-path computation/outputs/result.json --checker-path verification/decisive_checker.py --checker-runtime python3 --quantity-id quantity:declared-result --layer-id layer:production-output --reference-provenance-json '{"reference_id":"reference:oracle-v1","uri":"rep://runs/<run_id>/artifact/references%2Foracle.json","sha256":"0000000000000000000000000000000000000000000000000000000000000000"}' --disputed-dimension normalization --required-negative-control-id negative-control:zero-input
+   ```
+
+   Replace the 64-zero example with the actual lowercase SHA-256 of the declared reference; run `nullius verify --help` for the complete flag contract. The CLI status is an expectation that must match the checker verdict; the CLI summary is a non-authoritative note; the matching checker-emitted status, summary, and check kind are recorded. Nullius stores adjacent production snapshots and checks that the checker self-reports observations matching internally held output hashes. A recorded pass does not prove that the checker actually read an output or executed a named negative control. The dependency/import closure is literally incomplete (not syscall traced and not installed-byte or isolated-image bound).
+1. Run `nullius final-conclusions --project-root /absolute/path/to/external-project --run-id <run_id>` to inspect the fail-closed boundary. It currently supports exactly one canonical subject and returns `unavailable` because every current validation binding declares incomplete dependency closure. No A5 approval is created or unlockable on this path.
 
 If you want the current strongest domain-pack smoke path next, connect your MCP client to `packages/hep-mcp/dist/index.js` and run:
 

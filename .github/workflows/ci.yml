@@ -127,8 +127,11 @@ jobs:
 
       - name: Python tests (project contracts)
         run: |
-          python -m pip install pytest pyyaml
+          python -m pip install pytest pyyaml pydantic
           python -m pytest packages/project-contracts/tests -q
+
+      - name: Python tests (generated verification bindings)
+        run: python -m pytest meta/tests/test_generated_verification_bindings.py -q
 
       - name: Python tests (independent-reproduction gate behavior)
         run: python -m pytest skills/research-team/tests/test_independent_reproduction_gate.py -q

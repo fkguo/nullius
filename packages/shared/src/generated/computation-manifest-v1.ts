@@ -32,7 +32,7 @@ export interface ComputationManifestV1 {
      */
     args?: string[];
     /**
-     * Environment variables required by the entry script.
+     * Explicit runtime-specific variables accepted by the Nullius production allowlist. Nullius fixed safety variables and loader, module, project, depot, library-path, and shell-startup selectors are rejected.
      */
     env?: {
       [k: string]: string;
@@ -65,6 +65,12 @@ export interface ComputationManifestV1 {
        * Arguments passed to the script.
        */
       args?: string[];
+      /**
+       * Explicit runtime-specific variables accepted by the Nullius production allowlist. Host environment is never inherited; fixed safety variables and loader, module, project, depot, library-path, and shell-startup selectors are rejected.
+       */
+      env?: {
+        [k: string]: string;
+      };
       /**
        * Relative paths to files this step is expected to produce.
        */
@@ -99,6 +105,12 @@ export interface ComputationManifestV1 {
        * Arguments passed to the script.
        */
       args?: string[];
+      /**
+       * Explicit runtime-specific variables accepted by the Nullius production allowlist. Host environment is never inherited; fixed safety variables and loader, module, project, depot, library-path, and shell-startup selectors are rejected.
+       */
+      env?: {
+        [k: string]: string;
+      };
       /**
        * Relative paths to files this step is expected to produce.
        */
@@ -159,9 +171,21 @@ export interface ComputationManifestV1 {
      */
     external_libraries?: string[];
     /**
-     * External data files required (relative paths or URIs).
+     * Workspace-relative data files copied into the computation workspace and included in its adjacent snapshots. Absolute paths and URIs are not accepted here; use external_dependency_refs for content-addressed external files.
      */
     data_files?: string[];
+    /**
+     * Workspace-relative lock or environment files whose content pins declared package and library dependencies.
+     */
+    lock_files?: string[];
+    /**
+     * Explicit content-addressed local dependency files outside the computation workspace. Every path must be absolute so its meaning never depends on the caller working directory. Each file is live-rehashed before and after every step and at decisive verification.
+     */
+    external_dependency_refs?: {
+      path: string;
+      sha256: string;
+      size_bytes?: number;
+    }[];
   };
   /**
    * Resource budget for this computation.

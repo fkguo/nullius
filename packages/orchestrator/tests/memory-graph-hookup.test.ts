@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { createMemoryGraph } from '@nullius/shared';
+import { createHash } from 'node:crypto';
+import { createMemoryGraph, type ArtifactRefV1 } from '@nullius/shared';
 import { runCli } from '../src/cli.js';
 import { executeComputationManifest } from '../src/computation/index.js';
-import { handleOrchRunApprove } from '../src/orch-tools/approval.js';
 import { handleOrchRunExport } from '../src/orch-tools/control.js';
 import { handleOrchRunRequestFinalConclusions } from '../src/orch-tools/final-conclusions.js';
 import { handleOrchRunRecordProposalDecision } from '../src/orch-tools/proposal-decision.js';
@@ -48,6 +48,60 @@ function writeJson(filePath: string, payload: unknown): void {
   fs.writeFileSync(filePath, JSON.stringify(payload, null, 2) + '\n', 'utf-8');
 }
 
+function fixtureArtifactRef(runId: string, runDir: string, filePath: string, kind: string): ArtifactRefV1 {
+  const relativePath = path.relative(runDir, filePath).split(path.sep).join('/');
+  return {
+    uri: `rep://runs/${encodeURIComponent(runId)}/artifact/${encodeURIComponent(relativePath)}`,
+    sha256: createHash('sha256').update(fs.readFileSync(filePath)).digest('hex'),
+    kind,
+    size_bytes: fs.statSync(filePath).size,
+    produced_by: 'test-fixture',
+  };
+}
+
+async function recordValidationPass(projectRoot: string, runId: string): Promise<Record<string, unknown>> {
+  const runDir = path.join(projectRoot, runId);
+  const checkerPath = path.join(runDir, 'verification', 'decisive_checker.py');
+  fs.mkdirSync(path.dirname(checkerPath), { recursive: true });
+  fs.writeFileSync(checkerPath, [
+    'import argparse, hashlib, json',
+    'from pathlib import Path',
+    'p = argparse.ArgumentParser()',
+    "p.add_argument('--nullius-request', required=True)",
+    "p.add_argument('--nullius-verdict', required=True)",
+    'a = p.parse_args()',
+    'request_bytes = Path(a.nullius_request).read_bytes()',
+    'request = json.loads(request_bytes)',
+    "observations = [{'uri': target['uri'], 'path': target['path'], 'sha256': hashlib.sha256(Path(target['path']).read_bytes()).hexdigest()} for target in request['output_targets']]",
+    "verdict = {'schema_version': 1, 'request_sha256': hashlib.sha256(request_bytes).hexdigest(), 'check_kind': request['check_kind'], 'status': 'pass', 'summary': 'Decisive verification completed successfully.', 'quantity_id': request['quantity_id'], 'layer_id': request['layer_id'], 'disputed_dimensions': request['disputed_dimensions'], 'consumed_output_observations': observations, 'negative_control_results': [{'control_id': control_id, 'status': 'pass'} for control_id in request['required_negative_control_ids']]}",
+    "Path(a.nullius_verdict).write_text(json.dumps(verdict, indent=2) + '\\n', encoding='utf-8')",
+    'raise SystemExit(0)',
+    '',
+  ].join('\n'), 'utf-8');
+  const manifestRef = fixtureArtifactRef(
+    runId,
+    runDir,
+    path.join(runDir, 'computation', 'manifest.json'),
+    'reference',
+  );
+  return handleOrchRunRecordVerification({
+    project_root: projectRoot,
+    run_id: runId,
+    status: 'passed',
+    summary: 'Decisive verification completed successfully.',
+    evidence_paths: ['computation/outputs/ok.txt'],
+    checker_path: checkerPath,
+    checker_runtime: 'python3',
+    checker_helper_paths: [],
+    quantity_id: 'quantity:fixture-output',
+    layer_id: 'layer:production-output',
+    reference_provenance: [{ reference_id: 'reference:fixture-manifest', uri: manifestRef.uri, sha256: manifestRef.sha256 }],
+    disputed_dimensions: ['normalization', 'component-composition'],
+    required_negative_control_ids: ['negative-control:zero-input'],
+    confidence_level: 'high',
+  }) as Promise<Record<string, unknown>>;
+}
+
 function createCompletedFixture(projectRoot: string, runId: string): { runDir: string; manifestPath: string } {
   const runDir = path.join(projectRoot, runId);
   const scriptPath = path.join(runDir, 'computation', 'scripts', 'write_ok.py');
@@ -58,6 +112,7 @@ function createCompletedFixture(projectRoot: string, runId: string): { runDir: s
     "from pathlib import Path\nPath('outputs').mkdir(parents=True, exist_ok=True)\nPath('outputs/ok.txt').write_text('ok\\n', encoding='utf-8')\n",
     'utf-8',
   );
+  fs.writeFileSync(path.join(runDir, 'computation', 'requirements.lock'), 'sympy\nLoopTools\n', 'utf-8');
   fs.writeFileSync(
     manifestPath,
     JSON.stringify(
@@ -76,6 +131,7 @@ function createCompletedFixture(projectRoot: string, runId: string): { runDir: s
         dependencies: {
           python_packages: ['sympy'],
           julia_packages: ['LoopTools'],
+          lock_files: ['requirements.lock'],
         },
       },
       null,
@@ -92,6 +148,7 @@ function createFailedFixture(projectRoot: string, runId: string): { runDir: stri
   const manifestPath = path.join(runDir, 'computation', 'manifest.json');
   fs.mkdirSync(path.dirname(scriptPath), { recursive: true });
   fs.writeFileSync(scriptPath, "raise SystemExit(1)\n", 'utf-8');
+  fs.writeFileSync(path.join(runDir, 'computation', 'requirements.lock'), 'sympy\n', 'utf-8');
   fs.writeFileSync(
     manifestPath,
     JSON.stringify(
@@ -109,6 +166,7 @@ function createFailedFixture(projectRoot: string, runId: string): { runDir: stri
         environment: { python_version: '3.11', platform: 'any' },
         dependencies: {
           python_packages: ['sympy'],
+          lock_files: ['requirements.lock'],
         },
       },
       null,
@@ -198,19 +256,12 @@ describe('memory-graph hookup', () => {
     expect(fs.existsSync(proposalPath)).toBe(false);
   });
 
-  it('records decisive verification and final conclusions closeout into the same memory graph', async () => {
+  it('records decisive verification while incomplete dependency closure keeps final conclusions unavailable', async () => {
     const projectRoot = makeTempProjectRoot();
     const runId = 'run-memory-a5';
     const { manager } = await prepareCompletedRun(projectRoot, runId);
 
-    const verification = await handleOrchRunRecordVerification({
-      project_root: projectRoot,
-      run_id: runId,
-      status: 'passed',
-      summary: 'Decisive verification completed successfully.',
-      evidence_paths: ['artifacts/computation_result_v1.json'],
-      confidence_level: 'high',
-    }) as Record<string, unknown>;
+    const verification = await recordValidationPass(projectRoot, runId);
 
     const request = await handleOrchRunRequestFinalConclusions({
       project_root: projectRoot,
@@ -218,27 +269,23 @@ describe('memory-graph hookup', () => {
       note: 'ready for A5',
     }) as Record<string, unknown>;
 
-    const approval = await handleOrchRunApprove({
-      _confirm: true,
-      approval_id: String(request.approval_id),
-      approval_packet_sha256: String(request.approval_packet_sha256),
-      project_root: projectRoot,
-      note: 'ship final conclusions',
-    }) as Record<string, unknown>;
+    expect(request).toMatchObject({
+      status: 'unavailable',
+      requires_approval: false,
+      gate_decision: 'unavailable',
+    });
 
     expect(manager.readState().run_status).toBe('completed');
 
     const graph = createMemoryGraph({ dbPath: memoryGraphDbPath(projectRoot) });
     const recent = await graph.getRecentEvents(10);
     expect(recent.some((event) => event.event_type === 'outcome' && event.run_id === runId && (event.payload as Record<string, unknown>).gene_id === 'boundary:verification:passed')).toBe(true);
-    expect(recent.some((event) => event.event_type === 'outcome' && event.run_id === runId && (event.payload as Record<string, unknown>).gene_id === 'boundary:final_conclusions:A5')).toBe(true);
+    expect(recent.some((event) => event.event_type === 'outcome' && event.run_id === runId && (event.payload as Record<string, unknown>).gene_id === 'boundary:final_conclusions:A5')).toBe(false);
 
     const topSignals = await graph.topSignals(30, 30);
     expect(topSignals).toEqual(expect.arrayContaining([
       expect.objectContaining({ signal: 'boundary:verification' }),
       expect.objectContaining({ signal: 'verification_status:passed' }),
-      expect.objectContaining({ signal: 'boundary:final_conclusions' }),
-      expect.objectContaining({ signal: 'gate:a5' }),
       expect.objectContaining({ signal: 'package:julia:looptools' }),
     ]));
 
@@ -246,7 +293,7 @@ describe('memory-graph hookup', () => {
     expect(storedResult.verification_refs).toMatchObject({
       check_run_refs: [expect.objectContaining({ uri: verification.check_run_uri })],
     });
-    expect(approval.final_conclusions_uri).toBe('orch://runs/run-memory-a5/artifact/final_conclusions_v1.json');
+    expect(manager.readState().pending_approval).toBeNull();
   });
 
   it('emits a local repair mutation proposal after the same failed signal repeats and surfaces it via status/export', async () => {
@@ -616,26 +663,13 @@ describe('memory-graph hookup', () => {
     const projectRoot = makeTempProjectRoot();
 
     const { manager: a5Manager } = await prepareCompletedRun(projectRoot, 'run-digest-a5');
-    await handleOrchRunRecordVerification({
-      project_root: projectRoot,
-      run_id: 'run-digest-a5',
-      status: 'passed',
-      summary: 'Decisive verification completed successfully.',
-      evidence_paths: ['artifacts/computation_result_v1.json'],
-      confidence_level: 'high',
-    });
+    await recordValidationPass(projectRoot, 'run-digest-a5');
     const request = await handleOrchRunRequestFinalConclusions({
       project_root: projectRoot,
       run_id: 'run-digest-a5',
       note: 'ready for digest',
     }) as Record<string, unknown>;
-    await handleOrchRunApprove({
-      _confirm: true,
-      approval_id: String(request.approval_id),
-      approval_packet_sha256: String(request.approval_packet_sha256),
-      project_root: projectRoot,
-      note: 'approve for digest',
-    });
+    expect(request).toMatchObject({ status: 'unavailable', gate_decision: 'unavailable' });
 
     for (const runId of ['run-digest-s1', 'run-digest-s2', 'run-digest-s3', 'run-digest-s4']) {
       await prepareCompletedRun(projectRoot, runId);
@@ -687,10 +721,7 @@ describe('memory-graph hookup', () => {
 
     const statusView = await handleOrchRunStatus({ project_root: projectRoot }) as Record<string, unknown>;
     expect(statusView.project_recent_digest).toMatchObject({
-      latest_final_conclusions: expect.objectContaining({
-        run_id: 'run-digest-a5',
-        artifact_uri: 'orch://runs/run-digest-a5/artifact/final_conclusions_v1.json',
-      }),
+      latest_final_conclusions: null,
       latest_proposals: expect.objectContaining({
         repair: expect.objectContaining({
           run_id: 'run-digest-r2',
@@ -723,9 +754,7 @@ describe('memory-graph hookup', () => {
       include_artifacts: true,
     }) as Record<string, unknown>;
     expect(exportView.project_recent_digest).toMatchObject({
-      latest_final_conclusions: expect.objectContaining({
-        run_id: 'run-digest-a5',
-      }),
+      latest_final_conclusions: null,
       active_team_run: expect.objectContaining({
         run_id: activeRunId,
       }),

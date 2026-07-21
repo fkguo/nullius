@@ -111,9 +111,9 @@ model_build artifacts are under `out_dir/auto_qft/model_build/`.
 ### D) Compute-only: verify a symbolic identity + hand off numbers to LoopTools.jl
 
 For "reproduce/verify this loop function or identity" jobs (no FeynArts model built, no TeX audit): a Mathematica entry
-does the symbolic work and calls `HepCalcExportSymbolic[<|...|>]` with three optional keys — `tasks` (handed to the
-Julia numeric stage), `checks` (your PASS/FAIL booleans or anchor values), and `notes` (human-readable derivation
-strings). A `looptools` task is run by resolving its `fn` in the `LoopTools` module and calling it on `args`
+does the symbolic work and calls `HepCalcExportSymbolic[<|...|>]` with four optional keys — `assertions` (fail-closed
+Boolean gates), `tasks` (handed to the Julia numeric stage), `checks` (uninterpreted anchor values), and `notes`
+(human-readable derivation strings). A `looptools` task is run by resolving its `fn` in the `LoopTools` module and calling it on `args`
 (e.g. `B0(p^2, m1^2, m2^2)`). The entry still runs in the FeynCalc/FeynArts/FormCalc-loaded kernel — those packages
 must be installed/loadable even for a pure-symbolic identity job; only *building* a FeynArts model is unnecessary.
 
@@ -135,6 +135,9 @@ ok = PossibleZeroQ[FullSimplify[
        Integrate[1/Sqrt[m^2 + x (1-x) q^2], {x,0,1}, Assumptions -> m>0 && q>0]
        - (2/q) ArcTan[q/(2 m)]]];
 HepCalcExportSymbolic[<|
+  "assertions" -> {
+    <|"id" -> "feyn_param_eq_arctan", "passed" -> ok|>
+  },
   "checks" -> <|"feyn_param_eq_arctan" -> If[ok, 1, 0]|>,
   "tasks"  -> {(* B0(p^2, m1^2, m2^2): the momentum invariant and masses are SQUARED (LoopTools/PV convention) *)
     <|"id" -> "B0_s5", "kind" -> "looptools", "fn" -> "B0", "args" -> {5.0, 1.0, 1.0}|>},
@@ -142,10 +145,11 @@ HepCalcExportSymbolic[<|
 |>];
 ```
 
-Results: symbolic `checks`/`notes` land in `out_dir/symbolic/symbolic.json` (under `data.checks`/`data.notes`); each
-task's value lands in `out_dir/numeric/numeric.json` (`results[].value`, complex as `{re,im}`). `report/audit_report.md`
-surfaces the symbolic/numeric **stage statuses + pointers** to these files, but **not** the `data.checks`/`data.notes`
-values or the numeric `results` themselves — read the two JSON files directly (see the pitfall below, and
+Results: symbolic `assertions`/`checks`/`notes` land in `out_dir/symbolic/symbolic.json`; each task's value lands in
+`out_dir/numeric/numeric.json` (`results[].value`, complex as `{re,im}`). A false or invalid `data.assertions` entry
+makes the symbolic stage `FAIL`, makes the runner return nonzero, and is reflected in the overall status. The report
+shows assertion counts and failed IDs, but does not show `data.checks` values or numeric results — read the JSON files
+directly for those values (see the pitfall below, and
 `references/job_schema.md` → "symbolic.json contract" / `references/output_contract.md` → "Compute content contract").
 
 ## Compatibility & common pitfalls (agent-facing)
@@ -157,20 +161,34 @@ values or the numeric `results` themselves — read the two JSON files directly 
 - `enable_fa_fc: true` + `auto_qft.enable: true`: OK (both run; FA/FC stage is separate from auto_qft).
 - FeynArts-only mode uses `process.in_fa/out_fa` (explicit FeynArts field syntax). When using FeynArts-only, do not set `process.in/out`—they are ignored.
 - Missing dependencies are never silent: if `auto_qft` or `model_build` cannot run (e.g., missing `wolframscript`, FeynRules, or FeynArts), the stage writes `status.json` with `ERROR` + a `hint` describing what to install/fix.
+- A zero `wolframscript` exit is not sufficient for success. The shell runner validates symbolic and enabled-auto_qft
+  postconditions after the process exits, so an entry-level `Quit[0]`, top-level `$Aborted`, missing/unreadable status,
+  or missing required output makes the run nonzero.
+- Reusing `--out` cannot replay prior symbolic or auto_qft acceptance artifacts: the runner invalidates those exact
+  status/result files and the root SSOT surfaces before parsing the new job. Ancillary outputs outside these acceptance
+  surfaces may remain, so a unique out_dir is still preferred for provenance. Any pre-existing symlink anywhere below
+  the output root is rejected before the runner writes or cleans up files.
+- Explicit `auto_qft.enable` and `auto_qft.formcalc.enable` values must be strict JSON/YAML Booleans. Numbers, strings,
+  and null values are configuration errors and fail before environment checks or computation.
+- Enabled `auto_qft` requires readable `auto_qft/status.json` and `auto_qft/summary.json` with `PASS`, plus a nonempty
+  `auto_qft/amplitude/amplitude_summed.m`. If FormCalc was requested, both status surfaces must explicitly report
+  FormCalc `PASS`, `auto_qft/formcalc/status.json` must bind the current raw and reduced amplitudes by size and SHA-256,
+  and the amplitude level must be `formcalc`; a raw FeynArts fallback is not accepted as FormCalc success. Requested
+  FormCalc reduction runs in a fresh Wolfram kernel with `auto_qft.formcalc.memory_limit_mb` (default 2048).
 - No built-in timeouts. If a kernel hangs, abort the run and inspect `out_dir/logs/*.log` (consider wrapping with an external timeout tool if needed).
 - If a run is externally killed (e.g., via an OS signal or a timeout wrapper), `status.json` for the interrupted stage may be incomplete or missing; use `logs/*.log` to find the last activity.
 - For long, kill-prone runs (jobs that may be killed mid-run by contention or session limits), drive them through the `research-harness` skill's **Long-Running Compute Jobs** protocol: an append-per-unit checkpoint under a managed run dir, a self-re-arming heartbeat, and the SIGPIPE-safe `compute_job_probe.py` for liveness/livelock detection. `hep-calc` runs the kernel; surviving kills is the harness's job.
-- Prefer unique out_dir per run for auditability (reusing an out_dir overwrites artifacts/logs).
+- Prefer unique out_dir per run for auditability even though acceptance artifacts are fail-closed on reuse.
 - Numeric stage Julia environment: `scripts/julia/eval_numeric.jl` runs with `julia --startup-file=no` and **no
   `--project`**, and the runner does not clear `JULIA_PROJECT` — so Julia uses its **default active project** (the
   global env unless `JULIA_PROJECT` is set). Ensure `using LoopTools` works there (env_check verifies it); to use a
   LoopTools.jl that lives only in a project, `export JULIA_PROJECT=/path/to/project` before `run_hep_calc.sh`. Note:
   if the job has **any** numeric tasks, env-check must find both `julia` and LoopTools.jl or the whole numeric stage is
   blocked (ERROR `missing_julia`, checked first, else `missing_looptools_jl`) — even for a `julia_expr`-only job.
-- Compute-only results location: the symbolic `data.checks` / `data.notes` and the numeric task `results` are written
+- Compute-only results location: symbolic `data.assertions` / `data.checks` / `data.notes` and numeric task `results` are written
   to `out_dir/symbolic/symbolic.json` and `out_dir/numeric/numeric.json`. `report/audit_report.md` surfaces the
-  **stage statuses + file pointers** (and TeX-audit PASS/FAIL), but **not** the check values or numeric results — point
-  users/tooling at the two JSON files.
+  assertion counts, failed assertion IDs, stage statuses, and file pointers, but **not** uninterpreted check values or
+  numeric results — point users/tooling at the two JSON files.
 
 ## Prerequisites (env_check)
 
@@ -268,6 +286,7 @@ For full schema/options: see `references/job_schema.md` and `assets/job_schema.j
 
 - Summary (agent): `out_dir/summary.json`
 - Full manifest/provenance (SSOT): `out_dir/manifest.json` + `out_dir/analysis.json`
+- Dirty source-byte closure (when run from a dirty Git worktree): `out_dir/report/source_tree_manifest.json`
 - Report (human): `out_dir/report/audit_report.md`
 - Logs: `out_dir/logs/*.log`
 - auto_qft (if enabled):
