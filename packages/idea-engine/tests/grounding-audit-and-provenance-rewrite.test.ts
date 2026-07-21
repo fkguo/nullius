@@ -864,6 +864,8 @@ describe('node.rewrite_provenance', () => {
     claim.claim_text = `Novelty delta vs closest prior (${seedNodeId}): the generated hypothesis failed its declared evidence test`;
     claim.verification_status = 'falsified';
     claim.verification_notes = 'The reviewed evidence rejects the imported scientific proposition.';
+    const falsificationEvidence = 'https://example.com/falsification-evidence';
+    claim.evidence_uris = [falsificationEvidence];
     service.handle('node.revise_card', {
       campaign_id: campaignId,
       expected_revision: beforeRevision.revision,
@@ -885,7 +887,7 @@ describe('node.rewrite_provenance', () => {
     expect(updatedClaim!.claim_text).toBe(`Novelty delta vs closest prior (${URI_A}): the generated hypothesis failed its declared evidence test`);
     expect(updatedClaim!.verification_status).toBe('falsified');
     expect(updatedClaim!.verification_notes).toBe('The reviewed evidence rejects the imported scientific proposition.');
-    expect(updatedClaim!.evidence_uris).toEqual([URI_A]);
+    expect(updatedClaim!.evidence_uris).toEqual([URI_A, falsificationEvidence]);
   });
 
   it('fails closed when a retained reserved claim has a closest-prior identity inconsistent with the trace', () => {
@@ -894,7 +896,6 @@ describe('node.rewrite_provenance', () => {
     const [seedNodeId] = allNodeIds(service, campaignId);
     const generatedId = importGeneratedNode(service, campaignId, seedNodeId!);
     const nodes = service.read.store.loadNodes<Record<string, unknown>>(campaignId);
-    const card = (nodes[generatedId] as Record<string, unknown>).idea_card as Record<string, unknown>;
     const claim = deltaClaims(nodes[generatedId]!)[0]!;
     claim.claim_text = 'Novelty delta vs closest prior (different-ref): inconsistent retained claim';
     service.read.store.saveNodes(campaignId, nodes);
@@ -906,7 +907,29 @@ describe('node.rewrite_provenance', () => {
       'delta_claim_missing',
     );
     expect(JSON.stringify(loadNode(service, campaignId, generatedId))).toBe(before);
-    expect(card.claims).toBeDefined();
+    expect(deltaClaims(loadNode(service, campaignId, generatedId))[0]!.claim_text).toBe(
+      'Novelty delta vs closest prior (different-ref): inconsistent retained claim',
+    );
+  });
+
+  it('fails closed when multiple retained reserved claims make provenance synchronization ambiguous', () => {
+    const service = freshService();
+    const campaignId = initCampaign(service);
+    const [seedNodeId] = allNodeIds(service, campaignId);
+    const generatedId = importGeneratedNode(service, campaignId, seedNodeId!);
+    const nodes = service.read.store.loadNodes<Record<string, unknown>>(campaignId);
+    const claims = ((nodes[generatedId]!.idea_card as Record<string, unknown>).claims as Array<Record<string, unknown>>);
+    claims.push(structuredClone(deltaClaims(nodes[generatedId]!)[0]!));
+    service.read.store.saveNodes(campaignId, nodes);
+    const before = JSON.stringify(loadNode(service, campaignId, generatedId));
+
+    const error = expectRpcError(
+      () => rewriteProvenance(service, campaignId, generatedId, 'rw-duplicate-claims', URI_A),
+      -32002,
+      'delta_claim_missing',
+    );
+    expect((error.data.details as Record<string, unknown>).reserved_claim_count).toBe(2);
+    expect(JSON.stringify(loadNode(service, campaignId, generatedId))).toBe(before);
   });
 
   it('accepts a non-handle short-id-shaped survey ref key (no shape rejection; project-side boundary)', () => {

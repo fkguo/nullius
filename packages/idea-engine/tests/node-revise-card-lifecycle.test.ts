@@ -193,4 +193,51 @@ describe('node.revise_card lifecycle and provenance', () => {
       'reserved_provenance_claim_changed',
     );
   });
+
+  it('rejects recreation of the engine-reserved prefix after a reviewed withdrawal', () => {
+    const { service } = fresh(tempDirs, 'idea-revise-reserved-recreation-');
+    const { campaignId, nodeId } = initCampaign(service);
+    const nodes = service.read.store.loadNodes<Record<string, unknown>>(campaignId);
+    const node = nodes[nodeId]!;
+    const prior = 'ref-a';
+    const generatedCard = structuredClone(node.idea_card) as Record<string, unknown>;
+    (generatedCard.claims as Array<Record<string, unknown>>).push({
+      claim_text: `Novelty delta vs closest prior (${prior}): generated hypothesis`,
+      support_type: 'assumption',
+      evidence_uris: [],
+      verification_plan: 'Test the generated hypothesis.',
+    });
+    const trace = node.operator_trace as Record<string, unknown>;
+    (trace.inputs as Record<string, unknown>).novelty_delta = { closest_prior: prior };
+    node.idea_card = generatedCard;
+    service.read.store.saveNodes(campaignId, nodes);
+
+    const withdrawn = replacementCard(node, 'Reviewed evidence withdraws the generated hypothesis.');
+    withdrawn.claims = (withdrawn.claims as Array<Record<string, unknown>>).filter(
+      claim => !String(claim.claim_text).startsWith('Novelty delta vs closest prior ('),
+    );
+    service.handle('node.revise_card', {
+      ...reviseParams(campaignId, nodeId, node, 'reserved-withdrawn'),
+      replacement_idea_card: withdrawn,
+    });
+
+    const afterWithdrawal = currentNode(service, campaignId, nodeId);
+    const reintroduced = replacementCard(afterWithdrawal, 'A later revision attempts to forge an engine-looking claim.');
+    (reintroduced.claims as Array<Record<string, unknown>>).push({
+      claim_text: `Novelty delta vs closest prior (${prior}): manually recreated claim`,
+      support_type: 'assumption',
+      evidence_uris: [],
+      verification_plan: 'This claim must be rejected before review.',
+    });
+    const beforeRejectedWrite = JSON.stringify(afterWithdrawal);
+    expectRpcError(
+      () => service.handle('node.revise_card', {
+        ...reviseParams(campaignId, nodeId, afterWithdrawal, 'reserved-reintroduced'),
+        replacement_idea_card: reintroduced,
+      }),
+      -32002,
+      'reserved_provenance_claim_changed',
+    );
+    expect(JSON.stringify(currentNode(service, campaignId, nodeId))).toBe(beforeRejectedWrite);
+  });
 });

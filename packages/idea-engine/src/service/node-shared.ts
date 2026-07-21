@@ -14,10 +14,11 @@ export const PLACEHOLDER_EVIDENCE_URI = 'https://example.org/reference';
  * Prefix of the engine-assembled novelty-delta claim on a generated node's idea
  * card. Generation import reserves the prefix, so a candidate may not supply a
  * second engine-looking claim. A later reviewed card revision may withdraw or
- * falsify that scientific claim while the immutable novelty-delta origin stays
- * in operator_trace and revision history. If the current card retains the
- * prefix, node.rewrite_provenance uses this constant to keep its closest-prior
- * identity synchronized with the trace.
+ * falsify that scientific claim but may not recreate the reserved prefix after
+ * withdrawal. The original generation input stays pinned in the archived pack;
+ * operator_trace carries the current provenance value plus its rewrite history.
+ * If the card retains the prefix, node.rewrite_provenance uses this constant to
+ * keep its closest-prior identity synchronized with the trace.
  */
 export const NOVELTY_DELTA_CLAIM_PREFIX = 'Novelty delta vs closest prior (';
 

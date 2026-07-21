@@ -130,6 +130,7 @@ export function executeNodeReviseCard(options: {
       }
       ensureReservedProvenanceClaimCoherent({
         campaignId,
+        currentCard,
         node,
         nodeId,
         replacementCard,
