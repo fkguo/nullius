@@ -1,5 +1,6 @@
 import type { IdeaEngineContractCatalog } from '../contracts/catalog.js';
 import type { IdeaEngineStore } from '../store/engine-store.js';
+import { NodeLogCorruptionError } from '../store/node-log-store.js';
 import { budgetSnapshot } from './budget-snapshot.js';
 import { recordOrReplay, responseIdempotency, storeIdempotency } from './idempotency.js';
 import { RpcError } from './errors.js';
@@ -39,6 +40,34 @@ function reservedClaimsFromCard(card: Record<string, unknown> | null): Array<Rec
       !!claim && typeof claim.claim_text === 'string' && claim.claim_text.startsWith(NOVELTY_DELTA_CLAIM_PREFIX));
 }
 
+function withdrawalLedgerConflict(
+  campaignId: string,
+  nodeId: string,
+  message: string,
+  details: Record<string, unknown> = {},
+): RpcError {
+  return new RpcError(-32603, 'internal_error', {
+    reason: 'idea_card_revision_recovery_conflict',
+    campaign_id: campaignId,
+    node_id: nodeId,
+    details: { message, ...details },
+  });
+}
+
+function loadWithdrawalLedger(store: IdeaEngineStore, campaignId: string, nodeId: string): Array<Record<string, unknown>> {
+  try {
+    return store.loadNodeLogEntriesStrict(campaignId);
+  } catch (error) {
+    if (!(error instanceof NodeLogCorruptionError)) throw error;
+    throw withdrawalLedgerConflict(
+      campaignId,
+      nodeId,
+      'append-only node log is not fully parseable; a provenance correction cannot prove reviewed claim withdrawal against unreadable ledger bytes',
+      { corruption_kind: error.kind, line_number: error.lineNumber },
+    );
+  }
+}
+
 /** Prove that the current zero-claim state came through the sanctioned revision RPC. */
 function hasRecordedReservedClaimWithdrawal(options: {
   campaignId: string;
@@ -47,14 +76,38 @@ function hasRecordedReservedClaimWithdrawal(options: {
   entries: Array<Record<string, unknown>>;
   nodeId: string;
 }): boolean {
-  for (const [index, entry] of options.entries.entries()) {
-    if (entry.mutation !== 'revise_card' || entry.node_id !== options.nodeId) continue;
-    options.contracts.validateAgainstRef(
-      './idea_card_revision_event_v1.schema.json',
-      entry,
-      `node.rewrite_provenance/withdrawal_event/${options.nodeId}/${index}`,
-    );
-    if (Number(entry.revision) > options.currentRevision) continue;
+  const relevantEntries = options.entries
+    .map((entry, index) => ({ entry, index }))
+    .filter(({ entry }) =>
+      entry.mutation === 'revise_card'
+      && entry.node_id === options.nodeId);
+
+  for (const { entry, index } of relevantEntries) {
+    try {
+      options.contracts.validateAgainstRef(
+        './idea_card_revision_event_v1.schema.json',
+        entry,
+        `node.rewrite_provenance/withdrawal_event/${options.nodeId}/${index}`,
+      );
+    } catch (error) {
+      throw withdrawalLedgerConflict(
+        options.campaignId,
+        options.nodeId,
+        'a same-node card-revision ledger entry is not a valid idea_card_revision_event_v1; reviewed claim withdrawal cannot be established from a semantically inconsistent ledger',
+        { entry_index: index, validation_error: String((error as Error).message) },
+      );
+    }
+    if (Number(entry.revision) > options.currentRevision) {
+      throw withdrawalLedgerConflict(
+        options.campaignId,
+        options.nodeId,
+        'a same-node card-revision ledger event is ahead of the current node revision; reviewed claim withdrawal cannot be established from a ledger/latest-state conflict',
+        { current_revision: options.currentRevision, entry_index: index, event_revision: entry.revision },
+      );
+    }
+  }
+
+  for (const { entry } of relevantEntries) {
     const beforeNode = asRecord(entry.before_node);
     const afterNode = asRecord(entry.node);
     const beforeCard = asRecord(beforeNode?.idea_card);
@@ -261,7 +314,7 @@ export function executeNodeRewriteProvenance(options: {
       campaignId,
       contracts: options.contracts,
       currentRevision: Number(updatedNode.revision),
-      entries: options.store.loadNodeLogEntriesStrict(campaignId),
+      entries: loadWithdrawalLedger(options.store, campaignId, nodeId),
       nodeId,
     })) {
       throw rewriteValidationError(
