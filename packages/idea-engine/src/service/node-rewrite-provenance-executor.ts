@@ -71,7 +71,7 @@ function loadWithdrawalLedger(store: IdeaEngineStore, campaignId: string, nodeId
     throw withdrawalLedgerConflict(
       campaignId,
       nodeId,
-      'append-only node log is not fully parseable; a provenance correction cannot prove reviewed claim withdrawal against unreadable ledger bytes',
+      'append-only node log is not fully parseable; a provenance correction cannot prove ledger-recorded claim withdrawal against unreadable ledger bytes',
       { corruption_kind: error.kind, line_number: error.lineNumber },
     );
   }
@@ -103,7 +103,7 @@ function hasRecordedReservedClaimWithdrawal(options: {
       throw withdrawalLedgerConflict(
         options.campaignId,
         options.nodeId,
-        'a same-node card-revision ledger entry is not a valid idea_card_revision_event_v1; reviewed claim withdrawal cannot be established from a semantically inconsistent ledger',
+        'a same-node card-revision ledger entry is not a valid idea_card_revision_event_v1; ledger-recorded claim withdrawal cannot be established from a semantically inconsistent ledger',
         { entry_index: index, validation_error: String((error as Error).message) },
       );
     }
@@ -111,7 +111,7 @@ function hasRecordedReservedClaimWithdrawal(options: {
       throw withdrawalLedgerConflict(
         options.campaignId,
         options.nodeId,
-        'a same-node card-revision ledger event is ahead of the current node revision; reviewed claim withdrawal cannot be established from a ledger/latest-state conflict',
+        'a same-node card-revision ledger event is ahead of the current node revision; ledger-recorded claim withdrawal cannot be established from a ledger/latest-state conflict',
         { current_revision: options.currentRevision, entry_index: index, event_revision: entry.revision },
       );
     }
@@ -193,7 +193,7 @@ function traceReceiptUris(traceInputs: Record<string, unknown>): Set<string> {
  * must be a URI or survey ref_key of the closest prior work, never a
  * campaign node id. When the current idea card still carries the reserved
  * novelty-delta claim, the rewrite updates its closest-prior identity too. A
- * reviewed card revision may already have withdrawn that scientific claim; in
+ * recorded card revision may already have withdrawn that scientific claim; in
  * that case the provenance trace is corrected without reintroducing it. Every
  * correction is appended to the engine-owned
  * operator_trace.inputs.provenance_rewrites history. The archived generation
@@ -337,7 +337,7 @@ export function executeNodeRewriteProvenance(options: {
     const updatedNovelty = updatedInputs.novelty_delta as Record<string, unknown>;
     updatedNovelty.closest_prior = newValue;
 
-    // Import creates one reserved novelty-delta claim. A later reviewed
+    // Import creates one reserved novelty-delta claim. A later recorded
     // node.revise_card may remove or replace that scientific claim while the
     // generation-time record remains pinned in the archived pack. In that state
     // a provenance correction updates the current trace only and must not
@@ -373,7 +373,7 @@ export function executeNodeRewriteProvenance(options: {
         'delta_claim_missing',
         campaignId,
         nodeId,
-        'the current idea card carries no reserved novelty-delta claim and the append-only ledger contains no valid node.revise_card event that withdrew it; refusing to treat an unrecorded deletion as reviewed withdrawal. If a card revision stopped after replacing the latest node but before appending its event, retry that revision with the same idempotency key; otherwise manual repair is required because node.revise_card cannot recreate the reserved prefix',
+        'the current idea card carries no reserved novelty-delta claim and the append-only ledger contains no valid node.revise_card event that withdrew it; refusing to treat an unrecorded deletion as a ledger-recorded withdrawal. If a card revision stopped after replacing the latest node but before appending its event, retry that revision with the same idempotency key; otherwise manual repair is required because node.revise_card cannot recreate the reserved prefix',
         { recorded_withdrawal: false, reserved_claim_count: 0 },
       );
     }
@@ -404,7 +404,7 @@ export function executeNodeRewriteProvenance(options: {
     }
 
     // When the active novelty-delta claim changes, any grounding_audit covered
-    // the prior text and must be reset. If the reviewed card had already
+    // the prior text and must be reset. If the recorded card revision had already
     // withdrawn that claim, only the current provenance trace changes and the
     // card-grounding result remains about the same scientific claims.
     const groundingAuditReset = deltaClaimUpdated && updatedNode.grounding_audit != null;
