@@ -1,4 +1,7 @@
 import { NULLIUS_PUBLIC_COMMAND_INVENTORY } from './cli-command-inventory.js';
+import { FINAL_CONCLUSIONS_HELP, REPORT_VALIDATE_HELP } from './cli-conclusion-help.js';
+import { APPROVE_HELP, PAUSE_HELP, RESUME_HELP, STATUS_HELP } from './cli-lifecycle-help.js';
+import { INIT_HELP } from './cli-scaffold-help.js';
 
 const MAIN_COMMAND_USAGE = NULLIUS_PUBLIC_COMMAND_INVENTORY
   .map(entry => `  ${entry.usage}`)
@@ -26,51 +29,7 @@ Notes:
 `;
 
 const COMMAND_HELP: Record<string, string> = {
-  init: `nullius init
-
-Bootstrap a real external project root and initialize .nullius state.
-
-Behavior:
-  Always writes the project-local fallback launcher at \`.nullius/bin/nullius\`.
-  That wrapper keeps \`nullius status --json\` as the canonical recovery command even when
-  \`nullius\` is unavailable on PATH for a fresh external project.
-  --refresh re-applies the current managed scaffold doc (AGENTS.md),
-  backing up any changed file under \`.nullius/backups/<timestamp>/\` before overwriting it.
-  Refresh never writes user-owned files (research_plan.md, research_notebook.md,
-  research_contract.md, project_charter.md, project_index.md,
-  reports/main_research_report_template.md). Pair with --dry-run to preview.
-
-Existing-project main-report migration:
-  Checkpoint the project first. Refresh AGENTS.md, then render a fresh scaffold
-  in a separate temporary external root with \`nullius init --project-root <temporary-root>\`.
-  Copy only a missing reports/main_research_report_template.md from that root;
-  never overwrite an existing copy. Manually merge the temporary
-  project_index.md#Main research report section and empty registry into the
-  existing user-owned project_index.md. Refresh does not perform either step.
-  Until the registry exists and points to a populated current report,
-  \`nullius report-validate\` fails closed with invalid_registry_markers or
-  no_current_report.
-
-Pass-through options:
-  --force
-  --refresh
-  --dry-run        With --refresh: preview what would change without writing.
-  --allow-nested
-  --runtime-only
-  --checkpoint-interval-seconds <seconds>
-  --mode <engine|file>   Declare where project truth lives. engine: the nullius
-                         run/approve lifecycle drives the project. file: work is
-                         executed by hand or external runners, durable truth lives in
-                         research_plan.md / research_contract.md and dated run
-                         directories, and run_status legitimately stays idle.
-                         Works on an already-initialized root (including with
-                         --runtime-only) to declare or change the mode; recorded in
-                         .nullius/state.json and surfaced by the status receipt.
-                         Without --mode the project stays undeclared and status may
-                         hint when the evidence looks file-mode.
-
-Use --project-root <path> to target a root explicitly.
-`,
+  init: INIT_HELP,
   run: `nullius run --workflow-id <id> [options]
 
 Execute a bounded run slice through the canonical TS run front door.
@@ -129,46 +88,8 @@ Behavior:
 Output:
   JSON verification result summary is written to stdout.
 `,
-  'final-conclusions': `nullius final-conclusions --run-id <id> [options]
-
-Evaluate whether a completed run is ready for the higher-conclusion A5 boundary.
-
-Options:
-  --run-id <id>         Required run identifier whose canonical computation_result_v1 should be checked
-  --note "..."          Optional operator note recorded if an A5 approval request is created
-
-Behavior:
-  Requires an initialized external project root (\`nullius init\`).
-  Reads the canonical \`artifacts/computation_result_v1.json\` and its typed verification refs.
-  The consumer currently supports exactly one canonical subject, verdict, and coverage artifact.
-  Every current validation binding declares an incomplete dependency/import closure, so A5 currently returns \`unavailable\` and creates no approval request even when the checker self-reports pass.
-  \`hold\`, \`block\`, and \`unavailable\` fail closed and do not create pending approval state.
-  The generic A5 approval consumer remains implemented for a future complete-closure path; it is not reachable from current validation bindings.
-
-Output:
-  JSON readiness or approval-request result is written to stdout.
-`,
-  'report-validate': `nullius report-validate
-
-Validate the single promoted main research report for an external project.
-
-Behavior:
-  Reads the main-report registry in project_index.md and fails closed when no
-  current report is promoted, a checkpoint/status summary is structurally
-  incomplete, a historical report no longer matches its registered SHA-256,
-  the supersession chain or current pointer is stale, human-readable evidence
-  is replaced by machine references, authoring instructions remain in the
-  researcher-facing report, or same implementation plus same input is labeled
-  independent. Environment differences do not make that replay independent.
-  Report and registry structure counts only when it is visible Markdown;
-  fenced code and ordinary HTML comments cannot supply markers, fields,
-  validation records, current pointers, or registry rows. Required report
-  fields must occur exactly once in their authoritative section.
-  The check is structural. A pass does not establish scientific sufficiency.
-
-Output:
-  main_research_report_v1 validation JSON is written to stdout.
-`,
+  'final-conclusions': FINAL_CONCLUSIONS_HELP,
+  'report-validate': REPORT_VALIDATE_HELP,
   'proposal-decision': `nullius proposal-decision --proposal-kind <repair|skill|optimize|innovate> --proposal-id <id> --decision <accepted_for_later|dismissed|already_captured> [options]
 
 Record one local decision for the current run's current proposal.
@@ -211,51 +132,10 @@ Behavior:
   --by defaults to "user". Text beginning with a hyphen goes after the conventional
   end-of-options terminator: \`nullius decision record -- "-keep the negative branch"\`.
 `,
-  status: `nullius status
-
-Show the current lifecycle state for the nearest project root.
-
-Options:
-  --json   Emit machine-readable JSON.
-
-Behavior:
-  Includes current-run lifecycle truth plus a thin project-level recent digest for recent runs,
-  latest final conclusions, latest proposals, and the latest active team summary when readable.
-  When \`state.json#/plan\` exists but derived \`.nullius/plan.md\` is missing or stale, status rebuilds the plan view from state and reports a structured warning instead of showing an empty plan.
-  Status JSON also includes the legacy-stable \`resume_context\`, the richer \`recovery_context\`,
-  and \`current_run_workflow_outputs\` so a reconnecting agent can recover the current run,
-  reuse bounded workflow outputs, and fall back to \`.nullius/bin/nullius status --json\`
-  when the canonical \`nullius\` command is not available on PATH.
-  Status JSON also includes \`project_surface_drift\`, a diagnostic-only warning block for stale legacy scaffold surfaces or optional host-local guidance noise in the current project root.
-  Status JSON also includes \`execution_mode\` (declared via \`nullius init --mode=<engine|file>\`; null when never declared) and \`decision_ledger\`, the conversational-decision record with any still-open items.
-  When durable workflow outputs are missing for an older run, status rebuilds a best-effort legacy workflow projection from ledger/artifact conventions and reports the projection source.
-`,
-approve: `nullius approve <approval_id>
-
-Approve the pending gate for the current project root.
-
-Options:
-  --note "..."   Record a ledger note with the approval.
-
-Behavior:
-  Non-A5 approvals resume the run as before.
-  A generic A5 consumer exists for a future complete-dependency-closure path, but current validation bindings leave A5 unavailable and cannot create that pending approval.
-`,
-  pause: `nullius pause
-
-Pause the current run for the current project root.
-
-Options:
-  --note "..."   Record a ledger note with the pause.
-`,
-  resume: `nullius resume
-
-Resume the current paused run for the current project root.
-
-Options:
-  --note "..."   Record a ledger note with the resume.
-  --force        Allow resume from terminal states (idle/completed/failed).
-`,
+  status: STATUS_HELP,
+  approve: APPROVE_HELP,
+  pause: PAUSE_HELP,
+  resume: RESUME_HELP,
   export: `nullius export
 
 Bundle run artifacts into a zip archive for the current project root.

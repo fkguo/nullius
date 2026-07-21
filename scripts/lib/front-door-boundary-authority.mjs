@@ -1,3 +1,4 @@
+// # CONTRACT-EXEMPT: CODE-01.1 Existing cross-document snippet registry; this change updates only report-validation assertions, while splitting unrelated authority entries would expand this bounded anti-drift change.
 // Keep these assertions line-stable: the root checker and doc drift tests use
 // exact substring matches so front-door wording drift fails closed.
 export const FRONT_DOOR_SNIPPETS = [

@@ -1,3 +1,4 @@
+// # CONTRACT-EXEMPT: CODE-01.1 Existing canonical parser registry; this change adds only the report-validate union arm and dispatch case, while splitting unrelated command parsers would expand this bounded front-door change.
 import { isNulliusPublicCommand } from './cli-command-inventory.js';
 
 export type ParsedCliArgs =

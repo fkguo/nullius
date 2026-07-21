@@ -14,7 +14,6 @@ def _src_root() -> Path:
 
 sys.path.insert(0, str(_src_root()))
 
-from project_contracts.main_research_report import validate_main_research_report
 from project_contracts.project_scaffold import ensure_project_scaffold
 from project_contracts.project_surface import (
     SCAFFOLD_ROOT_FILES,
@@ -33,7 +32,6 @@ CANONICAL_SCAFFOLD_FILES = {
     "research_plan.md",
     "research_notebook.md",
     "research_contract.md",
-    "reports/main_research_report_template.md",
 }
 
 LANGUAGE_DISCIPLINE_SNIPPETS = (
@@ -194,7 +192,6 @@ class TestScaffoldContract(unittest.TestCase):
         self.assertIn("Backticks are only for filenames, commands, literal field or key names, and code identifiers", template)
         self.assertIn("opt-in support layers", template)
         self.assertIn("nullius init --refresh", template)
-        self.assertIn("`reports/main_research_report_template.md`", template)
         self.assertNotIn("run_team_cycle.sh", template)
         self.assertNotIn("prompts/_system_member_a.txt", template)
         self.assertNotIn("research_team_config.json", template)
@@ -532,39 +529,6 @@ class TestScaffoldContract(unittest.TestCase):
         self.assertNotIn("## Change Log", template)
         self.assertNotIn("- Current milestone:", template)
 
-    def test_main_research_report_contract_is_distinct_and_supersession_safe(self) -> None:
-        template = (scaffold_template_dir() / "main_research_report_template.md").read_text(encoding="utf-8")
-        index = (scaffold_template_dir() / "project_index.md").read_text(encoding="utf-8")
-
-        for phrase in (
-            "Research object",
-            "Representation coordinates",
-            "Primary-source and full-text coverage",
-            "Controlled approximations",
-            "Bias magnitude",
-            "Uncertainty and resolution",
-            "Strongest alternative explanation",
-            "Next falsifiable condition",
-            "Human-readable evidence chain",
-            "Machine provenance",
-        ):
-            self.assertIn(phrase, template)
-        for authoring_phrase in (
-            "Copy this template",
-            "Passing the structural validator",
-            "Add one record per validation",
-            "For a replay record",
-        ):
-            self.assertNotIn(authoring_phrase, template)
-        self.assertNotIn("word count", template.lower())
-        self.assertIn("A checkpoint/status/closeout summary", index)
-        self.assertIn("Same implementation plus same input", index)
-        self.assertIn("Run `nullius report-validate`", index)
-        self.assertIn("MAIN_RESEARCH_REPORT_REGISTRY_START", index)
-        self.assertIn("Current report ID", index)
-        self.assertIn("Superseded by", index)
-        self.assertIn("Never overwrite a registered report", index)
-
 
 MANAGED_SUPPORT_FILES = set(SCAFFOLD_SUPPORT_FILES)
 SEED_ROOT_FILES = set(SCAFFOLD_ROOT_FILES)
@@ -642,54 +606,6 @@ class TestScaffoldRefresh(unittest.TestCase):
             self.assertIn("research_notebook.md", result["missing"])
             self.assertNotIn("research_notebook.md", result["preserved"])
             self.assertFalse((root / "research_notebook.md").exists())
-
-    def test_existing_report_contract_migration_is_explicit_and_fails_closed_until_promotion(self) -> None:
-        with tempfile.TemporaryDirectory() as td:
-            base = Path(td)
-            root = base / "existing-project"
-            donor = base / "temporary-scaffold"
-            self._init(root)
-            ensure_project_scaffold(
-                repo_root=donor,
-                project_name="Temporary Scaffold",
-                project_policy="real_project",
-            )
-            legacy_index = "# project_index.md\n\n## Existing navigation\n\n- Preserve this content.\n"
-            (root / "project_index.md").write_text(legacy_index, encoding="utf-8")
-            report_template = root / "reports" / "main_research_report_template.md"
-            report_template.unlink()
-
-            refreshed = ensure_project_scaffold(repo_root=root, refresh=True, project_policy="real_project")
-
-            self.assertIn("reports/main_research_report_template.md", refreshed["missing"])
-            self.assertEqual((root / "project_index.md").read_text(encoding="utf-8"), legacy_index)
-            self.assertFalse(report_template.exists())
-            before_merge = validate_main_research_report(root)
-            self.assertIn("invalid_registry_markers", {item["code"] for item in before_merge["errors"]})
-
-            report_template.parent.mkdir(parents=True, exist_ok=True)
-            report_template.write_bytes(
-                (donor / "reports" / "main_research_report_template.md").read_bytes()
-            )
-            self.assertEqual(
-                report_template.read_bytes(),
-                (donor / "reports" / "main_research_report_template.md").read_bytes(),
-            )
-            registry = """
-## Main research report
-
-<!-- MAIN_RESEARCH_REPORT_REGISTRY_START -->
-- Current report ID: `(none yet)`
-- Current report: `(none yet)`
-
-| Report ID | Report | SHA-256 | Supersedes | Superseded by |
-|---|---|---|---|---|
-<!-- MAIN_RESEARCH_REPORT_REGISTRY_END -->
-"""
-            (root / "project_index.md").write_text(legacy_index + registry, encoding="utf-8")
-            after_merge = validate_main_research_report(root)
-
-        self.assertIn("no_current_report", {item["code"] for item in after_merge["errors"]})
 
     def test_refresh_dry_run_writes_nothing(self) -> None:
         with tempfile.TemporaryDirectory() as td:

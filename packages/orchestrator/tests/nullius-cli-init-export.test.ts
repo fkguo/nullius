@@ -16,7 +16,6 @@ const CANONICAL_SCAFFOLD_FILES = [
   'research_plan.md',
   'research_notebook.md',
   'research_contract.md',
-  'reports/main_research_report_template.md',
 ] as const;
 
 const ABSENT_DEFAULT_SURFACES = [
@@ -762,23 +761,6 @@ describe('nullius CLI init --refresh', () => {
     expect(fs.existsSync(path.join(projectRoot, '.nullius'))).toBe(false);
     expect(fs.existsSync(path.join(projectRoot, 'artifacts'))).toBe(false);
     expect(fs.existsSync(path.join(projectRoot, 'docs'))).toBe(false);
-  });
-
-  it('--refresh reports missing user-owned report migration files without creating them', async () => {
-    const parentDir = makeTempDir('nullius-cli-refresh-report-migration-');
-    const projectRoot = path.join(parentDir, 'project-root');
-    expect(await runCli([`--project-root=${projectRoot}`, 'init'], makeIo(parentDir).io)).toBe(0);
-    const templatePath = path.join(projectRoot, 'reports', 'main_research_report_template.md');
-    fs.unlinkSync(templatePath);
-
-    const { io, stdout } = makeIo(parentDir);
-    const code = await runCli([`--project-root=${projectRoot}`, 'init', '--refresh'], io);
-
-    expect(code).toBe(0);
-    expect(stdout.join('')).toContain(
-      'missing (user-owned; migrate explicitly, refresh will not create): reports/main_research_report_template.md',
-    );
-    expect(fs.existsSync(templatePath)).toBe(false);
   });
 
   it('rejects --refresh --force before writing runtime state', async () => {
