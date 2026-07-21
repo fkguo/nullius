@@ -282,11 +282,10 @@ function validateCandidateSemantics(options: {
   }
 
   // The engine appends its own novelty-delta claim (NOVELTY_DELTA_CLAIM_PREFIX)
-  // to the card at import. That prefix is reserved so a generated node carries
-  // EXACTLY one claim with it — the unambiguous identity node.rewrite_provenance
-  // uses to correct that claim later. A candidate that supplies its own claim
-  // with the same prefix would produce two matches and make the node forever
-  // un-correctable, so it is rejected here.
+  // to the card at import. The prefix is reserved so every newly imported node
+  // starts with exactly one unambiguous engine-assembled claim. A later reviewed
+  // card revision may withdraw that scientific claim, but the generator may not
+  // supply a second engine-looking claim at import.
   const candidateClaims = Array.isArray(candidate.card_fields.claims) ? candidate.card_fields.claims : [];
   for (const claim of candidateClaims) {
     if (!claim || typeof claim !== 'object' || Array.isArray(claim)) continue;
