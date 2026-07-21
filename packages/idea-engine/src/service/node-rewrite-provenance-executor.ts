@@ -211,7 +211,7 @@ export function executeNodeRewriteProvenance(options: {
         nodeId,
         reservedClaims.length > 1
           ? 'the idea card carries multiple engine-reserved novelty-delta claims — ambiguous to synchronize; revise the card to one or zero reserved claims first'
-          : 'the retained engine-reserved novelty-delta claim does not use the closest_prior identity stored in operator_trace; correct provenance before revising its scientific content',
+          : 'the retained engine-reserved novelty-delta claim does not use the closest_prior identity stored in operator_trace; withdraw or correct the claim through node.revise_card before correcting provenance',
         {
           matching_claim_count: matchingClaims.length,
           reserved_claim_count: reservedClaims.length,

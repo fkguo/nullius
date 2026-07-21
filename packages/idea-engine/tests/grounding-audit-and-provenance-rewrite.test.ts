@@ -852,6 +852,42 @@ describe('node.rewrite_provenance', () => {
     expect(logEntry.delta_claim_updated).toBe(false);
   });
 
+  it('preserves a falsification while synchronizing its retained closest-prior identity', () => {
+    const service = freshService();
+    const campaignId = initCampaign(service);
+    const [seedNodeId] = allNodeIds(service, campaignId);
+    const generatedId = importGeneratedNode(service, campaignId, seedNodeId!);
+    const beforeRevision = loadNode(service, campaignId, generatedId);
+    const card = structuredClone(beforeRevision.idea_card) as Record<string, unknown>;
+    card.thesis_statement = 'The generated novelty hypothesis failed its declared evidence test.';
+    const claim = deltaClaims({ idea_card: card })[0]!;
+    claim.claim_text = `Novelty delta vs closest prior (${seedNodeId}): the generated hypothesis failed its declared evidence test`;
+    claim.verification_status = 'falsified';
+    claim.verification_notes = 'The reviewed evidence rejects the imported scientific proposition.';
+    service.handle('node.revise_card', {
+      campaign_id: campaignId,
+      expected_revision: beforeRevision.revision,
+      idempotency_key: 'falsify-delta-claim',
+      node_id: generatedId,
+      reason: 'reviewed evidence falsifies the generated novelty hypothesis',
+      replacement_idea_card: card,
+    });
+
+    enterAdmissionReview(service, campaignId, generatedId, 'review-falsified-card');
+    setGroundingAudit(service, campaignId, generatedId, 'ground-falsified-card');
+    const result = rewriteProvenance(service, campaignId, generatedId, 'rw-falsified-claim', URI_A);
+
+    expect(result.delta_claim_updated).toBe(true);
+    expect(result.grounding_audit_reset).toBe(true);
+    const after = loadNode(service, campaignId, generatedId);
+    expect(after.grounding_audit).toBeNull();
+    const [updatedClaim] = deltaClaims(after);
+    expect(updatedClaim!.claim_text).toBe(`Novelty delta vs closest prior (${URI_A}): the generated hypothesis failed its declared evidence test`);
+    expect(updatedClaim!.verification_status).toBe('falsified');
+    expect(updatedClaim!.verification_notes).toBe('The reviewed evidence rejects the imported scientific proposition.');
+    expect(updatedClaim!.evidence_uris).toEqual([URI_A]);
+  });
+
   it('fails closed when a retained reserved claim has a closest-prior identity inconsistent with the trace', () => {
     const service = freshService();
     const campaignId = initCampaign(service);
