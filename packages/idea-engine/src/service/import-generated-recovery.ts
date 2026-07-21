@@ -122,7 +122,11 @@ function provenanceRewriteChainMatches(
   return cursor === currentValue;
 }
 
-export function immutableNodeProjection(node: Record<string, unknown>): Record<string, unknown> {
+/**
+ * Immutable projection excluding the separately verified provenance-rewrite
+ * chain. Only use after provenanceRewriteChainMatches on the same node pair.
+ */
+function immutableNodeProjectionExcludingProvenanceChain(node: Record<string, unknown>): Record<string, unknown> {
   const projection: Record<string, unknown> = {};
   for (const field of IMMUTABLE_NODE_FIELDS) {
     if (node[field] !== undefined) {
@@ -634,7 +638,7 @@ export function recoverImportGenerated(
         node_id: nodeId,
       });
     }
-    if (canonicalJson(immutableNodeProjection(comparableCurrent)) !== canonicalJson(immutableNodeProjection(expected))) {
+    if (canonicalJson(immutableNodeProjectionExcludingProvenanceChain(comparableCurrent)) !== canonicalJson(immutableNodeProjectionExcludingProvenanceChain(expected))) {
       throw recoveryConflict(campaignId, 'stored node disagrees with the archived import on immutable fields', {
         node_id: nodeId,
       });

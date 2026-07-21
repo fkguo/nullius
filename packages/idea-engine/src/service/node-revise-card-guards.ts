@@ -67,12 +67,12 @@ export function ensureReservedProvenanceClaimCoherent(options: {
       'reserved_provenance_claim_changed',
       options.campaignId,
       options.nodeId,
-      'replacement_idea_card may not introduce the engine-reserved novelty-delta claim; generated-node provenance changes belong to node.rewrite_provenance',
+      'replacement_idea_card may not carry the engine-reserved novelty-delta prefix on a node with no recorded novelty_delta.closest_prior; generated-node provenance changes belong to node.rewrite_provenance',
       { replacement_reserved_claim_count: replacementReserved.length },
     );
   }
 
-  // A reviewed scientific revision may withdraw the generated hypothesis or
+  // A scientific card revision may withdraw the generated hypothesis or
   // replace it with an ordinary claim. The generation-time record stays pinned
   // in the archived pack, while the append-only before-node event preserves the
   // prior card and trace. The reserved prefix itself may only descend from the
