@@ -225,7 +225,7 @@ function rewriteProvenance(
   });
 }
 
-function nodeCloseestPrior(node: Record<string, unknown>): unknown {
+function nodeClosestPrior(node: Record<string, unknown>): unknown {
   const trace = node.operator_trace as Record<string, unknown>;
   const inputs = trace.inputs as Record<string, unknown>;
   return (inputs.novelty_delta as Record<string, unknown>).closest_prior;
@@ -578,7 +578,7 @@ describe('node.rewrite_provenance', () => {
     // node's id as its closest prior instead of a durable reference.
     const generatedId = importGeneratedNode(service, campaignId, seedNodeId!);
     const before = loadNode(service, campaignId, generatedId);
-    expect(nodeCloseestPrior(before)).toBe(seedNodeId);
+    expect(nodeClosestPrior(before)).toBe(seedNodeId);
     expect(deltaClaims(before)[0]!.evidence_uris).toEqual([]);
     const beforeRevision = Number(before.revision);
 
@@ -590,7 +590,7 @@ describe('node.rewrite_provenance', () => {
     expect(result.revision).toBe(beforeRevision + 1);
 
     const after = loadNode(service, campaignId, generatedId);
-    expect(nodeCloseestPrior(after)).toBe(URI_A);
+    expect(nodeClosestPrior(after)).toBe(URI_A);
     const history = nodeRewriteHistory(after);
     expect(history).toHaveLength(1);
     expect(history[0]!.field).toBe('novelty_delta.closest_prior');
@@ -611,6 +611,31 @@ describe('node.rewrite_provenance', () => {
     expect(logEntry.new_value).toBe(URI_A);
   });
 
+  it('accepts a later card revision after a provenance-rewrite log entry has been appended', () => {
+    const service = freshService();
+    const campaignId = initCampaign(service);
+    const [seedNodeId] = allNodeIds(service, campaignId);
+    const generatedId = importGeneratedNode(service, campaignId, seedNodeId!);
+    rewriteProvenance(service, campaignId, generatedId, 'rw-before-card-revision', URI_A);
+
+    const beforeRevision = loadNode(service, campaignId, generatedId);
+    const replacementCard = structuredClone(beforeRevision.idea_card) as Record<string, unknown>;
+    replacementCard.thesis_statement = 'A reviewed proposition written after provenance correction.';
+    const result = service.handle('node.revise_card', {
+      campaign_id: campaignId,
+      expected_revision: beforeRevision.revision,
+      idempotency_key: 'revise-after-provenance-rewrite',
+      node_id: generatedId,
+      reason: 'new evidence changes the scientific proposition after provenance correction',
+      replacement_idea_card: replacementCard,
+    });
+
+    expect((result.node as Record<string, unknown>).lifecycle_state).toBe('candidate');
+    expect((result.node as Record<string, unknown>).idea_card).toEqual(replacementCard);
+    expect(countLogEntries(service, campaignId, generatedId, 'rewrite_provenance')).toBe(1);
+    expect(countLogEntries(service, campaignId, generatedId, 'revise_card')).toBe(1);
+  });
+
   it('accepts a non-URI survey ref key and clears the delta claim evidence URIs', () => {
     const service = freshService();
     const campaignId = initCampaign(service);
@@ -621,10 +646,41 @@ describe('node.rewrite_provenance', () => {
     expect(result.delta_claim_updated).toBe(true);
 
     const after = loadNode(service, campaignId, generatedId);
-    expect(nodeCloseestPrior(after)).toBe('refA');
+    expect(nodeClosestPrior(after)).toBe('refA');
     const claims = deltaClaims(after);
     expect(String(claims[0]!.claim_text).startsWith('Novelty delta vs closest prior (refA): ')).toBe(true);
     expect(claims[0]!.evidence_uris).toEqual([]);
+  });
+
+  it('refuses a non-URI rewrite that would invalidate an evidence-backed retained claim', () => {
+    const service = freshService();
+    const campaignId = initCampaign(service);
+    const [seedNodeId] = allNodeIds(service, campaignId);
+    const generatedId = importGeneratedNode(service, campaignId, seedNodeId!);
+    rewriteProvenance(service, campaignId, generatedId, 'rw-evidence-backed-uri', URI_A);
+
+    const beforeRevision = loadNode(service, campaignId, generatedId);
+    const card = structuredClone(beforeRevision.idea_card) as Record<string, unknown>;
+    const claim = deltaClaims({ idea_card: card })[0]!;
+    claim.support_type = 'literature';
+    claim.evidence_uris = [URI_A];
+    service.handle('node.revise_card', {
+      campaign_id: campaignId,
+      expected_revision: beforeRevision.revision,
+      idempotency_key: 'retype-delta-claim-as-literature',
+      node_id: generatedId,
+      reason: 'retrieval now supports the retained novelty claim directly',
+      replacement_idea_card: card,
+    });
+    const before = JSON.stringify(loadNode(service, campaignId, generatedId));
+
+    const error = expectRpcError(
+      () => rewriteProvenance(service, campaignId, generatedId, 'rw-evidence-backed-refkey', 'refA'),
+      -32002,
+      'delta_claim_evidence_required',
+    );
+    expect((error.data.details as Record<string, unknown>).support_type).toBe('literature');
+    expect(JSON.stringify(loadNode(service, campaignId, generatedId))).toBe(before);
   });
 
   it('supports successive corrections: the history preserves every rewrite in order', () => {
@@ -637,7 +693,7 @@ describe('node.rewrite_provenance', () => {
     rewriteProvenance(service, campaignId, generatedId, 'rw-2', URI_B, 'the first correction picked the wrong receipted source');
 
     const after = loadNode(service, campaignId, generatedId);
-    expect(nodeCloseestPrior(after)).toBe(URI_B);
+    expect(nodeClosestPrior(after)).toBe(URI_B);
     const history = nodeRewriteHistory(after);
     expect(history.map(entry => entry.new_value)).toEqual([URI_A, URI_B]);
     expect(history.map(entry => entry.previous_value)).toEqual([seedNodeId, URI_A]);
@@ -757,7 +813,7 @@ describe('node.rewrite_provenance', () => {
     const recovered = rewriteProvenance(service, campaignId, generatedId, 'rw-1', URI_A);
     expect((recovered.idempotency as Record<string, unknown>).is_replay).toBe(true);
     expect(recovered.new_value).toBe(first.new_value);
-    expect(nodeCloseestPrior(loadNode(service, campaignId, generatedId))).toBe(URI_A);
+    expect(nodeClosestPrior(loadNode(service, campaignId, generatedId))).toBe(URI_A);
     // No re-execution: the rewrite revision is unchanged (only the intervening
     // set_lifecycle advanced it), and the history was not double-appended.
     expect(Number(loadNode(service, campaignId, generatedId).revision)).toBe(revisionAfterRewrite + 1);
@@ -815,28 +871,267 @@ describe('node.rewrite_provenance', () => {
     );
   });
 
-  it('fails closed (delta_claim_missing) and changes nothing when no card claim carries the prefix', () => {
+  it('rewrites current provenance without resurrecting a novelty claim withdrawn by node.revise_card', () => {
     const service = freshService();
     const campaignId = initCampaign(service);
     const [seedNodeId] = allNodeIds(service, campaignId);
     const generatedId = importGeneratedNode(service, campaignId, seedNodeId!);
-    // Drop the engine-assembled novelty-delta claim: a malformed generated node.
-    // The rewrite must refuse rather than move the trace while the card keeps
-    // citing the retracted reference (a silent card/trace divergence).
+    const beforeRevision = loadNode(service, campaignId, generatedId);
+    const card = structuredClone(beforeRevision.idea_card) as Record<string, unknown>;
+    card.thesis_statement = 'A reviewed replacement no longer asserts the generated novelty hypothesis.';
+    card.claims = (card.claims as Array<Record<string, unknown>>).filter(
+      claim => !String(claim.claim_text).startsWith('Novelty delta vs closest prior ('),
+    );
+    service.handle('node.revise_card', {
+      campaign_id: campaignId,
+      expected_revision: beforeRevision.revision,
+      idempotency_key: 'withdraw-delta-claim',
+      node_id: generatedId,
+      reason: 'new evidence withdraws the generated novelty hypothesis',
+      replacement_idea_card: card,
+    });
+    expect(deltaClaims(loadNode(service, campaignId, generatedId))).toHaveLength(0);
+
+    enterAdmissionReview(service, campaignId, generatedId, 'review-withdrawn-card');
+    setGroundingAudit(service, campaignId, generatedId, 'ground-withdrawn-card');
+    const groundingBefore = structuredClone(loadNode(service, campaignId, generatedId).grounding_audit);
+
+    const result = rewriteProvenance(service, campaignId, generatedId, 'rw-noclaim', URI_A);
+    expect(result.delta_claim_updated).toBe(false);
+    expect(result.grounding_audit_reset).toBe(false);
+    const after = loadNode(service, campaignId, generatedId);
+    expect(nodeClosestPrior(after)).toBe(URI_A);
+    expect(deltaClaims(after)).toHaveLength(0);
+    expect(after.grounding_audit).toEqual(groundingBefore);
+    expect(nodeRewriteHistory(after)).toHaveLength(1);
+    const logEntry = lastLogEntry(service, campaignId);
+    expect(logEntry.delta_claim_updated).toBe(false);
+  });
+
+  it('refuses an unrecorded deletion of the reserved claim instead of inferring reviewed withdrawal', () => {
+    const service = freshService();
+    const campaignId = initCampaign(service);
+    const [seedNodeId] = allNodeIds(service, campaignId);
+    const generatedId = importGeneratedNode(service, campaignId, seedNodeId!);
     const nodes = service.read.store.loadNodes<Record<string, unknown>>(campaignId);
-    const card = (nodes[generatedId] as Record<string, unknown>).idea_card as Record<string, unknown>;
+    const card = nodes[generatedId]!.idea_card as Record<string, unknown>;
     card.claims = (card.claims as Array<Record<string, unknown>>).filter(
       claim => !String(claim.claim_text).startsWith('Novelty delta vs closest prior ('),
     );
     service.read.store.saveNodes(campaignId, nodes);
     const before = JSON.stringify(loadNode(service, campaignId, generatedId));
 
-    expectRpcError(
-      () => rewriteProvenance(service, campaignId, generatedId, 'rw-noclaim', URI_A),
+    const error = expectRpcError(
+      () => rewriteProvenance(service, campaignId, generatedId, 'rw-unrecorded-withdrawal', URI_A),
       -32002,
       'delta_claim_missing',
     );
-    // Nothing moved: trace still cites the old value, no history entry appended.
+    expect((error.data.details as Record<string, unknown>).recorded_withdrawal).toBe(false);
+    expect(JSON.stringify(loadNode(service, campaignId, generatedId))).toBe(before);
+  });
+
+  it('requires an idempotency witness for a ledger-recorded claim withdrawal', () => {
+    const service = freshService();
+    const campaignId = initCampaign(service);
+    const [seedNodeId] = allNodeIds(service, campaignId);
+    const generatedId = importGeneratedNode(service, campaignId, seedNodeId!);
+    const beforeRevision = loadNode(service, campaignId, generatedId);
+    const card = structuredClone(beforeRevision.idea_card) as Record<string, unknown>;
+    card.claims = (card.claims as Array<Record<string, unknown>>).filter(
+      claim => !String(claim.claim_text).startsWith('Novelty delta vs closest prior ('),
+    );
+    service.handle('node.revise_card', {
+      campaign_id: campaignId,
+      expected_revision: beforeRevision.revision,
+      idempotency_key: 'withdraw-without-retained-witness',
+      node_id: generatedId,
+      reason: 'reviewed evidence withdraws the generated novelty hypothesis',
+      replacement_idea_card: card,
+    });
+    const records = service.read.store.loadIdempotency<Record<string, unknown>>(campaignId);
+    delete records['node.revise_card:withdraw-without-retained-witness'];
+    service.read.store.saveIdempotency(campaignId, records);
+
+    const error = expectRpcError(
+      () => rewriteProvenance(service, campaignId, generatedId, 'rw-withdrawal-without-witness', URI_A),
+      -32603,
+      'idea_card_revision_recovery_conflict',
+    );
+    expect((error.data.details as Record<string, unknown>).idempotency_key).toBe(
+      'withdraw-without-retained-witness',
+    );
+  });
+
+  it('rejects a ledger whose latest reserved-claim transition is reintroduction', () => {
+    const service = freshService();
+    const campaignId = initCampaign(service);
+    const [seedNodeId] = allNodeIds(service, campaignId);
+    const generatedId = importGeneratedNode(service, campaignId, seedNodeId!);
+    const beforeRevision = loadNode(service, campaignId, generatedId);
+    const card = structuredClone(beforeRevision.idea_card) as Record<string, unknown>;
+    card.claims = (card.claims as Array<Record<string, unknown>>).filter(
+      claim => !String(claim.claim_text).startsWith('Novelty delta vs closest prior ('),
+    );
+    service.handle('node.revise_card', {
+      campaign_id: campaignId,
+      expected_revision: beforeRevision.revision,
+      idempotency_key: 'withdraw-before-fabricated-reintroduction',
+      node_id: generatedId,
+      reason: 'reviewed evidence withdraws the generated novelty hypothesis',
+      replacement_idea_card: card,
+    });
+    const withdrawal = structuredClone(lastLogEntry(service, campaignId));
+    const reintroduction = structuredClone(withdrawal);
+    reintroduction.before_node = withdrawal.node;
+    reintroduction.node = withdrawal.before_node;
+    service.read.store.appendNodeLogEntry(campaignId, reintroduction);
+
+    expectRpcError(
+      () => rewriteProvenance(service, campaignId, generatedId, 'rw-after-fabricated-reintroduction', URI_A),
+      -32603,
+      'idea_card_revision_recovery_conflict',
+    );
+  });
+
+  it('maps unreadable withdrawal-ledger bytes to the card-revision recovery conflict contract', () => {
+    const service = freshService();
+    const campaignId = initCampaign(service);
+    const [seedNodeId] = allNodeIds(service, campaignId);
+    const generatedId = importGeneratedNode(service, campaignId, seedNodeId!);
+    const beforeRevision = loadNode(service, campaignId, generatedId);
+    const card = structuredClone(beforeRevision.idea_card) as Record<string, unknown>;
+    card.claims = (card.claims as Array<Record<string, unknown>>).filter(
+      claim => !String(claim.claim_text).startsWith('Novelty delta vs closest prior ('),
+    );
+    service.handle('node.revise_card', {
+      campaign_id: campaignId,
+      expected_revision: beforeRevision.revision,
+      idempotency_key: 'withdraw-before-torn-ledger',
+      node_id: generatedId,
+      reason: 'reviewed evidence withdraws the generated novelty hypothesis',
+      replacement_idea_card: card,
+    });
+    const logPath = service.read.store.nodesLogPath(campaignId);
+    writeFileSync(logPath, `${readFileSync(logPath, 'utf8')}{"torn":`, 'utf8');
+
+    const error = expectRpcError(
+      () => rewriteProvenance(service, campaignId, generatedId, 'rw-torn-withdrawal-ledger', URI_A),
+      -32603,
+      'idea_card_revision_recovery_conflict',
+    );
+    expect((error.data.details as Record<string, unknown>).corruption_kind).toBe('torn_final');
+  });
+
+  it('validates all relevant card-revision events before accepting a recorded withdrawal', () => {
+    const service = freshService();
+    const campaignId = initCampaign(service);
+    const [seedNodeId] = allNodeIds(service, campaignId);
+    const generatedId = importGeneratedNode(service, campaignId, seedNodeId!);
+    const beforeRevision = loadNode(service, campaignId, generatedId);
+    const card = structuredClone(beforeRevision.idea_card) as Record<string, unknown>;
+    card.claims = (card.claims as Array<Record<string, unknown>>).filter(
+      claim => !String(claim.claim_text).startsWith('Novelty delta vs closest prior ('),
+    );
+    service.handle('node.revise_card', {
+      campaign_id: campaignId,
+      expected_revision: beforeRevision.revision,
+      idempotency_key: 'withdraw-before-malformed-event',
+      node_id: generatedId,
+      reason: 'reviewed evidence withdraws the generated novelty hypothesis',
+      replacement_idea_card: card,
+    });
+    const current = loadNode(service, campaignId, generatedId);
+    service.read.store.appendNodeLogEntry(campaignId, {
+      mutation: 'revise_card',
+      node_id: generatedId,
+      revision: current.revision,
+    });
+
+    const error = expectRpcError(
+      () => rewriteProvenance(service, campaignId, generatedId, 'rw-malformed-withdrawal-event', URI_A),
+      -32603,
+      'idea_card_revision_recovery_conflict',
+    );
+    expect((error.data.details as Record<string, unknown>).entry_index).toBeTypeOf('number');
+  });
+
+  it('preserves a falsification while synchronizing its retained closest-prior identity', () => {
+    const service = freshService();
+    const campaignId = initCampaign(service);
+    const [seedNodeId] = allNodeIds(service, campaignId);
+    const generatedId = importGeneratedNode(service, campaignId, seedNodeId!);
+    const beforeRevision = loadNode(service, campaignId, generatedId);
+    const card = structuredClone(beforeRevision.idea_card) as Record<string, unknown>;
+    card.thesis_statement = 'The generated novelty hypothesis failed its declared evidence test.';
+    const claim = deltaClaims({ idea_card: card })[0]!;
+    claim.claim_text = `Novelty delta vs closest prior (${seedNodeId}): the generated hypothesis failed its declared evidence test`;
+    claim.verification_status = 'falsified';
+    claim.verification_notes = 'The reviewed evidence rejects the imported scientific proposition.';
+    const falsificationEvidence = 'https://example.com/falsification-evidence';
+    claim.evidence_uris = [falsificationEvidence];
+    service.handle('node.revise_card', {
+      campaign_id: campaignId,
+      expected_revision: beforeRevision.revision,
+      idempotency_key: 'falsify-delta-claim',
+      node_id: generatedId,
+      reason: 'reviewed evidence falsifies the generated novelty hypothesis',
+      replacement_idea_card: card,
+    });
+
+    enterAdmissionReview(service, campaignId, generatedId, 'review-falsified-card');
+    setGroundingAudit(service, campaignId, generatedId, 'ground-falsified-card');
+    const result = rewriteProvenance(service, campaignId, generatedId, 'rw-falsified-claim', URI_A);
+
+    expect(result.delta_claim_updated).toBe(true);
+    expect(result.grounding_audit_reset).toBe(true);
+    const after = loadNode(service, campaignId, generatedId);
+    expect(after.grounding_audit).toBeNull();
+    const [updatedClaim] = deltaClaims(after);
+    expect(updatedClaim!.claim_text).toBe(`Novelty delta vs closest prior (${URI_A}): the generated hypothesis failed its declared evidence test`);
+    expect(updatedClaim!.verification_status).toBe('falsified');
+    expect(updatedClaim!.verification_notes).toBe('The reviewed evidence rejects the imported scientific proposition.');
+    expect(updatedClaim!.evidence_uris).toEqual([URI_A, falsificationEvidence]);
+  });
+
+  it('fails closed when a retained reserved claim has a closest-prior identity inconsistent with the trace', () => {
+    const service = freshService();
+    const campaignId = initCampaign(service);
+    const [seedNodeId] = allNodeIds(service, campaignId);
+    const generatedId = importGeneratedNode(service, campaignId, seedNodeId!);
+    const nodes = service.read.store.loadNodes<Record<string, unknown>>(campaignId);
+    const claim = deltaClaims(nodes[generatedId]!)[0]!;
+    claim.claim_text = 'Novelty delta vs closest prior (different-ref): inconsistent retained claim';
+    service.read.store.saveNodes(campaignId, nodes);
+    const before = JSON.stringify(loadNode(service, campaignId, generatedId));
+
+    expectRpcError(
+      () => rewriteProvenance(service, campaignId, generatedId, 'rw-conflicting-claim', URI_A),
+      -32002,
+      'delta_claim_missing',
+    );
+    expect(JSON.stringify(loadNode(service, campaignId, generatedId))).toBe(before);
+    expect(deltaClaims(loadNode(service, campaignId, generatedId))[0]!.claim_text).toBe(
+      'Novelty delta vs closest prior (different-ref): inconsistent retained claim',
+    );
+  });
+
+  it('fails closed when multiple retained reserved claims make provenance synchronization ambiguous', () => {
+    const service = freshService();
+    const campaignId = initCampaign(service);
+    const [seedNodeId] = allNodeIds(service, campaignId);
+    const generatedId = importGeneratedNode(service, campaignId, seedNodeId!);
+    const nodes = service.read.store.loadNodes<Record<string, unknown>>(campaignId);
+    const claims = ((nodes[generatedId]!.idea_card as Record<string, unknown>).claims as Array<Record<string, unknown>>);
+    claims.push(structuredClone(deltaClaims(nodes[generatedId]!)[0]!));
+    service.read.store.saveNodes(campaignId, nodes);
+    const before = JSON.stringify(loadNode(service, campaignId, generatedId));
+
+    const error = expectRpcError(
+      () => rewriteProvenance(service, campaignId, generatedId, 'rw-duplicate-claims', URI_A),
+      -32002,
+      'delta_claim_missing',
+    );
+    expect((error.data.details as Record<string, unknown>).reserved_claim_count).toBe(2);
     expect(JSON.stringify(loadNode(service, campaignId, generatedId))).toBe(before);
   });
 
@@ -850,7 +1145,41 @@ describe('node.rewrite_provenance', () => {
     // (false-rejecting valid input is worse than the documented boundary).
     const result = rewriteProvenance(service, campaignId, generatedId, 'rw-refkey', 'hepph001');
     expect(result.new_value).toBe('hepph001');
-    expect(nodeCloseestPrior(loadNode(service, campaignId, generatedId))).toBe('hepph001');
+    expect(nodeClosestPrior(loadNode(service, campaignId, generatedId))).toBe('hepph001');
+  });
+
+  it('rejects a closest-prior value containing the reserved claim delimiter', () => {
+    const service = freshService();
+    const campaignId = initCampaign(service);
+    const [seedNodeId] = allNodeIds(service, campaignId);
+    const generatedId = importGeneratedNode(service, campaignId, seedNodeId!);
+    expectRpcError(
+      () => rewriteProvenance(service, campaignId, generatedId, 'rw-reserved-delimiter', 'refA): ambiguous'),
+      -32002,
+      'schema_invalid',
+    );
+  });
+
+  it('repairs a retained legacy delimiter-bearing claim without withdrawing it', () => {
+    const service = freshService();
+    const campaignId = initCampaign(service);
+    const [seedNodeId] = allNodeIds(service, campaignId);
+    const generatedId = importGeneratedNode(service, campaignId, seedNodeId!);
+    const legacyClosestPrior = 'legacy): prior';
+    const nodes = service.read.store.loadNodes<Record<string, unknown>>(campaignId);
+    const node = nodes[generatedId]!;
+    const inputs = (node.operator_trace as Record<string, unknown>).inputs as Record<string, unknown>;
+    (inputs.novelty_delta as Record<string, unknown>).closest_prior = legacyClosestPrior;
+    deltaClaims(node)[0]!.claim_text = `Novelty delta vs closest prior (${legacyClosestPrior}): legacy retained claim`;
+    service.read.store.saveNodes(campaignId, nodes);
+
+    const result = rewriteProvenance(service, campaignId, generatedId, 'rw-legacy-delimiter-retained', URI_A);
+    expect(result.delta_claim_updated).toBe(true);
+    const repaired = loadNode(service, campaignId, generatedId);
+    expect(nodeClosestPrior(repaired)).toBe(URI_A);
+    expect(deltaClaims(repaired)[0]!.claim_text).toBe(
+      `Novelty delta vs closest prior (${URI_A}): legacy retained claim`,
+    );
   });
 
   it('rejects a blank or whitespace-padded new_value and a blank reason', () => {
@@ -931,7 +1260,7 @@ describe('node.rewrite_provenance', () => {
     const k1Hash = (JSON.parse(readFileSync(service.read.store.campaignIdempotencyPath(campaignId), 'utf8')) as Record<string, IdemRecord>)['node.rewrite_provenance:rw-k1']!.payload_hash;
     const k1RewrittenAt = nodeRewriteHistory(loadNode(service, campaignId, generatedId))[0]!.rewritten_at as string;
     rewriteProvenance(service, campaignId, generatedId, 'rw-k2', URI_B);
-    expect(nodeCloseestPrior(loadNode(service, campaignId, generatedId))).toBe(URI_B);
+    expect(nodeClosestPrior(loadNode(service, campaignId, generatedId))).toBe(URI_B);
 
     const path = service.read.store.campaignIdempotencyPath(campaignId);
     const records = JSON.parse(readFileSync(path, 'utf8')) as Record<string, IdemRecord>;
@@ -954,7 +1283,7 @@ describe('node.rewrite_provenance', () => {
 
     const result = rewriteProvenance(service, campaignId, generatedId, 'rw-k3', URI_A);
     expect((result.idempotency as Record<string, unknown>).is_replay).toBe(false);
-    expect(nodeCloseestPrior(loadNode(service, campaignId, generatedId))).toBe(URI_A);
+    expect(nodeClosestPrior(loadNode(service, campaignId, generatedId))).toBe(URI_A);
     // rw-k3 genuinely ran: its own history entry now exists.
     expect(nodeRewriteHistory(loadNode(service, campaignId, generatedId)).some(e => e.idempotency_key === 'rw-k3')).toBe(true);
   });

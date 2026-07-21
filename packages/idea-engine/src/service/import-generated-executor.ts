@@ -7,7 +7,7 @@ import { budgetSnapshot } from './budget-snapshot.js';
 import { RpcError } from './errors.js';
 import { recordOrReplay, responseIdempotency, storeIdempotency } from './idempotency.js';
 import { ensureCampaignRunning, loadCampaignOrError, setCampaignRunningIfBudgetAvailable } from './campaign-state.js';
-import { NOVELTY_DELTA_CLAIM_PREFIX, nodeLifecycleState, PLACEHOLDER_EVIDENCE_URI } from './node-shared.js';
+import { NOVELTY_DELTA_CLAIM_DELIMITER, NOVELTY_DELTA_CLAIM_PREFIX, nodeLifecycleState, PLACEHOLDER_EVIDENCE_URI } from './node-shared.js';
 import { drawUniqueId } from './seed-node.js';
 import { buildGeneratedNode, type GeneratedCandidate } from './generated-node.js';
 import { IMPORT_ARTIFACT_TYPE, IMPORT_GENERATED_METHOD, refreshImportGeneratedReplay } from './import-generated-recovery.js';
@@ -282,11 +282,10 @@ function validateCandidateSemantics(options: {
   }
 
   // The engine appends its own novelty-delta claim (NOVELTY_DELTA_CLAIM_PREFIX)
-  // to the card at import. That prefix is reserved so a generated node carries
-  // EXACTLY one claim with it — the unambiguous identity node.rewrite_provenance
-  // uses to correct that claim later. A candidate that supplies its own claim
-  // with the same prefix would produce two matches and make the node forever
-  // un-correctable, so it is rejected here.
+  // to the card at import. The prefix is reserved so every newly imported node
+  // starts with exactly one unambiguous engine-assembled claim. A later recorded
+  // card revision may withdraw that scientific claim, but the generator may not
+  // supply a second engine-looking claim at import.
   const candidateClaims = Array.isArray(candidate.card_fields.claims) ? candidate.card_fields.claims : [];
   for (const claim of candidateClaims) {
     if (!claim || typeof claim !== 'object' || Array.isArray(claim)) continue;
@@ -306,6 +305,15 @@ function validateCandidateSemantics(options: {
     ? candidate.rationale_draft.references
     : []).filter((uri): uri is string => typeof uri === 'string');
   const closestPrior = String(candidate.novelty_delta.closest_prior ?? '');
+  // The pack schema rejects this first on the public RPC path. Keep the
+  // semantic check as defense in depth if schema wiring ever regresses.
+  if (closestPrior.includes(NOVELTY_DELTA_CLAIM_DELIMITER)) {
+    throw importValidationError(
+      'schema_invalid',
+      campaignId,
+      `${label}: novelty_delta.closest_prior contains ${JSON.stringify(NOVELTY_DELTA_CLAIM_DELIMITER)}, which is reserved by the canonical novelty-claim encoding and forbidden for new values`,
+    );
+  }
   const uriShapedClosestPrior = looksLikeUri(closestPrior) ? [closestPrior] : [];
 
   const receipts = receiptUris(traceInputs);

@@ -46,11 +46,11 @@
     },
     "delta_claim_updated": {
       "type": "boolean",
-      "description": "Always true on success: syncing the engine-assembled novelty-delta card claim is mandatory, so a rewrite that cannot find exactly one matching claim fails closed with delta_claim_missing rather than returning here. Retained for result-shape stability."
+      "description": "True when the current idea card retains the engine-reserved novelty-delta claim and its closest-prior identity was synchronized. False when a ledger-recorded card revision had already withdrawn or replaced that scientific claim; the current provenance trace is corrected without resurrecting it, while the original value remains pinned in the archived generation pack."
     },
     "grounding_audit_reset": {
       "type": "boolean",
-      "description": "True when the node carried a grounding_audit that was reset to null because the rewrite changed the novelty-delta claim it had certified; the node must be re-grounded via node.set_grounding_audit before promotion."
+      "description": "True only when the retained reserved claim was rewritten and the node carried a grounding_audit, which was reset to null because it certified the prior claim text. False when no active claim changed or no grounding_audit existed."
     },
     "revision": {
       "type": "integer",

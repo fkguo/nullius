@@ -300,7 +300,10 @@
             "closest_prior": {
               "type": "string",
               "minLength": 1,
-              "description": "URI or survey ref_key of the closest prior work, found by RETRIEVAL (never parametric memory)."
+              "not": {
+                "pattern": "\\): "
+              },
+              "description": "URI or survey ref_key of the closest prior work, found by RETRIEVAL (never parametric memory). The value must not contain the reserved claim delimiter '): '."
             },
             "overlap_summary": {
               "type": "string",

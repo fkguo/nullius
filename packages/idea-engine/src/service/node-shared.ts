@@ -12,15 +12,23 @@ export const PLACEHOLDER_EVIDENCE_URI = 'https://example.org/reference';
 
 /**
  * Prefix of the engine-assembled novelty-delta claim on a generated node's idea
- * card. It is engine-owned: generation import reserves it (a candidate may not
- * supply a claim beginning with it), so a generated node carries EXACTLY one
- * claim with this prefix — the identity node.rewrite_provenance relies on to
- * find and correct that one claim unambiguously. The three call sites (build in
- * generated-node.ts, reserve in import-generated-executor.ts, match in
- * node-rewrite-provenance-executor.ts) MUST share this constant so the identity
- * cannot drift.
+ * card. Generation import reserves the prefix, so a candidate may not supply a
+ * second engine-looking claim. A later card revision may withdraw or
+ * falsify that scientific claim but may not recreate the reserved prefix after
+ * withdrawal. The original generation input stays pinned in the archived pack;
+ * operator_trace carries the current provenance value plus its rewrite history.
+ * If the card retains the prefix, node.rewrite_provenance uses this constant to
+ * keep its closest-prior identity synchronized with the trace.
  */
 export const NOVELTY_DELTA_CLAIM_PREFIX = 'Novelty delta vs closest prior (';
+
+/**
+ * Separates the closest-prior identity from the falsifiable delta statement.
+ * New closest-prior values may not contain this delimiter, making the complete
+ * prefix plus identity an unambiguous match key. The pack schema, import path,
+ * and provenance-rewrite path all enforce that rule for new values.
+ */
+export const NOVELTY_DELTA_CLAIM_DELIMITER = '): ';
 
 /**
  * Single authority for the text sanitization that feeds the formalization

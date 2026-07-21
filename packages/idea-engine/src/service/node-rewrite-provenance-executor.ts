@@ -1,10 +1,20 @@
 import type { IdeaEngineContractCatalog } from '../contracts/catalog.js';
+import { canonicalJson } from '../hash/payload-hash.js';
 import type { IdeaEngineStore } from '../store/engine-store.js';
+import { NodeLogCorruptionError } from '../store/node-log-store.js';
 import { budgetSnapshot } from './budget-snapshot.js';
 import { recordOrReplay, responseIdempotency, storeIdempotency } from './idempotency.js';
 import { RpcError } from './errors.js';
-import { NOVELTY_DELTA_CLAIM_PREFIX, ensureNodeInCampaign } from './node-shared.js';
+import { NOVELTY_DELTA_CLAIM_DELIMITER, NOVELTY_DELTA_CLAIM_PREFIX, ensureNodeInCampaign } from './node-shared.js';
 import { ensureCampaignNotCompleted, loadCampaignOrError } from './campaign-state.js';
+import { toSchemaError } from './service-contract-error.js';
+
+const EVIDENCE_REQUIRED_SUPPORT_TYPES = new Set([
+  'literature',
+  'data',
+  'calculation',
+  'expert_consensus',
+]);
 
 function rewriteValidationError(
   reason: string,
@@ -31,6 +41,135 @@ function asRecord(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
+function reservedClaimsFromCard(card: Record<string, unknown> | null): Array<Record<string, unknown>> {
+  const claims = card && Array.isArray(card.claims) ? card.claims : [];
+  return claims
+    .map(asRecord)
+    .filter((claim): claim is Record<string, unknown> =>
+      !!claim && typeof claim.claim_text === 'string' && claim.claim_text.startsWith(NOVELTY_DELTA_CLAIM_PREFIX));
+}
+
+function withdrawalLedgerConflict(
+  campaignId: string,
+  nodeId: string,
+  message: string,
+  details: Record<string, unknown> = {},
+): RpcError {
+  return new RpcError(-32603, 'internal_error', {
+    reason: 'idea_card_revision_recovery_conflict',
+    campaign_id: campaignId,
+    node_id: nodeId,
+    details: { message, ...details },
+  });
+}
+
+function loadWithdrawalLedger(store: IdeaEngineStore, campaignId: string, nodeId: string): Array<Record<string, unknown>> {
+  try {
+    return store.loadNodeLogEntriesStrict(campaignId);
+  } catch (error) {
+    if (!(error instanceof NodeLogCorruptionError)) throw error;
+    throw withdrawalLedgerConflict(
+      campaignId,
+      nodeId,
+      'append-only node log is not fully parseable; a provenance correction cannot prove ledger-recorded claim withdrawal against unreadable ledger bytes',
+      { corruption_kind: error.kind, line_number: error.lineNumber },
+    );
+  }
+}
+
+/** Confirm that the append-only ledger records a sanctioned reserved-claim withdrawal. */
+function hasRecordedReservedClaimWithdrawal(options: {
+  campaignId: string;
+  contracts: IdeaEngineContractCatalog;
+  currentRevision: number;
+  entries: Array<Record<string, unknown>>;
+  idempotencyRecords: Record<string, Record<string, unknown>>;
+  nodeId: string;
+}): boolean {
+  const relevantEntries = options.entries
+    .map((entry, index) => ({ entry, index }))
+    .filter(({ entry }) =>
+      entry.mutation === 'revise_card'
+      && entry.node_id === options.nodeId);
+
+  for (const { entry, index } of relevantEntries) {
+    try {
+      options.contracts.validateAgainstRef(
+        './idea_card_revision_event_v1.schema.json',
+        entry,
+        `node.rewrite_provenance/withdrawal_event/${options.nodeId}/${index}`,
+      );
+    } catch (error) {
+      throw withdrawalLedgerConflict(
+        options.campaignId,
+        options.nodeId,
+        'a same-node card-revision ledger entry is not a valid idea_card_revision_event_v1; ledger-recorded claim withdrawal cannot be established from a semantically inconsistent ledger',
+        { entry_index: index, validation_error: String((error as Error).message) },
+      );
+    }
+    if (Number(entry.revision) > options.currentRevision) {
+      throw withdrawalLedgerConflict(
+        options.campaignId,
+        options.nodeId,
+        'a same-node card-revision ledger event is ahead of the current node revision; ledger-recorded claim withdrawal cannot be established from a ledger/latest-state conflict',
+        { current_revision: options.currentRevision, entry_index: index, event_revision: entry.revision },
+      );
+    }
+  }
+
+  const transitions = relevantEntries.flatMap(({ entry, index }) => {
+    const beforeNode = asRecord(entry.before_node);
+    const afterNode = asRecord(entry.node);
+    const beforeCard = asRecord(beforeNode?.idea_card);
+    const afterCard = asRecord(afterNode?.idea_card);
+    const beforeCount = reservedClaimsFromCard(beforeCard).length;
+    const afterCount = reservedClaimsFromCard(afterCard).length;
+    return beforeCount === afterCount ? [] : [{ afterCount, beforeCount, entry, index }];
+  });
+  const latestTransition = transitions[transitions.length - 1];
+  if (!latestTransition) return false;
+  if (latestTransition.afterCount !== 0) {
+    throw withdrawalLedgerConflict(
+      options.campaignId,
+      options.nodeId,
+      'the latest card-revision transition affecting the reserved novelty claim does not end at zero claims, but the current card carries none; the ledger and latest state disagree',
+      {
+        after_count: latestTransition.afterCount,
+        before_count: latestTransition.beforeCount,
+        entry_index: latestTransition.index,
+      },
+    );
+  }
+  const { entry, index } = latestTransition;
+  const eventIdempotency = asRecord(entry.idempotency);
+  const key = eventIdempotency?.idempotency_key;
+  const witness = isNonEmptyString(key)
+    ? asRecord(options.idempotencyRecords[`node.revise_card:${key}`])
+    : null;
+  const response = asRecord(witness?.response);
+  const payload = asRecord(response?.payload);
+  const witnessedEvent = asRecord(payload?.mutation_event);
+  const responseIdempotency = asRecord(payload?.idempotency);
+  if (
+    (witness?.state !== 'prepared' && witness?.state !== 'committed')
+    || response?.kind !== 'result'
+    || payload?.campaign_id !== options.campaignId
+    || responseIdempotency?.idempotency_key !== key
+    || responseIdempotency?.payload_hash !== witness?.payload_hash
+    || eventIdempotency?.payload_hash !== witness?.payload_hash
+    || !witnessedEvent
+    || canonicalJson(witnessedEvent) !== canonicalJson(entry)
+  ) {
+    throw withdrawalLedgerConflict(
+      options.campaignId,
+      options.nodeId,
+      'a card-revision ledger event records reserved-claim withdrawal but has no matching prepared or committed node.revise_card idempotency record; refusing a card-file deletion that no engine revision record corroborates',
+      { entry_index: index, idempotency_key: key ?? null },
+    );
+  }
+  return true;
+}
+
 /** Retrieval-receipt URIs recorded in the node's own operator trace. */
 function traceReceiptUris(traceInputs: Record<string, unknown>): Set<string> {
   const receipts = new Set<string>();
@@ -52,9 +191,11 @@ function traceReceiptUris(traceInputs: Record<string, unknown>): Set<string> {
  * recorded provenance violates the contract's documented semantics —
  * currently only operator_trace.inputs.novelty_delta.closest_prior, which
  * must be a URI or survey ref_key of the closest prior work, never a
- * campaign node id. The rewrite also updates the engine-assembled
- * novelty-delta claim on the idea card (so card and trace cannot diverge)
- * and appends the correction to the engine-owned
+ * campaign node id. When the current idea card still carries the reserved
+ * novelty-delta claim, the rewrite updates its closest-prior identity too. A
+ * recorded card revision may already have withdrawn that scientific claim; in
+ * that case the provenance trace is corrected without reintroducing it. Every
+ * correction is appended to the engine-owned
  * operator_trace.inputs.provenance_rewrites history. The archived generation
  * pack keeps the original value untouched: the provenance chain is original
  * (pack, content-pinned) -> rewrite history -> current node value. Legal in
@@ -112,6 +253,14 @@ export function executeNodeRewriteProvenance(options: {
         campaignId,
         nodeId,
         'new_value has leading/trailing whitespace (or is blank) — closest_prior must be a trimmed URI or survey reference key',
+      );
+    }
+    if (newValue.includes(NOVELTY_DELTA_CLAIM_DELIMITER)) {
+      throw rewriteValidationError(
+        'schema_invalid',
+        campaignId,
+        nodeId,
+        `new_value contains ${JSON.stringify(NOVELTY_DELTA_CLAIM_DELIMITER)}, which is reserved by the canonical novelty-claim encoding and forbidden for new values`,
       );
     }
     if (reasonText.trim().length === 0) {
@@ -188,42 +337,77 @@ export function executeNodeRewriteProvenance(options: {
     const updatedNovelty = updatedInputs.novelty_delta as Record<string, unknown>;
     updatedNovelty.closest_prior = newValue;
 
-    // The import-time Formalize stage placed the novelty delta on the idea card
-    // as a claim with a deterministic prefix. Syncing it is MANDATORY: a node
-    // carrying a closest_prior is a generated node, which always holds exactly
-    // that claim (generated-node.ts). If no claim carries the expected prefix
-    // the node is malformed/tampered — fail closed rather than move the trace
-    // while the card keeps citing the retracted reference. A half-correction
-    // that still reports success is exactly the silent card/trace divergence
-    // this method exists to remove. More than one match is equally malformed.
-    const expectedPrefix = `${NOVELTY_DELTA_CLAIM_PREFIX}${previousValue}): `;
+    // Import creates one reserved novelty-delta claim. A later recorded
+    // node.revise_card may remove or replace that scientific claim while the
+    // generation-time record remains pinned in the archived pack. In that state
+    // a provenance correction updates the current trace only and must not
+    // resurrect the withdrawn claim. If a reserved claim is still present, it
+    // must be unique and bound to the trace's previous closest-prior identity.
+    const expectedPrefix = `${NOVELTY_DELTA_CLAIM_PREFIX}${previousValue}${NOVELTY_DELTA_CLAIM_DELIMITER}`;
     const ideaCard = asRecord(updatedNode.idea_card);
-    const claims = ideaCard && Array.isArray(ideaCard.claims) ? ideaCard.claims : [];
-    const matchingClaims = claims
-      .map(asRecord)
-      .filter((claim): claim is Record<string, unknown> =>
-        !!claim && typeof claim.claim_text === 'string' && claim.claim_text.startsWith(expectedPrefix));
-    if (matchingClaims.length !== 1) {
+    const reservedClaims = reservedClaimsFromCard(ideaCard);
+    const matchingClaims = reservedClaims.filter((claim) => String(claim.claim_text).startsWith(expectedPrefix));
+    if (reservedClaims.length > 1 || (reservedClaims.length === 1 && matchingClaims.length !== 1)) {
       throw rewriteValidationError(
         'delta_claim_missing',
         campaignId,
         nodeId,
-        matchingClaims.length === 0
-          ? 'the idea card carries no novelty-delta claim with the expected prefix — a well-formed generated node always does; refusing rather than leaving the card citing the retracted reference while the trace moves'
-          : 'the idea card carries multiple novelty-delta claims with the expected prefix — ambiguous to synchronize; the node is malformed',
-        { matching_claim_count: matchingClaims.length },
+        reservedClaims.length > 1
+          ? 'the idea card carries multiple engine-reserved novelty-delta claims — ambiguous to synchronize; revise the card to one or zero reserved claims first'
+          : 'the retained engine-reserved novelty-delta claim does not use the closest_prior identity stored in operator_trace; withdraw or correct the claim through node.revise_card before correcting provenance',
+        {
+          matching_claim_count: matchingClaims.length,
+          reserved_claim_count: reservedClaims.length,
+        },
       );
     }
-    const claimRecord = matchingClaims[0]!;
-    claimRecord.claim_text = `${NOVELTY_DELTA_CLAIM_PREFIX}${newValue}): ${(claimRecord.claim_text as string).slice(expectedPrefix.length)}`;
-    claimRecord.evidence_uris = newValue.includes('://') ? [newValue] : [];
+    if (reservedClaims.length === 0 && !hasRecordedReservedClaimWithdrawal({
+      campaignId,
+      contracts: options.contracts,
+      currentRevision: Number(updatedNode.revision),
+      entries: loadWithdrawalLedger(options.store, campaignId, nodeId),
+      idempotencyRecords: options.store.loadIdempotency<Record<string, unknown>>(campaignId),
+      nodeId,
+    })) {
+      throw rewriteValidationError(
+        'delta_claim_missing',
+        campaignId,
+        nodeId,
+        'the current idea card carries no reserved novelty-delta claim and the append-only ledger contains no valid node.revise_card event that withdrew it; refusing to treat an unrecorded deletion as a ledger-recorded withdrawal. If a card revision stopped after replacing the latest node but before appending its event, retry that revision with the same idempotency key; otherwise manual repair is required because node.revise_card cannot recreate the reserved prefix',
+        { recorded_withdrawal: false, reserved_claim_count: 0 },
+      );
+    }
+    const deltaClaimUpdated = matchingClaims.length === 1;
+    if (deltaClaimUpdated) {
+      const claimRecord = matchingClaims[0]!;
+      claimRecord.claim_text = `${NOVELTY_DELTA_CLAIM_PREFIX}${newValue}${NOVELTY_DELTA_CLAIM_DELIMITER}${(claimRecord.claim_text as string).slice(expectedPrefix.length)}`;
+      const currentEvidenceUris = Array.isArray(claimRecord.evidence_uris)
+        ? claimRecord.evidence_uris.filter(isNonEmptyString)
+        : [];
+      const preservedEvidenceUris = currentEvidenceUris.filter((uri) => uri !== previousValue && uri !== newValue);
+      const nextEvidenceUris = newValue.includes('://')
+        ? [newValue, ...preservedEvidenceUris]
+        : preservedEvidenceUris;
+      if (
+        nextEvidenceUris.length === 0
+        && EVIDENCE_REQUIRED_SUPPORT_TYPES.has(String(claimRecord.support_type))
+      ) {
+        throw rewriteValidationError(
+          'delta_claim_evidence_required',
+          campaignId,
+          nodeId,
+          'rewriting to a non-URI survey key would leave the retained novelty claim without evidence required by its support_type; revise the card to provide independent evidence or change the support type before correcting provenance',
+          { support_type: String(claimRecord.support_type) },
+        );
+      }
+      claimRecord.evidence_uris = nextEvidenceUris;
+    }
 
-    // The novelty-delta claim just changed. Any grounding_audit certified the
-    // PRIOR claim text and no longer covers the current card, so a stale pass
-    // must not ride the changed claim into a promotion handoff. Reset it (null
-    // fails node.promote's status=pass gate); the node must be re-grounded via
-    // node.set_grounding_audit after the correction.
-    const groundingAuditReset = updatedNode.grounding_audit != null;
+    // When the active novelty-delta claim changes, any grounding_audit covered
+    // the prior text and must be reset. If the recorded card revision had already
+    // withdrawn that claim, only the current provenance trace changes and the
+    // card-grounding result remains about the same scientific claims.
+    const groundingAuditReset = deltaClaimUpdated && updatedNode.grounding_audit != null;
     if (groundingAuditReset) {
       updatedNode.grounding_audit = null;
     }
@@ -249,13 +433,17 @@ export function executeNodeRewriteProvenance(options: {
 
     updatedNode.revision = Number(updatedNode.revision ?? 0) + 1;
     updatedNode.updated_at = now;
-    options.contracts.validateAgainstRef('./idea_node_v1.schema.json', updatedNode, `node.rewrite_provenance/node/${nodeId}`);
+    try {
+      options.contracts.validateAgainstRef('./idea_node_v1.schema.json', updatedNode, `node.rewrite_provenance/node/${nodeId}`);
+    } catch (error) {
+      throw toSchemaError(error, 'rewritten node invalid: ');
+    }
     nodes[nodeId] = updatedNode;
 
     const result = {
       budget_snapshot: budgetSnapshot(campaign),
       campaign_id: campaignId,
-      delta_claim_updated: true,
+      delta_claim_updated: deltaClaimUpdated,
       field,
       grounding_audit_reset: groundingAuditReset,
       idea_id: String(updatedNode.idea_id),
@@ -282,6 +470,7 @@ export function executeNodeRewriteProvenance(options: {
 
     options.store.saveNodes(campaignId, nodes);
     options.store.appendNodeLog(campaignId, updatedNode, 'rewrite_provenance', {
+      delta_claim_updated: deltaClaimUpdated,
       field,
       grounding_audit_reset: groundingAuditReset,
       new_value: newValue,
