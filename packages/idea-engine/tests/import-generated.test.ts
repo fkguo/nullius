@@ -1216,6 +1216,25 @@ describe('node.import_generated', () => {
       expect(String((error.data.details as Record<string, unknown>).message)).toContain('rewrite chain');
     });
 
+    it('refuses an engine-impossible empty provenance rewrite history during import recovery', () => {
+      const service = freshService();
+      const campaignId = initCampaign(service);
+      const pack = validPack(campaignId);
+      const result = importPack(service, campaignId, pack);
+      const nodeId = importedNodeId(result);
+      const nodes = service.node.store.loadNodes<Record<string, unknown>>(campaignId);
+      const inputs = (nodes[nodeId]!.operator_trace as Record<string, unknown>).inputs as Record<string, unknown>;
+      inputs.provenance_rewrites = [];
+      service.node.store.saveNodes(campaignId, nodes);
+      reopenPrepared(service, campaignId, 'import-key-1');
+
+      expectRpcError(
+        () => importPack(service, campaignId, pack),
+        -32603,
+        'import_recovery_conflict',
+      );
+    });
+
     it('refuses recovery when a stored node disagrees on immutable fields', () => {
       const service = freshService();
       const campaignId = initCampaign(service);

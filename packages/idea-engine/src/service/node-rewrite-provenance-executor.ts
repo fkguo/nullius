@@ -117,42 +117,53 @@ function hasRecordedReservedClaimWithdrawal(options: {
     }
   }
 
-  for (const { entry, index } of relevantEntries) {
+  const transitions = relevantEntries.flatMap(({ entry, index }) => {
     const beforeNode = asRecord(entry.before_node);
     const afterNode = asRecord(entry.node);
     const beforeCard = asRecord(beforeNode?.idea_card);
     const afterCard = asRecord(afterNode?.idea_card);
-    if (reservedClaimsFromCard(beforeCard).length > 0 && reservedClaimsFromCard(afterCard).length === 0) {
-      const eventIdempotency = asRecord(entry.idempotency);
-      const key = eventIdempotency?.idempotency_key;
-      const witness = isNonEmptyString(key)
-        ? asRecord(options.idempotencyRecords[`node.revise_card:${key}`])
-        : null;
-      const response = asRecord(witness?.response);
-      const payload = asRecord(response?.payload);
-      const witnessedEvent = asRecord(payload?.mutation_event);
-      const responseIdempotency = asRecord(payload?.idempotency);
-      if (
-        (witness?.state !== 'prepared' && witness?.state !== 'committed')
-        || response?.kind !== 'result'
-        || payload?.campaign_id !== options.campaignId
-        || responseIdempotency?.idempotency_key !== key
-        || responseIdempotency?.payload_hash !== witness?.payload_hash
-        || eventIdempotency?.payload_hash !== witness?.payload_hash
-        || !witnessedEvent
-        || canonicalJson(witnessedEvent) !== canonicalJson(entry)
-      ) {
-        throw withdrawalLedgerConflict(
-          options.campaignId,
-          options.nodeId,
-          'a card-revision ledger event records reserved-claim withdrawal but has no matching prepared or committed node.revise_card idempotency witness; refusing to treat self-attested ledger bytes as reviewed withdrawal',
-          { entry_index: index, idempotency_key: key ?? null },
-        );
-      }
-      return true;
-    }
+    const beforeCount = reservedClaimsFromCard(beforeCard).length;
+    const afterCount = reservedClaimsFromCard(afterCard).length;
+    return beforeCount === afterCount ? [] : [{ afterCount, beforeCount, entry, index }];
+  });
+  const latestTransition = transitions[transitions.length - 1];
+  if (!latestTransition) return false;
+  if (latestTransition.beforeCount === 0 || latestTransition.afterCount !== 0) {
+    throw withdrawalLedgerConflict(
+      options.campaignId,
+      options.nodeId,
+      'the latest card-revision transition affecting the reserved novelty claim introduces rather than withdraws it; the ledger and current zero-claim card disagree',
+      { entry_index: latestTransition.index },
+    );
   }
-  return false;
+  const { entry, index } = latestTransition;
+  const eventIdempotency = asRecord(entry.idempotency);
+  const key = eventIdempotency?.idempotency_key;
+  const witness = isNonEmptyString(key)
+    ? asRecord(options.idempotencyRecords[`node.revise_card:${key}`])
+    : null;
+  const response = asRecord(witness?.response);
+  const payload = asRecord(response?.payload);
+  const witnessedEvent = asRecord(payload?.mutation_event);
+  const responseIdempotency = asRecord(payload?.idempotency);
+  if (
+    (witness?.state !== 'prepared' && witness?.state !== 'committed')
+    || response?.kind !== 'result'
+    || payload?.campaign_id !== options.campaignId
+    || responseIdempotency?.idempotency_key !== key
+    || responseIdempotency?.payload_hash !== witness?.payload_hash
+    || eventIdempotency?.payload_hash !== witness?.payload_hash
+    || !witnessedEvent
+    || canonicalJson(witnessedEvent) !== canonicalJson(entry)
+  ) {
+    throw withdrawalLedgerConflict(
+      options.campaignId,
+      options.nodeId,
+      'a card-revision ledger event records reserved-claim withdrawal but has no matching prepared or committed node.revise_card idempotency witness; refusing to treat self-attested ledger bytes as reviewed withdrawal',
+      { entry_index: index, idempotency_key: key ?? null },
+    );
+  }
+  return true;
 }
 
 /** Retrieval-receipt URIs recorded in the node's own operator trace. */
@@ -245,7 +256,7 @@ export function executeNodeRewriteProvenance(options: {
         'schema_invalid',
         campaignId,
         nodeId,
-        `new_value contains the reserved claim delimiter ${JSON.stringify(NOVELTY_DELTA_CLAIM_DELIMITER)} and cannot be represented unambiguously in a retained novelty claim`,
+        `new_value contains ${JSON.stringify(NOVELTY_DELTA_CLAIM_DELIMITER)}, which is reserved by the canonical novelty-claim encoding and forbidden for new values`,
       );
     }
     if (reasonText.trim().length === 0) {
@@ -331,15 +342,6 @@ export function executeNodeRewriteProvenance(options: {
     const expectedPrefix = `${NOVELTY_DELTA_CLAIM_PREFIX}${previousValue}${NOVELTY_DELTA_CLAIM_DELIMITER}`;
     const ideaCard = asRecord(updatedNode.idea_card);
     const reservedClaims = reservedClaimsFromCard(ideaCard);
-    if (reservedClaims.length > 0 && previousValue.includes(NOVELTY_DELTA_CLAIM_DELIMITER)) {
-      throw rewriteValidationError(
-        'delta_claim_missing',
-        campaignId,
-        nodeId,
-        'the stored closest_prior contains the reserved claim delimiter, so a retained novelty claim cannot be matched unambiguously; withdraw the reserved claim through node.revise_card before correcting provenance',
-        { legacy_closest_prior_delimiter: true, reserved_claim_count: reservedClaims.length },
-      );
-    }
     const matchingClaims = reservedClaims.filter((claim) => String(claim.claim_text).startsWith(expectedPrefix));
     if (reservedClaims.length > 1 || (reservedClaims.length === 1 && matchingClaims.length !== 1)) {
       throw rewriteValidationError(

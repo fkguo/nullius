@@ -73,7 +73,7 @@ function provenanceRewriteChainMatches(
 
   const history = currentInputs?.provenance_rewrites;
   if (history === undefined) return currentValue === archivedValue;
-  if (!Array.isArray(history)) return false;
+  if (!Array.isArray(history) || history.length === 0) return false;
 
   let cursor = archivedValue;
   const idempotencyKeys = new Set<string>();
@@ -85,6 +85,8 @@ function provenanceRewriteChainMatches(
       || entry.previous_value !== cursor
       || typeof entry.new_value !== 'string'
       || entry.new_value.length === 0
+      || entry.new_value !== entry.new_value.trim()
+      || entry.new_value.includes('): ')
       || typeof entry.reason !== 'string'
       || entry.reason.trim().length === 0
       || typeof entry.rewritten_at !== 'string'
