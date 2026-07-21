@@ -6,6 +6,14 @@ from typing import Any
 
 from .markdown_visibility import visible_markdown
 from .report_registry import MARKDOWN_LINK, RegistryRow, load_report_registry
+from .report_field_validation import (
+    field_is_filled,
+    field_values,
+    first_field,
+    human_links,
+    machine_only_reference,
+    validate_validation_section,
+)
 
 
 METADATA_START = "<!-- MAIN_RESEARCH_REPORT_METADATA_START -->"
@@ -32,14 +40,6 @@ REQUIRED_FIELDS_BY_SECTION = {
     "IMPACT": ("Impact on the research question or idea state", "Next falsifiable condition"),
     "EVIDENCE": ("Human-readable evidence chain", "Machine provenance", "Binding explanation"),
 }
-VALIDATION_FIELDS = (
-    "Classification", "Implementation relation", "Input relation", "Environment relation",
-    "Method or representation difference", "Declared replay risks", "Validation result",
-    "Human-readable validation evidence",
-)
-MACHINE_SUFFIXES = (".json", ".jsonl", ".yaml", ".yml", ".lock")
-HUMAN_SUFFIXES = (".md", ".html", ".htm", ".pdf", ".txt")
-REPLAY_RISKS = {"randomness", "parallelism", "cache", "external_state", "unfixed_dependencies"}
 AUTHORING_PROCESS_PHRASES = (
     "copy this template",
     "do not promote this template",
@@ -68,71 +68,16 @@ def _between(text: str, start: str, end: str) -> str | None:
     return text[left:right] if left < right else None
 
 
-def _field(text: str, label: str) -> str:
-    values = _field_values(text, label)
-    return values[0] if values else ""
-
-
-def _field_values(text: str, label: str) -> list[str]:
-    return [
-        match.strip()
-        for match in re.findall(rf"^- {re.escape(label)}:[ \t]*([^\r\n]*?)[ \t]*$", text, re.MULTILINE)
-    ]
-
-
-def _filled(value: str) -> bool:
-    plain = value.strip().strip("`").lower()
-    if not plain or plain in {"none", "n/a", "not applicable", "(none yet)", "-"}:
-        return False
-    return not re.search(r"<[^>]+>|\b(?:todo|tbd|fill this|placeholder)\b", value, re.IGNORECASE)
-
-
-def _machine_only_reference(value: str) -> bool:
-    targets = MARKDOWN_LINK.findall(value)
-    machine_links = [
-        target for target in targets
-        if target.startswith(("project:", "rep:", "file:"))
-        or target.split("#", 1)[0].split("?", 1)[0].lower().endswith(MACHINE_SUFFIXES)
-    ]
-    if not machine_links:
-        return False
-    residual = MARKDOWN_LINK.sub("", value)
-    residual = re.sub(r"[`*_~\s.,;:()[\]{}\-–—→]+", "", residual)
-    return not residual
-
-
-def _human_links(value: str, report_path: Path, project_root: Path) -> list[str]:
-    valid: list[str] = []
-    for target in MARKDOWN_LINK.findall(value):
-        target = target.strip()
-        base = target.split("#", 1)[0].split("?", 1)[0]
-        if target.startswith(("project:", "rep:", "file:")) or base.lower().endswith(MACHINE_SUFFIXES):
-            continue
-        if target.startswith(("http://", "https://")):
-            valid.append(target)
-            continue
-        if not base or Path(base).is_absolute():
-            continue
-        resolved = (report_path.parent / base).resolve()
-        try:
-            resolved.relative_to(project_root)
-        except ValueError:
-            continue
-        if resolved.is_file() and resolved.suffix.lower() in HUMAN_SUFFIXES:
-            valid.append(target)
-    return valid
-
-
 def _metadata(text: str) -> dict[str, str] | None:
     block = _between(text, METADATA_START, METADATA_END)
     if block is None:
         return None
     return {
-        "kind": _field(block, "Report kind").strip("`"),
-        "id": _field(block, "Report ID").strip("`"),
-        "created": _field(block, "Created").strip("`"),
-        "supersedes": _field(block, "Supersedes report ID").strip("`"),
-        "registry": _field(block, "Relation registry"),
+        "kind": first_field(block, "Report kind").strip("`"),
+        "id": first_field(block, "Report ID").strip("`"),
+        "created": first_field(block, "Created").strip("`"),
+        "supersedes": first_field(block, "Supersedes report ID").strip("`"),
+        "registry": first_field(block, "Relation registry"),
     }
 
 
@@ -143,7 +88,7 @@ def _validate_metadata(text: str, row: RegistryRow, path: Path, root: Path, erro
     if block is None:
         errors.append(_issue("missing_report_metadata", "report metadata markers are missing or duplicated", rel))
         return
-    not_unique = [label for label in METADATA_FIELDS if len(_field_values(block, label)) != 1]
+    not_unique = [label for label in METADATA_FIELDS if len(field_values(block, label)) != 1]
     if not_unique:
         errors.append(_issue("report_metadata_field_not_unique", f"metadata fields must occur exactly once: {', '.join(not_unique)}", rel))
         return
@@ -154,59 +99,8 @@ def _validate_metadata(text: str, row: RegistryRow, path: Path, root: Path, erro
     if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", meta["created"]):
         errors.append(_issue("invalid_report_created_date", "Created must use YYYY-MM-DD", rel))
     links = MARKDOWN_LINK.findall(meta["registry"])
-    if len(links) != 1 or not links[0].endswith("project_index.md#main-research-report") or not _human_links(meta["registry"], path, root):
+    if len(links) != 1 or not links[0].endswith("project_index.md#main-research-report") or not human_links(meta["registry"], path, root):
         errors.append(_issue("missing_relation_registry_link", "every report must link back to the supersession registry", rel))
-
-
-def _validation_records(section: str) -> list[tuple[str, str]]:
-    starts = list(re.finditer(r"^### Validation record:[ \t]*(.*?)[ \t]*$", section, re.MULTILINE))
-    return [
-        (
-            item.group(1).strip().strip("`"),
-            section[item.end(): starts[i + 1].start() if i + 1 < len(starts) else len(section)],
-        )
-        for i, item in enumerate(starts)
-    ]
-
-
-def _validate_validation(section: str, report_path: Path, root: Path, rel: str, errors: list[dict[str, str]]) -> None:
-    records = _validation_records(section)
-    independent = 0
-    if not records:
-        errors.append(_issue("missing_validation_record", "at least one structured validation record is required", rel))
-    record_ids = [record_id for record_id, _ in records]
-    if any(not _filled(record_id) for record_id in record_ids):
-        errors.append(_issue("incomplete_validation_record_id", "every validation record ID must be filled", rel))
-    duplicated_ids = sorted({record_id for record_id in record_ids if record_ids.count(record_id) > 1})
-    if duplicated_ids:
-        errors.append(_issue("validation_record_id_not_unique", f"validation record IDs must be unique: {', '.join(duplicated_ids)}", rel))
-    for _, block in records:
-        duplicated = [label for label in VALIDATION_FIELDS if len(_field_values(block, label)) > 1]
-        if duplicated:
-            errors.append(_issue("validation_field_not_unique", f"validation fields must occur exactly once per record: {', '.join(duplicated)}", rel))
-            continue
-        values = {label: _field(block, label).strip("`") for label in VALIDATION_FIELDS}
-        missing = [label for label, value in values.items() if not _filled(value)]
-        if missing:
-            errors.append(_issue("incomplete_validation_record", f"validation record has unfilled fields: {', '.join(missing)}", rel))
-            continue
-        classification = values["Classification"]
-        relations = [values[name] for name in ("Implementation relation", "Input relation", "Environment relation")]
-        if classification not in {"independent", "replay", "supporting_only"} or any(value not in {"same", "different", "not_applicable"} for value in relations):
-            errors.append(_issue("invalid_validation_classification", "validation classification or relation vocabulary is invalid", rel))
-            continue
-        if not _human_links(values["Human-readable validation evidence"], report_path, root):
-            errors.append(_issue("validation_evidence_not_human_readable", "validation evidence must use a reachable human-readable link", rel))
-        if classification == "independent":
-            independent += 1
-            if relations[0] == "same" and relations[1] == "same":
-                errors.append(_issue("same_implementation_replay_claimed_independent", "same implementation and same input is replay regardless of environment, not independent validation", rel))
-        if classification == "replay":
-            declared = {item.strip().lower() for item in values["Declared replay risks"].split(",")}
-            if not declared or not declared <= REPLAY_RISKS:
-                errors.append(_issue("replay_without_declared_risk", "replay risks must use the declared risk vocabulary", rel))
-    if independent == 0:
-        errors.append(_issue("missing_independent_validation", "the report must include genuinely independent validation evidence", rel))
 
 
 def _validate_current_report(path: Path, root: Path, errors: list[dict[str, str]]) -> None:
@@ -216,7 +110,7 @@ def _validate_current_report(path: Path, root: Path, errors: list[dict[str, str]
     titles = [item.strip() for item in re.findall(r"^# Main research report:[ \t]*(.*?)[ \t]*$", visible_text, re.MULTILINE)]
     if len(titles) != 1:
         errors.append(_issue("main_report_title_not_unique", "the report must contain exactly one visible main research report title", rel))
-    elif not _filled(titles[0]):
+    elif not field_is_filled(titles[0]):
         errors.append(_issue("incomplete_main_report_title", "the visible main research report title must be filled", rel))
     leaked = [phrase for phrase in AUTHORING_PROCESS_PHRASES if phrase in visible_text.lower()]
     if leaked:
@@ -231,8 +125,8 @@ def _validate_current_report(path: Path, root: Path, errors: list[dict[str, str]
     for section_name, labels in REQUIRED_FIELDS_BY_SECTION.items():
         section = sections.get(section_name, "")
         for label in labels:
-            all_values = _field_values(visible_text, label)
-            scoped_values = _field_values(section, label)
+            all_values = field_values(visible_text, label)
+            scoped_values = field_values(section, label)
             if not all_values:
                 errors.append(_issue("incomplete_report_field", f"required field is missing: {label}", rel))
                 continue
@@ -243,14 +137,14 @@ def _validate_current_report(path: Path, root: Path, errors: list[dict[str, str]
                 errors.append(_issue("report_field_wrong_section", f"required field must occur in section {section_name}: {label}", rel))
                 continue
             value = scoped_values[0]
-            if not _filled(value):
+            if not field_is_filled(value):
                 errors.append(_issue("incomplete_report_field", f"required field is unfilled: {label}", rel))
-            elif label not in {"Human-readable evidence chain", "Machine provenance"} and _machine_only_reference(value):
+            elif label not in {"Human-readable evidence chain", "Machine provenance"} and machine_only_reference(value):
                 errors.append(_issue("machine_provenance_substitutes_for_narrative", f"machine references cannot replace explanatory narrative: {label}", rel))
-    evidence = _field(sections.get("EVIDENCE", ""), "Human-readable evidence chain")
-    if evidence and not _human_links(evidence, path, root):
+    evidence = first_field(sections.get("EVIDENCE", ""), "Human-readable evidence chain")
+    if evidence and not human_links(evidence, path, root):
         errors.append(_issue("machine_provenance_substitutes_for_human_evidence", "the evidence chain needs a reachable human-readable link; machine references do not count", rel))
-    _validate_validation(sections.get("VALIDATION", ""), path, root, rel, errors)
+    validate_validation_section(sections.get("VALIDATION", ""), path, root, rel, errors)
 
 
 def validate_main_research_report(project_root: Path) -> dict[str, Any]:

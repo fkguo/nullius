@@ -35,7 +35,7 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'
 const ASSETS_DIR = 'skills/research-team/assets/';
 const REPORT_TEMPLATE_PATH = 'reports/main_research_report_template.md';
 const REFRESH_TRUTH_SURFACES = [
-  'packages/orchestrator/src/cli-help.ts',
+  'packages/orchestrator/src/cli-scaffold-help.ts',
   'packages/project-contracts/README.md',
   'packages/project-contracts/src/project_contracts/scaffold_templates/AGENTS.md',
   'skills/research-harness/SKILL.md',
