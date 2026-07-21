@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "idea_card_revision_request_v1.schema.json",
+  "title": "IdeaCardRevisionRequest v1",
+  "description": "Optimistic-concurrency request for replacing one node's current idea card while preserving the prior revision in engine history.",
+  "type": "object",
+  "required": [
+    "campaign_id",
+    "node_id",
+    "expected_revision",
+    "replacement_idea_card",
+    "reason",
+    "idempotency_key"
+  ],
+  "properties": {
+    "campaign_id": {
+      "type": "string",
+      "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$"
+    },
+    "node_id": {
+      "type": "string",
+      "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$"
+    },
+    "expected_revision": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Exact node revision observed by the caller. A mismatch fails closed; it is never treated as a merge request."
+    },
+    "replacement_idea_card": {
+      "$ref": "./idea_card_v1.schema.json"
+    },
+    "reason": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Why the scientific proposition is being revised. Recorded verbatim in the engine-owned mutation event."
+    },
+    "idempotency_key": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "additionalProperties": false
+}

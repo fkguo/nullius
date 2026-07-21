@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "idea_card_revision_result_v1.schema.json",
+  "title": "IdeaCardRevisionResult v1",
+  "description": "Result of node.revise_card: the complete new node, the exact append-only mutation event, budget state, and replay provenance.",
+  "type": "object",
+  "required": [
+    "campaign_id",
+    "node",
+    "mutation_event",
+    "budget_snapshot",
+    "idempotency"
+  ],
+  "properties": {
+    "campaign_id": {
+      "type": "string",
+      "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$"
+    },
+    "node": { "$ref": "./idea_node_v1.schema.json" },
+    "mutation_event": { "$ref": "./idea_card_revision_event_v1.schema.json" },
+    "budget_snapshot": { "$ref": "./budget_snapshot_v1.schema.json" },
+    "idempotency": { "$ref": "./idempotency_meta_v1.schema.json" }
+  },
+  "additionalProperties": false
+}

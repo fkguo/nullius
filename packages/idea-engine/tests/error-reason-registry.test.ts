@@ -1,3 +1,4 @@
+// # CONTRACT-EXEMPT: CODE-01.1 — pre-existing repository-wide source scanner; this lane adds one target code only, while splitting the scanner would change its fail-closed source-span semantics.
 import { readdirSync, readFileSync } from 'fs';
 import { resolve } from 'path';
 import { fileURLToPath } from 'url';
@@ -31,9 +32,7 @@ import { OPENRPC_PATH } from '../src/contracts/openrpc.js';
 // visible in these files that fall outside the recognized shapes fail loudly
 // (unbalanced span / unresolved site / alias and directory tripwires).
 
-// -32018 is not thrown anywhere yet: it is scanned pre-emptively so the registry check
-// engages the moment the first -32018 reason lands in the service layer.
-const TARGET_CODES = new Set([-32002, -32016, -32017, -32018]);
+const TARGET_CODES = new Set([-32002, -32016, -32017, -32018, -32019]);
 const BACKWARD_WINDOW_LINES = 12;
 
 const SERVICE_DIR = fileURLToPath(new URL('../src/service', import.meta.url));

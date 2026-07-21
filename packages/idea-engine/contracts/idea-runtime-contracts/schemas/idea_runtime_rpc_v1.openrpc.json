@@ -2,8 +2,8 @@
   "openrpc": "1.2.6",
   "info": {
     "title": "Idea Campaign RPC (v1)",
-    "version": "2.1.0",
-    "description": "JSON-RPC interface for the public idea campaign host surface, currently implemented by the TS idea-engine runtime. Contract schemas are referenced via $ref to sibling files in this directory.\n\nScope note: the search/eval runtime has been archived. The engine manages an idea portfolio: campaign lifecycle, node reads, externally computed belief posteriors (node.set_posterior), lifecycle transitions (node.set_lifecycle), independently produced grounding-audit records (node.set_grounding_audit), scoped provenance corrections (node.rewrite_provenance), posterior-based ranking (rank.compute), and promotion (node.promote).\n\nRef resolution: All external schema $ref values are relative to this OpenRPC document's directory.\n\nIdempotency semantics (MUST):\n1) Side-effecting methods require idempotency_key.\n2) Engine deduplicates by (method, campaign_id, idempotency_key). For campaign.init (no campaign_id yet), dedupe by (method, idempotency_key).\n2b) If the same idempotency_key is reused with a different request payload, the engine MUST reject with schema_validation_failed (-32002) and MUST NOT execute the request. The error MUST include error.data.reason=\"idempotency_key_conflict\" and MUST include error.data.idempotency_key + error.data.payload_hash.\n2c) Payload identity MUST be machine-defined: compute payload_hash = sha256(JCS(params_without_idempotency_key)). JCS = RFC 8785 JSON Canonicalization Scheme (deterministic object key order + number formatting). Engines SHOULD apply default-value filling (e.g., node.list.limit omitted → 50) before hashing to avoid false conflicts for semantically identical intents.\n3) On duplicate, engine MUST return the same logical response as the first call (result or error), without repeating side-effects. The response MUST include idempotency metadata (idempotency_key + is_replay); is_replay MUST be true on duplicate hits and false on first execution. All other fields MUST match the first response. For non-deterministic methods, this MUST be implemented by storing and replaying the first response, not by re-execution.\n4) Idempotency records MUST be retained for the campaign lifetime (or until an explicit campaign.delete is added).\n\nError data contract (MUST):\nAll error responses MUST include a machine-readable JSON-RPC error.data object. Minimum fields: {\"reason\": string, \"details\"?: object}.\n- For code -32001 (budget_exhausted), error.data.reason MUST be \"dimension_exhausted\" and error.data.details.exhausted_dimensions MUST list one or more exhausted budget dimensions.\n- For code -32002 (schema_validation_failed), error.data.reason MUST distinguish at least: schema_invalid, idempotency_key_conflict, activation_condition_required, activation_condition_unexpected, archived_reason_required, posterior_status_not_supported_by_coverage.\n- For code -32017 (promotion_blocked), error.data.reason MUST be posterior_missing or node_not_admitted.\n- For code -32018 (lifecycle_transition_invalid), error.data.reason MUST distinguish at least: illegal_transition, entry_precondition_failed, posterior_write_lifecycle_invalid, grounding_audit_write_lifecycle_invalid, unknown_lifecycle_state. error.data.details MUST carry, per reason: illegal_transition — current_state, requested_state, allowed_next; entry_precondition_failed — current_state, requested_state, requirement; posterior_write_lifecycle_invalid / grounding_audit_write_lifecycle_invalid — current_state, allowed_states; unknown_lifecycle_state — found, allowed_states plus a migration hint."
+    "version": "2.2.0",
+    "description": "JSON-RPC interface for the public idea campaign host surface, currently implemented by the TS idea-engine runtime. Contract schemas are referenced via $ref to sibling files in this directory.\n\nScope note: the search/eval runtime has been archived. The engine manages an idea portfolio: campaign lifecycle, node reads, externally computed belief posteriors (node.set_posterior), lifecycle transitions (node.set_lifecycle), independently produced grounding-audit records (node.set_grounding_audit), optimistic whole-card revisions (node.revise_card), scoped provenance corrections (node.rewrite_provenance), posterior-based ranking (rank.compute), and promotion (node.promote).\n\nRef resolution: All external schema $ref values are relative to this OpenRPC document's directory.\n\nIdempotency semantics (MUST):\n1) Side-effecting methods require idempotency_key.\n2) Engine deduplicates by (method, campaign_id, idempotency_key). For campaign.init (no campaign_id yet), dedupe by (method, idempotency_key).\n2b) If the same idempotency_key is reused with a different request payload, the engine MUST reject with schema_validation_failed (-32002) and MUST NOT execute the request. The error MUST include error.data.reason=\"idempotency_key_conflict\" and MUST include error.data.idempotency_key + error.data.payload_hash.\n2c) Payload identity MUST be machine-defined: compute payload_hash = sha256(JCS(params_without_idempotency_key)). JCS = RFC 8785 JSON Canonicalization Scheme (deterministic object key order + number formatting). Engines SHOULD apply default-value filling (e.g., node.list.limit omitted → 50) before hashing to avoid false conflicts for semantically identical intents.\n3) On duplicate, engine MUST return the same logical response as the first call (result or error), without repeating side-effects. The response MUST include idempotency metadata (idempotency_key + is_replay); is_replay MUST be true on duplicate hits and false on first execution. All other fields MUST match the first response. For non-deterministic methods, this MUST be implemented by storing and replaying the first response, not by re-execution.\n4) Idempotency records MUST be retained for the campaign lifetime (or until an explicit campaign.delete is added).\n\nError data contract (MUST):\nAll error responses MUST include a machine-readable JSON-RPC error.data object. Minimum fields: {\"reason\": string, \"details\"?: object}.\n- For code -32001 (budget_exhausted), error.data.reason MUST be \"dimension_exhausted\" and error.data.details.exhausted_dimensions MUST list one or more exhausted budget dimensions.\n- For code -32002 (schema_validation_failed), error.data.reason MUST distinguish at least: schema_invalid, idempotency_key_conflict, activation_condition_required, activation_condition_unexpected, archived_reason_required, posterior_status_not_supported_by_coverage.\n- For code -32017 (promotion_blocked), error.data.reason MUST be posterior_missing or node_not_admitted.\n- For code -32018 (lifecycle_transition_invalid), error.data.reason MUST distinguish at least: illegal_transition, entry_precondition_failed, posterior_write_lifecycle_invalid, grounding_audit_write_lifecycle_invalid, idea_card_revision_lifecycle_invalid, unknown_lifecycle_state. error.data.details MUST carry, per reason: illegal_transition — current_state, requested_state, allowed_next; entry_precondition_failed — current_state, requested_state, requirement; posterior_write_lifecycle_invalid / grounding_audit_write_lifecycle_invalid / idea_card_revision_lifecycle_invalid — current_state, allowed_states; unknown_lifecycle_state — found, allowed_states plus a migration hint.\n- For code -32019 (revision_conflict), error.data.reason MUST be stale_revision and details MUST carry expected_revision and current_revision."
   },
   "x-error-data-contract": {
     "schema": {
@@ -20,6 +20,9 @@
         "activation_condition_unexpected",
         "archived_reason_required",
         "posterior_status_not_supported_by_coverage",
+        "idea_card_missing",
+        "replacement_idea_card_unchanged",
+        "reserved_provenance_claim_changed",
         "anchor_missing",
         "closest_prior_node_reference",
         "dedup_inconsistent",
@@ -57,7 +60,11 @@
         "entry_precondition_failed",
         "posterior_write_lifecycle_invalid",
         "grounding_audit_write_lifecycle_invalid",
+        "idea_card_revision_lifecycle_invalid",
         "unknown_lifecycle_state"
+      ],
+      "-32019": [
+        "stale_revision"
       ]
     }
   },
@@ -783,6 +790,104 @@
         {
           "code": -32018,
           "message": "lifecycle_transition_invalid"
+        }
+      ]
+    },
+    {
+      "name": "node.revise_card",
+      "summary": "Replace a node's complete idea card under optimistic concurrency and return it to scientific re-intake.",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "campaign_id",
+          "schema": {
+            "type": "string",
+            "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$"
+          },
+          "required": true
+        },
+        {
+          "name": "node_id",
+          "schema": {
+            "type": "string",
+            "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$"
+          },
+          "required": true
+        },
+        {
+          "name": "expected_revision",
+          "schema": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "required": true,
+          "description": "Exact revision observed by the caller. A mismatch fails with revision_conflict/stale_revision; the engine never merges cards implicitly."
+        },
+        {
+          "name": "replacement_idea_card",
+          "schema": {
+            "$ref": "./idea_card_v1.schema.json"
+          },
+          "required": true,
+          "description": "Complete replacement validated by the authoritative idea_card_v1 schema. Text and Unicode are stored verbatim."
+        },
+        {
+          "name": "reason",
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          },
+          "required": true,
+          "description": "Non-blank explanation of why the scientific proposition changed; recorded verbatim in the append-only event."
+        },
+        {
+          "name": "idempotency_key",
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          },
+          "required": true
+        }
+      ],
+      "description": "Side-effecting. Atomically replaces one complete idea_card after validating it against idea_card_v1 and comparing expected_revision with the current node revision. The before/after card hashes are sha256 over RFC 8785 JCS, so semantically identical object-key reorderings are unchanged while string bytes, including Unicode and whitespace, remain significant. Legal source lifecycle states are candidate, admission_review, admitted, and needs_refresh. admission_blocked, waiting_activation, and archived fail with lifecycle_transition_invalid/idea_card_revision_lifecycle_invalid because a card edit must not silently satisfy an activation or revival condition.\n\nEffects (MUST): increment revision once; set lifecycle_state=candidate and lifecycle_reason=idea_card_revised; clear activation_condition, grounding_audit, posterior, literature_coverage, reduction_report, and reduction_audit; therefore remove the node from current ranking/allocation eligibility. The append-only revision event preserves the exact complete prior node plus explicit prior card, revision, timestamps, lifecycle data, grounding audit, posterior (including any gaia_package_ref), literature coverage, reduction report, and reduction audit. Generated nodes must preserve their single engine-owned novelty-delta card claim exactly; reserved provenance can change only through node.rewrite_provenance.\n\nIdempotency and durability (MUST): payload identity is JCS over all params except idempotency_key. Once a schema-valid campaign_id and non-empty idempotency_key identify a safe store scope and its mutation lock is acquired, the first logical result OR error is committed under that key. Same key + same payload returns or throws that exact stored response without reevaluating later node state; result replays set top-level is_replay=true and create no second event. Same key + any different payload, including one whose card would fail deep schema validation, fails idempotency_key_conflict before that deep validation. Write order for a successful mutation is prepared idempotency record -> atomic latest-node replacement -> fsynced append-only event -> committed idempotency record. A fresh revision preflights the entire existing JSONL ledger and performs no node/event write when it is malformed. Recovery completes only the exact prepared node/event: even when a crash landed only the prepared record, it compares the complete stored before-node, writes the stored resulting node/event without regenerating timestamps, and returns a replay. Interior malformed JSONL and an unrelated malformed final fragment fail closed with internal_error/idea_card_revision_recovery_conflict. A torn final fragment is repaired only when its bytes are a strict prefix of the prepared event. Recovery never appends a missing old event after another same-node event at the target or a later revision.",
+      "result": {
+        "name": "idea_card_revision_result",
+        "schema": {
+          "$ref": "./idea_card_revision_result_v1.schema.json"
+        }
+      },
+      "errors": [
+        {
+          "code": -32002,
+          "message": "schema_validation_failed"
+        },
+        {
+          "code": -32003,
+          "message": "campaign_not_found"
+        },
+        {
+          "code": -32004,
+          "message": "node_not_found"
+        },
+        {
+          "code": -32014,
+          "message": "node_not_in_campaign"
+        },
+        {
+          "code": -32015,
+          "message": "campaign_not_active"
+        },
+        {
+          "code": -32018,
+          "message": "lifecycle_transition_invalid"
+        },
+        {
+          "code": -32019,
+          "message": "revision_conflict"
+        },
+        {
+          "code": -32603,
+          "message": "internal_error"
         }
       ]
     },
