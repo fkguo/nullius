@@ -85,6 +85,70 @@ def test_complete_main_report_passes_structural_validation() -> None:
     assert result["registered_report_count"] == 1
 
 
+def test_missing_main_report_title_fails_closed() -> None:
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        (root / "evidence.md").write_text("# Evidence\n", encoding="utf-8")
+        report = _complete_report("report-a").replace("# Main research report: report-a\n", "", 1)
+        path, digest = _write_report(root, "report-a", text=report)
+        _write_registry(root, "report-a", [("report-a", path, digest, "none", "none")])
+        result = validate_main_research_report(root)
+
+    assert result["status"] == "fail"
+    assert "main_report_title_not_unique" in _error_codes(result)
+
+
+def test_placeholder_main_report_title_fails_closed() -> None:
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        (root / "evidence.md").write_text("# Evidence\n", encoding="utf-8")
+        report = _complete_report("report-a").replace(
+            "# Main research report: report-a",
+            "# Main research report: <REPORT_TITLE>",
+            1,
+        )
+        path, digest = _write_report(root, "report-a", text=report)
+        _write_registry(root, "report-a", [("report-a", path, digest, "none", "none")])
+        result = validate_main_research_report(root)
+
+    assert result["status"] == "fail"
+    assert "incomplete_main_report_title" in _error_codes(result)
+
+
+def test_duplicate_main_report_title_fails_closed() -> None:
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        (root / "evidence.md").write_text("# Evidence\n", encoding="utf-8")
+        report = _complete_report("report-a").replace(
+            "# Main research report: report-a",
+            "# Main research report: report-a\n# Main research report: contradiction",
+            1,
+        )
+        path, digest = _write_report(root, "report-a", text=report)
+        _write_registry(root, "report-a", [("report-a", path, digest, "none", "none")])
+        result = validate_main_research_report(root)
+
+    assert result["status"] == "fail"
+    assert "main_report_title_not_unique" in _error_codes(result)
+
+
+def test_empty_duplicate_main_report_title_fails_closed() -> None:
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        (root / "evidence.md").write_text("# Evidence\n", encoding="utf-8")
+        report = _complete_report("report-a").replace(
+            "# Main research report: report-a",
+            "# Main research report: report-a\n# Main research report:",
+            1,
+        )
+        path, digest = _write_report(root, "report-a", text=report)
+        _write_registry(root, "report-a", [("report-a", path, digest, "none", "none")])
+        result = validate_main_research_report(root)
+
+    assert result["status"] == "fail"
+    assert "main_report_title_not_unique" in _error_codes(result)
+
+
 def test_template_instructions_do_not_leak_into_researcher_facing_report() -> None:
     template = load_scaffold_template("main_research_report_template.md")
     report = _complete_report("report-a")
@@ -98,6 +162,40 @@ def test_template_instructions_do_not_leak_into_researcher_facing_report() -> No
     for phrase in forbidden:
         assert phrase not in template
         assert phrase not in report
+
+
+def test_duplicate_visible_report_id_in_metadata_fails_closed() -> None:
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        (root / "evidence.md").write_text("# Evidence\n", encoding="utf-8")
+        report = _complete_report("report-a").replace(
+            "- Report ID: `report-a`",
+            "- Report ID: `report-a`\n- Report ID: `contradiction`",
+            1,
+        )
+        path, digest = _write_report(root, "report-a", text=report)
+        _write_registry(root, "report-a", [("report-a", path, digest, "none", "none")])
+        result = validate_main_research_report(root)
+
+    assert result["status"] == "fail"
+    assert "report_metadata_field_not_unique" in _error_codes(result)
+
+
+def test_empty_duplicate_metadata_field_fails_closed() -> None:
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        (root / "evidence.md").write_text("# Evidence\n", encoding="utf-8")
+        report = _complete_report("report-a").replace(
+            "- Report ID: `report-a`",
+            "- Report ID: `report-a`\n- Report ID:",
+            1,
+        )
+        path, digest = _write_report(root, "report-a", text=report)
+        _write_registry(root, "report-a", [("report-a", path, digest, "none", "none")])
+        result = validate_main_research_report(root)
+
+    assert result["status"] == "fail"
+    assert "report_metadata_field_not_unique" in _error_codes(result)
 
 
 def test_authoring_process_prose_cannot_survive_report_promotion() -> None:
@@ -350,6 +448,66 @@ def test_registry_data_inside_html_comment_does_not_count() -> None:
     assert "no_current_report" in _error_codes(result)
 
 
+def test_current_report_pointer_must_contain_one_markdown_link() -> None:
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        (root / "evidence.md").write_text("# Evidence\n", encoding="utf-8")
+        path, digest = _write_report(root, "report-a")
+        _write_registry(root, "report-a", [("report-a", path, digest, "none", "none")])
+        index = root / "project_index.md"
+        index.write_text(
+            index.read_text(encoding="utf-8").replace(
+                f"- Current report: [report-a]({path})",
+                f"- Current report: [report-a]({path}) [contradiction](reports/contradiction.md)",
+            ),
+            encoding="utf-8",
+        )
+        result = validate_main_research_report(root)
+
+    assert result["status"] == "fail"
+    assert "current_report_link_not_unique" in _error_codes(result)
+
+
+def test_empty_duplicate_current_report_pointer_fails_closed() -> None:
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        (root / "evidence.md").write_text("# Evidence\n", encoding="utf-8")
+        path, digest = _write_report(root, "report-a")
+        _write_registry(root, "report-a", [("report-a", path, digest, "none", "none")])
+        index = root / "project_index.md"
+        index.write_text(
+            index.read_text(encoding="utf-8").replace(
+                f"- Current report: [report-a]({path})",
+                f"- Current report: [report-a]({path})\n- Current report:",
+            ),
+            encoding="utf-8",
+        )
+        result = validate_main_research_report(root)
+
+    assert result["status"] == "fail"
+    assert "current_report_pointer_not_unique" in _error_codes(result)
+
+
+def test_registry_report_cell_must_contain_one_markdown_link() -> None:
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        (root / "evidence.md").write_text("# Evidence\n", encoding="utf-8")
+        path, digest = _write_report(root, "report-a")
+        _write_registry(root, "report-a", [("report-a", path, digest, "none", "none")])
+        index = root / "project_index.md"
+        index.write_text(
+            index.read_text(encoding="utf-8").replace(
+                f"| `report-a` | [report-a]({path}) |",
+                f"| `report-a` | [report-a]({path}) [contradiction](reports/contradiction.md) |",
+            ),
+            encoding="utf-8",
+        )
+        result = validate_main_research_report(root)
+
+    assert result["status"] == "fail"
+    assert "registry_report_link_not_unique" in _error_codes(result)
+
+
 def test_same_implementation_replay_is_not_independent_validation() -> None:
     with tempfile.TemporaryDirectory() as td:
         root = Path(td)
@@ -364,6 +522,123 @@ def test_same_implementation_replay_is_not_independent_validation() -> None:
 
     assert result["status"] == "fail"
     assert "same_implementation_replay_claimed_independent" in _error_codes(result)
+
+
+def test_duplicate_validation_classification_fails_closed() -> None:
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        (root / "evidence.md").write_text("# Evidence\n", encoding="utf-8")
+        report = _complete_report("report-a").replace(
+            "- Classification: `independent`",
+            "- Classification: `independent`\n- Classification: `replay`",
+            1,
+        )
+        path, digest = _write_report(root, "report-a", text=report)
+        _write_registry(root, "report-a", [("report-a", path, digest, "none", "none")])
+        result = validate_main_research_report(root)
+
+    assert result["status"] == "fail"
+    assert "validation_field_not_unique" in _error_codes(result)
+
+
+def test_empty_duplicate_validation_field_fails_closed() -> None:
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        (root / "evidence.md").write_text("# Evidence\n", encoding="utf-8")
+        report = _complete_report("report-a").replace(
+            "- Classification: `independent`",
+            "- Classification: `independent`\n- Classification:",
+            1,
+        )
+        path, digest = _write_report(root, "report-a", text=report)
+        _write_registry(root, "report-a", [("report-a", path, digest, "none", "none")])
+        result = validate_main_research_report(root)
+
+    assert result["status"] == "fail"
+    assert "validation_field_not_unique" in _error_codes(result)
+
+
+def test_placeholder_validation_record_id_fails_closed() -> None:
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        (root / "evidence.md").write_text("# Evidence\n", encoding="utf-8")
+        report = re.sub(
+            r"^### Validation record: .+$",
+            "### Validation record: <validation-id>",
+            _complete_report("report-a"),
+            count=1,
+            flags=re.MULTILINE,
+        )
+        path, digest = _write_report(root, "report-a", text=report)
+        _write_registry(root, "report-a", [("report-a", path, digest, "none", "none")])
+        result = validate_main_research_report(root)
+
+    assert result["status"] == "fail"
+    assert "incomplete_validation_record_id" in _error_codes(result)
+
+
+def test_duplicate_validation_record_id_fails_closed() -> None:
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        (root / "evidence.md").write_text("# Evidence\n", encoding="utf-8")
+        report = _complete_report("report-a")
+        start = report.index("### Validation record:")
+        end = report.index("<!-- REPORT_SECTION_VALIDATION_END -->")
+        record = report[start:end]
+        report = report[:end] + record + report[end:]
+        path, digest = _write_report(root, "report-a", text=report)
+        _write_registry(root, "report-a", [("report-a", path, digest, "none", "none")])
+        result = validate_main_research_report(root)
+
+    assert result["status"] == "fail"
+    assert "validation_record_id_not_unique" in _error_codes(result)
+
+
+def test_empty_validation_record_heading_fails_closed() -> None:
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        (root / "evidence.md").write_text("# Evidence\n", encoding="utf-8")
+        report = _complete_report("report-a").replace(
+            "<!-- REPORT_SECTION_VALIDATION_END -->",
+            "### Validation record:\n<!-- REPORT_SECTION_VALIDATION_END -->",
+            1,
+        )
+        path, digest = _write_report(root, "report-a", text=report)
+        _write_registry(root, "report-a", [("report-a", path, digest, "none", "none")])
+        result = validate_main_research_report(root)
+
+    assert result["status"] == "fail"
+    assert "incomplete_validation_record_id" in _error_codes(result)
+
+
+def test_hidden_contradictory_values_do_not_count() -> None:
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        (root / "evidence.md").write_text("# Evidence\n", encoding="utf-8")
+        report = _complete_report("report-a").replace(
+            "<!-- MAIN_RESEARCH_REPORT_METADATA_END -->",
+            "<!--\n- Report ID: `contradiction`\n-->\n<!-- MAIN_RESEARCH_REPORT_METADATA_END -->",
+        ).replace(
+            "- Classification: `independent`",
+            "- Classification: `independent`\n<!-- - Classification: `replay` -->",
+            1,
+        )
+        path, digest = _write_report(root, "report-a", text=report)
+        _write_registry(root, "report-a", [("report-a", path, digest, "none", "none")])
+        index = root / "project_index.md"
+        index.write_text(
+            index.read_text(encoding="utf-8").replace(
+                f"- Current report: [report-a]({path})",
+                f"- Current report: [report-a]({path}) <!-- [contradiction](reports/contradiction.md) -->",
+            ).replace(
+                f"| `report-a` | [report-a]({path}) |",
+                f"| `report-a` | [report-a]({path}) <!-- [contradiction](reports/contradiction.md) --> |",
+            ),
+            encoding="utf-8",
+        )
+        result = validate_main_research_report(root)
+
+    assert result["status"] == "pass"
 
 
 def test_environment_change_does_not_make_same_implementation_and_input_independent() -> None:

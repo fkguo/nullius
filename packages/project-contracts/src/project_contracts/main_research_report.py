@@ -47,6 +47,13 @@ AUTHORING_PROCESS_PHRASES = (
     "add one record per validation",
     "for a replay record",
 )
+METADATA_FIELDS = (
+    "Report kind",
+    "Report ID",
+    "Created",
+    "Supersedes report ID",
+    "Relation registry",
+)
 
 
 def _issue(code: str, message: str, path: str) -> dict[str, str]:
@@ -69,7 +76,7 @@ def _field(text: str, label: str) -> str:
 def _field_values(text: str, label: str) -> list[str]:
     return [
         match.strip()
-        for match in re.findall(rf"^- {re.escape(label)}:\s*(.+?)\s*$", text, re.MULTILINE)
+        for match in re.findall(rf"^- {re.escape(label)}:[ \t]*([^\r\n]*?)[ \t]*$", text, re.MULTILINE)
     ]
 
 
@@ -131,10 +138,17 @@ def _metadata(text: str) -> dict[str, str] | None:
 
 def _validate_metadata(text: str, row: RegistryRow, path: Path, root: Path, errors: list[dict[str, str]]) -> None:
     rel = path.relative_to(root).as_posix()
-    meta = _metadata(visible_markdown(text, preserved_markers=STRUCTURAL_MARKERS))
-    if meta is None:
+    visible_text = visible_markdown(text, preserved_markers=STRUCTURAL_MARKERS)
+    block = _between(visible_text, METADATA_START, METADATA_END)
+    if block is None:
         errors.append(_issue("missing_report_metadata", "report metadata markers are missing or duplicated", rel))
         return
+    not_unique = [label for label in METADATA_FIELDS if len(_field_values(block, label)) != 1]
+    if not_unique:
+        errors.append(_issue("report_metadata_field_not_unique", f"metadata fields must occur exactly once: {', '.join(not_unique)}", rel))
+        return
+    meta = _metadata(visible_text)
+    assert meta is not None
     if meta["kind"] != "main_research_report" or meta["id"] != row.report_id or meta["supersedes"] != row.supersedes:
         errors.append(_issue("report_registry_metadata_mismatch", "report kind, ID, or supersedes metadata disagrees with the registry", rel))
     if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", meta["created"]):
@@ -144,17 +158,33 @@ def _validate_metadata(text: str, row: RegistryRow, path: Path, root: Path, erro
         errors.append(_issue("missing_relation_registry_link", "every report must link back to the supersession registry", rel))
 
 
-def _validation_blocks(section: str) -> list[str]:
-    starts = list(re.finditer(r"^### Validation record:\s*.+$", section, re.MULTILINE))
-    return [section[item.end(): starts[i + 1].start() if i + 1 < len(starts) else len(section)] for i, item in enumerate(starts)]
+def _validation_records(section: str) -> list[tuple[str, str]]:
+    starts = list(re.finditer(r"^### Validation record:[ \t]*(.*?)[ \t]*$", section, re.MULTILINE))
+    return [
+        (
+            item.group(1).strip().strip("`"),
+            section[item.end(): starts[i + 1].start() if i + 1 < len(starts) else len(section)],
+        )
+        for i, item in enumerate(starts)
+    ]
 
 
 def _validate_validation(section: str, report_path: Path, root: Path, rel: str, errors: list[dict[str, str]]) -> None:
-    blocks = _validation_blocks(section)
+    records = _validation_records(section)
     independent = 0
-    if not blocks:
+    if not records:
         errors.append(_issue("missing_validation_record", "at least one structured validation record is required", rel))
-    for block in blocks:
+    record_ids = [record_id for record_id, _ in records]
+    if any(not _filled(record_id) for record_id in record_ids):
+        errors.append(_issue("incomplete_validation_record_id", "every validation record ID must be filled", rel))
+    duplicated_ids = sorted({record_id for record_id in record_ids if record_ids.count(record_id) > 1})
+    if duplicated_ids:
+        errors.append(_issue("validation_record_id_not_unique", f"validation record IDs must be unique: {', '.join(duplicated_ids)}", rel))
+    for _, block in records:
+        duplicated = [label for label in VALIDATION_FIELDS if len(_field_values(block, label)) > 1]
+        if duplicated:
+            errors.append(_issue("validation_field_not_unique", f"validation fields must occur exactly once per record: {', '.join(duplicated)}", rel))
+            continue
         values = {label: _field(block, label).strip("`") for label in VALIDATION_FIELDS}
         missing = [label for label, value in values.items() if not _filled(value)]
         if missing:
@@ -183,6 +213,11 @@ def _validate_current_report(path: Path, root: Path, errors: list[dict[str, str]
     rel = path.relative_to(root).as_posix()
     text = path.read_text(encoding="utf-8", errors="replace")
     visible_text = visible_markdown(text, preserved_markers=STRUCTURAL_MARKERS)
+    titles = [item.strip() for item in re.findall(r"^# Main research report:[ \t]*(.*?)[ \t]*$", visible_text, re.MULTILINE)]
+    if len(titles) != 1:
+        errors.append(_issue("main_report_title_not_unique", "the report must contain exactly one visible main research report title", rel))
+    elif not _filled(titles[0]):
+        errors.append(_issue("incomplete_main_report_title", "the visible main research report title must be filled", rel))
     leaked = [phrase for phrase in AUTHORING_PROCESS_PHRASES if phrase in visible_text.lower()]
     if leaked:
         errors.append(_issue("authoring_process_leaked_into_report", "researcher-facing reports cannot retain template or structural-validator instructions", rel))
