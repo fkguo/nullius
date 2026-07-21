@@ -128,12 +128,16 @@ function hasRecordedReservedClaimWithdrawal(options: {
   });
   const latestTransition = transitions[transitions.length - 1];
   if (!latestTransition) return false;
-  if (latestTransition.beforeCount === 0 || latestTransition.afterCount !== 0) {
+  if (latestTransition.afterCount !== 0) {
     throw withdrawalLedgerConflict(
       options.campaignId,
       options.nodeId,
-      'the latest card-revision transition affecting the reserved novelty claim introduces rather than withdraws it; the ledger and current zero-claim card disagree',
-      { entry_index: latestTransition.index },
+      'the latest card-revision transition affecting the reserved novelty claim does not end at zero claims, but the current card carries none; the ledger and latest state disagree',
+      {
+        after_count: latestTransition.afterCount,
+        before_count: latestTransition.beforeCount,
+        entry_index: latestTransition.index,
+      },
     );
   }
   const { entry, index } = latestTransition;
@@ -159,7 +163,7 @@ function hasRecordedReservedClaimWithdrawal(options: {
     throw withdrawalLedgerConflict(
       options.campaignId,
       options.nodeId,
-      'a card-revision ledger event records reserved-claim withdrawal but has no matching prepared or committed node.revise_card idempotency witness; refusing to treat self-attested ledger bytes as reviewed withdrawal',
+      'a card-revision ledger event records reserved-claim withdrawal but has no matching prepared or committed node.revise_card idempotency record; refusing a card-file deletion that no engine revision record corroborates',
       { entry_index: index, idempotency_key: key ?? null },
     );
   }

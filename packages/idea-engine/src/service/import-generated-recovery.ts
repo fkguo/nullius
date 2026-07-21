@@ -6,6 +6,7 @@ import { canonicalJson, payloadHash } from '../hash/payload-hash.js';
 import { writeJsonFileAtomic } from '../store/file-io.js';
 import { exhaustedDimensions } from './budget-snapshot.js';
 import { RpcError } from './errors.js';
+import { NOVELTY_DELTA_CLAIM_DELIMITER } from './node-shared.js';
 
 export const IMPORT_GENERATED_METHOD = 'node.import_generated';
 export const IMPORT_ARTIFACT_TYPE = 'generation';
@@ -86,7 +87,7 @@ function provenanceRewriteChainMatches(
       || typeof entry.new_value !== 'string'
       || entry.new_value.length === 0
       || entry.new_value !== entry.new_value.trim()
-      || entry.new_value.includes('): ')
+      || entry.new_value.includes(NOVELTY_DELTA_CLAIM_DELIMITER)
       || typeof entry.reason !== 'string'
       || entry.reason.trim().length === 0
       || typeof entry.rewritten_at !== 'string'
@@ -629,7 +630,7 @@ export function recoverImportGenerated(
       replacePackArtifactRefInNode(comparableCurrent, legacyMigrationOldRef, legacyMigrationNewRef);
     }
     if (!provenanceRewriteChainMatches(comparableCurrent, expected, idempotencyRecords, campaignId, nodeId)) {
-      throw recoveryConflict(campaignId, 'stored node closest-prior provenance does not form a valid rewrite chain from the archived import', {
+      throw recoveryConflict(campaignId, 'stored node operator-trace novelty provenance does not form a valid rewrite chain from the archived import', {
         node_id: nodeId,
       });
     }
