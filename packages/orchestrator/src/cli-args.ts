@@ -51,6 +51,7 @@ export type ParsedCliArgs =
     json: boolean;
   }
   | { command: 'status'; projectRoot: string | null; json: boolean }
+  | { command: 'report-validate'; projectRoot: string | null }
   | { command: 'pause'; projectRoot: string | null; note: string | null }
   | { command: 'resume'; projectRoot: string | null; note: string | null; force: boolean }
   | { command: 'approve'; projectRoot: string | null; approvalId: string; note: string | null }
@@ -854,6 +855,9 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
       return { command: 'export', projectRoot, passthrough: rest };
     case 'status':
       return { command: 'status', projectRoot, ...parseStatusArgs(rest) };
+    case 'report-validate':
+      if (rest.length > 0) throw new Error(`unknown report-validate argument: ${rest[0]}`);
+      return { command: 'report-validate', projectRoot };
     case 'pause':
       return { command: 'pause', projectRoot, ...parseNoteArgs('pause', rest) };
     case 'resume':

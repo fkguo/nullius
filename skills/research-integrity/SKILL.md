@@ -31,6 +31,7 @@ every trigger below:
 - Checking off a task-board item whose output later work will build
   on.
 - A milestone closeout commit.
+- Promoting or superseding the current main research report.
 - Marking a `research-team` cycle as converged, or acting on a
   convergence gate that reports the cycle converged.
 - Assembling submission material, or handing off to another agent or
@@ -825,6 +826,9 @@ deadline.
 For A5 specifically, run the full M1–M7 pass, confirm that M8 was run
 before every computation to which it applied, and record both checks
 inline in the conclusion artifact rather than as a separate file.
+If the conclusion is promoted as the main research report, also require the
+project's `nullius report-validate` gate to pass. That structural result does
+not discharge M1–M7 or the independent scientific sufficiency judgment.
 
 In projects that do not use the engine's approval flow (declared
 `execution_mode: file`, or any moment where the go-ahead arrives in

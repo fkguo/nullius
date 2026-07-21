@@ -67,6 +67,10 @@ export async function runCli(argv: string[], io: CliIo = defaultIo()): Promise<n
   }
 
   const projectRoot = resolveLifecycleProjectRoot(parsed.projectRoot, io.cwd);
+  if (parsed.command === 'report-validate') {
+    const { runReportValidateCommand } = await import('./project-report.js');
+    return runReportValidateCommand(projectRoot, io);
+  }
   if (parsed.command === 'verify') {
     const { runVerifyCommand } = await import('./cli-lifecycle.js');
     await runVerifyCommand(projectRoot, parsed, io);

@@ -32,6 +32,7 @@ CANONICAL_SCAFFOLD_FILES = {
     "research_plan.md",
     "research_notebook.md",
     "research_contract.md",
+    "reports/main_research_report_template.md",
 }
 
 LANGUAGE_DISCIPLINE_SNIPPETS = (
@@ -192,6 +193,7 @@ class TestScaffoldContract(unittest.TestCase):
         self.assertIn("Backticks are only for filenames, commands, literal field or key names, and code identifiers", template)
         self.assertIn("opt-in support layers", template)
         self.assertIn("nullius init --refresh", template)
+        self.assertIn("`reports/main_research_report_template.md`", template)
         self.assertNotIn("run_team_cycle.sh", template)
         self.assertNotIn("prompts/_system_member_a.txt", template)
         self.assertNotIn("research_team_config.json", template)
@@ -528,6 +530,31 @@ class TestScaffoldContract(unittest.TestCase):
         # The append-only shapes are gone: no change log, no per-run bullets.
         self.assertNotIn("## Change Log", template)
         self.assertNotIn("- Current milestone:", template)
+
+    def test_main_research_report_contract_is_distinct_and_supersession_safe(self) -> None:
+        template = (scaffold_template_dir() / "main_research_report_template.md").read_text(encoding="utf-8")
+        index = (scaffold_template_dir() / "project_index.md").read_text(encoding="utf-8")
+
+        for phrase in (
+            "not a checkpoint, status note, closeout brief",
+            "Research object",
+            "Representation coordinates",
+            "Primary-source and full-text coverage",
+            "Controlled approximations",
+            "Bias magnitude",
+            "Uncertainty and resolution",
+            "Strongest alternative explanation",
+            "Next falsifiable condition",
+            "Human-readable evidence chain",
+            "Machine provenance",
+            "same-implementation, same-input",
+        ):
+            self.assertIn(phrase, template)
+        self.assertNotIn("word count", template.lower())
+        self.assertIn("MAIN_RESEARCH_REPORT_REGISTRY_START", index)
+        self.assertIn("Current report ID", index)
+        self.assertIn("Superseded by", index)
+        self.assertIn("Never overwrite a registered report", index)
 
 
 MANAGED_SUPPORT_FILES = set(SCAFFOLD_SUPPORT_FILES)

@@ -9,7 +9,7 @@ Nullius is a domain-neutral, evidence-first research monorepo. Today it combines
 
 ## 1. Surface Policy
 
-- `nullius` remains the stateful CLI front door for initialized external project roots. Use it for lifecycle state, bounded execution, `workflow-plan`, verification, higher-conclusion gating, and proposal decisions.
+- `nullius` remains the stateful CLI front door for initialized external project roots. Use it for lifecycle state, bounded execution, `workflow-plan`, verification, higher-conclusion gating, main-report structural validation, and proposal decisions.
 - `orch_*` remains the MCP/operator counterpart of that same control plane. It is a host-facing bridge for the control plane, not a competing product identity and not a replacement for the CLI.
 - `openalex_*`, `arxiv_*`, `hepdata_*`, `pdg_*`, and `zotero_*` remain bounded atomic MCP operators. They stay MCP-first because they are schema-driven provider atoms, not stateful workflow shells that need mass CLI mirroring. `@nullius/hep-mcp` also surfaces these provider tools as entry points inside its own tool set (reusing the provider packages' `tooling`), so a HEP session reaches literature, data, reference, and Zotero access without wiring each provider MCP separately.
 - `idea-mcp` remains an experimental runtime bridge onto the restarted, probability-managed `idea-engine` portfolio. It is not a root front door, and its MCP surface is intentionally narrower than the full `idea-engine` runtime contract. The idea-engine search/eval runtime is archived; contracts + store are retained, scoring consumes an external belief-graph posterior (pinned tool, current pin gaia-lang==0.5.0a4), and idea-engine is still not a default capability-expansion lane. The belief, decision, and generation layers around it live in four skills, not in the runtime: `idea-posterior` (decompose an idea into source-grounded sub-criteria, compute a Gaia posterior, write it back), `idea-pairwise-match` (criteria-committed cross-family judged comparison, one capped non-eliminating observation), `idea-allocation` (Thompson-sampling allocation plus activation monitoring), and `idea-generation` (derived idea nodes generated from research-progress evidence deltas — survey tensions, re-anchored gaps, failed-approach entries — imported through the engine's `node.import_generated` as auditable generation packs; retrieval receipts before evidence URIs, mechanical dedup, novelty as a falsifiable closest-prior delta claim, no generator-side scoring).
@@ -23,7 +23,7 @@ Nullius is a domain-neutral, evidence-first research monorepo. Today it combines
 
 | Surface | Canonical entrypoint | What it is for |
 | --- | --- | --- |
-| Stateful CLI front door | `nullius` | External project-root lifecycle state, approvals, bounded native TS `run --workflow-id computation`, stateful `workflow-plan` persistence, and `graph` dependency-map rendering (claims / progress / literature / roadmap) |
+| Stateful CLI front door | `nullius` | External project-root lifecycle state, approvals, bounded native TS `run --workflow-id computation`, stateful `workflow-plan` persistence, main-report structural validation, and `graph` dependency-map rendering (claims / progress / literature / roadmap) |
 | Control-plane MCP/operator counterpart | `orch_*` | Host-facing MCP/operator surface for the same lifecycle/control-plane authority |
 | Stateful literature planning | `nullius workflow-plan` | Checked-in workflow authority resolved via `@nullius/literature-workflows`, persisted to `.nullius/state.json#/plan`, and rendered to `.nullius/plan.md` |
 | Agent research project harness skill | `research-harness` | Thin client skill for Codex / Claude Code / OpenCode to recover external project state, route work to `nullius`, `research-team`, `markdown-hygiene`, and `hep-mcp`, and fold results back into durable project artifacts |
@@ -45,7 +45,7 @@ The live HEP tool inventory is code-owned and mode-filtered by `HEP_TOOL_MODE`; 
 | Provider atoms | `openalex_*`, `arxiv_*`, `hepdata_*`, `pdg_*`, `zotero_*` | Bounded, schema-driven MCP operators are easier to compose than provider-local CLI mirrors |
 | Project-local truth | `.nullius/` plus durable memory files | Reconnect truth stays with the external project root, not the development repo |
 
-Within project-local truth, `research_plan.md#Current Status` is the human status entry: keep the final target, current phase, completion state, blocker, next step, stop condition, and evidence pointers readable before the longer task board and log. `research_notebook.md` is the human-facing logical narrative: organize it by the evolving research problem, derivations, claims, and uncertainties, not by status tracking. Literature notes for important sources must be full-text/source-first with auditable section/page/equation/figure coverage and LaTeX math notation. Keep dated run logs, raw workflow summaries, and tool-use traces in `research_plan.md` progress entries or `artifacts/runs/<run_id>/`, then fold durable insights back into the notebook. Human-facing `run_id` values should be safe, sortable, readable research identifiers such as `20260502T023000Z-m3-branch-scan-r1`; provider UUIDs or `run_<uuid>` values are machine/provider provenance, not recommended project artifact roots.
+Within project-local truth, `research_plan.md#Current Status` is the human status entry and should stay concise, while `research_notebook.md` is the living logical narrative. Neither is the immutable main research report. A promoted report is a complete researcher-facing account under `reports/`; `project_index.md#Main research report` is its single current entry point and supersession registry. Machine JSON, hashes, and receipts bind provenance but never replace explanatory narrative or clickable human-readable evidence. Run `nullius report-validate` before promotion: it checks structure, immutable hashes, links, validation classification, and supersession consistency, but its pass does not establish scientific sufficiency. Literature notes for important sources must be full-text/source-first with auditable section/page/equation/figure coverage and LaTeX math notation. Keep dated run logs, raw workflow summaries, and tool-use traces in `research_plan.md` progress entries or `artifacts/runs/<run_id>/`, then fold durable insights back into the notebook.
 
 Skill source and distribution are separate surfaces:
 
@@ -108,7 +108,7 @@ Approval packets are materialized under the run's `artifacts/runs/<run_id>/appro
 The durable truth here should be understood as two layers that hold together:
 
 - lifecycle / plan / approval state under `.nullius/`
-- project-local durable memory such as `research_plan.md`, `research_contract.md`, and `research_notebook.md` once it has substantive content
+- project-local durable memory such as `research_plan.md`, `research_contract.md`, `research_notebook.md` once it has substantive content, and immutable registered reports under `reports/`
 
 Surfaces such as `prompts/`, `team/`, `research_team_config.json`, `.mcp.template.json`, and root `specs/plan.schema.json` are opt-in support layers, created later by explicit project need or host-specific tooling rather than the default working front door.
 
@@ -193,6 +193,8 @@ as described in this README, then retry the same startup sequence.
 Use research-harness if your agent supports it. Treat nullius as the lifecycle
 authority, research-team as the milestone executor, and fold stable results back into
 research_contract.md, research_plan.md#Current Status, and artifacts/runs/<run_id>/.
+Promote a complete immutable report through project_index.md#Main research report,
+then run: nullius report-validate
 Declare (or re-declare) where project truth lives with: nullius init --mode=engine|file
 (file mode: work executed by hand or external runners; run_status staying idle is normal)
 Record decisions made in conversation with: nullius decision record "<what was decided>"
@@ -202,7 +204,7 @@ Open questions stay counted in every status receipt (oldest ten itemized; the re
 via: nullius decision list) until resolved.
 ```
 
-  Once initialized, reconnect is local-first: `.nullius/HARNESS`, `.nullius/bin/nullius`, `AGENTS.md`, `research_plan.md`, `research_contract.md`, and `artifacts/runs/<run_id>/` are enough for an agent to recover the project state after a closed session or a network outage. Network access is only needed for tasks that actually fetch external sources.
+  Once initialized, reconnect is local-first: `.nullius/HARNESS`, `.nullius/bin/nullius`, `AGENTS.md`, `project_index.md`, `research_plan.md`, `research_contract.md`, registered reports, and `artifacts/runs/<run_id>/` are enough for an agent to recover the project state after a closed session or a network outage. Network access is only needed for tasks that actually fetch external sources.
 
 - For stateful literature workflows, first initialize the target external project root with `nullius init`, then use `nullius workflow-plan` from that root or with `--project-root`. It resolves recipes directly via `@nullius/literature-workflows`, persists `.nullius/state.json#/plan`, and derives `.nullius/plan.md`. Pass an explicit `--run-id` for meaningful external research runs; if omitted, the derived `<recipe>-<phase>` id is only a planning placeholder. `research_brainstorm` is the lightweight planning-only durable harness form: `nullius workflow-plan --recipe research_brainstorm --run-id 20260502T023000Z-m0-topic-r1 --topic "<topic>"` records brainstorm context, candidate angles, screening, one recommendation, and a `next_contract` handoff. `.nullius/plan.md` is a human read model rather than machine orchestration SSOT. The contract may suggest a heavier follow-up recipe such as `literature_landscape`, `literature_gap_analysis`, `derivation_cycle`, or `review_cycle`, but it does not start that recipe automatically and it does not depend on any host-native thinking process. The persisted `research_brainstorm.*` step tools are handoff authority, not built-in runtime tools, unless a future external tool caller explicitly implements them. Any checked-in Python workflow consumers remain maintainer/eval proof only and are not a second front-door shell.
 

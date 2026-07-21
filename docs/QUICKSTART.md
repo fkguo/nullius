@@ -12,6 +12,8 @@
 
 在 Codex / Claude Code / OpenCode 里继续一个外部研究项目时，优先安装或启用 `research-harness` skill。它不是新的 CLI；它会指导 agent 先读取 `.nullius/HARNESS`、`.nullius/`、`research_plan.md#Current Status`、`research_contract.md` 与相关 `artifacts/runs/`，再把生命周期操作交给 `nullius`、把里程碑推进交给 `research-team`、把 Markdown 笔记清理交给 `markdown-hygiene`、把 HEP 文献/证据工作交给 `hep-mcp`。
 
+若项目已提升主研究报告，还要从 `project_index.md#Main research report` 读取唯一当前报告及其 supersession registry。
+
 给 Codex、Claude Code、OpenCode、Cursor、Kimi-code 等 agent 的通常启动指令应当是幂等的：同一段话同时覆盖第一次使用、关闭后重启、断网后恢复。
 
 ```text
@@ -40,6 +42,8 @@ nullius init --refresh
 Use research-harness if your agent supports it. Treat nullius as the lifecycle
 authority, research-team as the milestone executor, and fold stable results back into
 research_contract.md, research_plan.md#Current Status, and artifacts/runs/<run_id>/.
+Promote a complete immutable report through project_index.md#Main research report,
+then run: nullius report-validate
 Declare (or re-declare) where project truth lives with: nullius init --mode=engine|file
 (file mode: work executed by hand or external runners; run_status staying idle is normal)
 Record decisions made in conversation with: nullius decision record "<what was decided>"
@@ -49,7 +53,7 @@ Open questions stay counted in every status receipt (oldest ten itemized; the re
 via: nullius decision list) until resolved.
 ```
 
-初始化完成后，接续是 local-first 的：`.nullius/HARNESS`、`.nullius/bin/nullius`、`AGENTS.md`、`research_plan.md`、`research_contract.md` 和 `artifacts/runs/<run_id>/` 足以让 agent 在关闭会话或断网后恢复项目状态；只有真实需要外部文献/数据时才需要网络。
+初始化完成后，接续是 local-first 的：`.nullius/HARNESS`、`.nullius/bin/nullius`、`AGENTS.md`、`project_index.md`、`research_plan.md`、`research_contract.md`、当前主研究报告和 `artifacts/runs/<run_id>/` 足以让 agent 在关闭会话或断网后恢复项目状态；只有真实需要外部文献/数据时才需要网络。
 
 如果你还没初始化外部 project root，先走这一条：
 
@@ -70,9 +74,9 @@ nullius workflow-plan --recipe research_brainstorm --run-id 20260502T023000Z-m0-
 
 它会持久化 `.nullius/state.json#/plan` 并派生 `.nullius/plan.md` read model，输出的 `next_contract` 可建议后续 `literature_landscape`、`literature_gap_analysis`、`derivation_cycle` 或 `review_cycle`，但不会自动升级到这些 recipe。这个 harness 是 planning-only：持久化的 `research_brainstorm.*` step tools 是 handoff authority，不是内置 runnable tool chain。host-native thinking process 不属于这个 recipe 的 contract；它也不是 idea-engine、不是 full research-team、不是新的 root front door。
 
-研究记录约定：`research_plan.md#Current Status` 是给人看的状态入口，应在长 task board / log 之前写清最终目标、当前阶段、完成状态、阻塞、下一步、停止条件和证据指针；`research_notebook.md` 按问题逻辑、推导、claim 和不确定性组织，不承载状态追踪。重要文献 note 必须全文/source-first 阅读，记录 section/page/equation/figure 覆盖，并用 LaTeX math 写科学记号；带日期的 run log、原始检索摘要、下载尝试和控制面观察写入 `research_plan.md` progress log 或 `artifacts/runs/<run_id>/`，再把稳定理解折回 notebook。`run_id` 应是 safe、sortable、readable 的研究标识，如 `20260502T023000Z-m3-branch-scan-r1`；若 `workflow-plan` 未显式传 `--run-id`，派生的 `<recipe>-<phase>` 只作为 planning placeholder。
+研究记录约定：`research_plan.md#Current Status` 是简洁状态入口，`research_notebook.md` 是持续更新的问题逻辑主线；二者都不能冒充主研究报告。主报告从 `reports/main_research_report_template.md` 创建为不可变新文件，经 `project_index.md#Main research report` 登记并指向唯一当前版本，再以 `nullius report-validate` 检查结构、hash、链接、supersession 与 validation 分类。该检查通过不等于科学充分性通过。机器 JSON、hash、receipt 只绑定 provenance，不能替代解释性叙事与可点击的人类可读证据。重要文献 note 必须全文/source-first 阅读，记录 section/page/equation/figure 覆盖，并用 LaTeX math 写科学记号；带日期的 run log、原始检索摘要、下载尝试和控制面观察写入 `research_plan.md` progress log 或 `artifacts/runs/<run_id>/`，再把稳定理解折回 notebook。
 
-`research-team` 的 `team/runs/` 是执行与 reviewer packet/log surface，同时也是与 `artifacts/runs/<run_id>/` 并列的一等证据根：claim 可以直接引用 `team/runs/<run>/` 下的证据路径。但它不是最终项目真相——稳定结论必须折回 `research_contract.md` 与 `research_plan.md#Current Status`（证据指针指向实际存放证据的根），才算完成交接。
+`research-team` 的 `team/runs/` 是执行与 reviewer packet/log surface，同时也是与 `artifacts/runs/<run_id>/` 并列的一等证据根：claim 可以直接引用 `team/runs/<run>/` 下的证据路径。但它不是主研究报告；需要提升的完整结论还必须写成新的不可变报告，并通过 `project_index.md#Main research report` 切换当前入口。
 
 ## Draft Path（最简路径）
 

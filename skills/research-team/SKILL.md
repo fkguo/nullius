@@ -171,6 +171,12 @@ a run lives at the run_dir top level (`cycle_state.json`, `<tag>_member_*.md`,
 - **Scaffold pruning (move/archive optional files)**: `scripts/bin/prune_optional_scaffold.py`.
 - **Environment snapshot**: `scripts/bin/capture_env_snapshot.sh`.
 - **Lifecycle updates**: `scripts/bin/update_project_map.py`, `scripts/bin/update_research_plan_progress.py`, `scripts/bin/update_trajectory_index.py`.
+- **Main research report promotion**: the canonical domain-neutral template
+  and registry live in the `project-contracts` scaffold under
+  `reports/main_research_report_template.md` and
+  `project_index.md#Main research report`; validate promotion with
+  `nullius report-validate`. This skill consumes that authority and does not
+  carry a second template.
 - **Secondary utilities (advanced; see `references/usage_guide.md`)**:
   - Autofill: `scripts/bin/auto_fill_prework.py`, `scripts/bin/auto_fill_research_plan.py`
   - Tag helpers: `scripts/bin/next_team_tag.py`, `scripts/bin/next_draft_tag.py`
@@ -271,6 +277,23 @@ optional PNG/SVG only if Graphviz is installed). This is a **planning** view and
 intentionally **distinct from the Claim DAG** (`knowledge_graph/`, which encodes
 *what we believe* — claims + evidence): it reuses the Claim DAG's rendering
 conventions but shares no input files and must not be conflated with it.
+
+## Main research report promotion
+
+The roadmap map, member reports, convergence summaries, checkpoint notes, and
+closeout briefs are coordination or review artifacts. None is the main
+research report. Machine manifests and receipts bind execution but likewise do
+not replace the human-readable scientific account.
+
+When a converged milestone is promoted into the project's main report, copy
+the canonical project template to a new stable path under `reports/` and fill
+the complete narrative contract. Register its SHA-256 and any supersession in
+`project_index.md#Main research report`; update the old and new registry rows
+in both directions and switch the single current pointer. Registered report
+bytes are immutable. Run `nullius report-validate` before calling the
+promotion complete. Structural validation checks the contract shape,
+human-readable links, replay classification, hashes, and supersession chain;
+it does not decide whether the scientific narrative is sufficient.
 
 ## Deep dive (read only when needed)
 

@@ -37,7 +37,8 @@ Behavior:
   --refresh re-applies the current managed scaffold doc (AGENTS.md),
   backing up any changed file under \`.nullius/backups/<timestamp>/\` before overwriting it.
   Refresh never writes user-owned files (research_plan.md, research_notebook.md,
-  research_contract.md, project_charter.md, project_index.md). Pair with --dry-run to preview.
+  research_contract.md, project_charter.md, project_index.md,
+  reports/main_research_report_template.md). Pair with --dry-run to preview.
 
 Pass-through options:
   --force
@@ -135,6 +136,22 @@ Behavior:
 
 Output:
   JSON readiness or approval-request result is written to stdout.
+`,
+  'report-validate': `nullius report-validate
+
+Validate the single promoted main research report for an external project.
+
+Behavior:
+  Reads the main-report registry in project_index.md and fails closed when no
+  current report is promoted, a checkpoint/status summary is structurally
+  incomplete, a historical report no longer matches its registered SHA-256,
+  the supersession chain or current pointer is stale, human-readable evidence
+  is replaced by machine references, or a same-implementation replay is
+  labeled as independent validation.
+  The check is structural. A pass does not establish scientific sufficiency.
+
+Output:
+  main_research_report_v1 validation JSON is written to stdout.
 `,
   'proposal-decision': `nullius proposal-decision --proposal-kind <repair|skill|optimize|innovate> --proposal-id <id> --decision <accepted_for_later|dismissed|already_captured> [options]
 
