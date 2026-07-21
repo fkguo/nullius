@@ -21,12 +21,17 @@ function schemaProperties(schema: Record<string, unknown>): Record<string, unkno
   return (schema.properties ?? {}) as Record<string, unknown>;
 }
 
+function verificationCheckRunBase(schema: Record<string, unknown>): Record<string, unknown> {
+  const defs = (schema.$defs ?? {}) as Record<string, Record<string, unknown>>;
+  return defs.VerificationCheckRunBase ?? {};
+}
+
 describe('verification kernel schema foundation', () => {
   it('keeps stable generic subject kinds while leaving check kinds open-ended', () => {
     const subjectSchema = readJson('verification_subject_v1.schema.json');
     const checkRunSchema = readJson('verification_check_run_v1.schema.json');
     const subjectKind = schemaProperties(subjectSchema).subject_kind as { enum?: string[] };
-    const checkKind = schemaProperties(checkRunSchema).check_kind as { type?: string; enum?: string[] };
+    const checkKind = schemaProperties(verificationCheckRunBase(checkRunSchema)).check_kind as { type?: string; enum?: string[] };
 
     expect(subjectKind.enum).toEqual([
       'claim',
@@ -55,15 +60,108 @@ describe('verification kernel schema foundation', () => {
 
   it('requires artifact-backed evidence for executed verification checks', () => {
     const checkRunSchema = readJson('verification_check_run_v1.schema.json');
-    const props = schemaProperties(checkRunSchema);
+    const checkRunBase = verificationCheckRunBase(checkRunSchema);
+    const props = schemaProperties(checkRunBase);
     const subjectRef = props.subject_ref as { $ref?: string };
     const evidenceRefs = props.evidence_refs as { minItems?: number; items?: { $ref?: string } };
 
-    expect(requiredFields(checkRunSchema)).toContain('subject_ref');
-    expect(requiredFields(checkRunSchema)).toContain('evidence_refs');
+    expect(requiredFields(checkRunBase)).toContain('subject_ref');
+    expect(requiredFields(checkRunBase)).toContain('evidence_refs');
     expect(subjectRef.$ref).toBe('https://nullius.dev/schemas/artifact_ref_v1.schema.json');
     expect(evidenceRefs.minItems).toBe(1);
     expect(evidenceRefs.items?.$ref).toBe('https://nullius.dev/schemas/artifact_ref_v1.schema.json');
+  });
+
+  it('requires decisive check runs to carry a validation-chain binding receipt', () => {
+    const checkRunSchema = readJson('verification_check_run_v1.schema.json');
+    const bindingSchema = readJson('validation_chain_binding_v1.schema.json');
+    const defs = checkRunSchema.$defs as Record<string, Record<string, unknown>>;
+    const decisive = defs.DecisiveVerificationCheckRun;
+    const nonDecisive = defs.NonDecisiveVerificationCheckRun;
+
+    expect(requiredFields(verificationCheckRunBase(checkRunSchema))).not.toContain('validation_chain_binding_ref');
+    expect(checkRunSchema.oneOf).toEqual([
+      { $ref: '#/$defs/DecisiveVerificationCheckRun' },
+      { $ref: '#/$defs/NonDecisiveVerificationCheckRun' },
+    ]);
+    expect(decisive.allOf).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        required: ['check_role', 'validation_chain_binding_ref'],
+        properties: expect.objectContaining({ check_role: { type: 'string', const: 'decisive' } }),
+      }),
+    ]));
+    expect(nonDecisive.allOf).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        properties: expect.objectContaining({
+          check_role: { type: 'string', enum: ['supporting', 'diagnostic'] },
+        }),
+      }),
+    ]));
+    expect(requiredFields(bindingSchema)).toEqual(expect.arrayContaining([
+      'production_entry_ref',
+      'production_config_ref',
+      'production_execution_status_ref',
+      'production_steps',
+      'input_refs',
+      'checker_ref',
+      'checker_request_ref',
+      'structured_verdict_ref',
+      'execution',
+    ]));
+  });
+
+  it('keeps checker-request and data-file descriptions aligned with runtime ownership', () => {
+    const requestSchema = readJson('validation_checker_request_v1.schema.json');
+    const manifestSchema = readJson('computation_manifest_v1.schema.json');
+    const dependencies = schemaProperties(manifestSchema).dependencies as {
+      properties?: Record<string, { description?: string }>;
+    };
+    const requestDescription = String(requestSchema.description ?? '');
+    const dataDescription = String(dependencies.properties?.data_files?.description ?? '');
+
+    expect(requestDescription).toContain('structured-output URI/path targets');
+    expect(requestDescription).toContain('outer validation-chain receipt');
+    expect(requestDescription).not.toContain('records adjacent production snapshots');
+    expect(requestDescription).not.toContain('content-addressed structured-output targets');
+    expect(dataDescription).toContain('Workspace-relative data files');
+    expect(dataDescription).toContain('Absolute paths and URIs are not accepted');
+  });
+
+  it('generates phase-discriminated step snapshots with required provenance refs', () => {
+    const snapshotSchema = readJson('step_execution_snapshot_v1.schema.json');
+    const defs = snapshotSchema.$defs as Record<string, Record<string, unknown>>;
+    const preSpawn = defs.PreSpawnStepExecutionSnapshot;
+    const postExit = defs.PostExitStepExecutionSnapshot;
+    const generatedSnapshot = fs.readFileSync(
+      path.join(generatedDir, 'step-execution-snapshot-v1.ts'),
+      'utf-8',
+    );
+
+    expect(snapshotSchema.oneOf).toEqual([
+      { $ref: '#/$defs/PreSpawnStepExecutionSnapshot' },
+      { $ref: '#/$defs/PostExitStepExecutionSnapshot' },
+    ]);
+    expect(preSpawn.allOf).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        required: ['phase', 'workspace_file_refs'],
+        properties: expect.objectContaining({ phase: { type: 'string', const: 'pre_spawn' } }),
+      }),
+    ]));
+    expect(postExit.allOf).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        required: ['phase', 'workspace_file_refs', 'output_refs'],
+        properties: expect.objectContaining({ phase: { type: 'string', const: 'post_exit' } }),
+      }),
+    ]));
+    expect(generatedSnapshot).toContain(
+      'export type StepExecutionSnapshotV1 =\n  | PreSpawnStepExecutionSnapshot\n  | PostExitStepExecutionSnapshot;',
+    );
+    expect(generatedSnapshot).toMatch(
+      /type PreSpawnStepExecutionSnapshot[\s\S]*workspace_file_refs:\s*\[/u,
+    );
+    expect(generatedSnapshot).toMatch(
+      /type PostExitStepExecutionSnapshot[\s\S]*workspace_file_refs:\s*\[[\s\S]*output_refs:\s*WorkspaceFileSnapshotEntry\[\]/u,
+    );
   });
 
   it('adds optional verification ref hooks to computation and writing-review bridge contracts', () => {
@@ -103,13 +201,24 @@ describe('verification kernel schema foundation', () => {
 
   it('generates shared bindings and barrel exports for the verification kernel', () => {
     const generatedIndex = fs.readFileSync(path.join(generatedDir, 'index.ts'), 'utf-8');
+    const generatedCheckRun = fs.readFileSync(
+      path.join(generatedDir, 'verification-check-run-v1.ts'),
+      'utf-8',
+    );
 
     expect(fs.existsSync(path.join(generatedDir, 'verification-subject-v1.ts'))).toBe(true);
     expect(fs.existsSync(path.join(generatedDir, 'verification-check-run-v1.ts'))).toBe(true);
     expect(fs.existsSync(path.join(generatedDir, 'verification-subject-verdict-v1.ts'))).toBe(true);
     expect(fs.existsSync(path.join(generatedDir, 'verification-coverage-v1.ts'))).toBe(true);
+    expect(fs.existsSync(path.join(generatedDir, 'validation-chain-binding-v1.ts'))).toBe(true);
+    expect(generatedIndex).toContain('validation-chain-binding-v1.js');
     expect(generatedIndex).toContain('verification-check-run-v1.js');
     expect(generatedIndex).toContain('verification-coverage-v1.js');
+    expect(generatedCheckRun).toContain('export type VerificationCheckRunV1 =');
+    expect(generatedCheckRun).toContain('DecisiveVerificationCheckRun');
+    expect(generatedCheckRun).toMatch(
+      /check_role:\s*["']decisive["'];\s*validation_chain_binding_ref:\s*ArtifactRef/u,
+    );
     expect(generatedIndex).toContain('verification-subject-v1.js');
     expect(generatedIndex).toContain('verification-subject-verdict-v1.js');
   });

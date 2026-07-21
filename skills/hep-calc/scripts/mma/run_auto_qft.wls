@@ -1,7 +1,7 @@
 (* run_auto_qft.wls
 
    wolframscript entry point:
-     wolframscript -noprompt -file run_auto_qft.wls -- <job.resolved.json> <out_dir>
+     HEP_CALC_POSTCONDITION_VALIDATOR=<validator.py> wolframscript -noprompt -file run_auto_qft.wls -- <job.snapshot.json> <out_dir> <job_bytes> <job_sha256>
 
    Purpose:
    - Deterministically run an automated pipeline:
@@ -17,6 +17,9 @@ ClearAll[
   HepCalcWriteJSON,
   HepCalcWriteStatus,
   HepCalcWriteSummary,
+  HepCalcSecureRead,
+  HepCalcFeynArtsModelStage,
+  HepCalcDecodeSecureBytes,
   HepCalcFail,
   HepCalcMissingQ,
   HepCalcToFeynArtsField,
@@ -47,6 +50,46 @@ HepCalcWriteJSON[path_String, data_] := Module[{dir},
 
 HepCalcWriteStatus[path_String, status_Association] := HepCalcWriteJSON[path, status];
 HepCalcWriteSummary[path_String, summary_Association] := HepCalcWriteJSON[path, summary];
+
+HepCalcSecureRead[path_String] := Module[{proc, payload},
+  proc = Quiet@Check[
+    RunProcess[
+      {"python3", $HepCalcValidatorPath, "--stage", "secure_read", "--path", path},
+      All
+    ],
+    $Failed
+  ];
+  If[proc === $Failed || Lookup[proc, "ExitCode", 1] =!= 0, Return[$Failed]];
+  payload = Quiet@Check[ImportString[Lookup[proc, "StandardOutput", ""], "RawJSON"], $Failed];
+  If[! AssociationQ[payload] || Lookup[payload, "status", "ERROR"] =!= "PASS", $Failed, payload]
+];
+
+HepCalcFeynArtsModelStage[stage_String, modelName_String] := Module[{proc, payload},
+  proc = Quiet@Check[
+    RunProcess[
+      {
+        "python3",
+        $HepCalcValidatorPath,
+        "--stage",
+        stage,
+        "--out",
+        $HepCalcOutDir,
+        "--model-name",
+        modelName
+      },
+      All
+    ],
+    $Failed
+  ];
+  If[proc === $Failed || Lookup[proc, "ExitCode", 1] =!= 0, Return[$Failed]];
+  payload = Quiet@Check[ImportString[Lookup[proc, "StandardOutput", ""], "RawJSON"], $Failed];
+  If[! AssociationQ[payload] || Lookup[payload, "status", "ERROR"] =!= "PASS", $Failed, payload]
+];
+
+HepCalcDecodeSecureBytes[payload_Association] := Quiet@Check[
+  FromCharacterCode[Normal[BaseDecode[Lookup[payload, "base64", ""]]], "UTF8"],
+  $Failed
+];
 
 HepCalcMissingQ[x_] := (x === Null) || (x === "") || (x === None) || (x === $Failed) || (Head[x] === Missing);
 
@@ -212,13 +255,31 @@ HepCalcResolveFAFieldFromFRModel[name_String] := Module[
 (* -------- main -------- *)
 
 args = Rest[$ScriptCommandLine];
-If[Length[args] < 2,
-  Print["ERROR: expected args: <job.resolved.json> <out_dir>"];
+If[Length[args] < 4,
+  Print["ERROR: expected args: <job.snapshot.json> <out_dir> <job_bytes> <job_sha256>"];
   Quit[2];
 ];
 
 jobPath = args[[1]];
 $HepCalcOutDir = args[[2]];
+$HepCalcValidatorPath = Environment["HEP_CALC_POSTCONDITION_VALIDATOR"];
+If[! StringQ[$HepCalcValidatorPath] || StringTrim[$HepCalcValidatorPath] === "",
+  Print["ERROR: HEP_CALC_POSTCONDITION_VALIDATOR is required"];
+  Quit[2]
+];
+If[! StringMatchQ[args[[3]], DigitCharacter ..],
+  Print["ERROR: invalid expected job byte count"];
+  Quit[2]
+];
+$HepCalcJobBytes = ToExpression[args[[3]]];
+$HepCalcJobSHA = ToLowerCase[args[[4]]];
+If[
+  ! IntegerQ[$HepCalcJobBytes] || $HepCalcJobBytes <= 0 ||
+    ! StringMatchQ[$HepCalcJobSHA, RegularExpression["[0-9a-f]{64}"]],
+  Print["ERROR: invalid expected job witness"];
+  Quit[2]
+];
+$HepCalcJobRelativePath = "auto_qft/formcalc/job_snapshot.json";
 $HepCalcStartedAt = DateString[Now, "ISODateTime"];
 
 autoDir = FileNameJoin[{$HepCalcOutDir, "auto_qft"}];
@@ -240,7 +301,19 @@ $HepCalcSummaryPath = FileNameJoin[{autoDir, "summary.json"}];
 $HepCalcModelBuildStatusPath = FileNameJoin[{mbDir, "status.json"}];
 $HepCalcModelBuildSummaryPath = FileNameJoin[{mbDir, "summary.json"}];
 
-job = Quiet@Check[Import[jobPath, "RawJSON"], $Failed];
+jobPayload = HepCalcSecureRead[jobPath];
+If[
+  ! AssociationQ[jobPayload] ||
+    Lookup[jobPayload, "bytes", Null] =!= $HepCalcJobBytes ||
+    Lookup[jobPayload, "sha256", Null] =!= $HepCalcJobSHA,
+  HepCalcFail[
+    "job_resolved_binding_mismatch",
+    <|"jobPath" -> jobPath, "expected_bytes" -> $HepCalcJobBytes, "expected_sha256" -> $HepCalcJobSHA|>,
+    3
+  ]
+];
+jobText = HepCalcDecodeSecureBytes[jobPayload];
+job = Quiet@Check[ImportString[jobText, "RawJSON"], $Failed];
 If[job === $Failed, HepCalcFail["job_resolved_json_unreadable", <|"jobPath" -> jobPath|>, 3]];
 
 auto = Lookup[job, "auto_qft", <||>];
@@ -354,6 +427,7 @@ fcCfg = Lookup[auto, "formcalc", <||>];
 useFormCalc = TrueQ[Lookup[fcCfg, "enable", False]];
 useFormCalcRequested = useFormCalc;
 paveReduce = ToString[Lookup[fcCfg, "pave_reduce", "LoopTools"]];
+formcalcMemoryLimitMB = Lookup[fcCfg, "memory_limit_mb", 2048];
 
 expCfg = Lookup[auto, "export", <||>];
 doDiagrams = TrueQ[Lookup[expCfg, "diagrams", True]];
@@ -631,16 +705,33 @@ If[useFeynArtsOnly,
   modelName = "hep_calc_auto_model";
   genericModelName = modelName;
   faPrefix = FileNameJoin[{modelDir, modelName}];
-
-  Quiet@Check[
-    FeynRules`WriteFeynArtsOutput[lag, FeynRules`Output -> faPrefix, FeynRules`ScreenOutput -> False],
-    HepCalcFail["write_feynarts_output_failed", <|"model_files" -> modelFiles, "lagrangian_symbol" -> lagSym|>]
-  ];
-
   faMod = faPrefix <> ".mod";
   faGen = faPrefix <> ".gen";
   faPars = faPrefix <> ".pars";
-  If[! (FileExistsQ[faMod] && FileExistsQ[faGen] && FileExistsQ[faPars]),
+
+  modelPrepare = HepCalcFeynArtsModelStage["prepare_feynarts_model", modelName];
+  If[
+    modelPrepare === $Failed,
+    HepCalcFail[
+      "feynarts_model_invalidation_failed",
+      <|"expected" -> {faMod, faGen, faPars}|>
+    ]
+  ];
+
+  writeFeynArtsResult = Quiet@CheckAbort[
+    FeynRules`WriteFeynArtsOutput[lag, FeynRules`Output -> faPrefix, FeynRules`ScreenOutput -> False],
+    $Aborted
+  ];
+  If[
+    writeFeynArtsResult === $Aborted || writeFeynArtsResult === $Failed,
+    HepCalcFail[
+      "write_feynarts_output_failed",
+      <|"model_files" -> modelFiles, "lagrangian_symbol" -> lagSym|>
+    ]
+  ];
+
+  modelVerify = HepCalcFeynArtsModelStage["verify_feynarts_model", modelName];
+  If[modelVerify === $Failed,
     HepCalcFail["feynarts_model_files_missing", <|"expected" -> {faMod, faGen, faPars}|>]
   ];
 
@@ -806,8 +897,56 @@ ampsFull = CreateFeynAmp[ins, Truncated -> True, PreFactor -> 1];
 ampTerms = Cases[ampsFull, FeynAmp[__], Infinity];
 If[Length[ampTerms] == 0, HepCalcFail["create_feynamp_failed", <|"result" -> ToString[ampsFull, InputForm]|>]];
 ampCount = Length[ampTerms];
-Put[ampsFull, FileNameJoin[{ampDir, "amps_raw.m"}]];
-Put[ampTerms, FileNameJoin[{ampDir, "amp_terms.m"}]];
+ampsRawPath = FileNameJoin[{ampDir, "amps_raw.m"}];
+ampTermsPath = FileNameJoin[{ampDir, "amp_terms.m"}];
+Put[ampsFull, ampsRawPath];
+Put[ampTerms, ampTermsPath];
+If[! FileExistsQ[ampsRawPath] || FileByteCount[ampsRawPath] <= 0,
+  HepCalcFail["write_feynarts_amplitude_failed", <|"path" -> ampsRawPath|>]
+];
+ampsRawBytes = FileByteCount[ampsRawPath];
+ampsRawSHA = Quiet@Check[FileHash[ampsRawPath, "SHA256", "HexString"], $Failed];
+If[! StringQ[ampsRawSHA] || StringLength[ampsRawSHA] =!= 64,
+  HepCalcFail["hash_feynarts_amplitude_failed", <|"path" -> ampsRawPath|>]
+];
+producerToken = CreateUUID["hep-calc-"];
+producerEndedAt = DateString[Now, "ISODateTime"];
+producerStatusPath = FileNameJoin[{autoDir, "producer_status.json"}];
+formcalcHandoffPath = FileNameJoin[{autoDir, "formcalc", "handoff.json"}];
+producerStatus = <|
+  "stage" -> "auto_qft_feynarts_producer",
+  "status" -> "PASS",
+  "reason" -> "",
+  "started_at" -> $HepCalcStartedAt,
+  "ended_at" -> producerEndedAt,
+  "token" -> producerToken,
+  "job" -> <|"path" -> $HepCalcJobRelativePath, "bytes" -> $HepCalcJobBytes, "sha256" -> $HepCalcJobSHA|>,
+  "handoff" -> "auto_qft/formcalc/handoff.json",
+  "amplitude" -> <|
+    "path" -> "auto_qft/amplitude/amps_raw.m",
+    "bytes" -> ampsRawBytes,
+    "sha256" -> ampsRawSHA,
+    "head" -> ToString[Head[Head[ampsFull]], InputForm],
+    "amp_count" -> ampCount
+  |>
+|>;
+formcalcHandoff = <|
+  "schema_version" -> 1,
+  "stage" -> "auto_qft_formcalc_handoff",
+  "status" -> "PASS",
+  "created_at" -> producerEndedAt,
+  "token" -> producerToken,
+  "job" -> <|"path" -> $HepCalcJobRelativePath, "bytes" -> $HepCalcJobBytes, "sha256" -> $HepCalcJobSHA|>,
+  "raw_path" -> "auto_qft/amplitude/amps_raw.m",
+  "raw_bytes" -> ampsRawBytes,
+  "raw_sha256" -> ampsRawSHA,
+  "raw_head" -> ToString[Head[Head[ampsFull]], InputForm],
+  "amp_count" -> ampCount,
+  "pave_reduce" -> paveReduce,
+  "memory_limit_mb" -> formcalcMemoryLimitMB
+|>;
+HepCalcWriteJSON[producerStatusPath, producerStatus];
+HepCalcWriteJSON[formcalcHandoffPath, formcalcHandoff];
 
 If[doPerDiagram,
   Do[
@@ -816,48 +955,23 @@ If[doPerDiagram,
   ];
 ];
 
-(* Always produce a FeynArts-level summed amplitude; FormCalc is optional. *)
-formcalcStatus = "SKIPPED";
-formcalcReason = If[useFormCalcRequested, "", "disabled_by_job"];
+(* FormCalc, when requested, is launched by the shell in a fresh kernel. *)
+formcalcStatus = If[useFormCalcRequested, "NOT_RUN", "SKIPPED"];
+formcalcReason = If[useFormCalcRequested, "fresh_kernel_reducer_pending", "disabled_by_job"];
 ampBest = Total[ampTerms];
 ampLevel = "feynarts";
 
-If[useFormCalc,
-  formcalcStatus = "ERROR";
-  formcalcReason = "calc_not_run";
-  Quiet@Check[Needs["FormCalc`"];, formcalcReason = "needs_formcalc_failed"; useFormCalc = False;];
-  If[useFormCalc,
-    calcRes = CheckAbort[
-      Quiet@Check[
-        CalcFeynAmp[ampsFull, PaVeReduce -> If[paveReduce === "LoopTools", LoopTools, False]],
-        $Failed
-      ],
-      $Aborted
-    ];
-    If[calcRes === $Aborted,
-      formcalcReason = "aborted";,
-      If[calcRes === $Failed,
-        formcalcReason = "calc_failed";,
-        formcalcStatus = "PASS";
-        formcalcReason = "";
-        ampBest = calcRes;
-        ampLevel = "formcalc";
-      ]
-    ];
-  ];
-];
-
 ampOut = FileNameJoin[{ampDir, "amplitude_summed.m"}];
-Put[ampBest, ampOut];
+If[! useFormCalcRequested, Put[ampBest, ampOut]];
 
 ampTexOut = "";
-If[doAmpTeX,
+If[doAmpTeX && ! useFormCalcRequested,
   ampTexOut = FileNameJoin[{ampDir, "amplitude_summed.tex"}];
   Export[ampTexOut, ToString[TeXForm[ampBest]], "Text"];
 ];
 
 ampMdOut = "";
-If[doAmpMD,
+If[doAmpMD && ! useFormCalcRequested,
   ampMdOut = FileNameJoin[{ampDir, "amplitude_summed.md"}];
   md = StringRiffle[
     {
@@ -890,8 +1004,9 @@ If[doAmpMD,
 
 summary = <|
   "ts" -> DateString[Now, "ISODateTime"],
-  "status" -> If[useFormCalcRequested && formcalcStatus =!= "PASS", "ERROR", "PASS"],
-  "reason" -> If[useFormCalcRequested && formcalcStatus =!= "PASS", "formcalc_failed", Null],
+  "status" -> If[useFormCalcRequested, "NOT_RUN", "PASS"],
+  "reason" -> If[useFormCalcRequested, "fresh_kernel_reducer_pending", Null],
+  "job" -> <|"path" -> $HepCalcJobRelativePath, "bytes" -> $HepCalcJobBytes, "sha256" -> $HepCalcJobSHA|>,
   "disclaimer" -> If[ampLevel === "formcalc", "Amplitude is UNRENORMALIZED (UV poles may be present).", "Amplitude is a raw FeynArts expression (UNRENORMALIZED; FormCalc reduction not applied)."],
   "feynrules" -> If[useFeynArtsOnly, Null, <|"root" -> frRoot, "version" -> frVersion, "date" -> frDate|>],
   "model_files" -> modelFiles,
@@ -927,7 +1042,14 @@ summary = <|
     "exclude_topologies" -> excludeTokens,
     "counterterms" -> counterTerms,
     "ct_order" -> ctOrder,
-    "formcalc" -> <|"enable" -> useFormCalcRequested, "status" -> formcalcStatus, "reason" -> formcalcReason, "pave_reduce" -> paveReduce|>,
+    "formcalc" -> <|
+      "enable" -> useFormCalcRequested,
+      "status" -> formcalcStatus,
+      "reason" -> formcalcReason,
+      "pave_reduce" -> paveReduce,
+      "memory_limit_mb" -> formcalcMemoryLimitMB,
+      "reducer_status" -> "auto_qft/formcalc/status.json"
+    |>,
     "pave_reduce" -> paveReduce,
     "export_diagrams" -> doDiagrams,
     "export_amplitude_tex" -> doAmpTeX,
@@ -941,7 +1063,9 @@ summary = <|
     "diagrams_index_md" -> diagramIndexRel,
     "amps_raw" -> "auto_qft/amplitude/amps_raw.m",
     "amp_terms" -> "auto_qft/amplitude/amp_terms.m",
-    "amplitude_summed" -> "auto_qft/amplitude/amplitude_summed.m",
+    "producer_status" -> "auto_qft/producer_status.json",
+    "formcalc_handoff" -> "auto_qft/formcalc/handoff.json",
+    "amplitude_summed" -> If[useFormCalcRequested, Null, "auto_qft/amplitude/amplitude_summed.m"],
     "amplitude_summed_tex" -> If[ampTexOut === "", Null, "auto_qft/amplitude/amplitude_summed.tex"],
     "amplitude_summed_md" -> If[ampMdOut === "", Null, "auto_qft/amplitude/amplitude_summed.md"]
   |>
@@ -956,10 +1080,15 @@ HepCalcWriteSummary[$HepCalcSummaryPath, summary];
       "reason" -> summary["reason"],
       "started_at" -> $HepCalcStartedAt,
       "ended_at" -> DateString[Now, "ISODateTime"],
+      "job" -> <|"path" -> $HepCalcJobRelativePath, "bytes" -> $HepCalcJobBytes, "sha256" -> $HepCalcJobSHA|>,
       "amplitude_level" -> ampLevel,
-      "formcalc" -> <|"status" -> formcalcStatus, "reason" -> formcalcReason|>,
+      "formcalc" -> <|
+        "status" -> formcalcStatus,
+        "reason" -> formcalcReason,
+        "reducer_status" -> "auto_qft/formcalc/status.json"
+      |>,
       "disclaimer" -> summary["disclaimer"]
     |>
   ];
 
-If[summary["status"] === "PASS", Quit[0], Quit[21]];
+If[MemberQ[{"PASS", "NOT_RUN"}, summary["status"]], Quit[0], Quit[21]];

@@ -6,7 +6,7 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import Annotated, Literal
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, RootModel
 
 
 class Tool(StrEnum):
@@ -35,7 +35,9 @@ class EntryPoint(BaseModel):
     ] = None
     env: Annotated[
         dict[str, str] | None,
-        Field(description="Environment variables required by the entry script."),
+        Field(
+            description="Explicit runtime-specific variables accepted by the Nullius production allowlist. Nullius fixed safety variables and loader, module, project, depot, library-path, and shell-startup selectors are rejected."
+        ),
     ] = None
 
 
@@ -56,6 +58,12 @@ class Step(BaseModel):
     ] = None
     args: Annotated[
         list[str] | None, Field(description="Arguments passed to the script.")
+    ] = None
+    env: Annotated[
+        dict[str, str] | None,
+        Field(
+            description="Explicit runtime-specific variables accepted by the Nullius production allowlist. Host environment is never inherited; fixed safety variables and loader, module, project, depot, library-path, and shell-startup selectors are rejected."
+        ),
     ] = None
     expected_outputs: Annotated[
         list[str] | None,
@@ -102,6 +110,19 @@ class Environment(BaseModel):
     ] = None
 
 
+class LockFile(RootModel[str]):
+    root: Annotated[str, Field(min_length=1)]
+
+
+class ExternalDependencyRef(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    path: Annotated[str, Field(min_length=1)]
+    sha256: Annotated[str, Field(pattern="^[0-9a-f]{64}$")]
+    size_bytes: Annotated[int | None, Field(ge=0)] = None
+
+
 class Dependencies(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -130,7 +151,21 @@ class Dependencies(BaseModel):
     ] = None
     data_files: Annotated[
         list[str] | None,
-        Field(description="External data files required (relative paths or URIs)."),
+        Field(
+            description="Workspace-relative data files copied into the computation workspace and included in its adjacent snapshots. Absolute paths and URIs are not accepted here; use external_dependency_refs for content-addressed external files."
+        ),
+    ] = None
+    lock_files: Annotated[
+        list[LockFile] | None,
+        Field(
+            description="Workspace-relative lock or environment files whose content pins declared package and library dependencies."
+        ),
+    ] = None
+    external_dependency_refs: Annotated[
+        list[ExternalDependencyRef] | None,
+        Field(
+            description="Explicit content-addressed local dependency files outside the computation workspace. Every path must be absolute so its meaning never depends on the caller working directory. Each file is live-rehashed before and after every step and at decisive verification."
+        ),
     ] = None
 
 

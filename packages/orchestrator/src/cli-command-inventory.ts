@@ -1,7 +1,7 @@
 export const NULLIUS_PUBLIC_COMMAND_INVENTORY = [
   { command: 'init', usage: 'nullius init [options]' },
   { command: 'run', usage: 'nullius run --workflow-id <id> [options]' },
-  { command: 'verify', usage: 'nullius verify --run-id <id> --status <passed|failed|blocked> --summary \"...\" --evidence-path <path> [--evidence-path <path> ...]' },
+  { command: 'verify', usage: 'nullius verify --run-id <id> --status <passed|failed|blocked> --summary \"...\" --evidence-path <path> --checker-path <path> --checker-runtime <python3|node> --quantity-id <id> --layer-id <id> --reference-provenance-json <object> --disputed-dimension <name> --required-negative-control-id <id>' },
   { command: 'final-conclusions', usage: 'nullius final-conclusions --run-id <id> [--note "..."]' },
   { command: 'proposal-decision', usage: 'nullius proposal-decision --proposal-kind <repair|skill|optimize|innovate> --proposal-id <id> --decision <accepted_for_later|dismissed|already_captured> [--note "..."]' },
   { command: 'decision', usage: 'nullius decision record "<text>" [--by <who>] [--resolves <id>] | nullius decision pending "<text>" [--by <who>] | nullius decision list [--json]' },

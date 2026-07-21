@@ -34,6 +34,7 @@ export type {
   PdfLocatorV1,
 } from "./evidence-catalog-item-v1.js";
 export * from "./execution-plan-v1.js";
+export type { ExternalDependencySnapshotEntryV1 } from "./external-dependency-snapshot-entry-v1.js";
 export type { FinalConclusionsV1 } from "./final-conclusions-v1.js";
 export * from "./fleet-queue-v1.js";
 export * from "./fleet-workers-v1.js";
@@ -58,7 +59,13 @@ export type {
 } from "./memory-graph-node-v1.js";
 export * from "./migration-registry-v1.js";
 export * from "./mutation-proposal-v1.js";
+export type { NativeRuntimeIdentityV1 } from "./native-runtime-identity-v1.js";
 export * from "./paper-manifest-v2.js";
+export type {
+  ProductionStepBindingV1,
+  ProductionEnvironment,
+  ArtifactRefV17,
+} from "./production-step-binding-v1.js";
 export * from "./quantity-verdict-v1.js";
 export * from "./rep-envelope-v1.js";
 export * from "./reproducibility-report-v1.js";
@@ -77,10 +84,41 @@ export type {
 export type { ResearchOutcomeV1 } from "./research-outcome-v1.js";
 export * from "./research-signal-v1.js";
 export * from "./research-strategy-v1.js";
+export type { SanitizedCheckerEnvironmentV1 } from "./sanitized-checker-environment-v1.js";
 export * from "./skill-proposal-v2.js";
+export type {
+  StepExecutionSnapshotV1,
+  PreSpawnStepExecutionSnapshot,
+  PostExitStepExecutionSnapshot,
+  StepExecutionSnapshotBase,
+  WorkspaceFileSnapshotEntry,
+} from "./step-execution-snapshot-v1.js";
 export * from "./strategy-state-v1.js";
 export type {
+  ValidationChainBindingV1,
+  ProductionStepBinding,
+  NativeRuntimeIdentity,
+  ExternalDependencySnapshotEntry,
+  ArtifactRefV18,
+  ArtifactRefV19,
+  ArtifactRefV110,
+  ArtifactRefV111,
+  ArtifactRefV112,
+  ArtifactRefV113,
+  SanitizedCheckerEnvironment,
+  ArtifactRefV114,
+  ArtifactRefV115,
+  ValidationExecution,
+  ArtifactRefV116,
+  ArtifactRefV117,
+} from "./validation-chain-binding-v1.js";
+export type { ValidationCheckerRequestV1 } from "./validation-checker-request-v1.js";
+export * from "./validation-checker-verdict-v1.js";
+export type {
   VerificationCheckRunV1,
+  DecisiveVerificationCheckRun,
+  NonDecisiveVerificationCheckRun,
+  VerificationCheckRunBase,
   ExecutorProvenance,
   Confidence,
   MetricObservation,

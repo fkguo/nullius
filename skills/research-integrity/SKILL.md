@@ -1,14 +1,15 @@
 ---
 name: research-integrity
-description: AI failure-mode checklist (M1-M7) for research agents. Generic across domains. Walk this at the moments work becomes durable — you just finished a derivation or computation and are about to write conclusions, fold a number or claim into the plan or contract, check off a task-board item, make a milestone closeout commit, hand off, assemble submission material, or claim a result is final — and, in projects using the engine's approval flow, before requesting an A1-A5 approval gate.
+description: AI failure-mode checklist (M1-M8) for research agents. Generic across domains. Walk M1-M7 at the moments work becomes durable — you just finished a derivation or computation and are about to write conclusions, fold a number or claim into the plan or contract, check off a task-board item, make a milestone closeout commit, hand off, assemble submission material, or claim a result is final — and, in projects using the engine's approval flow, before requesting an A1-A5 approval gate. Walk M8 before starting each heavy or production computation or hand-building a reusable computational method.
 ---
 
-# Research Integrity (M1-M7)
+# Research Integrity (M1-M8)
 
 This skill is a **prompt-level discipline**, not an MCP server or a CLI.
-It is the agent's own pre-flight checklist for catching seven recurring
-AI research failure modes before the work crosses an approval boundary
-or gets folded into durable project artifacts.
+It is the agent's own pre-flight checklist for catching eight recurring
+AI research failure modes before a computation begins, before the work
+crosses an approval boundary, or before it gets folded into durable
+project artifacts.
 
 The skill does not replace the machine-enforced gates that already live
 in the control plane (`nullius` A1–A5 approval gates,
@@ -19,7 +20,7 @@ fair and the durable record actually reflects work that was done.
 
 ## When to use
 
-Run M1–M7 immediately before any of these moments. They are observable
+Run M1–M7 immediately before any of these moments. These are observable
 file events — none of them requires the engine's approval flow to be
 active, so a project that never calls `nullius approve` still hits
 every trigger below:
@@ -40,12 +41,19 @@ every trigger below:
 - Calling `nullius approve <approval_id>` for an A1, A2, A3, A4, or
   A5 gate, in projects that use the engine's approval flow.
 
+M8 has a distinct trigger: run it **before starting each new heavy or
+production computation, or hand-building a reusable numerical method,
+solver, quadrature, or robust primitive**. Unlike M1–M7, this trigger fires
+before the work, not at a durable boundary: re-scan the upstream toolkit
+and every sibling or related project for a reusable implementation first.
+
 You may run a smaller subset earlier (for example M2/M4 during a
 literature pull, the **Extraction / transcription fidelity** check
 when you transcribe a source into a deep-read / extraction note, or the
 **Reference-reproduction fidelity** check when a result starts claiming
 to match a published value) and a fuller pass at the boundary. The
-boundary pass is non-optional.
+M1–M7 boundary pass is non-optional. M8 is separately non-optional
+whenever its pre-computation trigger fires.
 
 ## What this skill is NOT
 
@@ -78,7 +86,7 @@ boundary pass is non-optional.
   agent's own self-review that biases toward finding the failure mode
   rather than confirming the work is fine.
 
-## The seven modes
+## The eight modes
 
 ### M1: implementation_bug_passing_self_review
 
@@ -452,6 +460,43 @@ it, by re-reading `research_contract.md` and
 `research_plan.md#Current Status` with fresh eyes after the M1–M6
 material checks have been completed.
 
+### M8: reinvention_over_available_reuse
+
+**Definition.** Hand-building — or brute-forcing — a numerical method, solver,
+quadrature, robust primitive, or analysis that the project's own upstream toolkit,
+or a sibling / related project, already provides in a more robust or efficient
+form, because the toolkit and siblings were not re-scanned before the work
+started. A long project inherits its dependencies at one moment; those
+dependencies keep evolving, and the project drifts into reimplementing what
+upstream now offers.
+
+**Signs.**
+- About to write a new numerical kernel, quadrature, contour, root-finder, or
+  fitting routine "from scratch" for a heavy / production computation.
+- The project is built on a shared toolkit with its own commit history since the
+  code was inherited, but there has been no recent reuse-scan of it.
+- A recurring numerical difficulty (an instability, slowness, an artifact) is
+  being patched locally, when it is a generic problem the toolkit or a sibling
+  project has likely already solved.
+- Sibling / related projects solve the same class of problem and have not been
+  checked.
+
+**Minimum disconfirming check.** BEFORE each heavy / production computation, or
+before building any reusable computational method, grep the upstream toolkit's
+source AND every sibling / related project for the capability: by function name,
+by the problem it solves, and by the sibling's own calls into the toolkit. This is
+a **per-heavy-computation / per-method-build gate**, not a once-at-project-start or
+merely periodic check: the trigger is "I am about to start a heavy or production
+computation, or build a reusable computational method." Then reuse the existing
+robust / efficient implementation, or record explicitly why it does not fit before
+hand-rolling. When a sibling project already solves the same class of
+computational problem, prefer adapting its proven approach over a fresh
+implementation.
+
+**Tools that help.** A cross-repo grep of the toolkit `src/` and the sibling
+repos; the `julia-perf` skill (efficient-code reuse); a reuse-vs-build multi-modal
+sweep before building. Not machine-enforceable — it is an explicit pre-flight step.
+
 ## Extraction / transcription fidelity (gate it; not a gate-exempt "reading task")
 
 A **source-extraction / transcription note** — a deep-read / knowledge-base note
@@ -775,11 +820,11 @@ deadline.
 | A2 | code_changes (implementation diff) | M1, M5 |
 | A3 | compute_runs (numerical result acceptance) | M3, M5, M6 |
 | A4 | paper_edits (manuscript text) | M2, M3, M4, M7 |
-| A5 | final_conclusions (project closeout) | All seven |
+| A5 | final_conclusions (project closeout) | M1–M7; confirm applicable M8 checks were run before computation |
 
-For A5 specifically, run the full M1–M7 pass and record the check
-result inline in the conclusion artifact rather than as a separate
-file.
+For A5 specifically, run the full M1–M7 pass, confirm that M8 was run
+before every computation to which it applied, and record both checks
+inline in the conclusion artifact rather than as a separate file.
 
 In projects that do not use the engine's approval flow (declared
 `execution_mode: file`, or any moment where the go-ahead arrives in
@@ -813,8 +858,9 @@ recording an unrelated decision leaves the pending entry open.
   quotations may be misread during the M3 check.
 - `referee-review` runs the integrity check from the *reviewer* side
   with a strict verdict contract. If a draft is heading to
-  `referee-review`, run M1–M7 first so the reviewer's BLOCKING
-  findings are not symptoms the author could have caught.
+  `referee-review`, run M1–M7 first and confirm any applicable M8
+  pre-computation checks so the reviewer's BLOCKING findings are not
+  symptoms the author could have caught.
 - `paper-reviser` is the right surface for acting on M2/M3/M4/M7
   findings that surface during late-stage drafting.
 - `claim-grounding` is the active execution of the M2/M3 obligations.
@@ -879,6 +925,10 @@ the check inline in the response or notebook entry, in the order:
 
 For the *machine* record that gates `nullius approve` (see below),
 run `nullius integrity-record` after the narrative is written:
+
+The current v1 machine receipt accepts M1–M7 only. Record M8 in the
+narrative at its pre-computation trigger; do not pass M8 to `--modes`
+or `--skip` until the receipt schema explicitly supports it.
 
 ```bash
 nullius integrity-record \

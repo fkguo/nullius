@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import type { ArtifactRefV1 } from '@nullius/shared';
 import {
   NULLIUS_PUBLIC_COMMANDS,
   NULLIUS_PUBLIC_COMMAND_INVENTORY,
@@ -13,8 +15,12 @@ import { TeamExecutionStateManager } from '../src/team-execution-storage.js';
 import type { TeamPermissionMatrix } from '../src/team-execution-types.js';
 import type { RunState } from '../src/types.js';
 import { runCli } from '../src/cli.js';
+import { parseCliArgs } from '../src/cli-args.js';
+import { renderHelp } from '../src/cli-help.js';
 import { handleOrchRunExport } from '../src/orch-tools/control.js';
 import { getFrontDoorAuthoritySurface } from '../../../scripts/lib/front-door-authority-map.mjs';
+
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 
 function makeTempProjectRoot(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'nullius-cli-'));
@@ -76,7 +82,60 @@ function createComputationFixture(projectRoot: string, runId: string): { runDir:
   return { runDir, manifestPath };
 }
 
-const EXISTING_EVIDENCE_PATH = 'artifacts/computation_result_v1.json';
+const EXISTING_EVIDENCE_PATH = 'computation/outputs/ok.txt';
+
+function readJson<T>(filePath: string): T {
+  return JSON.parse(fs.readFileSync(filePath, 'utf-8')) as T;
+}
+
+function fixtureArtifactRef(runId: string, runDir: string, filePath: string, kind: string): ArtifactRefV1 {
+  const relativePath = path.relative(runDir, filePath).split(path.sep).join('/');
+  return {
+    uri: `rep://runs/${encodeURIComponent(runId)}/artifact/${encodeURIComponent(relativePath)}`,
+    sha256: createHash('sha256').update(fs.readFileSync(filePath)).digest('hex'),
+    kind,
+    size_bytes: fs.statSync(filePath).size,
+    produced_by: 'test-fixture',
+  };
+}
+
+function writeValidationChecker(projectRoot: string, runId: string): string {
+  const runDir = path.join(projectRoot, runId);
+  const checkerPath = path.join(runDir, 'verification', 'decisive_checker.py');
+  fs.mkdirSync(path.dirname(checkerPath), { recursive: true });
+  fs.writeFileSync(checkerPath, [
+    'import argparse, hashlib, json',
+    'from pathlib import Path',
+    'p = argparse.ArgumentParser()',
+    "p.add_argument('--nullius-request', required=True)",
+    "p.add_argument('--nullius-verdict', required=True)",
+    'a = p.parse_args()',
+    'request_bytes = Path(a.nullius_request).read_bytes()',
+    'request = json.loads(request_bytes)',
+    "observations = [{'uri': target['uri'], 'path': target['path'], 'sha256': hashlib.sha256(Path(target['path']).read_bytes()).hexdigest()} for target in request['output_targets']]",
+    "verdict = {'schema_version': 1, 'request_sha256': hashlib.sha256(request_bytes).hexdigest(), 'check_kind': request['check_kind'], 'status': 'pass', 'summary': 'Decisive verification completed successfully.', 'quantity_id': request['quantity_id'], 'layer_id': request['layer_id'], 'disputed_dimensions': request['disputed_dimensions'], 'consumed_output_observations': observations, 'negative_control_results': [{'control_id': control_id, 'status': 'pass'} for control_id in request['required_negative_control_ids']]}",
+    "Path(a.nullius_verdict).write_text(json.dumps(verdict, indent=2) + '\\n', encoding='utf-8')",
+    'raise SystemExit(0)',
+    '',
+  ].join('\n'), 'utf-8');
+  return checkerPath;
+}
+
+function verificationSemanticCliArgs(runId: string, runDir: string, manifestPath: string): string[] {
+  const reference = fixtureArtifactRef(runId, runDir, manifestPath, 'reference');
+  return [
+    '--quantity-id', 'quantity:fixture-output',
+    '--layer-id', 'layer:production-output',
+    '--reference-provenance-json', JSON.stringify({
+      reference_id: 'reference:fixture-manifest',
+      uri: reference.uri,
+      sha256: reference.sha256,
+    }),
+    '--disputed-dimension', 'normalization',
+    '--disputed-dimension', 'component-composition',
+    '--required-negative-control-id', 'negative-control:zero-input',
+  ];
+}
 
 const TEAM_PERMISSIONS: TeamPermissionMatrix = {
   delegation: [
@@ -264,6 +323,9 @@ describe('nullius CLI', () => {
       '--run-dir', runDir,
       '--manifest', manifestPath,
     ], makeIo(projectRoot).io)).resolves.toBe(0);
+    const checkerPath = writeValidationChecker(projectRoot, runId);
+    const checkerHelperPath = path.join(path.dirname(checkerPath), 'checker_helper.py');
+    fs.writeFileSync(checkerHelperPath, 'SENTINEL = True\n', 'utf-8');
 
     const { io, stdout } = makeIo(projectRoot);
     const code = await runCli([
@@ -272,6 +334,10 @@ describe('nullius CLI', () => {
       '--status', 'passed',
       '--summary', 'Decisive verification completed successfully.',
       '--evidence-path', EXISTING_EVIDENCE_PATH,
+      '--checker-path', checkerPath,
+      '--checker-runtime', 'python3',
+      '--checker-helper-path', checkerHelperPath,
+      ...verificationSemanticCliArgs(runId, runDir, manifestPath),
       '--confidence-level', 'high',
     ], io);
 
@@ -281,6 +347,89 @@ describe('nullius CLI', () => {
       run_id: runId,
       status: 'passed',
     });
+  });
+
+  it('fails closed when any required verify semantic field is absent', () => {
+    const complete = [
+      'verify',
+      '--run-id', 'M-VERIFY-MISSING',
+      '--status', 'passed',
+      '--summary', 'summary',
+      '--evidence-path', 'output.json',
+      '--checker-path', 'checker.py',
+      '--checker-runtime', 'python3',
+      '--quantity-id', 'quantity:q',
+      '--layer-id', 'layer:l',
+      '--reference-provenance-json', JSON.stringify({
+        reference_id: 'reference:r',
+        uri: 'rep://runs/example/artifact/reference.json',
+        sha256: '0'.repeat(64),
+      }),
+      '--disputed-dimension', 'normalization',
+      '--required-negative-control-id', 'negative-control:n',
+    ];
+    for (const requiredFlag of [
+      '--quantity-id',
+      '--layer-id',
+      '--reference-provenance-json',
+      '--disputed-dimension',
+      '--required-negative-control-id',
+    ]) {
+      const index = complete.indexOf(requiredFlag);
+      const missing = complete.filter((_, itemIndex) => itemIndex !== index && itemIndex !== index + 1);
+      expect(() => parseCliArgs(missing)).toThrow(/verify requires/iu);
+    }
+  });
+
+  it('locks verify and A5 help to current self-report and incomplete-closure truth', () => {
+    const verifyHelp = renderHelp('verify');
+    expect(verifyHelp).toContain('Required operator expectation; must exactly match the checker verdict');
+    expect(verifyHelp).toContain('Required non-authoritative operator note');
+    expect(verifyHelp).toContain('A recorded pass does not prove that the checker actually opened those paths');
+    expect(verifyHelp).toContain('A5 currently remains unavailable');
+    const finalHelp = renderHelp('final-conclusions');
+    expect(finalHelp).toContain('exactly one canonical subject');
+    expect(finalHelp).toContain('A5 currently returns `unavailable` and creates no approval request');
+  });
+
+  it('locks public verify examples, docs, and schemas to current incomplete-closure truth', () => {
+    const read = (relativePath: string) => fs.readFileSync(path.join(REPO_ROOT, relativePath), 'utf-8');
+    const requiredFlags = [
+      '--quantity-id',
+      '--layer-id',
+      '--reference-provenance-json',
+      '--disputed-dimension',
+      '--required-negative-control-id',
+    ];
+    for (const relativePath of ['README.md', 'docs/README_zh.md']) {
+      const text = read(relativePath);
+      for (const flag of requiredFlags) expect(text, relativePath).toContain(flag);
+      expect(text, relativePath).toContain('unavailable');
+    }
+    const status = read('docs/PROJECT_STATUS.md');
+    const packageReadme = read('packages/orchestrator/README.md');
+    const bindingSchema = read('meta/schemas/validation_chain_binding_v1.schema.json');
+    const spec = read('meta/docs/orchestrator-mcp-tools-spec.md');
+    const truthTable = [
+      ['README.md', read('README.md'), ['checker self-reports observations', 'literally incomplete', 'returns `unavailable`']],
+      ['docs/README_zh.md', read('docs/README_zh.md'), ['checker 自报', '不完整', '返回 `unavailable`']],
+      ['docs/PROJECT_STATUS.md', status, ['checker self-reports', 'literal incomplete', 'A5 currently returns `unavailable`']],
+      ['packages/orchestrator/README.md', packageReadme, ['checker self-reported', 'literally incomplete', 'currently returns `unavailable`']],
+      ['meta/docs/orchestrator-mcp-tools-spec.md', spec, ['self-reported matching observations', 'literal incomplete', 'A5 `unavailable`']],
+      ['meta/schemas/validation_chain_binding_v1.schema.json', bindingSchema, ['checker self-reported matching observations', 'literal incomplete', 'does not prove actual output reads']],
+    ] as const;
+    for (const [label, text, snippets] of truthTable) {
+      for (const snippet of snippets) expect(text, label).toContain(snippet);
+    }
+    for (const forbidden of [
+      'exact executed steps and outputs',
+      'independently captured process evidence',
+      'can unlock A5 pass',
+      'revalidated and aggregated at A5',
+    ]) {
+      expect([read('README.md'), read('docs/README_zh.md'), status, packageReadme, bindingSchema, spec].join('\n'))
+        .not.toContain(forbidden);
+    }
   });
 
   it('records a proposal decision through the canonical public CLI inventory', async () => {

@@ -79,6 +79,7 @@ auto_qft:
   formcalc:
     enable: false
     pave_reduce: LoopTools
+    memory_limit_mb: 2048
   export:
     diagrams: true
     amplitude_md: true
@@ -87,9 +88,14 @@ auto_qft:
 ```
 
 Notes:
+- Explicit `auto_qft.enable` and `auto_qft.formcalc.enable` values are strict Booleans. YAML/JSON numbers, strings,
+  and null values are rejected before environment checks or computation; omission retains the documented defaults or
+  implicit-auto-enable behavior.
 - `process.in/out` should typically be the model’s **ParticleName/AntiParticleName** strings (e.g. `e-`, `e+`).
   If parsing is ambiguous/fails, use `process.in_fa/out_fa` with explicit FeynArts fields (e.g. `F[2,{1}]`, `-F[2,{1}]`).
 - The default output is an **unrenormalized** one-loop amplitude. If you enable FormCalc reduction (`auto_qft.formcalc.enable: true`), you more often get a form with explicit UV poles (1/ε). With FormCalc disabled, the output is typically a raw FeynArts expression where divergences may remain implicit (not expanded/reduced).
+- Requested FormCalc reduction consumes the persisted full FeynArts amplitude in a fresh Wolfram kernel. The reducer
+  memory cap is `auto_qft.formcalc.memory_limit_mb` (positive integer, default 2048).
 - Key artifacts live under `out_dir/auto_qft/`:
   - diagrams: `diagrams/diagrams.pdf` + `diagrams/index.md`
   - amplitude: `amplitude/amplitude_summed.m` + `amplitude/amplitude_summed.md`
@@ -215,10 +221,22 @@ The execution environment is provided by `scripts/mma/run_job.wls`:
 The argument you pass to `HepCalcExportSymbolic[<|...|>]` is **JSON-normalized** and stored under the top-level `data`
 key (`{schema_version, generated_at, data: <normalized association>}`). Normalization (`HepCalcNormalizeForJSON` in
 `scripts/mma/run_job.wls`): JSON primitives, lists, and string-keyed associations are preserved; non-string keys are
-stringified; any non-JSON Wolfram value becomes its `InputForm` **string**. So keep `tasks`/`checks`/`notes` values
-JSON-friendly (numbers, strings, booleans, string-keyed associations, lists). By convention `data` carries three
+stringified; any non-JSON Wolfram value becomes its `InputForm` **string**. So keep `assertions`/`tasks`/`checks`/`notes`
+values JSON-friendly (numbers, strings, booleans, string-keyed associations, lists). By convention `data` carries four
 optional keys:
 
+- `data.assertions` (list, optional): fail-closed symbolic gates. Every entry requires a nonempty string `id` and a
+  strict Boolean `passed`; IDs must be unique within the list. An entry may also carry both `residual` and `tolerance`; when present they must be finite,
+  nonnegative real numbers, and `passed` must agree with `residual <= tolerance`. A false or invalid assertion makes
+  `symbolic/status.json` `FAIL`, makes the full runner return nonzero, and makes the root overall status `FAIL`.
+  Assertion totals, pass/fail counts, invalid count, and failed IDs are written to the symbolic status, root summary,
+  and human report. If `data.assertions` is absent, the assertion count is zero and legacy jobs retain their prior
+  stage semantics.
+  The top-level `data` object itself is required. A missing/malformed `data` object, duplicate ID, early zero exit that
+  omits `symbolic/status.json`, or entry error after export is checked by an external runner postcondition and cannot
+  bypass the assertion result.
+  The external comparison parses JSON decimal literals as exact decimals and preserves arbitrary-size JSON integers;
+  it does not round either side through a binary float before applying `residual <= tolerance`.
 - `data.tasks` (list): handed to the Julia numeric stage (`scripts/julia/eval_numeric.jl`). Each task is an
   association with an `id` and a `kind`:
   - `kind: looptools` → Julia resolves `fn` in the `LoopTools` module and calls it on `args`. `fn` is any LoopTools.jl

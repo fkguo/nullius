@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nullius.dev/schemas/sanitized_checker_environment_v1.schema.json",
+  "title": "SanitizedCheckerEnvironment V1",
+  "type": "object",
+  "required": ["policy", "variables", "sha256"],
+  "properties": {
+    "policy": { "type": "string", "const": "nullius_checker_sanitized_v1" },
+    "variables": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": { "type": "string" }
+    },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  },
+  "additionalProperties": false
+}

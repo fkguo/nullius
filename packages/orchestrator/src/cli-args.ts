@@ -19,6 +19,14 @@ export type ParsedCliArgs =
     status: 'passed' | 'failed' | 'blocked';
     summary: string;
     evidencePaths: string[];
+    checkerPath: string;
+    checkerRuntime: string;
+    checkerHelperPaths: string[];
+    quantityId: string;
+    layerId: string;
+    referenceProvenance: Array<{ reference_id: string; uri: string; sha256: string }>;
+    disputedDimensions: string[];
+    requiredNegativeControlIds: string[];
     checkKind: string;
     confidenceLevel: 'low' | 'medium' | 'high';
     confidenceScore: number | null;
@@ -421,6 +429,14 @@ function parseVerifyArgs(args: string[]): {
   status: 'passed' | 'failed' | 'blocked';
   summary: string;
   evidencePaths: string[];
+  checkerPath: string;
+  checkerRuntime: string;
+  checkerHelperPaths: string[];
+  quantityId: string;
+  layerId: string;
+  referenceProvenance: Array<{ reference_id: string; uri: string; sha256: string }>;
+  disputedDimensions: string[];
+  requiredNegativeControlIds: string[];
   checkKind: string;
   confidenceLevel: 'low' | 'medium' | 'high';
   confidenceScore: number | null;
@@ -430,6 +446,16 @@ function parseVerifyArgs(args: string[]): {
   let status: 'passed' | 'failed' | 'blocked' | null = null;
   let summary: string | null = null;
   const evidencePaths: string[] = [];
+  let checkerPath: string | null = null;
+  let checkerRuntime: string | null = null;
+  const checkerHelperPaths: string[] = [];
+  let quantityId: string | null = null;
+  let layerId: string | null = null;
+  const referenceProvenance: Array<{ reference_id: string; uri: string; sha256: string }> = [];
+  const disputedDimensions: string[] = [];
+  const requiredNegativeControlIds: string[] = [];
+  let legacyCheckerCommandSupplied = false;
+  let legacyReceiptSupplied = false;
   let checkKind = 'decisive_verification';
   let confidenceLevel: 'low' | 'medium' | 'high' = 'medium';
   let confidenceScore: number | null = null;
@@ -457,6 +483,74 @@ function parseVerifyArgs(args: string[]): {
     }
     if (arg === '--evidence-path') {
       evidencePaths.push(readOptionValue(args, index, '--evidence-path'));
+      index += 1;
+      continue;
+    }
+    if (arg === '--checker-path') {
+      checkerPath = readOptionValue(args, index, '--checker-path');
+      index += 1;
+      continue;
+    }
+    if (arg === '--checker-command-json') {
+      readOptionValue(args, index, '--checker-command-json');
+      legacyCheckerCommandSupplied = true;
+      index += 1;
+      continue;
+    }
+    if (arg === '--checker-runtime') {
+      checkerRuntime = readOptionValue(args, index, '--checker-runtime');
+      index += 1;
+      continue;
+    }
+    if (arg === '--checker-helper-path') {
+      checkerHelperPaths.push(readOptionValue(args, index, '--checker-helper-path'));
+      index += 1;
+      continue;
+    }
+    if (arg === '--quantity-id') {
+      quantityId = readOptionValue(args, index, '--quantity-id');
+      index += 1;
+      continue;
+    }
+    if (arg === '--layer-id') {
+      layerId = readOptionValue(args, index, '--layer-id');
+      index += 1;
+      continue;
+    }
+    if (arg === '--reference-provenance-json') {
+      const raw = readOptionValue(args, index, '--reference-provenance-json');
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(raw) as unknown;
+      } catch {
+        throw new Error('--reference-provenance-json must be a JSON object');
+      }
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        throw new Error('--reference-provenance-json must be a JSON object');
+      }
+      const item = parsed as Record<string, unknown>;
+      if (typeof item.reference_id !== 'string' || item.reference_id.length === 0
+        || typeof item.uri !== 'string' || item.uri.length === 0
+        || typeof item.sha256 !== 'string' || !/^[0-9a-f]{64}$/u.test(item.sha256)) {
+        throw new Error('--reference-provenance-json requires non-empty reference_id and uri plus lowercase sha256');
+      }
+      referenceProvenance.push({ reference_id: item.reference_id, uri: item.uri, sha256: item.sha256 });
+      index += 1;
+      continue;
+    }
+    if (arg === '--disputed-dimension') {
+      disputedDimensions.push(readOptionValue(args, index, '--disputed-dimension'));
+      index += 1;
+      continue;
+    }
+    if (arg === '--required-negative-control-id') {
+      requiredNegativeControlIds.push(readOptionValue(args, index, '--required-negative-control-id'));
+      index += 1;
+      continue;
+    }
+    if (arg === '--validation-chain-receipt') {
+      readOptionValue(args, index, '--validation-chain-receipt');
+      legacyReceiptSupplied = true;
       index += 1;
       continue;
     }
@@ -495,11 +589,32 @@ function parseVerifyArgs(args: string[]): {
   if (!status) throw new Error('verify requires --status <passed|failed|blocked>');
   if (!summary) throw new Error('verify requires --summary "..."');
   if (evidencePaths.length === 0) throw new Error('verify requires at least one --evidence-path <path>');
+  if (legacyReceiptSupplied) {
+    throw new Error('--validation-chain-receipt is no longer accepted for decisive verification; use --checker-path and --checker-runtime so Nullius executes the checker');
+  }
+  if (legacyCheckerCommandSupplied) {
+    throw new Error('--checker-command-json is no longer accepted; use --checker-runtime with a bare node/python token');
+  }
+  if (!checkerPath) throw new Error('verify requires --checker-path <path>');
+  if (!checkerRuntime) throw new Error('verify requires --checker-runtime <python3|node>');
+  if (!quantityId) throw new Error('verify requires --quantity-id <id>');
+  if (!layerId) throw new Error('verify requires --layer-id <id>');
+  if (referenceProvenance.length === 0) throw new Error('verify requires at least one --reference-provenance-json <object>');
+  if (disputedDimensions.length === 0) throw new Error('verify requires at least one --disputed-dimension <name>');
+  if (requiredNegativeControlIds.length === 0) throw new Error('verify requires at least one --required-negative-control-id <id>');
   return {
     runId,
     status,
     summary,
     evidencePaths,
+    checkerPath,
+    checkerRuntime,
+    checkerHelperPaths,
+    quantityId,
+    layerId,
+    referenceProvenance,
+    disputedDimensions,
+    requiredNegativeControlIds,
     checkKind,
     confidenceLevel,
     confidenceScore,

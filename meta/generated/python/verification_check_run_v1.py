@@ -174,6 +174,49 @@ class EvidenceRef(BaseModel):
     ] = None
 
 
+class ValidationChainBindingRef(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    uri: Annotated[
+        str,
+        Field(
+            description="URI of the artifact. Format: 'rep://<run_id>/<artifact_path>' for local, or absolute URI for remote."
+        ),
+    ]
+    kind: Annotated[
+        str | None,
+        Field(
+            description="Artifact kind (e.g., 'strategy', 'outcome', 'computation_result', 'integrity_report'). Optional for forward compatibility."
+        ),
+    ] = None
+    schema_version: Annotated[
+        int | None, Field(description="Schema version of the referenced artifact.")
+    ] = None
+    sha256: Annotated[
+        str,
+        Field(
+            description="SHA-256 hex digest of the artifact content. Used for integrity verification and content addressing.",
+            pattern="^[0-9a-f]{64}$",
+        ),
+    ]
+    size_bytes: Annotated[
+        int | None, Field(description="Size of the artifact in bytes.", ge=0)
+    ] = None
+    produced_by: Annotated[
+        str | None, Field(description="Agent or component that produced this artifact.")
+    ] = None
+    created_at: Annotated[
+        AwareDatetime | None,
+        Field(description="ISO 8601 UTC Z timestamp of artifact creation."),
+    ] = None
+
+
+class CheckRole2(StrEnum):
+    supporting = "supporting"
+    diagnostic = "diagnostic"
+
+
 class ExecutorProvenance(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -210,7 +253,7 @@ class MetricObservation(BaseModel):
     unit: Annotated[str | None, Field(min_length=1)] = None
 
 
-class VerificationcheckrunV1(BaseModel):
+class VerificationCheckRunBase(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
@@ -232,9 +275,43 @@ class VerificationcheckrunV1(BaseModel):
     input_artifact_refs: list[InputArtifactRef] | None = None
     output_artifact_refs: list[OutputArtifactRef] | None = None
     evidence_refs: Annotated[list[EvidenceRef], Field(min_length=1)]
+    validation_chain_binding_ref: Annotated[
+        ValidationChainBindingRef | None,
+        Field(
+            description="Content-addressed reference to a research artifact. Used by integrity reports, research outcomes, and events to point at specific versioned artifacts.",
+            title="ArtifactRef V1",
+        ),
+    ] = None
     executor_provenance: ExecutorProvenance
     confidence: Confidence
     metrics: list[MetricObservation] | None = None
     notes: Annotated[str | None, Field(min_length=1)] = None
     started_at: AwareDatetime
     finished_at: AwareDatetime
+
+
+class DecisiveVerificationCheckRun(VerificationCheckRunBase):
+    check_role: Literal["decisive"]
+    validation_chain_binding_ref: Annotated[
+        ValidationChainBindingRef,
+        Field(
+            description="Content-addressed reference to a research artifact. Used by integrity reports, research outcomes, and events to point at specific versioned artifacts.",
+            title="ArtifactRef V1",
+        ),
+    ]
+
+
+class NonDecisiveVerificationCheckRun(VerificationCheckRunBase):
+    check_role: CheckRole2
+
+
+class VerificationcheckrunV1(
+    RootModel[DecisiveVerificationCheckRun | NonDecisiveVerificationCheckRun]
+):
+    root: Annotated[
+        DecisiveVerificationCheckRun | NonDecisiveVerificationCheckRun,
+        Field(
+            description="Provider-neutral record of one checker execution on one verification subject. A decisive passed status records a matching checker self-report; it does not alone prove actual output reads, negative-control execution, semantic independence, or complete dependency/import closure.",
+            title="VerificationCheckRun V1",
+        ),
+    ]

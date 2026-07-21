@@ -37,11 +37,11 @@
 | `orch_run_execute_manifest` | `destructive` | Execute an approved run-local `computation_manifest_v1` from an existing run directory |
 | `orch_run_progress_followups` | `destructive` | Progress exactly one computation-generated follow-up through the generic delegated runtime surface; delegated idea/literature feedback and writer/reviewer continuation are live |
 | `orch_run_record_proposal_decision` | `write` | Record one local operator decision for the current run's current repair/skill/optimize/innovate proposal and write proposal decision memory into `.nullius/proposal_decisions_v1.json` |
-| `orch_run_record_verification` | `write` | Record one decisive verification result for an existing computation run, materializing `verification_check_run_v1` plus refreshed verdict/coverage/check-run refs |
-| `orch_run_request_final_conclusions` | `write` | Evaluate canonical computation-result verification truth and create an A5 final-conclusions approval request only when higher-conclusion readiness is a decisive pass |
+| `orch_run_record_verification` | `write` | Execute one checker under a runtime environment allowlist and record adjacent production snapshots plus the checker's request-bound self-reported matching observations; `passed` does not prove actual reads or complete dependencies |
+| `orch_run_request_final_conclusions` | `write` | Evaluate exactly one canonical subject; current literal incomplete dependency closure makes A5 `unavailable` and creates no approval request |
 | `orch_run_status` | `read` | Return the current run status from `.nullius/state.json`, including current-run `final_conclusions_v1`, `current_run_workflow_outputs`, the legacy-stable `resume_context`, the richer `recovery_context`, a thin project-level `project_recent_digest`, diagnostic-only `project_surface_drift` for stale scaffold/guidance and durable-project-truth warnings, the declared `execution_mode` plus the `decision_ledger` read model of `.nullius/decisions.jsonl` (conversational decisions with still-open questions), and a plan view rebuilt from `state.json#/plan` when derived `plan.md` is missing or stale |
 | `orch_run_list` | `read` | List recorded runs from the project ledger |
-| `orch_run_approve` | `destructive` | Approve a pending gate with packet SHA verification; A5 approvals consume into a local `final_conclusions_v1` artifact instead of resuming execution |
+| `orch_run_approve` | `destructive` | Approve a pending gate with packet SHA verification; a generic A5 consumer exists for a future complete-closure path, but current validation bindings cannot create that pending A5 state |
 | `orch_run_reject` | `destructive` | Reject a pending gate and pause the run |
 | `orch_run_pause` | `write` | Pause the current run |
 | `orch_run_resume` | `write` | Resume a paused run |
@@ -122,8 +122,8 @@ Agent / operator
   ├──► orch_run_execute_manifest(...)                   → execute approved run-local computation manifest
   ├──► orch_run_progress_followups(...)                 → advance one feedback/literature or writing/review continuation
   ├──► orch_run_record_proposal_decision(...)           → record local decision memory for the current proposal
-  ├──► orch_run_record_verification(...)                → record decisive verification truth for the canonical computation result
-  ├──► orch_run_request_final_conclusions(...)          → request A5 only when canonical verification truth decisively passes
+  ├──► orch_run_record_verification(...)                → record adjacent snapshots plus checker self-reported matching observations
+  ├──► orch_run_request_final_conclusions(...)          → return A5 unavailable while dependency closure is incomplete
   ├──► orch_run_status(project_root)                    → lifecycle snapshot
   ├──► hep_run_* / hep_project_* / inspire_* ...        → strategy/domain work
   ├──► orch_run_approvals_list(project_root, run_id)    → inspect pending gates
@@ -188,15 +188,16 @@ Current live approval flow is intentionally split into creation, inspection, and
 3. Resolution happens via `orch_run_approve` or `orch_run_reject`.
 
 For the higher-conclusion boundary:
-- `orch_run_request_final_conclusions` only creates the pending A5 request.
-- `orch_run_approve` consumes that A5 request into `artifacts/runs/<run_id>/final_conclusions_v1.json`, records `gate_satisfied.A5`, and leaves the run `completed`.
+- `orch_run_request_final_conclusions` currently supports exactly one canonical subject, verdict, and coverage artifact.
+- Every current validation binding declares incomplete dependency/import closure, so the request returns `unavailable` and creates no pending A5 state.
+- `orch_run_approve` retains a generic future complete-closure consumer, but it is not reachable from current validation bindings.
 - `orch_run_status` / `orch_run_export` are the read surfaces for the current run's local outcome-facing `final_conclusions_v1` seam; no separate public read tool is introduced in this slice.
 
 Current live approval producers include:
 - `orch_run_execute_manifest` for A3 compute execution
 - `orch_run_record_proposal_decision` for local proposal lifecycle closure without a second approval family
-- `orch_run_record_verification` for runtime decisive verification truth that can unlock A5 pass
-- `orch_run_request_final_conclusions` for the first A5 higher-conclusion boundary consumer
+- `orch_run_record_verification` for adjacent production snapshots, absolute declared external refs, runtime/checker identity, logs, and checker self-reported matching observations. A recorded pass does not prove actual output reads, negative-control execution, semantic independence, or complete dependencies.
+- `orch_run_request_final_conclusions` for the exactly-one-subject A5 consumer, currently fail-closed as `unavailable` because dependency closure is literal incomplete
 
 This keeps approval state on the control plane even when the underlying need for approval originated in computation, writing, or delegated runtime execution.
 

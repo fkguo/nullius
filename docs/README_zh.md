@@ -230,10 +230,14 @@ pnpm --filter @nullius/hep-mcp docs:tool-counts:check
 
 1. `nullius init --project-root /absolute/path/to/external-project`
 1. `nullius status --project-root /absolute/path/to/external-project`
-1. 当某个 run 已有证据后，先执行 `nullius verify --project-root /absolute/path/to/external-project --run-id <run_id> --status passed --summary "..." --evidence-path <path>`
-1. 再执行 `nullius final-conclusions --project-root /absolute/path/to/external-project --run-id <run_id>`
-1. 记录 approve 门要求的 M1–M7 integrity receipt：`nullius integrity-record --approval-id <approval_id> --modes M1,M2,M3,M4,M5,M6,M7 --notes "..."`（缺 receipt 时 `approve` 会 fail-closed 报 `INTEGRITY_RECEIPT_REQUIRED`）
-1. 再通过 `nullius approve <approval_id>` 消费 A5 request，并写出 `artifacts/runs/<run_id>/final_conclusions_v1.json`
+1. 当某个 run 已有声明证据与 decisive checker 后，执行完整命令（有多个证据、reference、争议维度或负控制时重复相应 flag）：
+
+   ```bash
+   nullius verify --project-root /absolute/path/to/external-project --run-id <run_id> --status passed --summary "operator expectation note" --evidence-path computation/outputs/result.json --checker-path verification/decisive_checker.py --checker-runtime python3 --quantity-id quantity:declared-result --layer-id layer:production-output --reference-provenance-json '{"reference_id":"reference:oracle-v1","uri":"rep://runs/<run_id>/artifact/references%2Foracle.json","sha256":"0000000000000000000000000000000000000000000000000000000000000000"}' --disputed-dimension normalization --required-negative-control-id negative-control:zero-input
+   ```
+
+   请把示例中的 64 个零替换为所声明 reference 的实际小写 SHA-256；完整 flag contract 可查 `nullius verify --help`。CLI status 只是必须与 checker verdict 相等的 expectation；CLI summary 是非权威 operator note；最终记录与之匹配的 checker-emitted status、summary 和 check kind。Nullius 保存产生计算的相邻 snapshots，并检查 checker 自报的 observations 是否与内部持有的输出哈希一致。recorded pass 不证明 checker 实际打开了输出或实际执行了具名负控制。依赖/import closure 明确仍是不完整的：没有 syscall tracing，也没有 installed-byte 或 isolated-image binding。
+1. 执行 `nullius final-conclusions --project-root /absolute/path/to/external-project --run-id <run_id>` 检查 fail-closed 边界。当前只支持恰好一个 canonical subject；由于所有现有 validation binding 都声明 incomplete dependency closure，该命令返回 `unavailable`，不会创建或解锁 A5 approval。
 
 如果你接着想走当前最强的 domain-pack 烟测路径，再把 MCP client 接到 `packages/hep-mcp/dist/index.js` 并执行：
 

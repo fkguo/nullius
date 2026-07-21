@@ -71,13 +71,19 @@ describe('orchestrator MCP tools spec drift guard', () => {
         '5. `nullius` remains the generic front door for lifecycle / workflow-plan / bounded computation; `orch_*` is the MCP/operator counterpart of that control plane rather than a competing product identity.',
         '`hep://` and `orch://` are intentionally separate owned namespaces. Cross-scheme correlation must be carried explicitly by workflow metadata or operator context, not by implicit aliasing.',
         '2. The provider-local Python parser package has been retired. Do not recreate provider-local Python control-plane authority.',
+        'A recorded pass does not prove actual output reads, negative-control execution, semantic independence, or complete dependencies.',
+        'currently fail-closed as `unavailable` because dependency closure is literal incomplete',
         'packages/orchestrator/tests/orchestrator-mcp-tools-spec.test.ts',
       ],
       'meta/docs/orchestrator-mcp-tools-spec.md',
     );
     expectContainsNone(
       md,
-      ['packages/hep-mcp/tests/docs/docToolDrift.test.ts'],
+      [
+        'packages/hep-mcp/tests/docs/docToolDrift.test.ts',
+        'can unlock A5 pass',
+        'validate the production/checker chain and record decisive verification truth',
+      ],
       'meta/docs/orchestrator-mcp-tools-spec.md',
     );
   });

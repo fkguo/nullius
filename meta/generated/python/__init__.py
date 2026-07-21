@@ -15,6 +15,7 @@ from .display_gate_result_v1 import *  # noqa: F401,F403
 from .domain_pack_manifest_v1 import *  # noqa: F401,F403
 from .evidence_catalog_item_v1 import *  # noqa: F401,F403
 from .execution_plan_v1 import *  # noqa: F401,F403
+from .external_dependency_snapshot_entry_v1 import *  # noqa: F401,F403
 from .final_conclusions_v1 import *  # noqa: F401,F403
 from .fleet_queue_v1 import *  # noqa: F401,F403
 from .fleet_workers_v1 import *  # noqa: F401,F403
@@ -28,7 +29,9 @@ from .memory_graph_event_v1 import *  # noqa: F401,F403
 from .memory_graph_node_v1 import *  # noqa: F401,F403
 from .migration_registry_v1 import *  # noqa: F401,F403
 from .mutation_proposal_v1 import *  # noqa: F401,F403
+from .native_runtime_identity_v1 import *  # noqa: F401,F403
 from .paper_manifest_v2 import *  # noqa: F401,F403
+from .production_step_binding_v1 import *  # noqa: F401,F403
 from .quantity_verdict_v1 import *  # noqa: F401,F403
 from .rep_envelope_v1 import *  # noqa: F401,F403
 from .reproducibility_report_v1 import *  # noqa: F401,F403
@@ -37,8 +40,13 @@ from .research_loop_packet_v1 import *  # noqa: F401,F403
 from .research_outcome_v1 import *  # noqa: F401,F403
 from .research_signal_v1 import *  # noqa: F401,F403
 from .research_strategy_v1 import *  # noqa: F401,F403
+from .sanitized_checker_environment_v1 import *  # noqa: F401,F403
 from .skill_proposal_v2 import *  # noqa: F401,F403
+from .step_execution_snapshot_v1 import *  # noqa: F401,F403
 from .strategy_state_v1 import *  # noqa: F401,F403
+from .validation_chain_binding_v1 import *  # noqa: F401,F403
+from .validation_checker_request_v1 import *  # noqa: F401,F403
+from .validation_checker_verdict_v1 import *  # noqa: F401,F403
 from .verification_check_run_v1 import *  # noqa: F401,F403
 from .verification_coverage_v1 import *  # noqa: F401,F403
 from .verification_subject_v1 import *  # noqa: F401,F403

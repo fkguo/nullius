@@ -265,7 +265,13 @@
               "default": false,
               "description": "If true, attempt FormCalc reduction (may require external FORM/ReadForm binaries). If false, keep raw FeynArts amplitude expressions."
             },
-            "pave_reduce": { "type": "string", "enum": ["LoopTools", "False"], "default": "LoopTools" }
+            "pave_reduce": { "type": "string", "enum": ["LoopTools", "False"], "default": "LoopTools" },
+            "memory_limit_mb": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 2048,
+              "description": "Hard memory cap for the fresh-kernel FormCalc reducer."
+            }
           }
         },
         "export": {

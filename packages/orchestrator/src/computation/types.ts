@@ -1,4 +1,14 @@
-import type { ArtifactRefV1, ComputationManifestV1, ComputationResultV1 } from '@nullius/shared';
+import type {
+  ArtifactRefV1,
+  ComputationManifestV1,
+  ComputationResultV1,
+  ExternalDependencySnapshotEntryV1,
+  ProductionEnvironment,
+  WorkspaceFileSnapshotEntry as GeneratedWorkspaceFileSnapshotEntry,
+} from '@nullius/shared';
+import type { NativeRuntimeIdentity } from './runtime-identity.js';
+
+export type { StepExecutionSnapshotV1 } from '@nullius/shared';
 
 export type ManifestTool = 'mathematica' | 'julia' | 'python' | 'bash';
 export type ExecutionStatus = 'dry_run' | 'planned' | 'requires_approval' | 'completed' | 'failed';
@@ -16,6 +26,8 @@ export interface StepCommandPlan {
   id: string;
   tool: ManifestTool;
   argv: string[];
+  runtimeIdentity: NativeRuntimeIdentity;
+  executionEnvironment: ProcessEnvironmentV1;
   scriptPath: string;
   scriptRelativePath: string;
   expectedOutputs: string[];
@@ -23,11 +35,17 @@ export interface StepCommandPlan {
   timeoutMinutes: number | null;
 }
 
+export type ProcessEnvironmentV1 = ProductionEnvironment;
+export type WorkspaceFileSnapshotEntry = GeneratedWorkspaceFileSnapshotEntry;
+export type ExternalDependencySnapshotEntry = ExternalDependencySnapshotEntryV1;
+
 export interface PreparedManifest {
   manifest: ComputationManifestV1;
   manifestPath: string;
   manifestRelativePath: string;
   manifestSha256: string;
+  entryPointScriptPath: string;
+  entryPointScriptRelativePath: string;
   runId: string;
   runDir: string;
   workspaceDir: string;
@@ -135,12 +153,25 @@ export interface ExecutionStatusFile {
   started_at: string;
   completed_at: string | null;
   errors: string[];
+  entry_point: {
+    script: string;
+    sha256: string;
+  };
   steps: Array<{
     id: string;
     tool: ManifestTool;
     command: string[];
+    runtime_identity: NativeRuntimeIdentity;
+    execution_environment: ProcessEnvironmentV1;
     script: string;
+    script_pre_sha256: string;
+    script_post_sha256: string | null;
     expected_outputs: string[];
+    pre_snapshot_path: string;
+    pre_snapshot_sha256: string | null;
+    post_snapshot_path: string;
+    post_snapshot_sha256: string | null;
+    output_refs: WorkspaceFileSnapshotEntry[];
     status: StepStatus;
     exit_code: number | null;
     started_at: string | null;

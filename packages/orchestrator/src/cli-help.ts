@@ -81,24 +81,37 @@ Behavior:
 Output:
   JSON execution result is written to stdout.
 `,
-  verify: `nullius verify --run-id <id> --status <passed|failed|blocked> --summary "..." --evidence-path <path> [options]
+  verify: `nullius verify --run-id <id> --status <passed|failed|blocked> --summary "..." --evidence-path <path> --checker-path <path> --checker-runtime python3 --quantity-id <id> --layer-id <id> --reference-provenance-json <object> --disputed-dimension <name> --required-negative-control-id <id> [options]
 
 Record one decisive verification result for an existing computation run.
 
 Options:
   --run-id <id>                 Required run identifier whose canonical computation_result_v1 should be updated
   --status <passed|failed|blocked>
-                                Required decisive verification result to record
-  --summary "..."               Required human-readable verification summary
+                                Required operator expectation; must exactly match the checker verdict
+  --summary "..."               Required non-authoritative operator note; it cannot replace the checker summary
   --evidence-path <path>        Required; repeatable evidence file path(s) within the run dir
-  --check-kind <kind>           Optional check kind; defaults to decisive_verification
+  --checker-path <path>          Required Python or Node checker script within the run dir
+  --checker-runtime <token>     Required bare native runtime token: python, python3[.X], or node
+  --checker-helper-path <path>  Optional; repeat for every top-level local checker helper
+  --quantity-id <id>            Required identifier for the exact checked quantity
+  --layer-id <id>               Required identifier for the implementation/representation layer checked
+  --reference-provenance-json <object>
+                                Required; repeatable JSON object with reference_id, uri, and sha256
+  --disputed-dimension <name>   Required; repeatable normalization/component/etc. dimension under dispute
+  --required-negative-control-id <id>
+                                Required; repeatable negative-control identifier the verdict must report
+  --check-kind <kind>           Requested checker-kind expectation; defaults to decisive_verification; the emitted matching value is recorded
   --confidence-level <level>    Optional low|medium|high; defaults to medium
   --confidence-score <0..1>     Optional confidence score
   --notes "..."                 Optional operator note recorded into the verification check artifact
 
 Behavior:
   Requires an initialized external project root (\`nullius init\`).
-  Materializes \`verification_check_run_v1\`, refreshes verdict/coverage truth, and enriches \`computation_result_v1.verification_refs.check_run_refs\`.
+  Nullius resolves and hashes the canonical native runtime, directly spawns the checker without a shell under a sanitized fixed environment, and appends fixed \`--nullius-request\` and \`--nullius-verdict\` arguments. For a Python checker with declared helpers, the checker directory is recorded as the sanitized Python module search path while unsafe implicit path insertion remains disabled. Runtime paths, wrappers, aliases, shells, eval, pipelines, redirects, and extra argv are rejected.
+  Quantity, layer, reference provenance, disputed dimensions, and negative controls have no implicit defaults and must be supplied explicitly. The checker must emit \`validation_checker_verdict_v1\` whose request hash matches the Nullius-generated request and whose self-reported output observations match the requested production paths and internally held hashes. A recorded pass does not prove that the checker actually opened those paths or executed the named negative controls. The CLI status is only an expectation that must equal the checker verdict; the CLI summary is a non-authoritative note; the canonical summary and matching check kind are read from the checker verdict. Nullius then writes and later revalidates \`validation_chain_binding_v1\`.
+  The receipt contains adjacent production snapshots and a literal incomplete dependency-closure status; it is not a syscall/import/installed-byte closure. A5 currently remains unavailable. The final-conclusions consumer also supports exactly one canonical subject, verdict, and coverage artifact.
+  Legacy caller-authored \`--validation-chain-receipt\` input is rejected for decisive verification.
   This is a local single-user verification front door, not a REP / multi-agent interaction surface.
 
 Output:
@@ -115,9 +128,10 @@ Options:
 Behavior:
   Requires an initialized external project root (\`nullius init\`).
   Reads the canonical \`artifacts/computation_result_v1.json\` and its typed verification refs.
-  Only a decisive gate \`pass\` creates a pending A5 approval request.
+  The consumer currently supports exactly one canonical subject, verdict, and coverage artifact.
+  Every current validation binding declares an incomplete dependency/import closure, so A5 currently returns \`unavailable\` and creates no approval request even when the checker self-reports pass.
   \`hold\`, \`block\`, and \`unavailable\` fail closed and do not create pending approval state.
-  After the request exists, \`nullius approve <approval_id>\` consumes A5 into a local \`final_conclusions_v1\` artifact instead of resuming the run.
+  The generic A5 approval consumer remains implemented for a future complete-closure path; it is not reachable from current validation bindings.
 
 Output:
   JSON readiness or approval-request result is written to stdout.
@@ -192,7 +206,7 @@ Options:
 
 Behavior:
   Non-A5 approvals resume the run as before.
-  An A5 approval consumes the first post-A5 higher-conclusion consumer, writes \`artifacts/runs/<run_id>/final_conclusions_v1.json\`, and leaves the run \`completed\`.
+  A generic A5 consumer exists for a future complete-dependency-closure path, but current validation bindings leave A5 unavailable and cannot create that pending approval.
 `,
   pause: `nullius pause
 

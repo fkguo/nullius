@@ -150,17 +150,31 @@ export const OrchRunProgressFollowupsSchema = z.object({
 
 export const OrchRunRequestFinalConclusionsSchema = z.object({
   project_root: ProjectRootSchema,
-  run_id: RunIdSchema.describe('Run identifier whose canonical computation_result_v1 should be evaluated for A5 final-conclusions readiness.'),
+  run_id: RunIdSchema.describe('Run identifier whose exactly-one canonical verification subject should be evaluated. Current validation bindings declare incomplete dependency closure, so A5 remains unavailable.'),
   note: z.string().optional().describe('Optional operator note recorded with the A5 approval request when one is created.'),
 });
 
 export const OrchRunRecordVerificationSchema = z.object({
   project_root: ProjectRootSchema,
   run_id: RunIdSchema.describe('Run identifier whose canonical computation_result_v1 should receive a decisive verification result update.'),
-  status: z.enum(['passed', 'failed', 'blocked']).describe('Decisive verification result to record.'),
-  summary: z.string().min(1).describe('Human-readable summary of the decisive verification outcome.'),
+  status: z.enum(['passed', 'failed', 'blocked']).describe('Operator expectation; must equal the status emitted by the directly executed checker and cannot override it.'),
+  summary: z.string().min(1).describe('Required non-authoritative operator note. The canonical check-run summary is copied verbatim from the checker verdict.'),
   evidence_paths: z.array(z.string().min(1)).min(1).describe('One or more evidence file paths, each absolute or relative within the run dir. Every path must resolve inside the current run directory.'),
-  check_kind: z.string().min(1).optional().default('decisive_verification').describe('Verification check kind. Defaults to decisive_verification.'),
+  checker_path: z.string().min(1).describe('Required Python or Node checker script path, absolute or relative within the run dir.'),
+  checker_runtime: z.string().regex(/^(?:node|python|python3(?:\.\d+)?)$/u).describe('Bare allowlisted native runtime token. Paths, wrappers, aliases, shell fragments, and runtime flags are rejected; Nullius resolves and hashes the canonical native executable.'),
+  quantity_id: z.string().min(1),
+  layer_id: z.string().min(1),
+  reference_provenance: z.array(z.object({
+    reference_id: z.string().min(1),
+    uri: z.string().min(1),
+    sha256: z.string().regex(/^[0-9a-f]{64}$/u),
+  })).min(1),
+  disputed_dimensions: z.array(z.string().min(1)).min(1),
+  required_negative_control_ids: z.array(z.string().min(1)).min(1),
+  checker_helper_paths: z.array(z.string().min(1)).optional(),
+  checker_command: z.array(z.string().min(1)).optional().describe('Deprecated input-only field. Caller-authored checker argv is rejected; use checker_runtime with a bare token.'),
+  validation_chain_receipt_path: z.string().min(1).optional().describe('Deprecated input-only field. Caller-authored decisive receipts are no longer accepted and fail closed; Nullius now writes the canonical receipt after executing checker_path.'),
+  check_kind: z.string().min(1).optional().default('decisive_verification').describe('Requested check-kind expectation. It must equal the checker-emitted check_kind; the matching emitted value is canonical and defaults to decisive_verification.'),
   confidence_level: z.enum(['low', 'medium', 'high']).optional().default('medium').describe('Operator-reported confidence level for the recorded verification result.'),
   confidence_score: z.number().min(0).max(1).optional().describe('Optional confidence score paired with confidence_level.'),
   notes: z.string().optional().describe('Optional operator note recorded into the verification check artifact.'),

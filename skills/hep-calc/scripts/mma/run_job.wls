@@ -12,7 +12,15 @@
    - Always write symbolic/status.json and (at least) symbolic/symbolic.json.
 *)
 
-ClearAll[HepCalcNormalizeForJSON, HepCalcWriteJSON, HepCalcAddRisk, HepCalcExportSymbolic, HepCalcWriteStatus];
+ClearAll[
+  HepCalcNormalizeForJSON,
+  HepCalcWriteJSON,
+  HepCalcAddRisk,
+  HepCalcExportSymbolic,
+  HepCalcWriteStatus,
+  HepCalcFiniteRealNumberQ,
+  HepCalcEvaluateAssertions
+];
 
 HepCalcNormalizeForJSON[x_Association] := Map[HepCalcNormalizeForJSON, x];
 HepCalcNormalizeForJSON[x_List] := HepCalcNormalizeForJSON /@ x;
@@ -40,6 +48,138 @@ $HepCalcRisks = {};
 HepCalcAddRisk[msg_String] := AppendTo[$HepCalcRisks, msg];
 
 HepCalcWriteStatus[path_String, status_Association] := HepCalcWriteJSON[path, status];
+
+HepCalcFiniteRealNumberQ[x_] := NumberQ[x] &&
+  TrueQ[Im[N[x]] == 0] &&
+  FreeQ[x, Indeterminate | ComplexInfinity | DirectedInfinity[_]];
+
+HepCalcEvaluateAssertions[path_String] := Module[
+  {
+    symbolic,
+    data,
+    assertions,
+    evaluated,
+    total,
+    passed,
+    failed,
+    invalid,
+    failedIDs
+  },
+  symbolic = Quiet@Check[Import[path, "RawJSON"], $Failed];
+  If[! AssociationQ[symbolic],
+    Return[<|
+      "contract_valid" -> False,
+      "total" -> 1,
+      "pass" -> 0,
+      "fail" -> 1,
+      "invalid" -> 1,
+      "failed_ids" -> {"assertions_contract"}
+    |>]
+  ];
+
+  data = Lookup[symbolic, "data", <||>];
+  If[! AssociationQ[data],
+    Return[<|
+      "contract_valid" -> False,
+      "total" -> 1,
+      "pass" -> 0,
+      "fail" -> 1,
+      "invalid" -> 1,
+      "failed_ids" -> {"assertions_contract"}
+    |>]
+  ];
+
+  If[! KeyExistsQ[data, "assertions"],
+    Return[<|
+      "contract_valid" -> True,
+      "total" -> 0,
+      "pass" -> 0,
+      "fail" -> 0,
+      "invalid" -> 0,
+      "failed_ids" -> {}
+    |>]
+  ];
+
+  assertions = Lookup[data, "assertions", Missing["NotAvailable"]];
+  If[! ListQ[assertions],
+    Return[<|
+      "contract_valid" -> False,
+      "total" -> 1,
+      "pass" -> 0,
+      "fail" -> 1,
+      "invalid" -> 1,
+      "failed_ids" -> {"assertions_contract"}
+    |>]
+  ];
+
+  evaluated = MapIndexed[
+    Function[{assertion, position},
+      Module[
+        {
+          id,
+          passedValue,
+          valid,
+          hasResidual,
+          hasTolerance,
+          residual,
+          tolerance,
+          residualConsistent
+        },
+        id = If[
+          AssociationQ[assertion] &&
+            StringQ[Lookup[assertion, "id", None]] &&
+            StringLength[StringTrim[Lookup[assertion, "id", ""]]] > 0,
+          Lookup[assertion, "id", ""],
+          "assertion_" <> ToString[First[position]]
+        ];
+        passedValue = If[AssociationQ[assertion], Lookup[assertion, "passed", Missing["NotAvailable"]], Missing["NotAvailable"]];
+        valid = AssociationQ[assertion] &&
+          StringQ[Lookup[assertion, "id", None]] &&
+          StringLength[StringTrim[Lookup[assertion, "id", ""]]] > 0 &&
+          MemberQ[{True, False}, passedValue];
+
+        hasResidual = AssociationQ[assertion] && KeyExistsQ[assertion, "residual"];
+        hasTolerance = AssociationQ[assertion] && KeyExistsQ[assertion, "tolerance"];
+        residualConsistent = True;
+        If[hasResidual || hasTolerance,
+          valid = valid && hasResidual && hasTolerance;
+          If[hasResidual && hasTolerance,
+            residual = Lookup[assertion, "residual", Missing["NotAvailable"]];
+            tolerance = Lookup[assertion, "tolerance", Missing["NotAvailable"]];
+            valid = valid && HepCalcFiniteRealNumberQ[residual] && HepCalcFiniteRealNumberQ[tolerance] &&
+              TrueQ[residual >= 0] && TrueQ[tolerance >= 0];
+            If[valid,
+              residualConsistent = TrueQ[passedValue === TrueQ[residual <= tolerance]];
+              valid = valid && residualConsistent;
+            ];
+          ];
+        ];
+
+        <|
+          "id" -> id,
+          "valid" -> TrueQ[valid],
+          "passed" -> TrueQ[valid] && TrueQ[passedValue]
+        |>
+      ]
+    ],
+    assertions
+  ];
+
+  total = Length[evaluated];
+  passed = Count[Lookup[evaluated, "passed", False], True];
+  failed = total - passed;
+  invalid = Count[Lookup[evaluated, "valid", False], False];
+  failedIDs = Lookup[Select[evaluated, ! TrueQ[Lookup[#, "passed", False]] &], "id", {}];
+
+  <|
+    "contract_valid" -> TrueQ[invalid == 0],
+    "total" -> total,
+    "pass" -> passed,
+    "fail" -> failed,
+    "invalid" -> invalid,
+    "failed_ids" -> failedIDs
+  |>
+];
 
 HepCalcExportSymbolic[data_] := Module[{out},
   out = <|
@@ -176,22 +316,34 @@ If[StringMatchQ[ToLowerCase[entry], ___ ~~ ".nb"],
   entryToRun = snapshotPath;
 ];
 
-(* Run entry *)
-runOK = Quiet@Check[Get[entryToRun]; True, False];
-
-(* If user script didn't export, still produce empty symbolic.json *)
 symPath = FileNameJoin[{$HepCalcOutDir, "symbolic", "symbolic.json"}];
-If[! FileExistsQ[symPath],
-  HepCalcExportSymbolic[<|"tasks" -> {}, "notes" -> {"Entry executed but did not call HepCalcExportSymbolic[...]"}|>];
+statusPath = FileNameJoin[{$HepCalcOutDir, "symbolic", "status.json"}];
+
+(* A direct invocation may reuse an output directory.  Remove both acceptance
+   surfaces before Get so only output produced by this entry can pass. *)
+Do[
+  If[FileExistsQ[path], Quiet@Check[DeleteFile[path], Null]],
+  {path, {symPath, statusPath}}
+];
+If[FileExistsQ[symPath] || FileExistsQ[statusPath],
+  Print["ERROR: could not invalidate stale symbolic acceptance output"];
+  Quit[19];
 ];
 
+(* Run entry *)
+entryResult = Quiet@Check[Get[entryToRun], $Failed];
+runOK = entryResult =!= $Failed && entryResult =!= $Aborted;
+
 If[! runOK,
+  If[! FileExistsQ[symPath],
+    HepCalcExportSymbolic[<|"tasks" -> {}, "notes" -> {"Entry execution failed before exporting symbolic output."}|>];
+  ];
   HepCalcWriteStatus[
     FileNameJoin[{$HepCalcOutDir, "symbolic", "status.json"}],
     <|
       "stage" -> "mathematica_symbolic",
       "status" -> "ERROR",
-      "reason" -> "entry_execution_failed",
+      "reason" -> If[entryResult === $Aborted, "entry_execution_aborted", "entry_execution_failed"],
       "entry" -> entry,
       "entry_used" -> entryToRun,
       "snapshot" -> snapshotPath,
@@ -203,6 +355,50 @@ If[! runOK,
   Quit[20];
 ];
 
+If[! FileExistsQ[symPath],
+  HepCalcExportSymbolic[<|"tasks" -> {}, "notes" -> {"Entry completed without exporting the required symbolic output."}|>];
+  HepCalcWriteStatus[
+    FileNameJoin[{$HepCalcOutDir, "symbolic", "status.json"}],
+    <|
+      "stage" -> "mathematica_symbolic",
+      "status" -> "ERROR",
+      "reason" -> "missing_required_symbolic_output",
+      "entry" -> entry,
+      "entry_used" -> entryToRun,
+      "snapshot" -> snapshotPath,
+      "started_at" -> startedAt,
+      "ended_at" -> DateString[Now, "ISODateTime"],
+      "risks" -> $HepCalcRisks
+    |>
+  ];
+  Quit[22];
+];
+
+assertionSummary = HepCalcEvaluateAssertions[symPath];
+
+If[! TrueQ[Lookup[assertionSummary, "contract_valid", False]] || Lookup[assertionSummary, "fail", 0] > 0,
+  HepCalcWriteStatus[
+    FileNameJoin[{$HepCalcOutDir, "symbolic", "status.json"}],
+    <|
+      "stage" -> "mathematica_symbolic",
+      "status" -> "FAIL",
+      "reason" -> If[
+        TrueQ[Lookup[assertionSummary, "contract_valid", False]],
+        "symbolic_assertions_failed",
+        "invalid_symbolic_assertions_contract"
+      ],
+      "entry" -> entry,
+      "entry_used" -> entryToRun,
+      "snapshot" -> snapshotPath,
+      "assertions" -> assertionSummary,
+      "started_at" -> startedAt,
+      "ended_at" -> DateString[Now, "ISODateTime"],
+      "risks" -> $HepCalcRisks
+    |>
+  ];
+  Quit[21];
+];
+
 HepCalcWriteStatus[
   FileNameJoin[{$HepCalcOutDir, "symbolic", "status.json"}],
   <|
@@ -211,6 +407,7 @@ HepCalcWriteStatus[
     "entry" -> entry,
     "entry_used" -> entryToRun,
     "snapshot" -> snapshotPath,
+    "assertions" -> assertionSummary,
     "started_at" -> startedAt,
     "ended_at" -> DateString[Now, "ISODateTime"],
     "risks" -> $HepCalcRisks

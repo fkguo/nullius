@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nullius.dev/schemas/validation_checker_request_v1.schema.json",
+  "title": "ValidationCheckerRequest V1",
+  "description": "Nullius-generated input to a decisive checker. It records structured-output URI/path targets, the declared semantic surface, checker/runtime bytes, and the sanitized environment. Content hashes and adjacent production snapshots are bound by the outer validation-chain receipt. This request does not prove that the checker read an output or provide a syscall/import/installed-byte dependency closure.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "run_id",
+    "subject_id",
+    "check_kind",
+    "quantity_id",
+    "layer_id",
+    "reference_provenance",
+    "disputed_dimensions",
+    "required_negative_control_ids",
+    "output_targets",
+    "checker_ref",
+    "checker_helper_refs",
+    "checker_runtime",
+    "checker_environment"
+  ],
+  "properties": {
+    "schema_version": { "type": "integer", "const": 1 },
+    "run_id": { "type": "string", "minLength": 1 },
+    "subject_id": { "type": "string", "minLength": 1 },
+    "check_kind": { "type": "string", "minLength": 1 },
+    "quantity_id": { "type": "string", "minLength": 1 },
+    "layer_id": { "type": "string", "minLength": 1 },
+    "reference_provenance": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["reference_id", "uri", "sha256"],
+        "properties": {
+          "reference_id": { "type": "string", "minLength": 1 },
+          "uri": { "type": "string", "minLength": 1 },
+          "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "disputed_dimensions": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+    "required_negative_control_ids": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+    "output_targets": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["uri", "path"],
+        "properties": {
+          "uri": { "type": "string", "minLength": 1 },
+          "path": { "type": "string", "minLength": 1 }
+        },
+        "additionalProperties": false
+      }
+    },
+    "checker_ref": { "$ref": "https://nullius.dev/schemas/artifact_ref_v1.schema.json" },
+    "checker_helper_refs": { "type": "array", "items": { "$ref": "https://nullius.dev/schemas/artifact_ref_v1.schema.json" } },
+    "checker_runtime": { "$ref": "https://nullius.dev/schemas/native_runtime_identity_v1.schema.json" },
+    "checker_environment": { "$ref": "https://nullius.dev/schemas/sanitized_checker_environment_v1.schema.json" }
+  },
+  "additionalProperties": false
+}

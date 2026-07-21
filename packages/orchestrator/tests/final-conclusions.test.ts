@@ -13,6 +13,7 @@ import { handleOrchRunRecordVerification } from '../src/orch-tools/verification.
 import { StateManager } from '../src/state-manager.js';
 import type { RunState } from '../src/types.js';
 import { readRunListView } from '../src/orch-tools/run-read-model.js';
+import type { ArtifactRefV1 } from '@nullius/shared';
 
 function makeTempProjectRoot(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'nullius-final-conclusions-'));
@@ -76,7 +77,7 @@ function writeJson(filePath: string, payload: unknown): void {
   fs.writeFileSync(filePath, JSON.stringify(payload, null, 2) + '\n', 'utf-8');
 }
 
-const EXISTING_EVIDENCE_PATH = 'artifacts/computation_result_v1.json';
+const EXISTING_EVIDENCE_PATH = 'computation/outputs/ok.txt';
 
 async function prepareCompletedRun(): Promise<{
   manager: StateManager;
@@ -112,59 +113,106 @@ async function prepareCompletedRun(): Promise<{
   return { manager, projectRoot, runDir, runId };
 }
 
-function setVerificationPass(runDir: string): void {
-  const verdictPath = path.join(runDir, 'artifacts', 'verification_subject_verdict_computation_result_v1.json');
-  const coveragePath = path.join(runDir, 'artifacts', 'verification_coverage_v1.json');
-  const verdict = readJson<Record<string, unknown>>(verdictPath);
-  verdict.status = 'verified';
-  verdict.summary = 'Decisive verification completed successfully.';
-  verdict.missing_decisive_checks = [];
-  writeJson(verdictPath, verdict);
-
-  const coverage = readJson<Record<string, unknown>>(coveragePath);
-  coverage.summary = {
-    subjects_total: 1,
-    subjects_verified: 1,
-    subjects_partial: 0,
-    subjects_failed: 0,
-    subjects_blocked: 0,
-    subjects_not_attempted: 0,
+function fixtureArtifactRef(runId: string, runDir: string, filePath: string, kind: string): ArtifactRefV1 {
+  const relativePath = path.relative(runDir, filePath).split(path.sep).join('/');
+  return {
+    uri: `rep://runs/${encodeURIComponent(runId)}/artifact/${encodeURIComponent(relativePath)}`,
+    sha256: createHash('sha256').update(fs.readFileSync(filePath)).digest('hex'),
+    kind,
+    size_bytes: fs.statSync(filePath).size,
+    produced_by: 'test-fixture',
   };
-  coverage.missing_decisive_checks = [];
-  writeJson(coveragePath, coverage);
 }
 
-async function recordVerificationPass(projectRoot: string, runId: string): Promise<Record<string, unknown>> {
+function verificationSemanticCliArgs(runId: string, runDir: string): string[] {
+  const reference = fixtureArtifactRef(
+    runId,
+    runDir,
+    path.join(runDir, 'computation', 'manifest.json'),
+    'reference',
+  );
+  return [
+    '--quantity-id', 'quantity:fixture-output',
+    '--layer-id', 'layer:production-output',
+    '--reference-provenance-json', JSON.stringify({
+      reference_id: 'reference:fixture-manifest',
+      uri: reference.uri,
+      sha256: reference.sha256,
+    }),
+    '--disputed-dimension', 'normalization',
+    '--disputed-dimension', 'component-composition',
+    '--required-negative-control-id', 'negative-control:zero-input',
+  ];
+}
+
+function writeValidationChecker(
+  projectRoot: string,
+  runId: string,
+  status: 'passed' | 'failed' | 'blocked',
+): string {
+  const runDir = path.join(projectRoot, runId);
+  const checkerPath = path.join(runDir, 'verification', 'decisive_checker.py');
+  fs.mkdirSync(path.dirname(checkerPath), { recursive: true });
+  const emittedStatus = status === 'passed' ? 'pass' : status === 'failed' ? 'fail' : 'blocked';
+  const emittedSummary = status === 'passed'
+    ? 'Decisive verification completed successfully.'
+    : status === 'failed'
+      ? 'Decisive verification found a mismatch.'
+      : 'Verification is blocked by missing prerequisite evidence.';
+  fs.writeFileSync(checkerPath, [
+    'import argparse, hashlib, json',
+    'from pathlib import Path',
+    'p = argparse.ArgumentParser()',
+    "p.add_argument('--nullius-request', required=True)",
+    "p.add_argument('--nullius-verdict', required=True)",
+    'a = p.parse_args()',
+    'request_bytes = Path(a.nullius_request).read_bytes()',
+    'request = json.loads(request_bytes)',
+    "observations = [{'uri': target['uri'], 'path': target['path'], 'sha256': hashlib.sha256(Path(target['path']).read_bytes()).hexdigest()} for target in request['output_targets']]",
+    `verdict = {'schema_version': 1, 'request_sha256': hashlib.sha256(request_bytes).hexdigest(), 'check_kind': request['check_kind'], 'status': ${JSON.stringify(emittedStatus)}, 'summary': ${JSON.stringify(emittedSummary)}, 'quantity_id': request['quantity_id'], 'layer_id': request['layer_id'], 'disputed_dimensions': request['disputed_dimensions'], 'consumed_output_observations': observations, 'negative_control_results': [{'control_id': control_id, 'status': 'pass'} for control_id in request['required_negative_control_ids']]}`,
+    "Path(a.nullius_verdict).write_text(json.dumps(verdict, indent=2) + '\\n', encoding='utf-8')",
+    `raise SystemExit(${status === 'passed' ? 0 : status === 'failed' ? 1 : 2})`,
+    '',
+  ].join('\n'), 'utf-8');
+  return checkerPath;
+}
+
+async function recordVerification(
+  projectRoot: string,
+  runId: string,
+  status: 'passed' | 'failed' | 'blocked',
+): Promise<Record<string, unknown>> {
+  const checkerPath = writeValidationChecker(projectRoot, runId, status);
+  const manifestRef = fixtureArtifactRef(
+    runId,
+    path.join(projectRoot, runId),
+    path.join(projectRoot, runId, 'computation', 'manifest.json'),
+    'reference',
+  );
   return handleOrchRunRecordVerification({
     project_root: projectRoot,
     run_id: runId,
-    status: 'passed',
-    summary: 'Decisive verification completed successfully.',
+    status,
+    summary: status === 'passed'
+      ? 'Decisive verification completed successfully.'
+      : status === 'failed'
+        ? 'Decisive verification found a mismatch.'
+        : 'Verification is blocked by missing prerequisite evidence.',
     evidence_paths: [EXISTING_EVIDENCE_PATH],
+    checker_path: checkerPath,
+    checker_runtime: 'python3',
+    checker_helper_paths: [],
+    quantity_id: 'quantity:fixture-output',
+    layer_id: 'layer:production-output',
+    reference_provenance: [{ reference_id: 'reference:fixture-manifest', uri: manifestRef.uri, sha256: manifestRef.sha256 }],
+    disputed_dimensions: ['normalization', 'component-composition'],
+    required_negative_control_ids: ['negative-control:zero-input'],
     confidence_level: 'high',
   }) as Promise<Record<string, unknown>>;
 }
 
-function setVerificationBlock(runDir: string): void {
-  const verdictPath = path.join(runDir, 'artifacts', 'verification_subject_verdict_computation_result_v1.json');
-  const coveragePath = path.join(runDir, 'artifacts', 'verification_coverage_v1.json');
-  const verdict = readJson<Record<string, unknown>>(verdictPath);
-  verdict.status = 'failed';
-  verdict.summary = 'Decisive verification found a mismatch.';
-  verdict.missing_decisive_checks = [];
-  writeJson(verdictPath, verdict);
-
-  const coverage = readJson<Record<string, unknown>>(coveragePath);
-  coverage.summary = {
-    subjects_total: 1,
-    subjects_verified: 0,
-    subjects_partial: 0,
-    subjects_failed: 1,
-    subjects_blocked: 0,
-    subjects_not_attempted: 0,
-  };
-  coverage.missing_decisive_checks = [];
-  writeJson(coveragePath, coverage);
+async function recordVerificationPass(projectRoot: string, runId: string): Promise<Record<string, unknown>> {
+  return recordVerification(projectRoot, runId, 'passed');
 }
 
 function setVerificationUnavailable(runDir: string): void {
@@ -185,9 +233,9 @@ async function requestA5(projectRoot: string, runId: string): Promise<Record<str
 }
 
 describe('final conclusions consumer', () => {
-  it('creates an A5 pending approval from a completed run when decisive verification passes', async () => {
-    const { manager, projectRoot, runDir, runId } = await prepareCompletedRun();
-    setVerificationPass(runDir);
+  it('keeps A5 unavailable when decisive output verification passes but dependency closure is incomplete', async () => {
+    const { manager, projectRoot, runId } = await prepareCompletedRun();
+    await recordVerificationPass(projectRoot, runId);
 
     const payload = await handleOrchRunRequestFinalConclusions({
       project_root: projectRoot,
@@ -196,23 +244,19 @@ describe('final conclusions consumer', () => {
     }) as Record<string, unknown>;
 
     expect(payload).toMatchObject({
-      status: 'requires_approval',
+      status: 'unavailable',
+      requires_approval: false,
       gate_id: 'A5',
-      gate_decision: 'pass',
+      gate_decision: 'unavailable',
+      ready_for_final_conclusions: false,
       run_id: runId,
     });
     const state = manager.readState();
-    expect(state.run_status).toBe('awaiting_approval');
-    expect(state.pending_approval).toMatchObject({
-      approval_id: 'A5-0001',
-      category: 'A5',
-    });
+    expect(state.run_status).toBe('completed');
+    expect(state.pending_approval).toBeNull();
 
     const statusView = await handleOrchRunStatus({ project_root: projectRoot }) as Record<string, unknown>;
-    expect(statusView.pending_approval).toMatchObject({
-      approval_id: 'A5-0001',
-      category: 'A5',
-    });
+    expect(statusView.pending_approval).toBeNull();
 
     const approvalsView = await handleOrchRunApprovalsList({
       project_root: projectRoot,
@@ -220,18 +264,12 @@ describe('final conclusions consumer', () => {
       gate_filter: 'all',
       include_history: false,
     }) as { approvals: Array<Record<string, unknown>> };
-    expect(approvalsView.approvals).toEqual([
-      expect.objectContaining({
-        approval_id: 'A5-0001',
-        gate_id: 'A5',
-        status: 'pending',
-      }),
-    ]);
+    expect(approvalsView.approvals).toEqual([]);
   });
 
-  it('replays the same pending A5 approval on repeated requests', async () => {
-    const { manager, projectRoot, runDir, runId } = await prepareCompletedRun();
-    setVerificationPass(runDir);
+  it('re-evaluates repeated A5 requests as unavailable without creating approval state', async () => {
+    const { manager, projectRoot, runId } = await prepareCompletedRun();
+    await recordVerificationPass(projectRoot, runId);
 
     const first = await handleOrchRunRequestFinalConclusions({
       project_root: projectRoot,
@@ -242,23 +280,16 @@ describe('final conclusions consumer', () => {
       run_id: runId,
     }) as Record<string, unknown>;
 
-    expect(first.approval_id).toBe('A5-0001');
-    expect(second.approval_id).toBe('A5-0001');
-    expect(manager.readState().approval_seq.A5).toBe(1);
+    expect(first).toMatchObject({ gate_decision: 'unavailable', requires_approval: false });
+    expect(second).toMatchObject({ gate_decision: 'unavailable', requires_approval: false });
+    expect(manager.readState().approval_seq.A5).toBe(0);
+    expect(manager.readState().pending_approval).toBeNull();
   });
 
-  it('records a decisive verification pass and makes A5 request runtime-reachable', async () => {
+  it('records decisive verification but does not promote incomplete dependency closure to A5 pass', async () => {
     const { manager, projectRoot, runId } = await prepareCompletedRun();
 
-    const verification = await handleOrchRunRecordVerification({
-      project_root: projectRoot,
-      run_id: runId,
-      status: 'passed',
-      summary: 'Decisive verification completed successfully.',
-      evidence_paths: [EXISTING_EVIDENCE_PATH],
-      confidence_level: 'high',
-      check_kind: 'decisive_verification',
-    }) as Record<string, unknown>;
+    const verification = await recordVerificationPass(projectRoot, runId);
 
     expect(verification).toMatchObject({
       recorded: true,
@@ -316,46 +347,19 @@ describe('final conclusions consumer', () => {
       run_id: runId,
     }) as Record<string, unknown>;
     expect(finalConclusionsRequest).toMatchObject({
-      status: 'requires_approval',
+      status: 'unavailable',
+      requires_approval: false,
       gate_id: 'A5',
-      gate_decision: 'pass',
+      gate_decision: 'unavailable',
+      ready_for_final_conclusions: false,
     });
-    expect(manager.readState().pending_approval?.category).toBe('A5');
-    const requestedResult = readJson<Record<string, unknown>>(path.join(projectRoot, runId, 'artifacts', 'computation_result_v1.json'));
-    expect(((requestedResult.workspace_feedback as Record<string, unknown>).workspace as Record<string, unknown>).nodes).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        node_id: `decision:final-conclusions:${runId}`,
-        kind: 'decision',
-        metadata: expect.objectContaining({
-          boundary: 'final_conclusions',
-          status: 'pending_approval',
-          approval_id: 'A5-0001',
-        }),
-      }),
-    ]));
-    expect((requestedResult.workspace_feedback as Record<string, unknown>).events).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        event_type: 'intervention_recorded',
-        payload: expect.objectContaining({
-          intervention_kind: 'request_final_conclusions',
-          boundary: 'final_conclusions_request',
-          approval_id: 'A5-0001',
-        }),
-      }),
-    ]));
+    expect(manager.readState().pending_approval).toBeNull();
   });
 
   it('fails closed after decisive verification is recorded as failed', async () => {
     const { manager, projectRoot, runId } = await prepareCompletedRun();
 
-    const verification = await handleOrchRunRecordVerification({
-      project_root: projectRoot,
-      run_id: runId,
-      status: 'failed',
-      summary: 'Decisive verification found a mismatch.',
-      evidence_paths: [EXISTING_EVIDENCE_PATH],
-      confidence_level: 'medium',
-    }) as Record<string, unknown>;
+    const verification = await recordVerification(projectRoot, runId, 'failed');
 
     expect(verification.status).toBe('failed');
     const request = await handleOrchRunRequestFinalConclusions({
@@ -373,14 +377,7 @@ describe('final conclusions consumer', () => {
   it('fails closed after decisive verification is recorded as blocked', async () => {
     const { manager, projectRoot, runId } = await prepareCompletedRun();
 
-    const verification = await handleOrchRunRecordVerification({
-      project_root: projectRoot,
-      run_id: runId,
-      status: 'blocked',
-      summary: 'Verification is blocked by missing prerequisite evidence.',
-      evidence_paths: [EXISTING_EVIDENCE_PATH],
-      confidence_level: 'low',
-    }) as Record<string, unknown>;
+    const verification = await recordVerification(projectRoot, runId, 'blocked');
 
     expect(verification.status).toBe('blocked');
     const request = await handleOrchRunRequestFinalConclusions({
@@ -395,9 +392,12 @@ describe('final conclusions consumer', () => {
     expect(manager.readState().pending_approval).toBeNull();
   });
 
-  it('approves A5 into a final_conclusions_v1 artifact and keeps run truth completed', async () => {
-    const { manager, projectRoot, runDir, runId } = await prepareCompletedRun();
-    setVerificationPass(runDir);
+  // Intentionally unavailable until production can emit a genuinely complete
+  // dependency/import closure. Do not fabricate a complete receipt to keep the
+  // historical A5-success consumer tests green.
+  it.skip('approves A5 into a final_conclusions_v1 artifact and keeps run truth completed', async () => {
+    const { manager, projectRoot, runId } = await prepareCompletedRun();
+    await recordVerificationPass(projectRoot, runId);
     const request = await requestA5(projectRoot, runId);
 
     const approval = await handleOrchRunApprove({
@@ -542,9 +542,9 @@ describe('final conclusions consumer', () => {
     });
   });
 
-  it('fails closed when A5 approve loses canonical source truth after request time', async () => {
+  it.skip('fails closed when A5 approve loses canonical source truth after request time', async () => {
     const { manager, projectRoot, runDir, runId } = await prepareCompletedRun();
-    setVerificationPass(runDir);
+    await recordVerificationPass(projectRoot, runId);
     const request = await requestA5(projectRoot, runId);
     fs.unlinkSync(path.join(runDir, 'artifacts', 'computation_result_v1.json'));
 
@@ -566,7 +566,7 @@ describe('final conclusions consumer', () => {
     expect(fs.existsSync(path.join(projectRoot, 'artifacts', 'runs', runId, 'final_conclusions_v1.json'))).toBe(false);
   });
 
-  it('reports a structured final_conclusions error when the pointer exists but the artifact is missing', async () => {
+  it.skip('reports a structured final_conclusions error when the pointer exists but the artifact is missing', async () => {
     const { manager, projectRoot, runDir, runId } = await prepareCompletedRun();
     await recordVerificationPass(projectRoot, runId);
     const request = await requestA5(projectRoot, runId);
@@ -605,7 +605,7 @@ describe('final conclusions consumer', () => {
     expect(manager.readState().artifacts.final_conclusions_v1).toBe('artifacts/runs/M-A5-1/final_conclusions_v1.json');
   });
 
-  it('does not create an approval when verification is still on hold', async () => {
+  it('keeps unbound pre-validation artifacts unavailable instead of auto-validating them', async () => {
     const { manager, projectRoot, runId } = await prepareCompletedRun();
 
     const payload = await handleOrchRunRequestFinalConclusions({
@@ -614,9 +614,9 @@ describe('final conclusions consumer', () => {
     }) as Record<string, unknown>;
 
     expect(payload).toMatchObject({
-      status: 'not_ready',
+      status: 'unavailable',
       gate_id: 'A5',
-      gate_decision: 'hold',
+      gate_decision: 'unavailable',
       ready_for_final_conclusions: false,
     });
     const state = manager.readState();
@@ -626,7 +626,7 @@ describe('final conclusions consumer', () => {
 
   it('fails closed when decisive verification is blocking', async () => {
     const { manager, projectRoot, runDir, runId } = await prepareCompletedRun();
-    setVerificationBlock(runDir);
+    await recordVerification(projectRoot, runId, 'failed');
 
     const payload = await handleOrchRunRequestFinalConclusions({
       project_root: projectRoot,
@@ -661,8 +661,8 @@ describe('final conclusions consumer', () => {
   });
 
   it('keeps CLI final-conclusions behavior aligned with the MCP handler', async () => {
-    const { manager, projectRoot, runDir, runId } = await prepareCompletedRun();
-    setVerificationPass(runDir);
+    const { manager, projectRoot, runId } = await prepareCompletedRun();
+    await recordVerificationPass(projectRoot, runId);
     const { io, stdout } = makeIo(projectRoot);
 
     const code = await runCli([
@@ -673,18 +673,19 @@ describe('final conclusions consumer', () => {
 
     expect(code).toBe(0);
     expect(JSON.parse(stdout.join(''))).toMatchObject({
-      status: 'requires_approval',
+      status: 'unavailable',
+      requires_approval: false,
       gate_id: 'A5',
-      gate_decision: 'pass',
+      gate_decision: 'unavailable',
       run_id: runId,
     });
     const state = manager.readState() as RunState;
-    expect(state.pending_approval?.category).toBe('A5');
+    expect(state.pending_approval).toBeNull();
   });
 
-  it('prints final-conclusions pointers when CLI approve consumes A5', async () => {
+  it.skip('prints final-conclusions pointers when CLI approve consumes A5', async () => {
     const { manager, projectRoot, runDir, runId } = await prepareCompletedRun();
-    setVerificationPass(runDir);
+    await recordVerificationPass(projectRoot, runId);
     await requestA5(projectRoot, runId);
     const { io, stdout } = makeIo(projectRoot);
 
@@ -699,7 +700,8 @@ describe('final conclusions consumer', () => {
   });
 
   it('records decisive verification through the CLI front door', async () => {
-    const { projectRoot, runId } = await prepareCompletedRun();
+    const { projectRoot, runDir, runId } = await prepareCompletedRun();
+    const checkerPath = writeValidationChecker(projectRoot, runId, 'passed');
     const { io, stdout } = makeIo(projectRoot);
 
     const code = await runCli([
@@ -708,6 +710,9 @@ describe('final conclusions consumer', () => {
       '--status', 'passed',
       '--summary', 'Decisive verification completed successfully.',
       '--evidence-path', EXISTING_EVIDENCE_PATH,
+      '--checker-path', checkerPath,
+      '--checker-runtime', 'python3',
+      ...verificationSemanticCliArgs(runId, runDir),
       '--confidence-level', 'high',
     ], io);
 
@@ -737,7 +742,7 @@ describe('final conclusions consumer', () => {
     });
   });
 
-  it('keeps project_recent_digest readable when a newer historical artifact is invalid', async () => {
+  it.skip('keeps project_recent_digest readable when a newer historical artifact is invalid', async () => {
     const { manager, projectRoot, runId } = await prepareCompletedRun();
     await recordVerificationPass(projectRoot, runId);
     const request = await requestA5(projectRoot, runId);
@@ -898,9 +903,11 @@ describe('B-6 regression — digest reliability flag', () => {
 // disk, and assert the consumer used the bytes.
 // ─────────────────────────────────────────────────────────────────────────────
 describe('B-4 regression — approval packet single-buffer read', () => {
-  it('consumer parses from packetBytes, NOT from disk — survives tamper-after-hash', async () => {
+  // These approval-consumer regressions remain preserved but cannot be reached
+  // honestly while every v4 validation receipt declares an incomplete closure.
+  it.skip('consumer parses from packetBytes, NOT from disk — survives tamper-after-hash', async () => {
     const { manager, projectRoot, runDir, runId } = await prepareCompletedRun();
-    setVerificationPass(runDir);
+    await recordVerificationPass(projectRoot, runId);
     const request = await requestA5(projectRoot, runId);
 
     const packetPath = path.join(
@@ -942,9 +949,9 @@ describe('B-4 regression — approval packet single-buffer read', () => {
     expect(fs.existsSync(path.join(projectRoot, result.final_conclusions_path))).toBe(true);
   });
 
-  it('end-to-end approve flow succeeds with the single-buffer-read path', async () => {
+  it.skip('end-to-end approve flow succeeds with the single-buffer-read path', async () => {
     const { manager, projectRoot, runDir, runId } = await prepareCompletedRun();
-    setVerificationPass(runDir);
+    await recordVerificationPass(projectRoot, runId);
     const request = await requestA5(projectRoot, runId);
 
     const approval = await handleOrchRunApprove({
@@ -966,9 +973,9 @@ describe('B-4 regression — approval packet single-buffer read', () => {
     expect(state.pending_approval).toBeNull();
   });
 
-  it('rejects approve when on-disk packet SHA-256 does not match the caller-supplied hash', async () => {
+  it.skip('rejects approve when on-disk packet SHA-256 does not match the caller-supplied hash', async () => {
     const { projectRoot, runDir, runId } = await prepareCompletedRun();
-    setVerificationPass(runDir);
+    await recordVerificationPass(projectRoot, runId);
     const request = await requestA5(projectRoot, runId);
 
     // Pre-existing integrity contract: passing a wrong SHA still fails
@@ -994,7 +1001,7 @@ describe('B-4 regression — approval packet single-buffer read', () => {
     expect(approval.approved).toBe(true);
   });
 
-  it('provenance — approval_packet_ref.sha256 in final_conclusions_v1 derives from SHA-verified bytes, not disk', async () => {
+  it.skip('provenance — approval_packet_ref.sha256 in final_conclusions_v1 derives from SHA-verified bytes, not disk', async () => {
     // R1 reviewer found a residual TOCTOU: createControlPlaneArtifactRef
     // re-read the packet from disk to populate approval_packet_ref.sha256
     // and size_bytes in the persisted final_conclusions_v1.json. After
@@ -1005,7 +1012,7 @@ describe('B-4 regression — approval packet single-buffer read', () => {
     // With the R2 fix, the helper takes `prehashedBytes` and derives both
     // sha256 AND size_bytes from those SHA-verified bytes.
     const { manager, projectRoot, runDir, runId } = await prepareCompletedRun();
-    setVerificationPass(runDir);
+    await recordVerificationPass(projectRoot, runId);
     const request = await requestA5(projectRoot, runId);
 
     const packetPath = path.join(
@@ -1050,9 +1057,9 @@ describe('B-4 regression — approval packet single-buffer read', () => {
     expect(ref.sha256).not.toBe(tamperedSha);
   });
 
-  it('falls back to disk read when packetBytes is omitted (backward compatibility)', async () => {
+  it.skip('falls back to disk read when packetBytes is omitted (backward compatibility)', async () => {
     const { manager, projectRoot, runDir, runId } = await prepareCompletedRun();
-    setVerificationPass(runDir);
+    await recordVerificationPass(projectRoot, runId);
     const request = await requestA5(projectRoot, runId);
 
     const packetPath = path.join(
