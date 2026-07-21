@@ -187,6 +187,14 @@ already-initialized project without touching your own notes, preview then apply:
 nullius init --refresh --dry-run
 nullius init --refresh
 
+Refresh does not migrate user-owned report files. For a project that predates
+the main-report registry, checkpoint it, render a current scaffold in a separate
+temporary external root with `nullius init --project-root <temporary-root>`, copy
+only a missing reports/main_research_report_template.md, and manually merge the
+temporary project_index.md#Main research report section into the existing index.
+report-validate fails closed with invalid_registry_markers before that merge and
+with no_current_report until a complete current report is registered.
+
 If `nullius` is not available, first prepare the CLI from the source checkout
 as described in this README, then retry the same startup sequence.
 

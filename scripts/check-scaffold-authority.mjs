@@ -40,6 +40,11 @@ const REFRESH_TRUTH_SURFACES = [
   'packages/project-contracts/src/project_contracts/scaffold_templates/AGENTS.md',
   'skills/research-harness/SKILL.md',
 ];
+const MIGRATION_TRUTH_SNIPPETS = [
+  'temporary external root',
+  'invalid_registry_markers',
+  'no_current_report',
+];
 
 // A file is a forbidden baseline-doc template iff its basename is exactly one of
 // the canonical document stems (optionally with a `_template` suffix) and a
@@ -62,6 +67,7 @@ for (const rel of trackedAssetFiles()) {
 }
 for (const rel of REFRESH_TRUTH_SURFACES) {
   const content = readFileSync(path.join(repoRoot, rel), 'utf-8');
+  const normalizedContent = content.replace(/\s+/g, ' ');
   const lines = content.split('\n');
   const refreshDeclaresTemplate = lines.some((line, index) => (
     (line.includes('init --refresh') || line.includes('--refresh re-applies'))
@@ -69,6 +75,11 @@ for (const rel of REFRESH_TRUTH_SURFACES) {
   ));
   if (!refreshDeclaresTemplate) {
     violations.push(`${rel}: refresh truth omits ${REPORT_TEMPLATE_PATH}`);
+  }
+  for (const snippet of MIGRATION_TRUTH_SNIPPETS) {
+    if (!normalizedContent.includes(snippet)) {
+      violations.push(`${rel}: existing-project report migration omits ${snippet}`);
+    }
   }
 }
 

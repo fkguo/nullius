@@ -85,6 +85,125 @@ def test_complete_main_report_passes_structural_validation() -> None:
     assert result["registered_report_count"] == 1
 
 
+def test_template_instructions_do_not_leak_into_researcher_facing_report() -> None:
+    template = load_scaffold_template("main_research_report_template.md")
+    report = _complete_report("report-a")
+    forbidden = (
+        "Copy this template",
+        "Do not promote this template",
+        "Passing the structural validator",
+        "Add one record per validation",
+        "For a replay record",
+    )
+    for phrase in forbidden:
+        assert phrase not in template
+        assert phrase not in report
+
+
+def test_authoring_process_prose_cannot_survive_report_promotion() -> None:
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        (root / "evidence.md").write_text("# Evidence\n", encoding="utf-8")
+        report = _complete_report("report-a").replace(
+            "<!-- REPORT_SECTION_ORIGIN_START -->",
+            "Copy this template before promotion.\n\n<!-- REPORT_SECTION_ORIGIN_START -->",
+        )
+        path, digest = _write_report(root, "report-a", text=report)
+        _write_registry(root, "report-a", [("report-a", path, digest, "none", "none")])
+        result = validate_main_research_report(root)
+
+    assert result["status"] == "fail"
+    assert "authoring_process_leaked_into_report" in _error_codes(result)
+
+
+def test_report_structure_inside_fenced_code_does_not_count() -> None:
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        (root / "evidence.md").write_text("# Evidence\n", encoding="utf-8")
+        fenced = "# Accepted\n\n```markdown\n" + _complete_report("report-a") + "\n```\n\nAccepted; all checks passed.\n"
+        path, digest = _write_report(root, "report-a", text=fenced)
+        _write_registry(root, "report-a", [("report-a", path, digest, "none", "none")])
+        result = validate_main_research_report(root)
+
+    assert result["status"] == "fail"
+    assert "missing_report_metadata" in _error_codes(result)
+    assert "missing_report_section" in _error_codes(result)
+
+
+def test_required_field_inside_html_comment_does_not_count() -> None:
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        (root / "evidence.md").write_text("# Evidence\n", encoding="utf-8")
+        report = _complete_report("report-a").replace(
+            "- Definitions: Documented in the linked evidence with scope and rationale.",
+            "<!--\n- Definitions: Hidden text must not satisfy the narrative contract.\n-->",
+            1,
+        )
+        path, digest = _write_report(root, "report-a", text=report)
+        _write_registry(root, "report-a", [("report-a", path, digest, "none", "none")])
+        result = validate_main_research_report(root)
+
+    assert result["status"] == "fail"
+    assert "incomplete_report_field" in _error_codes(result)
+
+
+def test_visible_report_with_an_ordinary_code_example_still_passes() -> None:
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        (root / "evidence.md").write_text("# Evidence\n", encoding="utf-8")
+        example = """
+```markdown
+Copy this template.
+<!-- REPORT_SECTION_RESULTS_START -->
+- Definitions: This code example is not report structure.
+<!-- REPORT_SECTION_RESULTS_END -->
+```
+"""
+        report = _complete_report("report-a").replace(
+            "<!-- REPORT_SECTION_METHOD_END -->",
+            example + "\n<!-- REPORT_SECTION_METHOD_END -->",
+        )
+        path, digest = _write_report(root, "report-a", text=report)
+        _write_registry(root, "report-a", [("report-a", path, digest, "none", "none")])
+        result = validate_main_research_report(root)
+
+    assert result["status"] == "pass"
+
+
+def test_required_field_moved_to_the_wrong_section_fails_closed() -> None:
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        (root / "evidence.md").write_text("# Evidence\n", encoding="utf-8")
+        field = "- Derivation chain: Documented in the linked evidence with scope and rationale."
+        report = _complete_report("report-a").replace(field, "", 1).replace(
+            "<!-- REPORT_SECTION_ORIGIN_END -->",
+            field + "\n<!-- REPORT_SECTION_ORIGIN_END -->",
+        )
+        path, digest = _write_report(root, "report-a", text=report)
+        _write_registry(root, "report-a", [("report-a", path, digest, "none", "none")])
+        result = validate_main_research_report(root)
+
+    assert result["status"] == "fail"
+    assert "report_field_wrong_section" in _error_codes(result)
+
+
+def test_required_field_copied_into_another_section_is_not_unique() -> None:
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        (root / "evidence.md").write_text("# Evidence\n", encoding="utf-8")
+        field = "- Derivation chain: Documented in the linked evidence with scope and rationale."
+        report = _complete_report("report-a").replace(
+            "<!-- REPORT_SECTION_ORIGIN_END -->",
+            field + "\n<!-- REPORT_SECTION_ORIGIN_END -->",
+        )
+        path, digest = _write_report(root, "report-a", text=report)
+        _write_registry(root, "report-a", [("report-a", path, digest, "none", "none")])
+        result = validate_main_research_report(root)
+
+    assert result["status"] == "fail"
+    assert "report_field_not_unique" in _error_codes(result)
+
+
 def test_short_closeout_summary_cannot_masquerade_as_main_report() -> None:
     with tempfile.TemporaryDirectory() as td:
         root = Path(td)
@@ -191,6 +310,46 @@ def test_current_report_pointer_must_be_declared_once() -> None:
     assert "current_report_pointer_not_unique" in _error_codes(result)
 
 
+def test_registry_inside_fenced_code_does_not_count() -> None:
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        (root / "evidence.md").write_text("# Evidence\n", encoding="utf-8")
+        path, digest = _write_report(root, "report-a")
+        _write_registry(root, "report-a", [("report-a", path, digest, "none", "none")])
+        index = root / "project_index.md"
+        index.write_text(
+            "# project_index.md\n\n```markdown\n" + index.read_text(encoding="utf-8") + "```\n",
+            encoding="utf-8",
+        )
+        result = validate_main_research_report(root)
+
+    assert result["status"] == "fail"
+    assert "invalid_registry_markers" in _error_codes(result)
+
+
+def test_registry_data_inside_html_comment_does_not_count() -> None:
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        (root / "evidence.md").write_text("# Evidence\n", encoding="utf-8")
+        path, digest = _write_report(root, "report-a")
+        _write_registry(root, "report-a", [("report-a", path, digest, "none", "none")])
+        index = root / "project_index.md"
+        text = index.read_text(encoding="utf-8")
+        text = text.replace(
+            "<!-- MAIN_RESEARCH_REPORT_REGISTRY_START -->",
+            "<!-- MAIN_RESEARCH_REPORT_REGISTRY_START -->\n<!--",
+        ).replace(
+            "<!-- MAIN_RESEARCH_REPORT_REGISTRY_END -->",
+            "-->\n<!-- MAIN_RESEARCH_REPORT_REGISTRY_END -->",
+        )
+        index.write_text(text, encoding="utf-8")
+        result = validate_main_research_report(root)
+
+    assert result["status"] == "fail"
+    assert "current_report_pointer_not_unique" in _error_codes(result)
+    assert "no_current_report" in _error_codes(result)
+
+
 def test_same_implementation_replay_is_not_independent_validation() -> None:
     with tempfile.TemporaryDirectory() as td:
         root = Path(td)
@@ -205,6 +364,48 @@ def test_same_implementation_replay_is_not_independent_validation() -> None:
 
     assert result["status"] == "fail"
     assert "same_implementation_replay_claimed_independent" in _error_codes(result)
+
+
+def test_environment_change_does_not_make_same_implementation_and_input_independent() -> None:
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        (root / "evidence.md").write_text("# Evidence\n", encoding="utf-8")
+        report = _complete_report("report-a")
+        report = report.replace("- Implementation relation: `different`", "- Implementation relation: `same`")
+        report = report.replace("- Input relation: `different`", "- Input relation: `same`")
+        path, digest = _write_report(root, "report-a", text=report)
+        _write_registry(root, "report-a", [("report-a", path, digest, "none", "none")])
+        result = validate_main_research_report(root)
+
+    assert result["status"] == "fail"
+    assert "same_implementation_replay_claimed_independent" in _error_codes(result)
+
+
+def test_independent_validation_and_risk_targeted_replay_can_coexist() -> None:
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        (root / "evidence.md").write_text("# Evidence\n", encoding="utf-8")
+        replay = """
+### Validation record: replay-external-state
+
+- Classification: `replay`
+- Implementation relation: `same`
+- Input relation: `same`
+- Environment relation: `different`
+- Method or representation difference: No methodological difference; the environment change isolates declared external state.
+- Declared replay risks: `external_state`
+- Validation result: The replay tested the declared risk and preserved the recorded result.
+- Human-readable validation evidence: [Replay evidence](../evidence.md)
+"""
+        report = _complete_report("report-a").replace(
+            "<!-- REPORT_SECTION_VALIDATION_END -->",
+            replay + "\n<!-- REPORT_SECTION_VALIDATION_END -->",
+        )
+        path, digest = _write_report(root, "report-a", text=report)
+        _write_registry(root, "report-a", [("report-a", path, digest, "none", "none")])
+        result = validate_main_research_report(root)
+
+    assert result["status"] == "pass"
 
 
 def test_registered_historical_report_is_immutable() -> None:

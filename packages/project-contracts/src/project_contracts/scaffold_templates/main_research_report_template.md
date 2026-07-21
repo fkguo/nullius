@@ -8,13 +8,6 @@
 - Relation registry: [Main research report registry](../project_index.md#main-research-report)
 <!-- MAIN_RESEARCH_REPORT_METADATA_END -->
 
-Copy this template to a new, stable path under `reports/`. Do not promote this
-template itself. A promoted report is an immutable researcher-facing account,
-not a checkpoint, status note, closeout brief, command transcript, or machine
-receipt. Passing the structural validator establishes only contract shape,
-link reachability, and supersession consistency; scientific sufficiency remains
-a judgment on the report's actual reasoning and evidence.
-
 <!-- REPORT_SECTION_ORIGIN_START -->
 ## Question origin and relation to prior work
 
@@ -89,11 +82,6 @@ a judgment on the report's actual reasoning and evidence.
 <!-- REPORT_SECTION_VALIDATION_START -->
 ## Independent validation
 
-Add one record per validation. A same-implementation, same-input,
-same-environment replay is a replay, not independent validation. A replay is
-worth recording only when it targets declared risks such as randomness,
-parallelism, caches, external state, or unfixed dependencies.
-
 ### Validation record: <validation-id>
 
 - Classification: `independent`
@@ -104,11 +92,6 @@ parallelism, caches, external state, or unfixed dependencies.
 - Declared replay risks: `not_applicable`
 - Validation result: <what the validation found, including disagreement>
 - Human-readable validation evidence: [<descriptive evidence label>](<relative-or-stable-web-target>)
-
-For a `replay` record, replace `not_applicable` with one or more comma-separated
-values from `randomness`, `parallelism`, `cache`, `external_state`, and
-`unfixed_dependencies`. Do not record a replay without a concrete risk from
-that vocabulary.
 <!-- REPORT_SECTION_VALIDATION_END -->
 
 <!-- REPORT_SECTION_BALANCE_START -->

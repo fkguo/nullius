@@ -50,7 +50,20 @@ describe('nullius report-validate', () => {
 
   it('documents the structural and judgment boundary', () => {
     const help = renderHelp('report-validate');
-    expect(help).toContain('same-implementation replay');
+    expect(help).toContain('same implementation plus same input');
+    expect(help).toContain('Environment differences do not make that replay independent.');
+    expect(help).toContain('authoring instructions');
+    expect(help).toContain('Report and registry structure counts only when it is visible Markdown;');
+    expect(help).toContain('fields must occur exactly once in their authoritative section.');
     expect(help).toContain('A pass does not establish scientific sufficiency.');
+  });
+
+  it('documents the fail-closed existing-project migration boundary', () => {
+    const help = renderHelp('init');
+    expect(help).toContain('Existing-project main-report migration:');
+    expect(help).toContain('separate temporary external root');
+    expect(help).toContain('Refresh does not perform either step.');
+    expect(help).toContain('invalid_registry_markers');
+    expect(help).toContain('no_current_report');
   });
 });

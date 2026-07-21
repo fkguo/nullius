@@ -40,6 +40,17 @@ Behavior:
   research_contract.md, project_charter.md, project_index.md,
   reports/main_research_report_template.md). Pair with --dry-run to preview.
 
+Existing-project main-report migration:
+  Checkpoint the project first. Refresh AGENTS.md, then render a fresh scaffold
+  in a separate temporary external root with \`nullius init --project-root <temporary-root>\`.
+  Copy only a missing reports/main_research_report_template.md from that root;
+  never overwrite an existing copy. Manually merge the temporary
+  project_index.md#Main research report section and empty registry into the
+  existing user-owned project_index.md. Refresh does not perform either step.
+  Until the registry exists and points to a populated current report,
+  \`nullius report-validate\` fails closed with invalid_registry_markers or
+  no_current_report.
+
 Pass-through options:
   --force
   --refresh
@@ -146,8 +157,13 @@ Behavior:
   current report is promoted, a checkpoint/status summary is structurally
   incomplete, a historical report no longer matches its registered SHA-256,
   the supersession chain or current pointer is stale, human-readable evidence
-  is replaced by machine references, or a same-implementation replay is
-  labeled as independent validation.
+  is replaced by machine references, authoring instructions remain in the
+  researcher-facing report, or same implementation plus same input is labeled
+  independent. Environment differences do not make that replay independent.
+  Report and registry structure counts only when it is visible Markdown;
+  fenced code and ordinary HTML comments cannot supply markers, fields,
+  validation records, current pointers, or registry rows. Required report
+  fields must occur exactly once in their authoritative section.
   The check is structural. A pass does not establish scientific sufficiency.
 
 Output:
