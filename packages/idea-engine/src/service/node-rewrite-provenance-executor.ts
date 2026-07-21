@@ -192,8 +192,8 @@ export function executeNodeRewriteProvenance(options: {
 
     // Import creates one reserved novelty-delta claim. A later reviewed
     // node.revise_card may remove or replace that scientific claim while the
-    // immutable origin remains in operator_trace and revision history. In that
-    // state a provenance correction updates the trace only and must not
+    // generation-time record remains pinned in the archived pack. In that state
+    // a provenance correction updates the current trace only and must not
     // resurrect the withdrawn claim. If a reserved claim is still present, it
     // must be unique and bound to the trace's previous closest-prior identity.
     const expectedPrefix = `${NOVELTY_DELTA_CLAIM_PREFIX}${previousValue}): `;
@@ -222,12 +222,18 @@ export function executeNodeRewriteProvenance(options: {
     if (deltaClaimUpdated) {
       const claimRecord = matchingClaims[0]!;
       claimRecord.claim_text = `${NOVELTY_DELTA_CLAIM_PREFIX}${newValue}): ${(claimRecord.claim_text as string).slice(expectedPrefix.length)}`;
-      claimRecord.evidence_uris = newValue.includes('://') ? [newValue] : [];
+      const currentEvidenceUris = Array.isArray(claimRecord.evidence_uris)
+        ? claimRecord.evidence_uris.filter(isNonEmptyString)
+        : [];
+      const preservedEvidenceUris = currentEvidenceUris.filter((uri) => uri !== previousValue && uri !== newValue);
+      claimRecord.evidence_uris = newValue.includes('://')
+        ? [newValue, ...preservedEvidenceUris]
+        : preservedEvidenceUris;
     }
 
     // When the active novelty-delta claim changes, any grounding_audit covered
     // the prior text and must be reset. If the reviewed card had already
-    // withdrawn that claim, only immutable provenance changes and the current
+    // withdrawn that claim, only the current provenance trace changes and the
     // card-grounding result remains about the same scientific claims.
     const groundingAuditReset = deltaClaimUpdated && updatedNode.grounding_audit != null;
     if (groundingAuditReset) {

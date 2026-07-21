@@ -49,6 +49,7 @@ function cardClaims(card: Record<string, unknown>): Array<Record<string, unknown
 /** Keep reserved claim identity coherent without freezing its scientific content. */
 export function ensureReservedProvenanceClaimCoherent(options: {
   campaignId: string;
+  currentCard: Record<string, unknown>;
   node: Record<string, unknown>;
   nodeId: string;
   replacementCard: Record<string, unknown>;
@@ -57,6 +58,7 @@ export function ensureReservedProvenanceClaimCoherent(options: {
   const inputs = asRecord(operatorTrace?.inputs);
   const noveltyDelta = asRecord(inputs?.novelty_delta);
   const closestPrior = noveltyDelta?.closest_prior;
+  const currentReserved = cardClaims(options.currentCard).filter((claim) => typeof claim.claim_text === 'string' && claim.claim_text.startsWith(NOVELTY_DELTA_CLAIM_PREFIX));
   const replacementReserved = cardClaims(options.replacementCard).filter((claim) => typeof claim.claim_text === 'string' && claim.claim_text.startsWith(NOVELTY_DELTA_CLAIM_PREFIX));
 
   if (typeof closestPrior !== 'string' || closestPrior.length === 0) {
@@ -71,12 +73,24 @@ export function ensureReservedProvenanceClaimCoherent(options: {
   }
 
   // A reviewed scientific revision may withdraw the generated hypothesis or
-  // replace it with an ordinary claim. The immutable origin stays in
-  // operator_trace and the append-only before-node event. If the current card
-  // retains the reserved prefix, however, it must remain uniquely bound to the
-  // trace's current closest-prior identity; changing that identity belongs to
-  // node.rewrite_provenance.
+  // replace it with an ordinary claim. The generation-time record stays pinned
+  // in the archived pack, while the append-only before-node event preserves the
+  // prior card and trace. The reserved prefix itself may only descend from the
+  // claim assembled at import: once withdrawn, a later revision cannot forge a
+  // new engine-looking claim.
   if (replacementReserved.length === 0) return;
+  if (currentReserved.length === 0) {
+    throw revisionValidationError(
+      'reserved_provenance_claim_changed',
+      options.campaignId,
+      options.nodeId,
+      'replacement_idea_card may not introduce the engine-reserved novelty-delta prefix; it identifies a claim assembled at import and may only be retained, revised, or withdrawn',
+      {
+        current_reserved_claim_count: currentReserved.length,
+        replacement_reserved_claim_count: replacementReserved.length,
+      },
+    );
+  }
   const expectedPrefix = `${NOVELTY_DELTA_CLAIM_PREFIX}${closestPrior}): `;
   const replacementExact = replacementReserved.filter((claim) => String(claim.claim_text).startsWith(expectedPrefix));
   if (replacementReserved.length === 1 && replacementExact.length === 1) return;
@@ -86,6 +100,7 @@ export function ensureReservedProvenanceClaimCoherent(options: {
     options.nodeId,
     "a retained engine-reserved novelty-delta claim must be unique and use the closest_prior identity stored in operator_trace; withdraw or replace the scientific claim through node.revise_card, and use node.rewrite_provenance only to correct the provenance identity",
     {
+      current_reserved_claim_count: currentReserved.length,
       replacement_reserved_claim_count: replacementReserved.length,
     },
   );
