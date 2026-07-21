@@ -68,7 +68,7 @@ function loadWithdrawalLedger(store: IdeaEngineStore, campaignId: string, nodeId
   }
 }
 
-/** Prove that the current zero-claim state came through the sanctioned revision RPC. */
+/** Confirm that the append-only ledger records a sanctioned reserved-claim withdrawal. */
 function hasRecordedReservedClaimWithdrawal(options: {
   campaignId: string;
   contracts: IdeaEngineContractCatalog;
@@ -295,6 +295,15 @@ export function executeNodeRewriteProvenance(options: {
     const expectedPrefix = `${NOVELTY_DELTA_CLAIM_PREFIX}${previousValue}${NOVELTY_DELTA_CLAIM_DELIMITER}`;
     const ideaCard = asRecord(updatedNode.idea_card);
     const reservedClaims = reservedClaimsFromCard(ideaCard);
+    if (reservedClaims.length > 0 && previousValue.includes(NOVELTY_DELTA_CLAIM_DELIMITER)) {
+      throw rewriteValidationError(
+        'delta_claim_missing',
+        campaignId,
+        nodeId,
+        'the stored closest_prior contains the reserved claim delimiter, so a retained novelty claim cannot be matched unambiguously; withdraw the reserved claim through node.revise_card before correcting provenance',
+        { legacy_closest_prior_delimiter: true, reserved_claim_count: reservedClaims.length },
+      );
+    }
     const matchingClaims = reservedClaims.filter((claim) => String(claim.claim_text).startsWith(expectedPrefix));
     if (reservedClaims.length > 1 || (reservedClaims.length === 1 && matchingClaims.length !== 1)) {
       throw rewriteValidationError(

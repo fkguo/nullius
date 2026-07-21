@@ -1163,6 +1163,51 @@ describe('node.import_generated', () => {
       expect((node.posterior as Record<string, unknown>).value).toBe(0.4); // recovery must not clobber evaluation
     });
 
+    it('tolerates a sanctioned closest-prior rewrite during import recovery', () => {
+      const service = freshService();
+      const campaignId = initCampaign(service);
+      const pack = validPack(campaignId);
+      const result = importPack(service, campaignId, pack);
+      const nodeId = importedNodeId(result);
+
+      service.handle('node.rewrite_provenance', {
+        campaign_id: campaignId,
+        field: 'novelty_delta.closest_prior',
+        idempotency_key: 'rewrite-mid-import-recovery',
+        new_value: URI_B,
+        node_id: nodeId,
+        reason: 'the retrieved comparison identifies paper B as the actual closest prior',
+      });
+      reopenPrepared(service, campaignId, 'import-key-1');
+
+      const retry = importPack(service, campaignId, pack);
+      expect((retry.idempotency as Record<string, unknown>).is_replay).toBe(true);
+      const node = service.node.store.loadNodes<Record<string, unknown>>(campaignId)[nodeId]!;
+      const inputs = (node.operator_trace as Record<string, unknown>).inputs as Record<string, unknown>;
+      expect((inputs.novelty_delta as Record<string, unknown>).closest_prior).toBe(URI_B);
+      expect(inputs.provenance_rewrites).toHaveLength(1);
+    });
+
+    it('refuses import recovery after an unrecorded closest-prior trace edit', () => {
+      const service = freshService();
+      const campaignId = initCampaign(service);
+      const pack = validPack(campaignId);
+      const result = importPack(service, campaignId, pack);
+      const nodeId = importedNodeId(result);
+      const nodes = service.node.store.loadNodes<Record<string, unknown>>(campaignId);
+      const inputs = (nodes[nodeId]!.operator_trace as Record<string, unknown>).inputs as Record<string, unknown>;
+      (inputs.novelty_delta as Record<string, unknown>).closest_prior = URI_B;
+      service.node.store.saveNodes(campaignId, nodes);
+      reopenPrepared(service, campaignId, 'import-key-1');
+
+      const error = expectRpcError(
+        () => importPack(service, campaignId, pack),
+        -32603,
+        'import_recovery_conflict',
+      );
+      expect(String((error.data.details as Record<string, unknown>).message)).toContain('rewrite chain');
+    });
+
     it('refuses recovery when a stored node disagrees on immutable fields', () => {
       const service = freshService();
       const campaignId = initCampaign(service);

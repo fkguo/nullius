@@ -1066,6 +1066,45 @@ describe('node.rewrite_provenance', () => {
     );
   });
 
+  it('requires a retained legacy delimiter-bearing claim to be withdrawn before provenance repair', () => {
+    const service = freshService();
+    const campaignId = initCampaign(service);
+    const [seedNodeId] = allNodeIds(service, campaignId);
+    const generatedId = importGeneratedNode(service, campaignId, seedNodeId!);
+    const legacyClosestPrior = 'legacy): prior';
+    const nodes = service.read.store.loadNodes<Record<string, unknown>>(campaignId);
+    const node = nodes[generatedId]!;
+    const inputs = (node.operator_trace as Record<string, unknown>).inputs as Record<string, unknown>;
+    (inputs.novelty_delta as Record<string, unknown>).closest_prior = legacyClosestPrior;
+    deltaClaims(node)[0]!.claim_text = `Novelty delta vs closest prior (${legacyClosestPrior}): legacy retained claim`;
+    service.read.store.saveNodes(campaignId, nodes);
+
+    const error = expectRpcError(
+      () => rewriteProvenance(service, campaignId, generatedId, 'rw-legacy-delimiter-retained', URI_A),
+      -32002,
+      'delta_claim_missing',
+    );
+    expect((error.data.details as Record<string, unknown>).legacy_closest_prior_delimiter).toBe(true);
+
+    const beforeWithdrawal = loadNode(service, campaignId, generatedId);
+    const card = structuredClone(beforeWithdrawal.idea_card) as Record<string, unknown>;
+    card.claims = (card.claims as Array<Record<string, unknown>>).filter(
+      claim => !String(claim.claim_text).startsWith('Novelty delta vs closest prior ('),
+    );
+    service.handle('node.revise_card', {
+      campaign_id: campaignId,
+      expected_revision: beforeWithdrawal.revision,
+      idempotency_key: 'withdraw-legacy-delimiter-claim',
+      node_id: generatedId,
+      reason: 'the legacy delimiter-bearing claim identity is ambiguous and must be withdrawn before provenance repair',
+      replacement_idea_card: card,
+    });
+
+    const result = rewriteProvenance(service, campaignId, generatedId, 'rw-legacy-delimiter-after-withdrawal', URI_A);
+    expect(result.delta_claim_updated).toBe(false);
+    expect(nodeCloseestPrior(loadNode(service, campaignId, generatedId))).toBe(URI_A);
+  });
+
   it('rejects a blank or whitespace-padded new_value and a blank reason', () => {
     const service = freshService();
     const campaignId = initCampaign(service);

@@ -305,6 +305,8 @@ function validateCandidateSemantics(options: {
     ? candidate.rationale_draft.references
     : []).filter((uri): uri is string => typeof uri === 'string');
   const closestPrior = String(candidate.novelty_delta.closest_prior ?? '');
+  // The pack schema rejects this first on the public RPC path. Keep the
+  // semantic check as defense in depth if schema wiring ever regresses.
   if (closestPrior.includes(NOVELTY_DELTA_CLAIM_DELIMITER)) {
     throw importValidationError(
       'schema_invalid',
