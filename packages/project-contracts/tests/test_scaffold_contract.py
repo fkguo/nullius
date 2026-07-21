@@ -1,3 +1,4 @@
+# CONTRACT-EXEMPT: CODE-01.1 Existing scaffold contract suite; this bounded change only extends its independent canonical expected set, while moving or rewriting the legacy test would obscure the production-versus-expectation check.
 import os
 import pathlib
 import subprocess
@@ -32,6 +33,7 @@ CANONICAL_SCAFFOLD_FILES = {
     "research_plan.md",
     "research_notebook.md",
     "research_contract.md",
+    "reports/main_research_report_template.md",
 }
 
 LANGUAGE_DISCIPLINE_SNIPPETS = (
