@@ -1,10 +1,36 @@
-import { existsSync, mkdirSync } from 'fs';
+import {
+  closeSync,
+  existsSync,
+  fsyncSync,
+  ftruncateSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+} from 'fs';
 import { basename, dirname, isAbsolute, relative, resolve, sep } from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
 import { appendJsonLine, readJsonFile, writeJsonFileAtomic } from './file-io.js';
 import { withLock } from './file-lock.js';
 
 const SHA256_HASH_RE = /^sha256:[0-9a-f]{64}$/;
+
+export type NodeLogCorruptionKind = 'interior_corruption' | 'torn_final';
+
+/**
+ * Strict JSONL diagnostics used by crash recovery paths that must distinguish
+ * a provably incomplete final append from persistent ledger corruption.
+ */
+export class NodeLogCorruptionError extends Error {
+  readonly kind: NodeLogCorruptionKind;
+  readonly lineNumber: number;
+
+  constructor(kind: NodeLogCorruptionKind, lineNumber: number, message: string) {
+    super(message);
+    this.name = 'NodeLogCorruptionError';
+    this.kind = kind;
+    this.lineNumber = lineNumber;
+  }
+}
 
 function defaultProjectRoot(rootDir: string): string {
   let current = rootDir;
@@ -102,13 +128,95 @@ export class IdeaEngineStore {
     mutation: string,
     extra?: Record<string, unknown>,
   ): void {
-    appendJsonLine(this.nodesLogPath(campaignId), {
+    this.appendNodeLogEntry(campaignId, {
       mutation,
       node_id: node.node_id,
       revision: node.revision,
       ...(extra ?? {}),
       node,
     });
+  }
+
+  appendNodeLogEntry(campaignId: string, entry: Record<string, unknown>): void {
+    appendJsonLine(this.nodesLogPath(campaignId), entry);
+  }
+
+  /**
+   * Parse every non-empty ledger line. Only an invalid final segment in a file
+   * without a trailing newline is classified as a potentially torn append;
+   * every other invalid value is persistent corruption and fails closed.
+   */
+  loadNodeLogEntriesStrict(campaignId: string): Array<Record<string, unknown>> {
+    let contents: string;
+    try {
+      contents = readFileSync(this.nodesLogPath(campaignId), 'utf8');
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        return [];
+      }
+      throw error;
+    }
+
+    const lines = contents.split('\n');
+    const finalSegmentIndex = lines.length - 1;
+    const hasTrailingNewline = contents.endsWith('\n');
+    const entries: Array<Record<string, unknown>> = [];
+    for (let index = 0; index < lines.length; index += 1) {
+      const line = lines[index] ?? '';
+      if (line.trim().length === 0) {
+        continue;
+      }
+      try {
+        const parsed = JSON.parse(line) as unknown;
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+          throw new Error('JSONL value is not an object');
+        }
+        entries.push(parsed as Record<string, unknown>);
+      } catch (error) {
+        const kind: NodeLogCorruptionKind = !hasTrailingNewline && index === finalSegmentIndex
+          ? 'torn_final'
+          : 'interior_corruption';
+        throw new NodeLogCorruptionError(
+          kind,
+          index + 1,
+          `node log ${kind} at line ${index + 1}: ${String((error as Error).message)}`,
+        );
+      }
+    }
+    return entries;
+  }
+
+  /**
+   * Remove a torn final fragment only when its bytes are a strict prefix of
+   * the exact event held in the prepared idempotency record. This is the sole
+   * safe repair: unrelated or interior malformed bytes remain fail-closed.
+   */
+  repairTornFinalNodeLogEntry(campaignId: string, expectedEntry: Record<string, unknown>): boolean {
+    const path = this.nodesLogPath(campaignId);
+    const contents = readFileSync(path);
+    if (contents.length === 0 || contents[contents.length - 1] === 0x0a) {
+      return false;
+    }
+    const lastNewline = contents.lastIndexOf(0x0a);
+    const fragmentStart = lastNewline + 1;
+    const fragment = contents.subarray(fragmentStart);
+    const expected = Buffer.from(JSON.stringify(expectedEntry), 'utf8');
+    if (fragment.length === 0 || fragment.length >= expected.length || !expected.subarray(0, fragment.length).equals(fragment)) {
+      throw new NodeLogCorruptionError(
+        'torn_final',
+        contents.subarray(0, fragmentStart).toString('utf8').split('\n').length,
+        'final node-log fragment is not a strict byte prefix of the prepared event',
+      );
+    }
+
+    const fd = openSync(path, 'r+');
+    try {
+      ftruncateSync(fd, fragmentStart);
+      fsyncSync(fd);
+    } finally {
+      closeSync(fd);
+    }
+    return true;
   }
 
   writeArtifact(
