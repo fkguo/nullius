@@ -51,10 +51,13 @@ function immutableOperatorTraceProjection(value: unknown): unknown {
   return trace ?? value;
 }
 
-/** Verify that current closest_prior descends from the archived import through the engine-owned rewrite chain. */
+/** Verify the current closest-prior chain against the archived import and its idempotency witnesses. */
 function provenanceRewriteChainMatches(
   currentNode: Record<string, unknown>,
   archivedNode: Record<string, unknown>,
+  idempotencyRecords: Record<string, Record<string, unknown>>,
+  campaignId: string,
+  nodeId: string,
 ): boolean {
   const currentInputs = asRecord(asRecord(currentNode.operator_trace)?.inputs);
   const archivedInputs = asRecord(asRecord(archivedNode.operator_trace)?.inputs);
@@ -86,6 +89,24 @@ function provenanceRewriteChainMatches(
       || typeof entry.idempotency_key !== 'string'
       || entry.idempotency_key.length === 0
       || idempotencyKeys.has(entry.idempotency_key)
+    ) {
+      return false;
+    }
+    const witness = asRecord(idempotencyRecords[`node.rewrite_provenance:${entry.idempotency_key}`]);
+    const response = asRecord(witness?.response);
+    const payload = asRecord(response?.payload);
+    const responseIdempotency = asRecord(payload?.idempotency);
+    if (
+      (witness?.state !== 'prepared' && witness?.state !== 'committed')
+      || response?.kind !== 'result'
+      || payload?.campaign_id !== campaignId
+      || payload?.node_id !== nodeId
+      || payload?.field !== entry.field
+      || payload?.previous_value !== entry.previous_value
+      || payload?.new_value !== entry.new_value
+      || payload?.updated_at !== entry.rewritten_at
+      || responseIdempotency?.idempotency_key !== entry.idempotency_key
+      || responseIdempotency?.payload_hash !== witness?.payload_hash
     ) {
       return false;
     }
@@ -582,6 +603,7 @@ export function recoverImportGenerated(
   }
 
   const assembled = archive.engine_assembled?.nodes ?? {};
+  const idempotencyRecords = store.loadIdempotency<Record<string, unknown>>(campaignId) as Record<string, Record<string, unknown>>;
   let nodesMutated = false;
   for (const entry of imported) {
     const nodeId = String(entry.node_id);
@@ -601,7 +623,7 @@ export function recoverImportGenerated(
     if (legacyMigrationOldRef !== null && legacyMigrationNewRef !== null) {
       replacePackArtifactRefInNode(comparableCurrent, legacyMigrationOldRef, legacyMigrationNewRef);
     }
-    if (!provenanceRewriteChainMatches(comparableCurrent, expected)) {
+    if (!provenanceRewriteChainMatches(comparableCurrent, expected, idempotencyRecords, campaignId, nodeId)) {
       throw recoveryConflict(campaignId, 'stored node closest-prior provenance does not form a valid rewrite chain from the archived import', {
         node_id: nodeId,
       });
