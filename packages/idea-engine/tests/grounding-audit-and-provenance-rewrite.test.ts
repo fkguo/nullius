@@ -652,6 +652,37 @@ describe('node.rewrite_provenance', () => {
     expect(claims[0]!.evidence_uris).toEqual([]);
   });
 
+  it('refuses a non-URI rewrite that would invalidate an evidence-backed retained claim', () => {
+    const service = freshService();
+    const campaignId = initCampaign(service);
+    const [seedNodeId] = allNodeIds(service, campaignId);
+    const generatedId = importGeneratedNode(service, campaignId, seedNodeId!);
+    rewriteProvenance(service, campaignId, generatedId, 'rw-evidence-backed-uri', URI_A);
+
+    const beforeRevision = loadNode(service, campaignId, generatedId);
+    const card = structuredClone(beforeRevision.idea_card) as Record<string, unknown>;
+    const claim = deltaClaims({ idea_card: card })[0]!;
+    claim.support_type = 'literature';
+    claim.evidence_uris = [URI_A];
+    service.handle('node.revise_card', {
+      campaign_id: campaignId,
+      expected_revision: beforeRevision.revision,
+      idempotency_key: 'retype-delta-claim-as-literature',
+      node_id: generatedId,
+      reason: 'retrieval now supports the retained novelty claim directly',
+      replacement_idea_card: card,
+    });
+    const before = JSON.stringify(loadNode(service, campaignId, generatedId));
+
+    const error = expectRpcError(
+      () => rewriteProvenance(service, campaignId, generatedId, 'rw-evidence-backed-refkey', 'refA'),
+      -32002,
+      'delta_claim_evidence_required',
+    );
+    expect((error.data.details as Record<string, unknown>).support_type).toBe('literature');
+    expect(JSON.stringify(loadNode(service, campaignId, generatedId))).toBe(before);
+  });
+
   it('supports successive corrections: the history preserves every rewrite in order', () => {
     const service = freshService();
     const campaignId = initCampaign(service);
@@ -897,6 +928,38 @@ describe('node.rewrite_provenance', () => {
     );
     expect((error.data.details as Record<string, unknown>).recorded_withdrawal).toBe(false);
     expect(JSON.stringify(loadNode(service, campaignId, generatedId))).toBe(before);
+  });
+
+  it('requires an idempotency witness for a ledger-recorded claim withdrawal', () => {
+    const service = freshService();
+    const campaignId = initCampaign(service);
+    const [seedNodeId] = allNodeIds(service, campaignId);
+    const generatedId = importGeneratedNode(service, campaignId, seedNodeId!);
+    const beforeRevision = loadNode(service, campaignId, generatedId);
+    const card = structuredClone(beforeRevision.idea_card) as Record<string, unknown>;
+    card.claims = (card.claims as Array<Record<string, unknown>>).filter(
+      claim => !String(claim.claim_text).startsWith('Novelty delta vs closest prior ('),
+    );
+    service.handle('node.revise_card', {
+      campaign_id: campaignId,
+      expected_revision: beforeRevision.revision,
+      idempotency_key: 'withdraw-without-retained-witness',
+      node_id: generatedId,
+      reason: 'reviewed evidence withdraws the generated novelty hypothesis',
+      replacement_idea_card: card,
+    });
+    const records = service.read.store.loadIdempotency<Record<string, unknown>>(campaignId);
+    delete records['node.revise_card:withdraw-without-retained-witness'];
+    service.read.store.saveIdempotency(campaignId, records);
+
+    const error = expectRpcError(
+      () => rewriteProvenance(service, campaignId, generatedId, 'rw-withdrawal-without-witness', URI_A),
+      -32603,
+      'idea_card_revision_recovery_conflict',
+    );
+    expect((error.data.details as Record<string, unknown>).idempotency_key).toBe(
+      'withdraw-without-retained-witness',
+    );
   });
 
   it('maps unreadable withdrawal-ledger bytes to the card-revision recovery conflict contract', () => {

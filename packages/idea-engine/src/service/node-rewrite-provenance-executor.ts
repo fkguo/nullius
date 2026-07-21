@@ -1,4 +1,5 @@
 import type { IdeaEngineContractCatalog } from '../contracts/catalog.js';
+import { canonicalJson } from '../hash/payload-hash.js';
 import type { IdeaEngineStore } from '../store/engine-store.js';
 import { NodeLogCorruptionError } from '../store/node-log-store.js';
 import { budgetSnapshot } from './budget-snapshot.js';
@@ -6,6 +7,14 @@ import { recordOrReplay, responseIdempotency, storeIdempotency } from './idempot
 import { RpcError } from './errors.js';
 import { NOVELTY_DELTA_CLAIM_DELIMITER, NOVELTY_DELTA_CLAIM_PREFIX, ensureNodeInCampaign } from './node-shared.js';
 import { ensureCampaignNotCompleted, loadCampaignOrError } from './campaign-state.js';
+import { toSchemaError } from './service-contract-error.js';
+
+const EVIDENCE_REQUIRED_SUPPORT_TYPES = new Set([
+  'literature',
+  'data',
+  'calculation',
+  'expert_consensus',
+]);
 
 function rewriteValidationError(
   reason: string,
@@ -74,6 +83,7 @@ function hasRecordedReservedClaimWithdrawal(options: {
   contracts: IdeaEngineContractCatalog;
   currentRevision: number;
   entries: Array<Record<string, unknown>>;
+  idempotencyRecords: Record<string, Record<string, unknown>>;
   nodeId: string;
 }): boolean {
   const relevantEntries = options.entries
@@ -107,12 +117,38 @@ function hasRecordedReservedClaimWithdrawal(options: {
     }
   }
 
-  for (const { entry } of relevantEntries) {
+  for (const { entry, index } of relevantEntries) {
     const beforeNode = asRecord(entry.before_node);
     const afterNode = asRecord(entry.node);
     const beforeCard = asRecord(beforeNode?.idea_card);
     const afterCard = asRecord(afterNode?.idea_card);
     if (reservedClaimsFromCard(beforeCard).length > 0 && reservedClaimsFromCard(afterCard).length === 0) {
+      const eventIdempotency = asRecord(entry.idempotency);
+      const key = eventIdempotency?.idempotency_key;
+      const witness = isNonEmptyString(key)
+        ? asRecord(options.idempotencyRecords[`node.revise_card:${key}`])
+        : null;
+      const response = asRecord(witness?.response);
+      const payload = asRecord(response?.payload);
+      const witnessedEvent = asRecord(payload?.mutation_event);
+      const responseIdempotency = asRecord(payload?.idempotency);
+      if (
+        (witness?.state !== 'prepared' && witness?.state !== 'committed')
+        || response?.kind !== 'result'
+        || payload?.campaign_id !== options.campaignId
+        || responseIdempotency?.idempotency_key !== key
+        || responseIdempotency?.payload_hash !== witness?.payload_hash
+        || eventIdempotency?.payload_hash !== witness?.payload_hash
+        || !witnessedEvent
+        || canonicalJson(witnessedEvent) !== canonicalJson(entry)
+      ) {
+        throw withdrawalLedgerConflict(
+          options.campaignId,
+          options.nodeId,
+          'a card-revision ledger event records reserved-claim withdrawal but has no matching prepared or committed node.revise_card idempotency witness; refusing to treat self-attested ledger bytes as reviewed withdrawal',
+          { entry_index: index, idempotency_key: key ?? null },
+        );
+      }
       return true;
     }
   }
@@ -324,13 +360,14 @@ export function executeNodeRewriteProvenance(options: {
       contracts: options.contracts,
       currentRevision: Number(updatedNode.revision),
       entries: loadWithdrawalLedger(options.store, campaignId, nodeId),
+      idempotencyRecords: options.store.loadIdempotency<Record<string, unknown>>(campaignId),
       nodeId,
     })) {
       throw rewriteValidationError(
         'delta_claim_missing',
         campaignId,
         nodeId,
-        'the current idea card carries no reserved novelty-delta claim and the append-only ledger contains no valid node.revise_card event that withdrew it; refusing to treat an unrecorded deletion as reviewed withdrawal — manual repair is required because node.revise_card cannot recreate the reserved prefix',
+        'the current idea card carries no reserved novelty-delta claim and the append-only ledger contains no valid node.revise_card event that withdrew it; refusing to treat an unrecorded deletion as reviewed withdrawal. If a card revision stopped after replacing the latest node but before appending its event, retry that revision with the same idempotency key; otherwise manual repair is required because node.revise_card cannot recreate the reserved prefix',
         { recorded_withdrawal: false, reserved_claim_count: 0 },
       );
     }
@@ -342,9 +379,22 @@ export function executeNodeRewriteProvenance(options: {
         ? claimRecord.evidence_uris.filter(isNonEmptyString)
         : [];
       const preservedEvidenceUris = currentEvidenceUris.filter((uri) => uri !== previousValue && uri !== newValue);
-      claimRecord.evidence_uris = newValue.includes('://')
+      const nextEvidenceUris = newValue.includes('://')
         ? [newValue, ...preservedEvidenceUris]
         : preservedEvidenceUris;
+      if (
+        nextEvidenceUris.length === 0
+        && EVIDENCE_REQUIRED_SUPPORT_TYPES.has(String(claimRecord.support_type))
+      ) {
+        throw rewriteValidationError(
+          'delta_claim_evidence_required',
+          campaignId,
+          nodeId,
+          'rewriting to a non-URI survey key would leave the retained novelty claim without evidence required by its support_type; revise the card to provide independent evidence or change the support type before correcting provenance',
+          { support_type: String(claimRecord.support_type) },
+        );
+      }
+      claimRecord.evidence_uris = nextEvidenceUris;
     }
 
     // When the active novelty-delta claim changes, any grounding_audit covered
@@ -377,7 +427,11 @@ export function executeNodeRewriteProvenance(options: {
 
     updatedNode.revision = Number(updatedNode.revision ?? 0) + 1;
     updatedNode.updated_at = now;
-    options.contracts.validateAgainstRef('./idea_node_v1.schema.json', updatedNode, `node.rewrite_provenance/node/${nodeId}`);
+    try {
+      options.contracts.validateAgainstRef('./idea_node_v1.schema.json', updatedNode, `node.rewrite_provenance/node/${nodeId}`);
+    } catch (error) {
+      throw toSchemaError(error, 'rewritten node invalid: ');
+    }
     nodes[nodeId] = updatedNode;
 
     const result = {
