@@ -311,7 +311,7 @@ function validateCandidateSemantics(options: {
     throw importValidationError(
       'schema_invalid',
       campaignId,
-      `${label}: novelty_delta.closest_prior contains the reserved claim delimiter ${JSON.stringify(NOVELTY_DELTA_CLAIM_DELIMITER)} and cannot be represented unambiguously in the engine-assembled novelty claim`,
+      `${label}: novelty_delta.closest_prior contains ${JSON.stringify(NOVELTY_DELTA_CLAIM_DELIMITER)}, which is reserved by the canonical novelty-claim encoding and forbidden for new values`,
     );
   }
   const uriShapedClosestPrior = looksLikeUri(closestPrior) ? [closestPrior] : [];
