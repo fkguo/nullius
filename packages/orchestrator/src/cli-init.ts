@@ -71,7 +71,7 @@ function emitRefreshSummary(io: CliIo, scaffold: ProjectScaffoldResult, dryRun: 
   for (const rel of scaffold.refreshed) lines.push(`- ${verb}: ${rel}`);
   for (const rel of scaffold.unchanged) lines.push(`- unchanged: ${rel}`);
   for (const rel of scaffold.preserved) lines.push(`- preserved (user-owned, untouched): ${rel}`);
-  for (const rel of scaffold.missing) lines.push(`- missing (run \`nullius init\` to recreate): ${rel}`);
+  for (const rel of scaffold.missing) lines.push(`- missing (user-owned; migrate explicitly, refresh will not create): ${rel}`);
   for (const line of lines.slice(0, 50)) io.stdout(`${line}\n`);
   if (lines.length > 50) io.stdout(`- ... (${lines.length - 50} more)\n`);
   if (scaffold.backedUp.length > 0) {

@@ -9,6 +9,14 @@ with the project's complete current understanding — including every
 derivation, computation, and piece of analysis that understanding rests on.
 It reads like a paper (with appendix-level detail), not like a diary.
 
+This memo is a living synthesis, not the immutable main research report. A
+report promoted for independent scientific use is created as a new file under
+`reports/` from
+[the main-report template](reports/main_research_report_template.md), then
+registered through [project_index.md#Main research report](project_index.md#main-research-report).
+Checkpoint/status/closeout summaries and machine receipts never substitute for
+that report.
+
 Three disciplines keep it that way:
 
 1. **Organize by the structure of the problem, never by time.** Sections

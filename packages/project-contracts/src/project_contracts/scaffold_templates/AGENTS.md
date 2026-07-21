@@ -15,6 +15,7 @@ Use it as the restart checklist before any new milestone, context switch, or lon
 ## Quick rules
 
 - Human notebook: `research_notebook.md`
+- Main research report entry point: `project_index.md#Main research report`
 - Machine contract: `research_contract.md`
 - Evidence-first: every meaningful action writes auditable artifacts under `artifacts/runs/<run_id>/` (lifecycle and compute runs) or `team/runs/<run>/` (milestone-executor review cycles); both are first-class evidence roots — cite the one that actually holds the evidence.
 - `run_id` names the project-local research run. Prefer a safe, sortable, readable shape such as `<YYYYMMDDTHHMMSSZ>-<milestone>-<short-topic>-rN`; do not use bare UUIDs, `run_<uuid>`, path separators, `..`, or low-information generated names as human-facing run IDs.
@@ -22,6 +23,7 @@ Use it as the restart checklist before any new milestone, context switch, or lon
 - Keep `research_plan.md#Current Status` current enough that a researcher can see the final target, completion state, blocker, next step, and stop condition without reading the full log.
 - Keep the task board in `research_plan.md` current enough that a new agent run can resume without relying on memory.
 - Keep `research_notebook.md` organized by the problem's logic. Do not use it for status tracking. Do not append large dated run logs there; put run logs in `research_plan.md` progress entries or `artifacts/runs/<run_id>/`, then fold durable insights into the relevant notebook sections.
+- Keep checkpoint/status/closeout summaries, immutable main research reports, and machine provenance distinct. Before promoting a report, create a new file under `reports/`, update the current pointer and supersession registry in `project_index.md`, and run `nullius report-validate`. Never overwrite a registered report or use JSON/JSONL/hash/receipt artifacts in place of explanatory narrative and clickable human-readable evidence.
 
 ## Verification triggers (event → workflow)
 
@@ -38,6 +40,7 @@ Verification runs on events, not on reminders: each moment below is the trigger,
 | Claimed a speedup or performance regression, or wrote performance-critical numerical code | `julia-perf` — language-scoped benchmark gating; use an equivalent gate for other languages |
 | A result, manuscript, derivation, or diff needs independent review | `review-swarm` — clean-room cross-model review |
 | Before conclusions, a milestone closeout, or a handoff | `research-integrity` M1-M7 — record the outcome inline and land run evidence under `artifacts/runs/<run_id>/` or `team/runs/<run>/` |
+| Before promoting or superseding the main research report | `nullius report-validate` — fail closed on structural incompleteness, stale current pointers, mutated history, machine-only evidence, or replay mislabeled as independent validation |
 
 ## Scientific writing discipline
 
@@ -104,7 +107,8 @@ Two legitimate ways to run a project, declared with `nullius init --mode=<engine
 Some projects add extra host-local team or automation layers on top of this root.
 Treat those as opt-in support layers, not the default front door.
 When a host-local layer generates or updates this file, it must preserve the `.nullius/HARNESS` and `research-harness` reconnect requirements above so continuation starts from project recovery before executor-specific work.
-To pull newer versions of the managed scaffold document (this file) into an existing project without disturbing your own work, the project owner can run `nullius init --refresh`: it backs up any changed managed file under `.nullius/backups/` before overwriting, and never rewrites your `research_plan.md`, `research_notebook.md`, `research_contract.md`, `project_charter.md`, or `project_index.md`. Preview first with `nullius init --refresh --dry-run`.
+To pull newer versions of the managed scaffold document (this file) into an existing project without disturbing your own work, the project owner can run `nullius init --refresh`: it backs up any changed managed file under `.nullius/backups/` before overwriting, and never rewrites your `research_plan.md`, `research_notebook.md`, `research_contract.md`, `project_charter.md`, `project_index.md`, or `reports/main_research_report_template.md`. Preview first with `nullius init --refresh --dry-run`.
+If this project predates the main-report registry, checkpoint it before migration. Render a current scaffold in a separate temporary external root with `nullius init --project-root <temporary-root>`, copy only a missing `reports/main_research_report_template.md`, then manually merge the temporary `project_index.md#Main research report` section and empty registry into this project's user-owned index. Never overwrite either user-owned file. Refresh does not perform these steps. `nullius report-validate` fails closed with `invalid_registry_markers` before the registry exists and with `no_current_report` until a complete current report is registered.
 If this project already has host-local support surfaces, follow the host's local instructions before using them.
 If it does not, keep using the read order above and update `research_plan.md` directly.
 
@@ -114,3 +118,4 @@ If it does not, keep using the read order above and update `research_plan.md` di
 - `research_plan.md` has a short Current Status section plus an actionable Task Board and Progress Log.
 - `research_contract.md` stays in sync with `research_notebook.md`.
 - `research_contract.md` also carries the artifact/provenance, falsification, and final-conclusion contract for outputs and checks.
+- `project_index.md#Main research report` points to exactly one structurally valid current report, and every registered historical report still matches its recorded hash.

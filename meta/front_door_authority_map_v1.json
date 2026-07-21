@@ -49,6 +49,10 @@
           "usage": "nullius integrity-record --approval-id <id> --modes <M1[,M2,...]> --notes \"<summary>\" [--skip <Mx:reason>[,Mx:reason]...]"
         },
         {
+          "command": "report-validate",
+          "usage": "nullius report-validate"
+        },
+        {
           "command": "pause",
           "usage": "nullius pause [--note \"...\"]"
         },
