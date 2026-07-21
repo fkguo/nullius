@@ -1,3 +1,4 @@
+// # CONTRACT-EXEMPT: CODE-01.1 — pre-existing ordered public-truth registry; this lane adds two literal locks only, while splitting the registry would weaken its atomic anti-drift authority.
 // Keep these assertions line-stable: the root checker and doc drift tests use
 // exact substring matches so front-door wording drift fails closed.
 export const FRONT_DOOR_SNIPPETS = [

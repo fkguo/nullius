@@ -1,116 +1,20 @@
 import type { IdeaEngineContractCatalog } from '../contracts/catalog.js';
-import { canonicalJson, payloadHash as canonicalPayloadHash } from '../hash/payload-hash.js';
-import { NodeLogCorruptionError, type IdeaEngineStore } from '../store/engine-store.js';
-import { budgetSnapshot } from './budget-snapshot.js';
+import { payloadHash as canonicalPayloadHash } from '../hash/payload-hash.js';
+import type { IdeaEngineStore } from '../store/engine-store.js';
+import { NodeLogCorruptionError } from '../store/node-log-store.js';
 import { ensureCampaignNotCompleted, loadCampaignOrError } from './campaign-state.js';
 import { RpcError } from './errors.js';
-import { recordOrReplay, responseIdempotency, storeIdempotency } from './idempotency.js';
-import { NOVELTY_DELTA_CLAIM_PREFIX, ensureNodeInCampaign, nodeLifecycleReason, nodeLifecycleState } from './node-shared.js';
+import { recordOrReplay, storeIdempotency } from './idempotency.js';
+import {
+  CARD_REVISION_LIFECYCLE_STATES,
+  asRecord,
+  ensureReservedProvenanceClaimPreserved,
+  replayedRevisionError,
+  revisionValidationError,
+} from './node-revise-card-guards.js';
+import { planIdeaCardRevision } from './node-revise-card-plan.js';
+import { ensureNodeInCampaign, nodeLifecycleState } from './node-shared.js';
 import { toSchemaError } from './service-contract-error.js';
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
-}
-
-function revisionValidationError(reason: string, campaignId: string, nodeId: string, message: string, details: Record<string, unknown> = {}): RpcError {
-  return new RpcError(-32002, 'schema_validation_failed', {
-    reason,
-    campaign_id: campaignId,
-    node_id: nodeId,
-    details: { message, ...details },
-  });
-}
-
-function cardClaims(card: Record<string, unknown>): Array<Record<string, unknown>> {
-  return Array.isArray(card.claims) ? card.claims.map(asRecord).filter((claim): claim is Record<string, unknown> => claim !== null) : [];
-}
-
-const CARD_REVISION_LIFECYCLE_STATES = ['candidate', 'admission_review', 'admitted', 'needs_refresh'] as const;
-const REVISION_ERROR_MESSAGES = new Map<number, string>([
-  [-32603, 'internal_error'],
-  [-32019, 'revision_conflict'],
-  [-32018, 'lifecycle_transition_invalid'],
-  [-32015, 'campaign_not_active'],
-  [-32014, 'node_not_in_campaign'],
-  [-32004, 'node_not_found'],
-  [-32003, 'campaign_not_found'],
-  [-32002, 'schema_validation_failed'],
-]);
-
-function replayedRevisionError(payload: Record<string, unknown>, campaignId: string, nodeId: string): RpcError {
-  const code = payload.code;
-  const message = payload.message;
-  const data = asRecord(payload.data);
-  if (typeof code === 'number' && Number.isInteger(code) && typeof message === 'string' && REVISION_ERROR_MESSAGES.get(code) === message && data) {
-    return RpcError.fromStored(code, message, data);
-  }
-  return new RpcError(-32603, 'internal_error', {
-    reason: 'idea_card_revision_recovery_conflict',
-    campaign_id: campaignId,
-    node_id: nodeId,
-    details: {
-      message: 'stored node.revise_card error response is malformed and cannot be replayed exactly',
-    },
-  });
-}
-
-/**
- * A whole-card replacement must not become a back door around the deliberately
- * narrow node.rewrite_provenance method. Generated nodes carry exactly one
- * engine-owned novelty-delta claim synchronized to operator_trace. revise_card
- * may change every ordinary scientific claim, but must preserve that claim
- * byte-for-byte at the canonical-JSON level. Seed nodes may not mint the
- * reserved prefix themselves.
- */
-function ensureReservedProvenanceClaimPreserved(options: {
-  campaignId: string;
-  currentCard: Record<string, unknown>;
-  node: Record<string, unknown>;
-  nodeId: string;
-  replacementCard: Record<string, unknown>;
-}): void {
-  const operatorTrace = asRecord(options.node.operator_trace);
-  const inputs = asRecord(operatorTrace?.inputs);
-  const noveltyDelta = asRecord(inputs?.novelty_delta);
-  const closestPrior = noveltyDelta?.closest_prior;
-  const currentReserved = cardClaims(options.currentCard).filter((claim) => typeof claim.claim_text === 'string' && claim.claim_text.startsWith(NOVELTY_DELTA_CLAIM_PREFIX));
-  const replacementReserved = cardClaims(options.replacementCard).filter((claim) => typeof claim.claim_text === 'string' && claim.claim_text.startsWith(NOVELTY_DELTA_CLAIM_PREFIX));
-
-  if (typeof closestPrior !== 'string' || closestPrior.length === 0) {
-    if (replacementReserved.length === 0) {
-      return;
-    }
-    throw revisionValidationError(
-      'reserved_provenance_claim_changed',
-      options.campaignId,
-      options.nodeId,
-      'replacement_idea_card may not introduce the engine-reserved novelty-delta claim; generated-node provenance changes belong to node.rewrite_provenance',
-      { replacement_reserved_claim_count: replacementReserved.length },
-    );
-  }
-
-  const expectedPrefix = `${NOVELTY_DELTA_CLAIM_PREFIX}${closestPrior}): `;
-  const currentExact = currentReserved.filter((claim) => String(claim.claim_text).startsWith(expectedPrefix));
-  const replacementExact = replacementReserved.filter((claim) => String(claim.claim_text).startsWith(expectedPrefix));
-  const preserved =
-    currentReserved.length === 1 &&
-    replacementReserved.length === 1 &&
-    currentExact.length === 1 &&
-    replacementExact.length === 1 &&
-    canonicalJson(currentExact[0]) === canonicalJson(replacementExact[0]);
-  if (!preserved) {
-    throw revisionValidationError(
-      'reserved_provenance_claim_changed',
-      options.campaignId,
-      options.nodeId,
-      "replacement_idea_card must preserve the generated node's engine-owned novelty-delta claim exactly; use node.rewrite_provenance for the allowlisted provenance correction",
-      {
-        current_reserved_claim_count: currentReserved.length,
-        replacement_reserved_claim_count: replacementReserved.length,
-      },
-    );
-  }
-}
 
 /**
  * node.revise_card: optimistic-concurrency replacement of one complete
@@ -247,69 +151,24 @@ export function executeNodeReviseCard(options: {
         options.contracts.validateErrorData(data);
         throw new RpcError(-32018, 'lifecycle_transition_invalid', data);
       }
-      const now = options.now();
-      const updatedNode = structuredClone(node);
-      updatedNode.idea_card = replacementCard;
-      updatedNode.grounding_audit = null;
-      updatedNode.posterior = null;
-      updatedNode.literature_coverage = null;
-      updatedNode.reduction_report = null;
-      updatedNode.reduction_audit = null;
-      updatedNode.lifecycle_state = 'candidate';
-      updatedNode.lifecycle_reason = 'idea_card_revised';
-      updatedNode.activation_condition = null;
-      updatedNode.revision = currentRevision + 1;
-      updatedNode.updated_at = now;
-      options.contracts.validateAgainstRef('./idea_node_v1.schema.json', updatedNode, `node.revise_card/node/${nodeId}`);
-
-      const originalIdempotency = responseIdempotency(idempotencyKeyValue, options.payloadHash);
-      const mutationEvent = {
-        mutation: 'revise_card',
-        campaign_id: campaignId,
-        node_id: nodeId,
-        idea_id: String(updatedNode.idea_id),
-        expected_revision: expectedRevision,
-        revision: Number(updatedNode.revision),
+      const { mutationEvent, now, result, updatedNode } = planIdeaCardRevision({
+        afterIdeaCardHash,
+        beforeIdeaCardHash,
+        campaign,
+        campaignId,
+        contracts: options.contracts,
+        currentCard,
+        currentRevision,
+        expectedRevision,
+        idempotencyKey: idempotencyKeyValue,
+        node,
+        nodeId,
+        now: options.now(),
+        payloadHash: options.payloadHash,
+        previousLifecycle,
         reason,
-        before_idea_card_hash: beforeIdeaCardHash,
-        after_idea_card_hash: afterIdeaCardHash,
-        before_node: structuredClone(node),
-        before: {
-          revision: currentRevision,
-          idea_card: structuredClone(currentCard),
-          grounding_audit: structuredClone(node.grounding_audit ?? null),
-          posterior: structuredClone(node.posterior ?? null),
-          literature_coverage: structuredClone(node.literature_coverage ?? null),
-          reduction_report: structuredClone(node.reduction_report ?? null),
-          reduction_audit: structuredClone(node.reduction_audit ?? null),
-          lifecycle_state: previousLifecycle,
-          lifecycle_reason: nodeLifecycleReason(node),
-          activation_condition: structuredClone(node.activation_condition ?? null),
-          updated_at: typeof node.updated_at === 'string' ? node.updated_at : null,
-        },
-        invalidations: {
-          grounding_audit: node.grounding_audit != null,
-          posterior: node.posterior != null,
-          literature_coverage: node.literature_coverage != null,
-          reduction_report: node.reduction_report != null,
-          reduction_audit: node.reduction_audit != null,
-          activation_condition: node.activation_condition != null,
-          allocation_eligibility: true,
-        },
-        occurred_at: now,
-        idempotency: structuredClone(originalIdempotency),
-        node: structuredClone(updatedNode),
-      };
-      options.contracts.validateAgainstRef('./idea_card_revision_event_v1.schema.json', mutationEvent, `node.revise_card/mutation_event/${nodeId}`);
-
-      const result = {
-        budget_snapshot: budgetSnapshot(campaign),
-        campaign_id: campaignId,
-        idempotency: originalIdempotency,
-        mutation_event: mutationEvent,
-        node: updatedNode,
-      };
-      options.contracts.validateResult('node.revise_card', result);
+        replacementCard,
+      });
 
       // The prepared record embeds the complete resulting node and exact event.
       // recordOrReplay uses them to complete either missing side after a crash;

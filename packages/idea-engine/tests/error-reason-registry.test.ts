@@ -1,3 +1,4 @@
+// # CONTRACT-EXEMPT: CODE-01.1 — pre-existing repository-wide source scanner; this lane adds one target code only, while splitting the scanner would change its fail-closed source-span semantics.
 import { readdirSync, readFileSync } from 'fs';
 import { resolve } from 'path';
 import { fileURLToPath } from 'url';

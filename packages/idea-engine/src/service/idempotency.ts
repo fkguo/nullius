@@ -1,9 +1,11 @@
+// # CONTRACT-EXEMPT: CODE-01.1 — pre-existing cross-method replay facade; card-revision recovery is extracted, while this lane retains only the required dispatch and shared error-record persistence change.
 import { existsSync } from 'fs';
 import { payloadHash as artifactPayloadHash } from '../hash/payload-hash.js';
-import { IdeaEngineStore, NodeLogCorruptionError } from '../store/engine-store.js';
+import { IdeaEngineStore } from '../store/engine-store.js';
 import { budgetSnapshot } from './budget-snapshot.js';
 import { RpcError } from './errors.js';
 import { IMPORT_GENERATED_METHOD, recoverImportGenerated } from './import-generated-recovery.js';
+import { recoverIdeaCardRevision } from './node-revise-card-recovery.js';
 import { nodeLifecycleState } from './node-shared.js';
 
 interface IdempotencyResponse {
@@ -11,7 +13,7 @@ interface IdempotencyResponse {
   payload: Record<string, unknown>;
 }
 
-interface IdempotencyRecord {
+export interface IdempotencyRecord {
   created_at: string;
   payload_hash: string;
   response: IdempotencyResponse;
@@ -35,195 +37,6 @@ function artifactExists(store: IdeaEngineStore, artifactRef: unknown): boolean {
   } catch {
     return false;
   }
-}
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
-}
-
-function ideaCardRevisionRecoveryConflict(campaignId: string, nodeId: string, message: string, details: Record<string, unknown> = {}): RpcError {
-  return new RpcError(-32603, 'internal_error', {
-    reason: 'idea_card_revision_recovery_conflict',
-    campaign_id: campaignId,
-    node_id: nodeId,
-    details: { message, ...details },
-  });
-}
-
-/**
- * Complete a prepared node.revise_card operation without regenerating any
- * scientific content. The prepared response embeds the exact resulting node
- * and append-only event. Recovery always completes those exact prepared bytes;
- * it never discards a durable intent and regenerates timestamps or content.
- */
-function recoverIdeaCardRevision(store: IdeaEngineStore, record: IdempotencyRecord): boolean {
-  if (record.response.kind !== 'result') {
-    return true;
-  }
-  const payload = record.response.payload;
-  const event = asRecord(payload.mutation_event);
-  const expectedNode = asRecord(payload.node);
-  const beforeNode = asRecord(event?.before_node);
-  const eventNode = asRecord(event?.node);
-  const topLevelIdempotency = asRecord(payload.idempotency);
-  const eventIdempotency = asRecord(event?.idempotency);
-  const campaignId = payload.campaign_id;
-  const nodeId = expectedNode?.node_id;
-  const idempotencyKeyValue = topLevelIdempotency?.idempotency_key;
-  if (!event || !expectedNode || !beforeNode || !eventNode || !eventIdempotency || typeof campaignId !== 'string' || typeof nodeId !== 'string' || typeof idempotencyKeyValue !== 'string') {
-    throw ideaCardRevisionRecoveryConflict(
-      typeof campaignId === 'string' ? campaignId : '00000000',
-      typeof nodeId === 'string' ? nodeId : '00000000',
-      'prepared node.revise_card response is malformed; exact recovery payload is unavailable',
-    );
-  }
-
-  const targetRevision = Number(expectedNode.revision);
-  const expectedRevision = Number(event.expected_revision);
-  const beforeHash = event.before_idea_card_hash;
-  const afterHash = event.after_idea_card_hash;
-  if (
-    typeof expectedNode.revision !== 'number' ||
-    typeof event.expected_revision !== 'number' ||
-    !Number.isInteger(targetRevision) ||
-    !Number.isInteger(expectedRevision) ||
-    targetRevision !== expectedRevision + 1 ||
-    event.revision !== targetRevision ||
-    typeof beforeHash !== 'string' ||
-    typeof afterHash !== 'string' ||
-    topLevelIdempotency?.payload_hash !== record.payload_hash ||
-    eventIdempotency.idempotency_key !== idempotencyKeyValue ||
-    eventIdempotency.payload_hash !== record.payload_hash ||
-    artifactPayloadHash(eventNode) !== artifactPayloadHash(expectedNode) ||
-    event.campaign_id !== campaignId ||
-    event.node_id !== nodeId ||
-    beforeNode.campaign_id !== campaignId ||
-    beforeNode.node_id !== nodeId ||
-    beforeNode.revision !== expectedRevision ||
-    artifactPayloadHash(beforeNode.idea_card ?? null) !== beforeHash ||
-    artifactPayloadHash(expectedNode.idea_card ?? null) !== afterHash
-  ) {
-    throw ideaCardRevisionRecoveryConflict(campaignId, nodeId, 'prepared node.revise_card revisions or canonical hashes are inconsistent', {
-      expected_revision: expectedRevision,
-      target_revision: targetRevision,
-    });
-  }
-
-  let logEntries: Array<Record<string, unknown>>;
-  try {
-    logEntries = store.loadNodeLogEntriesStrict(campaignId);
-  } catch (error) {
-    if (!(error instanceof NodeLogCorruptionError)) {
-      throw error;
-    }
-    if (error.kind !== 'torn_final') {
-      throw ideaCardRevisionRecoveryConflict(campaignId, nodeId, 'append-only node log contains interior corruption; automatic recovery is forbidden', {
-        corruption_kind: error.kind,
-        line_number: error.lineNumber,
-      });
-    }
-    try {
-      store.repairTornFinalNodeLogEntry(campaignId, event);
-      logEntries = store.loadNodeLogEntriesStrict(campaignId);
-    } catch (repairError) {
-      if (repairError instanceof NodeLogCorruptionError) {
-        throw ideaCardRevisionRecoveryConflict(campaignId, nodeId, 'torn final node-log fragment does not match the prepared revision event; automatic recovery is forbidden', {
-          corruption_kind: repairError.kind,
-          line_number: repairError.lineNumber,
-        });
-      }
-      throw repairError;
-    }
-  }
-  const matchingOwnEvents = logEntries.filter((entry) => {
-    if (entry.mutation !== 'revise_card' || entry.node_id !== nodeId) {
-      return false;
-    }
-    const entryIdempotency = asRecord(entry.idempotency);
-    return entryIdempotency?.idempotency_key === idempotencyKeyValue;
-  });
-  if (matchingOwnEvents.length > 1) {
-    throw ideaCardRevisionRecoveryConflict(campaignId, nodeId, 'append-only log contains duplicate events for one node.revise_card idempotency key', {
-      idempotency_key: idempotencyKeyValue,
-      event_count: matchingOwnEvents.length,
-    });
-  }
-  if (matchingOwnEvents.length === 1 && artifactPayloadHash(matchingOwnEvents[0]) !== artifactPayloadHash(event)) {
-    throw ideaCardRevisionRecoveryConflict(campaignId, nodeId, 'append-only log event conflicts with the exact event stored in the prepared idempotency record', {
-      idempotency_key: idempotencyKeyValue,
-    });
-  }
-
-  const nodes = store.loadNodes<Record<string, unknown>>(campaignId);
-  const current = nodes[nodeId];
-  if (!current) {
-    throw ideaCardRevisionRecoveryConflict(campaignId, nodeId, 'node is missing while recovering a prepared card revision');
-  }
-  const currentRevision = Number(current.revision);
-  const currentCardHash = artifactPayloadHash(current.idea_card ?? null);
-  const eventLanded = matchingOwnEvents.length === 1;
-  if (eventLanded) {
-    // Normal write order is node -> event. Once the exact event exists, later
-    // node revisions are legitimate and must not be overwritten during replay.
-    if (currentRevision < targetRevision) {
-      throw ideaCardRevisionRecoveryConflict(campaignId, nodeId, 'append-only revision event exists but latest node predates its resulting revision', {
-        current_revision: currentRevision,
-        target_revision: targetRevision,
-      });
-    }
-    if (currentRevision === targetRevision && artifactPayloadHash(current) !== artifactPayloadHash(expectedNode)) {
-      throw ideaCardRevisionRecoveryConflict(campaignId, nodeId, 'latest node at the logged target revision conflicts with the prepared result', { current_revision: currentRevision });
-    }
-    return true;
-  }
-
-  // Never append an old event after another event at the same or a later
-  // revision. That would make the append-only ledger disagree with revision
-  // order even if the latest node happened to retain the same card hash.
-  const blockingLaterEvent = logEntries.find((entry) => entry.node_id === nodeId && Number.isInteger(Number(entry.revision)) && Number(entry.revision) >= targetRevision);
-  if (blockingLaterEvent) {
-    throw ideaCardRevisionRecoveryConflict(campaignId, nodeId, 'a same-node event at the target or a later revision already exists; late insertion of the prepared event is forbidden', {
-      target_revision: targetRevision,
-      blocking_revision: Number(blockingLaterEvent.revision),
-      blocking_mutation: blockingLaterEvent.mutation ?? null,
-    });
-  }
-
-  if (currentRevision < expectedRevision) {
-    throw ideaCardRevisionRecoveryConflict(campaignId, nodeId, 'latest node revision moved backwards relative to the prepared card revision', {
-      current_revision: currentRevision,
-      expected_revision: expectedRevision,
-    });
-  }
-  if (currentRevision === expectedRevision) {
-    if (currentCardHash !== beforeHash || artifactPayloadHash(current) !== artifactPayloadHash(beforeNode)) {
-      throw ideaCardRevisionRecoveryConflict(campaignId, nodeId, 'latest node at expected_revision no longer equals the exact prepared before-state', {
-        current_revision: currentRevision,
-        current_card_hash: currentCardHash,
-        before_idea_card_hash: beforeHash,
-      });
-    }
-    nodes[nodeId] = structuredClone(expectedNode);
-    store.saveNodes(campaignId, nodes);
-    store.appendNodeLogEntry(campaignId, structuredClone(event));
-    return true;
-  }
-  if (currentRevision > targetRevision) {
-    throw ideaCardRevisionRecoveryConflict(campaignId, nodeId, 'latest node advanced beyond the prepared revision before its event landed; late insertion is forbidden', {
-      current_revision: currentRevision,
-      target_revision: targetRevision,
-    });
-  }
-  if (currentRevision !== targetRevision || currentCardHash !== afterHash || artifactPayloadHash(current) !== artifactPayloadHash(expectedNode)) {
-    throw ideaCardRevisionRecoveryConflict(campaignId, nodeId, 'latest node at the target revision conflicts with the exact prepared result', {
-      current_revision: currentRevision,
-      current_card_hash: currentCardHash,
-      after_idea_card_hash: afterHash,
-    });
-  }
-
-  store.appendNodeLogEntry(campaignId, structuredClone(event));
-  return true;
 }
 
 function migrateLegacyResultArtifactRef(
