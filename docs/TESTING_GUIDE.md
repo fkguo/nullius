@@ -14,19 +14,20 @@
 
 ### 0.0 先确认 front-door 角色
 
-- `nullius` = generic lifecycle + workflow-plan front door
+- `nullius` = generic lifecycle + workflow-plan + main-report structural-validation front door
 - `research-harness` = Codex / Claude Code / OpenCode 的薄 external project skill；它只负责恢复项目真相、路由到 `nullius` / `research-team` / `markdown-hygiene` / `hep-mcp`、并要求结果折回 durable artifacts，不是新的 CLI 或第二套 control plane
 - `.nullius/HARNESS` = `nullius init` 写入的机器可读 runtime handshake；存在时 agent 必须先取得 `nullius status --json` receipt，再开始新工作、milestone 执行、closeout 或 handoff
 - `orch_*` = 同一 control plane 的 MCP/operator counterpart，不是第二个产品前门
 - `@nullius/hep-mcp` = 当前最成熟的 domain MCP front door
 - legacy Python CLI 不再属于公开 front-door；如仍需覆盖，只作为 maintainer/eval/regression-only 内部路径测试
 - `nullius init` 使用 canonical generic scaffold；`.mcp.template.json`、根级 `specs/plan.schema.json`、`prompts/`、`team/`、`research_team_config.json` 等 optional support surfaces 只应由明确项目需要或 host-specific tooling 后续创建
-- `nullius init --refresh` 把更新后的 managed scaffold 文档（`AGENTS.md`）重新落到已生成项目：覆盖前会把变更文件备份到 `.nullius/backups/`，且绝不改写 `research_plan.md`、`research_notebook.md`、`research_contract.md`、`project_charter.md`、`project_index.md` 等用户 seed 文件；`--dry-run` 可先预览。测试它时用开发仓外的临时 root，断言“变更 managed 文件被备份并刷新、seed 文件原样保留、`--dry-run` 零写入”
+- `nullius init --refresh` 把更新后的 managed scaffold 文档（`AGENTS.md`）重新落到已生成项目：覆盖前会把变更文件备份到 `.nullius/backups/`，且绝不改写 `research_plan.md`、`research_notebook.md`、`research_contract.md`、`project_charter.md`、`project_index.md`、`reports/main_research_report_template.md` 等用户 seed 文件；`--dry-run` 可先预览。测试它时用开发仓外的临时 root，断言“变更 managed 文件被备份并刷新、seed 文件原样保留、`--dry-run` 零写入”
 - `nullius init --mode=<engine|file>` 声明项目真相所在（engine=run/approve lifecycle 驱动；file=手工/外部 runner 执行、`run_status` 长期 `idle` 属正常），可随时重跑改声明；`nullius decision record|pending` 追加写 `.nullius/decisions.jsonl`（`decision list` 只读回放）。手动验收路径：开发仓外临时 root 先 `nullius init --runtime-only --mode=file`，然后 `nullius decision pending "<问题>"`、`nullius decision record "<决定>" --resolves D1`，断言 `nullius status --json` 里 `execution_mode: "file"`、`decision_ledger.open_count` 随 resolve 归零、文本 status 渲染 `execution_mode` 与 open 项，且 file 模式下 `RECOVERY_PLAN_FOCUS_UNAVAILABLE` 不再出现；未声明 mode 且引擎状态冻结、又存在带日期 run 目录时，`project_surface_drift` 应出现 `EXECUTION_MODE_UNDECLARED_LOOKS_FILE_MODE`（诊断提示，不阻塞任何命令）
 - reconnect 时应优先读取 `.nullius/HARNESS`、`.nullius/` state 与 project-local durable memory，例如 `research_plan.md`、`research_contract.md`、以及已有实质内容的 `research_notebook.md`
 - `research_plan.md#Current Status` 是给人的当前状态入口；测试 scaffold/read-model 时要保证它被作为恢复指引暴露，同时不新增单独状态文档
 - `research_notebook.md` 是问题逻辑主线，不是日期 run log，也不承载状态追踪；重要文献 note 必须记录全文/source-first 阅读、section/page/equation/figure 覆盖，并用 LaTeX math 写科学记号；测试 scaffold/read-model 时要保证空模板不会被误判为 substantive，同时真实逻辑内容会进入 reconnect recommended files
-- `team/runs/` 是 `research-team` 执行与 reviewer packet/log surface，也是与 `artifacts/runs/<run_id>/` 并列的一等证据根（claim 可直接引用其路径）；验收外部项目恢复/交接时，稳定结论必须能从 `research_contract.md`、`research_plan.md#Current Status` 找回，其证据指针指向 `artifacts/runs/<run_id>/` 或 `team/runs/<run>/` 中实际存放证据的位置
+- `project_index.md#Main research report` 是主研究报告的唯一当前入口与 supersession registry。验收 `nullius report-validate` 时至少覆盖：短 status/closeout 冒充主报告、已有 superseding report 但 current pointer 未切换、机器 provenance 取代解释性叙事或人类证据、同实现/同输入/同环境 replay 被标作 independent validation；另验 hash 不可变和双向 supersession metadata。结构通过不等于 reviewer 对科学充分性的通过，禁止使用最小字数门槛
+- `team/runs/` 是 `research-team` 执行与 reviewer packet/log surface，也是与 `artifacts/runs/<run_id>/` 并列的一等证据根（claim 可直接引用其路径）；两者都不是主研究报告，完整结论必须写入新报告，机器 receipt 只作绑定
 
 ### 0.1 构建与计数检查
 

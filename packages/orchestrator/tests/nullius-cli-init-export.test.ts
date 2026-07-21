@@ -16,6 +16,7 @@ const CANONICAL_SCAFFOLD_FILES = [
   'research_plan.md',
   'research_notebook.md',
   'research_contract.md',
+  'reports/main_research_report_template.md',
 ] as const;
 
 const ABSENT_DEFAULT_SURFACES = [

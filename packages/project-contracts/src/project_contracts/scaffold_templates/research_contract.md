@@ -5,6 +5,9 @@ Last updated: <YYYY-MM-DD>
 
 This file is the machine-facing contract for restart, evidence, artifacts, and final conclusions.
 Keep narrative reasoning, interpretation, and human-readable notes in [research_notebook.md](research_notebook.md).
+Keep promoted main research reports immutable under `reports/`, with the single
+current entry point and supersession registry in
+[project_index.md#Main research report](project_index.md#main-research-report).
 
 <!-- RESEARCH_NOTEBOOK_SYNC_START -->
 - Source notebook: [research_notebook.md](research_notebook.md)
@@ -178,6 +181,11 @@ Before declaring the milestone or project complete:
 - Known limitations and unresolved assumptions are listed.
 - No final conclusion is stronger than the evidence supports.
 - The closeout brief can answer: what ran, what changed, and where the evidence is.
+- A closeout brief is not promoted as the main research report.
+- The current main report passes `nullius report-validate`; this checks structure,
+  human-link reachability, immutable hashes, and supersession consistency, not
+  scientific sufficiency.
+- Machine provenance remains distinct from, and linked to, explanatory human-readable evidence.
 
 ## References
 

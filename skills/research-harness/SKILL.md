@@ -15,6 +15,8 @@ It does not replace the research executors. It restores the project state, route
 - `research-team`: milestone execution and multi-agent research progress.
 - `markdown-hygiene`: standalone Markdown math, TOC, and formatting cleanup before research handoff.
 - `hep-mcp`: HEP literature, evidence, INSPIRE/arXiv, bibliography, and export tooling.
+- `project_index.md#Main research report` + `nullius report-validate`: single
+  current report entry point and structural promotion gate.
 
 ## Recovery First
 
@@ -68,10 +70,12 @@ The check is also skipped for:
    - `research_contract.md`
    - `research_notebook.md` when it contains substantive project notes
    - the relevant `artifacts/runs/<run_id>/` and `team/runs/` directories
+   - the current main research report linked from
+     `project_index.md#Main research report`, when one is promoted
 
 **Anchor on the final adopted version — never build on a superseded one.** A long project accumulates earlier fits, methods, grids, and exploratory scripts; a *newer* adopted result (a better minimum, a more robust method, a finer grid) can silently coexist in the repo with the deprecated ones it replaced. Before extending or varying anything, resolve from the durable record (`research_plan.md#Current Status`, `research_contract.md`, the latest dated `artifacts/runs/<run_id>/`, and any explicit `superseded` / `voided` markers) **which** parameters, method, and configuration are the *current adopted* version — not the first script you happen to open or the most-cited earlier draft. Then **regression-anchor**: run that adopted reference configuration and assert it reproduces its known result (the published χ²/value/pole) *before* trusting any variation built on it. This is the project-state half of the [`numerical-reliability-gate`](../numerical-reliability-gate/SKILL.md) G4 anchor; skipping it is how work silently gets rebuilt on a stale fit or a retired method.
 
-To pull newer managed scaffold doc (`AGENTS.md`) into an existing project without disturbing user notes, run `nullius init --refresh` (preview with `nullius init --refresh --dry-run`). It backs up any changed managed file under `.nullius/backups/` and never rewrites `research_plan.md`, `research_notebook.md`, `research_contract.md`, `project_charter.md`, or `project_index.md`.
+To pull newer managed scaffold doc (`AGENTS.md`) into an existing project without disturbing user notes, run `nullius init --refresh` (preview with `nullius init --refresh --dry-run`). It backs up any changed managed file under `.nullius/backups/` and never rewrites `research_plan.md`, `research_notebook.md`, `research_contract.md`, `project_charter.md`, `project_index.md`, or `reports/main_research_report_template.md`.
 
 If no project state exists and the user is in a real external research root, initialize with:
 
@@ -308,6 +312,16 @@ If `hep-mcp` or a needed provider is unavailable, state that limitation explicit
 
 `research-team` output is not complete while it only lives in `team/runs` as an unreferenced log: the durable conclusion must land in the project contract and plan, with evidence pointers. `team/runs/<run>/` itself is a first-class evidence root alongside `artifacts/runs/<run_id>/` — cite the path that actually holds the evidence; do not copy files between roots just to satisfy a pointer convention.
 
+Keep three artifact classes separate at this boundary. A checkpoint, status,
+or closeout summary coordinates state and may stay concise. A main research
+report is a complete researcher-facing scientific narrative that can be
+reviewed independently. JSON, JSONL, hashes, manifests, and receipts bind the
+execution but never replace explanatory prose or a clickable human-readable
+evidence chain. When a milestone changes the promoted scientific account,
+create a new report under `reports/`; never overwrite a registered report.
+Update the bidirectional supersession registry and the single current pointer
+in `project_index.md`, then require `nullius report-validate` to pass.
+
 After a milestone or run produces a stable result, gate each result by its type before folding it (the Route The Work dispatch table above, applied at the fold boundary):
 
 - A computed number passes the [`numerical-reliability-gate`](../numerical-reliability-gate/SKILL.md) — converged under refinement (no coarse-grid mirage), agreed across `>=2` orthogonal methods, and regression-anchored. A coarse, intermediate, or non-converged value is labeled as such or discarded, never silently promoted.
@@ -335,9 +349,16 @@ nullius final-conclusions
 nullius approve <approval_id>
 nullius decision record "<what was decided>" --by <who>
 nullius export --run-id <run_id>
+nullius report-validate
 ```
 
 Use the command that matches the project state. If approval is pending, stop at the approval boundary and report the exact approval id and evidence path. In projects that do not use the engine's approval flow (declared `execution_mode: file`, or any project where the go-ahead was given in conversation), record that go-ahead with `nullius decision record` at the closeout boundary — it is the engine-visible counterpart of the approval receipt, and open questions recorded with `nullius decision pending` stay counted in every status receipt (the oldest ten itemized; the rest via `nullius decision list`) until resolved.
+
+Run `nullius report-validate` only when a main report is being promoted or
+superseded. It fails closed on structural incompleteness, stale current
+pointers, mutated registered reports, broken supersession relations,
+machine-only evidence, and replay mislabeled as independent validation. Its
+pass is structural; scientific sufficiency remains a judgment on the report.
 
 Run the `research-integrity` skill's M1-M7 checklist at the moments
 work becomes durable. These triggers are observable file events — none
