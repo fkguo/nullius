@@ -8,7 +8,7 @@ import { recordOrReplay, storeIdempotency } from './idempotency.js';
 import {
   CARD_REVISION_LIFECYCLE_STATES,
   asRecord,
-  ensureReservedProvenanceClaimPreserved,
+  ensureReservedProvenanceClaimCoherent,
   replayedRevisionError,
   revisionValidationError,
 } from './node-revise-card-guards.js';
@@ -128,9 +128,8 @@ export function executeNodeReviseCard(options: {
           { idea_card_hash: beforeIdeaCardHash },
         );
       }
-      ensureReservedProvenanceClaimPreserved({
+      ensureReservedProvenanceClaimCoherent({
         campaignId,
-        currentCard,
         node,
         nodeId,
         replacementCard,

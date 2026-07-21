@@ -52,9 +52,11 @@ function traceReceiptUris(traceInputs: Record<string, unknown>): Set<string> {
  * recorded provenance violates the contract's documented semantics —
  * currently only operator_trace.inputs.novelty_delta.closest_prior, which
  * must be a URI or survey ref_key of the closest prior work, never a
- * campaign node id. The rewrite also updates the engine-assembled
- * novelty-delta claim on the idea card (so card and trace cannot diverge)
- * and appends the correction to the engine-owned
+ * campaign node id. When the current idea card still carries the reserved
+ * novelty-delta claim, the rewrite updates its closest-prior identity too. A
+ * reviewed card revision may already have withdrawn that scientific claim; in
+ * that case the provenance trace is corrected without reintroducing it. Every
+ * correction is appended to the engine-owned
  * operator_trace.inputs.provenance_rewrites history. The archived generation
  * pack keeps the original value untouched: the provenance chain is original
  * (pack, content-pinned) -> rewrite history -> current node value. Legal in
@@ -188,42 +190,46 @@ export function executeNodeRewriteProvenance(options: {
     const updatedNovelty = updatedInputs.novelty_delta as Record<string, unknown>;
     updatedNovelty.closest_prior = newValue;
 
-    // The import-time Formalize stage placed the novelty delta on the idea card
-    // as a claim with a deterministic prefix. Syncing it is MANDATORY: a node
-    // carrying a closest_prior is a generated node, which always holds exactly
-    // that claim (generated-node.ts). If no claim carries the expected prefix
-    // the node is malformed/tampered — fail closed rather than move the trace
-    // while the card keeps citing the retracted reference. A half-correction
-    // that still reports success is exactly the silent card/trace divergence
-    // this method exists to remove. More than one match is equally malformed.
+    // Import creates one reserved novelty-delta claim. A later reviewed
+    // node.revise_card may remove or replace that scientific claim while the
+    // immutable origin remains in operator_trace and revision history. In that
+    // state a provenance correction updates the trace only and must not
+    // resurrect the withdrawn claim. If a reserved claim is still present, it
+    // must be unique and bound to the trace's previous closest-prior identity.
     const expectedPrefix = `${NOVELTY_DELTA_CLAIM_PREFIX}${previousValue}): `;
     const ideaCard = asRecord(updatedNode.idea_card);
     const claims = ideaCard && Array.isArray(ideaCard.claims) ? ideaCard.claims : [];
-    const matchingClaims = claims
+    const reservedClaims = claims
       .map(asRecord)
       .filter((claim): claim is Record<string, unknown> =>
-        !!claim && typeof claim.claim_text === 'string' && claim.claim_text.startsWith(expectedPrefix));
-    if (matchingClaims.length !== 1) {
+        !!claim && typeof claim.claim_text === 'string' && claim.claim_text.startsWith(NOVELTY_DELTA_CLAIM_PREFIX));
+    const matchingClaims = reservedClaims.filter((claim) => String(claim.claim_text).startsWith(expectedPrefix));
+    if (reservedClaims.length > 1 || (reservedClaims.length === 1 && matchingClaims.length !== 1)) {
       throw rewriteValidationError(
         'delta_claim_missing',
         campaignId,
         nodeId,
-        matchingClaims.length === 0
-          ? 'the idea card carries no novelty-delta claim with the expected prefix — a well-formed generated node always does; refusing rather than leaving the card citing the retracted reference while the trace moves'
-          : 'the idea card carries multiple novelty-delta claims with the expected prefix — ambiguous to synchronize; the node is malformed',
-        { matching_claim_count: matchingClaims.length },
+        reservedClaims.length > 1
+          ? 'the idea card carries multiple engine-reserved novelty-delta claims — ambiguous to synchronize; revise the card to one or zero reserved claims first'
+          : 'the retained engine-reserved novelty-delta claim does not use the closest_prior identity stored in operator_trace; correct provenance before revising its scientific content',
+        {
+          matching_claim_count: matchingClaims.length,
+          reserved_claim_count: reservedClaims.length,
+        },
       );
     }
-    const claimRecord = matchingClaims[0]!;
-    claimRecord.claim_text = `${NOVELTY_DELTA_CLAIM_PREFIX}${newValue}): ${(claimRecord.claim_text as string).slice(expectedPrefix.length)}`;
-    claimRecord.evidence_uris = newValue.includes('://') ? [newValue] : [];
+    const deltaClaimUpdated = matchingClaims.length === 1;
+    if (deltaClaimUpdated) {
+      const claimRecord = matchingClaims[0]!;
+      claimRecord.claim_text = `${NOVELTY_DELTA_CLAIM_PREFIX}${newValue}): ${(claimRecord.claim_text as string).slice(expectedPrefix.length)}`;
+      claimRecord.evidence_uris = newValue.includes('://') ? [newValue] : [];
+    }
 
-    // The novelty-delta claim just changed. Any grounding_audit certified the
-    // PRIOR claim text and no longer covers the current card, so a stale pass
-    // must not ride the changed claim into a promotion handoff. Reset it (null
-    // fails node.promote's status=pass gate); the node must be re-grounded via
-    // node.set_grounding_audit after the correction.
-    const groundingAuditReset = updatedNode.grounding_audit != null;
+    // When the active novelty-delta claim changes, any grounding_audit covered
+    // the prior text and must be reset. If the reviewed card had already
+    // withdrawn that claim, only immutable provenance changes and the current
+    // card-grounding result remains about the same scientific claims.
+    const groundingAuditReset = deltaClaimUpdated && updatedNode.grounding_audit != null;
     if (groundingAuditReset) {
       updatedNode.grounding_audit = null;
     }
@@ -255,7 +261,7 @@ export function executeNodeRewriteProvenance(options: {
     const result = {
       budget_snapshot: budgetSnapshot(campaign),
       campaign_id: campaignId,
-      delta_claim_updated: true,
+      delta_claim_updated: deltaClaimUpdated,
       field,
       grounding_audit_reset: groundingAuditReset,
       idea_id: String(updatedNode.idea_id),
@@ -282,6 +288,7 @@ export function executeNodeRewriteProvenance(options: {
 
     options.store.saveNodes(campaignId, nodes);
     options.store.appendNodeLog(campaignId, updatedNode, 'rewrite_provenance', {
+      delta_claim_updated: deltaClaimUpdated,
       field,
       grounding_audit_reset: groundingAuditReset,
       new_value: newValue,
