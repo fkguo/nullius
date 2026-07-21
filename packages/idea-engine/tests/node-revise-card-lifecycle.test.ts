@@ -68,54 +68,129 @@ describe('node.revise_card lifecycle and provenance', () => {
     }
   });
 
-  it('keeps generated-node reserved provenance engine-owned while allowing ordinary card changes', () => {
-    const { service } = fresh(tempDirs, 'idea-revise-provenance-');
-    const { campaignId, nodeId } = initCampaign(service);
-    const nodes = service.read.store.loadNodes<Record<string, unknown>>(campaignId);
-    const node = nodes[nodeId]!;
-    const prior = 'https://example.org/closest-prior';
-    const card = structuredClone(node.idea_card) as Record<string, unknown>;
-    const claims = card.claims as Array<Record<string, unknown>>;
-    claims.push({
-      claim_text: `Novelty delta vs closest prior (${prior}): engine-owned comparison`,
-      support_type: 'literature',
-      evidence_uris: [prior],
-      verification_status: 'verified',
-    });
-    const trace = node.operator_trace as Record<string, unknown>;
-    const inputs = trace.inputs as Record<string, unknown>;
-    inputs.novelty_delta = { closest_prior: prior };
-    node.idea_card = card;
-    service.read.store.saveNodes(campaignId, nodes);
+  it('lets reviewed cards retain, falsify, withdraw, or replace a generated novelty claim without changing origin provenance', () => {
+    const variants = ['retained', 'falsified', 'withdrawn', 'replaced'] as const;
+    for (const variant of variants) {
+      const { service } = fresh(tempDirs, `idea-revise-provenance-${variant}-`);
+      const { campaignId, nodeId } = initCampaign(service, `init-${variant}`);
+      const nodes = service.read.store.loadNodes<Record<string, unknown>>(campaignId);
+      const node = nodes[nodeId]!;
+      const prior = 'https://example.org/closest-prior';
+      const card = structuredClone(node.idea_card) as Record<string, unknown>;
+      const claims = card.claims as Array<Record<string, unknown>>;
+      claims.push({
+        claim_text: `Novelty delta vs closest prior (${prior}): generated hypothesis under review`,
+        support_type: 'literature',
+        evidence_uris: [prior],
+        verification_status: 'verified',
+      });
+      const trace = node.operator_trace as Record<string, unknown>;
+      const inputs = trace.inputs as Record<string, unknown>;
+      inputs.novelty_delta = { closest_prior: prior };
+      node.idea_card = card;
+      service.read.store.saveNodes(campaignId, nodes);
 
-    const changed = replacementCard(node, 'An ordinary scientific claim changes while reserved provenance remains exact.');
-    const altered = structuredClone(changed);
-    const alteredClaims = altered.claims as Array<Record<string, unknown>>;
-    alteredClaims[alteredClaims.length - 1] = {
-      ...alteredClaims[alteredClaims.length - 1],
-      confidence: 0.5,
-    };
+      const changed = replacementCard(node, `A reviewed scientific proposition for the ${variant} case.`);
+      const changedClaims = changed.claims as Array<Record<string, unknown>>;
+      const reservedIndex = changedClaims.length - 1;
+      if (variant === 'falsified') {
+        changedClaims[reservedIndex] = {
+          ...changedClaims[reservedIndex],
+          claim_text: `Novelty delta vs closest prior (${prior}): the generated hypothesis failed its declared test`,
+          verification_status: 'falsified',
+          verification_notes: 'The current evidence rejects the generated hypothesis.',
+        };
+      } else if (variant === 'withdrawn' || variant === 'replaced') {
+        changedClaims.splice(reservedIndex, 1);
+        if (variant === 'replaced') {
+          changedClaims.push({
+            claim_text: 'A narrower evidence-responsive proposition replaces the generated hypothesis.',
+            support_type: 'assumption',
+            evidence_uris: [],
+            verification_plan: 'Test the narrower proposition before admission.',
+            verification_status: 'unverified',
+          });
+        }
+      }
+
+      const success = service.handle('node.revise_card', {
+        campaign_id: campaignId,
+        node_id: nodeId,
+        expected_revision: node.revision,
+        replacement_idea_card: changed,
+        reason: `evidence-responsive ${variant} revision`,
+        idempotency_key: `reserved-${variant}`,
+      });
+      const updated = success.node as Record<string, unknown>;
+      expect(updated.idea_card).toEqual(changed);
+      const updatedInputs = ((updated.operator_trace as Record<string, unknown>).inputs as Record<string, unknown>);
+      expect((updatedInputs.novelty_delta as Record<string, unknown>).closest_prior).toBe(prior);
+      const event = success.mutation_event as Record<string, unknown>;
+      expect(((event.before_node as Record<string, unknown>).operator_trace as Record<string, unknown>)).toEqual(trace);
+    }
+  });
+
+  it('rejects reserved-prefix impersonation, closest-prior drift, and duplicate reserved claims', () => {
+    const { service } = fresh(tempDirs, 'idea-revise-reserved-conflicts-');
+    const { campaignId, nodeId } = initCampaign(service);
+    const seed = currentNode(service, campaignId, nodeId);
+    const introduced = replacementCard(seed, 'A seed-card revision must not impersonate generated provenance.');
+    (introduced.claims as Array<Record<string, unknown>>).push({
+      claim_text: 'Novelty delta vs closest prior (ref-a): unauthorized reserved claim',
+      support_type: 'assumption',
+      evidence_uris: [],
+      verification_plan: 'This claim must be rejected before any verification.',
+    });
     expectRpcError(
-      () =>
-        service.handle('node.revise_card', {
-          campaign_id: campaignId,
-          node_id: nodeId,
-          expected_revision: node.revision,
-          replacement_idea_card: altered,
-          reason: 'attempt reserved claim mutation',
-          idempotency_key: 'reserved-fail',
-        }),
+      () => service.handle('node.revise_card', {
+        ...reviseParams(campaignId, nodeId, seed, 'reserved-introduced'),
+        replacement_idea_card: introduced,
+      }),
       -32002,
       'reserved_provenance_claim_changed',
     );
-    const success = service.handle('node.revise_card', {
-      campaign_id: campaignId,
-      node_id: nodeId,
-      expected_revision: node.revision,
-      replacement_idea_card: changed,
-      reason: 'ordinary proposition change',
-      idempotency_key: 'reserved-pass',
+
+    const nodes = service.read.store.loadNodes<Record<string, unknown>>(campaignId);
+    const node = nodes[nodeId]!;
+    const prior = 'ref-a';
+    const generatedCard = structuredClone(node.idea_card) as Record<string, unknown>;
+    (generatedCard.claims as Array<Record<string, unknown>>).push({
+      claim_text: `Novelty delta vs closest prior (${prior}): generated hypothesis`,
+      support_type: 'assumption',
+      evidence_uris: [],
+      verification_plan: 'Test the generated hypothesis.',
     });
-    expect((success.node as Record<string, unknown>).idea_card).toEqual(changed);
+    const generatedTrace = node.operator_trace as Record<string, unknown>;
+    const generatedInputs = generatedTrace.inputs as Record<string, unknown>;
+    generatedInputs.novelty_delta = { closest_prior: prior };
+    node.idea_card = generatedCard;
+    service.read.store.saveNodes(campaignId, nodes);
+
+    const drifted = replacementCard(node, 'A revision with a mismatched reserved prior must fail.');
+    const driftedClaims = drifted.claims as Array<Record<string, unknown>>;
+    driftedClaims[driftedClaims.length - 1] = {
+      ...driftedClaims[driftedClaims.length - 1],
+      claim_text: 'Novelty delta vs closest prior (ref-b): changed without provenance rewrite',
+    };
+    expectRpcError(
+      () => service.handle('node.revise_card', {
+        ...reviseParams(campaignId, nodeId, node, 'reserved-drifted'),
+        replacement_idea_card: drifted,
+      }),
+      -32002,
+      'reserved_provenance_claim_changed',
+    );
+
+    const duplicated = replacementCard(node, 'A revision with duplicate reserved claims must fail.');
+    const duplicatedClaims = duplicated.claims as Array<Record<string, unknown>>;
+    duplicatedClaims.push(structuredClone(duplicatedClaims[duplicatedClaims.length - 1]!));
+    expectRpcError(
+      () => service.handle('node.revise_card', {
+        ...reviseParams(campaignId, nodeId, node, 'reserved-duplicated'),
+        replacement_idea_card: duplicated,
+      }),
+      -32002,
+      'reserved_provenance_claim_changed',
+    );
   });
 });

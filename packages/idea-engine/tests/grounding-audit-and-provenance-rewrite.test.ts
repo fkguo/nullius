@@ -815,29 +815,62 @@ describe('node.rewrite_provenance', () => {
     );
   });
 
-  it('fails closed (delta_claim_missing) and changes nothing when no card claim carries the prefix', () => {
+  it('rewrites immutable provenance without resurrecting a novelty claim withdrawn by node.revise_card', () => {
     const service = freshService();
     const campaignId = initCampaign(service);
     const [seedNodeId] = allNodeIds(service, campaignId);
     const generatedId = importGeneratedNode(service, campaignId, seedNodeId!);
-    // Drop the engine-assembled novelty-delta claim: a malformed generated node.
-    // The rewrite must refuse rather than move the trace while the card keeps
-    // citing the retracted reference (a silent card/trace divergence).
-    const nodes = service.read.store.loadNodes<Record<string, unknown>>(campaignId);
-    const card = (nodes[generatedId] as Record<string, unknown>).idea_card as Record<string, unknown>;
+    const beforeRevision = loadNode(service, campaignId, generatedId);
+    const card = structuredClone(beforeRevision.idea_card) as Record<string, unknown>;
+    card.thesis_statement = 'A reviewed replacement no longer asserts the generated novelty hypothesis.';
     card.claims = (card.claims as Array<Record<string, unknown>>).filter(
       claim => !String(claim.claim_text).startsWith('Novelty delta vs closest prior ('),
     );
+    service.handle('node.revise_card', {
+      campaign_id: campaignId,
+      expected_revision: beforeRevision.revision,
+      idempotency_key: 'withdraw-delta-claim',
+      node_id: generatedId,
+      reason: 'new evidence withdraws the generated novelty hypothesis',
+      replacement_idea_card: card,
+    });
+    expect(deltaClaims(loadNode(service, campaignId, generatedId))).toHaveLength(0);
+
+    enterAdmissionReview(service, campaignId, generatedId, 'review-withdrawn-card');
+    setGroundingAudit(service, campaignId, generatedId, 'ground-withdrawn-card');
+    const groundingBefore = structuredClone(loadNode(service, campaignId, generatedId).grounding_audit);
+
+    const result = rewriteProvenance(service, campaignId, generatedId, 'rw-noclaim', URI_A);
+    expect(result.delta_claim_updated).toBe(false);
+    expect(result.grounding_audit_reset).toBe(false);
+    const after = loadNode(service, campaignId, generatedId);
+    expect(nodeCloseestPrior(after)).toBe(URI_A);
+    expect(deltaClaims(after)).toHaveLength(0);
+    expect(after.grounding_audit).toEqual(groundingBefore);
+    expect(nodeRewriteHistory(after)).toHaveLength(1);
+    const logEntry = lastLogEntry(service, campaignId);
+    expect(logEntry.delta_claim_updated).toBe(false);
+  });
+
+  it('fails closed when a retained reserved claim has a closest-prior identity inconsistent with the trace', () => {
+    const service = freshService();
+    const campaignId = initCampaign(service);
+    const [seedNodeId] = allNodeIds(service, campaignId);
+    const generatedId = importGeneratedNode(service, campaignId, seedNodeId!);
+    const nodes = service.read.store.loadNodes<Record<string, unknown>>(campaignId);
+    const card = (nodes[generatedId] as Record<string, unknown>).idea_card as Record<string, unknown>;
+    const claim = deltaClaims(nodes[generatedId]!)[0]!;
+    claim.claim_text = 'Novelty delta vs closest prior (different-ref): inconsistent retained claim';
     service.read.store.saveNodes(campaignId, nodes);
     const before = JSON.stringify(loadNode(service, campaignId, generatedId));
 
     expectRpcError(
-      () => rewriteProvenance(service, campaignId, generatedId, 'rw-noclaim', URI_A),
+      () => rewriteProvenance(service, campaignId, generatedId, 'rw-conflicting-claim', URI_A),
       -32002,
       'delta_claim_missing',
     );
-    // Nothing moved: trace still cites the old value, no history entry appended.
     expect(JSON.stringify(loadNode(service, campaignId, generatedId))).toBe(before);
+    expect(card.claims).toBeDefined();
   });
 
   it('accepts a non-handle short-id-shaped survey ref key (no shape rejection; project-side boundary)', () => {

@@ -46,7 +46,7 @@
     },
     "delta_claim_updated": {
       "type": "boolean",
-      "description": "Always true on success: syncing the engine-assembled novelty-delta card claim is mandatory, so a rewrite that cannot find exactly one matching claim fails closed with delta_claim_missing rather than returning here. Retained for result-shape stability."
+      "description": "True when the current idea card retains the engine-reserved novelty-delta claim and its closest-prior identity was synchronized. False when a reviewed card revision had already withdrawn or replaced that scientific claim; the immutable provenance trace is corrected without resurrecting it."
     },
     "grounding_audit_reset": {
       "type": "boolean",
