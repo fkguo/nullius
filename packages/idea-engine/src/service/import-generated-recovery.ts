@@ -65,6 +65,9 @@ function provenanceRewriteChainMatches(
   const archivedNovelty = asRecord(archivedInputs?.novelty_delta);
   const currentValue = currentNovelty?.closest_prior;
   const archivedValue = archivedNovelty?.closest_prior;
+  // generation_pack_v1 requires closest_prior. Absence on either side means
+  // the archived import or current immutable provenance is corrupt, not an
+  // untouched optional field.
   if (typeof currentValue !== 'string' || typeof archivedValue !== 'string') return false;
   if (archivedInputs?.provenance_rewrites !== undefined) return false;
 
