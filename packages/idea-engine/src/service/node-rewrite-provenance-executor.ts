@@ -3,7 +3,7 @@ import type { IdeaEngineStore } from '../store/engine-store.js';
 import { budgetSnapshot } from './budget-snapshot.js';
 import { recordOrReplay, responseIdempotency, storeIdempotency } from './idempotency.js';
 import { RpcError } from './errors.js';
-import { NOVELTY_DELTA_CLAIM_PREFIX, ensureNodeInCampaign } from './node-shared.js';
+import { NOVELTY_DELTA_CLAIM_DELIMITER, NOVELTY_DELTA_CLAIM_PREFIX, ensureNodeInCampaign } from './node-shared.js';
 import { ensureCampaignNotCompleted, loadCampaignOrError } from './campaign-state.js';
 
 function rewriteValidationError(
@@ -29,6 +29,41 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' && !Array.isArray(value)
     ? value as Record<string, unknown>
     : null;
+}
+
+function reservedClaimsFromCard(card: Record<string, unknown> | null): Array<Record<string, unknown>> {
+  const claims = card && Array.isArray(card.claims) ? card.claims : [];
+  return claims
+    .map(asRecord)
+    .filter((claim): claim is Record<string, unknown> =>
+      !!claim && typeof claim.claim_text === 'string' && claim.claim_text.startsWith(NOVELTY_DELTA_CLAIM_PREFIX));
+}
+
+/** Prove that the current zero-claim state came through the sanctioned revision RPC. */
+function hasRecordedReservedClaimWithdrawal(options: {
+  campaignId: string;
+  contracts: IdeaEngineContractCatalog;
+  currentRevision: number;
+  entries: Array<Record<string, unknown>>;
+  nodeId: string;
+}): boolean {
+  for (const [index, entry] of options.entries.entries()) {
+    if (entry.mutation !== 'revise_card' || entry.node_id !== options.nodeId) continue;
+    options.contracts.validateAgainstRef(
+      './idea_card_revision_event_v1.schema.json',
+      entry,
+      `node.rewrite_provenance/withdrawal_event/${options.nodeId}/${index}`,
+    );
+    if (Number(entry.revision) > options.currentRevision) continue;
+    const beforeNode = asRecord(entry.before_node);
+    const afterNode = asRecord(entry.node);
+    const beforeCard = asRecord(beforeNode?.idea_card);
+    const afterCard = asRecord(afterNode?.idea_card);
+    if (reservedClaimsFromCard(beforeCard).length > 0 && reservedClaimsFromCard(afterCard).length === 0) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /** Retrieval-receipt URIs recorded in the node's own operator trace. */
@@ -116,6 +151,14 @@ export function executeNodeRewriteProvenance(options: {
         'new_value has leading/trailing whitespace (or is blank) — closest_prior must be a trimmed URI or survey reference key',
       );
     }
+    if (newValue.includes(NOVELTY_DELTA_CLAIM_DELIMITER)) {
+      throw rewriteValidationError(
+        'schema_invalid',
+        campaignId,
+        nodeId,
+        `new_value contains the reserved claim delimiter ${JSON.stringify(NOVELTY_DELTA_CLAIM_DELIMITER)} and cannot be represented unambiguously in a retained novelty claim`,
+      );
+    }
     if (reasonText.trim().length === 0) {
       throw rewriteValidationError(
         'schema_invalid',
@@ -196,13 +239,9 @@ export function executeNodeRewriteProvenance(options: {
     // a provenance correction updates the current trace only and must not
     // resurrect the withdrawn claim. If a reserved claim is still present, it
     // must be unique and bound to the trace's previous closest-prior identity.
-    const expectedPrefix = `${NOVELTY_DELTA_CLAIM_PREFIX}${previousValue}): `;
+    const expectedPrefix = `${NOVELTY_DELTA_CLAIM_PREFIX}${previousValue}${NOVELTY_DELTA_CLAIM_DELIMITER}`;
     const ideaCard = asRecord(updatedNode.idea_card);
-    const claims = ideaCard && Array.isArray(ideaCard.claims) ? ideaCard.claims : [];
-    const reservedClaims = claims
-      .map(asRecord)
-      .filter((claim): claim is Record<string, unknown> =>
-        !!claim && typeof claim.claim_text === 'string' && claim.claim_text.startsWith(NOVELTY_DELTA_CLAIM_PREFIX));
+    const reservedClaims = reservedClaimsFromCard(ideaCard);
     const matchingClaims = reservedClaims.filter((claim) => String(claim.claim_text).startsWith(expectedPrefix));
     if (reservedClaims.length > 1 || (reservedClaims.length === 1 && matchingClaims.length !== 1)) {
       throw rewriteValidationError(
@@ -218,10 +257,25 @@ export function executeNodeRewriteProvenance(options: {
         },
       );
     }
+    if (reservedClaims.length === 0 && !hasRecordedReservedClaimWithdrawal({
+      campaignId,
+      contracts: options.contracts,
+      currentRevision: Number(updatedNode.revision),
+      entries: options.store.loadNodeLogEntriesStrict(campaignId),
+      nodeId,
+    })) {
+      throw rewriteValidationError(
+        'delta_claim_missing',
+        campaignId,
+        nodeId,
+        'the current idea card carries no reserved novelty-delta claim and the append-only ledger contains no valid node.revise_card event that withdrew it; refusing to treat an unrecorded deletion as reviewed withdrawal',
+        { recorded_withdrawal: false, reserved_claim_count: 0 },
+      );
+    }
     const deltaClaimUpdated = matchingClaims.length === 1;
     if (deltaClaimUpdated) {
       const claimRecord = matchingClaims[0]!;
-      claimRecord.claim_text = `${NOVELTY_DELTA_CLAIM_PREFIX}${newValue}): ${(claimRecord.claim_text as string).slice(expectedPrefix.length)}`;
+      claimRecord.claim_text = `${NOVELTY_DELTA_CLAIM_PREFIX}${newValue}${NOVELTY_DELTA_CLAIM_DELIMITER}${(claimRecord.claim_text as string).slice(expectedPrefix.length)}`;
       const currentEvidenceUris = Array.isArray(claimRecord.evidence_uris)
         ? claimRecord.evidence_uris.filter(isNonEmptyString)
         : [];

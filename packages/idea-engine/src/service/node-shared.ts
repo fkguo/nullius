@@ -21,6 +21,7 @@ export const PLACEHOLDER_EVIDENCE_URI = 'https://example.org/reference';
  * keep its closest-prior identity synchronized with the trace.
  */
 export const NOVELTY_DELTA_CLAIM_PREFIX = 'Novelty delta vs closest prior (';
+export const NOVELTY_DELTA_CLAIM_DELIMITER = '): ';
 
 /**
  * Single authority for the text sanitization that feeds the formalization

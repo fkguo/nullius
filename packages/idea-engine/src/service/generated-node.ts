@@ -1,5 +1,5 @@
 import { payloadHash } from '../hash/payload-hash.js';
-import { NOVELTY_DELTA_CLAIM_PREFIX, rationaleHashForTrace, sanitizeText } from './node-shared.js';
+import { NOVELTY_DELTA_CLAIM_DELIMITER, NOVELTY_DELTA_CLAIM_PREFIX, rationaleHashForTrace, sanitizeText } from './node-shared.js';
 
 /** One schema-validated generation_pack_v1 candidate (see the contract file). */
 export interface GeneratedCandidate {
@@ -50,7 +50,7 @@ export function buildGeneratedNode(options: {
   const noveltyDelta = options.candidate.novelty_delta;
   const closestPrior = String(noveltyDelta.closest_prior ?? '');
   const deltaClaim: Record<string, unknown> = {
-    claim_text: `${NOVELTY_DELTA_CLAIM_PREFIX}${closestPrior}): ${String(noveltyDelta.falsifiable_delta_statement ?? '')}`,
+    claim_text: `${NOVELTY_DELTA_CLAIM_PREFIX}${closestPrior}${NOVELTY_DELTA_CLAIM_DELIMITER}${String(noveltyDelta.falsifiable_delta_statement ?? '')}`,
     support_type: 'llm_inference',
     evidence_uris: closestPrior.includes('://') ? [closestPrior] : [],
     verification_plan: 'Audit the delta against the recorded closest prior by retrieval and admission review; parametric novelty judgments are non-diagnostic.',
