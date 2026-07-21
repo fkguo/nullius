@@ -47,13 +47,8 @@ def _between(text: str) -> str | None:
 def _values(block: str, label: str) -> list[str]:
     return [
         match.strip().strip("`")
-        for match in re.findall(rf"^- {re.escape(label)}:\s*(.+?)\s*$", block, re.MULTILINE)
+        for match in re.findall(rf"^- {re.escape(label)}:[ \t]*([^\r\n]*?)[ \t]*$", block, re.MULTILINE)
     ]
-
-
-def _link_target(value: str) -> str:
-    match = MARKDOWN_LINK.search(value)
-    return match.group(1).strip() if match else ""
 
 
 def _parse_rows(block: str, errors: list[dict[str, str]]) -> dict[str, RegistryRow]:
@@ -65,7 +60,11 @@ def _parse_rows(block: str, errors: list[dict[str, str]]) -> dict[str, RegistryR
         if len(cells) != 5 or cells[0] in {"Report ID", "---"} or set(cells[0]) == {"-"}:
             continue
         report_id = cells[0].strip("`")
-        target = _link_target(cells[1])
+        report_links = MARKDOWN_LINK.findall(cells[1])
+        if len(report_links) != 1:
+            errors.append(_issue("registry_report_link_not_unique", f"registry Report cell for {report_id} must contain exactly one Markdown link"))
+            continue
+        target = report_links[0].strip()
         sha256 = cells[2].strip("`")
         supersedes = cells[3].strip("`")
         superseded_by = cells[4].strip("`")
@@ -152,7 +151,11 @@ def load_report_registry(project_root: Path) -> RegistryState:
     if len(current_ids) != 1 or len(current_reports) != 1:
         errors.append(_issue("current_report_pointer_not_unique", "the registry must declare exactly one current report ID and link"))
     current_id = current_ids[0] if current_ids else ""
-    current_target = _link_target(current_reports[0]) if current_reports else ""
+    current_report_value = current_reports[0] if len(current_reports) == 1 else ""
+    current_links = MARKDOWN_LINK.findall(current_report_value)
+    if current_report_value and current_report_value != "(none yet)" and len(current_links) != 1:
+        errors.append(_issue("current_report_link_not_unique", "the current report pointer must contain exactly one Markdown link"))
+    current_target = current_links[0].strip() if len(current_links) == 1 else ""
     rows = _parse_rows(block, errors)
     if not current_id or current_id == "(none yet)" or not current_target:
         errors.append(_issue("no_current_report", "no main research report is promoted"))
