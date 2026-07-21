@@ -22,6 +22,7 @@ Default behavior creates the canonical minimal project scaffold:
   - research_plan.md
   - research_notebook.md
   - research_contract.md
+  - reports/main_research_report_template.md
 
 Use --full to add research-team host-local surfaces:
   - prompts/

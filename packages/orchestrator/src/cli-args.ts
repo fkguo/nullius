@@ -1,3 +1,4 @@
+// # CONTRACT-EXEMPT: CODE-01.1 Existing canonical parser registry; this change adds only the report-validate union arm and dispatch case, while splitting unrelated command parsers would expand this bounded front-door change.
 import { isNulliusPublicCommand } from './cli-command-inventory.js';
 
 export type ParsedCliArgs =
@@ -51,6 +52,7 @@ export type ParsedCliArgs =
     json: boolean;
   }
   | { command: 'status'; projectRoot: string | null; json: boolean }
+  | { command: 'report-validate'; projectRoot: string | null }
   | { command: 'pause'; projectRoot: string | null; note: string | null }
   | { command: 'resume'; projectRoot: string | null; note: string | null; force: boolean }
   | { command: 'approve'; projectRoot: string | null; approvalId: string; note: string | null }
@@ -854,6 +856,9 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
       return { command: 'export', projectRoot, passthrough: rest };
     case 'status':
       return { command: 'status', projectRoot, ...parseStatusArgs(rest) };
+    case 'report-validate':
+      if (rest.length > 0) throw new Error(`unknown report-validate argument: ${rest[0]}`);
+      return { command: 'report-validate', projectRoot };
     case 'pause':
       return { command: 'pause', projectRoot, ...parseNoteArgs('pause', rest) };
     case 'resume':

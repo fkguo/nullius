@@ -8,6 +8,7 @@ export const NULLIUS_PUBLIC_COMMAND_INVENTORY = [
   { command: 'status', usage: 'nullius status [--json]' },
   { command: 'approve', usage: 'nullius approve <approval_id> [--note "..."]' },
   { command: 'integrity-record', usage: 'nullius integrity-record --approval-id <id> --modes <M1[,M2,...]> --notes "<summary>" [--skip <Mx:reason>[,Mx:reason]...]' },
+  { command: 'report-validate', usage: 'nullius report-validate' },
   { command: 'pause', usage: 'nullius pause [--note "..."]' },
   { command: 'resume', usage: 'nullius resume [--note "..."] [--force]' },
   { command: 'export', usage: 'nullius export [options]' },
