@@ -4,6 +4,7 @@ import re
 from pathlib import Path
 from typing import Any
 
+from .markdown_visibility import visible_markdown
 from .report_registry import MARKDOWN_LINK, RegistryRow, load_report_registry
 
 
@@ -13,19 +14,24 @@ SECTION_NAMES = (
     "ORIGIN", "OBJECT", "FOUNDATIONS", "SOURCES", "DERIVATION", "DESIGN",
     "METHOD", "RESULTS", "VALIDATION", "BALANCE", "IMPACT", "EVIDENCE",
 )
-REQUIRED_FIELDS = (
-    "Origin of the question", "Relation to prior work or adjacent hypotheses",
-    "Research object", "Observables", "Representation coordinates", "Object-observable-coordinate distinctions",
-    "Definitions", "Conventions", "Domain of applicability", "Load-bearing assumptions",
-    "Primary-source and full-text coverage", "Provenance for load-bearing claims", "Unread or unavailable source material",
-    "Starting premises", "Derivation chain", "Exact results", "Controlled approximations", "Model assumptions",
-    "Predeclared question", "Inputs", "Parameter axes", "Acceptance criteria", "Rejection criteria",
-    "Quantity definitions", "Reconstruction method", "Method limitations",
-    "Complete results", "Bias magnitude", "Uncertainty and resolution", "Boundary cases", "Counterexamples",
-    "Supporting evidence", "Opposing evidence", "Strongest alternative explanation", "Exact scope of the conclusion",
-    "Impact on the research question or idea state", "Next falsifiable condition",
-    "Human-readable evidence chain", "Machine provenance", "Binding explanation",
-)
+STRUCTURAL_MARKERS = {
+    METADATA_START,
+    METADATA_END,
+    *(f"<!-- REPORT_SECTION_{name}_{edge} -->" for name in SECTION_NAMES for edge in ("START", "END")),
+}
+REQUIRED_FIELDS_BY_SECTION = {
+    "ORIGIN": ("Origin of the question", "Relation to prior work or adjacent hypotheses"),
+    "OBJECT": ("Research object", "Observables", "Representation coordinates", "Object-observable-coordinate distinctions"),
+    "FOUNDATIONS": ("Definitions", "Conventions", "Domain of applicability", "Load-bearing assumptions"),
+    "SOURCES": ("Primary-source and full-text coverage", "Provenance for load-bearing claims", "Unread or unavailable source material"),
+    "DERIVATION": ("Starting premises", "Derivation chain", "Exact results", "Controlled approximations", "Model assumptions"),
+    "DESIGN": ("Predeclared question", "Inputs", "Parameter axes", "Acceptance criteria", "Rejection criteria"),
+    "METHOD": ("Quantity definitions", "Reconstruction method", "Method limitations"),
+    "RESULTS": ("Complete results", "Bias magnitude", "Uncertainty and resolution", "Boundary cases", "Counterexamples"),
+    "BALANCE": ("Supporting evidence", "Opposing evidence", "Strongest alternative explanation", "Exact scope of the conclusion"),
+    "IMPACT": ("Impact on the research question or idea state", "Next falsifiable condition"),
+    "EVIDENCE": ("Human-readable evidence chain", "Machine provenance", "Binding explanation"),
+}
 VALIDATION_FIELDS = (
     "Classification", "Implementation relation", "Input relation", "Environment relation",
     "Method or representation difference", "Declared replay risks", "Validation result",
@@ -34,6 +40,13 @@ VALIDATION_FIELDS = (
 MACHINE_SUFFIXES = (".json", ".jsonl", ".yaml", ".yml", ".lock")
 HUMAN_SUFFIXES = (".md", ".html", ".htm", ".pdf", ".txt")
 REPLAY_RISKS = {"randomness", "parallelism", "cache", "external_state", "unfixed_dependencies"}
+AUTHORING_PROCESS_PHRASES = (
+    "copy this template",
+    "do not promote this template",
+    "passing the structural validator",
+    "add one record per validation",
+    "for a replay record",
+)
 
 
 def _issue(code: str, message: str, path: str) -> dict[str, str]:
@@ -49,8 +62,15 @@ def _between(text: str, start: str, end: str) -> str | None:
 
 
 def _field(text: str, label: str) -> str:
-    match = re.search(rf"^- {re.escape(label)}:\s*(.+?)\s*$", text, re.MULTILINE)
-    return match.group(1).strip() if match else ""
+    values = _field_values(text, label)
+    return values[0] if values else ""
+
+
+def _field_values(text: str, label: str) -> list[str]:
+    return [
+        match.strip()
+        for match in re.findall(rf"^- {re.escape(label)}:\s*(.+?)\s*$", text, re.MULTILINE)
+    ]
 
 
 def _filled(value: str) -> bool:
@@ -111,7 +131,7 @@ def _metadata(text: str) -> dict[str, str] | None:
 
 def _validate_metadata(text: str, row: RegistryRow, path: Path, root: Path, errors: list[dict[str, str]]) -> None:
     rel = path.relative_to(root).as_posix()
-    meta = _metadata(text)
+    meta = _metadata(visible_markdown(text, preserved_markers=STRUCTURAL_MARKERS))
     if meta is None:
         errors.append(_issue("missing_report_metadata", "report metadata markers are missing or duplicated", rel))
         return
@@ -149,8 +169,8 @@ def _validate_validation(section: str, report_path: Path, root: Path, rel: str, 
             errors.append(_issue("validation_evidence_not_human_readable", "validation evidence must use a reachable human-readable link", rel))
         if classification == "independent":
             independent += 1
-            if relations == ["same", "same", "same"]:
-                errors.append(_issue("same_implementation_replay_claimed_independent", "same implementation, input, and environment is replay, not independent validation", rel))
+            if relations[0] == "same" and relations[1] == "same":
+                errors.append(_issue("same_implementation_replay_claimed_independent", "same implementation and same input is replay regardless of environment, not independent validation", rel))
         if classification == "replay":
             declared = {item.strip().lower() for item in values["Declared replay risks"].split(",")}
             if not declared or not declared <= REPLAY_RISKS:
@@ -162,19 +182,36 @@ def _validate_validation(section: str, report_path: Path, root: Path, rel: str, 
 def _validate_current_report(path: Path, root: Path, errors: list[dict[str, str]]) -> None:
     rel = path.relative_to(root).as_posix()
     text = path.read_text(encoding="utf-8", errors="replace")
+    visible_text = visible_markdown(text, preserved_markers=STRUCTURAL_MARKERS)
+    leaked = [phrase for phrase in AUTHORING_PROCESS_PHRASES if phrase in visible_text.lower()]
+    if leaked:
+        errors.append(_issue("authoring_process_leaked_into_report", "researcher-facing reports cannot retain template or structural-validator instructions", rel))
     sections: dict[str, str] = {}
     for name in SECTION_NAMES:
-        section = _between(text, f"<!-- REPORT_SECTION_{name}_START -->", f"<!-- REPORT_SECTION_{name}_END -->")
+        section = _between(visible_text, f"<!-- REPORT_SECTION_{name}_START -->", f"<!-- REPORT_SECTION_{name}_END -->")
         if section is None:
             errors.append(_issue("missing_report_section", f"required section {name} is missing or duplicated", rel))
         else:
             sections[name] = section
-    for label in REQUIRED_FIELDS:
-        value = _field(text, label)
-        if not _filled(value):
-            errors.append(_issue("incomplete_report_field", f"required field is unfilled: {label}", rel))
-        elif label not in {"Human-readable evidence chain", "Machine provenance"} and _machine_only_reference(value):
-            errors.append(_issue("machine_provenance_substitutes_for_narrative", f"machine references cannot replace explanatory narrative: {label}", rel))
+    for section_name, labels in REQUIRED_FIELDS_BY_SECTION.items():
+        section = sections.get(section_name, "")
+        for label in labels:
+            all_values = _field_values(visible_text, label)
+            scoped_values = _field_values(section, label)
+            if not all_values:
+                errors.append(_issue("incomplete_report_field", f"required field is missing: {label}", rel))
+                continue
+            if len(all_values) != 1:
+                errors.append(_issue("report_field_not_unique", f"required field must occur exactly once: {label}", rel))
+                continue
+            if len(scoped_values) != 1:
+                errors.append(_issue("report_field_wrong_section", f"required field must occur in section {section_name}: {label}", rel))
+                continue
+            value = scoped_values[0]
+            if not _filled(value):
+                errors.append(_issue("incomplete_report_field", f"required field is unfilled: {label}", rel))
+            elif label not in {"Human-readable evidence chain", "Machine provenance"} and _machine_only_reference(value):
+                errors.append(_issue("machine_provenance_substitutes_for_narrative", f"machine references cannot replace explanatory narrative: {label}", rel))
     evidence = _field(sections.get("EVIDENCE", ""), "Human-readable evidence chain")
     if evidence and not _human_links(evidence, path, root):
         errors.append(_issue("machine_provenance_substitutes_for_human_evidence", "the evidence chain needs a reachable human-readable link; machine references do not count", rel))

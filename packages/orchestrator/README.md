@@ -20,7 +20,7 @@ chmod +x "$HOME/.local/bin/nullius"
 nullius --help
 ```
 
-A project-local launcher (`./.nullius/bin/nullius`) is also written during `nullius init` so already-initialized research roots can reconnect without the global wrapper. `nullius init --refresh` re-applies the managed scaffold doc (`AGENTS.md`) with per-file backups under `.nullius/backups/`, without touching user-owned seed files.
+A project-local launcher (`./.nullius/bin/nullius`) is also written during `nullius init` so already-initialized research roots can reconnect without the global wrapper. `nullius init --refresh` re-applies the managed scaffold doc (`AGENTS.md`) with per-file backups under `.nullius/backups/`, without touching user-owned seed files. For an existing project that predates the main-report registry, checkpoint it and render a current scaffold in a separate temporary external root; copy only a missing report template and manually merge the `project_index.md#Main research report` section. Refresh never performs that user-owned migration. `report-validate` returns `invalid_registry_markers` before the registry merge and `no_current_report` until a populated current report is registered.
 
 ## State and artifacts
 

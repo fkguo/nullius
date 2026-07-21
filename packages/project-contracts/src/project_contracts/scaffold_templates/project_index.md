@@ -44,6 +44,21 @@ When a conclusion changes or a report is incomplete, create a superseding
 report, update both directions in the registry below, and switch the single
 current pointer. The SHA-256 column makes later mutation structurally visible.
 
+Complete every report field and add one structured record for each validation.
+Fields must be visible Markdown and must occur exactly once in their assigned
+section; fenced code and ordinary HTML comments do not count as report or
+registry structure. Standard standalone marker comments only delimit the
+authoritative regions.
+The report must contain genuinely independent validation. Record implementation,
+input, and environment relations separately. Same implementation plus same input
+is replay regardless of environment and cannot be classified as independent.
+A replay is useful only for a concrete declared risk: `randomness`, `parallelism`,
+`cache`, `external_state`, or `unfixed_dependencies`. Machine provenance may bind
+the record but cannot replace its explanatory narrative or human-readable link.
+Run `nullius report-validate` before promotion. Its pass establishes structural
+shape, link reachability, immutable registration, and supersession consistency;
+scientific sufficiency remains a judgment on the reasoning and evidence.
+
 <!-- MAIN_RESEARCH_REPORT_REGISTRY_START -->
 - Current report ID: `(none yet)`
 - Current report: `(none yet)`

@@ -5,6 +5,8 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from .markdown_visibility import visible_markdown
+
 
 REGISTRY_START = "<!-- MAIN_RESEARCH_REPORT_REGISTRY_START -->"
 REGISTRY_END = "<!-- MAIN_RESEARCH_REPORT_REGISTRY_END -->"
@@ -138,7 +140,11 @@ def load_report_registry(project_root: Path) -> RegistryState:
     errors: list[dict[str, str]] = []
     if not index.is_file():
         return RegistryState("", "", {}, {}, [_issue("missing_project_index", "project_index.md is required")])
-    block = _between(index.read_text(encoding="utf-8", errors="replace"))
+    index_text = visible_markdown(
+        index.read_text(encoding="utf-8", errors="replace"),
+        preserved_markers={REGISTRY_START, REGISTRY_END},
+    )
+    block = _between(index_text)
     if block is None:
         return RegistryState("", "", {}, {}, [_issue("invalid_registry_markers", "the report registry markers must occur once and in order")])
     current_ids = _values(block, "Current report ID")

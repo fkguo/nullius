@@ -77,6 +77,16 @@ The check is also skipped for:
 
 To pull newer managed scaffold doc (`AGENTS.md`) into an existing project without disturbing user notes, run `nullius init --refresh` (preview with `nullius init --refresh --dry-run`). It backs up any changed managed file under `.nullius/backups/` and never rewrites `research_plan.md`, `research_notebook.md`, `research_contract.md`, `project_charter.md`, `project_index.md`, or `reports/main_research_report_template.md`.
 
+For an existing project that predates the main-report registry, checkpoint the
+project before migration. Render the current scaffold in a separate temporary
+external root with `nullius init --project-root <temporary-root>`. Copy only a
+missing `reports/main_research_report_template.md`; never overwrite an existing
+copy. Manually merge the temporary `project_index.md#Main research report`
+section and empty registry into the existing user-owned index. Refresh does not
+perform those steps. `nullius report-validate` fails closed with
+`invalid_registry_markers` before the registry exists and with
+`no_current_report` until a complete current report is registered.
+
 If no project state exists and the user is in a real external research root, initialize with:
 
 ```bash
