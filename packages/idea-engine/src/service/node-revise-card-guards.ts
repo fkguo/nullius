@@ -1,6 +1,5 @@
-import { canonicalJson } from '../hash/payload-hash.js';
 import { RpcError } from './errors.js';
-import { NOVELTY_DELTA_CLAIM_PREFIX } from './node-shared.js';
+import { NOVELTY_DELTA_CLAIM_DELIMITER, NOVELTY_DELTA_CLAIM_PREFIX } from './node-shared.js';
 
 export const CARD_REVISION_LIFECYCLE_STATES = ['candidate', 'admission_review', 'admitted', 'needs_refresh'] as const;
 
@@ -47,8 +46,8 @@ function cardClaims(card: Record<string, unknown>): Array<Record<string, unknown
   return Array.isArray(card.claims) ? card.claims.map(asRecord).filter((claim): claim is Record<string, unknown> => claim !== null) : [];
 }
 
-/** Keep generated-node provenance behind its dedicated correction RPC. */
-export function ensureReservedProvenanceClaimPreserved(options: {
+/** Keep reserved claim identity coherent without freezing its scientific content. */
+export function ensureReservedProvenanceClaimCoherent(options: {
   campaignId: string;
   currentCard: Record<string, unknown>;
   node: Record<string, unknown>;
@@ -68,25 +67,38 @@ export function ensureReservedProvenanceClaimPreserved(options: {
       'reserved_provenance_claim_changed',
       options.campaignId,
       options.nodeId,
-      'replacement_idea_card may not introduce the engine-reserved novelty-delta claim; generated-node provenance changes belong to node.rewrite_provenance',
+      'replacement_idea_card may not carry the engine-reserved novelty-delta prefix on a node with no recorded novelty_delta.closest_prior; generated-node provenance changes belong to node.rewrite_provenance',
       { replacement_reserved_claim_count: replacementReserved.length },
     );
   }
 
-  const expectedPrefix = `${NOVELTY_DELTA_CLAIM_PREFIX}${closestPrior}): `;
-  const currentExact = currentReserved.filter((claim) => String(claim.claim_text).startsWith(expectedPrefix));
+  // A scientific card revision may withdraw the generated hypothesis or
+  // replace it with an ordinary claim. The generation-time record stays pinned
+  // in the archived pack, while the append-only before-node event preserves the
+  // prior card and trace. The reserved prefix itself may only descend from the
+  // claim assembled at import: once withdrawn, a later revision cannot forge a
+  // new engine-looking claim.
+  if (replacementReserved.length === 0) return;
+  if (currentReserved.length === 0) {
+    throw revisionValidationError(
+      'reserved_provenance_claim_changed',
+      options.campaignId,
+      options.nodeId,
+      'replacement_idea_card may not introduce the engine-reserved novelty-delta prefix; it identifies a claim assembled at import and may only be retained, revised, or withdrawn',
+      {
+        current_reserved_claim_count: currentReserved.length,
+        replacement_reserved_claim_count: replacementReserved.length,
+      },
+    );
+  }
+  const expectedPrefix = `${NOVELTY_DELTA_CLAIM_PREFIX}${closestPrior}${NOVELTY_DELTA_CLAIM_DELIMITER}`;
   const replacementExact = replacementReserved.filter((claim) => String(claim.claim_text).startsWith(expectedPrefix));
-  const preserved = currentReserved.length === 1
-    && replacementReserved.length === 1
-    && currentExact.length === 1
-    && replacementExact.length === 1
-    && canonicalJson(currentExact[0]) === canonicalJson(replacementExact[0]);
-  if (preserved) return;
+  if (replacementReserved.length === 1 && replacementExact.length === 1) return;
   throw revisionValidationError(
     'reserved_provenance_claim_changed',
     options.campaignId,
     options.nodeId,
-    "replacement_idea_card must preserve the generated node's engine-owned novelty-delta claim exactly; use node.rewrite_provenance for the allowlisted provenance correction",
+    "a retained engine-reserved novelty-delta claim must be unique and use the closest_prior identity stored in operator_trace; withdraw or replace the scientific claim through node.revise_card, and use node.rewrite_provenance only to correct the provenance identity",
     {
       current_reserved_claim_count: currentReserved.length,
       replacement_reserved_claim_count: replacementReserved.length,

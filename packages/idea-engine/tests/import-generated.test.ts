@@ -781,9 +781,8 @@ describe('node.import_generated', () => {
   it('reserves the novelty-delta claim prefix: a generator-supplied twin is rejected', () => {
     const service = freshService();
     const campaignId = initCampaign(service);
-    // The engine appends exactly one 'Novelty delta vs closest prior (…)' claim
-    // at import; a candidate that supplies its own with that prefix would leave
-    // two matches and make the node un-correctable by node.rewrite_provenance.
+    // The engine appends exactly one reserved-prefix claim at import; a
+    // candidate may not impersonate that engine-assembled identity.
     const pack = mutateCandidate(validPack(campaignId), candidate => {
       const claims = (candidate.card_fields as Record<string, unknown>).claims as Array<Record<string, unknown>>;
       // Re-label an already schema-valid claim so it collides with the reserved
@@ -791,6 +790,15 @@ describe('node.import_generated', () => {
       claims[0]!.claim_text = 'Novelty delta vs closest prior (spoofed): a generator-authored twin of the engine claim';
     });
     expectRpcError(() => importPack(service, campaignId, pack), -32002, 'reserved_claim_prefix');
+  });
+
+  it('rejects closest_prior values that contain the reserved claim delimiter', () => {
+    const service = freshService();
+    const campaignId = initCampaign(service);
+    const pack = mutateCandidate(validPack(campaignId), candidate => {
+      (candidate.novelty_delta as Record<string, unknown>).closest_prior = 'refA): ambiguous';
+    });
+    expectRpcError(() => importPack(service, campaignId, pack), -32002, 'schema_invalid');
   });
 
   it('bans the placeholder URI anywhere in the candidate, including gap anchors and receipts', () => {
@@ -1153,6 +1161,78 @@ describe('node.import_generated', () => {
       expect((retry.idempotency as Record<string, unknown>).is_replay).toBe(true);
       const node = service.node.store.loadNodes<Record<string, unknown>>(campaignId)[nodeId]!;
       expect((node.posterior as Record<string, unknown>).value).toBe(0.4); // recovery must not clobber evaluation
+    });
+
+    it('tolerates a sanctioned closest-prior rewrite during import recovery', () => {
+      const service = freshService();
+      const campaignId = initCampaign(service);
+      const pack = validPack(campaignId);
+      const result = importPack(service, campaignId, pack);
+      const nodeId = importedNodeId(result);
+
+      service.handle('node.rewrite_provenance', {
+        campaign_id: campaignId,
+        field: 'novelty_delta.closest_prior',
+        idempotency_key: 'rewrite-mid-import-recovery',
+        new_value: URI_B,
+        node_id: nodeId,
+        reason: 'the retrieved comparison identifies paper B as the actual closest prior',
+      });
+      reopenPrepared(service, campaignId, 'import-key-1');
+
+      const retry = importPack(service, campaignId, pack);
+      expect((retry.idempotency as Record<string, unknown>).is_replay).toBe(true);
+      const node = service.node.store.loadNodes<Record<string, unknown>>(campaignId)[nodeId]!;
+      const inputs = (node.operator_trace as Record<string, unknown>).inputs as Record<string, unknown>;
+      expect((inputs.novelty_delta as Record<string, unknown>).closest_prior).toBe(URI_B);
+      expect(inputs.provenance_rewrites).toHaveLength(1);
+    });
+
+    it('refuses import recovery when a fabricated rewrite chain has no idempotency witness', () => {
+      const service = freshService();
+      const campaignId = initCampaign(service);
+      const pack = validPack(campaignId);
+      const result = importPack(service, campaignId, pack);
+      const nodeId = importedNodeId(result);
+      const nodes = service.node.store.loadNodes<Record<string, unknown>>(campaignId);
+      const inputs = (nodes[nodeId]!.operator_trace as Record<string, unknown>).inputs as Record<string, unknown>;
+      (inputs.novelty_delta as Record<string, unknown>).closest_prior = URI_B;
+      inputs.provenance_rewrites = [{
+        field: 'novelty_delta.closest_prior',
+        previous_value: URI_A,
+        new_value: URI_B,
+        reason: 'fabricated history without a corresponding engine operation',
+        rewritten_at: '2026-07-06T01:00:00Z',
+        idempotency_key: 'fabricated-rewrite',
+      }];
+      service.node.store.saveNodes(campaignId, nodes);
+      reopenPrepared(service, campaignId, 'import-key-1');
+
+      const error = expectRpcError(
+        () => importPack(service, campaignId, pack),
+        -32603,
+        'import_recovery_conflict',
+      );
+      expect(String((error.data.details as Record<string, unknown>).message)).toContain('rewrite chain');
+    });
+
+    it('refuses an engine-impossible empty provenance rewrite history during import recovery', () => {
+      const service = freshService();
+      const campaignId = initCampaign(service);
+      const pack = validPack(campaignId);
+      const result = importPack(service, campaignId, pack);
+      const nodeId = importedNodeId(result);
+      const nodes = service.node.store.loadNodes<Record<string, unknown>>(campaignId);
+      const inputs = (nodes[nodeId]!.operator_trace as Record<string, unknown>).inputs as Record<string, unknown>;
+      inputs.provenance_rewrites = [];
+      service.node.store.saveNodes(campaignId, nodes);
+      reopenPrepared(service, campaignId, 'import-key-1');
+
+      expectRpcError(
+        () => importPack(service, campaignId, pack),
+        -32603,
+        'import_recovery_conflict',
+      );
     });
 
     it('refuses recovery when a stored node disagrees on immutable fields', () => {

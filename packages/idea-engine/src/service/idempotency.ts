@@ -171,8 +171,10 @@ function preparedSideEffectsCommitted(store: IdeaEngineStore, method: string, re
       // audit. That is report-CONTENT freshness (does the grounding report still
       // cover the current card?), which the engine never gates — the contract
       // assigns report-content verification to project-side audit — so it is not
-      // closed here. rewrite_provenance's eager reset covers the common
-      // (no-crash) case; this narrow crash-window residual is the same class as
+      // closed here. rewrite_provenance resets the audit whenever it changes the
+      // active card claim, which covers the common (no-crash) case; a
+      // provenance-only rewrite leaves the audit in place because the card did
+      // not change. This narrow crash-window residual is the same class as
       // set_posterior/set_lifecycle resurrecting an overwritten value on retry.
       return JSON.stringify(node.grounding_audit ?? null) === JSON.stringify(summary.grounding_audit ?? null);
     }

@@ -6,6 +6,7 @@ import { canonicalJson, payloadHash } from '../hash/payload-hash.js';
 import { writeJsonFileAtomic } from '../store/file-io.js';
 import { exhaustedDimensions } from './budget-snapshot.js';
 import { RpcError } from './errors.js';
+import { NOVELTY_DELTA_CLAIM_DELIMITER } from './node-shared.js';
 
 export const IMPORT_GENERATED_METHOD = 'node.import_generated';
 export const IMPORT_ARTIFACT_TYPE = 'generation';
@@ -15,7 +16,8 @@ export const IMPORT_ARTIFACT_TYPE = 'generation';
  * nodes on this projection only: mutable fields (posterior, lifecycle_state,
  * grounding_audit, idea_card, revision, updated_at, ...) may legitimately have
  * moved between the crash and the retry — e.g. an admission run archived the
- * node — and must not be mistaken for import corruption.
+ * node — and must not be mistaken for import corruption. operator_trace stays
+ * immutable except for the separately validated closest-prior rewrite chain.
  */
 const IMMUTABLE_NODE_FIELDS = [
   'campaign_id',
@@ -31,11 +33,106 @@ const IMMUTABLE_NODE_FIELDS = [
   'created_at',
 ] as const;
 
-export function immutableNodeProjection(node: Record<string, unknown>): Record<string, unknown> {
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function immutableOperatorTraceProjection(value: unknown): unknown {
+  const trace = asRecord(structuredClone(value));
+  const inputs = asRecord(trace?.inputs);
+  const noveltyDelta = asRecord(inputs?.novelty_delta);
+  if (noveltyDelta) {
+    delete noveltyDelta.closest_prior;
+  }
+  if (inputs) {
+    delete inputs.provenance_rewrites;
+  }
+  return trace ?? value;
+}
+
+/** Verify the current closest-prior chain against the archived import and its idempotency witnesses. */
+function provenanceRewriteChainMatches(
+  currentNode: Record<string, unknown>,
+  archivedNode: Record<string, unknown>,
+  idempotencyRecords: Record<string, Record<string, unknown>>,
+  campaignId: string,
+  nodeId: string,
+): boolean {
+  const currentInputs = asRecord(asRecord(currentNode.operator_trace)?.inputs);
+  const archivedInputs = asRecord(asRecord(archivedNode.operator_trace)?.inputs);
+  const currentNovelty = asRecord(currentInputs?.novelty_delta);
+  const archivedNovelty = asRecord(archivedInputs?.novelty_delta);
+  const currentValue = currentNovelty?.closest_prior;
+  const archivedValue = archivedNovelty?.closest_prior;
+  // generation_pack_v1 requires closest_prior. Absence on either side means
+  // the archived import or current immutable provenance is corrupt, not an
+  // untouched optional field.
+  if (typeof currentValue !== 'string' || typeof archivedValue !== 'string') return false;
+  if (archivedInputs?.provenance_rewrites !== undefined) return false;
+
+  const history = currentInputs?.provenance_rewrites;
+  if (history === undefined) return currentValue === archivedValue;
+  if (!Array.isArray(history) || history.length === 0) return false;
+
+  let cursor = archivedValue;
+  const idempotencyKeys = new Set<string>();
+  for (const rawEntry of history) {
+    const entry = asRecord(rawEntry);
+    if (
+      !entry
+      || entry.field !== 'novelty_delta.closest_prior'
+      || entry.previous_value !== cursor
+      || typeof entry.new_value !== 'string'
+      || entry.new_value.length === 0
+      || entry.new_value !== entry.new_value.trim()
+      || entry.new_value.includes(NOVELTY_DELTA_CLAIM_DELIMITER)
+      || typeof entry.reason !== 'string'
+      || entry.reason.trim().length === 0
+      || typeof entry.rewritten_at !== 'string'
+      || entry.rewritten_at.length === 0
+      || typeof entry.idempotency_key !== 'string'
+      || entry.idempotency_key.length === 0
+      || idempotencyKeys.has(entry.idempotency_key)
+    ) {
+      return false;
+    }
+    const witness = asRecord(idempotencyRecords[`node.rewrite_provenance:${entry.idempotency_key}`]);
+    const response = asRecord(witness?.response);
+    const payload = asRecord(response?.payload);
+    const responseIdempotency = asRecord(payload?.idempotency);
+    if (
+      (witness?.state !== 'prepared' && witness?.state !== 'committed')
+      || response?.kind !== 'result'
+      || payload?.campaign_id !== campaignId
+      || payload?.node_id !== nodeId
+      || payload?.field !== entry.field
+      || payload?.previous_value !== entry.previous_value
+      || payload?.new_value !== entry.new_value
+      || payload?.updated_at !== entry.rewritten_at
+      || responseIdempotency?.idempotency_key !== entry.idempotency_key
+      || responseIdempotency?.payload_hash !== witness?.payload_hash
+    ) {
+      return false;
+    }
+    idempotencyKeys.add(entry.idempotency_key);
+    cursor = entry.new_value;
+  }
+  return cursor === currentValue;
+}
+
+/**
+ * Immutable projection excluding the separately verified provenance-rewrite
+ * chain. Only use after provenanceRewriteChainMatches on the same node pair.
+ */
+function immutableNodeProjectionExcludingProvenanceChain(node: Record<string, unknown>): Record<string, unknown> {
   const projection: Record<string, unknown> = {};
   for (const field of IMMUTABLE_NODE_FIELDS) {
     if (node[field] !== undefined) {
-      projection[field] = node[field];
+      projection[field] = field === 'operator_trace'
+        ? immutableOperatorTraceProjection(node[field])
+        : node[field];
     }
   }
   return projection;
@@ -516,6 +613,7 @@ export function recoverImportGenerated(
   }
 
   const assembled = archive.engine_assembled?.nodes ?? {};
+  const idempotencyRecords = store.loadIdempotency<Record<string, unknown>>(campaignId) as Record<string, Record<string, unknown>>;
   let nodesMutated = false;
   for (const entry of imported) {
     const nodeId = String(entry.node_id);
@@ -535,7 +633,12 @@ export function recoverImportGenerated(
     if (legacyMigrationOldRef !== null && legacyMigrationNewRef !== null) {
       replacePackArtifactRefInNode(comparableCurrent, legacyMigrationOldRef, legacyMigrationNewRef);
     }
-    if (canonicalJson(immutableNodeProjection(comparableCurrent)) !== canonicalJson(immutableNodeProjection(expected))) {
+    if (!provenanceRewriteChainMatches(comparableCurrent, expected, idempotencyRecords, campaignId, nodeId)) {
+      throw recoveryConflict(campaignId, 'stored node operator-trace novelty provenance does not form a valid rewrite chain from the archived import', {
+        node_id: nodeId,
+      });
+    }
+    if (canonicalJson(immutableNodeProjectionExcludingProvenanceChain(comparableCurrent)) !== canonicalJson(immutableNodeProjectionExcludingProvenanceChain(expected))) {
       throw recoveryConflict(campaignId, 'stored node disagrees with the archived import on immutable fields', {
         node_id: nodeId,
       });
