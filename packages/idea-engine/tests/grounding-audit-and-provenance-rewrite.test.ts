@@ -611,6 +611,31 @@ describe('node.rewrite_provenance', () => {
     expect(logEntry.new_value).toBe(URI_A);
   });
 
+  it('accepts a later card revision after a provenance-rewrite log entry has been appended', () => {
+    const service = freshService();
+    const campaignId = initCampaign(service);
+    const [seedNodeId] = allNodeIds(service, campaignId);
+    const generatedId = importGeneratedNode(service, campaignId, seedNodeId!);
+    rewriteProvenance(service, campaignId, generatedId, 'rw-before-card-revision', URI_A);
+
+    const beforeRevision = loadNode(service, campaignId, generatedId);
+    const replacementCard = structuredClone(beforeRevision.idea_card) as Record<string, unknown>;
+    replacementCard.thesis_statement = 'A reviewed proposition written after provenance correction.';
+    const result = service.handle('node.revise_card', {
+      campaign_id: campaignId,
+      expected_revision: beforeRevision.revision,
+      idempotency_key: 'revise-after-provenance-rewrite',
+      node_id: generatedId,
+      reason: 'new evidence changes the scientific proposition after provenance correction',
+      replacement_idea_card: replacementCard,
+    });
+
+    expect((result.node as Record<string, unknown>).lifecycle_state).toBe('candidate');
+    expect((result.node as Record<string, unknown>).idea_card).toEqual(replacementCard);
+    expect(countLogEntries(service, campaignId, generatedId, 'rewrite_provenance')).toBe(1);
+    expect(countLogEntries(service, campaignId, generatedId, 'revise_card')).toBe(1);
+  });
+
   it('accepts a non-URI survey ref key and clears the delta claim evidence URIs', () => {
     const service = freshService();
     const campaignId = initCampaign(service);
