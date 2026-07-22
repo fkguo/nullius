@@ -48,9 +48,19 @@ skill's statement forms and parsing points are validated against this version
 only. The Gaia-driving scripts below enforce the same check and print this
 install recipe when the executable is missing or mismatched.
 
-After creating a package, run `gaia sdk` inside it once and read the generated
-`gaia-sdk/CHEATSHEET.md`: it is the authoritative statement reference for the
-pinned version, including the Lindley–Jeffreys section referenced below.
+Materialize the authoring reference once per exact Gaia version, outside every
+research package:
+
+```bash
+python3 scripts/prepare_gaia_sdk_reference.py
+```
+
+The command prints the cached path, normally
+`~/.cache/gaia-sdk/gaia-lang-0.5.0a4/`; read its `CHEATSHEET.md` as the
+authoritative statement reference for the pinned version, including the
+Lindley–Jeffreys section referenced below. Never run `gaia sdk` inside an
+argument-graph package: `gaia-sdk/` is regenerable authoring help, not graph
+source, and must not be duplicated per idea.
 
 ### Optional static browser renderer
 

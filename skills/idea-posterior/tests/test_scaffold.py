@@ -37,6 +37,7 @@ FORBIDDEN_TEMPLATE_WORDS = (
 PROSE_FILES = (
     SKILL_ROOT / "SKILL.md",
     SKILL_ROOT / "scripts" / "gaia_package_scaffold.py",
+    SKILL_ROOT / "scripts" / "prepare_gaia_sdk_reference.py",
     SKILL_ROOT / "scripts" / "run_infer_and_extract.py",
     SKILL_ROOT / "scripts" / "posterior_writeback.py",
     SKILL_ROOT / "scripts" / "build_portfolio_status_report.py",
@@ -110,6 +111,13 @@ def test_skill_prose_is_domain_neutral_and_jargon_free() -> None:
         # research-harness is the only allowed occurrence.
         residue = text.replace("research-harness", "")
         assert "harness" not in residue, f"generic 'harness' in {path.name}"
+
+
+def test_skill_uses_one_shared_sdk_reference_per_pinned_version() -> None:
+    text = (SKILL_ROOT / "SKILL.md").read_text(encoding="utf-8")
+    assert "prepare_gaia_sdk_reference.py" in text
+    assert "~/.cache/gaia-sdk/gaia-lang-0.5.0a4/" in text
+    assert "Never run `gaia sdk` inside an" in text
 
 
 def test_version_check_rejects_near_miss_banner(tmp_path, capsys) -> None:
