@@ -83,6 +83,10 @@ def _non_empty_str(value: Any) -> bool:
     return isinstance(value, str) and bool(value.strip())
 
 
+def _is_nonnegative_int(value: Any) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value >= 0
+
+
 def _non_empty_list(value: Any) -> bool:
     return isinstance(value, list) and len(value) > 0
 
@@ -149,6 +153,76 @@ def _contains_all_methods(rounds: list[Any]) -> set[str]:
     return methods
 
 
+def _validate_coverage_closure(coverage: dict[str, Any], problems: list[str], *, saturated: bool) -> None:
+    core_total = coverage.get("core_total")
+    bibliography = coverage.get("bibliography_reconciliation")
+    if not _is_obj(bibliography):
+        problems.append("literature_survey_v1.coverage.bibliography_reconciliation must be an object")
+    else:
+        if not _non_empty_str(bibliography.get("artifact_ref")):
+            problems.append("bibliography_reconciliation.artifact_ref is required")
+        if not _is_nonnegative_int(bibliography.get("core_sources_total")):
+            problems.append("bibliography_reconciliation.core_sources_total must be a non-negative integer")
+        if bibliography.get("core_sources_total") != core_total:
+            problems.append("bibliography_reconciliation.core_sources_total must equal coverage.core_total")
+        for field in (
+            "core_sources_reconciled",
+            "candidates_total",
+            "candidates_dispositioned",
+            "unresolved_candidates",
+            "coverage_debt_candidates",
+        ):
+            if not _is_nonnegative_int(bibliography.get(field)):
+                problems.append(f"bibliography_reconciliation.{field} must be a non-negative integer")
+        if saturated:
+            if bibliography.get("status") != "reconciled":
+                problems.append("saturated survey requires bibliography_reconciliation.status=reconciled")
+            if bibliography.get("core_sources_reconciled") != core_total:
+                problems.append("saturated survey requires every core-source bibliography to be reconciled")
+            if bibliography.get("candidates_dispositioned") != bibliography.get("candidates_total"):
+                problems.append("saturated survey requires an explicit disposition for every bibliography candidate")
+            if bibliography.get("unresolved_candidates") != 0 or bibliography.get("coverage_debt_candidates") != 0:
+                problems.append("saturated survey cannot retain unresolved or coverage-debt bibliography candidates")
+
+    method_audit = coverage.get("method_family_audit")
+    if not _is_obj(method_audit):
+        problems.append("literature_survey_v1.coverage.method_family_audit must be an object")
+    else:
+        if not _non_empty_str(method_audit.get("artifact_ref")):
+            problems.append("method_family_audit.artifact_ref is required")
+        if not _is_nonnegative_int(method_audit.get("core_sources_total")):
+            problems.append("method_family_audit.core_sources_total must be a non-negative integer")
+        if method_audit.get("core_sources_total") != core_total:
+            problems.append("method_family_audit.core_sources_total must equal coverage.core_total")
+        for field in (
+            "core_sources_audited",
+            "taxonomy_families",
+            "source_method_descriptions_audited",
+            "cited_method_descriptions_audited",
+            "unresolved_method_family_gaps",
+        ):
+            if not _is_nonnegative_int(method_audit.get(field)):
+                problems.append(f"method_family_audit.{field} must be a non-negative integer")
+        if saturated:
+            if method_audit.get("status") != "audited":
+                problems.append("saturated survey requires method_family_audit.status=audited")
+            if method_audit.get("core_sources_audited") != core_total:
+                problems.append("saturated survey requires a method-family audit for every core source")
+            taxonomy_families = method_audit.get("taxonomy_families")
+            if _is_nonnegative_int(core_total) and core_total > 0 and _is_nonnegative_int(taxonomy_families) and taxonomy_families <= 0:
+                problems.append("saturated survey method-family audit requires a non-empty taxonomy")
+            source_descriptions = method_audit.get("source_method_descriptions_audited")
+            audited_sources = method_audit.get("core_sources_audited")
+            if (
+                _is_nonnegative_int(source_descriptions)
+                and _is_nonnegative_int(audited_sources)
+                and source_descriptions < audited_sources
+            ):
+                problems.append("saturated survey requires source-text method evidence for every audited core source")
+            if method_audit.get("unresolved_method_family_gaps") != 0:
+                problems.append("saturated survey cannot retain unresolved method-family gaps")
+
+
 def _validate_survey(survey: Any, problems: list[str]) -> str:
     if not _is_obj(survey):
         problems.append("literature_survey_v1 must be a JSON object")
@@ -163,21 +237,26 @@ def _validate_survey(survey: Any, problems: list[str]) -> str:
         status = "unknown"
     if status == "unknown":
         problems.append("literature_survey_v1.coverage.saturation=unknown cannot enter posterior writeback; record measured coverage_incomplete debt instead")
+    for field in ("total_papers", "deep_read", "core_total", "core_deep_read"):
+        if not _is_nonnegative_int(coverage.get(field)):
+            problems.append(f"literature_survey_v1.coverage.{field} must be a non-negative integer")
     rounds = _as_list(coverage.get("saturation_evidence"))
     for index, entry in enumerate(rounds):
         label = f"literature_survey_v1.coverage.saturation_evidence[{index}]"
         if not _is_obj(entry):
             problems.append(f"{label} must be an object")
             continue
-        if entry.get("round") != index + 1:
+        if not _is_nonnegative_int(entry.get("round")):
+            problems.append(f"{label}.round must be a positive integer")
+        elif entry.get("round") != index + 1:
             problems.append(f"{label}.round must equal {index + 1} (rounds are 1-based and contiguous)")
         screened = entry.get("expansion_candidates_screened")
-        if not isinstance(screened, int) or screened <= 0:
+        if not _is_nonnegative_int(screened) or screened <= 0:
             problems.append(f"{label}.expansion_candidates_screened must be a positive integer")
         new_core = entry.get("new_core_papers")
-        if not isinstance(new_core, int) or new_core < 0:
+        if not _is_nonnegative_int(new_core):
             problems.append(f"{label}.new_core_papers must be a non-negative integer")
-        if isinstance(screened, int) and isinstance(new_core, int) and new_core > screened:
+        if _is_nonnegative_int(screened) and _is_nonnegative_int(new_core) and new_core > screened:
             problems.append(f"{label}.new_core_papers cannot exceed expansion_candidates_screened")
         methods = _as_list(entry.get("discovery_methods"))
         if not methods:
@@ -200,10 +279,11 @@ def _validate_survey(survey: Any, problems: list[str]) -> str:
         if not _is_obj(last):
             problems.append("last saturation evidence round must be an object")
         else:
-            if not isinstance(last.get("expansion_candidates_screened"), int) or last.get("expansion_candidates_screened") <= 0:
+            if not _is_nonnegative_int(last.get("expansion_candidates_screened")) or last.get("expansion_candidates_screened") <= 0:
                 problems.append("last expansion round must screen at least one candidate")
             if last.get("new_core_papers") != 0:
                 problems.append("last expansion round must add zero new core papers before saturated is legal")
+    _validate_coverage_closure(coverage, problems, saturated=status == "saturated")
 
     for index, paper in enumerate(_as_list(survey.get("papers"))):
         if not _is_obj(paper):

@@ -124,6 +124,52 @@ only papers assuming or applying the claim, and none that question it, is not
 saturated — it is one-sided; record that as coverage debt, never as a clean
 sweep.
 
+**Reconcile every core-source bibliography before saturation.** Search and
+citation APIs are not the only discovery surface: references already present in
+the full text of an admitted core source are part of the measured frontier. For
+every core source, extract its complete reference list from the persisted source
+bytes and record a reconciliation entry in
+`knowledge_base/methodology_traces/literature_saturation.json`:
+
+- preserve the raw references as a JSON manifest with the core `source_id` and a
+  `references` array; every raw entry records `raw_text`, its source `locator`,
+  and the normalized `candidate_id` it maps to;
+- normalize each entry to stable identities where possible (DOI, repository id,
+  or provider record), keeping same-work aliases together;
+- promote every in-scope work into the candidate ledger, and give every other
+  candidate an explicit `supporting`, `background`, `duplicate`, `out_of_scope`,
+  or `coverage_debt` disposition with a rationale;
+- keep an unresolved identity as `coverage_debt` rather than dropping it or
+  inferring a record from a familiar author/title pattern; and
+- require the extracted-reference count to equal the raw manifest length and
+  require the manifest's unique `candidate_id` set to equal the candidate ids
+  attributed to that core bibliography. Multiple raw aliases may map to one
+  normalized candidate, but none may disappear.
+
+The reconciliation is deliberately bounded. One expansion round reconciles the
+direct bibliography and forward citations of the current core set. A newly
+admitted core paper enters the next round; the workflow does not recursively walk
+an unbounded graph in one step. Provider calls still obey the recipe's page/cursor
+log, returned-count, continuation, and stop-reason contract. A hard budget stop is
+recorded as coverage debt, not converted into a synthetic fixed point.
+
+**Audit method-family gaps from source text, not title/year queries.** Maintain a
+current, domain-supplied method taxonomy and compare it with both (a) the method
+description in every admitted core paper and (b) every method-bearing citation
+description encountered in those papers. Each classification records
+`evidence_basis: source_text`, at least one `method_features` entry, the literal
+method description, its source locator, the matched family or an explicit
+`out_of_scope` / `coverage_debt` disposition, and the reconciled candidate id for
+cited descriptions. If the source describes a distinct method line that the
+taxonomy cannot represent, extend the taxonomy or retain an unresolved gap. A
+paper title, publication year, author query, or keyword hit is discovery metadata;
+it is not method-family evidence.
+
+`saturated` is fail-closed while any core bibliography is unreconciled, any
+candidate lacks a disposition, any identity or screening decision remains coverage
+debt, or any core-source method scan/taxonomy gap is unresolved. Updating a prose
+synthesis does not close these independent ledgers.
+
 ### 2. Deep-read each core paper (depth) — fill the note from the SOURCE
 Fetch the **source, not the abstract** — source-first per the ReadingHandoffContract
 preference order: arXiv LaTeX source, then full-text PDF, then other available full text.
@@ -269,6 +315,12 @@ and *methodology fabrication*. The honest moves are to run and record a real fur
 expansion round, or to ship `coverage_incomplete` as declared debt (or `unknown` when
 saturation was not measured).
 
+The same gate also requires the bibliography-reconciliation and method-family-audit
+receipts summarized in `coverage`. The detailed ledgers remain in
+`literature_saturation.json`; their summary counts/statuses must cover the survey's
+entire core set and cannot contain unresolved or undispositioned candidates when the
+survey says `saturated`.
+
 ### 4. Prepare an optional graph-ready export
 When the user asks for a literature graph, interactive notes, or graph-backed slides, export a
 graph-ready layer after the survey synthesis. Read `literature-graph-builder`'s
@@ -281,6 +333,8 @@ The deep-review side owns the content provenance:
 - source locators for equations, numeric values, tables, figures, and important assertions;
 - relation labels for reference chains, method lineage, applications, contrasts, same-work aliases, and synthesis links;
 - figure-candidate metadata with a real source locator, a content reason, and a path to the extracted or converted asset when available.
+- reconciled paper/citation identities and method nodes derived from the audited
+  taxonomy, including source locators for `uses-method` and `method-lineage` edges.
 
 Do not stop at keyword search or the seed paper's bibliography. For graph completeness, track both backward references and forward citations from each core paper until no new core nodes appear, or record the remaining gap as coverage debt. Do not include off-topic citation drift merely because it is adjacent in a citation graph.
 

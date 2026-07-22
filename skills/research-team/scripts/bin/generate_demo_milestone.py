@@ -298,12 +298,12 @@ def _ensure_demo_literature_trace(root: Path, *, tag: str) -> None:
             encoding="utf-8",
         )
     text = trace.read_text(encoding="utf-8", errors="replace")
-    if "demo literature seed" in text:
+    if "demo:method-note" in text:
         return
     row = (
-        "| 2026-01-01T00:00:00Z | DOI/manual seed | demo literature seed | page_size=50; demo fixture | "
-        "Bezanson2017 | demo seed for reproducibility workflow only | "
-        "[Bezanson2017](../literature/bezanson2017_julia.md) |\n"
+        "| 2026-01-01T00:00:00Z | Local fixture | demo method source | bounded local fixture | "
+        "demo:method-note | selected as the complete source for contract demonstration | "
+        "[demo method note](demo_trace.md) |\n"
     )
     with trace.open("a", encoding="utf-8") as f:
         f.write(row)
@@ -312,6 +312,13 @@ def _ensure_demo_literature_trace(root: Path, *, tag: str) -> None:
 def _write_demo_literature_saturation(root: Path, *, tag: str) -> None:
     saturation = root / "knowledge_base" / "methodology_traces" / "literature_saturation.json"
     saturation.parent.mkdir(parents=True, exist_ok=True)
+    references_rel = "knowledge_base/methodology_traces/demo_source_bibliography.json"
+    citations_rel = "knowledge_base/methodology_traces/demo_source_citations.json"
+    for rel, key in ((references_rel, "references"), (citations_rel, "citations")):
+        (root / rel).write_text(
+            json.dumps({"source_id": "demo:method-note", key: []}, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
     data = {
         "schema_version": 1,
         "topic": "research-team demo fixture",
@@ -320,15 +327,15 @@ def _write_demo_literature_saturation(root: Path, *, tag: str) -> None:
         "providers": {
             "inspire": {
                 "status": "not_applicable",
-                "reason": "demo cites a non-HEP software-methodology paper outside INSPIRE coverage",
+                "reason": "the bounded demo uses only a generated local method source",
             },
             "arxiv": {
                 "status": "not_applicable",
-                "reason": "demo seed is a DOI-anchored journal article, not an arXiv-source task",
+                "reason": "the bounded demo uses only a generated local method source",
             },
             "openalex": {
                 "status": "not_applicable",
-                "reason": "demo fixture uses a single stable DOI seed and does not claim literature-map completeness",
+                "reason": "the bounded demo uses only a generated local method source",
             },
             "web": {
                 "status": "not_applicable",
@@ -336,35 +343,88 @@ def _write_demo_literature_saturation(root: Path, *, tag: str) -> None:
             },
         },
         "candidate_pool": {
-            "artifact": "knowledge_base/literature/bezanson2017_julia.md",
+            "artifact": "knowledge_base/methodology_traces/demo_trace.md",
             "total_candidates": 1,
-            "selected_core_ids": ["Bezanson2017"],
-            "selection_rationale": "deterministic demo seed for software reproducibility context",
+            "selected_core_ids": ["demo:method-note"],
+            "selection_rationale": "the local source is the complete declared scope of the deterministic contract demo",
+            "candidates": [
+                {
+                    "id": "demo:method-note",
+                    "identity_status": "resolved",
+                    "stable_ids": ["local:knowledge_base/methodology_traces/demo_trace.md"],
+                    "disposition": "core",
+                    "rationale": "declared complete source for the local contract demonstration",
+                    "discovered_from": [
+                        {
+                            "kind": "search",
+                            "source_id": "demo-seed",
+                            "locator": "generated local source",
+                        }
+                    ],
+                }
+            ],
+        },
+        "bibliography_reconciliation": {
+            "core_sources": [
+                {
+                    "id": "demo:method-note",
+                    "status": "reconciled",
+                    "references_artifact": references_rel,
+                    "references_extracted": 0,
+                    "candidate_ids": [],
+                    "coverage_debt": [],
+                }
+            ]
+        },
+        "method_family_audit": {
+            "status": "audited",
+            "taxonomy": [
+                {
+                    "id": "artifact-reproduction",
+                    "label": "Artifact reproduction",
+                    "description": "Reproduction by executing a declared command and inspecting named outputs",
+                }
+            ],
+            "source_audits": [
+                {
+                    "source_id": "demo:method-note",
+                    "paper_method_descriptions": [
+                        {
+                            "description": "The source requires executing the reproduction command and inspecting the named result and manifest artifacts.",
+                            "locator": "Procedure, steps 1-3",
+                            "evidence_basis": "source_text",
+                            "method_features": ["reproduction command", "named result and manifest artifacts"],
+                            "family_ids": ["artifact-reproduction"],
+                            "disposition": "classified",
+                        }
+                    ],
+                    "cited_method_descriptions": [],
+                    "cited_method_scan_complete": True,
+                }
+            ],
         },
         "citation_graph": {
             "seeds": [
                 {
-                    "id": "Bezanson2017",
-                    "provider": "doi/manual",
-                    "references_checked": False,
-                    "citations_checked": False,
-                    "coverage_status": "not_covered",
+                    "id": "demo:method-note",
+                    "provider": "local-fixture",
+                    "references_checked": True,
+                    "citations_checked": True,
+                    "coverage_status": "saturated",
                     "artifacts": {
-                        "references": "",
-                        "citations": "",
+                        "references": references_rel,
+                        "citations": citations_rel,
                     },
-                    "gaps": [
-                        "demo fixture does not make citation-graph or literature-gap claims",
-                    ],
+                    "gaps": [],
                 }
             ]
         },
         "source_first_reading": {
-            "notes": ["knowledge_base/literature/bezanson2017_julia.md"],
+            "notes": ["knowledge_base/methodology_traces/demo_trace.md"],
             "metadata_only_not_evidence_ready": [],
         },
         "final_status": "saturated",
-        "stop_reason": "demo fixture has one declared seed and makes no broader literature-map claim",
+        "stop_reason": "the complete local demo source has an explicit empty bibliography and citation set",
     }
     saturation.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 

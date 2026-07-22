@@ -90,8 +90,15 @@ export interface WorkflowRecipeV1 {
                 ...("inspire" | "arxiv" | "openalex" | "web")[],
               ];
               candidate_pool_required: true;
+              candidate_disposition_ledger_required: true;
               core_paper_references_required: true;
               core_paper_citations_required: true;
+              bibliography_reconciliation_required: true;
+              stable_identity_resolution_required: true;
+              unresolved_candidates_are_coverage_debt: true;
+              method_family_audit_required: true;
+              method_description_evidence_required: true;
+              bounded_bibliography_traversal_required: true;
               metadata_only_not_evidence_ready: true;
               page_size_not_completion_threshold: true;
             };
@@ -224,8 +231,15 @@ export interface WorkflowRecipeV1 {
                 ...("inspire" | "arxiv" | "openalex" | "web")[],
               ];
               candidate_pool_required: true;
+              candidate_disposition_ledger_required: true;
               core_paper_references_required: true;
               core_paper_citations_required: true;
+              bibliography_reconciliation_required: true;
+              stable_identity_resolution_required: true;
+              unresolved_candidates_are_coverage_debt: true;
+              method_family_audit_required: true;
+              method_description_evidence_required: true;
+              bounded_bibliography_traversal_required: true;
               metadata_only_not_evidence_ready: true;
               page_size_not_completion_threshold: true;
             };
@@ -360,8 +374,15 @@ export interface WorkflowRecipeV1 {
                 ...("inspire" | "arxiv" | "openalex" | "web")[],
               ];
               candidate_pool_required: true;
+              candidate_disposition_ledger_required: true;
               core_paper_references_required: true;
               core_paper_citations_required: true;
+              bibliography_reconciliation_required: true;
+              stable_identity_resolution_required: true;
+              unresolved_candidates_are_coverage_debt: true;
+              method_family_audit_required: true;
+              method_description_evidence_required: true;
+              bounded_bibliography_traversal_required: true;
               metadata_only_not_evidence_ready: true;
               page_size_not_completion_threshold: true;
             };
@@ -494,8 +515,15 @@ export interface WorkflowRecipeV1 {
                 ...("inspire" | "arxiv" | "openalex" | "web")[],
               ];
               candidate_pool_required: true;
+              candidate_disposition_ledger_required: true;
               core_paper_references_required: true;
               core_paper_citations_required: true;
+              bibliography_reconciliation_required: true;
+              stable_identity_resolution_required: true;
+              unresolved_candidates_are_coverage_debt: true;
+              method_family_audit_required: true;
+              method_description_evidence_required: true;
+              bounded_bibliography_traversal_required: true;
               metadata_only_not_evidence_ready: true;
               page_size_not_completion_threshold: true;
             };
