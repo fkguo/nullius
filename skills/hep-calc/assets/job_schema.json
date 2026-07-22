@@ -38,8 +38,45 @@
         "entry": {
           "type": ["string", "null"],
           "description": "Path to .wls/.m (recommended) or .nb (best-effort)"
+        },
+        "bound_inputs": {
+          "type": "array",
+          "default": [],
+          "description": "Upstream artifacts copied to fresh snapshots and bound by byte count plus SHA-256 before the Mathematica entry runs.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "path"],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}$"
+              },
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Absolute/job-relative path, or out:// followed by a freshness-managed path under the current output directory."
+              }
+            }
+          }
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": ["bound_inputs"],
+            "properties": {
+              "bound_inputs": { "minItems": 1 }
+            }
+          },
+          "then": {
+            "required": ["entry"],
+            "properties": {
+              "entry": { "type": "string", "minLength": 1 }
+            }
+          }
+        }
+      ]
     },
     "numeric": {
       "type": "object",

@@ -33,7 +33,7 @@ Use `hep-calc` when the primary need is an auditable computation run, optionally
 ## When NOT to use (hard boundaries)
 
 Do NOT use this skill for:
-- Renormalized/fully counterterm-inserted results (auto_qft produces bare one-loop amplitudes without counterterms; renormalization requires separate post-processing).
+- Automatic generation of a renormalization prescription or counterterms. `auto_qft` produces bare one-loop amplitudes; a trusted user-supplied `mathematica.entry` may perform separate post-processing when every upstream artifact is declared through `mathematica.bound_inputs` and the target identities are exported as fail-closed assertions.
 - Cross-sections / phase-space integration / event generation (this skill outputs diagrams + amplitudes, not observables).
 - “Automatic physics understanding” of arbitrary LaTeX: model_build requires explicit agent rewrite rules; the skill does not guess physics.
 - Untrusted code execution environments: plugins/rewrite hooks run without sandboxing (see Safety).
@@ -48,6 +48,7 @@ Do NOT use this skill for:
 | auto_qft (FeynArts-only) | `auto_qft.feynarts_model` + `process.in_fa/out_fa` | same (skips FeynRules export) |
 | LaTeX→model_build→auto_qft | `auto_qft.model_build.*` + `rewrite_wls` + `base_model_files` | `auto_qft/model_build/*` + `auto_qft/*` |
 | Custom FA/FC pipeline (scaffold) | `enable_fa_fc: true` + `feynarts_formcalc_spec.entry` | `feynarts_formcalc/status.json` |
+| Bound symbolic post-processing | `mathematica.entry` + `mathematica.bound_inputs[]` | `symbolic/input_bindings.json` + `symbolic/symbolic.json` |
 
 ## Copy-paste snippets (common cases)
 
@@ -152,6 +153,30 @@ shows assertion counts and failed IDs, but does not show `data.checks` values or
 directly for those values (see the pitfall below, and
 `references/job_schema.md` → "symbolic.json contract" / `references/output_contract.md` → "Compute content contract").
 
+### E) Bind a bare amplitude to trusted symbolic post-processing
+
+Start from `assets/demo_bound_scalar_postprocess.yml`. A relative path is resolved against the job directory.
+`out://...` is reserved for runner-managed artifacts invalidated at the start of every run, for example the current
+auto-QFT amplitude:
+
+```yaml
+mathematica:
+  entry: postprocess.wls
+  bound_inputs:
+    - id: bare_amplitude
+      path: out://auto_qft/amplitude/amplitude_summed.m
+```
+
+For every invocation, the Mathematica wrapper asks the external validator to read each source without following
+symlinks, publish a fresh snapshot below `symbolic/bound_inputs/`, and record source and snapshot byte counts and
+SHA-256 hashes in `symbolic/input_bindings.json`. The wrapper then securely reads and verifies each snapshot into
+memory. The trusted entry must call `HepCalcBoundInputText[id]` for every declared ID before it exports, add
+user-supplied local terms, and export at least one target identity through `HepCalcExportSymbolic`. Only accessor calls
+are recorded as consumption. The external postcondition re-reads the job, source, snapshot, binding record, status,
+access witness, and assertions. Missing entry/access/assertions, changing the source or snapshot, returning nonzero,
+aborting, omitting the export, or failing an identity makes the run nonzero. This binds provenance and acceptance; it
+does not derive the prescription or establish that the chosen identities are sufficient.
+
 ## Compatibility & common pitfalls (agent-facing)
 
 - `auto_qft.feynarts_model` + `auto_qft.model_build.*`: model_build is skipped in FeynArts-only mode. Choose one.
@@ -189,6 +214,10 @@ directly for those values (see the pitfall below, and
   to `out_dir/symbolic/symbolic.json` and `out_dir/numeric/numeric.json`. `report/audit_report.md` surfaces the
   assertion counts, failed assertion IDs, stage statuses, and file pointers, but **not** uninterpreted check values or
   numeric results — point users/tooling at the two JSON files.
+- Bound symbolic inputs are captured text, not live source paths. Each item contains exactly `id` and `path`, requires
+  `mathematica.entry`, and must be read through `HepCalcBoundInputText[id]` before export. Bound runs require at least
+  one valid assertion; the source, snapshot, exact access witness, and assertion contract are revalidated after the
+  entry exits.
 
 ## Prerequisites (env_check)
 
@@ -310,6 +339,7 @@ Each stage writes a `status.json` with `PASS/FAIL/SKIPPED/ERROR/NOT_RUN`.
 ## Safety (no sandbox)
 
 The following features execute user/agent code. Only use with trusted inputs:
+- `mathematica.entry` (including any evaluation of captured `mathematica.bound_inputs` text)
 - `latex.extractor_plugin` (Python import)
 - `julia_expr` (Julia eval)
 - `auto_qft.model_build.rewrite_wls` (Mathematica `Get[...]`)
