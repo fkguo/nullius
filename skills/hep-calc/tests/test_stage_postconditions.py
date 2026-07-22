@@ -700,6 +700,46 @@ def test_symbolic_bound_input_positive_binding(tmp_path: Path) -> None:
     assert load_json(out_dir / "symbolic" / "status.json")["status"] == "PASS"
 
 
+def test_bound_symbolic_demo_passes_end_to_end(tmp_path: Path) -> None:
+    require_full_toolchain()
+    job_path = SKILL_ROOT / "assets" / "demo_bound_scalar_postprocess.yml"
+    out_dir = tmp_path / "out"
+
+    proc = subprocess.run(
+        ["bash", str(RUNNER), "--job", str(job_path), "--out", str(out_dir)],
+        cwd=SKILL_ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=240,
+    )
+
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    summary = load_json(out_dir / "summary.json")
+    status = load_json(out_dir / "symbolic" / "status.json")
+    symbolic = load_json(out_dir / "symbolic" / "symbolic.json")
+    binding_item = load_json(out_dir / "symbolic" / "input_bindings.json")[
+        "bindings"
+    ][0]
+    snapshot_path = out_dir / binding_item["snapshot_path"]
+    expected_consumption = [
+        {
+            "id": binding_item["id"],
+            "bytes": binding_item["snapshot"]["bytes"],
+            "sha256": binding_item["snapshot"]["sha256"],
+        }
+    ]
+
+    assert summary["overall_status"] == "PASS"
+    assert summary["compute_passed"] is True
+    assert status["status"] == "PASS"
+    assert status["postconditions"]["status"] == "PASS"
+    assert status["postconditions"]["errors"] == []
+    assert status["bound_inputs_consumed"] == expected_consumption
+    assert symbolic["data"]["bound_inputs_consumed"] == expected_consumption
+    assert binding_item["snapshot"] == file_witness(snapshot_path)
+
+
 def test_bound_symbolic_entry_must_access_every_declared_input(tmp_path: Path) -> None:
     require_full_toolchain()
     source_path = tmp_path / "bare_amplitude.m"
