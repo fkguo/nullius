@@ -3,6 +3,7 @@ import {
   applyGroundingToClaims,
   assembleClaimGroundingReport,
   classifyEvidenceDomain,
+  enforceCitationIdentityRule,
   enforceNumericMatchRule,
   enforceSpanRule,
   groundingRiskScore,
@@ -13,20 +14,52 @@ import {
   type ClaimGroundingEntryInput,
   type ClaimNumericComparisonInputRecord,
 } from '../claim-grounding.js';
+import {
+  evaluateCitationIdentity,
+  type CitationIdentityInput,
+} from '../citation-identity.js';
 import type { NumericClaimComparisonInput } from '../numeric-claim-match.js';
 
 const GEN = '2026-06-13T00:00:00Z';
+const METADATA_SHA = `sha256:${'ab'.repeat(32)}`;
+const EVIDENCE_URI = 'https://records.example/works/record-1';
+
+function citationIdentity(overrides: Partial<CitationIdentityInput> = {}): CitationIdentityInput {
+  return {
+    evidence_uri: EVIDENCE_URI,
+    displayed: {
+      title: 'A recorded evaluation',
+      authors: ['A. Author', 'B. Researcher'],
+      identifier: 'work:record-1',
+      url: EVIDENCE_URI,
+    },
+    canonical: {
+      title: 'A recorded evaluation',
+      authors: ['Alice Author', 'Boris Researcher'],
+      identifier: 'work:record-1',
+      url: EVIDENCE_URI,
+      provenance: {
+        kind: 'archived_canonical_metadata',
+        provider: 'canonical-registry',
+        record_ref: `project://evidence/citation-1.json#${METADATA_SHA}`,
+        record_sha256: METADATA_SHA,
+      },
+    },
+    ...overrides,
+  };
+}
 
 function entryInput(overrides: Partial<ClaimGroundingEntryInput> = {}): ClaimGroundingEntryInput {
   return {
     claim_index: 0,
-    claim_text: 'The branching ratio is 1.2e-3.',
+    claim_text: 'The source reports the stated outcome.',
     support_type: 'literature',
-    evidence_uris: ['https://inspirehep.net/literature/1'],
-    domain: 'hep',
+    evidence_uris: [EVIDENCE_URI],
+    domain: 'general',
     method: 'text_entailment',
     verdict: 'substantiated',
-    supporting_spans: [{ evidence_uri: 'https://inspirehep.net/literature/1', quote: 'We measure BR = 1.2e-3.' }],
+    supporting_spans: [{ evidence_uri: EVIDENCE_URI, quote: 'The evaluation reports the stated outcome.' }],
+    citation_identities: [citationIdentity()],
     ...overrides,
   };
 }
@@ -133,6 +166,226 @@ describe('assembleClaimGroundingReport', () => {
   });
 });
 
+describe('citation identity is a prerequisite to positive grounding', () => {
+  it('accepts hash-bound archived canonical metadata without a network dependency', () => {
+    const report = assembleClaimGroundingReport({ generated_at: GEN, entries: [entryInput()] });
+    expect(report.claims[0]!.verdict).toBe('substantiated');
+    expect(report.claims[0]!.citation_identities[0]!.verdict).toBe('matched');
+    expect(report.claims[0]!.citation_identities[0]!.input.canonical!.provenance.kind)
+      .toBe('archived_canonical_metadata');
+  });
+
+  it('hard-fails a swapped displayed title even when a full-text span supports the prose claim', () => {
+    const swapped = citationIdentity({
+      displayed: {
+        title: 'A different work',
+        authors: ['A. Author', 'B. Researcher'],
+        identifier: 'work:record-1',
+        url: EVIDENCE_URI,
+      },
+    });
+    const report = assembleClaimGroundingReport({
+      generated_at: GEN,
+      entries: [entryInput({ citation_identities: [swapped] })],
+    });
+    const entry = report.claims[0]!;
+    expect(entry.supporting_spans).toHaveLength(1);
+    expect(entry.citation_identities[0]!.verdict).toBe('mismatch');
+    expect(entry.citation_identities[0]!.diagnostics.map(item => item.code)).toContain('title_mismatch');
+    expect(entry.verdict).toBe('not_substantiated');
+    expect(entry.verification_status).toBe('unverified');
+    expect(entry.notes).toContain('citation identity mismatch');
+    expect(entry.notes).toContain('title_mismatch');
+  });
+
+  it('binds displayed authors when present and rejects a swapped author list', () => {
+    const swapped = citationIdentity({
+      displayed: {
+        title: 'A recorded evaluation',
+        authors: ['C. Different', 'B. Researcher'],
+        identifier: 'work:record-1',
+        url: EVIDENCE_URI,
+      },
+    });
+    const report = assembleClaimGroundingReport({
+      generated_at: GEN,
+      entries: [entryInput({ citation_identities: [swapped] })],
+    });
+    expect(report.claims[0]!.citation_identities[0]!.diagnostics.map(item => item.code))
+      .toContain('authors_mismatch');
+    expect(report.claims[0]!.verdict).toBe('not_substantiated');
+  });
+
+  it('rejects a canonical identifier mismatch independently of title and full text', () => {
+    const swapped = citationIdentity({
+      displayed: {
+        title: 'A recorded evaluation',
+        authors: ['A. Author', 'B. Researcher'],
+        identifier: 'work:record-2',
+        url: EVIDENCE_URI,
+      },
+    });
+    const report = assembleClaimGroundingReport({
+      generated_at: GEN,
+      entries: [entryInput({ citation_identities: [swapped] })],
+    });
+    expect(report.claims[0]!.citation_identities[0]!.diagnostics.map(item => item.code))
+      .toContain('displayed_identifier_mismatch');
+    expect(report.claims[0]!.verdict).toBe('not_substantiated');
+  });
+
+  it('rejects a displayed URL that points outside the canonical locator set', () => {
+    const swapped = citationIdentity({
+      displayed: {
+        title: 'A recorded evaluation',
+        authors: ['A. Author', 'B. Researcher'],
+        identifier: 'work:record-1',
+        url: 'https://records.example/works/record-9',
+      },
+    });
+    const report = assembleClaimGroundingReport({
+      generated_at: GEN,
+      entries: [entryInput({ citation_identities: [swapped] })],
+    });
+    expect(report.claims[0]!.citation_identities[0]!.diagnostics.map(item => item.code))
+      .toContain('displayed_url_mismatch');
+    expect(report.claims[0]!.verdict).toBe('not_substantiated');
+  });
+
+  it('rejects an evidence URI that points outside the canonical locator set', () => {
+    const foreignEvidenceUri = 'https://records.example/works/record-9';
+    const report = assembleClaimGroundingReport({
+      generated_at: GEN,
+      entries: [entryInput({
+        evidence_uris: [foreignEvidenceUri],
+        supporting_spans: [{
+          evidence_uri: foreignEvidenceUri,
+          quote: 'The foreign source contains a similar statement.',
+        }],
+        citation_identities: [citationIdentity({ evidence_uri: foreignEvidenceUri })],
+      })],
+    });
+    expect(report.claims[0]!.citation_identities[0]!.diagnostics.map(item => item.code))
+      .toContain('evidence_uri_mismatch');
+    expect(report.claims[0]!.verdict).toBe('not_substantiated');
+  });
+
+  it('fails closed as source_unavailable when neither archived nor retrieved metadata exists', () => {
+    const unavailable = citationIdentity({
+      canonical: undefined,
+      unavailable_reason: 'authoritative metadata retrieval did not return a record',
+    });
+    const report = assembleClaimGroundingReport({
+      generated_at: GEN,
+      entries: [entryInput({ citation_identities: [unavailable] })],
+    });
+    expect(report.claims[0]!.citation_identities[0]!.verdict).toBe('metadata_unavailable');
+    expect(report.claims[0]!.verdict).toBe('source_unavailable');
+    expect(report.claims[0]!.notes).toContain('canonical citation metadata unavailable');
+  });
+
+  it('fails closed when a positive entry omits the identity check entirely', () => {
+    const report = assembleClaimGroundingReport({
+      generated_at: GEN,
+      entries: [entryInput({ citation_identities: [] })],
+    });
+    expect(report.claims[0]!.verdict).toBe('source_unavailable');
+    expect(report.claims[0]!.verification_status).toBe('unverified');
+  });
+
+  it('detects one canonical identifier reused under two displayed titles', () => {
+    const uri = 'https://records.example/works/record-2';
+    const canonical = {
+      title: 'Canonical methods for structured inference',
+      authors: ['Ada Example'],
+      identifier: 'work:record-2',
+      url: uri,
+      provenance: {
+        kind: 'citation_triangulation' as const,
+        provider: 'citation-triangulation',
+        record_ref: `project://evidence/citation-triangulation.json#${METADATA_SHA}`,
+        record_sha256: METADATA_SHA,
+      },
+    };
+    const binding = (displayedTitle: string): CitationIdentityInput => ({
+      evidence_uri: uri,
+      displayed: {
+        title: displayedTitle,
+        authors: ['A. Example'],
+        identifier: 'work:record-2',
+        url: uri,
+      },
+      canonical,
+    });
+    const report = assembleClaimGroundingReport({
+      generated_at: GEN,
+      entries: [
+        entryInput({
+          claim_index: 0,
+          evidence_uris: [uri],
+          domain: 'general',
+          supporting_spans: [{ evidence_uri: uri, quote: 'A source-backed statement.' }],
+          citation_identities: [binding(canonical.title)],
+        }),
+        entryInput({
+          claim_index: 1,
+          evidence_uris: [uri],
+          domain: 'general',
+          supporting_spans: [{ evidence_uri: uri, quote: 'Another source-backed statement.' }],
+          citation_identities: [binding('A swapped title from another work')],
+        }),
+      ],
+    });
+    expect(report.claims[0]!.verdict).toBe('substantiated');
+    expect(report.claims[1]!.citation_identities[0]!.diagnostics.map(item => item.code))
+      .toContain('title_mismatch');
+    expect(report.claims[1]!.verdict).toBe('not_substantiated');
+  });
+
+  it('rejects internally conflicting canonical metadata for one identifier', () => {
+    const first = citationIdentity();
+    const second = citationIdentity({
+      displayed: {
+        title: 'A conflicting canonical title',
+        authors: ['A. Author', 'B. Researcher'],
+        identifier: 'work:record-1',
+        url: EVIDENCE_URI,
+      },
+      canonical: {
+        ...citationIdentity().canonical!,
+        title: 'A conflicting canonical title',
+        provenance: {
+          ...citationIdentity().canonical!.provenance,
+          record_ref: `project://evidence/citation-1.json#sha256:${'cd'.repeat(32)}`,
+          record_sha256: `sha256:${'cd'.repeat(32)}`,
+        },
+      },
+    });
+    expect(() => assembleClaimGroundingReport({
+      generated_at: GEN,
+      entries: [
+        entryInput({ claim_index: 0, citation_identities: [first] }),
+        entryInput({ claim_index: 1, citation_identities: [second] }),
+      ],
+    })).toThrow(/canonical locator .* is reused with a title/);
+  });
+
+  it('the citation-identity downgrade is idempotent', () => {
+    const mismatched = evaluateCitationIdentity(citationIdentity({
+      displayed: {
+        title: 'A different work',
+        identifier: 'work:record-1',
+        url: EVIDENCE_URI,
+      },
+    }));
+    const assembled = assembleClaimGroundingReport({
+      generated_at: GEN,
+      entries: [entryInput({ citation_identities: [mismatched.input] })],
+    }).claims[0]!;
+    expect(enforceCitationIdentityRule(assembled)).toEqual(assembled);
+  });
+});
+
 describe('safeParseClaimGroundingReportV1', () => {
   function validReport() {
     return assembleClaimGroundingReport({ generated_at: GEN, entries: [entryInput()] });
@@ -156,6 +409,128 @@ describe('safeParseClaimGroundingReportV1', () => {
     if (!parsed.ok) expect(parsed.issues.some(i => i.path === 'claims[0].supporting_spans')).toBe(true);
   });
 
+  it('rejects a hand-edited positive verdict over a stored identity mismatch', () => {
+    const report = assembleClaimGroundingReport({
+      generated_at: GEN,
+      entries: [entryInput({ citation_identities: [citationIdentity({
+        displayed: {
+          title: 'A different work',
+          identifier: 'work:record-1',
+          url: EVIDENCE_URI,
+        },
+      })] })],
+    });
+    const bad = {
+      ...report,
+      claims: [{ ...report.claims[0], verdict: 'substantiated', verification_status: 'verified' }],
+    };
+    const parsed = safeParseClaimGroundingReportV1(bad);
+    expect(parsed.ok).toBe(false);
+    if (!parsed.ok) {
+      expect(parsed.issues.some(item =>
+        item.path === 'claims[0].verdict' && item.message.includes('citation identity is mismatch'),
+      )).toBe(true);
+    }
+  });
+
+  it('rejects a hand-edited conflicting/falsified verdict over a stored identity mismatch', () => {
+    const report = assembleClaimGroundingReport({
+      generated_at: GEN,
+      entries: [entryInput({
+        verdict: 'conflicting',
+        citation_identities: [citationIdentity({
+          displayed: {
+            title: 'A different work',
+            identifier: 'work:record-1',
+            url: EVIDENCE_URI,
+          },
+        })],
+      })],
+    });
+    expect(report.claims[0]!.verdict).toBe('not_substantiated');
+
+    const bad = {
+      ...report,
+      claims: [{
+        ...report.claims[0],
+        verdict: 'conflicting',
+        verification_status: 'falsified',
+      }],
+      summary: {
+        total: 1,
+        by_verdict: {
+          substantiated: 0,
+          partial: 0,
+          not_substantiated: 0,
+          conflicting: 1,
+          source_unavailable: 0,
+        },
+        grounding_risk_score: 1,
+      },
+    };
+    const parsed = safeParseClaimGroundingReportV1(bad);
+    expect(parsed.ok).toBe(false);
+    if (!parsed.ok) {
+      expect(parsed.issues.some(item =>
+        item.path === 'claims[0].verdict' && item.message.includes('citation identity is mismatch'),
+      )).toBe(true);
+    }
+  });
+
+  it('rejects a conflicting verdict without citation evidence', () => {
+    expect(() => assembleClaimGroundingReport({
+      generated_at: GEN,
+      entries: [entryInput({
+        verdict: 'conflicting',
+        evidence_uris: [],
+        supporting_spans: [],
+        citation_identities: [],
+      })],
+    })).toThrow(/must be non-empty for verdict 'conflicting'/);
+  });
+
+  it('rejects a hand-edited identity verdict or diagnostic that its input does not reproduce', () => {
+    const report = assembleClaimGroundingReport({ generated_at: GEN, entries: [entryInput()] });
+    const identity = report.claims[0]!.citation_identities[0]!;
+    const bad = {
+      ...report,
+      claims: [{
+        ...report.claims[0],
+        citation_identities: [{
+          ...identity,
+          verdict: 'mismatch',
+          diagnostics: [{ code: 'title_mismatch', message: 'hand-edited diagnostic' }],
+        }],
+      }],
+    };
+    const parsed = safeParseClaimGroundingReportV1(bad);
+    expect(parsed.ok).toBe(false);
+    if (!parsed.ok) {
+      expect(parsed.issues.some(item => item.path.includes('citation_identities[0].verdict'))).toBe(true);
+      expect(parsed.issues.some(item => item.path.includes('citation_identities[0].diagnostics'))).toBe(true);
+    }
+  });
+
+  it('rejects malformed citation metadata with a validation error rather than a raw TypeError', () => {
+    const malformed = citationIdentity() as unknown as Record<string, unknown>;
+    malformed.canonical = { title: 'Incomplete canonical metadata' };
+    expect(() => assembleClaimGroundingReport({
+      generated_at: GEN,
+      entries: [entryInput({
+        citation_identities: [malformed as unknown as CitationIdentityInput],
+      })],
+    })).toThrow(/assembled claim_grounding_report failed validation/);
+  });
+
+  it('rejects a null citation identity with a validation error rather than a raw TypeError', () => {
+    expect(() => assembleClaimGroundingReport({
+      generated_at: GEN,
+      entries: [entryInput({
+        citation_identities: [null as unknown as CitationIdentityInput],
+      })],
+    })).toThrow(/assembled claim_grounding_report failed validation/);
+  });
+
   it('rejects an out-of-range grounding_risk_score', () => {
     const bad = { ...validReport(), summary: { ...validReport().summary, grounding_risk_score: 1.5 } };
     expect(safeParseClaimGroundingReportV1(bad).ok).toBe(false);
@@ -177,7 +552,12 @@ describe('applyGroundingToClaims', () => {
       generated_at: GEN,
       entries: [
         entryInput({ claim_index: 0, claim_text: 'A', verdict: 'substantiated' }),
-        entryInput({ claim_index: 1, claim_text: 'B', verdict: 'conflicting', supporting_spans: [{ evidence_uri: 'v', quote: 'contradicts' }] }),
+        entryInput({
+          claim_index: 1,
+          claim_text: 'B',
+          verdict: 'conflicting',
+          supporting_spans: [{ evidence_uri: EVIDENCE_URI, quote: 'contradicts' }],
+        }),
       ],
     });
     const out = applyGroundingToClaims(claims, report);
@@ -234,6 +614,18 @@ describe('robustness against malformed span elements', () => {
       generated_at: GEN,
       entries: [entryInput({ verdict: 'substantiated', supporting_spans: [null as unknown as ClaimGroundingEntry['supporting_spans'][number]] })],
     })).toThrow(/assembled claim_grounding_report failed validation/);
+  });
+
+  it('rejects a supporting span whose URI is outside the claim evidence set', () => {
+    expect(() => assembleClaimGroundingReport({
+      generated_at: GEN,
+      entries: [entryInput({
+        supporting_spans: [{
+          evidence_uri: 'https://records.example/works/record-9',
+          quote: 'A statement from another source.',
+        }],
+      })],
+    })).toThrow(/supporting_spans\[0\]\.evidence_uri: must name one of the claim evidence_uris/);
   });
 });
 
@@ -305,8 +697,8 @@ function numericEntryInput(
     method: 'numeric_match',
     verdict: 'substantiated',
     supporting_spans: [{
-      evidence_uri: 'https://inspirehep.net/literature/1',
-      quote: 'We measure 1.19 +- 0.05.',
+      evidence_uri: EVIDENCE_URI,
+      quote: 'The reference reports 1.19 +- 0.05.',
       locator: 'Table 2',
     }],
     ...(comparison !== null ? { numeric_comparison: comparison } : {}),
@@ -340,6 +732,30 @@ describe('assembleClaimGroundingReport: numeric_match rule', () => {
     expect(entry.notes).toContain("supplied 'within_tolerance', computed 'mismatch'");
     expect(entry.notes).toContain('downgraded to conflicting');
     expect(report.summary.by_verdict.conflicting).toBe(1);
+  });
+
+  it('withdraws numeric falsification when the comparison used a misidentified citation', () => {
+    const wrongTitle = citationIdentity({
+      displayed: {
+        title: 'A different work',
+        authors: ['A. Author', 'B. Researcher'],
+        identifier: 'work:record-1',
+        url: EVIDENCE_URI,
+      },
+    });
+    const report = assembleClaimGroundingReport({
+      generated_at: GEN,
+      entries: [numericEntryInput(
+        { citation_identities: [wrongTitle] },
+        { input: MISMATCH_INPUT },
+      )],
+    });
+    const entry = report.claims[0]!;
+    expect(entry.numeric_comparison!.verdict).toBe('mismatch');
+    expect(entry.citation_identities[0]!.verdict).toBe('mismatch');
+    expect(entry.verdict).toBe('not_substantiated');
+    expect(entry.verification_status).toBe('unverified');
+    expect(entry.notes).toContain('citation identity mismatch');
   });
 
   it('downgrades partial to conflicting on a computed mismatch too', () => {

@@ -61,6 +61,9 @@ export * from './verification-lift.js';
 // Claim-grounding contract (ABSORB #2: active statement-support grounding)
 export * from './claim-grounding.js';
 
+// Citation display-to-canonical-metadata binding used by claim grounding
+export * from './citation-identity.js';
+
 // Literature-survey contract (deep literature review synthesis/coverage layer)
 export * from './literature-survey.js';
 

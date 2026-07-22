@@ -158,6 +158,19 @@ cited work**, not by tool name:
    - Anything still missing → `crossref` skill as cross-domain
      fallback (non-arXiv non-OpenAlex).
 
+**Identity gate before content verification.** Bind the displayed citation to
+the resolved work: record the title, authors when they are displayed,
+canonical identifier, and URL that the reader will see. Compare them
+deterministically with the provider metadata returned in step 1 or with a
+hash-bound archived metadata record. A `citation-triangulation` report may
+supply canonical metadata, but its provider-to-provider agreement does not
+replace this displayed-entry comparison. Treat any
+title/author/identifier/URL mismatch as a hard M2 failure. In particular, one
+canonical identifier cannot pass under two different displayed titles. If
+neither archived canonical metadata nor an authoritative retrieval is
+available, a load-bearing citation remains unverified; network availability is
+not required when the archived record is present.
+
 2. **Verify the cited claim against the paper itself**, not its
    abstract or third-party summary.
    - Any arXiv preprint (any field) → `arxiv_paper_source`.
@@ -168,6 +181,9 @@ cited work**, not by tool name:
      metadata enrichment).
    - Anything else (non-arXiv) → `openalex_get` content payload,
      or `pdf-mcp` parser on the downloaded PDF.
+
+   A successful full-text check does not repair a failure in the identity gate:
+   content support and citation identity are independent, load-bearing checks.
 
 3. **HEP-only optional finishing step.** Once the paper is confirmed
    in INSPIRE and you have an INSPIRE `recid`, you may call
@@ -193,10 +209,12 @@ cited work**, not by tool name:
    the default locatability audit to bibliographies of any
    discipline.
 
-**Required evidence calls.** At least one resolver per cited paper
-(routed as above), and at least one content-verify call per cited
-*claim* (not per paper — a single paper can support many claims, but
-each claim's textual ground must be opened).
+**Required evidence calls.** At least one resolver or hash-bound archived
+canonical metadata record per cited paper, one deterministic displayed-entry
+identity comparison per human-facing citation, and at least one content-verify
+call per cited *claim* (not per paper — a single paper can support many claims,
+but each claim's textual ground must be opened). A load-bearing citation passes
+only when both identity and content support pass.
 
 **INSPIRE Texkey is INSPIRE-specific.** An entry like `Smith:2023abc`
 is the canonical citekey convention inside INSPIRE-HEP. BibTeX entries
@@ -870,10 +888,14 @@ recording an unrelated decision leaves the pending entry open.
 - `claim-grounding` is the active execution of the M2/M3 obligations.
   Where this skill mandates *that* citations and cited numbers be checked
   against their sources, `claim-grounding` is the generic, domain-routed
-  way to *do* it: for each cited claim it fetches the source and records a
-  span-backed verdict in a `claim_grounding_report_v1` artifact, and a
-  `substantiated` verdict that carries no verbatim source quote is
-  mechanically downgraded. It also carries the transcription-fidelity
+  way to *do* it: for each cited claim it first binds the displayed title,
+  authors when present, identifier, and URL to hash-bound canonical metadata,
+  then fetches the source and records a span-backed verdict in a
+  `claim_grounding_report_v1` artifact. A citation-identity mismatch is a hard
+  failure even when the quoted full text supports the prose claim; unavailable
+  canonical metadata fails closed for load-bearing citations. A
+  `substantiated` verdict that carries no verbatim source quote is mechanically
+  downgraded. It also carries the transcription-fidelity
   dimension (does the note's quote / value / locator match the fetched
   source span, not merely "is the claim true") used by the
   Extraction / transcription fidelity check above. It stays a generic skill

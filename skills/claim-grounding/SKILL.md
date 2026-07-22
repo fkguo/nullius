@@ -8,11 +8,14 @@ description: Active statement-support grounding for cited claims. For each claim
 This skill answers the one citation question that existing tooling does **not**:
 **does the cited source's content actually substantiate this specific claim?**
 
-The provider tools already cover the other levels:
+The provider tools already cover adjacent levels:
 
 - **(E) existence** — does the cited paper resolve? (`inspire_validate_bibliography`, resolvers, `arxiv_paper_source`, `openalex_content`)
 - **(S) stance** — does the citing context support/refute the cited work? (`inspire_grade_evidence`, citation graphs)
-- **(M) metadata** — bibliography format, citekeys, dedup.
+- **(I) identity** — whether the displayed title/authors and identifier/URL
+  denote the same canonical work. This skill now consumes provider metadata or
+  a `citation-triangulation` record and binds that identity before judging
+  source content; bibliography formatting and dedup remain separate concerns.
 
 What is missing is **(G) statement-support grounding**: fetching the cited source and
 checking that *its text* backs the *author's assertion*. Today that is only the manual
@@ -57,18 +60,31 @@ than inferring support from graph proximity.
 1. **Route by domain.** HEP sources (`inspirehep.net`, `hep-ph/ex/th/lat`, INSPIRE recids)
    resolve through INSPIRE; everything else through arXiv/OpenAlex. (The shared helper
    `classifyEvidenceDomain(uri)` gives the same hint; override per-claim when you know better.)
-2. **Confirm existence.** Resolve each `evidence_uri`. If a source cannot be resolved, the
+2. **Bind the human-facing citation to canonical metadata.** For each
+   `evidence_uri`, record the displayed title, displayed authors when present,
+   displayed identifier and URL, then compare them deterministically with
+   canonical provider metadata. The exact metadata response must be hash-bound;
+   it may come from an authoritative retrieval, an already archived canonical
+   record, or a `citation-triangulation` artifact. Archived canonical metadata
+   is sufficient and does not require the network to be available again. If no
+   archived record exists and authoritative retrieval is unavailable, record
+   `metadata_unavailable`; a load-bearing citation cannot pass. If any displayed
+   field names a different work, record `mismatch` with the exact diagnostic.
+   When one work has several provider identifiers or URLs, record those exact
+   alternatives in canonical `locator_aliases`; shared code deliberately does
+   not guess provider-specific equivalence.
+3. **Confirm existence.** Resolve each `evidence_uri`. If a source cannot be resolved, the
    verdict for that claim is `source_unavailable` — stop, do not guess.
-3. **Fetch the relevant source content** (not just the abstract when the claim is specific):
+4. **Fetch the relevant source content** (not just the abstract when the claim is specific):
 
    | Domain | Fetch the cited source with |
    | --- | --- |
    | HEP | `inspire_paper_source` / `arxiv_paper_source` (+ `pdf_parse` for PDF-only); `pdg_get_measurements` / `hepdata_get_table` when the claim cites a measurement |
    | general | `openalex_content` / `arxiv_paper_source` (+ `pdf_parse` for PDF-only) |
 
-4. **Judge support against the fetched text.** Locate the passage (section / equation /
+5. **Judge support against the fetched text.** Locate the passage (section / equation /
    table / figure) that bears on the claim and decide whether it substantiates the claim.
-5. **Record a verdict** from: `substantiated`, `partial`, `not_substantiated`, `conflicting`,
+6. **Record a verdict** from: `substantiated`, `partial`, `not_substantiated`, `conflicting`,
    `source_unavailable`.
 
 For graph figure candidates, do not use a title page, abstract, or filename as evidence that
@@ -81,6 +97,27 @@ equation, or discussion that the rendered asset is meant to carry.
 the fetched source** (with a locator — section/equation/table/figure/page). If you cannot
 quote the source text that grounds the claim, the claim is **not** grounded: record
 `not_substantiated`.
+
+## Citation identity is a prior gate, not something full text can repair
+
+A verbatim supporting span proves only that the opened source says something;
+it does not prove that the title and link shown to the reader identify that
+source. Every `substantiated` or `partial` entry therefore requires exactly one
+derived `citation_identities` check per `evidence_uri`, with verdict `matched`.
+
+- `mismatch` is a hard grounding failure. The shared contract downgrades a
+  positive verdict to `not_substantiated` and records diagnostics such as
+  `title_mismatch`, `authors_mismatch`, or `displayed_identifier_mismatch`.
+  Completing a full-text claim check cannot compensate for this failure.
+- `metadata_unavailable` downgrades a positive verdict to
+  `source_unavailable`. Do not silently treat an unverified displayed title as
+  canonical merely because its URL resolves.
+- A canonical identifier reused under two different displayed titles must
+  expose at least one mismatch. Conflicting canonical metadata for the same
+  identifier invalidates the report rather than allowing either record to pass.
+- The stored identity verdict and diagnostics are derived from the recorded
+  input at both assembly and parse time. Hand-editing `matched` into a report is
+  rejected, just like hand-editing a numeric comparison verdict.
 
 This is enforced mechanically. `assembleClaimGroundingReport` (in `@nullius/shared`,
 `packages/shared/src/claim-grounding.ts`) **downgrades any span-less substantiated/partial
@@ -128,7 +165,7 @@ the cited source — grounding has a second dimension beyond "does the source su
 **does the note's quoted span / value / locator match the fetched source span?** A claim can be
 *true* yet mis-transcribed (a flipped sign, a transposed digit, a dropped magnitude factor, a
 stale locator, or a quote labeled "verbatim" after silent normalization). Compare the note's
-quote/value/locator against the span you fetched in step 3:
+quote/value/locator against the span you fetched in step 4:
 
 - If the fetched span does **not** match what the note transcribed, the verdict is
   `not_substantiated` (the source does not ground the note as written), or `conflicting` if the
@@ -158,19 +195,50 @@ One entry per claim:
       "claim_index": 0,
       "claim_text": "...",
       "support_type": "literature",
-      "evidence_uris": ["https://inspirehep.net/literature/123"],
-      "domain": "hep",
+      "evidence_uris": ["https://doi.org/10.1000/example.123"],
+      "citation_identities": [
+        {
+          "input": {
+            "evidence_uri": "https://doi.org/10.1000/example.123",
+            "displayed": {
+              "title": "A canonical study",
+              "authors": ["A. Author"],
+              "identifier": "doi:10.1000/example.123",
+              "url": "https://doi.org/10.1000/example.123"
+            },
+            "canonical": {
+              "title": "A Canonical Study",
+              "authors": ["Alice Author"],
+              "identifier": "doi:10.1000/example.123",
+              "url": "https://doi.org/10.1000/example.123",
+              "provenance": {
+                "kind": "archived_canonical_metadata",
+                "provider": "canonical-index",
+                "record_ref": "project://evidence/record-123.json#sha256:0000000000000000000000000000000000000000000000000000000000000000",
+                "record_sha256": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+              }
+            }
+          },
+          "verdict": "matched",
+          "diagnostics": []
+        }
+      ],
+      "domain": "general",
       "method": "text_entailment",
       "verdict": "substantiated",
       "supporting_spans": [
-        { "evidence_uri": "https://inspirehep.net/literature/123", "quote": "We measure BR = (1.2 ± 0.1)e-3.", "locator": "Table 3" }
+        { "evidence_uri": "https://doi.org/10.1000/example.123", "quote": "The evaluated result satisfies the stated criterion.", "locator": "Results" }
       ],
-      "notes": "value and uncertainty match the cited table"
+      "notes": "the displayed citation and source content were checked separately"
     }
   ],
   "summary": { "total": 1, "by_verdict": { "...": 0 }, "grounding_risk_score": 0.0 }
 }
 ```
+
+This is an intentional pre-release tightening of the v1 shape: an older v1
+report without `citation_identities` is unbound and is rejected. Regenerate it
+from canonical metadata; do not grandfather its earlier positive verdict.
 
 - **Do not set `verification_status` yourself.** It is derived from the verdict by the
   contract (`substantiated`→`verified`, `conflicting`→`falsified`, everything else→`unverified`).
@@ -178,6 +246,11 @@ One entry per claim:
   contradiction (`conflicting`) falsifies a claim.
 - `grounding_risk_score` (0..1, higher = riskier) is computed from the verdicts; surface it
   next to the boundary-crossing action.
+- **Do not set citation-identity verdicts yourself.** Supply the identity input;
+  `assembleClaimGroundingReport` derives `matched` / `mismatch` /
+  `metadata_unavailable`, and the parser recomputes the same result.
+- Every `supporting_spans[].evidence_uri` must name one of the entry's
+  `evidence_uris`; text copied from another source cannot ground this citation.
 
 ## Writing back into the claims
 
@@ -303,6 +376,10 @@ be finite — NaN/Infinity do not survive JSON and are rejected at validation.
 - Not a re-implementation of any provider tool. The tool names above point at existing
   `inspire_*` / `openalex_*` / `arxiv_*` / `pdg_*` / `hepdata_*` / `pdf_*` capabilities;
   this skill decides which to call per claim and turns their output into a grounded verdict.
+- Not a replacement for `citation-triangulation`. Triangulation establishes
+  cross-provider metadata agreement; the identity rule here additionally binds
+  that canonical metadata to the title/authors/identifier/URL actually displayed
+  in the consuming citation.
 - Not a replacement for the A5 / final-conclusions gate or for `research-integrity`. It makes
   M2/M3 active and produces the artifact those disciplines otherwise record by hand.
 - Not a way to mark a claim grounded without a source quote — see the span rule.
