@@ -139,6 +139,15 @@ replacement for either.
    | invalid input | 3 | Fix the block schema; the comparator refuses to guess. |
    | report write failure | 4 | At least one report could not be persisted; fix the failing output path and re-run — the comparator is deterministic and overwrites cleanly. |
 
+6. **Bind the human-facing entry separately.** A `consistent` matrix says that
+   the provider records agree with one another; it does not by itself prove
+   that the title, authors, identifier, and URL displayed to the reader match
+   those records. Before citation grounding can pass, feed the displayed fields
+   and the hash-bound canonical metadata into the `claim-grounding` citation
+   identity check. A mismatch is a hard failure even if the linked paper's full
+   text supports the prose claim. Reusing one canonical identifier under two
+   different displayed titles is a conflict, not two acceptable aliases.
+
 ## Comparison semantics
 
 Key fields — `title`, `authors`, `year`, `doi` — drive the verdict; each is
@@ -194,8 +203,9 @@ two provider records were given or no key field has two comparable values;
 ## What a verdict means — and does not mean
 
 - `consistent` certifies **metadata agreement across the indexes consulted**.
-  It does not certify that the paper supports any claim (that is
-  `claim-grounding`), nor that the citation is the *right* work to cite.
+  It does not certify that the displayed entry matches those records, that the
+  paper supports any claim (those are separate `claim-grounding` gates), or
+  that the citation is the *right* work to cite.
 - `conflicted` is a stop signal, not a coin flip. The matrix names the
   disagreeing provider pairs; resolve the conflict by looking at the actual
   work (which version, which author list), then correct the entry at its

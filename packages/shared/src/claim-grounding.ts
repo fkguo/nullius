@@ -35,6 +35,20 @@
 // writers may re-serialize floats) — never trust a detail magnitude that the
 // recorded input does not reproduce.
 //
+// Citation-identity invariant (enforceCitationIdentityRule; comparison
+// semantics in citation-identity.ts): a positive grounding verdict requires a
+// derived `matched` identity check for every evidence URI. The displayed title,
+// optional authors, identifier, and URL must match canonical provider metadata
+// whose exact bytes are hash-bound. Missing canonical metadata downgrades to
+// `source_unavailable`; any mismatch downgrades to `not_substantiated`. A
+// full-text span can never compensate for a citation-identity failure.
+//
+// Pre-release v1 tightening: reports created before citation identity became
+// mandatory are intentionally rejected rather than grandfathered as grounded.
+// The repository has no released compatibility surface; regenerate such a
+// report with canonical metadata instead of trusting its earlier positive
+// verdict.
+//
 // Style mirrors staged-content.ts: locally-defined types + a hand-rolled
 // safeParse/parse (no zod) — the same runtime-parser shape used across the shared
 // *-bridge / verification-lift modules.
@@ -49,6 +63,15 @@ import {
   type NumericComparisonDecisionPath,
   type NumericComparisonVerdict,
 } from './numeric-claim-match.js';
+import {
+  canonicalCitationLocatorKeys,
+  evaluateCitationIdentity,
+  normalizeCitationAuthorFamily,
+  normalizeCitationTitle,
+  safeParseCitationIdentityCheck,
+  type CitationIdentityCheck,
+  type CitationIdentityInput,
+} from './citation-identity.js';
 
 export type ClaimGroundingVerdict =
   | 'substantiated'
@@ -99,6 +122,9 @@ export type ClaimGroundingEntry = {
   support_type: string;
   /** All cited uris the claim leans on. */
   evidence_uris: string[];
+  /** Derived display-to-canonical metadata checks, one per evidence URI for a
+   *  substantiated/partial verdict. */
+  citation_identities: CitationIdentityCheck[];
   domain: EvidenceDomain;
   method: ClaimGroundingMethod;
   verdict: ClaimGroundingVerdict;
@@ -293,6 +319,62 @@ export function enforceNumericMatchRule(entry: NumericMatchRuleInput): ClaimGrou
   return base;
 }
 
+/** Citation identity is a prerequisite to positive source grounding, not a
+ * competing source-content verdict. Mismatch therefore blocks substantiation
+ * without claiming that the scientific proposition itself is false; missing
+ * canonical metadata records the source as unavailable. Negative verdicts are
+ * never upgraded or rewritten. */
+export function enforceCitationIdentityRule(entry: ClaimGroundingEntry): ClaimGroundingEntry {
+  if (
+    entry.verdict !== 'substantiated'
+    && entry.verdict !== 'partial'
+    && entry.verdict !== 'conflicting'
+  ) return entry;
+
+  const byEvidenceUri = new Map<string, CitationIdentityCheck[]>();
+  for (const check of entry.citation_identities) {
+    if (!isObject(check.input) || !isNonEmptyString(check.input.evidence_uri)) continue;
+    const current = byEvidenceUri.get(check.input.evidence_uri) ?? [];
+    current.push(check);
+    byEvidenceUri.set(check.input.evidence_uri, current);
+  }
+  const requiredChecks = entry.evidence_uris.flatMap(uri => byEvidenceUri.get(uri) ?? []);
+  const missingUris = entry.evidence_uris.filter(uri => (byEvidenceUri.get(uri)?.length ?? 0) !== 1);
+  const mismatched = requiredChecks.filter(check => check.verdict === 'mismatch');
+  if (mismatched.length > 0) {
+    const diagnostics = mismatched
+      .flatMap(check => check.diagnostics.map(item => `${item.code} at ${check.input.evidence_uri}`))
+      .join(', ');
+    return {
+      ...entry,
+      verdict: 'not_substantiated',
+      verification_status: verdictToVerificationStatus('not_substantiated'),
+      notes: appendNote(
+        entry.notes,
+        `downgraded to not_substantiated: citation identity mismatch (${diagnostics})`,
+      ),
+    };
+  }
+
+  const unavailable = requiredChecks.filter(check => check.verdict === 'metadata_unavailable');
+  if (missingUris.length > 0 || unavailable.length > 0) {
+    const unavailableUris = [
+      ...missingUris,
+      ...unavailable.map(check => check.input.evidence_uri),
+    ];
+    return {
+      ...entry,
+      verdict: 'source_unavailable',
+      verification_status: verdictToVerificationStatus('source_unavailable'),
+      notes: appendNote(
+        entry.notes,
+        `downgraded to source_unavailable: canonical citation metadata unavailable for ${[...new Set(unavailableUris)].join(', ')}`,
+      ),
+    };
+  }
+  return entry;
+}
+
 function round4(value: number): number {
   return Math.round(value * 10000) / 10000;
 }
@@ -315,32 +397,45 @@ function tallyByVerdict(entries: Pick<ClaimGroundingEntry, 'verdict'>[]): Record
   return counts;
 }
 
-export type ClaimGroundingEntryInput = Omit<ClaimGroundingEntry, 'verification_status' | 'numeric_comparison'> & {
+export type ClaimGroundingEntryInput = Omit<
+  ClaimGroundingEntry,
+  'verification_status' | 'numeric_comparison' | 'citation_identities'
+> & {
   verification_status?: ClaimVerificationStatus;
   numeric_comparison?: ClaimNumericComparisonInputRecord;
+  citation_identities?: CitationIdentityInput[];
 };
 
 /** Build a validated report from per-claim entries.
  *  - verification_status is ALWAYS derived from verdict (any supplied value is ignored);
  *  - the numeric-match rule is enforced (comparison verdict recomputed from its
  *    input; mismatch/incomparable/missing-comparison downgrades applied);
+ *  - citation identity is derived from the recorded metadata and every positive
+ *    verdict is blocked on missing/mismatched canonical metadata;
  *  - the span rule is enforced (substantiated/partial without a span → not_substantiated);
  *  - summary counts + grounding_risk_score are computed from the final verdicts.
  *  Rule order matters: the numeric-match rule runs FIRST so a computed mismatch
- *  lands on `conflicting` even when the entry also lacks a span (an active
- *  contradiction outranks a missing quote); the span rule then still applies to
- *  whatever survives as substantiated/partial.
+ *  lands on `conflicting` even when the entry also lacks a span: an active
+ *  contradiction outranks a missing quote, but only when the cited source is
+ *  correctly identified. Citation identity runs second and withdraws a
+ *  `conflicting`/falsified verdict built against mismatched or unavailable
+ *  metadata. The span rule applies to whatever remains positive.
  *  Throws if the assembled report fails schema validation. */
 export function assembleClaimGroundingReport(input: {
   generated_at: string;
   source_ref?: string;
   entries: ClaimGroundingEntryInput[];
 }): ClaimGroundingReportV1 {
-  const claims = input.entries.map(entry =>
-    enforceSpanRule(
-      enforceNumericMatchRule({ ...entry, verification_status: verdictToVerificationStatus(entry.verdict) }),
-    ),
-  );
+  const claims = input.entries.map(entry => {
+    const prepared: NumericMatchRuleInput = {
+      ...entry,
+      citation_identities: (entry.citation_identities ?? []).map(evaluateCitationIdentity),
+      verification_status: verdictToVerificationStatus(entry.verdict),
+    };
+    return enforceSpanRule(
+      enforceCitationIdentityRule(enforceNumericMatchRule(prepared)),
+    );
+  });
   const report: ClaimGroundingReportV1 = {
     version: 1,
     generated_at: input.generated_at,
@@ -408,7 +503,7 @@ function isObject(value: unknown): value is Record<string, unknown> {
 }
 
 function isNonEmptyString(value: unknown): value is string {
-  return typeof value === 'string' && value.length > 0;
+  return typeof value === 'string' && value.trim().length > 0;
 }
 
 function validateSpan(span: unknown, path: string, issues: ClaimGroundingParseIssue[]): void {
@@ -559,8 +654,14 @@ function validateEntry(entry: unknown, path: string, issues: ClaimGroundingParse
   }
   if (!isNonEmptyString(entry.claim_text)) issues.push(issue(`${path}.claim_text`, 'must be a non-empty string'));
   if (!isNonEmptyString(entry.support_type)) issues.push(issue(`${path}.support_type`, 'must be a non-empty string'));
-  if (!Array.isArray(entry.evidence_uris) || !entry.evidence_uris.every(u => typeof u === 'string')) {
-    issues.push(issue(`${path}.evidence_uris`, 'must be an array of strings'));
+  const evidenceUris = Array.isArray(entry.evidence_uris)
+    && entry.evidence_uris.every(u => typeof u === 'string' && u.trim().length > 0)
+    ? entry.evidence_uris as string[]
+    : [];
+  if (!Array.isArray(entry.evidence_uris) || evidenceUris.length !== entry.evidence_uris.length) {
+    issues.push(issue(`${path}.evidence_uris`, 'must be an array of non-empty strings'));
+  } else if (new Set(evidenceUris).size !== evidenceUris.length) {
+    issues.push(issue(`${path}.evidence_uris`, 'must not contain duplicate URIs'));
   }
   if (!EVIDENCE_DOMAINS.includes(entry.domain as EvidenceDomain)) {
     issues.push(issue(`${path}.domain`, `must be one of ${EVIDENCE_DOMAINS.join(', ')}`));
@@ -571,10 +672,84 @@ function validateEntry(entry: unknown, path: string, issues: ClaimGroundingParse
   if (!CLAIM_GROUNDING_VERDICTS.includes(entry.verdict as ClaimGroundingVerdict)) {
     issues.push(issue(`${path}.verdict`, `must be one of ${CLAIM_GROUNDING_VERDICTS.join(', ')}`));
   }
+  const citationChecks: CitationIdentityCheck[] = [];
+  if (!Array.isArray(entry.citation_identities)) {
+    issues.push(issue(`${path}.citation_identities`, 'must be an array'));
+  } else {
+    entry.citation_identities.forEach((check, index) => {
+      const parsed = safeParseCitationIdentityCheck(check);
+      if (parsed.ok) {
+        citationChecks.push(parsed.value);
+      } else {
+        for (const identityIssue of parsed.issues) {
+          const suffix = identityIssue.path ? `.${identityIssue.path}` : '';
+          issues.push(issue(
+            `${path}.citation_identities[${index}]${suffix}`,
+            identityIssue.message,
+          ));
+        }
+      }
+    });
+  }
+  const checksByUri = new Map<string, CitationIdentityCheck[]>();
+  for (const check of citationChecks) {
+    const uri = check.input.evidence_uri;
+    const current = checksByUri.get(uri) ?? [];
+    current.push(check);
+    checksByUri.set(uri, current);
+    if (!evidenceUris.includes(uri)) {
+      issues.push(issue(
+        `${path}.citation_identities`,
+        `contains a check for ${uri} that is absent from evidence_uris`,
+      ));
+    }
+  }
+  for (const [uri, checks] of checksByUri) {
+    if (checks.length > 1) {
+      issues.push(issue(`${path}.citation_identities`, `must contain at most one check for ${uri}`));
+    }
+  }
+  if (
+    entry.verdict === 'substantiated'
+    || entry.verdict === 'partial'
+    || entry.verdict === 'conflicting'
+  ) {
+    if (evidenceUris.length === 0) {
+      issues.push(issue(`${path}.evidence_uris`, `must be non-empty for verdict '${entry.verdict}'`));
+    }
+    for (const uri of evidenceUris) {
+      const checks = checksByUri.get(uri) ?? [];
+      if (checks.length !== 1) {
+        issues.push(issue(
+          `${path}.citation_identities`,
+          `must contain exactly one canonical metadata check for ${uri}`,
+        ));
+      } else if (checks[0]!.verdict !== 'matched') {
+        const codes = checks[0]!.diagnostics.map(item => item.code).join(', ');
+        issues.push(issue(
+          `${path}.verdict`,
+          `must not be '${entry.verdict}' when citation identity is ${checks[0]!.verdict} (${codes})`,
+        ));
+      }
+    }
+  }
   if (!Array.isArray(entry.supporting_spans)) {
     issues.push(issue(`${path}.supporting_spans`, 'must be an array'));
   } else {
-    entry.supporting_spans.forEach((span, i) => validateSpan(span, `${path}.supporting_spans[${i}]`, issues));
+    entry.supporting_spans.forEach((span, i) => {
+      const spanPath = `${path}.supporting_spans[${i}]`;
+      validateSpan(span, spanPath, issues);
+      if (
+        isObject(span)
+        && isNonEmptyString(span.evidence_uri)
+        && !evidenceUris.includes(span.evidence_uri)
+      ) {
+        issues.push(issue(
+          `${spanPath}.evidence_uri`,
+          'must name one of the claim evidence_uris',
+        ));
+      }
+    });
   }
   if (!VERIFICATION_STATUSES.includes(entry.verification_status as ClaimVerificationStatus)) {
     issues.push(issue(`${path}.verification_status`, `must be one of ${VERIFICATION_STATUSES.join(', ')}`));
@@ -634,6 +809,55 @@ function validateEntry(entry: unknown, path: string, issues: ClaimGroundingParse
   }
 }
 
+/** One canonical locator cannot legitimately acquire different canonical
+ * titles or author lists in the same report. This catches a stronger form of
+ * swapped metadata
+ * where each per-entry display was made to agree with a different fabricated
+ * canonical block. */
+function validateCanonicalMetadataConsistency(
+  claims: unknown[],
+  issues: ClaimGroundingParseIssue[],
+): void {
+  const firstByLocator = new Map<string, { title: string; authors?: string[]; path: string }>();
+  claims.forEach((claim, claimIndex) => {
+    if (!isObject(claim) || !Array.isArray(claim.citation_identities)) return;
+    claim.citation_identities.forEach((rawCheck, identityIndex) => {
+      const parsed = safeParseCitationIdentityCheck(rawCheck);
+      if (!parsed.ok || !parsed.value.input.canonical) return;
+      const canonical = parsed.value.input.canonical;
+      const locators = canonicalCitationLocatorKeys(canonical);
+      const title = normalizeCitationTitle(canonical.title);
+      const authors = canonical.authors?.map(normalizeCitationAuthorFamily);
+      const path = `claims[${claimIndex}].citation_identities[${identityIndex}].input.canonical.title`;
+      for (const locator of locators) {
+        const first = firstByLocator.get(locator);
+        if (!first) {
+          firstByLocator.set(locator, { title, ...(authors ? { authors } : {}), path });
+          continue;
+        }
+        if (first.title !== title) {
+          issues.push(issue(
+            path,
+            `canonical locator ${locator} is reused with a title that conflicts with ${first.path}`,
+          ));
+        }
+        if (
+          first.authors !== undefined
+          && authors !== undefined
+          && JSON.stringify(first.authors) !== JSON.stringify(authors)
+        ) {
+          issues.push(issue(
+            path.replace(/\.title$/, '.authors'),
+            `canonical locator ${locator} is reused with authors that conflict with ${first.path}`,
+          ));
+        } else if (first.authors === undefined && authors !== undefined) {
+          first.authors = authors;
+        }
+      }
+    });
+  });
+}
+
 export function safeParseClaimGroundingReportV1(value: unknown): ParseSuccess | ParseFailure {
   const issues: ClaimGroundingParseIssue[] = [];
   if (!isObject(value)) {
@@ -648,6 +872,7 @@ export function safeParseClaimGroundingReportV1(value: unknown): ParseSuccess | 
     issues.push(issue('claims', 'must be an array'));
   } else {
     value.claims.forEach((entry, i) => validateEntry(entry, `claims[${i}]`, issues));
+    validateCanonicalMetadataConsistency(value.claims, issues);
   }
   const summary = value.summary;
   if (!isObject(summary)) {

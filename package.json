@@ -20,7 +20,8 @@
     "check:scaffold-authority": "node scripts/check-scaffold-authority.mjs",
     "check:host-neutral-skill-paths-anti-drift": "node scripts/check-host-neutral-skill-paths-anti-drift.mjs",
     "check:transcription-fidelity-checklist-anti-drift": "node scripts/check-transcription-fidelity-checklist-anti-drift.mjs",
-    "check:launch-authorization-anti-drift": "node scripts/check-launch-authorization-anti-drift.mjs"
+    "check:launch-authorization-anti-drift": "node scripts/check-launch-authorization-anti-drift.mjs",
+    "check:citation-identity-grounding-anti-drift": "node scripts/check-citation-identity-grounding-anti-drift.mjs"
   },
   "author": "Feng-Kun Guo",
   "license": "MIT",
