@@ -62,6 +62,39 @@ MANIFEST_NAME = "detailed-reasoning.manifest.json"
 MARKDOWN_NAME = "detailed-reasoning.md"
 LEGACY_STAMP_NAME = "detailed-reasoning.beliefs-sha256"
 
+_FALLBACK_MERMAID_STYLES = """\
+    classDef note fill:#f0f0f0,stroke:#999,color:#333
+    classDef premise fill:#ddeeff,stroke:#4488bb,color:#333
+    classDef derived fill:#ddffdd,stroke:#44bb44,color:#333
+    classDef question fill:#fff3dd,stroke:#cc9944,color:#333
+    classDef background fill:#f5f5f5,stroke:#bbb,stroke-dasharray: 5 5,color:#333
+    classDef orphan fill:#fff,stroke:#ccc,stroke-dasharray: 5 5,color:#333
+    classDef weak fill:#fff9c4,stroke:#f9a825,stroke-dasharray: 5 5,color:#333
+    classDef contra fill:#ffebee,stroke:#c62828,color:#333"""
+
+_FALLBACK_DETERMINISTIC_STRATEGIES = frozenset(
+    {
+        "deduction",
+        "reductio",
+        "elimination",
+        "mathematical_induction",
+        "case_analysis",
+    }
+)
+_FALLBACK_NOTE_TYPES = frozenset({"note", "setting", "context"})
+_FALLBACK_OPERATOR_SYMBOLS = {
+    "contradiction": "⊗",
+    "equivalence": "≡",
+    "complement": "⊕",
+    "negation": "¬",
+    "disjunction": "∨",
+    "conjunction": "∧",
+    "implication": "→",
+}
+_FALLBACK_UNDIRECTED_OPERATORS = frozenset(
+    {"equivalence", "contradiction", "complement", "implication"}
+)
+
 INSTALL_HINT = (
     "Run this PEP 723 script with `uv run --script`; uv provisions pinned "
     f"nh3=={NH3_PIN} automatically. Install the optional host presentation "
@@ -299,7 +332,9 @@ def _reader_reasoning_markdown(ir: dict) -> str:
 
     paths: list[tuple[str, list[_ReaderEdge]]] = []
 
-    def walk(source_id: str, current: str, edges: list[_ReaderEdge], seen: set[str]) -> None:
+    def walk(
+        source_id: str, current: str, edges: list[_ReaderEdge], seen: set[str]
+    ) -> None:
         if current == root_id:
             paths.append((source_id, list(edges)))
             if len(paths) > 1000:
@@ -312,9 +347,7 @@ def _reader_reasoning_markdown(ir: dict) -> str:
                 raise RuntimeError("reader evidence-flow graph contains a cycle")
             walk(source_id, edge.target, [*edges, edge], {*seen, edge.target})
 
-    observed_ids.sort(
-        key=lambda kid: (declaration_index(knowledges[kid]), kid)
-    )
+    observed_ids.sort(key=lambda kid: (declaration_index(knowledges[kid]), kid))
     for source_id in observed_ids:
         walk(source_id, source_id, [], {source_id})
 
@@ -362,11 +395,10 @@ def _reader_reasoning_markdown(ir: dict) -> str:
             records = families[family]
             model = records[0]["correlation_model"]
             count = len(records)
-            occurrence = "1 recorded input" if count == 1 else f"{count} recorded occurrences"
-            lines.append(
-                f"- `{family}`: {occurrence}; "
-                f"correlation model `{model}`."
+            occurrence = (
+                "1 recorded input" if count == 1 else f"{count} recorded occurrences"
             )
+            lines.append(f"- `{family}`: {occurrence}; correlation model `{model}`.")
         lines.append("")
 
     def append_group(title: str, group: list[tuple[str, list[_ReaderEdge]]]) -> None:
@@ -489,7 +521,9 @@ def _reader_reasoning_markdown(ir: dict) -> str:
     if unconnected:
         lines.extend(["## Recorded evidence outside the exported conclusion", ""])
         for kid in unconnected:
-            lines.extend([_quote_markdown(str(knowledges[kid].get("content") or "")), ""])
+            lines.extend(
+                [_quote_markdown(str(knowledges[kid].get("content") or "")), ""]
+            )
 
     lines.extend(
         [
@@ -534,6 +568,311 @@ def _text_inlines(text: str) -> list[dict]:
     return result
 
 
+def _compiled_graph_records(ir: dict, field: str) -> list[dict]:
+    records = ir.get(field, [])
+    if not isinstance(records, list):
+        raise RuntimeError(f"compiled IR {field} must be a list")
+    for index, record in enumerate(records):
+        if not isinstance(record, dict):
+            raise RuntimeError(f"compiled IR {field}[{index}] is not an object")
+    return records
+
+
+def _compiled_graph_refs(
+    value,
+    *,
+    context: str,
+    field: str,
+    knowledges: dict[str, dict],
+) -> list[str]:
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise RuntimeError(f"compiled IR {context}.{field} must be a list")
+    refs: list[str] = []
+    for index, ref in enumerate(value):
+        if not isinstance(ref, str) or not ref:
+            raise RuntimeError(
+                f"compiled IR {context}.{field}[{index}] must be a non-empty "
+                "knowledge id"
+            )
+        if ref not in knowledges:
+            raise RuntimeError(
+                f"compiled IR {context}.{field}[{index}] references unknown "
+                f"knowledge id {ref!r}"
+            )
+        refs.append(ref)
+    return refs
+
+
+def _compiled_graph_ref(
+    value,
+    *,
+    context: str,
+    field: str,
+    knowledges: dict[str, dict],
+    required: bool,
+) -> str | None:
+    if value is None and not required:
+        return None
+    if not isinstance(value, str) or not value:
+        requirement = "a non-empty" if required else "a non-empty string or null"
+        raise RuntimeError(
+            f"compiled IR {context}.{field} must be {requirement} knowledge id"
+        )
+    if value not in knowledges:
+        raise RuntimeError(
+            f"compiled IR {context}.{field} references unknown knowledge id {value!r}"
+        )
+    return value
+
+
+def _mermaid_display_text(value: str) -> str:
+    normalized = " ".join(value.splitlines()).strip()
+    if not normalized:
+        raise RuntimeError("compiled IR graph contains an empty display label")
+    if any(ord(character) < 32 for character in normalized):
+        raise RuntimeError("compiled IR graph contains a control character")
+    return normalized.replace('"', "#quot;").replace("*", "#ast;")
+
+
+def _fallback_mermaid_from_compiled_ir(ir: dict, root_label: str) -> str:
+    """Build Gaia-equivalent raw graph semantics when its Markdown has none.
+
+    Gaia's raw diagram is generative: strategy premises and background notes
+    enter a strategy node, which points to the strategy conclusion. Structural
+    operators retain Gaia 0.5.0a4's directed/undirected edge convention. The
+    fallback deliberately validates every represented reference before drawing
+    anything so a malformed graph is withheld rather than partially depicted.
+    """
+    knowledges = compiled_knowledge_map(ir)
+    root = require_unique_exported_root(ir, root_label)
+    root_id = str(root.get("id") or "")
+    if root_id not in knowledges:
+        raise RuntimeError("exported conclusion is absent from compiled knowledges")
+
+    visible_ids: dict[str, str] = {}
+    node_details: list[tuple[str, str, str, str]] = []
+    for index, (knowledge_id, knowledge) in enumerate(knowledges.items()):
+        label = knowledge.get("label")
+        if label is None:
+            continue
+        if not isinstance(label, str):
+            raise RuntimeError(
+                f"compiled knowledge {knowledge_id!r} label must be a string"
+            )
+        if not label or label.startswith(HELPER_LABEL_PREFIXES):
+            continue
+        knowledge_type = knowledge.get("type")
+        if not isinstance(knowledge_type, str) or not knowledge_type:
+            raise RuntimeError(
+                f"compiled knowledge {knowledge_id!r} type must be a non-empty string"
+            )
+        node_id = f"knowledge_{index}"
+        visible_ids[knowledge_id] = node_id
+        node_details.append((knowledge_id, knowledge_type, node_id, label))
+    if root_id not in visible_ids:
+        raise RuntimeError("exported conclusion has no visible graph label")
+
+    parsed_strategies: list[tuple[int, str, list[str], list[str], str]] = []
+    parsed_operators: list[tuple[int, str, list[str], str | None]] = []
+
+    for index, strategy in enumerate(_compiled_graph_records(ir, "strategies")):
+        context = f"strategies[{index}]"
+        strategy_type = strategy.get("type")
+        if not isinstance(strategy_type, str) or not strategy_type:
+            raise RuntimeError(f"compiled IR {context}.type must be a non-empty string")
+        premises = _compiled_graph_refs(
+            strategy.get("premises"),
+            context=context,
+            field="premises",
+            knowledges=knowledges,
+        )
+        background = _compiled_graph_refs(
+            strategy.get("background"),
+            context=context,
+            field="background",
+            knowledges=knowledges,
+        )
+        conclusion = _compiled_graph_ref(
+            strategy.get("conclusion"),
+            context=context,
+            field="conclusion",
+            knowledges=knowledges,
+            required=True,
+        )
+        assert conclusion is not None
+        parsed_strategies.append(
+            (index, strategy_type, premises, background, conclusion)
+        )
+
+    for index, operator in enumerate(_compiled_graph_records(ir, "operators")):
+        context = f"operators[{index}]"
+        operator_type = operator.get("operator")
+        if not isinstance(operator_type, str) or not operator_type:
+            raise RuntimeError(
+                f"compiled IR {context}.operator must be a non-empty string"
+            )
+        variables = _compiled_graph_refs(
+            operator.get("variables"),
+            context=context,
+            field="variables",
+            knowledges=knowledges,
+        )
+        conclusion = _compiled_graph_ref(
+            operator.get("conclusion"),
+            context=context,
+            field="conclusion",
+            knowledges=knowledges,
+            required=False,
+        )
+        parsed_operators.append((index, operator_type, variables, conclusion))
+
+    strategy_conclusions = {item[4] for item in parsed_strategies}
+    strategy_premises = {
+        knowledge_id for item in parsed_strategies for knowledge_id in item[2]
+    }
+    strategy_background = {
+        knowledge_id for item in parsed_strategies for knowledge_id in item[3]
+    }
+    operator_conclusions = {item[3] for item in parsed_operators if item[3] is not None}
+    operator_variables = {
+        knowledge_id for item in parsed_operators for knowledge_id in item[2]
+    }
+
+    def node_css(knowledge_id: str, knowledge_type: str) -> str:
+        if knowledge_type in _FALLBACK_NOTE_TYPES:
+            return "note"
+        if knowledge_type == "question":
+            return "question"
+        if knowledge_id in operator_conclusions:
+            return "derived"
+        if knowledge_id in strategy_conclusions:
+            return "derived"
+        if knowledge_id in strategy_premises or knowledge_id in operator_variables:
+            return "premise"
+        if knowledge_id in strategy_background:
+            return "background"
+        return "orphan"
+
+    seed_material = json.dumps(
+        ir, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    ).encode("utf-8")
+    hand_drawn_seed = int(hashlib.sha256(seed_material).hexdigest()[:8], 16) or 1
+    lines = [
+        f'%%{{init: {{"handDrawnSeed": {hand_drawn_seed}}}}}%%',
+        "graph TD",
+    ]
+    for knowledge_id, knowledge_type, node_id, display in node_details:
+        css = node_css(knowledge_id, knowledge_type)
+        lines.append(f'    {node_id}["{_mermaid_display_text(display)}"]:::{css}')
+
+    for index, strategy_type, premises, background, conclusion in parsed_strategies:
+        if conclusion not in visible_ids:
+            continue
+        visible_premises = [ref for ref in premises if ref in visible_ids]
+        visible_background = [ref for ref in background if ref in visible_ids]
+        if not visible_premises and not visible_background:
+            continue
+        strategy_node = f"strategy_{index}"
+        css = "" if strategy_type in _FALLBACK_DETERMINISTIC_STRATEGIES else ":::weak"
+        lines.append(
+            f'    {strategy_node}(["{_mermaid_display_text(strategy_type)}"]){css}'
+        )
+        for premise in visible_premises:
+            lines.append(f"    {visible_ids[premise]} --> {strategy_node}")
+        for note in visible_background:
+            lines.append(f"    {visible_ids[note]} -.-> {strategy_node}")
+        lines.append(f"    {strategy_node} --> {visible_ids[conclusion]}")
+
+    for index, operator_type, variables, conclusion in parsed_operators:
+        visible_variables = [ref for ref in variables if ref in visible_ids]
+        visible_conclusion = conclusion if conclusion in visible_ids else None
+        if not visible_variables and not visible_conclusion:
+            continue
+        operator_node = f"operator_{index}"
+        symbol = _FALLBACK_OPERATOR_SYMBOLS.get(operator_type, operator_type)
+        css = ":::contra" if operator_type == "contradiction" else ""
+        lines.append(
+            f'    {operator_node}{{{{"{_mermaid_display_text(symbol)}"}}}}{css}'
+        )
+        edge = " --- " if operator_type in _FALLBACK_UNDIRECTED_OPERATORS else " --> "
+        for variable in visible_variables:
+            lines.append(f"    {visible_ids[variable]}{edge}{operator_node}")
+        if visible_conclusion:
+            lines.append(f"    {operator_node}{edge}{visible_ids[visible_conclusion]}")
+
+    lines.extend(["", _FALLBACK_MERMAID_STYLES])
+    return "\n".join(lines)
+
+
+def _raw_gaia_graph_intro_blocks() -> list[dict]:
+    return [
+        {
+            "t": "Header",
+            "c": [
+                4,
+                ["", [], []],
+                _text_inlines("Raw Gaia generative probability-model graph"),
+            ],
+        },
+        {
+            "t": "Para",
+            "c": _text_inlines(
+                "Arrows run from a hypothesis to possible evidence. "
+                "They do not show the reader's evidence flow."
+            ),
+        },
+        {
+            "t": "Para",
+            "c": _text_inlines(
+                "The star marks the sole exported conclusion. "
+                "A white dashed orphan node is currently disconnected from "
+                "that conclusion. Other colors and shapes follow the Gaia "
+                "diagram legend below the figure."
+            ),
+        },
+    ]
+
+
+def _fallback_graph_legend_block() -> dict:
+    return {
+        "t": "Para",
+        "c": _text_inlines(
+            "Diagram legend: rectangles are claims, notes, or questions; "
+            "ovals are reasoning strategies; hexagons are structural operators. "
+            "Solid arrows connect premises, dotted arrows connect background "
+            "notes, and undirected lines connect symmetric structural operators."
+        ),
+    }
+
+
+def _fallback_graph_insert_index(blocks: list) -> int:
+    """Place the synthetic raw graph at the start of the Gaia model report."""
+    details_index: int | None = None
+    for index, block in enumerate(blocks):
+        if not isinstance(block, dict) or block.get("t") != "Header":
+            continue
+        content = block.get("c") or []
+        if (
+            len(content) == 3
+            and content[0] == 1
+            and _inline_text(content[2]).strip() == "Gaia model details"
+        ):
+            details_index = index
+            break
+    if details_index is None:
+        return len(blocks)
+    for index in range(details_index + 1, len(blocks)):
+        block = blocks[index]
+        if not isinstance(block, dict) or block.get("t") != "Header":
+            continue
+        content = block.get("c") or []
+        if len(content) == 3 and content[0] == 1:
+            return index
+    return len(blocks)
+
+
 def _mark_exported_root(source: str, root_label: str) -> tuple[str, int]:
     """Mark the exported conclusion inside a Gaia Mermaid node declaration."""
     marker = " ★"
@@ -541,29 +880,60 @@ def _mark_exported_root(source: str, root_label: str) -> tuple[str, int]:
         r'(?m)^(\s*[^\s\[]+\s*\[\s*")'
         + re.escape(root_label)
         + r'(?P<marker>\s+★)?(?P<suffix>(?:\s+\([^"\n]*\))?"\]\s*'
-        r'(?:\:\:\:[A-Za-z_][A-Za-z0-9_-]*)?\s*)$'
+        r"(?:\:\:\:[A-Za-z_][A-Za-z0-9_-]*)?\s*)$"
     )
 
     def replace(match: re.Match[str]) -> str:
         existing = match.group("marker") or marker
-        return (
-            match.group(1)
-            + root_label
-            + existing
-            + match.group("suffix")
-        )
+        return match.group(1) + root_label + existing + match.group("suffix")
 
     return pattern.subn(replace, source)
 
 
-def _label_mermaid_direction(document: dict, root_label: str) -> None:
-    """Label raw Gaia diagrams and mark their sole exported conclusion."""
+def _label_mermaid_direction(
+    document: dict,
+    root_label: str,
+    *,
+    ir: dict | None = None,
+) -> None:
+    """Label raw Gaia diagrams and mark their sole exported conclusion.
+
+    Gaia 0.5.0a4 emits no Mermaid for a legal package whose only module is
+    also its first module and whose sole export cannot form an overview. In
+    that exact zero-diagram case, synthesize the raw generative graph from the
+    already loaded compiled IR. Any existing Mermaid keeps the prior contract:
+    it is used as-is except for the direction label and unique-root marker.
+    """
     blocks = document.get("blocks")
     if not isinstance(blocks, list):
         raise RuntimeError("Pandoc document has no block list")
+    mermaid_blocks = [
+        block
+        for block in blocks
+        if isinstance(block, dict)
+        and block.get("t") == "CodeBlock"
+        and isinstance(block.get("c"), list)
+        and len(block["c"]) == 2
+        and isinstance(block["c"][0], list)
+        and len(block["c"][0]) == 3
+        and "mermaid" in set(block["c"][0][1])
+    ]
+    fallback_block: dict | None = None
+    if not mermaid_blocks and ir is not None:
+        fallback_block = {
+            "t": "CodeBlock",
+            "c": [
+                ["", ["mermaid"], []],
+                _fallback_mermaid_from_compiled_ir(ir, root_label),
+            ],
+        }
+        insert_at = _fallback_graph_insert_index(blocks)
+        blocks = [*blocks[:insert_at], fallback_block, *blocks[insert_at:]]
+
     output = []
     root_markers = 0
     for block in blocks:
+        is_fallback = block is fallback_block
         if isinstance(block, dict) and block.get("t") == "CodeBlock":
             content = block.get("c") or []
             attrs = content[0] if len(content) == 2 else []
@@ -573,46 +943,16 @@ def _label_mermaid_direction(document: dict, root_label: str) -> None:
             if "mermaid" in classes:
                 if not isinstance(content[1], str):
                     raise RuntimeError("Mermaid code block has no text source")
-                marked_source, count = _mark_exported_root(
-                    content[1], root_label
-                )
+                marked_source, count = _mark_exported_root(content[1], root_label)
                 root_markers += count
                 block = {
                     **block,
                     "c": [attrs, marked_source],
                 }
-                output.extend(
-                    [
-                        {
-                            "t": "Header",
-                            "c": [
-                                4,
-                                ["", [], []],
-                                _text_inlines(
-                                    "Raw Gaia generative probability-model graph"
-                                ),
-                            ],
-                        },
-                        {
-                            "t": "Para",
-                            "c": _text_inlines(
-                                "Arrows run from a hypothesis to possible evidence. "
-                                "They do not show the reader's evidence flow."
-                            ),
-                        },
-                        {
-                            "t": "Para",
-                            "c": _text_inlines(
-                                "The star marks the sole exported conclusion. "
-                                "A white dashed orphan node is currently "
-                                "disconnected from that conclusion. Other "
-                                "colors and shapes follow the Gaia diagram "
-                                "legend below the figure."
-                            ),
-                        },
-                    ]
-                )
+                output.extend(_raw_gaia_graph_intro_blocks())
         output.append(block)
+        if is_fallback:
+            output.append(_fallback_graph_legend_block())
     if root_markers != 1:
         raise RuntimeError(
             "expected exactly one exported-conclusion node in the raw Gaia "
@@ -1287,7 +1627,7 @@ def render_package(
         except json.JSONDecodeError as exc:
             raise RuntimeError(f"Pandoc returned invalid JSON AST: {exc}") from exc
         expected_fragments = _assign_exact_fragment_ids(document, labels)
-        _label_mermaid_direction(document, str(root["label"]))
+        _label_mermaid_direction(document, str(root["label"]), ir=ir)
         document, trusted_images = _transform_document(
             document,
             mmdc=mmdc,
