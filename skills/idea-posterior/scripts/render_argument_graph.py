@@ -92,7 +92,8 @@ READER_SURFACE_CONTRACT = {
         "node_detail_panel",
         "expanded_legend",
     ],
-    "control_ids": ["themetoggle", "zout", "zin", "zfit"],
+    "control_ids": ["themetoggle", "zout", "zin", "zfit", "panel-close"],
+    "expandable_ids": ["legend"],
     "filter_controls": [],
     "interaction_evidence_required": True,
 }
@@ -1252,6 +1253,7 @@ PAGE_JS = """
     if (!node) return;
     panel.innerHTML = '';
     var close = document.createElement('button');
+    close.id = 'panel-close';
     close.className = 'close';
     close.textContent = '×';
     close.setAttribute('aria-label', 'Close');
