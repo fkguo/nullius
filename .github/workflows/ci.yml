@@ -93,6 +93,10 @@ jobs:
         if: ${{ matrix.node-version == 22 }}
         run: node scripts/check-figure-gate-coverage-anti-drift.mjs
 
+      - name: Check citation-identity grounding anti-drift (displayed metadata binding)
+        if: ${{ matrix.node-version == 22 }}
+        run: node scripts/check-citation-identity-grounding-anti-drift.mjs
+
       - name: Check codegen drift (meta/schemas ↔ generated)
         if: ${{ matrix.node-version == 22 }}
         run: pnpm codegen:check
