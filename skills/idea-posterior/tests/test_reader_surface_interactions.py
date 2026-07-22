@@ -47,25 +47,42 @@ function finish(value) {{
 function probe() {{
   try {{
     var doc = document.getElementById('target').contentDocument;
+    var controlIds = [];
+    function captureControlIds() {{
+      Array.from(doc.querySelectorAll('button,input,select,textarea')).forEach(
+        function (element) {{
+          if (!element.id) throw new Error('reader control lacks a stable id');
+          if (!controlIds.includes(element.id)) controlIds.push(element.id);
+        }}
+      );
+    }}
     var root = doc.querySelector('.node-root[data-id]');
     var initial = root.querySelector('.bval').textContent.trim() + ' ' +
       doc.querySelector('.posterior-pill').innerText;
-    var controlIds = Array.from(
-      doc.querySelectorAll('button,input,select,textarea')
-    ).map(function (element) {{ return element.id || null; }});
+    captureControlIds();
     root.dispatchEvent(new MouseEvent('click', {{ bubbles: true }}));
     var detail = doc.getElementById('panel').innerText;
+    captureControlIds();
     var observed = doc.querySelector('.node-evidence[data-id]');
     observed.dispatchEvent(new MouseEvent('click', {{ bubbles: true }}));
     var observedDetail = doc.getElementById('panel').innerText;
+    captureControlIds();
     var edge = doc.querySelector('.chip[data-edge]');
     edge.dispatchEvent(new PointerEvent('pointermove', {{
       bubbles: true, clientX: 20, clientY: 20
     }}));
     var tooltip = doc.getElementById('tooltip').innerText;
+    captureControlIds();
     var legend = doc.getElementById('legend');
     legend.open = true;
+    captureControlIds();
     var contract = doc.getElementById('reader-surface-contract');
+    var expandableIds = Array.from(doc.querySelectorAll('details')).map(
+      function (element) {{
+        if (!element.id) throw new Error('reader expandable lacks a stable id');
+        return element.id;
+      }}
+    );
     finish({{
       initial: initial,
       detail: detail,
@@ -73,6 +90,7 @@ function probe() {{
       tooltip: tooltip,
       legend: legend.innerText,
       control_ids: controlIds,
+      expandable_ids: expandableIds,
       contract: contract ? JSON.parse(contract.textContent) : null
     }});
   }} catch (error) {{
@@ -141,10 +159,18 @@ def test_interactive_visible_probabilities_share_static_precision(tmp_path: Path
     assert result["observed_detail"]
     assert result["tooltip"]
     assert result["legend"]
-    assert result["control_ids"] == ["themetoggle", "zout", "zin", "zfit"]
+    assert result["control_ids"] == [
+        "themetoggle",
+        "zout",
+        "zin",
+        "zfit",
+        "panel-close",
+    ]
+    assert result["expandable_ids"] == ["legend"]
     assert result["contract"] == {
         "artifact": "argument_graph_reader_surface_contract_v1",
-        "control_ids": ["themetoggle", "zout", "zin", "zfit"],
+        "control_ids": ["themetoggle", "zout", "zin", "zfit", "panel-close"],
+        "expandable_ids": ["legend"],
         "filter_controls": [],
         "formatter": "visible_probability_v1",
         "interaction_evidence_required": True,
