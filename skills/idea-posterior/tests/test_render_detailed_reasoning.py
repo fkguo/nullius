@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import json
 import re
 import shutil
@@ -119,7 +120,7 @@ def write_package(tmp_path: Path, markdown: str) -> Path:
                         "knowledge_id": knowledge_id,
                         "label": "MixedCase_Claim",
                         "belief": 0.75,
-                    }
+                    },
                 ]
             }
         ),
@@ -226,7 +227,7 @@ def write_package(tmp_path: Path, markdown: str) -> Path:
                         "declaration_index": 0,
                         "exported": False,
                         "metadata": {},
-                    }
+                    },
                 ],
                 "strategies": [
                     {
@@ -382,8 +383,7 @@ def test_static_page_renders_math_mermaid_links_and_strips_active_content(
     )
     assert (
         "The available check covers only one operating condition and cannot "
-        "distinguish the broader hypothesis."
-        in normalized_page
+        "distinguish the broader hypothesis." in normalized_page
     )
     assert (
         "Narrow coverage weakly lowers the case for sustained verification."
@@ -450,6 +450,109 @@ def test_static_page_renders_math_mermaid_links_and_strips_active_content(
     assert manifest_path.read_bytes() == first_manifest
 
 
+def test_single_module_single_export_without_mermaid_uses_bound_ir_graph(
+    tmp_path,
+) -> None:
+    uv, pandoc, mmdc = browser_tools()
+    markdown = """# Generic detailed reasoning
+
+## Analysis
+
+<a id="worth"></a>
+
+#### worth ★
+
+> The exported conclusion is recorded without an upstream diagram.
+"""
+    package = write_package(tmp_path, markdown)
+    ir_path = package / ".gaia" / "ir.json"
+    ir = json.loads(ir_path.read_text(encoding="utf-8"))
+    ir["module_order"] = ["analysis"]
+    ir["module_titles"] = {"analysis": "Analysis"}
+    for knowledge in ir["knowledges"]:
+        knowledge["module"] = "analysis"
+    ir_path.write_text(json.dumps(ir), encoding="utf-8")
+
+    first = run_renderer(package, uv, pandoc, mmdc)
+    assert first.returncode == 0, first.stderr
+    docs = package / "docs"
+    html_path = docs / rdr.HTML_NAME
+    manifest_path = docs / rdr.MANIFEST_NAME
+    first_html = html_path.read_bytes()
+    first_manifest = manifest_path.read_bytes()
+    page = first_html.decode("utf-8")
+    normalized_page = " ".join(page.split())
+    manifest = json.loads(first_manifest)
+
+    probe = PageProbe()
+    probe.feed(page)
+    assert len(probe.sources) == 1
+    assert probe.sources[0].startswith("data:image/svg+xml;base64,")
+    svg = base64.b64decode(probe.sources[0].split(",", 1)[1]).decode("utf-8")
+    assert "worth" in svg
+    assert "★" in svg
+    assert "strategy_0" in svg
+    assert "knowledge_0" in svg
+    assert "Raw Gaia generative probability-model graph" in normalized_page
+    assert "Arrows run from a hypothesis to possible evidence." in normalized_page
+    assert "Solid arrows connect premises" in normalized_page
+    assert "dotted arrows connect background notes" in normalized_page
+    assert page.count('id="worth"') == 1
+
+    beliefs_bytes = (package / ".gaia" / "beliefs.json").read_bytes()
+    markdown_bytes = (docs / rdr.MARKDOWN_NAME).read_bytes()
+    ir_bytes = ir_path.read_bytes()
+    assert manifest["artifact"] == rdr.ARTIFACT
+    assert manifest["beliefs_sha256"] == rdr.sha256_bytes(beliefs_bytes)
+    assert manifest["ir_sha256"] == rdr.sha256_bytes(ir_bytes)
+    assert manifest["markdown_sha256"] == rdr.sha256_bytes(markdown_bytes)
+    assert manifest["html_sha256"] == rdr.sha256_bytes(first_html)
+    assert manifest["fragments"] == ["worth"]
+
+    for forbidden in (
+        str(tmp_path),
+        str(Path(pandoc).resolve()),
+        str(Path(mmdc).resolve()),
+        "/" + "Users" + "/",
+        "file://",
+    ):
+        assert forbidden not in page
+        assert forbidden not in first_manifest.decode("utf-8")
+
+    second = run_renderer(package, uv, pandoc, mmdc)
+    assert second.returncode == 0, second.stderr
+    assert html_path.read_bytes() == first_html
+    assert manifest_path.read_bytes() == first_manifest
+
+
+def test_zero_mermaid_fallback_refuses_multiple_exported_roots(tmp_path) -> None:
+    uv, pandoc, mmdc = browser_tools()
+    markdown = """# Generic detailed reasoning
+
+## Analysis
+
+<a id="worth"></a>
+
+#### worth ★
+
+> The exported conclusion is recorded without an upstream diagram.
+"""
+    package = write_package(tmp_path, markdown)
+    ir_path = package / ".gaia" / "ir.json"
+    ir = json.loads(ir_path.read_text(encoding="utf-8"))
+    for knowledge in ir["knowledges"]:
+        if knowledge.get("label") == "MixedCase_Claim":
+            knowledge["exported"] = True
+    ir_path.write_text(json.dumps(ir), encoding="utf-8")
+
+    result = run_renderer(package, uv, pandoc, mmdc)
+    assert result.returncode == 2
+    assert "expected exactly one exported conclusion" in result.stderr
+    assert "MixedCase_Claim" in result.stderr
+    assert not (package / "docs" / rdr.HTML_NAME).exists()
+    assert not (package / "docs" / rdr.MANIFEST_NAME).exists()
+
+
 def _raw_anchor(label: str) -> dict:
     return {
         "t": "Para",
@@ -475,9 +578,7 @@ def test_raw_gaia_graph_marks_exactly_one_exported_conclusion() -> None:
     }
     rdr._label_mermaid_direction(document, "worth")
     source = next(
-        block["c"][1]
-        for block in document["blocks"]
-        if block.get("t") == "CodeBlock"
+        block["c"][1] for block in document["blocks"] if block.get("t") == "CodeBlock"
     )
     assert source.count("★") == 1
     assert 'worth["worth ★ (0.68)"]:::premise' in source
@@ -497,6 +598,127 @@ def test_raw_gaia_graph_rejects_missing_exported_conclusion() -> None:
     }
     with pytest.raises(RuntimeError, match="exactly one exported-conclusion"):
         rdr._label_mermaid_direction(document, "worth")
+
+
+def test_existing_multi_module_mermaid_keeps_the_upstream_graphs(
+    monkeypatch,
+) -> None:
+    first_source = (
+        'flowchart LR\n  worth["worth (0.68)"]:::premise\n'
+        '  evidence["Recorded evidence"]:::derived\n'
+        "  worth --> evidence"
+    )
+    second_source = (
+        'flowchart LR\n  criterion["criterion"]:::premise\n'
+        '  note["Background note"]:::background\n'
+        "  note -.-> criterion"
+    )
+    document = {
+        "blocks": [
+            _header("First module", "first-module"),
+            {
+                "t": "CodeBlock",
+                "c": [["", ["mermaid"], []], first_source],
+            },
+            _header("Second module", "second-module"),
+            {
+                "t": "CodeBlock",
+                "c": [["", ["mermaid"], []], second_source],
+            },
+        ]
+    }
+
+    def unexpected_fallback(_ir, _root_label):
+        raise AssertionError("compiled-IR fallback must not replace upstream Mermaid")
+
+    monkeypatch.setattr(rdr, "_fallback_mermaid_from_compiled_ir", unexpected_fallback)
+    rdr._label_mermaid_direction(document, "worth", ir={"not": "consulted"})
+    sources = [
+        block["c"][1] for block in document["blocks"] if block.get("t") == "CodeBlock"
+    ]
+    assert len(sources) == 2
+    assert sources[0] == first_source.replace("worth (", "worth ★ (")
+    assert sources[1] == second_source
+
+
+def test_compiled_ir_fallback_preserves_gaia_generative_edge_semantics() -> None:
+    worth_id = "project:generic::worth"
+    evidence_id = "project:generic::evidence"
+    background_id = "project:generic::background"
+    ir = {
+        "ir_hash": "sha256:" + "ab" * 32,
+        "knowledges": [
+            {
+                "id": worth_id,
+                "label": "worth",
+                "type": "claim",
+                "exported": True,
+            },
+            {
+                "id": evidence_id,
+                "label": "evidence",
+                "type": "claim",
+                "exported": False,
+            },
+            {
+                "id": background_id,
+                "label": "background",
+                "type": "note",
+                "exported": False,
+            },
+        ],
+        "strategies": [
+            {
+                "type": "infer",
+                "premises": [worth_id],
+                "background": [background_id],
+                "conclusion": evidence_id,
+            }
+        ],
+        "operators": [
+            {
+                "operator": "contradiction",
+                "variables": [worth_id, evidence_id],
+                "conclusion": None,
+            }
+        ],
+    }
+    document = {"blocks": []}
+    rdr._label_mermaid_direction(document, "worth", ir=ir)
+    source = next(
+        block["c"][1] for block in document["blocks"] if block.get("t") == "CodeBlock"
+    )
+    assert 'knowledge_0["worth ★"]:::premise' in source
+    assert "knowledge_0 --> strategy_0" in source
+    assert "knowledge_2 -.-> strategy_0" in source
+    assert "strategy_0 --> knowledge_1" in source
+    assert "knowledge_1 --> strategy_0" not in source
+    assert "knowledge_0 --- operator_0" in source
+    assert "knowledge_1 --- operator_0" in source
+
+
+def test_zero_mermaid_fallback_rejects_unknown_compiled_reference() -> None:
+    worth_id = "project:generic::worth"
+    ir = {
+        "ir_hash": "sha256:" + "ab" * 32,
+        "knowledges": [
+            {
+                "id": worth_id,
+                "label": "worth",
+                "type": "claim",
+                "exported": True,
+            }
+        ],
+        "strategies": [
+            {
+                "type": "infer",
+                "premises": [worth_id],
+                "conclusion": "project:generic::missing",
+            }
+        ],
+    }
+    with pytest.raises(RuntimeError, match="unknown knowledge id"):
+        rdr._label_mermaid_direction({"blocks": []}, "worth", ir=ir)
 
 
 def _header(label: str, automatic_id: str, *, root: bool = False) -> dict:
@@ -619,9 +841,7 @@ def test_ir_edit_invalidates_bound_page_while_beliefs_and_markdown_stay_current(
     result = run_renderer(package, uv, pandoc, mmdc)
     assert result.returncode == 0, result.stderr
     node_id = "github:generic_browser::MixedCase_Claim"
-    assert run_graph(package)["nodes"][node_id]["doc_href"].endswith(
-        "#MixedCase_Claim"
-    )
+    assert run_graph(package)["nodes"][node_id]["doc_href"].endswith("#MixedCase_Claim")
 
     ir_path = package / ".gaia" / "ir.json"
     ir = json.loads(ir_path.read_text(encoding="utf-8"))

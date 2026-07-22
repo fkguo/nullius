@@ -580,7 +580,14 @@ stage fails.
    sanitized by nh3. Ordinary relative and HTTP(S) links survive, while
    active URL schemes, event handlers, and scripts do not. No browser-side
    renderer, server, CDN, or network request is needed when the page is opened
-   directly as a local file.
+   directly as a local file. Gaia 0.5.0a4 can legitimately emit no Mermaid
+   block when a package has one ordered module and one exported conclusion.
+   In that zero-diagram case only, the renderer reconstructs Gaia's raw
+   generative graph from the already validated compiled IR, marks the unique
+   exported root, and states the premise/background arrow semantics. Unknown
+   references or malformed graph records fail closed. If Gaia emitted any
+   Mermaid block, the renderer preserves that source path and continues to
+   require exactly one exported-root marker across the upstream diagrams.
 
    Each card's detail panel links to the exact case-preserving node fragment
    in the HTML page. The renderer accepts only Gaia's explicit empty anchor
