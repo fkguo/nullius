@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# CONTRACT-EXEMPT: CODE-01.1 Existing single-file renderer authority; this bounded change centralizes one reader-surface formatter and its manifest without restructuring unrelated rendering behavior.
 """Render a Gaia argument-graph package as one self-contained HTML page.
 
 Reads the compiled IR (``.gaia/ir.json``) and the inference output
@@ -77,6 +78,25 @@ WRAP_CHARS = 38
 COL_GAP = 200
 ROW_GAP = 26
 MARGIN = 42
+
+# One formatter contract owns every reader-visible probability, including
+# text created after click, pointer, filter, or expansion events.
+VISIBLE_PROBABILITY_DIGITS = 3
+READER_SURFACE_CONTRACT = {
+    "artifact": "argument_graph_reader_surface_contract_v1",
+    "formatter": "visible_probability_v1",
+    "visible_probability_digits": VISIBLE_PROBABILITY_DIGITS,
+    "static_states": ["initial_canvas"],
+    "interaction_states": [
+        "edge_tooltip",
+        "node_detail_panel",
+        "expanded_legend",
+    ],
+    "control_ids": ["themetoggle", "zout", "zin", "zfit", "panel-close"],
+    "expandable_ids": ["legend"],
+    "filter_controls": [],
+    "interaction_evidence_required": True,
+}
 
 # Grade anchors on the Jeffreys-style scale used by the skill:
 # weak LR 3, substantial LR 10, strong LR 30 (log10: .477 / 1.0 / 1.477).
@@ -760,6 +780,10 @@ def esc(text: str) -> str:
     return html.escape(text, quote=True)
 
 
+def format_probability(value: float) -> str:
+    return f"{value:.{VISIBLE_PROBABILITY_DIGITS}f}"
+
+
 def svg_node(node: Node) -> str:
     role = node.role()
     if node.junction:
@@ -798,7 +822,7 @@ def svg_node(node: Node) -> str:
             f'<rect class="fill" x="{PAD_X}" y="{bar_y:.0f}" width="{fill_w:.1f}" '
             f'height="6" rx="3"></rect>'
             f'<text class="bval" x="{node.w - PAD_X}" y="{bar_y + 6.5:.0f}" '
-            f'text-anchor="end">{node.belief:.3f}</text></g>'
+            f'text-anchor="end">{format_probability(node.belief)}</text></g>'
         )
     elif node.observed:
         parts.append(
@@ -1036,6 +1060,7 @@ noscript { position: absolute; top: 8px; left: 14px; font-size: 12px; color: var
 PAGE_JS = """
 (function () {
   var data = JSON.parse(document.getElementById('graph-data').textContent);
+  var VISIBLE_PROBABILITY_DIGITS = __VISIBLE_PROBABILITY_DIGITS__;
   var svg = document.getElementById('graph');
   var viewport = document.getElementById('viewport');
   var stage = document.getElementById('stage');
@@ -1121,7 +1146,8 @@ PAGE_JS = """
   });
 
   function fmtP(value) {
-    return value === null || value === undefined ? '—' : Number(value).toFixed(2);
+    return value === null || value === undefined ? '—' :
+      Number(value).toFixed(VISIBLE_PROBABILITY_DIGITS);
   }
   function effectWord(edge) {
     if (edge.kind !== 'update') return 'structural step link';
@@ -1227,6 +1253,7 @@ PAGE_JS = """
     if (!node) return;
     panel.innerHTML = '';
     var close = document.createElement('button');
+    close.id = 'panel-close';
     close.className = 'close';
     close.textContent = '×';
     close.setAttribute('aria-label', 'Close');
@@ -1258,7 +1285,7 @@ PAGE_JS = """
     if (!node.observed && node.belief !== null && node.belief !== undefined) {
       var belief = document.createElement('div');
       belief.className = 'kv';
-      belief.textContent = 'posterior belief ' + Number(node.belief).toFixed(3);
+      belief.textContent = 'posterior belief ' + fmtP(node.belief);
       panel.appendChild(belief);
     }
     if (node.observed) {
@@ -1266,7 +1293,7 @@ PAGE_JS = """
       pin.className = 'kv';
       pin.textContent = 'entered as observed evidence' +
         (node.pinned_prior !== null && node.pinned_prior !== undefined
-          ? ' (pinned at ' + Number(node.pinned_prior).toFixed(3) + ')' : '');
+          ? ' (pinned at ' + fmtP(node.pinned_prior) + ')' : '');
       panel.appendChild(pin);
       if (node.observation_note) {
         var note = document.createElement('div');
@@ -1341,7 +1368,7 @@ def render_page(
         if best.belief is not None:
             root_chip = (
                 f'<span class="posterior-pill">{esc(pretty(best.label))} '
-                f"{best.belief:.3f}</span>"
+                f"{format_probability(best.belief)}</span>"
             )
     n_claims = sum(1 for n in nodes.values() if not n.junction and not n.observed)
     n_evidence = sum(1 for n in nodes.values() if n.observed)
@@ -1374,6 +1401,12 @@ def render_page(
         sort_keys=True,
         ensure_ascii=False,
     ).replace("<", "\\u003c")
+    surface_contract = json.dumps(
+        READER_SURFACE_CONTRACT, sort_keys=True, ensure_ascii=True
+    ).replace("<", "\\u003c")
+    page_js = PAGE_JS.replace(
+        "__VISIBLE_PROBABILITY_DIGITS__", str(VISIBLE_PROBABILITY_DIGITS)
+    )
 
     flow_row = (
         '\n<div class="row"><svg width="26" height="14"><line x1="0" y1="7" x2="26" '
@@ -1436,8 +1469,9 @@ def render_page(
   <aside id="panel" hidden></aside>
   <div id="tooltip" hidden></div>
 </div>
+<script id="reader-surface-contract" type="application/json">{surface_contract}</script>
 <script id="graph-data" type="application/json">{payload}</script>
-<script>{PAGE_JS}</script>
+<script>{page_js}</script>
 </body>
 </html>
 """

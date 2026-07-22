@@ -97,6 +97,10 @@ jobs:
         if: ${{ matrix.node-version == 22 }}
         run: node scripts/check-citation-identity-grounding-anti-drift.mjs
 
+      - name: Check idea-posterior reader-surface anti-drift (interaction coverage)
+        if: ${{ matrix.node-version == 22 }}
+        run: node scripts/check-idea-posterior-reader-surface-anti-drift.mjs
+
       - name: Check codegen drift (meta/schemas ↔ generated)
         if: ${{ matrix.node-version == 22 }}
         run: pnpm codegen:check
@@ -160,6 +164,9 @@ jobs:
 
       - name: Python tests (figure display-acceptance gate behavior)
         run: python -m pytest skills/figure-hygiene/tests/test_display_acceptance_gate.py -q
+
+      - name: Python tests (interactive argument-graph reader surface)
+        run: python -m pytest skills/idea-posterior/tests/test_reader_surface_interactions.py -q
 
   skills-market-checks:
     runs-on: ubuntu-latest
