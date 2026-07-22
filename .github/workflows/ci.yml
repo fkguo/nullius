@@ -148,6 +148,16 @@ jobs:
       - name: Python tests (independent-reproduction gate behavior)
         run: python -m pytest skills/research-team/tests/test_independent_reproduction_gate.py -q
 
+      - name: Python tests (literature reconciliation and method-screening gate behavior)
+        run: python -m pytest skills/research-team/tests/test_literature_trace_gate.py -q
+
+      - name: Python tests (close-prior bound-ledger write gate behavior)
+        run: |
+          python -m pytest \
+            skills/idea-posterior/tests/test_close_prior_gate.py \
+            skills/idea-posterior/tests/test_writeback.py \
+            -q
+
       - name: Python tests (literature-to-package phase gates)
         run: python -m pytest skills/literature-to-package/tests/test_phase_gates.py -q
 

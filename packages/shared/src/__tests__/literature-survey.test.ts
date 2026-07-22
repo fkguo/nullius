@@ -61,10 +61,12 @@ function paper(overrides: Partial<SurveyPaper> = {}): SurveyPaper {
   };
 }
 
+const COMBINED_LEDGER_REF = `project://artifacts/literature/literature-ledger.json#sha256:${'a'.repeat(64)}`;
+
 function closedBibliography(coreTotal: number, candidatesTotal = 0): BibliographyReconciliationSummary {
   return {
     status: 'reconciled',
-    artifact_ref: 'knowledge_base/methodology_traces/literature_saturation.json#/bibliography_reconciliation',
+    artifact_ref: COMBINED_LEDGER_REF,
     core_sources_total: coreTotal,
     core_sources_reconciled: coreTotal,
     candidates_total: candidatesTotal,
@@ -77,7 +79,7 @@ function closedBibliography(coreTotal: number, candidatesTotal = 0): Bibliograph
 function closedMethodAudit(coreTotal: number): MethodFamilyAuditSummary {
   return {
     status: 'audited',
-    artifact_ref: 'knowledge_base/methodology_traces/literature_saturation.json#/method_family_audit',
+    artifact_ref: COMBINED_LEDGER_REF,
     core_sources_total: coreTotal,
     core_sources_audited: coreTotal,
     taxonomy_families: coreTotal > 0 ? 1 : 0,
@@ -536,6 +538,28 @@ describe('safeParseLiteratureSurveyV1', () => {
 
   it('accepts a well-formed survey', () => {
     expect(safeParseLiteratureSurveyV1(valid()).ok).toBe(true);
+  });
+
+  it('requires exact-byte-pinned project refs for the combined detailed ledger', () => {
+    const bad = valid();
+    bad.coverage.bibliography_reconciliation.artifact_ref = 'artifacts/literature/ledger.json';
+    bad.coverage.method_family_audit.artifact_ref = 'artifacts/literature/ledger.json';
+    const parsed = safeParseLiteratureSurveyV1(bad);
+    expect(parsed.ok).toBe(false);
+    if (!parsed.ok) {
+      expect(parsed.issues.filter(issue => /project:\/\//.test(issue.message))).toHaveLength(2);
+    }
+  });
+
+  it('rejects bibliography and method receipts pinned to different artifacts', () => {
+    const bad = valid();
+    bad.coverage.method_family_audit.artifact_ref =
+      `project://artifacts/literature/other-ledger.json#sha256:${'b'.repeat(64)}`;
+    const parsed = safeParseLiteratureSurveyV1(bad);
+    expect(parsed.ok).toBe(false);
+    if (!parsed.ok) {
+      expect(parsed.issues.some(issue => /same combined ledger/.test(issue.message))).toBe(true);
+    }
   });
 
   it('rejects an audited method summary without source-text evidence for every core source', () => {

@@ -212,13 +212,28 @@ core papers, or no real expansion round was measured, the status is
 `coverage_incomplete`.
 
 Snowball convergence is not sufficient by itself. The survey coverage receipt
-must also bind to the detailed `literature_saturation.json` ledgers: every core
+must also bind to the detailed `literature_saturation.json` ledger: every core
 source bibliography is reconciled, every extracted candidate has an explicit
 disposition, unresolved identities remain coverage debt, and every core source
-has a method-family audit grounded in its method text and cited method
-descriptions. Any open bibliography, disposition, or method-taxonomy gap keeps
+has a method-family audit grounded in its method text plus one explicit
+`method_bearing`, `not_method_bearing`, or `coverage_debt` screening disposition
+for every reconciled bibliography candidate. Negative as well as positive method
+screening must cite source text; title/year queries cannot prove the absence of a
+method line. Canonical identities must bind to exact-SHA local archives of
+provider metadata or triangulation blocks, not self-attested remote pointers.
+The separate display URL is not identity authority unless it is also the archived
+canonical id or an explicit archived alias.
+Both compact receipts must carry
+the same project-root-bounded exact-byte `project://...#sha256:...` ledger ref;
+the write gate resolves it, validates the raw bibliography pins, matches its
+canonical core identities to the current survey, and recomputes the summary
+counts/statuses. Any missing/stale/cross-ledger reference, summary mismatch, open
+bibliography, disposition, or method-taxonomy gap keeps
 the close prior at `coverage_incomplete` even when the terminal expansion round
-adds no new core paper.
+adds no new core paper. Writeback also revalidates finite provider request bounds,
+complete coverage of every declared query, terminal continuation/exhaustion and
+known totals, page/cursor accounting, candidate discovery provenance, the exact core disposition
+set, and bounded citation-graph coverage from the same ledger.
 
 Every close-prior/core paper must be source-first and machine-readable:
 `read_status` is one of `full_text_read`, `section_read`, `metadata_only`, or
@@ -699,6 +714,7 @@ stage fails.
      --literature-survey-json <artifact_dir>/literature_survey_v1.json \
      --close-prior-matrix-json <artifact_dir>/close_prior_matrix.json \
      --posterior-report-md <artifact_dir>/posterior_report_v1.md \
+     --project-root <absolute_project_root> \
      --idea-rpc <repo>/packages/idea-engine/bin/idea-rpc.mjs
    ```
 
@@ -727,7 +743,8 @@ stage fails.
    instead finds named evidence missing, record it on the node as
    `admission_blocked` with an `activation_condition` (kind
    `required_evidence`) rather than leaving the review open. Before anything is sent, `posterior_writeback.py` runs the
-   close-prior validator over the survey, matrix, and report. It refuses a
+   close-prior validator over the survey, matrix, report, and exact-byte-pinned
+   detailed reconciliation ledger. It refuses a
    missing close-prior matrix, missing critique search, one-sided
    above-weakest `tension_resolution`, metadata-only Gaia anchors,
    untriangulated core-paper identity, failed source-fidelity audit, or a

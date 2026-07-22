@@ -4,32 +4,16 @@
   "run_id": "",
   "generated_at": "",
   "providers": {
-    "inspire": {
+    "provider-name": {
       "status": "queried",
       "queries": [],
       "returned_count": 0,
       "total_count_unknown": true,
-      "stop_reason": ""
-    },
-    "arxiv": {
-      "status": "queried",
-      "queries": [],
-      "returned_count": 0,
-      "total_count_unknown": true,
-      "stop_reason": ""
-    },
-    "openalex": {
-      "status": "queried",
-      "queries": [],
-      "returned_count": 0,
-      "total_count_unknown": true,
-      "stop_reason": ""
-    },
-    "web": {
-      "status": "queried",
-      "queries": [],
-      "returned_count": 0,
-      "total_count_unknown": true,
+      "execution_bounds": {
+        "max_requests": 0,
+        "max_records": 0
+      },
+      "request_log": [],
       "stop_reason": ""
     }
   },

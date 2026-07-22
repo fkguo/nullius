@@ -26,7 +26,8 @@
 //      source bibliography must be reconciled to a disposition ledger, every
 //      candidate must have a disposition, unresolved identities remain explicit
 //      coverage debt, and the method-family taxonomy must be checked against both
-//      admitted-paper method text and cited method descriptions. Missing closure
+//      admitted-paper method text and one source-text screening disposition for
+//      every reconciled bibliography candidate. Missing closure
 //      evidence mechanically blocks `saturated`.
 //
 // Style mirrors staged-content.ts / claim-grounding.ts: locally-defined types + a
@@ -107,9 +108,11 @@ export type LiteratureSurveySynthesis = {
 
 /** Compact survey-level receipt for the detailed bibliography reconciliation
  *  stored in the literature-saturation artifact. The detailed artifact owns the
- *  per-reference stable identities, source locators, and dispositions; this
- *  summary is the fail-closed bridge that prevents synthesis from claiming
- *  saturation while that ledger is incomplete. */
+ *  per-reference canonical identities, exact-pinned provenance, source locators,
+ *  and dispositions for the complete candidate pool; this
+ *  summary is a strictly shaped receipt, not file authority. The posterior
+ *  runtime resolves its exact-byte pin and recomputes these fields before a
+ *  write can proceed. */
 export type BibliographyReconciliationSummary = {
   status: 'reconciled' | 'coverage_debt';
   artifact_ref: string;
@@ -121,9 +124,11 @@ export type BibliographyReconciliationSummary = {
   coverage_debt_candidates: number;
 };
 
-/** Compact receipt for the detailed method-family audit. The detailed artifact
- *  compares source-local method descriptions and cited method descriptions with
- *  the current taxonomy; title/year query matches are not method evidence. */
+/** Compact receipt for the detailed method-family audit. It pins the same
+ *  combined artifact as BibliographyReconciliationSummary. The detailed artifact
+ *  compares source-local method descriptions and per-candidate source-text method
+ *  screening with the current taxonomy; title/year query matches are not positive
+ *  or negative method evidence. */
 export type MethodFamilyAuditSummary = {
   status: 'audited' | 'coverage_debt';
   artifact_ref: string;
@@ -205,6 +210,22 @@ const SOURCE_FIDELITY_STATUSES: readonly SourceFidelityAudit['status'][] = ['pas
 const TENSION_KINDS: readonly SynthesisTensionKind[] = ['measurement', 'theoretical', 'methodological', 'other'];
 const BIBLIOGRAPHY_RECONCILIATION_STATUSES: readonly BibliographyReconciliationSummary['status'][] = ['reconciled', 'coverage_debt'];
 const METHOD_FAMILY_AUDIT_STATUSES: readonly MethodFamilyAuditSummary['status'][] = ['audited', 'coverage_debt'];
+const PINNED_PROJECT_ARTIFACT_REF_RE = /^project:\/\/[^\s#/][^\s#]*#sha256:[0-9a-f]{64}$/;
+const UNRECORDED_COMBINED_LEDGER_REF = `project://artifacts/literature/unrecorded-ledger.json#sha256:${'0'.repeat(64)}`;
+
+function isPinnedProjectArtifactRef(value: unknown): value is string {
+  if (!isNonEmptyString(value) || !PINNED_PROJECT_ARTIFACT_REF_RE.test(value)) return false;
+  const encodedPath = value.slice('project://'.length).split('#', 1)[0]!;
+  if (!/^[A-Za-z0-9._~%/-]+$/.test(encodedPath)) return false;
+  let decodedPath: string;
+  try {
+    decodedPath = decodeURIComponent(encodedPath);
+  } catch {
+    return false;
+  }
+  return !decodedPath.includes('\\')
+    && decodedPath.split('/').every(segment => segment !== '' && segment !== '.' && segment !== '..');
+}
 
 // ─── Pure helpers ───
 
@@ -284,7 +305,7 @@ export type SaturationEvidenceAssessment =
 function defaultBibliographyReconciliation(coreTotal: number): BibliographyReconciliationSummary {
   return {
     status: 'coverage_debt',
-    artifact_ref: 'unrecorded',
+    artifact_ref: UNRECORDED_COMBINED_LEDGER_REF,
     core_sources_total: coreTotal,
     core_sources_reconciled: 0,
     candidates_total: 0,
@@ -297,7 +318,7 @@ function defaultBibliographyReconciliation(coreTotal: number): BibliographyRecon
 function defaultMethodFamilyAudit(coreTotal: number): MethodFamilyAuditSummary {
   return {
     status: 'coverage_debt',
-    artifact_ref: 'unrecorded',
+    artifact_ref: UNRECORDED_COMBINED_LEDGER_REF,
     core_sources_total: coreTotal,
     core_sources_audited: 0,
     taxonomy_families: 0,
@@ -875,8 +896,11 @@ function validateBibliographyReconciliationSummary(
   if (!BIBLIOGRAPHY_RECONCILIATION_STATUSES.includes(value.status as BibliographyReconciliationSummary['status'])) {
     issues.push(issue(`${path}.status`, `must be one of ${BIBLIOGRAPHY_RECONCILIATION_STATUSES.join(', ')}`));
   }
-  if (!isNonEmptyString(value.artifact_ref)) {
-    issues.push(issue(`${path}.artifact_ref`, 'must be a non-empty reference to the detailed reconciliation artifact'));
+  if (!isPinnedProjectArtifactRef(value.artifact_ref)) {
+    issues.push(issue(
+      `${path}.artifact_ref`,
+      'must be project://<project-relative path>#sha256:<64 lowercase hex> for the combined detailed ledger',
+    ));
   }
   for (const field of [
     'core_sources_total',
@@ -931,8 +955,11 @@ function validateMethodFamilyAuditSummary(
   if (!METHOD_FAMILY_AUDIT_STATUSES.includes(value.status as MethodFamilyAuditSummary['status'])) {
     issues.push(issue(`${path}.status`, `must be one of ${METHOD_FAMILY_AUDIT_STATUSES.join(', ')}`));
   }
-  if (!isNonEmptyString(value.artifact_ref)) {
-    issues.push(issue(`${path}.artifact_ref`, 'must be a non-empty reference to the detailed method-family audit'));
+  if (!isPinnedProjectArtifactRef(value.artifact_ref)) {
+    issues.push(issue(
+      `${path}.artifact_ref`,
+      'must be project://<project-relative path>#sha256:<64 lowercase hex> for the combined detailed ledger',
+    ));
   }
   for (const field of [
     'core_sources_total',
@@ -1015,6 +1042,16 @@ function validateCoverage(coverage: unknown, issues: LiteratureSurveyParseIssue[
   }
   validateBibliographyReconciliationSummary(coverage.bibliography_reconciliation, coverage, issues);
   validateMethodFamilyAuditSummary(coverage.method_family_audit, coverage, issues);
+  if (
+    isObject(coverage.bibliography_reconciliation)
+    && isObject(coverage.method_family_audit)
+    && coverage.bibliography_reconciliation.artifact_ref !== coverage.method_family_audit.artifact_ref
+  ) {
+    issues.push(issue(
+      'coverage.method_family_audit.artifact_ref',
+      'must equal bibliography_reconciliation.artifact_ref so both receipts bind the same combined ledger',
+    ));
+  }
   // Parse-boundary side of the saturation rule (assemble downgrades; the parser
   // REJECTS, mirroring how the claim-grounding parser re-asserts the span rule): a
   // hand-authored survey cannot circulate an unsupported `saturated`.

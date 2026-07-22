@@ -56,7 +56,9 @@ Saturation artifact (mandatory for literature/reference/knowledge-evidence work)
 Record at least:
 - query string
 - filters/selection criteria
-- provider returned counts / total-count availability / pagination or continuation status
+- provider returned counts / total-count availability, finite request/record bounds,
+  and a per-request query plus page-or-cursor locator, returned count, and continuation
+  status; every declared query is represented, and counts reconcile to the provider total
 - what you accepted/rejected and why
 - reference and citation checks for selected core papers
 - links to the local KB notes you created/updated
