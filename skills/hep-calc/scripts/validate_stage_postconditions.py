@@ -8,6 +8,7 @@ import hashlib
 import json
 import math
 import os
+import re
 import stat
 import sys
 from collections import Counter
@@ -55,6 +56,7 @@ _RUNNER_DIRECTORIES = (
     "inputs",
     "meta",
     "symbolic",
+    "symbolic/bound_inputs",
     "numeric",
     "tex",
     "report",
@@ -84,6 +86,7 @@ _RUNNER_LOGS = (
 _RUNNER_STALE_ACCEPTANCE_PATHS = (
     "symbolic/symbolic.json",
     "symbolic/status.json",
+    "symbolic/input_bindings.json",
     "auto_qft/status.json",
     "auto_qft/summary.json",
     "auto_qft/producer_status.json",
@@ -441,7 +444,12 @@ def invalid_assertion_summary(error: str) -> dict[str, Any]:
     }
 
 
-def evaluate_assertions(symbolic: dict[str, Any] | None, symbolic_error: str | None) -> dict[str, Any]:
+def evaluate_assertions(
+    symbolic: dict[str, Any] | None,
+    symbolic_error: str | None,
+    *,
+    require_nonempty: bool = False,
+) -> dict[str, Any]:
     if symbolic_error is not None or symbolic is None:
         return invalid_assertion_summary(f"symbolic_json_{symbolic_error or 'missing'}")
     if "data" not in symbolic:
@@ -450,6 +458,8 @@ def evaluate_assertions(symbolic: dict[str, Any] | None, symbolic_error: str | N
     if not isinstance(data, dict):
         return invalid_assertion_summary("data_not_object")
     if "assertions" not in data:
+        if require_nonempty:
+            return invalid_assertion_summary("bound_symbolic_assertions_required")
         return {
             "contract_valid": True,
             "total": 0,
@@ -463,6 +473,8 @@ def evaluate_assertions(symbolic: dict[str, Any] | None, symbolic_error: str | N
     assertions = data.get("assertions")
     if not isinstance(assertions, list):
         return invalid_assertion_summary("assertions_not_list")
+    if require_nonempty and not assertions:
+        return invalid_assertion_summary("bound_symbolic_assertions_required")
 
     declared_ids = [
         item.get("id")
@@ -538,14 +550,328 @@ def evaluate_assertions(symbolic: dict[str, Any] | None, symbolic_error: str | N
     }
 
 
-def validate_symbolic(out_dir: Path, *, observed_process_rc: int = 0) -> int:
+_BOUND_INPUT_ID = re.compile(r"^[A-Za-z][A-Za-z0-9_-]{0,63}$")
+
+
+def _load_job_bound_inputs(job_data: bytes, out_dir: Path) -> list[dict[str, Any]]:
+    try:
+        job = json.loads(job_data.decode("utf-8"))
+    except Exception as exc:
+        raise ValueError(f"job_resolved_json_unreadable:{type(exc).__name__}") from exc
+    if not isinstance(job, dict):
+        raise ValueError("job_resolved_json_not_object")
+    mathematica = job.get("mathematica") or {}
+    if not isinstance(mathematica, dict):
+        raise ValueError("mathematica_not_object")
+    raw_bindings = mathematica.get("bound_inputs") or []
+    if not isinstance(raw_bindings, list):
+        raise ValueError("mathematica.bound_inputs_not_list")
+    result: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for index, item in enumerate(raw_bindings):
+        if not isinstance(item, dict):
+            raise ValueError(f"mathematica.bound_inputs[{index}]_not_object")
+        extra_fields = sorted(set(item) - {"id", "path"})
+        if extra_fields:
+            raise ValueError(
+                f"mathematica.bound_inputs[{index}]_unexpected_fields:{','.join(extra_fields)}"
+            )
+        binding_id = item.get("id")
+        configured_path = item.get("path")
+        if not isinstance(binding_id, str) or _BOUND_INPUT_ID.fullmatch(binding_id) is None:
+            raise ValueError(f"mathematica.bound_inputs[{index}]_invalid_id")
+        if binding_id in seen:
+            raise ValueError(f"mathematica.bound_inputs_duplicate_id:{binding_id}")
+        seen.add(binding_id)
+        if not isinstance(configured_path, str) or not configured_path:
+            raise ValueError(f"mathematica.bound_inputs[{index}]_invalid_path")
+        if configured_path.startswith("out://"):
+            relative = Path(configured_path[len("out://") :])
+            if relative.is_absolute() or not relative.parts or ".." in relative.parts:
+                raise ValueError(f"mathematica.bound_inputs[{index}]_unsafe_out_path")
+            source_path = out_dir / relative
+            out_relative = relative.as_posix()
+        else:
+            source_path = Path(configured_path)
+            out_relative = None
+            if not source_path.is_absolute():
+                raise ValueError(f"mathematica.bound_inputs[{index}]_path_not_resolved")
+        source_path = Path(os.path.abspath(os.fspath(source_path)))
+        out_root = Path(os.path.abspath(os.fspath(out_dir)))
+        snapshot_root = Path(
+            os.path.abspath(os.fspath(out_dir / "symbolic" / "bound_inputs"))
+        )
+        if os.path.commonpath((str(source_path), str(snapshot_root))) == str(snapshot_root):
+            raise ValueError(f"mathematica.bound_inputs[{index}]_source_in_snapshot_tree")
+        if os.path.commonpath((str(source_path), str(out_root))) == str(out_root):
+            out_relative = source_path.relative_to(out_root).as_posix()
+        if out_relative is not None and out_relative not in _RUNNER_STALE_ACCEPTANCE_PATHS:
+            raise ValueError(
+                f"mathematica.bound_inputs[{index}]_out_path_not_freshness_managed"
+            )
+        suffix = source_path.suffix
+        if not re.fullmatch(r"\.[A-Za-z0-9]{1,10}", suffix or ""):
+            suffix = ".dat"
+        result.append(
+            {
+                "id": binding_id,
+                "configured_path": configured_path,
+                "source_path": str(source_path),
+                "snapshot_path": f"symbolic/bound_inputs/{binding_id}{suffix}",
+            }
+        )
+    entry = mathematica.get("entry")
+    if result and (not isinstance(entry, str) or not entry.strip()):
+        raise ValueError("mathematica.entry_required_with_bound_inputs")
+    return result
+
+
+def _publish_symbolic_binding_failure(out_dir: Path, reason: str) -> None:
+    write_json_atomic(
+        out_dir / "symbolic" / "input_bindings.json",
+        {
+            "schema_version": 1,
+            "stage": "mathematica_bound_inputs",
+            "status": "ERROR",
+            "reason": reason,
+            "checked_at": utc_now(),
+        },
+    )
+    write_json_atomic(
+        out_dir / "symbolic" / "symbolic.json",
+        {
+            "schema_version": 1,
+            "generated_at": utc_now(),
+            "data": {"tasks": [], "notes": ["Bound symbolic input preparation failed."]},
+        },
+    )
+    write_json_atomic(
+        out_dir / "symbolic" / "status.json",
+        {
+            "stage": "mathematica_symbolic",
+            "status": "ERROR",
+            "reason": "symbolic_input_binding_failed",
+            "binding_error": reason,
+            "checked_at": utc_now(),
+        },
+    )
+
+
+def bind_symbolic_inputs(job_path: Path, out_dir: Path) -> int:
+    job_data, job_witness, job_error = read_bytes_secure(job_path)
+    if job_error is not None or job_data is None or job_witness is None:
+        _publish_symbolic_binding_failure(
+            out_dir, f"job_resolved_json_{job_error or 'missing'}"
+        )
+        return 1
+    try:
+        configured = _load_job_bound_inputs(job_data, out_dir)
+        if not configured:
+            raise ValueError("mathematica.bound_inputs_empty")
+        records: list[dict[str, Any]] = []
+        for binding in configured:
+            source_path = Path(binding["source_path"])
+            source_data, source_witness, source_error = read_bytes_secure(source_path)
+            if source_error is not None or source_data is None or source_witness is None:
+                raise ValueError(f"{binding['id']}:source_{source_error or 'missing'}")
+            if source_witness["bytes"] <= 0:
+                raise ValueError(f"{binding['id']}:source_empty")
+            snapshot_path = out_dir / binding["snapshot_path"]
+            _write_bytes_atomic_secure(snapshot_path, source_data)
+            snapshot_data, snapshot_witness, snapshot_error = read_bytes_secure(snapshot_path)
+            if (
+                snapshot_error is not None
+                or snapshot_data != source_data
+                or snapshot_witness is None
+                or snapshot_witness["bytes"] != source_witness["bytes"]
+                or snapshot_witness["sha256"] != source_witness["sha256"]
+            ):
+                raise ValueError(f"{binding['id']}:snapshot_mismatch")
+            records.append(
+                {
+                    **binding,
+                    "source": {
+                        "bytes": source_witness["bytes"],
+                        "sha256": source_witness["sha256"],
+                    },
+                    "snapshot": {
+                        "bytes": snapshot_witness["bytes"],
+                        "sha256": snapshot_witness["sha256"],
+                    },
+                }
+            )
+        payload = {
+            "schema_version": 1,
+            "stage": "mathematica_bound_inputs",
+            "status": "PASS",
+            "job": {
+                "bytes": job_witness["bytes"],
+                "sha256": job_witness["sha256"],
+            },
+            "bindings": records,
+            "checked_at": utc_now(),
+        }
+        write_json_atomic(out_dir / "symbolic" / "input_bindings.json", payload)
+        print(json.dumps({"status": "PASS", "count": len(records)}, sort_keys=True))
+        return 0
+    except Exception as exc:
+        reason = f"{type(exc).__name__}:{exc}"
+        _publish_symbolic_binding_failure(out_dir, reason)
+        print(json.dumps({"status": "ERROR", "reason": reason}, sort_keys=True))
+        return 1
+
+
+def validate_symbolic_bindings(
+    job_path: Path | None,
+    out_dir: Path,
+) -> tuple[list[str], list[dict[str, Any]], bool]:
+    errors: list[str] = []
+    expected_consumption: list[dict[str, Any]] = []
+    binding_path = out_dir / "symbolic" / "input_bindings.json"
+    if job_path is None:
+        if read_bytes_secure(binding_path)[2] != "missing":
+            errors.append("symbolic_bound_inputs_job_required")
+        return errors, expected_consumption, False
+    job_data, job_witness, job_error = read_bytes_secure(job_path)
+    if job_error is not None or job_data is None or job_witness is None:
+        return [f"symbolic_bound_inputs_job_{job_error or 'missing'}"], expected_consumption, False
+    try:
+        configured = _load_job_bound_inputs(job_data, out_dir)
+    except Exception as exc:
+        return [f"symbolic_bound_inputs_config_invalid:{type(exc).__name__}:{exc}"], expected_consumption, False
+    bound_workflow = bool(configured)
+    if not configured:
+        if read_bytes_secure(binding_path)[2] != "missing":
+            errors.append("symbolic_input_bindings_unexpected")
+        return errors, expected_consumption, bound_workflow
+
+    record, record_data, record_witness, record_error = read_json_bound(binding_path)
+    if record_error is not None or record is None or record_data is None or record_witness is None:
+        return [f"symbolic_input_bindings_{record_error or 'missing'}"], expected_consumption, bound_workflow
+    if record.get("stage") != "mathematica_bound_inputs" or record.get("status") != "PASS":
+        errors.append("symbolic_input_bindings_not_pass")
+    expected_job = {"bytes": job_witness["bytes"], "sha256": job_witness["sha256"]}
+    if record.get("job") != expected_job:
+        errors.append("symbolic_input_bindings_job_mismatch")
+    observed = record.get("bindings")
+    if not isinstance(observed, list) or len(observed) != len(configured):
+        errors.append("symbolic_input_bindings_count_mismatch")
+        observed = []
+    observed_by_id = {
+        item.get("id"): item
+        for item in observed
+        if isinstance(item, dict) and isinstance(item.get("id"), str)
+    }
+    if len(observed_by_id) != len(observed):
+        errors.append("symbolic_input_bindings_duplicate_or_invalid_id")
+
+    pinned: list[tuple[str, Path, bytes, dict[str, Any]]] = []
+    for expected in configured:
+        binding_id = expected["id"]
+        item = observed_by_id.get(binding_id)
+        if not isinstance(item, dict):
+            errors.append(f"symbolic_input_binding_missing:{binding_id}")
+            continue
+        for field in ("configured_path", "source_path", "snapshot_path"):
+            if item.get(field) != expected[field]:
+                errors.append(f"symbolic_input_binding_{field}_mismatch:{binding_id}")
+        source_path = Path(expected["source_path"])
+        snapshot_path = out_dir / expected["snapshot_path"]
+        source_data, source_witness, source_error = read_bytes_secure(source_path)
+        snapshot_data, snapshot_witness, snapshot_error = read_bytes_secure(snapshot_path)
+        if source_error is not None or source_data is None or source_witness is None:
+            errors.append(f"symbolic_input_binding_source_{source_error or 'missing'}:{binding_id}")
+            continue
+        if snapshot_error is not None or snapshot_data is None or snapshot_witness is None:
+            errors.append(f"symbolic_input_binding_snapshot_{snapshot_error or 'missing'}:{binding_id}")
+            continue
+        public_source = {"bytes": source_witness["bytes"], "sha256": source_witness["sha256"]}
+        public_snapshot = {
+            "bytes": snapshot_witness["bytes"],
+            "sha256": snapshot_witness["sha256"],
+        }
+        if item.get("source") != public_source:
+            errors.append(f"symbolic_input_binding_source_witness_mismatch:{binding_id}")
+        if item.get("snapshot") != public_snapshot:
+            errors.append(f"symbolic_input_binding_snapshot_witness_mismatch:{binding_id}")
+        if source_data != snapshot_data or public_source != public_snapshot:
+            errors.append(f"symbolic_input_binding_source_snapshot_mismatch:{binding_id}")
+        expected_consumption.append(
+            {
+                "id": binding_id,
+                "bytes": public_snapshot["bytes"],
+                "sha256": public_snapshot["sha256"],
+            }
+        )
+        pinned.extend(
+            [
+                (f"source:{binding_id}", source_path, source_data, source_witness),
+                (f"snapshot:{binding_id}", snapshot_path, snapshot_data, snapshot_witness),
+            ]
+        )
+
+    final_record_data, final_record_witness, final_record_error = read_bytes_secure(binding_path)
+    if final_record_error is not None or final_record_data != record_data or final_record_witness != record_witness:
+        errors.append("symbolic_input_bindings_changed_during_validation")
+    final_job_data, final_job_witness, final_job_error = read_bytes_secure(job_path)
+    if final_job_error is not None or final_job_data != job_data or final_job_witness != job_witness:
+        errors.append("symbolic_bound_inputs_job_changed_during_validation")
+    for label, path, original_data, original_witness in pinned:
+        current_data, current_witness, current_error = read_bytes_secure(path)
+        if current_error is not None or current_data != original_data or current_witness != original_witness:
+            errors.append(f"symbolic_input_binding_changed_during_validation:{label}")
+    return list(dict.fromkeys(errors)), expected_consumption, bound_workflow
+
+
+def _consumption_witness_matches(observed: Any, expected: list[dict[str, Any]]) -> bool:
+    if not isinstance(observed, list) or len(observed) != len(expected):
+        return False
+    if not all(isinstance(item, dict) for item in observed):
+        return False
+    observed_ids = [item.get("id") for item in observed]
+    if any(not isinstance(item_id, str) for item_id in observed_ids):
+        return False
+    if len(set(observed_ids)) != len(observed_ids):
+        return False
+    return sorted(observed, key=lambda item: item["id"]) == sorted(
+        expected, key=lambda item: item["id"]
+    )
+
+
+def validate_symbolic(
+    out_dir: Path,
+    *,
+    job_path: Path | None = None,
+    observed_process_rc: int = 0,
+) -> int:
     symbolic_path = out_dir / "symbolic" / "symbolic.json"
     status_path = out_dir / "symbolic" / "status.json"
     symbolic, symbolic_error = read_json(symbolic_path, exact_numbers=True)
     observed_status, status_error = read_json(status_path)
-    assertions = evaluate_assertions(symbolic, symbolic_error)
-
-    postcondition_errors: list[str] = []
+    postcondition_errors, expected_consumption, bound_workflow = validate_symbolic_bindings(
+        job_path, out_dir
+    )
+    assertions = evaluate_assertions(
+        symbolic,
+        symbolic_error,
+        require_nonempty=bound_workflow,
+    )
+    if expected_consumption:
+        symbolic_data = symbolic.get("data") if isinstance(symbolic, dict) else None
+        if (
+            observed_status is None
+            or not _consumption_witness_matches(
+                observed_status.get("bound_inputs_consumed"), expected_consumption
+            )
+        ):
+            postcondition_errors.append("symbolic_bound_input_status_consumption_mismatch")
+        if (
+            not isinstance(symbolic_data, dict)
+            or not _consumption_witness_matches(
+                symbolic_data.get("bound_inputs_consumed"), expected_consumption
+            )
+        ):
+            postcondition_errors.append("symbolic_bound_input_export_consumption_mismatch")
     if observed_process_rc != 0:
         postcondition_errors.append(f"symbolic_process_rc_nonzero:{observed_process_rc}")
     if status_error is not None:
@@ -1194,6 +1520,7 @@ def main() -> int:
             "symbolic",
             "auto_qft",
             "bind_auto_qft_job",
+            "bind_symbolic_inputs",
             "prepare_out_dir",
             "prepare_feynarts_model",
             "verify_feynarts_model",
@@ -1263,8 +1590,22 @@ def main() -> int:
             Path(os.path.abspath(os.path.expanduser(args.job))),
             out_dir,
         )
+    if args.stage == "bind_symbolic_inputs":
+        if not args.job:
+            parser.error("--job is required for bind_symbolic_inputs")
+        return bind_symbolic_inputs(
+            Path(os.path.abspath(os.path.expanduser(args.job))),
+            out_dir,
+        )
     if args.stage == "symbolic":
-        return validate_symbolic(out_dir, observed_process_rc=args.observed_process_rc)
+        job_path = (
+            Path(os.path.abspath(os.path.expanduser(args.job))) if args.job else None
+        )
+        return validate_symbolic(
+            out_dir,
+            job_path=job_path,
+            observed_process_rc=args.observed_process_rc,
+        )
     if not args.job:
         parser.error("--job is required for auto_qft postconditions")
     try:

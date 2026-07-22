@@ -17,6 +17,9 @@ ClearAll[
   HepCalcWriteJSON,
   HepCalcAddRisk,
   HepCalcExportSymbolic,
+  HepCalcBoundInputText,
+  HepCalcSecureReadBoundInput,
+  HepCalcDecodeSecureBytes,
   HepCalcWriteStatus,
   HepCalcFiniteRealNumberQ,
   HepCalcEvaluateAssertions
@@ -53,7 +56,7 @@ HepCalcFiniteRealNumberQ[x_] := NumberQ[x] &&
   TrueQ[Im[N[x]] == 0] &&
   FreeQ[x, Indeterminate | ComplexInfinity | DirectedInfinity[_]];
 
-HepCalcEvaluateAssertions[path_String] := Module[
+HepCalcEvaluateAssertions[path_String, requireNonempty_: False] := Module[
   {
     symbolic,
     data,
@@ -63,7 +66,8 @@ HepCalcEvaluateAssertions[path_String] := Module[
     passed,
     failed,
     invalid,
-    failedIDs
+    failedIDs,
+    duplicateIDs
   },
   symbolic = Quiet@Check[Import[path, "RawJSON"], $Failed];
   If[! AssociationQ[symbolic],
@@ -90,6 +94,16 @@ HepCalcEvaluateAssertions[path_String] := Module[
   ];
 
   If[! KeyExistsQ[data, "assertions"],
+    If[TrueQ[requireNonempty],
+      Return[<|
+        "contract_valid" -> False,
+        "total" -> 1,
+        "pass" -> 0,
+        "fail" -> 1,
+        "invalid" -> 1,
+        "failed_ids" -> {"bound_symbolic_assertions_required"}
+      |>]
+    ];
     Return[<|
       "contract_valid" -> True,
       "total" -> 0,
@@ -166,10 +180,38 @@ HepCalcEvaluateAssertions[path_String] := Module[
   ];
 
   total = Length[evaluated];
+  If[TrueQ[requireNonempty] && total == 0,
+    Return[<|
+      "contract_valid" -> False,
+      "total" -> 1,
+      "pass" -> 0,
+      "fail" -> 1,
+      "invalid" -> 1,
+      "failed_ids" -> {"bound_symbolic_assertions_required"}
+    |>]
+  ];
+  duplicateIDs = First /@ Select[
+    Tally[Lookup[evaluated, "id", {}]],
+    Last[#] > 1 &
+  ];
+  If[Length[duplicateIDs] > 0,
+    evaluated = Map[
+      If[
+        MemberQ[duplicateIDs, Lookup[#, "id", ""]],
+        Join[#, <|"valid" -> False, "passed" -> False|>],
+        #
+      ] &,
+      evaluated
+    ];
+  ];
   passed = Count[Lookup[evaluated, "passed", False], True];
   failed = total - passed;
   invalid = Count[Lookup[evaluated, "valid", False], False];
-  failedIDs = Lookup[Select[evaluated, ! TrueQ[Lookup[#, "passed", False]] &], "id", {}];
+  failedIDs = DeleteDuplicates@Lookup[
+    Select[evaluated, ! TrueQ[Lookup[#, "passed", False]] &],
+    "id",
+    {}
+  ];
 
   <|
     "contract_valid" -> TrueQ[invalid == 0],
@@ -181,13 +223,55 @@ HepCalcEvaluateAssertions[path_String] := Module[
   |>
 ];
 
-HepCalcExportSymbolic[data_] := Module[{out},
+HepCalcExportSymbolic[data_] := Module[{out, enriched},
+  enriched = data;
+  If[
+    AssociationQ[data] && ListQ[$HepCalcBoundInputConsumption] && Length[$HepCalcBoundInputConsumption] > 0,
+    enriched = Join[
+      data,
+      <|"bound_inputs_consumed" -> $HepCalcBoundInputConsumption|>
+    ]
+  ];
   out = <|
     "schema_version" -> 1,
     "generated_at" -> DateString[Now, "ISODateTime"],
-    "data" -> data
+    "data" -> enriched
   |>;
   HepCalcWriteJSON[FileNameJoin[{$HepCalcOutDir, "symbolic", "symbolic.json"}], out];
+];
+
+HepCalcBoundInputText[id_String] := Module[{text, witness, consumedIDs},
+  text = Lookup[$HepCalcBoundInputTexts, id, $Failed];
+  witness = Lookup[$HepCalcBoundInputWitnesses, id, $Failed];
+  If[text === $Failed || ! AssociationQ[witness], Return[$Failed]];
+  consumedIDs = Lookup[$HepCalcBoundInputConsumption, "id", {}];
+  If[! MemberQ[consumedIDs, id], AppendTo[$HepCalcBoundInputConsumption, witness]];
+  text
+];
+
+HepCalcDecodeSecureBytes[payload_Association] := Quiet@Check[
+  FromCharacterCode[Normal[BaseDecode[Lookup[payload, "base64", ""]]], "UTF8"],
+  $Failed
+];
+
+HepCalcSecureReadBoundInput[path_String, expected_Association] := Module[{proc, payload, text},
+  proc = Quiet@Check[
+    RunProcess[
+      {"python3", $HepCalcValidatorPath, "--stage", "secure_read", "--path", path},
+      All
+    ],
+    $Failed
+  ];
+  If[proc === $Failed || Lookup[proc, "ExitCode", 1] =!= 0, Return[$Failed]];
+  payload = Quiet@Check[ImportString[Lookup[proc, "StandardOutput", ""], "RawJSON"], $Failed];
+  If[
+    ! AssociationQ[payload] || Lookup[payload, "status", "ERROR"] =!= "PASS" ||
+      Lookup[payload, "bytes", Missing["NotAvailable"]] =!= Lookup[expected, "bytes", Missing["Expected"]] ||
+      Lookup[payload, "sha256", Missing["NotAvailable"]] =!= Lookup[expected, "sha256", Missing["Expected"]],
+    Return[$Failed]
+  ];
+  text = HepCalcDecodeSecureBytes[payload];
+  If[StringQ[text], text, $Failed]
 ];
 
 ClearAll[HepCalcExtractNotebookInputToWLS];
@@ -226,6 +310,11 @@ CreateDirectory[FileNameJoin[{$HepCalcOutDir, "inputs"}], CreateIntermediateDire
 startedAt = DateString[Now, "ISODateTime"];
 
 job = Quiet@Check[Import[jobPath, "RawJSON"], $Failed];
+$HepCalcBoundInputs = <||>;
+$HepCalcBoundInputTexts = <||>;
+$HepCalcBoundInputWitnesses = <||>;
+$HepCalcBoundInputConsumption = {};
+$HepCalcValidatorPath = Environment["HEP_CALC_POSTCONDITION_VALIDATOR"];
 If[job === $Failed,
   HepCalcExportSymbolic[<|"tasks" -> {}, "notes" -> {"Failed to import job.resolved.json"}|>];
   HepCalcWriteStatus[
@@ -251,6 +340,22 @@ If[! pkgOK,
 ];
 
 entry = Lookup[Lookup[job, "mathematica", <||>], "entry", None];
+boundInputConfig = Lookup[Lookup[job, "mathematica", <||>], "bound_inputs", {}];
+
+If[! ListQ[boundInputConfig],
+  HepCalcExportSymbolic[<|"tasks" -> {}, "notes" -> {"Bound symbolic input configuration is invalid."}|>];
+  HepCalcWriteStatus[
+    FileNameJoin[{$HepCalcOutDir, "symbolic", "status.json"}],
+    <|
+      "stage" -> "mathematica_symbolic",
+      "status" -> "ERROR",
+      "reason" -> "bound_symbolic_input_config_invalid",
+      "started_at" -> startedAt,
+      "ended_at" -> DateString[Now, "ISODateTime"]
+    |>
+  ];
+  Quit[23];
+];
 
 faFcEnabled = TrueQ[Lookup[job, "enable_fa_fc", False]] || KeyExistsQ[job, "feynarts_formcalc_spec"] && (job["feynarts_formcalc_spec"] =!= Null);
 If[faFcEnabled,
@@ -258,6 +363,21 @@ If[faFcEnabled,
 ];
 
 If[entry === None || entry === "" || entry === Null,
+  If[Length[boundInputConfig] > 0,
+    HepCalcExportSymbolic[<|"tasks" -> {}, "notes" -> {"Bound symbolic inputs require a Mathematica entry."}|>];
+    HepCalcWriteStatus[
+      FileNameJoin[{$HepCalcOutDir, "symbolic", "status.json"}],
+      <|
+        "stage" -> "mathematica_symbolic",
+        "status" -> "ERROR",
+        "reason" -> "bound_symbolic_input_entry_required",
+        "started_at" -> startedAt,
+        "ended_at" -> DateString[Now, "ISODateTime"],
+        "risks" -> $HepCalcRisks
+      |>
+    ];
+    Quit[29];
+  ];
   HepCalcExportSymbolic[<|"tasks" -> {}, "notes" -> {"No job.mathematica.entry provided; symbolic stage skipped."}|>];
   HepCalcWriteStatus[
     FileNameJoin[{$HepCalcOutDir, "symbolic", "status.json"}],
@@ -330,6 +450,126 @@ If[FileExistsQ[symPath] || FileExistsQ[statusPath],
   Quit[19];
 ];
 
+If[Length[boundInputConfig] > 0,
+  If[! StringQ[$HepCalcValidatorPath] || StringLength[$HepCalcValidatorPath] == 0,
+    HepCalcExportSymbolic[<|"tasks" -> {}, "notes" -> {"Secure bound-input validator is unavailable."}|>];
+    HepCalcWriteStatus[
+      statusPath,
+      <|
+        "stage" -> "mathematica_symbolic",
+        "status" -> "ERROR",
+        "reason" -> "bound_symbolic_input_validator_unavailable",
+        "started_at" -> startedAt,
+        "ended_at" -> DateString[Now, "ISODateTime"]
+      |>
+    ];
+    Quit[24];
+  ];
+  boundInputBindProcess = Quiet@Check[
+    RunProcess[
+      {
+        "python3", $HepCalcValidatorPath, "--stage", "bind_symbolic_inputs",
+        "--job", jobPath, "--out", $HepCalcOutDir
+      },
+      All
+    ],
+    $Failed
+  ];
+  If[
+    boundInputBindProcess === $Failed || Lookup[boundInputBindProcess, "ExitCode", 1] =!= 0,
+    HepCalcExportSymbolic[<|"tasks" -> {}, "notes" -> {"Required bound symbolic inputs could not be prepared."}|>];
+    HepCalcWriteStatus[
+      statusPath,
+      <|
+        "stage" -> "mathematica_symbolic",
+        "status" -> "ERROR",
+        "reason" -> "bound_symbolic_input_binding_failed",
+        "started_at" -> startedAt,
+        "ended_at" -> DateString[Now, "ISODateTime"]
+      |>
+    ];
+    Quit[25];
+  ];
+  boundInputRecord = Quiet@Check[
+    Import[FileNameJoin[{$HepCalcOutDir, "symbolic", "input_bindings.json"}], "RawJSON"],
+    $Failed
+  ];
+  If[
+    ! AssociationQ[boundInputRecord] || Lookup[boundInputRecord, "status", "ERROR"] =!= "PASS" ||
+      ! ListQ[Lookup[boundInputRecord, "bindings", Missing["NotAvailable"]]],
+    HepCalcExportSymbolic[<|"tasks" -> {}, "notes" -> {"Required bound symbolic inputs are unavailable."}|>];
+    HepCalcWriteStatus[
+      statusPath,
+      <|
+        "stage" -> "mathematica_symbolic",
+        "status" -> "ERROR",
+        "reason" -> "bound_symbolic_inputs_unavailable",
+        "started_at" -> startedAt,
+        "ended_at" -> DateString[Now, "ISODateTime"]
+      |>
+    ];
+    Quit[26];
+  ];
+  boundInputRows = Lookup[boundInputRecord, "bindings", {}];
+  $HepCalcBoundInputs = Association@Map[
+    Function[row,
+      Lookup[row, "id", ""] -> FileNameJoin[{$HepCalcOutDir, Lookup[row, "snapshot_path", ""]}]
+    ],
+    boundInputRows
+  ];
+  If[
+    Length[$HepCalcBoundInputs] =!= Length[boundInputConfig] ||
+      AnyTrue[Values[$HepCalcBoundInputs], ! FileExistsQ[#] &],
+    HepCalcExportSymbolic[<|"tasks" -> {}, "notes" -> {"A required bound symbolic input snapshot is unavailable."}|>];
+    HepCalcWriteStatus[
+      statusPath,
+      <|
+        "stage" -> "mathematica_symbolic",
+        "status" -> "ERROR",
+        "reason" -> "bound_symbolic_input_snapshot_unavailable",
+        "started_at" -> startedAt,
+        "ended_at" -> DateString[Now, "ISODateTime"]
+      |>
+    ];
+    Quit[27];
+  ];
+  boundInputTexts = Map[
+    Function[row,
+      Module[{id, path, text},
+        id = Lookup[row, "id", ""];
+        path = FileNameJoin[{$HepCalcOutDir, Lookup[row, "snapshot_path", ""]}];
+        text = HepCalcSecureReadBoundInput[path, Lookup[row, "snapshot", <||>]];
+        id -> text
+      ]
+    ],
+    boundInputRows
+  ];
+  If[AnyTrue[Last /@ boundInputTexts, # === $Failed &],
+    HepCalcExportSymbolic[<|"tasks" -> {}, "notes" -> {"A bound symbolic input failed secure consumption."}|>];
+    HepCalcWriteStatus[
+      statusPath,
+      <|
+        "stage" -> "mathematica_symbolic",
+        "status" -> "ERROR",
+        "reason" -> "bound_symbolic_input_secure_read_failed",
+        "started_at" -> startedAt,
+        "ended_at" -> DateString[Now, "ISODateTime"]
+      |>
+    ];
+    Quit[28];
+  ];
+  $HepCalcBoundInputTexts = Association[boundInputTexts];
+  $HepCalcBoundInputWitnesses = Association@Map[
+    Lookup[#, "id", ""] ->
+    <|
+      "id" -> Lookup[#, "id", ""],
+      "bytes" -> Lookup[Lookup[#, "snapshot", <||>], "bytes", Null],
+      "sha256" -> Lookup[Lookup[#, "snapshot", <||>], "sha256", Null]
+    |> &,
+    boundInputRows
+  ];
+];
+
 (* Run entry *)
 entryResult = Quiet@Check[Get[entryToRun], $Failed];
 runOK = entryResult =!= $Failed && entryResult =!= $Aborted;
@@ -347,6 +587,7 @@ If[! runOK,
       "entry" -> entry,
       "entry_used" -> entryToRun,
       "snapshot" -> snapshotPath,
+      "bound_inputs_consumed" -> $HepCalcBoundInputConsumption,
       "started_at" -> startedAt,
       "ended_at" -> DateString[Now, "ISODateTime"],
       "risks" -> $HepCalcRisks
@@ -366,6 +607,7 @@ If[! FileExistsQ[symPath],
       "entry" -> entry,
       "entry_used" -> entryToRun,
       "snapshot" -> snapshotPath,
+      "bound_inputs_consumed" -> $HepCalcBoundInputConsumption,
       "started_at" -> startedAt,
       "ended_at" -> DateString[Now, "ISODateTime"],
       "risks" -> $HepCalcRisks
@@ -374,7 +616,7 @@ If[! FileExistsQ[symPath],
   Quit[22];
 ];
 
-assertionSummary = HepCalcEvaluateAssertions[symPath];
+assertionSummary = HepCalcEvaluateAssertions[symPath, Length[boundInputConfig] > 0];
 
 If[! TrueQ[Lookup[assertionSummary, "contract_valid", False]] || Lookup[assertionSummary, "fail", 0] > 0,
   HepCalcWriteStatus[
@@ -390,6 +632,7 @@ If[! TrueQ[Lookup[assertionSummary, "contract_valid", False]] || Lookup[assertio
       "entry" -> entry,
       "entry_used" -> entryToRun,
       "snapshot" -> snapshotPath,
+      "bound_inputs_consumed" -> $HepCalcBoundInputConsumption,
       "assertions" -> assertionSummary,
       "started_at" -> startedAt,
       "ended_at" -> DateString[Now, "ISODateTime"],
@@ -407,6 +650,7 @@ HepCalcWriteStatus[
     "entry" -> entry,
     "entry_used" -> entryToRun,
     "snapshot" -> snapshotPath,
+    "bound_inputs_consumed" -> $HepCalcBoundInputConsumption,
     "assertions" -> assertionSummary,
     "started_at" -> startedAt,
     "ended_at" -> DateString[Now, "ISODateTime"],
