@@ -27,6 +27,7 @@ const required = new Map([
     '"edge_tooltip"',
     '"node_detail_panel"',
     '"expanded_legend"',
+    '"control_ids": ["themetoggle", "zout", "zin", "zfit"]',
     '"filter_controls": []',
     '"interaction_evidence_required": True',
     'format_probability(node.belief)',
@@ -40,6 +41,8 @@ const required = new Map([
     'legend.open = true',
     'result["contract"]',
     'result["observed_detail"]',
+    'result["control_ids"]',
+    "doc.querySelectorAll('button,input,select,textarea')",
     'VISIBLE_PROBABILITY_DIGITS',
   ]],
   [skillPath, [

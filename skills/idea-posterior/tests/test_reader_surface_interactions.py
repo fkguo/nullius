@@ -50,6 +50,9 @@ function probe() {{
     var root = doc.querySelector('.node-root[data-id]');
     var initial = root.querySelector('.bval').textContent.trim() + ' ' +
       doc.querySelector('.posterior-pill').innerText;
+    var controlIds = Array.from(
+      doc.querySelectorAll('button,input,select,textarea')
+    ).map(function (element) {{ return element.id || null; }});
     root.dispatchEvent(new MouseEvent('click', {{ bubbles: true }}));
     var detail = doc.getElementById('panel').innerText;
     var observed = doc.querySelector('.node-evidence[data-id]');
@@ -69,6 +72,7 @@ function probe() {{
       observed_detail: observedDetail,
       tooltip: tooltip,
       legend: legend.innerText,
+      control_ids: controlIds,
       contract: contract ? JSON.parse(contract.textContent) : null
     }});
   }} catch (error) {{
@@ -115,7 +119,15 @@ function probe() {{
 
 
 def probability_tokens(text: str) -> list[str]:
-    return re.findall(r"(?<![\d.])(?:0|1)\.\d+(?![\d.])", text)
+    without_likelihood_ratios = re.sub(r"[×÷]\s*\d+(?:\.\d+)?", "", text)
+    return re.findall(
+        r"(?<![\d.])(?:0|1)\.\d+(?![\d.])", without_likelihood_ratios
+    )
+
+
+def test_probability_token_extraction_ignores_likelihood_ratios() -> None:
+    text = "P(e|h)=0.750 · P(e|¬h)=0.250 · modest update (×1.5) (÷1.25)"
+    assert probability_tokens(text) == ["0.750", "0.250"]
 
 
 def test_interactive_visible_probabilities_share_static_precision(tmp_path: Path) -> None:
@@ -129,8 +141,10 @@ def test_interactive_visible_probabilities_share_static_precision(tmp_path: Path
     assert result["observed_detail"]
     assert result["tooltip"]
     assert result["legend"]
+    assert result["control_ids"] == ["themetoggle", "zout", "zin", "zfit"]
     assert result["contract"] == {
         "artifact": "argument_graph_reader_surface_contract_v1",
+        "control_ids": ["themetoggle", "zout", "zin", "zfit"],
         "filter_controls": [],
         "formatter": "visible_probability_v1",
         "interaction_evidence_required": True,

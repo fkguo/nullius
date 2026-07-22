@@ -594,9 +594,11 @@ stage fails.
    detail panel. The page embeds
    `argument_graph_reader_surface_contract_v1`, which names the initial canvas,
    edge tooltip, node detail panel, and expanded legend as covered reader
-   states. The current renderer has no filter control; adding one requires the
-   contract and event-driven coverage to name every filtered state before the
-   new control is accepted. The same rule applies to any future expandable
+   states. The contract also inventories the current button and form-control
+   IDs. The current renderer has no filter control; browser acceptance compares
+   the live control inventory with that contract, so adding a control requires
+   the contract and event-driven coverage to name every filtered state before
+   the new control is accepted. The same rule applies to any future expandable
    reader text.
 
    Static source or initial-DOM inspection is only a quick drift check. It
