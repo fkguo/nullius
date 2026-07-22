@@ -92,6 +92,7 @@ READER_SURFACE_CONTRACT = {
         "node_detail_panel",
         "expanded_legend",
     ],
+    "control_ids": ["themetoggle", "zout", "zin", "zfit"],
     "filter_controls": [],
     "interaction_evidence_required": True,
 }
