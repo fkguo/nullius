@@ -48,6 +48,7 @@ function probe() {{
   try {{
     var doc = document.getElementById('target').contentDocument;
     var controlIds = [];
+    var expandableIds = [];
     function captureControlIds() {{
       Array.from(doc.querySelectorAll('button,input,select,textarea')).forEach(
         function (element) {{
@@ -56,33 +57,37 @@ function probe() {{
         }}
       );
     }}
+    function captureExpandableIds() {{
+      Array.from(doc.querySelectorAll('details')).forEach(function (element) {{
+        if (!element.id) throw new Error('reader expandable lacks a stable id');
+        if (!expandableIds.includes(element.id)) expandableIds.push(element.id);
+      }});
+    }}
+    function captureReaderInventory() {{
+      captureControlIds();
+      captureExpandableIds();
+    }}
     var root = doc.querySelector('.node-root[data-id]');
     var initial = root.querySelector('.bval').textContent.trim() + ' ' +
       doc.querySelector('.posterior-pill').innerText;
-    captureControlIds();
+    captureReaderInventory();
     root.dispatchEvent(new MouseEvent('click', {{ bubbles: true }}));
     var detail = doc.getElementById('panel').innerText;
-    captureControlIds();
+    captureReaderInventory();
     var observed = doc.querySelector('.node-evidence[data-id]');
     observed.dispatchEvent(new MouseEvent('click', {{ bubbles: true }}));
     var observedDetail = doc.getElementById('panel').innerText;
-    captureControlIds();
+    captureReaderInventory();
     var edge = doc.querySelector('.chip[data-edge]');
     edge.dispatchEvent(new PointerEvent('pointermove', {{
       bubbles: true, clientX: 20, clientY: 20
     }}));
     var tooltip = doc.getElementById('tooltip').innerText;
-    captureControlIds();
+    captureReaderInventory();
     var legend = doc.getElementById('legend');
     legend.open = true;
-    captureControlIds();
+    captureReaderInventory();
     var contract = doc.getElementById('reader-surface-contract');
-    var expandableIds = Array.from(doc.querySelectorAll('details')).map(
-      function (element) {{
-        if (!element.id) throw new Error('reader expandable lacks a stable id');
-        return element.id;
-      }}
-    );
     finish({{
       initial: initial,
       detail: detail,
