@@ -62,6 +62,8 @@ out_dir/
   symbolic/
     symbolic.json
     status.json
+    input_bindings.json         # when mathematica.bound_inputs is nonempty
+    bound_inputs/               # fresh snapshots of declared upstream artifacts
   numeric/
     numeric.json
     status.json
@@ -135,7 +137,9 @@ associations preserved; non-string keys stringified; non-JSON Wolfram values bec
 - `data.assertions` is an optional list of fail-closed gates. Each entry requires a nonempty string `id` and Boolean
   `passed`; IDs must be unique. Optional `residual` and `tolerance` must be supplied together as finite, nonnegative real numbers, and
   `passed` must agree with `residual <= tolerance`. A false or invalid assertion produces a nonzero runner exit,
-  `symbolic/status.json.status = FAIL`, and root `overall_status = FAIL`.
+  `symbolic/status.json.status = FAIL`, and root `overall_status = FAIL`. For a job with nonempty
+  `mathematica.bound_inputs`, this list is mandatory and must contain at least one valid assertion; every declared input
+  must also appear in the accessor-recorded `data.bound_inputs_consumed` witness.
 - External reconstruction parses JSON decimals exactly and preserves arbitrary-size integers before comparing
   `residual` with `tolerance`; sub-binary-float-ULP differences are not collapsed.
 - The top-level `data` object is required. Entry messages/errors and early zero exits do not discard any already

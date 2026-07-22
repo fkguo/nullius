@@ -210,6 +210,33 @@ mathematica:
 - 已尝试加载：FeynCalc / FeynArts / FormCalc
 - 入口脚本可调用：`HepCalcExportSymbolic[<|...|>]` 输出 `symbolic/symbolic.json`
 
+### `mathematica.bound_inputs`（列表，默认 `[]`）
+
+当 `mathematica.entry` 需要后处理上游生成的产物时使用：
+
+```yaml
+mathematica:
+  entry: postprocess.wls
+  bound_inputs:
+    - id: bare_amplitude
+      path: out://auto_qft/amplitude/amplitude_summed.m
+```
+
+每项只能包含 `id` 与 `path`，其中 ID 唯一且匹配 `^[A-Za-z][A-Za-z0-9_-]{0,63}$`。只要声明至少一项，
+就必须提供非空 `mathematica.entry`。路径可以是绝对路径或相对 job 文件的
+路径。`out://` 只接受每次运行开始时都会失效的 runner 管理验收产物，例如
+`auto_qft/amplitude/amplitude_summed.m`；无法证明本次运行新鲜度的任意输出路径会被拒绝。每次 Mathematica
+调用时，wrapper 都会调用外部 validator，以不跟随符号链接的方式读取源文件，将新快照写入
+`symbolic/bound_inputs/`，并在 `symbolic/input_bindings.json` 中记录源文件和快照的字节数与 SHA-256。入口执行
+前，wrapper 会安全读取并核验快照，将内容保存在内存中。入口脚本必须在 export 前针对每个已声明 ID 调用
+`HepCalcBoundInputText["bare_amplitude"]`；accessor 会在首次访问时记录精确快照见证。入口不应读取实时源路径或
+快照路径。符号阶段外部
+postcondition 会拒绝缺失、空文件、符号链接、内容变化、哈希不一致、被替换的 resolved job，以及缺失或变化的
+访问见证。绑定流程还必须 export 至少一个有效的 fail-closed assertion。该绑定只确定后处理读取了哪些字节；
+处方与物理恒等式仍须由可信入口脚本给出，并通过 assertions 与负控检验。消费列表的顺序没有语义，但每个已声明
+ID 必须恰好出现一次，并带有匹配的字节数和哈希。源路径若位于
+`symbolic/bound_inputs/` 下会被拒绝，旧快照不能被重新声明为本次源文件。
+
 #### `symbolic/symbolic.json` 约定（`HepCalcExportSymbolic`）
 
 传给 `HepCalcExportSymbolic[<|...|>]` 的关联会经 **JSON 归一化** 后写入顶层 `data` 键
@@ -223,7 +250,8 @@ JSON 友好（数字、字符串、布尔、字符串键的关联、列表）。
   也可同时给出 `residual` 和 `tolerance`；两者必须是有限、非负的实数，且 `passed` 必须与
   `residual <= tolerance` 一致。任何 false 或无效断言都会使 `symbolic/status.json` 为 `FAIL`、完整 runner
   返回非零，并使根级 overall status 为 `FAIL`。符号阶段状态、根级 summary 与人类报告都会给出断言总数、
-  pass/fail 数、无效数及失败 ID。若不含 `data.assertions`，断言数为零，旧 job 保持原有阶段语义。
+  pass/fail 数、无效数及失败 ID。若不含 `data.assertions`，断言数为零，旧 job 保持原有阶段语义；但只要
+  `mathematica.bound_inputs` 非空，就必须包含至少一个有效 assertion，否则失败。
   顶层 `data` 对象本身是必需的。缺失或畸形 `data`、重复 ID、省略 `symbolic/status.json` 的提前零退出，
   以及 export 后的入口错误，都会由 runner 外部 postcondition 检查，不能绕过断言结果。
   外部比较会把 JSON 小数按精确十进制解析，并保留任意长度的 JSON 整数；在判断
@@ -243,8 +271,8 @@ JSON 友好（数字、字符串、布尔、字符串键的关联、列表）。
   状态 + 指向 `symbolic.json` 的指针，**不** 显示 check 的具体值；请读 `symbolic.json`。见 `references/output_contract.zh.md` →「计算内容约定」。
 - `data.notes`（字符串列表，可选）：人类可读的推导/出处行，存于 `data.notes`。
 
-若入口脚本运行了但从未调用 `HepCalcExportSymbolic`，runner 仍会写出一个 `data.tasks` 为空并带 note 的
-`symbolic.json`（不静默失败）。
+若入口脚本运行了但从未调用 `HepCalcExportSymbolic`，runner 会写出错误诊断并返回非零；缺失的必需符号
+输出不能被当成空结果接受。
 
 **数值阶段门控（run_hep_calc.sh）：** Julia 阶段仅当 `numeric.enable` 为真（或隐式开启）且 job 含 task 时运行；
 若有 **任何** task，env-check 必须同时找到 `julia` 与 LoopTools.jl，否则整个阶段被阻断（先 `ERROR missing_julia`，

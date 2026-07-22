@@ -216,6 +216,35 @@ The execution environment is provided by `scripts/mma/run_job.wls`:
 - it attempts to load: FeynCalc / FeynArts / FormCalc
 - your entry can call: `HepCalcExportSymbolic[<|...|>]` to write `symbolic/symbolic.json`
 
+### `mathematica.bound_inputs` (list, default `[]`)
+
+Use this when `mathematica.entry` post-processes an upstream generated artifact:
+
+```yaml
+mathematica:
+  entry: postprocess.wls
+  bound_inputs:
+    - id: bare_amplitude
+      path: out://auto_qft/amplitude/amplitude_summed.m
+```
+
+Each item contains exactly `id` and `path`, with a unique identifier matching `^[A-Za-z][A-Za-z0-9_-]{0,63}$`.
+Declaring one or more items requires a nonempty `mathematica.entry`. Paths may be absolute or
+relative to the job file. `out://` is accepted only for runner-managed acceptance artifacts invalidated at the start
+of every run, such as `auto_qft/amplitude/amplitude_summed.m`; arbitrary output paths are rejected because their
+current-run freshness cannot be established. For every Mathematica invocation, the wrapper calls the external
+validator to securely read each source, publish a fresh snapshot below `symbolic/bound_inputs/`, and record source and
+snapshot byte counts and SHA-256 hashes in `symbolic/input_bindings.json`. The wrapper securely reads and verifies each
+snapshot into memory immediately before the entry executes. Entry scripts must call
+`HepCalcBoundInputText["bare_amplitude"]` for every declared ID before exporting; the accessor records the exact
+snapshot witness on first access, and the entry must not read either live path. The symbolic postcondition rejects
+missing, empty, symlinked, changed, or mismatched sources/snapshots, an altered resolved job, and a missing or altered
+access witness. A bound run must export at least one valid fail-closed assertion. The binding guarantees which bytes
+were post-processed, but the entry remains trusted code and must supply substantive assertions and negative controls
+for the intended identities. Consumption list order is not significant; each declared ID must appear exactly once
+with its bound byte count and hash. A source path below
+`symbolic/bound_inputs/` is rejected so an old snapshot cannot be replayed as a new source.
+
 #### `symbolic/symbolic.json` contract (`HepCalcExportSymbolic`)
 
 The argument you pass to `HepCalcExportSymbolic[<|...|>]` is **JSON-normalized** and stored under the top-level `data`
@@ -231,7 +260,8 @@ optional keys:
   `symbolic/status.json` `FAIL`, makes the full runner return nonzero, and makes the root overall status `FAIL`.
   Assertion totals, pass/fail counts, invalid count, and failed IDs are written to the symbolic status, root summary,
   and human report. If `data.assertions` is absent, the assertion count is zero and legacy jobs retain their prior
-  stage semantics.
+  stage semantics; a job with nonempty `mathematica.bound_inputs` instead fails unless the list contains at least one
+  valid assertion.
   The top-level `data` object itself is required. A missing/malformed `data` object, duplicate ID, early zero exit that
   omits `symbolic/status.json`, or entry error after export is checked by an external runner postcondition and cannot
   bypass the assertion result.
@@ -256,8 +286,8 @@ optional keys:
   `references/output_contract.md` → "Compute content contract".
 - `data.notes` (list of strings, optional): human-readable derivation/provenance lines, stored under `data.notes`.
 
-If your entry runs but never calls `HepCalcExportSymbolic`, the runner still writes a `symbolic.json` with empty
-`data.tasks` and a note (no silent failure).
+If your entry runs but never calls `HepCalcExportSymbolic`, the runner writes an error diagnostic and exits nonzero;
+missing required symbolic output cannot be accepted as an empty result.
 
 **Numeric stage gating (run_hep_calc.sh):** the Julia stage runs only if `numeric.enable` is true (or implied) and the
 job has tasks; if there are **any** tasks, env-check must find both `julia` and LoopTools.jl, or the whole stage is

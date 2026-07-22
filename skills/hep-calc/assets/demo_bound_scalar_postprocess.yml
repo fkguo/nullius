@@ -1,0 +1,11 @@
+schema_version: 1
+name: demo-bound-scalar-postprocess
+mathematica:
+  entry: demo_bound_scalar_postprocess/postprocess.wls
+  bound_inputs:
+    - id: bare_amplitude
+      path: demo_bound_scalar_postprocess/bare_amplitude.m
+numeric:
+  enable: false
+latex:
+  targets: []
