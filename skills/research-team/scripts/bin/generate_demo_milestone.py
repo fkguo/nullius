@@ -319,27 +319,56 @@ def _write_demo_literature_saturation(root: Path, *, tag: str) -> None:
             json.dumps({"source_id": "demo:method-note", key: []}, indent=2, sort_keys=True) + "\n",
             encoding="utf-8",
         )
+    references_ref = (
+        f"project://{references_rel}#sha256:"
+        f"{hashlib.sha256((root / references_rel).read_bytes()).hexdigest()}"
+    )
+    identity_rel = "knowledge_base/methodology_traces/demo_source_identity.json"
+    (root / identity_rel).write_text(
+        json.dumps(
+            {
+                "citation_key": "provider:local-fixture:demo-method-note",
+                "providers": [
+                    {
+                        "provider": "local-fixture",
+                        "title": "Generated method source",
+                        "authors": ["Nullius demo fixture"],
+                        "year": 2026,
+                        "doi": None,
+                        "venue": None,
+                        "identifier": "demo-method-note",
+                    }
+                ],
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    identity_digest = hashlib.sha256((root / identity_rel).read_bytes()).hexdigest()
+    identity_ref = f"project://{identity_rel}#sha256:{identity_digest}"
     data = {
         "schema_version": 1,
         "topic": "research-team demo fixture",
         "run_id": tag,
         "generated_at": "2026-01-01T00:00:00Z",
         "providers": {
-            "inspire": {
-                "status": "not_applicable",
-                "reason": "the bounded demo uses only a generated local method source",
-            },
-            "arxiv": {
-                "status": "not_applicable",
-                "reason": "the bounded demo uses only a generated local method source",
-            },
-            "openalex": {
-                "status": "not_applicable",
-                "reason": "the bounded demo uses only a generated local method source",
-            },
-            "web": {
-                "status": "not_applicable",
-                "reason": "no web-only citation evidence is used in the demo fixture",
+            "local-fixture": {
+                "status": "queried",
+                "queries": ["generated local method source"],
+                "returned_count": 1,
+                "total_count": 1,
+                "execution_bounds": {"max_requests": 1, "max_records": 1},
+                "request_log": [
+                    {
+                        "query": "generated local method source",
+                        "page_or_cursor": "page:1",
+                        "returned_count": 1,
+                        "continuation": "exhausted",
+                    }
+                ],
+                "stop_reason": "the one-record local catalog was exhausted",
             },
         },
         "candidate_pool": {
@@ -351,7 +380,20 @@ def _write_demo_literature_saturation(root: Path, *, tag: str) -> None:
                 {
                     "id": "demo:method-note",
                     "identity_status": "resolved",
-                    "stable_ids": ["local:knowledge_base/methodology_traces/demo_trace.md"],
+                    "canonical_identity": {
+                        "canonical_id": "provider:local-fixture:demo-method-note",
+                        "title": "Generated method source",
+                        "authors": ["Nullius demo fixture"],
+                        "year": 2026,
+                        "url": "https://example.invalid/nullius-demo/method-note",
+                        "aliases": [],
+                        "provenance": {
+                            "kind": "authoritative_retrieval",
+                            "provider": "local-fixture",
+                            "record_ref": identity_ref,
+                            "record_sha256": f"sha256:{identity_digest}",
+                        },
+                    },
                     "disposition": "core",
                     "rationale": "declared complete source for the local contract demonstration",
                     "discovered_from": [
@@ -369,7 +411,7 @@ def _write_demo_literature_saturation(root: Path, *, tag: str) -> None:
                 {
                     "id": "demo:method-note",
                     "status": "reconciled",
-                    "references_artifact": references_rel,
+                    "references_artifact_ref": references_ref,
                     "references_extracted": 0,
                     "candidate_ids": [],
                     "coverage_debt": [],
@@ -398,8 +440,7 @@ def _write_demo_literature_saturation(root: Path, *, tag: str) -> None:
                             "disposition": "classified",
                         }
                     ],
-                    "cited_method_descriptions": [],
-                    "cited_method_scan_complete": True,
+                    "bibliography_candidate_screening": [],
                 }
             ],
         },
@@ -569,7 +610,6 @@ Why we cite it (demo):
 """,
     )
     _ensure_demo_literature_trace(root, tag=tag)
-    _write_demo_literature_saturation(root, tag=tag)
     _write_if_missing(
         root / kb_meth_rel,
         """# Demo methodology trace — how to verify the demo artifacts
@@ -591,6 +631,7 @@ Priors / assumptions:
 - None (demo).
 """,
     )
+    _write_demo_literature_saturation(root, tag=tag)
 
     # Create demo artifacts by running the generator once.
     try:

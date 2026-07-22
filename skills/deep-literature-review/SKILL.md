@@ -132,10 +132,18 @@ bytes and record a reconciliation entry in
 `knowledge_base/methodology_traces/literature_saturation.json`:
 
 - preserve the raw references as a JSON manifest with the core `source_id` and a
-  `references` array; every raw entry records `raw_text`, its source `locator`,
-  and the normalized `candidate_id` it maps to;
-- normalize each entry to stable identities where possible (DOI, repository id,
-  or provider record), keeping same-work aliases together;
+  `references` array; bind that manifest through a project-root-bounded
+  `project://...#sha256:...` reference, and make every raw entry record
+  `raw_text`, its source `locator`, the normalized `candidate_id`, and either
+  the matching canonical identity metadata or explicit unresolved debt;
+- normalize each resolved candidate to a canonical DOI, stable URL, or
+  `provider:<namespace>:<record>` identity plus title/year metadata and
+  retrieval or triangulation provenance archived as citation-triangulation-compatible
+  provider blocks behind a project-root-bounded exact-SHA reference. Recompute
+  triangulation agreement where applicable and bind the archived title, authors,
+  year, identifier, and aliases to the candidate. Fold DOI URL/case and version
+  aliases before checking uniqueness; arbitrary strings and unresolvable remote
+  metadata pointers are not stable identity evidence;
 - promote every in-scope work into the candidate ledger, and give every other
   candidate an explicit `supporting`, `background`, `duplicate`, `out_of_scope`,
   or `coverage_debt` disposition with a rationale;
@@ -155,9 +163,13 @@ recorded as coverage debt, not converted into a synthetic fixed point.
 
 **Audit method-family gaps from source text, not title/year queries.** Maintain a
 current, domain-supplied method taxonomy and compare it with both (a) the method
-description in every admitted core paper and (b) every method-bearing citation
-description encountered in those papers. Each classification records
-`evidence_basis: source_text`, at least one `method_features` entry, the literal
+description in every admitted core paper and (b) every reconciled bibliography
+candidate. For (b), record exactly one `method_bearing`, `not_method_bearing`, or
+`coverage_debt` screening disposition per candidate, with candidate id, locator,
+evidence basis, and rationale. Both positive and negative dispositions require
+`evidence_basis: source_text`; title/year metadata cannot establish that a citation
+is not method-bearing. Every `method_bearing` classification additionally records
+at least one `method_features` entry, the literal
 method description, its source locator, the matched family or an explicit
 `out_of_scope` / `coverage_debt` disposition, and the reconciled candidate id for
 cited descriptions. If the source describes a distinct method line that the
@@ -316,10 +328,21 @@ expansion round, or to ship `coverage_incomplete` as declared debt (or `unknown`
 saturation was not measured).
 
 The same gate also requires the bibliography-reconciliation and method-family-audit
-receipts summarized in `coverage`. The detailed ledgers remain in
-`literature_saturation.json`; their summary counts/statuses must cover the survey's
-entire core set and cannot contain unresolved or undispositioned candidates when the
-survey says `saturated`.
+receipts summarized in `coverage`. Both receipts pin the exact same combined detailed
+ledger with `project://<project-relative path>#sha256:<exact-byte digest>`. The
+posterior write gate resolves that reference inside the project root, checks the raw
+bibliography pins, binds the ledger core identities to the current survey, and
+recomputes every summary count/status; a missing or stale artifact, cross-ledger
+receipt, or summary mismatch fails closed. The detailed records must cover the
+survey's entire core set and cannot contain unresolved or undispositioned candidates
+when the survey says `saturated`. The same ledger retains finite per-provider
+`execution_bounds` and a `request_log` whose query, page/cursor locator, and returned
+counts reconcile to the provider totals. Every declared query appears in that log;
+when saturation is claimed, its final continuation is `exhausted` and a known result
+total is fully covered. A budget stop or unsearched declared query remains explicit
+coverage debt. The ledger also records the bounded citation-graph disposition
+for every selected core source; posterior writeback revalidates these records instead
+of accepting a reduced ledger authored only from the compact receipts.
 
 ### 4. Prepare an optional graph-ready export
 When the user asks for a literature graph, interactive notes, or graph-backed slides, export a

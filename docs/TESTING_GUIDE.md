@@ -478,7 +478,7 @@ nullius workflow-plan \
 
 - `nullius workflow-plan` 仍是唯一 installable public high-level literature entrypoint
 - lower-level checked-in runner / resolver / front-door coverage 仍能证明 `literature_gap_analysis` recipe、seed-search 解析、analyze-step wiring 与 live CLI truth
-- literature saturation contract 还应保留逐候选 disposition、逐 core source bibliography reconciliation、stable-identity/coverage-debt 语义与 source-grounded method-family audit；缺少任一项时不得把 bounded traversal 的停止状态提升为 `saturated`
+- literature saturation contract 还应保留覆盖每个 declared query 的有界 provider request/page-or-cursor/continuation 账本（known total 完整、末次 continuation exhausted）、逐候选 discovery/disposition、逐 core source bibliography reconciliation、exact-SHA archived canonical-identity provenance 与 coverage-debt 语义、每个 reconciliation candidate 的 source-text method-screening disposition，以及 source-grounded method-family audit/citation-graph coverage；展示 URL 只有在同时是已归档 canonical id/alias 时才参与 identity join；两个 summary receipt 必须绑定同一个 project-root-bounded exact-SHA ledger，并由 writeback 从详细内容重算，缺少任一项时不得把 bounded traversal 的停止状态提升为 `saturated`
 - `research_brainstorm` durable harness 通过同一个 entrypoint 验证 harness-step 解析、artifact hints、state plan 与 read-model 恢复；它输出后续 handoff contract，但不自动启动重流程
 
 ---

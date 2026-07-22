@@ -30,6 +30,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from literature_ledger_contract import validate_bound_coverage_closure
+
 DISCOVERY_METHODS = {
     "seed_search",
     "backward_references",
@@ -655,9 +657,23 @@ def _validate_report(report_text: str | None, matrix: Any, problems: list[str]) 
                 problems.append(f"posterior report close-prior matrix is missing a clickable source link for entries[{index}]")
 
 
-def validate_gate(survey: Any, matrix: Any, report_text: str | None, *, allow_exploratory: bool = False) -> list[str]:
+def validate_gate(
+    survey: Any,
+    matrix: Any,
+    report_text: str | None,
+    *,
+    allow_exploratory: bool = False,
+    project_root: Path | None = None,
+) -> list[str]:
     problems: list[str] = []
     survey_status = _validate_survey(survey, problems)
+    if _is_obj(survey) and _is_obj(survey.get("coverage")):
+        if project_root is None:
+            problems.append(
+                "project_root is required to resolve and recompute the pinned detailed literature ledger"
+            )
+        else:
+            problems.extend(validate_bound_coverage_closure(survey, project_root))
     matrix_status, exploratory, allocation_eligible = _validate_matrix(matrix, problems)
     _validate_report(report_text, matrix, problems)
     if matrix_status == "saturated" and survey_status != "saturated":
@@ -694,6 +710,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--matrix-json", required=True)
     parser.add_argument("--report-md", required=True)
     parser.add_argument(
+        "--project-root",
+        help="project root used to resolve pinned detailed literature-ledger references; "
+        "defaults to the nearest ancestor of --survey-json containing .nullius/",
+    )
+    parser.add_argument(
         "--gaia-ir-json",
         help="optional compiled .gaia/ir.json for cross-artifact tension-grade checks",
     )
@@ -701,14 +722,32 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
-        survey = load_json(Path(args.survey_json))
+        survey_path = Path(args.survey_json)
+        survey = load_json(survey_path)
         matrix = load_json(Path(args.matrix_json))
         report_text = Path(args.report_md).read_text(encoding="utf-8")
         ir = load_json(Path(args.gaia_ir_json)) if args.gaia_ir_json else None
     except (OSError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
-    problems = validate_gate(survey, matrix, report_text, allow_exploratory=args.allow_exploratory)
+    if args.project_root:
+        project_root = Path(args.project_root).resolve()
+    else:
+        project_root = next(
+            (
+                candidate
+                for candidate in (survey_path.resolve().parent, *survey_path.resolve().parents)
+                if (candidate / ".nullius").is_dir()
+            ),
+            None,
+        )
+    problems = validate_gate(
+        survey,
+        matrix,
+        report_text,
+        allow_exploratory=args.allow_exploratory,
+        project_root=project_root,
+    )
     if ir is not None:
         problems.extend(validate_tension_resolution_consistency(matrix, ir))
     if problems:

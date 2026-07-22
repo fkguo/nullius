@@ -59,8 +59,12 @@ Every paper node should have its own deep-read note. Method, topic, and synthesi
 
 Paper and method nodes must come from the reconciled upstream ledgers. A reference
 found in a core-source bibliography is not silently omitted: it is either promoted
-to a paper node/candidate with a stable identity or retained upstream with an
-explicit disposition and coverage-debt status. Method nodes and `uses-method` /
+to a paper node/candidate with a canonical DOI/URL/provider identity and
+metadata provenance, or retained upstream with an explicit disposition and
+coverage-debt status. Every reconciled candidate also has a source-located
+method-screening disposition grounded in source text before method nodes are emitted;
+title/year metadata cannot justify either a positive or negative method-bearing
+decision. Method nodes and `uses-method` /
 `method-lineage` edges use the audited method taxonomy plus source-local method
 descriptions with `evidence_basis: source_text` and at least one `method_features`
 entry; title/year similarity is not sufficient evidence for a method edge.

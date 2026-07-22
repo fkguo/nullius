@@ -348,18 +348,6 @@ def main(argv: list[str] | None = None) -> int:
     except (OSError, ValueError) as exc:
         sys.stderr.write(f"error: close-prior gate input could not be read: {exc}\n")
         return 2
-    gate_problems = validate_gate(
-        survey,
-        matrix,
-        report_text,
-        allow_exploratory=args.allow_exploratory_allocation,
-    )
-    if gate_problems:
-        sys.stderr.write("error: close-prior gate failed:\n")
-        for problem in gate_problems:
-            sys.stderr.write(f"  - {problem}\n")
-        return 2
-    literature_coverage = literature_coverage_from_gate(matrix)
 
     if args.project_root:
         project_root = Path(args.project_root).resolve()
@@ -372,11 +360,24 @@ def main(argv: list[str] | None = None) -> int:
             sys.stderr.write(
                 "error: no project root found: no ancestor of "
                 f"{Path(args.store_root).resolve()} contains .nullius/. "
-                "The package reference resolves against the project root; "
+                "The package and literature-ledger references resolve against the project root; "
                 "pass --project-root explicitly if the store lives outside "
                 "a nullius project.\n"
             )
             return 2
+    gate_problems = validate_gate(
+        survey,
+        matrix,
+        report_text,
+        allow_exploratory=args.allow_exploratory_allocation,
+        project_root=project_root,
+    )
+    if gate_problems:
+        sys.stderr.write("error: close-prior gate failed:\n")
+        for problem in gate_problems:
+            sys.stderr.write(f"  - {problem}\n")
+        return 2
+    literature_coverage = literature_coverage_from_gate(matrix)
 
     try:
         compiled_ir = verify_package_ref(
