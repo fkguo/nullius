@@ -700,6 +700,13 @@ def _default_saturation_doc(*, topic: str = "", run_id: str = "") -> dict[str, A
             "total_candidates": 0,
             "selected_core_ids": [],
             "selection_rationale": "",
+            "candidates": [],
+        },
+        "bibliography_reconciliation": {"core_sources": []},
+        "method_family_audit": {
+            "status": "coverage_debt",
+            "taxonomy": [],
+            "source_audits": [],
         },
         "citation_graph": {"seeds": []},
         "source_first_reading": {
@@ -792,11 +799,14 @@ def _saturation_set_candidate_pool(
     selection_rationale: str,
 ) -> None:
     data = _read_saturation(path)
+    existing_pool = data.get("candidate_pool")
+    candidates = existing_pool.get("candidates", []) if isinstance(existing_pool, dict) else []
     data["candidate_pool"] = {
         "artifact": artifact.strip(),
         "total_candidates": total_candidates,
         "selected_core_ids": selected_core_ids,
         "selection_rationale": selection_rationale.strip(),
+        "candidates": candidates if isinstance(candidates, list) else [],
     }
     data["generated_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     _write_saturation(path, data)

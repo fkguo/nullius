@@ -167,6 +167,26 @@ def write_close_prior_bundle(tmp_path):
             "core_total": 1,
             "core_deep_read": 1,
             "saturation": "saturated",
+            "bibliography_reconciliation": {
+                "status": "reconciled",
+                "artifact_ref": "knowledge_base/methodology_traces/literature_saturation.json#/bibliography_reconciliation",
+                "core_sources_total": 1,
+                "core_sources_reconciled": 1,
+                "candidates_total": 1,
+                "candidates_dispositioned": 1,
+                "unresolved_candidates": 0,
+                "coverage_debt_candidates": 0,
+            },
+            "method_family_audit": {
+                "status": "audited",
+                "artifact_ref": "knowledge_base/methodology_traces/literature_saturation.json#/method_family_audit",
+                "core_sources_total": 1,
+                "core_sources_audited": 1,
+                "taxonomy_families": 1,
+                "source_method_descriptions_audited": 1,
+                "cited_method_descriptions_audited": 0,
+                "unresolved_method_family_gaps": 0,
+            },
             "saturation_evidence": [
                 {
                     "round": 1,

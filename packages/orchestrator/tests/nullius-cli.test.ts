@@ -574,6 +574,15 @@ describe('nullius CLI', () => {
           key_equations_required: true,
           limitations_required: true,
         },
+        literature_saturation_contract: {
+          candidate_disposition_ledger_required: true,
+          bibliography_reconciliation_required: true,
+          stable_identity_resolution_required: true,
+          unresolved_candidates_are_coverage_debt: true,
+          method_family_audit_required: true,
+          method_description_evidence_required: true,
+          bounded_bibliography_traversal_required: true,
+        },
       },
     });
     const persistedState = manager.readState();

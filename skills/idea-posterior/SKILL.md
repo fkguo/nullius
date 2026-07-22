@@ -211,6 +211,15 @@ real screening and admitted zero new core papers; if the final round still adds
 core papers, or no real expansion round was measured, the status is
 `coverage_incomplete`.
 
+Snowball convergence is not sufficient by itself. The survey coverage receipt
+must also bind to the detailed `literature_saturation.json` ledgers: every core
+source bibliography is reconciled, every extracted candidate has an explicit
+disposition, unresolved identities remain coverage debt, and every core source
+has a method-family audit grounded in its method text and cited method
+descriptions. Any open bibliography, disposition, or method-taxonomy gap keeps
+the close prior at `coverage_incomplete` even when the terminal expansion round
+adds no new core paper.
+
 Every close-prior/core paper must be source-first and machine-readable:
 `read_status` is one of `full_text_read`, `section_read`, `metadata_only`, or
 `unavailable`; source links, read locators, and read sections are recorded; the

@@ -45,6 +45,19 @@ _QUERY_PROVIDER_STATUSES = {"queried", "not_applicable", "unavailable"}
 _FINAL_STATUSES = {"saturated", "coverage_incomplete"}
 _COVERAGE_STATUSES = {"saturated", "coverage_incomplete", "not_covered", "unavailable"}
 _EXPECTED_PROVIDERS = ("inspire", "arxiv", "openalex", "web")
+_CANDIDATE_IDENTITY_STATUSES = {"resolved", "unresolved"}
+_CANDIDATE_DISPOSITIONS = {
+    "core",
+    "supporting",
+    "background",
+    "duplicate",
+    "out_of_scope",
+    "coverage_debt",
+}
+_DISCOVERY_KINDS = {"search", "bibliography", "citation"}
+_RECONCILIATION_STATUSES = {"reconciled", "coverage_debt"}
+_METHOD_AUDIT_STATUSES = {"audited", "coverage_debt"}
+_METHOD_DISPOSITIONS = {"classified", "out_of_scope", "coverage_debt"}
 
 
 @dataclass(frozen=True)
@@ -136,7 +149,359 @@ def _int_or_none(value: object) -> int | None:
     return None
 
 
-def _validate_saturation(data: dict, *, require_reading_evidence: bool, project_stage: str) -> list[str]:
+def _validate_candidate_ledger(candidate_pool: dict, errors: list[str]) -> dict[str, dict]:
+    records = _as_list(candidate_pool.get("candidates"), "candidate_pool.candidates", errors)
+    by_id: dict[str, dict] = {}
+    stable_id_owners: dict[str, str] = {}
+    for i, raw_record in enumerate(records):
+        label = f"candidate_pool.candidates[{i}]"
+        record = _as_dict(raw_record, label, errors)
+        candidate_id = str(record.get("id") or "").strip()
+        if not candidate_id:
+            errors.append(f"{label}.id is required")
+            continue
+        if candidate_id in by_id:
+            errors.append(f"{label}.id duplicates candidate {candidate_id!r}")
+            continue
+        by_id[candidate_id] = record
+
+        identity_status = str(record.get("identity_status") or "").strip()
+        if identity_status not in _CANDIDATE_IDENTITY_STATUSES:
+            errors.append(f"{label}.identity_status must be one of {sorted(_CANDIDATE_IDENTITY_STATUSES)}")
+        stable_ids = [
+            str(item).strip()
+            for item in _as_list(record.get("stable_ids"), f"{label}.stable_ids", errors)
+            if str(item).strip()
+        ]
+        if identity_status == "resolved" and not stable_ids:
+            errors.append(f"{label}.stable_ids must name at least one stable identity when identity_status='resolved'")
+        for stable_id in stable_ids:
+            owner = stable_id_owners.get(stable_id)
+            if owner is not None:
+                errors.append(
+                    f"{label}.stable_ids repeats {stable_id!r} from candidate {owner!r}; "
+                    "merge aliases into one normalized candidate record"
+                )
+            else:
+                stable_id_owners[stable_id] = candidate_id
+
+        disposition = str(record.get("disposition") or "").strip()
+        if disposition not in _CANDIDATE_DISPOSITIONS:
+            errors.append(f"{label}.disposition must be one of {sorted(_CANDIDATE_DISPOSITIONS)}")
+        if identity_status == "unresolved" and disposition != "coverage_debt":
+            errors.append(f"{label}: unresolved identity must remain disposition='coverage_debt'")
+        if not _nonempty_string(record.get("rationale")):
+            errors.append(f"{label}.rationale is required")
+
+        discovered_from = _as_list(record.get("discovered_from"), f"{label}.discovered_from", errors)
+        if not discovered_from:
+            errors.append(f"{label}.discovered_from must record at least one discovery source")
+        for j, raw_source in enumerate(discovered_from):
+            source_label = f"{label}.discovered_from[{j}]"
+            source = _as_dict(raw_source, source_label, errors)
+            if str(source.get("kind") or "").strip() not in _DISCOVERY_KINDS:
+                errors.append(f"{source_label}.kind must be one of {sorted(_DISCOVERY_KINDS)}")
+            if not _nonempty_string(source.get("source_id")):
+                errors.append(f"{source_label}.source_id is required")
+            if not _nonempty_string(source.get("locator")):
+                errors.append(f"{source_label}.locator is required")
+    return by_id
+
+
+def _validate_bibliography_reconciliation(
+    value: object,
+    *,
+    project_root: Path,
+    selected_core_ids: list[str],
+    candidates_by_id: dict[str, dict],
+    final_status: str,
+    errors: list[str],
+) -> dict[str, set[str]]:
+    reconciliation = _as_dict(value, "bibliography_reconciliation", errors)
+    core_sources = _as_list(reconciliation.get("core_sources"), "bibliography_reconciliation.core_sources", errors)
+    candidates_by_source: dict[str, set[str]] = {}
+    statuses: dict[str, str] = {}
+    for i, raw_source in enumerate(core_sources):
+        label = f"bibliography_reconciliation.core_sources[{i}]"
+        source = _as_dict(raw_source, label, errors)
+        source_id = str(source.get("id") or "").strip()
+        if not source_id:
+            errors.append(f"{label}.id is required")
+            continue
+        if source_id in statuses:
+            errors.append(f"{label}.id duplicates core source {source_id!r}")
+            continue
+        status = str(source.get("status") or "").strip()
+        statuses[source_id] = status
+        if status not in _RECONCILIATION_STATUSES:
+            errors.append(f"{label}.status must be one of {sorted(_RECONCILIATION_STATUSES)}")
+        artifact_references: list | None = None
+        references_artifact = str(source.get("references_artifact") or "").strip()
+        if not references_artifact:
+            errors.append(f"{label}.references_artifact is required")
+        else:
+            artifact_path = Path(references_artifact.replace("\\\\", "/"))
+            if not artifact_path.is_absolute():
+                artifact_path = project_root / artifact_path
+            if not artifact_path.is_file():
+                errors.append(f"{label}.references_artifact does not exist: {artifact_path}")
+            elif artifact_path.stat().st_size <= 0:
+                errors.append(f"{label}.references_artifact must preserve a non-empty raw bibliography: {artifact_path}")
+            else:
+                try:
+                    artifact_data = json.loads(artifact_path.read_text(encoding="utf-8", errors="strict"))
+                except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+                    errors.append(f"{label}.references_artifact must be a readable JSON bibliography manifest: {exc}")
+                else:
+                    artifact = _as_dict(artifact_data, f"{label}.references_artifact", errors)
+                    if str(artifact.get("source_id") or "").strip() != source_id:
+                        errors.append(f"{label}.references_artifact.source_id must equal {source_id!r}")
+                    artifact_references = _as_list(
+                        artifact.get("references"),
+                        f"{label}.references_artifact.references",
+                        errors,
+                    )
+        extracted = _int_or_none(source.get("references_extracted"))
+        if extracted is None or extracted < 0:
+            errors.append(f"{label}.references_extracted must be a non-negative integer")
+        candidate_ids = [
+            str(item).strip()
+            for item in _as_list(source.get("candidate_ids"), f"{label}.candidate_ids", errors)
+            if str(item).strip()
+        ]
+        if len(candidate_ids) != len(set(candidate_ids)):
+            errors.append(f"{label}.candidate_ids must not contain duplicates")
+        if artifact_references is not None and extracted is not None and extracted != len(artifact_references):
+            errors.append(f"{label}.references_extracted must equal the raw references manifest count")
+        candidates_by_source[source_id] = set(candidate_ids)
+        debt = [
+            str(item).strip()
+            for item in _as_list(source.get("coverage_debt"), f"{label}.coverage_debt", errors)
+            if str(item).strip()
+        ]
+        if status == "reconciled" and debt:
+            errors.append(f"{label}: status='reconciled' cannot retain coverage_debt")
+        if status == "coverage_debt" and not debt:
+            errors.append(f"{label}: status='coverage_debt' must explain the remaining debt")
+        mapped_candidate_ids: set[str] = set()
+        if artifact_references is not None:
+            for j, raw_reference in enumerate(artifact_references):
+                reference_label = f"{label}.references_artifact.references[{j}]"
+                reference = _as_dict(raw_reference, reference_label, errors)
+                raw_text = reference.get("raw_text")
+                locator = str(reference.get("locator") or "").strip()
+                candidate_id = str(reference.get("candidate_id") or "").strip()
+                if not _nonempty_string(raw_text):
+                    errors.append(f"{reference_label}.raw_text is required")
+                if not locator:
+                    errors.append(f"{reference_label}.locator is required")
+                if not candidate_id:
+                    errors.append(f"{reference_label}.candidate_id is required")
+                    continue
+                mapped_candidate_ids.add(candidate_id)
+                if candidate_id not in set(candidate_ids):
+                    errors.append(f"{reference_label}.candidate_id is absent from {label}.candidate_ids")
+                    continue
+                candidate = candidates_by_id.get(candidate_id)
+                sources = candidate.get("discovered_from") if isinstance(candidate, dict) else None
+                linked = any(
+                    isinstance(item, dict)
+                    and str(item.get("kind") or "").strip() == "bibliography"
+                    and str(item.get("source_id") or "").strip() == source_id
+                    and str(item.get("locator") or "").strip() == locator
+                    for item in (sources if isinstance(sources, list) else [])
+                )
+                if not linked:
+                    errors.append(
+                        f"{reference_label} is not linked to the candidate ledger by source_id and locator"
+                    )
+            if mapped_candidate_ids != set(candidate_ids):
+                missing_mappings = sorted(set(candidate_ids) - mapped_candidate_ids)
+                if missing_mappings:
+                    errors.append(
+                        f"{label}.references_artifact has no raw-reference mapping for candidate(s): "
+                        + ", ".join(missing_mappings)
+                    )
+        for candidate_id in candidate_ids:
+            candidate = candidates_by_id.get(candidate_id)
+            if candidate is None:
+                errors.append(f"{label}.candidate_ids references unknown candidate {candidate_id!r}")
+                continue
+            sources = candidate.get("discovered_from") if isinstance(candidate, dict) else None
+            has_bibliography_source = any(
+                isinstance(item, dict)
+                and str(item.get("kind") or "").strip() == "bibliography"
+                and str(item.get("source_id") or "").strip() == source_id
+                and _nonempty_string(item.get("locator"))
+                for item in (sources if isinstance(sources, list) else [])
+            )
+            if not has_bibliography_source:
+                errors.append(
+                    f"candidate_pool candidate {candidate_id!r} lacks a bibliography discovery locator for core source {source_id!r}"
+                )
+
+    if set(statuses) != set(selected_core_ids):
+        missing = sorted(set(selected_core_ids) - set(statuses))
+        extra = sorted(set(statuses) - set(selected_core_ids))
+        if missing:
+            errors.append("bibliography_reconciliation missing selected core source(s): " + ", ".join(missing))
+        if extra:
+            errors.append("bibliography_reconciliation contains non-core source(s): " + ", ".join(extra))
+    if final_status == "saturated":
+        unreconciled = sorted(source_id for source_id, status in statuses.items() if status != "reconciled")
+        if unreconciled:
+            errors.append("final_status=saturated requires reconciled bibliographies for: " + ", ".join(unreconciled))
+    return candidates_by_source
+
+
+def _validate_method_description(
+    raw_item: object,
+    *,
+    label: str,
+    families: set[str],
+    candidates_by_id: dict[str, dict],
+    source_candidate_ids: set[str],
+    cited: bool,
+    errors: list[str],
+) -> str:
+    item = _as_dict(raw_item, label, errors)
+    description = str(item.get("description") or "").strip()
+    if not description:
+        errors.append(f"{label}.description is required and must describe the method, not only title/year metadata")
+    if not _nonempty_string(item.get("locator")):
+        errors.append(f"{label}.locator is required")
+    if str(item.get("evidence_basis") or "").strip() != "source_text":
+        errors.append(f"{label}.evidence_basis must be 'source_text'; title/year metadata alone is insufficient")
+    method_features = [
+        str(value).strip()
+        for value in _as_list(item.get("method_features"), f"{label}.method_features", errors)
+        if str(value).strip()
+    ]
+    if not method_features:
+        errors.append(f"{label}.method_features must record at least one source-grounded method characteristic")
+    elif description and not any(feature.casefold() in description.casefold() for feature in method_features):
+        errors.append(f"{label}.description must contain at least one recorded method feature; title/year metadata alone is insufficient")
+    disposition = str(item.get("disposition") or "").strip()
+    if disposition not in _METHOD_DISPOSITIONS:
+        errors.append(f"{label}.disposition must be one of {sorted(_METHOD_DISPOSITIONS)}")
+    family_ids = [
+        str(value).strip()
+        for value in _as_list(item.get("family_ids"), f"{label}.family_ids", errors)
+        if str(value).strip()
+    ]
+    unknown_families = sorted(set(family_ids) - families)
+    if unknown_families:
+        errors.append(f"{label}.family_ids contains unknown taxonomy family(s): {', '.join(unknown_families)}")
+    if disposition == "classified" and not family_ids:
+        errors.append(f"{label}: disposition='classified' requires at least one taxonomy family")
+    if disposition != "classified" and family_ids:
+        errors.append(f"{label}: only disposition='classified' may carry family_ids")
+    if cited:
+        candidate_id = str(item.get("candidate_id") or "").strip()
+        if not candidate_id:
+            errors.append(f"{label}.candidate_id is required for a cited method description")
+        elif candidate_id not in candidates_by_id:
+            errors.append(f"{label}.candidate_id references unknown candidate {candidate_id!r}")
+        elif candidate_id not in source_candidate_ids:
+            errors.append(f"{label}.candidate_id is not reconciled from this core source bibliography")
+    return disposition
+
+
+def _validate_method_family_audit(
+    value: object,
+    *,
+    selected_core_ids: list[str],
+    candidates_by_id: dict[str, dict],
+    bibliography_candidates: dict[str, set[str]],
+    final_status: str,
+    errors: list[str],
+) -> None:
+    audit = _as_dict(value, "method_family_audit", errors)
+    status = str(audit.get("status") or "").strip()
+    if status not in _METHOD_AUDIT_STATUSES:
+        errors.append(f"method_family_audit.status must be one of {sorted(_METHOD_AUDIT_STATUSES)}")
+    taxonomy = _as_list(audit.get("taxonomy"), "method_family_audit.taxonomy", errors)
+    families: set[str] = set()
+    for i, raw_family in enumerate(taxonomy):
+        label = f"method_family_audit.taxonomy[{i}]"
+        family = _as_dict(raw_family, label, errors)
+        family_id = str(family.get("id") or "").strip()
+        if not family_id:
+            errors.append(f"{label}.id is required")
+        elif family_id in families:
+            errors.append(f"{label}.id duplicates taxonomy family {family_id!r}")
+        else:
+            families.add(family_id)
+        if not _nonempty_string(family.get("label")):
+            errors.append(f"{label}.label is required")
+        if not _nonempty_string(family.get("description")):
+            errors.append(f"{label}.description is required")
+    if selected_core_ids and not families:
+        errors.append("method_family_audit.taxonomy must contain at least one method family")
+
+    source_audits = _as_list(audit.get("source_audits"), "method_family_audit.source_audits", errors)
+    audited_ids: set[str] = set()
+    unresolved = status != "audited"
+    for i, raw_source in enumerate(source_audits):
+        label = f"method_family_audit.source_audits[{i}]"
+        source = _as_dict(raw_source, label, errors)
+        source_id = str(source.get("source_id") or "").strip()
+        if not source_id:
+            errors.append(f"{label}.source_id is required")
+            continue
+        if source_id in audited_ids:
+            errors.append(f"{label}.source_id duplicates core source {source_id!r}")
+            continue
+        audited_ids.add(source_id)
+        paper_methods = _as_list(source.get("paper_method_descriptions"), f"{label}.paper_method_descriptions", errors)
+        if not paper_methods:
+            errors.append(f"{label}.paper_method_descriptions must contain source-local method evidence")
+        for j, item in enumerate(paper_methods):
+            disposition = _validate_method_description(
+                item,
+                label=f"{label}.paper_method_descriptions[{j}]",
+                families=families,
+                candidates_by_id=candidates_by_id,
+                source_candidate_ids=bibliography_candidates.get(source_id, set()),
+                cited=False,
+                errors=errors,
+            )
+            unresolved = unresolved or disposition == "coverage_debt"
+        cited_methods = _as_list(source.get("cited_method_descriptions"), f"{label}.cited_method_descriptions", errors)
+        for j, item in enumerate(cited_methods):
+            disposition = _validate_method_description(
+                item,
+                label=f"{label}.cited_method_descriptions[{j}]",
+                families=families,
+                candidates_by_id=candidates_by_id,
+                source_candidate_ids=bibliography_candidates.get(source_id, set()),
+                cited=True,
+                errors=errors,
+            )
+            unresolved = unresolved or disposition == "coverage_debt"
+        if source.get("cited_method_scan_complete") is not True:
+            unresolved = True
+            if final_status == "saturated":
+                errors.append(f"{label}.cited_method_scan_complete must be true before saturation")
+
+    if audited_ids != set(selected_core_ids):
+        missing = sorted(set(selected_core_ids) - audited_ids)
+        extra = sorted(audited_ids - set(selected_core_ids))
+        if missing:
+            errors.append("method_family_audit missing selected core source(s): " + ", ".join(missing))
+        if extra:
+            errors.append("method_family_audit contains non-core source(s): " + ", ".join(extra))
+    if final_status == "saturated" and unresolved:
+        errors.append("final_status=saturated requires an audited method taxonomy with no unresolved method-family gaps")
+
+
+def _validate_saturation(
+    data: dict,
+    *,
+    project_root: Path,
+    require_reading_evidence: bool,
+    project_stage: str,
+) -> list[str]:
     errors: list[str] = []
 
     final_status = str(data.get("final_status") or "").strip()
@@ -197,6 +562,56 @@ def _validate_saturation(data: dict, *, require_reading_evidence: bool, project_
         errors.append("candidate_pool.total_candidates cannot be smaller than selected_core_ids")
     if not _nonempty_string(candidate_pool.get("selection_rationale")):
         errors.append("candidate_pool.selection_rationale is required")
+    candidates_by_id = _validate_candidate_ledger(candidate_pool, errors)
+    if total_candidates is not None and total_candidates != len(candidates_by_id):
+        errors.append("candidate_pool.total_candidates must equal the number of explicit candidate disposition records")
+    for core_id in selected_core_ids:
+        record = candidates_by_id.get(core_id)
+        if record is None:
+            errors.append(f"candidate_pool.candidates missing selected core paper {core_id!r}")
+        elif str(record.get("disposition") or "").strip() != "core":
+            errors.append(f"candidate_pool candidate {core_id!r} must have disposition='core'")
+    ledger_core_ids = {
+        candidate_id
+        for candidate_id, record in candidates_by_id.items()
+        if str(record.get("disposition") or "").strip() == "core"
+    }
+    if ledger_core_ids != set(selected_core_ids):
+        unselected_core = sorted(ledger_core_ids - set(selected_core_ids))
+        if unselected_core:
+            errors.append(
+                "candidate_pool contains core-disposition candidate(s) absent from selected_core_ids: "
+                + ", ".join(unselected_core)
+            )
+    if final_status == "saturated":
+        debt_candidates = sorted(
+            candidate_id
+            for candidate_id, record in candidates_by_id.items()
+            if str(record.get("identity_status") or "").strip() == "unresolved"
+            or str(record.get("disposition") or "").strip() == "coverage_debt"
+        )
+        if debt_candidates:
+            errors.append(
+                "final_status=saturated cannot retain unresolved/coverage-debt candidates: "
+                + ", ".join(debt_candidates)
+            )
+
+    bibliography_candidates = _validate_bibliography_reconciliation(
+        data.get("bibliography_reconciliation"),
+        project_root=project_root,
+        selected_core_ids=selected_core_ids,
+        candidates_by_id=candidates_by_id,
+        final_status=final_status,
+        errors=errors,
+    )
+    _validate_method_family_audit(
+        data.get("method_family_audit"),
+        selected_core_ids=selected_core_ids,
+        candidates_by_id=candidates_by_id,
+        bibliography_candidates=bibliography_candidates,
+        final_status=final_status,
+        errors=errors,
+    )
 
     citation_graph = _as_dict(data.get("citation_graph"), "citation_graph", errors)
     seed_records = _as_list(citation_graph.get("seeds"), "citation_graph.seeds", errors)
@@ -212,9 +627,17 @@ def _validate_saturation(data: dict, *, require_reading_evidence: bool, project_
         if coverage_status not in _COVERAGE_STATUSES:
             errors.append(f"citation_graph.seeds[{i}].coverage_status must be one of {sorted(_COVERAGE_STATUSES)}")
         gaps = [str(g).strip() for g in _as_list(seed.get("gaps", []), f"citation_graph.seeds[{i}].gaps", errors) if str(g).strip()]
+        if final_status == "saturated":
+            if coverage_status != "saturated":
+                errors.append(f"citation_graph.seeds[{i}].coverage_status must be 'saturated' when final_status='saturated'")
+            if gaps:
+                errors.append(f"citation_graph.seeds[{i}].gaps must be empty when final_status='saturated'")
         for side in ("references_checked", "citations_checked"):
-            checked = bool(seed.get(side))
+            checked = seed.get(side) is True
             if checked:
+                continue
+            if final_status == "saturated":
+                errors.append(f"citation_graph.seeds[{i}].{side} must be true when final_status='saturated'")
                 continue
             if coverage_status in {"not_covered", "unavailable"} and gaps:
                 continue
@@ -350,6 +773,7 @@ def main() -> int:
 
     errors = _validate_saturation(
         saturation,
+        project_root=project_root,
         require_reading_evidence=_require_reading_evidence(cfg),
         project_stage=_project_stage(cfg),
     )

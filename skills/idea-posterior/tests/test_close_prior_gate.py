@@ -63,6 +63,26 @@ def valid_survey():
             "core_total": 1,
             "core_deep_read": 1,
             "saturation": "saturated",
+            "bibliography_reconciliation": {
+                "status": "reconciled",
+                "artifact_ref": "knowledge_base/methodology_traces/literature_saturation.json#/bibliography_reconciliation",
+                "core_sources_total": 1,
+                "core_sources_reconciled": 1,
+                "candidates_total": 1,
+                "candidates_dispositioned": 1,
+                "unresolved_candidates": 0,
+                "coverage_debt_candidates": 0,
+            },
+            "method_family_audit": {
+                "status": "audited",
+                "artifact_ref": "knowledge_base/methodology_traces/literature_saturation.json#/method_family_audit",
+                "core_sources_total": 1,
+                "core_sources_audited": 1,
+                "taxonomy_families": 1,
+                "source_method_descriptions_audited": 1,
+                "cited_method_descriptions_audited": 0,
+                "unresolved_method_family_gaps": 0,
+            },
             "saturation_evidence": [
                 {
                     "round": 1,
@@ -223,6 +243,77 @@ def test_malformed_saturation_rounds_fail():
     assert_problem_contains(issues, "positive integer")
     assert_problem_contains(issues, "cannot exceed")
     assert_problem_contains(issues, "must not repeat")
+
+
+def test_saturated_survey_requires_bibliography_reconciliation_closure():
+    survey = valid_survey()
+    survey["coverage"]["bibliography_reconciliation"]["status"] = "coverage_debt"
+    survey["coverage"]["bibliography_reconciliation"]["unresolved_candidates"] = 1
+    issues = problems(survey=survey)
+    assert_problem_contains(issues, "requires bibliography_reconciliation.status=reconciled")
+    assert_problem_contains(issues, "cannot retain unresolved or coverage-debt bibliography candidates")
+
+
+def test_saturated_survey_requires_method_family_audit_closure():
+    survey = valid_survey()
+    survey["coverage"]["method_family_audit"]["status"] = "coverage_debt"
+    survey["coverage"]["method_family_audit"]["unresolved_method_family_gaps"] = 1
+    issues = problems(survey=survey)
+    assert_problem_contains(issues, "requires method_family_audit.status=audited")
+    assert_problem_contains(issues, "cannot retain unresolved method-family gaps")
+
+
+def test_saturated_survey_requires_source_method_evidence_for_each_core_source():
+    survey = valid_survey()
+    survey["coverage"]["method_family_audit"]["source_method_descriptions_audited"] = 0
+    issues = gate.validate_gate(survey, valid_matrix(), REPORT, allow_exploratory=False)
+    assert_problem_contains(issues, "source-text method evidence for every audited core source")
+
+
+def test_saturated_survey_rejects_boolean_coverage_counters():
+    survey = valid_survey()
+    survey["coverage"]["core_total"] = True
+    survey["coverage"]["bibliography_reconciliation"]["core_sources_total"] = True
+    for field in (
+        "core_sources_reconciled",
+        "candidates_total",
+        "candidates_dispositioned",
+        "unresolved_candidates",
+        "coverage_debt_candidates",
+    ):
+        survey["coverage"]["bibliography_reconciliation"][field] = True
+    for field in (
+        "core_sources_audited",
+        "taxonomy_families",
+        "source_method_descriptions_audited",
+        "cited_method_descriptions_audited",
+        "unresolved_method_family_gaps",
+    ):
+        survey["coverage"]["method_family_audit"][field] = True
+    survey["coverage"]["method_family_audit"]["core_sources_total"] = True
+    survey["coverage"]["saturation_evidence"][0]["round"] = True
+    survey["coverage"]["saturation_evidence"][0]["expansion_candidates_screened"] = True
+
+    issues = gate.validate_gate(survey, valid_matrix(), REPORT, allow_exploratory=False)
+
+    assert_problem_contains(issues, "bibliography_reconciliation.candidates_total must be a non-negative integer")
+    assert_problem_contains(issues, "method_family_audit.taxonomy_families must be a non-negative integer")
+    assert_problem_contains(issues, "coverage.core_total must be a non-negative integer")
+    assert_problem_contains(issues, "bibliography_reconciliation.core_sources_total must be a non-negative integer")
+    assert_problem_contains(issues, "method_family_audit.core_sources_total must be a non-negative integer")
+    assert_problem_contains(issues, ".round must be a positive integer")
+    assert_problem_contains(issues, "expansion_candidates_screened must be a positive integer")
+
+
+def test_saturated_survey_reports_malformed_method_counters_without_crashing():
+    survey = valid_survey()
+    survey["coverage"]["method_family_audit"]["taxonomy_families"] = "bad"
+    survey["coverage"]["method_family_audit"]["source_method_descriptions_audited"] = "bad"
+
+    issues = gate.validate_gate(survey, valid_matrix(), REPORT, allow_exploratory=False)
+
+    assert_problem_contains(issues, "method_family_audit.taxonomy_families must be a non-negative integer")
+    assert_problem_contains(issues, "method_family_audit.source_method_descriptions_audited must be a non-negative integer")
 
 
 def test_missing_critique_search_fails_for_tension_resolution_above_weakest():

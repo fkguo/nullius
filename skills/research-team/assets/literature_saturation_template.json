@@ -37,7 +37,16 @@
     "artifact": "",
     "total_candidates": 0,
     "selected_core_ids": [],
-    "selection_rationale": ""
+    "selection_rationale": "",
+    "candidates": []
+  },
+  "bibliography_reconciliation": {
+    "core_sources": []
+  },
+  "method_family_audit": {
+    "status": "coverage_debt",
+    "taxonomy": [],
+    "source_audits": []
   },
   "citation_graph": {
     "seeds": []

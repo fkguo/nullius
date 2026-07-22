@@ -7,7 +7,7 @@
 // plus a coverage block — so "how deep / how complete was the survey" is checkable,
 // not just asserted in prose.
 //
-// Three integrity invariants (assembleLiteratureSurvey + the parser), the analog of
+// Four integrity invariants (assembleLiteratureSurvey + the parser), the analog of
 // claim-grounding's span rule:
 //   1. Coverage counts are COMPUTED from `papers`, never trusted from the caller —
 //      you cannot claim "20 source-read" when only 3 papers carry
@@ -22,6 +22,12 @@
 //      coverage.notes) and rejected at the parse boundary (reason in issues) —
 //      mirroring claim-grounding's enforceSpanRule: visible downgrade, never a
 //      silently accepted claim.
+//   4. Coverage closure is AUDITED, not inferred from search rounds: every core
+//      source bibliography must be reconciled to a disposition ledger, every
+//      candidate must have a disposition, unresolved identities remain explicit
+//      coverage debt, and the method-family taxonomy must be checked against both
+//      admitted-paper method text and cited method descriptions. Missing closure
+//      evidence mechanically blocks `saturated`.
 //
 // Style mirrors staged-content.ts / claim-grounding.ts: locally-defined types + a
 // hand-rolled safeParse/parse (no zod).
@@ -99,6 +105,36 @@ export type LiteratureSurveySynthesis = {
   landscape_md?: string;
 };
 
+/** Compact survey-level receipt for the detailed bibliography reconciliation
+ *  stored in the literature-saturation artifact. The detailed artifact owns the
+ *  per-reference stable identities, source locators, and dispositions; this
+ *  summary is the fail-closed bridge that prevents synthesis from claiming
+ *  saturation while that ledger is incomplete. */
+export type BibliographyReconciliationSummary = {
+  status: 'reconciled' | 'coverage_debt';
+  artifact_ref: string;
+  core_sources_total: number;
+  core_sources_reconciled: number;
+  candidates_total: number;
+  candidates_dispositioned: number;
+  unresolved_candidates: number;
+  coverage_debt_candidates: number;
+};
+
+/** Compact receipt for the detailed method-family audit. The detailed artifact
+ *  compares source-local method descriptions and cited method descriptions with
+ *  the current taxonomy; title/year query matches are not method evidence. */
+export type MethodFamilyAuditSummary = {
+  status: 'audited' | 'coverage_debt';
+  artifact_ref: string;
+  core_sources_total: number;
+  core_sources_audited: number;
+  taxonomy_families: number;
+  source_method_descriptions_audited: number;
+  cited_method_descriptions_audited: number;
+  unresolved_method_family_gaps: number;
+};
+
 /** One recorded round of core-set expansion: screening the references + citations
  *  (the frontier) of the core set as it stood at the start of the round.
  *  Domain-agnostic — a "round" is a unit of the survey's own discovery process,
@@ -139,6 +175,8 @@ export type LiteratureSurveyCoverage = {
    *  new_core_papers = 0); optional for other statuses, but always schema-validated
    *  when present. */
   saturation_evidence?: SaturationExpansionRound[];
+  bibliography_reconciliation: BibliographyReconciliationSummary;
+  method_family_audit: MethodFamilyAuditSummary;
   notes?: string;
 };
 
@@ -165,6 +203,8 @@ export const REQUIRED_FULL_TEXT_READ_SECTIONS: readonly ReadSection[] = ['introd
 const IDENTITY_VERDICTS: readonly CitationIdentityTriangulation['verdict'][] = ['consistent', 'conflicted', 'insufficient_sources'];
 const SOURCE_FIDELITY_STATUSES: readonly SourceFidelityAudit['status'][] = ['pass', 'fail', 'partial'];
 const TENSION_KINDS: readonly SynthesisTensionKind[] = ['measurement', 'theoretical', 'methodological', 'other'];
+const BIBLIOGRAPHY_RECONCILIATION_STATUSES: readonly BibliographyReconciliationSummary['status'][] = ['reconciled', 'coverage_debt'];
+const METHOD_FAMILY_AUDIT_STATUSES: readonly MethodFamilyAuditSummary['status'][] = ['audited', 'coverage_debt'];
 
 // ─── Pure helpers ───
 
@@ -240,6 +280,99 @@ function missingRequiredDiscoveryMethods(rounds: SaturationExpansionRound[]): Di
 export type SaturationEvidenceAssessment =
   | { supported: true }
   | { supported: false; reason: string };
+
+function defaultBibliographyReconciliation(coreTotal: number): BibliographyReconciliationSummary {
+  return {
+    status: 'coverage_debt',
+    artifact_ref: 'unrecorded',
+    core_sources_total: coreTotal,
+    core_sources_reconciled: 0,
+    candidates_total: 0,
+    candidates_dispositioned: 0,
+    unresolved_candidates: 0,
+    coverage_debt_candidates: 0,
+  };
+}
+
+function defaultMethodFamilyAudit(coreTotal: number): MethodFamilyAuditSummary {
+  return {
+    status: 'coverage_debt',
+    artifact_ref: 'unrecorded',
+    core_sources_total: coreTotal,
+    core_sources_audited: 0,
+    taxonomy_families: 0,
+    source_method_descriptions_audited: 0,
+    cited_method_descriptions_audited: 0,
+    unresolved_method_family_gaps: 0,
+  };
+}
+
+/** Survey-level closure rule. Expansion-round convergence is necessary but not
+ *  sufficient: bibliographies, candidate dispositions, and method-family coverage
+ *  are independent omission surfaces and must each be closed explicitly. */
+export function assessCoverageClosure(coverage: LiteratureSurveyCoverage): SaturationEvidenceAssessment {
+  const bibliography = coverage.bibliography_reconciliation;
+  if (!bibliography || bibliography.status !== 'reconciled') {
+    return { supported: false, reason: 'core-source bibliographies are not fully reconciled' };
+  }
+  if (bibliography.core_sources_total !== coverage.core_total) {
+    return {
+      supported: false,
+      reason: `bibliography reconciliation covers ${bibliography.core_sources_total} core source(s), but the survey carries ${coverage.core_total}`,
+    };
+  }
+  if (bibliography.core_sources_reconciled !== coverage.core_total) {
+    return {
+      supported: false,
+      reason: `only ${bibliography.core_sources_reconciled} of ${coverage.core_total} core-source bibliographies are reconciled`,
+    };
+  }
+  if (bibliography.candidates_dispositioned !== bibliography.candidates_total) {
+    return {
+      supported: false,
+      reason: `${bibliography.candidates_total - bibliography.candidates_dispositioned} bibliography candidate(s) lack an explicit disposition`,
+    };
+  }
+  if (bibliography.unresolved_candidates > 0 || bibliography.coverage_debt_candidates > 0) {
+    return {
+      supported: false,
+      reason: `bibliography reconciliation retains ${bibliography.unresolved_candidates} unresolved candidate(s) and ${bibliography.coverage_debt_candidates} coverage-debt candidate(s)`,
+    };
+  }
+
+  const methodAudit = coverage.method_family_audit;
+  if (!methodAudit || methodAudit.status !== 'audited') {
+    return { supported: false, reason: 'method-family coverage has not been audited' };
+  }
+  if (methodAudit.core_sources_total !== coverage.core_total) {
+    return {
+      supported: false,
+      reason: `method-family audit covers ${methodAudit.core_sources_total} core source(s), but the survey carries ${coverage.core_total}`,
+    };
+  }
+  if (methodAudit.core_sources_audited !== coverage.core_total) {
+    return {
+      supported: false,
+      reason: `only ${methodAudit.core_sources_audited} of ${coverage.core_total} core sources have method-family audits`,
+    };
+  }
+  if (coverage.core_total > 0 && methodAudit.taxonomy_families === 0) {
+    return { supported: false, reason: 'method-family audit has no current taxonomy families' };
+  }
+  if (methodAudit.source_method_descriptions_audited < methodAudit.core_sources_audited) {
+    return {
+      supported: false,
+      reason: 'method-family audit lacks source-text method evidence for one or more audited core sources',
+    };
+  }
+  if (methodAudit.unresolved_method_family_gaps > 0) {
+    return {
+      supported: false,
+      reason: `method-family audit retains ${methodAudit.unresolved_method_family_gaps} unresolved gap(s)`,
+    };
+  }
+  return { supported: true };
+}
 
 /** Mechanical saturation rule (pure, the single source of truth for both sides):
  *  a `saturated` status is supported iff the recorded rounds are well-formed,
@@ -319,17 +452,27 @@ export function enforceSaturationRule(coverage: LiteratureSurveyCoverage): Liter
     coverage.saturation_evidence,
     isNonNegativeInteger(coverage.core_total) ? coverage.core_total : undefined,
   );
-  if (assessment.supported) return coverage;
+  if (!assessment.supported) {
+    return {
+      ...coverage,
+      saturation: 'coverage_incomplete',
+      notes: appendNote(coverage.notes, `downgraded to coverage_incomplete: ${assessment.reason}`),
+    };
+  }
+  const closure = assessCoverageClosure(coverage);
+  if (closure.supported) return coverage;
   return {
     ...coverage,
     saturation: 'coverage_incomplete',
-    notes: appendNote(coverage.notes, `downgraded to coverage_incomplete: ${assessment.reason}`),
+    notes: appendNote(coverage.notes, `downgraded to coverage_incomplete: ${closure.reason}`),
   };
 }
 
 export type SurveyCoverageOptions = {
   saturation?: SaturationStatus;
   saturation_evidence?: SaturationExpansionRound[];
+  bibliography_reconciliation?: BibliographyReconciliationSummary;
+  method_family_audit?: MethodFamilyAuditSummary;
   notes?: string;
 };
 
@@ -345,13 +488,16 @@ export function computeSurveyCoverage(
   // (cast-in) input — filter to objects so a null/non-object element cannot crash here.
   const list = (Array.isArray(papers) ? papers : []).filter(isObject);
   const core = list.filter(p => p.role === 'core');
+  const coreTotal = core.length;
   return enforceSaturationRule({
     total_papers: list.length,
     deep_read: list.filter(p => isSourceReadStatus(p.read_status)).length,
-    core_total: core.length,
+    core_total: coreTotal,
     core_deep_read: core.filter(p => isSourceReadStatus(p.read_status)).length,
     saturation: options.saturation ?? 'unknown',
     ...(options.saturation_evidence !== undefined ? { saturation_evidence: options.saturation_evidence } : {}),
+    bibliography_reconciliation: options.bibliography_reconciliation ?? defaultBibliographyReconciliation(coreTotal),
+    method_family_audit: options.method_family_audit ?? defaultMethodFamilyAudit(coreTotal),
     ...(options.notes !== undefined ? { notes: options.notes } : {}),
   });
 }
@@ -383,6 +529,8 @@ export type AssembleLiteratureSurveyInput = {
   synthesis: LiteratureSurveySynthesis;
   saturation?: SaturationStatus;
   saturation_evidence?: SaturationExpansionRound[];
+  bibliography_reconciliation?: BibliographyReconciliationSummary;
+  method_family_audit?: MethodFamilyAuditSummary;
   coverage_notes?: string;
 };
 
@@ -402,6 +550,8 @@ export function assembleLiteratureSurvey(input: AssembleLiteratureSurveyInput): 
     coverage: computeSurveyCoverage(input.papers, {
       saturation: input.saturation ?? 'unknown',
       ...(input.saturation_evidence !== undefined ? { saturation_evidence: input.saturation_evidence } : {}),
+      ...(input.bibliography_reconciliation !== undefined ? { bibliography_reconciliation: input.bibliography_reconciliation } : {}),
+      ...(input.method_family_audit !== undefined ? { method_family_audit: input.method_family_audit } : {}),
       ...(input.coverage_notes !== undefined ? { notes: input.coverage_notes } : {}),
     }),
   };
@@ -712,6 +862,121 @@ function validateSynthesis(synthesis: unknown, issues: LiteratureSurveyParseIssu
   }
 }
 
+function validateBibliographyReconciliationSummary(
+  value: unknown,
+  coverage: Record<string, unknown>,
+  issues: LiteratureSurveyParseIssue[],
+): void {
+  const path = 'coverage.bibliography_reconciliation';
+  if (!isObject(value)) {
+    issues.push(issue(path, 'must be an object'));
+    return;
+  }
+  if (!BIBLIOGRAPHY_RECONCILIATION_STATUSES.includes(value.status as BibliographyReconciliationSummary['status'])) {
+    issues.push(issue(`${path}.status`, `must be one of ${BIBLIOGRAPHY_RECONCILIATION_STATUSES.join(', ')}`));
+  }
+  if (!isNonEmptyString(value.artifact_ref)) {
+    issues.push(issue(`${path}.artifact_ref`, 'must be a non-empty reference to the detailed reconciliation artifact'));
+  }
+  for (const field of [
+    'core_sources_total',
+    'core_sources_reconciled',
+    'candidates_total',
+    'candidates_dispositioned',
+    'unresolved_candidates',
+    'coverage_debt_candidates',
+  ] as const) {
+    if (!isNonNegativeInteger(value[field])) issues.push(issue(`${path}.${field}`, 'must be a non-negative integer'));
+  }
+  if (
+    isNonNegativeInteger(value.core_sources_reconciled)
+    && isNonNegativeInteger(value.core_sources_total)
+    && value.core_sources_reconciled > value.core_sources_total
+  ) {
+    issues.push(issue(`${path}.core_sources_reconciled`, 'cannot exceed core_sources_total'));
+  }
+  if (
+    isNonNegativeInteger(value.candidates_dispositioned)
+    && isNonNegativeInteger(value.candidates_total)
+    && value.candidates_dispositioned > value.candidates_total
+  ) {
+    issues.push(issue(`${path}.candidates_dispositioned`, 'cannot exceed candidates_total'));
+  }
+  if (isNonNegativeInteger(coverage.core_total) && value.core_sources_total !== coverage.core_total) {
+    issues.push(issue(`${path}.core_sources_total`, `must equal coverage.core_total (${coverage.core_total})`));
+  }
+  if (value.status === 'reconciled') {
+    if (value.core_sources_reconciled !== value.core_sources_total) {
+      issues.push(issue(`${path}.status`, 'reconciled requires every core source bibliography to be reconciled'));
+    }
+    if (value.candidates_dispositioned !== value.candidates_total) {
+      issues.push(issue(`${path}.status`, 'reconciled requires an explicit disposition for every bibliography candidate'));
+    }
+    if (value.unresolved_candidates !== 0 || value.coverage_debt_candidates !== 0) {
+      issues.push(issue(`${path}.status`, 'reconciled cannot retain unresolved or coverage-debt candidates'));
+    }
+  }
+}
+
+function validateMethodFamilyAuditSummary(
+  value: unknown,
+  coverage: Record<string, unknown>,
+  issues: LiteratureSurveyParseIssue[],
+): void {
+  const path = 'coverage.method_family_audit';
+  if (!isObject(value)) {
+    issues.push(issue(path, 'must be an object'));
+    return;
+  }
+  if (!METHOD_FAMILY_AUDIT_STATUSES.includes(value.status as MethodFamilyAuditSummary['status'])) {
+    issues.push(issue(`${path}.status`, `must be one of ${METHOD_FAMILY_AUDIT_STATUSES.join(', ')}`));
+  }
+  if (!isNonEmptyString(value.artifact_ref)) {
+    issues.push(issue(`${path}.artifact_ref`, 'must be a non-empty reference to the detailed method-family audit'));
+  }
+  for (const field of [
+    'core_sources_total',
+    'core_sources_audited',
+    'taxonomy_families',
+    'source_method_descriptions_audited',
+    'cited_method_descriptions_audited',
+    'unresolved_method_family_gaps',
+  ] as const) {
+    if (!isNonNegativeInteger(value[field])) issues.push(issue(`${path}.${field}`, 'must be a non-negative integer'));
+  }
+  if (
+    isNonNegativeInteger(value.core_sources_audited)
+    && isNonNegativeInteger(value.core_sources_total)
+    && value.core_sources_audited > value.core_sources_total
+  ) {
+    issues.push(issue(`${path}.core_sources_audited`, 'cannot exceed core_sources_total'));
+  }
+  if (isNonNegativeInteger(coverage.core_total) && value.core_sources_total !== coverage.core_total) {
+    issues.push(issue(`${path}.core_sources_total`, `must equal coverage.core_total (${coverage.core_total})`));
+  }
+  if (value.status === 'audited') {
+    if (value.core_sources_audited !== value.core_sources_total) {
+      issues.push(issue(`${path}.status`, 'audited requires a method-family audit for every core source'));
+    }
+    if (isNonNegativeInteger(coverage.core_total) && coverage.core_total > 0 && value.taxonomy_families === 0) {
+      issues.push(issue(`${path}.taxonomy_families`, 'audited core literature requires at least one current taxonomy family'));
+    }
+    if (
+      isNonNegativeInteger(value.source_method_descriptions_audited)
+      && isNonNegativeInteger(value.core_sources_audited)
+      && value.source_method_descriptions_audited < value.core_sources_audited
+    ) {
+      issues.push(issue(
+        `${path}.source_method_descriptions_audited`,
+        'audited requires at least one source-text method description for every audited core source',
+      ));
+    }
+    if (value.unresolved_method_family_gaps !== 0) {
+      issues.push(issue(`${path}.status`, 'audited cannot retain unresolved method-family gaps'));
+    }
+  }
+}
+
 function validateCoverage(coverage: unknown, issues: LiteratureSurveyParseIssue[]): void {
   if (!isObject(coverage)) {
     issues.push(issue('coverage', 'must be an object'));
@@ -748,6 +1013,8 @@ function validateCoverage(coverage: unknown, issues: LiteratureSurveyParseIssue[
       }
     }
   }
+  validateBibliographyReconciliationSummary(coverage.bibliography_reconciliation, coverage, issues);
+  validateMethodFamilyAuditSummary(coverage.method_family_audit, coverage, issues);
   // Parse-boundary side of the saturation rule (assemble downgrades; the parser
   // REJECTS, mirroring how the claim-grounding parser re-asserts the span rule): a
   // hand-authored survey cannot circulate an unsupported `saturated`.
@@ -760,6 +1027,13 @@ function validateCoverage(coverage: unknown, issues: LiteratureSurveyParseIssue[
       issues.push(issue(
         'coverage.saturation',
         `claims 'saturated' unsupported by saturation_evidence: ${assessment.reason} (assembleLiteratureSurvey downgrades this to coverage_incomplete)`,
+      ));
+    }
+    const closure = assessCoverageClosure(coverage as unknown as LiteratureSurveyCoverage);
+    if (!closure.supported) {
+      issues.push(issue(
+        'coverage.saturation',
+        `claims 'saturated' without closed bibliography/method coverage: ${closure.reason} (assembleLiteratureSurvey downgrades this to coverage_incomplete)`,
       ));
     }
   }

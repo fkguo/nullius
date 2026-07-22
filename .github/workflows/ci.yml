@@ -97,6 +97,10 @@ jobs:
         if: ${{ matrix.node-version == 22 }}
         run: node scripts/check-citation-identity-grounding-anti-drift.mjs
 
+      - name: Check literature coverage closure anti-drift (bibliography and method-family ledgers)
+        if: ${{ matrix.node-version == 22 }}
+        run: node scripts/check-literature-coverage-closure-anti-drift.mjs
+
       - name: Check idea-posterior reader-surface anti-drift (interaction coverage)
         if: ${{ matrix.node-version == 22 }}
         run: node scripts/check-idea-posterior-reader-surface-anti-drift.mjs

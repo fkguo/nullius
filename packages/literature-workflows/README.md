@@ -23,6 +23,15 @@ nullius workflow-plan \
 
 The orchestrator imports `@nullius/literature-workflows` directly; users do not call this package.
 
+Literature recipes carry a fail-closed saturation handoff. In addition to
+provider pagination/cursor accounting and bounded citation expansion, the handoff
+requires a disposition record for every candidate, direct-bibliography
+reconciliation for every selected core source, stable identity resolution where
+possible with unresolved entries retained as coverage debt, and a method-family
+audit grounded in source-local and cited method descriptions. A workflow cannot
+report `saturated` while any of those ledgers remains open; bounded stops remain
+explicit `coverage_incomplete` debt.
+
 ## Build & test
 
 ```bash
