@@ -173,6 +173,12 @@ def _resolve_path(p, base_dir):
     return p
 
 
+def _resolve_bound_input_path(p, base_dir):
+    if isinstance(p, str) and p.startswith("out://"):
+        return p
+    return _resolve_path(p, base_dir)
+
+
 def _resolve_paths_in_job(job, job_dir):
     job = deepcopy(job)
     # Defensive: user may set these sections to null/non-mapping in YAML/JSON.
@@ -190,6 +196,19 @@ def _resolve_paths_in_job(job, job_dir):
     job.setdefault("auto_qft", {})
 
     job["mathematica"]["entry"] = _resolve_path(job["mathematica"].get("entry"), job_dir)
+    bound_inputs = job["mathematica"].get("bound_inputs")
+    if bound_inputs is None:
+        bound_inputs = []
+    if not isinstance(bound_inputs, list):
+        raise SystemExit("mathematica.bound_inputs must be a list")
+    resolved_bound_inputs = []
+    for item in bound_inputs:
+        if not isinstance(item, dict):
+            raise SystemExit("each mathematica.bound_inputs entry must be a mapping/object")
+        resolved = dict(item)
+        resolved["path"] = _resolve_bound_input_path(item.get("path"), job_dir)
+        resolved_bound_inputs.append(resolved)
+    job["mathematica"]["bound_inputs"] = resolved_bound_inputs
     resolved_tex_paths = [_resolve_path(p, job_dir) for p in _as_list(job["latex"].get("tex_paths"))]
     targets = job["latex"].get("targets")
     if isinstance(targets, list):
@@ -252,7 +271,7 @@ def _defaults():
         "schema_version": 1,
         "run_card": None,
         "tolerance": {"rel": 1e-4, "abs": 1e-12, "per_target": {}},
-        "mathematica": {"entry": None},
+        "mathematica": {"entry": None, "bound_inputs": []},
         "numeric": {"enable": True, "engine": "julia"},
         "auto_qft": {
             "enable": False,
@@ -481,6 +500,14 @@ import json, sys
 job=json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 entry=(job.get('mathematica') or {}).get('entry')
 print(entry or '')
+PY
+)"
+
+mma_bound_inputs_count="$(python3 - "${resolved_job}" <<'PY'
+import json, sys
+job=json.load(open(sys.argv[1], 'r', encoding='utf-8'))
+bound_inputs=(job.get('mathematica') or {}).get('bound_inputs') or []
+print(len(bound_inputs) if isinstance(bound_inputs, list) else -1)
 PY
 )"
 
@@ -783,7 +810,27 @@ if [[ "${auto_qft_enabled}" == "1" ]]; then
 fi
 
 mma_rc=0
-if [[ -z "${mma_entry}" ]]; then
+if [[ -z "${mma_entry}" && "${mma_bound_inputs_count}" -gt 0 ]]; then
+  mkdir -p "${out_abs}/symbolic"
+  python3 - "${out_abs}" <<'PY'
+import json, os, sys
+from datetime import datetime, timezone
+
+out_dir=sys.argv[1]
+ts=datetime.now(timezone.utc).isoformat()
+sym_json=os.path.join(out_dir,"symbolic","symbolic.json")
+st_json=os.path.join(out_dir,"symbolic","status.json")
+os.makedirs(os.path.dirname(sym_json), exist_ok=True)
+with open(sym_json,"w",encoding="utf-8") as f:
+    json.dump({"schema_version":1,"generated_at":ts,"data":{"tasks":[],"notes":["Bound symbolic inputs require a Mathematica entry."]}}, f, indent=2, sort_keys=True)
+    f.write("\n")
+with open(st_json,"w",encoding="utf-8") as f:
+    json.dump({"stage":"mathematica_symbolic","status":"ERROR","reason":"bound_symbolic_input_entry_required","ts":ts}, f, indent=2, sort_keys=True)
+    f.write("\n")
+PY
+  mma_rc=1
+  echo "[hep-calc] mathematica stage ERROR (bound_symbolic_input_entry_required)" | tee -a "${main_log}" >/dev/null
+elif [[ -z "${mma_entry}" ]]; then
   mkdir -p "${out_abs}/symbolic"
   python3 - "${out_abs}" <<'PY'
 import json, os, sys
@@ -826,7 +873,7 @@ try:
 except Exception:
     pass
 with open(sym_json,"w",encoding="utf-8") as f:
-    json.dump({"schema_version":1,"generated_at":ts,"data":{"tasks":[],"notes":[f\"symbolic stage not executed ({reason})\"]}}, f, indent=2, sort_keys=True)
+    json.dump({"schema_version":1,"generated_at":ts,"data":{"tasks":[],"notes":[f"symbolic stage not executed ({reason})"]}}, f, indent=2, sort_keys=True)
     f.write("\n")
 with open(st_json,"w",encoding="utf-8") as f:
     json.dump({
@@ -867,7 +914,7 @@ PY
   mma_rc=1
   echo "[hep-calc] mathematica stage ERROR (missing Mathematica packages)" | tee -a "${main_log}" >/dev/null
 else
-  if wolframscript -noprompt -file "${SCRIPT_DIR}/mma/run_job.wls" -- "${resolved_job}" "${out_abs}" >"${mma_log}" 2>&1; then
+  if HEP_CALC_POSTCONDITION_VALIDATOR="${POSTCONDITION_VALIDATOR}" wolframscript -noprompt -file "${SCRIPT_DIR}/mma/run_job.wls" -- "${resolved_job}" "${out_abs}" >"${mma_log}" 2>&1; then
     echo "[hep-calc] mathematica process exited zero; validating stage postconditions" | tee -a "${main_log}" >/dev/null
   else
     mma_rc=$?
@@ -875,9 +922,9 @@ else
   fi
 fi
 
-if [[ -n "${mma_entry}" ]]; then
+if [[ -n "${mma_entry}" || "${mma_bound_inputs_count}" -gt 0 ]]; then
   mma_post_rc=0
-  if python3 "${POSTCONDITION_VALIDATOR}" --stage symbolic --out "${out_abs}" --observed-process-rc "${mma_rc}" >>"${mma_log}" 2>&1; then
+  if python3 "${POSTCONDITION_VALIDATOR}" --stage symbolic --job "${resolved_job}" --out "${out_abs}" --observed-process-rc "${mma_rc}" >>"${mma_log}" 2>&1; then
     if [[ "${mma_rc}" -eq 0 ]]; then
       echo "[hep-calc] mathematica stage PASS; postconditions satisfied" | tee -a "${main_log}" >/dev/null
     fi

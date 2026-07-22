@@ -502,6 +502,689 @@ def test_nonzero_symbolic_process_invalidates_complete_pass_artifacts(tmp_path: 
     assert status["postconditions"]["observed_process_rc"] == 31
 
 
+def test_nonzero_symbolic_kernel_cannot_publish_root_pass(tmp_path: Path) -> None:
+    real_wolframscript = require_full_toolchain()
+    shim_dir = tmp_path / "kernel-bin"
+    shim_dir.mkdir()
+    shim = shim_dir / "wolframscript"
+    shim.write_text(
+        "#!/usr/bin/env python3\n"
+        "import json\n"
+        "import os\n"
+        "import sys\n"
+        "from pathlib import Path\n"
+        f"real = {str(real_wolframscript)!r}\n"
+        "if any(arg.endswith('run_job.wls') for arg in sys.argv):\n"
+        "    out_dir = Path(sys.argv[-1])\n"
+        "    symbolic_dir = out_dir / 'symbolic'\n"
+        "    symbolic_dir.mkdir(parents=True, exist_ok=True)\n"
+        "    (symbolic_dir / 'symbolic.json').write_text(json.dumps({\n"
+        "        'schema_version': 1, 'data': {'tasks': [], 'assertions': []}\n"
+        "    }), encoding='utf-8')\n"
+        "    (symbolic_dir / 'status.json').write_text(json.dumps({\n"
+        "        'stage': 'mathematica_symbolic', 'status': 'PASS'\n"
+        "    }), encoding='utf-8')\n"
+        "    raise SystemExit(29)\n"
+        "os.execv(real, [real, *sys.argv[1:]])\n",
+        encoding="utf-8",
+    )
+    shim.chmod(0o755)
+    entry = tmp_path / "entry.wls"
+    entry.write_text("HepCalcExportSymbolic[<|\"tasks\" -> {}|>];\n", encoding="utf-8")
+    job_path = tmp_path / "job.json"
+    out_dir = tmp_path / "out"
+    write_json(
+        job_path,
+        {
+            "schema_version": 1,
+            "mathematica": {"entry": str(entry)},
+            "numeric": {"enable": False},
+            "latex": {"targets": []},
+        },
+    )
+    env = dict(os.environ)
+    env["PATH"] = f"{shim_dir}{os.pathsep}{env.get('PATH', '')}"
+    proc = subprocess.run(
+        ["bash", str(RUNNER), "--job", str(job_path), "--out", str(out_dir)],
+        cwd=SKILL_ROOT,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=180,
+    )
+    status = load_json(out_dir / "symbolic" / "status.json")
+    summary = load_json(out_dir / "summary.json")
+    assert proc.returncode != 0
+    assert status["status"] == "ERROR"
+    assert "symbolic_process_rc_nonzero:29" in status["postconditions"]["errors"]
+    assert status["postconditions"]["observed_process_rc"] == 29
+    assert summary["overall_status"] == "ERROR"
+    assert summary["compute_passed"] is False
+
+
+def test_unavailable_wolfram_kernel_writes_diagnostic_without_traceback(tmp_path: Path) -> None:
+    shim_dir = tmp_path / "unavailable-kernel-bin"
+    shim_dir.mkdir()
+    shim = shim_dir / "wolframscript"
+    shim.write_text("#!/bin/sh\nexit 127\n", encoding="utf-8")
+    shim.chmod(0o755)
+    entry = tmp_path / "entry.wls"
+    entry.write_text('HepCalcExportSymbolic[<|"tasks" -> {}|>];\n', encoding="utf-8")
+    job_path = tmp_path / "job.json"
+    out_dir = tmp_path / "out"
+    write_json(
+        job_path,
+        {
+            "schema_version": 1,
+            "mathematica": {"entry": str(entry)},
+            "numeric": {"enable": False},
+            "latex": {"targets": []},
+        },
+    )
+    env = dict(os.environ)
+    env["PATH"] = f"{shim_dir}{os.pathsep}{env.get('PATH', '')}"
+
+    proc = subprocess.run(
+        ["bash", str(RUNNER), "--job", str(job_path), "--out", str(out_dir)],
+        cwd=SKILL_ROOT,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=180,
+    )
+
+    status = load_json(out_dir / "symbolic" / "status.json")
+    symbolic = load_json(out_dir / "symbolic" / "symbolic.json")
+    summary = load_json(out_dir / "summary.json")
+    mma_log = (out_dir / "logs" / "mma.log").read_text(encoding="utf-8")
+    assert proc.returncode != 0
+    assert status["status"] == "ERROR"
+    assert status["hint"]
+    assert status["execution_observed"]["reason"] == "kernel_unavailable"
+    assert symbolic["data"]["notes"] == [
+        "symbolic stage not executed (kernel_unavailable)"
+    ]
+    assert "Traceback" not in mma_log
+    assert "SyntaxError" not in mma_log
+    assert summary["overall_status"] == "ERROR"
+    assert summary["compute_passed"] is False
+
+
+def seed_bound_symbolic_pass(tmp_path: Path) -> tuple[Path, Path, Path]:
+    out_dir = tmp_path / "bound-symbolic"
+    job_path = out_dir / "job.resolved.json"
+    source_path = tmp_path / "upstream" / "bare_amplitude.m"
+    source_path.parent.mkdir(parents=True, exist_ok=True)
+    source_path.write_text("bareAmplitude = uvPole + finitePart;\n", encoding="utf-8")
+    write_json(
+        job_path,
+        {
+            "schema_version": 1,
+            "mathematica": {
+                "entry": "/trusted/postprocess.wls",
+                "bound_inputs": [{"id": "bare_amplitude", "path": str(source_path)}],
+            },
+        },
+    )
+    bind = subprocess.run(
+        [
+            "python3",
+            str(VALIDATOR),
+            "--stage",
+            "bind_symbolic_inputs",
+            "--job",
+            str(job_path),
+            "--out",
+            str(out_dir),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert bind.returncode == 0, bind.stdout + bind.stderr
+    binding_item = load_json(out_dir / "symbolic" / "input_bindings.json")["bindings"][0]
+    consumption = [
+        {
+            "id": binding_item["id"],
+            "bytes": binding_item["snapshot"]["bytes"],
+            "sha256": binding_item["snapshot"]["sha256"],
+        }
+    ]
+    write_json(
+        out_dir / "symbolic" / "symbolic.json",
+        {
+            "schema_version": 1,
+            "data": {
+                "tasks": [],
+                "assertions": [{"id": "finite_identity", "passed": True}],
+                "bound_inputs_consumed": consumption,
+            },
+        },
+    )
+    write_json(
+        out_dir / "symbolic" / "status.json",
+        {
+            "stage": "mathematica_symbolic",
+            "status": "PASS",
+            "bound_inputs_consumed": consumption,
+        },
+    )
+    snapshot_path = out_dir / "symbolic" / "bound_inputs" / "bare_amplitude.m"
+    return job_path, source_path, snapshot_path
+
+
+def test_symbolic_bound_input_positive_binding(tmp_path: Path) -> None:
+    job_path, source_path, snapshot_path = seed_bound_symbolic_pass(tmp_path)
+    out_dir = job_path.parent
+    binding = load_json(out_dir / "symbolic" / "input_bindings.json")
+    assert binding["status"] == "PASS"
+    assert binding["bindings"][0]["source"] == file_witness(source_path)
+    assert binding["bindings"][0]["snapshot"] == file_witness(snapshot_path)
+
+    proc = subprocess.run(
+        [
+            "python3",
+            str(VALIDATOR),
+            "--stage",
+            "symbolic",
+            "--job",
+            str(job_path),
+            "--out",
+            str(out_dir),
+        ],
+        check=False,
+    )
+    assert proc.returncode == 0
+    assert load_json(out_dir / "symbolic" / "status.json")["status"] == "PASS"
+
+
+def test_bound_symbolic_entry_must_access_every_declared_input(tmp_path: Path) -> None:
+    require_full_toolchain()
+    source_path = tmp_path / "bare_amplitude.m"
+    source_path.write_text("bareAmplitude = uvPole + finitePart;\n", encoding="utf-8")
+    entry = tmp_path / "ignores-bound-input.wls"
+    entry.write_text(
+        'HepCalcExportSymbolic[<|"tasks" -> {}, "assertions" -> {'
+        '<|"id" -> "unrelated_identity", "passed" -> True|>}|>];\n',
+        encoding="utf-8",
+    )
+    job_path = tmp_path / "job.json"
+    out_dir = tmp_path / "out"
+    write_json(
+        job_path,
+        {
+            "schema_version": 1,
+            "mathematica": {
+                "entry": str(entry),
+                "bound_inputs": [{"id": "bare_amplitude", "path": str(source_path)}],
+            },
+            "numeric": {"enable": False},
+            "latex": {"targets": []},
+        },
+    )
+
+    proc = subprocess.run(
+        ["bash", str(RUNNER), "--job", str(job_path), "--out", str(out_dir)],
+        cwd=SKILL_ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=240,
+    )
+
+    status = load_json(out_dir / "symbolic" / "status.json")
+    symbolic = load_json(out_dir / "symbolic" / "symbolic.json")
+    summary = load_json(out_dir / "summary.json")
+    assert proc.returncode != 0
+    assert status["status"] == "ERROR"
+    assert status["assertions"]["pass"] == 1
+    assert status.get("bound_inputs_consumed", []) == []
+    assert "bound_inputs_consumed" not in symbolic["data"]
+    assert "symbolic_bound_input_status_consumption_mismatch" in status["postconditions"]["errors"]
+    assert "symbolic_bound_input_export_consumption_mismatch" in status["postconditions"]["errors"]
+    assert summary["overall_status"] == "ERROR"
+    assert summary["compute_passed"] is False
+
+
+def test_nonempty_bound_inputs_require_mathematica_entry(tmp_path: Path) -> None:
+    source_path = tmp_path / "bare_amplitude.m"
+    source_path.write_text("bareAmplitude = uvPole + finitePart;\n", encoding="utf-8")
+    job_path = tmp_path / "job.json"
+    out_dir = tmp_path / "out"
+    write_json(
+        job_path,
+        {
+            "schema_version": 1,
+            "mathematica": {
+                "bound_inputs": [{"id": "bare_amplitude", "path": str(source_path)}]
+            },
+            "numeric": {"enable": False},
+            "latex": {"targets": []},
+        },
+    )
+
+    proc = subprocess.run(
+        ["bash", str(RUNNER), "--job", str(job_path), "--out", str(out_dir)],
+        cwd=SKILL_ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=180,
+    )
+
+    status = load_json(out_dir / "symbolic" / "status.json")
+    summary = load_json(out_dir / "summary.json")
+    assert proc.returncode != 0
+    assert status["status"] == "ERROR"
+    assert "entry_required_with_bound_inputs" in " ".join(status["postconditions"]["errors"])
+    assert "symbolic_process_rc_nonzero:1" in status["postconditions"]["errors"]
+    assert summary["overall_status"] == "ERROR"
+    assert summary["compute_passed"] is False
+
+
+def test_bound_symbolic_workflow_requires_nonempty_assertions(tmp_path: Path) -> None:
+    job_path, _, _ = seed_bound_symbolic_pass(tmp_path)
+    out_dir = job_path.parent
+    symbolic = load_json(out_dir / "symbolic" / "symbolic.json")
+    symbolic["data"]["assertions"] = []
+    write_json(out_dir / "symbolic" / "symbolic.json", symbolic)
+
+    proc = subprocess.run(
+        [
+            "python3",
+            str(VALIDATOR),
+            "--stage",
+            "symbolic",
+            "--job",
+            str(job_path),
+            "--out",
+            str(out_dir),
+        ],
+        check=False,
+    )
+
+    status = load_json(out_dir / "symbolic" / "status.json")
+    assert proc.returncode != 0
+    assert status["status"] == "FAIL"
+    assert status["assertions"]["contract_valid"] is False
+    assert status["assertions"]["contract_errors"] == [
+        "bound_symbolic_assertions_required"
+    ]
+
+
+def test_bound_symbolic_runtime_rejects_additional_item_fields(tmp_path: Path) -> None:
+    out_dir = tmp_path / "extra-field"
+    source_path = tmp_path / "bare_amplitude.m"
+    source_path.write_text("bareAmplitude = uvPole + finitePart;\n", encoding="utf-8")
+    job_path = tmp_path / "job.resolved.json"
+    write_json(
+        job_path,
+        {
+            "schema_version": 1,
+            "mathematica": {
+                "entry": "/trusted/postprocess.wls",
+                "bound_inputs": [
+                    {
+                        "id": "bare_amplitude",
+                        "path": str(source_path),
+                        "untracked_hint": "ignored-before-this-fix",
+                    }
+                ],
+            },
+        },
+    )
+
+    proc = subprocess.run(
+        [
+            "python3",
+            str(VALIDATOR),
+            "--stage",
+            "bind_symbolic_inputs",
+            "--job",
+            str(job_path),
+            "--out",
+            str(out_dir),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    binding = load_json(out_dir / "symbolic" / "input_bindings.json")
+    assert proc.returncode != 0
+    assert binding["status"] == "ERROR"
+    assert "unexpected_fields:untracked_hint" in binding["reason"]
+
+
+def test_symbolic_bound_input_rejects_snapshot_tree_as_source(tmp_path: Path) -> None:
+    out_dir = tmp_path / "stale-snapshot-source"
+    stale_path = out_dir / "symbolic" / "bound_inputs" / "bare_amplitude.m"
+    stale_path.parent.mkdir(parents=True)
+    stale_path.write_text("staleBareAmplitude\n", encoding="utf-8")
+    job_path = out_dir / "job.resolved.json"
+    write_json(
+        job_path,
+        {
+            "schema_version": 1,
+            "mathematica": {
+                "entry": "/trusted/postprocess.wls",
+                "bound_inputs": [
+                    {
+                        "id": "bare_amplitude",
+                        "path": "out://symbolic/bound_inputs/bare_amplitude.m",
+                    }
+                ],
+            },
+        },
+    )
+    proc = subprocess.run(
+        [
+            "python3",
+            str(VALIDATOR),
+            "--stage",
+            "bind_symbolic_inputs",
+            "--job",
+            str(job_path),
+            "--out",
+            str(out_dir),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert proc.returncode != 0
+    binding = load_json(out_dir / "symbolic" / "input_bindings.json")
+    assert binding["status"] == "ERROR"
+    assert "source_in_snapshot_tree" in binding["reason"]
+
+
+def test_symbolic_bound_input_rejects_unmanaged_absolute_output_source(tmp_path: Path) -> None:
+    out_dir = tmp_path / "unmanaged-output-source"
+    stale_path = out_dir / "arbitrary" / "stale_amplitude.m"
+    stale_path.parent.mkdir(parents=True)
+    stale_path.write_text("staleBareAmplitude\n", encoding="utf-8")
+    job_path = out_dir / "job.resolved.json"
+    write_json(
+        job_path,
+        {
+            "schema_version": 1,
+            "mathematica": {
+                "entry": "/trusted/postprocess.wls",
+                "bound_inputs": [
+                    {"id": "bare_amplitude", "path": str(stale_path)}
+                ],
+            },
+        },
+    )
+    proc = subprocess.run(
+        [
+            "python3",
+            str(VALIDATOR),
+            "--stage",
+            "bind_symbolic_inputs",
+            "--job",
+            str(job_path),
+            "--out",
+            str(out_dir),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert proc.returncode != 0
+    binding = load_json(out_dir / "symbolic" / "input_bindings.json")
+    assert binding["status"] == "ERROR"
+    assert "out_path_not_freshness_managed" in binding["reason"]
+
+
+@pytest.mark.parametrize("surface", ["status", "export"])
+def test_symbolic_bound_input_consumption_witness_is_required(
+    tmp_path: Path,
+    surface: str,
+) -> None:
+    job_path, _, _ = seed_bound_symbolic_pass(tmp_path)
+    out_dir = job_path.parent
+    target = out_dir / "symbolic" / ("status.json" if surface == "status" else "symbolic.json")
+    payload = load_json(target)
+    if surface == "status":
+        payload["bound_inputs_consumed"][0]["sha256"] = "0" * 64
+    else:
+        payload["data"]["bound_inputs_consumed"][0]["sha256"] = "0" * 64
+    write_json(target, payload)
+    proc = subprocess.run(
+        [
+            "python3",
+            str(VALIDATOR),
+            "--stage",
+            "symbolic",
+            "--job",
+            str(job_path),
+            "--out",
+            str(out_dir),
+        ],
+        check=False,
+    )
+    final_status = load_json(out_dir / "symbolic" / "status.json")
+    assert proc.returncode != 0
+    assert final_status["status"] == "ERROR"
+    expected = f"symbolic_bound_input_{surface}_consumption_mismatch"
+    assert expected in final_status["postconditions"]["errors"]
+
+
+def test_symbolic_bound_input_consumption_order_is_not_semantic(tmp_path: Path) -> None:
+    out_dir = tmp_path / "bound-order"
+    source_paths = [tmp_path / "first.m", tmp_path / "second.m"]
+    source_paths[0].write_text("firstInput = 1;\n", encoding="utf-8")
+    source_paths[1].write_text("secondInput = 2;\n", encoding="utf-8")
+    job_path = out_dir / "job.resolved.json"
+    write_json(
+        job_path,
+        {
+            "schema_version": 1,
+            "mathematica": {
+                "entry": "/trusted/postprocess.wls",
+                "bound_inputs": [
+                    {"id": "first", "path": str(source_paths[0])},
+                    {"id": "second", "path": str(source_paths[1])},
+                ],
+            },
+        },
+    )
+    bind = subprocess.run(
+        [
+            "python3",
+            str(VALIDATOR),
+            "--stage",
+            "bind_symbolic_inputs",
+            "--job",
+            str(job_path),
+            "--out",
+            str(out_dir),
+        ],
+        check=False,
+    )
+    assert bind.returncode == 0
+    bindings = load_json(out_dir / "symbolic" / "input_bindings.json")["bindings"]
+    consumption = [
+        {
+            "id": item["id"],
+            "bytes": item["snapshot"]["bytes"],
+            "sha256": item["snapshot"]["sha256"],
+        }
+        for item in reversed(bindings)
+    ]
+    write_json(
+        out_dir / "symbolic" / "symbolic.json",
+        {
+            "schema_version": 1,
+            "data": {
+                "tasks": [],
+                "assertions": [{"id": "combined_identity", "passed": True}],
+                "bound_inputs_consumed": consumption,
+            },
+        },
+    )
+    write_json(
+        out_dir / "symbolic" / "status.json",
+        {
+            "stage": "mathematica_symbolic",
+            "status": "PASS",
+            "bound_inputs_consumed": consumption,
+        },
+    )
+
+    proc = subprocess.run(
+        [
+            "python3",
+            str(VALIDATOR),
+            "--stage",
+            "symbolic",
+            "--job",
+            str(job_path),
+            "--out",
+            str(out_dir),
+        ],
+        check=False,
+    )
+
+    assert proc.returncode == 0
+    assert load_json(out_dir / "symbolic" / "status.json")["status"] == "PASS"
+
+
+def test_symbolic_wrapper_regenerates_and_consumes_bound_bytes_in_memory() -> None:
+    runner_source = RUNNER.read_text(encoding="utf-8")
+    wolfram_source = (SKILL_ROOT / "scripts" / "mma" / "run_job.wls").read_text(
+        encoding="utf-8"
+    )
+    assert 'HEP_CALC_POSTCONDITION_VALIDATOR="${POSTCONDITION_VALIDATOR}" wolframscript' in runner_source
+    assert '"--stage", "bind_symbolic_inputs"' in wolfram_source
+    assert "HepCalcSecureReadBoundInput" in wolfram_source
+    assert "HepCalcBoundInputText" in wolfram_source
+    assert "AppendTo[$HepCalcBoundInputConsumption, witness]" in wolfram_source
+    assert "HepCalcBoundInputPath" not in wolfram_source
+    assert wolfram_source.index('"--stage", "bind_symbolic_inputs"') < wolfram_source.index("(* Run entry *)")
+
+
+@pytest.mark.parametrize("mutated_surface", ["source", "snapshot"])
+def test_symbolic_bound_input_mutation_fails_closed(
+    tmp_path: Path,
+    mutated_surface: str,
+) -> None:
+    job_path, source_path, snapshot_path = seed_bound_symbolic_pass(tmp_path)
+    target = source_path if mutated_surface == "source" else snapshot_path
+    target.write_text("mutatedAmplitude = -uvPole + finitePart;\n", encoding="utf-8")
+    proc = subprocess.run(
+        [
+            "python3",
+            str(VALIDATOR),
+            "--stage",
+            "symbolic",
+            "--job",
+            str(job_path),
+            "--out",
+            str(job_path.parent),
+        ],
+        check=False,
+    )
+    status = load_json(job_path.parent / "symbolic" / "status.json")
+    assert proc.returncode != 0
+    assert status["status"] == "ERROR"
+    assert any(
+        error.startswith("symbolic_input_binding_")
+        for error in status["postconditions"]["errors"]
+    )
+
+
+def test_stale_symbolic_replay_fails_after_fresh_rebinding(tmp_path: Path) -> None:
+    job_path, source_path, _ = seed_bound_symbolic_pass(tmp_path)
+    out_dir = job_path.parent
+    stale_symbolic = load_json(out_dir / "symbolic" / "symbolic.json")
+    stale_status = load_json(out_dir / "symbolic" / "status.json")
+    source_path.write_text("bareAmplitude = 2 uvPole + finitePart;\n", encoding="utf-8")
+    rebound = subprocess.run(
+        [
+            "python3",
+            str(VALIDATOR),
+            "--stage",
+            "bind_symbolic_inputs",
+            "--job",
+            str(job_path),
+            "--out",
+            str(out_dir),
+        ],
+        check=False,
+    )
+    assert rebound.returncode == 0
+    write_json(out_dir / "symbolic" / "symbolic.json", stale_symbolic)
+    write_json(out_dir / "symbolic" / "status.json", stale_status)
+    proc = subprocess.run(
+        [
+            "python3",
+            str(VALIDATOR),
+            "--stage",
+            "symbolic",
+            "--job",
+            str(job_path),
+            "--out",
+            str(out_dir),
+        ],
+        check=False,
+    )
+    status = load_json(out_dir / "symbolic" / "status.json")
+    assert proc.returncode != 0
+    assert status["status"] == "ERROR"
+    assert "symbolic_bound_input_status_consumption_mismatch" in status["postconditions"]["errors"]
+    assert "symbolic_bound_input_export_consumption_mismatch" in status["postconditions"]["errors"]
+
+
+@pytest.mark.parametrize(
+    ("failed_id", "bare_uv_coefficient", "local_uv_coefficient"),
+    [
+        ("wrong_asserted_sign", -1, -1),
+        ("wrong_local_counterterm_coefficient", 1, -2),
+    ],
+)
+def test_symbolic_identity_negative_controls_fail_closed(
+    tmp_path: Path,
+    failed_id: str,
+    bare_uv_coefficient: int,
+    local_uv_coefficient: int,
+) -> None:
+    job_path, _, _ = seed_bound_symbolic_pass(tmp_path)
+    out_dir = job_path.parent
+    uv_residual = abs(bare_uv_coefficient + local_uv_coefficient)
+    assert uv_residual > 0
+    symbolic = load_json(out_dir / "symbolic" / "symbolic.json")
+    symbolic["data"]["assertions"] = [
+        {
+            "id": failed_id,
+            "passed": uv_residual == 0,
+            "residual": uv_residual,
+            "tolerance": 0,
+        }
+    ]
+    write_json(out_dir / "symbolic" / "symbolic.json", symbolic)
+    proc = subprocess.run(
+        [
+            "python3",
+            str(VALIDATOR),
+            "--stage",
+            "symbolic",
+            "--job",
+            str(job_path),
+            "--out",
+            str(out_dir),
+        ],
+        check=False,
+    )
+    status = load_json(out_dir / "symbolic" / "status.json")
+    assert proc.returncode != 0
+    assert status["status"] == "FAIL"
+    assert status["assertions"]["failed_ids"] == [failed_id]
+
+
 def auto_qft_job() -> dict:
     return {
         "schema_version": 1,
