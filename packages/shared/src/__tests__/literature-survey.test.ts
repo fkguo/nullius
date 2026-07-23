@@ -1,3 +1,4 @@
+// CONTRACT-EXEMPT: CODE-01.1 sunset:2026-10-31 Pre-existing survey contract suite; this change adds only fail-closed coverage cases.
 import { describe, expect, it } from 'vitest';
 import {
   assembleLiteratureSurvey,
@@ -8,7 +9,9 @@ import {
   parseLiteratureSurveyV1,
   safeParseLiteratureSurveyV1,
   type AssembleLiteratureSurveyInput,
+  type BibliographyReconciliationSummary,
   type LiteratureSurveyCoverage,
+  type MethodFamilyAuditSummary,
   type SaturationExpansionRound,
   type SurveyPaper,
 } from '../literature-survey.js';
@@ -59,12 +62,44 @@ function paper(overrides: Partial<SurveyPaper> = {}): SurveyPaper {
   };
 }
 
+const COMBINED_LEDGER_REF = `project://artifacts/literature/literature-ledger.json#sha256:${'a'.repeat(64)}`;
+
+function closedBibliography(coreTotal: number, candidatesTotal = 0): BibliographyReconciliationSummary {
+  return {
+    status: 'reconciled',
+    artifact_ref: COMBINED_LEDGER_REF,
+    core_sources_total: coreTotal,
+    core_sources_reconciled: coreTotal,
+    candidates_total: candidatesTotal,
+    candidates_dispositioned: candidatesTotal,
+    unresolved_candidates: 0,
+    coverage_debt_candidates: 0,
+  };
+}
+
+function closedMethodAudit(coreTotal: number): MethodFamilyAuditSummary {
+  return {
+    status: 'audited',
+    artifact_ref: COMBINED_LEDGER_REF,
+    core_sources_total: coreTotal,
+    core_sources_audited: coreTotal,
+    taxonomy_families: coreTotal > 0 ? 1 : 0,
+    source_method_descriptions_audited: coreTotal,
+    cited_method_descriptions_audited: 0,
+    unresolved_method_family_gaps: 0,
+  };
+}
+
 function input(overrides: Partial<AssembleLiteratureSurveyInput> = {}): AssembleLiteratureSurveyInput {
+  const papers = overrides.papers ?? [paper()];
+  const coreTotal = papers.filter(entry => entry?.role === 'core').length;
   return {
     generated_at: GEN,
     topic: 'rare decays',
-    papers: [paper()],
+    papers,
     synthesis: { consensus: [], tensions: [], gaps: [] },
+    bibliography_reconciliation: overrides.bibliography_reconciliation ?? closedBibliography(coreTotal),
+    method_family_audit: overrides.method_family_audit ?? closedMethodAudit(coreTotal),
     ...overrides,
   };
 }
@@ -120,7 +155,12 @@ describe('computeSurveyCoverage', () => {
   it('keeps a saturated status that the recorded rounds support, carrying the evidence', () => {
     const cov = computeSurveyCoverage(
       [paper({ ref_key: 'A' }), paper({ ref_key: 'B' })],
-      { saturation: 'saturated', saturation_evidence: convergedRounds() },
+      {
+        saturation: 'saturated',
+        saturation_evidence: convergedRounds(),
+        bibliography_reconciliation: closedBibliography(2),
+        method_family_audit: closedMethodAudit(2),
+      },
     );
     expect(cov.saturation).toBe('saturated');
     expect(cov.saturation_evidence).toEqual(convergedRounds());
@@ -225,7 +265,16 @@ describe('enforceSaturationRule', () => {
   // core_total = 2 matches convergedRounds()' total admissions, so the supported
   // case is self-consistent by construction.
   function coverage(overrides: Partial<LiteratureSurveyCoverage> = {}): LiteratureSurveyCoverage {
-    return { total_papers: 2, deep_read: 2, core_total: 2, core_deep_read: 2, saturation: 'saturated', ...overrides };
+    return {
+      total_papers: 2,
+      deep_read: 2,
+      core_total: 2,
+      core_deep_read: 2,
+      saturation: 'saturated',
+      bibliography_reconciliation: closedBibliography(2),
+      method_family_audit: closedMethodAudit(2),
+      ...overrides,
+    };
   }
 
   it('downgrades an unsupported saturated to coverage_incomplete with a visible reason', () => {
@@ -244,8 +293,75 @@ describe('enforceSaturationRule', () => {
     expect(enforceSaturationRule(cov)).toEqual(cov);
   });
 
+  it('downgrades converged rounds while a core bibliography remains unreconciled', () => {
+    const out = enforceSaturationRule(coverage({
+      saturation_evidence: convergedRounds(),
+      bibliography_reconciliation: {
+        ...closedBibliography(2),
+        status: 'coverage_debt',
+        core_sources_reconciled: 1,
+      },
+    }));
+    expect(out.saturation).toBe('coverage_incomplete');
+    expect(out.notes).toMatch(/bibliographies are not fully reconciled/);
+  });
+
+  it('downgrades converged rounds when candidates remain unresolved or undispositioned', () => {
+    const unresolved = enforceSaturationRule(coverage({
+      saturation_evidence: convergedRounds(),
+      bibliography_reconciliation: {
+        ...closedBibliography(2, 3),
+        status: 'coverage_debt',
+        unresolved_candidates: 1,
+        coverage_debt_candidates: 1,
+      },
+    }));
+    expect(unresolved.saturation).toBe('coverage_incomplete');
+
+    const undispositioned = enforceSaturationRule(coverage({
+      saturation_evidence: convergedRounds(),
+      bibliography_reconciliation: {
+        ...closedBibliography(2, 3),
+        status: 'coverage_debt',
+        candidates_dispositioned: 2,
+      },
+    }));
+    expect(undispositioned.saturation).toBe('coverage_incomplete');
+  });
+
+  it('downgrades converged rounds while method-family coverage has unresolved gaps', () => {
+    const out = enforceSaturationRule(coverage({
+      saturation_evidence: convergedRounds(),
+      method_family_audit: {
+        ...closedMethodAudit(2),
+        status: 'coverage_debt',
+        unresolved_method_family_gaps: 1,
+      },
+    }));
+    expect(out.saturation).toBe('coverage_incomplete');
+    expect(out.notes).toMatch(/method-family coverage has not been audited/);
+  });
+
+  it('downgrades converged rounds without source-text method evidence for every audited core source', () => {
+    const out = enforceSaturationRule(coverage({
+      saturation_evidence: convergedRounds(),
+      method_family_audit: {
+        ...closedMethodAudit(2),
+        source_method_descriptions_audited: 1,
+      },
+    }));
+    expect(out.saturation).toBe('coverage_incomplete');
+    expect(out.notes).toMatch(/lacks source-text method evidence/);
+  });
+
   it('downgrades converged rounds whose admissions exceed the coverage core_total (inconsistent evidence)', () => {
-    const out = enforceSaturationRule(coverage({ core_total: 1, core_deep_read: 1, saturation_evidence: convergedRounds() }));
+    const out = enforceSaturationRule(coverage({
+      core_total: 1,
+      core_deep_read: 1,
+      saturation_evidence: convergedRounds(),
+      bibliography_reconciliation: closedBibliography(1),
+      method_family_audit: closedMethodAudit(1),
+    }));
     expect(out.saturation).toBe('coverage_incomplete');
     expect(out.notes).toMatch(/rounds admit 2 core papers in total but the survey carries only 1/);
   });
@@ -375,6 +491,19 @@ describe('assembleLiteratureSurvey', () => {
       ],
     }))).toThrow(/exceeding core_total/);
   });
+
+  it('DOWNGRADES saturated when the reconciliation summaries are omitted', () => {
+    const survey = assembleLiteratureSurvey({
+      generated_at: GEN,
+      topic: 'rare decays',
+      papers: [paper()],
+      synthesis: { consensus: [], tensions: [], gaps: [] },
+      saturation: 'saturated',
+      saturation_evidence: [expansionRound(1, 10, 0)],
+    });
+    expect(survey.coverage.saturation).toBe('coverage_incomplete');
+    expect(survey.coverage.notes).toMatch(/bibliographies are not fully reconciled/);
+  });
 });
 
 describe('danglingSynthesisRefs', () => {
@@ -410,6 +539,41 @@ describe('safeParseLiteratureSurveyV1', () => {
 
   it('accepts a well-formed survey', () => {
     expect(safeParseLiteratureSurveyV1(valid()).ok).toBe(true);
+  });
+
+  it('requires exact-byte-pinned project refs for the combined detailed ledger', () => {
+    const bad = valid();
+    bad.coverage.bibliography_reconciliation.artifact_ref = 'artifacts/literature/ledger.json';
+    bad.coverage.method_family_audit.artifact_ref = 'artifacts/literature/ledger.json';
+    const parsed = safeParseLiteratureSurveyV1(bad);
+    expect(parsed.ok).toBe(false);
+    if (!parsed.ok) {
+      expect(parsed.issues.filter(issue => /project:\/\//.test(issue.message))).toHaveLength(2);
+    }
+  });
+
+  it('rejects bibliography and method receipts pinned to different artifacts', () => {
+    const bad = valid();
+    bad.coverage.method_family_audit.artifact_ref =
+      `project://artifacts/literature/other-ledger.json#sha256:${'b'.repeat(64)}`;
+    const parsed = safeParseLiteratureSurveyV1(bad);
+    expect(parsed.ok).toBe(false);
+    if (!parsed.ok) {
+      expect(parsed.issues.some(issue => /same combined ledger/.test(issue.message))).toBe(true);
+    }
+  });
+
+  it('rejects an audited method summary without source-text evidence for every core source', () => {
+    const bad = valid();
+    bad.coverage.method_family_audit.source_method_descriptions_audited = 0;
+    const parsed = safeParseLiteratureSurveyV1(bad);
+    expect(parsed.ok).toBe(false);
+    if (!parsed.ok) {
+      expect(parsed.issues.some(i => (
+        i.path === 'coverage.method_family_audit.source_method_descriptions_audited'
+        && /every audited core source/.test(i.message)
+      ))).toBe(true);
+    }
   });
 
   it('rejects an unknown read_status / role / domain', () => {

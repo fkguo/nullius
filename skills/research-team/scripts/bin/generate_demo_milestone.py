@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# CONTRACT-EXEMPT: CODE-01.1 sunset:2026-10-31 Pre-existing demo generator; this change only emits the literature closure fixture.
 """
 Generate a deterministic demo milestone inside a scaffolded project.
 
@@ -298,12 +299,12 @@ def _ensure_demo_literature_trace(root: Path, *, tag: str) -> None:
             encoding="utf-8",
         )
     text = trace.read_text(encoding="utf-8", errors="replace")
-    if "demo literature seed" in text:
+    if "demo:method-note" in text:
         return
     row = (
-        "| 2026-01-01T00:00:00Z | DOI/manual seed | demo literature seed | page_size=50; demo fixture | "
-        "Bezanson2017 | demo seed for reproducibility workflow only | "
-        "[Bezanson2017](../literature/bezanson2017_julia.md) |\n"
+        "| 2026-01-01T00:00:00Z | Local fixture | demo method source | bounded local fixture | "
+        "demo:method-note | selected as the complete source for contract demonstration | "
+        "[demo method note](demo_trace.md) |\n"
     )
     with trace.open("a", encoding="utf-8") as f:
         f.write(row)
@@ -312,59 +313,160 @@ def _ensure_demo_literature_trace(root: Path, *, tag: str) -> None:
 def _write_demo_literature_saturation(root: Path, *, tag: str) -> None:
     saturation = root / "knowledge_base" / "methodology_traces" / "literature_saturation.json"
     saturation.parent.mkdir(parents=True, exist_ok=True)
+    references_rel = "knowledge_base/methodology_traces/demo_source_bibliography.json"
+    citations_rel = "knowledge_base/methodology_traces/demo_source_citations.json"
+    for rel, key in ((references_rel, "references"), (citations_rel, "citations")):
+        (root / rel).write_text(
+            json.dumps({"source_id": "demo:method-note", key: []}, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+    references_ref = (
+        f"project://{references_rel}#sha256:"
+        f"{hashlib.sha256((root / references_rel).read_bytes()).hexdigest()}"
+    )
+    identity_rel = "knowledge_base/methodology_traces/demo_source_identity.json"
+    (root / identity_rel).write_text(
+        json.dumps(
+            {
+                "citation_key": "provider:local-fixture:demo-method-note",
+                "providers": [
+                    {
+                        "provider": "local-fixture",
+                        "title": "Generated method source",
+                        "authors": ["Nullius demo fixture"],
+                        "year": 2026,
+                        "doi": None,
+                        "venue": None,
+                        "identifier": "demo-method-note",
+                    }
+                ],
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    identity_digest = hashlib.sha256((root / identity_rel).read_bytes()).hexdigest()
+    identity_ref = f"project://{identity_rel}#sha256:{identity_digest}"
     data = {
         "schema_version": 1,
         "topic": "research-team demo fixture",
         "run_id": tag,
         "generated_at": "2026-01-01T00:00:00Z",
         "providers": {
-            "inspire": {
-                "status": "not_applicable",
-                "reason": "demo cites a non-HEP software-methodology paper outside INSPIRE coverage",
-            },
-            "arxiv": {
-                "status": "not_applicable",
-                "reason": "demo seed is a DOI-anchored journal article, not an arXiv-source task",
-            },
-            "openalex": {
-                "status": "not_applicable",
-                "reason": "demo fixture uses a single stable DOI seed and does not claim literature-map completeness",
-            },
-            "web": {
-                "status": "not_applicable",
-                "reason": "no web-only citation evidence is used in the demo fixture",
+            "local-fixture": {
+                "status": "queried",
+                "queries": ["generated local method source"],
+                "returned_count": 1,
+                "total_count": 1,
+                "execution_bounds": {"max_requests": 1, "max_records": 1},
+                "request_log": [
+                    {
+                        "query": "generated local method source",
+                        "page_or_cursor": "page:1",
+                        "returned_count": 1,
+                        "continuation": "exhausted",
+                    }
+                ],
+                "stop_reason": "the one-record local catalog was exhausted",
             },
         },
         "candidate_pool": {
-            "artifact": "knowledge_base/literature/bezanson2017_julia.md",
+            "artifact": "knowledge_base/methodology_traces/demo_trace.md",
             "total_candidates": 1,
-            "selected_core_ids": ["Bezanson2017"],
-            "selection_rationale": "deterministic demo seed for software reproducibility context",
+            "selected_core_ids": ["demo:method-note"],
+            "selection_rationale": "the local source is the complete declared scope of the deterministic contract demo",
+            "candidates": [
+                {
+                    "id": "demo:method-note",
+                    "identity_status": "resolved",
+                    "canonical_identity": {
+                        "canonical_id": "provider:local-fixture:demo-method-note",
+                        "title": "Generated method source",
+                        "authors": ["Nullius demo fixture"],
+                        "year": 2026,
+                        "url": "https://example.invalid/nullius-demo/method-note",
+                        "aliases": [],
+                        "provenance": {
+                            "kind": "authoritative_retrieval",
+                            "provider": "local-fixture",
+                            "record_ref": identity_ref,
+                            "record_sha256": f"sha256:{identity_digest}",
+                        },
+                    },
+                    "disposition": "core",
+                    "rationale": "declared complete source for the local contract demonstration",
+                    "discovered_from": [
+                        {
+                            "kind": "search",
+                            "source_id": "demo-seed",
+                            "locator": "generated local source",
+                        }
+                    ],
+                }
+            ],
+        },
+        "bibliography_reconciliation": {
+            "core_sources": [
+                {
+                    "id": "demo:method-note",
+                    "status": "reconciled",
+                    "references_artifact_ref": references_ref,
+                    "references_extracted": 0,
+                    "candidate_ids": [],
+                    "coverage_debt": [],
+                }
+            ]
+        },
+        "method_family_audit": {
+            "status": "audited",
+            "taxonomy": [
+                {
+                    "id": "artifact-reproduction",
+                    "label": "Artifact reproduction",
+                    "description": "Reproduction by executing a declared command and inspecting named outputs",
+                }
+            ],
+            "source_audits": [
+                {
+                    "source_id": "demo:method-note",
+                    "paper_method_descriptions": [
+                        {
+                            "description": "The source requires executing the reproduction command and inspecting the named result and manifest artifacts.",
+                            "locator": "Procedure, steps 1-3",
+                            "evidence_basis": "source_text",
+                            "method_features": ["reproduction command", "named result and manifest artifacts"],
+                            "family_ids": ["artifact-reproduction"],
+                            "disposition": "classified",
+                        }
+                    ],
+                    "bibliography_candidate_screening": [],
+                }
+            ],
         },
         "citation_graph": {
             "seeds": [
                 {
-                    "id": "Bezanson2017",
-                    "provider": "doi/manual",
-                    "references_checked": False,
-                    "citations_checked": False,
-                    "coverage_status": "not_covered",
+                    "id": "demo:method-note",
+                    "provider": "local-fixture",
+                    "references_checked": True,
+                    "citations_checked": True,
+                    "coverage_status": "saturated",
                     "artifacts": {
-                        "references": "",
-                        "citations": "",
+                        "references": references_rel,
+                        "citations": citations_rel,
                     },
-                    "gaps": [
-                        "demo fixture does not make citation-graph or literature-gap claims",
-                    ],
+                    "gaps": [],
                 }
             ]
         },
         "source_first_reading": {
-            "notes": ["knowledge_base/literature/bezanson2017_julia.md"],
+            "notes": ["knowledge_base/methodology_traces/demo_trace.md"],
             "metadata_only_not_evidence_ready": [],
         },
         "final_status": "saturated",
-        "stop_reason": "demo fixture has one declared seed and makes no broader literature-map claim",
+        "stop_reason": "the complete local demo source has an explicit empty bibliography and citation set",
     }
     saturation.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
@@ -509,7 +611,6 @@ Why we cite it (demo):
 """,
     )
     _ensure_demo_literature_trace(root, tag=tag)
-    _write_demo_literature_saturation(root, tag=tag)
     _write_if_missing(
         root / kb_meth_rel,
         """# Demo methodology trace — how to verify the demo artifacts
@@ -531,6 +632,7 @@ Priors / assumptions:
 - None (demo).
 """,
     )
+    _write_demo_literature_saturation(root, tag=tag)
 
     # Create demo artifacts by running the generator once.
     try:

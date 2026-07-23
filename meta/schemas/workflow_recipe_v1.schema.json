@@ -218,8 +218,15 @@
                   "provider_coverage_required",
                   "providers_expected",
                   "candidate_pool_required",
+                  "candidate_disposition_ledger_required",
                   "core_paper_references_required",
                   "core_paper_citations_required",
+                  "bibliography_reconciliation_required",
+                  "stable_identity_resolution_required",
+                  "unresolved_candidates_are_coverage_debt",
+                  "method_family_audit_required",
+                  "method_description_evidence_required",
+                  "bounded_bibliography_traversal_required",
                   "metadata_only_not_evidence_ready",
                   "page_size_not_completion_threshold"
                 ],
@@ -265,10 +272,31 @@
                   "candidate_pool_required": {
                     "const": true
                   },
+                  "candidate_disposition_ledger_required": {
+                    "const": true
+                  },
                   "core_paper_references_required": {
                     "const": true
                   },
                   "core_paper_citations_required": {
+                    "const": true
+                  },
+                  "bibliography_reconciliation_required": {
+                    "const": true
+                  },
+                  "stable_identity_resolution_required": {
+                    "const": true
+                  },
+                  "unresolved_candidates_are_coverage_debt": {
+                    "const": true
+                  },
+                  "method_family_audit_required": {
+                    "const": true
+                  },
+                  "method_description_evidence_required": {
+                    "const": true
+                  },
+                  "bounded_bibliography_traversal_required": {
                     "const": true
                   },
                   "metadata_only_not_evidence_ready": {
