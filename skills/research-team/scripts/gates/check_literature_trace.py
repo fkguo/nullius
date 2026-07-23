@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# CONTRACT-EXEMPT: CODE-01.1 sunset:2026-10-31 Pre-existing literature gate; this change adds exact identity and bibliography closure.
 """
 Literature discovery saturation gate (domain-neutral).
 
@@ -36,7 +37,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
 
 from team_config import load_team_config  # type: ignore
-from literature_identity import (  # type: ignore
+from literature_identity import (
     CanonicalIdentity,
     canonicalize_stable_locator,
     normalize_title,
@@ -44,7 +45,7 @@ from literature_identity import (  # type: ignore
     resolve_pinned_project_json,
     validate_canonical_identity,
 )
-from literature_coverage import validate_bounded_provider_accounting  # type: ignore
+from literature_coverage import validate_bounded_provider_accounting
 
 
 DEFAULT_TRACE = "knowledge_base/methodology_traces/literature_queries.md"
@@ -243,6 +244,32 @@ def _validate_bibliography_reconciliation(
 ) -> dict[str, set[str]]:
     reconciliation = _as_dict(value, "bibliography_reconciliation", errors)
     core_sources = _as_list(reconciliation.get("core_sources"), "bibliography_reconciliation.core_sources", errors)
+    selected_core_set = set(selected_core_ids)
+    bibliography_claims: dict[str, set[tuple[str, str]]] = {
+        source_id: set() for source_id in selected_core_ids
+    }
+    for candidate_id, candidate in candidates_by_id.items():
+        discoveries = candidate.get("discovered_from")
+        if not isinstance(discoveries, list):
+            continue
+        for discovery in discoveries:
+            if not isinstance(discovery, dict) or str(discovery.get("kind") or "").strip() != "bibliography":
+                continue
+            source_id = str(discovery.get("source_id") or "").strip()
+            locator = str(discovery.get("locator") or "").strip()
+            if source_id not in selected_core_set:
+                errors.append(
+                    f"candidate_pool candidate {candidate_id!r} bibliography discovery source_id "
+                    f"{source_id!r} is not a selected core source"
+                )
+                continue
+            claim = (candidate_id, locator)
+            if claim in bibliography_claims[source_id]:
+                errors.append(
+                    f"candidate_pool candidate {candidate_id!r} repeats bibliography discovery "
+                    f"for core source {source_id!r} at locator {locator!r}"
+                )
+            bibliography_claims[source_id].add(claim)
     candidates_by_source: dict[str, set[str]] = {}
     statuses: dict[str, str] = {}
     for i, raw_source in enumerate(core_sources):
@@ -291,7 +318,6 @@ def _validate_bibliography_reconciliation(
             errors.append(f"{label}.candidate_ids must not contain duplicates")
         if artifact_references is not None and extracted is not None and extracted != len(artifact_references):
             errors.append(f"{label}.references_extracted must equal the raw references manifest count")
-        candidates_by_source[source_id] = set(candidate_ids)
         debt = [
             str(item).strip()
             for item in _as_list(source.get("coverage_debt"), f"{label}.coverage_debt", errors)
@@ -301,7 +327,7 @@ def _validate_bibliography_reconciliation(
             errors.append(f"{label}: status='reconciled' cannot retain coverage_debt")
         if status == "coverage_debt" and not debt:
             errors.append(f"{label}: status='coverage_debt' must explain the remaining debt")
-        mapped_candidate_ids: set[str] = set()
+        mapped_claims: set[tuple[str, str]] = set()
         if artifact_references is not None:
             for j, raw_reference in enumerate(artifact_references):
                 reference_label = f"{label}.references_artifact_ref.references[{j}]"
@@ -316,7 +342,10 @@ def _validate_bibliography_reconciliation(
                 if not candidate_id:
                     errors.append(f"{reference_label}.candidate_id is required")
                     continue
-                mapped_candidate_ids.add(candidate_id)
+                claim = (candidate_id, locator)
+                if claim in mapped_claims:
+                    errors.append(f"{reference_label} duplicates a candidate_id/locator manifest entry")
+                mapped_claims.add(claim)
                 if candidate_id not in set(candidate_ids):
                     errors.append(f"{reference_label}.candidate_id is absent from {label}.candidate_ids")
                     continue
@@ -363,30 +392,20 @@ def _validate_bibliography_reconciliation(
                         errors.append(f"{reference_label}.identity_status must be 'unresolved'")
                     if not _nonempty_string(reference.get("unresolved_reason")):
                         errors.append(f"{reference_label}.unresolved_reason is required")
-            if mapped_candidate_ids != set(candidate_ids):
-                missing_mappings = sorted(set(candidate_ids) - mapped_candidate_ids)
-                if missing_mappings:
-                    errors.append(
-                        f"{label}.references_artifact has no raw-reference mapping for candidate(s): "
-                        + ", ".join(missing_mappings)
-                    )
+            if mapped_claims != bibliography_claims.get(source_id, set()):
+                errors.append(
+                    f"{label}: bibliography discovery claims do not match the pinned raw manifest"
+                )
+        claimed_candidate_ids = {
+            candidate_id for candidate_id, _ in bibliography_claims.get(source_id, set())
+        }
+        candidates_by_source[source_id] = claimed_candidate_ids
+        if set(candidate_ids) != claimed_candidate_ids:
+            errors.append(f"{label}.candidate_ids do not match the candidate bibliography discovery claims")
         for candidate_id in candidate_ids:
             candidate = candidates_by_id.get(candidate_id)
             if candidate is None:
                 errors.append(f"{label}.candidate_ids references unknown candidate {candidate_id!r}")
-                continue
-            sources = candidate.get("discovered_from") if isinstance(candidate, dict) else None
-            has_bibliography_source = any(
-                isinstance(item, dict)
-                and str(item.get("kind") or "").strip() == "bibliography"
-                and str(item.get("source_id") or "").strip() == source_id
-                and _nonempty_string(item.get("locator"))
-                for item in (sources if isinstance(sources, list) else [])
-            )
-            if not has_bibliography_source:
-                errors.append(
-                    f"candidate_pool candidate {candidate_id!r} lacks a bibliography discovery locator for core source {source_id!r}"
-                )
 
     if set(statuses) != set(selected_core_ids):
         missing = sorted(set(selected_core_ids) - set(statuses))

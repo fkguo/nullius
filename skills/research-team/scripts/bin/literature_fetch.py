@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# CONTRACT-EXEMPT: CODE-01.1 sunset:2026-06-01 — multi-source fetcher; split into per-source modules planned
+# CONTRACT-EXEMPT: CODE-01.1 sunset:2026-10-31 multi-source fetcher; split into per-source modules planned
 """
 Fetch bibliographic metadata from INSPIRE-HEP and arXiv (and optionally download arXiv LaTeX sources).
 

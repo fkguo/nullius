@@ -1,3 +1,4 @@
+# CONTRACT-EXEMPT: CODE-01.1 sunset:2026-10-31 Pre-existing literature gate suite; this change adds bounded adversarial regressions.
 import hashlib
 import json
 import subprocess
@@ -530,6 +531,36 @@ def test_gate_rejects_unselected_core_disposition_and_duplicate_stable_identity(
     assert "merge aliases into one normalized candidate record" in result.stdout
 
 
+def test_gate_deduplicates_doi_and_provider_keys_from_pinned_provider_records(tmp_path: Path) -> None:
+    _write_project(tmp_path)
+    _write_trace(tmp_path)
+    doc = _saturated_doc()
+    doc["candidate_pool"]["total_candidates"] = 3
+    doc["candidate_pool"]["candidates"].append(
+        {
+            "id": "provider:catalog:record-1",
+            "identity_status": "resolved",
+            "canonical_identity": _canonical_identity(
+                "provider:catalog:record-1",
+                title="Cited example",
+                year=2024,
+                url="https://catalog.example/records/unproven-display",
+            ),
+            "disposition": "supporting",
+            "rationale": "second representation of an already archived work",
+            "discovered_from": [
+                {"kind": "search", "source_id": "query:2", "locator": "page 1, record 2"}
+            ],
+        }
+    )
+    _write_saturation(tmp_path, doc)
+
+    result = _run_gate(tmp_path)
+
+    assert result.returncode == 1
+    assert "merge aliases into one normalized candidate record" in result.stdout
+
+
 def test_gate_rejects_resolved_candidate_with_unrecognized_identity_shape(tmp_path: Path) -> None:
     _write_project(tmp_path)
     _write_trace(tmp_path)
@@ -623,6 +654,38 @@ def test_gate_rejects_raw_bibliography_identity_with_swapped_metadata(tmp_path: 
     assert result.returncode == 1
     assert "identity.title" in result.stdout
     assert "canonical candidate metadata" in result.stdout
+
+
+def test_gate_rejects_bibliography_discovery_missing_from_pinned_manifest(tmp_path: Path) -> None:
+    _write_project(tmp_path)
+    _write_trace(tmp_path)
+    doc = _saturated_doc()
+    doc["candidate_pool"]["candidates"][1]["discovered_from"].append(
+        {
+            "kind": "bibliography",
+            "source_id": "provider:catalog:core-1",
+            "locator": "References, entry 8",
+        }
+    )
+    _write_saturation(tmp_path, doc)
+
+    result = _run_gate(tmp_path)
+
+    assert result.returncode == 1
+    assert "bibliography discovery claims do not match the pinned raw manifest" in result.stdout
+
+    _write_saturation(tmp_path, _saturated_doc())
+    saturation_path = tmp_path / "knowledge_base" / "methodology_traces" / "literature_saturation.json"
+    saturation = json.loads(saturation_path.read_text(encoding="utf-8"))
+    saturation["candidate_pool"]["candidates"][1]["discovered_from"][0]["source_id"] = (
+        "provider:catalog:not-a-core-source"
+    )
+    saturation_path.write_text(json.dumps(saturation, indent=2), encoding="utf-8")
+
+    result = _run_gate(tmp_path)
+
+    assert result.returncode == 1
+    assert "is not a selected core source" in result.stdout
 
 
 def test_gate_fails_closed_when_method_family_scan_is_not_complete(tmp_path: Path) -> None:

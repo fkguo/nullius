@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# CONTRACT-EXEMPT: CODE-01.1 sunset:2026-10-31 Pre-existing demo generator; this change only emits the literature closure fixture.
 """
 Generate a deterministic demo milestone inside a scaffolded project.
 

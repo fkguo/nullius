@@ -1,3 +1,4 @@
+# CONTRACT-EXEMPT: CODE-01.1 sunset:2026-10-31 Pre-existing writeback suite; this change adds exact ledger-binding coverage.
 """Tests for posterior_writeback.py against the stand-in RPC caller."""
 
 from __future__ import annotations

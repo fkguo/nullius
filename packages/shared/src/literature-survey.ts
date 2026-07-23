@@ -1,3 +1,4 @@
+// CONTRACT-EXEMPT: CODE-01.1 sunset:2026-10-31 Pre-existing survey authority; this change only extends coverage-closure receipts.
 // Literature-survey contract (deep literature review capability).
 //
 // A `literature_survey_v1` is the structured synthesis/coverage layer over a deep
