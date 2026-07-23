@@ -4,32 +4,16 @@
   "run_id": "",
   "generated_at": "",
   "providers": {
-    "inspire": {
+    "provider-name": {
       "status": "queried",
       "queries": [],
       "returned_count": 0,
       "total_count_unknown": true,
-      "stop_reason": ""
-    },
-    "arxiv": {
-      "status": "queried",
-      "queries": [],
-      "returned_count": 0,
-      "total_count_unknown": true,
-      "stop_reason": ""
-    },
-    "openalex": {
-      "status": "queried",
-      "queries": [],
-      "returned_count": 0,
-      "total_count_unknown": true,
-      "stop_reason": ""
-    },
-    "web": {
-      "status": "queried",
-      "queries": [],
-      "returned_count": 0,
-      "total_count_unknown": true,
+      "execution_bounds": {
+        "max_requests": 0,
+        "max_records": 0
+      },
+      "request_log": [],
       "stop_reason": ""
     }
   },
@@ -37,7 +21,16 @@
     "artifact": "",
     "total_candidates": 0,
     "selected_core_ids": [],
-    "selection_rationale": ""
+    "selection_rationale": "",
+    "candidates": []
+  },
+  "bibliography_reconciliation": {
+    "core_sources": []
+  },
+  "method_family_audit": {
+    "status": "coverage_debt",
+    "taxonomy": [],
+    "source_audits": []
   },
   "citation_graph": {
     "seeds": []

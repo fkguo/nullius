@@ -1,3 +1,4 @@
+// CONTRACT-EXEMPT: CODE-01.1 sunset:2026-10-31 Pre-existing CLI integration suite; this change adds only literature contract coverage.
 import { describe, expect, it } from 'vitest';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
@@ -573,6 +574,15 @@ describe('nullius CLI', () => {
           locators_required: true,
           key_equations_required: true,
           limitations_required: true,
+        },
+        literature_saturation_contract: {
+          candidate_disposition_ledger_required: true,
+          bibliography_reconciliation_required: true,
+          stable_identity_resolution_required: true,
+          unresolved_candidates_are_coverage_debt: true,
+          method_family_audit_required: true,
+          method_description_evidence_required: true,
+          bounded_bibliography_traversal_required: true,
         },
       },
     });

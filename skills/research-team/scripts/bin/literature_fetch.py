@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# CONTRACT-EXEMPT: CODE-01.1 sunset:2026-06-01 — multi-source fetcher; split into per-source modules planned
+# CONTRACT-EXEMPT: CODE-01.1 sunset:2026-10-31 multi-source fetcher; split into per-source modules planned
 """
 Fetch bibliographic metadata from INSPIRE-HEP and arXiv (and optionally download arXiv LaTeX sources).
 
@@ -700,6 +700,13 @@ def _default_saturation_doc(*, topic: str = "", run_id: str = "") -> dict[str, A
             "total_candidates": 0,
             "selected_core_ids": [],
             "selection_rationale": "",
+            "candidates": [],
+        },
+        "bibliography_reconciliation": {"core_sources": []},
+        "method_family_audit": {
+            "status": "coverage_debt",
+            "taxonomy": [],
+            "source_audits": [],
         },
         "citation_graph": {"seeds": []},
         "source_first_reading": {
@@ -759,6 +766,9 @@ def _saturation_add_provider(
     total_count_unknown: bool,
     stop_reason: str,
     reason: str,
+    max_requests: int | None,
+    max_records: int | None,
+    request_log: list[dict[str, Any]],
 ) -> None:
     data = _read_saturation(path)
     providers = data.setdefault("providers", {})
@@ -775,6 +785,11 @@ def _saturation_add_provider(
             rec["total_count"] = total_count
         else:
             rec["total_count_unknown"] = bool(total_count_unknown)
+        rec["execution_bounds"] = {
+            "max_requests": max_requests,
+            "max_records": max_records,
+        }
+        rec["request_log"] = request_log
         rec["stop_reason"] = stop_reason.strip()
     else:
         rec["reason"] = reason.strip()
@@ -792,11 +807,14 @@ def _saturation_set_candidate_pool(
     selection_rationale: str,
 ) -> None:
     data = _read_saturation(path)
+    existing_pool = data.get("candidate_pool")
+    candidates = existing_pool.get("candidates", []) if isinstance(existing_pool, dict) else []
     data["candidate_pool"] = {
         "artifact": artifact.strip(),
         "total_candidates": total_candidates,
         "selected_core_ids": selected_core_ids,
         "selection_rationale": selection_rationale.strip(),
+        "candidates": candidates if isinstance(candidates, list) else [],
     }
     data["generated_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     _write_saturation(path, data)
@@ -1518,12 +1536,19 @@ def main() -> int:
     p.add_argument("--force", action="store_true")
 
     p = sub.add_parser("saturation-add-provider", help="Record provider discovery coverage in literature_saturation.json.")
-    p.add_argument("--provider", required=True, choices=["inspire", "arxiv", "openalex", "web", "crossref", "datacite", "zotero", "doi"])
+    p.add_argument("--provider", required=True, help="Provider namespace recorded in the coverage artifact.")
     p.add_argument("--status", required=True, choices=["queried", "not_applicable", "unavailable"])
     p.add_argument("--query", default="", help="Comma-separated query variants or one query string.")
     p.add_argument("--returned-count", default="", help="Non-negative integer required when status=queried.")
     p.add_argument("--total-count", default="", help="Non-negative integer, or use --total-count-unknown.")
     p.add_argument("--total-count-unknown", action="store_true")
+    p.add_argument("--max-requests", default="", help="Positive finite request bound required when status=queried.")
+    p.add_argument("--max-records", default="", help="Positive finite record bound required when status=queried.")
+    p.add_argument(
+        "--request-log-json",
+        default="[]",
+        help="JSON array of {query,page_or_cursor,returned_count,continuation} request records.",
+    )
     p.add_argument("--stop-reason", default="")
     p.add_argument("--reason", default="", help="Reason required when status is not_applicable/unavailable.")
     p.add_argument("--path", default=DEFAULT_SATURATION_PATH)
@@ -1580,6 +1605,30 @@ def main() -> int:
         status = str(getattr(args, "status", "")).strip()
         returned_count = _parse_int_arg(str(getattr(args, "returned_count", "")), name="--returned-count", allow_empty=True)
         total_count = _parse_int_arg(str(getattr(args, "total_count", "")), name="--total-count", allow_empty=True)
+        max_requests = _parse_int_arg(
+            str(getattr(args, "max_requests", "")),
+            name="--max-requests",
+            allow_empty=True,
+        )
+        max_records = _parse_int_arg(
+            str(getattr(args, "max_records", "")),
+            name="--max-records",
+            allow_empty=True,
+        )
+        request_log = json.loads(str(getattr(args, "request_log_json", "[]")))
+        if not isinstance(request_log, list) or not all(isinstance(item, dict) for item in request_log):
+            raise ValueError("--request-log-json must be a JSON array of objects")
+        if status == "queried" and (
+            max_requests is None
+            or max_requests <= 0
+            or max_records is None
+            or max_records <= 0
+            or not request_log
+        ):
+            raise ValueError(
+                "queried provider coverage requires positive --max-requests/--max-records "
+                "and a non-empty --request-log-json"
+            )
         _saturation_add_provider(
             path=Path(str(getattr(args, "path", DEFAULT_SATURATION_PATH))),
             provider=str(getattr(args, "provider", "")),
@@ -1590,6 +1639,9 @@ def main() -> int:
             total_count_unknown=bool(getattr(args, "total_count_unknown", False)),
             stop_reason=str(getattr(args, "stop_reason", "")),
             reason=str(getattr(args, "reason", "")),
+            max_requests=max_requests,
+            max_records=max_records,
+            request_log=request_log,
         )
         print(f"[ok] recorded provider coverage: {getattr(args, 'provider', '')}")
         return 0

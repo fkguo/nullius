@@ -1,3 +1,4 @@
+# CONTRACT-EXEMPT: CODE-01.1 sunset:2026-10-31 Pre-existing writeback suite; this change adds exact ledger-binding coverage.
 """Tests for posterior_writeback.py against the stand-in RPC caller."""
 
 from __future__ import annotations
@@ -10,6 +11,7 @@ import sys
 import pytest
 
 import posterior_writeback as writeback
+from test_close_prior_gate import _write_bound_ledger
 
 GAIA_IR_HASH = "sha256:e314d88c63c80b8845d2c1347e0f20b77db5825076d847ecd1c143a925afc676"
 
@@ -167,6 +169,26 @@ def write_close_prior_bundle(tmp_path):
             "core_total": 1,
             "core_deep_read": 1,
             "saturation": "saturated",
+            "bibliography_reconciliation": {
+                "status": "reconciled",
+                "artifact_ref": "project://artifacts/literature/literature-ledger.json#sha256:" + "0" * 64,
+                "core_sources_total": 1,
+                "core_sources_reconciled": 1,
+                "candidates_total": 1,
+                "candidates_dispositioned": 1,
+                "unresolved_candidates": 0,
+                "coverage_debt_candidates": 0,
+            },
+            "method_family_audit": {
+                "status": "audited",
+                "artifact_ref": "project://artifacts/literature/literature-ledger.json#sha256:" + "0" * 64,
+                "core_sources_total": 1,
+                "core_sources_audited": 1,
+                "taxonomy_families": 1,
+                "source_method_descriptions_audited": 1,
+                "cited_method_descriptions_audited": 1,
+                "unresolved_method_family_gaps": 0,
+            },
             "saturation_evidence": [
                 {
                     "round": 1,
@@ -189,6 +211,9 @@ def write_close_prior_bundle(tmp_path):
             ],
         },
     }
+    # The production writeback must dereference this exact-byte-pinned detailed
+    # ledger and recompute the compact survey receipts before it may call RPC.
+    survey, _ = _write_bound_ledger(tmp_path)
     matrix = {
         "coverage_status": "saturated",
         "survey_ref": f"project://artifacts/literature/survey.json#sha256:{'c' * 64}",
@@ -269,10 +294,12 @@ def make_package(tmp_path, rel="example-idea-gaia", ir_hash=GAIA_IR_HASH, *, exp
 
 
 def run_main(tmp_path, fixtures_dir, extra_args=(), *, package=True,
-             project_root=True):
+             project_root=True, close_prior_mutator=None):
     if package:
         make_package(tmp_path)
     survey_path, matrix_path, report_path = write_close_prior_bundle(tmp_path)
+    if close_prior_mutator is not None:
+        close_prior_mutator(tmp_path, survey_path, matrix_path, report_path)
     root_args = ("--project-root", str(tmp_path)) if project_root else ()
     return writeback.main(
         [
@@ -306,6 +333,51 @@ def test_successful_writeback_request_shape(tmp_path, fixtures_dir, capsys) -> N
     assert params["literature_coverage"]["status"] == "saturated"
     assert params["literature_coverage"]["survey_ref"].startswith("project://artifacts/literature/")
     assert "posterior written" in out.err
+
+
+def test_writeback_refuses_missing_detailed_literature_ledger(
+    tmp_path, fixtures_dir, capsys
+) -> None:
+    def remove_ledger(root, *_paths):
+        (root / "artifacts" / "literature" / "literature-ledger.json").unlink()
+
+    assert run_main(
+        tmp_path,
+        fixtures_dir,
+        close_prior_mutator=remove_ledger,
+    ) == 2
+    assert "does not resolve" in capsys.readouterr().err
+
+
+def test_writeback_refuses_stale_detailed_literature_ledger_pin(
+    tmp_path, fixtures_dir, capsys
+) -> None:
+    def mutate_ledger(root, *_paths):
+        path = root / "artifacts" / "literature" / "literature-ledger.json"
+        path.write_bytes(path.read_bytes() + b"\n")
+
+    assert run_main(
+        tmp_path,
+        fixtures_dir,
+        close_prior_mutator=mutate_ledger,
+    ) == 2
+    assert "pin" in capsys.readouterr().err
+
+
+def test_writeback_recomputes_literature_receipts_before_rpc(
+    tmp_path, fixtures_dir, capsys
+) -> None:
+    def inflate_summary(_root, survey_path, *_paths):
+        survey = json.loads(survey_path.read_text(encoding="utf-8"))
+        survey["coverage"]["bibliography_reconciliation"]["candidates_total"] = 99
+        survey_path.write_text(json.dumps(survey), encoding="utf-8")
+
+    assert run_main(
+        tmp_path,
+        fixtures_dir,
+        close_prior_mutator=inflate_summary,
+    ) == 2
+    assert "does not match detailed ledger" in capsys.readouterr().err
 
 
 def test_error_response_fails_loudly(tmp_path, fixtures_dir, capsys, monkeypatch) -> None:

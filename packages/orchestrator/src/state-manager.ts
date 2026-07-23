@@ -1,3 +1,4 @@
+// CONTRACT-EXEMPT: CODE-01.1 sunset:2026-10-31 Pre-existing lifecycle authority; this change only carries literature saturation contract flags.
 // @nullius/orchestrator — lifecycle state manager
 // Read/write/enforcement helpers for the .nullius control plane.
 // Durable atomic writes via @nullius/shared primitives:
@@ -194,8 +195,15 @@ const PLAN_SCHEMA: Record<string, unknown> = {
         'provider_coverage_required',
         'providers_expected',
         'candidate_pool_required',
+        'candidate_disposition_ledger_required',
         'core_paper_references_required',
         'core_paper_citations_required',
+        'bibliography_reconciliation_required',
+        'stable_identity_resolution_required',
+        'unresolved_candidates_are_coverage_debt',
+        'method_family_audit_required',
+        'method_description_evidence_required',
+        'bounded_bibliography_traversal_required',
         'metadata_only_not_evidence_ready',
         'page_size_not_completion_threshold',
       ],
@@ -216,8 +224,15 @@ const PLAN_SCHEMA: Record<string, unknown> = {
           items: { type: 'string', enum: ['inspire', 'arxiv', 'openalex', 'web'] },
         },
         candidate_pool_required: { type: 'boolean', enum: [true] },
+        candidate_disposition_ledger_required: { type: 'boolean', enum: [true] },
         core_paper_references_required: { type: 'boolean', enum: [true] },
         core_paper_citations_required: { type: 'boolean', enum: [true] },
+        bibliography_reconciliation_required: { type: 'boolean', enum: [true] },
+        stable_identity_resolution_required: { type: 'boolean', enum: [true] },
+        unresolved_candidates_are_coverage_debt: { type: 'boolean', enum: [true] },
+        method_family_audit_required: { type: 'boolean', enum: [true] },
+        method_description_evidence_required: { type: 'boolean', enum: [true] },
+        bounded_bibliography_traversal_required: { type: 'boolean', enum: [true] },
         metadata_only_not_evidence_ready: { type: 'boolean', enum: [true] },
         page_size_not_completion_threshold: { type: 'boolean', enum: [true] },
       },

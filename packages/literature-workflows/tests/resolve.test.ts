@@ -1,3 +1,4 @@
+// CONTRACT-EXEMPT: CODE-01.1 sunset:2026-10-31 Pre-existing recipe-resolution suite; this change adds only literature closure assertions.
 import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { resolveWorkflowRecipe } from '../src/index.js';
@@ -67,8 +68,15 @@ describe('literature workflow resolver', () => {
       provider_coverage_required: true,
       providers_expected: ['inspire', 'arxiv', 'openalex', 'web'],
       candidate_pool_required: true,
+      candidate_disposition_ledger_required: true,
       core_paper_references_required: true,
       core_paper_citations_required: true,
+      bibliography_reconciliation_required: true,
+      stable_identity_resolution_required: true,
+      unresolved_candidates_are_coverage_debt: true,
+      method_family_audit_required: true,
+      method_description_evidence_required: true,
+      bounded_bibliography_traversal_required: true,
       metadata_only_not_evidence_ready: true,
       page_size_not_completion_threshold: true,
     });

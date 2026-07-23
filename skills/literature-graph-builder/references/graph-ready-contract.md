@@ -57,6 +57,18 @@ Recommended fields:
 
 Every paper node should have its own deep-read note. Method, topic, and synthesis nodes should also have notes when they carry interpretive content rather than merely acting as visual separators.
 
+Paper and method nodes must come from the reconciled upstream ledgers. A reference
+found in a core-source bibliography is not silently omitted: it is either promoted
+to a paper node/candidate with a canonical DOI/URL/provider identity and
+metadata provenance, or retained upstream with an explicit disposition and
+coverage-debt status. Every reconciled candidate also has a source-located
+method-screening disposition grounded in source text before method nodes are emitted;
+title/year metadata cannot justify either a positive or negative method-bearing
+decision. Method nodes and `uses-method` /
+`method-lineage` edges use the audited method taxonomy plus source-local method
+descriptions with `evidence_basis: source_text` and at least one `method_features`
+entry; title/year similarity is not sufficient evidence for a method edge.
+
 ## Edges
 
 Required fields:
@@ -137,3 +149,5 @@ Use this checklist before promoting the graph:
 - Do local links work after moving the artifact directory?
 - Does browser QA cover first click, drag/collision, note rendering, math rendering, and image loading?
 - Did an independent reviewer inspect the current artifact after the latest fixes?
+- Does the upstream survey avoid `saturated` while any core bibliography,
+  candidate disposition, or method-family audit remains open?
