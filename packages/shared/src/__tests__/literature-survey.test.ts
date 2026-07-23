@@ -1,3 +1,4 @@
+// CONTRACT-EXEMPT: CODE-01.1 sunset:2026-10-31 Pre-existing survey contract suite; this change adds only fail-closed coverage cases.
 import { describe, expect, it } from 'vitest';
 import {
   assembleLiteratureSurvey,

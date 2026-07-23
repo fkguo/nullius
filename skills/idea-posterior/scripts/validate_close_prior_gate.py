@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# CONTRACT-EXEMPT: CODE-01.1 sunset:2026-10-31 Pre-existing close-prior gate; this change only delegates exact ledger binding.
 """Validate the close-prior deep-literature gate before posterior writeback.
 
 This is a fail-closed structural gate. It does not score papers, and it does

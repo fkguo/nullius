@@ -1,3 +1,4 @@
+// CONTRACT-EXEMPT: CODE-01.1 sunset:2026-10-31 Pre-existing recipe-resolution suite; this change adds only literature closure assertions.
 import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { resolveWorkflowRecipe } from '../src/index.js';

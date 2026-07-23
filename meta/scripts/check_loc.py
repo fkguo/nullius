@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """NEW-R02a / CODE-01.1: LOC check — diff-scoped file size gate.
 
-Checks that modified files do not exceed the 200 eLOC (effective lines of code) threshold.
-Files with ``# CONTRACT-EXEMPT: CODE-01.1`` are skipped.
+Checks that modified handwritten files do not exceed the 200 eLOC threshold.
+An exemption must appear in the first five lines and carry an unexpired sunset.
 
 Usage:
     python check_loc.py [--max-eloc 200] [--files FILE ...]
@@ -17,12 +17,37 @@ from __future__ import annotations
 import argparse
 import re
 import sys
+from datetime import date
 from pathlib import Path
 
-_EXEMPT_PATTERN = re.compile(r"#\s*CONTRACT-EXEMPT:\s*CODE-01\.1")
 _COMMENT_LINE = re.compile(r"^\s*(#|//|/\*|\*)")
 _BLANK_LINE = re.compile(r"^\s*$")
-_SUNSET_PATTERN = re.compile(r"#\s*CONTRACT-EXEMPT:\s*CODE-01\.1\s*sunset:(\d{4}-\d{2}-\d{2})")
+_HASH_EXEMPTION = re.compile(
+    r"^\s*#\s+CONTRACT-EXEMPT:\s*CODE-01\.1\s+sunset:(\d{4}-\d{2}-\d{2})\s+\S.*$"
+)
+_SLASH_EXEMPTION = re.compile(
+    r"^\s*//\s+CONTRACT-EXEMPT:\s*CODE-01\.1\s+sunset:(\d{4}-\d{2}-\d{2})\s+\S.*$"
+)
+_EXEMPTION_PATTERNS = {
+    ".py": _HASH_EXEMPTION,
+    ".sh": _HASH_EXEMPTION,
+    ".ts": _SLASH_EXEMPTION,
+    ".tsx": _SLASH_EXEMPTION,
+    ".js": _SLASH_EXEMPTION,
+    ".jsx": _SLASH_EXEMPTION,
+    ".mjs": _SLASH_EXEMPTION,
+    ".mts": _SLASH_EXEMPTION,
+}
+_COMMENT_PREFIXES = {
+    suffix: "#" if pattern is _HASH_EXEMPTION else "//"
+    for suffix, pattern in _EXEMPTION_PATTERNS.items()
+}
+_CODE_SUFFIXES = frozenset(_EXEMPTION_PATTERNS)
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_GENERATED_ROOTS = (
+    _REPO_ROOT / "packages" / "shared" / "src" / "generated",
+    _REPO_ROOT / "meta" / "generated" / "python",
+)
 
 
 def effective_loc(path: Path) -> int:
@@ -43,12 +68,36 @@ def effective_loc(path: Path) -> int:
 
 
 def is_exempt(path: Path) -> bool:
-    """Check for CONTRACT-EXEMPT annotation."""
-    try:
-        text = path.read_text(encoding="utf-8", errors="replace")
-    except Exception:
+    """Accept a complete, language-correct leading comment declaration."""
+    suffix = path.suffix.casefold()
+    pattern = _EXEMPTION_PATTERNS.get(suffix)
+    if pattern is None:
         return False
-    return bool(_EXEMPT_PATTERN.search(text))
+    try:
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return False
+    comment_prefix = _COMMENT_PREFIXES[suffix]
+    for index, line in enumerate(lines[:5]):
+        match = pattern.fullmatch(line)
+        if match:
+            try:
+                return date.fromisoformat(match.group(1)) >= date.today()
+            except ValueError:
+                return False
+        stripped = line.lstrip()
+        if not stripped or stripped.startswith(comment_prefix):
+            continue
+        if index == 0 and line.startswith("#!"):
+            continue
+        return False
+    return False
+
+
+def is_declared_generated(path: Path) -> bool:
+    """Exclude only checked-in outputs of the two declared code generators."""
+    resolved = path.resolve()
+    return any(resolved == root or root in resolved.parents for root in _GENERATED_ROOTS)
 
 
 def main() -> int:
@@ -67,8 +116,10 @@ def main() -> int:
         path = Path(f)
         if not path.exists() or not path.is_file():
             continue
+        if is_declared_generated(path):
+            continue
         # Skip non-code files.
-        if path.suffix not in {".py", ".ts", ".tsx", ".js", ".jsx", ".mjs", ".mts"}:
+        if path.suffix.casefold() not in _CODE_SUFFIXES:
             continue
         if is_exempt(path):
             continue

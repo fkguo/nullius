@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# CONTRACT-EXEMPT: CODE-01.1 sunset:2026-10-31 Pre-existing writeback authority; this change only binds the literature runtime gate.
 """Write an extracted posterior back to the idea store via the thin RPC caller.
 
 Contract (idea-engine ``bin/idea-rpc.mjs``): a single JSON object on stdin,

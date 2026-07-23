@@ -1,3 +1,4 @@
+# CONTRACT-EXEMPT: CODE-01.1 sunset:2026-10-31 Pre-existing close-prior suite; this change adds bounded adversarial regressions.
 """Regression tests for the close-prior deep-literature gate."""
 
 from __future__ import annotations
@@ -543,6 +544,55 @@ def test_bound_coverage_rejects_global_candidate_debt_and_unselected_core(tmp_pa
     assert_problem_contains(issues, "core-disposition candidate")
 
 
+def test_bound_coverage_deduplicates_doi_and_provider_keys_from_pinned_records(tmp_path: Path) -> None:
+    survey, ledger_path = _write_bound_ledger(tmp_path)
+    record_ref, record_hash = _write_identity_record(
+        tmp_path,
+        "cited-provider-representation",
+        canonical_id="provider:catalog:cited-example",
+        title="Cited example",
+        authors=["A. Example"],
+        year=2024,
+        providers=[("catalog", "cited-example")],
+        doi="10.1000/example",
+    )
+    ledger = json.loads(ledger_path.read_text(encoding="utf-8"))
+    ledger["candidate_pool"]["candidates"].append(
+        {
+            "id": "provider:catalog:cited-example",
+            "identity_status": "resolved",
+            "canonical_identity": {
+                "canonical_id": "provider:catalog:cited-example",
+                "title": "Cited example",
+                "authors": ["A. Example"],
+                "year": 2024,
+                "url": "https://catalog.example/records/unproven-display",
+                "aliases": [],
+                "provenance": {
+                    "kind": "authoritative_retrieval",
+                    "provider": "catalog",
+                    "record_ref": record_ref,
+                    "record_sha256": record_hash,
+                },
+            },
+            "disposition": "supporting",
+            "rationale": "second representation of an already archived work",
+            "discovered_from": [
+                {"kind": "search", "source_id": "catalog-query-2", "locator": "page 1, record 2"}
+            ],
+        }
+    )
+    ledger["candidate_pool"]["total_candidates"] = 3
+    ledger_path.write_text(json.dumps(ledger, indent=2) + "\n", encoding="utf-8")
+    survey["coverage"]["bibliography_reconciliation"]["candidates_total"] = 3
+    survey["coverage"]["bibliography_reconciliation"]["candidates_dispositioned"] = 3
+    _repin_ledger(survey, ledger_path, tmp_path)
+
+    issues = gate.validate_gate(survey, valid_matrix(), REPORT, project_root=tmp_path)
+
+    assert_problem_contains(issues, "merge aliases")
+
+
 def test_bound_coverage_rejects_unresolved_canonical_provenance_record(tmp_path: Path) -> None:
     survey, ledger_path = _write_bound_ledger(tmp_path)
     ledger = json.loads(ledger_path.read_text(encoding="utf-8"))
@@ -606,6 +656,36 @@ def test_bound_coverage_rejects_title_year_only_negative_method_screening(tmp_pa
     issues = gate.validate_gate(survey, valid_matrix(), REPORT, project_root=tmp_path)
 
     assert_problem_contains(issues, "evidence_basis must be 'source_text'")
+
+
+def test_bound_coverage_rejects_bibliography_discovery_missing_from_pinned_manifest(tmp_path: Path) -> None:
+    survey, ledger_path = _write_bound_ledger(tmp_path)
+    ledger = json.loads(ledger_path.read_text(encoding="utf-8"))
+    ledger["candidate_pool"]["candidates"][1]["discovered_from"].append(
+        {
+            "kind": "bibliography",
+            "source_id": "provider:catalog:core-1",
+            "locator": "References, entry 8",
+        }
+    )
+    ledger_path.write_text(json.dumps(ledger, indent=2) + "\n", encoding="utf-8")
+    _repin_ledger(survey, ledger_path, tmp_path)
+
+    issues = gate.validate_gate(survey, valid_matrix(), REPORT, project_root=tmp_path)
+
+    assert_problem_contains(issues, "bibliography discovery claims do not match the pinned raw manifest")
+
+    survey, ledger_path = _write_bound_ledger(tmp_path)
+    ledger = json.loads(ledger_path.read_text(encoding="utf-8"))
+    ledger["candidate_pool"]["candidates"][1]["discovered_from"][0]["source_id"] = (
+        "provider:catalog:not-a-core-source"
+    )
+    ledger_path.write_text(json.dumps(ledger, indent=2) + "\n", encoding="utf-8")
+    _repin_ledger(survey, ledger_path, tmp_path)
+
+    issues = gate.validate_gate(survey, valid_matrix(), REPORT, project_root=tmp_path)
+
+    assert_problem_contains(issues, "is not a selected core source")
 
 
 def test_bound_coverage_rejects_missing_bounded_retrieval_accounting(tmp_path: Path) -> None:

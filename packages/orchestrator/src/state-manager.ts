@@ -1,3 +1,4 @@
+// CONTRACT-EXEMPT: CODE-01.1 sunset:2026-10-31 Pre-existing lifecycle authority; this change only carries literature saturation contract flags.
 // @nullius/orchestrator — lifecycle state manager
 // Read/write/enforcement helpers for the .nullius control plane.
 // Durable atomic writes via @nullius/shared primitives:
