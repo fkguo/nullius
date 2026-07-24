@@ -499,8 +499,8 @@ upstream now offers.
   project has likely already solved.
 - Sibling / related projects solve the same class of problem and have not been
   checked.
-- A delegation brief named prior art, but the implementation has no call
-  sites of the named assets and no pre-implementation deviation record.
+- A delegation brief named prior art, but for one or more named assets the
+  implementation has no call sites and no pre-implementation deviation record.
 
 **Minimum disconfirming check.** BEFORE each heavy / production computation, or
 before building any reusable computational method, grep the upstream toolkit's
@@ -520,9 +520,9 @@ computational problem, prefer adapting its proven approach over a fresh
 implementation.
 
 **Reviewer-side check.** If the work under review was dispatched with a
-brief that named prior art, verify that the implementation's call sites of
-the named assets — or the approved pre-implementation deviation record —
-exist **before** assessing results. A deviation justification first
+brief that named prior art, verify, for each named asset, that the
+implementation's call sites — or the approved pre-implementation deviation
+record — exist **before** assessing results. A deviation justification first
 written after the replacement exists is post-hoc self-justification by an
 invested party; require an independent clean-room review of it before
 folding in any of the replacement's results. The dispatch-side contract is
