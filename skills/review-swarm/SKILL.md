@@ -468,6 +468,21 @@ Cross-model-family diversity strengthens this gate. Pair it with `numerical-reli
 compute-and-compare gate, returning `reference_mismatch` on an order-of-magnitude or sign gap) and the
 `research-integrity` *Reference-reproduction fidelity* dimensions.
 
+### Independent-recomputation reviewer (mandatory for load-bearing structural claims)
+
+A cross-family review that only re-reads evidence supplied by the claimant is an **argument audit**, not a
+verification: its "confirm" can sit entirely inside the claimant's blind spot, because the supplied
+evidence may probe the wrong axis altogether. The reference-reproduction reviewer above is the special
+case where a published number anchors the check; the general contract covers any **load-bearing
+structural claim** — a claim about what a computed object *is* (its shape, degeneracy structure, scaling,
+sign structure, convergence behavior) on which downstream conclusions rest. For such a claim, at least
+one reviewer must **independently recompute** the quantity through a different route (a different
+discretization, implementation, or representation), receiving **only the problem statement and the raw
+inputs** — never the claimant's answer, evidence selection, or initial judgment. Record in `meta.json`
+**which axis the independent recomputation actually probed** (what it could have falsified); a
+recomputation whose probed axis does not intersect the claim's load-bearing axis leaves the swarm
+static-only for that claim, and it must be labeled as such rather than counted as a verification pass.
+
 ## Model selection
 
 - `--models a,b,c`: explicit model specs — the recommended path (host family native,
