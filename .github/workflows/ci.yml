@@ -105,6 +105,10 @@ jobs:
         if: ${{ matrix.node-version == 22 }}
         run: node scripts/check-idea-posterior-reader-surface-anti-drift.mjs
 
+      - name: Check reuse-or-deviate gate anti-drift (prior-art binding discipline)
+        if: ${{ matrix.node-version == 22 }}
+        run: node scripts/check-reuse-or-deviate-anti-drift.mjs
+
       - name: Check codegen drift (meta/schemas ↔ generated)
         if: ${{ matrix.node-version == 22 }}
         run: pnpm codegen:check

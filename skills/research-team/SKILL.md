@@ -41,6 +41,7 @@ Use `research-team` when you want a project workflow with:
 - **Reference reproduction (mandatory whenever a recorded result claims to reproduce / match a published value)**: a claim that a result *reproduces / matches / agrees with* a published reference value is earned by **computing the claimed observable on a comparable state / regime / configuration and comparing to the published number numerically** — not by a qualitative "same scale / same sign" assertion and not by citing the source. Compare **term by term** where the claim is term-level (a net total can agree while individual contributions are suppressed or sign-flipped); an **order-of-magnitude same-direction discrepancy, or a sign reversal, is a finding, not convergence**. Independently: any established cross-validation must not **silently lapse** — a structurally *different-model* engine, or a check valid only in a degenerate / limit regime, is labeled as a different-model / limit-regime comparison, never presented as validation, and the absence of an apples-to-apples independent check is recorded as an explicit limitation. Routed to `numerical-reliability-gate` **G8** and the `review-swarm` reference-reproduction reviewer; the failure modes are catalogued in `research-integrity` (*Reference-reproduction fidelity*).
 - **Reproduction independence (full_access review; enforced whenever the `independent_reproduction_gate` feature is enabled — on in the shipped config template)**: an "independent reproduction" must not import / include / `using` the kernel under test, and the two members' reproduction paths must not share the same project-local module — agreement between copies of one kernel is a shared-error artifact, not a confirmation. Declare the modules under test in `independent_reproduction.kernel_modules` (a declared kernel is never allowlistable); the `check_independent_reproduction.py` gate fails closed with verdict `not_independent` (label `SHARED_KERNEL_INHERITANCE`) and emits a machine-readable `convergence_gate_result_v1` verdict — the caller does not self-judge independence. When two reproductions disagree, locate the first diverging intermediate quantity by tracing both paths; never settle a disagreement by majority vote, and never by re-running until agreement.
 - **Translation is not independence (mandatory)**: rewriting the same algorithm in another language — same mathematical representation, same discretization, same algorithmic route, line-for-line structure — reproduces the original kernel together with its conceptual errors, even though it imports nothing the import scanner could catch. Such a port is an *implementation check* (it can catch coding slips), never an *independent verification*. Independence must come from a genuinely different route — a different mathematical representation or formulation, a different algorithm or discretization, a different basis — or from an independent anchor outside both implementations, such as a published reference value. Every reproduction record therefore **declares its methodological difference** — one or two sentences naming what differs (representation / algorithm / discretization / basis) from the path under test — and the convergence reviewer checks that declaration against both implementations; a reproduction whose honest declaration is "same method, different language" is recorded as an implementation check and does not count toward the independent-verification requirement.
+- **Prior-art binding (mandatory when a delegation brief names prior art)**: when the dispatch brief for the work under review named prior art — an upstream toolkit routine, a sibling project's implementation of the same end-to-end problem, a published method — the reviewer verifies that the implementation's call sites of each named asset, or the approved pre-implementation deviation record, exist **before** assessing results (see *Reuse-or-deviate gate* below); an implementation carrying neither does not converge.
 - **Pointer lint (mandatory)**: code pointers in the notebook must be resolvable under the configured `pointer_lint.strategy`.
 - **No silent retries**: when a gate fails, stop, apply the minimal fix, rerun with a new tag (`M2-r2`, `M2-r3`, ...).
 - **Run artifact identity**: the canonical project artifact root for
@@ -256,6 +257,40 @@ approaches go into the failed-approaches ledger (`failed_approaches_v1`);
 both semantics are specified in the `research-harness` skill's long-running
 compute jobs contract, which is where a delegated long job's checkpointing,
 deadline, and resume behavior live.
+
+## Reuse-or-deviate gate: a brief that names prior art binds the implementation
+
+Reuse instructions that live only in prose do not survive delegation: an
+executor satisfies the acceptance gates, not the prose around them, and
+rewriting from scratch is cheaper for an agent than understanding foreign
+code — so the default failure mode is a silent pivot to bespoke code, with
+an inapplicability justification written only afterwards by the same
+invested party. When a delegation brief names prior art (an upstream
+toolkit routine, a sibling project's implementation of the same
+end-to-end problem, a published method), the named assets bind the
+implementation. Before any implementation commit, the executor commits,
+for each named asset, exactly one of:
+
+- **call-site evidence** — file and line showing the named asset consumed
+  by the implementation; or
+- **a deviation record** — measured, code-level reasons the named asset's
+  mathematical model does not apply here, plus the proposed replacement —
+  then a **stop for coordinator approval before the replacement is
+  written**.
+
+An implementation commit carrying neither is rejected at review (the
+*Prior-art binding* contract above). A deviation record first written
+after the replacement already exists is post-hoc self-justification by an
+invested party: it does not satisfy this gate, and none of the
+replacement's results are folded in until an independent clean-room
+review has examined the deviation claim.
+
+**Architecture-first reuse scan.** The first deliverable of any reuse
+scan is the architecture-level answer: for each named prior source, how
+it solved the same end-to-end problem — named files, functions, methods —
+and an adopt-or-reject verdict with measured reasons per source. A grep
+for a routine name is not a reuse scan. `research-integrity` M8 carries
+the matching pre-computation trigger.
 
 ## Plan-summary / milestone-handoff: roadmap dependency-map
 
