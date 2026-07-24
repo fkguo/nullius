@@ -23,7 +23,8 @@
     "check:launch-authorization-anti-drift": "node scripts/check-launch-authorization-anti-drift.mjs",
     "check:citation-identity-grounding-anti-drift": "node scripts/check-citation-identity-grounding-anti-drift.mjs",
     "check:literature-coverage-closure-anti-drift": "node scripts/check-literature-coverage-closure-anti-drift.mjs",
-    "check:idea-posterior-reader-surface-anti-drift": "node scripts/check-idea-posterior-reader-surface-anti-drift.mjs"
+    "check:idea-posterior-reader-surface-anti-drift": "node scripts/check-idea-posterior-reader-surface-anti-drift.mjs",
+    "check:reuse-or-deviate-anti-drift": "node scripts/check-reuse-or-deviate-anti-drift.mjs"
   },
   "author": "Feng-Kun Guo",
   "license": "MIT",

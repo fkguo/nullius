@@ -499,11 +499,18 @@ upstream now offers.
   project has likely already solved.
 - Sibling / related projects solve the same class of problem and have not been
   checked.
+- A delegation brief named prior art, but the implementation has no call
+  sites of the named assets and no pre-implementation deviation record.
 
 **Minimum disconfirming check.** BEFORE each heavy / production computation, or
 before building any reusable computational method, grep the upstream toolkit's
 source AND every sibling / related project for the capability: by function name,
-by the problem it solves, and by the sibling's own calls into the toolkit. This is
+by the problem it solves, and by the sibling's own calls into the toolkit.
+A name-level grep alone is not the scan: its first deliverable is the
+architecture-level answer — how each prior source solved the same end-to-end
+problem, in which files / functions / methods, and whether that architecture
+transfers — recorded per source as an adopt-or-reject verdict with measured
+reasons. This is
 a **per-heavy-computation / per-method-build gate**, not a once-at-project-start or
 merely periodic check: the trigger is "I am about to start a heavy or production
 computation, or build a reusable computational method." Then reuse the existing
@@ -512,9 +519,20 @@ hand-rolling. When a sibling project already solves the same class of
 computational problem, prefer adapting its proven approach over a fresh
 implementation.
 
+**Reviewer-side check.** If the work under review was dispatched with a
+brief that named prior art, verify that the implementation's call sites of
+the named assets — or the approved pre-implementation deviation record —
+exist **before** assessing results. A deviation justification first
+written after the replacement exists is post-hoc self-justification by an
+invested party; require an independent clean-room review of it before
+folding in any of the replacement's results. The dispatch-side contract is
+the `research-team` *Reuse-or-deviate gate*.
+
 **Tools that help.** A cross-repo grep of the toolkit `src/` and the sibling
 repos; the `julia-perf` skill (efficient-code reuse); a reuse-vs-build multi-modal
-sweep before building. Not machine-enforceable — it is an explicit pre-flight step.
+sweep before building. Not machine-enforceable — it is an explicit pre-flight
+step; the `research-team` *Reuse-or-deviate gate* makes the reuse-or-record
+obligation reviewable at convergence.
 
 ## Extraction / transcription fidelity (gate it; not a gate-exempt "reading task")
 
