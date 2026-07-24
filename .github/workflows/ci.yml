@@ -109,6 +109,10 @@ jobs:
         if: ${{ matrix.node-version == 22 }}
         run: node scripts/check-reuse-or-deviate-anti-drift.mjs
 
+      - name: Check review-verification contract anti-drift (recomputation + discriminating-power clauses)
+        if: ${{ matrix.node-version == 22 }}
+        run: node scripts/check-review-verification-contract-anti-drift.mjs
+
       - name: Check codegen drift (meta/schemas ↔ generated)
         if: ${{ matrix.node-version == 22 }}
         run: pnpm codegen:check
