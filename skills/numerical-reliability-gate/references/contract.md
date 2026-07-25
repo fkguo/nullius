@@ -201,7 +201,11 @@ is a **labeled candidate** kept for follow-up or discarded — never silently pr
 
 - `refinement` MUST contain `>=2` settings spanning at least a 2–3× range of the dominant knob (resolution
   **or** size/extent/parity, whichever the value or its precondition could depend on) for any
-  `converged: true`. A single setting can never establish convergence.
+  `converged: true`. A single setting can never establish convergence. Two `refinement` entries whose
+  `value`s are **bit-identical** do not establish a plateau either: that is the signature of a knob that
+  never reached the computation (read once at load time, frozen in a cached configuration, or overridden by
+  a default in the consuming stage). Diagnose the threading failure — and record the knob-sensitive
+  intermediate that actually differs between the settings — before `converged` may be `true`.
 - **G6 configuration provenance (when applicable)**: any connected line/trajectory, interpolation, fit,
   pooled statistic, or downstream summary assembled from more than one checkpoint/run MUST carry a
   `configuration_provenance` object. Every point must have a fingerprint computed from canonical
@@ -214,6 +218,12 @@ is a **labeled candidate** kept for follow-up or discarded — never silently pr
   series, never graphical smoothing or selective point replacement. A scalar or a result produced wholly
   within one fingerprinted run may leave the field `null`, with that run fingerprint recorded in
   `recorded_setting` or `notes`.
+- **G6 post-correction recomputation (when applicable)**: when a defect is found in anything upstream of
+  rows already recorded here, every affected row MUST be **recomputed** — not relabelled, caveated, or
+  annotated in place — and the matrix MUST state which rows were recomputed after the fix and which were
+  **provably unaffected, with the reason**. A pre-fix row carrying only a status caveat stays
+  `stale_artifact`; a matrix (or a downstream table or figure built from it) that mixes pre-fix and post-fix
+  rows without saying which is which is not foldable, whatever the individual rows claim.
 - **G7 method-precondition (when applicable)**: for any `reliable` verdict whose method's validity rests on
   a structural property (commutation with a projector/symmetrizer, Hermiticity, self-adjointness,
   idempotency, unitarity, variational-subspace invariance), the matrix MUST record that property's
@@ -233,7 +243,11 @@ is a **labeled candidate** kept for follow-up or discarded — never silently pr
   *different* model, or a check valid only in a degenerate/limit regime, is recorded labeled as a
   different-scientific-model / limit-regime comparison (e.g. in `notes`) and does **not** set `methods_agree`; when no
   apples-to-apples independent method is reachable, state that absence in `notes` rather than letting an
-  established cross-check silently lapse. **Narrow exception** (mirrors G2): a single method MAY stand
+  established cross-check silently lapse. Independence must also hold **in the setting under suspicion**
+  (mirrors G2): an entry that inherits the same suspect knob value, truncation order, or extraction window
+  as the computation it checks does **not** set `methods_agree` for that setting — vary the suspect setting
+  in at least one entry, or record the check in `notes` as "agree, but cannot resolve `<the setting under
+  suspicion>`". **Narrow exception** (mirrors G2): a single method MAY stand
   alone iff it carries a *rigorous a-posteriori / certified-interval error bound* that by itself establishes
   the value — then record that one method with its certificate in `tolerance`/`notes` and state why no
   second was required. Do not invoke this to excuse an un-cross-checked seed/heuristic search (which has no
