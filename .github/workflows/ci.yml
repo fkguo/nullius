@@ -113,6 +113,22 @@ jobs:
         if: ${{ matrix.node-version == 22 }}
         run: node scripts/check-review-verification-contract-anti-drift.mjs
 
+      - name: Check rendered-field continuity anti-drift (pre-delivery continuity scan)
+        if: ${{ matrix.node-version == 22 }}
+        run: node scripts/check-rendered-field-continuity-anti-drift.mjs
+
+      - name: Check knob-threading anti-drift (ladder and cross-check must see the setting)
+        if: ${{ matrix.node-version == 22 }}
+        run: node scripts/check-knob-threading-anti-drift.mjs
+
+      - name: Check optimization-equivalence anti-drift (accelerated path identity)
+        if: ${{ matrix.node-version == 22 }}
+        run: node scripts/check-optimization-equivalence-anti-drift.mjs
+
+      - name: Check post-correction recomputation anti-drift (recompute, never relabel)
+        if: ${{ matrix.node-version == 22 }}
+        run: node scripts/check-post-correction-recomputation-anti-drift.mjs
+
       - name: Check codegen drift (meta/schemas ↔ generated)
         if: ${{ matrix.node-version == 22 }}
         run: pnpm codegen:check
