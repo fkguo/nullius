@@ -1,6 +1,6 @@
 ---
 name: figure-hygiene
-description: "Correctness and legibility checklist for data/results figures in any field: charts, parameter scans, spectra, distributions, fit comparisons, constraint contours, heatmaps, and low-dimensional projection scatters. Use when an agent plots computed or measured data, revises a results figure for a manuscript, or audits whether a data figure is publication-ready. Covers data fidelity (excluded rows never enter plotted summaries, connected-series evaluator fingerprints are homogeneous, claim-titles true against every axis category, one canonical value per claim), label economy floor and ceiling, colour threading with a CVD-safe palette, role-mapped typography, chart choice by data shape, a render-then-verify QA loop (bbox overlap check plus per-panel perceptual crops), a figure-reproduction provenance bundle, and a fail-closed display-acceptance gate that refuses durable or outward-facing use until every plotted quantity is bound to a verification-gate verdict and an all-component human-review overview figure is archived. For schematic/topological figures such as process diagrams, integral-equation schematics, and geometry sketches, use physics-diagrams instead; this skill owns figures whose content is data."
+description: "Correctness and legibility checklist for data/results figures in any field: charts, parameter scans, spectra, distributions, fit comparisons, constraint contours, heatmaps, and low-dimensional projection scatters. Use when an agent plots computed or measured data, revises a results figure for a manuscript, or audits whether a data figure is publication-ready. Covers data fidelity (excluded rows never enter plotted summaries, connected-series evaluator fingerprints are homogeneous, a rendered continuous field is continuity-scanned before delivery, claim-titles true against every axis category, one canonical value per claim), label economy floor and ceiling, colour threading with a CVD-safe palette, role-mapped typography, chart choice by data shape, a render-then-verify QA loop (bbox overlap check plus per-panel perceptual crops), a figure-reproduction provenance bundle, and a fail-closed display-acceptance gate that refuses durable or outward-facing use until every plotted quantity is bound to a verification-gate verdict and an all-component human-review overview figure is archived. For schematic/topological figures such as process diagrams, integral-equation schematics, and geometry sketches, use physics-diagrams instead; this skill owns figures whose content is data."
 ---
 
 # Figure Hygiene
@@ -31,6 +31,15 @@ Data fidelity, the label-economy floor, the anti-pattern list, and render-then-v
   plotted component; a smooth insensitive coordinate can conceal heterogeneity that appears as a kink in a
   more sensitive coordinate. Use `"$SKILL_DIR/scripts/bin/check_series_provenance.py"` as the deterministic gate once the
   plotting table exposes `series_id` and `evaluator_fingerprint` (or explicitly named equivalent columns).
+- **Rendered-field continuity.** When a figure renders a computed field of a quantity the underlying theory
+  says is continuous across the plotted domain except at declared singularities, scan neighbour-to-neighbour
+  differences across the whole raster **before the figure is presented as delivered**, and report the worst
+  delta together with the scan. A jump that does not sit at a declared singularity is a defect to trace to
+  its mechanism — a threshold inside the evaluator that switches the size of the working problem, a code
+  path that flips, a cell left over from an earlier run — **never an annotation to write on the figure**.
+  The scan is mechanical, and precedes presentation, exactly because a smooth-looking rendering is what
+  hides such a defect: the eye certifies the smooth majority, an isolated jump reads as texture, and the
+  wrong values travel on into tables and conclusions.
 - **Self-consistency.** Every key, threshold, and title inside the figure must be satisfied by every plotted row. Before saving, walk each categorical outcome label back to the rule that defines it; if a row's value contradicts its label or the title, the figure is wrong, not the data.
 - **Claim-titles must be true.** A sentence-title is tested against every category on the axis before rendering. If any category contradicts it, qualify the title ("on 3 of 4 cases") or downgrade it to a description.
 - **State n and what was held fixed.** Every panel that draws a summary mark states the number of observations and the unit of replication; every small multiple that holds a variable fixed states the fixed value — in the panel or, when the label budget is tight, in the caption.
@@ -97,6 +106,8 @@ These are correctness failures, not style preferences:
   evaluator fingerprints.
 - A leader line whose nearest mark is not the row it labels.
 - A claim-title contradicted by a category on its own axis.
+- A neighbour-to-neighbour jump in a rendered field, away from any declared singularity, annotated on the
+  figure instead of traced to its mechanism.
 
 ## Render, Then Verify
 

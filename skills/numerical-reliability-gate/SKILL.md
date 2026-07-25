@@ -1,6 +1,6 @@
 ---
 name: numerical-reliability-gate
-description: "Convergence and reliability gate for NUMERICAL results in any field, including fits, optimizations, integrals, eigenvalues, roots, poles, zeros, ODE/PDE solutions, Monte-Carlo estimates, and downstream feature extraction. Use before trusting, comparing, publishing, or folding a computed number into durable research artifacts. Requires resolution convergence, independent-method checks, regression anchors, method-precondition checks, configuration-threading audits, gate-discrimination (negative-control) audits of purpose-built validation chains, accelerated/heuristic fast-path scoping (no false guarantee, unconditional escape hatch, production-validated precondition), and honest uncertainty/reporting. Emits an auditable reliability matrix. Sibling to derivation-verify for symbolic claims and julia-perf for speed claims."
+description: "Convergence and reliability gate for NUMERICAL results in any field, including fits, optimizations, integrals, eigenvalues, roots, poles, zeros, ODE/PDE solutions, Monte-Carlo estimates, and downstream feature extraction. Use before trusting, comparing, publishing, or folding a computed number into durable research artifacts. Requires resolution convergence, independent-method checks, regression anchors, post-correction downstream recomputation, method-precondition checks, configuration-threading audits, gate-discrimination (negative-control) audits of purpose-built validation chains, accelerated/heuristic fast-path scoping (no false guarantee, unconditional escape hatch, production-validated precondition), and honest uncertainty/reporting. Emits an auditable reliability matrix. Sibling to derivation-verify for symbolic claims and julia-perf for speed claims."
 ---
 
 # Numerical Reliability Gate
@@ -61,7 +61,15 @@ Each check names its own minimum disconfirming test — never accept a number be
   with the setting recorded. **A candidate optimum found at a coarse setting that does not survive
   re-evaluation at the converged setting is a MIRAGE** — re-evaluate every coarse-grid optimum at the
   converged grid before trusting it. Convergence is a *measured* plateau (e.g. stable to a stated
-  tolerance across a 2–3× range of the knob), never assumed from a single setting. For **sensitive**
+  tolerance across a 2–3× range of the knob), never assumed from a single setting.
+  **A ladder is evidence only if the knob demonstrably changed what was computed.** Bit-identical values
+  across nominally different settings mean the knob is **not threading** — read once at load time, frozen in
+  a cached configuration, or silently overridden by a default in the stage that consumes it — so treat
+  identical values across a ladder step as a **threading failure to diagnose, not as convergence**: a
+  plateau is values that *stop moving*, never values that never moved. The cheap positive control is to
+  confirm that the intermediate quantity most sensitive to the knob actually differs between ladder steps,
+  before the ladder is read at all.
+  For **sensitive**
   quantities also escalate floating-point precision and check the residual / backward error / condition
   number (or use interval / arbitrary-precision arithmetic) — a grid-refined value can still be wrong from
   cancellation or roundoff. For a **stochastic** estimate (Monte Carlo / sampling), "converged" is not a
@@ -91,6 +99,12 @@ Each check names its own minimum disconfirming test — never accept a number be
   that **absence as an explicit stated limitation**: do not let an established cross-check pattern silently
   lapse, and do not let a different-scientific-model or limit-regime check stand in for the missing one (an
   unrecorded lapse reads as "cross-checked" when nothing comparable was ever run).
+  **Independence must also hold in the setting under suspicion.** When a specific setting is what is in
+  doubt — an under-resolved knob, a truncation order, an extraction window — a cross-check that inherits
+  that same setting is **non-diagnostic for it**, however different the two implementations are: both routes
+  presuppose the quantity in question, so their agreement measures the shared setting rather than testing
+  it. Vary the suspect setting in at least one route, or record the check as "agree, but cannot resolve
+  `<the setting under suspicion>`".
   **Which LLM/engine runs a method is not the cross-check axis — the *route* is.** `>=2` orthogonal methods
   run by ONE LLM is a valid G2 floor (parallelize them across same-model subagents if useful, one method
   each — the independence lives in the method, never in the agent label), so a single-LLM host is never
@@ -128,6 +142,21 @@ Each check names its own minimum disconfirming test — never accept a number be
   the contour, the correct Riemann sheet/branch, and that the numerical `∮` rounds to an integer within a
   stated residual (not e.g. `0.97`). Treat a seed-based or threshold-based hit as a *candidate* that the
   invariant then confirms or refutes.
+  **Evaluate a cheap exact identity on every call, not once.** Where an exact identity relates two
+  admissible configurations of the same computation — a reordering, a relabelling, an equivalent
+  parameterization that must return the same answer — and evaluating it is cheap, evaluate it on **every
+  call** and carry its residual with the result as a **per-evaluation certificate**. Checked once at
+  development time it certifies one configuration on one day; carried per evaluation it catches the run
+  where the identity lapses (a code path that flips, a setting that fails to thread) at the moment it
+  lapses, on the value actually recorded.
+  **Rule out the discretization's own look-alikes before accepting a feature.** Before a discrete feature —
+  a root, a mode, a peak — is accepted as real, enumerate the **artifact family the discretization itself
+  can generate**: the spurious features a finite basis, a truncation order, a sampling grid, or a boundary
+  treatment produce on their own, with their characteristic positions and spacings. Then show the accepted
+  feature is **not a member of it** — canonically by demonstrating it survives when the discretization that
+  generates those look-alikes is changed. A discretization that admits look-alikes must be shown not to have
+  produced this one; "an invariant found it" does not settle the question when the invariant is computed on
+  that same discretization.
 - **G4 — Regression anchor before any variation.** Before trusting a variation — a bug fix, a new
   cutoff/regime, a scheme swap — assert the **default / reference configuration reproduces a KNOWN
   reference result** (a published value, a prior converged anchor). Two corollaries: reproduce the
@@ -144,6 +173,14 @@ Each check names its own minimum disconfirming test — never accept a number be
   grid/node/method/contour. A coarse, intermediate, or non-converged number is **labeled as such or
   discarded** — never silently reused. Check a reused artifact's timestamp against the current code
   version before trusting it (a stale artifact from a since-fixed bug reads as current truth otherwise).
+  **After a correction, recompute downstream — never relabel.** When a defect is found in anything upstream
+  of already-accepted results, every downstream result — table rows, folded numbers, rendered figures — must
+  be **recomputed**, not relabelled, caveated, or annotated in place. The record then states explicitly
+  **which results were recomputed after the fix and which were provably unaffected, with the reason** each
+  was unaffected. A results table that mixes pre-fix and post-fix rows without saying which is which fails
+  closed (`stale_artifact`): the caveat stays with the prose while the number travels on alone, and the
+  reader cannot tell the two apart. (Distinct from **G4**, which anchors the reference configuration
+  *before* a variation; this is the obligation that falls due *after* one.)
   **Connected-series homogeneity: missing evidence fails the check.** Before joining points from several runs into one line,
   trajectory, interpolation, fit, or downstream summary, require every joined point to carry the same
   complete evaluator fingerprint. The fingerprint covers the scientific model and branch/sheet choice,
@@ -442,3 +479,29 @@ carried only by the caller's context) — the episode that created **G10**:
   cross-check at production scale. **G10(ii)–(iv)** — since no fixed-start method certifies global
   dominance universally, the honest deliverable is "heuristic + validated precondition + exact escape
   hatch", never a universal guarantee that cannot exist.
+
+Further failure modes from a fifth reproduction (a computed field evaluated over a two-dimensional domain
+by a resolution-controlled evaluator, rendered as a landscape and feeding an already-accepted results
+table; domain carried only by the caller's context):
+
+- the rendered landscape looked smooth, and carried isolated neighbour-to-neighbour jumps of ~1.5 decades
+  whose location drifted with one coordinate, while the field was smooth to ~0.01 everywhere else —
+  including across its genuinely declared singularities. The mechanism was a **discrete acceptance
+  threshold inside the evaluator** that toggled the size of the working problem as the threshold was
+  crossed; the defect had already propagated into an accepted results table, where it reversed the verdict
+  the table was built to deliver (restored once fixed). **G1/G6** — a mechanical neighbour-difference scan
+  of the rendered field found in one pass what visual inspection had certified as smooth, which is why that
+  scan is a pre-delivery obligation in `figure-hygiene` (*rendered-field continuity*) rather than an
+  eyeball check;
+- after that evaluator was fixed, rows computed with the broken path **stayed in the delivered table under
+  a status caveat**, and figures rendered with the broken path were still presented as delivered. **G6** —
+  a correction upstream obliges *recomputation* downstream, not relabelling; the corrected verdict only
+  reappeared once the affected rows were actually recomputed, and the record had to say which rows those
+  were;
+- a convergence ladder silently **ran one setting twice** — the knob never reached the stage that consumed
+  it — and the anomalously bit-identical values were the only thing that exposed it; read as a plateau, the
+  ladder would have certified an arbitrary resolution as converged. **G1** — a ladder proves nothing until
+  the knob is shown to have changed what was computed;
+- a cross-check run through a genuinely different implementation shared the **same under-resolved value of
+  the very knob whose adequacy was in question**, so its agreement confirmed nothing about the setting under
+  suspicion. **G2** — independence has to hold in the suspect setting, not only in the implementation.
