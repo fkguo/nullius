@@ -25,7 +25,11 @@
     "check:literature-coverage-closure-anti-drift": "node scripts/check-literature-coverage-closure-anti-drift.mjs",
     "check:idea-posterior-reader-surface-anti-drift": "node scripts/check-idea-posterior-reader-surface-anti-drift.mjs",
     "check:reuse-or-deviate-anti-drift": "node scripts/check-reuse-or-deviate-anti-drift.mjs",
-    "check:review-verification-contract-anti-drift": "node scripts/check-review-verification-contract-anti-drift.mjs"
+    "check:review-verification-contract-anti-drift": "node scripts/check-review-verification-contract-anti-drift.mjs",
+    "check:rendered-field-continuity-anti-drift": "node scripts/check-rendered-field-continuity-anti-drift.mjs",
+    "check:knob-threading-anti-drift": "node scripts/check-knob-threading-anti-drift.mjs",
+    "check:optimization-equivalence-anti-drift": "node scripts/check-optimization-equivalence-anti-drift.mjs",
+    "check:post-correction-recomputation-anti-drift": "node scripts/check-post-correction-recomputation-anti-drift.mjs"
   },
   "author": "Feng-Kun Guo",
   "license": "MIT",

@@ -1,6 +1,6 @@
 ---
 name: julia-perf
-description: Use when writing Julia numerical or scientific code, to apply always-on performance guardrails and escalate to reproducible benchmark gating for speedup or regression claims. Works standalone by default and can optionally emit ecosystem artifacts.
+description: Use when writing Julia numerical or scientific code, to apply always-on performance guardrails, gate an accelerated implementation as an identity against its verbatim reference over the full domain of intended use, and escalate to reproducible benchmark gating for speedup or regression claims. Works standalone by default and can optionally emit ecosystem artifacts.
 ---
 
 # Julia Perf
@@ -102,6 +102,28 @@ Usage/config error (`exit 3`):
   - new type instability in critical paths
   - non-concrete hotpath containers (`Vector{Any}`, `Dict{String,Any}`, `Array{Real}`, similar)
   - column-major violating loop order in identified matrix hotpaths
+  - an accelerated path adopted without the equivalence evidence below
+
+### Equivalence gate (an accelerated path must compute the same thing)
+
+Speed evidence says nothing about *what* was computed, and a restructured implementation is derived on the
+typical case. Before an accelerated, reorganized, batched, cached, or otherwise restructured implementation
+may replace a reference one:
+
+- Verify it as an **identity against the verbatim reference**, to near machine precision, and **state the
+  measured agreement** (the worst relative deviation over the compared set) with the result. "It is faster
+  and the suite is green" is not that evidence: a suite exercises the inputs someone thought of.
+- Cover the **full domain of intended use**, not merely the typical inputs used for benchmarking — including
+  the **edge configurations the fast path was not designed around**. An exact algebraic reorganization
+  verified to ~1e-16 against the verbatim reference *including* an extended-domain configuration stayed
+  verified when that configuration later became load-bearing; the same check restricted to typical inputs
+  would have left the later use unverified.
+- Re-run the identity when either implementation changes, and record it with the benchmark artifacts — an
+  equivalence check that predates the current code proves nothing about it.
+- This gate covers only the identity between the two implementations. Whether the reference value itself is
+  converged and real belongs to
+  [`numerical-reliability-gate`](../numerical-reliability-gate/SKILL.md); its G10 governs the other case —
+  a fast path that is a *heuristic*, correct only under a precondition, rather than an exact reorganization.
 
 ## Script contract
 
