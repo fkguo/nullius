@@ -51,6 +51,6 @@ describe('decision lock fault injection', () => {
 
     const retry = makeIo(projectRoot);
     expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'recovers immediately'], retry.io)).toBe(0);
-    expect(retry.stdout.join('')).toContain('recorded: D1');
+    expect(retry.stdout.join('')).toMatch(/recorded: [0-7][0-9ABCDEFGHJKMNPQRSTVWXYZ]{25}/);
   });
 });
