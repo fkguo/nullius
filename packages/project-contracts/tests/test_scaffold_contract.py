@@ -421,6 +421,10 @@ class TestScaffoldContract(unittest.TestCase):
         self.assertIn('`nullius decision record "<what was decided>"`', template)
         self.assertIn('`nullius decision pending "<question>"`', template)
         self.assertIn('`nullius decision record "<answer>" --resolves <id>`', template)
+        self.assertIn("run `nullius decision land` there", template)
+        self.assertIn("never land on an unmerged branch", template)
+        self.assertIn("Existing `D<n>` ledgers remain valid without migration", template)
+        self.assertIn("non-one-to-one retained provisional mapping is a fail-closed ledger defect", template)
         # The verification trigger table is mode-independent.
         self.assertIn("The verification triggers above apply identically in both modes.", template)
 

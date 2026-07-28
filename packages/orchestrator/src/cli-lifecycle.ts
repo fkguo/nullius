@@ -189,11 +189,20 @@ function writeStatusText(io: CliIo, payload: Record<string, unknown>, statusProj
     const openCount = Number(ledger.open_count ?? 0);
     const invalidLines = Number(ledger.invalid_lines ?? 0);
     const duplicateIdCount = Number(ledger.duplicate_id_count ?? 0);
-    const supersededIdCount = Number(ledger.superseded_id_count ?? 0);
+    const ambiguousProvisionalIdCount = Number(ledger.ambiguous_provisional_id_count ?? 0);
+    const unlandedCount = Number(ledger.unlanded_count ?? 0);
     // A ledger FILE that exists renders even at 0/0 — an emptied ledger is a
     // deliberate state the operator should see, unlike the never-adopted case
     // (no file), which stays silent.
-    if (ledger.exists === true || decidedCount > 0 || openCount > 0 || invalidLines > 0 || duplicateIdCount > 0 || supersededIdCount > 0) {
+    if (
+      ledger.exists === true
+      || decidedCount > 0
+      || openCount > 0
+      || invalidLines > 0
+      || duplicateIdCount > 0
+      || ambiguousProvisionalIdCount > 0
+      || unlandedCount > 0
+    ) {
       io.stdout(`decisions: ${decidedCount} decided, ${openCount} open\n`);
       const openItems = Array.isArray(ledger.open_items) ? ledger.open_items : [];
       for (const rawItem of openItems) {
@@ -227,38 +236,43 @@ function writeStatusText(io: CliIo, payload: Record<string, unknown>, statusProj
           io.stdout(`    ... and ${duplicatesOmitted} more (run: nullius decision list --project-root ${shellQuote(statusProjectRoot)})\n`);
         }
       }
-      if (supersededIdCount > 0) {
-        // State the relationship to the counts above EXACTLY, units included.
-        // This count is of OCCURRENCES (an entry's own number, and a
-        // resolution naming one, are two), while decisions_invalid_lines
-        // counts LINES — one line can carry both, so the two numbers need not
-        // match and "inside" has to say what is inside what. An unqualified
-        // "not counted above" read as six problem lines where there were
-        // three; an unqualified "inside" reads as 4 contained in 3. A receipt
-        // an operator cannot reconcile is the defect this change is about.
-        // The repair is TWO instructions, not one: an entry carrying an old
-        // number is reissued, a resolution naming one is repointed. Telling a
-        // mid-migration operator to "reissue them" prescribes something
-        // already done — the target was reissued, which is why only the
-        // resolution still names the old number — and following it leaves the
-        // line quarantined and the question open.
+      if (ambiguousProvisionalIdCount > 0) {
         io.stdout(
-          `  decisions_superseded_ids: ${supersededIdCount} (numbers from the retired D<n> counter in `
-          + `${String(ledger.path ?? 'the decisions ledger')}; on lines already inside decisions_invalid_lines above, `
-          + 'absent from the decided/open counts — reissue each entry, repoint each resolution)\n',
+          `  decisions_ambiguous_provisional_ids: ${ambiguousProvisionalIdCount} `
+          + `(a retained branch id is reused by another entry in `
+          + `${String(ledger.path ?? 'the decisions ledger')}; old branch resolutions `
+          + 'cannot name one target)\n',
         );
-        const superseded = Array.isArray(ledger.superseded_ids) ? ledger.superseded_ids : [];
-        for (const rawEntry of superseded) {
+        const ambiguous = Array.isArray(ledger.ambiguous_provisional_ids)
+          ? ledger.ambiguous_provisional_ids
+          : [];
+        for (const rawEntry of ambiguous) {
           if (!rawEntry || typeof rawEntry !== 'object') continue;
           const entry = rawEntry as Record<string, unknown>;
-          // Same as `decision list`: name the field, because a superseded
-          // `resolves` needs repointing rather than reissuing.
-          const where = entry.field === 'resolves' ? ' (resolves)' : '';
-          io.stdout(`    - "${renderInline(entry.id)}" on line ${String(entry.line ?? '')}${where}\n`);
+          const lines = Array.isArray(entry.lines) ? entry.lines.join(', ') : '';
+          io.stdout(`    - "${renderInline(entry.id)}" on lines ${lines}\n`);
         }
-        const supersededOmitted = Number(ledger.superseded_ids_omitted ?? 0);
-        if (supersededOmitted > 0) {
-          io.stdout(`    ... and ${supersededOmitted} more (run: nullius decision list --project-root ${shellQuote(statusProjectRoot)})\n`);
+        const ambiguousOmitted = Number(ledger.ambiguous_provisional_ids_omitted ?? 0);
+        if (ambiguousOmitted > 0) {
+          io.stdout(
+            `    ... and ${ambiguousOmitted} more `
+            + `(run: nullius decision list --project-root ${shellQuote(statusProjectRoot)})\n`,
+          );
+        }
+      }
+      if (unlandedCount > 0) {
+        io.stdout(
+          `  decisions_unlanded: ${unlandedCount} (provisional branch ids in `
+          + `${String(ledger.path ?? 'the decisions ledger')}; run nullius decision land `
+          + `--project-root ${shellQuote(statusProjectRoot)} on the trunk before citing them)\n`,
+        );
+        const unlandedIds = Array.isArray(ledger.unlanded_ids) ? ledger.unlanded_ids : [];
+        for (const id of unlandedIds) {
+          io.stdout(`    - ${renderInline(id)}\n`);
+        }
+        const unlandedOmitted = Number(ledger.unlanded_ids_omitted ?? 0);
+        if (unlandedOmitted > 0) {
+          io.stdout(`    ... and ${unlandedOmitted} more (run: nullius decision list --project-root ${shellQuote(statusProjectRoot)})\n`);
         }
       }
     }
@@ -439,20 +453,66 @@ export async function runDecisionCommand(
   parsed: Extract<ParsedCliArgs, { command: 'decision' }>,
   io: CliIo,
 ): Promise<number> {
-  const { appendDecision, openDecisions, readDecisionsLedger } = await import('./decisions-ledger.js');
+  const {
+    appendDecision,
+    landDecisionIds,
+    openDecisions,
+    readDecisionsLedger,
+    sortDecisionsByTimestamp,
+  } = await import('./decisions-ledger.js');
+  if (parsed.action === 'land') {
+    const result = landDecisionIds(projectRoot);
+    if (result.landed.length > 0 || result.rewritten_resolutions > 0) {
+      try {
+        const { manager } = createStateManager(projectRoot);
+        manager.appendLedger('decision_ids_landed', {
+          details: {
+            mappings: result.landed,
+            rewritten_resolution_count: result.rewritten_resolutions,
+          },
+        });
+      } catch (error) {
+        io.stderr(
+          `[warn] decision landing changed ${result.landed.length} id(s) and `
+          + `${result.rewritten_resolutions} resolution(s), but the ledger.jsonl `
+          + `mirror event failed: ${error instanceof Error ? error.message : String(error)}\n`,
+        );
+      }
+    }
+    if (parsed.json) {
+      writeJson(io, {
+        path: result.path,
+        landed_count: result.landed.length,
+        rewritten_resolution_count: result.rewritten_resolutions,
+        mappings: result.landed,
+      });
+      return 0;
+    }
+    if (result.landed.length === 0 && result.rewritten_resolutions === 0) {
+      io.stdout(`landed: 0 (ledger already canonical in ${result.path})\n`);
+      return 0;
+    }
+    io.stdout(`landed: ${result.landed.length}\n`);
+    for (const mapping of result.landed) {
+      io.stdout(`  - ${mapping.provisional_id} -> ${mapping.id}\n`);
+    }
+    io.stdout(`rewritten_resolutions: ${result.rewritten_resolutions}\n`);
+    return 0;
+  }
   if (parsed.action === 'list') {
     const snapshot = readDecisionsLedger(projectRoot);
-    const open = openDecisions(snapshot.records);
+    const records = sortDecisionsByTimestamp(snapshot.records);
+    const open = sortDecisionsByTimestamp(openDecisions(snapshot.records));
     // A duplicate id makes `--resolves <id>` name two entries at once, so the
     // read commands refuse to hand back the ledger as if it were sound: the
     // records still print (a reader may be checking whether an entry landed),
     // followed by the collisions and the repair, and the command exits
     // non-zero. Nothing at merge time reports a collision, so this is where a
     // ledger already carrying one becomes visible.
-    // Either defect means an id in this file cannot be used to name one entry:
-    // a duplicate names two, a superseded one names an entry that is no longer
-    // readable at all.
-    const ledgerDefectExitCode = snapshot.duplicate_ids.length > 0 || snapshot.superseded_ids.length > 0 ? 1 : 0;
+    const ledgerDefectExitCode = (
+      snapshot.duplicate_ids.length > 0
+      || snapshot.ambiguous_provisional_ids.length > 0
+    ) ? 1 : 0;
     const reportLedgerDefects = (): number => {
       if (snapshot.duplicate_ids.length > 0) {
         io.stdout(`duplicate_ids: ${snapshot.duplicate_ids.length} (one id, more than one entry in ${snapshot.path})\n`);
@@ -464,20 +524,18 @@ export async function runDecisionCommand(
         }
         io.stdout('  repair: keep the first occurrence of each id, reissue every later one, and repoint any resolves naming it\n');
       }
-      if (snapshot.superseded_ids.length > 0) {
-        // These entries are NOT in the listing above — their ids are the
-        // superseded counter form, so their lines are quarantined and any open
-        // question among them has left the read model. Naming them is the
-        // difference between a migration and a silent loss.
-        io.stdout(`superseded_ids: ${snapshot.superseded_ids.length} (numbers from the retired D<n> counter in ${snapshot.path}; not listed above and not resolvable)\n`);
-        for (const superseded of snapshot.superseded_ids) {
-          // The field is named because the two repairs differ: an `id` needs
-          // the entry reissued, a `resolves` needs repointing at whatever the
-          // entry it named was reissued as.
-          const where = superseded.field === 'resolves' ? ' (resolves)' : '';
-          io.stdout(`  - "${renderInline(superseded.id)}" on line ${superseded.line}${where}\n`);
+      if (snapshot.ambiguous_provisional_ids.length > 0) {
+        io.stdout(
+          `ambiguous_provisional_ids: ${snapshot.ambiguous_provisional_ids.length} `
+          + `(one retained branch id names more than one entry in ${snapshot.path})\n`,
+        );
+        for (const ambiguous of snapshot.ambiguous_provisional_ids) {
+          io.stdout(`  - "${renderInline(ambiguous.id)}" on lines ${ambiguous.lines.join(', ')}\n`);
         }
-        io.stdout('  repair: reissue each entry with a fresh id, and repoint any resolves naming the old one — that also clears any duplicate reported above for the same lines\n');
+        io.stdout(
+          '  repair: keep one durable mapping for each provisional id, reissue any current entry '
+          + 'that reused it, and repoint old resolutions to the intended D<n>\n',
+        );
       }
       return ledgerDefectExitCode;
     };
@@ -487,8 +545,9 @@ export async function runDecisionCommand(
         exists: snapshot.exists,
         invalid_lines: snapshot.invalid_lines,
         duplicate_ids: snapshot.duplicate_ids,
-        superseded_ids: snapshot.superseded_ids,
-        records: snapshot.records,
+        ambiguous_provisional_ids: snapshot.ambiguous_provisional_ids,
+        unlanded_ids: snapshot.unlanded_ids,
+        records,
         open_ids: open.map((record) => record.id),
       });
       return ledgerDefectExitCode;
@@ -501,12 +560,20 @@ export async function runDecisionCommand(
       return reportLedgerDefects();
     }
     const openIds = new Set(open.map((entry) => entry.id));
-    for (const record of snapshot.records) {
+    for (const record of records) {
       const openMark = record.kind === 'pending' && openIds.has(record.id) ? ' [open]' : '';
+      const unlandedMark = snapshot.unlanded_ids.includes(record.id) ? ' [unlanded]' : '';
+      const landedFromMark = record.provisional_id ? ` landed_from=${record.provisional_id}` : '';
       const resolvesMark = record.resolves ? ` resolves=${record.resolves}` : '';
-      io.stdout(`${record.id} ${record.kind}${openMark} @ ${renderInline(record.ts)} (${renderInline(record.by)})${resolvesMark}: ${renderInline(record.text)}\n`);
+      io.stdout(
+        `${record.id} ${record.kind}${openMark}${unlandedMark} @ ${renderInline(record.ts)} `
+        + `(${renderInline(record.by)})${landedFromMark}${resolvesMark}: ${renderInline(record.text)}\n`,
+      );
     }
-    io.stdout(`decisions: ${snapshot.records.filter((record) => record.kind === 'decided').length} decided, ${open.length} open\n`);
+    io.stdout(
+      `decisions: ${snapshot.records.filter((record) => record.kind === 'decided').length} decided, `
+      + `${open.length} open, ${snapshot.unlanded_ids.length} unlanded\n`,
+    );
     if (snapshot.invalid_lines > 0) {
       io.stdout(`invalid_lines: ${snapshot.invalid_lines}\n`);
     }

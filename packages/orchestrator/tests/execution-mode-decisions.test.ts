@@ -194,15 +194,12 @@ describe('execution mode declaration', () => {
 });
 
 describe('decision ledger', () => {
-  // The minted form, stated here independently of the module: ten Crockford
-  // base32 characters of millisecond timestamp (the leading one carries the
-  // two padding bits of a 48-bit count, hence 0-7) then sixteen random ones.
-  // I, L, O, and U are absent from the alphabet and lowercase is not the
-  // canonical spelling, so no id can be written two ways.
-  const DECISION_ID_PATTERN = /^[0-7][0-9ABCDEFGHJKMNPQRSTVWXYZ]{25}$/;
+  // The branch-local form, stated independently of the module: exactly six
+  // uppercase Crockford-base32 characters, excluding I/L/O/U.
+  const DECISION_ID_PATTERN = /^[0-9ABCDEFGHJKMNPQRSTVWXYZ]{6}$/;
   // A fixed instant for the tests that pin the clock.
   const FIXED_MS = 1785196800000;
-  const FIXED_TS = '2026-07-28T00:00:00Z';
+  const FIXED_TS = '2026-07-28T00:00:00.000Z';
 
   /** A hand-written id in the minted form, for fixtures that need one. */
   function fixtureId(suffix: string, time = '01K3ZQJ5R0'): string {
@@ -306,9 +303,7 @@ describe('decision ledger', () => {
   }, 20000);
 
   it('mints distinct ids for two roots recording in the same millisecond', async () => {
-    // Uniqueness must not rest on the clock: two branches recording at the
-    // same instant share the timestamp half of the id and are separated only
-    // by the 80 random bits.
+    // Uniqueness must not rest on the clock: the handle contains no timestamp.
     const clock = vi.spyOn(Date, 'now').mockReturnValue(FIXED_MS);
     try {
       const ids: string[] = [];
@@ -317,21 +312,16 @@ describe('decision ledger', () => {
         await initRuntimeOnly(root);
         ids.push(await recordDecision(root, 'record', 'Recorded at the very same instant'));
       }
-      expect(ids[0]?.slice(0, 10)).toBe(ids[1]?.slice(0, 10));
       expect(ids[0]).not.toBe(ids[1]);
-      // The record's ts comes from the same clock read as its id, so the two
-      // never straddle a second boundary.
+      // The record timestamp keeps the millisecond precision that identity no
+      // longer needs to encode.
       expect(readDecisionLines(roots[0]!)[0]).toMatchObject({ ts: FIXED_TS });
     } finally {
       clock.mockRestore();
     }
   });
 
-  it('orders minted ids lexicographically by recording millisecond', async () => {
-    // Sorting a merged ledger by id has to reproduce chronological order to
-    // the millisecond. Inside ONE millisecond the ids are unordered by
-    // construction (the tail is random, not a sequence) — that is the honest
-    // scope of the claim, and the reason every offset below is distinct.
+  it('keeps time in ts rather than encoding order into provisional ids', async () => {
     const projectRoot = makeTempProjectRoot();
     await initRuntimeOnly(projectRoot);
     const clock = vi.spyOn(Date, 'now');
@@ -344,9 +334,38 @@ describe('decision ledger', () => {
     } finally {
       clock.mockRestore();
     }
-    expect([...ids].sort()).toEqual(ids);
     expect(new Set(ids).size).toBe(ids.length);
+    expect(readDecisionLines(projectRoot).map(line => line.ts)).toEqual([
+      '2026-07-28T00:00:00.000Z',
+      '2026-07-28T00:00:00.001Z',
+      '2026-07-28T00:00:01.000Z',
+      '2026-07-29T00:00:00.000Z',
+    ]);
   }, 20000);
+
+  it('sorts list and status presentation by ts, not by provisional id or merge order', async () => {
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot);
+    writeLedger(projectRoot, [
+      { id: 'ZZZZZZ', ts: '2026-07-10T00:00:03.000Z', kind: 'pending', text: 'third by time', by: 'user', resolves: null },
+      { id: '111111', ts: '2026-07-10T00:00:01.000Z', kind: 'pending', text: 'first by time', by: 'user', resolves: null },
+      { id: 'AAAAAA', ts: '2026-07-10T00:00:02.000Z', kind: 'pending', text: 'second by time', by: 'user', resolves: null },
+    ]);
+
+    const list = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'list', '--json'], list.io)).toBe(0);
+    const listed = JSON.parse(list.stdout.join('')) as {
+      records: Array<{ id: string }>;
+      open_ids: string[];
+    };
+    expect(listed.records.map(record => record.id)).toEqual(['111111', 'AAAAAA', 'ZZZZZZ']);
+    expect(listed.open_ids).toEqual(['111111', 'AAAAAA', 'ZZZZZZ']);
+
+    const ledger = (await statusJson(projectRoot)).decision_ledger as {
+      open_items: Array<{ id: string }>;
+    };
+    expect(ledger.open_items.map(item => item.id)).toEqual(['111111', 'AAAAAA', 'ZZZZZZ']);
+  });
 
   it('fails closed on a ledger carrying one id twice', async () => {
     const projectRoot = makeTempProjectRoot();
@@ -461,11 +480,10 @@ describe('decision ledger', () => {
     }
   }, 20000);
 
-  it('reports collisions in a ledger written by the superseded counter', async () => {
-    // What the local counter produced once two branches were merged: two
-    // different decisions both named D38. Those ids are not in the minted
-    // form, so their lines are quarantined — and the collision is still named
-    // rather than disappearing into the invalid-line count.
+  it('reports collisions in a durable D<n> ledger without hiding the first entry', async () => {
+    // What the old branch-local counter could produce after a merge: two
+    // different decisions both named D38. D<n> is valid durable identity, but
+    // a duplicate remains ambiguous and must still fail closed.
     const projectRoot = makeTempProjectRoot();
     await initRuntimeOnly(projectRoot);
     writeLedger(projectRoot, [
@@ -483,12 +501,18 @@ describe('decision ledger', () => {
       records: unknown[];
     };
     expect(parsed.duplicate_ids).toEqual([{ id: 'D38', lines: [1, 3] }]);
-    expect(parsed.invalid_lines).toBe(2);
-    expect(parsed.records).toHaveLength(0);
+    expect(parsed.invalid_lines).toBe(1);
+    expect(parsed.records).toEqual([
+      expect.objectContaining({ id: 'D38', kind: 'pending', text: 'branch one question' }),
+    ]);
 
     const ledger = (await statusJson(projectRoot)).decision_ledger as Record<string, unknown>;
     expect(ledger.duplicate_id_count).toBe(1);
-    expect(ledger.invalid_lines).toBe(2);
+    expect(ledger.invalid_lines).toBe(1);
+    expect(ledger.open_count).toBe(1);
+    await expect(
+      runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'answer', '--resolves', 'D38'], makeIo(projectRoot).io),
+    ).rejects.toThrow('is ambiguous');
   });
 
   it('resolves a pending question and surfaces open items in the receipt', async () => {
@@ -603,11 +627,11 @@ describe('decision ledger', () => {
     expect(readDecisionsLedger(projectRoot).duplicate_ids).toEqual([]);
   }, 20000);
 
-  it('quarantines ids that are not in the minted form', async () => {
+  it('accepts durable D<n> while quarantining noncanonical provisional ids', async () => {
     const projectRoot = makeTempProjectRoot();
     await initRuntimeOnly(projectRoot);
     writeLedger(projectRoot, [
-      // The superseded counter's form.
+      // Durable identity from every ledger already in the field.
       { id: 'D42', ts: '2026-07-10T00:00:00Z', kind: 'pending', text: 'counter id', by: 'user', resolves: null },
       // Lowercase: Crockford decoding is case-insensitive, so admitting it
       // would give one entry two spellings.
@@ -621,19 +645,13 @@ describe('decision ledger', () => {
     ]);
 
     const list = makeIo(projectRoot);
-    // The counter-form id makes this ledger a migration case, so the read
-    // command fails closed on it.
-    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'list', '--json'], list.io)).toBe(1);
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'list', '--json'], list.io)).toBe(0);
     const parsed = JSON.parse(list.stdout.join('')) as {
       invalid_lines: number;
-      records: unknown[];
-      superseded_ids: Array<{ id: string; line: number }>;
+      records: Array<{ id: string }>;
     };
-    expect(parsed.invalid_lines).toBe(5);
-    expect(parsed.records).toHaveLength(0);
-    // Only the counter form is a migration; the other four are simply not ids
-    // this ledger issues, and must not be misreported as reissuable entries.
-    expect(parsed.superseded_ids).toEqual([{ id: 'D42', line: 1, field: 'id' }]);
+    expect(parsed.invalid_lines).toBe(4);
+    expect(parsed.records).toEqual([expect.objectContaining({ id: 'D42' })]);
 
     // Recording still works, and the fresh id is none of the rejected ones.
     const fresh = await recordDecision(projectRoot, 'record', 'Normal decision');
@@ -686,75 +704,85 @@ describe('decision ledger', () => {
     } finally {
       clock.mockRestore();
     }
-    expect(readDecisionLines(boundaryRoot)[0]).toMatchObject({ id: boundaryId, ts: '9999-12-31T23:59:59Z' });
+    expect(readDecisionLines(boundaryRoot)[0]).toMatchObject({ id: boundaryId, ts: '9999-12-31T23:59:59.999Z' });
     const snapshot = readDecisionsLedger(boundaryRoot);
     expect(snapshot.invalid_lines).toBe(0);
     expect(snapshot.records.map(record => record.id)).toEqual([boundaryId]);
   }, 20000);
 
-  it('names entries still numbered by the superseded counter instead of dropping them into a generic count', async () => {
-    // The migration path deserves the same treatment as a merge collision:
-    // these entries leave the read model entirely — including a question that
-    // was still open — so a bare invalid-line count would reproduce exactly
-    // the silence that makes a collision dangerous.
+  it('keeps an existing D<n> ledger valid, counted, and resolvable with zero migration', async () => {
     const projectRoot = makeTempProjectRoot();
     await initRuntimeOnly(projectRoot);
     writeLedger(projectRoot, [
-      { id: 'D1', ts: '2026-07-10T00:00:00Z', kind: 'pending', text: 'a question still open when the numbering changed', by: 'FKG', resolves: null },
-      { id: 'D2', ts: '2026-07-10T00:00:01Z', kind: 'pending', text: 'another open question', by: 'user', resolves: null },
-      { id: 'D3', ts: '2026-07-10T00:00:02Z', kind: 'decided', text: 'an answer', by: 'user', resolves: 'D1' },
+      { id: 'D1', ts: '2026-07-10T00:00:00Z', kind: 'pending', text: 'already answered question', by: 'FKG', resolves: null },
+      { id: 'D2', ts: '2026-07-10T00:00:01Z', kind: 'pending', text: 'long-standing open question', by: 'user', resolves: null },
+      { id: 'D3', ts: '2026-07-10T00:00:02Z', kind: 'decided', text: 'answer for the first question', by: 'user', resolves: 'D1' },
     ]);
-
-    // Four places carry an old number: three ids, plus the resolution on line
-    // 3 still naming D1.
-    const expectedSuperseded = [
-      { id: 'D1', line: 1, field: 'id' },
-      { id: 'D2', line: 2, field: 'id' },
-      { id: 'D3', line: 3, field: 'id' },
-      { id: 'D1', line: 3, field: 'resolves' },
-    ];
-
-    const list = makeIo(projectRoot);
-    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'list'], list.io)).toBe(1);
-    const listText = list.stdout.join('');
-    expect(listText).toContain('superseded_ids: 4 (numbers from the retired D<n> counter in .nullius/decisions.jsonl; not listed above and not resolvable)');
-    expect(listText).toContain('- "D1" on line 1');
-    expect(listText).toContain('- "D3" on line 3');
-    expect(listText).toContain('- "D1" on line 3 (resolves)');
-    expect(listText).toContain('repair: reissue each entry with a fresh id');
+    const beforeRead = fs.readFileSync(ledgerFilePath(projectRoot), 'utf-8');
 
     const json = makeIo(projectRoot);
-    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'list', '--json'], json.io)).toBe(1);
-    expect((JSON.parse(json.stdout.join('')) as { superseded_ids: unknown }).superseded_ids).toEqual(expectedSuperseded);
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'list', '--json'], json.io)).toBe(0);
+    const listed = JSON.parse(json.stdout.join('')) as {
+      invalid_lines: number;
+      records: Array<{ id: string }>;
+      open_ids: string[];
+      unlanded_ids: string[];
+    };
+    expect(listed).toMatchObject({
+      invalid_lines: 0,
+      open_ids: ['D2'],
+      unlanded_ids: [],
+    });
+    expect(listed.records.map(record => record.id)).toEqual(['D1', 'D2', 'D3']);
+    // Read-only commands do not rewrite the legacy ledger.
+    expect(fs.readFileSync(ledgerFilePath(projectRoot), 'utf-8')).toBe(beforeRead);
+    // Nor does an explicit landing pass: a fully durable legacy ledger is
+    // already in canonical form and must remain byte-for-byte untouched.
+    const legacyLand = makeIo(projectRoot);
+    expect(await runCli(
+      [`--project-root=${projectRoot}`, 'decision', 'land', '--json'],
+      legacyLand.io,
+    )).toBe(0);
+    expect(JSON.parse(legacyLand.stdout.join(''))).toMatchObject({
+      landed_count: 0,
+      rewritten_resolution_count: 0,
+      mappings: [],
+    });
+    expect(fs.readFileSync(ledgerFilePath(projectRoot), 'utf-8')).toBe(beforeRead);
 
-    const ledger = (await statusJson(projectRoot)).decision_ledger as Record<string, unknown>;
-    expect(ledger.superseded_id_count).toBe(4);
-    expect(ledger.superseded_ids).toEqual(expectedSuperseded);
-    expect(ledger.superseded_ids_omitted).toBe(0);
-    // The open questions are genuinely gone from the counts — which is why the
-    // receipt has to say so in its own words.
-    expect(ledger.open_count).toBe(0);
-    // ...and it must say it exactly: these lines ARE inside the invalid-line
-    // count printed just above, so an unqualified "not counted above" would
-    // read as seven problem lines where there are three.
-    expect(ledger.invalid_lines).toBe(3);
+    let ledger = (await statusJson(projectRoot)).decision_ledger as Record<string, unknown>;
+    expect(ledger).toMatchObject({
+      decided_count: 1,
+      pending_count: 2,
+      open_count: 1,
+      invalid_lines: 0,
+      unlanded_count: 0,
+    });
+    expect(ledger.open_items).toEqual([
+      expect.objectContaining({ id: 'D2', text: 'long-standing open question' }),
+    ]);
 
-    const statusText = makeIo(projectRoot);
-    expect(await runCli([`--project-root=${projectRoot}`, 'status'], statusText.io)).toBe(0);
-    const receipt = statusText.stdout.join('');
-    expect(receipt).toContain('decisions_invalid_lines: 3');
-    expect(receipt).toContain('decisions_superseded_ids: 4 (numbers from the retired D<n> counter in .nullius/decisions.jsonl; on lines already inside decisions_invalid_lines above, absent from the decided/open counts — reissue each entry, repoint each resolution)');
-    expect(receipt).toContain('- "D1" on line 1');
-    expect(receipt).toContain('- "D1" on line 3 (resolves)');
-    expect(receipt).not.toContain('not counted above');
+    const resolve = makeIo(projectRoot);
+    expect(
+      await runCli(
+        [`--project-root=${projectRoot}`, 'decision', 'record', 'answer preserving the cited id', '--resolves', 'D2'],
+        resolve.io,
+      ),
+    ).toBe(0);
+    const answerHandle = mintedId(resolve.stdout.join(''), 'recorded');
+    expect(resolve.stdout.join('')).toContain('resolved: D2');
+    ledger = (await statusJson(projectRoot)).decision_ledger as Record<string, unknown>;
+    expect(ledger).toMatchObject({
+      decided_count: 2,
+      pending_count: 2,
+      open_count: 0,
+      invalid_lines: 0,
+      unlanded_count: 1,
+      unlanded_ids: [answerHandle],
+    });
   }, 20000);
 
-  it('claims only the form the superseded counter could actually have issued', async () => {
-    // "Reissue this entry" is a diagnosis, and it must be true. The old
-    // counter allocated D1, D2, ... as positive safe integers without leading
-    // zeros — it never produced D0, D01, or a value past 2^53. Reporting those
-    // as superseded entries would prescribe a migration for an unrelated
-    // malformed line and fail `decision list` closed on a false cause.
+  it('accepts only canonical safe D<n> ids', async () => {
     const projectRoot = makeTempProjectRoot();
     await initRuntimeOnly(projectRoot);
     const stamp = (index: number) => `2026-07-10T00:00:0${index}Z`;
@@ -768,70 +796,469 @@ describe('decision ledger', () => {
     ]);
 
     const snapshot = readDecisionsLedger(projectRoot);
-    expect(snapshot.superseded_ids).toEqual([
-      { id: 'D1', line: 1, field: 'id' },
-      { id: 'D999999', line: 5, field: 'id' },
-    ]);
-    // The four rejected shapes are still quarantined — they are simply not a
-    // migration, and stay in the generic count with every other bad id.
-    expect(snapshot.invalid_lines).toBe(6);
-    expect(snapshot.records).toHaveLength(0);
+    expect(snapshot.invalid_lines).toBe(4);
+    expect(snapshot.records.map(record => record.id)).toEqual(['D1', 'D999999']);
+    expect(snapshot.highest_durable_sequence).toBe(999999);
+    expect(snapshot.unlanded_ids).toEqual([]);
   });
 
-  it('names a resolves still pointing at a superseded number', async () => {
-    // The mid-migration state: the pending entries have been reissued with
-    // fresh ids, but a decided entry still names the old number. Its id is
-    // canonical, so nothing about the id says anything is wrong — the stale
-    // number appears only in `resolves`, and without reporting it the line
-    // falls into the generic invalid-line count with `decision list` exiting 0
-    // on a ledger that has quietly lost a resolution.
+  it('lands provisional handles onto the durable sequence and rewrites their resolutions', async () => {
     const projectRoot = makeTempProjectRoot();
     await initRuntimeOnly(projectRoot);
     writeLedger(projectRoot, [
-      { id: ID_A, ts: '2026-07-10T00:00:00Z', kind: 'pending', text: 'reissued question', by: 'user', resolves: null },
-      { id: ID_B, ts: '2026-07-10T00:00:01Z', kind: 'decided', text: 'answer still pointing at the old number', by: 'user', resolves: 'D1' },
+      { id: 'D7', ts: '2026-07-10T00:00:00Z', kind: 'decided', text: 'already durable', by: 'user', resolves: null, project_field: { keep: true } },
+      { id: 'ABC123', ts: '2026-07-10T00:00:01.123Z', kind: 'pending', text: 'branch question', by: 'user', resolves: null },
+      { id: 'ZYX987', ts: '2026-07-10T00:00:02.456Z', kind: 'decided', text: 'branch answer', by: 'user', resolves: 'ABC123' },
+    ]);
+
+    const before = readDecisionsLedger(projectRoot);
+    expect(before.unlanded_ids).toEqual(['ABC123', 'ZYX987']);
+    expect(before.invalid_lines).toBe(0);
+
+    const land = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'land', '--json'], land.io)).toBe(0);
+    expect(JSON.parse(land.stdout.join(''))).toEqual({
+      path: '.nullius/decisions.jsonl',
+      landed_count: 2,
+      rewritten_resolution_count: 1,
+      mappings: [
+        { provisional_id: 'ABC123', id: 'D8' },
+        { provisional_id: 'ZYX987', id: 'D9' },
+      ],
+    });
+    expect(readLedgerEvents(projectRoot).find(event => event.event_type === 'decision_ids_landed'))
+      .toMatchObject({
+        details: {
+          rewritten_resolution_count: 1,
+          mappings: [
+            { provisional_id: 'ABC123', id: 'D8' },
+            { provisional_id: 'ZYX987', id: 'D9' },
+          ],
+        },
+      });
+    expect(readDecisionLines(projectRoot)).toEqual([
+      expect.objectContaining({ id: 'D7', project_field: { keep: true } }),
+      expect.objectContaining({ id: 'D8', provisional_id: 'ABC123', resolves: null }),
+      expect.objectContaining({ id: 'D9', provisional_id: 'ZYX987', resolves: 'D8' }),
+    ]);
+    const after = readDecisionsLedger(projectRoot);
+    expect(after.invalid_lines).toBe(0);
+    expect(after.duplicate_ids).toEqual([]);
+    expect(after.ambiguous_provisional_ids).toEqual([]);
+    expect(after.unlanded_ids).toEqual([]);
+    expect(after.records.map(record => record.id)).toEqual(['D7', 'D8', 'D9']);
+    const landedList = makeIo(projectRoot);
+    expect(await runCli(
+      [`--project-root=${projectRoot}`, 'decision', 'list'],
+      landedList.io,
+    )).toBe(0);
+    expect(landedList.stdout.join('')).toContain('D8 pending @');
+    expect(landedList.stdout.join('')).toContain('landed_from=ABC123');
+    expect(landedList.stdout.join('')).toContain('D9 decided @');
+    expect(landedList.stdout.join('')).toContain('landed_from=ZYX987 resolves=D8');
+
+    const landedBytes = fs.readFileSync(ledgerFilePath(projectRoot), 'utf-8');
+    const repeated = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'land'], repeated.io)).toBe(0);
+    expect(repeated.stdout.join('')).toContain('landed: 0');
+    expect(fs.readFileSync(ledgerFilePath(projectRoot), 'utf-8')).toBe(landedBytes);
+  });
+
+  it('preserves non-identity bytes, blank separators, and line endings byte-for-byte', async () => {
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot);
+    const durableLine = ' \t{ "id":"D7", "ts":"2026-07-10T00:00:00Z", "kind":"decided", "text":"caf\\u00e9", "by":"user", "resolves":null, "project_field":{"keep":true} }\t';
+    const separator = ' \t\r\n';
+    const provisionalLine = ' \t{"7":"first","id" : "ABC123","ts":"2026-07-10T00:00:01Z","kind":"pending","text":"branch question","by":"user","resolves":null,"huge":9007199254740993,"overflow":1e999,"escaped":"caf\\u00e9" }\t';
+    const preservedPrefix = Buffer.from(`${durableLine}\r\n${separator}`, 'utf-8');
+    const source = Buffer.concat([preservedPrefix, Buffer.from(provisionalLine, 'utf-8')]);
+    fs.writeFileSync(ledgerFilePath(projectRoot), source);
+
+    expect(await runCli(
+      [`--project-root=${projectRoot}`, 'decision', 'land'],
+      makeIo(projectRoot).io,
+    )).toBe(0);
+    const landed = fs.readFileSync(ledgerFilePath(projectRoot));
+    const expectedProvisionalLine = provisionalLine
+      .replace('"ABC123"', '"D8"')
+      .replace(' }\t', ' ,"provisional_id":"ABC123"}\t');
+    expect(landed).toEqual(Buffer.concat([
+      preservedPrefix,
+      Buffer.from(expectedProvisionalLine, 'utf-8'),
+    ]));
+    expect(landed[landed.length - 1]).not.toBe(0x0a);
+    expect(readDecisionsLedger(projectRoot).records).toEqual([
+      expect.objectContaining({ id: 'D7', text: 'café' }),
+      expect.objectContaining({ id: 'D8', provisional_id: 'ABC123' }),
+    ]);
+  });
+
+  it('lands ULIDs emitted by the preceding release as provisional identities', async () => {
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot);
+    writeLedger(projectRoot, [
+      { id: ID_A, ts: '2026-07-10T00:00:00Z', kind: 'pending', text: 'release-window question', by: 'user', resolves: null },
+      { id: ID_B, ts: '2026-07-10T00:00:01Z', kind: 'decided', text: 'release-window answer', by: 'user', resolves: ID_A },
+    ]);
+    expect(readDecisionsLedger(projectRoot).unlanded_ids).toEqual([ID_A, ID_B]);
+    const land = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'land'], land.io)).toBe(0);
+    expect(land.stdout.join('')).toContain('landed: 2');
+    expect(land.stdout.join('')).toContain(`- ${ID_A} -> D1`);
+    expect(land.stdout.join('')).toContain(`- ${ID_B} -> D2`);
+    expect(readDecisionLines(projectRoot)).toEqual([
+      expect.objectContaining({ id: 'D1', provisional_id: ID_A }),
+      expect.objectContaining({ id: 'D2', provisional_id: ID_B, resolves: 'D1' }),
+    ]);
+  });
+
+  it('lands a late branch resolver through the target mapping already retained on trunk', async () => {
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot);
+    writeLedger(projectRoot, [
+      {
+        id: 'D7',
+        provisional_id: 'ABC123',
+        ts: '2026-07-10T00:00:00Z',
+        kind: 'pending',
+        text: 'pending entry trunk landed after this branch was cut',
+        by: 'user',
+        resolves: null,
+      },
+      {
+        id: 'ZYX987',
+        ts: '2026-07-10T00:00:01Z',
+        kind: 'decided',
+        text: 'late branch answer still naming the pre-landing handle',
+        by: 'user',
+        resolves: 'ABC123',
+      },
+    ]);
+
+    const before = readDecisionsLedger(projectRoot);
+    expect(before.invalid_lines).toBe(0);
+    expect(before.records[1]).toMatchObject({ id: 'ZYX987', resolves: 'D7' });
+    expect(before.unlanded_ids).toEqual(['ZYX987']);
+    expect(await statusJson(projectRoot)).toMatchObject({
+      decision_ledger: { open_count: 0, unlanded_count: 1 },
+    });
+
+    const landed = makeIo(projectRoot);
+    expect(await runCli(
+      [`--project-root=${projectRoot}`, 'decision', 'land', '--json'],
+      landed.io,
+    )).toBe(0);
+    expect(JSON.parse(landed.stdout.join(''))).toMatchObject({
+      landed_count: 1,
+      rewritten_resolution_count: 1,
+      mappings: [{ provisional_id: 'ZYX987', id: 'D8' }],
+    });
+    expect(readDecisionLines(projectRoot)).toEqual([
+      expect.objectContaining({ id: 'D7', provisional_id: 'ABC123', resolves: null }),
+      expect.objectContaining({ id: 'D8', provisional_id: 'ZYX987', resolves: 'D7' }),
+    ]);
+  });
+
+  it('canonicalizes a retained handle resolution even when every entry already has a durable id', async () => {
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot);
+    const first = '{"id":"D7","provisional_id":"ABC123","ts":"2026-07-10T00:00:00Z","kind":"pending","text":"landed question","by":"user","resolves":null}';
+    const second = ' { "id":"D8", "provisional_id":"ZYX987", "ts":"2026-07-10T00:00:01Z", "kind":"decided", "text":"independently landed answer", "by":"user", "resolves" : "ABC123", "huge":9007199254740993 }\t';
+    fs.writeFileSync(ledgerFilePath(projectRoot), `${first}\n${second}`, 'utf-8');
+
+    const before = readDecisionsLedger(projectRoot);
+    expect(before.invalid_lines).toBe(0);
+    expect(before.unlanded_ids).toEqual([]);
+    expect(before.records[1]).toMatchObject({ id: 'D8', resolves: 'D7' });
+
+    const land = makeIo(projectRoot);
+    expect(await runCli(
+      [`--project-root=${projectRoot}`, 'decision', 'land', '--json'],
+      land.io,
+    )).toBe(0);
+    expect(JSON.parse(land.stdout.join(''))).toMatchObject({
+      landed_count: 0,
+      rewritten_resolution_count: 1,
+      mappings: [],
+    });
+    expect(fs.readFileSync(ledgerFilePath(projectRoot), 'utf-8')).toBe(
+      `${first}\n${second.replace('"ABC123"', '"D7"')}`,
+    );
+  });
+
+  it('points a landed handle to its durable id instead of calling it unknown', async () => {
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot);
+    writeLedger(projectRoot, [
+      {
+        id: 'D7',
+        provisional_id: 'ABC123',
+        ts: '2026-07-10T00:00:00Z',
+        kind: 'pending',
+        text: 'already landed question',
+        by: 'user',
+        resolves: null,
+      },
+    ]);
+
+    await expect(
+      runCli(
+        [`--project-root=${projectRoot}`, 'decision', 'record', 'answer using stale handle', '--resolves', 'ABC123'],
+        makeIo(projectRoot).io,
+      ),
+    ).rejects.toThrow('--resolves ABC123 was landed as D7; use --resolves D7');
+    expect(await runCli(
+      [`--project-root=${projectRoot}`, 'decision', 'record', 'answer using durable id', '--resolves', 'D7'],
+      makeIo(projectRoot).io,
+    )).toBe(0);
+  });
+
+  it('treats a null provisional_id as absent on an existing durable record', async () => {
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot);
+    writeLedger(projectRoot, [
+      {
+        id: 'D1',
+        provisional_id: null,
+        ts: '2026-07-10T00:00:00Z',
+        kind: 'pending',
+        text: 'durable entry from a null-emitting serializer',
+        by: 'user',
+        resolves: null,
+      },
     ]);
 
     const snapshot = readDecisionsLedger(projectRoot);
-    expect(snapshot.superseded_ids).toEqual([{ id: 'D1', line: 2, field: 'resolves' }]);
-    // A resolution target is a reference, not an identity: it must not be
-    // reserved, and must not count as an occurrence of an id.
-    expect(snapshot.reserved_ids).toEqual([ID_A, ID_B]);
-    expect(snapshot.duplicate_ids).toEqual([]);
+    expect(snapshot.invalid_lines).toBe(0);
+    expect(snapshot.records).toEqual([
+      expect.objectContaining({ id: 'D1', resolves: null }),
+    ]);
+    expect(snapshot.records[0]).not.toHaveProperty('provisional_id');
+    expect(await runCli(
+      [`--project-root=${projectRoot}`, 'decision', 'record', 'answer', '--resolves', 'D1'],
+      makeIo(projectRoot).io,
+    )).toBe(0);
+  });
 
-    const list = makeIo(projectRoot);
-    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'list'], list.io)).toBe(1);
-    expect(list.stdout.join('')).toContain('- "D1" on line 2 (resolves)');
-
-    const ledger = (await statusJson(projectRoot)).decision_ledger as Record<string, unknown>;
-    expect(ledger.superseded_id_count).toBe(1);
-    expect(ledger.superseded_ids).toEqual([{ id: 'D1', line: 2, field: 'resolves' }]);
-
-    // In THIS state the repair is repointing, not reissuing: the entry D1 named
-    // was already reissued, which is why only the resolution still carries the
-    // old number. A receipt saying "reissue them" prescribes something already
-    // done, and following it leaves the line quarantined and the question open.
-    // Every operator surface must therefore carry both halves.
-    const statusText = makeIo(projectRoot);
-    expect(await runCli([`--project-root=${projectRoot}`, 'status'], statusText.io)).toBe(0);
-    const receipt = statusText.stdout.join('');
-    expect(receipt).toContain('reissue each entry, repoint each resolution');
-    expect(receipt).not.toMatch(/— reissue them\)/);
-    expect(list.stdout.join('')).toContain('repoint any resolves naming the old one');
-    expect(renderHelp('decision')).toContain('until each entry is reissued and each resolution repointed');
-  }, 20000);
-
-  it('stays quiet about superseded ids on a healthy ledger', async () => {
+  it('replaces a null provisional_id in place when landing a provisional entry', async () => {
     const projectRoot = makeTempProjectRoot();
     await initRuntimeOnly(projectRoot);
-    await recordDecision(projectRoot, 'pending', 'a question recorded under the current numbering');
+    const source = '{"id":"ABC123","provisional_id": null,"ts":"2026-07-10T00:00:00Z","kind":"pending","text":"branch entry","by":"user","resolves":null,"extension":1e999}';
+    fs.writeFileSync(ledgerFilePath(projectRoot), source, 'utf-8');
+
+    expect(await runCli(
+      [`--project-root=${projectRoot}`, 'decision', 'land'],
+      makeIo(projectRoot).io,
+    )).toBe(0);
+    expect(fs.readFileSync(ledgerFilePath(projectRoot), 'utf-8')).toBe(
+      source
+        .replace('"ABC123"', '"D1"')
+        .replace('provisional_id": null', 'provisional_id": "ABC123"'),
+    );
+    expect(readDecisionsLedger(projectRoot)).toMatchObject({
+      invalid_lines: 0,
+      unlanded_ids: [],
+      records: [expect.objectContaining({ id: 'D1', provisional_id: 'ABC123' })],
+    });
+  });
+
+  it('fails closed when a current id reuses a retained provisional mapping', async () => {
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot);
+    writeLedger(projectRoot, [
+      {
+        id: 'D1',
+        provisional_id: 'ABC123',
+        ts: '2026-07-10T00:00:00Z',
+        kind: 'decided',
+        text: 'older landed entry',
+        by: 'user',
+        resolves: null,
+      },
+      {
+        id: 'ABC123',
+        ts: '2026-07-10T00:00:01Z',
+        kind: 'pending',
+        text: 'later unlanded entry that reused the short handle',
+        by: 'user',
+        resolves: null,
+      },
+      {
+        id: 'ZYX987',
+        ts: '2026-07-10T00:00:02Z',
+        kind: 'decided',
+        text: 'answer to the current handle',
+        by: 'user',
+        resolves: 'ABC123',
+      },
+    ]);
+
+    const before = readDecisionsLedger(projectRoot);
+    expect(before.invalid_lines).toBe(1);
+    expect(before.ambiguous_provisional_ids).toEqual([{ id: 'ABC123', lines: [1, 2] }]);
+    expect(before.records.map(record => record.id)).toEqual(['D1', 'ABC123']);
+    expect((await statusJson(projectRoot)).decision_ledger).toMatchObject({
+      open_count: 1,
+      ambiguous_provisional_id_count: 1,
+      ambiguous_provisional_ids: [{ id: 'ABC123', lines: [1, 2] }],
+    });
+    const humanStatus = makeIo(projectRoot);
+    expect(await runCli(
+      [`--project-root=${projectRoot}`, 'status'],
+      humanStatus.io,
+    )).toBe(0);
+    expect(humanStatus.stdout.join('')).toContain('decisions_ambiguous_provisional_ids: 1');
+    expect(humanStatus.stdout.join('')).toContain('"ABC123" on lines 1, 2');
 
     const list = makeIo(projectRoot);
-    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'list'], list.io)).toBe(0);
-    expect(list.stdout.join('')).not.toContain('superseded_ids');
-    const ledger = (await statusJson(projectRoot)).decision_ledger as Record<string, unknown>;
-    expect(ledger.superseded_id_count).toBe(0);
-    expect(readDecisionsLedger(projectRoot).superseded_ids).toEqual([]);
+    expect(await runCli(
+      [`--project-root=${projectRoot}`, 'decision', 'list'],
+      list.io,
+    )).toBe(1);
+    expect(list.stdout.join('')).toContain('ambiguous_provisional_ids: 1');
+    expect(list.stdout.join('')).toContain('"ABC123" on lines 1, 2');
+
+    const bytes = fs.readFileSync(ledgerFilePath(projectRoot));
+    await expect(
+      runCli(
+        [`--project-root=${projectRoot}`, 'decision', 'record', 'must not choose one target', '--resolves', 'ABC123'],
+        makeIo(projectRoot).io,
+      ),
+    ).rejects.toThrow('uses that provisional id for more than one identity');
+    expect(fs.readFileSync(ledgerFilePath(projectRoot))).toEqual(bytes);
+    await expect(
+      runCli([`--project-root=${projectRoot}`, 'decision', 'land'], makeIo(projectRoot).io),
+    ).rejects.toThrow('provisional decision ids are not one-to-one');
+    expect(fs.readFileSync(ledgerFilePath(projectRoot))).toEqual(bytes);
+  });
+
+  it('detects the same logical entry independently landed to two durable ids', async () => {
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot);
+    writeLedger(projectRoot, [
+      {
+        id: 'D8',
+        provisional_id: 'ABC123',
+        ts: '2026-07-10T00:00:00Z',
+        kind: 'pending',
+        text: 'the branch question',
+        by: 'user',
+        resolves: null,
+      },
+      {
+        id: 'D9',
+        provisional_id: 'ABC123',
+        ts: '2026-07-10T00:00:00Z',
+        kind: 'pending',
+        text: 'the same branch question independently landed elsewhere',
+        by: 'user',
+        resolves: null,
+      },
+    ]);
+
+    const snapshot = readDecisionsLedger(projectRoot);
+    expect(snapshot.invalid_lines).toBe(0);
+    expect(snapshot.duplicate_ids).toEqual([]);
+    expect(snapshot.ambiguous_provisional_ids).toEqual([{ id: 'ABC123', lines: [1, 2] }]);
+    expect(snapshot.records.map(record => record.id)).toEqual(['D8', 'D9']);
+
+    const list = makeIo(projectRoot);
+    expect(await runCli(
+      [`--project-root=${projectRoot}`, 'decision', 'list', '--json'],
+      list.io,
+    )).toBe(1);
+    expect(JSON.parse(list.stdout.join(''))).toMatchObject({
+      ambiguous_provisional_ids: [{ id: 'ABC123', lines: [1, 2] }],
+    });
+
+    const bytes = fs.readFileSync(ledgerFilePath(projectRoot));
+    await expect(
+      runCli([`--project-root=${projectRoot}`, 'decision', 'land'], makeIo(projectRoot).io),
+    ).rejects.toThrow('provisional decision ids are not one-to-one');
+    expect(fs.readFileSync(ledgerFilePath(projectRoot))).toEqual(bytes);
+  });
+
+  it('refuses to land a duplicate-bearing ledger without changing its bytes', async () => {
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot);
+    writeLedger(projectRoot, [
+      { id: 'ABC123', ts: '2026-07-10T00:00:00Z', kind: 'pending', text: 'first branch', by: 'user', resolves: null },
+      { id: 'ABC123', ts: '2026-07-10T00:00:01Z', kind: 'pending', text: 'colliding branch', by: 'user', resolves: null },
+    ]);
+    const before = fs.readFileSync(ledgerFilePath(projectRoot));
+    await expect(
+      runCli([`--project-root=${projectRoot}`, 'decision', 'land'], makeIo(projectRoot).io),
+    ).rejects.toThrow('duplicate decision ids are ambiguous');
+    expect(fs.readFileSync(ledgerFilePath(projectRoot))).toEqual(before);
+    expect(fs.existsSync(`${ledgerFilePath(projectRoot)}.lock`)).toBe(false);
+  });
+
+  it('refuses to land an invalid ledger without changing its bytes', async () => {
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot);
+    fs.writeFileSync(
+      ledgerFilePath(projectRoot),
+      [
+        JSON.stringify({
+          id: 'ABC123',
+          ts: '2026-07-10T00:00:00Z',
+          kind: 'pending',
+          text: 'valid unlanded question',
+          by: 'user',
+          resolves: null,
+        }),
+        '{"id":"ZYX987","ts":',
+      ].join('\n'),
+      'utf-8',
+    );
+    const before = fs.readFileSync(ledgerFilePath(projectRoot));
+    await expect(
+      runCli([`--project-root=${projectRoot}`, 'decision', 'land'], makeIo(projectRoot).io),
+    ).rejects.toThrow('invalid or mis-resolving line(s) must be repaired first');
+    expect(fs.readFileSync(ledgerFilePath(projectRoot))).toEqual(before);
+    expect(fs.existsSync(`${ledgerFilePath(projectRoot)}.lock`)).toBe(false);
+  });
+
+  it('preserves ledger permission bits across an atomic landing rewrite', async () => {
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot);
+    writeLedger(projectRoot, [
+      { id: 'ABC123', ts: '2026-07-10T00:00:00Z', kind: 'pending', text: 'land with its mode intact', by: 'user', resolves: null },
+    ]);
+    fs.chmodSync(ledgerFilePath(projectRoot), 0o640);
+
+    expect(await runCli(
+      [`--project-root=${projectRoot}`, 'decision', 'land'],
+      makeIo(projectRoot).io,
+    )).toBe(0);
+    expect(fs.statSync(ledgerFilePath(projectRoot)).mode & 0o777).toBe(0o640);
+    expect(readDecisionLines(projectRoot)[0]).toMatchObject({
+      id: 'D1',
+      provisional_id: 'ABC123',
+    });
+  });
+
+  it('fails closed when the durable safe-integer sequence is exhausted', async () => {
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot);
+    writeLedger(projectRoot, [
+      {
+        id: `D${Number.MAX_SAFE_INTEGER}`,
+        ts: '2026-07-10T00:00:00Z',
+        kind: 'decided',
+        text: 'last representable durable id',
+        by: 'user',
+        resolves: null,
+      },
+      { id: 'ABC123', ts: '2026-07-10T00:00:01Z', kind: 'pending', text: 'cannot be assigned unsafely', by: 'user', resolves: null },
+    ]);
+    const before = fs.readFileSync(ledgerFilePath(projectRoot));
+
+    await expect(
+      runCli([`--project-root=${projectRoot}`, 'decision', 'land'], makeIo(projectRoot).io),
+    ).rejects.toThrow('decision id space exhausted');
+    expect(fs.readFileSync(ledgerFilePath(projectRoot))).toEqual(before);
+    expect(fs.existsSync(`${ledgerFilePath(projectRoot)}.lock`)).toBe(false);
   });
 
   it('quotes a duplicated id so an invisible one still points somewhere', async () => {
@@ -1541,26 +1968,33 @@ describe('decision ledger', () => {
     expect(help).toContain('record "<what was decided>"');
     expect(help).toContain('pending "<open question>"');
     expect(help).toContain('list [--json]');
+    expect(help).toContain('land [--json]');
     expect(help).toContain('list reads permissively');
-    // The superseded counter must not be advertised anywhere.
-    expect(help).not.toContain('ids D1, D2');
-    expect(help).toContain('chosen without coordination');
-    expect(help).toContain('list exits non-zero and names the lines when the ledger carries an id twice');
-    // Both halves of the migration must be advertised: an entry's own number
-    // and a resolution still pointing at one.
-    expect(help).toContain('from the superseded D<n> counter — an entry still numbered by it, or a resolution still');
-    expect(help).toContain('until each entry is reissued and each resolution repointed');
-    // The guarantee is probabilistic and must be stated WITH the condition
-    // that bounds it. An absolute "cannot collide" is a false guarantee, and
-    // so is a practical one ("no one will observe") — both would let a reader
-    // conclude the duplicate check is redundant, which is exactly backwards.
-    // Asserting the condition itself keeps a rewrite from dropping the scope
-    // while leaving the reassuring half in place.
-    expect(help).toContain('collide only if the same millisecond AND all 80 random bits coincide');
-    expect(help).toContain('guarantee is probabilistic, not structural');
-    expect(help).toContain('reported below rather than resolved silently');
+    expect(help).toContain('six-character random Crockford-base32 handle');
+    expect(help).toMatch(/chosen without\s+coordination/);
+    expect(help).toContain('raw draw has 30 unbiased bits (32^6 = 2^30');
+    expect(help).toContain('exact pair-collision probability depends on the local exclusions');
+    expect(help).toContain('1/(2^30 - 90,000)');
+    expect(help).toContain('slightly above 1/2^30');
+    expect(help).toContain('probabilistic, not structural');
+    expect(help).toContain('Existing D<n> ledgers remain valid with zero migration');
+    expect(help).toContain('land is the sole rewrite');
+    expect(help).toContain('retains each old identity as `provisional_id`');
+    expect(help).toContain('commits it with one durable atomic replacement');
+    expect(help).toContain('late handle-valued resolutions through retained mappings');
+    expect(help).toMatch(/already\s+canonical ledger is a no-op/);
+    expect(help).toMatch(/current ids, or retained mappings are redrawn/);
+    expect(help).toContain('refuses a ledger with no write permission bit');
+    expect(help).toContain('POSIX has no portable');
+    expect(help).toContain('commit status as uncertain');
+    expect(help).toMatch(/inspect with `decision list` using the same\s+project root, then rerun land there/);
+    expect(help).toMatch(/canonical no-op retry fsyncs the parent directory/);
+    expect(help).toMatch(/list exits non-zero and names the lines when the\s+ledger carries an id twice/);
+    expect(help).toContain('one retained provisional id maps to more than one');
+    expect(help).toContain('land changes no bytes until the');
+    expect(help).not.toContain('superseded D<n>');
+    expect(help).not.toContain('millisecond timestamp then 80 random bits');
     expect(help).not.toMatch(/cannot mint the same id|can never collide|guaranteed unique|no one will observe/);
-    expect(help).toContain('Two ids minted inside one millisecond are unordered');
     expect(help).toContain('does not gate the run/approve lifecycle');
     expect(help).not.toContain('never gates any command');
 
@@ -1581,6 +2015,18 @@ describe('decision ledger', () => {
     expect(text).toContain('execution_mode: file');
     expect(text).toContain('decisions: 0 decided, 1 open');
     expect(text).toContain(`[open] ${question}`);
+    expect(text).toContain(
+      `decisions_unlanded: 1 (provisional branch ids in .nullius/decisions.jsonl; `
+      + `run nullius decision land --project-root '${projectRoot}' on the trunk before citing them)`,
+    );
+    expect(text).toContain(`    - ${question}`);
+
+    const list = makeIo(projectRoot);
+    expect(await runCli(
+      [`--project-root=${projectRoot}`, 'decision', 'list'],
+      list.io,
+    )).toBe(0);
+    expect(list.stdout.join('')).toContain(`${question} pending [open] [unlanded]`);
   });
 });
 

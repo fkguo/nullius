@@ -1,18 +1,23 @@
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-// Fault-injection seam for the randomness a decision id is built from. Every
+const randomState = vi.hoisted(() => ({ byte: 0, outputs: [] as number[][] }));
+
+// Fault-injection seam for the randomness a decision handle is built from. Every
 // other node:crypto export passes through, so the rest of the runtime (hashing
-// in particular) behaves normally; randomFillSync returns zeros, which makes
-// the minted id fully determined by the clock and lets the reservation check
-// be exercised without waiting for an 80-bit coincidence.
+// in particular) behaves normally; randomFillSync returns a selected constant
+// byte, which makes the six-character handle deterministic and lets the
+// reservation check be exercised without waiting for a 30-bit coincidence.
 vi.mock('node:crypto', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:crypto')>();
   return {
     ...actual,
     randomFillSync: ((buffer: NodeJS.ArrayBufferView) => {
-      new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength).fill(0);
+      const view = new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+      const output = randomState.outputs.shift();
+      if (output) view.set(output);
+      else view.fill(randomState.byte);
       return buffer;
     }) as typeof actual.randomFillSync,
   };
@@ -35,12 +40,15 @@ function makeIo(cwd: string) {
   };
 }
 
-// The epoch instant encodes to ten '0' characters, and zeroed randomness to
-// sixteen more, so the whole minted id is known in advance.
-const EPOCH_ID = '0'.repeat(26);
+const ZERO_HANDLE = '000000';
 
-describe('decision id minting under a constant random source', () => {
-  it('lays the id out as ten timestamp characters then sixteen random ones', async () => {
+describe('decision handle minting under a constant random source', () => {
+  beforeEach(() => {
+    randomState.byte = 0;
+    randomState.outputs = [];
+  });
+
+  it('mints six random Crockford characters without embedding the clock', async () => {
     const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'nullius-mint-'));
     expect(await runCli([`--project-root=${projectRoot}`, 'init', '--runtime-only'], makeIo(projectRoot).io)).toBe(0);
 
@@ -48,12 +56,12 @@ describe('decision id minting under a constant random source', () => {
     try {
       const record = makeIo(projectRoot);
       expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'minted at the epoch'], record.io)).toBe(0);
-      expect(record.stdout.join('')).toContain(`recorded: ${EPOCH_ID}`);
+      expect(record.stdout.join('')).toContain(`recorded: ${ZERO_HANDLE}`);
     } finally {
       clock.mockRestore();
     }
     const line = JSON.parse(fs.readFileSync(path.join(projectRoot, '.nullius', 'decisions.jsonl'), 'utf-8').trim()) as Record<string, unknown>;
-    expect(line).toMatchObject({ id: EPOCH_ID, ts: '1970-01-01T00:00:00Z' });
+    expect(line).toMatchObject({ id: ZERO_HANDLE, ts: '1970-01-01T00:00:00.000Z' });
   });
 
   it('refuses to append a line its own reader would quarantine', async () => {
@@ -83,13 +91,23 @@ describe('decision id minting under a constant random source', () => {
     expect(fs.existsSync(`${ledgerPath}.lock`)).toBe(false);
     const after = makeIo(projectRoot);
     expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'recorded once the formatter is sane again'], after.io)).toBe(0);
-    expect(after.stdout.join('')).toMatch(/recorded: [0-7][0-9ABCDEFGHJKMNPQRSTVWXYZ]{25}/);
+    expect(after.stdout.join('')).toMatch(/recorded: [0-9ABCDEFGHJKMNPQRSTVWXYZ]{6}/);
+  });
+
+  it('redraws a six-character candidate that also spells a durable D<n> id', async () => {
+    const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'nullius-mint-'));
+    expect(await runCli([`--project-root=${projectRoot}`, 'init', '--runtime-only'], makeIo(projectRoot).io)).toBe(0);
+    // These 30 bits encode D12345. The next draw is all zeros.
+    randomState.outputs = [[26, 17, 12, 133], [0, 0, 0, 0]];
+    const record = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'namespace boundary'], record.io)).toBe(0);
+    expect(record.stdout.join('')).toContain(`recorded: ${ZERO_HANDLE}`);
+    expect(record.stdout.join('')).not.toContain('D12345');
   });
 
   it('catches the residual cross-branch collision at the merge instead of resolving it silently', async () => {
-    // Uniqueness without coordination is probabilistic: two branches collide
-    // only if the same millisecond AND all 80 random bits coincide. A constant
-    // random source plus a pinned clock stages exactly that coincidence — each
+    // Uniqueness without coordination is probabilistic. A constant random
+    // source stages a 30-bit handle coincidence — each
     // branch mints into its own file, so neither can see the other's id and
     // both succeed. What must NOT happen is the merged ledger quietly
     // resolving one of them, and that is what the duplicate check is for.
@@ -106,20 +124,21 @@ describe('decision id minting under a constant random source', () => {
       for (const root of roots) {
         const record = makeIo(root);
         expect(await runCli([`--project-root=${root}`, 'decision', 'pending', `question raised in ${path.basename(root)}`], record.io)).toBe(0);
-        expect(record.stdout.join('')).toContain(`pending: ${EPOCH_ID}`);
+        expect(record.stdout.join('')).toContain(`pending: ${ZERO_HANDLE}`);
       }
       // One branch resolves its local copy before the other branch's colliding
       // pending line is merged after it. A one-pass replay used to accept this
       // resolution before discovering the later duplicate.
       clock.mockReturnValue(1);
+      randomState.byte = 1;
       const answer = makeIo(roots[0]!);
       expect(
         await runCli(
-          [`--project-root=${roots[0]}`, 'decision', 'record', 'answer recorded on branch one', '--resolves', EPOCH_ID],
+          [`--project-root=${roots[0]}`, 'decision', 'record', 'answer recorded on branch one', '--resolves', ZERO_HANDLE],
           answer.io,
         ),
       ).toBe(0);
-      expect(answer.stdout.join('')).toContain(`resolved: ${EPOCH_ID}`);
+      expect(answer.stdout.join('')).toContain(`resolved: ${ZERO_HANDLE}`);
     } finally {
       clock.mockRestore();
     }
@@ -141,11 +160,11 @@ describe('decision id minting under a constant random source', () => {
       open_ids: string[];
       records: Array<{ id: string; kind: string }>;
     };
-    expect(parsed.duplicate_ids).toEqual([{ id: EPOCH_ID, lines: [1, 3] }]);
+    expect(parsed.duplicate_ids).toEqual([{ id: ZERO_HANDLE, lines: [1, 3] }]);
     expect(parsed.invalid_lines).toBe(2);
-    expect(parsed.open_ids).toEqual([EPOCH_ID]);
+    expect(parsed.open_ids).toEqual([ZERO_HANDLE]);
     expect(parsed.records).toEqual([
-      expect.objectContaining({ id: EPOCH_ID, kind: 'pending' }),
+      expect.objectContaining({ id: ZERO_HANDLE, kind: 'pending' }),
     ]);
 
     const status = makeIo(mergedRoot);
@@ -153,7 +172,7 @@ describe('decision id minting under a constant random source', () => {
     expect((JSON.parse(status.stdout.join('')) as { decision_ledger: Record<string, unknown> }).decision_ledger)
       .toMatchObject({ open_count: 1, decided_count: 0, invalid_lines: 2, duplicate_id_count: 1 });
     await expect(
-      runCli([`--project-root=${mergedRoot}`, 'decision', 'record', 'an answer', '--resolves', EPOCH_ID], makeIo(mergedRoot).io),
+      runCli([`--project-root=${mergedRoot}`, 'decision', 'record', 'an answer', '--resolves', ZERO_HANDLE], makeIo(mergedRoot).io),
     ).rejects.toThrow('is ambiguous');
   });
 
@@ -161,7 +180,7 @@ describe('decision id minting under a constant random source', () => {
     const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'nullius-mint-'));
     expect(await runCli([`--project-root=${projectRoot}`, 'init', '--runtime-only'], makeIo(projectRoot).io)).toBe(0);
     const ledgerPath = path.join(projectRoot, '.nullius', 'decisions.jsonl');
-    const existing = { id: EPOCH_ID, ts: '1970-01-01T00:00:00Z', kind: 'pending', text: 'already wearing that id', by: 'user', resolves: null };
+    const existing = { id: ZERO_HANDLE, ts: '1970-01-01T00:00:00Z', kind: 'pending', text: 'already wearing that id', by: 'user', resolves: null };
     fs.writeFileSync(ledgerPath, `${JSON.stringify(existing)}\n`, 'utf-8');
 
     // Every redraw returns the same bytes, so the reserved id can never be
@@ -171,11 +190,38 @@ describe('decision id minting under a constant random source', () => {
     try {
       await expect(
         runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'would collide'], makeIo(projectRoot).io),
-      ).rejects.toThrow('could not mint a decision id distinct from the 1 already in the ledger after 8 attempts');
+      ).rejects.toThrow('could not mint a provisional decision handle distinct from the 1 ids already in the ledger after 8 attempts');
     } finally {
       clock.mockRestore();
     }
     expect(fs.readFileSync(ledgerPath, 'utf-8')).toBe(`${JSON.stringify(existing)}\n`);
+    expect(fs.existsSync(`${ledgerPath}.lock`)).toBe(false);
+  });
+
+  it('refuses to mint a handle still retained as a landed-entry alias', async () => {
+    const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'nullius-mint-'));
+    expect(await runCli([`--project-root=${projectRoot}`, 'init', '--runtime-only'], makeIo(projectRoot).io)).toBe(0);
+    const ledgerPath = path.join(projectRoot, '.nullius', 'decisions.jsonl');
+    const landed = {
+      id: 'D1',
+      provisional_id: ZERO_HANDLE,
+      ts: '1970-01-01T00:00:00Z',
+      kind: 'decided',
+      text: 'already landed from that handle',
+      by: 'user',
+      resolves: null,
+    };
+    fs.writeFileSync(ledgerPath, `${JSON.stringify(landed)}\n`, 'utf-8');
+
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(0);
+    try {
+      await expect(
+        runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'would reuse a live alias'], makeIo(projectRoot).io),
+      ).rejects.toThrow('could not mint a provisional decision handle distinct from the 2 ids already in the ledger after 8 attempts');
+    } finally {
+      clock.mockRestore();
+    }
+    expect(fs.readFileSync(ledgerPath, 'utf-8')).toBe(`${JSON.stringify(landed)}\n`);
     expect(fs.existsSync(`${ledgerPath}.lock`)).toBe(false);
   });
 });
