@@ -88,8 +88,9 @@ export async function runCli(argv: string[], io: CliIo = defaultIo()): Promise<n
   }
   if (parsed.command === 'decision') {
     const { runDecisionCommand } = await import('./cli-lifecycle.js');
-    await runDecisionCommand(projectRoot, parsed, io);
-    return 0;
+    // Non-zero when `decision list` finds a duplicate id: an ambiguous
+    // `--resolves` target is a defect in the ledger, not a normal read.
+    return runDecisionCommand(projectRoot, parsed, io);
   }
   if (parsed.command === 'status') {
     const { runStatusCommand } = await import('./cli-lifecycle.js');

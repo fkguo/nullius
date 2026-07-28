@@ -120,12 +120,25 @@ Actions:
 Behavior:
   record and pending require an initialized external project root (\`nullius init\`);
   list reads permissively and reports "no decisions recorded" on an uninitialized root.
-  Appends one JSON line per event to \`.nullius/decisions.jsonl\` (ids D1, D2, ...); never
-  rewrites, and takes a short cross-process lock so concurrent recordings get distinct ids.
+  Appends one JSON line per event to \`.nullius/decisions.jsonl\`; never rewrites, and takes
+  a short cross-process lock so a resolution and its append stay one step.
+  Each entry gets a ULID (a millisecond timestamp then 80 random bits, Crockford base32),
+  chosen without coordination: two branches recording into their own copy of the tracked
+  ledger collide only if the same millisecond AND all 80 random bits coincide, where a
+  counter derived from the local file gave every such pair the same id every time. The
+  guarantee is probabilistic, not structural, which is why a ledger that does carry one
+  id twice is reported below rather than resolved silently.
+  Ids sort lexicographically by recording millisecond.
+  Two ids minted inside one millisecond are unordered.
   --resolves only accepts a currently OPEN pending entry (unknown, decided, and
-  already-resolved targets are rejected).
-  Works in both execution modes and never gates any command: it replaces hand-built
-  decision ledgers, giving file-mode projects an engine-visible record of conversational
+  already-resolved targets are rejected), and refuses an id the file carries twice.
+  list exits non-zero and names the lines when the ledger carries an id twice, or numbers
+  from the superseded D<n> counter — an entry still numbered by it, or a resolution still
+  pointing at one. Those entries are not readable as decisions: they stay out of the
+  listing and the open count until each entry is reissued and each resolution repointed.
+  The status receipt is diagnostic and does not gate the run/approve lifecycle.
+  Works in both execution modes: it replaces hand-built decision ledgers, giving
+  file-mode projects an engine-visible record of conversational
   approvals. Open entries surface in the status receipt until a later
   \`decision record --resolves <id>\` closes them (all counted; the oldest ten itemized,
   the remainder via \`decision list\`).
