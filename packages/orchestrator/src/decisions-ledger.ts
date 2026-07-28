@@ -57,11 +57,16 @@ export type DuplicateDecisionId = {
   lines: number[];
 };
 
-/** One line still carrying an id in the superseded counter form. */
+/** One place a line still carries a number from the superseded counter. */
 export type SupersededDecisionId = {
   id: string;
   /** 1-based physical line number. */
   line: number;
+  /** Which field carries it. A superseded `id` needs the entry reissued; a
+   *  superseded `resolves` needs repointing at the reissued entry — and it is
+   *  reachable on its own, mid-migration, once the pending entries have been
+   *  reissued but a decided entry still names the old number. */
+  field: 'id' | 'resolves';
 };
 
 export type DecisionsLedgerSnapshot = {
@@ -120,11 +125,14 @@ const DECISION_ID_RANDOM_BYTES = 10;
 // four-digit-year form the reader accepts. Deliberately NOT the 2^48-1 the id
 // itself could encode — see mintDecisionId.
 const MAX_RECORDABLE_MS = Date.UTC(9999, 11, 31, 23, 59, 59, 999);
-// The form the superseded local counter produced ("D38"). Not an id this
-// ledger issues any more, but distinguishable on sight, which is what lets a
-// ledger written before the change be named as needing reissue instead of
-// disappearing into a generic invalid-line count.
-const SUPERSEDED_COUNTER_ID_PATTERN = /^D\d+$/;
+// EXACTLY the form the superseded local counter issued: "D" then a positive
+// integer with no leading zero, inside the safe-integer range its allocation
+// checked. Deliberately no broader — "D0", "D01", and a value past 2^53 are
+// not ids that counter ever produced, so reporting them as superseded entries
+// would prescribe a reissue for what is simply a malformed line, and would
+// make `decision list` fail closed on a diagnosis that is not true. They stay
+// in the generic invalid-line count with every other unrecognized id.
+const SUPERSEDED_COUNTER_ID_PATTERN = /^D([1-9]\d*)$/;
 // Redraws when a minted id already exists in the file. Reaching the bound is
 // not a collision anyone will observe (80 random bits within one millisecond);
 // it means the randomness source is returning a constant, which must fail
@@ -176,6 +184,12 @@ export function decisionsLedgerDisplayPath(projectRoot: string): string {
  *  one is malformed rather than a second identity to reason about. */
 function isCanonicalDecisionId(id: unknown): id is string {
   return typeof id === 'string' && DECISION_ID_PATTERN.test(id);
+}
+
+/** True for a value the superseded counter could actually have issued. */
+function isSupersededCounterId(value: string): boolean {
+  const match = SUPERSEDED_COUNTER_ID_PATTERN.exec(value);
+  return match !== null && Number.isSafeInteger(Number(match[1]));
 }
 
 /** Base32 of a millisecond count, high character first. Plain arithmetic, not
@@ -268,6 +282,10 @@ type ParsedDecisionLine = {
    *  exists in the file in any form is ever reissued, and all counted for
    *  duplicate reporting. */
   ids: string[];
+  /** Top-level `resolves` values the line carries — references, never
+   *  identities: not reserved, not counted as id occurrences, collected only
+   *  so one still naming a superseded number can be reported. */
+  resolvesValues: string[];
   record: DecisionRecord | null;
 };
 
@@ -279,6 +297,12 @@ type TopLevelScan = {
    *  the superseded counter carries "D38" ids, and those are precisely the
    *  ones whose duplicates must still be reported. */
   ids: string[];
+  /** String values of every VALID-PREFIX top-level `resolves` key, deduplicated
+   *  within the line. Kept apart from `ids`: a resolution target is a
+   *  REFERENCE, not this line's identity, so it must never be reserved or
+   *  counted as an occurrence of an id. Collected so a line still pointing at
+   *  a superseded number can be named. */
+  resolvesValues: string[];
   /** Occurrence count per top-level key (duplicates preserved, however the
    *  key was escaped) within the valid prefix. */
   keyCounts: Map<string, number>;
@@ -303,8 +327,9 @@ type TopLevelScan = {
  *  candidate before the truncation, while garbage occurring before an id
  *  cannot smuggle a poisoned (e.g. ceiling) id into the reservation set. */
 function scanTopLevelFields(line: string): TopLevelScan {
-  const scan: TopLevelScan = { ids: [], keyCounts: new Map(), complete: false };
+  const scan: TopLevelScan = { ids: [], resolvesValues: [], keyCounts: new Map(), complete: false };
   const seenScanIds = new Set<string>();
+  const seenScanResolves = new Set<string>();
   let i = 0;
   const n = line.length;
   const skipWs = () => { while (i < n && JSON_WHITESPACE.has(line[i]!)) i += 1; };
@@ -409,6 +434,10 @@ function scanTopLevelFields(line: string): TopLevelScan {
       seenScanIds.add(value);
       scan.ids.push(value);
     }
+    if (key === 'resolves' && typeof value === 'string' && !seenScanResolves.has(value)) {
+      seenScanResolves.add(value);
+      scan.resolvesValues.push(value);
+    }
     skipWs();
     if (line[i] === ',') { i += 1; continue; }
     if (line[i] === '}') continue;
@@ -421,53 +450,55 @@ const LOAD_BEARING_KEYS = ['id', 'ts', 'kind', 'text', 'by', 'resolves'] as cons
 function parseDecisionLine(line: string): ParsedDecisionLine {
   const scan = scanTopLevelFields(line);
   const ids = scan.ids;
+  const resolvesValues = scan.resolvesValues;
   let parsed: unknown;
   try {
     parsed = JSON.parse(line);
   } catch {
-    return { ids, record: null };
+    return { ids, resolvesValues, record: null };
   }
-  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return { ids, record: null };
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return { ids, resolvesValues, record: null };
   // JSON.parse keeps only the LAST of duplicate members, so a repeated
   // load-bearing key (however escaped) could smuggle a conflicting id, kind,
   // text, authorship, or resolution past field validation. Admission requires
   // the scanner to have walked the whole line and seen each of these keys at
   // most once.
-  if (!scan.complete) return { ids, record: null };
-  if (LOAD_BEARING_KEYS.some(key => (scan.keyCounts.get(key) ?? 0) > 1)) return { ids, record: null };
+  if (!scan.complete) return { ids, resolvesValues, record: null };
+  if (LOAD_BEARING_KEYS.some(key => (scan.keyCounts.get(key) ?? 0) > 1)) return { ids, resolvesValues, record: null };
   const record = parsed as Record<string, unknown>;
-  if (!isCanonicalDecisionId(record.id)) return { ids, record: null };
+  if (!isCanonicalDecisionId(record.id)) return { ids, resolvesValues, record: null };
   const id = record.id;
   // The recording path always writes a UTC-Z RFC3339 timestamp; a persisted
   // ts that is not one is a malformed line, not a value to display as-is.
   // Date.parse NORMALIZES overflowing components (2026-02-29 -> Mar 1,
   // 24:00 -> next day), so the parsed instant must round-trip to the same
   // second-level components.
-  if (typeof record.ts !== 'string' || !UTC_ISO_TS_PATTERN.test(record.ts)) return { ids, record: null };
+  if (typeof record.ts !== 'string' || !UTC_ISO_TS_PATTERN.test(record.ts)) return { ids, resolvesValues, record: null };
   const parsedInstant = new Date(record.ts);
   if (Number.isNaN(parsedInstant.getTime()) || parsedInstant.toISOString().slice(0, 19) !== record.ts.slice(0, 19)) {
-    return { ids, record: null };
+    return { ids, resolvesValues, record: null };
   }
-  if (record.kind !== 'decided' && record.kind !== 'pending') return { ids, record: null };
+  if (record.kind !== 'decided' && record.kind !== 'pending') return { ids, resolvesValues, record: null };
   // Whitespace-only text is rejected at recording time; a persisted record
   // carrying it is malformed, not an admissible empty-looking decision.
-  if (typeof record.text !== 'string' || !hasSubstantiveText(record.text)) return { ids, record: null };
+  if (typeof record.text !== 'string' || !hasSubstantiveText(record.text)) return { ids, resolvesValues, record: null };
   // Persisted authorship must be an explicit nonempty string: rewriting a
   // malformed `by` as "user" would invent provenance in a ledger whose whole
   // point is preserving who decided. (The CLI-side default to "user" applies
   // at RECORDING time, before persistence.)
-  if (typeof record.by !== 'string' || !hasSubstantiveText(record.by)) return { ids, record: null };
+  if (typeof record.by !== 'string' || !hasSubstantiveText(record.by)) return { ids, resolvesValues, record: null };
   // Strict resolves validation: absent/null, or a canonical id on a decided
   // record. A malformed value or a pending record carrying resolves is a
   // malformed line, not something to silently coerce to null.
   let resolves: string | null = null;
   if (record.resolves !== undefined && record.resolves !== null) {
-    if (record.kind !== 'decided') return { ids, record: null };
-    if (!isCanonicalDecisionId(record.resolves)) return { ids, record: null };
+    if (record.kind !== 'decided') return { ids, resolvesValues, record: null };
+    if (!isCanonicalDecisionId(record.resolves)) return { ids, resolvesValues, record: null };
     resolves = record.resolves;
   }
   return {
     ids,
+    resolvesValues,
     record: {
       id,
       ts: record.ts,
@@ -566,9 +597,9 @@ export function readDecisionsLedger(projectRoot: string): DecisionsLedgerSnapsho
     // decoding must quarantine instead.
     if (lineBytes.every(byte => byte === 0x20 || byte === 0x09 || byte === 0x0d)) continue;
     const decoded = decodeLedgerLine(lineBytes);
-    const { ids, record } = decoded.text !== null
+    const { ids, resolvesValues, record } = decoded.text !== null
       ? parseDecisionLine(decoded.text)
-      : { ids: scanTopLevelFields(decoded.validPrefix).ids, record: null };
+      : { ...scanTopLevelFields(decoded.validPrefix), record: null };
     // Reserve every id the line's bytes carry — quarantined or not — so no id
     // that exists in the file in any form is ever minted again, and record
     // where it occurs so repeats are reportable.
@@ -577,7 +608,16 @@ export function readDecisionsLedger(projectRoot: string): DecisionsLedgerSnapsho
       const lines = idLines.get(id);
       if (lines) lines.push(lineNumber);
       else idLines.set(id, [lineNumber]);
-      if (SUPERSEDED_COUNTER_ID_PATTERN.test(id)) supersededIds.push({ id, line: lineNumber });
+      if (isSupersededCounterId(id)) supersededIds.push({ id, line: lineNumber, field: 'id' });
+    }
+    // A resolution target is a reference, not an identity: it is deliberately
+    // NOT reserved and not counted as an occurrence. It is still reported when
+    // it names a superseded number, because mid-migration — pending entries
+    // already reissued, a decided entry still pointing at the old number — that
+    // is the only place the stale number appears, and the line would otherwise
+    // fall into the generic invalid-line count with nothing naming the cause.
+    for (const value of resolvesValues) {
+      if (isSupersededCounterId(value)) supersededIds.push({ id: value, line: lineNumber, field: 'resolves' });
     }
     if (!record || alreadyReserved) {
       // Undecodable or malformed line, ambiguous identity, or a repeated id
@@ -782,10 +822,16 @@ export function appendDecision(
     // Last check before any byte is written: the exact line about to be
     // appended must be one this module's OWN reader admits. A command that
     // reports success while writing an entry the next read quarantines is the
-    // worst outcome available — the decision looks recorded and is not. The
-    // clock bound above rules out the one way this is currently reachable;
-    // this closes the loop for any future drift between what recording writes
-    // and what parsing accepts, at the cost of one parse per recording.
+    // worst outcome available — the decision looks recorded and is not.
+    //
+    // Reachability, stated plainly rather than implied: with the clock bound
+    // above in place, NO input reaches this branch. Every field is either a
+    // literal union, minted canonical, or validated by the same predicate the
+    // reader uses. It is kept as the structural half of the guarantee — if the
+    // clock bound is ever loosened, or a new field is added whose recording
+    // and parsing rules drift apart, this is what stops the invisible record —
+    // and it is exercised by fault injection (decisions-id-mint-fault.test.ts)
+    // rather than left as an assertion no test can distinguish from a no-op.
     const line = JSON.stringify(record);
     if (parseDecisionLine(line).record === null) {
       throw new Error(

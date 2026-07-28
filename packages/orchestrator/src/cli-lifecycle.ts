@@ -228,18 +228,23 @@ function writeStatusText(io: CliIo, payload: Record<string, unknown>, statusProj
         }
       }
       if (supersededIdCount > 0) {
-        // Counted nowhere above: these entries are not in the read model at
-        // all, so a question left open among them is missing from the open
-        // count a reconnecting agent relies on.
+        // State the relationship to the counts above EXACTLY: these lines are
+        // inside decisions_invalid_lines, and absent from the decided/open
+        // counts. An unqualified "not counted above" reads as six problem lines
+        // where there are three — a receipt saying something the code does not
+        // do, which is the defect this whole change is about.
         io.stdout(
-          `  decisions_superseded_ids: ${supersededIdCount} (entries still numbered D<n> in `
-          + `${String(ledger.path ?? 'the decisions ledger')}; not readable as decisions and not counted above — reissue them)\n`,
+          `  decisions_superseded_ids: ${supersededIdCount} (numbers from the retired D<n> counter in `
+          + `${String(ledger.path ?? 'the decisions ledger')}; inside decisions_invalid_lines above, absent from the decided/open counts — reissue them)\n`,
         );
         const superseded = Array.isArray(ledger.superseded_ids) ? ledger.superseded_ids : [];
         for (const rawEntry of superseded) {
           if (!rawEntry || typeof rawEntry !== 'object') continue;
           const entry = rawEntry as Record<string, unknown>;
-          io.stdout(`    - "${renderInline(entry.id)}" on line ${String(entry.line ?? '')}\n`);
+          // Same as `decision list`: name the field, because a superseded
+          // `resolves` needs repointing rather than reissuing.
+          const where = entry.field === 'resolves' ? ' (resolves)' : '';
+          io.stdout(`    - "${renderInline(entry.id)}" on line ${String(entry.line ?? '')}${where}\n`);
         }
         const supersededOmitted = Number(ledger.superseded_ids_omitted ?? 0);
         if (supersededOmitted > 0) {
@@ -454,11 +459,15 @@ export async function runDecisionCommand(
         // superseded counter form, so their lines are quarantined and any open
         // question among them has left the read model. Naming them is the
         // difference between a migration and a silent loss.
-        io.stdout(`superseded_ids: ${snapshot.superseded_ids.length} (entries still numbered D<n> in ${snapshot.path}; not listed above and not resolvable)\n`);
+        io.stdout(`superseded_ids: ${snapshot.superseded_ids.length} (numbers from the retired D<n> counter in ${snapshot.path}; not listed above and not resolvable)\n`);
         for (const superseded of snapshot.superseded_ids) {
-          io.stdout(`  - "${renderInline(superseded.id)}" on line ${superseded.line}\n`);
+          // The field is named because the two repairs differ: an `id` needs
+          // the entry reissued, a `resolves` needs repointing at whatever the
+          // entry it named was reissued as.
+          const where = superseded.field === 'resolves' ? ' (resolves)' : '';
+          io.stdout(`  - "${renderInline(superseded.id)}" on line ${superseded.line}${where}\n`);
         }
-        io.stdout('  repair: reissue each entry with a fresh id, and repoint any resolves naming the old one\n');
+        io.stdout('  repair: reissue each entry with a fresh id, and repoint any resolves naming the old one — that also clears any duplicate reported above for the same lines\n');
       }
       return ledgerDefectExitCode;
     };

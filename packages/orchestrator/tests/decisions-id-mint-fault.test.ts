@@ -56,6 +56,36 @@ describe('decision id minting under a constant random source', () => {
     expect(line).toMatchObject({ id: EPOCH_ID, ts: '1970-01-01T00:00:00Z' });
   });
 
+  it('refuses to append a line its own reader would quarantine', async () => {
+    // The pre-append self-check is unreachable through the CLI by design: the
+    // clock bound rules out the one field that could drift, and every other
+    // field is either a literal or validated by the predicate the reader uses.
+    // An unreachable guard is indistinguishable from a no-op unless something
+    // forces the condition, so inject the drift it exists for — a timestamp
+    // formatter that stops producing the shape the reader accepts — and
+    // require the recording to fail loudly with nothing written. Without this,
+    // deleting the check would leave the suite green.
+    const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'nullius-mint-'));
+    expect(await runCli([`--project-root=${projectRoot}`, 'init', '--runtime-only'], makeIo(projectRoot).io)).toBe(0);
+    const ledgerPath = path.join(projectRoot, '.nullius', 'decisions.jsonl');
+
+    const drift = vi.spyOn(Date.prototype, 'toISOString').mockReturnValue('9999-99-99T99:99:99.999Z');
+    try {
+      await expect(
+        runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'written under a drifted timestamp'], makeIo(projectRoot).io),
+      ).rejects.toThrow(/refusing to append a decision entry this ledger's own reader would quarantine/);
+    } finally {
+      drift.mockRestore();
+    }
+    // Nothing written, no lock left behind, and the ledger still records after
+    // the drift is gone.
+    expect(fs.existsSync(ledgerPath)).toBe(false);
+    expect(fs.existsSync(`${ledgerPath}.lock`)).toBe(false);
+    const after = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'recorded once the formatter is sane again'], after.io)).toBe(0);
+    expect(after.stdout.join('')).toMatch(/recorded: [0-7][0-9ABCDEFGHJKMNPQRSTVWXYZ]{25}/);
+  });
+
   it('catches the residual cross-branch collision at the merge instead of resolving it silently', async () => {
     // Uniqueness without coordination is probabilistic: two branches collide
     // only if the same millisecond AND all 80 random bits coincide. A constant

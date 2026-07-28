@@ -124,16 +124,19 @@ Behavior:
   a short cross-process lock so a resolution and its append stay one step.
   Each entry gets a ULID (a millisecond timestamp then 80 random bits, Crockford base32),
   chosen without coordination: two branches recording into their own copy of the tracked
-  ledger collide only if the same millisecond AND all 80 random bits coincide, which no
-  one will observe — unlike a counter derived from the local file, which gave every such
-  pair the same id every time. Ids sort lexicographically by recording millisecond; two
-  ids from within one millisecond are unordered.
+  ledger collide only if the same millisecond AND all 80 random bits coincide, where a
+  counter derived from the local file gave every such pair the same id every time. The
+  guarantee is probabilistic, not structural, which is why a ledger that does carry one
+  id twice is reported below rather than resolved silently.
+  Ids sort lexicographically by recording millisecond.
+  Two ids minted inside one millisecond are unordered.
   --resolves only accepts a currently OPEN pending entry (unknown, decided, and
   already-resolved targets are rejected), and refuses an id the file carries twice.
-  list exits non-zero and names the lines when the ledger carries an id twice, or entries
-  still numbered by the superseded D<n> counter (those are not readable as decisions and
-  do not appear in the listing or the open count until they are reissued). The status
-  receipt reports both without gating anything.
+  list exits non-zero and names the lines when the ledger carries an id twice, or numbers
+  from the superseded D<n> counter — an entry still numbered by it, or a resolution still
+  pointing at one. Those entries are not readable as decisions: they do not appear in the
+  listing or the open count until they are reissued. The status receipt reports both
+  without gating anything.
   Works in both execution modes and never gates any command: it replaces hand-built
   decision ledgers, giving file-mode projects an engine-visible record of conversational
   approvals. Open entries surface in the status receipt until a later

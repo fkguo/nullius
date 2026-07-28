@@ -574,7 +574,7 @@ describe('decision ledger', () => {
     expect(parsed.records).toHaveLength(0);
     // Only the counter form is a migration; the other four are simply not ids
     // this ledger issues, and must not be misreported as reissuable entries.
-    expect(parsed.superseded_ids).toEqual([{ id: 'D42', line: 1 }]);
+    expect(parsed.superseded_ids).toEqual([{ id: 'D42', line: 1, field: 'id' }]);
 
     // Recording still works, and the fresh id is none of the rejected ones.
     const fresh = await recordDecision(projectRoot, 'record', 'Normal decision');
@@ -646,34 +646,107 @@ describe('decision ledger', () => {
       { id: 'D3', ts: '2026-07-10T00:00:02Z', kind: 'decided', text: 'an answer', by: 'user', resolves: 'D1' },
     ]);
 
+    // Four places carry an old number: three ids, plus the resolution on line
+    // 3 still naming D1.
+    const expectedSuperseded = [
+      { id: 'D1', line: 1, field: 'id' },
+      { id: 'D2', line: 2, field: 'id' },
+      { id: 'D3', line: 3, field: 'id' },
+      { id: 'D1', line: 3, field: 'resolves' },
+    ];
+
     const list = makeIo(projectRoot);
     expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'list'], list.io)).toBe(1);
     const listText = list.stdout.join('');
-    expect(listText).toContain('superseded_ids: 3 (entries still numbered D<n> in .nullius/decisions.jsonl; not listed above and not resolvable)');
+    expect(listText).toContain('superseded_ids: 4 (numbers from the retired D<n> counter in .nullius/decisions.jsonl; not listed above and not resolvable)');
     expect(listText).toContain('- "D1" on line 1');
     expect(listText).toContain('- "D3" on line 3');
+    expect(listText).toContain('- "D1" on line 3 (resolves)');
     expect(listText).toContain('repair: reissue each entry with a fresh id');
 
     const json = makeIo(projectRoot);
     expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'list', '--json'], json.io)).toBe(1);
-    expect((JSON.parse(json.stdout.join('')) as { superseded_ids: unknown }).superseded_ids).toEqual([
-      { id: 'D1', line: 1 },
-      { id: 'D2', line: 2 },
-      { id: 'D3', line: 3 },
-    ]);
+    expect((JSON.parse(json.stdout.join('')) as { superseded_ids: unknown }).superseded_ids).toEqual(expectedSuperseded);
 
     const ledger = (await statusJson(projectRoot)).decision_ledger as Record<string, unknown>;
-    expect(ledger.superseded_id_count).toBe(3);
-    expect(ledger.superseded_ids).toEqual([{ id: 'D1', line: 1 }, { id: 'D2', line: 2 }, { id: 'D3', line: 3 }]);
+    expect(ledger.superseded_id_count).toBe(4);
+    expect(ledger.superseded_ids).toEqual(expectedSuperseded);
     expect(ledger.superseded_ids_omitted).toBe(0);
     // The open questions are genuinely gone from the counts — which is why the
     // receipt has to say so in its own words.
     expect(ledger.open_count).toBe(0);
+    // ...and it must say it exactly: these lines ARE inside the invalid-line
+    // count printed just above, so an unqualified "not counted above" would
+    // read as seven problem lines where there are three.
+    expect(ledger.invalid_lines).toBe(3);
 
     const statusText = makeIo(projectRoot);
     expect(await runCli([`--project-root=${projectRoot}`, 'status'], statusText.io)).toBe(0);
-    expect(statusText.stdout.join('')).toContain('decisions_superseded_ids: 3 (entries still numbered D<n> in .nullius/decisions.jsonl; not readable as decisions and not counted above — reissue them)');
-    expect(statusText.stdout.join('')).toContain('- "D1" on line 1');
+    const receipt = statusText.stdout.join('');
+    expect(receipt).toContain('decisions_invalid_lines: 3');
+    expect(receipt).toContain('decisions_superseded_ids: 4 (numbers from the retired D<n> counter in .nullius/decisions.jsonl; inside decisions_invalid_lines above, absent from the decided/open counts — reissue them)');
+    expect(receipt).toContain('- "D1" on line 1');
+    expect(receipt).toContain('- "D1" on line 3 (resolves)');
+    expect(receipt).not.toContain('not counted above');
+  }, 20000);
+
+  it('claims only the form the superseded counter could actually have issued', async () => {
+    // "Reissue this entry" is a diagnosis, and it must be true. The old
+    // counter allocated D1, D2, ... as positive safe integers without leading
+    // zeros — it never produced D0, D01, or a value past 2^53. Reporting those
+    // as superseded entries would prescribe a migration for an unrelated
+    // malformed line and fail `decision list` closed on a false cause.
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot);
+    const stamp = (index: number) => `2026-07-10T00:00:0${index}Z`;
+    writeLedger(projectRoot, [
+      { id: 'D1', ts: stamp(0), kind: 'pending', text: 'genuinely from the counter', by: 'user', resolves: null },
+      { id: 'D0', ts: stamp(1), kind: 'pending', text: 'the counter never issued zero', by: 'user', resolves: null },
+      { id: 'D01', ts: stamp(2), kind: 'pending', text: 'nor a leading zero', by: 'user', resolves: null },
+      { id: 'D9007199254740993', ts: stamp(3), kind: 'pending', text: 'nor past the safe-integer range', by: 'user', resolves: null },
+      { id: 'D999999', ts: stamp(4), kind: 'pending', text: 'a large but reachable number', by: 'user', resolves: null },
+      { id: 'd5', ts: stamp(5), kind: 'pending', text: 'lowercase is not the counter form', by: 'user', resolves: null },
+    ]);
+
+    const snapshot = readDecisionsLedger(projectRoot);
+    expect(snapshot.superseded_ids).toEqual([
+      { id: 'D1', line: 1, field: 'id' },
+      { id: 'D999999', line: 5, field: 'id' },
+    ]);
+    // The four rejected shapes are still quarantined — they are simply not a
+    // migration, and stay in the generic count with every other bad id.
+    expect(snapshot.invalid_lines).toBe(6);
+    expect(snapshot.records).toHaveLength(0);
+  });
+
+  it('names a resolves still pointing at a superseded number', async () => {
+    // The mid-migration state: the pending entries have been reissued with
+    // fresh ids, but a decided entry still names the old number. Its id is
+    // canonical, so nothing about the id says anything is wrong — the stale
+    // number appears only in `resolves`, and without reporting it the line
+    // falls into the generic invalid-line count with `decision list` exiting 0
+    // on a ledger that has quietly lost a resolution.
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot);
+    writeLedger(projectRoot, [
+      { id: ID_A, ts: '2026-07-10T00:00:00Z', kind: 'pending', text: 'reissued question', by: 'user', resolves: null },
+      { id: ID_B, ts: '2026-07-10T00:00:01Z', kind: 'decided', text: 'answer still pointing at the old number', by: 'user', resolves: 'D1' },
+    ]);
+
+    const snapshot = readDecisionsLedger(projectRoot);
+    expect(snapshot.superseded_ids).toEqual([{ id: 'D1', line: 2, field: 'resolves' }]);
+    // A resolution target is a reference, not an identity: it must not be
+    // reserved, and must not count as an occurrence of an id.
+    expect(snapshot.reserved_ids).toEqual([ID_A, ID_B]);
+    expect(snapshot.duplicate_ids).toEqual([]);
+
+    const list = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'list'], list.io)).toBe(1);
+    expect(list.stdout.join('')).toContain('- "D1" on line 2 (resolves)');
+
+    const ledger = (await statusJson(projectRoot)).decision_ledger as Record<string, unknown>;
+    expect(ledger.superseded_id_count).toBe(1);
+    expect(ledger.superseded_ids).toEqual([{ id: 'D1', line: 2, field: 'resolves' }]);
   }, 20000);
 
   it('stays quiet about superseded ids on a healthy ledger', async () => {
@@ -1401,12 +1474,21 @@ describe('decision ledger', () => {
     expect(help).not.toContain('ids D1, D2');
     expect(help).toContain('chosen without coordination');
     expect(help).toContain('list exits non-zero and names the lines when the ledger carries an id twice');
-    expect(help).toContain('still numbered by the superseded D<n> counter');
-    // The guarantee is probabilistic and must be stated as such: an absolute
-    // "cannot collide" would be a false guarantee, and the honest scoping is
-    // the whole reason the duplicate check exists alongside it.
-    expect(help).not.toMatch(/cannot mint the same id|can never collide|guaranteed unique/);
-    expect(help).toContain('ids from within one millisecond are unordered');
+    // Both halves of the migration must be advertised: an entry's own number
+    // and a resolution still pointing at one.
+    expect(help).toContain('from the superseded D<n> counter — an entry still numbered by it, or a resolution still');
+    expect(help).toContain('listing or the open count until they are reissued');
+    // The guarantee is probabilistic and must be stated WITH the condition
+    // that bounds it. An absolute "cannot collide" is a false guarantee, and
+    // so is a practical one ("no one will observe") — both would let a reader
+    // conclude the duplicate check is redundant, which is exactly backwards.
+    // Asserting the condition itself keeps a rewrite from dropping the scope
+    // while leaving the reassuring half in place.
+    expect(help).toContain('collide only if the same millisecond AND all 80 random bits coincide');
+    expect(help).toContain('guarantee is probabilistic, not structural');
+    expect(help).toContain('reported below rather than resolved silently');
+    expect(help).not.toMatch(/cannot mint the same id|can never collide|guaranteed unique|no one will observe/);
+    expect(help).toContain('Two ids minted inside one millisecond are unordered');
   });
 
   it('renders mode and open decisions in the human status text', async () => {
