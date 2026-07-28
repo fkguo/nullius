@@ -13,6 +13,8 @@ import { handleOrchRunExport } from '../src/orch-tools/control.js';
 import { handleOrchRunCreate } from '../src/orch-tools/create-status-list.js';
 import { buildRunStatusView } from '../src/orch-tools/run-read-model.js';
 
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
+
 function makeTempProjectRoot(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'nullius-mode-decisions-'));
 }
@@ -376,7 +378,8 @@ describe('decision ledger', () => {
     expect(parsed.records.map(record => record.id)).toEqual([ID_A, ID_B]);
     expect(parsed.invalid_lines).toBe(1);
 
-    // The receipt reports the same collision and gates nothing.
+    // The receipt reports the same collision without gating the run/approve
+    // lifecycle.
     const payload = await statusJson(projectRoot);
     const ledger = payload.decision_ledger as Record<string, unknown>;
     expect(ledger.duplicate_id_count).toBe(1);
@@ -400,6 +403,62 @@ describe('decision ledger', () => {
     const resolve = makeIo(projectRoot);
     expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'closing the unambiguous one', '--resolves', ID_B], resolve.io)).toBe(0);
     expect(resolve.stdout.join('')).toContain(`resolved: ${ID_B}`);
+  }, 20000);
+
+  it('keeps a duplicated pending decision open regardless of where its duplicate lands', async () => {
+    const cases = [
+      {
+        label: 'duplicate before resolution',
+        duplicateLines: [1, 2],
+        lines: [
+          { id: ID_A, ts: '2026-07-10T00:00:00Z', kind: 'pending', text: 'branch one question', by: 'user', resolves: null },
+          { id: ID_A, ts: '2026-07-10T00:00:01Z', kind: 'pending', text: 'branch two question', by: 'user', resolves: null },
+          { id: ID_B, ts: '2026-07-10T00:00:02Z', kind: 'decided', text: 'answer on branch one', by: 'user', resolves: ID_A },
+        ],
+      },
+      {
+        label: 'duplicate after resolution',
+        duplicateLines: [1, 3],
+        lines: [
+          { id: ID_A, ts: '2026-07-10T00:00:00Z', kind: 'pending', text: 'branch one question', by: 'user', resolves: null },
+          { id: ID_B, ts: '2026-07-10T00:00:01Z', kind: 'decided', text: 'answer on branch one', by: 'user', resolves: ID_A },
+          { id: ID_A, ts: '2026-07-10T00:00:02Z', kind: 'pending', text: 'branch two question', by: 'user', resolves: null },
+        ],
+      },
+    ];
+
+    for (const testCase of cases) {
+      const projectRoot = makeTempProjectRoot();
+      await initRuntimeOnly(projectRoot);
+      writeLedger(projectRoot, testCase.lines);
+
+      const list = makeIo(projectRoot);
+      expect(
+        await runCli([`--project-root=${projectRoot}`, 'decision', 'list', '--json'], list.io),
+        testCase.label,
+      ).toBe(1);
+      const parsed = JSON.parse(list.stdout.join('')) as {
+        duplicate_ids: Array<{ id: string; lines: number[] }>;
+        invalid_lines: number;
+        open_ids: string[];
+        records: Array<{ id: string; kind: string }>;
+      };
+      expect(parsed.duplicate_ids, testCase.label).toEqual([{ id: ID_A, lines: testCase.duplicateLines }]);
+      expect(parsed.invalid_lines, testCase.label).toBe(2);
+      expect(parsed.records, testCase.label).toEqual([
+        expect.objectContaining({ id: ID_A, kind: 'pending' }),
+      ]);
+      expect(parsed.open_ids, testCase.label).toEqual([ID_A]);
+
+      const ledger = (await statusJson(projectRoot)).decision_ledger as Record<string, unknown>;
+      expect(ledger, testCase.label).toMatchObject({
+        open_count: 1,
+        decided_count: 0,
+        invalid_lines: 2,
+        duplicate_id_count: 1,
+        duplicate_ids: [{ id: ID_A, lines: testCase.duplicateLines }],
+      });
+    }
   }, 20000);
 
   it('reports collisions in a ledger written by the superseded counter', async () => {
@@ -1502,6 +1561,13 @@ describe('decision ledger', () => {
     expect(help).toContain('reported below rather than resolved silently');
     expect(help).not.toMatch(/cannot mint the same id|can never collide|guaranteed unique|no one will observe/);
     expect(help).toContain('Two ids minted inside one millisecond are unordered');
+    expect(help).toContain('does not gate the run/approve lifecycle');
+    expect(help).not.toContain('never gates any command');
+
+    const projectStatus = fs.readFileSync(path.join(REPO_ROOT, 'docs', 'PROJECT_STATUS.md'), 'utf-8');
+    expect(projectStatus).toContain('no new run/approve lifecycle gate');
+    expect(projectStatus).toContain('without adding a run/approve lifecycle gate');
+    expect(projectStatus).not.toMatch(/no new blocking gate anywhere|without adding any gate/);
   });
 
   it('renders mode and open decisions in the human status text', async () => {
