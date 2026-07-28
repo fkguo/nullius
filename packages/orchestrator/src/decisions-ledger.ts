@@ -20,10 +20,10 @@ import { utcNowIso } from './util.js';
  *
  *  Identity has two phases because its requirements do too. Before merge, an
  *  entry gets a six-character random Crockford-base32 HANDLE. It is short-lived
- *  coordination-free identity for branch-local `--resolves`, not a prose
+ *  coordination-free identity for branch-local relations, not a prose
  *  citation. After the branch tails have landed on the trunk, `decision land`
  *  atomically assigns the next durable D<n> numbers in trunk file order,
- *  rewrites handle-valued resolutions, and retains each handle in the landed
+ *  rewrites handle-valued relations, and retains each handle in the landed
  *  entry as `provisional_id`. Existing all-D<n> ledgers are already durable:
  *  they need no migration, and their cited ids remain valid.
  *
@@ -48,13 +48,20 @@ export type DecisionRecord = {
   provisional_id?: string;
   /** UTC ISO timestamp. */
   ts: string;
+  /** Current operational kind. Persisted legacy/unknown string kinds are
+   *  conservatively normalized to `decided`; their exact source spelling is
+   *  retained here and reported separately by the snapshot. Only an exact
+   *  persisted `pending` creates an open obligation. */
   kind: DecisionKind;
+  source_kind?: string;
   /** What was decided (kind=decided) or what awaits a decision (kind=pending). */
   text: string;
   /** Who decided / who is being asked. Defaults to "user" at the CLI. */
   by: string;
   /** For kind=decided: id of the open pending entry this decision closes. */
   resolves: string | null;
+  /** A non-closing reference to any earlier admitted decision entry. */
+  relates: string | null;
 };
 
 /** One id carried by more than one line of the ledger. */
@@ -64,6 +71,40 @@ export type DuplicateDecisionId = {
   lines: number[];
 };
 
+export type DecisionRelationName = 'resolves' | 'relates';
+
+export type DecisionRelationIssueReason =
+  | 'duplicate_field'
+  | 'invalid_target'
+  | 'not_allowed_for_kind'
+  | 'ambiguous_target'
+  | 'target_not_found'
+  | 'target_not_prior'
+  | 'target_unreadable'
+  | 'target_not_pending'
+  | 'target_already_resolved';
+
+/** A relation that was ignored without discarding its containing record. */
+export type DecisionRelationIssue = {
+  /** 1-based physical ledger line. */
+  line: number;
+  /** Identity of the admitted record carrying the ignored relation. */
+  id: string;
+  relation: DecisionRelationName;
+  /** Raw target when one unambiguous string was recoverable. */
+  target: string | null;
+  reason: DecisionRelationIssueReason;
+};
+
+/** Compatibility normalization applied only in the read model; persisted
+ *  bytes remain unchanged. */
+export type DecisionKindNormalization = {
+  line: number;
+  id: string;
+  source_kind: string;
+  kind: DecisionKind;
+};
+
 export type DecisionsLedgerSnapshot = {
   /** Project-relative POSIX path of the ledger file (absolute when the
    *  control-dir override points outside the project root). */
@@ -71,19 +112,26 @@ export type DecisionsLedgerSnapshot = {
   exists: boolean;
   records: DecisionRecord[];
   /** Lines quarantined instead of entering the read model: unparseable JSON,
-   *  missing/unsafe fields, an id already seen (ambiguous identity), or a
-   *  decided entry whose `resolves` names a duplicated id or does not reference
-   *  an EARLIER, still OPEN pending entry (ambiguous, forward, or replayed
-   *  resolutions could silently close the wrong question). */
+   *  missing/unsafe core fields, or an id already seen (ambiguous identity).
+   *  Relation defects never increment this count: they are reported below and
+   *  only the link is ignored. */
   invalid_lines: number;
+  /** Malformed, ambiguous, forward, or semantically inapplicable links. The
+   *  containing record remains counted/listed/addressable; the link alone has
+   *  no effect on the open set. */
+  unrecognized_relations: DecisionRelationIssue[];
+  /** Legacy/unknown persisted kinds normalized into the current read model.
+   *  Unknown strings map to current `decided` semantics; only exact
+   *  `pending` creates an open item. */
+  normalized_kinds: DecisionKindNormalization[];
   /** Ids the file carries on more than one line, whatever their form. The
-   *  first occurrence remains visible but a resolution naming the duplicated
-   *  id is quarantined, `decision list` exits non-zero, and `--resolves`
-   *  refuses it until the ambiguity is repaired. */
+   *  first occurrence remains visible but any relation naming the duplicated
+   *  id is ignored, `decision list` exits non-zero, and new links refuse it
+   *  until the ambiguity is repaired. */
   duplicate_ids: DuplicateDecisionId[];
   /** Provisional identities that are not one-to-one: retained on more than
    *  one durable entry, or retained on one entry while reused as another
-   *  entry's current id. Any old branch resolution naming one is ambiguous. */
+   *  entry's current id. Any old branch relation naming one is ambiguous. */
   ambiguous_provisional_ids: DuplicateDecisionId[];
   /** Every id attributable to a line's valid prefix — including ids salvaged
    *  from quarantined lines — so a freshly minted handle can be checked against
@@ -111,6 +159,9 @@ export type DecisionLandingResult = {
   /** Persisted handle-valued resolves fields rewritten through retained or
    *  newly-created mappings, including cleanup-only passes with no new ids. */
   rewritten_resolutions: number;
+  /** Persisted handle-valued non-closing `relates` fields rewritten through
+   *  retained or newly-created mappings. */
+  rewritten_related_links: number;
 };
 
 // Crockford base32: I, L, O, and U are absent. Canonical spellings are
@@ -248,11 +299,19 @@ type ParsedDecisionLine = {
    *  occurrences are counted for duplicate reporting. */
   ids: string[];
   /** Top-level retained pre-landing identities. They remain operational as
-   *  aliases for late branch resolutions until those resolutions are landed. */
+   *  aliases for late branch relations until those relations are landed. */
   provisionalIds: string[];
   /** Top-level `resolves` values the line carries — references, never
    *  identities: not reserved and not counted as id occurrences. */
   resolvesValues: string[];
+  /** Top-level non-closing relation values, likewise never identities. */
+  relatesValues: string[];
+  /** Structurally malformed relations already known before semantic replay. */
+  relationIssues: Array<{
+    relation: DecisionRelationName;
+    target: string | null;
+    reason: DecisionRelationIssueReason;
+  }>;
   record: DecisionRecord | null;
 };
 
@@ -276,6 +335,9 @@ type TopLevelScan = {
    *  REFERENCE, not this line's identity, so it must never be reserved or
    *  counted as an occurrence of an id. */
   resolvesValues: string[];
+  /** String values of every VALID-PREFIX top-level `relates` key, deduplicated
+   *  within the line. */
+  relatesValues: string[];
   /** Occurrence count per top-level key (duplicates preserved, however the
    *  key was escaped) within the valid prefix. */
   keyCounts: Map<string, number>;
@@ -310,6 +372,7 @@ function scanTopLevelFields(line: string): TopLevelScan {
     ids: [],
     provisionalIds: [],
     resolvesValues: [],
+    relatesValues: [],
     keyCounts: new Map(),
     valueSpans: new Map(),
     closingBraceIndex: null,
@@ -318,6 +381,7 @@ function scanTopLevelFields(line: string): TopLevelScan {
   const seenScanIds = new Set<string>();
   const seenScanProvisionalIds = new Set<string>();
   const seenScanResolves = new Set<string>();
+  const seenScanRelates = new Set<string>();
   let i = 0;
   const n = line.length;
   const skipWs = () => { while (i < n && JSON_WHITESPACE.has(line[i]!)) i += 1; };
@@ -442,6 +506,10 @@ function scanTopLevelFields(line: string): TopLevelScan {
       seenScanResolves.add(value);
       scan.resolvesValues.push(value);
     }
+    if (key === 'relates' && typeof value === 'string' && !seenScanRelates.has(value)) {
+      seenScanRelates.add(value);
+      scan.relatesValues.push(value);
+    }
     skipWs();
     if (line[i] === ',') { i += 1; continue; }
     if (line[i] === '}') continue;
@@ -449,34 +517,89 @@ function scanTopLevelFields(line: string): TopLevelScan {
   }
 }
 
-const LOAD_BEARING_KEYS = ['id', 'provisional_id', 'ts', 'kind', 'text', 'by', 'resolves'] as const;
+const RECORD_LOAD_BEARING_KEYS = ['id', 'provisional_id', 'ts', 'kind', 'text', 'by'] as const;
+
+type ParsedRelationIssue = {
+  relation: DecisionRelationName;
+  target: string | null;
+  reason: DecisionRelationIssueReason;
+};
+
+function parsePersistedRelation(
+  source: Record<string, unknown>,
+  scan: TopLevelScan,
+  relation: DecisionRelationName,
+  kind: DecisionKind,
+): { target: string | null; issue: ParsedRelationIssue | null } {
+  const count = scan.keyCounts.get(relation) ?? 0;
+  const scannedValues = relation === 'resolves' ? scan.resolvesValues : scan.relatesValues;
+  if (count > 1) {
+    return {
+      target: null,
+      issue: {
+        relation,
+        target: scannedValues.length === 1 ? scannedValues[0]! : null,
+        reason: 'duplicate_field',
+      },
+    };
+  }
+  const raw = source[relation];
+  if (raw === undefined || raw === null) return { target: null, issue: null };
+  if (typeof raw !== 'string' || !isCanonicalDecisionId(raw)) {
+    return {
+      target: null,
+      issue: {
+        relation,
+        target: typeof raw === 'string' ? raw : null,
+        reason: 'invalid_target',
+      },
+    };
+  }
+  if (relation === 'resolves' && kind !== 'decided') {
+    return {
+      target: null,
+      issue: {
+        relation,
+        target: raw,
+        reason: 'not_allowed_for_kind',
+      },
+    };
+  }
+  return { target: raw, issue: null };
+}
 
 function parseDecisionLine(line: string): ParsedDecisionLine {
   const scan = scanTopLevelFields(line);
   const ids = scan.ids;
   const provisionalIds = scan.provisionalIds;
   const resolvesValues = scan.resolvesValues;
-  const scannedFields = { ids, provisionalIds, resolvesValues };
+  const relatesValues = scan.relatesValues;
+  const scannedFields = { ids, provisionalIds, resolvesValues, relatesValues };
+  const invalidRecord = (): ParsedDecisionLine => ({
+    ...scannedFields,
+    relationIssues: [],
+    record: null,
+  });
   let parsed: unknown;
   try {
     parsed = JSON.parse(line);
   } catch {
-    return { ...scannedFields, record: null };
+    return invalidRecord();
   }
   if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    return { ...scannedFields, record: null };
+    return invalidRecord();
   }
   // JSON.parse keeps only the LAST of duplicate members, so a repeated
-  // load-bearing key (however escaped) could smuggle a conflicting id, kind,
-  // text, authorship, or resolution past field validation. Admission requires
-  // the scanner to have walked the whole line and seen each of these keys at
-  // most once.
-  if (!scan.complete) return { ...scannedFields, record: null };
-  if (LOAD_BEARING_KEYS.some(key => (scan.keyCounts.get(key) ?? 0) > 1)) {
-    return { ...scannedFields, record: null };
+  // CORE key (however escaped) could smuggle conflicting identity, kind,
+  // content, or authorship past validation. A repeated relation key is
+  // different: the relation becomes unrecognized, but it must not erase the
+  // otherwise sound decision content.
+  if (!scan.complete) return invalidRecord();
+  if (RECORD_LOAD_BEARING_KEYS.some(key => (scan.keyCounts.get(key) ?? 0) > 1)) {
+    return invalidRecord();
   }
   const record = parsed as Record<string, unknown>;
-  if (!isCanonicalDecisionId(record.id)) return { ...scannedFields, record: null };
+  if (!isCanonicalDecisionId(record.id)) return invalidRecord();
   const id = record.id;
   let provisionalId: string | undefined;
   if (record.provisional_id !== undefined && record.provisional_id !== null) {
@@ -484,7 +607,7 @@ function parseDecisionLine(line: string): ParsedDecisionLine {
     // its provisional identity in `id`, while a durable record may retain the
     // former handle/ULID exactly once for branch-history traceability.
     if (!isDurableDecisionId(id) || !isProvisionalDecisionId(record.provisional_id)) {
-      return { ...scannedFields, record: null };
+      return invalidRecord();
     }
     provisionalId = record.provisional_id;
   }
@@ -494,46 +617,54 @@ function parseDecisionLine(line: string): ParsedDecisionLine {
   // 24:00 -> next day), so the parsed instant must round-trip to the same
   // second-level components.
   if (typeof record.ts !== 'string' || !UTC_ISO_TS_PATTERN.test(record.ts)) {
-    return { ...scannedFields, record: null };
+    return invalidRecord();
   }
   const parsedInstant = new Date(record.ts);
   if (Number.isNaN(parsedInstant.getTime()) || parsedInstant.toISOString().slice(0, 19) !== record.ts.slice(0, 19)) {
-    return { ...scannedFields, record: null };
+    return invalidRecord();
   }
-  if (record.kind !== 'decided' && record.kind !== 'pending') {
-    return { ...scannedFields, record: null };
+  if (typeof record.kind !== 'string' || !hasSubstantiveText(record.kind)) {
+    return invalidRecord();
   }
+  // Only an exact persisted `pending` spelling may create an open obligation.
+  // `clarify` and any other older/unknown string kind retain their content as
+  // a current decided entry, with the source spelling exposed in the read
+  // model. An otherwise valid `resolves` therefore retains decided semantics.
+  // Guessing that an unknown kind means pending would fabricate an owner
+  // obligation that the persisted vocabulary does not establish.
+  const kind: DecisionKind = record.kind === 'pending' ? 'pending' : 'decided';
+  const sourceKind = record.kind === 'pending' || record.kind === 'decided'
+    ? undefined
+    : record.kind;
   // Whitespace-only text is rejected at recording time; a persisted record
   // carrying it is malformed, not an admissible empty-looking decision.
   if (typeof record.text !== 'string' || !hasSubstantiveText(record.text)) {
-    return { ...scannedFields, record: null };
+    return invalidRecord();
   }
   // Persisted authorship must be an explicit nonempty string: rewriting a
   // malformed `by` as "user" would invent provenance in a ledger whose whole
   // point is preserving who decided. (The CLI-side default to "user" applies
   // at RECORDING time, before persistence.)
   if (typeof record.by !== 'string' || !hasSubstantiveText(record.by)) {
-    return { ...scannedFields, record: null };
+    return invalidRecord();
   }
-  // Strict resolves validation: absent/null, or a canonical id on a decided
-  // record. A malformed value or a pending record carrying resolves is a
-  // malformed line, not something to silently coerce to null.
-  let resolves: string | null = null;
-  if (record.resolves !== undefined && record.resolves !== null) {
-    if (record.kind !== 'decided') return { ...scannedFields, record: null };
-    if (!isCanonicalDecisionId(record.resolves)) return { ...scannedFields, record: null };
-    resolves = record.resolves;
-  }
+  const parsedResolves = parsePersistedRelation(record, scan, 'resolves', kind);
+  const parsedRelates = parsePersistedRelation(record, scan, 'relates', kind);
+  const relationIssues = [parsedResolves.issue, parsedRelates.issue]
+    .filter((issue): issue is ParsedRelationIssue => issue !== null);
   return {
     ...scannedFields,
+    relationIssues,
     record: {
       id,
       ...(provisionalId ? { provisional_id: provisionalId } : {}),
       ts: record.ts,
-      kind: record.kind,
+      kind,
+      ...(sourceKind ? { source_kind: sourceKind } : {}),
       text: record.text,
       by: record.by,
-      resolves,
+      resolves: parsedResolves.target,
+      relates: parsedRelates.target,
     },
   };
 }
@@ -604,6 +735,8 @@ function parseDecisionsLedgerBytes(
       exists: false,
       records: [],
       invalid_lines: 0,
+      unrecognized_relations: [],
+      normalized_kinds: [],
       duplicate_ids: [],
       ambiguous_provisional_ids: [],
       reserved_ids: [],
@@ -631,10 +764,29 @@ function parseDecisionsLedgerBytes(
     // decoding must quarantine instead.
     if (lineBytes.every(byte => byte === 0x20 || byte === 0x09 || byte === 0x0d)) continue;
     const decoded = decodeLedgerLine(lineBytes);
-    const { ids, provisionalIds, resolvesValues, record } = decoded.text !== null
+    const {
+      ids,
+      provisionalIds,
+      resolvesValues,
+      relatesValues,
+      relationIssues,
+      record,
+    } = decoded.text !== null
       ? parseDecisionLine(decoded.text)
-      : { ...scanTopLevelFields(decoded.validPrefix), record: null };
-    parsedLines.push({ lineNumber, ids, provisionalIds, resolvesValues, record });
+      : {
+          ...scanTopLevelFields(decoded.validPrefix),
+          relationIssues: [],
+          record: null,
+        };
+    parsedLines.push({
+      lineNumber,
+      ids,
+      provisionalIds,
+      resolvesValues,
+      relatesValues,
+      relationIssues,
+      record,
+    });
     // Reserve every id attributable to the line's valid prefix, quarantined or
     // not, and record where it occurs so repeats are reportable and a current-
     // ledger collision can be redrawn or refused.
@@ -691,68 +843,148 @@ function parseDecisionsLedgerBytes(
     aliasTargets.set(record.provisional_id, record.id);
   }
 
-  // Semantic replay is deliberately a second pass. A resolution can precede a
+  // Semantic replay is deliberately a second pass. A relation can precede a
   // later duplicate after two append-only branch tails are merged, so the full
-  // physical file must establish ambiguous ids before any resolution is
-  // allowed to change the open set.
+  // physical file must establish ambiguous identities before any link is
+  // allowed to name a target. A bad link degrades independently: its record
+  // remains admitted and only the link is ignored.
   const openIds = new Set<string>();
+  const admittedRecords = new Map<string, DecisionRecord>();
+  const unrecognizedRelations: DecisionRelationIssue[] = [];
+  const normalizedKinds: DecisionKindNormalization[] = [];
   let invalidLines = 0;
-  for (const { lineNumber, record } of parsedLines) {
+  for (const { lineNumber, relationIssues, record } of parsedLines) {
     if (!record || idLines.get(record.id)?.[0] !== lineNumber) {
       // Undecodable or malformed line, ambiguous identity, or a repeated id
-      // (which would make `--resolves <id>` ambiguous): the first occurrence
-      // stays authoritative, later ones are quarantined.
+      // (which would make either relation ambiguous): the first occurrence
+      // stays authoritative, later ones are quarantined. This is a record-level
+      // defect, unlike the relation-level diagnostics below.
       invalidLines += 1;
       continue;
     }
-    let effectiveRecord = record;
-    if (record.kind === 'decided' && record.resolves !== null) {
-      if (ambiguousAliasSet.has(record.resolves)) {
-        invalidLines += 1;
-        continue;
+
+    if (record.source_kind) {
+      normalizedKinds.push({
+        line: lineNumber,
+        id: record.id,
+        source_kind: record.source_kind,
+        kind: record.kind,
+      });
+    }
+    for (const issue of relationIssues) {
+      unrecognizedRelations.push({
+        line: lineNumber,
+        id: record.id,
+        ...issue,
+      });
+    }
+
+    const effectiveRecord: DecisionRecord = {
+      ...record,
+      // Raw structurally-valid relation targets are replayed below. Until each
+      // one proves it names an admissible earlier target, it has no effect.
+      resolves: null,
+      relates: null,
+    };
+    const resolveTarget = (
+      relation: DecisionRelationName,
+      rawTarget: string,
+    ): { targetId: string; target: DecisionRecord } | null => {
+      if (ambiguousAliasSet.has(rawTarget)) {
+        unrecognizedRelations.push({
+          line: lineNumber,
+          id: record.id,
+          relation,
+          target: rawTarget,
+          reason: 'ambiguous_target',
+        });
+        return null;
       }
-      if (!idLines.has(record.resolves)) {
-        const durableTarget = aliasTargets.get(record.resolves);
-        if (durableTarget) {
-          effectiveRecord = { ...record, resolves: durableTarget };
+      const targetId = idLines.has(rawTarget)
+        ? rawTarget
+        : aliasTargets.get(rawTarget);
+      if (!targetId) {
+        unrecognizedRelations.push({
+          line: lineNumber,
+          id: record.id,
+          relation,
+          target: rawTarget,
+          reason: 'target_not_found',
+        });
+        return null;
+      }
+      if (duplicatedIdSet.has(targetId)) {
+        unrecognizedRelations.push({
+          line: lineNumber,
+          id: record.id,
+          relation,
+          target: rawTarget,
+          reason: 'ambiguous_target',
+        });
+        return null;
+      }
+      const target = admittedRecords.get(targetId);
+      if (!target) {
+        const firstTargetLine = idLines.get(targetId)?.[0];
+        const reason: DecisionRelationIssueReason = firstTargetLine === undefined
+          ? 'target_not_found'
+          : (firstTargetLine >= lineNumber ? 'target_not_prior' : 'target_unreadable');
+        unrecognizedRelations.push({
+          line: lineNumber,
+          id: record.id,
+          relation,
+          target: rawTarget,
+          reason,
+        });
+        return null;
+      }
+      return { targetId, target };
+    };
+
+    if (record.relates !== null) {
+      const related = resolveTarget('relates', record.relates);
+      if (related) effectiveRecord.relates = related.targetId;
+    }
+    if (record.resolves !== null) {
+      const resolved = resolveTarget('resolves', record.resolves);
+      if (resolved) {
+        if (resolved.target.kind !== 'pending') {
+          unrecognizedRelations.push({
+            line: lineNumber,
+            id: record.id,
+            relation: 'resolves',
+            target: record.resolves,
+            reason: 'target_not_pending',
+          });
+        } else if (!openIds.has(resolved.targetId)) {
+          unrecognizedRelations.push({
+            line: lineNumber,
+            id: record.id,
+            relation: 'resolves',
+            target: record.resolves,
+            reason: 'target_already_resolved',
+          });
+        } else {
+          effectiveRecord.resolves = resolved.targetId;
         }
       }
     }
-    if (
-      effectiveRecord.kind === 'decided'
-      && effectiveRecord.resolves !== null
-      && duplicatedIdSet.has(effectiveRecord.resolves)
-    ) {
-      // A duplicated target is ambiguous across the whole persisted file,
-      // regardless of whether its later occurrence appears before or after
-      // this resolution in line order.
-      invalidLines += 1;
-      continue;
-    }
-    if (
-      effectiveRecord.kind === 'decided'
-      && effectiveRecord.resolves !== null
-      && !openIds.has(effectiveRecord.resolves)
-    ) {
-      // Sequential semantics: a resolution must reference an EARLIER pending
-      // entry that is still open at this point in the file. A forward
-      // reference would silently close a later, unrelated question as soon as
-      // that question lands; a replayed reference re-closes nothing.
-      invalidLines += 1;
-      continue;
-    }
+
     if (effectiveRecord.kind === 'pending') {
       openIds.add(effectiveRecord.id);
     } else if (effectiveRecord.resolves !== null) {
       openIds.delete(effectiveRecord.resolves);
     }
     records.push(effectiveRecord);
+    admittedRecords.set(effectiveRecord.id, effectiveRecord);
   }
   return {
     path: displayPath,
     exists: true,
     records,
     invalid_lines: invalidLines,
+    unrecognized_relations: unrecognizedRelations,
+    normalized_kinds: normalizedKinds,
     duplicate_ids: duplicateIds,
     ambiguous_provisional_ids: ambiguousProvisionalIds,
     reserved_ids: [...idLines.keys()],
@@ -1039,7 +1271,7 @@ function rewriteLandingLine(
   line: LandingLedgerLine,
   record: DecisionRecord,
   durableId: string | undefined,
-  targetId: string | undefined,
+  targetIds: Partial<Record<DecisionRelationName, string>>,
 ): Buffer {
   if (line.text === null || line.scan === null) {
     throw new Error(
@@ -1073,11 +1305,14 @@ function rewriteLandingLine(
       });
     }
   }
-  if (targetId) {
-    edits.push({
-      ...singleLandingValueSpan(line, 'resolves'),
-      replacement: JSON.stringify(targetId),
-    });
+  for (const relation of ['resolves', 'relates'] as const) {
+    const targetId = targetIds[relation];
+    if (targetId) {
+      edits.push({
+        ...singleLandingValueSpan(line, relation),
+        replacement: JSON.stringify(targetId),
+      });
+    }
   }
   let rewritten = line.text;
   for (const edit of edits.sort((left, right) => right.start - left.start)) {
@@ -1107,7 +1342,7 @@ function nextDurableDecisionId(sequence: number): { id: string; sequence: number
  *  or duplicate-bearing ledger, builds and self-validates the complete
  *  rewritten JSONL before touching the file, then commits it with one durable
  *  atomic rename. Existing D<n> entries keep their ids, and physical lines
- *  whose id/resolves do not change keep their exact bytes. */
+ *  whose identity-bearing fields do not change keep their exact bytes. */
 export function landDecisionIds(projectRoot: string): DecisionLandingResult {
   if (!fs.existsSync(path.join(nulliusControlDir(projectRoot), 'state.json'))) {
     throw new Error('project is not initialized (missing state.json in the control dir); run nullius init first');
@@ -1139,12 +1374,17 @@ export function landDecisionIds(projectRoot: string): DecisionLandingResult {
     }
     if (snapshot.invalid_lines > 0) {
       throw new Error(
-        `refusing to land ${snapshot.path}: ${snapshot.invalid_lines} invalid or mis-resolving `
-        + 'line(s) must be repaired first; no bytes were changed',
+        `refusing to land ${snapshot.path}: ${snapshot.invalid_lines} unreadable or `
+        + 'record-level invalid line(s) must be repaired first; no bytes were changed',
       );
     }
     if (!snapshot.exists) {
-      return { path: snapshot.path, landed: [], rewritten_resolutions: 0 };
+      return {
+        path: snapshot.path,
+        landed: [],
+        rewritten_resolutions: 0,
+        rewritten_related_links: 0,
+      };
     }
 
     const mapping = new Map<string, string>();
@@ -1173,6 +1413,7 @@ export function landDecisionIds(projectRoot: string): DecisionLandingResult {
     }
     const rewrittenChunks: Buffer[] = [];
     let rewrittenResolutions = 0;
+    let rewrittenRelatedLinks = 0;
     let recordIndex = 0;
     for (const line of sourceLines) {
       if (line.source === null) {
@@ -1190,11 +1431,26 @@ export function landDecisionIds(projectRoot: string): DecisionLandingResult {
         );
       }
       const durableId = mapping.get(record.id);
-      const sourceResolves = typeof source.resolves === 'string' ? source.resolves : null;
-      const targetId = sourceResolves === null ? undefined : mapping.get(sourceResolves);
-      if (durableId || targetId) {
-        rewrittenChunks.push(rewriteLandingLine(line, record, durableId, targetId));
-        if (targetId) rewrittenResolutions += 1;
+      const sourceResolves = (
+        line.scan?.keyCounts.get('resolves') === 1
+        && typeof source.resolves === 'string'
+      ) ? source.resolves : null;
+      const sourceRelates = (
+        line.scan?.keyCounts.get('relates') === 1
+        && typeof source.relates === 'string'
+      ) ? source.relates : null;
+      const targetIds: Partial<Record<DecisionRelationName, string>> = {
+        ...(sourceResolves !== null && mapping.has(sourceResolves)
+          ? { resolves: mapping.get(sourceResolves)! }
+          : {}),
+        ...(sourceRelates !== null && mapping.has(sourceRelates)
+          ? { relates: mapping.get(sourceRelates)! }
+          : {}),
+      };
+      if (durableId || targetIds.resolves || targetIds.relates) {
+        rewrittenChunks.push(rewriteLandingLine(line, record, durableId, targetIds));
+        if (targetIds.resolves) rewrittenResolutions += 1;
+        if (targetIds.relates) rewrittenRelatedLinks += 1;
       } else {
         rewrittenChunks.push(line.raw);
       }
@@ -1228,7 +1484,12 @@ export function landDecisionIds(projectRoot: string): DecisionLandingResult {
         }
         assertLandingSourceStillMatches(filePath, source, snapshot.path);
       }
-      return { path: snapshot.path, landed: [], rewritten_resolutions: 0 };
+      return {
+        path: snapshot.path,
+        landed: [],
+        rewritten_resolutions: 0,
+        rewritten_related_links: 0,
+      };
     }
     if (!source) {
       throw new Error(
@@ -1292,13 +1553,24 @@ export function landDecisionIds(projectRoot: string): DecisionLandingResult {
       }
       throw error;
     }
-    return { path: snapshot.path, landed, rewritten_resolutions: rewrittenResolutions };
+    return {
+      path: snapshot.path,
+      landed,
+      rewritten_resolutions: rewrittenResolutions,
+      rewritten_related_links: rewrittenRelatedLinks,
+    };
   });
 }
 
 export function appendDecision(
   projectRoot: string,
-  params: { kind: DecisionKind; text: string; by?: string | null; resolves?: string | null },
+  params: {
+    kind: DecisionKind;
+    text: string;
+    by?: string | null;
+    resolves?: string | null;
+    relates?: string | null;
+  },
 ): DecisionRecord {
   const trimmed = unicodeTrim(params.text);
   if (!hasSubstantiveText(trimmed)) {
@@ -1312,46 +1584,51 @@ export function appendDecision(
   return withDecisionsLock(projectRoot, () => {
     const filePath = decisionsLedgerPath(projectRoot);
     const snapshot = readDecisionsLedger(projectRoot);
+    const relationTarget = (
+      option: '--resolves' | '--relates',
+      requestedId: string,
+    ): DecisionRecord => {
+      // Fail closed on an id the file carries twice. The read model keeps only
+      // the first occurrence, so either relation would silently pick one of
+      // two different entries.
+      const duplicate = snapshot.duplicate_ids.find((entry) => entry.id === requestedId);
+      if (duplicate) {
+        throw new Error(
+          `${option} ${requestedId} is ambiguous: ${snapshot.path} carries that id on lines `
+          + `${duplicate.lines.join(', ')}. Reissue every occurrence after the first with a fresh id `
+          + '(and repoint any relations naming it) before recording the link.',
+        );
+      }
+      const ambiguousProvisional = snapshot.ambiguous_provisional_ids
+        .find((entry) => entry.id === requestedId);
+      if (ambiguousProvisional) {
+        throw new Error(
+          `${option} ${requestedId} is ambiguous: ${snapshot.path} uses that provisional id `
+          + `for more than one identity on lines ${ambiguousProvisional.lines.join(', ')}. `
+          + 'Keep one durable mapping, reissue any current entry that reused it, and repoint '
+          + 'old relations to the intended D<n> before recording the link.',
+        );
+      }
+      const target = snapshot.records.find((record) => record.id === requestedId);
+      if (target) return target;
+      const landedTarget = snapshot.records.find(
+        (record) => record.provisional_id === requestedId,
+      );
+      if (landedTarget) {
+        throw new Error(
+          `${option} ${requestedId} was landed as ${landedTarget.id}; `
+          + `use ${option} ${landedTarget.id}`,
+        );
+      }
+      throw new Error(`${option} ${requestedId} does not match any recorded decision id`);
+    };
+
     let resolves: string | null = null;
     if (params.resolves) {
       if (params.kind !== 'decided') {
         throw new Error('--resolves is only valid when recording a decision');
       }
-      // Fail closed on an id the file carries twice. The read model keeps only
-      // the first occurrence, so resolving would silently pick one of two
-      // different questions — the exact ambiguity a merged counter-numbered
-      // ledger produces.
-      const duplicate = snapshot.duplicate_ids.find((entry) => entry.id === params.resolves);
-      if (duplicate) {
-        throw new Error(
-          `--resolves ${params.resolves} is ambiguous: ${snapshot.path} carries that id on lines `
-          + `${duplicate.lines.join(', ')}. Reissue every occurrence after the first with a fresh id `
-          + '(and repoint any resolves naming it) before resolving it.',
-        );
-      }
-      const ambiguousProvisional = snapshot.ambiguous_provisional_ids
-        .find((entry) => entry.id === params.resolves);
-      if (ambiguousProvisional) {
-        throw new Error(
-          `--resolves ${params.resolves} is ambiguous: ${snapshot.path} uses that provisional id `
-          + `for more than one identity on lines ${ambiguousProvisional.lines.join(', ')}. `
-          + 'Keep one durable mapping, reissue any current entry that reused it, and repoint '
-          + 'old resolutions to the intended D<n> before resolving it.',
-        );
-      }
-      const target = snapshot.records.find((record) => record.id === params.resolves);
-      if (!target) {
-        const landedTarget = snapshot.records.find(
-          (record) => record.provisional_id === params.resolves,
-        );
-        if (landedTarget) {
-          throw new Error(
-            `--resolves ${params.resolves} was landed as ${landedTarget.id}; `
-            + `use --resolves ${landedTarget.id}`,
-          );
-        }
-        throw new Error(`--resolves ${params.resolves} does not match any recorded decision id`);
-      }
+      const target = relationTarget('--resolves', params.resolves);
       if (target.kind !== 'pending') {
         throw new Error(`--resolves ${params.resolves} points at a decided entry; only pending entries can be resolved`);
       }
@@ -1360,6 +1637,9 @@ export function appendDecision(
       }
       resolves = target.id;
     }
+    const relates = params.relates
+      ? relationTarget('--relates', params.relates).id
+      : null;
     const recordedAtMs = Date.now();
     assertRecordableEpochMs(recordedAtMs);
     const record: DecisionRecord = {
@@ -1372,6 +1652,7 @@ export function appendDecision(
       text: trimmed,
       by: params.by && hasSubstantiveText(params.by) ? unicodeTrim(params.by) : 'user',
       resolves,
+      relates,
     };
     // Last check before any byte is written: the exact line about to be
     // appended must be one this module's OWN reader admits. A command that

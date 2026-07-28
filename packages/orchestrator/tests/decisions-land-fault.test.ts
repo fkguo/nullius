@@ -122,6 +122,7 @@ describe('decision landing fault boundaries', () => {
         path: '.nullius/decisions.jsonl',
         landed: [],
         rewritten_resolutions: 0,
+        rewritten_related_links: 0,
       });
     } finally {
       restoreRetry();

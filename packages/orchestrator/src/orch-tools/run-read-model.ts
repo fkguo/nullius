@@ -1502,18 +1502,34 @@ function readDecisionLedgerView(projectRoot: string): {
             text: latestDecided.text,
             by: latestDecided.by,
             resolves: latestDecided.resolves,
+            relates: latestDecided.relates,
+            ...(latestDecided.source_kind ? { source_kind: latestDecided.source_kind } : {}),
           }
           : null,
         invalid_lines: snapshot.invalid_lines,
-        // One id on two entries makes `--resolves <id>` ambiguous. Reported
-        // here, never gating: the receipt states the collision and `decision
-        // list` is what refuses to treat the ledger as sound.
+        // Relation defects degrade independently: the containing record stays
+        // visible and counted, while the link has no effect on the open set.
+        unrecognized_relation_count: snapshot.unrecognized_relations.length,
+        unrecognized_relations: snapshot.unrecognized_relations.slice(0, 10),
+        unrecognized_relations_omitted: Math.max(
+          0,
+          snapshot.unrecognized_relations.length - 10,
+        ),
+        // Persisted legacy/unknown string kinds remain readable. Only exact
+        // `pending` can create an open obligation; all others normalize to a
+        // current decided entry and expose their source spelling here.
+        normalized_kind_count: snapshot.normalized_kinds.length,
+        normalized_kinds: snapshot.normalized_kinds.slice(0, 10),
+        normalized_kinds_omitted: Math.max(0, snapshot.normalized_kinds.length - 10),
+        // One id on two entries makes any relation targeting it ambiguous.
+        // Reported here, never gating: the receipt states the collision and
+        // `decision list` is what refuses to treat the ledger as sound.
         duplicate_id_count: snapshot.duplicate_ids.length,
         duplicate_ids: snapshot.duplicate_ids.slice(0, 10),
         duplicate_ids_omitted: Math.max(0, snapshot.duplicate_ids.length - 10),
         // A retained branch identity must map to exactly one durable entry
         // and must not be reused as another entry's current id. Otherwise an
-        // old branch resolution cannot name one target.
+        // old branch relation cannot name one target.
         ambiguous_provisional_id_count: snapshot.ambiguous_provisional_ids.length,
         ambiguous_provisional_ids: snapshot.ambiguous_provisional_ids.slice(0, 10),
         ambiguous_provisional_ids_omitted: Math.max(

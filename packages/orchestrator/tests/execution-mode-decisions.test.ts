@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
 import { runCli } from '../src/cli.js';
 import { renderHelp } from '../src/cli-help.js';
-import { readDecisionsLedger } from '../src/decisions-ledger.js';
+import { openDecisions, readDecisionsLedger } from '../src/decisions-ledger.js';
 import { StateManager } from '../src/state-manager.js';
 import type { RunState } from '../src/types.js';
 import { handleOrchRunExport } from '../src/orch-tools/control.js';
@@ -240,6 +240,44 @@ describe('decision ledger', () => {
     fs.writeFileSync(ledgerFilePath(projectRoot), `${text}\n`, 'utf-8');
   }
 
+  it('drains large decision-list JSON before the CLI process exits', async () => {
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot);
+    writeLedger(
+      projectRoot,
+      Array.from({ length: 80 }, (_, index) => ({
+        id: `D${index + 1}`,
+        ts: new Date(Date.UTC(2026, 6, 10, 0, index, 0)).toISOString(),
+        kind: 'decided',
+        text: `entry ${index + 1}: ${'x'.repeat(2_000)}`,
+        by: 'user',
+        resolves: null,
+      })),
+    );
+
+    const child = spawnSync(
+      path.join(REPO_ROOT, 'node_modules', '.bin', 'tsx'),
+      [
+        path.join(REPO_ROOT, 'packages', 'orchestrator', 'src', 'cli.ts'),
+        `--project-root=${projectRoot}`,
+        'decision',
+        'list',
+        '--json',
+      ],
+      {
+        cwd: REPO_ROOT,
+        encoding: 'utf-8',
+        maxBuffer: 4 * 1024 * 1024,
+      },
+    );
+    expect(child.status).toBe(0);
+    expect(child.stderr).toBe('');
+    expect(Buffer.byteLength(child.stdout, 'utf-8')).toBeGreaterThan(65_536);
+    const payload = JSON.parse(child.stdout) as { records: unknown[]; invalid_lines: number };
+    expect(payload.invalid_lines).toBe(0);
+    expect(payload.records).toHaveLength(80);
+  }, 20000);
+
   it('mints ids in the canonical form and records both kinds', async () => {
     const projectRoot = makeTempProjectRoot();
     await initRuntimeOnly(projectRoot);
@@ -406,7 +444,7 @@ describe('decision ledger', () => {
     expect(ledger.duplicate_ids_omitted).toBe(0);
     const statusText = makeIo(projectRoot);
     expect(await runCli([`--project-root=${projectRoot}`, 'status'], statusText.io)).toBe(0);
-    expect(statusText.stdout.join('')).toContain('decisions_duplicate_ids: 1 (one id on more than one entry in .nullius/decisions.jsonl; --resolves cannot name one of them)');
+    expect(statusText.stdout.join('')).toContain('decisions_duplicate_ids: 1 (one id on more than one entry in .nullius/decisions.jsonl; relations cannot name one of them)');
     expect(statusText.stdout.join('')).toContain(`- "${ID_A}" on lines 1, 3`);
 
     // The operation the ledger exists to guarantee refuses the ambiguous name
@@ -459,21 +497,31 @@ describe('decision ledger', () => {
       const parsed = JSON.parse(list.stdout.join('')) as {
         duplicate_ids: Array<{ id: string; lines: number[] }>;
         invalid_lines: number;
+        unrecognized_relations: Array<{ relation: string; target: string; reason: string }>;
         open_ids: string[];
         records: Array<{ id: string; kind: string }>;
       };
       expect(parsed.duplicate_ids, testCase.label).toEqual([{ id: ID_A, lines: testCase.duplicateLines }]);
-      expect(parsed.invalid_lines, testCase.label).toBe(2);
+      expect(parsed.invalid_lines, testCase.label).toBe(1);
       expect(parsed.records, testCase.label).toEqual([
         expect.objectContaining({ id: ID_A, kind: 'pending' }),
+        expect.objectContaining({ id: ID_B, kind: 'decided', resolves: null }),
+      ]);
+      expect(parsed.unrecognized_relations, testCase.label).toEqual([
+        expect.objectContaining({
+          relation: 'resolves',
+          target: ID_A,
+          reason: 'ambiguous_target',
+        }),
       ]);
       expect(parsed.open_ids, testCase.label).toEqual([ID_A]);
 
       const ledger = (await statusJson(projectRoot)).decision_ledger as Record<string, unknown>;
       expect(ledger, testCase.label).toMatchObject({
         open_count: 1,
-        decided_count: 0,
-        invalid_lines: 2,
+        decided_count: 1,
+        invalid_lines: 1,
+        unrecognized_relation_count: 1,
         duplicate_id_count: 1,
         duplicate_ids: [{ id: ID_A, lines: testCase.duplicateLines }],
       });
@@ -821,6 +869,7 @@ describe('decision ledger', () => {
       path: '.nullius/decisions.jsonl',
       landed_count: 2,
       rewritten_resolution_count: 1,
+      rewritten_related_link_count: 0,
       mappings: [
         { provisional_id: 'ABC123', id: 'D8' },
         { provisional_id: 'ZYX987', id: 'D9' },
@@ -830,6 +879,7 @@ describe('decision ledger', () => {
       .toMatchObject({
         details: {
           rewritten_resolution_count: 1,
+          rewritten_related_link_count: 0,
           mappings: [
             { provisional_id: 'ABC123', id: 'D8' },
             { provisional_id: 'ZYX987', id: 'D9' },
@@ -1094,11 +1144,22 @@ describe('decision ledger', () => {
     ]);
 
     const before = readDecisionsLedger(projectRoot);
-    expect(before.invalid_lines).toBe(1);
+    expect(before.invalid_lines).toBe(0);
     expect(before.ambiguous_provisional_ids).toEqual([{ id: 'ABC123', lines: [1, 2] }]);
-    expect(before.records.map(record => record.id)).toEqual(['D1', 'ABC123']);
+    expect(before.records.map(record => record.id)).toEqual(['D1', 'ABC123', 'ZYX987']);
+    expect(before.unrecognized_relations).toEqual([
+      expect.objectContaining({
+        line: 3,
+        id: 'ZYX987',
+        relation: 'resolves',
+        target: 'ABC123',
+        reason: 'ambiguous_target',
+      }),
+    ]);
     expect((await statusJson(projectRoot)).decision_ledger).toMatchObject({
       open_count: 1,
+      decided_count: 2,
+      unrecognized_relation_count: 1,
       ambiguous_provisional_id_count: 1,
       ambiguous_provisional_ids: [{ id: 'ABC123', lines: [1, 2] }],
     });
@@ -1214,7 +1275,7 @@ describe('decision ledger', () => {
     const before = fs.readFileSync(ledgerFilePath(projectRoot));
     await expect(
       runCli([`--project-root=${projectRoot}`, 'decision', 'land'], makeIo(projectRoot).io),
-    ).rejects.toThrow('invalid or mis-resolving line(s) must be repaired first');
+    ).rejects.toThrow('unreadable or record-level invalid line(s) must be repaired first');
     expect(fs.readFileSync(ledgerFilePath(projectRoot))).toEqual(before);
     expect(fs.existsSync(`${ledgerFilePath(projectRoot)}.lock`)).toBe(false);
   });
@@ -1329,12 +1390,13 @@ describe('decision ledger', () => {
     await recordDecision(projectRoot, 'record', 'recorded after the repair');
   }, 20000);
 
-  it('quarantines forward and replayed resolutions instead of closing later questions', async () => {
+  it('ignores forward and replayed resolutions without voiding their decisions', async () => {
     const projectRoot = makeTempProjectRoot();
     await initRuntimeOnly(projectRoot);
     // A decided entry resolving a pending entry that appears LATER in the
-    // file: sequential semantics must quarantine it, not reach forward and
-    // close a question that was still open at that point.
+    // file: sequential semantics must ignore the link, not reach forward and
+    // close a question that was still open at that point. The decision content
+    // itself remains visible.
     writeLedger(projectRoot, [
       { id: ID_A, ts: '2026-07-10T00:00:00Z', kind: 'decided', text: 'answer to a question recorded later', by: 'user', resolves: ID_B },
       { id: ID_B, ts: '2026-07-10T00:00:01Z', kind: 'pending', text: 'the question it claims to answer', by: 'user', resolves: null },
@@ -1342,11 +1404,22 @@ describe('decision ledger', () => {
 
     const payload = await statusJson(projectRoot);
     const ledger = payload.decision_ledger as Record<string, unknown>;
-    expect(ledger.invalid_lines).toBe(1);
+    expect(ledger.invalid_lines).toBe(0);
+    expect(ledger.decided_count).toBe(1);
     expect(ledger.open_count).toBe(1);
     expect(ledger.open_items).toMatchObject([{ id: ID_B }]);
+    expect(ledger.unrecognized_relations).toEqual([
+      expect.objectContaining({
+        line: 1,
+        id: ID_A,
+        relation: 'resolves',
+        target: ID_B,
+        reason: 'target_not_prior',
+      }),
+    ]);
 
-    // A replayed resolution of an already-closed pending is quarantined too.
+    // A replayed resolution of an already-closed pending likewise loses only
+    // the link; its decision remains in the ledger.
     const replayRoot = makeTempProjectRoot();
     await initRuntimeOnly(replayRoot);
     writeLedger(replayRoot, [
@@ -1355,8 +1428,17 @@ describe('decision ledger', () => {
       { id: ID_C, ts: '2026-07-10T00:00:02Z', kind: 'decided', text: 'replayed answer', by: 'user', resolves: ID_A },
     ]);
     const replayLedger = (await statusJson(replayRoot)).decision_ledger as Record<string, unknown>;
-    expect(replayLedger.invalid_lines).toBe(1);
-    expect(replayLedger.decided_count).toBe(1);
+    expect(replayLedger.invalid_lines).toBe(0);
+    expect(replayLedger.decided_count).toBe(2);
+    expect(replayLedger.unrecognized_relations).toEqual([
+      expect.objectContaining({
+        line: 3,
+        id: ID_C,
+        relation: 'resolves',
+        target: ID_A,
+        reason: 'target_already_resolved',
+      }),
+    ]);
   });
 
   it('reserves the id of a quarantined line so a later record cannot wear it', async () => {
@@ -1436,7 +1518,7 @@ describe('decision ledger', () => {
     expect(snapshot.records).toHaveLength(0);
   });
 
-  it('quarantines duplicate load-bearing fields that JSON.parse would silently collapse', async () => {
+  it('quarantines duplicate core fields but degrades duplicate relation fields', async () => {
     const projectRoot = makeTempProjectRoot();
     await initRuntimeOnly(projectRoot);
     fs.writeFileSync(
@@ -1445,8 +1527,9 @@ describe('decision ledger', () => {
         // Duplicate authorship: last-member-wins would smuggle "Mallory" past
         // the malformed-authorship quarantine.
         `{"id":"${ID_A}","ts":"2026-07-10T00:00:00Z","kind":"pending","text":"dup by","by":false,"by":"Mallory","resolves":null}`,
-        // An honest pending entry, then a resolver with DUPLICATE resolves
-        // members: which pending it closes must not depend on member order.
+        // An honest pending entry, then a decision with DUPLICATE resolves
+        // members: which pending it closes must not depend on member order,
+        // but the decision content itself must remain visible.
         `{"id":"${ID_B}","ts":"2026-07-10T00:00:01Z","kind":"pending","text":"real question","by":"user","resolves":null}`,
         `{"id":"${ID_C}","ts":"2026-07-10T00:00:02Z","kind":"decided","text":"dup resolves","by":"user","resolves":"${ID_A}","resolves":"${ID_B}"}`,
       ].join('\n') + '\n',
@@ -1455,8 +1538,17 @@ describe('decision ledger', () => {
 
     const payload = await statusJson(projectRoot);
     const ledger = payload.decision_ledger as Record<string, unknown>;
-    expect(ledger.invalid_lines).toBe(2);
-    // ID_B stays open: the ambiguous resolver was quarantined, not applied.
+    expect(ledger.invalid_lines).toBe(1);
+    expect(ledger.decided_count).toBe(1);
+    expect(ledger.unrecognized_relations).toEqual([
+      expect.objectContaining({
+        line: 3,
+        id: ID_C,
+        relation: 'resolves',
+        reason: 'duplicate_field',
+      }),
+    ]);
+    // ID_B stays open: the ambiguous link was ignored, not applied.
     expect(ledger.open_count).toBe(1);
     expect(ledger.open_items).toMatchObject([{ id: ID_B }]);
     expect(readDecisionsLedger(projectRoot).reserved_ids).toEqual([ID_A, ID_B, ID_C]);
@@ -1783,7 +1875,7 @@ describe('decision ledger', () => {
     expect(initialized?.details).toMatchObject({ execution_mode: 'file' });
   });
 
-  it('rejects malformed resolves fields as invalid lines', async () => {
+  it('reports malformed resolves fields without voiding their records', async () => {
     const projectRoot = makeTempProjectRoot();
     await initRuntimeOnly(projectRoot);
     writeLedger(projectRoot, [
@@ -1791,14 +1883,299 @@ describe('decision ledger', () => {
       { id: ID_A, ts: '2026-07-10T00:00:01Z', kind: 'pending', text: 'pending with resolves', by: 'user', resolves: ID_B },
       // Malformed resolves value on a decided entry.
       { id: ID_B, ts: '2026-07-10T00:00:02Z', kind: 'decided', text: 'bad resolves', by: 'user', resolves: 'not-an-id' },
+      // A malformed non-closing relation also loses only its link.
+      { id: ID_C, ts: '2026-07-10T00:00:03Z', kind: 'decided', text: 'bad relates', by: 'user', resolves: null, relates: 42 },
     ]);
 
     const list = makeIo(projectRoot);
     expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'list', '--json'], list.io)).toBe(0);
-    const parsed = JSON.parse(list.stdout.join('')) as { invalid_lines: number; records: unknown[] };
-    expect(parsed.invalid_lines).toBe(2);
-    expect(parsed.records).toHaveLength(0);
-    expect(readDecisionsLedger(projectRoot).reserved_ids).toEqual([ID_A, ID_B]);
+    const parsed = JSON.parse(list.stdout.join('')) as {
+      invalid_lines: number;
+      records: Array<{ id: string; kind: string; resolves: string | null }>;
+      unrecognized_relations: Array<{
+        line: number;
+        id: string;
+        relation: string;
+        target: string | null;
+        reason: string;
+      }>;
+      open_ids: string[];
+    };
+    expect(parsed.invalid_lines).toBe(0);
+    expect(parsed.records).toEqual([
+      expect.objectContaining({ id: ID_A, kind: 'pending', resolves: null }),
+      expect.objectContaining({ id: ID_B, kind: 'decided', resolves: null }),
+      expect.objectContaining({ id: ID_C, kind: 'decided', relates: null }),
+    ]);
+    expect(parsed.open_ids).toEqual([ID_A]);
+    expect(parsed.unrecognized_relations).toEqual([
+      {
+        line: 1,
+        id: ID_A,
+        relation: 'resolves',
+        target: ID_B,
+        reason: 'not_allowed_for_kind',
+      },
+      {
+        line: 2,
+        id: ID_B,
+        relation: 'resolves',
+        target: 'not-an-id',
+        reason: 'invalid_target',
+      },
+      {
+        line: 3,
+        id: ID_C,
+        relation: 'relates',
+        target: null,
+        reason: 'invalid_target',
+      },
+    ]);
+    expect(readDecisionsLedger(projectRoot).reserved_ids).toEqual([ID_A, ID_B, ID_C]);
+  });
+
+  it('retains legacy and unknown string kinds as noted decided entries', async () => {
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot);
+    writeLedger(projectRoot, [
+      { id: 'D1', ts: '2026-07-10T00:00:00Z', kind: 'decided', text: 'standing directive', by: 'owner', resolves: null },
+      { id: 'D2', ts: '2026-07-10T00:00:01Z', kind: 'clarify', text: 'clarifies the directive', by: 'owner', resolves: 'D1' },
+      { id: 'D3', ts: '2026-07-10T00:00:02Z', kind: 'future-note', text: 'unknown kind content survives', by: 'owner', resolves: null },
+      { id: 'D4', ts: '2026-07-10T00:00:03Z', kind: 'pending', text: 'the only open obligation', by: 'owner', resolves: null },
+    ]);
+
+    const snapshot = readDecisionsLedger(projectRoot);
+    expect(snapshot.invalid_lines).toBe(0);
+    expect(snapshot.records).toEqual([
+      expect.objectContaining({ id: 'D1', kind: 'decided', resolves: null }),
+      expect.objectContaining({
+        id: 'D2',
+        kind: 'decided',
+        source_kind: 'clarify',
+        resolves: null,
+      }),
+      expect.objectContaining({
+        id: 'D3',
+        kind: 'decided',
+        source_kind: 'future-note',
+        resolves: null,
+      }),
+      expect.objectContaining({ id: 'D4', kind: 'pending', resolves: null }),
+    ]);
+    expect(snapshot.normalized_kinds).toEqual([
+      { line: 2, id: 'D2', source_kind: 'clarify', kind: 'decided' },
+      { line: 3, id: 'D3', source_kind: 'future-note', kind: 'decided' },
+    ]);
+    expect(snapshot.unrecognized_relations).toEqual([
+      {
+        line: 2,
+        id: 'D2',
+        relation: 'resolves',
+        target: 'D1',
+        reason: 'target_not_pending',
+      },
+    ]);
+
+    const ledger = (await statusJson(projectRoot)).decision_ledger as Record<string, unknown>;
+    expect(ledger).toMatchObject({
+      decided_count: 3,
+      pending_count: 1,
+      open_count: 1,
+      invalid_lines: 0,
+      unrecognized_relation_count: 1,
+      normalized_kind_count: 2,
+      open_items: [{ id: 'D4' }],
+    });
+    const human = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'status'], human.io)).toBe(0);
+    expect(human.stdout.join('')).toContain('decisions_unrecognized_relations: 1');
+    expect(human.stdout.join('')).toContain('decisions_normalized_kinds: 2');
+    expect(human.stdout.join('')).toContain('clarify -> decided');
+
+    // The normalized entry remains addressable through the new non-closing
+    // relation even though it cannot be used as a resolution target.
+    const related = makeIo(projectRoot);
+    expect(await runCli(
+      [`--project-root=${projectRoot}`, 'decision', 'record', 'acts under the clarification', '--relates', 'D2'],
+      related.io,
+    )).toBe(0);
+    expect(related.stdout.join('')).toContain('related: D2');
+  });
+
+  it('applies current decided resolution semantics after normalizing a legacy kind', async () => {
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot);
+    writeLedger(projectRoot, [
+      { id: 'D1', ts: '2026-07-10T00:00:00Z', kind: 'pending', text: 'legacy clarification request', by: 'owner', resolves: null },
+      { id: 'D2', ts: '2026-07-10T00:00:01Z', kind: 'clarify', text: 'legacy clarification answer', by: 'owner', resolves: 'D1' },
+    ]);
+
+    const snapshot = readDecisionsLedger(projectRoot);
+    expect(snapshot.invalid_lines).toBe(0);
+    expect(snapshot.records).toEqual([
+      expect.objectContaining({ id: 'D1', kind: 'pending', resolves: null }),
+      expect.objectContaining({
+        id: 'D2',
+        kind: 'decided',
+        source_kind: 'clarify',
+        resolves: 'D1',
+      }),
+    ]);
+    expect(snapshot.normalized_kinds).toEqual([
+      { line: 2, id: 'D2', source_kind: 'clarify', kind: 'decided' },
+    ]);
+    expect(snapshot.unrecognized_relations).toEqual([]);
+    expect(openDecisions(snapshot.records)).toEqual([]);
+  });
+
+  it('records non-closing relates links independently of open-question resolution', async () => {
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot);
+    const directive = await recordDecision(projectRoot, 'record', 'standing invariant');
+    const question = await recordDecision(projectRoot, 'pending', 'owner question');
+    const implementation = await recordDecision(
+      projectRoot,
+      'record',
+      'implementation under the invariant',
+      ['--relates', directive],
+    );
+    const relatedQuestion = await recordDecision(
+      projectRoot,
+      'pending',
+      'a second question carrying context',
+      ['--relates', directive],
+    );
+
+    let snapshot = readDecisionsLedger(projectRoot);
+    expect(snapshot.unrecognized_relations).toEqual([]);
+    expect(snapshot.records.find(record => record.id === implementation)).toMatchObject({
+      kind: 'decided',
+      relates: directive,
+      resolves: null,
+    });
+    expect(snapshot.records.find(record => record.id === relatedQuestion)).toMatchObject({
+      kind: 'pending',
+      relates: directive,
+      resolves: null,
+    });
+    expect(snapshot.records.filter(record => record.kind === 'pending').map(record => record.id))
+      .toEqual([question, relatedQuestion]);
+
+    const answer = makeIo(projectRoot);
+    expect(await runCli(
+      [
+        `--project-root=${projectRoot}`,
+        'decision',
+        'record',
+        'answer under the same invariant',
+        '--resolves',
+        question,
+        '--relates',
+        directive,
+      ],
+      answer.io,
+    )).toBe(0);
+    expect(answer.stdout.join('')).toContain(`resolved: ${question}`);
+    expect(answer.stdout.join('')).toContain(`related: ${directive}`);
+
+    snapshot = readDecisionsLedger(projectRoot);
+    expect(snapshot.unrecognized_relations).toEqual([]);
+    expect(snapshot.records.at(-1)).toMatchObject({
+      kind: 'decided',
+      resolves: question,
+      relates: directive,
+    });
+    expect((await statusJson(projectRoot)).decision_ledger).toMatchObject({
+      open_count: 1,
+      open_items: [{ id: relatedQuestion }],
+    });
+    await expect(
+      runCli(
+        [`--project-root=${projectRoot}`, 'decision', 'record', 'wrong closing link', '--resolves', directive],
+        makeIo(projectRoot).io,
+      ),
+    ).rejects.toThrow('points at a decided entry');
+  });
+
+  it('lands valid and degraded relations without rewriting decision content', async () => {
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot);
+    writeLedger(projectRoot, [
+      { id: 'ABC123', ts: '2026-07-10T00:00:00Z', kind: 'decided', text: 'standing invariant', by: 'owner', resolves: null },
+      {
+        id: 'ZYX987',
+        ts: '2026-07-10T00:00:01Z',
+        kind: 'decided',
+        text: 'implementation decision',
+        by: 'owner',
+        // This historical misuse is ignored semantically but its identity
+        // target is still canonicalized during landing.
+        resolves: 'ABC123',
+        relates: 'ABC123',
+      },
+    ]);
+
+    const before = readDecisionsLedger(projectRoot);
+    expect(before.invalid_lines).toBe(0);
+    expect(before.unrecognized_relations).toEqual([
+      expect.objectContaining({
+        id: 'ZYX987',
+        relation: 'resolves',
+        target: 'ABC123',
+        reason: 'target_not_pending',
+      }),
+    ]);
+
+    const land = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'land', '--json'], land.io)).toBe(0);
+    expect(JSON.parse(land.stdout.join(''))).toEqual({
+      path: '.nullius/decisions.jsonl',
+      landed_count: 2,
+      rewritten_resolution_count: 1,
+      rewritten_related_link_count: 1,
+      mappings: [
+        { provisional_id: 'ABC123', id: 'D1' },
+        { provisional_id: 'ZYX987', id: 'D2' },
+      ],
+    });
+    expect(readDecisionLines(projectRoot)).toEqual([
+      expect.objectContaining({
+        id: 'D1',
+        provisional_id: 'ABC123',
+        text: 'standing invariant',
+      }),
+      expect.objectContaining({
+        id: 'D2',
+        provisional_id: 'ZYX987',
+        text: 'implementation decision',
+        resolves: 'D1',
+        relates: 'D1',
+      }),
+    ]);
+    const after = readDecisionsLedger(projectRoot);
+    expect(after.invalid_lines).toBe(0);
+    expect(after.unlanded_ids).toEqual([]);
+    expect(after.records[1]).toMatchObject({
+      id: 'D2',
+      text: 'implementation decision',
+      resolves: null,
+      relates: 'D1',
+    });
+    expect(after.unrecognized_relations).toEqual([
+      expect.objectContaining({
+        id: 'D2',
+        relation: 'resolves',
+        target: 'D1',
+        reason: 'target_not_pending',
+      }),
+    ]);
+
+    const canonicalBytes = fs.readFileSync(ledgerFilePath(projectRoot));
+    expect(await runCli(
+      [`--project-root=${projectRoot}`, 'decision', 'land'],
+      makeIo(projectRoot).io,
+    )).toBe(0);
+    expect(fs.readFileSync(ledgerFilePath(projectRoot))).toEqual(canonicalBytes);
   });
 
   it('keeps the declared mode unchanged when the audit event cannot be written', async () => {
@@ -1967,6 +2344,8 @@ describe('decision ledger', () => {
     const help = renderHelp('decision');
     expect(help).toContain('record "<what was decided>"');
     expect(help).toContain('pending "<open question>"');
+    expect(help).toContain('[--resolves <id>] [--relates <id>]');
+    expect(help).toContain('pending "<open question>" [--by <who>] [--relates <id>]');
     expect(help).toContain('list [--json]');
     expect(help).toContain('land [--json]');
     expect(help).toContain('list reads permissively');
@@ -1981,7 +2360,13 @@ describe('decision ledger', () => {
     expect(help).toContain('land is the sole rewrite');
     expect(help).toContain('retains each old identity as `provisional_id`');
     expect(help).toContain('commits it with one durable atomic replacement');
-    expect(help).toContain('late handle-valued resolutions through retained mappings');
+    expect(help).toContain('late handle-valued relations through retained mappings');
+    expect(help).toContain('--resolves only accepts a currently OPEN pending entry');
+    expect(help).toContain('--relates accepts any earlier readable entry');
+    expect(help).toContain('reported under `unrecognized_relations` and ignored');
+    expect(help).toContain('containing entry remains counted, listed, and addressable');
+    expect(help).toContain('with `source_kind` and');
+    expect(help).toMatch(/`normalized_kinds` making the\s+compatibility mapping explicit/);
     expect(help).toMatch(/already\s+canonical ledger is a no-op/);
     expect(help).toMatch(/current ids, or retained mappings are redrawn/);
     expect(help).toContain('refuses a ledger with no write permission bit');

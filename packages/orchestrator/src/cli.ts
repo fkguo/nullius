@@ -88,8 +88,8 @@ export async function runCli(argv: string[], io: CliIo = defaultIo()): Promise<n
   }
   if (parsed.command === 'decision') {
     const { runDecisionCommand } = await import('./cli-lifecycle.js');
-    // Non-zero when `decision list` finds a duplicate id: an ambiguous
-    // `--resolves` target is a defect in the ledger, not a normal read.
+    // Non-zero when `decision list` finds an identity defect: an ambiguous
+    // relation target is a defect in the ledger, not a normal read.
     return runDecisionCommand(projectRoot, parsed, io);
   }
   if (parsed.command === 'status') {
@@ -122,11 +122,14 @@ export async function runCli(argv: string[], io: CliIo = defaultIo()): Promise<n
 
 async function main(): Promise<void> {
   try {
-    process.exit(await runCli(process.argv.slice(2)));
+    // Do not call process.exit(): decision ledgers and status receipts can be
+    // larger than a pipe's write buffer, and a forced exit discards queued
+    // stdout/stderr bytes. Setting exitCode lets Node drain both streams.
+    process.exitCode = await runCli(process.argv.slice(2));
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     process.stderr.write(`[error] ${message}\n`);
-    process.exit(2);
+    process.exitCode = 2;
   }
 }
 
