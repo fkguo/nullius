@@ -189,10 +189,11 @@ function writeStatusText(io: CliIo, payload: Record<string, unknown>, statusProj
     const openCount = Number(ledger.open_count ?? 0);
     const invalidLines = Number(ledger.invalid_lines ?? 0);
     const duplicateIdCount = Number(ledger.duplicate_id_count ?? 0);
+    const supersededIdCount = Number(ledger.superseded_id_count ?? 0);
     // A ledger FILE that exists renders even at 0/0 — an emptied ledger is a
     // deliberate state the operator should see, unlike the never-adopted case
     // (no file), which stays silent.
-    if (ledger.exists === true || decidedCount > 0 || openCount > 0 || invalidLines > 0 || duplicateIdCount > 0) {
+    if (ledger.exists === true || decidedCount > 0 || openCount > 0 || invalidLines > 0 || duplicateIdCount > 0 || supersededIdCount > 0) {
       io.stdout(`decisions: ${decidedCount} decided, ${openCount} open\n`);
       const openItems = Array.isArray(ledger.open_items) ? ledger.open_items : [];
       for (const rawItem of openItems) {
@@ -217,11 +218,32 @@ function writeStatusText(io: CliIo, payload: Record<string, unknown>, statusProj
           if (!rawDuplicate || typeof rawDuplicate !== 'object') continue;
           const duplicate = rawDuplicate as Record<string, unknown>;
           const lines = Array.isArray(duplicate.lines) ? duplicate.lines.join(', ') : '';
-          io.stdout(`    - ${renderInline(duplicate.id)} on lines ${lines}\n`);
+          // Quoted for the same reason as in `decision list`: an empty or
+          // whitespace-only id must still be visible as a thing to repair.
+          io.stdout(`    - "${renderInline(duplicate.id)}" on lines ${lines}\n`);
         }
         const duplicatesOmitted = Number(ledger.duplicate_ids_omitted ?? 0);
         if (duplicatesOmitted > 0) {
           io.stdout(`    ... and ${duplicatesOmitted} more (run: nullius decision list --project-root ${shellQuote(statusProjectRoot)})\n`);
+        }
+      }
+      if (supersededIdCount > 0) {
+        // Counted nowhere above: these entries are not in the read model at
+        // all, so a question left open among them is missing from the open
+        // count a reconnecting agent relies on.
+        io.stdout(
+          `  decisions_superseded_ids: ${supersededIdCount} (entries still numbered D<n> in `
+          + `${String(ledger.path ?? 'the decisions ledger')}; not readable as decisions and not counted above — reissue them)\n`,
+        );
+        const superseded = Array.isArray(ledger.superseded_ids) ? ledger.superseded_ids : [];
+        for (const rawEntry of superseded) {
+          if (!rawEntry || typeof rawEntry !== 'object') continue;
+          const entry = rawEntry as Record<string, unknown>;
+          io.stdout(`    - "${renderInline(entry.id)}" on line ${String(entry.line ?? '')}\n`);
+        }
+        const supersededOmitted = Number(ledger.superseded_ids_omitted ?? 0);
+        if (supersededOmitted > 0) {
+          io.stdout(`    ... and ${supersededOmitted} more (run: nullius decision list --project-root ${shellQuote(statusProjectRoot)})\n`);
         }
       }
     }
@@ -412,14 +434,33 @@ export async function runDecisionCommand(
     // followed by the collisions and the repair, and the command exits
     // non-zero. Nothing at merge time reports a collision, so this is where a
     // ledger already carrying one becomes visible.
-    const reportDuplicates = (): number => {
-      if (snapshot.duplicate_ids.length === 0) return 0;
-      io.stdout(`duplicate_ids: ${snapshot.duplicate_ids.length} (one id, more than one entry in ${snapshot.path})\n`);
-      for (const duplicate of snapshot.duplicate_ids) {
-        io.stdout(`  - ${renderInline(duplicate.id)} on lines ${duplicate.lines.join(', ')}\n`);
+    // Either defect means an id in this file cannot be used to name one entry:
+    // a duplicate names two, a superseded one names an entry that is no longer
+    // readable at all.
+    const ledgerDefectExitCode = snapshot.duplicate_ids.length > 0 || snapshot.superseded_ids.length > 0 ? 1 : 0;
+    const reportLedgerDefects = (): number => {
+      if (snapshot.duplicate_ids.length > 0) {
+        io.stdout(`duplicate_ids: ${snapshot.duplicate_ids.length} (one id, more than one entry in ${snapshot.path})\n`);
+        for (const duplicate of snapshot.duplicate_ids) {
+          // Quoted: an id can be empty or whitespace-only on a hand-edited
+          // line, and an unquoted one would leave the repair pointing at
+          // nothing visible.
+          io.stdout(`  - "${renderInline(duplicate.id)}" on lines ${duplicate.lines.join(', ')}\n`);
+        }
+        io.stdout('  repair: keep the first occurrence of each id, reissue every later one, and repoint any resolves naming it\n');
       }
-      io.stdout('  repair: keep the first occurrence of each id, reissue every later one, and repoint any resolves naming it\n');
-      return 1;
+      if (snapshot.superseded_ids.length > 0) {
+        // These entries are NOT in the listing above — their ids are the
+        // superseded counter form, so their lines are quarantined and any open
+        // question among them has left the read model. Naming them is the
+        // difference between a migration and a silent loss.
+        io.stdout(`superseded_ids: ${snapshot.superseded_ids.length} (entries still numbered D<n> in ${snapshot.path}; not listed above and not resolvable)\n`);
+        for (const superseded of snapshot.superseded_ids) {
+          io.stdout(`  - "${renderInline(superseded.id)}" on line ${superseded.line}\n`);
+        }
+        io.stdout('  repair: reissue each entry with a fresh id, and repoint any resolves naming the old one\n');
+      }
+      return ledgerDefectExitCode;
     };
     if (parsed.json) {
       writeJson(io, {
@@ -427,17 +468,18 @@ export async function runDecisionCommand(
         exists: snapshot.exists,
         invalid_lines: snapshot.invalid_lines,
         duplicate_ids: snapshot.duplicate_ids,
+        superseded_ids: snapshot.superseded_ids,
         records: snapshot.records,
         open_ids: open.map((record) => record.id),
       });
-      return snapshot.duplicate_ids.length > 0 ? 1 : 0;
+      return ledgerDefectExitCode;
     }
     if (!snapshot.exists || snapshot.records.length === 0) {
       io.stdout('no decisions recorded\n');
       if (snapshot.invalid_lines > 0) {
         io.stdout(`invalid_lines: ${snapshot.invalid_lines} (invalid, duplicate, or mis-resolving lines in ${snapshot.path})\n`);
       }
-      return reportDuplicates();
+      return reportLedgerDefects();
     }
     const openIds = new Set(open.map((entry) => entry.id));
     for (const record of snapshot.records) {
@@ -449,7 +491,7 @@ export async function runDecisionCommand(
     if (snapshot.invalid_lines > 0) {
       io.stdout(`invalid_lines: ${snapshot.invalid_lines}\n`);
     }
-    return reportDuplicates();
+    return reportLedgerDefects();
   }
   const record = appendDecision(projectRoot, {
     kind: parsed.action === 'record' ? 'decided' : 'pending',

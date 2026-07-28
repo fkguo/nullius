@@ -259,7 +259,7 @@ describe('decision ledger', () => {
     expect(eventTypes).toContain('decision_pending_recorded');
   });
 
-  it('mints ids two divergent copies of the tracked ledger cannot collide on', async () => {
+  it('keeps ids distinct across two divergent copies of the tracked ledger', async () => {
     // `.nullius/decisions.jsonl` is version-controlled, so every branch works
     // on its own copy: two branches each recording one decision are both
     // appending "the next line" of the same ancestor file. An id derived from
@@ -325,10 +325,11 @@ describe('decision ledger', () => {
     }
   });
 
-  it('orders minted ids lexicographically by recording time', async () => {
-    // Sorting a merged ledger by id has to reproduce chronological order;
-    // within one millisecond the ids are unordered by construction, which is
-    // why the offsets below are distinct.
+  it('orders minted ids lexicographically by recording millisecond', async () => {
+    // Sorting a merged ledger by id has to reproduce chronological order to
+    // the millisecond. Inside ONE millisecond the ids are unordered by
+    // construction (the tail is random, not a sequence) — that is the honest
+    // scope of the claim, and the reason every offset below is distinct.
     const projectRoot = makeTempProjectRoot();
     await initRuntimeOnly(projectRoot);
     const clock = vi.spyOn(Date, 'now');
@@ -359,7 +360,7 @@ describe('decision ledger', () => {
     expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'list'], list.io)).toBe(1);
     const listText = list.stdout.join('');
     expect(listText).toContain('duplicate_ids: 1 (one id, more than one entry in .nullius/decisions.jsonl)');
-    expect(listText).toContain(`- ${ID_A} on lines 1, 3`);
+    expect(listText).toContain(`- "${ID_A}" on lines 1, 3`);
     expect(listText).toContain('repair: keep the first occurrence of each id, reissue every later one');
 
     const json = makeIo(projectRoot);
@@ -384,7 +385,7 @@ describe('decision ledger', () => {
     const statusText = makeIo(projectRoot);
     expect(await runCli([`--project-root=${projectRoot}`, 'status'], statusText.io)).toBe(0);
     expect(statusText.stdout.join('')).toContain('decisions_duplicate_ids: 1 (one id on more than one entry in .nullius/decisions.jsonl; --resolves cannot name one of them)');
-    expect(statusText.stdout.join('')).toContain(`- ${ID_A} on lines 1, 3`);
+    expect(statusText.stdout.join('')).toContain(`- "${ID_A}" on lines 1, 3`);
 
     // The operation the ledger exists to guarantee refuses the ambiguous name
     // instead of silently closing whichever entry the read model kept.
@@ -561,10 +562,19 @@ describe('decision ledger', () => {
     ]);
 
     const list = makeIo(projectRoot);
-    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'list', '--json'], list.io)).toBe(0);
-    const parsed = JSON.parse(list.stdout.join('')) as { invalid_lines: number; records: unknown[] };
+    // The counter-form id makes this ledger a migration case, so the read
+    // command fails closed on it.
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'list', '--json'], list.io)).toBe(1);
+    const parsed = JSON.parse(list.stdout.join('')) as {
+      invalid_lines: number;
+      records: unknown[];
+      superseded_ids: Array<{ id: string; line: number }>;
+    };
     expect(parsed.invalid_lines).toBe(5);
     expect(parsed.records).toHaveLength(0);
+    // Only the counter form is a migration; the other four are simply not ids
+    // this ledger issues, and must not be misreported as reissuable entries.
+    expect(parsed.superseded_ids).toEqual([{ id: 'D42', line: 1 }]);
 
     // Recording still works, and the fresh id is none of the rejected ones.
     const fresh = await recordDecision(projectRoot, 'record', 'Normal decision');
@@ -583,20 +593,115 @@ describe('decision ledger', () => {
     await recordDecision(projectRoot, 'record', 'Recovered after the failed attempt');
   });
 
-  it('refuses to mint from a clock outside the encodable range instead of writing an unreadable id', async () => {
-    const projectRoot = makeTempProjectRoot();
-    await initRuntimeOnly(projectRoot);
-    // A wildly wrong clock would otherwise wrap the timestamp characters and
-    // produce an id the reread rejects, while the command reports success.
-    const clock = vi.spyOn(Date, 'now').mockReturnValue(Number.MAX_SAFE_INTEGER);
+  it('refuses to mint from a clock the record could not state, at the exact boundary', async () => {
+    // The bound that matters is the RECORD's, not the id encoding's: 48 bits
+    // of milliseconds reach the year 10889, but from the year 10000 onward
+    // toISOString writes the expanded-year form (+010000-01-01T00:00:00Z),
+    // which the reader's four-digit-year pattern rejects. Minting anywhere in
+    // that ~900-year gap would append an entry the very next read quarantines
+    // while the command reports success.
+    const lastRecordableMs = Date.UTC(9999, 11, 31, 23, 59, 59, 999);
+
+    for (const tooLate of [lastRecordableMs + 1, 2 ** 48 - 1, Number.MAX_SAFE_INTEGER]) {
+      const projectRoot = makeTempProjectRoot();
+      await initRuntimeOnly(projectRoot);
+      const clock = vi.spyOn(Date, 'now').mockReturnValue(tooLate);
+      try {
+        await expect(
+          runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'recorded under a broken clock'], makeIo(projectRoot).io),
+        ).rejects.toThrow('outside the range a decision entry can record');
+      } finally {
+        clock.mockRestore();
+      }
+      expect(fs.existsSync(ledgerFilePath(projectRoot))).toBe(false);
+    }
+
+    // The bound is at the right place, not merely somewhere safe: the last
+    // recordable instant still records, and reads back cleanly.
+    const boundaryRoot = makeTempProjectRoot();
+    await initRuntimeOnly(boundaryRoot);
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(lastRecordableMs);
+    let boundaryId: string;
     try {
-      await expect(
-        runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'recorded under a broken clock'], makeIo(projectRoot).io),
-      ).rejects.toThrow('outside the range a decision id encodes');
+      boundaryId = await recordDecision(boundaryRoot, 'pending', 'recorded at the last representable instant');
     } finally {
       clock.mockRestore();
     }
-    expect(fs.existsSync(ledgerFilePath(projectRoot))).toBe(false);
+    expect(readDecisionLines(boundaryRoot)[0]).toMatchObject({ id: boundaryId, ts: '9999-12-31T23:59:59Z' });
+    const snapshot = readDecisionsLedger(boundaryRoot);
+    expect(snapshot.invalid_lines).toBe(0);
+    expect(snapshot.records.map(record => record.id)).toEqual([boundaryId]);
+  }, 20000);
+
+  it('names entries still numbered by the superseded counter instead of dropping them into a generic count', async () => {
+    // The migration path deserves the same treatment as a merge collision:
+    // these entries leave the read model entirely — including a question that
+    // was still open — so a bare invalid-line count would reproduce exactly
+    // the silence that makes a collision dangerous.
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot);
+    writeLedger(projectRoot, [
+      { id: 'D1', ts: '2026-07-10T00:00:00Z', kind: 'pending', text: 'a question still open when the numbering changed', by: 'FKG', resolves: null },
+      { id: 'D2', ts: '2026-07-10T00:00:01Z', kind: 'pending', text: 'another open question', by: 'user', resolves: null },
+      { id: 'D3', ts: '2026-07-10T00:00:02Z', kind: 'decided', text: 'an answer', by: 'user', resolves: 'D1' },
+    ]);
+
+    const list = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'list'], list.io)).toBe(1);
+    const listText = list.stdout.join('');
+    expect(listText).toContain('superseded_ids: 3 (entries still numbered D<n> in .nullius/decisions.jsonl; not listed above and not resolvable)');
+    expect(listText).toContain('- "D1" on line 1');
+    expect(listText).toContain('- "D3" on line 3');
+    expect(listText).toContain('repair: reissue each entry with a fresh id');
+
+    const json = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'list', '--json'], json.io)).toBe(1);
+    expect((JSON.parse(json.stdout.join('')) as { superseded_ids: unknown }).superseded_ids).toEqual([
+      { id: 'D1', line: 1 },
+      { id: 'D2', line: 2 },
+      { id: 'D3', line: 3 },
+    ]);
+
+    const ledger = (await statusJson(projectRoot)).decision_ledger as Record<string, unknown>;
+    expect(ledger.superseded_id_count).toBe(3);
+    expect(ledger.superseded_ids).toEqual([{ id: 'D1', line: 1 }, { id: 'D2', line: 2 }, { id: 'D3', line: 3 }]);
+    expect(ledger.superseded_ids_omitted).toBe(0);
+    // The open questions are genuinely gone from the counts — which is why the
+    // receipt has to say so in its own words.
+    expect(ledger.open_count).toBe(0);
+
+    const statusText = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'status'], statusText.io)).toBe(0);
+    expect(statusText.stdout.join('')).toContain('decisions_superseded_ids: 3 (entries still numbered D<n> in .nullius/decisions.jsonl; not readable as decisions and not counted above — reissue them)');
+    expect(statusText.stdout.join('')).toContain('- "D1" on line 1');
+  }, 20000);
+
+  it('stays quiet about superseded ids on a healthy ledger', async () => {
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot);
+    await recordDecision(projectRoot, 'pending', 'a question recorded under the current numbering');
+
+    const list = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'list'], list.io)).toBe(0);
+    expect(list.stdout.join('')).not.toContain('superseded_ids');
+    const ledger = (await statusJson(projectRoot)).decision_ledger as Record<string, unknown>;
+    expect(ledger.superseded_id_count).toBe(0);
+    expect(readDecisionsLedger(projectRoot).superseded_ids).toEqual([]);
+  });
+
+  it('quotes a duplicated id so an invisible one still points somewhere', async () => {
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot);
+    // A hand-edited line can carry an empty or whitespace-only id; unquoted,
+    // the repair instruction would name nothing at all.
+    writeLedger(projectRoot, [
+      { id: '', ts: '2026-07-10T00:00:00Z', kind: 'pending', text: 'blank id', by: 'user', resolves: null },
+      { id: '', ts: '2026-07-10T00:00:01Z', kind: 'pending', text: 'blank id again', by: 'user', resolves: null },
+    ]);
+
+    const list = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'list'], list.io)).toBe(1);
+    expect(list.stdout.join('')).toContain('- "" on lines 1, 2');
   });
 
   it('repairs the tail in place, preserving the ledger file mode', async () => {
@@ -1168,7 +1273,7 @@ describe('decision ledger', () => {
     expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'list'], list.io)).toBe(1);
     const text = list.stdout.join('');
     expect(text).toContain('no decisions recorded');
-    expect(text).toContain(`- ${ID_A} on lines 1, 2`);
+    expect(text).toContain(`- "${ID_A}" on lines 1, 2`);
   });
 
   it('surfaces the semantic error before touching a read-only unterminated ledger', async () => {
@@ -1294,8 +1399,14 @@ describe('decision ledger', () => {
     expect(help).toContain('list reads permissively');
     // The superseded counter must not be advertised anywhere.
     expect(help).not.toContain('ids D1, D2');
-    expect(help).toContain('unique without coordination');
-    expect(help).toContain('list exits non-zero and names the lines when the ledger carries a duplicate id');
+    expect(help).toContain('chosen without coordination');
+    expect(help).toContain('list exits non-zero and names the lines when the ledger carries an id twice');
+    expect(help).toContain('still numbered by the superseded D<n> counter');
+    // The guarantee is probabilistic and must be stated as such: an absolute
+    // "cannot collide" would be a false guarantee, and the honest scoping is
+    // the whole reason the duplicate check exists alongside it.
+    expect(help).not.toMatch(/cannot mint the same id|can never collide|guaranteed unique/);
+    expect(help).toContain('ids from within one millisecond are unordered');
   });
 
   it('renders mode and open decisions in the human status text', async () => {

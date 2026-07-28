@@ -56,6 +56,46 @@ describe('decision id minting under a constant random source', () => {
     expect(line).toMatchObject({ id: EPOCH_ID, ts: '1970-01-01T00:00:00Z' });
   });
 
+  it('catches the residual cross-branch collision at the merge instead of resolving it silently', async () => {
+    // Uniqueness without coordination is probabilistic: two branches collide
+    // only if the same millisecond AND all 80 random bits coincide. A constant
+    // random source plus a pinned clock stages exactly that coincidence — each
+    // branch mints into its own file, so neither can see the other's id and
+    // both succeed. What must NOT happen is the merged ledger quietly
+    // resolving one of them, and that is what the duplicate check is for.
+    const roots = [
+      fs.mkdtempSync(path.join(os.tmpdir(), 'nullius-mint-branch-')),
+      fs.mkdtempSync(path.join(os.tmpdir(), 'nullius-mint-branch-')),
+    ];
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(0);
+    try {
+      for (const root of roots) {
+        expect(await runCli([`--project-root=${root}`, 'init', '--runtime-only'], makeIo(root).io)).toBe(0);
+        const record = makeIo(root);
+        expect(await runCli([`--project-root=${root}`, 'decision', 'pending', `question raised in ${path.basename(root)}`], record.io)).toBe(0);
+        expect(record.stdout.join('')).toContain(`pending: ${EPOCH_ID}`);
+      }
+    } finally {
+      clock.mockRestore();
+    }
+
+    // Merge the two branches' ledgers, as a union merge of an append-only log
+    // would.
+    const mergedRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'nullius-mint-merged-'));
+    expect(await runCli([`--project-root=${mergedRoot}`, 'init', '--runtime-only'], makeIo(mergedRoot).io)).toBe(0);
+    const merged = roots
+      .map(root => fs.readFileSync(path.join(root, '.nullius', 'decisions.jsonl'), 'utf-8'))
+      .join('');
+    fs.writeFileSync(path.join(mergedRoot, '.nullius', 'decisions.jsonl'), merged, 'utf-8');
+
+    const list = makeIo(mergedRoot);
+    expect(await runCli([`--project-root=${mergedRoot}`, 'decision', 'list'], list.io)).toBe(1);
+    expect(list.stdout.join('')).toContain(`- "${EPOCH_ID}" on lines 1, 2`);
+    await expect(
+      runCli([`--project-root=${mergedRoot}`, 'decision', 'record', 'an answer', '--resolves', EPOCH_ID], makeIo(mergedRoot).io),
+    ).rejects.toThrow('is ambiguous');
+  });
+
   it('refuses to reissue an id the ledger already carries', async () => {
     const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'nullius-mint-'));
     expect(await runCli([`--project-root=${projectRoot}`, 'init', '--runtime-only'], makeIo(projectRoot).io)).toBe(0);

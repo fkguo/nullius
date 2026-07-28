@@ -87,7 +87,7 @@
   - staging / planning / execution: `orch_run_stage_idea` / `orch_run_stage_content` / `orch_run_plan_computation` / `orch_run_execute_manifest` / `orch_run_progress_followups`
   - verification / higher-conclusion gate: `nullius verify` / `orch_run_record_verification`，以及 `nullius final-conclusions` / `orch_run_request_final_conclusions`
   - proposal decisions / read models: `nullius proposal-decision`、`nullius status --json`、`orch_run_status`、`orch_run_export`
-  - conversational decisions: `nullius decision record|pending`（追加写 `.nullius/decisions.jsonl`）与 `nullius decision list`（只读回放）；open 项计数始终出现在 status receipt（最旧十条列明，其余用 `decision list` 查看）；条目 id 是每条现铸的 ULID（毫秒时间戳 + 80 位随机，Crockford base32），无需协调即唯一，故两个 git 分支各自向被跟踪的 ledger 追加也不会撞名；若某个 id 在文件里出现多次，`decision list` 判不通过并列出行号，receipt 给出 `decision_ledger.duplicate_ids`，`--resolves` 拒绝该 id
+  - conversational decisions: `nullius decision record|pending`（追加写 `.nullius/decisions.jsonl`）与 `nullius decision list`（只读回放）；open 项计数始终出现在 status receipt（最旧十条列明，其余用 `decision list` 查看）；条目 id 是每条现铸的 ULID（毫秒时间戳 + 80 位随机，Crockford base32），无需协调即可选名：两个 git 分支各自向被跟踪的 ledger 追加时，只有同一毫秒且 80 位随机全同才撞名（旧的本地计数器则是每一对分支必撞），按记录毫秒字典序排列、同一毫秒内两个 id 无序；若某个 id 在文件里出现多次，或条目仍用已废止的 `D<n>` 编号（那些行被隔离、不进读模型，其中仍 open 的问题不再计数），`decision list` 判不通过并列出行号，receipt 给出 `decision_ledger.duplicate_ids` / `superseded_ids`，`--resolves` 拒绝该 id
 - `hep_run_stage_content` 仍保留，但它只是 HEP run-artifact substrate adapter，不代表 generic 写作/评审 staging authority。
 
 ## B) Evidence 构建（写作/检索/回放的输入资产）
