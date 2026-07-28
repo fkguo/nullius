@@ -188,10 +188,11 @@ function writeStatusText(io: CliIo, payload: Record<string, unknown>, statusProj
     const decidedCount = Number(ledger.decided_count ?? 0);
     const openCount = Number(ledger.open_count ?? 0);
     const invalidLines = Number(ledger.invalid_lines ?? 0);
+    const duplicateIdCount = Number(ledger.duplicate_id_count ?? 0);
     // A ledger FILE that exists renders even at 0/0 — an emptied ledger is a
     // deliberate state the operator should see, unlike the never-adopted case
     // (no file), which stays silent.
-    if (ledger.exists === true || decidedCount > 0 || openCount > 0 || invalidLines > 0) {
+    if (ledger.exists === true || decidedCount > 0 || openCount > 0 || invalidLines > 0 || duplicateIdCount > 0) {
       io.stdout(`decisions: ${decidedCount} decided, ${openCount} open\n`);
       const openItems = Array.isArray(ledger.open_items) ? ledger.open_items : [];
       for (const rawItem of openItems) {
@@ -205,6 +206,23 @@ function writeStatusText(io: CliIo, payload: Record<string, unknown>, statusProj
       }
       if (invalidLines > 0) {
         io.stdout(`  decisions_invalid_lines: ${invalidLines} (invalid, duplicate, or mis-resolving lines in ${String(ledger.path ?? 'the decisions ledger')})\n`);
+      }
+      if (duplicateIdCount > 0) {
+        io.stdout(
+          `  decisions_duplicate_ids: ${duplicateIdCount} (one id on more than one entry in `
+          + `${String(ledger.path ?? 'the decisions ledger')}; --resolves cannot name one of them)\n`,
+        );
+        const duplicates = Array.isArray(ledger.duplicate_ids) ? ledger.duplicate_ids : [];
+        for (const rawDuplicate of duplicates) {
+          if (!rawDuplicate || typeof rawDuplicate !== 'object') continue;
+          const duplicate = rawDuplicate as Record<string, unknown>;
+          const lines = Array.isArray(duplicate.lines) ? duplicate.lines.join(', ') : '';
+          io.stdout(`    - ${renderInline(duplicate.id)} on lines ${lines}\n`);
+        }
+        const duplicatesOmitted = Number(ledger.duplicate_ids_omitted ?? 0);
+        if (duplicatesOmitted > 0) {
+          io.stdout(`    ... and ${duplicatesOmitted} more (run: nullius decision list --project-root ${shellQuote(statusProjectRoot)})\n`);
+        }
       }
     }
   }
@@ -383,27 +401,43 @@ export async function runDecisionCommand(
   projectRoot: string,
   parsed: Extract<ParsedCliArgs, { command: 'decision' }>,
   io: CliIo,
-): Promise<void> {
+): Promise<number> {
   const { appendDecision, openDecisions, readDecisionsLedger } = await import('./decisions-ledger.js');
   if (parsed.action === 'list') {
     const snapshot = readDecisionsLedger(projectRoot);
     const open = openDecisions(snapshot.records);
+    // A duplicate id makes `--resolves <id>` name two entries at once, so the
+    // read commands refuse to hand back the ledger as if it were sound: the
+    // records still print (a reader may be checking whether an entry landed),
+    // followed by the collisions and the repair, and the command exits
+    // non-zero. Nothing at merge time reports a collision, so this is where a
+    // ledger already carrying one becomes visible.
+    const reportDuplicates = (): number => {
+      if (snapshot.duplicate_ids.length === 0) return 0;
+      io.stdout(`duplicate_ids: ${snapshot.duplicate_ids.length} (one id, more than one entry in ${snapshot.path})\n`);
+      for (const duplicate of snapshot.duplicate_ids) {
+        io.stdout(`  - ${renderInline(duplicate.id)} on lines ${duplicate.lines.join(', ')}\n`);
+      }
+      io.stdout('  repair: keep the first occurrence of each id, reissue every later one, and repoint any resolves naming it\n');
+      return 1;
+    };
     if (parsed.json) {
       writeJson(io, {
         path: snapshot.path,
         exists: snapshot.exists,
         invalid_lines: snapshot.invalid_lines,
+        duplicate_ids: snapshot.duplicate_ids,
         records: snapshot.records,
         open_ids: open.map((record) => record.id),
       });
-      return;
+      return snapshot.duplicate_ids.length > 0 ? 1 : 0;
     }
     if (!snapshot.exists || snapshot.records.length === 0) {
       io.stdout('no decisions recorded\n');
       if (snapshot.invalid_lines > 0) {
         io.stdout(`invalid_lines: ${snapshot.invalid_lines} (invalid, duplicate, or mis-resolving lines in ${snapshot.path})\n`);
       }
-      return;
+      return reportDuplicates();
     }
     const openIds = new Set(open.map((entry) => entry.id));
     for (const record of snapshot.records) {
@@ -415,7 +449,7 @@ export async function runDecisionCommand(
     if (snapshot.invalid_lines > 0) {
       io.stdout(`invalid_lines: ${snapshot.invalid_lines}\n`);
     }
-    return;
+    return reportDuplicates();
   }
   const record = appendDecision(projectRoot, {
     kind: parsed.action === 'record' ? 'decided' : 'pending',
@@ -444,6 +478,7 @@ export async function runDecisionCommand(
   if (record.resolves) {
     io.stdout(`resolved: ${record.resolves}\n`);
   }
+  return 0;
 }
 
 export async function runVerifyCommand(
