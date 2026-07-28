@@ -120,10 +120,16 @@ Actions:
 Behavior:
   record and pending require an initialized external project root (\`nullius init\`);
   list reads permissively and reports "no decisions recorded" on an uninitialized root.
-  Appends one JSON line per event to \`.nullius/decisions.jsonl\` (ids D1, D2, ...); never
-  rewrites, and takes a short cross-process lock so concurrent recordings get distinct ids.
+  Appends one JSON line per event to \`.nullius/decisions.jsonl\`; never rewrites, and takes
+  a short cross-process lock so a resolution and its append stay one step.
+  Each entry gets a ULID (a millisecond timestamp then 80 random bits, Crockford base32):
+  unique without coordination, so two git branches recording into their own copy of the
+  tracked ledger cannot mint the same id, and ordered lexicographically by recording time.
   --resolves only accepts a currently OPEN pending entry (unknown, decided, and
-  already-resolved targets are rejected).
+  already-resolved targets are rejected), and refuses an id the file carries twice.
+  list exits non-zero and names the lines when the ledger carries a duplicate id — an
+  ambiguous id must be reissued by hand before it can be resolved. The status receipt
+  reports the same collisions without gating anything.
   Works in both execution modes and never gates any command: it replaces hand-built
   decision ledgers, giving file-mode projects an engine-visible record of conversational
   approvals. Open entries surface in the status receipt until a later

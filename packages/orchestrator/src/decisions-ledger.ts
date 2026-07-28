@@ -1,3 +1,4 @@
+import { randomFillSync } from 'node:crypto';
 import { readFileSync, rmSync } from 'node:fs';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -10,9 +11,21 @@ import { utcNowIso } from './util.js';
  *  Real projects resolve most questions conversationally ("use option 2",
  *  "confirmed, no change") and the outcome historically landed in hand-built
  *  markdown ledgers the engine never saw. This file is the engine-visible
- *  bookkeeping stratum of those decisions: one JSON line per event, sequential
- *  ids matching the D1, D2, ... convention those ledgers already used. The
+ *  bookkeeping stratum of those decisions: one JSON line per event. The
  *  free-prose question documents stay project-owned; nothing here parses them.
+ *
+ *  Ids are MINTED, never counted. The ledger is version-controlled, so its
+ *  history is a branching graph and not one sequence: two branches that each
+ *  append a record are both writing "the next line" of their own copy of the
+ *  file, and any id derived from a local scan (a highest-so-far counter) hands
+ *  them the same name. After a merge the ledger then holds two different
+ *  decisions called D38, and `--resolves D38` — the only way to close an open
+ *  question — no longer names one entry. The id is therefore a ULID: a 48-bit
+ *  millisecond timestamp followed by 80 random bits in Crockford base32. It is
+ *  unique without any coordination between branches or machines, and it sorts
+ *  lexicographically by recording time, so a merged ledger still reads in
+ *  chronological order. Collisions already present in a ledger written by the
+ *  old counter are reported by readDecisionsLedger rather than tolerated.
  *
  *  Recording never gates anything: open decisions surface in the status
  *  receipt as information, not as a blocking state. */
@@ -20,7 +33,8 @@ import { utcNowIso } from './util.js';
 export type DecisionKind = 'decided' | 'pending';
 
 export type DecisionRecord = {
-  /** Sequential "D<n>" id; never reused, survives interleaved kinds. */
+  /** ULID minted at recording time; never reused, never derived from the
+   *  file's contents. */
   id: string;
   /** UTC ISO timestamp. */
   ts: string;
@@ -31,6 +45,13 @@ export type DecisionRecord = {
   by: string;
   /** For kind=decided: id of the open pending entry this decision closes. */
   resolves: string | null;
+};
+
+/** One id carried by more than one line of the ledger. */
+export type DuplicateDecisionId = {
+  id: string;
+  /** 1-based physical line numbers carrying the id, in file order. */
+  lines: number[];
 };
 
 export type DecisionsLedgerSnapshot = {
@@ -45,15 +66,42 @@ export type DecisionsLedgerSnapshot = {
    *  OPEN pending entry (forward or replayed resolutions would silently close
    *  a later, unrelated question). */
   invalid_lines: number;
-  /** Largest sequence number seen on ANY syntactically valid id — including
-   *  quarantined lines — so allocation never reuses an id that exists as
-   *  bytes in the file. */
-  highest_id_sequence: number;
+  /** Ids the file carries on more than one line, whatever their form. A ledger
+   *  written by the superseded local counter can hold two entries named D38
+   *  once two branches are merged, and nothing at merge time says so: the
+   *  collision surfaces only when a human reads the log. Quarantining the
+   *  later occurrence keeps the read model unambiguous but leaves the file
+   *  wrong, so the collision is REPORTED — `decision list` fails on it, the
+   *  status receipt carries it, and `--resolves` refuses the ambiguous id —
+   *  until the duplicates are reissued by hand. Detection is deliberately
+   *  form-agnostic: the ledgers that carry collisions are exactly the ones
+   *  whose ids are not ULIDs. */
+  duplicate_ids: DuplicateDecisionId[];
+  /** Every id the file's bytes carry — including ids salvaged from
+   *  quarantined lines — so a freshly minted id can be checked against them
+   *  and no id that exists in the file in any form is ever issued again. */
+  reserved_ids: string[];
 };
 
-// Canonical ids only: no leading zeros, so "D01" can never alias "D1" as a
-// second identity for the same numeric sequence.
-const DECISION_ID_PATTERN = /^D([1-9]\d*)$/;
+// Crockford base32: I, L, O, and U are absent, so no character can be misread
+// as another. Ids are matched case-sensitively against exactly this alphabet,
+// which is what keeps the form canonical — Crockford DECODING is
+// case-insensitive and folds I/L to 1 and O to 0, and every such spelling
+// would otherwise be a second name for one entry, the way "D01" once aliased
+// "D1".
+const CROCKFORD_BASE32 = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+// 10 timestamp characters (a 48-bit millisecond count left-padded into 50
+// bits, so the leading character is 0-7) followed by 16 random characters
+// (80 bits).
+const DECISION_ID_PATTERN = /^[0-7][0-9ABCDEFGHJKMNPQRSTVWXYZ]{25}$/;
+const DECISION_ID_TIME_CHARS = 10;
+const DECISION_ID_RANDOM_BYTES = 10;
+const DECISION_ID_MAX_TIME_MS = 2 ** 48 - 1;
+// Redraws when a minted id already exists in the file. Reaching the bound is
+// not a collision anyone will observe (80 random bits within one millisecond);
+// it means the randomness source is returning a constant, which must fail
+// loudly rather than mint a duplicate.
+const DECISION_ID_MINT_ATTEMPTS = 8;
 
 /** True when the value contains at least one substantive character.
  *  String.prototype.trim and Unicode White_Space DISAGREE at the edges:
@@ -70,7 +118,7 @@ function hasSubstantiveText(value: string): boolean {
 function unicodeTrim(value: string): string {
   return value.replace(new RegExp(`^${NON_SUBSTANTIVE_CLASS.source}+|${NON_SUBSTANTIVE_CLASS.source}+$`, 'gu'), '');
 }
-// UTC-Z RFC3339, the only shape the recording path (utcNowIso) ever writes.
+// UTC-Z RFC3339, the only shape the recording path (utcIsoAt) ever writes.
 const UTC_ISO_TS_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/;
 
 // Bounded wait for the cross-process append lock: 100 x 25ms = 2.5s covers
@@ -94,21 +142,87 @@ export function decisionsLedgerDisplayPath(projectRoot: string): string {
   return relative.split(path.sep).join('/');
 }
 
-/** Parse an id like "D7" to its safe-integer sequence number, else null.
- *  Rejects unsafe integers so a manually added absurd id cannot corrupt
- *  subsequent allocation via float rounding. */
-function decisionSequenceNumber(id: unknown): number | null {
-  if (typeof id !== 'string') return null;
-  const match = DECISION_ID_PATTERN.exec(id);
-  if (!match) return null;
-  const value = Number(match[1]);
-  return Number.isSafeInteger(value) && value > 0 ? value : null;
+/** True for an id in exactly the minted form. Anything else — a lowercase
+ *  spelling, a Crockford letter the alphabet excludes, a "D7" from the
+ *  superseded counter — is not an id this ledger issues, so a line carrying
+ *  one is malformed rather than a second identity to reason about. */
+function isCanonicalDecisionId(id: unknown): id is string {
+  return typeof id === 'string' && DECISION_ID_PATTERN.test(id);
+}
+
+/** Base32 of a millisecond count, high character first. Plain arithmetic, not
+ *  bit operations: a 48-bit millisecond count is far past the 32-bit range
+ *  where `<<` and `>>` silently wrap. */
+function encodeDecisionIdTime(epochMs: number): string {
+  let rest = epochMs;
+  let encoded = '';
+  for (let index = 0; index < DECISION_ID_TIME_CHARS; index += 1) {
+    encoded = CROCKFORD_BASE32[rest % 32]! + encoded;
+    rest = Math.floor(rest / 32);
+  }
+  return encoded;
+}
+
+/** 80 random bits as exactly 16 base32 characters. */
+function encodeDecisionIdRandom(): string {
+  const bytes = randomFillSync(new Uint8Array(DECISION_ID_RANDOM_BYTES));
+  let pending = 0;
+  let pendingBits = 0;
+  let encoded = '';
+  for (const byte of bytes) {
+    // At most 4 bits are pending before each byte, so the accumulator stays
+    // well inside the 32-bit range these operators are exact on.
+    pending = (pending << 8) | byte;
+    pendingBits += 8;
+    while (pendingBits >= 5) {
+      pendingBits -= 5;
+      encoded += CROCKFORD_BASE32[(pending >> pendingBits) & 31]!;
+    }
+  }
+  // 80 bits divide evenly by 5, so nothing is left pending.
+  return encoded;
+}
+
+/** Mint one id for an entry recorded at `epochMs`.
+ *
+ *  The timestamp makes ids sort by recording time; the 80 random bits make
+ *  them unique WITHOUT coordination, which is the whole point — two branches,
+ *  or two machines, recording in the same millisecond hold no shared state to
+ *  coordinate through. The ULID spec's monotonic variant (increment the
+ *  previous id's random field within the same millisecond) is deliberately not
+ *  used: deriving an id from the previous one is exactly the local-scan
+ *  dependency that made branch copies collide, since two branches sharing an
+ *  ancestor would increment the same id. Every id gets fresh randomness. */
+function mintDecisionId(epochMs: number, reserved: ReadonlySet<string>): string {
+  if (!Number.isSafeInteger(epochMs) || epochMs < 0 || epochMs > DECISION_ID_MAX_TIME_MS) {
+    throw new Error(
+      `the system clock reads ${epochMs} ms since the epoch, outside the range a decision id encodes `
+      + `(0..${DECISION_ID_MAX_TIME_MS}); fix the clock before recording`,
+    );
+  }
+  const time = encodeDecisionIdTime(epochMs);
+  for (let attempt = 0; attempt < DECISION_ID_MINT_ATTEMPTS; attempt += 1) {
+    const candidate = `${time}${encodeDecisionIdRandom()}`;
+    if (!reserved.has(candidate)) return candidate;
+  }
+  throw new Error(
+    `could not mint a decision id distinct from the ${reserved.size} already in the ledger after `
+    + `${DECISION_ID_MINT_ATTEMPTS} attempts; the random source is not returning random bytes`,
+  );
+}
+
+/** Second-precision UTC-Z stamp of a specific instant, so a record's `ts` and
+ *  the millisecond inside its id describe the same moment instead of two
+ *  clock reads that can straddle a second boundary. */
+function utcIsoAt(epochMs: number): string {
+  return new Date(epochMs).toISOString().replace(/\.\d{3}Z$/, 'Z');
 }
 
 type ParsedDecisionLine = {
-  /** Every canonical id the line's bytes visibly carry — parsed or salvaged —
-   *  all reserved regardless of record admission, so no id that exists in
-   *  the file in any form is ever reissued. */
+  /** Every id the line's bytes visibly carry — parsed or salvaged, canonical
+   *  or not — all reserved regardless of record admission, so no id that
+   *  exists in the file in any form is ever reissued, and all counted for
+   *  duplicate reporting. */
   ids: string[];
   record: DecisionRecord | null;
 };
@@ -116,7 +230,10 @@ type ParsedDecisionLine = {
 const JSON_WHITESPACE = new Set([' ', '\t', '\r', '\n']);
 
 type TopLevelScan = {
-  /** Canonical id values from every VALID-PREFIX top-level `id` key. */
+  /** String values of every VALID-PREFIX top-level `id` key, deduplicated
+   *  within the line. Not filtered to the canonical form: a ledger written by
+   *  the superseded counter carries "D38" ids, and those are precisely the
+   *  ones whose duplicates must still be reported. */
   ids: string[];
   /** Occurrence count per top-level key (duplicates preserved, however the
    *  key was escaped) within the valid prefix. */
@@ -244,7 +361,7 @@ function scanTopLevelFields(line: string): TopLevelScan {
     const value = readValue();
     if (value === null) return scan;
     scan.keyCounts.set(key, (scan.keyCounts.get(key) ?? 0) + 1);
-    if (key === 'id' && typeof value === 'string' && decisionSequenceNumber(value) !== null && !seenScanIds.has(value)) {
+    if (key === 'id' && typeof value === 'string' && !seenScanIds.has(value)) {
       seenScanIds.add(value);
       scan.ids.push(value);
     }
@@ -275,8 +392,8 @@ function parseDecisionLine(line: string): ParsedDecisionLine {
   if (!scan.complete) return { ids, record: null };
   if (LOAD_BEARING_KEYS.some(key => (scan.keyCounts.get(key) ?? 0) > 1)) return { ids, record: null };
   const record = parsed as Record<string, unknown>;
-  const id = decisionSequenceNumber(record.id) !== null ? record.id as string : null;
-  if (id === null) return { ids, record: null };
+  if (!isCanonicalDecisionId(record.id)) return { ids, record: null };
+  const id = record.id;
   // The recording path always writes a UTC-Z RFC3339 timestamp; a persisted
   // ts that is not one is a malformed line, not a value to display as-is.
   // Date.parse NORMALIZES overflowing components (2026-02-29 -> Mar 1,
@@ -302,8 +419,8 @@ function parseDecisionLine(line: string): ParsedDecisionLine {
   let resolves: string | null = null;
   if (record.resolves !== undefined && record.resolves !== null) {
     if (record.kind !== 'decided') return { ids, record: null };
-    if (decisionSequenceNumber(record.resolves) === null) return { ids, record: null };
-    resolves = record.resolves as string;
+    if (!isCanonicalDecisionId(record.resolves)) return { ids, record: null };
+    resolves = record.resolves;
   }
   return {
     ids,
@@ -377,17 +494,19 @@ export function readDecisionsLedger(projectRoot: string): DecisionsLedgerSnapsho
   const filePath = decisionsLedgerPath(projectRoot);
   const displayPath = decisionsLedgerDisplayPath(projectRoot);
   if (!fs.existsSync(filePath)) {
-    return { path: displayPath, exists: false, records: [], invalid_lines: 0, highest_id_sequence: 0 };
+    return { path: displayPath, exists: false, records: [], invalid_lines: 0, duplicate_ids: [], reserved_ids: [] };
   }
   const records: DecisionRecord[] = [];
-  const reservedIds = new Set<string>();
+  /** Every id the file carries, mapped to the lines carrying it: the
+   *  reservation set and the duplicate report are the same observation. */
+  const idLines = new Map<string, number[]>();
   const openIds = new Set<string>();
   let invalidLines = 0;
-  let highestSequence = 0;
   // Byte-level split; each line is decoded with fatal UTF-8 so invalid bytes
   // quarantine the line instead of being silently replaced with U+FFFD.
   const rawLines = fs.readFileSync(filePath).toString('binary').split('\n');
-  for (const rawLine of rawLines) {
+  for (const [index, rawLine] of rawLines.entries()) {
+    const lineNumber = index + 1;
     const lineBytes = Buffer.from(rawLine.endsWith('\r') ? rawLine.slice(0, -1) : rawLine, 'binary');
     // Blank detection on ASCII whitespace bytes ONLY: a lossy .trim() would
     // also swallow bytes like 0xA0 (latin1 NBSP) and skip a line that fatal
@@ -397,14 +516,14 @@ export function readDecisionsLedger(projectRoot: string): DecisionsLedgerSnapsho
     const { ids, record } = decoded.text !== null
       ? parseDecisionLine(decoded.text)
       : { ids: scanTopLevelFields(decoded.validPrefix).ids, record: null };
-    // Reserve every id the line's bytes carry and advance the high-water
-    // mark — quarantined or not — so allocation never reuses an id that
-    // exists in the file in any form.
-    const alreadyReserved = record !== null && reservedIds.has(record.id);
+    // Reserve every id the line's bytes carry — quarantined or not — so no id
+    // that exists in the file in any form is ever minted again, and record
+    // where it occurs so repeats are reportable.
+    const alreadyReserved = record !== null && idLines.has(record.id);
     for (const id of ids) {
-      reservedIds.add(id);
-      const sequence = decisionSequenceNumber(id);
-      if (sequence !== null && sequence > highestSequence) highestSequence = sequence;
+      const lines = idLines.get(id);
+      if (lines) lines.push(lineNumber);
+      else idLines.set(id, [lineNumber]);
     }
     if (!record || alreadyReserved) {
       // Undecodable or malformed line, ambiguous identity, or a repeated id
@@ -416,8 +535,8 @@ export function readDecisionsLedger(projectRoot: string): DecisionsLedgerSnapsho
     if (record.kind === 'decided' && record.resolves !== null && !openIds.has(record.resolves)) {
       // Sequential semantics: a resolution must reference an EARLIER pending
       // entry that is still open at this point in the file. A forward
-      // reference would silently close a later, unrelated question the
-      // moment its id is allocated; a replayed reference re-closes nothing.
+      // reference would silently close a later, unrelated question as soon as
+      // that question lands; a replayed reference re-closes nothing.
       invalidLines += 1;
       continue;
     }
@@ -428,7 +547,18 @@ export function readDecisionsLedger(projectRoot: string): DecisionsLedgerSnapsho
     }
     records.push(record);
   }
-  return { path: displayPath, exists: true, records, invalid_lines: invalidLines, highest_id_sequence: highestSequence };
+  const duplicateIds: DuplicateDecisionId[] = [];
+  for (const [id, lines] of idLines) {
+    if (lines.length > 1) duplicateIds.push({ id, lines });
+  }
+  return {
+    path: displayPath,
+    exists: true,
+    records,
+    invalid_lines: invalidLines,
+    duplicate_ids: duplicateIds,
+    reserved_ids: [...idLines.keys()],
+  };
 }
 
 /** Pending entries not closed by any later decided entry. Oldest first.
@@ -441,17 +571,6 @@ export function openDecisions(records: DecisionRecord[]): DecisionRecord[] {
       .map((record) => record.resolves as string),
   );
   return records.filter((record) => record.kind === 'pending' && !resolved.has(record.id));
-}
-
-function nextDecisionId(snapshot: DecisionsLedgerSnapshot): string {
-  const highest = snapshot.highest_id_sequence;
-  if (highest >= Number.MAX_SAFE_INTEGER) {
-    // Unreachable by honest sequential use; a hand-added ceiling id would
-    // otherwise make the successor unparseable (rejected on reread) while the
-    // command keeps reporting success with the same invisible id.
-    throw new Error(`decision id space exhausted (D${highest} is the largest safe id); repair the ledger ids before recording`);
-  }
-  return `D${highest + 1}`;
 }
 
 function lockFilePath(projectRoot: string): string {
@@ -479,10 +598,15 @@ function describeLockHolder(lockPath: string): string {
   return 'holder unknown';
 }
 
-/** Cross-process mutual exclusion around read-allocate-append, so two CLI
- *  processes recording concurrently cannot allocate the same D<n>. The lock
- *  file carries the holder identity (control metadata, not durable project
- *  data — hence plain writes, mirroring the engine-store file lock).
+/** Cross-process mutual exclusion around read-validate-append. Minted ids no
+ *  longer depend on the file, so this is not what keeps them distinct; it
+ *  keeps the two steps that DO read the file before writing it whole. Two
+ *  concurrent recorders would otherwise be able to close the same open pending
+ *  entry (each validating `--resolves` against a snapshot taken before the
+ *  other's append), and a tail repair could land between another process's
+ *  read and its append, concatenating two records into one corrupt line. The
+ *  lock file carries the holder identity (control metadata, not durable
+ *  project data — hence plain writes, mirroring the engine-store file lock).
  *
  *  Fail-closed on a lock that outlives the bounded wait: the error names the
  *  file and the quiescent repair (verify no recorder is running, remove the
@@ -567,6 +691,18 @@ export function appendDecision(
       if (params.kind !== 'decided') {
         throw new Error('--resolves is only valid when recording a decision');
       }
+      // Fail closed on an id the file carries twice. The read model keeps only
+      // the first occurrence, so resolving would silently pick one of two
+      // different questions — the exact ambiguity a merged counter-numbered
+      // ledger produces.
+      const duplicate = snapshot.duplicate_ids.find((entry) => entry.id === params.resolves);
+      if (duplicate) {
+        throw new Error(
+          `--resolves ${params.resolves} is ambiguous: ${snapshot.path} carries that id on lines `
+          + `${duplicate.lines.join(', ')}. Reissue every occurrence after the first with a fresh id `
+          + '(and repoint any resolves naming it) before resolving it.',
+        );
+      }
       const target = snapshot.records.find((record) => record.id === params.resolves);
       if (!target) {
         throw new Error(`--resolves ${params.resolves} does not match any recorded decision id`);
@@ -579,9 +715,10 @@ export function appendDecision(
       }
       resolves = target.id;
     }
+    const recordedAtMs = Date.now();
     const record: DecisionRecord = {
-      id: nextDecisionId(snapshot),
-      ts: utcNowIso(),
+      id: mintDecisionId(recordedAtMs, new Set(snapshot.reserved_ids)),
+      ts: utcIsoAt(recordedAtMs),
       kind: params.kind,
       text: trimmed,
       by: params.by && hasSubstantiveText(params.by) ? unicodeTrim(params.by) : 'user',

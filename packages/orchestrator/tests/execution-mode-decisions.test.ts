@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
 import { runCli } from '../src/cli.js';
 import { renderHelp } from '../src/cli-help.js';
+import { readDecisionsLedger } from '../src/decisions-ledger.js';
 import { StateManager } from '../src/state-manager.js';
 import type { RunState } from '../src/types.js';
 import { handleOrchRunExport } from '../src/orch-tools/control.js';
@@ -191,48 +192,265 @@ describe('execution mode declaration', () => {
 });
 
 describe('decision ledger', () => {
-  it('records decisions and pending questions with sequential ids', async () => {
+  // The minted form, stated here independently of the module: ten Crockford
+  // base32 characters of millisecond timestamp (the leading one carries the
+  // two padding bits of a 48-bit count, hence 0-7) then sixteen random ones.
+  // I, L, O, and U are absent from the alphabet and lowercase is not the
+  // canonical spelling, so no id can be written two ways.
+  const DECISION_ID_PATTERN = /^[0-7][0-9ABCDEFGHJKMNPQRSTVWXYZ]{25}$/;
+  // A fixed instant for the tests that pin the clock.
+  const FIXED_MS = 1785196800000;
+  const FIXED_TS = '2026-07-28T00:00:00Z';
+
+  /** A hand-written id in the minted form, for fixtures that need one. */
+  function fixtureId(suffix: string, time = '01K3ZQJ5R0'): string {
+    return `${time}${suffix.padStart(16, '0')}`;
+  }
+  const ID_A = fixtureId('1');
+  const ID_B = fixtureId('2');
+  const ID_C = fixtureId('3');
+  const ID_D = fixtureId('4');
+
+  /** The id the CLI just minted, checked against the canonical form. */
+  function mintedId(stdout: string, label: 'recorded' | 'pending'): string {
+    const match = new RegExp(`^${label}: (.+)$`, 'm').exec(stdout);
+    expect(match, `no "${label}:" line in ${JSON.stringify(stdout)}`).not.toBeNull();
+    const id = String(match?.[1] ?? '');
+    expect(id).toMatch(DECISION_ID_PATTERN);
+    return id;
+  }
+
+  /** Record one entry through the CLI and return its minted id. */
+  async function recordDecision(
+    projectRoot: string,
+    action: 'record' | 'pending',
+    text: string,
+    extra: string[] = [],
+  ): Promise<string> {
+    const { io, stdout } = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', action, text, ...extra], io)).toBe(0);
+    return mintedId(stdout.join(''), action === 'record' ? 'recorded' : 'pending');
+  }
+
+  function ledgerFilePath(projectRoot: string): string {
+    return path.join(projectRoot, '.nullius', 'decisions.jsonl');
+  }
+
+  function writeLedger(projectRoot: string, lines: Array<Record<string, unknown> | string>): void {
+    const text = lines.map(line => (typeof line === 'string' ? line : JSON.stringify(line))).join('\n');
+    fs.writeFileSync(ledgerFilePath(projectRoot), `${text}\n`, 'utf-8');
+  }
+
+  it('mints ids in the canonical form and records both kinds', async () => {
     const projectRoot = makeTempProjectRoot();
     await initRuntimeOnly(projectRoot);
 
-    const first = makeIo(projectRoot);
-    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'Adopt the larger cutoff for the scattering length', '--by', 'FKG'], first.io)).toBe(0);
-    expect(first.stdout.join('')).toContain('recorded: D1');
-
-    const second = makeIo(projectRoot);
-    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'pending', 'Freeze the bibliography before the next milestone?'], second.io)).toBe(0);
-    expect(second.stdout.join('')).toContain('pending: D2');
+    const decided = await recordDecision(projectRoot, 'record', 'Adopt the larger cutoff for the scattering length', ['--by', 'FKG']);
+    const pending = await recordDecision(projectRoot, 'pending', 'Freeze the bibliography before the next milestone?');
+    expect(decided).not.toBe(pending);
 
     const lines = readDecisionLines(projectRoot);
     expect(lines).toHaveLength(2);
-    expect(lines[0]).toMatchObject({ id: 'D1', kind: 'decided', by: 'FKG', resolves: null });
-    expect(lines[1]).toMatchObject({ id: 'D2', kind: 'pending', by: 'user' });
+    expect(lines[0]).toMatchObject({ id: decided, kind: 'decided', by: 'FKG', resolves: null });
+    expect(lines[1]).toMatchObject({ id: pending, kind: 'pending', by: 'user' });
 
     const eventTypes = readLedgerEvents(projectRoot).map(event => event.event_type);
     expect(eventTypes).toContain('decision_recorded');
     expect(eventTypes).toContain('decision_pending_recorded');
   });
 
+  it('mints ids two divergent copies of the tracked ledger cannot collide on', async () => {
+    // `.nullius/decisions.jsonl` is version-controlled, so every branch works
+    // on its own copy: two branches each recording one decision are both
+    // appending "the next line" of the same ancestor file. An id derived from
+    // a local scan gives both the same name, and the merge then holds two
+    // different decisions called D38 with nothing reporting it.
+    const ancestorRoot = makeTempProjectRoot();
+    await initRuntimeOnly(ancestorRoot);
+    const ancestorId = await recordDecision(ancestorRoot, 'pending', 'Question raised before the branches diverged');
+    const ancestorLedger = fs.readFileSync(ledgerFilePath(ancestorRoot), 'utf-8');
+
+    const branchRoots = [makeTempProjectRoot(), makeTempProjectRoot()];
+    const branchIds: string[] = [];
+    for (const [index, branchRoot] of branchRoots.entries()) {
+      await initRuntimeOnly(branchRoot);
+      // Each branch starts from the identical committed ledger.
+      fs.writeFileSync(ledgerFilePath(branchRoot), ancestorLedger, 'utf-8');
+      branchIds.push(await recordDecision(branchRoot, 'record', `Decision recorded on branch ${index + 1}`));
+    }
+    expect(branchIds[0]).not.toBe(branchIds[1]);
+
+    // The merge: the shared ancestor line once, then each branch's own
+    // appended tail — what a union merge of an append-only log yields, and
+    // what a hand-resolved conflict keeping both sides yields too.
+    const mergedRoot = makeTempProjectRoot();
+    await initRuntimeOnly(mergedRoot);
+    const branchTails = branchRoots.map(branchRoot =>
+      fs.readFileSync(ledgerFilePath(branchRoot), 'utf-8').slice(ancestorLedger.length));
+    fs.writeFileSync(ledgerFilePath(mergedRoot), ancestorLedger + branchTails.join(''), 'utf-8');
+
+    const merged = readDecisionsLedger(mergedRoot);
+    expect(merged.duplicate_ids).toEqual([]);
+    expect(merged.invalid_lines).toBe(0);
+    expect(merged.records.map(record => record.id)).toEqual([ancestorId, ...branchIds]);
+
+    // Both branches' decisions survive the merge as distinct entries, and the
+    // question carried across the divergence is still closable by name.
+    const resolve = makeIo(mergedRoot);
+    expect(await runCli([`--project-root=${mergedRoot}`, 'decision', 'record', 'Answered after the merge', '--resolves', ancestorId], resolve.io)).toBe(0);
+    expect(resolve.stdout.join('')).toContain(`resolved: ${ancestorId}`);
+    const payload = await statusJson(mergedRoot);
+    expect(payload.decision_ledger).toMatchObject({ open_count: 0, decided_count: 3, duplicate_id_count: 0 });
+  }, 20000);
+
+  it('mints distinct ids for two roots recording in the same millisecond', async () => {
+    // Uniqueness must not rest on the clock: two branches recording at the
+    // same instant share the timestamp half of the id and are separated only
+    // by the 80 random bits.
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(FIXED_MS);
+    try {
+      const ids: string[] = [];
+      const roots = [makeTempProjectRoot(), makeTempProjectRoot()];
+      for (const root of roots) {
+        await initRuntimeOnly(root);
+        ids.push(await recordDecision(root, 'record', 'Recorded at the very same instant'));
+      }
+      expect(ids[0]?.slice(0, 10)).toBe(ids[1]?.slice(0, 10));
+      expect(ids[0]).not.toBe(ids[1]);
+      // The record's ts comes from the same clock read as its id, so the two
+      // never straddle a second boundary.
+      expect(readDecisionLines(roots[0]!)[0]).toMatchObject({ ts: FIXED_TS });
+    } finally {
+      clock.mockRestore();
+    }
+  });
+
+  it('orders minted ids lexicographically by recording time', async () => {
+    // Sorting a merged ledger by id has to reproduce chronological order;
+    // within one millisecond the ids are unordered by construction, which is
+    // why the offsets below are distinct.
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot);
+    const clock = vi.spyOn(Date, 'now');
+    const ids: string[] = [];
+    try {
+      for (const offset of [0, 1, 1000, 86_400_000]) {
+        clock.mockReturnValue(FIXED_MS + offset);
+        ids.push(await recordDecision(projectRoot, 'record', `Entry recorded ${offset} ms in`));
+      }
+    } finally {
+      clock.mockRestore();
+    }
+    expect([...ids].sort()).toEqual(ids);
+    expect(new Set(ids).size).toBe(ids.length);
+  }, 20000);
+
+  it('fails closed on a ledger carrying one id twice', async () => {
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot);
+    writeLedger(projectRoot, [
+      { id: ID_A, ts: '2026-07-10T00:00:00Z', kind: 'pending', text: 'first question', by: 'user', resolves: null },
+      { id: ID_B, ts: '2026-07-10T00:00:01Z', kind: 'pending', text: 'an unrelated question', by: 'user', resolves: null },
+      { id: ID_A, ts: '2026-07-10T00:00:02Z', kind: 'pending', text: 'a second question wearing the first id', by: 'user', resolves: null },
+    ]);
+
+    // list refuses to hand the ledger back as if it were sound.
+    const list = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'list'], list.io)).toBe(1);
+    const listText = list.stdout.join('');
+    expect(listText).toContain('duplicate_ids: 1 (one id, more than one entry in .nullius/decisions.jsonl)');
+    expect(listText).toContain(`- ${ID_A} on lines 1, 3`);
+    expect(listText).toContain('repair: keep the first occurrence of each id, reissue every later one');
+
+    const json = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'list', '--json'], json.io)).toBe(1);
+    const parsed = JSON.parse(json.stdout.join('')) as {
+      duplicate_ids: Array<{ id: string; lines: number[] }>;
+      invalid_lines: number;
+      records: Array<{ id: string }>;
+    };
+    expect(parsed.duplicate_ids).toEqual([{ id: ID_A, lines: [1, 3] }]);
+    // The later occurrence still stays out of the read model, so what the
+    // command reports is unambiguous even while the file is not.
+    expect(parsed.records.map(record => record.id)).toEqual([ID_A, ID_B]);
+    expect(parsed.invalid_lines).toBe(1);
+
+    // The receipt reports the same collision and gates nothing.
+    const payload = await statusJson(projectRoot);
+    const ledger = payload.decision_ledger as Record<string, unknown>;
+    expect(ledger.duplicate_id_count).toBe(1);
+    expect(ledger.duplicate_ids).toEqual([{ id: ID_A, lines: [1, 3] }]);
+    expect(ledger.duplicate_ids_omitted).toBe(0);
+    const statusText = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'status'], statusText.io)).toBe(0);
+    expect(statusText.stdout.join('')).toContain('decisions_duplicate_ids: 1 (one id on more than one entry in .nullius/decisions.jsonl; --resolves cannot name one of them)');
+    expect(statusText.stdout.join('')).toContain(`- ${ID_A} on lines 1, 3`);
+
+    // The operation the ledger exists to guarantee refuses the ambiguous name
+    // instead of silently closing whichever entry the read model kept.
+    await expect(
+      runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'an answer', '--resolves', ID_A], makeIo(projectRoot).io),
+    ).rejects.toThrow(`--resolves ${ID_A} is ambiguous: .nullius/decisions.jsonl carries that id on lines 1, 3`);
+
+    // Only the ambiguous reference is refused: recording continues, and the
+    // id that is NOT duplicated still resolves.
+    const fresh = await recordDecision(projectRoot, 'record', 'An unrelated decision recorded anyway');
+    expect(fresh).not.toBe(ID_A);
+    const resolve = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'closing the unambiguous one', '--resolves', ID_B], resolve.io)).toBe(0);
+    expect(resolve.stdout.join('')).toContain(`resolved: ${ID_B}`);
+  }, 20000);
+
+  it('reports collisions in a ledger written by the superseded counter', async () => {
+    // What the local counter produced once two branches were merged: two
+    // different decisions both named D38. Those ids are not in the minted
+    // form, so their lines are quarantined — and the collision is still named
+    // rather than disappearing into the invalid-line count.
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot);
+    writeLedger(projectRoot, [
+      { id: 'D38', ts: '2026-07-10T00:00:00Z', kind: 'pending', text: 'branch one question', by: 'user', resolves: null },
+      // A blank line in between: reported line numbers are physical.
+      '',
+      { id: 'D38', ts: '2026-07-10T00:00:01Z', kind: 'decided', text: 'branch two decision', by: 'user', resolves: null },
+    ]);
+
+    const list = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'list', '--json'], list.io)).toBe(1);
+    const parsed = JSON.parse(list.stdout.join('')) as {
+      duplicate_ids: Array<{ id: string; lines: number[] }>;
+      invalid_lines: number;
+      records: unknown[];
+    };
+    expect(parsed.duplicate_ids).toEqual([{ id: 'D38', lines: [1, 3] }]);
+    expect(parsed.invalid_lines).toBe(2);
+    expect(parsed.records).toHaveLength(0);
+
+    const ledger = (await statusJson(projectRoot)).decision_ledger as Record<string, unknown>;
+    expect(ledger.duplicate_id_count).toBe(1);
+    expect(ledger.invalid_lines).toBe(2);
+  });
+
   it('resolves a pending question and surfaces open items in the receipt', async () => {
     const projectRoot = makeTempProjectRoot();
     await initRuntimeOnly(projectRoot);
 
-    await runCli([`--project-root=${projectRoot}`, 'decision', 'pending', 'Which sign convention for the isospin projection?'], makeIo(projectRoot).io);
+    const question = await recordDecision(projectRoot, 'pending', 'Which sign convention for the isospin projection?');
 
     let payload = await statusJson(projectRoot);
     let ledger = payload.decision_ledger as Record<string, unknown>;
     expect(ledger).toMatchObject({ decided_count: 0, pending_count: 1, open_count: 1 });
-    expect(ledger.open_items).toMatchObject([{ id: 'D1', text: 'Which sign convention for the isospin projection?' }]);
+    expect(ledger.open_items).toMatchObject([{ id: question, text: 'Which sign convention for the isospin projection?' }]);
 
     const resolve = makeIo(projectRoot);
-    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'Keep the convention as derived; audit closed', '--resolves', 'D1', '--by', 'FKG'], resolve.io)).toBe(0);
-    expect(resolve.stdout.join('')).toContain('recorded: D2');
-    expect(resolve.stdout.join('')).toContain('resolved: D1');
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'Keep the convention as derived; audit closed', '--resolves', question, '--by', 'FKG'], resolve.io)).toBe(0);
+    const answer = mintedId(resolve.stdout.join(''), 'recorded');
+    expect(resolve.stdout.join('')).toContain(`resolved: ${question}`);
 
     payload = await statusJson(projectRoot);
     ledger = payload.decision_ledger as Record<string, unknown>;
     expect(ledger).toMatchObject({ decided_count: 1, pending_count: 1, open_count: 0 });
-    expect(ledger.latest_decided).toMatchObject({ id: 'D2', resolves: 'D1', by: 'FKG' });
+    expect(ledger.latest_decided).toMatchObject({ id: answer, resolves: question, by: 'FKG' });
 
     const list = makeIo(projectRoot);
     expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'list', '--json'], list.io)).toBe(0);
@@ -244,16 +462,16 @@ describe('decision ledger', () => {
   it('rejects invalid resolve targets and empty text', async () => {
     const projectRoot = makeTempProjectRoot();
     await initRuntimeOnly(projectRoot);
-    await runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'A standalone decision'], makeIo(projectRoot).io);
+    const decided = await recordDecision(projectRoot, 'record', 'A standalone decision');
 
     await expect(
-      runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'x', '--resolves', 'D99'], makeIo(projectRoot).io),
+      runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'x', '--resolves', ID_A], makeIo(projectRoot).io),
     ).rejects.toThrow('does not match any recorded decision id');
     await expect(
-      runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'x', '--resolves', 'D1'], makeIo(projectRoot).io),
+      runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'x', '--resolves', decided], makeIo(projectRoot).io),
     ).rejects.toThrow('points at a decided entry');
     await expect(
-      runCli([`--project-root=${projectRoot}`, 'decision', 'pending', 'x', '--resolves', 'D1'], makeIo(projectRoot).io),
+      runCli([`--project-root=${projectRoot}`, 'decision', 'pending', 'x', '--resolves', decided], makeIo(projectRoot).io),
     ).rejects.toThrow('--resolves is only valid with decision record');
     await expect(
       runCli([`--project-root=${projectRoot}`, 'decision', 'record', '   '], makeIo(projectRoot).io),
@@ -270,8 +488,8 @@ describe('decision ledger', () => {
   it('tolerates invalid ledger lines without losing the valid ones', async () => {
     const projectRoot = makeTempProjectRoot();
     await initRuntimeOnly(projectRoot);
-    await runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'A valid decision'], makeIo(projectRoot).io);
-    fs.appendFileSync(path.join(projectRoot, '.nullius', 'decisions.jsonl'), 'not json at all\n', 'utf-8');
+    await recordDecision(projectRoot, 'record', 'A valid decision');
+    fs.appendFileSync(ledgerFilePath(projectRoot), 'not json at all\n', 'utf-8');
 
     const list = makeIo(projectRoot);
     expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'list', '--json'], list.io)).toBe(0);
@@ -288,15 +506,15 @@ describe('decision ledger', () => {
     await initRuntimeOnly(projectRoot);
     // A hand-added valid record whose final newline is missing: blind append
     // would concatenate and corrupt BOTH lines.
-    const manual = { id: 'D1', ts: '2026-07-10T00:00:00Z', kind: 'pending', text: 'Manually added question', by: 'user', resolves: null };
-    fs.writeFileSync(path.join(projectRoot, '.nullius', 'decisions.jsonl'), JSON.stringify(manual), 'utf-8');
+    const manual = { id: ID_A, ts: '2026-07-10T00:00:00Z', kind: 'pending', text: 'Manually added question', by: 'user', resolves: null };
+    fs.writeFileSync(ledgerFilePath(projectRoot), JSON.stringify(manual), 'utf-8');
 
-    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'Recorded after the manual edit'], makeIo(projectRoot).io)).toBe(0);
+    const appended = await recordDecision(projectRoot, 'record', 'Recorded after the manual edit');
 
     const lines = readDecisionLines(projectRoot);
     expect(lines).toHaveLength(2);
-    expect(lines[0]).toMatchObject({ id: 'D1', kind: 'pending' });
-    expect(lines[1]).toMatchObject({ id: 'D2', kind: 'decided' });
+    expect(lines[0]).toMatchObject({ id: ID_A, kind: 'pending' });
+    expect(lines[1]).toMatchObject({ id: appended, kind: 'decided' });
 
     const list = makeIo(projectRoot);
     expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'list', '--json'], list.io)).toBe(0);
@@ -319,24 +537,38 @@ describe('decision ledger', () => {
 
     const lines = readDecisionLines(projectRoot);
     expect(lines).toHaveLength(2);
-    expect(new Set(lines.map(line => line.id))).toEqual(new Set(['D1', 'D2']));
+    const ids = lines.map(line => String(line.id));
+    expect(new Set(ids).size).toBe(2);
+    for (const id of ids) expect(id).toMatch(DECISION_ID_PATTERN);
+    expect(readDecisionsLedger(projectRoot).duplicate_ids).toEqual([]);
   }, 20000);
 
-  it('treats unsafe manual ids as invalid lines and keeps allocation sane', async () => {
+  it('quarantines ids that are not in the minted form', async () => {
     const projectRoot = makeTempProjectRoot();
     await initRuntimeOnly(projectRoot);
-    const huge = { id: 'D99999999999999999999', ts: '2026-07-10T00:00:00Z', kind: 'pending', text: 'absurd id', by: 'user', resolves: null };
-    fs.writeFileSync(path.join(projectRoot, '.nullius', 'decisions.jsonl'), `${JSON.stringify(huge)}\n`, 'utf-8');
-
-    const record = makeIo(projectRoot);
-    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'Normal decision'], record.io)).toBe(0);
-    expect(record.stdout.join('')).toContain('recorded: D1');
+    writeLedger(projectRoot, [
+      // The superseded counter's form.
+      { id: 'D42', ts: '2026-07-10T00:00:00Z', kind: 'pending', text: 'counter id', by: 'user', resolves: null },
+      // Lowercase: Crockford decoding is case-insensitive, so admitting it
+      // would give one entry two spellings.
+      { id: ID_A.toLowerCase(), ts: '2026-07-10T00:00:01Z', kind: 'pending', text: 'lowercase id', by: 'user', resolves: null },
+      // Letters the alphabet excludes because they read as digits.
+      { id: `${ID_A.slice(0, 25)}I`, ts: '2026-07-10T00:00:02Z', kind: 'pending', text: 'excluded letter', by: 'user', resolves: null },
+      // Leading character past the timestamp's padding bits.
+      { id: `8${ID_A.slice(1)}`, ts: '2026-07-10T00:00:03Z', kind: 'pending', text: 'timestamp overflow', by: 'user', resolves: null },
+      // Too short.
+      { id: ID_A.slice(0, 25), ts: '2026-07-10T00:00:04Z', kind: 'pending', text: 'truncated id', by: 'user', resolves: null },
+    ]);
 
     const list = makeIo(projectRoot);
     expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'list', '--json'], list.io)).toBe(0);
-    const parsed = JSON.parse(list.stdout.join('')) as { invalid_lines: number; records: Array<{ id: string }> };
-    expect(parsed.invalid_lines).toBe(1);
-    expect(parsed.records.map(record_ => record_.id)).toEqual(['D1']);
+    const parsed = JSON.parse(list.stdout.join('')) as { invalid_lines: number; records: unknown[] };
+    expect(parsed.invalid_lines).toBe(5);
+    expect(parsed.records).toHaveLength(0);
+
+    // Recording still works, and the fresh id is none of the rejected ones.
+    const fresh = await recordDecision(projectRoot, 'record', 'Normal decision');
+    expect(readDecisionsLedger(projectRoot).reserved_ids).toContain(fresh);
   });
 
   it('releases the append lock after a failed recording', async () => {
@@ -344,60 +576,38 @@ describe('decision ledger', () => {
     await initRuntimeOnly(projectRoot);
 
     await expect(
-      runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'x', '--resolves', 'D42'], makeIo(projectRoot).io),
+      runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'x', '--resolves', ID_A], makeIo(projectRoot).io),
     ).rejects.toThrow('does not match any recorded decision id');
-    expect(fs.existsSync(path.join(projectRoot, '.nullius', 'decisions.jsonl.lock'))).toBe(false);
+    expect(fs.existsSync(`${ledgerFilePath(projectRoot)}.lock`)).toBe(false);
 
-    const retry = makeIo(projectRoot);
-    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'Recovered after the failed attempt'], retry.io)).toBe(0);
-    expect(retry.stdout.join('')).toContain('recorded: D1');
+    await recordDecision(projectRoot, 'record', 'Recovered after the failed attempt');
   });
 
-  it('refuses to allocate past the id-space ceiling instead of emitting an invisible record', async () => {
+  it('refuses to mint from a clock outside the encodable range instead of writing an unreadable id', async () => {
     const projectRoot = makeTempProjectRoot();
     await initRuntimeOnly(projectRoot);
-    const ceiling = { id: `D${Number.MAX_SAFE_INTEGER}`, ts: '2026-07-10T00:00:00Z', kind: 'pending', text: 'ceiling id', by: 'user', resolves: null };
-    fs.writeFileSync(path.join(projectRoot, '.nullius', 'decisions.jsonl'), `${JSON.stringify(ceiling)}\n`, 'utf-8');
-
-    await expect(
-      runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'one past the ceiling'], makeIo(projectRoot).io),
-    ).rejects.toThrow('decision id space exhausted');
-    expect(readDecisionLines(projectRoot)).toHaveLength(1);
-  });
-
-  it('quarantines duplicate ids so resolution stays unambiguous', async () => {
-    const projectRoot = makeTempProjectRoot();
-    await initRuntimeOnly(projectRoot);
-    const first = { id: 'D1', ts: '2026-07-10T00:00:00Z', kind: 'pending', text: 'first question', by: 'user', resolves: null };
-    const duplicate = { id: 'D1', ts: '2026-07-10T00:00:01Z', kind: 'pending', text: 'unrelated question with a stolen id', by: 'user', resolves: null };
-    fs.writeFileSync(
-      path.join(projectRoot, '.nullius', 'decisions.jsonl'),
-      `${JSON.stringify(first)}\n${JSON.stringify(duplicate)}\n`,
-      'utf-8',
-    );
-
-    const list = makeIo(projectRoot);
-    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'list', '--json'], list.io)).toBe(0);
-    const parsed = JSON.parse(list.stdout.join('')) as { invalid_lines: number; records: Array<{ id: string; text: string }> };
-    expect(parsed.invalid_lines).toBe(1);
-    expect(parsed.records).toHaveLength(1);
-    expect(parsed.records[0]?.text).toBe('first question');
-
-    // Resolving D1 targets exactly the surviving first occurrence.
-    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'answered', '--resolves', 'D1'], makeIo(projectRoot).io)).toBe(0);
-    const payload = await statusJson(projectRoot);
-    expect((payload.decision_ledger as Record<string, unknown>).open_count).toBe(0);
+    // A wildly wrong clock would otherwise wrap the timestamp characters and
+    // produce an id the reread rejects, while the command reports success.
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(Number.MAX_SAFE_INTEGER);
+    try {
+      await expect(
+        runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'recorded under a broken clock'], makeIo(projectRoot).io),
+      ).rejects.toThrow('outside the range a decision id encodes');
+    } finally {
+      clock.mockRestore();
+    }
+    expect(fs.existsSync(ledgerFilePath(projectRoot))).toBe(false);
   });
 
   it('repairs the tail in place, preserving the ledger file mode', async () => {
     const projectRoot = makeTempProjectRoot();
     await initRuntimeOnly(projectRoot);
-    const ledgerPath = path.join(projectRoot, '.nullius', 'decisions.jsonl');
-    const manual = { id: 'D1', ts: '2026-07-10T00:00:00Z', kind: 'pending', text: 'no trailing newline', by: 'user', resolves: null };
+    const ledgerPath = ledgerFilePath(projectRoot);
+    const manual = { id: ID_A, ts: '2026-07-10T00:00:00Z', kind: 'pending', text: 'no trailing newline', by: 'user', resolves: null };
     fs.writeFileSync(ledgerPath, JSON.stringify(manual), 'utf-8');
     fs.chmodSync(ledgerPath, 0o600);
 
-    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'appended after repair'], makeIo(projectRoot).io)).toBe(0);
+    await recordDecision(projectRoot, 'record', 'appended after repair');
     expect(readDecisionLines(projectRoot)).toHaveLength(2);
     expect(fs.statSync(ledgerPath).mode & 0o777).toBe(0o600);
   });
@@ -405,8 +615,8 @@ describe('decision ledger', () => {
   it('fails with a normal permission error on a read-only ledger instead of replacing it', async () => {
     const projectRoot = makeTempProjectRoot();
     await initRuntimeOnly(projectRoot);
-    const ledgerPath = path.join(projectRoot, '.nullius', 'decisions.jsonl');
-    const manual = { id: 'D1', ts: '2026-07-10T00:00:00Z', kind: 'pending', text: 'read-only, no trailing newline', by: 'user', resolves: null };
+    const ledgerPath = ledgerFilePath(projectRoot);
+    const manual = { id: ID_A, ts: '2026-07-10T00:00:00Z', kind: 'pending', text: 'read-only, no trailing newline', by: 'user', resolves: null };
     fs.writeFileSync(ledgerPath, JSON.stringify(manual), 'utf-8');
     fs.chmodSync(ledgerPath, 0o444);
     try {
@@ -426,7 +636,7 @@ describe('decision ledger', () => {
     await initRuntimeOnly(projectRoot);
     // A lock left behind by a crashed process (provably dead pid).
     const dead = spawnSync(process.execPath, ['-e', 'process.exit(0)']);
-    const lockPath = path.join(projectRoot, '.nullius', 'decisions.jsonl.lock');
+    const lockPath = `${ledgerFilePath(projectRoot)}.lock`;
     fs.writeFileSync(lockPath, JSON.stringify({ pid: dead.pid ?? 999999, ts: '2026-07-10T00:00:00Z' }), 'utf-8');
 
     // No automatic reclamation: the bounded wait expires and the error names
@@ -435,241 +645,211 @@ describe('decision ledger', () => {
       runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'blocked by the stale lock'], makeIo(projectRoot).io),
     ).rejects.toThrow(/decisions ledger is locked \(.*decisions\.jsonl\.lock.*decision list --project-root .*remove that lock file and retry only if the entry is absent/s);
     expect(fs.existsSync(lockPath)).toBe(true);
-    expect(fs.existsSync(path.join(projectRoot, '.nullius', 'decisions.jsonl'))).toBe(false);
+    expect(fs.existsSync(ledgerFilePath(projectRoot))).toBe(false);
 
     // The documented repair: verify nothing is recording, remove, retry.
     fs.rmSync(lockPath);
-    const retry = makeIo(projectRoot);
-    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'recorded after the repair'], retry.io)).toBe(0);
-    expect(retry.stdout.join('')).toContain('recorded: D1');
+    await recordDecision(projectRoot, 'record', 'recorded after the repair');
   }, 20000);
 
   it('quarantines forward and replayed resolutions instead of closing later questions', async () => {
     const projectRoot = makeTempProjectRoot();
     await initRuntimeOnly(projectRoot);
-    const ledgerPath = path.join(projectRoot, '.nullius', 'decisions.jsonl');
-    // A decided entry resolving an id that does not exist yet (hand-written):
-    // sequential semantics must quarantine it, not let it pre-close the id.
-    const forward = { id: 'D1', ts: '2026-07-10T00:00:00Z', kind: 'decided', text: 'answer to a question that does not exist yet', by: 'user', resolves: 'D2' };
-    fs.writeFileSync(ledgerPath, `${JSON.stringify(forward)}\n`, 'utf-8');
+    // A decided entry resolving a pending entry that appears LATER in the
+    // file: sequential semantics must quarantine it, not reach forward and
+    // close a question that was still open at that point.
+    writeLedger(projectRoot, [
+      { id: ID_A, ts: '2026-07-10T00:00:00Z', kind: 'decided', text: 'answer to a question recorded later', by: 'user', resolves: ID_B },
+      { id: ID_B, ts: '2026-07-10T00:00:01Z', kind: 'pending', text: 'the question it claims to answer', by: 'user', resolves: null },
+    ]);
 
-    const pendingIo = makeIo(projectRoot);
-    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'pending', 'A brand-new question'], pendingIo.io)).toBe(0);
-    // D1 exists as bytes, so allocation continues at D2 — and the quarantined
-    // forward resolution must not close it.
-    expect(pendingIo.stdout.join('')).toContain('pending: D2');
     const payload = await statusJson(projectRoot);
     const ledger = payload.decision_ledger as Record<string, unknown>;
-    expect(ledger.open_count).toBe(1);
-    expect(ledger.open_items).toMatchObject([{ id: 'D2' }]);
     expect(ledger.invalid_lines).toBe(1);
+    expect(ledger.open_count).toBe(1);
+    expect(ledger.open_items).toMatchObject([{ id: ID_B }]);
 
     // A replayed resolution of an already-closed pending is quarantined too.
     const replayRoot = makeTempProjectRoot();
     await initRuntimeOnly(replayRoot);
-    const lines = [
-      { id: 'D1', ts: '2026-07-10T00:00:00Z', kind: 'pending', text: 'question', by: 'user', resolves: null },
-      { id: 'D2', ts: '2026-07-10T00:00:01Z', kind: 'decided', text: 'first answer', by: 'user', resolves: 'D1' },
-      { id: 'D3', ts: '2026-07-10T00:00:02Z', kind: 'decided', text: 'replayed answer', by: 'user', resolves: 'D1' },
-    ];
-    fs.writeFileSync(path.join(replayRoot, '.nullius', 'decisions.jsonl'), lines.map(line => JSON.stringify(line)).join('\n') + '\n', 'utf-8');
-    const replayPayload = await statusJson(replayRoot);
-    const replayLedger = replayPayload.decision_ledger as Record<string, unknown>;
+    writeLedger(replayRoot, [
+      { id: ID_A, ts: '2026-07-10T00:00:00Z', kind: 'pending', text: 'question', by: 'user', resolves: null },
+      { id: ID_B, ts: '2026-07-10T00:00:01Z', kind: 'decided', text: 'first answer', by: 'user', resolves: ID_A },
+      { id: ID_C, ts: '2026-07-10T00:00:02Z', kind: 'decided', text: 'replayed answer', by: 'user', resolves: ID_A },
+    ]);
+    const replayLedger = (await statusJson(replayRoot)).decision_ledger as Record<string, unknown>;
     expect(replayLedger.invalid_lines).toBe(1);
     expect(replayLedger.decided_count).toBe(1);
   });
 
-  it('reserves the id of a quarantined line so allocation never reuses it', async () => {
+  it('reserves the id of a quarantined line so a later record cannot wear it', async () => {
     const projectRoot = makeTempProjectRoot();
     await initRuntimeOnly(projectRoot);
-    const ledgerPath = path.join(projectRoot, '.nullius', 'decisions.jsonl');
-    // Valid canonical id, structurally invalid record (empty text).
-    fs.writeFileSync(ledgerPath, `${JSON.stringify({ id: 'D1', ts: '2026-07-10T00:00:00Z', kind: 'pending', text: '', by: 'user', resolves: null })}\n`, 'utf-8');
+    // Valid canonical id, structurally invalid record (empty text), then a
+    // well-formed record claiming the same id.
+    writeLedger(projectRoot, [
+      { id: ID_A, ts: '2026-07-10T00:00:00Z', kind: 'pending', text: '', by: 'user', resolves: null },
+      { id: ID_A, ts: '2026-07-10T00:00:01Z', kind: 'pending', text: 'reusing the quarantined id', by: 'user', resolves: null },
+    ]);
 
-    const record = makeIo(projectRoot);
-    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'first CLI decision'], record.io)).toBe(0);
-    // D1 exists as bytes (quarantined), so the CLI must continue at D2.
-    expect(record.stdout.join('')).toContain('recorded: D2');
-    const payload = await statusJson(projectRoot);
-    expect((payload.decision_ledger as Record<string, unknown>).invalid_lines).toBe(1);
+    const snapshot = readDecisionsLedger(projectRoot);
+    expect(snapshot.reserved_ids).toEqual([ID_A]);
+    expect(snapshot.records).toHaveLength(0);
+    expect(snapshot.invalid_lines).toBe(2);
+    expect(snapshot.duplicate_ids).toEqual([{ id: ID_A, lines: [1, 2] }]);
   });
 
   it('reserves the id visible on an unparseable crash tail', async () => {
     const projectRoot = makeTempProjectRoot();
     await initRuntimeOnly(projectRoot);
-    const ledgerPath = path.join(projectRoot, '.nullius', 'decisions.jsonl');
     // A write interrupted mid-record: broken JSON, no trailing newline, but
-    // the id bytes are visible and must be reserved.
-    fs.writeFileSync(ledgerPath, '{"id":"D1","ts":', 'utf-8');
+    // the id bytes are visible and must stay reserved.
+    fs.writeFileSync(ledgerFilePath(projectRoot), `{"id":"${ID_A}","ts":`, 'utf-8');
 
-    const record = makeIo(projectRoot);
-    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'recorded after the crash tail'], record.io)).toBe(0);
-    expect(record.stdout.join('')).toContain('recorded: D2');
+    const appended = await recordDecision(projectRoot, 'record', 'recorded after the crash tail');
+    expect(appended).not.toBe(ID_A);
 
-    const list = makeIo(projectRoot);
-    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'list', '--json'], list.io)).toBe(0);
-    const parsed = JSON.parse(list.stdout.join('')) as { invalid_lines: number; records: Array<{ id: string }> };
-    expect(parsed.invalid_lines).toBe(1);
-    expect(parsed.records.map(entry => entry.id)).toEqual(['D2']);
+    const snapshot = readDecisionsLedger(projectRoot);
+    expect(snapshot.reserved_ids).toEqual([ID_A, appended]);
+    expect(snapshot.invalid_lines).toBe(1);
+    expect(snapshot.records.map(record => record.id)).toEqual([appended]);
   });
 
   it('reserves every id candidate on duplicate-key lines', async () => {
     const projectRoot = makeTempProjectRoot();
     await initRuntimeOnly(projectRoot);
-    const ledgerPath = path.join(projectRoot, '.nullius', 'decisions.jsonl');
     // A malformed tail carrying TWO id candidates, then a parseable record
     // with duplicate id keys (JSON.parse keeps the last): both lines are
     // quarantined and every visible id stays reserved.
-    const duplicateKeyRecord = '{"id":"D3","ts":"2026-07-10T00:00:00Z","kind":"pending","text":"duplicate keys","by":"user","resolves":null,"id":"D4"}';
-    fs.writeFileSync(ledgerPath, `{"id":"D1","id":"D2","ts":\n${duplicateKeyRecord}\n`, 'utf-8');
+    const duplicateKeyRecord = `{"id":"${ID_C}","ts":"2026-07-10T00:00:00Z","kind":"pending","text":"duplicate keys","by":"user","resolves":null,"id":"${ID_D}"}`;
+    fs.writeFileSync(ledgerFilePath(projectRoot), `{"id":"${ID_A}","id":"${ID_B}","ts":\n${duplicateKeyRecord}\n`, 'utf-8');
 
-    const record = makeIo(projectRoot);
-    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'continues past every candidate'], record.io)).toBe(0);
-    expect(record.stdout.join('')).toContain('recorded: D5');
-
-    const list = makeIo(projectRoot);
-    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'list', '--json'], list.io)).toBe(0);
-    const parsed = JSON.parse(list.stdout.join('')) as { invalid_lines: number; records: Array<{ id: string }> };
-    expect(parsed.invalid_lines).toBe(2);
-    expect(parsed.records.map(entry => entry.id)).toEqual(['D5']);
+    const snapshot = readDecisionsLedger(projectRoot);
+    expect(snapshot.reserved_ids).toEqual([ID_A, ID_B, ID_C, ID_D]);
+    expect(snapshot.invalid_lines).toBe(2);
+    expect(snapshot.duplicate_ids).toEqual([]);
+    expect(snapshot.records).toHaveLength(0);
   });
 
   it('decodes JSON escapes when hunting id candidates and ignores nested ids', async () => {
     const projectRoot = makeTempProjectRoot();
     await initRuntimeOnly(projectRoot);
-    const ledgerPath = path.join(projectRoot, '.nullius', 'decisions.jsonl');
-    const lines = [
-      // Duplicate id keys where the second is spelled with a JSON escape:
-      // JSON.parse admits it as D2; the scanner sees both and quarantines.
-      '{"id":"D1","\\u0069d":"D2","ts":"2026-07-10T00:00:00Z","kind":"pending","text":"escaped duplicate key","by":"user","resolves":null}',
-      // A crash tail whose id value is escaped: still reserved as D3.
-      '{"id":"D\\u0033","ts":',
-      // A malformed line whose only id is NESTED: not a record identity,
-      // reserves nothing.
-      '{"meta":{"id":"D99"},"ts":',
-    ].join('\n') + '\n';
-    fs.writeFileSync(ledgerPath, lines, 'utf-8');
+    const escapedIdKey = `{"id":"${ID_A}","\\u0069d":"${ID_B}","ts":"2026-07-10T00:00:00Z","kind":"pending","text":"escaped duplicate key","by":"user","resolves":null}`;
+    // ID_C with its final character written as a JSON escape.
+    const escapedIdValue = `{"id":"${ID_C.slice(0, -1)}\\u003${ID_C.slice(-1)}","ts":`;
+    fs.writeFileSync(
+      ledgerFilePath(projectRoot),
+      [
+        // Duplicate id keys where the second is spelled with a JSON escape:
+        // JSON.parse admits it as ID_B; the scanner sees both and quarantines.
+        escapedIdKey,
+        // A crash tail whose id value is escaped: still reserved.
+        escapedIdValue,
+        // A malformed line whose only id is NESTED: not a record identity,
+        // reserves nothing.
+        `{"meta":{"id":"${ID_D}"},"ts":`,
+      ].join('\n') + '\n',
+      'utf-8',
+    );
 
-    const record = makeIo(projectRoot);
-    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'allocated past the escapes'], record.io)).toBe(0);
-    // D1..D3 reserved (escaped spellings included); D99 was nested, so the
-    // next id is D4, not D100.
-    expect(record.stdout.join('')).toContain('recorded: D4');
-
-    const list = makeIo(projectRoot);
-    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'list', '--json'], list.io)).toBe(0);
-    const parsed = JSON.parse(list.stdout.join('')) as { invalid_lines: number; records: Array<{ id: string }> };
-    expect(parsed.invalid_lines).toBe(3);
-    expect(parsed.records.map(entry => entry.id)).toEqual(['D4']);
+    const snapshot = readDecisionsLedger(projectRoot);
+    expect(snapshot.reserved_ids).toEqual([ID_A, ID_B, ID_C]);
+    expect(snapshot.reserved_ids).not.toContain(ID_D);
+    expect(snapshot.invalid_lines).toBe(3);
+    expect(snapshot.records).toHaveLength(0);
   });
 
   it('quarantines duplicate load-bearing fields that JSON.parse would silently collapse', async () => {
     const projectRoot = makeTempProjectRoot();
     await initRuntimeOnly(projectRoot);
-    const ledgerPath = path.join(projectRoot, '.nullius', 'decisions.jsonl');
-    const lines = [
-      // Duplicate authorship: last-member-wins would smuggle "Mallory" past
-      // the malformed-authorship quarantine.
-      '{"id":"D1","ts":"2026-07-10T00:00:00Z","kind":"pending","text":"dup by","by":false,"by":"Mallory","resolves":null}',
-      // An honest pending entry, then a resolver with DUPLICATE resolves
-      // members: which pending it closes must not depend on member order.
-      '{"id":"D2","ts":"2026-07-10T00:00:01Z","kind":"pending","text":"real question","by":"user","resolves":null}',
-      '{"id":"D3","ts":"2026-07-10T00:00:02Z","kind":"decided","text":"dup resolves","by":"user","resolves":"D1","resolves":"D2"}',
-    ].join('\n') + '\n';
-    fs.writeFileSync(ledgerPath, lines, 'utf-8');
+    fs.writeFileSync(
+      ledgerFilePath(projectRoot),
+      [
+        // Duplicate authorship: last-member-wins would smuggle "Mallory" past
+        // the malformed-authorship quarantine.
+        `{"id":"${ID_A}","ts":"2026-07-10T00:00:00Z","kind":"pending","text":"dup by","by":false,"by":"Mallory","resolves":null}`,
+        // An honest pending entry, then a resolver with DUPLICATE resolves
+        // members: which pending it closes must not depend on member order.
+        `{"id":"${ID_B}","ts":"2026-07-10T00:00:01Z","kind":"pending","text":"real question","by":"user","resolves":null}`,
+        `{"id":"${ID_C}","ts":"2026-07-10T00:00:02Z","kind":"decided","text":"dup resolves","by":"user","resolves":"${ID_A}","resolves":"${ID_B}"}`,
+      ].join('\n') + '\n',
+      'utf-8',
+    );
 
     const payload = await statusJson(projectRoot);
     const ledger = payload.decision_ledger as Record<string, unknown>;
     expect(ledger.invalid_lines).toBe(2);
-    // D2 stays open: the ambiguous resolver was quarantined, not applied.
+    // ID_B stays open: the ambiguous resolver was quarantined, not applied.
     expect(ledger.open_count).toBe(1);
-    expect(ledger.open_items).toMatchObject([{ id: 'D2' }]);
-
-    // All three ids remain reserved.
-    const record = makeIo(projectRoot);
-    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'continues at D4'], record.io)).toBe(0);
-    expect(record.stdout.join('')).toContain('recorded: D4');
+    expect(ledger.open_items).toMatchObject([{ id: ID_B }]);
+    expect(readDecisionsLedger(projectRoot).reserved_ids).toEqual([ID_A, ID_B, ID_C]);
   });
 
   it('does not reserve ids that appear after a malformed token', async () => {
     const projectRoot = makeTempProjectRoot();
     await initRuntimeOnly(projectRoot);
-    const ledgerPath = path.join(projectRoot, '.nullius', 'decisions.jsonl');
-    // A poisoned line: garbage scalar BEFORE a ceiling id. Reserving that id
-    // would make every future append fail with id-space exhaustion.
-    fs.writeFileSync(ledgerPath, `{"junk":bogus,"id":"D${Number.MAX_SAFE_INTEGER}"}\n`, 'utf-8');
+    // Garbage scalar BEFORE an id: everything past the malformation is
+    // unreadable, so the id it appears to carry is not this line's identity
+    // and must not be reserved on its behalf.
+    writeLedger(projectRoot, [
+      `{"junk":bogus,"id":"${ID_A}"}`,
+      { id: ID_A, ts: '2026-07-10T00:00:00Z', kind: 'pending', text: 'the real owner of this id', by: 'user', resolves: null },
+    ]);
 
-    const record = makeIo(projectRoot);
-    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'unpoisoned allocation'], record.io)).toBe(0);
-    expect(record.stdout.join('')).toContain('recorded: D1');
-
-    const list = makeIo(projectRoot);
-    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'list', '--json'], list.io)).toBe(0);
-    expect((JSON.parse(list.stdout.join('')) as { invalid_lines: number }).invalid_lines).toBe(1);
+    const snapshot = readDecisionsLedger(projectRoot);
+    expect(snapshot.reserved_ids).toEqual([ID_A]);
+    expect(snapshot.invalid_lines).toBe(1);
+    // The valid record keeps its id: nothing earlier claimed it.
+    expect(snapshot.records.map(record => record.id)).toEqual([ID_A]);
+    expect(snapshot.duplicate_ids).toEqual([]);
   });
 
   it('does not reserve ids guarded by malformed nested containers', async () => {
     const projectRoot = makeTempProjectRoot();
     await initRuntimeOnly(projectRoot);
-    const ledgerPath = path.join(projectRoot, '.nullius', 'decisions.jsonl');
-    // Balanced but INVALID nested containers before a ceiling id: reserving
-    // it would exhaust allocation forever.
-    fs.writeFileSync(
-      ledgerPath,
-      `{"junk":{"x":bogus},"id":"D${Number.MAX_SAFE_INTEGER}"}\n`
-      + `{"junk":[1,bogus,2],"id":"D${Number.MAX_SAFE_INTEGER}"}\n`,
-      'utf-8',
-    );
+    // Balanced but INVALID nested containers before an id: balanced braces are
+    // not valid contents, so the scan stops there too.
+    writeLedger(projectRoot, [
+      `{"junk":{"x":bogus},"id":"${ID_A}"}`,
+      `{"junk":[1,bogus,2],"id":"${ID_B}"}`,
+    ]);
 
-    const record = makeIo(projectRoot);
-    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'allocation stays healthy'], record.io)).toBe(0);
-    expect(record.stdout.join('')).toContain('recorded: D1');
-
-    const list = makeIo(projectRoot);
-    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'list', '--json'], list.io)).toBe(0);
-    expect((JSON.parse(list.stdout.join('')) as { invalid_lines: number }).invalid_lines).toBe(2);
+    const snapshot = readDecisionsLedger(projectRoot);
+    expect(snapshot.reserved_ids).toEqual([]);
+    expect(snapshot.invalid_lines).toBe(2);
   });
 
   it('salvages ids only from the valid UTF-8 prefix of an undecodable line', async () => {
     const projectRoot = makeTempProjectRoot();
     await initRuntimeOnly(projectRoot);
-    const ledgerPath = path.join(projectRoot, '.nullius', 'decisions.jsonl');
-    // Invalid byte BEFORE a ceiling id: everything after the encoding error
-    // is unreadable garbage and must not poison allocation.
-    const poisoned = Buffer.concat([
+    // Invalid byte BEFORE an id: everything after the encoding error is
+    // unreadable garbage and must not reserve anything.
+    fs.writeFileSync(ledgerFilePath(projectRoot), Buffer.concat([
       Buffer.from('{"note":"', 'utf-8'),
       Buffer.from([0xff]),
-      Buffer.from(`","id":"D${Number.MAX_SAFE_INTEGER}"}\n`, 'utf-8'),
-    ]);
-    fs.writeFileSync(ledgerPath, poisoned);
-    const record = makeIo(projectRoot);
-    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'past the poisoned bytes'], record.io)).toBe(0);
-    expect(record.stdout.join('')).toContain('recorded: D1');
+      Buffer.from(`","id":"${ID_A}"}\n`, 'utf-8'),
+    ]));
+    expect(readDecisionsLedger(projectRoot).reserved_ids).toEqual([]);
 
-    // Id BEFORE the invalid byte stays reserved.
+    // An id BEFORE the invalid byte stays reserved.
     const orderedRoot = makeTempProjectRoot();
     await initRuntimeOnly(orderedRoot);
-    const reserved = Buffer.concat([
-      Buffer.from('{"id":"D1","note":"', 'utf-8'),
+    fs.writeFileSync(ledgerFilePath(orderedRoot), Buffer.concat([
+      Buffer.from(`{"id":"${ID_A}","note":"`, 'utf-8'),
       Buffer.from([0xff]),
       Buffer.from('"}\n', 'utf-8'),
-    ]);
-    fs.writeFileSync(path.join(orderedRoot, '.nullius', 'decisions.jsonl'), reserved);
-    const ordered = makeIo(orderedRoot);
-    expect(await runCli([`--project-root=${orderedRoot}`, 'decision', 'record', 'after the reserved prefix id'], ordered.io)).toBe(0);
-    expect(ordered.stdout.join('')).toContain('recorded: D2');
+    ]));
+    expect(readDecisionsLedger(orderedRoot).reserved_ids).toEqual([ID_A]);
   });
 
   it('quarantines malformed timestamps and whitespace-only text', async () => {
     const projectRoot = makeTempProjectRoot();
     await initRuntimeOnly(projectRoot);
-    const ledgerPath = path.join(projectRoot, '.nullius', 'decisions.jsonl');
-    const lines = [
-      { id: 'D1', ts: 'yesterday-ish', kind: 'pending', text: 'bad timestamp', by: 'user', resolves: null },
-      { id: 'D2', ts: '2026-07-10T00:00:00+08:00', kind: 'pending', text: 'non-UTC offset', by: 'user', resolves: null },
-      { id: 'D3', ts: '2026-07-10T00:00:00Z', kind: 'pending', text: '   \t  ', by: 'user', resolves: null },
-    ];
-    fs.writeFileSync(ledgerPath, lines.map(line => JSON.stringify(line)).join('\n') + '\n', 'utf-8');
+    writeLedger(projectRoot, [
+      { id: ID_A, ts: 'yesterday-ish', kind: 'pending', text: 'bad timestamp', by: 'user', resolves: null },
+      { id: ID_B, ts: '2026-07-10T00:00:00+08:00', kind: 'pending', text: 'non-UTC offset', by: 'user', resolves: null },
+      { id: ID_C, ts: '2026-07-10T00:00:00Z', kind: 'pending', text: '   \t  ', by: 'user', resolves: null },
+    ]);
 
     const list = makeIo(projectRoot);
     expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'list', '--json'], list.io)).toBe(0);
@@ -677,23 +857,19 @@ describe('decision ledger', () => {
     expect(parsed.invalid_lines).toBe(3);
     expect(parsed.records).toHaveLength(0);
 
-    const record = makeIo(projectRoot);
-    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'well-formed record'], record.io)).toBe(0);
-    expect(record.stdout.join('')).toContain('recorded: D4');
+    await recordDecision(projectRoot, 'record', 'well-formed record');
   });
 
   it('handles a huge valid prefix before one invalid byte without stalling', async () => {
     const projectRoot = makeTempProjectRoot();
     await initRuntimeOnly(projectRoot);
-    const ledgerPath = path.join(projectRoot, '.nullius', 'decisions.jsonl');
     // 4 MiB of VALID bytes before the single invalid byte: a per-byte
     // streaming decode would grind through millions of decoder calls before
     // reaching the error, while the single-pass validator finishes in
-    // milliseconds. The bound below is generous for the linear scan and far
-    // below the per-byte cost.
+    // milliseconds.
     const validPrefix = Buffer.alloc(4 * 1024 * 1024, 0x61);
-    fs.writeFileSync(ledgerPath, Buffer.concat([
-      Buffer.from('{"id":"D1","note":"', 'utf-8'),
+    fs.writeFileSync(ledgerFilePath(projectRoot), Buffer.concat([
+      Buffer.from(`{"id":"${ID_A}","note":"`, 'utf-8'),
       validPrefix,
       Buffer.from([0xff]),
       Buffer.from('\n', 'utf-8'),
@@ -705,38 +881,33 @@ describe('decision ledger', () => {
     // recovery would call decode millions of times for this prefix.
     const decodeSpy = vi.spyOn(TextDecoder.prototype, 'decode');
     try {
-      const { readDecisionsLedger } = await import('../src/decisions-ledger.js');
       const snapshot = readDecisionsLedger(projectRoot);
       expect(snapshot.invalid_lines).toBe(1);
-      expect(snapshot.highest_id_sequence).toBe(1);
+      // The id sits in the valid prefix, so it stays reserved.
+      expect(snapshot.reserved_ids).toEqual([ID_A]);
       expect(decodeSpy.mock.calls.length).toBeLessThan(10);
     } finally {
       decodeSpy.mockRestore();
     }
-    const record = makeIo(projectRoot);
-    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'still responsive'], record.io)).toBe(0);
-    // The id sits in the valid prefix, so it stays reserved.
-    expect(record.stdout.join('')).toContain('recorded: D2');
+    await recordDecision(projectRoot, 'record', 'still responsive');
   });
 
   it('quarantines calendar-invalid timestamps that Date.parse would normalize', async () => {
     const projectRoot = makeTempProjectRoot();
     await initRuntimeOnly(projectRoot);
-    const ledgerPath = path.join(projectRoot, '.nullius', 'decisions.jsonl');
-    const lines = [
-      { id: 'D1', ts: '2026-02-29T00:00:00Z', kind: 'pending', text: 'not a leap year', by: 'user', resolves: null },
-      { id: 'D2', ts: '2026-04-31T00:00:00Z', kind: 'pending', text: 'April has 30 days', by: 'user', resolves: null },
-      { id: 'D3', ts: '2026-07-10T24:00:00Z', kind: 'pending', text: 'hour 24', by: 'user', resolves: null },
+    writeLedger(projectRoot, [
+      { id: ID_A, ts: '2026-02-29T00:00:00Z', kind: 'pending', text: 'not a leap year', by: 'user', resolves: null },
+      { id: ID_B, ts: '2026-04-31T00:00:00Z', kind: 'pending', text: 'April has 30 days', by: 'user', resolves: null },
+      { id: ID_C, ts: '2026-07-10T24:00:00Z', kind: 'pending', text: 'hour 24', by: 'user', resolves: null },
       // A real leap day stays valid.
-      { id: 'D4', ts: '2028-02-29T00:00:00Z', kind: 'pending', text: 'genuine leap day', by: 'user', resolves: null },
-    ];
-    fs.writeFileSync(ledgerPath, lines.map(line => JSON.stringify(line)).join('\n') + '\n', 'utf-8');
+      { id: ID_D, ts: '2028-02-29T00:00:00Z', kind: 'pending', text: 'genuine leap day', by: 'user', resolves: null },
+    ]);
 
     const list = makeIo(projectRoot);
     expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'list', '--json'], list.io)).toBe(0);
     const parsed = JSON.parse(list.stdout.join('')) as { invalid_lines: number; records: Array<{ id: string }> };
     expect(parsed.invalid_lines).toBe(3);
-    expect(parsed.records.map(entry => entry.id)).toEqual(['D4']);
+    expect(parsed.records.map(entry => entry.id)).toEqual([ID_D]);
   });
 
   it('rejects U+0085-only text and authorship that trim would miss', async () => {
@@ -758,17 +929,14 @@ describe('decision ledger', () => {
     // U+FEFF-only authorship is not a name: it falls back to the default
     // instead of being trimmed to an empty string that rereading would
     // quarantine (a durably recorded decision must never vanish).
-    const feffBy = makeIo(projectRoot);
-    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'real decision', '--by', '\ufeff'], feffBy.io)).toBe(0);
+    await recordDecision(projectRoot, 'record', 'real decision', ['--by', '\ufeff']);
     expect(readDecisionLines(projectRoot)[0]).toMatchObject({ by: 'user' });
-    fs.rmSync(path.join(projectRoot, '.nullius', 'decisions.jsonl'));
+    fs.rmSync(ledgerFilePath(projectRoot));
 
-    const ledgerPath = path.join(projectRoot, '.nullius', 'decisions.jsonl');
-    const lines = [
-      { id: 'D1', ts: '2026-07-10T00:00:00Z', kind: 'pending', text: '\u0085', by: 'user', resolves: null },
-      { id: 'D2', ts: '2026-07-10T00:00:01Z', kind: 'pending', text: 'real question', by: '\u0085', resolves: null },
-    ];
-    fs.writeFileSync(ledgerPath, lines.map(line => JSON.stringify(line)).join('\n') + '\n', 'utf-8');
+    writeLedger(projectRoot, [
+      { id: ID_A, ts: '2026-07-10T00:00:00Z', kind: 'pending', text: '\u0085', by: 'user', resolves: null },
+      { id: ID_B, ts: '2026-07-10T00:00:01Z', kind: 'pending', text: 'real question', by: '\u0085', resolves: null },
+    ]);
     const list = makeIo(projectRoot);
     expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'list', '--json'], list.io)).toBe(0);
     expect((JSON.parse(list.stdout.join('')) as { invalid_lines: number }).invalid_lines).toBe(2);
@@ -781,7 +949,7 @@ describe('decision ledger', () => {
     // "--help" after the terminator is decision text, not a help request.
     const helpText = makeIo(projectRoot);
     expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', '--', '--help'], helpText.io)).toBe(0);
-    expect(helpText.stdout.join('')).toContain('recorded: D1');
+    mintedId(helpText.stdout.join(''), 'recorded');
     expect(readDecisionLines(projectRoot)[0]).toMatchObject({ text: '--help' });
 
     // "--project-root=..." after the terminator is data, not a retarget.
@@ -805,7 +973,7 @@ describe('decision ledger', () => {
     // argv ending in the flag is ordinary data.
     const record = makeIo(projectRoot);
     expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', '--', '--launcher-protocol'], record.io)).toBe(0);
-    expect(record.stdout.join('')).toContain('recorded: D1');
+    mintedId(record.stdout.join(''), 'recorded');
     expect(readDecisionLines(projectRoot)[0]).toMatchObject({ text: '--launcher-protocol' });
   });
 
@@ -815,7 +983,7 @@ describe('decision ledger', () => {
 
     const record = makeIo(projectRoot);
     expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', '--by', 'FKG', '--', '-keep the negative branch'], record.io)).toBe(0);
-    expect(record.stdout.join('')).toContain('recorded: D1');
+    mintedId(record.stdout.join(''), 'recorded');
     expect(readDecisionLines(projectRoot)[0]).toMatchObject({ text: '-keep the negative branch', by: 'FKG' });
 
     // Without the terminator a leading-hyphen text still errors clearly.
@@ -827,13 +995,11 @@ describe('decision ledger', () => {
   it('quarantines records whose persisted authorship is not an explicit nonempty string', async () => {
     const projectRoot = makeTempProjectRoot();
     await initRuntimeOnly(projectRoot);
-    const ledgerPath = path.join(projectRoot, '.nullius', 'decisions.jsonl');
-    const lines = [
-      { id: 'D1', ts: '2026-07-10T00:00:00Z', kind: 'pending', text: 'by is false', by: false, resolves: null },
-      { id: 'D2', ts: '2026-07-10T00:00:01Z', kind: 'pending', text: 'by is blank', by: '   ', resolves: null },
-      { id: 'D3', ts: '2026-07-10T00:00:02Z', kind: 'pending', text: 'by is missing', resolves: null },
-    ];
-    fs.writeFileSync(ledgerPath, lines.map(line => JSON.stringify(line)).join('\n') + '\n', 'utf-8');
+    writeLedger(projectRoot, [
+      { id: ID_A, ts: '2026-07-10T00:00:00Z', kind: 'pending', text: 'by is false', by: false, resolves: null },
+      { id: ID_B, ts: '2026-07-10T00:00:01Z', kind: 'pending', text: 'by is blank', by: '   ', resolves: null },
+      { id: ID_C, ts: '2026-07-10T00:00:02Z', kind: 'pending', text: 'by is missing', resolves: null },
+    ]);
 
     const list = makeIo(projectRoot);
     expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'list', '--json'], list.io)).toBe(0);
@@ -842,18 +1008,15 @@ describe('decision ledger', () => {
     expect(parsed.invalid_lines).toBe(3);
     expect(parsed.records).toHaveLength(0);
 
-    const record = makeIo(projectRoot);
-    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'clean record'], record.io)).toBe(0);
-    expect(record.stdout.join('')).toContain('recorded: D4');
+    await recordDecision(projectRoot, 'record', 'clean record');
   });
 
   it('quarantines a non-ASCII-whitespace-only line instead of skipping it as blank', async () => {
     const projectRoot = makeTempProjectRoot();
     await initRuntimeOnly(projectRoot);
-    const ledgerPath = path.join(projectRoot, '.nullius', 'decisions.jsonl');
     // A single 0xA0 byte (latin1 NBSP): lossy trimming would treat the line
     // as blank; fatal decoding must quarantine it.
-    fs.writeFileSync(ledgerPath, Buffer.concat([Buffer.from([0xa0]), Buffer.from('\n', 'utf-8')]));
+    fs.writeFileSync(ledgerFilePath(projectRoot), Buffer.concat([Buffer.from([0xa0]), Buffer.from('\n', 'utf-8')]));
 
     const list = makeIo(projectRoot);
     expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'list', '--json'], list.io)).toBe(0);
@@ -868,7 +1031,7 @@ describe('decision ledger', () => {
 
     // Lock guidance must stay copy-pasteable for a root with a space and an
     // apostrophe.
-    const lockPath = path.join(projectRoot, '.nullius', 'decisions.jsonl.lock');
+    const lockPath = `${ledgerFilePath(projectRoot)}.lock`;
     fs.writeFileSync(lockPath, JSON.stringify({ pid: 999999999, ts: '2026-07-10T00:00:00Z' }), 'utf-8');
     const expectedQuoted = `'${projectRoot.replaceAll("'", "'\\''")}'`;
     await expect(
@@ -896,18 +1059,17 @@ describe('decision ledger', () => {
   it('quarantines lines with invalid or truncated UTF-8 instead of admitting mutated text', async () => {
     const projectRoot = makeTempProjectRoot();
     await initRuntimeOnly(projectRoot);
-    const ledgerPath = path.join(projectRoot, '.nullius', 'decisions.jsonl');
     // A record whose text contains a raw invalid byte (0xff): lossy decoding
     // would silently turn it into U+FFFD and admit the mutated decision.
-    const head = Buffer.from('{"id":"D1","ts":"2026-07-10T00:00:00Z","kind":"pending","text":"corrupted ', 'utf-8');
+    const head = Buffer.from(`{"id":"${ID_A}","ts":"2026-07-10T00:00:00Z","kind":"pending","text":"corrupted `, 'utf-8');
     const tail = Buffer.from('","by":"user","resolves":null}\n', 'utf-8');
     // A second line ending in a truncated multibyte sequence (first byte of a
     // two-byte UTF-8 character).
     const truncated = Buffer.concat([
-      Buffer.from('{"id":"D2","ts":"2026-07-10T00:00:01Z","kind":"pending","text":"cut ', 'utf-8'),
+      Buffer.from(`{"id":"${ID_B}","ts":"2026-07-10T00:00:01Z","kind":"pending","text":"cut `, 'utf-8'),
       Buffer.from([0xc3]),
     ]);
-    fs.writeFileSync(ledgerPath, Buffer.concat([head, Buffer.from([0xff]), tail, truncated]));
+    fs.writeFileSync(ledgerFilePath(projectRoot), Buffer.concat([head, Buffer.from([0xff]), tail, truncated]));
 
     const list = makeIo(projectRoot);
     expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'list', '--json'], list.io)).toBe(0);
@@ -916,9 +1078,8 @@ describe('decision ledger', () => {
     expect(parsed.records).toHaveLength(0);
 
     // Both quarantined ids stay reserved.
-    const record = makeIo(projectRoot);
-    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'clean text'], record.io)).toBe(0);
-    expect(record.stdout.join('')).toContain('recorded: D3');
+    expect(readDecisionsLedger(projectRoot).reserved_ids).toEqual([ID_A, ID_B]);
+    await recordDecision(projectRoot, 'record', 'clean text');
   });
 
   it('creates no state when the fresh-init audit event cannot be written', async () => {
@@ -945,30 +1106,22 @@ describe('decision ledger', () => {
     expect(initialized?.details).toMatchObject({ execution_mode: 'file' });
   });
 
-  it('rejects non-canonical ids and malformed resolves fields as invalid lines', async () => {
+  it('rejects malformed resolves fields as invalid lines', async () => {
     const projectRoot = makeTempProjectRoot();
     await initRuntimeOnly(projectRoot);
-    const ledgerPath = path.join(projectRoot, '.nullius', 'decisions.jsonl');
-    const lines = [
-      // Leading-zero id: not canonical, cannot alias D1.
-      { id: 'D01', ts: '2026-07-10T00:00:00Z', kind: 'pending', text: 'leading zero id', by: 'user', resolves: null },
+    writeLedger(projectRoot, [
       // Pending entries must not carry resolves.
-      { id: 'D1', ts: '2026-07-10T00:00:01Z', kind: 'pending', text: 'pending with resolves', by: 'user', resolves: 'D2' },
+      { id: ID_A, ts: '2026-07-10T00:00:01Z', kind: 'pending', text: 'pending with resolves', by: 'user', resolves: ID_B },
       // Malformed resolves value on a decided entry.
-      { id: 'D2', ts: '2026-07-10T00:00:02Z', kind: 'decided', text: 'bad resolves', by: 'user', resolves: 'not-an-id' },
-    ];
-    fs.writeFileSync(ledgerPath, lines.map(line => JSON.stringify(line)).join('\n') + '\n', 'utf-8');
+      { id: ID_B, ts: '2026-07-10T00:00:02Z', kind: 'decided', text: 'bad resolves', by: 'user', resolves: 'not-an-id' },
+    ]);
 
     const list = makeIo(projectRoot);
     expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'list', '--json'], list.io)).toBe(0);
     const parsed = JSON.parse(list.stdout.join('')) as { invalid_lines: number; records: unknown[] };
-    expect(parsed.invalid_lines).toBe(3);
+    expect(parsed.invalid_lines).toBe(2);
     expect(parsed.records).toHaveLength(0);
-
-    // D1 and D2 were reserved by the quarantined lines; D01 was not an id.
-    const record = makeIo(projectRoot);
-    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'continues after the quarantine'], record.io)).toBe(0);
-    expect(record.stdout.join('')).toContain('recorded: D3');
+    expect(readDecisionsLedger(projectRoot).reserved_ids).toEqual([ID_A, ID_B]);
   });
 
   it('keeps the declared mode unchanged when the audit event cannot be written', async () => {
@@ -995,7 +1148,7 @@ describe('decision ledger', () => {
   it('lists the invalid-line count even when no valid record exists', async () => {
     const projectRoot = makeTempProjectRoot();
     await initRuntimeOnly(projectRoot);
-    fs.writeFileSync(path.join(projectRoot, '.nullius', 'decisions.jsonl'), 'garbage\n', 'utf-8');
+    fs.writeFileSync(ledgerFilePath(projectRoot), 'garbage\n', 'utf-8');
 
     const list = makeIo(projectRoot);
     expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'list'], list.io)).toBe(0);
@@ -1004,18 +1157,32 @@ describe('decision ledger', () => {
     expect(text).toContain('invalid_lines: 1');
   });
 
+  it('reports duplicate ids even when no valid record survives', async () => {
+    const projectRoot = makeTempProjectRoot();
+    await initRuntimeOnly(projectRoot);
+    // Two quarantined lines wearing one id: the read model is empty, so the
+    // collision would vanish entirely if only the records were reported.
+    fs.writeFileSync(ledgerFilePath(projectRoot), `{"id":"${ID_A}","ts":\n{"id":"${ID_A}","ts":\n`, 'utf-8');
+
+    const list = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'list'], list.io)).toBe(1);
+    const text = list.stdout.join('');
+    expect(text).toContain('no decisions recorded');
+    expect(text).toContain(`- ${ID_A} on lines 1, 2`);
+  });
+
   it('surfaces the semantic error before touching a read-only unterminated ledger', async () => {
     const projectRoot = makeTempProjectRoot();
     await initRuntimeOnly(projectRoot);
-    const ledgerPath = path.join(projectRoot, '.nullius', 'decisions.jsonl');
-    const manual = { id: 'D1', ts: '2026-07-10T00:00:00Z', kind: 'decided', text: 'a decided entry', by: 'user', resolves: null };
+    const ledgerPath = ledgerFilePath(projectRoot);
+    const manual = { id: ID_A, ts: '2026-07-10T00:00:00Z', kind: 'decided', text: 'a decided entry', by: 'user', resolves: null };
     fs.writeFileSync(ledgerPath, JSON.stringify(manual), 'utf-8'); // no trailing LF
     fs.chmodSync(ledgerPath, 0o444);
     try {
       // Validation runs before any byte is written: the resolve error wins,
       // not EACCES, and the unterminated tail stays byte-identical.
       await expect(
-        runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'x', '--resolves', 'D1'], makeIo(projectRoot).io),
+        runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'x', '--resolves', ID_A], makeIo(projectRoot).io),
       ).rejects.toThrow('points at a decided entry');
       expect(fs.readFileSync(ledgerPath, 'utf-8')).toBe(JSON.stringify(manual));
     } finally {
@@ -1026,7 +1193,7 @@ describe('decision ledger', () => {
   it('renders a genuinely empty ledger and a ledger read error in the text status', async () => {
     const emptyRoot = makeTempProjectRoot();
     await initRuntimeOnly(emptyRoot);
-    fs.writeFileSync(path.join(emptyRoot, '.nullius', 'decisions.jsonl'), '', 'utf-8');
+    fs.writeFileSync(ledgerFilePath(emptyRoot), '', 'utf-8');
     const empty = makeIo(emptyRoot);
     expect(await runCli([`--project-root=${emptyRoot}`, 'status'], empty.io)).toBe(0);
     expect(empty.stdout.join('')).toContain('decisions: 0 decided, 0 open');
@@ -1034,7 +1201,7 @@ describe('decision ledger', () => {
     const errorRoot = makeTempProjectRoot();
     await initRuntimeOnly(errorRoot);
     // A directory at the ledger path makes the read model fail structurally.
-    fs.mkdirSync(path.join(errorRoot, '.nullius', 'decisions.jsonl'));
+    fs.mkdirSync(ledgerFilePath(errorRoot));
     const broken = makeIo(errorRoot);
     expect(await runCli([`--project-root=${errorRoot}`, 'status'], broken.io)).toBe(0);
     expect(broken.stdout.join('')).toContain('decision_ledger_error');
@@ -1075,11 +1242,11 @@ describe('decision ledger', () => {
   it('rejects resolving the same pending entry twice', async () => {
     const projectRoot = makeTempProjectRoot();
     await initRuntimeOnly(projectRoot);
-    await runCli([`--project-root=${projectRoot}`, 'decision', 'pending', 'A question with one answer'], makeIo(projectRoot).io);
-    expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'First answer', '--resolves', 'D1'], makeIo(projectRoot).io)).toBe(0);
+    const question = await recordDecision(projectRoot, 'pending', 'A question with one answer');
+    await recordDecision(projectRoot, 'record', 'First answer', ['--resolves', question]);
 
     await expect(
-      runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'Second answer', '--resolves', 'D1'], makeIo(projectRoot).io),
+      runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'Second answer', '--resolves', question], makeIo(projectRoot).io),
     ).rejects.toThrow('already resolved');
   });
 
@@ -1111,7 +1278,7 @@ describe('decision ledger', () => {
     try {
       const { io, stdout, stderr } = makeIo(projectRoot);
       expect(await runCli([`--project-root=${projectRoot}`, 'decision', 'record', 'Recorded despite mirror failure'], io)).toBe(0);
-      expect(stdout.join('')).toContain('recorded: D1');
+      mintedId(stdout.join(''), 'recorded');
       expect(stderr.join('')).toContain('ledger.jsonl mirror event failed');
       expect(readDecisionLines(projectRoot)).toHaveLength(1);
     } finally {
@@ -1119,25 +1286,29 @@ describe('decision ledger', () => {
     }
   });
 
-  it('lists actions in the decision command help', () => {
+  it('lists actions and the id contract in the decision command help', () => {
     const help = renderHelp('decision');
     expect(help).toContain('record "<what was decided>"');
     expect(help).toContain('pending "<open question>"');
     expect(help).toContain('list [--json]');
     expect(help).toContain('list reads permissively');
+    // The superseded counter must not be advertised anywhere.
+    expect(help).not.toContain('ids D1, D2');
+    expect(help).toContain('unique without coordination');
+    expect(help).toContain('list exits non-zero and names the lines when the ledger carries a duplicate id');
   });
 
   it('renders mode and open decisions in the human status text', async () => {
     const projectRoot = makeTempProjectRoot();
     await initRuntimeOnly(projectRoot, ['--mode=file']);
-    await runCli([`--project-root=${projectRoot}`, 'decision', 'pending', 'Adopt the refit or keep the published couplings?'], makeIo(projectRoot).io);
+    const question = await recordDecision(projectRoot, 'pending', 'Adopt the refit or keep the published couplings?');
 
     const { io, stdout } = makeIo(projectRoot);
     expect(await runCli([`--project-root=${projectRoot}`, 'status'], io)).toBe(0);
     const text = stdout.join('');
     expect(text).toContain('execution_mode: file');
     expect(text).toContain('decisions: 0 decided, 1 open');
-    expect(text).toContain('[open] D1');
+    expect(text).toContain(`[open] ${question}`);
   });
 });
 
