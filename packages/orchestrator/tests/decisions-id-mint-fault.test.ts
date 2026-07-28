@@ -97,14 +97,29 @@ describe('decision id minting under a constant random source', () => {
       fs.mkdtempSync(path.join(os.tmpdir(), 'nullius-mint-branch-')),
       fs.mkdtempSync(path.join(os.tmpdir(), 'nullius-mint-branch-')),
     ];
-    const clock = vi.spyOn(Date, 'now').mockReturnValue(0);
+    const clock = vi.spyOn(Date, 'now');
     try {
       for (const root of roots) {
         expect(await runCli([`--project-root=${root}`, 'init', '--runtime-only'], makeIo(root).io)).toBe(0);
+      }
+      clock.mockReturnValue(0);
+      for (const root of roots) {
         const record = makeIo(root);
         expect(await runCli([`--project-root=${root}`, 'decision', 'pending', `question raised in ${path.basename(root)}`], record.io)).toBe(0);
         expect(record.stdout.join('')).toContain(`pending: ${EPOCH_ID}`);
       }
+      // One branch resolves its local copy before the other branch's colliding
+      // pending line is merged after it. A one-pass replay used to accept this
+      // resolution before discovering the later duplicate.
+      clock.mockReturnValue(1);
+      const answer = makeIo(roots[0]!);
+      expect(
+        await runCli(
+          [`--project-root=${roots[0]}`, 'decision', 'record', 'answer recorded on branch one', '--resolves', EPOCH_ID],
+          answer.io,
+        ),
+      ).toBe(0);
+      expect(answer.stdout.join('')).toContain(`resolved: ${EPOCH_ID}`);
     } finally {
       clock.mockRestore();
     }
@@ -119,8 +134,24 @@ describe('decision id minting under a constant random source', () => {
     fs.writeFileSync(path.join(mergedRoot, '.nullius', 'decisions.jsonl'), merged, 'utf-8');
 
     const list = makeIo(mergedRoot);
-    expect(await runCli([`--project-root=${mergedRoot}`, 'decision', 'list'], list.io)).toBe(1);
-    expect(list.stdout.join('')).toContain(`- "${EPOCH_ID}" on lines 1, 2`);
+    expect(await runCli([`--project-root=${mergedRoot}`, 'decision', 'list', '--json'], list.io)).toBe(1);
+    const parsed = JSON.parse(list.stdout.join('')) as {
+      duplicate_ids: Array<{ id: string; lines: number[] }>;
+      invalid_lines: number;
+      open_ids: string[];
+      records: Array<{ id: string; kind: string }>;
+    };
+    expect(parsed.duplicate_ids).toEqual([{ id: EPOCH_ID, lines: [1, 3] }]);
+    expect(parsed.invalid_lines).toBe(2);
+    expect(parsed.open_ids).toEqual([EPOCH_ID]);
+    expect(parsed.records).toEqual([
+      expect.objectContaining({ id: EPOCH_ID, kind: 'pending' }),
+    ]);
+
+    const status = makeIo(mergedRoot);
+    expect(await runCli([`--project-root=${mergedRoot}`, 'status', '--json'], status.io)).toBe(0);
+    expect((JSON.parse(status.stdout.join('')) as { decision_ledger: Record<string, unknown> }).decision_ledger)
+      .toMatchObject({ open_count: 1, decided_count: 0, invalid_lines: 2, duplicate_id_count: 1 });
     await expect(
       runCli([`--project-root=${mergedRoot}`, 'decision', 'record', 'an answer', '--resolves', EPOCH_ID], makeIo(mergedRoot).io),
     ).rejects.toThrow('is ambiguous');

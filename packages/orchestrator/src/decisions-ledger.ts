@@ -30,14 +30,14 @@ import { utcNowIso } from './util.js';
  *  present in a ledger, and entries still numbered by the old counter, are
  *  reported by readDecisionsLedger rather than tolerated.
  *
- *  Recording never gates anything: open decisions surface in the status
- *  receipt as information, not as a blocking state. */
+ *  Open decisions do not gate the run/approve lifecycle: they surface in the
+ *  status receipt as information, not as a blocking state. */
 
 export type DecisionKind = 'decided' | 'pending';
 
 export type DecisionRecord = {
-  /** ULID minted at recording time; never reused, never derived from the
-   *  file's contents. */
+  /** ULID minted at recording time, not derived from the file's contents; a
+   *  collision visible in the current ledger is redrawn or refused. */
   id: string;
   /** UTC ISO timestamp. */
   ts: string;
@@ -76,10 +76,10 @@ export type DecisionsLedgerSnapshot = {
   exists: boolean;
   records: DecisionRecord[];
   /** Lines quarantined instead of entering the read model: unparseable JSON,
-   *  missing/unsafe fields, an id already seen (ambiguous resolution target),
-   *  or a decided entry whose `resolves` does not reference an EARLIER, still
-   *  OPEN pending entry (forward or replayed resolutions would silently close
-   *  a later, unrelated question). */
+   *  missing/unsafe fields, an id already seen (ambiguous identity), or a
+   *  decided entry whose `resolves` names a duplicated id or does not reference
+   *  an EARLIER, still OPEN pending entry (ambiguous, forward, or replayed
+   *  resolutions could silently close the wrong question). */
   invalid_lines: number;
   /** Ids the file carries on more than one line, whatever their form. A ledger
    *  written by the superseded local counter can hold two entries named D38
@@ -89,8 +89,8 @@ export type DecisionsLedgerSnapshot = {
    *  wrong, so the collision is REPORTED — `decision list` fails on it, the
    *  status receipt carries it, and `--resolves` refuses the ambiguous id —
    *  until the duplicates are reissued by hand. Detection is deliberately
-   *  form-agnostic: the ledgers that carry collisions are exactly the ones
-   *  whose ids are not ULIDs. */
+   *  form-agnostic: old counter collisions were systematic, while independently
+   *  minted ULIDs can still collide with nonzero probability. */
   duplicate_ids: DuplicateDecisionId[];
   /** Lines still numbered by the superseded counter. Those ids are no longer a
    *  form this ledger issues, so their lines are quarantined and their entries
@@ -102,9 +102,9 @@ export type DecisionsLedgerSnapshot = {
    *  generic count would reproduce, on the migration path, exactly the silence
    *  that makes a merged collision dangerous. */
   superseded_ids: SupersededDecisionId[];
-  /** Every id the file's bytes carry — including ids salvaged from
-   *  quarantined lines — so a freshly minted id can be checked against them
-   *  and no id that exists in the file in any form is ever issued again. */
+  /** Every id attributable to a line's valid prefix — including ids salvaged
+   *  from quarantined lines — so a freshly minted id can be checked against the
+   *  current ledger and any visible collision is redrawn or refused. */
   reserved_ids: string[];
 };
 
@@ -133,9 +133,9 @@ const MAX_RECORDABLE_MS = Date.UTC(9999, 11, 31, 23, 59, 59, 999);
 // make `decision list` fail closed on a diagnosis that is not true. They stay
 // in the generic invalid-line count with every other unrecognized id.
 const SUPERSEDED_COUNTER_ID_PATTERN = /^D([1-9]\d*)$/;
-// Redraws when a minted id already exists in the file. Reaching the bound is
-// not a collision anyone will observe (80 random bits within one millisecond);
-// it means the randomness source is returning a constant, which must fail
+// Redraws when a minted id already exists in the file. Eight redraws make
+// accidental exhaustion negligible under a healthy random source; reaching
+// the bound strongly indicates failed or compromised randomness and must fail
 // loudly rather than mint a duplicate.
 const DECISION_ID_MINT_ATTEMPTS = 8;
 
@@ -234,10 +234,11 @@ function encodeDecisionIdRandom(): string {
  *  both the millisecond AND all 80 random bits coincide, which is a
  *  probabilistic guarantee, not an impossibility proof: this removes the
  *  collision that the previous local counter produced SYSTEMATICALLY (every
- *  pair of branches, every time) and leaves a residue no one will observe. The
- *  residue is not left unattended either — a ledger that does end up carrying
- *  one id twice is reported by readDecisionsLedger and refused by `--resolves`
- *  rather than silently resolved.
+ *  pair of branches, every time) and leaves only the explicitly modeled
+ *  probabilistic residue. That residue is not left unattended either — a
+ *  ledger that does end up carrying one id twice is reported by
+ *  readDecisionsLedger and refused by `--resolves` rather than silently
+ *  resolved.
  *
  *  The ULID spec's monotonic variant (increment the previous id's random field
  *  within the same millisecond) is deliberately not used: deriving an id from
@@ -278,15 +279,20 @@ function utcIsoAt(epochMs: number): string {
 
 type ParsedDecisionLine = {
   /** Every id the line's bytes visibly carry — parsed or salvaged, canonical
-   *  or not — all reserved regardless of record admission, so no id that
-   *  exists in the file in any form is ever reissued, and all counted for
-   *  duplicate reporting. */
+   *  or not — all attributable to the valid prefix and reserved regardless of
+   *  record admission, so visible collisions are redrawn or refused and all
+   *  occurrences are counted for duplicate reporting. */
   ids: string[];
   /** Top-level `resolves` values the line carries — references, never
    *  identities: not reserved, not counted as id occurrences, collected only
    *  so one still naming a superseded number can be reported. */
   resolvesValues: string[];
   record: DecisionRecord | null;
+};
+
+type ParsedLedgerPhysicalLine = ParsedDecisionLine & {
+  /** 1-based physical line number in the persisted JSONL file. */
+  lineNumber: number;
 };
 
 const JSON_WHITESPACE = new Set([' ', '\t', '\r', '\n']);
@@ -580,12 +586,12 @@ export function readDecisionsLedger(projectRoot: string): DecisionsLedgerSnapsho
     };
   }
   const records: DecisionRecord[] = [];
-  /** Every id the file carries, mapped to the lines carrying it: the
-   *  reservation set and the duplicate report are the same observation. */
+  /** Every id attributable to a line's valid prefix, mapped to the lines
+   *  carrying it: the reservation set and duplicate report share one
+   *  observation. */
   const idLines = new Map<string, number[]>();
   const supersededIds: SupersededDecisionId[] = [];
-  const openIds = new Set<string>();
-  let invalidLines = 0;
+  const parsedLines: ParsedLedgerPhysicalLine[] = [];
   // Byte-level split; each line is decoded with fatal UTF-8 so invalid bytes
   // quarantine the line instead of being silently replaced with U+FFFD.
   const rawLines = fs.readFileSync(filePath).toString('binary').split('\n');
@@ -600,10 +606,10 @@ export function readDecisionsLedger(projectRoot: string): DecisionsLedgerSnapsho
     const { ids, resolvesValues, record } = decoded.text !== null
       ? parseDecisionLine(decoded.text)
       : { ...scanTopLevelFields(decoded.validPrefix), record: null };
-    // Reserve every id the line's bytes carry — quarantined or not — so no id
-    // that exists in the file in any form is ever minted again, and record
-    // where it occurs so repeats are reportable.
-    const alreadyReserved = record !== null && idLines.has(record.id);
+    parsedLines.push({ lineNumber, ids, resolvesValues, record });
+    // Reserve every id attributable to the line's valid prefix, quarantined or
+    // not, and record where it occurs so repeats are reportable and a current-
+    // ledger collision can be redrawn or refused.
     for (const id of ids) {
       const lines = idLines.get(id);
       if (lines) lines.push(lineNumber);
@@ -619,10 +625,36 @@ export function readDecisionsLedger(projectRoot: string): DecisionsLedgerSnapsho
     for (const value of resolvesValues) {
       if (isSupersededCounterId(value)) supersededIds.push({ id: value, line: lineNumber, field: 'resolves' });
     }
-    if (!record || alreadyReserved) {
+  }
+
+  const duplicateIds: DuplicateDecisionId[] = [];
+  for (const [id, lines] of idLines) {
+    if (lines.length > 1) duplicateIds.push({ id, lines });
+  }
+  const duplicatedIdSet = new Set(duplicateIds.map(entry => entry.id));
+
+  // Semantic replay is deliberately a second pass. A resolution can precede a
+  // later duplicate after two append-only branch tails are merged, so the full
+  // physical file must establish ambiguous ids before any resolution is
+  // allowed to change the open set.
+  const openIds = new Set<string>();
+  let invalidLines = 0;
+  for (const { lineNumber, record } of parsedLines) {
+    if (!record || idLines.get(record.id)?.[0] !== lineNumber) {
       // Undecodable or malformed line, ambiguous identity, or a repeated id
       // (which would make `--resolves <id>` ambiguous): the first occurrence
       // stays authoritative, later ones are quarantined.
+      invalidLines += 1;
+      continue;
+    }
+    if (
+      record.kind === 'decided'
+      && record.resolves !== null
+      && duplicatedIdSet.has(record.resolves)
+    ) {
+      // A duplicated target is ambiguous across the whole persisted file,
+      // regardless of whether its later occurrence appears before or after
+      // this resolution in line order.
       invalidLines += 1;
       continue;
     }
@@ -641,10 +673,6 @@ export function readDecisionsLedger(projectRoot: string): DecisionsLedgerSnapsho
     }
     records.push(record);
   }
-  const duplicateIds: DuplicateDecisionId[] = [];
-  for (const [id, lines] of idLines) {
-    if (lines.length > 1) duplicateIds.push({ id, lines });
-  }
   return {
     path: displayPath,
     exists: true,
@@ -657,8 +685,9 @@ export function readDecisionsLedger(projectRoot: string): DecisionsLedgerSnapsho
 }
 
 /** Pending entries not closed by any later decided entry. Oldest first.
- *  (readDecisionsLedger quarantines forward/replayed resolutions, so on a
- *  snapshot's records the global set below equals sequential processing.) */
+ *  (readDecisionsLedger quarantines ambiguous, forward, and replayed
+ *  resolutions, so on a snapshot's records the global set below equals
+ *  sequential processing.) */
 export function openDecisions(records: DecisionRecord[]): DecisionRecord[] {
   const resolved = new Set(
     records

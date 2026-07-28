@@ -136,9 +136,9 @@ Behavior:
   from the superseded D<n> counter — an entry still numbered by it, or a resolution still
   pointing at one. Those entries are not readable as decisions: they stay out of the
   listing and the open count until each entry is reissued and each resolution repointed.
-  The status receipt reports both without gating anything.
-  Works in both execution modes and never gates any command: it replaces hand-built
-  decision ledgers, giving file-mode projects an engine-visible record of conversational
+  The status receipt is diagnostic and does not gate the run/approve lifecycle.
+  Works in both execution modes: it replaces hand-built decision ledgers, giving
+  file-mode projects an engine-visible record of conversational
   approvals. Open entries surface in the status receipt until a later
   \`decision record --resolves <id>\` closes them (all counted; the oldest ten itemized,
   the remainder via \`decision list\`).
