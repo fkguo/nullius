@@ -684,7 +684,7 @@ describe('decision ledger', () => {
     expect(await runCli([`--project-root=${projectRoot}`, 'status'], statusText.io)).toBe(0);
     const receipt = statusText.stdout.join('');
     expect(receipt).toContain('decisions_invalid_lines: 3');
-    expect(receipt).toContain('decisions_superseded_ids: 4 (numbers from the retired D<n> counter in .nullius/decisions.jsonl; inside decisions_invalid_lines above, absent from the decided/open counts — reissue them)');
+    expect(receipt).toContain('decisions_superseded_ids: 4 (numbers from the retired D<n> counter in .nullius/decisions.jsonl; on lines already inside decisions_invalid_lines above, absent from the decided/open counts — reissue each entry, repoint each resolution)');
     expect(receipt).toContain('- "D1" on line 1');
     expect(receipt).toContain('- "D1" on line 3 (resolves)');
     expect(receipt).not.toContain('not counted above');
@@ -747,6 +747,19 @@ describe('decision ledger', () => {
     const ledger = (await statusJson(projectRoot)).decision_ledger as Record<string, unknown>;
     expect(ledger.superseded_id_count).toBe(1);
     expect(ledger.superseded_ids).toEqual([{ id: 'D1', line: 2, field: 'resolves' }]);
+
+    // In THIS state the repair is repointing, not reissuing: the entry D1 named
+    // was already reissued, which is why only the resolution still carries the
+    // old number. A receipt saying "reissue them" prescribes something already
+    // done, and following it leaves the line quarantined and the question open.
+    // Every operator surface must therefore carry both halves.
+    const statusText = makeIo(projectRoot);
+    expect(await runCli([`--project-root=${projectRoot}`, 'status'], statusText.io)).toBe(0);
+    const receipt = statusText.stdout.join('');
+    expect(receipt).toContain('reissue each entry, repoint each resolution');
+    expect(receipt).not.toMatch(/— reissue them\)/);
+    expect(list.stdout.join('')).toContain('repoint any resolves naming the old one');
+    expect(renderHelp('decision')).toContain('until the entry is reissued and any resolution naming it is');
   }, 20000);
 
   it('stays quiet about superseded ids on a healthy ledger', async () => {
@@ -1477,7 +1490,7 @@ describe('decision ledger', () => {
     // Both halves of the migration must be advertised: an entry's own number
     // and a resolution still pointing at one.
     expect(help).toContain('from the superseded D<n> counter — an entry still numbered by it, or a resolution still');
-    expect(help).toContain('listing or the open count until they are reissued');
+    expect(help).toContain('until the entry is reissued and any resolution naming it is');
     // The guarantee is probabilistic and must be stated WITH the condition
     // that bounds it. An absolute "cannot collide" is a false guarantee, and
     // so is a practical one ("no one will observe") — both would let a reader

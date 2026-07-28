@@ -228,14 +228,24 @@ function writeStatusText(io: CliIo, payload: Record<string, unknown>, statusProj
         }
       }
       if (supersededIdCount > 0) {
-        // State the relationship to the counts above EXACTLY: these lines are
-        // inside decisions_invalid_lines, and absent from the decided/open
-        // counts. An unqualified "not counted above" reads as six problem lines
-        // where there are three — a receipt saying something the code does not
-        // do, which is the defect this whole change is about.
+        // State the relationship to the counts above EXACTLY, units included.
+        // This count is of OCCURRENCES (an entry's own number, and a
+        // resolution naming one, are two), while decisions_invalid_lines
+        // counts LINES — one line can carry both, so the two numbers need not
+        // match and "inside" has to say what is inside what. An unqualified
+        // "not counted above" read as six problem lines where there were
+        // three; an unqualified "inside" reads as 4 contained in 3. A receipt
+        // an operator cannot reconcile is the defect this change is about.
+        // The repair is TWO instructions, not one: an entry carrying an old
+        // number is reissued, a resolution naming one is repointed. Telling a
+        // mid-migration operator to "reissue them" prescribes something
+        // already done — the target was reissued, which is why only the
+        // resolution still names the old number — and following it leaves the
+        // line quarantined and the question open.
         io.stdout(
           `  decisions_superseded_ids: ${supersededIdCount} (numbers from the retired D<n> counter in `
-          + `${String(ledger.path ?? 'the decisions ledger')}; inside decisions_invalid_lines above, absent from the decided/open counts — reissue them)\n`,
+          + `${String(ledger.path ?? 'the decisions ledger')}; on lines already inside decisions_invalid_lines above, `
+          + 'absent from the decided/open counts — reissue each entry, repoint each resolution)\n',
         );
         const superseded = Array.isArray(ledger.superseded_ids) ? ledger.superseded_ids : [];
         for (const rawEntry of superseded) {
