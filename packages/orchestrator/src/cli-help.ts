@@ -106,9 +106,9 @@ Behavior:
   Writes local decision memory into \`.nullius/proposal_decisions_v1.json\`.
   Does not mutate the proposal artifact itself.
 `,
-  decision: `nullius decision <record|pending|list>
+  decision: `nullius decision <record|pending|list|land>
 
-Record human decisions made in conversation into an append-only project ledger.
+Record human decisions made in conversation into a project ledger.
 
 Actions:
   record "<what was decided>" [--by <who>] [--resolves <id>]
@@ -116,26 +116,43 @@ Actions:
   pending "<open question>" [--by <who>]
                          Append an open item that still needs a decision.
   list [--json]          Print the ledger with open items partitioned out.
+  land [--json]          On the authoritative trunk, assign durable D<n> ids,
+                         canonicalize retained handle references, and print mappings.
 
 Behavior:
-  record and pending require an initialized external project root (\`nullius init\`);
+  record, pending, and land require an initialized external project root (\`nullius init\`);
   list reads permissively and reports "no decisions recorded" on an uninitialized root.
-  Appends one JSON line per event to \`.nullius/decisions.jsonl\`; never rewrites, and takes
-  a short cross-process lock so a resolution and its append stay one step.
-  Each entry gets a ULID (a millisecond timestamp then 80 random bits, Crockford base32),
-  chosen without coordination: two branches recording into their own copy of the tracked
-  ledger collide only if the same millisecond AND all 80 random bits coincide, where a
-  counter derived from the local file gave every such pair the same id every time. The
-  guarantee is probabilistic, not structural, which is why a ledger that does carry one
-  id twice is reported below rather than resolved silently.
-  Ids sort lexicographically by recording millisecond.
-  Two ids minted inside one millisecond are unordered.
+  record and pending append one JSON line to \`.nullius/decisions.jsonl\` under a short
+  cross-process lock. Each new entry gets a six-character random Crockford-base32 handle.
+  Its raw draw has 30 unbiased bits (32^6 = 2^30 ≈ 1.07 billion), chosen without
+  coordination as a branch-local, machine-facing identity, never a durable prose citation.
+  Candidates spelling durable D<n> ids, current ids, or retained mappings are redrawn, so
+  exact pair-collision probability depends on the local exclusions. With none it is
+  1/(2^30 - 90,000) ≈ 9.314e-10, slightly above 1/2^30: probabilistic, not structural,
+  and merged collisions fail closed below. The timestamp stays in \`ts\`, not the handle.
+  Existing D<n> ledgers remain valid with zero migration: their entries stay readable,
+  counted in status, and resolvable by the ids already cited elsewhere.
+  land is the sole rewrite: after branch tails are integrated on the authoritative trunk,
+  it assigns the next D<n> values in trunk file order, rewrites resolutions that name
+  provisional ids, retains each old identity as \`provisional_id\`, self-validates the
+  complete result, and commits it with one durable atomic replacement. It also cleans up
+  late handle-valued resolutions through retained mappings; re-running it on an already
+  canonical ledger is a no-op. ULIDs emitted by the immediately preceding release are
+  accepted as provisional ids and land the same way.
+  A non-no-op land refuses a ledger with no write permission bit. A last-moment source
+  check catches edits made while the replacement is prepared, but POSIX has no portable
+  compare-and-swap rename, so a non-cooperating writer can still race that final check.
+  If replacement succeeds but parent-directory durability cannot be confirmed, land
+  reports the commit status as uncertain: inspect with \`decision list\` using the same
+  project root, then rerun land there. A canonical no-op retry fsyncs the parent directory,
+  confirming the visible entry instead of merely observing it.
   --resolves only accepts a currently OPEN pending entry (unknown, decided, and
   already-resolved targets are rejected), and refuses an id the file carries twice.
-  list exits non-zero and names the lines when the ledger carries an id twice, or numbers
-  from the superseded D<n> counter — an entry still numbered by it, or a resolution still
-  pointing at one. Those entries are not readable as decisions: they stay out of the
-  listing and the open count until each entry is reissued and each resolution repointed.
+  Duplicate detection is form-agnostic: list exits non-zero and names the lines when the
+  ledger carries an id twice, or when one retained provisional id maps to more than one
+  entry (including reuse as a current id). --resolves refuses an ambiguous target, and
+  land changes no bytes until the ambiguity is repaired. Provisional entries are valid
+  and remain in every status count.
   The status receipt is diagnostic and does not gate the run/approve lifecycle.
   Works in both execution modes: it replaces hand-built decision ledgers, giving
   file-mode projects an engine-visible record of conversational

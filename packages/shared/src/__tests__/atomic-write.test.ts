@@ -1,5 +1,5 @@
 /**
- * Sequence-locking tests for the six durable atomic-write primitives (P1).
+ * Sequence-locking tests for the seven durable atomic-write primitives (P1).
  *
  * The point of these tests is NOT just to check "did it write the file" —
  * that's covered by end-to-end tests at the bottom. The point IS to lock
@@ -24,6 +24,9 @@
  *
  *   commitStagedDurable:
  *     rename (staged → final) → open (dirname, 'r') → fsync (dirFd) → close (dirFd)
+ *
+ *   fsyncParentDirectoryDurable:
+ *     open (dirname, 'r') → fsync (dirFd) → close (dirFd)
  */
 import * as fs from 'node:fs';
 import * as os from 'node:os';
@@ -34,6 +37,7 @@ import {
   appendBytesDurable,
   appendJsonlDurable,
   commitStagedDurable,
+  fsyncParentDirectoryDurable,
   type AtomicWriteAuditEvent,
   writeBytesAtomicDurable,
   writeExecutableAtomicDurable,
@@ -49,6 +53,33 @@ function setupRecorder(): { log: AtomicWriteAuditEvent[]; restore: () => void } 
 function kinds(log: AtomicWriteAuditEvent[]): string[] {
   return log.map(e => e.kind);
 }
+
+describe('fsyncParentDirectoryDurable — recovery confirmation', () => {
+  let tmp: string;
+  let rec: { log: AtomicWriteAuditEvent[]; restore: () => void };
+
+  beforeEach(() => {
+    tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'p1-seq-dir-confirm-'));
+    rec = setupRecorder();
+  });
+  afterEach(() => {
+    rec.restore();
+    try { fs.rmSync(tmp, { recursive: true, force: true }); } catch { /* best-effort */ }
+  });
+
+  it('opens, fsyncs, and closes the parent directory without rewriting the target', () => {
+    const file = path.join(tmp, 'state.json');
+    fs.writeFileSync(file, 'already committed', 'utf-8');
+
+    fsyncParentDirectoryDurable(file);
+
+    expect(fs.readFileSync(file, 'utf-8')).toBe('already committed');
+    expect(kinds(rec.log)).toEqual(['open', 'fsync', 'close']);
+    const open = rec.log[0] as Extract<AtomicWriteAuditEvent, { kind: 'open' }>;
+    expect(open.path).toBe(tmp);
+    expect(open.flags).toBe('r');
+  });
+});
 
 describe('writeBytesAtomicDurable — sequence lock', () => {
   let tmp: string;
@@ -102,6 +133,20 @@ describe('writeBytesAtomicDurable — sequence lock', () => {
     const opens = rec.log.filter((e): e is Extract<AtomicWriteAuditEvent, { kind: 'open' }> => e.kind === 'open');
     expect(opens[0].flags).toBe('w');  // tmp file
     expect(opens[1].flags).toBe('r');  // dir fsync
+  });
+
+  it('runs a commit guard after staging closes and removes the tmp file when it refuses', () => {
+    const file = path.join(tmp, 'guarded.json');
+    fs.writeFileSync(file, 'original', 'utf-8');
+
+    expect(() => writeBytesAtomicDurable(file, 'replacement', undefined, () => {
+      expect(kinds(rec.log)).toEqual(['mkdir', 'open', 'write', 'fsync', 'close']);
+      throw new Error('optimistic snapshot changed');
+    })).toThrow('optimistic snapshot changed');
+
+    expect(fs.readFileSync(file, 'utf-8')).toBe('original');
+    expect(kinds(rec.log)).toEqual(['mkdir', 'open', 'write', 'fsync', 'close']);
+    expect(fs.readdirSync(tmp).filter(name => name.includes('.tmp.'))).toEqual([]);
   });
 });
 

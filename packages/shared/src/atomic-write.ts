@@ -1,7 +1,7 @@
 /**
  * Durable atomic file writes (P1).
  *
- * Provides six primitives that guarantee POSIX-correct durability against
+ * Provides seven primitives that guarantee POSIX-correct durability against
  * crash / power-loss between syscalls — the gold-standard pattern already
  * proven in `packages/orchestrator/src/run-manifest.ts:82-97` (Batch 8 R2
  * fix). Lifted into `@nullius/shared` so every package that writes
@@ -27,7 +27,7 @@
  * intentionally best-effort because the caller has bigger problems if it
  * fires (the throw propagates up).
  *
- * ## Why ALL six primitives?
+ * ## Why ALL seven primitives?
  *
  * - {@link writeBytesAtomicDurable}: the generic byte / string write. Used
  *   for binary artifacts, executable scripts, text rollback restores.
@@ -47,6 +47,8 @@
  * - {@link commitStagedDurable}: rename-only commit for callers that have
  *   already written and fsync'd the staged file themselves and only need
  *   the rename to be persisted to the directory entry.
+ * - {@link fsyncParentDirectoryDurable}: explicit directory-entry durability
+ *   confirmation for recovery after a caller observed a post-rename error.
  */
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -110,14 +112,6 @@ function makeTmpPath(filePath: string): string {
  *
  * Opens with `'r'` because directory-fsync only needs read access on
  * Linux/macOS; `'w'` would fail with EISDIR on most systems.
- */
-/**
- * fsync the parent directory of `filePath`. Required after `renameSync`
- * to guarantee the new directory entry survives a crash on POSIX
- * filesystems (ext4/xfs/btrfs/APFS).
- *
- * Opens with `'r'` because directory-fsync only needs read access on
- * Linux/macOS; `'w'` would fail with EISDIR on most systems.
  *
  * **Windows note**: opening a directory + `FlushFileBuffers` is
  * undefined on NTFS and returns ERROR_ACCESS_DENIED. This codebase
@@ -126,7 +120,7 @@ function makeTmpPath(filePath: string): string {
  * platform-dependent. If a Windows port is ever added, gate this on
  * `process.platform`.
  */
-function fsyncParentDir(filePath: string): void {
+export function fsyncParentDirectoryDurable(filePath: string): void {
   const dir = path.dirname(filePath);
   const dirFd = fs.openSync(dir, 'r');
   audit({ kind: 'open', path: dir, flags: 'r', fd: dirFd });
@@ -150,6 +144,13 @@ function fsyncParentDir(filePath: string): void {
  *
  * On error, the tmp file is unlinked best-effort.
  *
+ * `beforeRename`, when supplied, runs after the staged bytes have been
+ * flushed and the temporary fd has closed, at the last userspace point before
+ * the atomic rename. A throwing guard leaves the destination untouched and
+ * removes the staged file best-effort. It is intended for callers that must
+ * revalidate an optimistic read immediately before commit; it cannot turn a
+ * non-cooperating filesystem writer into a portable compare-and-swap.
+ *
  * @example
  * writeBytesAtomicDurable('/p/state.json', Buffer.from(json), 0o600);
  */
@@ -157,6 +158,7 @@ export function writeBytesAtomicDurable(
   filePath: string,
   bytes: Buffer | string,
   mode?: number,
+  beforeRename?: () => void,
 ): void {
   const dir = path.dirname(filePath);
   fs.mkdirSync(dir, { recursive: true });
@@ -197,6 +199,14 @@ export function writeBytesAtomicDurable(
     try { fs.unlinkSync(tmpPath); } catch { /* best-effort */ }
     throw closeErr;
   }
+  if (beforeRename) {
+    try {
+      beforeRename();
+    } catch (guardError) {
+      try { fs.unlinkSync(tmpPath); } catch { /* best-effort */ }
+      throw guardError;
+    }
+  }
   try {
     fs.renameSync(tmpPath, filePath);
     audit({ kind: 'rename', from: tmpPath, to: filePath });
@@ -204,7 +214,7 @@ export function writeBytesAtomicDurable(
     try { fs.unlinkSync(tmpPath); } catch { /* best-effort */ }
     throw err;
   }
-  fsyncParentDir(filePath);
+  fsyncParentDirectoryDurable(filePath);
 }
 
 /**
@@ -288,7 +298,7 @@ export function appendBytesDurable(
   }
   fs.closeSync(fd);
   audit({ kind: 'close', fd });
-  fsyncParentDir(filePath);
+  fsyncParentDirectoryDurable(filePath);
 }
 
 /**
@@ -345,5 +355,5 @@ export function commitStagedDurable(
   }
   fs.renameSync(stagedPath, finalPath);
   audit({ kind: 'rename', from: stagedPath, to: finalPath });
-  fsyncParentDir(finalPath);
+  fsyncParentDirectoryDurable(finalPath);
 }

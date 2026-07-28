@@ -45,7 +45,7 @@ export type ParsedCliArgs =
   | {
     command: 'decision';
     projectRoot: string | null;
-    action: 'record' | 'pending' | 'list';
+    action: 'record' | 'pending' | 'list' | 'land';
     text: string | null;
     by: string | null;
     resolves: string | null;
@@ -366,17 +366,18 @@ function parseProposalDecisionArgs(args: string[]): {
 }
 
 function parseDecisionArgs(args: string[]): {
-  action: 'record' | 'pending' | 'list';
+  action: 'record' | 'pending' | 'list' | 'land';
   text: string | null;
   by: string | null;
   resolves: string | null;
   json: boolean;
 } {
   const rawAction = args[0];
-  if (rawAction !== 'record' && rawAction !== 'pending' && rawAction !== 'list') {
-    throw new Error('decision requires an action: record | pending | list');
+  if (rawAction !== 'record' && rawAction !== 'pending' && rawAction !== 'list' && rawAction !== 'land') {
+    throw new Error('decision requires an action: record | pending | list | land');
   }
   const action = rawAction;
+  const acceptsText = action === 'record' || action === 'pending';
   let text: string | null = null;
   let by: string | null = null;
   let resolves: string | null = null;
@@ -391,14 +392,14 @@ function parseDecisionArgs(args: string[]): {
       continue;
     }
     if (optionsEnded) {
-      if (text === null && action !== 'list') {
+      if (text === null && acceptsText) {
         text = arg;
         continue;
       }
       throw new Error(`unknown decision argument: ${arg}`);
     }
     if (arg === '--by') {
-      if (action === 'list') throw new Error('decision list does not take --by');
+      if (!acceptsText) throw new Error(`decision ${action} does not take --by`);
       by = readOptionValue(args, index, '--by');
       index += 1;
       continue;
@@ -410,11 +411,11 @@ function parseDecisionArgs(args: string[]): {
       continue;
     }
     if (arg === '--json') {
-      if (action !== 'list') throw new Error('--json is only valid with decision list');
+      if (action !== 'list' && action !== 'land') throw new Error('--json is only valid with decision list or decision land');
       json = true;
       continue;
     }
-    if (!arg.startsWith('-') && text === null && action !== 'list') {
+    if (!arg.startsWith('-') && text === null && acceptsText) {
       text = arg;
       continue;
     }

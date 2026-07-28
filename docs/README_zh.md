@@ -9,7 +9,7 @@ Nullius 是一个面向理论研究的 domain-neutral、evidence-first monorepo�
 
 ## 1. Surface Policy
 
-- `nullius` 继续作为已初始化外部 project root 的 stateful CLI front door。lifecycle state、bounded execution、`workflow-plan`、verification、更高结论 gate、主报告结构校验，以及 proposal decisions 都从这里进入。
+- `nullius` 继续作为已初始化外部 project root 的 stateful CLI front door。lifecycle state、bounded execution、`workflow-plan`、verification、更高结论 gate、主报告结构校验、proposal decisions 与 conversational decision ledger 都从这里进入。
 - `orch_*` 继续作为同一 control plane 的 MCP/operator counterpart。它是 control plane 的 host-facing bridge，不是另一个产品身份，也不是对 CLI 的替代。
 - `openalex_*`、`arxiv_*`、`hepdata_*`、`pdg_*`、`zotero_*` 继续作为 bounded atomic MCP operators。它们保持 MCP-first，因为这些 surface 是 schema-driven provider atoms，而不是需要整套 CLI 镜像的 stateful workflow shell。`@nullius/hep-mcp` 同时把这些 provider 工具作为入口纳入自身工具面（复用各 provider 包的 `tooling`），因此在一个 HEP 会话里即可使用文献、数据、参考与 Zotero 能力，无需分别接入各 provider MCP。
 - `idea-mcp` 继续是实验性的 runtime bridge。它不是 root front door，而且当前 MCP surface 也故意比完整 `idea-engine` runtime contract 更窄。idea-engine 的 search/eval runtime 已归档；contracts + store 保留，打分消费外部 belief-graph posterior（pinned tool，当前 pin gaia-lang==0.5.0a4），idea-engine 仍不是默认 capability expansion lane。
@@ -208,11 +208,13 @@ Declare (or re-declare) where project truth lives with: nullius init --mode=engi
 Record decisions made in conversation with: nullius decision record "<what was decided>"
 Log open questions with: nullius decision pending "<question>"
 Close an open question with: nullius decision record "<answer>" --resolves <id>
+After branch entries reach the authoritative trunk, assign durable D<n> ids with:
+nullius decision land
 Open questions stay counted in every status receipt (oldest ten itemized; the rest
 via: nullius decision list) until resolved.
 ```
 
-初始化完成后，接续是 local-first 的：`.nullius/HARNESS`、`.nullius/bin/nullius`、`AGENTS.md`、`project_index.md`、`research_plan.md`、`research_contract.md`、已登记报告和 `artifacts/runs/<run_id>/` 足以让 agent 在关闭会话或断网后恢复项目状态；只有真实需要外部文献/数据时才需要网络。
+新 decision 条目先使用 6 字符的 branch-local handle，其原始抽样为 30 个无偏随机 bit（$32^6 = 2^{30}$）。与 durable `D<n>` 同形的候选、本地已有 id 与既有映射都会重抽，因此精确的逐对碰撞概率依上下文而变；无本地占位时为 $1/(2^{30}-90{,}000)\approx 9.314\times 10^{-10}$，略高于 $2^{-30}$。这是概率保证而非结构保证，碰撞时 fail closed。分支内容进入权威主干后，`decision land` 原子分配后续 durable `D<n>`、改写指向 handle 的 `resolves`，并以 `provisional_id` 保留映射。既有 `D<n>` ledger 无需迁移，仍可读取和 resolve。若同一 provisional id 映射到多条记录或又被用作当前 id，list/status 会具名冲突行，land 在零改写下拒绝。初始化完成后，接续是 local-first 的：`.nullius/HARNESS`、`.nullius/bin/nullius`、`AGENTS.md`、`project_index.md`、`research_plan.md`、`research_contract.md`、已登记报告和 `artifacts/runs/<run_id>/` 足以让 agent 在关闭会话或断网后恢复项目状态；只有真实需要外部文献/数据时才需要网络。
 
 - 对 stateful 文献工作流，先用 `nullius init` 初始化目标外部 project root，再在该 root 内或通过 `--project-root` 调用 `nullius workflow-plan`。它会直接通过 `@nullius/literature-workflows` 解析 recipe，并写入 `.nullius/state.json#/plan` / `.nullius/plan.md`。有意义的外部研究运行应显式传 `--run-id`；如果省略，派生的 `<recipe>-<phase>` 只作为 planning placeholder。`research_brainstorm` 是 planning-only 的轻量 durable harness：`nullius workflow-plan --recipe research_brainstorm --run-id 20260502T023000Z-m0-topic-r1 --topic "<topic>"` 会记录 brainstorm context、candidate angles、screening、单一 recommendation 与 `next_contract` handoff。`.nullius/plan.md` 是给人读的派生 read model，不是机器编排 SSOT。这个 contract 可以建议后续进入 `literature_landscape`、`literature_gap_analysis`、`derivation_cycle` 或 `review_cycle` 等更重 recipe，但不会自动启动它们，也不依赖 host-native thinking process。持久化的 `research_brainstorm.*` step tools 是 handoff authority，不是内置 runtime tools，除非未来有外部 tool caller 明确实现它们。
 

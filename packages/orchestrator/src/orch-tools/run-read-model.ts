@@ -11,7 +11,7 @@ import { readSkillProposalView } from './skill-proposal.js';
 import { readTeamSummaryView } from './team-summary.js';
 import { deriveLedgerStatusFromOperatorEvent } from '../operator-read-model-summary.js';
 import { readNulliusHarnessSentinelHealth } from '../nullius-harness-sentinel.js';
-import { openDecisions, readDecisionsLedger } from '../decisions-ledger.js';
+import { openDecisions, readDecisionsLedger, sortDecisionsByTimestamp } from '../decisions-ledger.js';
 import { decisionOverlayForFingerprint, mutationProposalFingerprint, skillProposalFingerprint } from '../proposal-decisions.js';
 import { readProjectLocalNulliusLauncherHealth } from '../project-local-nullius.js';
 import type { RunState } from '../types.js';
@@ -1472,8 +1472,9 @@ function readDecisionLedgerView(projectRoot: string): {
 } {
   try {
     const snapshot = readDecisionsLedger(projectRoot);
-    const open = openDecisions(snapshot.records);
-    const latestDecided = [...snapshot.records].reverse().find(record => record.kind === 'decided') ?? null;
+    const chronological = sortDecisionsByTimestamp(snapshot.records);
+    const open = sortDecisionsByTimestamp(openDecisions(snapshot.records));
+    const latestDecided = [...chronological].reverse().find(record => record.kind === 'decided') ?? null;
     return {
       decision_ledger: {
         path: snapshot.path,
@@ -1487,6 +1488,7 @@ function readDecisionLedgerView(projectRoot: string): {
         // entries the bound cut, so truncation is explicit, never silent.
         open_items: open.slice(0, 10).map(record => ({
           id: record.id,
+          ...(record.provisional_id ? { provisional_id: record.provisional_id } : {}),
           ts: record.ts,
           text: record.text,
           by: record.by,
@@ -1495,6 +1497,7 @@ function readDecisionLedgerView(projectRoot: string): {
         latest_decided: latestDecided
           ? {
             id: latestDecided.id,
+            ...(latestDecided.provisional_id ? { provisional_id: latestDecided.provisional_id } : {}),
             ts: latestDecided.ts,
             text: latestDecided.text,
             by: latestDecided.by,
@@ -1502,21 +1505,26 @@ function readDecisionLedgerView(projectRoot: string): {
           }
           : null,
         invalid_lines: snapshot.invalid_lines,
-        // One id on two entries makes `--resolves <id>` ambiguous, and nothing
-        // else announces it — a merged ledger written by the superseded
-        // counter looks normal until someone reads it. Reported here, never
-        // gating: the receipt states the collision and `decision list` is what
-        // refuses to treat the ledger as sound.
+        // One id on two entries makes `--resolves <id>` ambiguous. Reported
+        // here, never gating: the receipt states the collision and `decision
+        // list` is what refuses to treat the ledger as sound.
         duplicate_id_count: snapshot.duplicate_ids.length,
         duplicate_ids: snapshot.duplicate_ids.slice(0, 10),
         duplicate_ids_omitted: Math.max(0, snapshot.duplicate_ids.length - 10),
-        // Entries still numbered by the superseded counter are NOT in the
-        // counts above — their lines are quarantined, so a question left open
-        // among them has dropped out of the receipt entirely. Naming them is
-        // what keeps that a visible migration rather than a silent loss.
-        superseded_id_count: snapshot.superseded_ids.length,
-        superseded_ids: snapshot.superseded_ids.slice(0, 10),
-        superseded_ids_omitted: Math.max(0, snapshot.superseded_ids.length - 10),
+        // A retained branch identity must map to exactly one durable entry
+        // and must not be reused as another entry's current id. Otherwise an
+        // old branch resolution cannot name one target.
+        ambiguous_provisional_id_count: snapshot.ambiguous_provisional_ids.length,
+        ambiguous_provisional_ids: snapshot.ambiguous_provisional_ids.slice(0, 10),
+        ambiguous_provisional_ids_omitted: Math.max(
+          0,
+          snapshot.ambiguous_provisional_ids.length - 10,
+        ),
+        // Provisional ids are valid and fully counted, but they are not durable
+        // prose citations until an explicit trunk-side landing assigns D<n>.
+        unlanded_count: snapshot.unlanded_ids.length,
+        unlanded_ids: snapshot.unlanded_ids.slice(0, 10),
+        unlanded_ids_omitted: Math.max(0, snapshot.unlanded_ids.length - 10),
       },
       decision_ledger_error: null,
     };

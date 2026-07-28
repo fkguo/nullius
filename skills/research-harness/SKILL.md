@@ -346,7 +346,7 @@ Then land the folded result:
 - Summarize the durable conclusion in `research_contract.md`.
 - Update `research_plan.md#Current Status` with the current state, next step, blockers, and evidence pointers.
 - Cite the relevant run evidence where it lives — under `artifacts/runs/<run_id>/` or `team/runs/<run>/`. Mirroring into `artifacts/runs/<run_id>/` is optional: do it when the source location is transient, or when a milestone's headline evidence should live with the run record.
-- Preserve unresolved questions as explicit blockers rather than burying them in chat or transient team logs. When a question needs the project owner's decision, also record it with `nullius decision pending "<question>"` — it stays counted in every status receipt (the oldest ten itemized; the rest via `nullius decision list`) until a later `nullius decision record "<what was decided>" --resolves <id>` closes it, instead of scrolling away in conversation.
+- Preserve unresolved questions as explicit blockers rather than burying them in chat or transient team logs. When a question needs the project owner's decision, also record it with `nullius decision pending "<question>"` — it stays counted in every status receipt (the oldest ten itemized; the rest via `nullius decision list`) until a later `nullius decision record "<what was decided>" --resolves <id>` closes it, instead of scrolling away in conversation. Branch-local records carry provisional six-character handles; after all contributing branch tails are merged into the authoritative trunk, run `nullius decision land` there before citing the resulting durable `D<n>` ids. Never land on an unmerged branch; `decisions_unlanded` in the status receipt names work that is not yet ready for durable citation.
 - At a milestone handoff or stakeholder plan-summary, produce a **roadmap dependency-map** (summary table + milestone/lane dependency graph + binding-constraint + critical path) via `research-team` (`assets/roadmap_dependency_map_template.md`, rendered with `nullius graph --kind roadmap`). It is a planning view — distinct from the Claim DAG and from `research_plan.md#Current Status`, and it makes "what gates what / what caps feasibility / shortest route to the goal" legible to whoever picks up the work next.
 
 ## Closeout
@@ -358,11 +358,12 @@ nullius verify
 nullius final-conclusions
 nullius approve <approval_id>
 nullius decision record "<what was decided>" --by <who>
+nullius decision land
 nullius export --run-id <run_id>
 nullius report-validate
 ```
 
-Use the command that matches the project state. If approval is pending, stop at the approval boundary and report the exact approval id and evidence path. In projects that do not use the engine's approval flow (declared `execution_mode: file`, or any project where the go-ahead was given in conversation), record that go-ahead with `nullius decision record` at the closeout boundary — it is the engine-visible counterpart of the approval receipt, and open questions recorded with `nullius decision pending` stay counted in every status receipt (the oldest ten itemized; the rest via `nullius decision list`) until resolved.
+Use the command that matches the project state. If approval is pending, stop at the approval boundary and report the exact approval id and evidence path. In projects that do not use the engine's approval flow (declared `execution_mode: file`, or any project where the go-ahead was given in conversation), record that go-ahead with `nullius decision record` at the closeout boundary — it is the engine-visible counterpart of the approval receipt, and open questions recorded with `nullius decision pending` stay counted in every status receipt (the oldest ten itemized; the rest via `nullius decision list`) until resolved. `nullius decision land` is a separate trunk-only fold after branch integration, not a command to run inside an unmerged worktree.
 
 Run `nullius report-validate` only when a main report is being promoted or
 superseded. It fails closed on structural incompleteness, stale current

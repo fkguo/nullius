@@ -2,11 +2,15 @@ import { randomFillSync } from 'node:crypto';
 import { readFileSync, rmSync } from 'node:fs';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { appendBytesDurable } from '@nullius/shared';
+import {
+  appendBytesDurable,
+  fsyncParentDirectoryDurable,
+  writeBytesAtomicDurable,
+} from '@nullius/shared';
 import { nulliusControlDir } from './state-manager.js';
 import { utcNowIso } from './util.js';
 
-/** Append-only ledger of human decisions made in conversation.
+/** Ledger of human decisions made in conversation.
  *
  *  Real projects resolve most questions conversationally ("use option 2",
  *  "confirmed, no change") and the outcome historically landed in hand-built
@@ -14,31 +18,34 @@ import { utcNowIso } from './util.js';
  *  bookkeeping stratum of those decisions: one JSON line per event. The
  *  free-prose question documents stay project-owned; nothing here parses them.
  *
- *  Ids are MINTED, never counted. The ledger is version-controlled, so its
- *  history is a branching graph and not one sequence: two branches that each
- *  append a record are both writing "the next line" of their own copy of the
- *  file, and any id derived from a local scan (a highest-so-far counter) hands
- *  them the same name. After a merge the ledger then holds two different
- *  decisions called D38, and `--resolves D38` — the only way to close an open
- *  question — no longer names one entry. The id is therefore a ULID: a 48-bit
- *  millisecond timestamp followed by 80 random bits in Crockford base32,
- *  choosable without any coordination between branches or machines (see
- *  mintDecisionId for what that guarantee is and is not). Ids sort
- *  lexicographically by recording MILLISECOND, so a merged ledger still reads
- *  in chronological order down to that granularity; two ids minted inside one
- *  millisecond are unordered with respect to each other. Collisions already
- *  present in a ledger, and entries still numbered by the old counter, are
- *  reported by readDecisionsLedger rather than tolerated.
+ *  Identity has two phases because its requirements do too. Before merge, an
+ *  entry gets a six-character random Crockford-base32 HANDLE. It is short-lived
+ *  coordination-free identity for branch-local `--resolves`, not a prose
+ *  citation. After the branch tails have landed on the trunk, `decision land`
+ *  atomically assigns the next durable D<n> numbers in trunk file order,
+ *  rewrites handle-valued resolutions, and retains each handle in the landed
+ *  entry as `provisional_id`. Existing all-D<n> ledgers are already durable:
+ *  they need no migration, and their cited ids remain valid.
  *
- *  Open decisions do not gate the run/approve lifecycle: they surface in the
- *  status receipt as information, not as a blocking state. */
+ *  The two namespaces make the unavoidable trade-off explicit: handles can be
+ *  chosen independently on branches, while durable ids stay short, monotone,
+ *  and permanent once cited. A merged ledger can still contain a handle
+ *  collision (or an old D<n> collision), so duplicate detection remains
+ *  form-agnostic and fail-closed rather than silently resolving one occurrence.
+ *
+ *  Recording is append-only; explicit trunk-side landing is the one
+ *  canonicalizing rewrite. Open decisions do not gate the run/approve
+ *  lifecycle: they surface in the status receipt as information, not as a
+ *  blocking state. */
 
 export type DecisionKind = 'decided' | 'pending';
 
 export type DecisionRecord = {
-  /** ULID minted at recording time, not derived from the file's contents; a
-   *  collision visible in the current ledger is redrawn or refused. */
+  /** Durable D<n> after landing, otherwise a provisional branch handle. */
   id: string;
+  /** The pre-landing identity retained on a durable record for traceability.
+   *  Absent on existing D<n> records and on entries not yet landed. */
+  provisional_id?: string;
   /** UTC ISO timestamp. */
   ts: string;
   kind: DecisionKind;
@@ -57,18 +64,6 @@ export type DuplicateDecisionId = {
   lines: number[];
 };
 
-/** One place a line still carries a number from the superseded counter. */
-export type SupersededDecisionId = {
-  id: string;
-  /** 1-based physical line number. */
-  line: number;
-  /** Which field carries it. A superseded `id` needs the entry reissued; a
-   *  superseded `resolves` needs repointing at the reissued entry — and it is
-   *  reachable on its own, mid-migration, once the pending entries have been
-   *  reissued but a decided entry still names the old number. */
-  field: 'id' | 'resolves';
-};
-
 export type DecisionsLedgerSnapshot = {
   /** Project-relative POSIX path of the ledger file (absolute when the
    *  control-dir override points outside the project root). */
@@ -81,62 +76,60 @@ export type DecisionsLedgerSnapshot = {
    *  an EARLIER, still OPEN pending entry (ambiguous, forward, or replayed
    *  resolutions could silently close the wrong question). */
   invalid_lines: number;
-  /** Ids the file carries on more than one line, whatever their form. A ledger
-   *  written by the superseded local counter can hold two entries named D38
-   *  once two branches are merged, and nothing at merge time says so: the
-   *  collision surfaces only when a human reads the log. Quarantining the
-   *  later occurrence keeps the read model unambiguous but leaves the file
-   *  wrong, so the collision is REPORTED — `decision list` fails on it, the
-   *  status receipt carries it, and `--resolves` refuses the ambiguous id —
-   *  until the duplicates are reissued by hand. Detection is deliberately
-   *  form-agnostic: old counter collisions were systematic, while independently
-   *  minted ULIDs can still collide with nonzero probability. */
+  /** Ids the file carries on more than one line, whatever their form. The
+   *  first occurrence remains visible but a resolution naming the duplicated
+   *  id is quarantined, `decision list` exits non-zero, and `--resolves`
+   *  refuses it until the ambiguity is repaired. */
   duplicate_ids: DuplicateDecisionId[];
-  /** Lines still numbered by the superseded counter. Those ids are no longer a
-   *  form this ledger issues, so their lines are quarantined and their entries
-   *  leave the read model entirely — including any question that was still
-   *  open, which is the one thing the status receipt exists to keep in front of
-   *  a human. Reported separately from `invalid_lines` because that count
-   *  cannot say WHY a line was dropped, and this cause is both recognizable on
-   *  sight and repairable: reissue each entry with a fresh id. Leaving it to a
-   *  generic count would reproduce, on the migration path, exactly the silence
-   *  that makes a merged collision dangerous. */
-  superseded_ids: SupersededDecisionId[];
+  /** Provisional identities that are not one-to-one: retained on more than
+   *  one durable entry, or retained on one entry while reused as another
+   *  entry's current id. Any old branch resolution naming one is ambiguous. */
+  ambiguous_provisional_ids: DuplicateDecisionId[];
   /** Every id attributable to a line's valid prefix — including ids salvaged
-   *  from quarantined lines — so a freshly minted id can be checked against the
-   *  current ledger and any visible collision is redrawn or refused. */
+   *  from quarantined lines — so a freshly minted handle can be checked against
+   *  all current identities already visible in the ledger. */
   reserved_ids: string[];
+  /** Every retained provisional identity attributable to a line's valid
+   *  prefix. Locally minted handles avoid these too because a late branch may
+   *  still name them before its next trunk-side landing. */
+  reserved_provisional_ids: string[];
+  /** Largest durable D<n> sequence found anywhere in a valid-prefix id field,
+   *  including quarantined lines, so landing never reuses visible bytes. */
+  highest_durable_sequence: number;
+  /** Admitted entries that still carry provisional identity. */
+  unlanded_ids: string[];
 };
 
-// Crockford base32: I, L, O, and U are absent, so no character can be misread
-// as another. Ids are matched case-sensitively against exactly this alphabet,
-// which is what keeps the form canonical — Crockford DECODING is
-// case-insensitive and folds I/L to 1 and O to 0, and every such spelling
-// would otherwise be a second name for one entry, the way "D01" once aliased
-// "D1".
+export type DecisionIdLanding = {
+  provisional_id: string;
+  id: string;
+};
+
+export type DecisionLandingResult = {
+  path: string;
+  landed: DecisionIdLanding[];
+  /** Persisted handle-valued resolves fields rewritten through retained or
+   *  newly-created mappings, including cleanup-only passes with no new ids. */
+  rewritten_resolutions: number;
+};
+
+// Crockford base32: I, L, O, and U are absent. Canonical spellings are
+// uppercase and case-sensitive, so one handle cannot acquire aliases.
 const CROCKFORD_BASE32 = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
-// 10 timestamp characters (a 48-bit millisecond count left-padded into 50
-// bits, so the leading character is 0-7) followed by 16 random characters
-// (80 bits).
-const DECISION_ID_PATTERN = /^[0-7][0-9ABCDEFGHJKMNPQRSTVWXYZ]{25}$/;
-const DECISION_ID_TIME_CHARS = 10;
-const DECISION_ID_RANDOM_BYTES = 10;
+const DECISION_HANDLE_PATTERN = /^[0-9ABCDEFGHJKMNPQRSTVWXYZ]{6}$/;
+// Read compatibility for entries recorded during the brief ULID-only release.
+// They are provisional identities too and `decision land` folds them to D<n>.
+const RELEASE_ULID_PATTERN = /^[0-7][0-9ABCDEFGHJKMNPQRSTVWXYZ]{25}$/;
+const DURABLE_DECISION_ID_PATTERN = /^D([1-9]\d*)$/;
+const DECISION_HANDLE_RANDOM_BYTES = 4;
 // 9999-12-31T23:59:59.999Z: the last instant a record's `ts` can state in the
-// four-digit-year form the reader accepts. Deliberately NOT the 2^48-1 the id
-// itself could encode — see mintDecisionId.
+// four-digit-year form the reader accepts.
 const MAX_RECORDABLE_MS = Date.UTC(9999, 11, 31, 23, 59, 59, 999);
-// EXACTLY the form the superseded local counter issued: "D" then a positive
-// integer with no leading zero, inside the safe-integer range its allocation
-// checked. Deliberately no broader — "D0", "D01", and a value past 2^53 are
-// not ids that counter ever produced, so reporting them as superseded entries
-// would prescribe a reissue for what is simply a malformed line, and would
-// make `decision list` fail closed on a diagnosis that is not true. They stay
-// in the generic invalid-line count with every other unrecognized id.
-const SUPERSEDED_COUNTER_ID_PATTERN = /^D([1-9]\d*)$/;
-// Redraws when a minted id already exists in the file. Eight redraws make
+// Redraws when a minted handle already exists in the file. Eight redraws make
 // accidental exhaustion negligible under a healthy random source; reaching
 // the bound strongly indicates failed or compromised randomness and must fail
-// loudly rather than mint a duplicate.
+// loudly rather than mint a duplicate. Candidates that also spell D<n> are
+// redrawn to keep provisional and durable namespaces disjoint.
 const DECISION_ID_MINT_ATTEMPTS = 8;
 
 /** True when the value contains at least one substantive character.
@@ -178,103 +171,74 @@ export function decisionsLedgerDisplayPath(projectRoot: string): string {
   return relative.split(path.sep).join('/');
 }
 
-/** True for an id in exactly the minted form. Anything else — a lowercase
- *  spelling, a Crockford letter the alphabet excludes, a "D7" from the
- *  superseded counter — is not an id this ledger issues, so a line carrying
- *  one is malformed rather than a second identity to reason about. */
+/** Parse a durable id like D7 to its positive safe-integer sequence. */
+function decisionSequenceNumber(id: unknown): number | null {
+  if (typeof id !== 'string') return null;
+  const match = DURABLE_DECISION_ID_PATTERN.exec(id);
+  if (!match) return null;
+  const value = Number(match[1]);
+  return Number.isSafeInteger(value) && value > 0 ? value : null;
+}
+
+function isDurableDecisionId(id: unknown): id is string {
+  return decisionSequenceNumber(id) !== null;
+}
+
+/** True for either current six-character handles or ULIDs emitted by the
+ *  immediately preceding release. A handle that also spells D<n> is excluded
+ *  so one string never belongs to both identity phases. */
+function isProvisionalDecisionId(id: unknown): id is string {
+  return typeof id === 'string'
+    && (
+      (DECISION_HANDLE_PATTERN.test(id) && !isDurableDecisionId(id))
+      || RELEASE_ULID_PATTERN.test(id)
+    );
+}
+
 function isCanonicalDecisionId(id: unknown): id is string {
-  return typeof id === 'string' && DECISION_ID_PATTERN.test(id);
+  return isDurableDecisionId(id) || isProvisionalDecisionId(id);
 }
 
-/** True for a value the superseded counter could actually have issued. */
-function isSupersededCounterId(value: string): boolean {
-  const match = SUPERSEDED_COUNTER_ID_PATTERN.exec(value);
-  return match !== null && Number.isSafeInteger(Number(match[1]));
-}
-
-/** Base32 of a millisecond count, high character first. Plain arithmetic, not
- *  bit operations: a 48-bit millisecond count is far past the 32-bit range
- *  where `<<` and `>>` silently wrap. */
-function encodeDecisionIdTime(epochMs: number): string {
-  let rest = epochMs;
+/** Six Crockford characters from 30 unbiased random bits. */
+function encodeDecisionHandle(): string {
+  const bytes = randomFillSync(new Uint8Array(DECISION_HANDLE_RANDOM_BYTES));
+  // Mask the two high surplus bits: 2^30 is exactly 32^6, so no modulo bias.
+  let rest = (bytes[0]! & 0x3f) * 0x1000000
+    + bytes[1]! * 0x10000
+    + bytes[2]! * 0x100
+    + bytes[3]!;
   let encoded = '';
-  for (let index = 0; index < DECISION_ID_TIME_CHARS; index += 1) {
+  for (let index = 0; index < 6; index += 1) {
     encoded = CROCKFORD_BASE32[rest % 32]! + encoded;
     rest = Math.floor(rest / 32);
   }
   return encoded;
 }
 
-/** 80 random bits as exactly 16 base32 characters. */
-function encodeDecisionIdRandom(): string {
-  const bytes = randomFillSync(new Uint8Array(DECISION_ID_RANDOM_BYTES));
-  let pending = 0;
-  let pendingBits = 0;
-  let encoded = '';
-  for (const byte of bytes) {
-    // At most 4 bits are pending before each byte, so the accumulator stays
-    // well inside the 32-bit range these operators are exact on.
-    pending = (pending << 8) | byte;
-    pendingBits += 8;
-    while (pendingBits >= 5) {
-      pendingBits -= 5;
-      encoded += CROCKFORD_BASE32[(pending >> pendingBits) & 31]!;
-    }
-  }
-  // 80 bits divide evenly by 5, so nothing is left pending.
-  return encoded;
-}
-
-/** Mint one id for an entry recorded at `epochMs`.
- *
- *  The timestamp makes ids sort by recording time; the 80 random bits are what
- *  make a name safe to choose WITHOUT coordination, which is the whole point —
- *  two branches, or two machines, recording in the same millisecond share no
- *  state to coordinate through. Two independently minted ids are equal only if
- *  both the millisecond AND all 80 random bits coincide, which is a
- *  probabilistic guarantee, not an impossibility proof: this removes the
- *  collision that the previous local counter produced SYSTEMATICALLY (every
- *  pair of branches, every time) and leaves only the explicitly modeled
- *  probabilistic residue. That residue is not left unattended either — a
- *  ledger that does end up carrying one id twice is reported by
- *  readDecisionsLedger and refused by `--resolves` rather than silently
- *  resolved.
- *
- *  The ULID spec's monotonic variant (increment the previous id's random field
- *  within the same millisecond) is deliberately not used: deriving an id from
- *  the previous one is exactly the local-scan dependency that made branch
- *  copies collide, since two branches sharing an ancestor would increment the
- *  same id — turning the residue back into a systematic collision. Every id
- *  gets fresh randomness. */
-function mintDecisionId(epochMs: number, reserved: ReadonlySet<string>): string {
-  // The bound is the RECORD's, not the encoding's: 48 bits of milliseconds
-  // reach the year 10889, but a `ts` past 9999 is written by toISOString in
-  // the expanded-year form (+010000-01-01T00:00:00Z), which the reader's
-  // four-digit-year pattern rejects. Minting anywhere in that gap would append
-  // a record that the very next read quarantines while the command reports
-  // success — the invisible-record failure this check exists to prevent.
+function assertRecordableEpochMs(epochMs: number): void {
   if (!Number.isSafeInteger(epochMs) || epochMs < 0 || epochMs > MAX_RECORDABLE_MS) {
     throw new Error(
       `the system clock reads ${epochMs} ms since the epoch, outside the range a decision entry can `
       + `record (0..${MAX_RECORDABLE_MS}, i.e. through 9999-12-31T23:59:59Z); fix the clock before recording`,
     );
   }
-  const time = encodeDecisionIdTime(epochMs);
+}
+
+/** Mint a provisional branch handle without consulting global history. */
+function mintDecisionHandle(reserved: ReadonlySet<string>): string {
   for (let attempt = 0; attempt < DECISION_ID_MINT_ATTEMPTS; attempt += 1) {
-    const candidate = `${time}${encodeDecisionIdRandom()}`;
-    if (!reserved.has(candidate)) return candidate;
+    const candidate = encodeDecisionHandle();
+    if (!isDurableDecisionId(candidate) && !reserved.has(candidate)) return candidate;
   }
   throw new Error(
-    `could not mint a decision id distinct from the ${reserved.size} already in the ledger after `
+    `could not mint a provisional decision handle distinct from the ${reserved.size} ids already in the ledger after `
     + `${DECISION_ID_MINT_ATTEMPTS} attempts; the random source is not returning random bytes`,
   );
 }
 
-/** Second-precision UTC-Z stamp of a specific instant, so a record's `ts` and
- *  the millisecond inside its id describe the same moment instead of two
- *  clock reads that can straddle a second boundary. */
+/** Millisecond-precision UTC-Z stamp from the same clock read as the record. */
 function utcIsoAt(epochMs: number): string {
-  return new Date(epochMs).toISOString().replace(/\.\d{3}Z$/, 'Z');
+  return new Date(epochMs).toISOString();
 }
 
 type ParsedDecisionLine = {
@@ -283,9 +247,11 @@ type ParsedDecisionLine = {
    *  record admission, so visible collisions are redrawn or refused and all
    *  occurrences are counted for duplicate reporting. */
   ids: string[];
+  /** Top-level retained pre-landing identities. They remain operational as
+   *  aliases for late branch resolutions until those resolutions are landed. */
+  provisionalIds: string[];
   /** Top-level `resolves` values the line carries — references, never
-   *  identities: not reserved, not counted as id occurrences, collected only
-   *  so one still naming a superseded number can be reported. */
+   *  identities: not reserved and not counted as id occurrences. */
   resolvesValues: string[];
   record: DecisionRecord | null;
 };
@@ -299,19 +265,26 @@ const JSON_WHITESPACE = new Set([' ', '\t', '\r', '\n']);
 
 type TopLevelScan = {
   /** String values of every VALID-PREFIX top-level `id` key, deduplicated
-   *  within the line. Not filtered to the canonical form: a ledger written by
-   *  the superseded counter carries "D38" ids, and those are precisely the
-   *  ones whose duplicates must still be reported. */
+   *  within the line. Not filtered to a known form so duplicate detection
+   *  still catches two malformed or future ids carrying the same bytes. */
   ids: string[];
+  /** String values of every VALID-PREFIX top-level `provisional_id` key,
+   *  deduplicated within the line. */
+  provisionalIds: string[];
   /** String values of every VALID-PREFIX top-level `resolves` key, deduplicated
    *  within the line. Kept apart from `ids`: a resolution target is a
    *  REFERENCE, not this line's identity, so it must never be reserved or
-   *  counted as an occurrence of an id. Collected so a line still pointing at
-   *  a superseded number can be named. */
+   *  counted as an occurrence of an id. */
   resolvesValues: string[];
   /** Occurrence count per top-level key (duplicates preserved, however the
    *  key was escaped) within the valid prefix. */
   keyCounts: Map<string, number>;
+  /** Exact UTF-16 offsets of each top-level value token. Landing uses these
+   *  spans to replace only identity-bearing values without reserializing
+   *  project-owned extension fields through JavaScript number semantics. */
+  valueSpans: Map<string, Array<{ start: number; end: number }>>;
+  /** Offset of the top-level closing brace when the whole object is valid. */
+  closingBraceIndex: number | null;
   /** True only when the whole line is one syntactically well-formed object
    *  with nothing but whitespace after the closing brace. */
   complete: boolean;
@@ -333,8 +306,17 @@ type TopLevelScan = {
  *  candidate before the truncation, while garbage occurring before an id
  *  cannot smuggle a poisoned (e.g. ceiling) id into the reservation set. */
 function scanTopLevelFields(line: string): TopLevelScan {
-  const scan: TopLevelScan = { ids: [], resolvesValues: [], keyCounts: new Map(), complete: false };
+  const scan: TopLevelScan = {
+    ids: [],
+    provisionalIds: [],
+    resolvesValues: [],
+    keyCounts: new Map(),
+    valueSpans: new Map(),
+    closingBraceIndex: null,
+    complete: false,
+  };
   const seenScanIds = new Set<string>();
+  const seenScanProvisionalIds = new Set<string>();
   const seenScanResolves = new Set<string>();
   let i = 0;
   const n = line.length;
@@ -422,9 +404,11 @@ function scanTopLevelFields(line: string): TopLevelScan {
     skipWs();
     if (i >= n) return scan;
     if (line[i] === '}') {
+      const closingBraceIndex = i;
       i += 1;
       skipWs();
       scan.complete = i >= n;
+      if (scan.complete) scan.closingBraceIndex = closingBraceIndex;
       return scan;
     }
     if (line[i] !== '"') return scan;
@@ -433,12 +417,26 @@ function scanTopLevelFields(line: string): TopLevelScan {
     skipWs();
     if (line[i] !== ':') return scan;
     i += 1;
+    skipWs();
+    const valueStart = i;
     const value = readValue();
     if (value === null) return scan;
+    const valueSpans = scan.valueSpans.get(key);
+    const valueSpan = { start: valueStart, end: i };
+    if (valueSpans) valueSpans.push(valueSpan);
+    else scan.valueSpans.set(key, [valueSpan]);
     scan.keyCounts.set(key, (scan.keyCounts.get(key) ?? 0) + 1);
     if (key === 'id' && typeof value === 'string' && !seenScanIds.has(value)) {
       seenScanIds.add(value);
       scan.ids.push(value);
+    }
+    if (
+      key === 'provisional_id'
+      && typeof value === 'string'
+      && !seenScanProvisionalIds.has(value)
+    ) {
+      seenScanProvisionalIds.add(value);
+      scan.provisionalIds.push(value);
     }
     if (key === 'resolves' && typeof value === 'string' && !seenScanResolves.has(value)) {
       seenScanResolves.add(value);
@@ -451,62 +449,86 @@ function scanTopLevelFields(line: string): TopLevelScan {
   }
 }
 
-const LOAD_BEARING_KEYS = ['id', 'ts', 'kind', 'text', 'by', 'resolves'] as const;
+const LOAD_BEARING_KEYS = ['id', 'provisional_id', 'ts', 'kind', 'text', 'by', 'resolves'] as const;
 
 function parseDecisionLine(line: string): ParsedDecisionLine {
   const scan = scanTopLevelFields(line);
   const ids = scan.ids;
+  const provisionalIds = scan.provisionalIds;
   const resolvesValues = scan.resolvesValues;
+  const scannedFields = { ids, provisionalIds, resolvesValues };
   let parsed: unknown;
   try {
     parsed = JSON.parse(line);
   } catch {
-    return { ids, resolvesValues, record: null };
+    return { ...scannedFields, record: null };
   }
-  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return { ids, resolvesValues, record: null };
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return { ...scannedFields, record: null };
+  }
   // JSON.parse keeps only the LAST of duplicate members, so a repeated
   // load-bearing key (however escaped) could smuggle a conflicting id, kind,
   // text, authorship, or resolution past field validation. Admission requires
   // the scanner to have walked the whole line and seen each of these keys at
   // most once.
-  if (!scan.complete) return { ids, resolvesValues, record: null };
-  if (LOAD_BEARING_KEYS.some(key => (scan.keyCounts.get(key) ?? 0) > 1)) return { ids, resolvesValues, record: null };
+  if (!scan.complete) return { ...scannedFields, record: null };
+  if (LOAD_BEARING_KEYS.some(key => (scan.keyCounts.get(key) ?? 0) > 1)) {
+    return { ...scannedFields, record: null };
+  }
   const record = parsed as Record<string, unknown>;
-  if (!isCanonicalDecisionId(record.id)) return { ids, resolvesValues, record: null };
+  if (!isCanonicalDecisionId(record.id)) return { ...scannedFields, record: null };
   const id = record.id;
+  let provisionalId: string | undefined;
+  if (record.provisional_id !== undefined && record.provisional_id !== null) {
+    // The mapping exists only after landing: an unlanded record already carries
+    // its provisional identity in `id`, while a durable record may retain the
+    // former handle/ULID exactly once for branch-history traceability.
+    if (!isDurableDecisionId(id) || !isProvisionalDecisionId(record.provisional_id)) {
+      return { ...scannedFields, record: null };
+    }
+    provisionalId = record.provisional_id;
+  }
   // The recording path always writes a UTC-Z RFC3339 timestamp; a persisted
   // ts that is not one is a malformed line, not a value to display as-is.
   // Date.parse NORMALIZES overflowing components (2026-02-29 -> Mar 1,
   // 24:00 -> next day), so the parsed instant must round-trip to the same
   // second-level components.
-  if (typeof record.ts !== 'string' || !UTC_ISO_TS_PATTERN.test(record.ts)) return { ids, resolvesValues, record: null };
+  if (typeof record.ts !== 'string' || !UTC_ISO_TS_PATTERN.test(record.ts)) {
+    return { ...scannedFields, record: null };
+  }
   const parsedInstant = new Date(record.ts);
   if (Number.isNaN(parsedInstant.getTime()) || parsedInstant.toISOString().slice(0, 19) !== record.ts.slice(0, 19)) {
-    return { ids, resolvesValues, record: null };
+    return { ...scannedFields, record: null };
   }
-  if (record.kind !== 'decided' && record.kind !== 'pending') return { ids, resolvesValues, record: null };
+  if (record.kind !== 'decided' && record.kind !== 'pending') {
+    return { ...scannedFields, record: null };
+  }
   // Whitespace-only text is rejected at recording time; a persisted record
   // carrying it is malformed, not an admissible empty-looking decision.
-  if (typeof record.text !== 'string' || !hasSubstantiveText(record.text)) return { ids, resolvesValues, record: null };
+  if (typeof record.text !== 'string' || !hasSubstantiveText(record.text)) {
+    return { ...scannedFields, record: null };
+  }
   // Persisted authorship must be an explicit nonempty string: rewriting a
   // malformed `by` as "user" would invent provenance in a ledger whose whole
   // point is preserving who decided. (The CLI-side default to "user" applies
   // at RECORDING time, before persistence.)
-  if (typeof record.by !== 'string' || !hasSubstantiveText(record.by)) return { ids, resolvesValues, record: null };
+  if (typeof record.by !== 'string' || !hasSubstantiveText(record.by)) {
+    return { ...scannedFields, record: null };
+  }
   // Strict resolves validation: absent/null, or a canonical id on a decided
   // record. A malformed value or a pending record carrying resolves is a
   // malformed line, not something to silently coerce to null.
   let resolves: string | null = null;
   if (record.resolves !== undefined && record.resolves !== null) {
-    if (record.kind !== 'decided') return { ids, resolvesValues, record: null };
-    if (!isCanonicalDecisionId(record.resolves)) return { ids, resolvesValues, record: null };
+    if (record.kind !== 'decided') return { ...scannedFields, record: null };
+    if (!isCanonicalDecisionId(record.resolves)) return { ...scannedFields, record: null };
     resolves = record.resolves;
   }
   return {
-    ids,
-    resolvesValues,
+    ...scannedFields,
     record: {
       id,
+      ...(provisionalId ? { provisional_id: provisionalId } : {}),
       ts: record.ts,
       kind: record.kind,
       text: record.text,
@@ -571,18 +593,23 @@ function decodeLedgerLine(bytes: Buffer): { text: string | null; validPrefix: st
   }
 }
 
-export function readDecisionsLedger(projectRoot: string): DecisionsLedgerSnapshot {
-  const filePath = decisionsLedgerPath(projectRoot);
-  const displayPath = decisionsLedgerDisplayPath(projectRoot);
-  if (!fs.existsSync(filePath)) {
+function parseDecisionsLedgerBytes(
+  bytes: Buffer,
+  displayPath: string,
+  exists: boolean,
+): DecisionsLedgerSnapshot {
+  if (!exists) {
     return {
       path: displayPath,
       exists: false,
       records: [],
       invalid_lines: 0,
       duplicate_ids: [],
-      superseded_ids: [],
+      ambiguous_provisional_ids: [],
       reserved_ids: [],
+      reserved_provisional_ids: [],
+      highest_durable_sequence: 0,
+      unlanded_ids: [],
     };
   }
   const records: DecisionRecord[] = [];
@@ -590,11 +617,12 @@ export function readDecisionsLedger(projectRoot: string): DecisionsLedgerSnapsho
    *  carrying it: the reservation set and duplicate report share one
    *  observation. */
   const idLines = new Map<string, number[]>();
-  const supersededIds: SupersededDecisionId[] = [];
+  const provisionalIdLines = new Map<string, number[]>();
   const parsedLines: ParsedLedgerPhysicalLine[] = [];
+  let highestDurableSequence = 0;
   // Byte-level split; each line is decoded with fatal UTF-8 so invalid bytes
   // quarantine the line instead of being silently replaced with U+FFFD.
-  const rawLines = fs.readFileSync(filePath).toString('binary').split('\n');
+  const rawLines = bytes.toString('binary').split('\n');
   for (const [index, rawLine] of rawLines.entries()) {
     const lineNumber = index + 1;
     const lineBytes = Buffer.from(rawLine.endsWith('\r') ? rawLine.slice(0, -1) : rawLine, 'binary');
@@ -603,10 +631,10 @@ export function readDecisionsLedger(projectRoot: string): DecisionsLedgerSnapsho
     // decoding must quarantine instead.
     if (lineBytes.every(byte => byte === 0x20 || byte === 0x09 || byte === 0x0d)) continue;
     const decoded = decodeLedgerLine(lineBytes);
-    const { ids, resolvesValues, record } = decoded.text !== null
+    const { ids, provisionalIds, resolvesValues, record } = decoded.text !== null
       ? parseDecisionLine(decoded.text)
       : { ...scanTopLevelFields(decoded.validPrefix), record: null };
-    parsedLines.push({ lineNumber, ids, resolvesValues, record });
+    parsedLines.push({ lineNumber, ids, provisionalIds, resolvesValues, record });
     // Reserve every id attributable to the line's valid prefix, quarantined or
     // not, and record where it occurs so repeats are reportable and a current-
     // ledger collision can be redrawn or refused.
@@ -614,16 +642,15 @@ export function readDecisionsLedger(projectRoot: string): DecisionsLedgerSnapsho
       const lines = idLines.get(id);
       if (lines) lines.push(lineNumber);
       else idLines.set(id, [lineNumber]);
-      if (isSupersededCounterId(id)) supersededIds.push({ id, line: lineNumber, field: 'id' });
+      const sequence = decisionSequenceNumber(id);
+      if (sequence !== null && sequence > highestDurableSequence) {
+        highestDurableSequence = sequence;
+      }
     }
-    // A resolution target is a reference, not an identity: it is deliberately
-    // NOT reserved and not counted as an occurrence. It is still reported when
-    // it names a superseded number, because mid-migration — pending entries
-    // already reissued, a decided entry still pointing at the old number — that
-    // is the only place the stale number appears, and the line would otherwise
-    // fall into the generic invalid-line count with nothing naming the cause.
-    for (const value of resolvesValues) {
-      if (isSupersededCounterId(value)) supersededIds.push({ id: value, line: lineNumber, field: 'resolves' });
+    for (const provisionalId of provisionalIds) {
+      const lines = provisionalIdLines.get(provisionalId);
+      if (lines) lines.push(lineNumber);
+      else provisionalIdLines.set(provisionalId, [lineNumber]);
     }
   }
 
@@ -632,6 +659,37 @@ export function readDecisionsLedger(projectRoot: string): DecisionsLedgerSnapsho
     if (lines.length > 1) duplicateIds.push({ id, lines });
   }
   const duplicatedIdSet = new Set(duplicateIds.map(entry => entry.id));
+
+  const ambiguousProvisionalIds: DuplicateDecisionId[] = [];
+  for (const [provisionalId, retainedLines] of provisionalIdLines) {
+    const currentIdLines = idLines.get(provisionalId) ?? [];
+    if (retainedLines.length > 1 || currentIdLines.length > 0) {
+      const lines = [...new Set([...retainedLines, ...currentIdLines])]
+        .sort((left, right) => left - right);
+      ambiguousProvisionalIds.push({ id: provisionalId, lines });
+    }
+  }
+  const ambiguousAliasSet = new Set(ambiguousProvisionalIds.map(entry => entry.id));
+
+  // A branch can be cut after a provisional pending entry is merged but
+  // before trunk lands it. If trunk lands first and the branch's later
+  // resolver arrives afterward, that resolver still names the old handle.
+  // Retained provisional_id mappings let the read model recognize that stale
+  // branch reference so the next landing can rewrite it to D<n>. A handle
+  // retained on more than one durable record, or reused as a current id, is
+  // explicitly ambiguous and never silently selects either target.
+  const aliasTargets = new Map<string, string>();
+  for (const { lineNumber, record } of parsedLines) {
+    if (
+      !record?.provisional_id
+      || !isDurableDecisionId(record.id)
+      || idLines.get(record.id)?.[0] !== lineNumber
+      || ambiguousAliasSet.has(record.provisional_id)
+    ) {
+      continue;
+    }
+    aliasTargets.set(record.provisional_id, record.id);
+  }
 
   // Semantic replay is deliberately a second pass. A resolution can precede a
   // later duplicate after two append-only branch tails are merged, so the full
@@ -647,10 +705,23 @@ export function readDecisionsLedger(projectRoot: string): DecisionsLedgerSnapsho
       invalidLines += 1;
       continue;
     }
+    let effectiveRecord = record;
+    if (record.kind === 'decided' && record.resolves !== null) {
+      if (ambiguousAliasSet.has(record.resolves)) {
+        invalidLines += 1;
+        continue;
+      }
+      if (!idLines.has(record.resolves)) {
+        const durableTarget = aliasTargets.get(record.resolves);
+        if (durableTarget) {
+          effectiveRecord = { ...record, resolves: durableTarget };
+        }
+      }
+    }
     if (
-      record.kind === 'decided'
-      && record.resolves !== null
-      && duplicatedIdSet.has(record.resolves)
+      effectiveRecord.kind === 'decided'
+      && effectiveRecord.resolves !== null
+      && duplicatedIdSet.has(effectiveRecord.resolves)
     ) {
       // A duplicated target is ambiguous across the whole persisted file,
       // regardless of whether its later occurrence appears before or after
@@ -658,7 +729,11 @@ export function readDecisionsLedger(projectRoot: string): DecisionsLedgerSnapsho
       invalidLines += 1;
       continue;
     }
-    if (record.kind === 'decided' && record.resolves !== null && !openIds.has(record.resolves)) {
+    if (
+      effectiveRecord.kind === 'decided'
+      && effectiveRecord.resolves !== null
+      && !openIds.has(effectiveRecord.resolves)
+    ) {
       // Sequential semantics: a resolution must reference an EARLIER pending
       // entry that is still open at this point in the file. A forward
       // reference would silently close a later, unrelated question as soon as
@@ -666,12 +741,12 @@ export function readDecisionsLedger(projectRoot: string): DecisionsLedgerSnapsho
       invalidLines += 1;
       continue;
     }
-    if (record.kind === 'pending') {
-      openIds.add(record.id);
-    } else if (record.resolves !== null) {
-      openIds.delete(record.resolves);
+    if (effectiveRecord.kind === 'pending') {
+      openIds.add(effectiveRecord.id);
+    } else if (effectiveRecord.resolves !== null) {
+      openIds.delete(effectiveRecord.resolves);
     }
-    records.push(record);
+    records.push(effectiveRecord);
   }
   return {
     path: displayPath,
@@ -679,9 +754,21 @@ export function readDecisionsLedger(projectRoot: string): DecisionsLedgerSnapsho
     records,
     invalid_lines: invalidLines,
     duplicate_ids: duplicateIds,
-    superseded_ids: supersededIds,
+    ambiguous_provisional_ids: ambiguousProvisionalIds,
     reserved_ids: [...idLines.keys()],
+    reserved_provisional_ids: [...provisionalIdLines.keys()],
+    highest_durable_sequence: highestDurableSequence,
+    unlanded_ids: records.filter(record => isProvisionalDecisionId(record.id)).map(record => record.id),
   };
+}
+
+export function readDecisionsLedger(projectRoot: string): DecisionsLedgerSnapshot {
+  const filePath = decisionsLedgerPath(projectRoot);
+  const displayPath = decisionsLedgerDisplayPath(projectRoot);
+  if (!fs.existsSync(filePath)) {
+    return parseDecisionsLedgerBytes(Buffer.alloc(0), displayPath, false);
+  }
+  return parseDecisionsLedgerBytes(fs.readFileSync(filePath), displayPath, true);
 }
 
 /** Pending entries not closed by any later decided entry. Oldest first.
@@ -695,6 +782,17 @@ export function openDecisions(records: DecisionRecord[]): DecisionRecord[] {
       .map((record) => record.resolves as string),
   );
   return records.filter((record) => record.kind === 'pending' && !resolved.has(record.id));
+}
+
+/** Presentation order is carried by `ts`, never inferred from a provisional
+ *  handle. Equal timestamps preserve physical ledger order. Semantic replay
+ *  itself remains physical-order because a resolution may only close an
+ *  earlier pending entry. */
+export function sortDecisionsByTimestamp(records: DecisionRecord[]): DecisionRecord[] {
+  return records
+    .map((record, index) => ({ record, index, epochMs: Date.parse(record.ts) }))
+    .sort((left, right) => left.epochMs - right.epochMs || left.index - right.index)
+    .map(entry => entry.record);
 }
 
 function lockFilePath(projectRoot: string): string {
@@ -722,15 +820,14 @@ function describeLockHolder(lockPath: string): string {
   return 'holder unknown';
 }
 
-/** Cross-process mutual exclusion around read-validate-append. Minted ids no
- *  longer depend on the file, so this is not what keeps them distinct; it
- *  keeps the two steps that DO read the file before writing it whole. Two
- *  concurrent recorders would otherwise be able to close the same open pending
- *  entry (each validating `--resolves` against a snapshot taken before the
- *  other's append), and a tail repair could land between another process's
- *  read and its append, concatenating two records into one corrupt line. The
- *  lock file carries the holder identity (control metadata, not durable
- *  project data — hence plain writes, mirroring the engine-store file lock).
+/** Cross-process mutual exclusion around record and land mutations. Provisional
+ *  identity does not depend on the file, so this is not what makes branch
+ *  handles distinct; it keeps each local read-validate-write transition whole.
+ *  Two concurrent recorders would otherwise be able to close the same open
+ *  pending entry (each validating `--resolves` against a snapshot taken before
+ *  the other's append), and a landing rewrite must not race an append. The lock
+ *  file carries the holder identity (control metadata, not durable project data
+ *  — hence plain writes, mirroring the engine-store file lock).
  *
  *  Fail-closed on a lock that outlives the bounded wait: the error names the
  *  file and the quiescent repair (verify no recorder is running, remove the
@@ -766,7 +863,7 @@ function withDecisionsLock<T>(projectRoot: string, action: () => T): T {
     throw new Error(
       `decisions ledger is locked (${lockPath}; ${describeLockHolder(lockPath)}). `
       + 'If no recording process is running (e.g. after a crash), first check whether the '
-      + `intended entry already landed (nullius decision list --project-root ${shellQuote(projectRoot)}) — `
+      + `intended entry already recorded (nullius decision list --project-root ${shellQuote(projectRoot)}) — `
       + 'a crashed holder may have completed its append — then remove that lock file and '
       + 'retry only if the entry is absent.',
     );
@@ -792,6 +889,411 @@ function repairUnterminatedTail(filePath: string): void {
   if (bytes.length === 0) return;
   if (bytes[bytes.length - 1] === 0x0a) return;
   appendBytesDurable(filePath, '\n');
+}
+
+type LandingLedgerLine = {
+  /** Exact bytes before LF, including a CR when the source uses CRLF. */
+  raw: Buffer;
+  /** Whether this physical segment ended in LF. */
+  hasLf: boolean;
+  /** Null only for an ASCII-blank physical line. */
+  source: Record<string, unknown> | null;
+  /** Exact decoded object text excluding a terminal CR. */
+  text: string | null;
+  /** Field spans for surgical identity rewrites. */
+  scan: TopLevelScan | null;
+  physicalLineNumber: number;
+};
+
+/** Parse every nonblank physical line as a plain object after the strict reader
+ *  has certified the ledger. Exact line bytes and terminators are retained so
+ *  landing can preserve blank lines and every non-identity byte, including
+ *  project-owned extension values that JavaScript could not round-trip
+ *  losslessly as numbers. */
+function readLedgerLinesForLanding(bytes: Buffer): LandingLedgerLine[] {
+  const lines: LandingLedgerLine[] = [];
+  const rawLines = bytes.toString('binary').split('\n');
+  for (const [index, rawLine] of rawLines.entries()) {
+    const raw = Buffer.from(rawLine, 'binary');
+    const hasLf = index < rawLines.length - 1;
+    const lineBytes = Buffer.from(rawLine.endsWith('\r') ? rawLine.slice(0, -1) : rawLine, 'binary');
+    if (lineBytes.every(byte => byte === 0x20 || byte === 0x09 || byte === 0x0d)) {
+      lines.push({
+        raw,
+        hasLf,
+        source: null,
+        text: null,
+        scan: null,
+        physicalLineNumber: index + 1,
+      });
+      continue;
+    }
+    const decoded = decodeLedgerLine(lineBytes);
+    if (decoded.text === null) {
+      throw new Error('refusing to land a decision ledger containing invalid UTF-8');
+    }
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(decoded.text) as unknown;
+    } catch {
+      throw new Error('refusing to land a decision ledger containing invalid JSON; no bytes were changed');
+    }
+    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error('refusing to land a decision ledger containing a non-object line');
+    }
+    lines.push({
+      raw,
+      hasLf,
+      source: parsed as Record<string, unknown>,
+      text: decoded.text,
+      scan: scanTopLevelFields(decoded.text),
+      physicalLineNumber: index + 1,
+    });
+  }
+  return lines;
+}
+
+type LandingSourceSnapshot = {
+  bytes: Buffer;
+  dev: number;
+  ino: number;
+  mode: number;
+};
+
+/** Read bytes and inode identity through one fd, then confirm the pathname
+ *  still names that inode. This binds the optimistic landing snapshot more
+ *  tightly than independent stat/read pathname calls. */
+function readLandingSourceSnapshot(filePath: string): LandingSourceSnapshot {
+  const fd = fs.openSync(filePath, 'r');
+  try {
+    const stat = fs.fstatSync(fd);
+    const bytes = fs.readFileSync(fd);
+    const pathStat = fs.statSync(filePath);
+    if (stat.dev !== pathStat.dev || stat.ino !== pathStat.ino) {
+      throw new Error('the decisions ledger changed while its landing snapshot was being read');
+    }
+    return {
+      bytes,
+      dev: stat.dev,
+      ino: stat.ino,
+      mode: stat.mode & 0o777,
+    };
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+function assertLandingSourceStillMatches(
+  filePath: string,
+  source: LandingSourceSnapshot,
+  displayPath: string,
+): void {
+  let current: LandingSourceSnapshot;
+  try {
+    current = readLandingSourceSnapshot(filePath);
+  } catch (error) {
+    throw new Error(
+      `refusing to land ${displayPath}: the ledger changed while preparing the rewrite; `
+      + `no bytes were changed by this command (${error instanceof Error ? error.message : String(error)})`,
+    );
+  }
+  if (
+    current.dev !== source.dev
+    || current.ino !== source.ino
+    || current.mode !== source.mode
+    || !current.bytes.equals(source.bytes)
+  ) {
+    throw new Error(
+      `refusing to land ${displayPath}: the ledger changed while preparing the rewrite; `
+      + 'no bytes were changed by this command',
+    );
+  }
+}
+
+type LandingTextEdit = {
+  start: number;
+  end: number;
+  replacement: string;
+};
+
+function singleLandingValueSpan(
+  line: LandingLedgerLine,
+  key: string,
+): { start: number; end: number } {
+  const spans = line.scan?.valueSpans.get(key) ?? [];
+  if (spans.length !== 1) {
+    throw new Error(
+      `refusing to land: physical line ${line.physicalLineNumber} does not carry exactly one `
+      + `top-level ${JSON.stringify(key)} value; no bytes were changed`,
+    );
+  }
+  return spans[0]!;
+}
+
+/** Rewrite only the top-level identity tokens on one already-certified line.
+ *  Applying edits from right to left keeps every recorded source offset valid.
+ *  Valid UTF-8 decodes and re-encodes byte-for-byte, while raw JSON spelling,
+ *  whitespace, member order, escapes, and extension number lexemes remain
+ *  untouched outside the edited spans. */
+function rewriteLandingLine(
+  line: LandingLedgerLine,
+  record: DecisionRecord,
+  durableId: string | undefined,
+  targetId: string | undefined,
+): Buffer {
+  if (line.text === null || line.scan === null) {
+    throw new Error(
+      `refusing to land: physical line ${line.physicalLineNumber} is not a decision object; `
+      + 'no bytes were changed',
+    );
+  }
+  const edits: LandingTextEdit[] = [];
+  if (durableId) {
+    edits.push({
+      ...singleLandingValueSpan(line, 'id'),
+      replacement: JSON.stringify(durableId),
+    });
+    const provisionalCount = line.scan.keyCounts.get('provisional_id') ?? 0;
+    if (provisionalCount === 0) {
+      if (line.scan.closingBraceIndex === null) {
+        throw new Error(
+          `refusing to land: physical line ${line.physicalLineNumber} has no certified closing brace; `
+          + 'no bytes were changed',
+        );
+      }
+      edits.push({
+        start: line.scan.closingBraceIndex,
+        end: line.scan.closingBraceIndex,
+        replacement: `,"provisional_id":${JSON.stringify(record.id)}`,
+      });
+    } else {
+      edits.push({
+        ...singleLandingValueSpan(line, 'provisional_id'),
+        replacement: JSON.stringify(record.id),
+      });
+    }
+  }
+  if (targetId) {
+    edits.push({
+      ...singleLandingValueSpan(line, 'resolves'),
+      replacement: JSON.stringify(targetId),
+    });
+  }
+  let rewritten = line.text;
+  for (const edit of edits.sort((left, right) => right.start - left.start)) {
+    rewritten = `${rewritten.slice(0, edit.start)}${edit.replacement}${rewritten.slice(edit.end)}`;
+  }
+  const ending = line.raw.length > 0 && line.raw[line.raw.length - 1] === 0x0d
+    ? '\r'
+    : '';
+  return Buffer.from(`${rewritten}${ending}`, 'utf-8');
+}
+
+function nextDurableDecisionId(sequence: number): { id: string; sequence: number } {
+  if (sequence >= Number.MAX_SAFE_INTEGER) {
+    throw new Error(
+      `decision id space exhausted (D${sequence} is the largest safe durable id); `
+      + 'repair the ledger ids before landing',
+    );
+  }
+  const next = sequence + 1;
+  return { id: `D${next}`, sequence: next };
+}
+
+/** Fold every admitted provisional entry into the durable trunk sequence.
+ *
+ *  This is deliberately explicit rather than automatic: the CLI cannot know
+ *  which branch is authoritative trunk. The operation refuses any malformed
+ *  or duplicate-bearing ledger, builds and self-validates the complete
+ *  rewritten JSONL before touching the file, then commits it with one durable
+ *  atomic rename. Existing D<n> entries keep their ids, and physical lines
+ *  whose id/resolves do not change keep their exact bytes. */
+export function landDecisionIds(projectRoot: string): DecisionLandingResult {
+  if (!fs.existsSync(path.join(nulliusControlDir(projectRoot), 'state.json'))) {
+    throw new Error('project is not initialized (missing state.json in the control dir); run nullius init first');
+  }
+  return withDecisionsLock(projectRoot, () => {
+    const filePath = decisionsLedgerPath(projectRoot);
+    const exists = fs.existsSync(filePath);
+    const source = exists ? readLandingSourceSnapshot(filePath) : null;
+    const sourceBytes = source?.bytes ?? Buffer.alloc(0);
+    const snapshot = parseDecisionsLedgerBytes(
+      sourceBytes,
+      decisionsLedgerDisplayPath(projectRoot),
+      exists,
+    );
+    if (snapshot.duplicate_ids.length > 0) {
+      const summary = snapshot.duplicate_ids
+        .map(entry => `${entry.id} (lines ${entry.lines.join(', ')})`)
+        .join('; ');
+      throw new Error(`refusing to land ${snapshot.path}: duplicate decision ids are ambiguous: ${summary}`);
+    }
+    if (snapshot.ambiguous_provisional_ids.length > 0) {
+      const summary = snapshot.ambiguous_provisional_ids
+        .map(entry => `${entry.id} (lines ${entry.lines.join(', ')})`)
+        .join('; ');
+      throw new Error(
+        `refusing to land ${snapshot.path}: provisional decision ids are not one-to-one: `
+        + `${summary}; no bytes were changed`,
+      );
+    }
+    if (snapshot.invalid_lines > 0) {
+      throw new Error(
+        `refusing to land ${snapshot.path}: ${snapshot.invalid_lines} invalid or mis-resolving `
+        + 'line(s) must be repaired first; no bytes were changed',
+      );
+    }
+    if (!snapshot.exists) {
+      return { path: snapshot.path, landed: [], rewritten_resolutions: 0 };
+    }
+
+    const mapping = new Map<string, string>();
+    const landed: DecisionIdLanding[] = [];
+    let sequence = snapshot.highest_durable_sequence;
+    for (const record of snapshot.records) {
+      if (record.provisional_id && isDurableDecisionId(record.id)) {
+        mapping.set(record.provisional_id, record.id);
+      }
+    }
+    for (const record of snapshot.records) {
+      if (isDurableDecisionId(record.id)) continue;
+      const next = nextDurableDecisionId(sequence);
+      sequence = next.sequence;
+      mapping.set(record.id, next.id);
+      landed.push({ provisional_id: record.id, id: next.id });
+    }
+
+    const sourceLines = readLedgerLinesForLanding(sourceBytes);
+    const sourceRecordCount = sourceLines.filter(line => line.source !== null).length;
+    if (sourceRecordCount !== snapshot.records.length) {
+      throw new Error(
+        `refusing to land ${snapshot.path}: the physical ledger and admitted read model disagree; `
+        + 'no bytes were changed',
+      );
+    }
+    const rewrittenChunks: Buffer[] = [];
+    let rewrittenResolutions = 0;
+    let recordIndex = 0;
+    for (const line of sourceLines) {
+      if (line.source === null) {
+        rewrittenChunks.push(line.raw);
+        if (line.hasLf) rewrittenChunks.push(Buffer.from('\n'));
+        continue;
+      }
+      const source = line.source;
+      const record = snapshot.records[recordIndex]!;
+      if (source.id !== record.id) {
+        throw new Error(
+          `refusing to land ${snapshot.path}: physical line ${line.physicalLineNumber} `
+          + 'changed while preparing the rewrite; '
+          + 'no bytes were changed',
+        );
+      }
+      const durableId = mapping.get(record.id);
+      const sourceResolves = typeof source.resolves === 'string' ? source.resolves : null;
+      const targetId = sourceResolves === null ? undefined : mapping.get(sourceResolves);
+      if (durableId || targetId) {
+        rewrittenChunks.push(rewriteLandingLine(line, record, durableId, targetId));
+        if (targetId) rewrittenResolutions += 1;
+      } else {
+        rewrittenChunks.push(line.raw);
+      }
+      if (line.hasLf) rewrittenChunks.push(Buffer.from('\n'));
+      recordIndex += 1;
+    }
+    const content = Buffer.concat(rewrittenChunks);
+    if (content.equals(sourceBytes)) {
+      if (landed.length > 0) {
+        throw new Error(
+          `refusing to land ${snapshot.path}: provisional entries produced no byte changes; `
+          + 'no bytes were changed',
+        );
+      }
+      if (source) {
+        assertLandingSourceStillMatches(filePath, source, snapshot.path);
+        // A prior landing can have completed rename but failed before the
+        // parent-directory fsync. A canonical retry must therefore do more
+        // than observe the bytes: explicitly persist the current directory
+        // entry before reporting a confirmed no-op.
+        try {
+          fsyncParentDirectoryDurable(filePath);
+        } catch (error) {
+          throw new Error(
+            `decision landing found canonical target bytes in ${snapshot.path}, but could not `
+            + 'confirm the directory entry durably; commit status remains uncertain. Run '
+            + `\`nullius decision list --project-root ${shellQuote(projectRoot)}\`, then rerun `
+            + `\`nullius decision land --project-root ${shellQuote(projectRoot)}\` `
+            + `(${error instanceof Error ? error.message : String(error)})`,
+          );
+        }
+        assertLandingSourceStillMatches(filePath, source, snapshot.path);
+      }
+      return { path: snapshot.path, landed: [], rewritten_resolutions: 0 };
+    }
+    if (!source) {
+      throw new Error(
+        `refusing to land ${snapshot.path}: the ledger disappeared while preparing the rewrite; `
+        + 'no bytes were changed by this command',
+      );
+    }
+    if ((source.mode & 0o222) === 0) {
+      throw new Error(
+        `refusing to land ${snapshot.path}: the ledger mode ${source.mode.toString(8).padStart(4, '0')} `
+        + 'has no write bit; no bytes were changed',
+      );
+    }
+    const candidate = parseDecisionsLedgerBytes(content, snapshot.path, true);
+    if (
+      candidate.invalid_lines !== 0
+      || candidate.duplicate_ids.length !== 0
+      || candidate.ambiguous_provisional_ids.length !== 0
+      || candidate.unlanded_ids.length !== 0
+      || candidate.records.length !== snapshot.records.length
+    ) {
+      throw new Error(
+        `refusing to land ${snapshot.path}: the proposed rewrite does not round-trip through `
+        + "the ledger's own reader; no bytes were changed",
+      );
+    }
+
+    // The cooperative lock serializes nullius writers. The commit guard runs
+    // only after the staged bytes are fsync'd and closed, at the last portable
+    // userspace point before rename, so edits made during preparation are
+    // refused rather than overwritten. POSIX has no portable conditional
+    // rename: a non-cooperating writer can still race the final check itself
+    // and is outside this lock protocol.
+    try {
+      writeBytesAtomicDurable(
+        filePath,
+        content,
+        source.mode,
+        () => assertLandingSourceStillMatches(filePath, source, snapshot.path),
+      );
+    } catch (error) {
+      // rename precedes the parent-directory fsync. If that durability step
+      // fails, the target bytes may already be visible and cannot be honestly
+      // reported as a zero-write refusal or safely rolled back over a possible
+      // foreign edit. Give the operator an explicit commit-uncertain recovery.
+      let targetVisible = false;
+      try {
+        targetVisible = fs.readFileSync(filePath).equals(content);
+      } catch {
+        // Preserve the original failure below.
+      }
+      if (targetVisible) {
+        throw new Error(
+          `decision landing reached the target bytes in ${snapshot.path}, but durable commit `
+          + 'confirmation failed after rename; commit status is uncertain. Run '
+          + `\`nullius decision list --project-root ${shellQuote(projectRoot)}\`, then rerun `
+          + `\`nullius decision land --project-root ${shellQuote(projectRoot)}\` to fsync the `
+          + 'parent directory and confirm the canonical ledger '
+          + `(${error instanceof Error ? error.message : String(error)})`,
+        );
+      }
+      throw error;
+    }
+    return { path: snapshot.path, landed, rewritten_resolutions: rewrittenResolutions };
+  });
 }
 
 export function appendDecision(
@@ -827,8 +1329,27 @@ export function appendDecision(
           + '(and repoint any resolves naming it) before resolving it.',
         );
       }
+      const ambiguousProvisional = snapshot.ambiguous_provisional_ids
+        .find((entry) => entry.id === params.resolves);
+      if (ambiguousProvisional) {
+        throw new Error(
+          `--resolves ${params.resolves} is ambiguous: ${snapshot.path} uses that provisional id `
+          + `for more than one identity on lines ${ambiguousProvisional.lines.join(', ')}. `
+          + 'Keep one durable mapping, reissue any current entry that reused it, and repoint '
+          + 'old resolutions to the intended D<n> before resolving it.',
+        );
+      }
       const target = snapshot.records.find((record) => record.id === params.resolves);
       if (!target) {
+        const landedTarget = snapshot.records.find(
+          (record) => record.provisional_id === params.resolves,
+        );
+        if (landedTarget) {
+          throw new Error(
+            `--resolves ${params.resolves} was landed as ${landedTarget.id}; `
+            + `use --resolves ${landedTarget.id}`,
+          );
+        }
         throw new Error(`--resolves ${params.resolves} does not match any recorded decision id`);
       }
       if (target.kind !== 'pending') {
@@ -840,8 +1361,12 @@ export function appendDecision(
       resolves = target.id;
     }
     const recordedAtMs = Date.now();
+    assertRecordableEpochMs(recordedAtMs);
     const record: DecisionRecord = {
-      id: mintDecisionId(recordedAtMs, new Set(snapshot.reserved_ids)),
+      id: mintDecisionHandle(new Set([
+        ...snapshot.reserved_ids,
+        ...snapshot.reserved_provisional_ids,
+      ])),
       ts: utcIsoAt(recordedAtMs),
       kind: params.kind,
       text: trimmed,
