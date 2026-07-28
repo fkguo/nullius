@@ -135,8 +135,8 @@ Behavior:
   list exits non-zero and names the lines when the ledger carries an id twice, or numbers
   from the superseded D<n> counter — an entry still numbered by it, or a resolution still
   pointing at one. Those entries are not readable as decisions: they stay out of the
-  listing and the open count until the entry is reissued and any resolution naming it is
-  repointed. The status receipt reports both without gating anything.
+  listing and the open count until each entry is reissued and each resolution repointed.
+  The status receipt reports both without gating anything.
   Works in both execution modes and never gates any command: it replaces hand-built
   decision ledgers, giving file-mode projects an engine-visible record of conversational
   approvals. Open entries surface in the status receipt until a later

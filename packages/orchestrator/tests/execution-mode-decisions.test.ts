@@ -759,7 +759,7 @@ describe('decision ledger', () => {
     expect(receipt).toContain('reissue each entry, repoint each resolution');
     expect(receipt).not.toMatch(/— reissue them\)/);
     expect(list.stdout.join('')).toContain('repoint any resolves naming the old one');
-    expect(renderHelp('decision')).toContain('until the entry is reissued and any resolution naming it is');
+    expect(renderHelp('decision')).toContain('until each entry is reissued and each resolution repointed');
   }, 20000);
 
   it('stays quiet about superseded ids on a healthy ledger', async () => {
@@ -1490,7 +1490,7 @@ describe('decision ledger', () => {
     // Both halves of the migration must be advertised: an entry's own number
     // and a resolution still pointing at one.
     expect(help).toContain('from the superseded D<n> counter — an entry still numbered by it, or a resolution still');
-    expect(help).toContain('until the entry is reissued and any resolution naming it is');
+    expect(help).toContain('until each entry is reissued and each resolution repointed');
     // The guarantee is probabilistic and must be stated WITH the condition
     // that bounds it. An absolute "cannot collide" is a false guarantee, and
     // so is a practical one ("no one will observe") — both would let a reader
