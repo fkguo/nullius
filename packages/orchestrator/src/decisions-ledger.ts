@@ -2,7 +2,7 @@ import { randomFillSync } from 'node:crypto';
 import { readFileSync, rmSync } from 'node:fs';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { appendBytesDurable, appendJsonlDurable } from '@nullius/shared';
+import { appendBytesDurable } from '@nullius/shared';
 import { nulliusControlDir } from './state-manager.js';
 import { utcNowIso } from './util.js';
 
@@ -21,11 +21,14 @@ import { utcNowIso } from './util.js';
  *  them the same name. After a merge the ledger then holds two different
  *  decisions called D38, and `--resolves D38` — the only way to close an open
  *  question — no longer names one entry. The id is therefore a ULID: a 48-bit
- *  millisecond timestamp followed by 80 random bits in Crockford base32. It is
- *  unique without any coordination between branches or machines, and it sorts
- *  lexicographically by recording time, so a merged ledger still reads in
- *  chronological order. Collisions already present in a ledger written by the
- *  old counter are reported by readDecisionsLedger rather than tolerated.
+ *  millisecond timestamp followed by 80 random bits in Crockford base32,
+ *  choosable without any coordination between branches or machines (see
+ *  mintDecisionId for what that guarantee is and is not). Ids sort
+ *  lexicographically by recording MILLISECOND, so a merged ledger still reads
+ *  in chronological order down to that granularity; two ids minted inside one
+ *  millisecond are unordered with respect to each other. Collisions already
+ *  present in a ledger, and entries still numbered by the old counter, are
+ *  reported by readDecisionsLedger rather than tolerated.
  *
  *  Recording never gates anything: open decisions surface in the status
  *  receipt as information, not as a blocking state. */
@@ -54,6 +57,13 @@ export type DuplicateDecisionId = {
   lines: number[];
 };
 
+/** One line still carrying an id in the superseded counter form. */
+export type SupersededDecisionId = {
+  id: string;
+  /** 1-based physical line number. */
+  line: number;
+};
+
 export type DecisionsLedgerSnapshot = {
   /** Project-relative POSIX path of the ledger file (absolute when the
    *  control-dir override points outside the project root). */
@@ -77,6 +87,16 @@ export type DecisionsLedgerSnapshot = {
    *  form-agnostic: the ledgers that carry collisions are exactly the ones
    *  whose ids are not ULIDs. */
   duplicate_ids: DuplicateDecisionId[];
+  /** Lines still numbered by the superseded counter. Those ids are no longer a
+   *  form this ledger issues, so their lines are quarantined and their entries
+   *  leave the read model entirely — including any question that was still
+   *  open, which is the one thing the status receipt exists to keep in front of
+   *  a human. Reported separately from `invalid_lines` because that count
+   *  cannot say WHY a line was dropped, and this cause is both recognizable on
+   *  sight and repairable: reissue each entry with a fresh id. Leaving it to a
+   *  generic count would reproduce, on the migration path, exactly the silence
+   *  that makes a merged collision dangerous. */
+  superseded_ids: SupersededDecisionId[];
   /** Every id the file's bytes carry — including ids salvaged from
    *  quarantined lines — so a freshly minted id can be checked against them
    *  and no id that exists in the file in any form is ever issued again. */
@@ -96,7 +116,15 @@ const CROCKFORD_BASE32 = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
 const DECISION_ID_PATTERN = /^[0-7][0-9ABCDEFGHJKMNPQRSTVWXYZ]{25}$/;
 const DECISION_ID_TIME_CHARS = 10;
 const DECISION_ID_RANDOM_BYTES = 10;
-const DECISION_ID_MAX_TIME_MS = 2 ** 48 - 1;
+// 9999-12-31T23:59:59.999Z: the last instant a record's `ts` can state in the
+// four-digit-year form the reader accepts. Deliberately NOT the 2^48-1 the id
+// itself could encode — see mintDecisionId.
+const MAX_RECORDABLE_MS = Date.UTC(9999, 11, 31, 23, 59, 59, 999);
+// The form the superseded local counter produced ("D38"). Not an id this
+// ledger issues any more, but distinguishable on sight, which is what lets a
+// ledger written before the change be named as needing reissue instead of
+// disappearing into a generic invalid-line count.
+const SUPERSEDED_COUNTER_ID_PATTERN = /^D\d+$/;
 // Redraws when a minted id already exists in the file. Reaching the bound is
 // not a collision anyone will observe (80 random bits within one millisecond);
 // it means the randomness source is returning a constant, which must fail
@@ -185,19 +213,35 @@ function encodeDecisionIdRandom(): string {
 
 /** Mint one id for an entry recorded at `epochMs`.
  *
- *  The timestamp makes ids sort by recording time; the 80 random bits make
- *  them unique WITHOUT coordination, which is the whole point — two branches,
- *  or two machines, recording in the same millisecond hold no shared state to
- *  coordinate through. The ULID spec's monotonic variant (increment the
- *  previous id's random field within the same millisecond) is deliberately not
- *  used: deriving an id from the previous one is exactly the local-scan
- *  dependency that made branch copies collide, since two branches sharing an
- *  ancestor would increment the same id. Every id gets fresh randomness. */
+ *  The timestamp makes ids sort by recording time; the 80 random bits are what
+ *  make a name safe to choose WITHOUT coordination, which is the whole point —
+ *  two branches, or two machines, recording in the same millisecond share no
+ *  state to coordinate through. Two independently minted ids are equal only if
+ *  both the millisecond AND all 80 random bits coincide, which is a
+ *  probabilistic guarantee, not an impossibility proof: this removes the
+ *  collision that the previous local counter produced SYSTEMATICALLY (every
+ *  pair of branches, every time) and leaves a residue no one will observe. The
+ *  residue is not left unattended either — a ledger that does end up carrying
+ *  one id twice is reported by readDecisionsLedger and refused by `--resolves`
+ *  rather than silently resolved.
+ *
+ *  The ULID spec's monotonic variant (increment the previous id's random field
+ *  within the same millisecond) is deliberately not used: deriving an id from
+ *  the previous one is exactly the local-scan dependency that made branch
+ *  copies collide, since two branches sharing an ancestor would increment the
+ *  same id — turning the residue back into a systematic collision. Every id
+ *  gets fresh randomness. */
 function mintDecisionId(epochMs: number, reserved: ReadonlySet<string>): string {
-  if (!Number.isSafeInteger(epochMs) || epochMs < 0 || epochMs > DECISION_ID_MAX_TIME_MS) {
+  // The bound is the RECORD's, not the encoding's: 48 bits of milliseconds
+  // reach the year 10889, but a `ts` past 9999 is written by toISOString in
+  // the expanded-year form (+010000-01-01T00:00:00Z), which the reader's
+  // four-digit-year pattern rejects. Minting anywhere in that gap would append
+  // a record that the very next read quarantines while the command reports
+  // success — the invisible-record failure this check exists to prevent.
+  if (!Number.isSafeInteger(epochMs) || epochMs < 0 || epochMs > MAX_RECORDABLE_MS) {
     throw new Error(
-      `the system clock reads ${epochMs} ms since the epoch, outside the range a decision id encodes `
-      + `(0..${DECISION_ID_MAX_TIME_MS}); fix the clock before recording`,
+      `the system clock reads ${epochMs} ms since the epoch, outside the range a decision entry can `
+      + `record (0..${MAX_RECORDABLE_MS}, i.e. through 9999-12-31T23:59:59Z); fix the clock before recording`,
     );
   }
   const time = encodeDecisionIdTime(epochMs);
@@ -494,12 +538,21 @@ export function readDecisionsLedger(projectRoot: string): DecisionsLedgerSnapsho
   const filePath = decisionsLedgerPath(projectRoot);
   const displayPath = decisionsLedgerDisplayPath(projectRoot);
   if (!fs.existsSync(filePath)) {
-    return { path: displayPath, exists: false, records: [], invalid_lines: 0, duplicate_ids: [], reserved_ids: [] };
+    return {
+      path: displayPath,
+      exists: false,
+      records: [],
+      invalid_lines: 0,
+      duplicate_ids: [],
+      superseded_ids: [],
+      reserved_ids: [],
+    };
   }
   const records: DecisionRecord[] = [];
   /** Every id the file carries, mapped to the lines carrying it: the
    *  reservation set and the duplicate report are the same observation. */
   const idLines = new Map<string, number[]>();
+  const supersededIds: SupersededDecisionId[] = [];
   const openIds = new Set<string>();
   let invalidLines = 0;
   // Byte-level split; each line is decoded with fatal UTF-8 so invalid bytes
@@ -524,6 +577,7 @@ export function readDecisionsLedger(projectRoot: string): DecisionsLedgerSnapsho
       const lines = idLines.get(id);
       if (lines) lines.push(lineNumber);
       else idLines.set(id, [lineNumber]);
+      if (SUPERSEDED_COUNTER_ID_PATTERN.test(id)) supersededIds.push({ id, line: lineNumber });
     }
     if (!record || alreadyReserved) {
       // Undecodable or malformed line, ambiguous identity, or a repeated id
@@ -557,6 +611,7 @@ export function readDecisionsLedger(projectRoot: string): DecisionsLedgerSnapsho
     records,
     invalid_lines: invalidLines,
     duplicate_ids: duplicateIds,
+    superseded_ids: supersededIds,
     reserved_ids: [...idLines.keys()],
   };
 }
@@ -724,10 +779,25 @@ export function appendDecision(
       by: params.by && hasSubstantiveText(params.by) ? unicodeTrim(params.by) : 'user',
       resolves,
     };
+    // Last check before any byte is written: the exact line about to be
+    // appended must be one this module's OWN reader admits. A command that
+    // reports success while writing an entry the next read quarantines is the
+    // worst outcome available — the decision looks recorded and is not. The
+    // clock bound above rules out the one way this is currently reachable;
+    // this closes the loop for any future drift between what recording writes
+    // and what parsing accepts, at the cost of one parse per recording.
+    const line = JSON.stringify(record);
+    if (parseDecisionLine(line).record === null) {
+      throw new Error(
+        `refusing to append a decision entry this ledger's own reader would quarantine `
+        + `(id ${record.id}, ts ${record.ts}); nothing was written`,
+      );
+    }
     // Validation is done; only now touch the file (boundary repair + append),
-    // so a rejected command never modifies the ledger bytes.
+    // so a rejected command never modifies the ledger bytes. The checked line
+    // is what gets appended, not a second serialization of the same object.
     repairUnterminatedTail(filePath);
-    appendJsonlDurable(filePath, record);
+    appendBytesDurable(filePath, `${line}\n`);
     return record;
   });
 }

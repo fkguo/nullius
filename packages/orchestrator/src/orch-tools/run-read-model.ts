@@ -1510,6 +1510,13 @@ function readDecisionLedgerView(projectRoot: string): {
         duplicate_id_count: snapshot.duplicate_ids.length,
         duplicate_ids: snapshot.duplicate_ids.slice(0, 10),
         duplicate_ids_omitted: Math.max(0, snapshot.duplicate_ids.length - 10),
+        // Entries still numbered by the superseded counter are NOT in the
+        // counts above — their lines are quarantined, so a question left open
+        // among them has dropped out of the receipt entirely. Naming them is
+        // what keeps that a visible migration rather than a silent loss.
+        superseded_id_count: snapshot.superseded_ids.length,
+        superseded_ids: snapshot.superseded_ids.slice(0, 10),
+        superseded_ids_omitted: Math.max(0, snapshot.superseded_ids.length - 10),
       },
       decision_ledger_error: null,
     };
