@@ -188,6 +188,8 @@ function writeStatusText(io: CliIo, payload: Record<string, unknown>, statusProj
     const decidedCount = Number(ledger.decided_count ?? 0);
     const openCount = Number(ledger.open_count ?? 0);
     const invalidLines = Number(ledger.invalid_lines ?? 0);
+    const unrecognizedRelationCount = Number(ledger.unrecognized_relation_count ?? 0);
+    const normalizedKindCount = Number(ledger.normalized_kind_count ?? 0);
     const duplicateIdCount = Number(ledger.duplicate_id_count ?? 0);
     const ambiguousProvisionalIdCount = Number(ledger.ambiguous_provisional_id_count ?? 0);
     const unlandedCount = Number(ledger.unlanded_count ?? 0);
@@ -199,6 +201,8 @@ function writeStatusText(io: CliIo, payload: Record<string, unknown>, statusProj
       || decidedCount > 0
       || openCount > 0
       || invalidLines > 0
+      || unrecognizedRelationCount > 0
+      || normalizedKindCount > 0
       || duplicateIdCount > 0
       || ambiguousProvisionalIdCount > 0
       || unlandedCount > 0
@@ -215,12 +219,63 @@ function writeStatusText(io: CliIo, payload: Record<string, unknown>, statusProj
         io.stdout(`  ... and ${omitted} more open (run: nullius decision list --project-root ${shellQuote(statusProjectRoot)})\n`);
       }
       if (invalidLines > 0) {
-        io.stdout(`  decisions_invalid_lines: ${invalidLines} (invalid, duplicate, or mis-resolving lines in ${String(ledger.path ?? 'the decisions ledger')})\n`);
+        io.stdout(`  decisions_invalid_lines: ${invalidLines} (unreadable or record-level invalid lines in ${String(ledger.path ?? 'the decisions ledger')})\n`);
+      }
+      if (unrecognizedRelationCount > 0) {
+        io.stdout(
+          `  decisions_unrecognized_relations: ${unrecognizedRelationCount} `
+          + '(links ignored; their containing entries remain valid)\n',
+        );
+        const issues = Array.isArray(ledger.unrecognized_relations)
+          ? ledger.unrecognized_relations
+          : [];
+        for (const rawIssue of issues) {
+          if (!rawIssue || typeof rawIssue !== 'object') continue;
+          const issue = rawIssue as Record<string, unknown>;
+          const target = issue.target === null || issue.target === undefined
+            ? ''
+            : `=${renderInline(issue.target)}`;
+          io.stdout(
+            `    - line ${String(issue.line ?? '')} ${renderInline(issue.id)}: `
+            + `${renderInline(issue.relation)}${target} (${renderInline(issue.reason)})\n`,
+          );
+        }
+        const omitted = Number(ledger.unrecognized_relations_omitted ?? 0);
+        if (omitted > 0) {
+          io.stdout(
+            `    ... and ${omitted} more `
+            + `(run: nullius decision list --project-root ${shellQuote(statusProjectRoot)})\n`,
+          );
+        }
+      }
+      if (normalizedKindCount > 0) {
+        io.stdout(
+          `  decisions_normalized_kinds: ${normalizedKindCount} `
+          + '(legacy/unknown kinds retained under current decided semantics)\n',
+        );
+        const mappings = Array.isArray(ledger.normalized_kinds)
+          ? ledger.normalized_kinds
+          : [];
+        for (const rawMapping of mappings) {
+          if (!rawMapping || typeof rawMapping !== 'object') continue;
+          const mapping = rawMapping as Record<string, unknown>;
+          io.stdout(
+            `    - line ${String(mapping.line ?? '')} ${renderInline(mapping.id)}: `
+            + `${renderInline(mapping.source_kind)} -> ${renderInline(mapping.kind)}\n`,
+          );
+        }
+        const omitted = Number(ledger.normalized_kinds_omitted ?? 0);
+        if (omitted > 0) {
+          io.stdout(
+            `    ... and ${omitted} more `
+            + `(run: nullius decision list --project-root ${shellQuote(statusProjectRoot)})\n`,
+          );
+        }
       }
       if (duplicateIdCount > 0) {
         io.stdout(
           `  decisions_duplicate_ids: ${duplicateIdCount} (one id on more than one entry in `
-          + `${String(ledger.path ?? 'the decisions ledger')}; --resolves cannot name one of them)\n`,
+          + `${String(ledger.path ?? 'the decisions ledger')}; relations cannot name one of them)\n`,
         );
         const duplicates = Array.isArray(ledger.duplicate_ids) ? ledger.duplicate_ids : [];
         for (const rawDuplicate of duplicates) {
@@ -240,7 +295,7 @@ function writeStatusText(io: CliIo, payload: Record<string, unknown>, statusProj
         io.stdout(
           `  decisions_ambiguous_provisional_ids: ${ambiguousProvisionalIdCount} `
           + `(a retained branch id is reused by another entry in `
-          + `${String(ledger.path ?? 'the decisions ledger')}; old branch resolutions `
+          + `${String(ledger.path ?? 'the decisions ledger')}; old branch relations `
           + 'cannot name one target)\n',
         );
         const ambiguous = Array.isArray(ledger.ambiguous_provisional_ids)
@@ -462,19 +517,25 @@ export async function runDecisionCommand(
   } = await import('./decisions-ledger.js');
   if (parsed.action === 'land') {
     const result = landDecisionIds(projectRoot);
-    if (result.landed.length > 0 || result.rewritten_resolutions > 0) {
+    if (
+      result.landed.length > 0
+      || result.rewritten_resolutions > 0
+      || result.rewritten_related_links > 0
+    ) {
       try {
         const { manager } = createStateManager(projectRoot);
         manager.appendLedger('decision_ids_landed', {
           details: {
             mappings: result.landed,
             rewritten_resolution_count: result.rewritten_resolutions,
+            rewritten_related_link_count: result.rewritten_related_links,
           },
         });
       } catch (error) {
         io.stderr(
           `[warn] decision landing changed ${result.landed.length} id(s) and `
-          + `${result.rewritten_resolutions} resolution(s), but the ledger.jsonl `
+          + `${result.rewritten_resolutions + result.rewritten_related_links} relation(s), `
+          + 'but the ledger.jsonl '
           + `mirror event failed: ${error instanceof Error ? error.message : String(error)}\n`,
         );
       }
@@ -484,11 +545,16 @@ export async function runDecisionCommand(
         path: result.path,
         landed_count: result.landed.length,
         rewritten_resolution_count: result.rewritten_resolutions,
+        rewritten_related_link_count: result.rewritten_related_links,
         mappings: result.landed,
       });
       return 0;
     }
-    if (result.landed.length === 0 && result.rewritten_resolutions === 0) {
+    if (
+      result.landed.length === 0
+      && result.rewritten_resolutions === 0
+      && result.rewritten_related_links === 0
+    ) {
       io.stdout(`landed: 0 (ledger already canonical in ${result.path})\n`);
       return 0;
     }
@@ -497,13 +563,14 @@ export async function runDecisionCommand(
       io.stdout(`  - ${mapping.provisional_id} -> ${mapping.id}\n`);
     }
     io.stdout(`rewritten_resolutions: ${result.rewritten_resolutions}\n`);
+    io.stdout(`rewritten_related_links: ${result.rewritten_related_links}\n`);
     return 0;
   }
   if (parsed.action === 'list') {
     const snapshot = readDecisionsLedger(projectRoot);
     const records = sortDecisionsByTimestamp(snapshot.records);
     const open = sortDecisionsByTimestamp(openDecisions(snapshot.records));
-    // A duplicate id makes `--resolves <id>` name two entries at once, so the
+    // A duplicate id makes a relation target name two entries at once, so the
     // read commands refuse to hand back the ledger as if it were sound: the
     // records still print (a reader may be checking whether an entry landed),
     // followed by the collisions and the repair, and the command exits
@@ -522,7 +589,7 @@ export async function runDecisionCommand(
           // nothing visible.
           io.stdout(`  - "${renderInline(duplicate.id)}" on lines ${duplicate.lines.join(', ')}\n`);
         }
-        io.stdout('  repair: keep the first occurrence of each id, reissue every later one, and repoint any resolves naming it\n');
+        io.stdout('  repair: keep the first occurrence of each id, reissue every later one, and repoint any relations naming it\n');
       }
       if (snapshot.ambiguous_provisional_ids.length > 0) {
         io.stdout(
@@ -534,7 +601,7 @@ export async function runDecisionCommand(
         }
         io.stdout(
           '  repair: keep one durable mapping for each provisional id, reissue any current entry '
-          + 'that reused it, and repoint old resolutions to the intended D<n>\n',
+          + 'that reused it, and repoint old relations to the intended D<n>\n',
         );
       }
       return ledgerDefectExitCode;
@@ -544,6 +611,8 @@ export async function runDecisionCommand(
         path: snapshot.path,
         exists: snapshot.exists,
         invalid_lines: snapshot.invalid_lines,
+        unrecognized_relations: snapshot.unrecognized_relations,
+        normalized_kinds: snapshot.normalized_kinds,
         duplicate_ids: snapshot.duplicate_ids,
         ambiguous_provisional_ids: snapshot.ambiguous_provisional_ids,
         unlanded_ids: snapshot.unlanded_ids,
@@ -555,7 +624,7 @@ export async function runDecisionCommand(
     if (!snapshot.exists || snapshot.records.length === 0) {
       io.stdout('no decisions recorded\n');
       if (snapshot.invalid_lines > 0) {
-        io.stdout(`invalid_lines: ${snapshot.invalid_lines} (invalid, duplicate, or mis-resolving lines in ${snapshot.path})\n`);
+        io.stdout(`invalid_lines: ${snapshot.invalid_lines} (unreadable or record-level invalid lines in ${snapshot.path})\n`);
       }
       return reportLedgerDefects();
     }
@@ -564,10 +633,13 @@ export async function runDecisionCommand(
       const openMark = record.kind === 'pending' && openIds.has(record.id) ? ' [open]' : '';
       const unlandedMark = snapshot.unlanded_ids.includes(record.id) ? ' [unlanded]' : '';
       const landedFromMark = record.provisional_id ? ` landed_from=${record.provisional_id}` : '';
+      const sourceKindMark = record.source_kind ? ` source_kind=${renderInline(record.source_kind)}` : '';
       const resolvesMark = record.resolves ? ` resolves=${record.resolves}` : '';
+      const relatesMark = record.relates ? ` relates=${record.relates}` : '';
       io.stdout(
         `${record.id} ${record.kind}${openMark}${unlandedMark} @ ${renderInline(record.ts)} `
-        + `(${renderInline(record.by)})${landedFromMark}${resolvesMark}: ${renderInline(record.text)}\n`,
+        + `(${renderInline(record.by)})${landedFromMark}${sourceKindMark}`
+        + `${resolvesMark}${relatesMark}: ${renderInline(record.text)}\n`,
       );
     }
     io.stdout(
@@ -577,6 +649,31 @@ export async function runDecisionCommand(
     if (snapshot.invalid_lines > 0) {
       io.stdout(`invalid_lines: ${snapshot.invalid_lines}\n`);
     }
+    if (snapshot.unrecognized_relations.length > 0) {
+      io.stdout(
+        `unrecognized_relations: ${snapshot.unrecognized_relations.length} `
+        + '(links ignored; containing entries remain valid)\n',
+      );
+      for (const issue of snapshot.unrecognized_relations) {
+        const target = issue.target === null ? '' : `=${renderInline(issue.target)}`;
+        io.stdout(
+          `  - line ${issue.line} ${renderInline(issue.id)}: `
+          + `${issue.relation}${target} (${issue.reason})\n`,
+        );
+      }
+    }
+    if (snapshot.normalized_kinds.length > 0) {
+      io.stdout(
+        `normalized_kinds: ${snapshot.normalized_kinds.length} `
+        + '(source kind retained; operational kind shown)\n',
+      );
+      for (const mapping of snapshot.normalized_kinds) {
+        io.stdout(
+          `  - line ${mapping.line} ${renderInline(mapping.id)}: `
+          + `${renderInline(mapping.source_kind)} -> ${mapping.kind}\n`,
+        );
+      }
+    }
     return reportLedgerDefects();
   }
   const record = appendDecision(projectRoot, {
@@ -584,6 +681,7 @@ export async function runDecisionCommand(
     text: parsed.text ?? '',
     by: parsed.by,
     resolves: parsed.resolves,
+    relates: parsed.relates,
   });
   // Mirror into the machine event log so the chronological ledger stays whole.
   // .nullius/decisions.jsonl is the parse source of truth and is already
@@ -597,6 +695,7 @@ export async function runDecisionCommand(
         decision_id: record.id,
         by: record.by,
         ...(record.resolves ? { resolves: record.resolves } : {}),
+        ...(record.relates ? { relates: record.relates } : {}),
       },
     });
   } catch (error) {
@@ -605,6 +704,9 @@ export async function runDecisionCommand(
   io.stdout(`${record.kind === 'decided' ? 'recorded' : 'pending'}: ${record.id}\n`);
   if (record.resolves) {
     io.stdout(`resolved: ${record.resolves}\n`);
+  }
+  if (record.relates) {
+    io.stdout(`related: ${record.relates}\n`);
   }
   return 0;
 }

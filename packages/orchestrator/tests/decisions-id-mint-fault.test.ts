@@ -157,20 +157,35 @@ describe('decision handle minting under a constant random source', () => {
     const parsed = JSON.parse(list.stdout.join('')) as {
       duplicate_ids: Array<{ id: string; lines: number[] }>;
       invalid_lines: number;
+      unrecognized_relations: Array<{ relation: string; target: string; reason: string }>;
       open_ids: string[];
       records: Array<{ id: string; kind: string }>;
     };
     expect(parsed.duplicate_ids).toEqual([{ id: ZERO_HANDLE, lines: [1, 3] }]);
-    expect(parsed.invalid_lines).toBe(2);
+    expect(parsed.invalid_lines).toBe(1);
+    expect(parsed.unrecognized_relations).toEqual([
+      expect.objectContaining({
+        relation: 'resolves',
+        target: ZERO_HANDLE,
+        reason: 'ambiguous_target',
+      }),
+    ]);
     expect(parsed.open_ids).toEqual([ZERO_HANDLE]);
     expect(parsed.records).toEqual([
       expect.objectContaining({ id: ZERO_HANDLE, kind: 'pending' }),
+      expect.objectContaining({ kind: 'decided', resolves: null }),
     ]);
 
     const status = makeIo(mergedRoot);
     expect(await runCli([`--project-root=${mergedRoot}`, 'status', '--json'], status.io)).toBe(0);
     expect((JSON.parse(status.stdout.join('')) as { decision_ledger: Record<string, unknown> }).decision_ledger)
-      .toMatchObject({ open_count: 1, decided_count: 0, invalid_lines: 2, duplicate_id_count: 1 });
+      .toMatchObject({
+        open_count: 1,
+        decided_count: 1,
+        invalid_lines: 1,
+        unrecognized_relation_count: 1,
+        duplicate_id_count: 1,
+      });
     await expect(
       runCli([`--project-root=${mergedRoot}`, 'decision', 'record', 'an answer', '--resolves', ZERO_HANDLE], makeIo(mergedRoot).io),
     ).rejects.toThrow('is ambiguous');

@@ -111,10 +111,11 @@ Behavior:
 Record human decisions made in conversation into a project ledger.
 
 Actions:
-  record "<what was decided>" [--by <who>] [--resolves <id>]
-                         Append a decided entry; --resolves closes an open pending entry.
-  pending "<open question>" [--by <who>]
-                         Append an open item that still needs a decision.
+  record "<what was decided>" [--by <who>] [--resolves <id>] [--relates <id>]
+                         Append a decided entry. --resolves closes one open pending
+                         entry; --relates adds independent non-closing context.
+  pending "<open question>" [--by <who>] [--relates <id>]
+                         Append an open item; --relates does not close its target.
   list [--json]          Print the ledger with open items partitioned out.
   land [--json]          On the authoritative trunk, assign durable D<n> ids,
                          canonicalize retained handle references, and print mappings.
@@ -133,10 +134,10 @@ Behavior:
   Existing D<n> ledgers remain valid with zero migration: their entries stay readable,
   counted in status, and resolvable by the ids already cited elsewhere.
   land is the sole rewrite: after branch tails are integrated on the authoritative trunk,
-  it assigns the next D<n> values in trunk file order, rewrites resolutions that name
+  it assigns the next D<n> values in trunk file order, rewrites relation targets that name
   provisional ids, retains each old identity as \`provisional_id\`, self-validates the
   complete result, and commits it with one durable atomic replacement. It also cleans up
-  late handle-valued resolutions through retained mappings; re-running it on an already
+  late handle-valued relations through retained mappings; re-running it on an already
   canonical ledger is a no-op. ULIDs emitted by the immediately preceding release are
   accepted as provisional ids and land the same way.
   A non-no-op land refuses a ledger with no write permission bit. A last-moment source
@@ -148,9 +149,19 @@ Behavior:
   confirming the visible entry instead of merely observing it.
   --resolves only accepts a currently OPEN pending entry (unknown, decided, and
   already-resolved targets are rejected), and refuses an id the file carries twice.
+  --relates accepts any earlier readable entry, including a decided standing directive,
+  and never changes open_count. record may carry both links; pending may carry --relates.
+  On read, a malformed, ambiguous, forward, replayed, or semantically inapplicable
+  persisted relation is reported under \`unrecognized_relations\` and ignored, while its
+  containing entry remains counted, listed, and addressable. The reader fails closed on
+  the link, not the record. Persisted legacy or unknown string kinds likewise remain
+  readable: only exact \`pending\` creates an open obligation; every other unknown spelling
+  is conservatively normalized to current \`decided\` semantics, including an otherwise
+  valid closing relation, with \`source_kind\` and \`normalized_kinds\` making the
+  compatibility mapping explicit.
   Duplicate detection is form-agnostic: list exits non-zero and names the lines when the
   ledger carries an id twice, or when one retained provisional id maps to more than one
-  entry (including reuse as a current id). --resolves refuses an ambiguous target, and
+  entry (including reuse as a current id). New relations refuse an ambiguous target, and
   land changes no bytes until the ambiguity is repaired. Provisional entries are valid
   and remain in every status count.
   The status receipt is diagnostic and does not gate the run/approve lifecycle.

@@ -49,6 +49,7 @@ export type ParsedCliArgs =
     text: string | null;
     by: string | null;
     resolves: string | null;
+    relates: string | null;
     json: boolean;
   }
   | { command: 'status'; projectRoot: string | null; json: boolean }
@@ -370,6 +371,7 @@ function parseDecisionArgs(args: string[]): {
   text: string | null;
   by: string | null;
   resolves: string | null;
+  relates: string | null;
   json: boolean;
 } {
   const rawAction = args[0];
@@ -381,6 +383,7 @@ function parseDecisionArgs(args: string[]): {
   let text: string | null = null;
   let by: string | null = null;
   let resolves: string | null = null;
+  let relates: string | null = null;
   let json = false;
   let optionsEnded = false;
   for (let index = 1; index < args.length; index += 1) {
@@ -410,6 +413,12 @@ function parseDecisionArgs(args: string[]): {
       index += 1;
       continue;
     }
+    if (arg === '--relates') {
+      if (!acceptsText) throw new Error(`decision ${action} does not take --relates`);
+      relates = readOptionValue(args, index, '--relates');
+      index += 1;
+      continue;
+    }
     if (arg === '--json') {
       if (action !== 'list' && action !== 'land') throw new Error('--json is only valid with decision list or decision land');
       json = true;
@@ -424,7 +433,7 @@ function parseDecisionArgs(args: string[]): {
   if ((action === 'record' || action === 'pending') && (text === null || text.trim().length === 0)) {
     throw new Error(`decision ${action} requires the text as one quoted argument`);
   }
-  return { action, text, by, resolves, json };
+  return { action, text, by, resolves, relates, json };
 }
 
 function parseVerifyArgs(args: string[]): {
