@@ -284,11 +284,19 @@ def validate_convergence_result(result: Any) -> list[str]:
         if gate_id not in GATE_ID_VALUES:
             errors.append(f"meta.gate_id must be one of {sorted(GATE_ID_VALUES)}")
         generated_at = meta.get("generated_at")
-        if not isinstance(generated_at, str) or not _re.match(
-            r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$",
-            generated_at,
-        ):
-            errors.append("meta.generated_at must be an ISO-8601 date-time string")
+        generated_at_ok = isinstance(generated_at, str) and bool(
+            _re.fullmatch(
+                r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})",
+                generated_at,
+            )
+        )
+        if generated_at_ok:
+            try:
+                _dt.datetime.fromisoformat(generated_at.replace("Z", "+00:00"))
+            except ValueError:
+                generated_at_ok = False
+        if not generated_at_ok:
+            errors.append("meta.generated_at must be a valid ISO-8601 date-time")
         if not isinstance(meta.get("parser_version"), str) or not str(meta.get("parser_version")).strip():
             errors.append("meta.parser_version must be a non-empty string")
         if meta.get("schema_id") != SCHEMA_ID:

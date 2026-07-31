@@ -3328,7 +3328,7 @@ else
     echo "Before folding results:"
     echo "1. Build the adjudication skeleton: scripts/bin/build_adjudication_response.py"
     echo "2. Fill every disposition row (fix now / acceptance point <name> / discard: <reason>)"
-    echo "3. Re-run: python3 ${ADJUDICATION_COMPLETENESS_GATE} --convergence-json ${gate_json} --adjudication <adjudication.md>"
+    echo "3. Re-run: python3 ${ADJUDICATION_COMPLETENESS_GATE} --convergence-json ${gate_json} --member-report ${member_a_out} --member-report ${member_b_out} --adjudication <adjudication.md>"
     echo "4. Then apply the plan/claim updates (update_research_plan_progress.py / claim auto-update)."
   } > "${pending_marker}"
   echo "[gate] NOTE: dispositions pending — automatic plan/claim fold withheld; see ${pending_marker}" >&2

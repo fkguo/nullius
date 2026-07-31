@@ -21,22 +21,35 @@ GATE = (
 )
 
 
-def _member(minor: int) -> dict:
-    return {
+def _member(minor: int, source_path: str | None = None) -> dict:
+    out = {
         "verdict": "ready",
         "blocking_count": 0,
         "parse_ok": True,
         "minor_issues_count": minor,
     }
+    if source_path is not None:
+        out["source_path"] = source_path
+    return out
 
 
-def _convergence_payload(*, status: str = "converged", a: int = 2, b: int = 1) -> dict:
+def _convergence_payload(
+    *,
+    status: str = "converged",
+    a: int = 2,
+    b: int = 1,
+    source_a: str | None = None,
+    source_b: str | None = None,
+) -> dict:
     exit_code = 0 if status == "converged" else 1
     return {
         "status": status,
         "exit_code": exit_code,
         "reasons": [],
-        "report_status": {"member_a": _member(a), "member_b": _member(b)},
+        "report_status": {
+            "member_a": _member(a, source_a),
+            "member_b": _member(b, source_b),
+        },
         "meta": {
             "gate_id": "team_convergence",
             "generated_at": "2026-07-31T00:00:00Z",
@@ -47,9 +60,24 @@ def _convergence_payload(*, status: str = "converged", a: int = 2, b: int = 1) -
     }
 
 
-def _convergence(tmp_path: Path, *, status: str = "converged", a: int = 2, b: int = 1) -> Path:
+def _convergence(
+    tmp_path: Path,
+    *,
+    status: str = "converged",
+    a: int = 2,
+    b: int = 1,
+    source_a: str | None = None,
+    source_b: str | None = None,
+) -> Path:
     p = tmp_path / "convergence.json"
-    p.write_text(json.dumps(_convergence_payload(status=status, a=a, b=b)), encoding="utf-8")
+    p.write_text(
+        json.dumps(
+            _convergence_payload(
+                status=status, a=a, b=b, source_a=source_a, source_b=source_b
+            )
+        ),
+        encoding="utf-8",
+    )
     return p
 
 
@@ -227,11 +255,13 @@ def _member_report(tmp_path: Path, name: str, findings: list[str]) -> Path:
 
 def test_identity_binding_catches_unrelated_row_padding(tmp_path: Path) -> None:
     # Arbitrary unique rows cannot stand in for the recorded findings.
-    conv = _convergence(tmp_path, a=2, b=0)
     report_a = _member_report(
         tmp_path, "a.md", ["fixture hardening idea", "tolerance literal naming"]
     )
     report_b = _member_report(tmp_path, "b.md", [])
+    conv = _convergence(
+        tmp_path, a=2, b=0, source_a=str(report_a), source_b=str(report_b)
+    )
     adj = _adjudication(
         tmp_path,
         [
@@ -248,11 +278,13 @@ def test_identity_binding_catches_unrelated_row_padding(tmp_path: Path) -> None:
 
 
 def test_identity_binding_passes_with_matching_rows(tmp_path: Path) -> None:
-    conv = _convergence(tmp_path, a=2, b=1)
     report_a = _member_report(
         tmp_path, "a.md", ["fixture hardening idea", "tolerance literal naming"]
     )
     report_b = _member_report(tmp_path, "b.md", ["extra negative control"])
+    conv = _convergence(
+        tmp_path, a=2, b=1, source_a=str(report_a), source_b=str(report_b)
+    )
     adj = _adjudication(
         tmp_path,
         [
@@ -271,9 +303,11 @@ def test_identity_binding_passes_with_matching_rows(tmp_path: Path) -> None:
 
 
 def test_identity_binding_same_text_from_both_members_owes_two_rows(tmp_path: Path) -> None:
-    conv = _convergence(tmp_path, a=1, b=1)
     report_a = _member_report(tmp_path, "a.md", ["shared hardening idea"])
     report_b = _member_report(tmp_path, "b.md", ["shared hardening idea"])
+    conv = _convergence(
+        tmp_path, a=1, b=1, source_a=str(report_a), source_b=str(report_b)
+    )
     one_row = _adjudication(tmp_path, ["| shared hardening idea | A | fix now |"])
     code, verdict = _run(
         "--convergence-json", str(conv), "--adjudication", str(one_row),
@@ -289,6 +323,60 @@ def test_identity_binding_same_text_from_both_members_owes_two_rows(tmp_path: Pa
     )
     code, verdict = _run(
         "--convergence-json", str(conv), "--adjudication", str(two_rows),
+        "--member-report", str(report_a), "--member-report", str(report_b),
+    )
+    assert code == 0, verdict
+
+
+def test_substituted_member_reports_are_rejected(tmp_path: Path) -> None:
+    # The supplied reports must be exactly the reports the convergence gate
+    # read; a substituted pair with fabricated findings is an input error.
+    real_a = _member_report(tmp_path, "real_a.md", ["real finding one", "real finding two"])
+    real_b = _member_report(tmp_path, "real_b.md", [])
+    conv = _convergence(
+        tmp_path, a=2, b=0, source_a=str(real_a), source_b=str(real_b)
+    )
+    fake_a = _member_report(tmp_path, "fake_a.md", ["fake issue 1", "fake issue 2"])
+    fake_b = _member_report(tmp_path, "fake_b.md", [])
+    adj = _adjudication(
+        tmp_path,
+        ["| fake issue 1 | A | fix now |", "| fake issue 2 | A | fix now |"],
+    )
+    code, verdict = _run(
+        "--convergence-json", str(conv), "--adjudication", str(adj),
+        "--member-report", str(fake_a), "--member-report", str(fake_b),
+    )
+    assert code == 2, verdict
+    assert verdict["status"] == "input_error"
+
+
+def test_reports_supplied_but_no_recorded_paths_is_input_error(tmp_path: Path) -> None:
+    report_a = _member_report(tmp_path, "a.md", ["one finding"])
+    report_b = _member_report(tmp_path, "b.md", [])
+    conv = _convergence(tmp_path, a=1, b=0)  # no source_path recorded
+    adj = _adjudication(tmp_path, ["| one finding | A | fix now |"])
+    code, verdict = _run(
+        "--convergence-json", str(conv), "--adjudication", str(adj),
+        "--member-report", str(report_a), "--member-report", str(report_b),
+    )
+    assert code == 2, verdict
+    assert verdict["status"] == "input_error"
+
+
+def test_two_phase_matching_handles_substring_findings(tmp_path: Path) -> None:
+    # "tests" and "more tests" with rows "more tests" and "tests (context)"
+    # have a valid assignment; naive greedy order would fail it.
+    report_a = _member_report(tmp_path, "a.md", ["tests", "more tests"])
+    report_b = _member_report(tmp_path, "b.md", [])
+    conv = _convergence(
+        tmp_path, a=2, b=0, source_a=str(report_a), source_b=str(report_b)
+    )
+    adj = _adjudication(
+        tmp_path,
+        ["| more tests | A | fix now |", "| tests (context) | A | fix now |"],
+    )
+    code, verdict = _run(
+        "--convergence-json", str(conv), "--adjudication", str(adj),
         "--member-report", str(report_a), "--member-report", str(report_b),
     )
     assert code == 0, verdict

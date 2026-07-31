@@ -296,25 +296,35 @@ def _count_section_items(text: str, heading: str) -> tuple[int, bool]:
     section = _extract_section(text, heading)
     if not section.strip():
         return 0, False
+    placeholders = {"", "(none)", "none", "...", "n/a"}
     count = 0
     has_content = False
+    has_nonlist_content = False
     for ln in section.splitlines():
         s = ln.strip()
         if not s:
             continue
+        is_list_item = bool(re.match(r"^[-*+]\s", s) or re.match(r"^\d+\.\s", s))
+        if is_list_item:
+            # Judge a list item by its marker-stripped body: a bulleted
+            # placeholder ("- none", "- ...", "- (none)") is a no-issues
+            # indicator, not prose content.
+            body = re.sub(r"^(?:[-*+]\s+|\d+\.\s+)", "", s).strip("*_`").strip().lower()
+            if body in placeholders:
+                continue
+            has_content = True
+            count += 1
+            continue
+        # Non-list line: whole-line normalization. A bold line like
+        # "**Note:**" or prose is content that is NOT a countable item — a
+        # prose finding beside list items would silently escape the
+        # disposition obligation, so any non-placeholder non-list content
+        # marks the section malformed.
         normalized = s.strip("*_`").strip().lower()
-        if normalized in {"", "(none)", "none", "...", "n/a"}:
+        if normalized in placeholders:
             continue
-        has_content = True
-        # CommonMark list items: a marker followed by whitespace — a bold
-        # line like "**Note:**" or "1.not-a-list" is not a list item.
-        if not (re.match(r"^[-*+]\s", s) or re.match(r"^\d+\.\s", s)):
-            continue
-        body = re.sub(r"^(?:[-*+]\s+|\d+\.\s+)", "", s).strip().lower()
-        if body in {"", "(none)", "none", "...", "n/a"}:
-            continue
-        count += 1
-    return count, (has_content and count == 0)
+        has_nonlist_content = True
+    return count, (has_nonlist_content or (has_content and count == 0))
 
 
 def _parse_blocking_count(text: str) -> int | None:
@@ -329,10 +339,15 @@ def _parse_blocking_count(text: str) -> int | None:
         section = _extract_section(text, heading)
         if not section:
             continue
-        m = re.search(r"Blocking issues:?\s*(.+)$", section, flags=re.IGNORECASE | re.MULTILINE)
-        if not m:
+        matches = re.findall(r"Blocking issues:?\s*(.+)$", section, flags=re.IGNORECASE | re.MULTILINE)
+        if not matches:
             continue
-        raw_value = m.group(1).strip()
+        if len(matches) > 1:
+            # Duplicate lines are ambiguous by construction — the first-match
+            # reading would let "none" on line one launder a real blocker on
+            # line two. Ambiguity is unknown, and unknown cannot converge.
+            return None
+        raw_value = matches[0].strip()
         # An unfilled template placeholder is UNKNOWN, never zero — a zero
         # here would silently launder an unfilled report into "no blockers".
         if re.fullmatch(r"\[.*\]", raw_value) or _is_unfilled_placeholder(raw_value):
@@ -481,9 +496,9 @@ def _collect_parse_errors(status: ReportStatus, member: str, require_sweep: bool
         errors.append(f"{member}: failed to parse verdict section/value")
     if status.verdict == "ready" and status.blocking_count is None:
         errors.append(
-            f"{member}: verdict is ready but the Blocking issues line is missing or "
-            "still carries the unfilled template placeholder — an unknown blocking "
-            "count cannot converge"
+            f"{member}: verdict is ready but the Blocking issues line is missing, "
+            "duplicated, or still carries the unfilled template placeholder — an "
+            "unknown blocking count cannot converge"
         )
     if status.verdict == "ready" and (status.blocking_count or 0) > 0:
         errors.append(
