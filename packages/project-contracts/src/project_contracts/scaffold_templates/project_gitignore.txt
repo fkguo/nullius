@@ -1,0 +1,16 @@
+# Scaffolded default ignore list — user-owned; edit freely (refresh never rewrites it).
+#
+# Provider/literature caches are reproducible downloads, not evidence: keeping
+# them out of git keeps `git status` a readable risk signal instead of a wall
+# of cache paths.
+artifacts/*-mcp/
+artifacts/cache/
+references/arxiv_src/
+
+# Local scratch.
+tmp/
+
+# Run evidence roots (artifacts/runs/, team/runs/) are deliberately NOT listed
+# here: whether to track run evidence is a project decision — declare it
+# explicitly (and record it with `nullius decision record`) rather than
+# inheriting a default either way.

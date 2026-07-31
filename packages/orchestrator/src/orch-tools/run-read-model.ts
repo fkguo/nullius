@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -377,6 +378,40 @@ function readLatestLedgerEvent(projectRoot: string, preferredRunId: string | nul
   };
 }
 
+
+// Commit-as-memory aging check: tracked modifications sitting uncommitted
+// while the last commit ages past the threshold mean completed work exists
+// only in one working tree — a kill or crash loses it, and evidence pinned
+// by hash in review records cannot be recovered from history. Read-only,
+// best-effort: any git failure (not a repo, no git, no commits yet) yields
+// null and never degrades the status receipt itself.
+const UNCOMMITTED_WORK_AGING_THRESHOLD_HOURS = 6;
+
+function readUncommittedWorkAging(
+  projectRoot: string,
+): { modified_tracked_paths: number; head_age_hours: number } | null {
+  const git = (args: string[]): string =>
+    execFileSync('git', ['-C', projectRoot, ...args], {
+      encoding: 'utf-8',
+      timeout: 5_000,
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+  try {
+    if (git(['rev-parse', '--is-inside-work-tree']).trim() !== 'true') return null;
+    const modified = git(['status', '--porcelain', '--untracked-files=no'])
+      .split('\n')
+      .filter(line => line.trim().length > 0).length;
+    if (modified === 0) return null;
+    const headEpoch = Number.parseInt(git(['log', '-1', '--format=%ct']).trim(), 10);
+    if (!Number.isFinite(headEpoch)) return null;
+    const ageHours = (Date.now() / 1000 - headEpoch) / 3600;
+    if (ageHours < UNCOMMITTED_WORK_AGING_THRESHOLD_HOURS) return null;
+    return { modified_tracked_paths: modified, head_age_hours: Math.round(ageHours * 10) / 10 };
+  } catch {
+    return null;
+  }
+}
+
 function readRecoveryContextView(projectRoot: string, state: RunState, ledgerSnapshot = readLedgerSnapshot(projectRoot)): Record<string, unknown> {
   const rawState = stateRecord(state);
   const launcherHealth = readProjectLocalNulliusLauncherHealth(projectRoot);
@@ -417,6 +452,20 @@ function readRecoveryContextView(projectRoot: string, state: RunState, ledgerSna
       message: harnessSentinel.message,
       issue_code: harnessSentinel.issue_code,
       repair_command: 'nullius init --runtime-only',
+    });
+  }
+  const uncommittedAging = readUncommittedWorkAging(projectRoot);
+  if (uncommittedAging) {
+    warnings.push({
+      code: 'UNCOMMITTED_WORK_AGING',
+      message:
+        `${uncommittedAging.modified_tracked_paths} tracked path(s) carry uncommitted changes while the ` +
+        `last commit is ${uncommittedAging.head_age_hours}h old — completed stages exist only in this ` +
+        'working tree. Commit each completed stage as cross-session memory: a kill or crash loses ' +
+        'uncommitted work, and evidence pinned by hash in review records cannot be recovered from history.',
+      modified_tracked_paths: uncommittedAging.modified_tracked_paths,
+      head_age_hours: uncommittedAging.head_age_hours,
+      threshold_hours: UNCOMMITTED_WORK_AGING_THRESHOLD_HOURS,
     });
   }
   const stateRunId = typeof rawState.run_id === 'string' ? rawState.run_id : null;

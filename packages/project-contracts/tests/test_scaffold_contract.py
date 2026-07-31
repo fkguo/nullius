@@ -34,6 +34,7 @@ CANONICAL_SCAFFOLD_FILES = {
     "research_notebook.md",
     "research_contract.md",
     "reports/main_research_report_template.md",
+    ".gitignore",
 }
 
 LANGUAGE_DISCIPLINE_SNIPPETS = (
@@ -95,7 +96,9 @@ class TestScaffoldContract(unittest.TestCase):
         self.assertEqual(missing, [], msg="missing scaffold templates: " + ", ".join(missing))
 
     def test_template_inventory_has_no_orphans(self) -> None:
-        template_names = {path.name for path in scaffold_template_dir().glob("*.md")}
+        template_names = {
+            path.name for path in scaffold_template_dir().iterdir() if path.is_file()
+        }
         mapped_templates = set(SCAFFOLD_TEMPLATE_MAP.values())
         self.assertEqual(sorted(template_names), sorted(mapped_templates))
 
