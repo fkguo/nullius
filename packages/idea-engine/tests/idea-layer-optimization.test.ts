@@ -1,4 +1,4 @@
-import { readdirSync, rmSync } from 'fs';
+import { readFileSync, readdirSync, rmSync, writeFileSync } from 'fs';
 import { afterAll, describe, expect, it } from 'vitest';
 import { mkdtempSync } from 'fs';
 import { tmpdir } from 'os';
@@ -297,6 +297,38 @@ describe('rank.compute store-state awareness', () => {
     expect(artifact.store_digest).toBe(second.store_digest);
   });
 
+  it('completes the campaign pointer when a crash lost it after the artifact write', () => {
+    const { rootDir, service } = freshAdvancing('idea-rank-recover-');
+    const { campaignId, nodeIds } = initCampaign(service);
+    admitNode(service, campaignId, nodeIds[0]!, { value: 0.8 });
+    const first = rank(service, campaignId, 'rank-crash');
+
+    // Simulate the crash window between the artifact write and the campaign
+    // save: record prepared, pointer and step accounting lost.
+    const campaignDir = resolve(rootDir, 'campaigns', campaignId);
+    const idemPath = resolve(campaignDir, 'idempotency_store.json');
+    const idem = JSON.parse(readFileSync(idemPath, 'utf8')) as Record<string, { state: string }>;
+    idem['rank.compute:rank-crash']!.state = 'prepared';
+    writeFileSync(idemPath, JSON.stringify(idem));
+    const campaignPath = resolve(campaignDir, 'campaign.json');
+    const campaign = JSON.parse(readFileSync(campaignPath, 'utf8')) as Record<string, unknown>;
+    delete campaign.last_ranking;
+    (campaign.usage as Record<string, unknown>).steps_used = 0;
+    writeFileSync(campaignPath, JSON.stringify(campaign));
+
+    const retry = rank(service, campaignId, 'rank-crash');
+    expect((retry.idempotency as Record<string, unknown>).is_replay).toBe(true);
+    expect((retry.budget_snapshot as Record<string, unknown>).steps_used).toBe(1);
+    const recovered = JSON.parse(readFileSync(campaignPath, 'utf8')) as Record<string, unknown>;
+    expect((recovered.usage as Record<string, unknown>).steps_used).toBe(1);
+    expect((recovered.last_ranking as Record<string, unknown>).ranking_artifact_ref).toBe(first.ranking_artifact_ref);
+
+    // The restored pointer serves reuse for the next fresh-key call.
+    const after = rank(service, campaignId, 'rank-after-recovery');
+    expect(after.unchanged_since).toBe(first.generated_at);
+    expect(after.ranking_artifact_ref).toBe(first.ranking_artifact_ref);
+  });
+
   it('a different filter recomputes even on an unchanged store', () => {
     const { service } = freshAdvancing('idea-rank-filter-');
     const { campaignId, nodeIds } = initCampaign(service, { seedCount: 2 });
@@ -453,6 +485,120 @@ describe('node.apply_evidence_event', () => {
     // Nothing applied — including the valid disposition.
     expect(storedNode(service, campaignId, good).lifecycle_state).toBe('admitted');
     expect(storedPosterior(service, campaignId, good).status).toBe('current');
+  });
+
+  it('rejects machine-absolute and traversal-shaped evidence references', () => {
+    const { service } = freshAdvancing('idea-evt-refshape-');
+    const { campaignId, nodeIds } = initCampaign(service);
+    const nodeId = nodeIds[0]!;
+    admitNode(service, campaignId, nodeId);
+    for (const [key, badRef] of [
+      ['evt-abs', `project:///etc/passwd#sha256:${'a'.repeat(64)}`],
+      ['evt-dotdot', `project://artifacts/../../secrets.json#sha256:${'a'.repeat(64)}`],
+      ['evt-empty-seg', `project://artifacts//report.json#sha256:${'a'.repeat(64)}`],
+    ] as const) {
+      expectRpcError(
+        () => service.handle('node.apply_evidence_event', {
+          campaign_id: campaignId,
+          evidence_ref: badRef,
+          event_reason: 'shared cause',
+          dispositions: [{ node_id: nodeId, lifecycle_state: 'needs_refresh' }],
+          idempotency_key: key,
+        }),
+        -32002,
+        'schema_invalid',
+      );
+    }
+    expect(storedNode(service, campaignId, nodeId).lifecycle_state).toBe('admitted');
+  });
+
+  it('recovers a crash that lost ledger lines: completes the event-group binding and replays', () => {
+    const { rootDir, service } = freshAdvancing('idea-evt-recover-');
+    const { campaignId, nodeIds } = initCampaign(service, { seedCount: 2 });
+    const [a, b] = nodeIds as [string, string];
+    admitNode(service, campaignId, a);
+    admitNode(service, campaignId, b);
+    const params = {
+      campaign_id: campaignId,
+      evidence_ref: EVIDENCE_REF,
+      event_reason: 'one result supersedes the shared assumption',
+      dispositions: [
+        { node_id: a, lifecycle_state: 'needs_refresh' },
+        { node_id: b, lifecycle_state: 'needs_refresh' },
+      ],
+      idempotency_key: 'evt-crash',
+    };
+    const first = service.handle('node.apply_evidence_event', params) as { event_group: string };
+
+    // Simulate the crash window after saveNodes with every event ledger line
+    // lost and the idempotency record still prepared.
+    const campaignDir = resolve(rootDir, 'campaigns', campaignId);
+    const idemPath = resolve(campaignDir, 'idempotency_store.json');
+    const idem = JSON.parse(readFileSync(idemPath, 'utf8')) as Record<string, { state: string }>;
+    idem['node.apply_evidence_event:evt-crash']!.state = 'prepared';
+    writeFileSync(idemPath, JSON.stringify(idem));
+    const logPath = resolve(campaignDir, 'nodes_log.jsonl');
+    const keptLines = readFileSync(logPath, 'utf8')
+      .split('\n')
+      .filter(line => line.trim().length > 0 && !line.includes('apply_evidence_event'));
+    writeFileSync(logPath, `${keptLines.join('\n')}\n`);
+
+    const retry = service.handle('node.apply_evidence_event', params) as {
+      event_group: string;
+      idempotency: Record<string, unknown>;
+      nodes: Array<Record<string, unknown>>;
+    };
+    expect(retry.idempotency.is_replay).toBe(true);
+    expect(retry.event_group).toBe(first.event_group);
+    const eventLines = service.read.store.loadNodeLogEntriesStrict(campaignId)
+      .filter(entry => entry.mutation === 'apply_evidence_event' && entry.event_group === first.event_group);
+    expect(eventLines).toHaveLength(2);
+    for (const entry of eventLines) {
+      expect(entry.evidence_ref).toBe(EVIDENCE_REF);
+      expect(entry.reason).toBe('one result supersedes the shared assumption');
+    }
+    // Node states untouched by recovery: still exactly one transition.
+    expect(storedNode(service, campaignId, a).lifecycle_state).toBe('needs_refresh');
+    expect(Number(storedNode(service, campaignId, a).revision)).toBe(Number(retry.nodes[0]!.revision));
+  });
+
+  it('re-executes safely when nothing landed before the crash', () => {
+    const { rootDir, service } = freshAdvancing('idea-evt-nothing-');
+    const { campaignId, nodeIds } = initCampaign(service);
+    const nodeId = nodeIds[0]!;
+    admitNode(service, campaignId, nodeId);
+    const campaignDir = resolve(rootDir, 'campaigns', campaignId);
+    const nodesPath = resolve(campaignDir, 'nodes_latest.json');
+    const preBatchNodes = readFileSync(nodesPath, 'utf8');
+    const params = {
+      campaign_id: campaignId,
+      evidence_ref: EVIDENCE_REF,
+      event_reason: 'the shared assumption fails',
+      dispositions: [{ node_id: nodeId, lifecycle_state: 'needs_refresh' }],
+      idempotency_key: 'evt-none',
+    };
+    service.handle('node.apply_evidence_event', params);
+
+    // Roll the store back to the pre-batch state, keep the record prepared,
+    // and strip the event ledger lines: the probe must read "nothing landed"
+    // and re-execute cleanly.
+    const idemPath = resolve(campaignDir, 'idempotency_store.json');
+    const idem = JSON.parse(readFileSync(idemPath, 'utf8')) as Record<string, { state: string }>;
+    idem['node.apply_evidence_event:evt-none']!.state = 'prepared';
+    writeFileSync(idemPath, JSON.stringify(idem));
+    writeFileSync(nodesPath, preBatchNodes);
+    const logPath = resolve(campaignDir, 'nodes_log.jsonl');
+    const keptLines = readFileSync(logPath, 'utf8')
+      .split('\n')
+      .filter(line => line.trim().length > 0 && !line.includes('apply_evidence_event'));
+    writeFileSync(logPath, `${keptLines.join('\n')}\n`);
+
+    const retry = service.handle('node.apply_evidence_event', params) as {
+      idempotency: Record<string, unknown>;
+    };
+    expect(retry.idempotency.is_replay).toBe(false);
+    expect(storedNode(service, campaignId, nodeId).lifecycle_state).toBe('needs_refresh');
+    expect(storedPosterior(service, campaignId, nodeId).status).toBe('stale');
   });
 
   it('rejects duplicate nodes and non-portable evidence references', () => {

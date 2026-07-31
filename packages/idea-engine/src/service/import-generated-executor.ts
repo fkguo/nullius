@@ -458,13 +458,16 @@ function validateCandidateSemantics(options: {
     // (parent_node_ids, arity exactly 1, revision-pinned above) PLUS the
     // trigger artifact that motivated mutating the parent; and the delta over
     // the parent must be stated honestly as inference/assumption, not
-    // laundered as literature-supported.
+    // laundered as literature-supported. The parent-delta statement makes
+    // the "what changed vs the parent" content mechanical and auditable in
+    // the trace — an unrelated inference claim elsewhere on the card cannot
+    // satisfy the discipline by accident.
     const triggerRef = traceInputs.trigger_artifact_ref;
-    if (!isNonEmptyString(triggerRef)) {
+    if (!isNonEmptyString(triggerRef) || triggerRef.trim().length === 0) {
       throw importValidationError(
         'anchor_missing',
         campaignId,
-        `${label}: Mutation requires trace_inputs.trigger_artifact_ref — the artifact (a review, a computation result, an updated survey) that motivated mutating the parent`,
+        `${label}: Mutation requires a non-blank trace_inputs.trigger_artifact_ref — the artifact (a review, a computation result, an updated survey) that motivated mutating the parent`,
       );
     }
     if (looksLikeUri(triggerRef) && !receipts.has(triggerRef)) {
@@ -473,6 +476,14 @@ function validateCandidateSemantics(options: {
         campaignId,
         `${label}: Mutation trigger_artifact_ref has no retrieval receipt in trace_inputs.retrieval_receipts`,
         { uri: triggerRef },
+      );
+    }
+    const parentDeltaStatement = traceInputs.parent_delta_statement;
+    if (!isNonEmptyString(parentDeltaStatement) || parentDeltaStatement.trim().length < 20) {
+      throw importValidationError(
+        'anchor_missing',
+        campaignId,
+        `${label}: Mutation requires trace_inputs.parent_delta_statement — a statement (>= 20 characters after trimming) of what changed relative to the parent; it is recorded in the trace for admission review`,
       );
     }
     const mutationClaims = Array.isArray(candidate.card_fields.claims) ? candidate.card_fields.claims : [];

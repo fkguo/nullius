@@ -114,7 +114,46 @@ function preparedSideEffectsCommitted(store: IdeaEngineStore, method: string, re
       === JSON.stringify(expected.budget_snapshot);
   }
   if (method === 'rank.compute') {
-    return artifactExists(store, record.response.payload.ranking_artifact_ref);
+    const payload = record.response.payload;
+    if (!artifactExists(store, payload.ranking_artifact_ref)) {
+      return false;
+    }
+    // Reuse responses (unchanged_since) minted nothing and never touched the
+    // campaign: the referenced artifact existing is the whole effect. Legacy
+    // records (no store_digest, from before the campaign pointer existed)
+    // keep the old artifact-existence semantics.
+    if (typeof payload.unchanged_since === 'string' || typeof payload.store_digest !== 'string') {
+      return true;
+    }
+    // Mint responses also advanced usage.steps_used and recorded
+    // campaign.last_ranking. A crash between the artifact write and the
+    // campaign save would otherwise replay a result whose budget/pointer
+    // effects never landed — complete them here from the recorded ABSOLUTE
+    // values (idempotent under repeated recovery).
+    const campaignId = payload.campaign_id;
+    if (typeof campaignId !== 'string') {
+      return false;
+    }
+    const campaign = store.loadCampaign<Record<string, unknown>>(campaignId);
+    if (!campaign) {
+      return false;
+    }
+    const lastRanking = campaign.last_ranking as Record<string, unknown> | undefined;
+    if (lastRanking && lastRanking.ranking_artifact_ref === payload.ranking_artifact_ref) {
+      return true;
+    }
+    const snapshot = payload.budget_snapshot as Record<string, unknown> | undefined;
+    const recordedSteps = snapshot ? Number(snapshot.steps_used) : Number.NaN;
+    if (Number.isInteger(recordedSteps)) {
+      (campaign.usage as Record<string, unknown>).steps_used = recordedSteps;
+    }
+    campaign.last_ranking = {
+      store_digest: payload.store_digest,
+      ranking_artifact_ref: payload.ranking_artifact_ref,
+      generated_at: payload.generated_at,
+    };
+    store.saveCampaign(campaign as Record<string, unknown> & { campaign_id: string });
+    return true;
   }
   if (method === 'node.promote') {
     return artifactExists(store, record.response.payload.handoff_artifact_ref);
@@ -130,6 +169,76 @@ function preparedSideEffectsCommitted(store: IdeaEngineStore, method: string, re
   }
   if (method === 'node.revise_card') {
     return recoverIdeaCardRevision(store, record);
+  }
+  if (method === 'node.apply_evidence_event') {
+    // saveNodes is one atomic file write: either every disposition's node
+    // state landed or none did, and the batch's now() stamp is unique — so a
+    // SINGLE row still carrying it proves the node write landed. Ledger
+    // lines append after saveNodes and before the committed record, so they
+    // can be individually missing. Recovery COMPLETES missing event-group
+    // lines (the engine-recorded binding is this method's purpose — rescue
+    // it, do not merely detect the gap) and then replays the recorded
+    // result. Residual, stated honestly: if the crash lost EVERY ledger line
+    // AND every affected node was mutated again before the retry, the probe
+    // reads "nothing landed" and re-executes; the demote edges then refuse
+    // and the retry records that refusal — the same narrow
+    // intervening-mutation class the single-node probes above accept.
+    const payload = record.response.payload;
+    const campaignId = payload.campaign_id;
+    const rows = Array.isArray(payload.nodes) ? payload.nodes as Array<Record<string, unknown>> : null;
+    const eventGroup = payload.event_group;
+    if (typeof campaignId !== 'string' || !rows || rows.length === 0 || typeof eventGroup !== 'string') {
+      return false;
+    }
+    const nodes = store.loadNodes<Record<string, unknown>>(campaignId);
+    const rowMatchesStore = (row: Record<string, unknown>): boolean => {
+      const node = nodes[String(row.node_id)];
+      if (!node) {
+        return false;
+      }
+      return String(node.updated_at ?? '') === row.updated_at
+        && nodeLifecycleState(node) === row.lifecycle_state
+        && Number(node.revision) === Number(row.revision)
+        && (node.lifecycle_reason ?? null) === (row.lifecycle_reason ?? null);
+    };
+    const matchedRows = rows.filter(rowMatchesStore).length;
+    const loggedNodeIds = new Set<string>();
+    for (const entry of store.loadNodeLogEntriesStrict(campaignId)) {
+      if (entry.mutation === 'apply_evidence_event' && entry.event_group === eventGroup) {
+        loggedNodeIds.add(String(entry.node_id));
+      }
+    }
+    if (matchedRows === 0 && loggedNodeIds.size === 0) {
+      return false;
+    }
+    for (const row of rows) {
+      const nodeId = String(row.node_id);
+      if (loggedNodeIds.has(nodeId)) {
+        continue;
+      }
+      if (!rowMatchesStore(row)) {
+        // The event landed (some row or log line proves it), this node's
+        // ledger line is missing, and the node has been mutated since — the
+        // as-of-event node snapshot the ledger embeds cannot be faithfully
+        // reconstructed. Fail loud instead of stamping fiction.
+        throw new RpcError(-32603, 'internal_error', {
+          reason: 'evidence_event_recovery_conflict',
+          campaign_id: campaignId,
+          details: {
+            node_id: nodeId,
+            message: 'evidence event landed but this node\'s ledger line is missing and the node has been mutated since; the as-of-event snapshot cannot be reconstructed — restore the store from its history before retrying',
+          },
+        });
+      }
+      store.appendNodeLog(campaignId, nodes[nodeId]!, 'apply_evidence_event', {
+        event_group: eventGroup,
+        evidence_ref: String(payload.evidence_ref),
+        event_reason: String(payload.event_reason),
+        reason: String(row.lifecycle_reason ?? payload.event_reason),
+        ...(row.posterior_marked_stale === true ? { posterior_marked_stale: true } : {}),
+      });
+    }
+    return true;
   }
   if (method === 'node.set_posterior' || method === 'node.set_lifecycle' || method === 'node.set_grounding_audit') {
     const campaignId = record.response.payload.campaign_id;

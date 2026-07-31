@@ -247,17 +247,22 @@ def validate_candidate(candidate: Dict[str, Any], index: int) -> List[str]:
 
     if family == "Mutation":
         # Mirrors the engine's Mutation discipline: the trigger artifact is
-        # the mutation's anchor (with a receipt when URI-shaped), and the
-        # delta over the parent must be stated as at least one claim typed
-        # llm_inference/assumption — a mutation born fully
+        # the mutation's anchor (non-blank after trimming, with a receipt
+        # when URI-shaped), the what-changed-vs-parent content is recorded
+        # mechanically as trace_inputs.parent_delta_statement (>= 20 chars
+        # trimmed), and the delta over the parent must be stated as at least
+        # one claim typed llm_inference/assumption — a mutation born fully
         # literature-supported is either not a mutation or mislabeling its
         # inference. Parent existence and revision pinning need the store,
         # so the engine owns those halves.
         trigger_ref = trace_inputs.get("trigger_artifact_ref")
-        if not _is_nonempty_str(trigger_ref):
-            problems.append(f"{label}: Mutation requires trace_inputs.trigger_artifact_ref (the artifact that motivated mutating the parent)")
+        if not (_is_nonempty_str(trigger_ref) and trigger_ref.strip()):
+            problems.append(f"{label}: Mutation requires a non-blank trace_inputs.trigger_artifact_ref (the artifact that motivated mutating the parent)")
         elif "://" in trigger_ref and trigger_ref not in receipts:
             problems.append(f"{label}: Mutation trigger_artifact_ref has no retrieval receipt: {trigger_ref}")
+        parent_delta = trace_inputs.get("parent_delta_statement")
+        if not (_is_nonempty_str(parent_delta) and len(parent_delta.strip()) >= 20):
+            problems.append(f"{label}: Mutation requires trace_inputs.parent_delta_statement (>= 20 chars after trimming: what changed relative to the parent)")
         mutation_claims = card_fields.get("claims") if isinstance(card_fields, dict) else None
         typed_delta = any(
             isinstance(claim, dict) and claim.get("support_type") in ("llm_inference", "assumption")

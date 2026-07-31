@@ -158,6 +158,8 @@ def test_unknown_family_and_arity_violations(make_candidate):
 
 
 def test_mutation_mirror_requires_trigger_anchor_and_typed_delta(make_candidate):
+    PARENT_DELTA = "Restricts the parent proposition to the regime the trigger result supports."
+
     def as_mutation(candidate):
         candidate["provenance"]["operator_family"] = "Mutation"
         candidate["provenance"]["parent_node_ids"] = ["nd000001"]
@@ -165,10 +167,16 @@ def test_mutation_mirror_requires_trigger_anchor_and_typed_delta(make_candidate)
 
     candidate = as_mutation(make_candidate())
     assert any("trigger_artifact_ref" in p for p in _problems(candidate))
+    assert any("parent_delta_statement" in p for p in _problems(candidate))
+
+    candidate = as_mutation(make_candidate())
+    candidate["provenance"]["trace_inputs"]["trigger_artifact_ref"] = "   "
+    assert any("trigger_artifact_ref" in p for p in _problems(candidate))
 
     candidate = as_mutation(make_candidate())
     candidate["provenance"]["trace_inputs"]["trigger_artifact_ref"] = "team/runs/review-cycle/report.json"
-    assert not any("trigger_artifact_ref" in p for p in _problems(candidate))
+    candidate["provenance"]["trace_inputs"]["parent_delta_statement"] = PARENT_DELTA
+    assert not any("trigger_artifact_ref" in p or "parent_delta_statement" in p for p in _problems(candidate))
 
     candidate = as_mutation(make_candidate())
     candidate["provenance"]["trace_inputs"]["trigger_artifact_ref"] = "https://example.com/unreceipted-trigger"
@@ -176,6 +184,12 @@ def test_mutation_mirror_requires_trigger_anchor_and_typed_delta(make_candidate)
 
     candidate = as_mutation(make_candidate())
     candidate["provenance"]["trace_inputs"]["trigger_artifact_ref"] = "team/runs/review-cycle/report.json"
+    candidate["provenance"]["trace_inputs"]["parent_delta_statement"] = "   short   "
+    assert any("parent_delta_statement" in p for p in _problems(candidate))
+
+    candidate = as_mutation(make_candidate())
+    candidate["provenance"]["trace_inputs"]["trigger_artifact_ref"] = "team/runs/review-cycle/report.json"
+    candidate["provenance"]["trace_inputs"]["parent_delta_statement"] = PARENT_DELTA
     for claim in candidate["card_fields"]["claims"]:
         if claim.get("support_type") in ("llm_inference", "assumption"):
             claim["support_type"] = "literature"

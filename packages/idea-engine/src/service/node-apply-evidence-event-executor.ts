@@ -68,6 +68,37 @@ export function executeNodeApplyEvidenceEvent(options: {
   const evidenceRef = String(options.params.evidence_ref);
   const eventReason = String(options.params.event_reason);
   const dispositions = options.params.dispositions as Disposition[];
+
+  // The params-schema pattern already rejects a machine-absolute form
+  // (leading '/'); segment rules need code: no empty / '.' / '..' segments
+  // and valid percent-encoding — the same path rules the store's
+  // project-reference parser enforces, minus its store-root checks (evidence
+  // artifacts legitimately live outside the idea store, so the reference is
+  // stored verbatim, never resolved here).
+  const refBody = evidenceRef.slice('project://'.length, evidenceRef.indexOf('#'));
+  const segments = refBody.split('/');
+  const segmentsInvalid = segments.some(segment => {
+    if (segment === '' || segment === '.' || segment === '..') {
+      return true;
+    }
+    try {
+      return decodeURIComponent(segment).includes('/');
+    } catch {
+      return true;
+    }
+  });
+  if (segmentsInvalid) {
+    const data = {
+      reason: 'schema_invalid',
+      campaign_id: campaignId,
+      details: {
+        message: `evidence_ref path is not a safe project-relative reference (empty, '.', '..', or badly percent-encoded segment): ${evidenceRef}`,
+      },
+    };
+    options.contracts.validateErrorData(data);
+    throw new RpcError(-32002, 'schema_validation_failed', data);
+  }
+
   return options.store.withMutationLock(campaignId, () => {
     const replay = recordOrReplay({
       campaignId,
@@ -221,17 +252,22 @@ export function executeNodeApplyEvidenceEvent(options: {
         node_id: nodeId,
         previous_state: previousState,
         lifecycle_state: targetState,
+        lifecycle_reason: String(updatedNode.lifecycle_reason),
         revision: Number(updatedNode.revision),
         updated_at: now,
         posterior_marked_stale: posteriorMarkedStale,
       });
+      // The extra's shape must be exactly reproducible from the recorded
+      // result rows: crash recovery (idempotency.ts) rebuilds missing
+      // ledger lines from them, so `reason` is always the APPLIED
+      // lifecycle_reason, never conditional.
       logExtras.push({
         node: updatedNode,
         extra: {
           event_group: eventGroup,
           evidence_ref: evidenceRef,
           event_reason: eventReason,
-          ...(dispositionReason === null ? {} : { reason: dispositionReason }),
+          reason: String(updatedNode.lifecycle_reason),
           ...(posteriorMarkedStale ? { posterior_marked_stale: true } : {}),
         },
       });
