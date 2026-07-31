@@ -425,6 +425,11 @@ class TestScaffoldContract(unittest.TestCase):
         self.assertIn("Convergence is declared by the reviewers, never by the fixer.", template)
         self.assertIn("Performance never blocks correctness.", template)
         self.assertIn("supersede, don't re-hash", template)
+        # Stall detection: process artifacts alone are never progress, and a
+        # stalled loop must consolidate/narrow/re-plan instead of re-rounding.
+        self.assertIn("Process artifacts are not progress.", template)
+        self.assertIn("another round is not an allowed response", template)
+        self.assertIn("never as a review-round counter", template)
 
     def test_scaffold_agents_template_declares_execution_modes(self) -> None:
         template = (scaffold_template_dir() / "AGENTS.md").read_text(encoding="utf-8")
