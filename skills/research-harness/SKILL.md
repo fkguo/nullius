@@ -56,18 +56,30 @@ content) differ or cannot be established, and whenever any relevant
 identity is unknown, re-run the full check rather than citing the
 receipt. A re-check is owed on state change, never on cadence.
 
-**What in a status receipt is a stop signal — and what is not.** Stop
-and surface the problem only on: a non-null error field (for example
-`final_conclusions_error`, `project_surface_drift_error`), an invalid
-`HARNESS` sentinel, an unhealthy project-local launcher, or a failed
-machine gate. Entries under `recovery_context.derivation_warnings` and
-`project_surface_drift.issues` carry `severity: "advisory"` — they
-report recoverable observations about auxiliary or derived state
-(missing optional manifests, plan-focus fallbacks, aging uncommitted
-work). Record them in the run evidence and keep working; treating an
-advisory-only receipt as a blocker halts real work over conditions the
-receipt itself classifies as non-blocking. A warning worth acting on
-becomes a task on the plan, not a reason to stop the current one.
+**What in a status receipt stops work, what asks for a repair, and what
+is only advisory.** Three classes, machine-readable so nothing has to be
+inferred from prose:
+
+- **Stop and surface**: a non-null error field (for example
+  `final_conclusions_error`, `project_surface_drift_error`) or a failed
+  machine gate. These mean the receipt or a gate could not do its job.
+- **Repair, then continue**: an invalid `HARNESS` sentinel or an
+  unhealthy project-local launcher — authoritative surfaces
+  `control_files.harness.valid` and `project_local_launcher.healthy`,
+  echoed in the warning array with `severity: "repair"` and the exact
+  `repair_command` (typically `nullius init --runtime-only`). Run the
+  repair and keep going; state-touching dispatcher calls fail closed
+  until repaired, which is the enforcement — not a reason to abandon the
+  task or escalate.
+- **Advisory**: every other entry under
+  `recovery_context.derivation_warnings` and all of
+  `project_surface_drift.issues`, marked `severity: "advisory"` —
+  recoverable observations about auxiliary or derived state (missing
+  optional manifests, plan-focus fallbacks, aging uncommitted work).
+  Record them in the run evidence and keep working; treating an
+  advisory-only receipt as a blocker halts real work over conditions the
+  receipt itself classifies as non-blocking. A warning worth acting on
+  becomes a task on the plan, not a reason to stop the current one.
 
 The check is also skipped for:
 

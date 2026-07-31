@@ -384,6 +384,28 @@ class AgentsFileUnitTests(unittest.TestCase):
         )
         self.assertEqual(info["non_independent_lanes"][0]["index"], 1)
 
+    def test_default_model_fallback_is_model_unattributed(self):
+        # The REAL fallback shape for backend-default recoveries records
+        # resolved.model = None. The executed family is unattested: the lane
+        # earns no independence credit, and it must never masquerade as the
+        # originally requested family (which is what substituting the
+        # requested model would do).
+        results = [
+            {"index": 0, "success": True, "backend": "codex", "model": "codex/x",
+             "resolved": {"backend": "codex", "model": "codex/x"}},
+            {"index": 1, "success": True, "backend": "gemini", "model": "gemini/original",
+             "resolved": {"backend": "opencode", "model": None},
+             "variant": "fallback", "fallback_reason": "timeout"},
+        ]
+        info = self.mod._independence_summary(results, None)
+        self.assertEqual(info["level"], "single_family")
+        self.assertEqual(info["participating_families"], ["codex"])
+        lane = info["non_independent_lanes"][0]
+        self.assertEqual(lane["reason"], "model_unattributed")
+        self.assertEqual(lane["index"], 1)
+        self.assertEqual(lane["spec"], "opencode")
+        self.assertNotIn("gemini", lane["spec"])
+
     def test_contaminated_selector_resolution_and_fail_closed(self):
         # Selectors bind by raw CLI arg (family: form included), resolved
         # model spec, backend name, or resolved family name; an unmatched

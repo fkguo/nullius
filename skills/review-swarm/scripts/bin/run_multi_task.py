@@ -46,6 +46,11 @@ _DEFAULT_BACKEND_TOOL_MODES = {
     "claude": "none",
     "gemini": "none",
     "opencode": "none",
+    # The codex runner always executes inside a read-only repository sandbox:
+    # read-capable, never writable. Modeled as "review" so the per-result
+    # execution_tool_mode field records that honestly instead of null
+    # (null = unmodeled = attests nothing). Not a CLI-settable mode.
+    "codex": "review",
 }
 _ALLOWED_BACKEND_TOOL_MODES = {
     "claude": {"none", "review"},
@@ -1671,11 +1676,16 @@ def _execution_backend(result: dict[str, Any]) -> str:
 
 
 def _execution_model(result: dict[str, Any]) -> str:
-    resolved = result.get("resolved") if isinstance(result.get("resolved"), dict) else {}
-    model = resolved.get("model")
-    if model is None:
-        model = result.get("model")
-    return str(model or "")
+    """Model that actually ran, from the resolved record. A fallback that used
+    a backend's default model records ``model: None`` — that stays empty here:
+    substituting the originally REQUESTED model would attribute the execution
+    to the requested family (a lane that ran elsewhere masquerading as its
+    original family). Only results with no resolved record at all fall back
+    to the requested model field."""
+    resolved = result.get("resolved") if isinstance(result.get("resolved"), dict) else None
+    if resolved is not None:
+        return str(resolved.get("model") or "")
+    return str(result.get("model") or "")
 
 
 def _resolved_family(result: dict[str, Any], roster: dict[str, Any] | None) -> str:
@@ -1695,16 +1705,28 @@ def _lane_exclusion_reason(
     Read-only source access is NOT an exclusion: source-grounded review
     requires reading the real code, and a read-only browsing lane keeps full
     independence credit. What excludes a lane:
-    - the resolved tool mode is ``workspace`` (writable working copy —
-      discovery-grade, violates the reviewer read-only rule);
     - the dispatcher marked the lane --contaminated (ambient context carried
-      another workstream's conclusions): AMBIENT_CONTEXT_CONTAMINATED.
-    Sealed derivation lanes have a stricter contract (no repo access at all),
-    enforced by launching them with a no-repo-access tool mode; the per-result
-    ``execution_tool_mode`` field makes that auditable after the fact.
+      another workstream's conclusions): AMBIENT_CONTEXT_CONTAMINATED;
+    - the resolved record has no execution model (a fallback that ran on a
+      backend's default): family unattested, ``model_unattributed``;
+    - the resolved tool mode is ``workspace`` (writable working copy —
+      discovery-grade, violates the reviewer read-only rule).
+    Sealed derivation lanes have a stricter contract (no repo access at all):
+    launch them only on backends whose modeled tool mode is explicitly a
+    no-repo-access mode. The per-result ``execution_tool_mode`` field records
+    the modeled mode; ``null`` means the backend is unmodeled and attests
+    nothing.
     """
     if contaminated_indices and int(result.get("index", -1)) in contaminated_indices:
         return "AMBIENT_CONTEXT_CONTAMINATED"
+    resolved = result.get("resolved") if isinstance(result.get("resolved"), dict) else None
+    if resolved is not None and not resolved.get("model"):
+        # A fallback that ran on a backend's default model has no recorded
+        # execution model: its family is unattested (on a multi-family
+        # provider the backend label could pair with a real family into a
+        # false cross-family claim). No credit without attestation — the
+        # dispatcher regains credit by passing an explicit fallback model.
+        return "model_unattributed"
     tool_mode = _resolve_backend_tool_mode(_execution_backend(result), backend_tool_modes or {})
     if tool_mode == "workspace":
         return "tool_mode:workspace"
@@ -2858,6 +2880,11 @@ def main() -> int:
                     r["fallback_reason"] = original_reason
                     r["command_success"] = bool(fb.get("success", False))
                     r["exit_code"] = fb.get("exit_code")
+                    # The fallback attempt's own timeout state must replace the
+                    # original attempt's: leaving a stale timed_out=True makes
+                    # _postprocess_result re-classify a successful recovery as
+                    # a timeout (same field copy the empty-output retry does).
+                    r["timed_out"] = bool(fb.get("timed_out", False))
                     r["out"] = fb.get("out", r.get("out"))
                     _postprocess_result(r, check_review_contract=bool(args.check_review_contract))
                     if r.get("success"):
@@ -2897,7 +2924,9 @@ def main() -> int:
     _append_jsonl(trace_path, {"ts": _utc_now(), "event": "independence", **independence})
 
     def _credit_eligible(r: dict[str, Any]) -> bool:
-        return (
+        # A failed lane produced no reviewable output: it can no more occupy
+        # a comparison seat or enter the similarity set than an excluded one.
+        return bool(r.get("success")) and (
             _lane_exclusion_reason(r, backend_tool_modes, contaminated_lane_indices)
             is None
         )
