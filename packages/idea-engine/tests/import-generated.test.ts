@@ -1405,6 +1405,7 @@ describe('node.import_generated', () => {
       const traceInputs = provenance.trace_inputs as Record<string, unknown>;
       delete traceInputs.anchor;
       traceInputs.trigger_artifact_ref = TRIGGER_URI;
+      traceInputs.parent_delta_statement = 'Restricts the parent proposition to the regime where the trigger result holds, adding the discriminating check.';
       (traceInputs.retrieval_receipts as Array<Record<string, unknown>>).push({
         source: 'team/runs/review-cycle#report',
         uri: TRIGGER_URI,
@@ -1441,6 +1442,33 @@ describe('node.import_generated', () => {
       const traceInputs = (candidate.provenance as Record<string, unknown>).trace_inputs as Record<string, unknown>;
       delete traceInputs.trigger_artifact_ref;
       expectRpcError(() => importPack(service, campaignId, pack), -32002, 'anchor_missing');
+    });
+
+    it('refuses a whitespace-only trigger anchor and a missing or short parent-delta statement', () => {
+      const service = freshService();
+      const campaignId = initCampaign(service);
+      const whitespace = mutationPack(service, campaignId);
+      const wsCandidate = (whitespace.pack.candidates as Array<Record<string, unknown>>)[0]!;
+      const wsInputs = (wsCandidate.provenance as Record<string, unknown>).trace_inputs as Record<string, unknown>;
+      wsInputs.trigger_artifact_ref = '   ';
+      expectRpcError(() => importPack(service, campaignId, whitespace.pack, 'import-ws'), -32002, 'anchor_missing');
+
+      const missingDelta = mutationPack(service, campaignId);
+      const mdCandidate = (missingDelta.pack.candidates as Array<Record<string, unknown>>)[0]!;
+      const mdInputs = (mdCandidate.provenance as Record<string, unknown>).trace_inputs as Record<string, unknown>;
+      delete mdInputs.parent_delta_statement;
+      const missingError = expectRpcError(
+        () => importPack(service, campaignId, missingDelta.pack, 'import-nodelta'),
+        -32002,
+        'anchor_missing',
+      );
+      expect(String((missingError.data.details as Record<string, unknown>).message)).toContain('parent_delta_statement');
+
+      const shortDelta = mutationPack(service, campaignId);
+      const sdCandidate = (shortDelta.pack.candidates as Array<Record<string, unknown>>)[0]!;
+      const sdInputs = (sdCandidate.provenance as Record<string, unknown>).trace_inputs as Record<string, unknown>;
+      sdInputs.parent_delta_statement = '   too short      ';
+      expectRpcError(() => importPack(service, campaignId, shortDelta.pack, 'import-short'), -32002, 'anchor_missing');
     });
 
     it('refuses a mutation whose every claim is literature-supported (no typed delta)', () => {

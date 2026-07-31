@@ -155,10 +155,13 @@ in prose. Use it for the follow-on burst that previously had to be forced
 through a parentless LiteratureMining candidate: a review verdict, a
 computation result, or an updated survey suggests refining, restricting,
 inverting, or repairing an existing idea. The engine enforces: exactly one
-parent; `trace_inputs.trigger_artifact_ref` naming the artifact that
-motivated the mutation (with a retrieval receipt when URI-shaped); and the
-delta over the parent stated as at least one card claim typed
-`llm_inference` or `assumption` — a mutation born fully
+parent; `trace_inputs.trigger_artifact_ref`, non-blank after trimming,
+naming the artifact that motivated the mutation (with a retrieval receipt
+when URI-shaped); `trace_inputs.parent_delta_statement` — at least 20
+characters after trimming, stating WHAT changed relative to the parent, so
+admission review audits the delta's content rather than just its
+existence; and the delta over the parent stated as at least one card claim
+typed `llm_inference` or `assumption` — a mutation born fully
 literature-supported is either not a mutation or mislabeling its inference.
 `novelty_delta.closest_prior` keeps its literature/artifact meaning: the
 parent is named by `parent_node_ids`, never by `closest_prior`.

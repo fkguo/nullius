@@ -160,8 +160,9 @@ export const NODE_LIFECYCLE_STATES: readonly NodeLifecycleState[] = [
  * stale in the same write, so re-admission is always a fresh
  * node.set_posterior derivation — a re-attestation, never a lifecycle flip
  * over a posterior the store itself says is no longer current guidance. The
- * explicit edge into admitted exists only for returns from
- * waiting_activation (suspension does not demote the posterior).
+ * explicit edges into admitted are the admission_review decision edge and
+ * the return from waiting_activation (suspension does not demote the
+ * posterior); both re-check the stored data at entry.
  */
 export const LIFECYCLE_TRANSITIONS: Readonly<Record<NodeLifecycleState, readonly NodeLifecycleState[]>> = {
   candidate: ['admission_review', 'admission_blocked', 'waiting_activation', 'archived'],

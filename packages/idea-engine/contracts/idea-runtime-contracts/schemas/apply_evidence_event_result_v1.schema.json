@@ -14,8 +14,8 @@
     },
     "evidence_ref": {
       "type": "string",
-      "pattern": "^project://[^#]+#sha256:[0-9a-f]{64}$",
-      "description": "The project-portable, hash-bound reference of the evidence artifact that caused the batch. Stored verbatim (like report_ref / survey_ref); whether the artifact supports the dispositions stays a project-side audit concern."
+      "pattern": "^project://[^/#][^#]*#sha256:[0-9a-f]{64}$",
+      "description": "The project-portable, hash-bound reference of the evidence artifact that caused the batch. The pattern rejects machine-absolute forms; the engine additionally refuses empty, '.', '..', or badly percent-encoded path segments. Stored verbatim (like report_ref / survey_ref); whether the artifact supports the dispositions stays a project-side audit concern."
     },
     "event_reason": { "type": "string", "minLength": 1 },
     "nodes": {
@@ -23,11 +23,12 @@
       "minItems": 1,
       "items": {
         "type": "object",
-        "required": ["node_id", "previous_state", "lifecycle_state", "revision", "updated_at", "posterior_marked_stale"],
+        "required": ["node_id", "previous_state", "lifecycle_state", "lifecycle_reason", "revision", "updated_at", "posterior_marked_stale"],
         "properties": {
           "node_id": { "type": "string", "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$" },
           "previous_state": { "enum": ["candidate", "admission_review", "admitted", "needs_refresh", "admission_blocked", "waiting_activation", "archived"] },
           "lifecycle_state": { "enum": ["candidate", "admission_review", "admitted", "needs_refresh", "admission_blocked", "waiting_activation", "archived"] },
+          "lifecycle_reason": { "type": "string", "minLength": 1, "description": "The reason applied to the node: the disposition's own reason when given, else the shared event_reason. Recorded per row so crash recovery can rebuild missing ledger lines exactly." },
           "revision": { "type": "integer", "minimum": 1 },
           "updated_at": { "type": "string", "format": "date-time" },
           "posterior_marked_stale": { "type": "boolean" }
