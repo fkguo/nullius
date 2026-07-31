@@ -269,12 +269,19 @@ describe('StateManager', () => {
         derived_run_status: 'running',
       },
     });
-    expect((view.recovery_context as Record<string, unknown>).derivation_warnings).toEqual(expect.arrayContaining([
+    const derivationWarnings = (view.recovery_context as Record<string, unknown>).derivation_warnings as Array<Record<string, unknown>>;
+    expect(derivationWarnings).toEqual(expect.arrayContaining([
       expect.objectContaining({ code: 'RECOVERY_LEDGER_PARSE_ERROR' }),
       expect.objectContaining({ code: 'RECOVERY_RUN_STATUS_FROM_LEDGER' }),
       expect.objectContaining({ code: 'RECOVERY_PLAN_FOCUS_FROM_PLAN_MD' }),
       expect.objectContaining({ code: 'RECOVERY_GUIDANCE_FILES_UNAVAILABLE' }),
     ]));
+    // The surface is advisory by contract: every entry carries the
+    // machine-readable severity marker, so a delegated agent never has to
+    // infer from prose whether a warning is a stop condition (it is not).
+    for (const warning of derivationWarnings) {
+      expect(warning.severity).toBe('advisory');
+    }
   });
 
   it('scopes recovery_context ledger fallback to the active state.run_id instead of the newest project-wide event', () => {
@@ -349,10 +356,12 @@ describe('StateManager', () => {
         {
           code: 'LEGACY_MCP_TEMPLATE_NO_ACTIVE_CONFIG',
           path: '.mcp.template.json',
+          severity: 'advisory',
         },
         {
           code: 'LEGACY_PLAN_SCHEMA_IN_CANONICAL_ROOT',
           path: 'specs/plan.schema.json',
+          severity: 'advisory',
         },
       ],
     });
@@ -1093,8 +1102,7 @@ describe('uncommitted-work aging warning', () => {
     // --ignore-submodules=untracked: a submodule dirty solely from untracked
     // content must not trigger the warning; a tracked modification inside the
     // submodule still counts.
-    const subDir = path.join(os.tmpdir(), `orch-sub-${Date.now()}`);
-    fs.mkdirSync(subDir, { recursive: true });
+    const subDir = fs.mkdtempSync(path.join(os.tmpdir(), 'orch-sub-'));
     try {
       const gitAt = (root: string, ...args: string[]): void => {
         execFileSync('git', ['-C', root, ...args], { stdio: 'ignore' });

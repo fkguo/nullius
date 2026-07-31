@@ -525,5 +525,89 @@ class FallbackTargetValidationTests(unittest.TestCase):
             self.assertEqual(code, 0)
 
 
+class NonIndependentCreditTests(unittest.TestCase):
+    """Excluded lanes earn zero credit everywhere: independence, the
+    convergence similarity set, and dual-review comparison seats — decided
+    from the resolved execution backend and dispatcher-declared contamination,
+    with unmatched selectors refused before execution."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.mod = _load_run_multi_task_module()
+
+    def _base_argv(self, td_path: Path, out_dir: Path, *extra: str) -> list[str]:
+        system = td_path / "system.md"
+        prompt = td_path / "prompt.md"
+        system.write_text("SYSTEM\n", encoding="utf-8")
+        prompt.write_text("PROMPT\n", encoding="utf-8")
+        codex_runner = td_path / "run_codex.sh"
+        gemini_runner = td_path / "run_gemini.sh"
+        opencode_runner = td_path / "run_opencode.sh"
+        _write_valid_runner(codex_runner)
+        _write_valid_runner(gemini_runner)
+        _write_valid_runner(opencode_runner)
+        return [
+            "run_multi_task.py",
+            "--out-dir", str(out_dir),
+            "--opencode-runner", str(opencode_runner),
+            "--codex-runner", str(codex_runner),
+            "--gemini-runner", str(gemini_runner),
+            "--system", str(system),
+            "--prompt", str(prompt),
+            "--models", "codex/default,gemini/default",
+            "--no-parallel",
+            *extra,
+        ]
+
+    def test_contaminated_lane_gets_no_seat_or_convergence_credit(self):
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            out_dir = td_path / "out"
+            code = _run_main_with_argv(
+                self.mod,
+                self._base_argv(
+                    td_path, out_dir,
+                    "--contaminated", "gemini/default",
+                    "--check-convergence",
+                ),
+            )
+            self.assertEqual(code, 0)
+            meta = json.loads((out_dir / "meta.json").read_text(encoding="utf-8"))
+            independence = meta["independence"]
+            self.assertEqual(independence["level"], "single_family")
+            lanes = independence["non_independent_lanes"]
+            self.assertEqual(len(lanes), 1)
+            self.assertEqual(lanes[0]["index"], 1)
+            self.assertEqual(lanes[0]["reason"], "AMBIENT_CONTEXT_CONTAMINATED")
+            # No comparison seat: with one eligible lane there is no dual
+            # summary at all, and the contaminated output is not evaluated
+            # for convergence — but it stays in the run record.
+            self.assertNotIn("diversity", meta)
+            convergence = meta["convergence"]
+            self.assertEqual(
+                convergence["excluded_non_independent"], ["gemini/default"]
+            )
+            self.assertEqual(len(convergence["evaluated_outputs"]), 1)
+            self.assertIn("codex", convergence["evaluated_outputs"][0])
+            self.assertTrue(meta["agents"][1]["success"])
+            for agent in meta["agents"]:
+                self.assertIn("execution_tool_mode", agent)
+
+    def test_unmatched_contaminated_selector_aborts_before_execution(self):
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            out_dir = td_path / "out"
+            code = _run_main_with_argv(
+                self.mod,
+                self._base_argv(td_path, out_dir, "--contaminated", "gemni/default"),
+            )
+            self.assertEqual(code, 2)
+            meta = json.loads((out_dir / "meta.json").read_text(encoding="utf-8"))
+            self.assertEqual(meta["status"], "input_error")
+            self.assertIn("matched no lane", meta["error"])
+            # Refused before execution: no agent output files were produced.
+            self.assertEqual(list(out_dir.glob("agent_*.txt")), [])
+
+
 if __name__ == "__main__":
     unittest.main()

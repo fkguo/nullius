@@ -205,6 +205,44 @@ class BaselineBindingTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "may not cover uncommitted bytes"):
             self.mod._verify_artifacts_at_commit(dirty, self.head_v2)
 
+    def test_artifact_binding_refuses_non_utf8_bytes(self) -> None:
+        # The packet embeds artifact TEXT decoded with errors="replace" while
+        # the binding attests raw BYTES; for non-UTF-8 content the reviewed
+        # text is not the attested bytes (and distinct byte strings can decode
+        # to the same lossy text), so the binding is refused even when the
+        # raw-byte digest matches the commit blob exactly.
+        import hashlib as _hashlib
+
+        raw = b"caf\xe9 exact bytes, not UTF-8\n"
+        binary_path = self.repo / "legacy.txt"
+        binary_path.write_bytes(raw)
+        _git(self.repo, "add", "legacy.txt")
+        _git(self.repo, "commit", "-qm", "legacy encoding artifact")
+        head = _git(self.repo, "rev-parse", "HEAD")
+        artifacts = [
+            (
+                Path("legacy.txt"),
+                raw.decode("utf-8", errors="replace"),
+                _hashlib.sha256(raw).hexdigest(),
+                len(raw),
+            )
+        ]
+        with self.assertRaisesRegex(ValueError, "not valid UTF-8"):
+            self.mod._verify_artifacts_at_commit(artifacts, head)
+        # A valid-UTF-8 artifact at the same commit still binds.
+        clean = self.target.read_text(encoding="utf-8")
+        self.mod._verify_artifacts_at_commit(
+            [
+                (
+                    Path("notes.md"),
+                    clean,
+                    _hashlib.sha256(clean.encode()).hexdigest(),
+                    len(clean),
+                )
+            ],
+            head,
+        )
+
     def test_three_dot_range_fails_closed(self) -> None:
         # `git diff A...B` measures from the merge base, not from tree A, so
         # hashes verified at A would not describe what the diff covers.

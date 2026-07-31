@@ -536,18 +536,30 @@ from real contamination events that voided otherwise-clean review rounds:
   rosters, task listings, other workstreams' status lines, or any environment surface that can carry
   another lane's conclusions — one leaked status line about a sibling result is enough to anchor the
   reviewer and void the round. The dispatch assembles a context containing the packet and nothing
-  else, and records in `meta.json` which surfaces the reviewer could see. An independent lane runs
-  against frozen packet/raw inputs only — workspace or codebase-browsing modes are not independent
-  lanes. When ambient listings reached the reviewer anyway, the round's disposition is
-  `AMBIENT_CONTEXT_CONTAMINATED`: it earns **zero** independence, comparison, acceptance, or
-  convergence credit, and its output is retained for diagnosis only. (This disposition is distinct
-  from the legitimate *candidate-visible* second pass of the source-fidelity protocol — a
-  contaminated round never becomes a valid candidate-visible comparison by relabeling.) Machine
-  support: `run_multi_task.py` excludes two lane classes from the `meta.json` independence record —
-  lanes running a workspace tool mode (reason `tool_mode:workspace`) automatically, and lanes the
-  dispatcher marks with the repeatable `--contaminated <model-spec>` flag (reason
-  `AMBIENT_CONTEXT_CONTAMINATED`); both appear under `independence.non_independent_lanes` and never
-  count toward the cross-family level.
+  else, and records in `meta.json` which surfaces the reviewer could see. Contamination is about
+  receiving **conclusions**, not about reading **source**: a source-grounded review lane is required
+  to read the real code, and read-only repository access never forfeits its independence credit.
+  Two lane classes do lose credit: lanes running a *writable* workspace tool mode (discovery-grade —
+  the reviewer read-only rule cannot be attested for them), and lanes whose ambient context carried
+  another workstream's conclusions. Sealed derivation/recomputation lanes obey the stricter
+  frozen-inputs-only contract of their own protocols (the sealed-derivation rule below and the
+  independent-recomputation section above): launch those with a no-repo-access tool mode — the
+  per-result `execution_tool_mode` field in `meta.json` is the after-the-fact audit that no such
+  lane could browse the working tree. When ambient listings reached the reviewer anyway, the
+  round's disposition is `AMBIENT_CONTEXT_CONTAMINATED`: it earns **zero** independence,
+  comparison, acceptance, or convergence credit, and its output is retained for diagnosis only.
+  (This disposition is distinct from the legitimate *candidate-visible* second pass of the
+  source-fidelity protocol — a contaminated round never becomes a valid candidate-visible
+  comparison by relabeling.) Machine support: `run_multi_task.py` decides credit per lane from the
+  **resolved post-fallback** execution backend — a lane recovered onto another backend is judged by
+  where it actually ran. Excluded lanes (reason `tool_mode:workspace` automatically, or reason
+  `AMBIENT_CONTEXT_CONTAMINATED` via the repeatable `--contaminated <selector>` flag, matching the
+  model spec as given, the resolved spec, the backend, the family name, or `backend/model`) appear
+  with their lane index under `independence.non_independent_lanes`, never count toward the
+  cross-family level, are filtered out of the convergence similarity set
+  (`convergence.excluded_non_independent` names them), and never occupy a dual-review comparison
+  seat. A `--contaminated` selector that matches no lane aborts the run before execution — a
+  declared contamination must never silently fail to bind.
 - **Seal the independent phase from the first round (sealed-derivation protocol).** Whenever a
   review both (i) derives or recomputes a target quantity and (ii) will afterwards read the
   candidate, run the sealed-derivation protocol from round one: the reviewer receives only the
