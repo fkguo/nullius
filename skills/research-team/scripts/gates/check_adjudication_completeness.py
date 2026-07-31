@@ -269,6 +269,27 @@ def main() -> int:
         )
 
     member_findings: list[str] = []
+    if args.member_report:
+        # Source binding: the supplied reports must be exactly the reports the
+        # convergence gate read (report_status.*.source_path). Substituting a
+        # different pair of files would let fabricated findings stand in for
+        # the recorded ones.
+        recorded_paths = set()
+        for payload in (convergence.get("report_status") or {}).values():
+            if isinstance(payload, dict) and isinstance(payload.get("source_path"), str):
+                recorded_paths.add(Path(payload["source_path"]).resolve())
+        supplied_paths = {rp.resolve() for rp in args.member_report}
+        if recorded_paths and supplied_paths != recorded_paths:
+            return _input_error(
+                "supplied member reports do not match the reports the convergence "
+                f"gate read — recorded {sorted(str(x) for x in recorded_paths)}, "
+                f"supplied {sorted(str(x) for x in supplied_paths)}"
+            )
+        if not recorded_paths:
+            return _input_error(
+                "convergence result records no report source paths; cannot bind the "
+                "supplied member reports to the recorded findings"
+            )
     for report_path in args.member_report:
         if not report_path.is_file():
             return _input_error(f"member report not found: {report_path}")
@@ -287,20 +308,36 @@ def main() -> int:
 
         finding_counts = Counter(member_findings)
         available = Counter(completed_rows)
-        unmatched: list[str] = []
+        covered_counts: dict[str, int] = {f: 0 for f in finding_counts}
+        # Two-phase assignment so a short finding cannot greedily consume a
+        # row that exactly matches a longer one: exact-equality rows bind
+        # first, substring (finding-plus-context) rows second.
         for finding, needed in finding_counts.items():
-            covered = 0
+            if available.get(finding, 0) > 0:
+                take = min(needed, available[finding])
+                available[finding] -= take
+                covered_counts[finding] += take
+        for finding, needed in sorted(
+            finding_counts.items(), key=lambda kv: -len(kv[0])
+        ):
+            still = needed - covered_counts[finding]
+            if still <= 0:
+                continue
             for row, row_count in list(available.items()):
-                if row_count <= 0:
+                if row_count <= 0 or row == finding:
                     continue
-                if row == finding or finding in row:
-                    take = min(needed - covered, row_count)
+                if finding in row:
+                    take = min(still, row_count)
                     available[row] -= take
-                    covered += take
-                if covered >= needed:
+                    covered_counts[finding] += take
+                    still -= take
+                if still <= 0:
                     break
-            if covered < needed:
-                unmatched.append(f"{finding!r} (owed {needed}, matched {covered})")
+        unmatched = [
+            f"{finding!r} (owed {needed}, matched {covered_counts[finding]})"
+            for finding, needed in finding_counts.items()
+            if covered_counts[finding] < needed
+        ]
         if len(member_findings) < owed:
             return _fail(
                 f"{owed} minor issue(s) recorded at convergence but only "
