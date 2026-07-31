@@ -629,7 +629,10 @@ on a shared three-level scale:
   acceptance point / discard with a stated reason) — dispositioned, not silently dropped.
 
 Convergence = zero BLOCKING findings on the current artifact, every HIGH fixed or scheduled at its
-named acceptance point, and every LOW dispositioned. A round that produces only LOW findings is a
+named acceptance point, and every LOW dispositioned. When another workflow's severity scheme also
+applies to the same artifact (e.g. a member-cycle blocking/non-blocking grading), the stricter
+classification governs: an in-scope correctness risk that is HIGH here never demotes to a
+deferrable non-blocking finding there — it blocks the artifact's acceptance point either way. A round that produces only LOW findings is a
 converging round, not grounds for another full cycle. Once an artifact has passed a full review pair,
 later findings re-open it only if they meet the BLOCKING bar — "keep reviewing until no reviewer can
 imagine a stronger test" is an unbounded loop, not a standard. A later non-BLOCKING finding still
