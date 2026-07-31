@@ -102,7 +102,7 @@ bash "${SKILL_DIR}/scripts/bin/run_team_cycle.sh" \
   --preflight-only
 ```
 
-If a gate fails, fix the minimal root cause (docs/artifacts/config), then rerun with a new resolved tag (e.g. `20260502T023000Z-m0-topic-r2`).
+If a deterministic gate fails, fix the minimal root cause (docs/artifacts/config) and rerun `--preflight-only` within the same run until the deterministic gates pass — that iteration is development work, not a reviewed cycle. Mint a new resolved tag (e.g. `20260502T023000Z-m0-topic-r2`) only when re-entering the reviewed convergence cycle with a new candidate (see the retry-regime and verification-granularity contracts in SKILL.md).
 Keep `--out-dir` on the real-project side as well; do not route real-project outputs back into the skill repo checkout.
 
 ## Review access modes (packet_only vs full_access)

@@ -57,6 +57,10 @@ class ReportStatus:
     step_verdicts: List[Tuple[str, str]] = field(default_factory=list)
     has_independent_derivation: bool = False
     nontriviality_validated: bool = False  # True if NONTRIVIAL + all required fields present
+    # Severity-graded convergence: counts surfaced for the coordinator.
+    blocking_count: int | None = None  # parsed from the Verdict "Blocking issues" line
+    minor_issues_count: int = 0  # list items under "## Minor Issues"
+    minor_issues_malformed: bool = False  # section nonempty but zero parsable items
 
 
 def _normalize_pass_fail(token: str, pass_tokens: tuple[str, ...], fail_tokens: tuple[str, ...]) -> str:
@@ -275,6 +279,90 @@ def _parse_nontriviality_reason(text: str) -> str | None:
 # Report parsing
 # ---------------------------------------------------------------------------
 
+def _is_unfilled_placeholder(value: str) -> bool:
+    """A template hint like "[list or \"none\"]" or "<...>" left unfilled."""
+    v = value.strip()
+    return bool(re.fullmatch(r"<.*>", v)) or "list or" in v.lower()
+
+
+def _count_section_items(text: str, heading: str) -> tuple[int, bool]:
+    """Count list-like finding lines under a section (bullets / numbered),
+    ignoring placeholders like "(none)" / "none" / "...".
+
+    Returns (count, malformed): malformed is True when the section carries
+    real content but zero parsable list items — prose-only findings would
+    otherwise be laundered into a zero count.
+    """
+    section = _extract_section(text, heading)
+    if not section.strip():
+        return 0, False
+    placeholders = {"", "(none)", "none", "...", "n/a"}
+    count = 0
+    has_content = False
+    has_nonlist_content = False
+    for ln in section.splitlines():
+        s = ln.strip()
+        if not s:
+            continue
+        is_list_item = bool(re.match(r"^[-*+]\s", s) or re.match(r"^\d+\.\s", s))
+        if is_list_item:
+            # Judge a list item by its marker-stripped body: a bulleted
+            # placeholder ("- none", "- ...", "- (none)") is a no-issues
+            # indicator, not prose content.
+            body = re.sub(r"^(?:[-*+]\s+|\d+\.\s+)", "", s).strip("*_`").strip().lower()
+            if body in placeholders:
+                continue
+            has_content = True
+            count += 1
+            continue
+        # Non-list line: whole-line normalization. A bold line like
+        # "**Note:**" or prose is content that is NOT a countable item — a
+        # prose finding beside list items would silently escape the
+        # disposition obligation, so any non-placeholder non-list content
+        # marks the section malformed.
+        normalized = s.strip("*_`").strip().lower()
+        if normalized in placeholders:
+            continue
+        has_nonlist_content = True
+    return count, (has_nonlist_content or (has_content and count == 0))
+
+
+def _parse_blocking_count(text: str) -> int | None:
+    """Parse the Verdict section's "Blocking issues:" line.
+
+    "none" (with or without emphasis) parses as 0. An unfilled template
+    placeholder or a missing line yields None (unknown) — never a fabricated
+    zero; the parse-error collector rejects a ready verdict whose blocking
+    count is unknown.
+    """
+    for heading in ("Verdict",):
+        section = _extract_section(text, heading)
+        if not section:
+            continue
+        matches = re.findall(r"Blocking issues:?\s*(.+)$", section, flags=re.IGNORECASE | re.MULTILINE)
+        if not matches:
+            continue
+        if len(matches) > 1:
+            # Duplicate lines are ambiguous by construction — the first-match
+            # reading would let "none" on line one launder a real blocker on
+            # line two. Ambiguity is unknown, and unknown cannot converge.
+            return None
+        raw_value = matches[0].strip()
+        # An unfilled template placeholder is UNKNOWN, never zero — a zero
+        # here would silently launder an unfilled report into "no blockers".
+        if re.fullmatch(r"\[.*\]", raw_value) or _is_unfilled_placeholder(raw_value):
+            return None
+        value = raw_value.strip("*_`").strip().lower()
+        if value in {"none", "none."}:
+            return 0
+        if not value:
+            return None
+        # A non-"none" value is one-or-more findings; count separators
+        # conservatively (semicolons), floor 1.
+        return max(1, value.count(";") + 1)
+    return None
+
+
 def _parse_report(path: Path) -> ReportStatus:
     text = path.read_text(encoding="utf-8", errors="replace")
 
@@ -298,6 +386,8 @@ def _parse_report(path: Path) -> ReportStatus:
     step_verdicts = _parse_step_verdicts(text)
     has_indep = _has_independent_derivation(text)
     nontriviality_ok = _validate_nontriviality(text)
+    blocking_count = _parse_blocking_count(text)
+    minor_issues_count, minor_issues_malformed = _count_section_items(text, "Minor Issues")
 
     return ReportStatus(
         path=path,
@@ -308,6 +398,9 @@ def _parse_report(path: Path) -> ReportStatus:
         step_verdicts=step_verdicts,
         has_independent_derivation=has_indep,
         nontriviality_validated=nontriviality_ok,
+        blocking_count=blocking_count,
+        minor_issues_count=minor_issues_count,
+        minor_issues_malformed=minor_issues_malformed,
     )
 
 
@@ -401,6 +494,24 @@ def _collect_parse_errors(status: ReportStatus, member: str, require_sweep: bool
         errors.append(f"{member}: failed to parse computation replication status")
     if status.verdict == "unknown":
         errors.append(f"{member}: failed to parse verdict section/value")
+    if status.verdict == "ready" and status.blocking_count is None:
+        errors.append(
+            f"{member}: verdict is ready but the Blocking issues line is missing, "
+            "duplicated, or still carries the unfilled template placeholder — an "
+            "unknown blocking count cannot converge"
+        )
+    if status.verdict == "ready" and (status.blocking_count or 0) > 0:
+        errors.append(
+            f"{member}: verdict is ready but the Blocking issues line lists "
+            f"{status.blocking_count} item(s) — a self-contradictory report cannot "
+            "converge (blocking findings force needs revision)"
+        )
+    if status.minor_issues_malformed:
+        errors.append(
+            f"{member}: the Minor Issues section has content but no parsable list "
+            "items — findings must be list items so the disposition obligation can "
+            "be counted; prose-only content would launder findings into a zero count"
+        )
     if require_sweep and status.sweep_semantics == "unknown":
         errors.append(f"{member}: failed to parse sweep semantics consistency verdict")
     return errors
@@ -412,7 +523,8 @@ def _summarize_member(status: ReportStatus, parse_errors: list[str]) -> dict[str
     unverifiable = sum(1 for _, verdict in status.step_verdicts if verdict == "UNVERIFIABLE")
     return {
         "verdict": status.verdict if status.verdict in {"ready", "needs_revision"} else "unknown",
-        "blocking_count": None,
+        "blocking_count": status.blocking_count,
+        "minor_issues_count": status.minor_issues_count,
         "parse_ok": len(parse_errors) == 0,
         "derivation": status.derivation,
         "computation": status.computation,
@@ -569,6 +681,15 @@ def main() -> int:
     if rc == 0:
         status = "converged"
         reasons = []
+        pending = member_a.minor_issues_count + member_b.minor_issues_count
+        if pending:
+            print(
+                f"[note] converged with {pending} minor issue(s) recorded across member "
+                "reports; each requires an explicit disposition (fix now / named "
+                "acceptance point / discard with reason) in the adjudication before "
+                "results are folded — see build_adjudication_response.py",
+                file=sys.stderr,
+            )
     elif rc == 3:
         status = "early_stop"
         challenged = [name for name, verdict in member_b.step_verdicts if verdict == "CHALLENGED"]

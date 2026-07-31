@@ -92,8 +92,19 @@ The launcher only records; the degradation decision is yours (the agent driving 
 
 For one independent reviewer from another family, `review_one.py` assembles the
 whole packet for you (no hand-written prompt files). A single reviewer is one
-model family, so treat its verdict as **advisory only** — final verdicts require
-cross-family review (the packet itself carries that caveat as its first line):
+model family, so treat its verdict as **advisory only** for artifacts that
+require cross-family review (the packet itself carries that caveat as its first
+line). **Which artifacts require cross-family review is a scoping decision, not
+a blanket rule**: cross-family panels are for result-bearing, public-surface,
+or irreversible artifacts — headline claims and the derivations/numbers they
+rest on, cross-package contracts, default-entry behavior (the same scoping the
+two-phase formal review section uses). Internal implementation variants —
+writers, fixtures, launchers, schema plumbing — may close on a single-family
+review plus local tests (an implementation never closes on its author's own
+tests alone), with the independence level labeled honestly. Reviewer
+investment scales with the artifact's stakes the same way reasoning effort
+does; spending the cross-family ceiling on every internal diff is the recorded
+waste pattern, not the safe default.
 
 ```bash
 python3 scripts/bin/review_one.py \
@@ -185,6 +196,21 @@ Flags:
   flags when a correctness verdict may depend on surrounding definitions. A reviewer must
   not infer that an implementation element is absent merely because it is not
   visible in the diff.
+- **Confirmation rounds default to the delta.** For a re-review of an artifact
+  whose prior content hashes were already reviewed, the packet may be the exact
+  delta from the reviewed baseline plus the manifest reference to that
+  baseline (the freshness gate already accepts "the complete exact delta from
+  the reviewed hash"), with a findings-to-resolutions table. Reserve full-file
+  packets for first rounds, and re-escalate when the delta reaches into
+  surface the panel never reviewed, changes formulas/assumptions, a data model
+  or global invariant, or an origin-traceability root — or when the reviewer
+  asks. Re-feeding unchanged contracts, registries, and prior verdicts every
+  round consumes reviewer context without adding verification power.
+- **Packet composition**: embed immutable snapshots (content copies) of
+  anything that lifecycle machinery rewrites in place (status summaries,
+  registries, adjudication indexes). A packet that embeds a live mutable file
+  goes STALE on every unrelated bookkeeping write, cascading re-reviews that
+  verify nothing new.
 - `--role generic|correctness|execution-adversary|source-extraction|source-fidelity` — picks the
   system prompt from `templates/<role>.md` (default: `generic`). Each template
   embeds the required review-contract output format.
@@ -247,8 +273,9 @@ Flags:
 - `--timeout-secs`, `--backend-tool-mode`, `--<backend>-runner` — forwarded to
   the launcher unchanged.
 
-The assembled packet's first line is the advisory caveat ("single-family review —
-advisory; final verdicts require cross-family review"). When the reviewer returns,
+The assembled packet's first line is the independence caveat (single-family
+review — one model family; whether cross-family review is additionally required
+follows the artifact's scoping above). When the reviewer returns,
 the launcher recomputes every manifest hash, writes `post_review_freshness.json`,
 records the status in `meta.json`, and prints `acceptance_status` with the model
 verdict, `contract_ok`, and the output/packet/meta/trace paths. A successful model
@@ -437,7 +464,9 @@ renderer that displays placeholders or filenames instead of the intended evidenc
 Write reusable workflows in terms of reviewer roles and capabilities, not specific model names. A concrete
 run may choose particular models, but the skill or project contract should say "independent cross-model
 artifact reviewer" or "source-fidelity reviewer" unless a user explicitly pins a model for that run.
-After any artifact fix, rerun the reviewers on the fixed artifact before calling convergence.
+After any artifact fix, rerun the reviewers on the fixed artifact before calling convergence
+(the confirmation round follows the gate-loop discipline below: delta-scoped by default,
+severity-graded, one round per fix batch).
 
 ### Reference-reproduction reviewer (mandatory for "matches / reproduces a published value" claims)
 
@@ -573,6 +602,14 @@ python3 scripts/bin/run_multi_task.py \
   --convergence-threshold 0.8
 ```
 
+`--check-convergence` measures **lexical similarity** between reviewer outputs
+(Jaccard). It is a signal that reviewers are talking about the same things —
+it is **not** the acceptance convergence defined in the gate-loop discipline
+below: two similar NOT_READY reviews sharing the same blockers score high
+similarity while the artifact is not accepted at all. Acceptance convergence
+is always read from the verdicts (zero BLOCKING findings on the current
+artifact, dispositions complete), never from this similarity score.
+
 ### Re-review after every fix (gate-loop discipline)
 
 Convergence is a property of the **reviewers' agreement on the current artifact**, never a
@@ -584,6 +621,45 @@ a refactor that re-breaks an invariant — that exists only after the fix and is
 independent round. Skipping the confirmation round because the change "obviously" closed the finding is the
 failure mode this rule exists to stop. The leader integrates and decides, but does **not** declare
 convergence in place of the reviewers.
+
+**"Clean" is defined by severity, and the loop has a stop condition.** Reviewers grade every finding
+on a shared three-level scale:
+
+- **BLOCKING** — changes a result, claim, or contract; violates input identity, target-value
+  isolation, or origin traceability; turns a silent failure into an apparent success; or is a
+  quantitative discrepancy of the reference-reproduction kind (the order-of-magnitude/sign-reversal
+  rule below is the exemplar). BLOCKING findings must be fixed and re-reviewed.
+- **HIGH** — a correctness risk inside the declared scope that does not change current results
+  (e.g. a declared failure mode with no regression test). Fix before the artifact's acceptance
+  point; a batch of HIGH fixes takes one confirmation round together, and does not restart the
+  full independent panel unless production logic changed.
+- **LOW** — hardening beyond the declared scope, mutation-style test strengthening, style. Never
+  blocks by itself; each LOW finding gets an explicit disposition (fix now / attach to a named
+  acceptance point / discard with a stated reason) — dispositioned, not silently dropped.
+
+Convergence = zero BLOCKING findings on the current artifact, every HIGH fixed or scheduled at its
+named acceptance point, and every LOW dispositioned. When another workflow's severity scheme also
+applies to the same artifact (e.g. a member-cycle blocking/non-blocking grading), the stricter
+classification governs: an in-scope correctness risk that is HIGH here never demotes to a
+deferrable non-blocking finding there — it blocks the artifact's acceptance point either way. A round that produces only LOW findings is a
+converging round, not grounds for another full cycle. Once an artifact has passed a full review pair,
+later findings re-open it only if they meet the BLOCKING bar — "keep reviewing until no reviewer can
+imagine a stronger test" is an unbounded loop, not a standard. A later non-BLOCKING finding still
+receives the standard disposition (fix now / attach to a named acceptance point / discard with a
+stated reason): not re-opening the artifact is not discarding the finding.
+
+The loop is also **bounded**: cap review rounds per artifact (default 5, counting every round that
+reviewed a candidate of this artifact). Hitting the cap is not a license for one more round — it
+forces the narrowing rule: narrow the artifact's scope, reduce the claim's strength, or take the
+blocking question to the project owner. The mandatory confirmation round after an applied fix batch
+is unaffected — the cap bounds how many candidate revisions the loop may consume, not whether a
+revision gets its confirmation. Batch fixes: one confirmation round
+covers the whole accumulated fix batch, scoped to the exact delta by default (see packet composition
+above). Review verdicts are judged on content: a source-grounded READY whose verdict string or label
+spelling deviates from the requested format is a normalization task, never a new blocking round.
+Prefer a same-model rerun to normalize; leader transcription (with the original archived) is
+acceptable only when the archived output contains an explicit, unambiguous affirmative verdict —
+an ambiguous verdict is not normalized into a pass, it fails closed as usual.
 
 The verdict is scoped to the exact hashes in `inputs/review_input_manifest.json`.
 Before counting an older run toward a later convergence or closeout, rerun the
@@ -651,7 +727,9 @@ How it works:
    criteria it commits to: exactly one block wrapped in `<review_criteria>` /
    `</review_criteria>` sentinel lines, containing a JSON object with a non-empty
    `categories` array (each entry: a `name` plus a one-sentence `blocking_criteria`) and a
-   `severity_scale` sentence.
+   `severity_scale` sentence. The `severity_scale` sentence binds the reviewer's categories
+   to the canonical BLOCKING/HIGH/LOW ladder defined in the gate-loop discipline section —
+   it maps categories onto that shared scale, it does not invent a private one.
 2. **Phase 2 — review per committed criteria.** The same reviewer is called again with the
    full diff packet (the normal `--prompt` / per-backend override) plus its own phase-1
    criteria block, verbatim. Every BLOCKING finding must carry a declared category:
