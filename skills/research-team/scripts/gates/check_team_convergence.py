@@ -60,6 +60,7 @@ class ReportStatus:
     # Severity-graded convergence: counts surfaced for the coordinator.
     blocking_count: int | None = None  # parsed from the Verdict "Blocking issues" line
     minor_issues_count: int = 0  # list items under "## Minor Issues"
+    minor_issues_malformed: bool = False  # section nonempty but zero parsable items
 
 
 def _normalize_pass_fail(token: str, pass_tokens: tuple[str, ...], fail_tokens: tuple[str, ...]) -> str:
@@ -284,24 +285,36 @@ def _is_unfilled_placeholder(value: str) -> bool:
     return bool(re.fullmatch(r"<.*>", v)) or "list or" in v.lower()
 
 
-def _count_section_items(text: str, heading: str) -> int:
+def _count_section_items(text: str, heading: str) -> tuple[int, bool]:
     """Count list-like finding lines under a section (bullets / numbered),
-    ignoring placeholders like "(none)" / "none" / "..."."""
+    ignoring placeholders like "(none)" / "none" / "...".
+
+    Returns (count, malformed): malformed is True when the section carries
+    real content but zero parsable list items — prose-only findings would
+    otherwise be laundered into a zero count.
+    """
     section = _extract_section(text, heading)
     if not section.strip():
-        return 0
+        return 0, False
     count = 0
+    has_content = False
     for ln in section.splitlines():
         s = ln.strip()
-        # CommonMark list items: a bullet marker followed by whitespace,
-        # or a numbered item — a bold line like "**Note:**" is not a bullet.
-        if not (re.match(r"^[-*+]\s", s) or re.match(r"^\d+\.", s)):
+        if not s:
             continue
-        body = re.sub(r"^(?:[-*+]\s+|\d+\.\s*)", "", s).strip().lower()
+        normalized = s.strip("*_`").strip().lower()
+        if normalized in {"", "(none)", "none", "...", "n/a"}:
+            continue
+        has_content = True
+        # CommonMark list items: a marker followed by whitespace — a bold
+        # line like "**Note:**" or "1.not-a-list" is not a list item.
+        if not (re.match(r"^[-*+]\s", s) or re.match(r"^\d+\.\s", s)):
+            continue
+        body = re.sub(r"^(?:[-*+]\s+|\d+\.\s+)", "", s).strip().lower()
         if body in {"", "(none)", "none", "...", "n/a"}:
             continue
         count += 1
-    return count
+    return count, (has_content and count == 0)
 
 
 def _parse_blocking_count(text: str) -> int | None:
@@ -359,7 +372,7 @@ def _parse_report(path: Path) -> ReportStatus:
     has_indep = _has_independent_derivation(text)
     nontriviality_ok = _validate_nontriviality(text)
     blocking_count = _parse_blocking_count(text)
-    minor_issues_count = _count_section_items(text, "Minor Issues")
+    minor_issues_count, minor_issues_malformed = _count_section_items(text, "Minor Issues")
 
     return ReportStatus(
         path=path,
@@ -372,6 +385,7 @@ def _parse_report(path: Path) -> ReportStatus:
         nontriviality_validated=nontriviality_ok,
         blocking_count=blocking_count,
         minor_issues_count=minor_issues_count,
+        minor_issues_malformed=minor_issues_malformed,
     )
 
 
@@ -470,6 +484,18 @@ def _collect_parse_errors(status: ReportStatus, member: str, require_sweep: bool
             f"{member}: verdict is ready but the Blocking issues line is missing or "
             "still carries the unfilled template placeholder — an unknown blocking "
             "count cannot converge"
+        )
+    if status.verdict == "ready" and (status.blocking_count or 0) > 0:
+        errors.append(
+            f"{member}: verdict is ready but the Blocking issues line lists "
+            f"{status.blocking_count} item(s) — a self-contradictory report cannot "
+            "converge (blocking findings force needs revision)"
+        )
+    if status.minor_issues_malformed:
+        errors.append(
+            f"{member}: the Minor Issues section has content but no parsable list "
+            "items — findings must be list items so the disposition obligation can "
+            "be counted; prose-only content would launder findings into a zero count"
         )
     if require_sweep and status.sweep_semantics == "unknown":
         errors.append(f"{member}: failed to parse sweep semantics consistency verdict")

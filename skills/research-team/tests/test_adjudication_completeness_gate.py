@@ -216,30 +216,104 @@ def test_placeholder_disposition_fails(tmp_path: Path) -> None:
     assert verdict["status"] == "fail"
 
 
-def test_duplicate_finding_rows_cannot_mask_a_missing_disposition(tmp_path: Path) -> None:
+def _member_report(tmp_path: Path, name: str, findings: list[str]) -> Path:
+    lines = ["# Member report", "", "## Minor Issues"]
+    lines += [f"- {f}" for f in findings] or ["- (none)"]
+    lines += ["", "## Verdict", "- ready for next milestone", "- Blocking issues: none", ""]
+    p = tmp_path / name
+    p.write_text("\n".join(lines), encoding="utf-8")
+    return p
+
+
+def test_identity_binding_catches_unrelated_row_padding(tmp_path: Path) -> None:
+    # Arbitrary unique rows cannot stand in for the recorded findings.
     conv = _convergence(tmp_path, a=2, b=0)
+    report_a = _member_report(
+        tmp_path, "a.md", ["fixture hardening idea", "tolerance literal naming"]
+    )
+    report_b = _member_report(tmp_path, "b.md", [])
     adj = _adjudication(
         tmp_path,
         [
-            "| fixture idea | A | fix now |",
-            "| fixture idea | A | fix now |",
+            "| unrelated row one | A | fix now |",
+            "| unrelated row two | A | fix now |",
         ],
     )
+    code, verdict = _run(
+        "--convergence-json", str(conv), "--adjudication", str(adj),
+        "--member-report", str(report_a), "--member-report", str(report_b),
+    )
+    assert code == 1, verdict
+    assert verdict["status"] == "fail"
+
+
+def test_identity_binding_passes_with_matching_rows(tmp_path: Path) -> None:
+    conv = _convergence(tmp_path, a=2, b=1)
+    report_a = _member_report(
+        tmp_path, "a.md", ["fixture hardening idea", "tolerance literal naming"]
+    )
+    report_b = _member_report(tmp_path, "b.md", ["extra negative control"])
+    adj = _adjudication(
+        tmp_path,
+        [
+            "| **Fixture hardening idea** | A | discard: beyond declared scope |",
+            "| tolerance literal naming | A | fix now |",
+            "| extra negative control (B's suggestion) | B | acceptance point M3 |",
+        ],
+    )
+    code, verdict = _run(
+        "--convergence-json", str(conv), "--adjudication", str(adj),
+        "--member-report", str(report_a), "--member-report", str(report_b),
+    )
+    assert code == 0, verdict
+    assert verdict["status"] == "pass"
+    assert verdict["binding"] == "identity"
+
+
+def test_identity_binding_same_text_from_both_members_owes_two_rows(tmp_path: Path) -> None:
+    conv = _convergence(tmp_path, a=1, b=1)
+    report_a = _member_report(tmp_path, "a.md", ["shared hardening idea"])
+    report_b = _member_report(tmp_path, "b.md", ["shared hardening idea"])
+    one_row = _adjudication(tmp_path, ["| shared hardening idea | A | fix now |"])
+    code, verdict = _run(
+        "--convergence-json", str(conv), "--adjudication", str(one_row),
+        "--member-report", str(report_a), "--member-report", str(report_b),
+    )
+    assert code == 1, verdict
+    two_rows = _adjudication(
+        tmp_path,
+        [
+            "| shared hardening idea | A | fix now |",
+            "| shared hardening idea | B | fix now |",
+        ],
+    )
+    code, verdict = _run(
+        "--convergence-json", str(conv), "--adjudication", str(two_rows),
+        "--member-report", str(report_a), "--member-report", str(report_b),
+    )
+    assert code == 0, verdict
+
+
+def test_count_fallback_still_guards_without_reports(tmp_path: Path) -> None:
+    conv = _convergence(tmp_path, a=2, b=0)
+    adj = _adjudication(tmp_path, ["| only one | A | fix now |"])
     code, verdict = _run("--convergence-json", str(conv), "--adjudication", str(adj))
     assert code == 1, verdict
     assert verdict["status"] == "fail"
 
 
-def test_absent_minor_count_key_is_honest_zero(tmp_path: Path) -> None:
-    # Older convergence results predate the optional field entirely.
+def test_absent_minor_count_key_is_contract_drift(tmp_path: Path) -> None:
+    # The team convergence gate always emits the field; per the repository's
+    # no-backward-compatibility invariant an absent key is contract drift,
+    # never an implicit zero.
     payload = _convergence_payload(a=0, b=0)
     del payload["report_status"]["member_a"]["minor_issues_count"]
     del payload["report_status"]["member_b"]["minor_issues_count"]
     p = tmp_path / "convergence.json"
     p.write_text(json.dumps(payload), encoding="utf-8")
     code, verdict = _run("--convergence-json", str(p))
-    assert code == 0
-    assert verdict["status"] == "pass"
+    assert code == 2, verdict
+    assert verdict["status"] == "input_error"
 
 
 def test_unreadable_convergence_is_input_error(tmp_path: Path) -> None:

@@ -3304,7 +3304,7 @@ fi
 dispositions_ok=1
 ADJUDICATION_COMPLETENESS_GATE="${GATES_DIR}/check_adjudication_completeness.py"
 if [[ -f "${ADJUDICATION_COMPLETENESS_GATE}" && -f "${gate_json}" ]]; then
-  if ! python3 "${ADJUDICATION_COMPLETENESS_GATE}" --convergence-json "${gate_json}" > "${run_dir}/${RESOLVED_TAG}_dispositions_gate.json"; then
+  if ! python3 "${ADJUDICATION_COMPLETENESS_GATE}" --convergence-json "${gate_json}" --member-report "${member_a_out}" --member-report "${member_b_out}" > "${run_dir}/${RESOLVED_TAG}_dispositions_gate.json"; then
     dispositions_ok=0
   fi
 else

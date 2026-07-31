@@ -189,6 +189,7 @@ Consistency verdict: pass
 ## Verdict
 
 Verdict: ready for next milestone
+- Blocking issues: none
 MD
 exit 0
 SH
@@ -316,6 +317,7 @@ Consistency verdict: pass
 ## Verdict
 
 Verdict: ready for next milestone
+- Blocking issues: none
 MD
 exit 0
 SH
