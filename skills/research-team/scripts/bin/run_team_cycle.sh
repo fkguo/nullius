@@ -998,6 +998,49 @@ if [[ "${RESOLVED_TAG}" =~ ^run_[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-
   exit 2
 fi
 
+# Bounded rounds: the -rN suffix counts reviewed-cycle re-entries of one tag
+# family. Hitting the cap forces the narrowing rule (narrow scope, reduce the
+# claim's strength, or take the blocking question to the project owner) —
+# another full round is not an allowed response. Raise the cap deliberately
+# via research_team_config.json bounded_rounds.max_per_tag_family when a
+# family legitimately needs more reviewed rounds.
+round_cap_check="$(python3 - "${RESOLVED_TAG}" "${NOTEBOOK_PATH}" "${GATES_DIR}/../lib" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+tag, notes, lib_dir = sys.argv[1], sys.argv[2], sys.argv[3]
+sys.path.insert(0, lib_dir)
+m = re.search(r"-r(\d+)$", tag)
+if not m:
+    print("ok no-round-suffix")
+    raise SystemExit(0)
+round_n = int(m.group(1))
+cap = 5
+try:
+    from team_config import load_team_config  # type: ignore
+
+    cfg = load_team_config(Path(notes))
+    block = cfg.data.get("bounded_rounds", {}) if isinstance(cfg.data, dict) else {}
+    raw = block.get("max_per_tag_family", 5) if isinstance(block, dict) else 5
+    if isinstance(raw, int) and not isinstance(raw, bool) and raw >= 1:
+        cap = raw
+except Exception:
+    cap = 5
+if round_n > cap:
+    print(f"exceeded {round_n} {cap}")
+else:
+    print(f"ok {round_n}")
+PY
+)"
+if [[ "${round_cap_check}" == exceeded* ]]; then
+  read -r _ round_n_val round_cap_val <<<"${round_cap_check}"
+  echo "[gate] Fail-fast: tag family round ${round_n_val} exceeds the bounded-rounds cap (${round_cap_val})." >&2
+  echo "[gate] Another full round is not an allowed response at the cap: narrow the candidate's scope, reduce the claim's strength, explicitly classify as SCOPE/MATCHING, or take the blocking question to the project owner — and continue a narrowed candidate under a new base tag." >&2
+  echo "[gate] To deliberately allow more reviewed rounds for this family, raise bounded_rounds.max_per_tag_family in research_team_config.json." >&2
+  exit 2
+fi
+
 safe_tag="${RESOLVED_TAG}"
 run_dir="${OUT_DIR}/runs/${safe_tag}"
 mkdir -p "${run_dir}"
@@ -1832,7 +1875,7 @@ if [[ ${delegation_budget_code} -ne 0 ]]; then
     echo "[error] delegation budget gate errored (input/config). Fix the config/paths and rerun." >&2
     exit ${delegation_budget_code}
   fi
-  echo "[gate] Fail-fast: delegation budget contract check failed. Fill every required budget field (tolerance ceiling + anchor, time box, attempt cap, scope negative list, dry-run peak RSS + heap cap) in team/delegations/*.json before dispatching delegated workstreams." >&2
+  echo "[gate] Fail-fast: delegation budget contract check failed. Fill every required budget field (tolerance ceiling + anchor, time box, attempt cap, scope negative list, and a memory estimate — measured dry-run peak RSS + heap cap for compute launches, or mode declared_cap + heap cap + basis + launches_full_scale_computation: false for short bounded workstreams) in the configured delegations directory (delegation_budget.delegations_dir, default team/delegations/) before dispatching delegated workstreams." >&2
   exit ${delegation_budget_code}
 fi
 

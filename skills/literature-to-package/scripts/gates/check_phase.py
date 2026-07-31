@@ -101,6 +101,7 @@ _ABS_PATH_RE = re.compile(r"(?:/Users/|/home/|[A-Za-z]:\\Users\\)[A-Za-z0-9._-]+
 _REVIEW_MD_RE = re.compile(r"^\s*VERDICT:\s*([A-Z_]+)\b")
 _REVIEW_REQUIRED_HEADERS = [
     "## Blockers",
+    "## High-severity",
     "## Non-blocking",
     "## Real-research fit",
     "## Robustness & safety",

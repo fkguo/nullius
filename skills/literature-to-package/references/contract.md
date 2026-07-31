@@ -211,7 +211,7 @@ Gate checks:
   contract, `skills/review-swarm/scripts/bin/review_contract.py`; the repo
   anti-drift lock cross-checks the mirror against that source): a Markdown report
   whose first non-empty line is `VERDICT: READY`, that carries **all required
-  report headers as real heading lines** (`## Blockers`, `## Non-blocking`,
+  report headers as real heading lines** (`## Blockers`, `## High-severity`, `## Non-blocking`,
   `## Real-research fit`, `## Robustness & safety`, `## Specific patch
   suggestions` — a bare VERDICT line is a stub, and a prose mention of the
   header names is not a section), and whose `## Blockers` section lists no
