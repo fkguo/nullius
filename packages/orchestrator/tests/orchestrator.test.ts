@@ -1044,6 +1044,63 @@ describe('uncommitted-work aging warning', () => {
     fs.writeFileSync(path.join(tmpDir, 'untracked-cache.bin'), 'x');
     expect(statusWarningCodes()).not.toContain('UNCOMMITTED_WORK_AGING');
   });
+
+  it('stays silent for a zero-commit repository', () => {
+    git('init', '-q');
+    git('config', 'user.email', 't@example.invalid');
+    git('config', 'user.name', 't');
+    fs.writeFileSync(path.join(tmpDir, 'notes.md'), 'v1\n');
+    git('add', 'notes.md');
+    // No commit: `git log` fails, the probe yields null, the receipt survives.
+    expect(statusWarningCodes()).not.toContain('UNCOMMITTED_WORK_AGING');
+  });
+
+  it('scopes the count to the project subtree inside an enclosing repository', () => {
+    // The nullius project root is a subdirectory of a larger repo: dirt
+    // outside the project must not charge the project's warning.
+    git('init', '-q');
+    git('config', 'user.email', 't@example.invalid');
+    git('config', 'user.name', 't');
+    const projectDir = path.join(tmpDir, 'proj');
+    fs.mkdirSync(projectDir);
+    fs.writeFileSync(path.join(tmpDir, 'outer.md'), 'outer v1\n');
+    fs.writeFileSync(path.join(projectDir, 'inner.md'), 'inner v1\n');
+    git('add', '.');
+    execFileSync('git', ['-C', tmpDir, 'commit', '-q', '-m', 'v1'], {
+      stdio: 'ignore',
+      env: {
+        ...process.env,
+        GIT_AUTHOR_DATE: '2000-01-01T00:00:00Z',
+        GIT_COMMITTER_DATE: '2000-01-01T00:00:00Z',
+      },
+    });
+    const codesFor = (root: string): string[] => {
+      const sm = new StateManager(root);
+      const view = buildRunStatusView(root, sm.readState()) as Record<string, unknown>;
+      const rc = view.recovery_context as Record<string, unknown>;
+      const warnings = (rc.derivation_warnings ?? []) as Array<Record<string, unknown>>;
+      return warnings.map(w => String(w.code));
+    };
+    // Outer dirt only: the project stays silent.
+    fs.writeFileSync(path.join(tmpDir, 'outer.md'), 'outer v2 — uncommitted\n');
+    expect(codesFor(projectDir)).not.toContain('UNCOMMITTED_WORK_AGING');
+    // Dirt inside the project subtree: the warning fires.
+    fs.writeFileSync(path.join(projectDir, 'inner.md'), 'inner v2 — uncommitted\n');
+    expect(codesFor(projectDir)).toContain('UNCOMMITTED_WORK_AGING');
+  });
+
+  it('stays silent below the threshold: a dirty tree over a fresh commit', () => {
+    // Pins the threshold lower bound — without the age early-return the
+    // warning would fire on every dirty tree.
+    git('init', '-q');
+    git('config', 'user.email', 't@example.invalid');
+    git('config', 'user.name', 't');
+    fs.writeFileSync(path.join(tmpDir, 'notes.md'), 'v1\n');
+    git('add', 'notes.md');
+    git('commit', '-q', '-m', 'fresh');
+    fs.writeFileSync(path.join(tmpDir, 'notes.md'), 'v2 — in progress\n');
+    expect(statusWarningCodes()).not.toContain('UNCOMMITTED_WORK_AGING');
+  });
 });
 
 describe('StateManager write operations (Stage 2)', () => {

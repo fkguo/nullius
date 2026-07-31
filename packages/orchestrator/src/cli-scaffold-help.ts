@@ -10,7 +10,7 @@ Behavior:
   backing up any changed file under \`.nullius/backups/<timestamp>/\` before overwriting it.
   Refresh never writes user-owned files (research_plan.md, research_notebook.md,
   research_contract.md, project_charter.md, project_index.md,
-  reports/main_research_report_template.md). Pair with --dry-run to preview.
+  reports/main_research_report_template.md, .gitignore). Pair with --dry-run to preview.
 
 Existing-project main-report migration:
   Checkpoint the project first. Refresh AGENTS.md, then render a fresh scaffold

@@ -8,6 +8,8 @@ EMBED everything they are expected to judge — never reference paths and hope.
 ```markdown
 single-family review — one model family; whether a final verdict additionally requires cross-family review depends on the artifact's scoping (result-bearing / public-surface / irreversible artifacts do; internal implementation variants may close single-family, labeled as such)
 
+Candidate-commit: <id — required when the review target is a committed candidate; exactly one commit on this line, bookkeeping/registration commits labeled separately or omitted>
+
 === REVIEW TASK ===
 
 <one short paragraph: what the artifact is, what decision this review feeds,

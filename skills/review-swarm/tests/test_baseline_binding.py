@@ -135,6 +135,26 @@ class BaselineBindingTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "explicit BASE"):
             self.mod._verify_baseline_binding(self.baseline_dir, f"..{self.head_v2}")
 
+    def test_candidate_commit_resolves_ref_and_binds_diff_head(self) -> None:
+        # A movable ref pins to its full commit id at dispatch, and with a
+        # BASE..HEAD diff the candidate must equal the resolved HEAD side.
+        oid = self.mod._resolve_candidate_commit("HEAD", f"{self.base_v1}..{self.head_v2}")
+        self.assertEqual(oid, self.head_v2)
+        oid_short = self.mod._resolve_candidate_commit(self.head_v2[:10], None)
+        self.assertEqual(oid_short, self.head_v2)
+
+    def test_candidate_commit_mismatching_diff_head_fails_closed(self) -> None:
+        with self.assertRaisesRegex(ValueError, "must name exactly the state the diff measures"):
+            self.mod._resolve_candidate_commit(self.base_v1, f"{self.base_v1}..{self.head_v2}")
+
+    def test_candidate_commit_unresolvable_ref_fails_closed(self) -> None:
+        with self.assertRaisesRegex(ValueError, "cannot resolve"):
+            self.mod._resolve_candidate_commit("no-such-ref-anywhere", None)
+
+    def test_candidate_commit_option_like_value_fails_closed(self) -> None:
+        with self.assertRaisesRegex(ValueError, "starts with '-'"):
+            self.mod._resolve_candidate_commit("--output=x", None)
+
     def test_three_dot_range_fails_closed(self) -> None:
         # `git diff A...B` measures from the merge base, not from tree A, so
         # hashes verified at A would not describe what the diff covers.
