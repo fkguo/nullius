@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "apply_evidence_event_result_v1.schema.json",
+  "title": "ApplyEvidenceEventResult v1",
+  "description": "Result of node.apply_evidence_event: one evidence artifact caused a batch of per-node lifecycle dispositions, applied atomically. Every node row records its transition; the shared event_group ties the batch's mutation-log entries to this event and the ledger carries the evidence_ref on each entry — the group binding is engine-recorded, never a caller-side key-naming convention.",
+  "type": "object",
+  "required": ["campaign_id", "event_group", "evidence_ref", "event_reason", "nodes", "budget_snapshot", "idempotency"],
+  "properties": {
+    "campaign_id": { "type": "string", "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$" },
+    "event_group": {
+      "type": "string",
+      "pattern": "^evt-[0-9a-f]{12}$",
+      "description": "Deterministic group id derived from the request payload hash; identical on idempotent replay."
+    },
+    "evidence_ref": {
+      "type": "string",
+      "pattern": "^project://[^#]+#sha256:[0-9a-f]{64}$",
+      "description": "The project-portable, hash-bound reference of the evidence artifact that caused the batch. Stored verbatim (like report_ref / survey_ref); whether the artifact supports the dispositions stays a project-side audit concern."
+    },
+    "event_reason": { "type": "string", "minLength": 1 },
+    "nodes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["node_id", "previous_state", "lifecycle_state", "revision", "updated_at", "posterior_marked_stale"],
+        "properties": {
+          "node_id": { "type": "string", "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$" },
+          "previous_state": { "enum": ["candidate", "admission_review", "admitted", "needs_refresh", "admission_blocked", "waiting_activation", "archived"] },
+          "lifecycle_state": { "enum": ["candidate", "admission_review", "admitted", "needs_refresh", "admission_blocked", "waiting_activation", "archived"] },
+          "revision": { "type": "integer", "minimum": 1 },
+          "updated_at": { "type": "string", "format": "date-time" },
+          "posterior_marked_stale": { "type": "boolean" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "budget_snapshot": { "$ref": "./budget_snapshot_v1.schema.json" },
+    "idempotency": { "$ref": "./idempotency_meta_v1.schema.json" }
+  },
+  "additionalProperties": false
+}

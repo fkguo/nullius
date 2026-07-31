@@ -51,7 +51,7 @@ FAMILY_ARITY: Dict[str, Dict[str, int]] = {
 }
 # Families the engine currently accepts; the rest are committed vocabulary,
 # import-rejected until their evidence disciplines land in the engine validator.
-ENABLED_FAMILIES = ["LiteratureMining", "FailureRouting"]
+ENABLED_FAMILIES = ["LiteratureMining", "FailureRouting", "Mutation"]
 
 DEDUP_DECISIONS = ["unique", "flagged", "auto_drop"]
 DEDUP_AUTO_DROP_BOUND = 0.95
@@ -70,6 +70,17 @@ NON_NOVEL_DELTA_TYPES = ["parameter_tweak", "rewording"]
 
 ADMISSION_ROUTES = ["open_problem", "mechanism", "method", "framework"]
 
+# idea_card_v1 enum vocabularies, mirrored so generation prompts carry the
+# exact words and packs fail fast locally instead of burning submit rounds on
+# enum guessing (the engine reports allowed values on rejection, but a
+# first-time-right prompt costs zero repair rounds). Drift-locked against
+# idea_card_v1.schema.json at test time.
+CARD_ESTIMATED_DIFFICULTY = ["straightforward", "moderate", "challenging", "research_frontier"]
+CARD_ESTIMATE_CONFIDENCE = ["high", "medium", "low"]
+CARD_REQUIRED_INFRASTRUCTURE = ["laptop", "workstation", "cluster", "not_yet_feasible"]
+CARD_SUPPORT_TYPES = ["literature", "data", "calculation", "llm_inference", "assumption", "expert_consensus"]
+CARD_VERIFICATION_STATUS = ["verified", "unverified", "falsified"]
+
 RESERVED_TRACE_INPUT_KEYS = [
     "trigger",
     "pack_artifact",
@@ -77,6 +88,7 @@ RESERVED_TRACE_INPUT_KEYS = [
     "target_admission_route",
     "dedup",
     "novelty_delta",
+    "provenance_rewrites",
 ]
 PLACEHOLDER_EVIDENCE_URI = "https://example.org/reference"
 
@@ -233,6 +245,27 @@ def validate_candidate(candidate: Dict[str, Any], index: int) -> List[str]:
         # candidate to reroute an ARCHIVED node — the pack-shape check below
         # mirrors the pinning half (the lifecycle half needs the store).
 
+    if family == "Mutation":
+        # Mirrors the engine's Mutation discipline: the trigger artifact is
+        # the mutation's anchor (with a receipt when URI-shaped), and the
+        # delta over the parent must be stated as at least one claim typed
+        # llm_inference/assumption — a mutation born fully
+        # literature-supported is either not a mutation or mislabeling its
+        # inference. Parent existence and revision pinning need the store,
+        # so the engine owns those halves.
+        trigger_ref = trace_inputs.get("trigger_artifact_ref")
+        if not _is_nonempty_str(trigger_ref):
+            problems.append(f"{label}: Mutation requires trace_inputs.trigger_artifact_ref (the artifact that motivated mutating the parent)")
+        elif "://" in trigger_ref and trigger_ref not in receipts:
+            problems.append(f"{label}: Mutation trigger_artifact_ref has no retrieval receipt: {trigger_ref}")
+        mutation_claims = card_fields.get("claims") if isinstance(card_fields, dict) else None
+        typed_delta = any(
+            isinstance(claim, dict) and claim.get("support_type") in ("llm_inference", "assumption")
+            for claim in (mutation_claims if isinstance(mutation_claims, list) else [])
+        )
+        if not typed_delta:
+            problems.append(f"{label}: Mutation requires at least one claim typed llm_inference or assumption stating the delta over the parent")
+
     delta = candidate.get("novelty_delta")
     if isinstance(delta, dict):
         delta_type = delta.get("delta_type")
@@ -251,6 +284,34 @@ def validate_candidate(candidate: Dict[str, Any], index: int) -> List[str]:
 
     if candidate.get("target_admission_route") not in ADMISSION_ROUTES:
         problems.append(f"{label}: target_admission_route must be one of {', '.join(ADMISSION_ROUTES)}")
+
+    # Card enum membership, checked locally so a wrong word fails HERE with
+    # the allowed list instead of a round-trip to the engine.
+    plan_steps = card_fields.get("minimal_compute_plan") if isinstance(card_fields, dict) else None
+    for step_index, step in enumerate(plan_steps if isinstance(plan_steps, list) else []):
+        if not isinstance(step, dict):
+            continue
+        for key, allowed in (
+            ("estimated_difficulty", CARD_ESTIMATED_DIFFICULTY),
+            ("estimate_confidence", CARD_ESTIMATE_CONFIDENCE),
+            ("required_infrastructure", CARD_REQUIRED_INFRASTRUCTURE),
+        ):
+            if key in step and step[key] not in allowed:
+                problems.append(
+                    f"{label}: minimal_compute_plan[{step_index}].{key} must be one of {', '.join(allowed)} (got {step[key]!r})",
+                )
+    card_claims = card_fields.get("claims") if isinstance(card_fields, dict) else None
+    for claim_index, claim in enumerate(card_claims if isinstance(card_claims, list) else []):
+        if not isinstance(claim, dict):
+            continue
+        for key, allowed in (
+            ("support_type", CARD_SUPPORT_TYPES),
+            ("verification_status", CARD_VERIFICATION_STATUS),
+        ):
+            if key in claim and claim[key] not in allowed:
+                problems.append(
+                    f"{label}: claims[{claim_index}].{key} must be one of {', '.join(allowed)} (got {claim[key]!r})",
+                )
 
     return problems
 

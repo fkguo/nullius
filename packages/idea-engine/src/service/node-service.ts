@@ -4,6 +4,7 @@ import { hashWithoutIdempotency } from '../hash/payload-hash.js';
 import { IdeaEngineStore } from '../store/engine-store.js';
 import { RpcError } from './errors.js';
 import { executeImportGenerated } from './import-generated-executor.js';
+import { executeNodeApplyEvidenceEvent } from './node-apply-evidence-event-executor.js';
 import { executeNodePromote } from './node-promote-executor.js';
 import { executeNodeReviseCard } from './node-revise-card-executor.js';
 import { executeNodeRewriteProvenance } from './node-rewrite-provenance-executor.js';
@@ -18,6 +19,7 @@ const NODE_METHODS = new Set([
   'node.promote',
   'node.set_posterior',
   'node.set_lifecycle',
+  'node.apply_evidence_event',
   'node.set_grounding_audit',
   'node.revise_card',
   'node.rewrite_provenance',
@@ -95,6 +97,9 @@ export class IdeaEngineNodeService {
       }
       if (method === 'node.set_lifecycle') {
         return executeNodeSetLifecycle(executorOptions);
+      }
+      if (method === 'node.apply_evidence_event') {
+        return executeNodeApplyEvidenceEvent(executorOptions);
       }
       if (method === 'node.set_grounding_audit') {
         return executeNodeSetGroundingAudit(executorOptions);
