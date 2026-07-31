@@ -213,11 +213,19 @@ Flags:
   verify nothing new.
 - **Candidate-commit binding**: a packet whose review target is a committed
   candidate states **exactly one** candidate commit in a machine-readable
-  line (`Candidate-commit: <id>`); registration or bookkeeping commits, when
-  mentioned at all, are labeled as such and never share that line. A dispatch
-  in which the reviewer must guess which of two commits is under review is
-  refused before any reviewer is launched — an ambiguous binding voids the
-  whole round after the tokens are already spent.
+  header line (`Candidate-commit: <full commit id>`, top of the packet, never
+  inside embedded artifacts or diffs); registration or bookkeeping commits,
+  when mentioned at all, are labeled as such and never share that line. A
+  dispatch in which the reviewer must guess which of two commits is under
+  review is refused before any reviewer is launched — an ambiguous binding
+  voids the whole round after the tokens are already spent. Machine support:
+  `review_one.py --candidate-commit <ref>` resolves the ref to its full
+  commit id at dispatch (a movable ref is pinned then and there), records it
+  in the input manifest, emits the header line, and — when the target is a
+  `--diff BASE..HEAD` — refuses a candidate id that does not equal the
+  resolved HEAD side of the range. Candidate binding names the state under
+  review; `--baseline-review` separately binds the BASE to the previously
+  reviewed state — the two relations never substitute for each other.
 - `--role generic|correctness|execution-adversary|source-extraction|source-fidelity` — picks the
   system prompt from `templates/<role>.md` (default: `generic`). Each template
   embeds the required review-contract output format.
@@ -528,13 +536,21 @@ from real contamination events that voided otherwise-clean review rounds:
   rosters, task listings, other workstreams' status lines, or any environment surface that can carry
   another lane's conclusions — one leaked status line about a sibling result is enough to anchor the
   reviewer and void the round. The dispatch assembles a context containing the packet and nothing
-  else; when the host injects ambient listings the dispatcher cannot suppress, the round is labeled
-  candidate-visible/anchored, never independent.
-- **Seal the independent phase from the first round.** Whenever a review both (i) derives or
-  recomputes a target quantity and (ii) will afterwards read the candidate, run it as two phases
-  from round one: the reviewer derives from the problem statement and raw inputs alone, persists
-  that derivation (content hash recorded) **before** opening the candidate, then compares. Retrofitting
-  the sealed order only after a contamination event pays for the same round twice; opening the
+  else, and records in `meta.json` which surfaces the reviewer could see. An independent lane runs
+  against frozen packet/raw inputs only — workspace or codebase-browsing modes are not independent
+  lanes. When ambient listings reached the reviewer anyway, the round's disposition is
+  `AMBIENT_CONTEXT_CONTAMINATED`: it earns **zero** independence, comparison, acceptance, or
+  convergence credit, and its output is retained for diagnosis only. (This disposition is distinct
+  from the legitimate *candidate-visible* second pass of the source-fidelity protocol — a
+  contaminated round never becomes a valid candidate-visible comparison by relabeling.)
+- **Seal the independent phase from the first round (sealed-derivation protocol).** Whenever a
+  review both (i) derives or recomputes a target quantity and (ii) will afterwards read the
+  candidate, run the sealed-derivation protocol from round one: the reviewer receives only the
+  frozen problem statement and raw inputs, derives, persists that derivation (content hash
+  recorded) and **terminates**; only then does a comparison pass open the candidate. This is NOT
+  the `--two-phase` flag below — that protocol commits *review criteria* before revealing the
+  packet and never seals a derivation; invoking it does not satisfy this rule. Retrofitting the
+  sealed order only after a contamination event pays for the same round twice; opening the
   candidate before the sealed derivation exists voids the independence claim regardless of intent.
 
 ## Model selection

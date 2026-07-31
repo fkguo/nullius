@@ -76,15 +76,20 @@ Work toward a candidate moves through three phases:
 2. **Stabilization.** Merge every known blocking fix into one candidate, run the full local test surface once, and freeze the candidate's identity (input and code hashes). One stabilization pass per batch of findings — not one per finding.
 3. **Acceptance.** The frozen candidate gets its review pair — the member cycle, plus the fresh-checkout independent reproduction check where the project has opted into one. Opt-in status covers only that fresh-checkout rerun: the production-scale falsifiers, method-precondition residuals, and independent recomputation that the non-negotiable contracts above require for load-bearing claims remain mandatory regardless. Findings are severity-graded per the strict-convergence contract above; the fix batch re-enters at stabilization and the confirmation round reviews the exact delta from the reviewed baseline unless an escalation trigger fires (changed formulas or assumptions, changed data model or global invariants, changed origin-traceability roots, or a reviewer requests the full artifact).
 
-Two placement rules complete the picture:
+Placement rules complete the picture:
 
 - **Independence spend follows the result, not the plumbing.** Host-native dual review at milestone scope is the default. Cross-model review, independent executing reproduction, and blind re-derivation are reserved for result-bearing surfaces: headline claims, public contracts, the derivations and numbers conclusions rest on. Internal writers, fixtures, launchers, and schema plumbing stabilize under local tests and the ordinary member cycle. A same-input, same-machine rerun of the identical frozen test is a recovery/reproduction check — it earns no independent-verification credit and should not be a standing per-round requirement.
-- **Constructibility before refinement.** Before a design document or interface plan enters a
-  multi-round review loop, run the cheapest probe that its **central object is actually constructible
-  from the already-accepted inputs** — can the thing the design revolves around be produced, even
-  crudely, from what exists? A design refined through many review rounds and only then discovered to
-  rest on an unconstructible object forfeits every one of those rounds; when the probe fails,
-  dispatch the missing prerequisite derivation first and park the design loop until it lands.
+- **Constructibility before refinement.** Before a design document or interface plan enters its
+  **first** refinement review (not merely once the loop has become multi-round), run the cheapest
+  probe that its **central object is actually constructible from the already-accepted inputs**, and
+  make the probe auditable: persist (i) the constructibility proposition being tested, (ii) the
+  identities (hashes) of the accepted inputs it draws on, (iii) the minimal witness produced —
+  even a crude instance — and (iv) the pass criterion the witness met. A design refined through
+  many review rounds and only then discovered to rest on an unconstructible object forfeits every
+  one of those rounds; when the probe fails, dispatch the missing prerequisite work (a derivation,
+  a data object, an upstream decision — whatever the probe named as absent) and park the design
+  loop until it lands; entering a second review round with no recorded probe is the loop's own
+  fail-closed refusal condition.
 - **Reviews enumerate; they do not serialize.** A reviewer reports every finding it can establish in the round, severity-graded. Stopping at the first decisive counterexample turns an N-finding backlog into N full rounds; the existing leader early-stop (two CHALLENGED step verdicts) remains the only sanctioned early exit, because it abandons a doomed round rather than truncating a viable one.
 - **Stall detection: process artifacts are not progress.** At every coordination moment, the coordinator asks what moved *scientifically* since the last one — a new number, derivation, figure, code capability, or an explicitly decided narrowing. If the answer over the last three consecutive runs or rounds is "only process artifacts" (contracts, reviews, adjudications, re-hashes, re-frozen documents), the work is stalled, and **another round is not an allowed response to a stall**: the coordinator must consolidate (batch everything open into one stabilized candidate), narrow the scope, re-plan the decomposition, or put the blocking question to the project owner. Review-round counters never appear as progress in the plan's status: progress is stated in terms of the scientific object that advanced, and a status whose "next step" is only another review of the same candidate is the stall signature to look for.
 

@@ -389,16 +389,30 @@ const UNCOMMITTED_WORK_AGING_THRESHOLD_HOURS = 6;
 
 function readUncommittedWorkAging(
   projectRoot: string,
-): { modified_tracked_paths: number; head_age_hours: number } | null {
+): { modified_tracked_entries: number; head_age_hours: number } | null {
+  // --no-optional-locks + fsmonitor off keep the probe genuinely read-only
+  // (plain `git status` may refresh the index under an optional lock and can
+  // invoke a repository-configured fsmonitor hook); the trailing `.` pathspec
+  // scopes the count to the project subtree, so a project root nested inside
+  // a larger repository is not charged with the enclosing repository's dirt;
+  // submodules dirty only from untracked content are ignored, so the
+  // tracked-only contract holds through submodule boundaries too.
   const git = (args: string[]): string =>
-    execFileSync('git', ['-C', projectRoot, ...args], {
+    execFileSync('git', ['--no-optional-locks', '-c', 'core.fsmonitor=false', '-C', projectRoot, ...args], {
       encoding: 'utf-8',
       timeout: 5_000,
       stdio: ['ignore', 'pipe', 'ignore'],
     });
   try {
     if (git(['rev-parse', '--is-inside-work-tree']).trim() !== 'true') return null;
-    const modified = git(['status', '--porcelain', '--untracked-files=no'])
+    const modified = git([
+      'status',
+      '--porcelain',
+      '--untracked-files=no',
+      '--ignore-submodules=untracked',
+      '--',
+      '.',
+    ])
       .split('\n')
       .filter(line => line.trim().length > 0).length;
     if (modified === 0) return null;
@@ -406,13 +420,18 @@ function readUncommittedWorkAging(
     if (!Number.isFinite(headEpoch)) return null;
     const ageHours = (Date.now() / 1000 - headEpoch) / 3600;
     if (ageHours < UNCOMMITTED_WORK_AGING_THRESHOLD_HOURS) return null;
-    return { modified_tracked_paths: modified, head_age_hours: Math.round(ageHours * 10) / 10 };
+    return { modified_tracked_entries: modified, head_age_hours: Math.round(ageHours * 10) / 10 };
   } catch {
     return null;
   }
 }
 
-function readRecoveryContextView(projectRoot: string, state: RunState, ledgerSnapshot = readLedgerSnapshot(projectRoot)): Record<string, unknown> {
+function readRecoveryContextView(
+  projectRoot: string,
+  state: RunState,
+  ledgerSnapshot = readLedgerSnapshot(projectRoot),
+  options: { skipWorkingTreeChecks?: boolean } = {},
+): Record<string, unknown> {
   const rawState = stateRecord(state);
   const launcherHealth = readProjectLocalNulliusLauncherHealth(projectRoot);
   const harnessSentinel = readNulliusHarnessSentinelHealth(projectRoot);
@@ -454,16 +473,18 @@ function readRecoveryContextView(projectRoot: string, state: RunState, ledgerSna
       repair_command: 'nullius init --runtime-only',
     });
   }
-  const uncommittedAging = readUncommittedWorkAging(projectRoot);
+  // Fleet aggregation discards recovery warnings — skip the git probe there
+  // rather than paying three subprocesses per project for output nobody reads.
+  const uncommittedAging = options.skipWorkingTreeChecks ? null : readUncommittedWorkAging(projectRoot);
   if (uncommittedAging) {
     warnings.push({
       code: 'UNCOMMITTED_WORK_AGING',
       message:
-        `${uncommittedAging.modified_tracked_paths} tracked path(s) carry uncommitted changes while the ` +
-        `last commit is ${uncommittedAging.head_age_hours}h old — completed stages exist only in this ` +
-        'working tree. Commit each completed stage as cross-session memory: a kill or crash loses ' +
-        'uncommitted work, and evidence pinned by hash in review records cannot be recovered from history.',
-      modified_tracked_paths: uncommittedAging.modified_tracked_paths,
+        `${uncommittedAging.modified_tracked_entries} tracked change entr(y/ies) while the last commit ` +
+        `is ${uncommittedAging.head_age_hours}h old — this uncommitted work exists only in this working ` +
+        'tree and cannot be recovered from history; review records that pin hashes of uncommitted ' +
+        'content have no durable referent. Commit each completed stage as cross-session memory.',
+      modified_tracked_entries: uncommittedAging.modified_tracked_entries,
       head_age_hours: uncommittedAging.head_age_hours,
       threshold_hours: UNCOMMITTED_WORK_AGING_THRESHOLD_HOURS,
     });
@@ -1604,7 +1625,11 @@ function readDecisionLedgerView(projectRoot: string): {
   }
 }
 
-export function buildRunStatusView(projectRoot: string, state: RunState) {
+export function buildRunStatusView(
+  projectRoot: string,
+  state: RunState,
+  options: { skipWorkingTreeChecks?: boolean } = {},
+) {
   const ledgerSnapshot = readLedgerSnapshot(projectRoot);
   const paused = fs.existsSync(pauseFilePath(projectRoot));
   const finalConclusions = readFinalConclusionsView(projectRoot, state);
@@ -1616,7 +1641,7 @@ export function buildRunStatusView(projectRoot: string, state: RunState) {
     state,
     workflowOutputs.current_run_workflow_outputs ? Object.keys(workflowOutputs.current_run_workflow_outputs) : [],
   );
-  const recoveryContext = readRecoveryContextView(projectRoot, state, ledgerSnapshot);
+  const recoveryContext = readRecoveryContextView(projectRoot, state, ledgerSnapshot, options);
   const repairProposal = readRepairProposalView(projectRoot, state);
   const optimizeProposal = readOptimizeProposalView(projectRoot, state);
   const innovateProposal = readInnovateProposalView(projectRoot, state);

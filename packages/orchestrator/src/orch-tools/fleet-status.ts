@@ -92,7 +92,7 @@ function readProjectSnapshot(
   } else {
     try {
       state = manager.readState();
-      const status = buildRunStatusView(projectRoot, state);
+      const status = buildRunStatusView(projectRoot, state, { skipWorkingTreeChecks: true });
       currentRun = {
         run_id: status.run_id,
         run_status: status.run_status,

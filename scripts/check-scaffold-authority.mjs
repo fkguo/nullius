@@ -34,6 +34,7 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'
 
 const ASSETS_DIR = 'skills/research-team/assets/';
 const REPORT_TEMPLATE_PATH = 'reports/main_research_report_template.md';
+const GITIGNORE_SEED = '.gitignore';
 const REFRESH_TRUTH_SURFACES = [
   'packages/orchestrator/src/cli-scaffold-help.ts',
   'packages/project-contracts/README.md',
@@ -75,6 +76,16 @@ for (const rel of REFRESH_TRUTH_SURFACES) {
   ));
   if (!refreshDeclaresTemplate) {
     violations.push(`${rel}: refresh truth omits ${REPORT_TEMPLATE_PATH}`);
+  }
+  // The user-owned seed set includes the scaffolded .gitignore; a refresh-truth
+  // surface that omits it implies the file is managed (rewritable by refresh) —
+  // the exact misreading the seed classification exists to prevent.
+  const refreshDeclaresGitignore = lines.some((line, index) => (
+    (line.includes('init --refresh') || line.includes('--refresh re-applies') || line.includes('refresh=True'))
+    && lines.slice(index, index + 5).join(' ').includes(GITIGNORE_SEED)
+  ));
+  if (!refreshDeclaresGitignore) {
+    violations.push(`${rel}: refresh truth omits the user-owned ${GITIGNORE_SEED} seed`);
   }
   for (const snippet of MIGRATION_TRUTH_SNIPPETS) {
     if (!normalizedContent.includes(snippet)) {

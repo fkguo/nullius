@@ -462,6 +462,44 @@ def _verify_baseline_binding(baseline_dir: Path, diff_range: str) -> dict:
     }
 
 
+def _resolve_candidate_commit(candidate_ref: str, diff_range: str | None) -> str:
+    """Resolve --candidate-commit to a full immutable commit id at dispatch.
+
+    A movable ref (branch, tag) is pinned to its object id here, so the
+    manifest records the exact state under review. When the target is a
+    BASE..HEAD diff, the candidate must equal the resolved HEAD side of the
+    range — a candidate id that names some other state than the diff measures
+    is a mis-binding refused before any reviewer launches.
+    """
+    if candidate_ref.startswith("-"):
+        raise ValueError(
+            f"--candidate-commit value {candidate_ref!r} starts with '-' and would be "
+            "read as a git option; pass a ref or commit id"
+        )
+    def _rev_parse(ref: str) -> str:
+        proc = subprocess.run(
+            ["git", "rev-parse", "--verify", f"{ref}^{{commit}}"],
+            check=False,
+            capture_output=True,
+        )
+        if proc.returncode != 0:
+            stderr = proc.stderr.decode("utf-8", errors="replace").strip()
+            raise ValueError(f"cannot resolve {ref!r} to a commit: {stderr}")
+        return proc.stdout.decode("utf-8").strip()
+
+    candidate_oid = _rev_parse(candidate_ref)
+    if diff_range:
+        head_side = diff_range.split("...", 1)[-1].split("..", 1)[-1].strip() or "HEAD"
+        head_oid = _rev_parse(head_side)
+        if head_oid != candidate_oid:
+            raise ValueError(
+                f"--candidate-commit resolves to {candidate_oid} but the --diff range's "
+                f"HEAD side resolves to {head_oid} — the candidate line must name exactly "
+                "the state the diff measures"
+            )
+    return candidate_oid
+
+
 def _run_git_diff(diff_range: str) -> str:
     if diff_range.startswith("-"):
         # Injection guard: the value is passed as an argument to `git diff`, so a
@@ -494,6 +532,7 @@ def _run_git_diff(diff_range: str) -> str:
 def _assemble_packet(
     args: argparse.Namespace,
     *,
+    candidate_commit: Optional[str] = None,
     artifacts: list[tuple[Path, str, str, int]],
     primary_sources: list[tuple[Path, str, str, int]],
     correction_sources: list[tuple[Path, str, str, int]],
@@ -503,7 +542,10 @@ def _assemble_packet(
     diff_text: Optional[str],
     contexts: list[tuple[Path, str, str, int]],
 ) -> str:
-    parts = [ADVISORY_BANNER, "", _PACKET_FRAMING]
+    parts = [ADVISORY_BANNER]
+    if candidate_commit is not None:
+        parts.append(f"Candidate-commit: {candidate_commit}")
+    parts.extend(["", _PACKET_FRAMING])
     if args.role == _SOURCE_EXTRACTION_ROLE:
         parts.append(
             "=== SOURCE-EXTRACTION SCOPE ===\n\n"
@@ -765,6 +807,7 @@ def _review_input_manifest(
     contexts: list[tuple[Path, str, str, int]],
     persisted_review_inputs: list[tuple[Path, str, str, int]],
     baseline_binding: Optional[dict] = None,
+    candidate_commit: Optional[str] = None,
 ) -> dict:
     file_inputs = []
 
@@ -806,6 +849,8 @@ def _review_input_manifest(
     }
     if baseline_binding is not None:
         manifest["baseline_binding"] = baseline_binding
+    if candidate_commit is not None:
+        manifest["candidate_commit"] = candidate_commit
     return manifest
 
 
@@ -844,6 +889,11 @@ def _parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
                         help="File to embed as the review target. Repeatable.")
     source.add_argument("--diff", default=None, metavar="BASE..HEAD",
                         help="Embed the output of `git diff BASE..HEAD` as the review target.")
+    ap.add_argument("--candidate-commit", default=None, metavar="REF",
+                    help="Pin the committed candidate under review: the ref is resolved to its "
+                         "full commit id at dispatch, recorded in the input manifest, and emitted "
+                         "as a top-of-packet 'Candidate-commit:' header. With --diff BASE..HEAD "
+                         "the candidate must equal the resolved HEAD side of the range.")
     ap.add_argument("--baseline-review", type=Path, default=None, metavar="DIR",
                     help="Bind a delta confirmation round to a prior review: verify that every "
                          "target file recorded in DIR/inputs/review_input_manifest.json hashes at "
@@ -1008,6 +1058,11 @@ def main(argv: Optional[list[str]] = None) -> int:
         )
         if args.baseline_review is not None and not args.diff:
             raise ValueError("--baseline-review requires --diff (it binds a delta round's BASE)")
+        candidate_commit = (
+            _resolve_candidate_commit(args.candidate_commit, args.diff)
+            if args.candidate_commit
+            else None
+        )
         diff_text = _run_git_diff(args.diff) if args.diff else None
         baseline_binding = (
             _verify_baseline_binding(args.baseline_review, args.diff)
@@ -1019,6 +1074,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         ]
         packet_text = _assemble_packet(
             args,
+            candidate_commit=candidate_commit,
             artifacts=artifacts,
             primary_sources=primary_sources,
             correction_sources=correction_sources,
@@ -1049,6 +1105,7 @@ def main(argv: Optional[list[str]] = None) -> int:
                     contexts=contexts,
                     persisted_review_inputs=persisted_review_inputs,
                     baseline_binding=baseline_binding,
+                    candidate_commit=candidate_commit,
                 ),
                 indent=2,
                 sort_keys=True,
