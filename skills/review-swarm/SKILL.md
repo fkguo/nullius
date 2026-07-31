@@ -542,7 +542,12 @@ from real contamination events that voided otherwise-clean review rounds:
   `AMBIENT_CONTEXT_CONTAMINATED`: it earns **zero** independence, comparison, acceptance, or
   convergence credit, and its output is retained for diagnosis only. (This disposition is distinct
   from the legitimate *candidate-visible* second pass of the source-fidelity protocol — a
-  contaminated round never becomes a valid candidate-visible comparison by relabeling.)
+  contaminated round never becomes a valid candidate-visible comparison by relabeling.) Machine
+  support: `run_multi_task.py` excludes two lane classes from the `meta.json` independence record —
+  lanes running a workspace tool mode (reason `tool_mode:workspace`) automatically, and lanes the
+  dispatcher marks with the repeatable `--contaminated <model-spec>` flag (reason
+  `AMBIENT_CONTEXT_CONTAMINATED`); both appear under `independence.non_independent_lanes` and never
+  count toward the cross-family level.
 - **Seal the independent phase from the first round (sealed-derivation protocol).** Whenever a
   review both (i) derives or recomputes a target quantity and (ii) will afterwards read the
   candidate, run the sealed-derivation protocol from round one: the reviewer receives only the

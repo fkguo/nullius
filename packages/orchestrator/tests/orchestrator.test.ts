@@ -1089,6 +1089,48 @@ describe('uncommitted-work aging warning', () => {
     expect(codesFor(projectDir)).toContain('UNCOMMITTED_WORK_AGING');
   });
 
+  it('ignores untracked-only submodule noise but sees tracked submodule changes', () => {
+    // --ignore-submodules=untracked: a submodule dirty solely from untracked
+    // content must not trigger the warning; a tracked modification inside the
+    // submodule still counts.
+    const subDir = path.join(os.tmpdir(), `orch-sub-${Date.now()}`);
+    fs.mkdirSync(subDir, { recursive: true });
+    try {
+      const gitAt = (root: string, ...args: string[]): void => {
+        execFileSync('git', ['-C', root, ...args], { stdio: 'ignore' });
+      };
+      gitAt(subDir, 'init', '-q');
+      gitAt(subDir, 'config', 'user.email', 't@example.invalid');
+      gitAt(subDir, 'config', 'user.name', 't');
+      fs.writeFileSync(path.join(subDir, 'lib.md'), 'lib v1\n');
+      gitAt(subDir, 'add', 'lib.md');
+      gitAt(subDir, 'commit', '-q', '-m', 'lib v1');
+
+      initRepoWithOldCommit();
+      execFileSync(
+        'git',
+        ['-C', tmpDir, '-c', 'protocol.file.allow=always', 'submodule', 'add', '-q', subDir, 'vendor'],
+        { stdio: 'ignore' },
+      );
+      execFileSync('git', ['-C', tmpDir, 'commit', '-q', '-m', 'add submodule'], {
+        stdio: 'ignore',
+        env: {
+          ...process.env,
+          GIT_AUTHOR_DATE: '2000-01-02T00:00:00Z',
+          GIT_COMMITTER_DATE: '2000-01-02T00:00:00Z',
+        },
+      });
+      // Untracked file inside the submodule: silent.
+      fs.writeFileSync(path.join(tmpDir, 'vendor', 'scratch.bin'), 'x');
+      expect(statusWarningCodes()).not.toContain('UNCOMMITTED_WORK_AGING');
+      // Tracked modification inside the submodule: warns.
+      fs.writeFileSync(path.join(tmpDir, 'vendor', 'lib.md'), 'lib v2 — modified\n');
+      expect(statusWarningCodes()).toContain('UNCOMMITTED_WORK_AGING');
+    } finally {
+      fs.rmSync(subDir, { recursive: true, force: true });
+    }
+  });
+
   it('stays silent below the threshold: a dirty tree over a fresh commit', () => {
     // Pins the threshold lower bound — without the age early-return the
     // warning would fire on every dirty tree.

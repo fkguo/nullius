@@ -127,9 +127,12 @@ class TestScaffoldContract(unittest.TestCase):
             # A provider data root may only be ignored via its cache subtrees,
             # never wholesale.
             if pattern.startswith("artifacts/") and "-mcp" in pattern:
+                # Only the downloads subtree is a pure cache; provider data
+                # roots keep project artifacts beside their downloads, so no
+                # other provider subtree may be blessed here.
                 self.assertTrue(
-                    pattern.rstrip("/").endswith(("downloads", "pdg")),
-                    msg=f"provider pattern must target a cache subtree, got {pattern!r}",
+                    pattern.rstrip("/").endswith("/downloads"),
+                    msg=f"provider pattern must target the downloads cache subtree, got {pattern!r}",
                 )
         # Scratch stays root-anchored so evidence subtrees named tmp survive.
         self.assertIn("/tmp/", patterns)

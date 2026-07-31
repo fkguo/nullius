@@ -308,6 +308,41 @@ class AgentsFileUnitTests(unittest.TestCase):
         self.assertFalse(info["below_minimum"])
         self.assertEqual(info["when_below_minimum"], "native_subagents")
 
+    def test_workspace_tool_mode_lane_earns_no_independence_credit(self):
+        # A lane that can read the working tree is not an isolated independent
+        # lane: excluded from family counting, listed with its reason.
+        results = [
+            {"success": True, "backend": "codex", "model": "codex/x",
+             "resolved": {"backend": "codex", "model": "codex/x"}},
+            {"success": True, "backend": "opencode", "model": "prov/y",
+             "resolved": {"backend": "opencode", "model": "prov/y"}},
+        ]
+        info = self.mod._independence_summary(
+            results, None, backend_tool_modes={"opencode": "workspace"}
+        )
+        self.assertEqual(info["level"], "single_family")
+        self.assertEqual(info["participating_families"], ["codex"])
+        self.assertEqual(
+            info["non_independent_lanes"],
+            [{"family": "opencode", "spec": "prov/y", "reason": "tool_mode:workspace"}],
+        )
+
+    def test_contaminated_lane_earns_no_independence_credit(self):
+        results = [
+            {"success": True, "backend": "codex", "model": "codex/x",
+             "resolved": {"backend": "codex", "model": "codex/x"}},
+            {"success": True, "backend": "gemini", "model": "gemini/z",
+             "resolved": {"backend": "gemini", "model": "gemini/z"}},
+        ]
+        info = self.mod._independence_summary(
+            results, None, contaminated_specs={"gemini/z"}
+        )
+        self.assertEqual(info["level"], "single_family")
+        self.assertEqual(info["participating_families"], ["codex"])
+        self.assertEqual(
+            info["non_independent_lanes"][0]["reason"], "AMBIENT_CONTEXT_CONTAMINATED"
+        )
+
     def test_independence_below_minimum_and_levels(self):
         roster = _roster(
             {"glm": {"runner": "opencode", "models": {"default": "zed/glm-z"}}},
@@ -343,6 +378,7 @@ class AgentsFileUnitTests(unittest.TestCase):
                 "cross_family_minimum": None,
                 "below_minimum": None,
                 "when_below_minimum": None,
+                "non_independent_lanes": [],
             },
         )
 

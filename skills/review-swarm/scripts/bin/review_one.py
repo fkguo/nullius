@@ -462,42 +462,108 @@ def _verify_baseline_binding(baseline_dir: Path, diff_range: str) -> dict:
     }
 
 
-def _resolve_candidate_commit(candidate_ref: str, diff_range: str | None) -> str:
-    """Resolve --candidate-commit to a full immutable commit id at dispatch.
+def _git_rev_parse_commit(ref: str) -> str:
+    proc = subprocess.run(
+        ["git", "rev-parse", "--verify", f"{ref}^{{commit}}"],
+        check=False,
+        capture_output=True,
+    )
+    if proc.returncode != 0:
+        stderr = proc.stderr.decode("utf-8", errors="replace").strip()
+        raise ValueError(f"cannot resolve {ref!r} to a commit: {stderr}")
+    return proc.stdout.decode("utf-8").strip()
 
-    A movable ref (branch, tag) is pinned to its object id here, so the
-    manifest records the exact state under review. When the target is a
-    BASE..HEAD diff, the candidate must equal the resolved HEAD side of the
-    range — a candidate id that names some other state than the diff measures
-    is a mis-binding refused before any reviewer launches.
+
+def _resolve_candidate_commit(candidate_ref: str, diff_range: str | None) -> tuple[str, str | None]:
+    """Resolve --candidate-commit and pin the diff range to immutable ids.
+
+    Returns (candidate_oid, pinned_diff_range). A movable ref (branch, tag)
+    is pinned to its object id here, so the manifest records the exact state
+    under review. Binding a diff target requires an explicit two-dot
+    BASE..HEAD range: a one-sided range diffs against the WORKING TREE (the
+    packet would embed uncommitted state under a commit header), and a
+    three-dot range measures from the merge base rather than the named BASE —
+    both are refused. The returned pinned range substitutes resolved ids for
+    both sides, so the diff that is actually executed cannot drift from the
+    recorded binding when a ref moves between resolution and execution.
     """
     if candidate_ref.startswith("-"):
         raise ValueError(
             f"--candidate-commit value {candidate_ref!r} starts with '-' and would be "
             "read as a git option; pass a ref or commit id"
         )
-    def _rev_parse(ref: str) -> str:
-        proc = subprocess.run(
-            ["git", "rev-parse", "--verify", f"{ref}^{{commit}}"],
+    candidate_oid = _git_rev_parse_commit(candidate_ref)
+    if diff_range is None:
+        return candidate_oid, None
+    if "..." in diff_range:
+        raise ValueError(
+            f"--candidate-commit rejects three-dot ranges (got {diff_range!r}): "
+            "a merge-base diff does not measure from the named BASE; use BASE..HEAD"
+        )
+    if ".." not in diff_range:
+        raise ValueError(
+            f"--candidate-commit requires an explicit BASE..HEAD range (got {diff_range!r}): "
+            "a one-sided range diffs against the working tree, so the packet would embed "
+            "uncommitted state under a commit header"
+        )
+    base_side, head_side = (part.strip() for part in diff_range.split("..", 1))
+    if not base_side or not head_side:
+        raise ValueError(
+            f"--candidate-commit requires both sides of the range to be explicit (got {diff_range!r})"
+        )
+    base_oid = _git_rev_parse_commit(base_side)
+    head_oid = _git_rev_parse_commit(head_side)
+    if head_oid != candidate_oid:
+        raise ValueError(
+            f"--candidate-commit resolves to {candidate_oid} but the --diff range's "
+            f"HEAD side resolves to {head_oid} — the candidate line must name exactly "
+            "the state the diff measures"
+        )
+    return candidate_oid, f"{base_oid}..{head_oid}"
+
+
+def _verify_artifacts_at_commit(
+    artifacts: list[tuple[Path, str, str, int]], candidate_oid: str
+) -> None:
+    """Refuse a commit header over bytes the commit does not contain.
+
+    Every --artifact file must be byte-identical to the blob at the candidate
+    commit; otherwise arbitrary or uncommitted content would carry a
+    valid-looking commit binding. Artifacts outside the repository cannot be
+    bound and are refused outright.
+    """
+    toplevel_proc = subprocess.run(
+        ["git", "rev-parse", "--show-toplevel"], check=False, capture_output=True
+    )
+    if toplevel_proc.returncode != 0:
+        raise ValueError("--candidate-commit: not inside a git repository")
+    toplevel = Path(toplevel_proc.stdout.decode("utf-8").strip()).resolve()
+    for path, _text, digest, _size in artifacts:
+        abs_path = path if path.is_absolute() else (Path.cwd() / path)
+        try:
+            rel = abs_path.resolve().relative_to(toplevel)
+        except ValueError:
+            raise ValueError(
+                f"--candidate-commit: artifact {path} lies outside this repository and "
+                "cannot be bound to a commit"
+            )
+        show = subprocess.run(
+            ["git", "show", f"{candidate_oid}:{rel.as_posix()}"],
             check=False,
             capture_output=True,
         )
-        if proc.returncode != 0:
-            stderr = proc.stderr.decode("utf-8", errors="replace").strip()
-            raise ValueError(f"cannot resolve {ref!r} to a commit: {stderr}")
-        return proc.stdout.decode("utf-8").strip()
-
-    candidate_oid = _rev_parse(candidate_ref)
-    if diff_range:
-        head_side = diff_range.split("...", 1)[-1].split("..", 1)[-1].strip() or "HEAD"
-        head_oid = _rev_parse(head_side)
-        if head_oid != candidate_oid:
+        if show.returncode != 0:
             raise ValueError(
-                f"--candidate-commit resolves to {candidate_oid} but the --diff range's "
-                f"HEAD side resolves to {head_oid} — the candidate line must name exactly "
-                "the state the diff measures"
+                f"--candidate-commit: artifact {rel.as_posix()} is not present at "
+                f"{candidate_oid}"
             )
-    return candidate_oid
+        commit_digest = hashlib.sha256(show.stdout).hexdigest()
+        if commit_digest != digest:
+            raise ValueError(
+                f"--candidate-commit: artifact {rel.as_posix()} on disk "
+                f"({digest[:12]}…) differs from its content at {candidate_oid} "
+                f"({commit_digest[:12]}…) — a commit header may not cover uncommitted bytes"
+            )
 
 
 def _run_git_diff(diff_range: str) -> str:
@@ -1058,14 +1124,22 @@ def main(argv: Optional[list[str]] = None) -> int:
         )
         if args.baseline_review is not None and not args.diff:
             raise ValueError("--baseline-review requires --diff (it binds a delta round's BASE)")
-        candidate_commit = (
-            _resolve_candidate_commit(args.candidate_commit, args.diff)
-            if args.candidate_commit
-            else None
-        )
-        diff_text = _run_git_diff(args.diff) if args.diff else None
+        candidate_commit: Optional[str] = None
+        effective_diff = args.diff
+        if args.candidate_commit:
+            candidate_commit, pinned_range = _resolve_candidate_commit(
+                args.candidate_commit, args.diff
+            )
+            if pinned_range is not None:
+                # Execute the diff against the pinned ids, not the movable
+                # refs — the packet content cannot drift from the binding.
+                effective_diff = pinned_range
+                args.diff = pinned_range
+            if artifacts:
+                _verify_artifacts_at_commit(artifacts, candidate_commit)
+        diff_text = _run_git_diff(effective_diff) if effective_diff else None
         baseline_binding = (
-            _verify_baseline_binding(args.baseline_review, args.diff)
+            _verify_baseline_binding(args.baseline_review, effective_diff)
             if args.baseline_review is not None
             else None
         )

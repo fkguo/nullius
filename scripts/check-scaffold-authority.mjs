@@ -41,6 +41,13 @@ const REFRESH_TRUTH_SURFACES = [
   'packages/project-contracts/src/project_contracts/scaffold_templates/AGENTS.md',
   'skills/research-harness/SKILL.md',
 ];
+// Surfaces that state which seed files refresh never rewrites — a superset of
+// the refresh-truth surfaces (the Testing Guide enumerates the seed list but
+// does not carry the report-migration walkthrough).
+const GITIGNORE_TRUTH_SURFACES = [
+  ...REFRESH_TRUTH_SURFACES,
+  'docs/TESTING_GUIDE.md',
+];
 const MIGRATION_TRUTH_SNIPPETS = [
   'temporary external root',
   'invalid_registry_markers',
@@ -77,20 +84,27 @@ for (const rel of REFRESH_TRUTH_SURFACES) {
   if (!refreshDeclaresTemplate) {
     violations.push(`${rel}: refresh truth omits ${REPORT_TEMPLATE_PATH}`);
   }
-  // The user-owned seed set includes the scaffolded .gitignore; a refresh-truth
-  // surface that omits it implies the file is managed (rewritable by refresh) —
-  // the exact misreading the seed classification exists to prevent.
+
+  for (const snippet of MIGRATION_TRUTH_SNIPPETS) {
+    if (!normalizedContent.includes(snippet)) {
+      violations.push(`${rel}: existing-project report migration omits ${snippet}`);
+    }
+  }
+}
+
+// The user-owned seed set includes the scaffolded .gitignore; any surface that
+// enumerates the never-rewritten seeds but omits it implies the file is managed
+// (rewritable by refresh) — the exact misreading the seed classification
+// exists to prevent.
+for (const rel of GITIGNORE_TRUTH_SURFACES) {
+  const content = readFileSync(path.join(repoRoot, rel), 'utf-8');
+  const lines = content.split('\n');
   const refreshDeclaresGitignore = lines.some((line, index) => (
     (line.includes('init --refresh') || line.includes('--refresh re-applies') || line.includes('refresh=True'))
     && lines.slice(index, index + 5).join(' ').includes(GITIGNORE_SEED)
   ));
   if (!refreshDeclaresGitignore) {
     violations.push(`${rel}: refresh truth omits the user-owned ${GITIGNORE_SEED} seed`);
-  }
-  for (const snippet of MIGRATION_TRUTH_SNIPPETS) {
-    if (!normalizedContent.includes(snippet)) {
-      violations.push(`${rel}: existing-project report migration omits ${snippet}`);
-    }
   }
 }
 
