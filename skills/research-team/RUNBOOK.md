@@ -490,13 +490,13 @@ must be re-applied on top):
 
 ```bash
 cd /path/to/project
-mkdir -p .nullius/backups/prompts-$(date +%Y%m%d)
-cp prompts/_system_member_a.txt prompts/_system_member_b.txt \
-   .nullius/backups/prompts-$(date +%Y%m%d)/
+BACKUP_DIR=".nullius/backups/prompts-$(date +%Y%m%d)"
+mkdir -p "$BACKUP_DIR"
+cp prompts/_system_member_a.txt prompts/_system_member_b.txt "$BACKUP_DIR/"
 SKILL_DIR="${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode" "$HOME/.kimi-code"; do [ -d "$r/skills/research-team" ] && echo "$r/skills/research-team" && break; done || true)}"
 cp "${SKILL_DIR}/assets/system_member_a.txt" prompts/_system_member_a.txt
 cp "${SKILL_DIR}/assets/system_member_b.txt" prompts/_system_member_b.txt
-diff -u .nullius/backups/prompts-$(date +%Y%m%d)/_system_member_a.txt prompts/_system_member_a.txt | head -40
+diff -u "$BACKUP_DIR/_system_member_a.txt" prompts/_system_member_a.txt | head -40
 ```
 
 Review the diff for project-authored customizations before the next cycle;

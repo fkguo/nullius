@@ -41,6 +41,9 @@ delegated workstream, default location `<project_root>/team/delegations/`):
         mode: the exact string "declared_cap"
         heap_limit_mb: explicit heap cap for the workstream
         basis: one line stating why a dry-run measurement is not warranted
+        plus, at the contract top level, the explicit eligibility declaration
+        launches_full_scale_computation: false (absent fails closed; true is
+        contradictory with the declared-cap form)
 
 Falsification labels (all fail-closed):
   NO_CONTRACTS_FOUND, UNREADABLE_CONTRACT, UNSUPPORTED_CONTRACT_VERSION,
@@ -51,7 +54,7 @@ Falsification labels (all fail-closed):
   MISSING_DRY_RUN_PEAK_RSS, MISSING_HEAP_LIMIT,
   HEAP_LIMIT_BELOW_DRY_RUN_PEAK, INVALID_MEMORY_MODE,
   MISSING_DECLARED_CAP_BASIS, CONTRADICTORY_MEMORY_ESTIMATE,
-  PLACEHOLDER_VALUE
+  MISSING_LAUNCH_DECLARATION, PLACEHOLDER_VALUE
 
 Strictness notes (each closes a fail-open hole):
   - `contract_version` must be the exact integer 1: True / 1.0 do not pass.
@@ -496,7 +499,18 @@ def _validate_contract(contract: Any) -> list[str]:
                 )
         elif mode == "declared_cap":
             # Declared form: heap cap + basis; a measured RSS alongside it is
-            # contradictory (pick one form, never both).
+            # contradictory (pick one form, never both). The eligibility
+            # choice must be an auditable declaration, not an unstated
+            # assumption: a declared-cap contract must explicitly declare
+            # `launches_full_scale_computation: false` at the top level
+            # (true is contradictory — checked above; absent is fail-closed).
+            if "launches_full_scale_computation" not in contract:
+                issues.append(
+                    "MISSING_LAUNCH_DECLARATION: a declared-cap contract must "
+                    "declare `launches_full_scale_computation: false` at the top "
+                    "level — the eligibility choice is an auditable declaration, "
+                    "not an unstated assumption"
+                )
             if "dry_run_peak_rss_mb" in mem:
                 issues.append(
                     "CONTRADICTORY_MEMORY_ESTIMATE: `peak_memory_estimate` carries both "

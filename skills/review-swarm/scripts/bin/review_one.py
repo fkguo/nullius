@@ -355,14 +355,25 @@ def _verify_baseline_binding(baseline_dir: Path, diff_range: str) -> dict:
         for e in (manifest.get("file_inputs") or [])
         if isinstance(e, dict) and e.get("kind") == "target_artifact"
     ]
+    context_entries = [
+        e
+        for e in (manifest.get("file_inputs") or [])
+        if isinstance(e, dict) and e.get("kind") == "additional_context"
+    ]
     if not entries:
         raise ValueError(
             "--baseline-review: the baseline review recorded no target_artifact entries; "
             "delta binding needs the reviewed files' hashes (a diff-only baseline cannot "
             "anchor a delta round — re-review the full artifact instead)"
         )
-    sep = "..." if "..." in diff_range else ".."
-    base = diff_range.split(sep, 1)[0].strip()
+    if "..." in diff_range:
+        raise ValueError(
+            f"--baseline-review rejects three-dot ranges (got {diff_range!r}): "
+            "`git diff A...B` diffs from the merge base, not from tree A, so "
+            "hashes verified at A would not describe what the diff is measured "
+            "against — use a two-dot BASE..HEAD range"
+        )
+    base = diff_range.split("..", 1)[0].strip()
     if not base:
         raise ValueError(
             f"--baseline-review requires an explicit BASE in the --diff range (got {diff_range!r})"
@@ -399,6 +410,44 @@ def _verify_baseline_binding(baseline_dir: Path, diff_range: str) -> dict:
             )
         else:
             verified.append({"path": rel.as_posix(), "sha256": digest})
+    verified_contexts: list[dict] = []
+    for entry in context_entries:
+        recorded_path = Path(str(entry.get("path")))
+        abs_path = recorded_path if recorded_path.is_absolute() else (Path.cwd() / recorded_path)
+        recorded_digest = str(entry.get("sha256"))
+        resolved = abs_path.resolve()
+        try:
+            rel = resolved.relative_to(toplevel)
+        except ValueError:
+            rel = None
+        if rel is not None:
+            show = subprocess.run(
+                ["git", "show", f"{base}:{rel.as_posix()}"], check=False, capture_output=True
+            )
+            if show.returncode != 0:
+                problems.append(
+                    f"context {rel.as_posix()}: not present at BASE {base!r}"
+                )
+                continue
+            digest = hashlib.sha256(show.stdout).hexdigest()
+            label = rel.as_posix()
+        else:
+            # Outside the repository: the diff cannot describe changes to it,
+            # so it must be byte-identical to what the baseline review saw.
+            try:
+                digest = hashlib.sha256(resolved.read_bytes()).hexdigest()
+            except OSError as e:
+                problems.append(f"context {recorded_path}: unreadable ({e})")
+                continue
+            label = str(resolved)
+        if digest != recorded_digest:
+            problems.append(
+                f"context {label}: content ({digest[:12]}…) differs from the reviewed "
+                f"hash ({recorded_digest[:12]}…) — a changed review input escapes a "
+                "delta round; include it in a re-review"
+            )
+        else:
+            verified_contexts.append({"path": label, "sha256": digest})
     if problems:
         raise ValueError(
             "--baseline-review: the --diff BASE does not match the reviewed baseline — "
@@ -409,6 +458,7 @@ def _verify_baseline_binding(baseline_dir: Path, diff_range: str) -> dict:
         "baseline_manifest": str(manifest_path.resolve()),
         "base_ref": base,
         "verified_targets": verified,
+        "verified_contexts": verified_contexts,
     }
 
 

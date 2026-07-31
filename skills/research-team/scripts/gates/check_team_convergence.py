@@ -57,6 +57,9 @@ class ReportStatus:
     step_verdicts: List[Tuple[str, str]] = field(default_factory=list)
     has_independent_derivation: bool = False
     nontriviality_validated: bool = False  # True if NONTRIVIAL + all required fields present
+    # Severity-graded convergence: counts surfaced for the coordinator.
+    blocking_count: int | None = None  # parsed from the Verdict "Blocking issues" line
+    minor_issues_count: int = 0  # list items under "## Minor Issues"
 
 
 def _normalize_pass_fail(token: str, pass_tokens: tuple[str, ...], fail_tokens: tuple[str, ...]) -> str:
@@ -275,6 +278,47 @@ def _parse_nontriviality_reason(text: str) -> str | None:
 # Report parsing
 # ---------------------------------------------------------------------------
 
+def _count_section_items(text: str, heading: str) -> int:
+    """Count list-like finding lines under a section (bullets / numbered),
+    ignoring placeholders like "(none)" / "none" / "..."."""
+    section = _extract_section(text, heading)
+    if not section.strip():
+        return 0
+    count = 0
+    for ln in section.splitlines():
+        s = ln.strip()
+        if not (s.startswith("-") or re.match(r"^\d+\.", s)):
+            continue
+        body = s.lstrip("-").lstrip("0123456789.").strip().lower()
+        if body in {"", "(none)", "none", "...", "n/a"}:
+            continue
+        count += 1
+    return count
+
+
+def _parse_blocking_count(text: str) -> int | None:
+    """Parse the Verdict section's "Blocking issues:" line.
+
+    "none" (with or without brackets/emphasis) or the unfilled template
+    placeholder counts as 0 only when the verdict line exists; a missing line
+    yields None (unknown) — never a fabricated zero.
+    """
+    for heading in ("Verdict",):
+        section = _extract_section(text, heading)
+        if not section:
+            continue
+        m = re.search(r"Blocking issues:?\s*(.+)$", section, flags=re.IGNORECASE | re.MULTILINE)
+        if not m:
+            continue
+        value = m.group(1).strip().strip("*_`[]").strip().lower()
+        if value in {"none", "none.", "list or \"none\"", 'list or "none"', ""}:
+            return 0
+        # A non-"none" value is one-or-more findings; count separators
+        # conservatively (semicolons), floor 1.
+        return max(1, value.count(";") + 1)
+    return None
+
+
 def _parse_report(path: Path) -> ReportStatus:
     text = path.read_text(encoding="utf-8", errors="replace")
 
@@ -298,6 +342,8 @@ def _parse_report(path: Path) -> ReportStatus:
     step_verdicts = _parse_step_verdicts(text)
     has_indep = _has_independent_derivation(text)
     nontriviality_ok = _validate_nontriviality(text)
+    blocking_count = _parse_blocking_count(text)
+    minor_issues_count = _count_section_items(text, "Minor Issues")
 
     return ReportStatus(
         path=path,
@@ -308,6 +354,8 @@ def _parse_report(path: Path) -> ReportStatus:
         step_verdicts=step_verdicts,
         has_independent_derivation=has_indep,
         nontriviality_validated=nontriviality_ok,
+        blocking_count=blocking_count,
+        minor_issues_count=minor_issues_count,
     )
 
 
@@ -412,7 +460,8 @@ def _summarize_member(status: ReportStatus, parse_errors: list[str]) -> dict[str
     unverifiable = sum(1 for _, verdict in status.step_verdicts if verdict == "UNVERIFIABLE")
     return {
         "verdict": status.verdict if status.verdict in {"ready", "needs_revision"} else "unknown",
-        "blocking_count": None,
+        "blocking_count": status.blocking_count,
+        "minor_issues_count": status.minor_issues_count,
         "parse_ok": len(parse_errors) == 0,
         "derivation": status.derivation,
         "computation": status.computation,
@@ -569,6 +618,15 @@ def main() -> int:
     if rc == 0:
         status = "converged"
         reasons = []
+        pending = member_a.minor_issues_count + member_b.minor_issues_count
+        if pending:
+            print(
+                f"[note] converged with {pending} minor issue(s) recorded across member "
+                "reports; each requires an explicit disposition (fix now / named "
+                "acceptance point / discard with reason) in the adjudication before "
+                "results are folded — see build_adjudication_response.py",
+                file=sys.stderr,
+            )
     elif rc == 3:
         status = "early_stop"
         challenged = [name for name, verdict in member_b.step_verdicts if verdict == "CHALLENGED"]
