@@ -194,13 +194,16 @@ def _validate_member_summary(member: str, payload: Any) -> list[str]:
     ):
         errors.append(f"report_status.{member}.blocking_count must be null or non-negative integer")
 
-    minor = payload.get("minor_issues_count")
-    if minor is not None and (
-        not isinstance(minor, int) or isinstance(minor, bool) or minor < 0
-    ):
-        errors.append(
-            f"report_status.{member}.minor_issues_count must be a non-negative integer when present"
-        )
+    if "minor_issues_count" in payload:
+        minor = payload["minor_issues_count"]
+        # Key-presence check: an explicit null is invalid (the schema type is
+        # integer, not nullable) — payload.get() would conflate null with
+        # absent and silently tolerate it.
+        if not isinstance(minor, int) or isinstance(minor, bool) or minor < 0:
+            errors.append(
+                f"report_status.{member}.minor_issues_count must be a non-negative "
+                "integer when present (explicit null is invalid)"
+            )
 
     parse_ok = payload.get("parse_ok")
     if not isinstance(parse_ok, bool):
@@ -280,8 +283,12 @@ def validate_convergence_result(result: Any) -> list[str]:
         gate_id = meta.get("gate_id")
         if gate_id not in GATE_ID_VALUES:
             errors.append(f"meta.gate_id must be one of {sorted(GATE_ID_VALUES)}")
-        if not isinstance(meta.get("generated_at"), str):
-            errors.append("meta.generated_at must be ISO date-time string")
+        generated_at = meta.get("generated_at")
+        if not isinstance(generated_at, str) or not _re.match(
+            r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$",
+            generated_at,
+        ):
+            errors.append("meta.generated_at must be an ISO-8601 date-time string")
         if not isinstance(meta.get("parser_version"), str) or not str(meta.get("parser_version")).strip():
             errors.append("meta.parser_version must be a non-empty string")
         if meta.get("schema_id") != SCHEMA_ID:
