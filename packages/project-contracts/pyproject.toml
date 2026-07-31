@@ -18,4 +18,4 @@ package-dir = { "" = "src" }
 where = ["src"]
 
 [tool.setuptools.package-data]
-project_contracts = ["specs/*.json", "scaffold_templates/*.md"]
+project_contracts = ["specs/*.json", "scaffold_templates/*"]

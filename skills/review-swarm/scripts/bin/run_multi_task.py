@@ -47,6 +47,16 @@ _DEFAULT_BACKEND_TOOL_MODES = {
     "gemini": "none",
     "opencode": "none",
 }
+# Metadata-only modeled modes: RECORDED in results (execution_tool_mode) and
+# consulted for credit decisions, but NEVER forwarded to a runner command line.
+# The codex runner has no --tool-mode flag — it always executes inside a
+# read-only repository sandbox (read-capable, never writable), so its honest
+# record is "review" while its command line must not carry the flag. Command
+# building consults _resolve_backend_tool_mode only; recording and credit use
+# _recorded_tool_mode, which falls back to this map.
+_RECORDED_ONLY_BACKEND_TOOL_MODES = {
+    "codex": "review",
+}
 _ALLOWED_BACKEND_TOOL_MODES = {
     "claude": {"none", "review"},
     "gemini": {"none", "review"},
@@ -529,9 +539,23 @@ def _resolve_output_override_path(raw: str, *, out_dir: Path) -> Path:
 
 
 def _resolve_backend_tool_mode(backend: str, overrides: dict[str, str]) -> Optional[str]:
+    """Command-line tool mode: what runners actually receive as --tool-mode.
+    Backends absent here get no flag — do NOT add a backend whose runner has
+    no --tool-mode argument (that breaks its dispatch); model such backends in
+    _RECORDED_ONLY_BACKEND_TOOL_MODES instead."""
     if backend in overrides:
         return overrides[backend]
     return _DEFAULT_BACKEND_TOOL_MODES.get(backend)
+
+
+def _recorded_tool_mode(backend: str, overrides: dict[str, str]) -> Optional[str]:
+    """Tool mode for RECORDING and credit decisions: the command-line mode
+    when one exists, else the metadata-only modeled mode. None = unmodeled,
+    attests nothing."""
+    mode = _resolve_backend_tool_mode(backend, overrides)
+    if mode is not None:
+        return mode
+    return _RECORDED_ONLY_BACKEND_TOOL_MODES.get(backend)
 
 
 def _load_default_gemini_oauth_auth() -> Optional[dict[str, Any]]:
@@ -1661,21 +1685,168 @@ def _usable_families(roster: dict[str, Any]) -> list[str]:
     return out
 
 
-def _resolved_family(result: dict[str, Any], roster: dict[str, Any] | None) -> str:
+def _execution_backend(result: dict[str, Any]) -> str:
+    """Backend that actually ran the lane: the post-fallback resolved backend
+    when present, the requested backend otherwise. Independence, tool-mode,
+    and family decisions must use this, never the requested backend — a lane
+    recovered through fallback executed somewhere else."""
     resolved = result.get("resolved") if isinstance(result.get("resolved"), dict) else {}
-    backend = str(resolved.get("backend") or result.get("backend") or "")
-    model = resolved.get("model")
-    return _roster_family(backend, str(model or ""), roster)
+    return str(resolved.get("backend") or result.get("backend") or "")
 
 
-def _independence_summary(results: list[dict[str, Any]], roster: dict[str, Any] | None) -> dict[str, Any]:
+def _execution_model(result: dict[str, Any]) -> str:
+    """Model that actually ran, from the resolved record. A fallback that used
+    a backend's default model records ``model: None`` — that stays empty here:
+    substituting the originally REQUESTED model would attribute the execution
+    to the requested family (a lane that ran elsewhere masquerading as its
+    original family). Only results with no resolved record at all fall back
+    to the requested model field."""
+    resolved = result.get("resolved") if isinstance(result.get("resolved"), dict) else None
+    if resolved is not None:
+        return str(resolved.get("model") or "")
+    return str(result.get("model") or "")
+
+
+def _resolved_family(result: dict[str, Any], roster: dict[str, Any] | None) -> str:
+    return _roster_family(_execution_backend(result), _execution_model(result), roster)
+
+
+def _lane_exclusion_reason(
+    result: dict[str, Any],
+    backend_tool_modes: dict[str, str] | None,
+    contaminated_indices: set[int] | None,
+) -> Optional[str]:
+    """Single eligibility decision for independence / comparison / convergence
+    credit, computed from the lane's EXECUTION backend (post-fallback) and the
+    dispatcher's explicit contamination marks. Returns the exclusion reason, or
+    None for an eligible lane.
+
+    Read-only source access is NOT an exclusion: source-grounded review
+    requires reading the real code, and a read-only browsing lane keeps full
+    independence credit. What excludes a lane:
+    - the dispatcher marked the lane --contaminated (ambient context carried
+      another workstream's conclusions): AMBIENT_CONTEXT_CONTAMINATED;
+    - the resolved record has no execution model (a fallback that ran on a
+      backend's default): family unattested, ``model_unattributed``;
+    - the resolved tool mode is ``workspace`` (writable working copy —
+      discovery-grade, violates the reviewer read-only rule).
+    Sealed derivation lanes have a stricter contract (no repo access at all):
+    launch them only on backends whose modeled tool mode is explicitly a
+    no-repo-access mode. The per-result ``execution_tool_mode`` field records
+    the modeled mode; ``null`` means the backend is unmodeled and attests
+    nothing.
+    """
+    if contaminated_indices and int(result.get("index", -1)) in contaminated_indices:
+        return "AMBIENT_CONTEXT_CONTAMINATED"
+    resolved = result.get("resolved") if isinstance(result.get("resolved"), dict) else None
+    if resolved is not None and not resolved.get("model"):
+        # A fallback that ran on a backend's default model has no recorded
+        # execution model: its family is unattested (on a multi-family
+        # provider the backend label could pair with a real family into a
+        # false cross-family claim). No credit without attestation — the
+        # dispatcher regains credit by passing an explicit fallback model.
+        return "model_unattributed"
+    tool_mode = _recorded_tool_mode(_execution_backend(result), backend_tool_modes or {})
+    if tool_mode == "workspace":
+        return "tool_mode:workspace"
+    return None
+
+
+def _execution_spec(r: dict[str, Any]) -> str:
+    backend = _execution_backend(r)
+    model = _execution_model(r)
+    return f"{backend}/{model}" if model and "/" not in model else (model or backend)
+
+
+def _resolve_contaminated_selectors(
+    selectors: list[str],
+    *,
+    plans: list["AgentPlan"],
+    family_spec_by_index: dict[int, str],
+    roster: dict[str, Any] | None,
+) -> set[int]:
+    """Resolve --contaminated selectors to lane indices BEFORE execution, and
+    refuse the run when any selector matches nothing. A dispatcher-declared
+    contamination that silently fails to bind would leave the lane counted as
+    independent — the exact fail-open this flag exists to prevent — so an
+    unmatched or misspelled selector is an input error, not a no-op.
+
+    A selector matches a lane through any of: the model spec as given on the
+    command line (including the ``family:<name>[:<tier>]`` form), the resolved
+    model spec, the backend name, the resolved family name, or the
+    ``backend/model`` composite.
+    """
+    lane_keys: dict[int, set[str]] = {}
+    for plan in plans:
+        model = plan.requested_model
+        keys = {model, plan.backend}
+        if model and "/" not in model:
+            keys.add(f"{plan.backend}/{model}")
+        raw_arg = family_spec_by_index.get(plan.index)
+        if raw_arg is not None:
+            keys.add(raw_arg)
+        family = _roster_family(plan.backend, model, roster)
+        if family:
+            keys.add(family)
+        lane_keys[plan.index] = {k for k in keys if k}
+
+    matched: set[int] = set()
+    unmatched: list[str] = []
+    for sel in selectors:
+        hits = {i for i, keys in lane_keys.items() if sel in keys}
+        if hits:
+            matched |= hits
+        else:
+            unmatched.append(sel)
+    if unmatched:
+        available = "; ".join(
+            f"lane {i}: {', '.join(sorted(lane_keys[i]))}" for i in sorted(lane_keys)
+        )
+        raise ValueError(
+            "--contaminated selector(s) matched no lane: "
+            + ", ".join(repr(s) for s in unmatched)
+            + f". Accepted per-lane keys — {available}"
+        )
+    return matched
+
+
+def _independence_summary(
+    results: list[dict[str, Any]],
+    roster: dict[str, Any] | None,
+    backend_tool_modes: dict[str, str] | None = None,
+    contaminated_indices: set[int] | None = None,
+) -> dict[str, Any]:
     """Independence record for the run's outputs: which families actually
     produced output, at which independence level, and — when an agents file is
     in force — how that compares to the declared availability and the
     cross-family minimum. A degraded round must be visible as degraded; the
     launcher itself never blocks on this (falling back to the host's native
-    subagent panel is the calling skill's move, per policy.when_below_minimum)."""
-    participating = sorted({_resolved_family(r, roster) for r in results if r.get("success")})
+    subagent panel is the calling skill's move, per policy.when_below_minimum).
+
+    Excluded lanes (see _lane_exclusion_reason) keep their outputs in the run,
+    retained diagnostically, but earn zero independence credit — and the
+    caller must also withhold comparison and convergence credit from them.
+    """
+    non_independent: list[dict[str, Any]] = []
+    independent_families: set[str] = set()
+    for r in results:
+        if not r.get("success"):
+            continue
+        family = _resolved_family(r, roster)
+        spec = _execution_spec(r)
+        reason = _lane_exclusion_reason(r, backend_tool_modes, contaminated_indices)
+        if reason is not None:
+            non_independent.append(
+                {
+                    "index": r.get("index"),
+                    "family": family,
+                    "spec": spec,
+                    "reason": reason,
+                }
+            )
+            continue
+        independent_families.add(family)
+    participating = sorted(independent_families)
     if len(participating) >= 2:
         level = "cross_family"
     elif len(participating) == 1:
@@ -1693,6 +1864,7 @@ def _independence_summary(results: list[dict[str, Any]], roster: dict[str, Any] 
         "cross_family_minimum": None,
         "below_minimum": None,
         "when_below_minimum": None,
+        "non_independent_lanes": non_independent,
     }
     if roster:
         declared = sorted(roster.get("families") or {})
@@ -1826,6 +1998,19 @@ def _apply_config_defaults(args: argparse.Namespace, cfg: dict[str, Any]) -> Non
 def _parse_args() -> argparse.Namespace:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--out-dir", required=True, type=Path, help="Output directory for outputs + trace.")
+    ap.add_argument(
+        "--contaminated",
+        action="append",
+        default=[],
+        metavar="SELECTOR",
+        help="Mark a lane's environment as ambient-contaminated (repeatable): its output is "
+             "retained diagnostically but earns zero independence, comparison, or convergence "
+             "credit (disposition AMBIENT_CONTEXT_CONTAMINATED in meta.json independence). "
+             "A selector matches by the model spec as given (including family:<name>[:<tier>]), "
+             "the resolved model spec, the backend name, the resolved family name, or "
+             "backend/model. A selector that matches no lane aborts the run before execution — "
+             "a declared contamination must never silently fail to bind.",
+    )
     ap.add_argument(
         "--config",
         default=None,
@@ -2239,6 +2424,16 @@ def main() -> int:
                 + ",".join(colliding)
             )
         _validate_runners(plans)
+        contaminated_lane_indices = (
+            _resolve_contaminated_selectors(
+                list(args.contaminated or []),
+                plans=plans,
+                family_spec_by_index=family_spec_by_index,
+                roster=agents_roster,
+            )
+            if args.contaminated
+            else set()
+        )
         if args.fallback_mode == "auto":
             runner_checks = {
                 "opencode": (opencode_runner, "OpenCode runner"),
@@ -2704,6 +2899,11 @@ def main() -> int:
                     r["fallback_reason"] = original_reason
                     r["command_success"] = bool(fb.get("success", False))
                     r["exit_code"] = fb.get("exit_code")
+                    # The fallback attempt's own timeout state must replace the
+                    # original attempt's: leaving a stale timed_out=True makes
+                    # _postprocess_result re-classify a successful recovery as
+                    # a timeout (same field copy the empty-output retry does).
+                    r["timed_out"] = bool(fb.get("timed_out", False))
                     r["out"] = fb.get("out", r.get("out"))
                     _postprocess_result(r, check_review_contract=bool(args.check_review_contract))
                     if r.get("success"):
@@ -2721,11 +2921,48 @@ def main() -> int:
                         },
                     )
 
+    # Every result records the tool mode its EXECUTION backend ran under
+    # (post-fallback): the command-line mode when one exists, else the
+    # metadata-only modeled mode (codex: "review"). None = unmodeled,
+    # attests nothing. Credit decisions below use the same resolution.
+    for r in results:
+        r["execution_tool_mode"] = _recorded_tool_mode(
+            _execution_backend(r), backend_tool_modes
+        )
+
+    # Independence is decided before convergence/comparison so excluded lanes
+    # (workspace tool mode, dispatcher-declared contamination) receive zero
+    # credit everywhere: they are filtered out of the convergence similarity
+    # set and never occupy a dual-review comparison seat. Their outputs stay
+    # in the run record for diagnosis.
+    independence = _independence_summary(
+        results,
+        agents_roster,
+        backend_tool_modes=backend_tool_modes,
+        contaminated_indices=contaminated_lane_indices,
+    )
+    _append_jsonl(trace_path, {"ts": _utc_now(), "event": "independence", **independence})
+
+    def _credit_eligible(r: dict[str, Any]) -> bool:
+        # A failed lane produced no reviewable output: it can no more occupy
+        # a comparison seat or enter the similarity set than an excluded one.
+        return bool(r.get("success")) and (
+            _lane_exclusion_reason(r, backend_tool_modes, contaminated_lane_indices)
+            is None
+        )
+
+    credit_results = [r for r in results if _credit_eligible(r)]
+
     convergence_info = None
     if args.check_convergence:
+        excluded_non_independent = sorted(
+            _execution_spec(r)
+            for r in results
+            if r.get("success") and not _credit_eligible(r)
+        )
         output_files = [
             Path(r["out"])
-            for r in results
+            for r in credit_results
             if r.get("success") and Path(r["out"]).exists() and not _is_blank_file(Path(r["out"]))
         ]
         similarity = _compute_similarity(output_files)
@@ -2740,12 +2977,13 @@ def main() -> int:
             "similarity": similarity,
             "converged": converged,
             "evaluated_outputs": [str(p) for p in output_files],
+            # Successful lanes whose output was withheld from the similarity
+            # set (zero convergence credit) — visible, never silent.
+            "excluded_non_independent": excluded_non_independent,
         }
         _append_jsonl(trace_path, {"ts": _utc_now(), "event": "convergence_check", **convergence_info})
 
     success_count = sum(1 for r in results if r.get("success", False))
-    independence = _independence_summary(results, agents_roster)
-    _append_jsonl(trace_path, {"ts": _utc_now(), "event": "independence", **independence})
     meta: dict[str, Any] = {
         "schema_version": 1,
         "created_at": _utc_now(),
@@ -2775,15 +3013,17 @@ def main() -> int:
             "enabled": True,
             "scope_prompt": str(scope_prompt),
         }
-    dual_summary = _dual_review_summary(results)
+    # Comparison seats are selected among credit-eligible lanes only: a
+    # contaminated or workspace-mode lane never occupies a diversity seat.
+    dual_summary = _dual_review_summary(credit_results)
     if dual_summary is not None:
         meta.update(dual_summary)
         paths = meta.get("paths", {})
         if isinstance(paths, dict):
             a_req = (dual_summary.get("reviewer_a") or {}).get("requested") or {}
             b_req = (dual_summary.get("reviewer_b") or {}).get("requested") or {}
-            a_idx = next((r["index"] for r in results if r.get("requested") == a_req), None)
-            b_idx = next((r["index"] for r in results if r.get("requested") == b_req), None)
+            a_idx = next((r["index"] for r in credit_results if r.get("requested") == a_req), None)
+            b_idx = next((r["index"] for r in credit_results if r.get("requested") == b_req), None)
             if isinstance(a_idx, int):
                 paths["reviewer_a_output"] = results[a_idx].get("out")
             if isinstance(b_idx, int):

@@ -211,6 +211,21 @@ Flags:
   registries, adjudication indexes). A packet that embeds a live mutable file
   goes STALE on every unrelated bookkeeping write, cascading re-reviews that
   verify nothing new.
+- **Candidate-commit binding**: a packet whose review target is a committed
+  candidate states **exactly one** candidate commit in a machine-readable
+  header line (`Candidate-commit: <full commit id>`, top of the packet, never
+  inside embedded artifacts or diffs); registration or bookkeeping commits,
+  when mentioned at all, are labeled as such and never share that line. A
+  dispatch in which the reviewer must guess which of two commits is under
+  review is refused before any reviewer is launched — an ambiguous binding
+  voids the whole round after the tokens are already spent. Machine support:
+  `review_one.py --candidate-commit <ref>` resolves the ref to its full
+  commit id at dispatch (a movable ref is pinned then and there), records it
+  in the input manifest, emits the header line, and — when the target is a
+  `--diff BASE..HEAD` — refuses a candidate id that does not equal the
+  resolved HEAD side of the range. Candidate binding names the state under
+  review; `--baseline-review` separately binds the BASE to the previously
+  reviewed state — the two relations never substitute for each other.
 - `--role generic|correctness|execution-adversary|source-extraction|source-fidelity` — picks the
   system prompt from `templates/<role>.md` (default: `generic`). Each template
   embeds the required review-contract output format.
@@ -511,6 +526,58 @@ inputs** — never the claimant's answer, evidence selection, or initial judgmen
 **which axis the independent recomputation actually probed** (what it could have falsified); a
 recomputation whose probed axis does not intersect the claim's load-bearing axis leaves the swarm
 static-only for that claim, and it must be labeled as such rather than counted as a verification pass.
+
+### Reviewer context isolation and sealed-first-phase discipline
+
+Input-framing independence dies through the environment, not just the packet. Two rules, both learned
+from real contamination events that voided otherwise-clean review rounds:
+
+- **Strip ambient work-state from the reviewer's context.** A reviewer must not receive agent
+  rosters, task listings, other workstreams' status lines, or any environment surface that can carry
+  another lane's conclusions — one leaked status line about a sibling result is enough to anchor the
+  reviewer and void the round. The dispatch assembles a context containing the packet and nothing
+  else, and records in `meta.json` which surfaces the reviewer could see. Contamination is about
+  receiving **conclusions**, not about reading **source**: a source-grounded review lane is required
+  to read the real code, and read-only repository access never forfeits its independence credit.
+  Three lane classes do lose credit: lanes running a *writable* workspace tool mode
+  (discovery-grade — the reviewer read-only rule cannot be attested for them), lanes whose ambient
+  context carried another workstream's conclusions, and fallback lanes with no recorded execution
+  model (reason `model_unattributed`: a backend-default recovery leaves the executed family
+  unattested, and on a multi-family provider that would let an unknown family pair into a false
+  cross-family claim — explicit fallback-model flags exist for the codex and claude backends;
+  other backends' default recoveries stay unattributed, which is the conservative direction). Sealed
+  derivation/recomputation lanes obey the stricter frozen-inputs-only contract of their own
+  protocols (the sealed-derivation rule below and the independent-recomputation section above):
+  launch those ONLY on backends whose modeled tool mode is explicitly a no-repo-access mode. The
+  per-result `execution_tool_mode` field in `meta.json` records the launcher-modeled mode of the
+  resolved execution backend — `null` means the backend is unmodeled and **attests nothing**, and
+  a backend whose runner is inherently repository-readable (a read-only sandbox, recorded as
+  `review`) is a browsing lane: fine for source-grounded review, never for a sealed derivation.
+  When ambient listings reached the reviewer anyway, the
+  round's disposition is `AMBIENT_CONTEXT_CONTAMINATED`: it earns **zero** independence,
+  comparison, acceptance, or convergence credit, and its output is retained for diagnosis only.
+  (This disposition is distinct from the legitimate *candidate-visible* second pass of the
+  source-fidelity protocol — a contaminated round never becomes a valid candidate-visible
+  comparison by relabeling.) Machine support: `run_multi_task.py` decides credit per lane from the
+  **resolved post-fallback** execution backend — a lane recovered onto another backend is judged by
+  where it actually ran, and a failed lane never earns a seat or convergence input. Excluded lanes
+  (reason `tool_mode:workspace` or `model_unattributed` automatically, or reason
+  `AMBIENT_CONTEXT_CONTAMINATED` via the repeatable `--contaminated <selector>` flag, matching the
+  model spec as given, the resolved spec, the backend, the family name, or `backend/model`) appear
+  with their lane index under `independence.non_independent_lanes`, never count toward the
+  cross-family level, are filtered out of the convergence similarity set
+  (`convergence.excluded_non_independent` names them), and never occupy a dual-review comparison
+  seat. A `--contaminated` selector that matches no lane aborts the run before execution — a
+  declared contamination must never silently fail to bind.
+- **Seal the independent phase from the first round (sealed-derivation protocol).** Whenever a
+  review both (i) derives or recomputes a target quantity and (ii) will afterwards read the
+  candidate, run the sealed-derivation protocol from round one: the reviewer receives only the
+  frozen problem statement and raw inputs, derives, persists that derivation (content hash
+  recorded) and **terminates**; only then does a comparison pass open the candidate. This is NOT
+  the `--two-phase` flag below — that protocol commits *review criteria* before revealing the
+  packet and never seals a derivation; invoking it does not satisfy this rule. Retrofitting the
+  sealed order only after a contamination event pays for the same round twice; opening the
+  candidate before the sealed derivation exists voids the independence claim regardless of intent.
 
 ## Model selection
 

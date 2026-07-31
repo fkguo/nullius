@@ -981,7 +981,12 @@ the check inline in the response or notebook entry, in the order:
    and what it returned. Quote tool calls and their results where the
    check is provider-graph-backed.
 3. Modes you explicitly judged not applicable, with a one-sentence
-   reason.
+   reason. Structurally inapplicable modes may share **one consolidated
+   line** ("M2/M4/M6 not applicable: no citations, no literature claims,
+   no methodology narrative in this boundary") — a per-mode paragraph
+   restating the obvious informs nobody and taxes every round that
+   carries it. The consolidation covers wording only: the judgment that
+   a mode is inapplicable is still made per mode, per boundary.
 
 For the *machine* record that gates `nullius approve` (see below),
 run `nullius integrity-record` after the narrative is written:
