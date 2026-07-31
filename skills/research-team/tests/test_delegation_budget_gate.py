@@ -255,6 +255,7 @@ def _declared_cap_contract() -> dict:
     contract["workstream"] = (
         "blind re-derivation review of the milestone's closed-form result; no computation launched"
     )
+    contract["launches_full_scale_computation"] = False
     contract["peak_memory_estimate"] = {
         "mode": "declared_cap",
         "heap_limit_mb": 2048,
@@ -312,6 +313,12 @@ def test_placeholder_declared_cap_basis_fails(tmp_path: Path) -> None:
     contract = _declared_cap_contract()
     contract["peak_memory_estimate"]["basis"] = "<one line: why no dry run>"
     _assert_fails_with(tmp_path, contract, "PLACEHOLDER_VALUE")
+
+
+def test_declared_cap_without_launch_declaration_fails(tmp_path: Path) -> None:
+    contract = _declared_cap_contract()
+    del contract["launches_full_scale_computation"]
+    _assert_fails_with(tmp_path, contract, "MISSING_LAUNCH_DECLARATION")
 
 
 def test_declared_cap_on_declared_compute_launch_is_contradictory(tmp_path: Path) -> None:
