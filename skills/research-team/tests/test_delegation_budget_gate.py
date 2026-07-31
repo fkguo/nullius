@@ -57,6 +57,16 @@ def _complete_contract() -> dict:
     }
 
 
+def _exact_predicate_contract() -> dict:
+    contract = _complete_contract()
+    contract["tolerance_ceiling"] = {
+        "mode": "exact_predicate",
+        "predicate": "the emitted normalized object equals the frozen expected object exactly",
+        "anchor_note": "the delegated acceptance criterion requires exact structural identity",
+    }
+    return contract
+
+
 def _make_project(
     tmp_path: Path,
     *,
@@ -117,6 +127,7 @@ def _assert_verdict_valid(verdict: dict) -> None:
 
 
 def test_complete_contract_passes(tmp_path: Path) -> None:
+    """Mode-absent numeric contracts remain valid."""
     proj = _make_project(tmp_path, contracts={"lane-scan-01.json": _complete_contract()})
     proc, verdict = _run_gate(proj)
     assert proc.returncode == 0, proc.stderr
@@ -127,6 +138,31 @@ def test_complete_contract_passes(tmp_path: Path) -> None:
     assert summary["verdict"] == "ready"
     # stdout carries exactly the same verdict as the persisted one.
     assert json.loads(proc.stdout.strip()) == verdict
+
+
+def test_explicit_numeric_tolerance_mode_passes(tmp_path: Path) -> None:
+    contract = _complete_contract()
+    contract["tolerance_ceiling"]["mode"] = "numeric"
+    proj = _make_project(tmp_path, contracts={"lane-scan-01.json": contract})
+    proc, verdict = _run_gate(proj)
+    assert proc.returncode == 0, proc.stderr
+    assert verdict is not None and verdict["status"] == "pass"
+
+
+def test_numeric_zero_tolerance_still_fails(tmp_path: Path) -> None:
+    contract = _complete_contract()
+    contract["tolerance_ceiling"]["mode"] = "numeric"
+    contract["tolerance_ceiling"]["value"] = 0
+    _assert_fails_with(tmp_path, contract, "MISSING_TOLERANCE_VALUE")
+
+
+def test_exact_predicate_tolerance_mode_passes(tmp_path: Path) -> None:
+    proj = _make_project(
+        tmp_path, contracts={"lane-exact-01.json": _exact_predicate_contract()}
+    )
+    proc, verdict = _run_gate(proj)
+    assert proc.returncode == 0, proc.stderr
+    assert verdict is not None and verdict["status"] == "pass"
 
 
 def test_multiple_complete_contracts_pass(tmp_path: Path) -> None:
@@ -193,6 +229,49 @@ def test_boolean_tolerance_value_fails(tmp_path: Path) -> None:
     contract = _complete_contract()
     contract["tolerance_ceiling"]["value"] = True
     _assert_fails_with(tmp_path, contract, "MISSING_TOLERANCE_VALUE")
+
+
+def test_exact_predicate_mode_missing_predicate_fails(tmp_path: Path) -> None:
+    contract = _exact_predicate_contract()
+    del contract["tolerance_ceiling"]["predicate"]
+    _assert_fails_with(tmp_path, contract, "MISSING_EXACT_PREDICATE")
+
+
+def test_exact_predicate_mode_blank_predicate_fails(tmp_path: Path) -> None:
+    contract = _exact_predicate_contract()
+    contract["tolerance_ceiling"]["predicate"] = "   "
+    _assert_fails_with(tmp_path, contract, "MISSING_EXACT_PREDICATE")
+
+
+def test_exact_predicate_mode_multiline_predicate_fails(tmp_path: Path) -> None:
+    contract = _exact_predicate_contract()
+    contract["tolerance_ceiling"]["predicate"] = "first condition\nsecond condition"
+    _assert_fails_with(tmp_path, contract, "MISSING_EXACT_PREDICATE")
+
+
+def test_exact_predicate_mode_placeholder_predicate_fails(tmp_path: Path) -> None:
+    contract = _exact_predicate_contract()
+    contract["tolerance_ceiling"]["predicate"] = "<one line: exact stopping predicate>"
+    _assert_fails_with(tmp_path, contract, "PLACEHOLDER_VALUE")
+
+
+def test_exact_predicate_mode_with_value_fails(tmp_path: Path) -> None:
+    contract = _exact_predicate_contract()
+    contract["tolerance_ceiling"]["value"] = 1e-6
+    _assert_fails_with(tmp_path, contract, "CONTRADICTORY_TOLERANCE_FIELDS")
+
+
+def test_numeric_tolerance_mode_with_predicate_fails(tmp_path: Path) -> None:
+    contract = _complete_contract()
+    contract["tolerance_ceiling"]["mode"] = "numeric"
+    contract["tolerance_ceiling"]["predicate"] = "the output equals the expected object"
+    _assert_fails_with(tmp_path, contract, "CONTRADICTORY_TOLERANCE_FIELDS")
+
+
+def test_unknown_tolerance_mode_fails_closed(tmp_path: Path) -> None:
+    contract = _complete_contract()
+    contract["tolerance_ceiling"]["mode"] = "adaptive"
+    _assert_fails_with(tmp_path, contract, "INVALID_TOLERANCE_MODE")
 
 
 def test_missing_time_box_fails(tmp_path: Path) -> None:

@@ -95,7 +95,7 @@
     "kernel_modules": []
   },
   "delegation_budget": {
-    "_note": "Delegation budget contracts (delegation_budget_contract_v1) for delegated computation / verification workstreams, validated fail-closed by check_delegation_budget.py: tolerance ceiling + anchor note, time box, attempt cap, scope negative list, dry-run peak RSS + heap cap. Any contract present under delegations_dir is always validated. Set required=true when this milestone dispatches delegated workstreams, so a run with NO contract at all also fails (NO_CONTRACTS_FOUND).",
+    "_note": "Delegation budget contracts (delegation_budget_contract_v1) for delegated computation / verification workstreams, validated fail-closed by check_delegation_budget.py: numeric tolerance ceiling or exact stopping predicate + anchor note, time box, attempt cap, scope negative list, dry-run peak RSS + heap cap. Any contract present under delegations_dir is always validated. Set required=true when this milestone dispatches delegated workstreams, so a run with NO contract at all also fails (NO_CONTRACTS_FOUND).",
     "required": false,
     "delegations_dir": "team/delegations"
   },

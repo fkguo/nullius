@@ -259,11 +259,19 @@ dispatch** — one JSON file per delegation under `team/delegations/`, from
 `assets/delegation_budget_contract_template.json`
 (`delegation_budget_contract_v1`). Required field groups, all machine-checked:
 
-- **`tolerance_ceiling`** — the numeric tolerance the result must reach and
-  must **not** be refined beyond, plus a one-line `anchor_note` stating which
-  requirement of the task derives the ceiling (what the result is *for* —
-  e.g. the precision at which the downstream decision changes — never what
-  the method can achieve). Reaching the ceiling means **stop**.
+- **`tolerance_ceiling`** — choose exactly one machine-checked stopping form,
+  always with a one-line `anchor_note` stating which task requirement derives
+  it (what the result is *for*, never what the method can achieve):
+  - **Numeric** (backward-compatible default): omit `mode`, or set
+    `mode: "numeric"`; provide a finite positive `value` and no `predicate`.
+    Reaching that ceiling means **stop**. Numeric zero remains invalid.
+  - **Exact predicate**: set `mode: "exact_predicate"`; provide a non-empty
+    one-line `predicate` naming the exact equality / boolean condition that
+    ends the task, and omit `value`. Use this for exact-only work that has no
+    approximation tolerance; never fabricate a positive tolerance or encode
+    exactness as numeric zero.
+  The two forms are mutually exclusive. Unknown modes, missing or multiline
+  predicates, and contracts carrying fields from both forms fail closed.
 - **`time_box`** — a hard wall-clock budget for the workstream.
 - **`max_attempts`** — a cap on "one last attempt" retries; exhausting it
   means wrap up, not retry. Attempts count deliberate re-entries into the

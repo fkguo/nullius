@@ -4,9 +4,10 @@
   "delegation_id": "<short-stable-id>",
   "workstream": "<one line: what is delegated (the computation / verification task, its deliverable)>",
   "tolerance_ceiling": {
-    "_note": "Numeric tolerance ceiling the result must reach and must NOT be refined beyond: reaching the ceiling means STOP, not 'keep improving'. The anchor note states which requirement of the task derives the ceiling (what the result is for — e.g. the precision at which the downstream decision changes), never what the method can achieve.",
+    "_note": "Choose exactly one stopping form. NUMERIC (this shape, or omit mode): keep mode \"numeric\" and a finite positive value; reaching the ceiling means STOP, not 'keep improving'. EXACT_PREDICATE (for an exact-only task with no approximation tolerance): replace mode \"numeric\" and value with mode \"exact_predicate\" and predicate \"<one line: exact boolean/equality condition that ends the task>\". Never encode exactness as numeric zero. In both forms, anchor_note states which task requirement derives the stopping condition, never what the method can achieve.",
+    "mode": "numeric",
     "value": "<finite positive number>",
-    "anchor_note": "<one line: which task requirement derives this ceiling>"
+    "anchor_note": "<one line: which task requirement derives this stopping condition>"
   },
   "time_box": {
     "_note": "Hard wall-clock budget for the whole workstream. On expiry the executor wraps up from the atomic results already flushed to disk (see the research-harness long-running-jobs contract) — it never voids the batch.",

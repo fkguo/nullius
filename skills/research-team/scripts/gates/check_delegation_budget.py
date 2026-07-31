@@ -18,11 +18,17 @@ delegated workstream, default location `<project_root>/team/delegations/`):
   - delegation_id: short stable id for the delegated workstream
   - workstream: one line stating WHAT is delegated
   - tolerance_ceiling:
-      value: numeric tolerance ceiling the result must reach — and must
-             NOT be refined beyond (reaching the ceiling means STOP)
+      numeric form (default when mode is absent):
+        mode: optional exact string "numeric"
+        value: finite positive tolerance ceiling the result must reach —
+               and must NOT be refined beyond (reaching it means STOP)
+      exact-predicate form (for exact-only tasks with no approximation
+      tolerance):
+        mode: exact string "exact_predicate"
+        predicate: one-line exact stopping condition; value must be absent
       anchor_note: one line stating which requirement of the task derives
-             this ceiling (what the result is for — not what the method
-             can achieve)
+             the selected stopping condition (what the result is for — not
+             what the method can achieve)
   - time_box: { seconds: hard wall-clock budget for the workstream }
   - max_attempts: cap on "one last attempt" retries (>= 1)
   - scope_negative_list: non-empty list of expansions the executor must
@@ -49,7 +55,9 @@ Falsification labels (all fail-closed):
   NO_CONTRACTS_FOUND, UNREADABLE_CONTRACT, UNSUPPORTED_CONTRACT_VERSION,
   MISSING_DELEGATION_ID, MISSING_WORKSTREAM,
   MISSING_TOLERANCE_CEILING, MISSING_TOLERANCE_VALUE,
-  MISSING_TOLERANCE_ANCHOR, MISSING_TIME_BOX, MISSING_MAX_ATTEMPTS,
+  MISSING_EXACT_PREDICATE, INVALID_TOLERANCE_MODE,
+  CONTRADICTORY_TOLERANCE_FIELDS, MISSING_TOLERANCE_ANCHOR,
+  MISSING_TIME_BOX, MISSING_MAX_ATTEMPTS,
   MISSING_SCOPE_NEGATIVE_LIST, MISSING_PEAK_MEMORY_ESTIMATE,
   MISSING_DRY_RUN_PEAK_RSS, MISSING_HEAP_LIMIT,
   HEAP_LIMIT_BELOW_DRY_RUN_PEAK, INVALID_MEMORY_MODE,
@@ -65,7 +73,8 @@ Strictness notes (each closes a fail-open hole):
     template's `_note` fields describe the schema in prose that may contain
     angle-bracketed examples). No required or budget-bearing field is
     "_"-prefixed, so the exemption cannot hide an unfilled real field.
-  - `tolerance_ceiling.anchor_note` must be a single line.
+  - `tolerance_ceiling.anchor_note` and an exact-mode `predicate` must each
+    be a single line.
   - A delegations path that exists but is not a directory, a non-boolean
     `features.delegation_budget_gate` / `delegation_budget.required`
     config value, or a failed --out-json persistence are input errors
@@ -367,20 +376,57 @@ def _validate_contract(contract: Any) -> list[str]:
     _check_required_string(contract, "delegation_id", "MISSING_DELEGATION_ID", issues)
     _check_required_string(contract, "workstream", "MISSING_WORKSTREAM", issues)
 
-    # tolerance_ceiling: numeric ceiling + one-line anchor note.
+    # tolerance_ceiling: one of two mutually exclusive stopping conditions,
+    # both with a one-line anchor note:
+    #   - numeric (default): finite positive value; no predicate
+    #   - exact_predicate: one-line predicate; no value
+    # Numeric zero deliberately remains invalid: exactness is represented by
+    # the explicit predicate form, never by a fabricated zero tolerance.
     tol = contract.get("tolerance_ceiling")
     if not isinstance(tol, dict):
         issues.append(
             "MISSING_TOLERANCE_CEILING: `tolerance_ceiling` object is required "
-            "(numeric ceiling + anchor note); without it the executor's default "
+            "(numeric ceiling or exact predicate + anchor note); without it the executor's default "
             "is to refine precision without bound"
         )
     else:
-        if not _is_finite_positive_number(tol.get("value")):
+        mode = tol.get("mode", "numeric")
+        if not isinstance(mode, str) or mode not in ("numeric", "exact_predicate"):
             issues.append(
-                "MISSING_TOLERANCE_VALUE: `tolerance_ceiling.value` must be a finite "
-                f"positive number (got {tol.get('value')!r})"
+                "INVALID_TOLERANCE_MODE: `tolerance_ceiling.mode` must be absent "
+                '(numeric form), "numeric", or "exact_predicate" '
+                f"(got {mode!r}); unknown modes fail closed"
             )
+        elif mode == "numeric":
+            if not _is_finite_positive_number(tol.get("value")):
+                issues.append(
+                    "MISSING_TOLERANCE_VALUE: numeric `tolerance_ceiling.value` must be a "
+                    f"finite positive number (got {tol.get('value')!r}); use mode "
+                    '"exact_predicate" for an exact-only stopping condition'
+                )
+            if "predicate" in tol:
+                issues.append(
+                    "CONTRADICTORY_TOLERANCE_FIELDS: numeric `tolerance_ceiling` must not "
+                    "carry `predicate`; numeric and exact-predicate forms are mutually exclusive"
+                )
+        else:
+            if "value" in tol:
+                issues.append(
+                    "CONTRADICTORY_TOLERANCE_FIELDS: exact-predicate `tolerance_ceiling` "
+                    "must not carry `value`; exactness is declared by the predicate, not a "
+                    "fabricated numeric tolerance"
+                )
+            predicate = tol.get("predicate")
+            if not isinstance(predicate, str) or not predicate.strip():
+                issues.append(
+                    "MISSING_EXACT_PREDICATE: exact-predicate `tolerance_ceiling.predicate` "
+                    "must be a non-empty one-line exact stopping condition"
+                )
+            elif predicate.splitlines() != [predicate]:
+                issues.append(
+                    "MISSING_EXACT_PREDICATE: exact-predicate `tolerance_ceiling.predicate` "
+                    "must be a single line with no line-break characters"
+                )
         anchor = tol.get("anchor_note")
         if not isinstance(anchor, str) or not anchor.strip():
             issues.append(
