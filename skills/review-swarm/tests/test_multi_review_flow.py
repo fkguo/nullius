@@ -38,6 +38,9 @@ VERDICT: READY
 ## Blockers
 - none
 
+## High-severity
+- none
+
 ## Non-blocking
 - none
 
