@@ -480,10 +480,10 @@ function readRecoveryContextView(
     warnings.push({
       code: 'UNCOMMITTED_WORK_AGING',
       message:
-        `${uncommittedAging.modified_tracked_entries} tracked change entr(y/ies) while the last commit ` +
-        `is ${uncommittedAging.head_age_hours}h old — this uncommitted work exists only in this working ` +
-        'tree and cannot be recovered from history; review records that pin hashes of uncommitted ' +
-        'content have no durable referent. Commit each completed stage as cross-session memory.',
+        `${uncommittedAging.modified_tracked_entries} tracked change entr(y/ies) are not represented ` +
+        `in the current branch history, whose last commit is ${uncommittedAging.head_age_hours}h old. ` +
+        'Work absent from that history cannot be recovered from it; review records pinning hashes of ' +
+        'such content have no referent there. Commit each completed stage as cross-session memory.',
       modified_tracked_entries: uncommittedAging.modified_tracked_entries,
       head_age_hours: uncommittedAging.head_age_hours,
       threshold_hours: UNCOMMITTED_WORK_AGING_THRESHOLD_HOURS,

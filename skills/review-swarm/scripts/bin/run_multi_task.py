@@ -1668,14 +1668,60 @@ def _resolved_family(result: dict[str, Any], roster: dict[str, Any] | None) -> s
     return _roster_family(backend, str(model or ""), roster)
 
 
-def _independence_summary(results: list[dict[str, Any]], roster: dict[str, Any] | None) -> dict[str, Any]:
+def _independence_summary(
+    results: list[dict[str, Any]],
+    roster: dict[str, Any] | None,
+    backend_tool_modes: dict[str, str] | None = None,
+    contaminated_specs: set[str] | None = None,
+) -> dict[str, Any]:
     """Independence record for the run's outputs: which families actually
     produced output, at which independence level, and — when an agents file is
     in force — how that compares to the declared availability and the
     cross-family minimum. A degraded round must be visible as degraded; the
     launcher itself never blocks on this (falling back to the host's native
-    subagent panel is the calling skill's move, per policy.when_below_minimum)."""
-    participating = sorted({_resolved_family(r, roster) for r in results if r.get("success")})
+    subagent panel is the calling skill's move, per policy.when_below_minimum).
+
+    Two lane classes are excluded from independence counting (their outputs
+    remain in the run, retained diagnostically):
+    - workspace/browse tool modes: a lane that can read the working tree is
+      not an isolated independent lane;
+    - lanes the dispatcher marked --contaminated (ambient context carried
+      another workstream's conclusions): disposition
+      AMBIENT_CONTEXT_CONTAMINATED, zero independence credit.
+    """
+    modes = backend_tool_modes or {}
+    contaminated = contaminated_specs or set()
+
+    def _spec(r: dict[str, Any]) -> str:
+        backend = str(r.get("backend") or "")
+        model = str(r.get("model") or "")
+        return f"{backend}/{model}" if model and "/" not in model else (model or backend)
+
+    non_independent: list[dict[str, Any]] = []
+    independent_families: set[str] = set()
+    for r in results:
+        if not r.get("success"):
+            continue
+        family = _resolved_family(r, roster)
+        spec = _spec(r)
+        raw_model = str(r.get("model") or "")
+        if spec in contaminated or raw_model in contaminated:
+            non_independent.append(
+                {
+                    "family": family,
+                    "spec": spec,
+                    "reason": "AMBIENT_CONTEXT_CONTAMINATED",
+                }
+            )
+            continue
+        tool_mode = _resolve_backend_tool_mode(str(r.get("backend") or ""), modes)
+        if tool_mode == "workspace":
+            non_independent.append(
+                {"family": family, "spec": spec, "reason": "tool_mode:workspace"}
+            )
+            continue
+        independent_families.add(family)
+    participating = sorted(independent_families)
     if len(participating) >= 2:
         level = "cross_family"
     elif len(participating) == 1:
@@ -1693,6 +1739,7 @@ def _independence_summary(results: list[dict[str, Any]], roster: dict[str, Any] 
         "cross_family_minimum": None,
         "below_minimum": None,
         "when_below_minimum": None,
+        "non_independent_lanes": non_independent,
     }
     if roster:
         declared = sorted(roster.get("families") or {})
@@ -1826,6 +1873,15 @@ def _apply_config_defaults(args: argparse.Namespace, cfg: dict[str, Any]) -> Non
 def _parse_args() -> argparse.Namespace:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--out-dir", required=True, type=Path, help="Output directory for outputs + trace.")
+    ap.add_argument(
+        "--contaminated",
+        action="append",
+        default=[],
+        metavar="MODEL_SPEC",
+        help="Mark a lane's environment as ambient-contaminated (repeatable): its output is "
+             "retained diagnostically but earns zero independence credit "
+             "(disposition AMBIENT_CONTEXT_CONTAMINATED in meta.json independence).",
+    )
     ap.add_argument(
         "--config",
         default=None,
@@ -2744,7 +2800,12 @@ def main() -> int:
         _append_jsonl(trace_path, {"ts": _utc_now(), "event": "convergence_check", **convergence_info})
 
     success_count = sum(1 for r in results if r.get("success", False))
-    independence = _independence_summary(results, agents_roster)
+    independence = _independence_summary(
+        results,
+        agents_roster,
+        backend_tool_modes=backend_tool_modes,
+        contaminated_specs=set(args.contaminated or []),
+    )
     _append_jsonl(trace_path, {"ts": _utc_now(), "event": "independence", **independence})
     meta: dict[str, Any] = {
         "schema_version": 1,

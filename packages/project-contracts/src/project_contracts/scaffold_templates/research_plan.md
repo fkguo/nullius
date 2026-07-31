@@ -21,6 +21,18 @@ Keep this section short enough to read in one screen. It is the human status ent
 | Closure / stop condition | |
 | Evidence pointers | |
 
+The `Done` and `Evidence pointers` cells describe the current phase only —
+one short entry plus a link. When a milestone completes, collapse it to one
+line in the Milestone history below (linking its closeout record) and clear
+its detail out of the table; narrative and per-round histories live in the
+linked records, not here.
+
+### Milestone history
+
+| Milestone | Closed | Closeout record |
+|---|---|---|
+|  |  |  |
+
 ## Current milestone
 
 - Milestone ID:
