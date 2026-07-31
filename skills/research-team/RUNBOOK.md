@@ -477,3 +477,29 @@ In projects scaffolded by `research-team`, use the navigation front door instead
 ```bash
 bash scripts/validation/run_full_contract_validation.sh
 ```
+
+## Migrating an existing project to the current member prompts
+
+Scaffolding skips files that already exist, so a project scaffolded before the
+severity-graded verdict rules keeps its old copies of
+`prompts/_system_member_a.txt` / `prompts/_system_member_b.txt` — its reviewers
+will keep treating hardening suggestions as blocking until the prompts are
+refreshed. Migration is a backup-then-recopy of the two managed prompt files
+(they are verbatim copies of the skill assets; project-authored edits, if any,
+must be re-applied on top):
+
+```bash
+cd /path/to/project
+mkdir -p .nullius/backups/prompts-$(date +%Y%m%d)
+cp prompts/_system_member_a.txt prompts/_system_member_b.txt \
+   .nullius/backups/prompts-$(date +%Y%m%d)/
+SKILL_DIR="${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode" "$HOME/.kimi-code"; do [ -d "$r/skills/research-team" ] && echo "$r/skills/research-team" && break; done || true)}"
+cp "${SKILL_DIR}/assets/system_member_a.txt" prompts/_system_member_a.txt
+cp "${SKILL_DIR}/assets/system_member_b.txt" prompts/_system_member_b.txt
+diff -u .nullius/backups/prompts-$(date +%Y%m%d)/_system_member_a.txt prompts/_system_member_a.txt | head -40
+```
+
+Review the diff for project-authored customizations before the next cycle;
+re-apply any on top of the refreshed prompts. The same recopy-with-backup
+applies to any other copied asset the project wants to bring forward —
+scaffolding never rewrites existing project files on its own.

@@ -25,6 +25,7 @@ class Extracted:
     minimal_fix_items: list[str]
     novelty_leads: list[str]
     major_gaps: list[str]
+    minor_issues: list[str]
 
 
 def _extract_section(text: str, heading: str) -> str:
@@ -61,11 +62,13 @@ def _parse_report(path: Path) -> Extracted:
     minimal_fix = _extract_section(text, "Minimal Fix List")
     novelty = _extract_section(text, "Novelty & Breakthrough Leads")
     major = _extract_section(text, "Major Gaps")
+    minor = _extract_section(text, "Minor Issues")
     return Extracted(
         path=path,
         minimal_fix_items=_extract_list_like_lines(minimal_fix),
         novelty_leads=_extract_list_like_lines(novelty),
         major_gaps=_extract_list_like_lines(major),
+        minor_issues=_extract_list_like_lines(minor),
     )
 
 
@@ -124,7 +127,25 @@ def main() -> int:
     lines.append("|  |  |  |  |  |  |")
     lines.append("")
 
-    lines.append("## 2) Disagreements & adjudication (team discussion)")
+    lines.append("## 2) Non-blocking findings — every one gets an explicit disposition")
+    lines.append("")
+    lines.append("A non-blocking finding is never silently dropped: each row below must end")
+    lines.append("with exactly one disposition — fix now / attach to a named acceptance")
+    lines.append("point / discard with a stated reason. An empty disposition cell means the")
+    lines.append("adjudication is not finished.")
+    lines.append("")
+    lines.append("### 2.1 From Member A — Minor Issues")
+    lines.append(_emit_items(member_a.minor_issues).rstrip())
+    lines.append("")
+    lines.append("### 2.2 From Member B — Minor Issues")
+    lines.append(_emit_items(member_b.minor_issues).rstrip())
+    lines.append("")
+    lines.append("| Finding | Source | Disposition (fix now / acceptance point <name> / discard: <reason>) |")
+    lines.append("|---|---|---|")
+    lines.append("|  |  |  |")
+    lines.append("")
+
+    lines.append("## 3) Disagreements & adjudication (team discussion)")
     lines.append("")
     lines.append("- List the specific disputed items (including any proposed kill criteria you reject), and write a short adjudication note.")
     lines.append("- If needed, propose a compromise: tighten scope, add a discriminant diagnostic, or revise the kill criterion.")
@@ -136,25 +157,25 @@ def main() -> int:
     lines.append("- (fill)")
     lines.append("")
 
-    lines.append("## 3) Novelty leads / kill criteria (suggestions, not commandments)")
+    lines.append("## 4) Novelty leads / kill criteria (suggestions, not commandments)")
     lines.append("")
-    lines.append("### 3.1 From Member A — Breakthrough Leads")
+    lines.append("### 4.1 From Member A — Breakthrough Leads")
     lines.append(_emit_items(member_a.novelty_leads).rstrip())
     lines.append("")
-    lines.append("### 3.2 From Member B — Breakthrough Leads")
+    lines.append("### 4.2 From Member B — Breakthrough Leads")
     lines.append(_emit_items(member_b.novelty_leads).rstrip())
     lines.append("")
     lines.append("For each proposed lead/kill criterion, decide: accept / modify / reject, and update `idea_log.md` accordingly.")
     lines.append("")
 
-    lines.append("## 4) What changed (for the next round)")
+    lines.append("## 5) What changed (for the next round)")
     lines.append("")
     lines.append("- Notes changed: (paths)")
     lines.append("- Code changed: (paths)")
     lines.append("- New artifacts/figures: (paths)")
     lines.append("- Self-consistency checks rerun: (commands + outputs)")
     lines.append("")
-    lines.append("## 5) How to use this file")
+    lines.append("## 6) How to use this file")
     lines.append("")
     lines.append("- Add this file path to the next team packet under 'Adjudication/response note'.")
     lines.append("- In the next round, members must respond to rejected items: either accept the rationale, or show why it is still blocking.")

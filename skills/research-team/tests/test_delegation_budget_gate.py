@@ -251,6 +251,10 @@ def test_heap_limit_below_dry_run_peak_fails(tmp_path: Path) -> None:
 
 def _declared_cap_contract() -> dict:
     contract = _complete_contract()
+    contract["delegation_id"] = "verify-derivation-01"
+    contract["workstream"] = (
+        "blind re-derivation review of the milestone's closed-form result; no computation launched"
+    )
     contract["peak_memory_estimate"] = {
         "mode": "declared_cap",
         "heap_limit_mb": 2048,
@@ -308,6 +312,38 @@ def test_placeholder_declared_cap_basis_fails(tmp_path: Path) -> None:
     contract = _declared_cap_contract()
     contract["peak_memory_estimate"]["basis"] = "<one line: why no dry run>"
     _assert_fails_with(tmp_path, contract, "PLACEHOLDER_VALUE")
+
+
+def test_declared_cap_on_declared_compute_launch_is_contradictory(tmp_path: Path) -> None:
+    contract = _declared_cap_contract()
+    contract["launches_full_scale_computation"] = True
+    _assert_fails_with(tmp_path, contract, "CONTRADICTORY_MEMORY_ESTIMATE")
+
+
+def test_measured_form_with_declared_compute_launch_passes(tmp_path: Path) -> None:
+    contract = _complete_contract()
+    contract["launches_full_scale_computation"] = True
+    proj = _make_project(tmp_path, contracts={"lane-scan-01.json": contract})
+    proc, verdict = _run_gate(proj)
+    assert proc.returncode == 0, proc.stderr
+    assert verdict is not None
+    assert verdict["status"] == "pass"
+
+
+def test_declared_cap_with_explicit_no_launch_passes(tmp_path: Path) -> None:
+    contract = _declared_cap_contract()
+    contract["launches_full_scale_computation"] = False
+    proj = _make_project(tmp_path, contracts={"verify-derivation-01.json": contract})
+    proc, verdict = _run_gate(proj)
+    assert proc.returncode == 0, proc.stderr
+    assert verdict is not None
+    assert verdict["status"] == "pass"
+
+
+def test_non_boolean_launch_declaration_fails(tmp_path: Path) -> None:
+    contract = _complete_contract()
+    contract["launches_full_scale_computation"] = "yes"
+    _assert_fails_with(tmp_path, contract, "CONTRADICTORY_MEMORY_ESTIMATE")
 
 
 def test_unknown_contract_version_fails_closed(tmp_path: Path) -> None:

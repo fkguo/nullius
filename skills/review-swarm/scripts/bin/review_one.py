@@ -8,8 +8,10 @@ per-backend read-only tool modes, process-group timeouts, trace.jsonl/meta.json
 artifacts and contract checking are inherited from the one launcher — there is
 no second orchestration path.
 
-A single reviewer is one model family: its verdict is ADVISORY. Final verdicts
-require cross-family review (see SKILL.md, "Host-aware execution").
+A single reviewer is one model family. Whether a final verdict additionally
+requires cross-family review depends on the artifact's scoping (see SKILL.md):
+result-bearing / public-surface / irreversible artifacts do; internal
+implementation variants may close single-family, labeled as such.
 
 Examples:
     python3 review_one.py --model codex/default --artifact notes.md
@@ -329,6 +331,87 @@ def _validate_source_review_inputs(args: argparse.Namespace) -> None:
         _require_strict_utf8_comparison_target(context_path, flag="--context")
 
 
+def _verify_baseline_binding(baseline_dir: Path, diff_range: str) -> dict:
+    """Bind a delta confirmation round to the previously reviewed baseline.
+
+    A confirmation round reviews the exact delta from the reviewed baseline;
+    a diff whose BASE is not the reviewed state lets intervening changes
+    escape confirmation. This check reads the prior review's input manifest
+    and verifies that every target file recorded there hashes, at the diff's
+    BASE revision, to exactly the sha256 the prior review recorded.
+    Fail-closed: a missing/unreadable manifest, a baseline with no
+    target_artifact entries, a range without an explicit BASE, a target
+    missing at BASE, or any hash mismatch is an error.
+    """
+    manifest_path = baseline_dir / "inputs" / "review_input_manifest.json"
+    if not manifest_path.is_file():
+        raise ValueError(f"--baseline-review: manifest not found: {manifest_path}")
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as e:
+        raise ValueError(f"--baseline-review: unreadable manifest {manifest_path}: {e}") from e
+    entries = [
+        e
+        for e in (manifest.get("file_inputs") or [])
+        if isinstance(e, dict) and e.get("kind") == "target_artifact"
+    ]
+    if not entries:
+        raise ValueError(
+            "--baseline-review: the baseline review recorded no target_artifact entries; "
+            "delta binding needs the reviewed files' hashes (a diff-only baseline cannot "
+            "anchor a delta round — re-review the full artifact instead)"
+        )
+    sep = "..." if "..." in diff_range else ".."
+    base = diff_range.split(sep, 1)[0].strip()
+    if not base:
+        raise ValueError(
+            f"--baseline-review requires an explicit BASE in the --diff range (got {diff_range!r})"
+        )
+    toplevel_proc = subprocess.run(
+        ["git", "rev-parse", "--show-toplevel"], check=False, capture_output=True
+    )
+    if toplevel_proc.returncode != 0:
+        raise ValueError("--baseline-review: not inside a git repository")
+    toplevel = Path(toplevel_proc.stdout.decode("utf-8").strip()).resolve()
+    verified: list[dict] = []
+    problems: list[str] = []
+    for entry in entries:
+        recorded_path = Path(str(entry.get("path")))
+        abs_path = recorded_path if recorded_path.is_absolute() else (Path.cwd() / recorded_path)
+        try:
+            rel = abs_path.resolve().relative_to(toplevel)
+        except ValueError:
+            raise ValueError(
+                f"--baseline-review: recorded target {recorded_path} lies outside this git repository"
+            )
+        show = subprocess.run(
+            ["git", "show", f"{base}:{rel.as_posix()}"], check=False, capture_output=True
+        )
+        if show.returncode != 0:
+            problems.append(f"{rel.as_posix()}: not present at BASE {base!r}")
+            continue
+        digest = hashlib.sha256(show.stdout).hexdigest()
+        recorded_digest = str(entry.get("sha256"))
+        if digest != recorded_digest:
+            problems.append(
+                f"{rel.as_posix()}: content at BASE ({digest[:12]}…) differs from the "
+                f"reviewed hash ({recorded_digest[:12]}…)"
+            )
+        else:
+            verified.append({"path": rel.as_posix(), "sha256": digest})
+    if problems:
+        raise ValueError(
+            "--baseline-review: the --diff BASE does not match the reviewed baseline — "
+            "the delta would not cover every change since the review: " + "; ".join(problems)
+        )
+    return {
+        "baseline_review_dir": str(baseline_dir.resolve()),
+        "baseline_manifest": str(manifest_path.resolve()),
+        "base_ref": base,
+        "verified_targets": verified,
+    }
+
+
 def _run_git_diff(diff_range: str) -> str:
     if diff_range.startswith("-"):
         # Injection guard: the value is passed as an argument to `git diff`, so a
@@ -631,6 +714,7 @@ def _review_input_manifest(
     diff_text: Optional[str],
     contexts: list[tuple[Path, str, str, int]],
     persisted_review_inputs: list[tuple[Path, str, str, int]],
+    baseline_binding: Optional[dict] = None,
 ) -> dict:
     file_inputs = []
 
@@ -663,13 +747,16 @@ def _review_input_manifest(
             "sha256": hashlib.sha256(diff_bytes).hexdigest(),
             "bytes": len(diff_bytes),
         }
-    return {
+    manifest = {
         "schema_version": 1,
         "role": args.role,
         "working_directory": str(Path.cwd().resolve()),
         "file_inputs": file_inputs,
         "target_diff": target_diff,
     }
+    if baseline_binding is not None:
+        manifest["baseline_binding"] = baseline_binding
+    return manifest
 
 
 def _record_post_review_freshness(*, out_dir: Path) -> dict:
@@ -707,6 +794,11 @@ def _parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
                         help="File to embed as the review target. Repeatable.")
     source.add_argument("--diff", default=None, metavar="BASE..HEAD",
                         help="Embed the output of `git diff BASE..HEAD` as the review target.")
+    ap.add_argument("--baseline-review", type=Path, default=None, metavar="DIR",
+                    help="Bind a delta confirmation round to a prior review: verify that every "
+                         "target file recorded in DIR/inputs/review_input_manifest.json hashes at "
+                         "the --diff BASE revision to the reviewed sha256 (fail-closed on any "
+                         "mismatch), and record the binding in this round's manifest. Requires --diff.")
     source.add_argument("--extraction-request", default=None, metavar="PATH",
                         help="Neutral locator/question list for --role source-extraction; this "
                              "mode forbids candidate artifacts, diffs, and additional context.")
@@ -864,7 +956,14 @@ def main(argv: Optional[list[str]] = None) -> int:
             if args.extraction_request
             else None
         )
+        if args.baseline_review is not None and not args.diff:
+            raise ValueError("--baseline-review requires --diff (it binds a delta round's BASE)")
         diff_text = _run_git_diff(args.diff) if args.diff else None
+        baseline_binding = (
+            _verify_baseline_binding(args.baseline_review, args.diff)
+            if args.baseline_review is not None
+            else None
+        )
         contexts = [
             _read_text_payload(raw, label="--context") for raw in (args.context or [])
         ]
@@ -899,6 +998,7 @@ def main(argv: Optional[list[str]] = None) -> int:
                     diff_text=diff_text,
                     contexts=contexts,
                     persisted_review_inputs=persisted_review_inputs,
+                    baseline_binding=baseline_binding,
                 ),
                 indent=2,
                 sort_keys=True,

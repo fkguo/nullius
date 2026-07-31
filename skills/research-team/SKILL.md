@@ -74,7 +74,7 @@ Work toward a candidate moves through three phases:
 
 1. **Bounded development.** The implementer iterates freely inside the delegation's time box: diagnostic runs, targeted tests, and build fixes are legitimate development work, not budgeted "attempts" (an attempt is a deliberate re-entry into the delivered task — see the `research-harness` attempt semantics). Contracting development down to zero diagnostic invocations or a single measured test execution applies frozen-acceptance discipline to the wrong phase; the acceptance-time single measured run belongs to the frozen candidate, not to the implementation work that produced it.
 2. **Stabilization.** Merge every known blocking fix into one candidate, run the full local test surface once, and freeze the candidate's identity (input and code hashes). One stabilization pass per batch of findings — not one per finding.
-3. **Acceptance.** The frozen candidate gets its review pair (the member cycle; plus an independent executing check where the project has opted into one). Findings are severity-graded per the strict-convergence contract above; the fix batch re-enters at stabilization and the confirmation round reviews the exact delta from the reviewed baseline unless an escalation trigger fires (changed formulas or assumptions, changed data model or global invariants, changed origin-traceability roots, or a reviewer requests the full artifact).
+3. **Acceptance.** The frozen candidate gets its review pair — the member cycle, plus the fresh-checkout independent reproduction check where the project has opted into one. Opt-in status covers only that fresh-checkout rerun: the production-scale falsifiers, method-precondition residuals, and independent recomputation that the non-negotiable contracts above require for load-bearing claims remain mandatory regardless. Findings are severity-graded per the strict-convergence contract above; the fix batch re-enters at stabilization and the confirmation round reviews the exact delta from the reviewed baseline unless an escalation trigger fires (changed formulas or assumptions, changed data model or global invariants, changed origin-traceability roots, or a reviewer requests the full artifact).
 
 Two placement rules complete the picture:
 
@@ -278,7 +278,10 @@ dispatch** — one JSON file per delegation under `team/delegations/`, from
   form: `mode: "declared_cap"` with the heap cap and a one-line `basis`
   stating why a dry-run measurement is not warranted. Measuring the RSS of an
   unrelated command to satisfy the field is exactly the empty formality the
-  declared form exists to remove.
+  declared form exists to remove. A contract may additionally declare
+  `launches_full_scale_computation` (boolean); declaring `true` together with
+  the declared-cap form is machine-rejected as contradictory, so the
+  eligibility choice is an auditable declaration, not an unstated assumption.
 
 The check is fail-closed and machine-judged
 (`scripts/gates/check_delegation_budget.py`, machine verdict
