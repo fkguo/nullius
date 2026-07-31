@@ -463,6 +463,7 @@ def _md_verdict(token: str = "READY", blockers: str = "(none)") -> str:
     return (
         f"VERDICT: {token}\n\n"
         f"## Blockers\n{blockers}\n\n"
+        "## High-severity\n(none)\n\n"
         "## Non-blocking\n(none)\n\n"
         "## Real-research fit\nok\n\n"
         "## Robustness & safety\nok\n\n"
@@ -653,7 +654,7 @@ def test_reimplementation_fenced_headers_are_not_sections(tmp_path: Path):
     stub = (
         "VERDICT: READY\n\n"
         "```\n"
-        "## Blockers\n(none)\n\n## Non-blocking\n(none)\n\n## Real-research fit\nok\n\n"
+        "## Blockers\n(none)\n\n## High-severity\n(none)\n\n## Non-blocking\n(none)\n\n## Real-research fit\nok\n\n"
         "## Robustness & safety\nok\n\n## Specific patch suggestions\n(none)\n"
         "```\n"
     )
@@ -671,7 +672,7 @@ def test_reimplementation_four_backtick_fence_still_hides_headers(tmp_path: Path
         "VERDICT: READY\n\n"
         "````\n"
         "```\n"
-        "## Blockers\n(none)\n\n## Non-blocking\n(none)\n\n## Real-research fit\nok\n\n"
+        "## Blockers\n(none)\n\n## High-severity\n(none)\n\n## Non-blocking\n(none)\n\n## Real-research fit\nok\n\n"
         "## Robustness & safety\nok\n\n## Specific patch suggestions\n(none)\n"
         "```\n"
         "````\n"
