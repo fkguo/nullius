@@ -35,6 +35,9 @@ Rules:
     discard with a stated reason).
   Report EVERY finding you can establish in this round, graded — do not stop
   at the first decisive one. Only BLOCKING findings force VERDICT: NOT_READY.
+  Bucket findings by grade: BLOCKING under "## Blockers", HIGH under
+  "## High-severity", LOW under "## Non-blocking" (each LOW with its
+  proposed disposition).
 
 ## Required output format
 
@@ -47,6 +50,8 @@ Then include ALL of the following section headers, each on its own line
 (write "none" under a section rather than omitting it):
 
 ## Blockers
+
+## High-severity
 
 ## Non-blocking
 

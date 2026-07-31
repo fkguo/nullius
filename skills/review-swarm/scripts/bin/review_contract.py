@@ -15,6 +15,7 @@ from typing import Any, Optional
 REQUIRED_FIRST_LINES = {"VERDICT: READY", "VERDICT: NOT_READY"}
 REQUIRED_HEADERS = [
     "## Blockers",
+    "## High-severity",
     "## Non-blocking",
     "## Real-research fit",
     "## Robustness & safety",
@@ -339,6 +340,11 @@ def _validate_criteria_schema(obj: Any) -> list[str]:
     scale = obj.get("severity_scale")
     if not isinstance(scale, str) or not scale.strip():
         errs.append("'severity_scale' must be a non-empty string")
+    elif not all(tok in scale for tok in ("BLOCKING", "HIGH", "LOW")):
+        errs.append(
+            "'severity_scale' must bind to the canonical BLOCKING/HIGH/LOW ladder "
+            "(name all three levels), not declare a private scale"
+        )
     return errs
 
 

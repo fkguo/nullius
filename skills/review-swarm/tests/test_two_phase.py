@@ -37,7 +37,7 @@ def _run_main_with_argv(mod, argv: list[str]) -> int:
 _PHASE1_VALID = """Commitment before seeing the diff.
 
 <review_criteria>
-{"categories": [{"name": "correctness", "blocking_criteria": "Any defect that changes runtime behavior."}, {"name": "tests", "blocking_criteria": "Any changed behavior without regression coverage."}], "severity_scale": "Findings are BLOCKING or NON-BLOCKING."}
+{"categories": [{"name": "correctness", "blocking_criteria": "Any defect that changes runtime behavior."}, {"name": "tests", "blocking_criteria": "Any changed behavior without regression coverage."}], "severity_scale": "Findings are graded BLOCKING, HIGH, or LOW per the canonical ladder."}
 </review_criteria>
 """
 
@@ -48,6 +48,9 @@ _PHASE2_COMPLIANT = """VERDICT: NOT_READY
 
 ## Blockers
 - [correctness] the loop drops the final element
+
+## High-severity
+- none
 
 ## Non-blocking
 - none
@@ -66,6 +69,9 @@ _PHASE2_OUT_OF_SCOPE = """VERDICT: NOT_READY
 
 ## Blockers
 - [security] new network call without input validation
+
+## High-severity
+- none
 
 ## Non-blocking
 - none
@@ -86,6 +92,9 @@ _PHASE2_OUT_OF_SCOPE_WITH_REVISION = """VERDICT: NOT_READY
 - [security] new network call without input validation
 
 CRITERIA_REVISION: security: the diff adds a network surface the scope did not disclose
+
+## High-severity
+- none
 
 ## Non-blocking
 - none
@@ -187,7 +196,7 @@ class CriteriaBlockParsingTests(unittest.TestCase):
         text = (
             "<review_criteria>\n"
             "```json\n"
-            '{"categories": [{"name": "correctness", "blocking_criteria": "x"}], "severity_scale": "s"}\n'
+            '{"categories": [{"name": "correctness", "blocking_criteria": "x"}], "severity_scale": "BLOCKING, HIGH, LOW per the canonical ladder"}\n'
             "```\n"
             "</review_criteria>\n"
         )
@@ -235,10 +244,21 @@ class CriteriaBlockParsingTests(unittest.TestCase):
         self.assertTrue(any("'categories'" in e for e in errs))
         self.assertTrue(any("'severity_scale'" in e for e in errs))
 
+    def test_criteria_private_severity_scale_rejected(self):
+        text = (
+            "<review_criteria>\n"
+            '{"categories": [{"name": "correctness", "blocking_criteria": "x"}], '
+            '"severity_scale": "my own five-level scheme"}\n'
+            "</review_criteria>\n"
+        )
+        _block, obj, errs = self.rc.extract_review_criteria_block(text)
+        self.assertIsNone(obj)
+        self.assertTrue(any("canonical BLOCKING/HIGH/LOW ladder" in e for e in errs))
+
     def test_category_entry_field_violations_report_errors(self):
         text = (
             "<review_criteria>\n"
-            '{"categories": [{"name": "", "blocking_criteria": "x"}, {"name": "ok"}], "severity_scale": "s"}\n'
+            '{"categories": [{"name": "", "blocking_criteria": "x"}, {"name": "ok"}], "severity_scale": "BLOCKING, HIGH, LOW per the canonical ladder"}\n'
             "</review_criteria>\n"
         )
         _, obj, errs = self.rc.extract_review_criteria_block(text)
@@ -259,7 +279,7 @@ class TwoPhaseConformanceTests(unittest.TestCase):
     def test_markdown_category_normalization(self):
         phase1 = (
             "<review_criteria>\n"
-            '{"categories": [{"name": "Error Handling", "blocking_criteria": "x"}], "severity_scale": "s"}\n'
+            '{"categories": [{"name": "Error Handling", "blocking_criteria": "x"}], "severity_scale": "BLOCKING, HIGH, LOW per the canonical ladder"}\n'
             "</review_criteria>\n"
         )
         phase2 = _PHASE2_COMPLIANT.replace("[correctness]", "[error_handling]")

@@ -995,14 +995,16 @@ each alone on its own line:
   "categories": [
     {"name": "<short category id>", "blocking_criteria": "<one sentence: what makes a finding BLOCKING in this category>"}
   ],
-  "severity_scale": "<one sentence: the severity scale you commit to>"
+  "severity_scale": "<one sentence binding your categories to the canonical BLOCKING/HIGH/LOW ladder — name all three levels>"
 }
 </review_criteria>
 
 Rules:
 - "categories" must be a non-empty array; every entry needs a non-empty "name"
   and a non-empty "blocking_criteria".
-- "severity_scale" must be a non-empty string.
+- "severity_scale" must be a non-empty sentence that binds to the canonical
+  BLOCKING/HIGH/LOW ladder by naming all three levels (a private scale is
+  rejected).
 - Base the categories on the declared scope only. Do not guess diff content,
   do not review anything yet, and do not ask for the diff.
 - Brief reasoning outside the block is fine; the content between the two
