@@ -27,7 +27,10 @@ Use `research-team` when you want a project workflow with:
 
 ## Non-negotiable contracts (fail-fast)
 
-- **Strict convergence**: if either member reports mismatch/fail/needs revision, you must fix and rerun until converged (or explicitly narrow/kill as `SCOPE`/`MATCHING`).
+- **Strict convergence, severity-graded**: if either member reports mismatch/fail/needs revision, you must fix and rerun until converged (or explicitly narrow/kill as `SCOPE`/`MATCHING`). Review findings carry a severity grade, and only the top grade blocks by itself:
+  - **Blocking**: the finding changes a recorded result, invalidates a verification claim, breaks input identity / target-value isolation / origin traceability, or is a mismatch/fail inside the declared reproduction scope. Convergence requires every blocking finding fixed and re-reviewed.
+  - **Non-blocking** (hardening beyond the declared scope, mutation-style test-strengthening ideas, style): reported under Minor Issues, never flipping the verdict by itself. Each non-blocking finding gets an explicit disposition in the adjudication — fix now, attach to a named later acceptance point, or discard with a stated reason — never a silent drop and never an undated "later".
+  - A reviewer whose only findings are non-blocking reports `ready` with the findings listed for disposition; reporting `needs revision` on non-blocking findings alone is a grading error, not extra rigor.
 - **Symbolic claims route through `derivation-verify`**: when a converging milestone rests on a symbolic / derivation claim (a closed form, an identity, a sign/branch choice), the independent confirmation for that claim is at least two independent blind re-derivations via [`derivation-verify`](../derivation-verify/SKILL.md) — reviewer agreement that a written derivation "looks right" is not independent confirmation. Computed numbers route through `numerical-reliability-gate`, the sibling gate.
 - **Notebook split**: `research_notebook.md` is the human entry; `research_contract.md` is the machine-stable gate surface.
 - **Memo discipline (mandatory)**: `research_notebook.md` is a self-contained research memo organized like a paper — connected prose with complete derivations, computations, and analysis — not a change log. Its quality bar: a colleague in the field could read it alone (no runs, no plan) and come away with the project's full current understanding, able to re-derive every load-bearing result. It updates by **rewriting the affected sections into a self-consistent whole**, never by appending stage fragments ("this milestone changed X"); dated progress belongs to `research_plan.md` and `artifacts/runs/<run_id>/`, revision history to git. A milestone does not converge while the memo still describes the pre-milestone understanding: rewriting the affected memo sections is part of the milestone's deliverable, checked in the convergence review like any other artifact.
@@ -44,7 +47,10 @@ Use `research-team` when you want a project workflow with:
 - **Re-reading is not recomputation (mandatory for load-bearing structural claims)**: a review — cross-family or not — that only re-reads evidence supplied by the claimant is an argument audit, not a verification; its "confirm" can sit entirely inside the claimant's blind spot, because the supplied evidence may probe the wrong axis altogether. For any load-bearing structural claim, at least one reviewer independently recomputes the quantity through a different route (a different discretization, implementation, or representation), receiving only the problem statement and raw inputs — never the claimant's answer, evidence selection, or initial judgment — and the review record states which axis the recomputation actually probed (what it could have falsified). Routed to the `review-swarm` independent-recomputation reviewer.
 - **Prior-art binding (mandatory when a delegation brief names prior art)**: when the dispatch brief for the work under review named prior art — an upstream toolkit routine, a sibling project's implementation of the same end-to-end problem, a published method — the reviewer verifies that, for each named asset, the implementation's call sites or the approved pre-implementation deviation record exist **before** assessing results (see *Reuse-or-deviate gate* below); an implementation carrying neither does not converge.
 - **Pointer lint (mandatory)**: code pointers in the notebook must be resolvable under the configured `pointer_lint.strategy`.
-- **No silent retries**: when a gate fails, stop, apply the minimal fix, rerun with a new tag (`M2-r2`, `M2-r3`, ...).
+- **No unrecorded retries — but two distinct retry regimes**: when a gate fails, stop, apply the minimal fix, and record the retry. Which regime applies depends on what failed:
+  - **Development iteration stays inside one run.** Deterministic-gate failures, build errors, and diagnostic runs are fixed and re-tried within the same run/tag (`--preflight-only` reruns deterministic gates at zero reviewer cost; log the attempts in the run dir). Minting a fresh tag, contract, and packet for every such fix is the recorded anti-pattern that multiplies run directories without adding verification.
+  - **A new cycle tag (`M2-r2`, `M2-r3`, ...) marks re-entry into the reviewed convergence cycle** — a new candidate going back to the members — not each intermediate fix that produced it. Batch every known blocking fix into the next candidate rather than cycling one finding at a time.
+  - **Bounded rounds**: cap reviewed rounds per tag family (default 5). Hitting the cap forces the narrowing rule — narrow scope, reduce claim strength, or explicitly classify as `SCOPE`/`MATCHING` — instead of another full round.
 - **Run artifact identity**: the canonical project artifact root for
   lifecycle and compute runs is `artifacts/runs/<run_id>/`. Use a safe,
   sortable, readable `run_id`, preferably
@@ -59,6 +65,21 @@ Use `research-team` when you want a project workflow with:
   research-team cycle tag and may be used as the control-plane `run_id` for
   that reviewed cycle. Do not use bare UUIDs or `run_<uuid>` as human-facing
   research tags.
+
+## Verification granularity: the reviewed unit is a milestone candidate
+
+The full lifecycle — frozen inputs, member review pair, convergence gate, adjudication — reviews **one milestone candidate**: a stable interface version or a scientific result. It does not review each patch, refactor, fixture, or internal helper on the way there. Running the complete lifecycle per micro-patch is the documented failure mode this section exists to stop: it multiplies contracts, packets, review documents, and run directories by the patch count while adding no verification power, because the same checks re-run on nearly identical inputs.
+
+Work toward a candidate moves through three phases:
+
+1. **Bounded development.** The implementer iterates freely inside the delegation's time box: diagnostic runs, targeted tests, and build fixes are legitimate development work, not budgeted "attempts" (an attempt is a deliberate re-entry into the delivered task — see the `research-harness` attempt semantics). Contracting development down to zero diagnostic invocations or a single measured test execution applies frozen-acceptance discipline to the wrong phase; the acceptance-time single measured run belongs to the frozen candidate, not to the implementation work that produced it.
+2. **Stabilization.** Merge every known blocking fix into one candidate, run the full local test surface once, and freeze the candidate's identity (input and code hashes). One stabilization pass per batch of findings — not one per finding.
+3. **Acceptance.** The frozen candidate gets its review pair (the member cycle; plus an independent executing check where the project has opted into one). Findings are severity-graded per the strict-convergence contract above; the fix batch re-enters at stabilization and the confirmation round reviews the exact delta from the reviewed baseline unless an escalation trigger fires (changed formulas or assumptions, changed data model or global invariants, changed origin-traceability roots, or a reviewer requests the full artifact).
+
+Two placement rules complete the picture:
+
+- **Independence spend follows the result, not the plumbing.** Host-native dual review at milestone scope is the default. Cross-model review, independent executing reproduction, and blind re-derivation are reserved for result-bearing surfaces: headline claims, public contracts, the derivations and numbers conclusions rest on. Internal writers, fixtures, launchers, and schema plumbing stabilize under local tests and the ordinary member cycle. A same-input, same-machine rerun of the identical frozen test is a recovery/reproduction check — it earns no independent-verification credit and should not be a standing per-round requirement.
+- **Reviews enumerate; they do not serialize.** A reviewer reports every finding it can establish in the round, severity-graded. Stopping at the first decisive counterexample turns an N-finding backlog into N full rounds; the existing leader early-stop (two CHALLENGED step verdicts) remains the only sanctioned early exit, because it abandons a doomed round rather than truncating a viable one.
 
 ## Quick Start (3 commands)
 
@@ -233,14 +254,28 @@ dispatch** — one JSON file per delegation under `team/delegations/`, from
   the method can achieve). Reaching the ceiling means **stop**.
 - **`time_box`** — a hard wall-clock budget for the workstream.
 - **`max_attempts`** — a cap on "one last attempt" retries; exhausting it
-  means wrap up, not retry.
+  means wrap up, not retry. Attempts count deliberate re-entries into the
+  delivered task (the `research-harness` attempt semantics), **not**
+  individual diagnostic invocations, build fixes, or targeted test runs
+  inside the time box — those are ordinary development iteration and are
+  bounded by the time box alone. Choose a value in the 3–5 band by default;
+  reserve `1` for genuinely one-shot frozen-acceptance executions, and never
+  write a development-phase contract that forbids diagnostics outright.
 - **`scope_negative_list`** — expansions the executor must **not** undertake
   on its own initiative (e.g. infrastructure rewrites, building a full test
   suite beyond the delegated checks, third-party benchmarking).
-- **`peak_memory_estimate`** — peak resident-set size measured on a
-  **single-unit dry run before the full launch**, plus the explicit heap cap
-  the full run is launched with (estimating wall-clock alone is not a
-  resource estimate).
+- **`peak_memory_estimate`** — sized to the workstream, in one of two
+  machine-checked forms. When the workstream launches a computation whose
+  scale could threaten memory (a long or production-scale job), the estimate
+  is **measured**: peak resident-set size from a **single-unit dry run before
+  the full launch**, plus the explicit heap cap the full run is launched with
+  (estimating wall-clock alone is not a resource estimate). For a short,
+  bounded workstream that launches no such computation (a quick verification
+  pass, a symbolic or review-only task), a **declared cap** is the honest
+  form: `mode: "declared_cap"` with the heap cap and a one-line `basis`
+  stating why a dry-run measurement is not warranted. Measuring the RSS of an
+  unrelated command to satisfy the field is exactly the empty formality the
+  declared form exists to remove.
 
 The check is fail-closed and machine-judged
 (`scripts/gates/check_delegation_budget.py`, machine verdict
