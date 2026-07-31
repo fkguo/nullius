@@ -29,7 +29,7 @@ Use `research-team` when you want a project workflow with:
 
 - **Strict convergence, severity-graded**: if either member reports mismatch/fail/needs revision, you must fix and rerun until converged (or explicitly narrow/kill as `SCOPE`/`MATCHING`). Review findings carry a severity grade, and only the top grade blocks by itself:
   - **Blocking**: the finding changes a recorded result, invalidates a verification claim, breaks input identity / target-value isolation / origin traceability, is a mismatch/fail inside the declared reproduction scope, or is a Major Gap inside the declared scope (a load-bearing item that cannot be verified from the packet, or required evidence that is missing). Convergence requires every blocking finding fixed and re-reviewed.
-  - **Non-blocking** (hardening beyond the declared scope, mutation-style test-strengthening ideas, style): reported under Minor Issues, never flipping the verdict by itself. Each non-blocking finding gets an explicit disposition in the adjudication — fix now, attach to a named later acceptance point, or discard with a stated reason — never a silent drop and never an undated "later".
+  - **Non-blocking** (hardening beyond the declared scope, mutation-style test-strengthening ideas, style): reported under Minor Issues, never flipping the verdict by itself. Each non-blocking finding gets an explicit disposition in the adjudication — fix now, attach to a named later acceptance point, or discard with a stated reason — never a silent drop and never an undated "later". This is machine-enforced at the fold boundary: the convergence result carries per-member `minor_issues_count`, and `scripts/gates/check_adjudication_completeness.py` fails closed when a converged cycle's recorded minor issues lack completed disposition rows in the adjudication — run it before folding a converged cycle's results into the durable record.
   - A reviewer whose only findings are non-blocking reports `ready` with the findings listed for disposition; reporting `needs revision` on non-blocking findings alone is a grading error, not extra rigor.
 - **Symbolic claims route through `derivation-verify`**: when a converging milestone rests on a symbolic / derivation claim (a closed form, an identity, a sign/branch choice), the independent confirmation for that claim is at least two independent blind re-derivations via [`derivation-verify`](../derivation-verify/SKILL.md) — reviewer agreement that a written derivation "looks right" is not independent confirmation. Computed numbers route through `numerical-reliability-gate`, the sibling gate.
 - **Notebook split**: `research_notebook.md` is the human entry; `research_contract.md` is the machine-stable gate surface.
@@ -278,10 +278,12 @@ dispatch** — one JSON file per delegation under `team/delegations/`, from
   form: `mode: "declared_cap"` with the heap cap and a one-line `basis`
   stating why a dry-run measurement is not warranted. Measuring the RSS of an
   unrelated command to satisfy the field is exactly the empty formality the
-  declared form exists to remove. A contract may additionally declare
-  `launches_full_scale_computation` (boolean); declaring `true` together with
-  the declared-cap form is machine-rejected as contradictory, so the
-  eligibility choice is an auditable declaration, not an unstated assumption.
+  declared form exists to remove. The eligibility choice is an auditable
+  declaration, never an unstated assumption: a declared-cap contract **must**
+  carry `launches_full_scale_computation: false` at the top level (absent or
+  null fails closed; `true` together with the declared-cap form is
+  machine-rejected as contradictory). Measured-form contracts may carry the
+  same field optionally.
 
 The check is fail-closed and machine-judged
 (`scripts/gates/check_delegation_budget.py`, machine verdict

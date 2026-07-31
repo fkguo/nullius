@@ -200,6 +200,9 @@ jobs:
       - name: Adjudication disposition inventory tests
         run: python -m pytest skills/research-team/tests/test_build_adjudication_response.py -q
 
+      - name: Adjudication completeness gate tests
+        run: python -m pytest skills/research-team/tests/test_adjudication_completeness_gate.py -q
+
       - name: Review baseline-binding tests
         run: python -m pytest skills/review-swarm/tests/test_baseline_binding.py -q
 

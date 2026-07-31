@@ -14,6 +14,7 @@ export interface ConvergenceGateResultV1 {
     [k: string]: {
       verdict: "ready" | "needs_revision" | "unknown";
       blocking_count: number | null;
+      minor_issues_count?: number;
       parse_ok: boolean;
       derivation?: "pass" | "fail" | "unknown";
       computation?: "pass" | "fail" | "unknown";

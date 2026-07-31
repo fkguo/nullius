@@ -47,8 +47,8 @@ def _extract_list_like_lines(section: str) -> list[str]:
         s = ln.strip()
         if not s:
             continue
-        # Keep bullets and numbered list entries.
-        if s.startswith("-") or re.match(r"^\d+\.", s):
+        # Keep bullets (-, *, +) and numbered list entries.
+        if s.startswith(("-", "*", "+")) or re.match(r"^\d+\.", s):
             items.append(ln.rstrip())
     # If we didn't detect list lines, fall back to the first few non-empty lines.
     if not items:

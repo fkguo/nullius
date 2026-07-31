@@ -448,13 +448,15 @@ def _validate_contract(contract: Any) -> list[str]:
         mode = mem.get("mode")
         rss = mem.get("dry_run_peak_rss_mb")
         heap = mem.get("heap_limit_mb")
-        # Optional structured eligibility declaration: when the contract
-        # explicitly declares that the workstream launches a full-scale
-        # computation, the declared_cap form is contradictory — such a
-        # launch must carry a measured dry-run estimate. (The gate cannot
-        # judge the declaration's truth — no field here ever was machine-
-        # verifiable — but the cross-check turns a silent misuse into an
-        # auditable contradiction.)
+        # Structured eligibility declaration: optional for the measured
+        # form, MANDATORY (exactly false) for the declared-cap form — see
+        # the declared_cap branch below. When the contract declares that
+        # the workstream launches a full-scale computation, the
+        # declared_cap form is contradictory — such a launch must carry a
+        # measured dry-run estimate. (The gate cannot judge the
+        # declaration's truth — no field here ever was machine-verifiable —
+        # but the cross-check turns a silent misuse into an auditable
+        # contradiction.)
         launches = contract.get("launches_full_scale_computation")
         if launches is not None and not isinstance(launches, bool):
             issues.append(
@@ -504,12 +506,17 @@ def _validate_contract(contract: Any) -> list[str]:
             # assumption: a declared-cap contract must explicitly declare
             # `launches_full_scale_computation: false` at the top level
             # (true is contradictory — checked above; absent is fail-closed).
-            if "launches_full_scale_computation" not in contract:
+            launches_value = contract.get("launches_full_scale_computation")
+            if launches_value is not True and launches_value is not False:
+                # Absent, null, and every non-boolean fail here (a true value
+                # is handled by the contradiction check above): the
+                # declaration must be exactly the boolean false.
                 issues.append(
                     "MISSING_LAUNCH_DECLARATION: a declared-cap contract must "
-                    "declare `launches_full_scale_computation: false` at the top "
-                    "level — the eligibility choice is an auditable declaration, "
-                    "not an unstated assumption"
+                    "declare `launches_full_scale_computation: false` (the exact "
+                    f"boolean) at the top level — got {launches_value!r}; the "
+                    "eligibility choice is an auditable declaration, not an "
+                    "unstated assumption"
                 )
             if "dry_run_peak_rss_mb" in mem:
                 issues.append(

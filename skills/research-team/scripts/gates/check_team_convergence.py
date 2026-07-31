@@ -278,6 +278,12 @@ def _parse_nontriviality_reason(text: str) -> str | None:
 # Report parsing
 # ---------------------------------------------------------------------------
 
+def _is_unfilled_placeholder(value: str) -> bool:
+    """A template hint like "[list or \"none\"]" or "<...>" left unfilled."""
+    v = value.strip()
+    return bool(re.fullmatch(r"<.*>", v)) or "list or" in v.lower()
+
+
 def _count_section_items(text: str, heading: str) -> int:
     """Count list-like finding lines under a section (bullets / numbered),
     ignoring placeholders like "(none)" / "none" / "..."."""
@@ -287,9 +293,10 @@ def _count_section_items(text: str, heading: str) -> int:
     count = 0
     for ln in section.splitlines():
         s = ln.strip()
-        if not (s.startswith("-") or re.match(r"^\d+\.", s)):
+        # CommonMark bullets: -, *, + (plus numbered items).
+        if not (s.startswith(("-", "*", "+")) or re.match(r"^\d+\.", s)):
             continue
-        body = s.lstrip("-").lstrip("0123456789.").strip().lower()
+        body = s.lstrip("-*+").lstrip("0123456789.").strip().lower()
         if body in {"", "(none)", "none", "...", "n/a"}:
             continue
         count += 1
@@ -310,9 +317,16 @@ def _parse_blocking_count(text: str) -> int | None:
         m = re.search(r"Blocking issues:?\s*(.+)$", section, flags=re.IGNORECASE | re.MULTILINE)
         if not m:
             continue
-        value = m.group(1).strip().strip("*_`[]").strip().lower()
-        if value in {"none", "none.", "list or \"none\"", 'list or "none"', ""}:
+        raw_value = m.group(1).strip()
+        # An unfilled template placeholder is UNKNOWN, never zero — a zero
+        # here would silently launder an unfilled report into "no blockers".
+        if re.fullmatch(r"\[.*\]", raw_value) or _is_unfilled_placeholder(raw_value):
+            return None
+        value = raw_value.strip("*_`").strip().lower()
+        if value in {"none", "none."}:
             return 0
+        if not value:
+            return None
         # A non-"none" value is one-or-more findings; count separators
         # conservatively (semicolons), floor 1.
         return max(1, value.count(";") + 1)

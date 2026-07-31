@@ -36,6 +36,10 @@
               "type": ["integer", "null"],
               "minimum": 0
             },
+            "minor_issues_count": {
+              "type": "integer",
+              "minimum": 0
+            },
             "parse_ok": {
               "type": "boolean"
             },
