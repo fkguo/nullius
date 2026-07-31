@@ -43,6 +43,10 @@ import re
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from convergence_schema import validate_convergence_result  # type: ignore
+
 _DISPOSITION_RE = re.compile(
     r"^(?:fix\s+now\b.*|acceptance\s+point\s+\S.*|discard:\s*\S.*)$",
     re.IGNORECASE,
@@ -61,38 +65,62 @@ def _input_error(msg: str) -> int:
     return 2
 
 
-def _count_minor_issues(convergence: dict) -> int:
+def _count_minor_issues(convergence: dict) -> tuple[int, list[str]]:
+    """Sum per-member minor_issues_count; malformed values are ERRORS, never
+    silently zero. An absent key is the one honest zero: older convergence
+    results legitimately predate the field (it is optional in the schema)."""
     total = 0
+    errors: list[str] = []
     for member, payload in (convergence.get("report_status") or {}).items():
         if not isinstance(payload, dict):
+            errors.append(f"report_status.{member} is not an object")
             continue
-        count = payload.get("minor_issues_count", 0)
-        if isinstance(count, int) and not isinstance(count, bool) and count >= 0:
-            total += count
-    return total
+        if "minor_issues_count" not in payload:
+            continue
+        count = payload["minor_issues_count"]
+        if not isinstance(count, int) or isinstance(count, bool) or count < 0:
+            errors.append(
+                f"report_status.{member}.minor_issues_count must be a non-negative "
+                f"integer (got {count!r}) — a malformed count is never treated as zero"
+            )
+            continue
+        total += count
+    return total, errors
 
 
 def _completed_disposition_rows(adjudication_text: str) -> tuple[int, list[str]]:
     """Count completed disposition rows and collect malformed-row diagnostics.
 
-    Scans every markdown table row with >= 3 cells whose last cell is treated
-    as the disposition. Header/separator rows and fully empty rows are
-    skipped. A row with a filled finding cell but an empty or malformed
-    disposition cell is a defect.
+    Only rows of the DISPOSITION table are counted: the table whose header
+    row starts with a Finding/Item column and whose last column header names
+    the disposition. Other tables in the adjudication (e.g. the blocking-
+    issue action table) neither satisfy nor trip this gate. Separator rows
+    and template placeholder rows are skipped; a counted row with a filled
+    finding cell but an empty or malformed disposition cell is a defect.
     """
     completed = 0
     problems: list[str] = []
+    seen_findings: set[str] = set()
+    in_disposition_table = False
     for raw in adjudication_text.splitlines():
         line = raw.strip()
         if not (line.startswith("|") and line.endswith("|")):
+            # Any non-table line ends the current table.
+            in_disposition_table = False
             continue
         cells = [c.strip() for c in line.strip("|").split("|")]
-        if len(cells) < 3:
-            continue
-        # Skip header and separator rows.
+        # Separator rows keep the current table state.
         if all(re.fullmatch(r":?-{3,}:?", c) for c in cells if c):
             continue
-        if cells[0].lower() in {"finding", "item"}:
+        # A header row selects or deselects the disposition table: only the
+        # table whose LAST column header names the disposition is counted —
+        # the adjudication also carries other tables (e.g. the blocking-issue
+        # action table) whose last cells must neither satisfy nor trip this
+        # gate.
+        if cells and cells[0].lower() in {"finding", "item"}:
+            in_disposition_table = bool(cells) and cells[-1].lower().startswith("disposition")
+            continue
+        if not in_disposition_table or len(cells) < 3:
             continue
         finding, disposition = cells[0], cells[-1]
         if not finding:
@@ -100,12 +128,26 @@ def _completed_disposition_rows(adjudication_text: str) -> tuple[int, list[str]]
         if not disposition:
             problems.append(f"row {finding!r}: empty disposition cell")
             continue
+        if "<name>" in disposition or "<reason>" in disposition:
+            problems.append(
+                f"row {finding!r}: disposition {disposition!r} still carries a "
+                "template placeholder — fill it in"
+            )
+            continue
         if not _DISPOSITION_RE.match(disposition):
             problems.append(
                 f"row {finding!r}: disposition {disposition!r} matches none of "
                 "'fix now', 'acceptance point <name>', 'discard: <reason>'"
             )
             continue
+        key = re.sub(r"\s+", " ", finding).strip().lower()
+        if key in seen_findings:
+            problems.append(
+                f"row {finding!r}: duplicate finding row — a repeated row cannot "
+                "stand in for a second finding's disposition"
+            )
+            continue
+        seen_findings.add(key)
         completed += 1
     return completed, problems
 
@@ -135,6 +177,17 @@ def main() -> int:
         return _input_error(f"unreadable convergence result: {e}")
     if not isinstance(convergence, dict):
         return _input_error("convergence result must be a JSON object")
+    schema_errors = validate_convergence_result(convergence)
+    if schema_errors:
+        return _input_error(
+            "convergence result fails the shared contract: " + "; ".join(schema_errors)
+        )
+    gate_id = ((convergence.get("meta") or {}).get("gate_id"))
+    if gate_id != "team_convergence":
+        return _input_error(
+            f"convergence result carries gate_id {gate_id!r}; this gate consumes "
+            "team_convergence results only"
+        )
 
     status = convergence.get("status")
     if status != "converged":
@@ -146,7 +199,9 @@ def main() -> int:
         print(json.dumps({"status": "skip", "reason": f"cycle status {status!r}"}))
         return 0
 
-    owed = _count_minor_issues(convergence)
+    owed, count_errors = _count_minor_issues(convergence)
+    if count_errors:
+        return _input_error("; ".join(count_errors))
     if owed == 0:
         print("- Gate: PASS (no minor issues recorded; no dispositions owed)", file=sys.stderr)
         print(json.dumps({"status": "pass", "minor_issues": 0, "dispositions": 0}))

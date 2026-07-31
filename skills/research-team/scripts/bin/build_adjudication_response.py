@@ -29,12 +29,15 @@ class Extracted:
 
 
 def _extract_section(text: str, heading: str) -> str:
-    pat = re.compile(rf"^##\s+{re.escape(heading)}\s*$", re.MULTILINE)
+    # Same tolerance as the convergence gate's section parser: up to three
+    # leading spaces and case-insensitive, so the two tools agree on which
+    # sections exist.
+    pat = re.compile(rf"^\s{{0,3}}##\s+{re.escape(heading)}\s*$", re.MULTILINE | re.IGNORECASE)
     m = pat.search(text)
     if not m:
         return ""
     start = m.end()
-    m2 = re.compile(r"^##\s+", re.MULTILINE).search(text, start)
+    m2 = re.compile(r"^\s{0,3}##\s+", re.MULTILINE).search(text, start)
     end = m2.start() if m2 else len(text)
     return text[start:end].strip()
 
@@ -47,8 +50,9 @@ def _extract_list_like_lines(section: str) -> list[str]:
         s = ln.strip()
         if not s:
             continue
-        # Keep bullets (-, *, +) and numbered list entries.
-        if s.startswith(("-", "*", "+")) or re.match(r"^\d+\.", s):
+        # Keep list items: bullet marker + whitespace, or numbered entries
+        # (a bold line like "**Note:**" is not a bullet).
+        if re.match(r"^[-*+]\s", s) or re.match(r"^\d+\.", s):
             items.append(ln.rstrip())
     # If we didn't detect list lines, fall back to the first few non-empty lines.
     if not items:

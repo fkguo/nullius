@@ -128,16 +128,30 @@ def test_team_gate_surfaces_blocking_and_minor_counts(tmp_path: Path):
     assert "explicit disposition" in proc.stderr
 
 
-def test_team_gate_counts_fail_honest_not_open(tmp_path: Path):
-    # Asterisk bullets are counted (a false zero would suppress the
-    # disposition obligation), and an unfilled template placeholder on the
-    # blocking line yields null (unknown), never a laundered zero.
+def test_team_gate_counts_asterisk_and_plus_bullets(tmp_path: Path):
+    # Asterisk/plus bullets are counted — a false zero would suppress the
+    # disposition obligation downstream.
     minor_section = "## Minor Issues\n* one finding as asterisk bullet\n+ another as plus bullet\n"
-    placeholder_verdict = 'ready for next milestone\n- Blocking issues: [list or "none"]'
-    member_a = _write(
-        tmp_path / "a.md",
-        _team_report(extra=minor_section),
+    member_a = _write(tmp_path / "a.md", _team_report(extra=minor_section))
+    member_b = _write(tmp_path / "b.md", _team_report())
+
+    proc, payload = _run_gate(
+        TEAM_GATE,
+        ["--member-a", str(member_a), "--member-b", str(member_b), "--workflow-mode", "leader"],
     )
+
+    assert proc.returncode == 0
+    a = payload["report_status"]["member_a"]
+    assert a["minor_issues_count"] == 2  # * and + bullets both counted
+    assert a["blocking_count"] == 0
+    assert "explicit disposition" in proc.stderr
+
+
+def test_team_gate_ready_with_unfilled_blocking_line_is_parse_error(tmp_path: Path):
+    # A ready verdict whose Blocking issues line still carries the unfilled
+    # template placeholder cannot converge: the unknown count is a parse
+    # error, never laundered into zero.
+    member_a = _write(tmp_path / "a.md", _team_report())
     report_b = _team_report().replace(
         "- Blocking issues: none", '- Blocking issues: [list or "none"]'
     )
@@ -148,12 +162,10 @@ def test_team_gate_counts_fail_honest_not_open(tmp_path: Path):
         ["--member-a", str(member_a), "--member-b", str(member_b), "--workflow-mode", "leader"],
     )
 
-    assert proc.returncode == 0
-    a = payload["report_status"]["member_a"]
-    b = payload["report_status"]["member_b"]
-    assert a["minor_issues_count"] == 2  # * and + bullets both counted
-    assert b["blocking_count"] is None  # unfilled placeholder is unknown, not 0
-    assert "explicit disposition" in proc.stderr
+    assert proc.returncode == 2
+    assert payload["status"] == "parse_error"
+    assert payload["report_status"]["member_b"]["blocking_count"] is None
+    assert any("Blocking issues" in r for r in payload["reasons"])
 
 
 def test_team_gate_needs_revision_is_not_converged(tmp_path: Path):

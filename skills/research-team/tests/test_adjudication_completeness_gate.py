@@ -21,16 +21,35 @@ GATE = (
 )
 
 
-def _convergence(tmp_path: Path, *, status: str = "converged", a: int = 2, b: int = 1) -> Path:
-    payload = {
+def _member(minor: int) -> dict:
+    return {
+        "verdict": "ready",
+        "blocking_count": 0,
+        "parse_ok": True,
+        "minor_issues_count": minor,
+    }
+
+
+def _convergence_payload(*, status: str = "converged", a: int = 2, b: int = 1) -> dict:
+    exit_code = 0 if status == "converged" else 1
+    return {
         "status": status,
-        "report_status": {
-            "member_a": {"verdict": "ready", "minor_issues_count": a},
-            "member_b": {"verdict": "ready", "minor_issues_count": b},
+        "exit_code": exit_code,
+        "reasons": [],
+        "report_status": {"member_a": _member(a), "member_b": _member(b)},
+        "meta": {
+            "gate_id": "team_convergence",
+            "generated_at": "2026-07-31T00:00:00Z",
+            "parser_version": "test",
+            "schema_id": "convergence_gate_result_v1",
+            "schema_version": 1,
         },
     }
+
+
+def _convergence(tmp_path: Path, *, status: str = "converged", a: int = 2, b: int = 1) -> Path:
     p = tmp_path / "convergence.json"
-    p.write_text(json.dumps(payload), encoding="utf-8")
+    p.write_text(json.dumps(_convergence_payload(status=status, a=a, b=b)), encoding="utf-8")
     return p
 
 
@@ -124,6 +143,103 @@ def test_not_converged_skips(tmp_path: Path) -> None:
     code, verdict = _run("--convergence-json", str(conv))
     assert code == 0
     assert verdict["status"] == "skip"
+
+
+def test_other_tables_neither_satisfy_nor_trip_the_gate(tmp_path: Path) -> None:
+    # The adjudication also carries a blocking-issue action table whose last
+    # column is free-text. Its rows must not count toward dispositions
+    # (inflation would let an undispositioned finding fold) and must not be
+    # graded as malformed dispositions (false fail).
+    conv = _convergence(tmp_path)  # 3 owed
+    text = "\n".join(
+        [
+            "# Adjudication",
+            "",
+            "| Item | Source | Type (FACT/JUDGMENT/IDEA) | Decision (accept/modify/reject) | Rationale + evidence pointer | Action + owner |",
+            "|---|---|---|---|---|---|",
+            "| boundary check wrong | A | FACT | accept | src/module.py:42 | fix now |",
+            "| another blocker | B | FACT | accept | notes.md | Rewrote boundary check, owner A |",
+            "",
+            "| Finding | Source | Disposition (fix now / acceptance point <name> / discard: <reason>) |",
+            "|---|---|---|",
+            "| fixture hardening idea | A | discard: beyond declared scope |",
+            "| tolerance literal naming | A | fix now |",
+            "",
+        ]
+    )
+    adj = tmp_path / "adjudication.md"
+    adj.write_text(text, encoding="utf-8")
+    code, verdict = _run("--convergence-json", str(conv), "--adjudication", str(adj))
+    # Only the 2 genuine disposition rows count: 2 < 3 owed -> fail (the
+    # action-table "fix now" cell must not inflate the count), and the
+    # free-text action cell must not be reported as malformed.
+    assert code == 1, verdict
+    assert verdict["status"] == "fail"
+    assert "only 2 completed" in verdict["reason"]
+
+
+def test_wrong_gate_id_is_input_error(tmp_path: Path) -> None:
+    payload = _convergence_payload(a=0, b=0)
+    payload["meta"]["gate_id"] = "draft_convergence"
+    p = tmp_path / "convergence.json"
+    p.write_text(json.dumps(payload), encoding="utf-8")
+    code, verdict = _run("--convergence-json", str(p))
+    assert code == 2
+    assert verdict["status"] == "input_error"
+
+
+def test_schema_invalid_convergence_is_input_error(tmp_path: Path) -> None:
+    payload = _convergence_payload()
+    del payload["exit_code"]
+    p = tmp_path / "convergence.json"
+    p.write_text(json.dumps(payload), encoding="utf-8")
+    code, verdict = _run("--convergence-json", str(p))
+    assert code == 2
+    assert verdict["status"] == "input_error"
+
+
+def test_null_minor_count_is_input_error_not_zero(tmp_path: Path) -> None:
+    payload = _convergence_payload(a=0, b=0)
+    payload["report_status"]["member_a"]["minor_issues_count"] = None
+    p = tmp_path / "convergence.json"
+    p.write_text(json.dumps(payload), encoding="utf-8")
+    code, verdict = _run("--convergence-json", str(p))
+    assert code == 2, verdict
+    assert verdict["status"] == "input_error"
+
+
+def test_placeholder_disposition_fails(tmp_path: Path) -> None:
+    conv = _convergence(tmp_path, a=1, b=0)
+    adj = _adjudication(tmp_path, ["| fixture idea | A | acceptance point <name> |"])
+    code, verdict = _run("--convergence-json", str(conv), "--adjudication", str(adj))
+    assert code == 1
+    assert verdict["status"] == "fail"
+
+
+def test_duplicate_finding_rows_cannot_mask_a_missing_disposition(tmp_path: Path) -> None:
+    conv = _convergence(tmp_path, a=2, b=0)
+    adj = _adjudication(
+        tmp_path,
+        [
+            "| fixture idea | A | fix now |",
+            "| fixture idea | A | fix now |",
+        ],
+    )
+    code, verdict = _run("--convergence-json", str(conv), "--adjudication", str(adj))
+    assert code == 1, verdict
+    assert verdict["status"] == "fail"
+
+
+def test_absent_minor_count_key_is_honest_zero(tmp_path: Path) -> None:
+    # Older convergence results predate the optional field entirely.
+    payload = _convergence_payload(a=0, b=0)
+    del payload["report_status"]["member_a"]["minor_issues_count"]
+    del payload["report_status"]["member_b"]["minor_issues_count"]
+    p = tmp_path / "convergence.json"
+    p.write_text(json.dumps(payload), encoding="utf-8")
+    code, verdict = _run("--convergence-json", str(p))
+    assert code == 0
+    assert verdict["status"] == "pass"
 
 
 def test_unreadable_convergence_is_input_error(tmp_path: Path) -> None:

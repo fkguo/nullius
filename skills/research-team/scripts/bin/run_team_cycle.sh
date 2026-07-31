@@ -3294,11 +3294,44 @@ cycle_state_update "convergence" "converged" "${CYCLE_FINAL_STATUS}" ""
 if [[ -f "${TRAJ_SCRIPT}" ]]; then
   python3 "${TRAJ_SCRIPT}" --notes "${NOTEBOOK_PATH}" --out-dir "${OUT_DIR}" --tag "${RESOLVED_TAG}" --stage "converged" --packet "${packet_for_run}" --member-a "${member_a_out}" --member-b "${member_b_out}" --gate "converged" >/dev/null 2>&1 || true
 fi
-if [[ -f "${PLAN_UPDATE_SCRIPT}" ]]; then
-  python3 "${PLAN_UPDATE_SCRIPT}" --notes "${NOTEBOOK_PATH}" --tag "${RESOLVED_TAG}" --status "converged" >/dev/null 2>&1 || true
+# Fold guard: convergence is the members' verdict, but the automatic
+# plan/claim fold below is a durable-record write. When the converged cycle
+# carries recorded Minor Issues, every one owes an explicit disposition
+# before that fold — check_adjudication_completeness.py is the machine
+# consumer. On refusal (or when the check cannot run) the cycle still
+# records converged, but the automatic plan/claim updates are withheld and
+# a pending marker names the required steps.
+dispositions_ok=1
+ADJUDICATION_COMPLETENESS_GATE="${GATES_DIR}/check_adjudication_completeness.py"
+if [[ -f "${ADJUDICATION_COMPLETENESS_GATE}" && -f "${gate_json}" ]]; then
+  if ! python3 "${ADJUDICATION_COMPLETENESS_GATE}" --convergence-json "${gate_json}" > "${run_dir}/${RESOLVED_TAG}_dispositions_gate.json"; then
+    dispositions_ok=0
+  fi
+else
+  echo "[gate] WARN: adjudication completeness gate or convergence JSON unavailable; withholding automatic plan/claim fold" >&2
+  dispositions_ok=0
 fi
-if [[ -f "${CLAIM_AUTO_SCRIPT}" ]]; then
-  python3 "${CLAIM_AUTO_SCRIPT}" --notes "${NOTEBOOK_PATH}" --status "converged" || true
+if [[ ${dispositions_ok} -eq 1 ]]; then
+  if [[ -f "${PLAN_UPDATE_SCRIPT}" ]]; then
+    python3 "${PLAN_UPDATE_SCRIPT}" --notes "${NOTEBOOK_PATH}" --tag "${RESOLVED_TAG}" --status "converged" >/dev/null 2>&1 || true
+  fi
+  if [[ -f "${CLAIM_AUTO_SCRIPT}" ]]; then
+    python3 "${CLAIM_AUTO_SCRIPT}" --notes "${NOTEBOOK_PATH}" --status "converged" || true
+  fi
+else
+  pending_marker="${run_dir}/${RESOLVED_TAG}_dispositions_pending.md"
+  {
+    echo "# Dispositions pending — automatic plan/claim fold withheld"
+    echo ""
+    echo "The cycle converged, but recorded Minor Issues lack completed"
+    echo "dispositions (or the completeness check could not run)."
+    echo "Before folding results:"
+    echo "1. Build the adjudication skeleton: scripts/bin/build_adjudication_response.py"
+    echo "2. Fill every disposition row (fix now / acceptance point <name> / discard: <reason>)"
+    echo "3. Re-run: python3 ${ADJUDICATION_COMPLETENESS_GATE} --convergence-json ${gate_json} --adjudication <adjudication.md>"
+    echo "4. Then apply the plan/claim updates (update_research_plan_progress.py / claim auto-update)."
+  } > "${pending_marker}"
+  echo "[gate] NOTE: dispositions pending — automatic plan/claim fold withheld; see ${pending_marker}" >&2
 fi
 # At convergence, best-effort render dependency graphs through the `nullius graph`
 # front door (SSOT = @nullius/shared/graph-viz), replacing the retired Python claim
