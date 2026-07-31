@@ -128,10 +128,11 @@ def test_round_beyond_cap_brakes_with_narrowing_message(project: Path) -> None:
 def test_config_raise_allows_more_rounds(project: Path) -> None:
     _set_cap(project, 8)
     proc = _run(project, "20260731T000000Z-m0-rc-topic-r6")
-    # Round 6 is within the raised cap: the brake must not fire (preflight may
-    # still stop later at other gates — only the brake message is asserted
-    # absent).
+    # Round 6 is within the raised cap: the brake must not fire and preflight
+    # completes (the fixture passes every other deterministic gate, as the
+    # in-cap test proves).
     assert "bounded-rounds cap" not in proc.stderr
+    assert proc.returncode == 0, proc.stderr[-1500:]
 
 
 def test_in_cap_tag_passes_the_brake_and_preflight(project: Path) -> None:

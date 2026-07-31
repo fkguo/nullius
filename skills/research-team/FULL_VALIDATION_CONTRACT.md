@@ -185,4 +185,4 @@ Schema reference: `scripts/bin/update_trajectory_index.py` (canonical stage voca
 Full validation must define, per project:
 - Maximum allowed reruns for a tag family (example: 5 rounds).
 - A “narrowing rule” when convergence is not reached:
-  - narrow scope, reduce claim strength, or explicitly classify as `SCOPE/MATCHING` per the skill’s policy.
+  - narrow the candidate's scope, reduce the claim's strength, explicitly classify as `SCOPE/MATCHING`, or take the blocking question to the project owner, per the skill’s policy.
