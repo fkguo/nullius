@@ -117,7 +117,7 @@ node /absolute/path/to/nullius/packages/orchestrator/dist/cli.js init --runtime-
 | Result type | The moment | Verification workflow |
 |---|---|---|
 | Symbolic derivation | derived a formula, closed form, identity, or a sign/branch/boundary choice that later work will rely on | [`derivation-verify`](../derivation-verify/SKILL.md) |
-| Numerical result | a computed number **that a conclusion or durable artifact will rest on** is about to be trusted, compared, or folded in — numbers that exist only to exercise code (test fixtures, internal tooling values, diagnostic intermediates) are covered by ordinary tests, not this gate | [`numerical-reliability-gate`](../numerical-reliability-gate/SKILL.md) |
+| Numerical result | a computed number **that a conclusion or durable artifact will rest on** is about to be trusted, compared, or folded in — a number whose only consumer is a test, a fixture, or internal tooling is covered by ordinary tests, not this gate (a diagnostic that establishes a headline claim's convergence is result-bearing, not exempt) | [`numerical-reliability-gate`](../numerical-reliability-gate/SKILL.md) |
 | Citation-backed claim | wrote citation-backed claims (introduction, related work, discussion) | [`claim-grounding`](../claim-grounding/SKILL.md) |
 | Bibliography | freezing a bibliography, or admitting papers into a core reading set | [`citation-triangulation`](../citation-triangulation/SKILL.md) |
 | Literature survey | a survey feels thin, or before writing an introduction / related-work section | [`deep-literature-review`](../deep-literature-review/SKILL.md) |

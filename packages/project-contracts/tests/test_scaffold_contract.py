@@ -407,7 +407,11 @@ class TestScaffoldContract(unittest.TestCase):
             self.assertIn(moment, template)
         # The gates bind to result-bearing quantities; exercised-only numbers
         # and internal scaffolding diffs are explicitly out of gate scope.
-        self.assertIn("are covered by ordinary tests", template)
+        self.assertIn("is covered by ordinary tests", template)
+        self.assertIn(
+            "a diagnostic that establishes a headline claim's convergence is result-bearing",
+            template,
+        )
         self.assertIn(
             "internal scaffolding diffs close on local tests plus a single reviewer", template
         )
