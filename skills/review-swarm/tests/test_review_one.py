@@ -45,6 +45,9 @@ VERDICT: READY
 ## Blockers
 - none
 
+## High-severity
+- none
+
 ## Non-blocking
 - none
 
@@ -1242,6 +1245,7 @@ class ReviewOneTests(unittest.TestCase):
                 "VERDICT: READY",
                 "VERDICT: NOT_READY",
                 "## Blockers",
+                "## High-severity",
                 "## Non-blocking",
                 "## Real-research fit",
                 "## Robustness & safety",

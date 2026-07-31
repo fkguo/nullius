@@ -701,7 +701,7 @@ python3 scripts/bin/check_review_output_contract.py /tmp/dual_review/claude_outp
 ```
 
 Contract auto-detects output format:
-- **Markdown**: `VERDICT: READY/NOT_READY` first line + required headers (`## Blockers`, etc.)
+- **Markdown**: `VERDICT: READY/NOT_READY` first line + required headers (`## Blockers`, `## High-severity`, `## Non-blocking`, etc.) — the three severity buckets give every grade of the canonical ladder a fixed home
 - **JSON**: Valid JSON object with `blocking_issues` (array), `verdict` (`PASS`/`FAIL`), `summary`
 
 JSON outputs wrapped in markdown code fences (`` ```json ... ``` ``) are automatically unwrapped.

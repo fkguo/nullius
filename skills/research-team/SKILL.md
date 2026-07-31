@@ -295,6 +295,16 @@ exploration downgrade); set `delegation_budget.required=true` in the team
 config when a milestone dispatches delegated workstreams, so a run with no
 contract at all also fails (`NO_CONTRACTS_FOUND`).
 
+Directory hygiene keeps `required` meaningful: the configured delegations
+directory (`delegation_budget.delegations_dir`, scanned non-recursively)
+holds only the contracts of **active** delegations; when a delegation
+completes, archive its contract with the run or review record it governed,
+so a stale contract can never satisfy `required=true` in place of the
+missing new one. And set `required=true` per milestone that actually
+dispatches delegations (or pass `--require`), not as a standing flag — a
+standing `true` over a clean directory rejects every cycle of a milestone
+that delegates nothing.
+
 When a budget is exhausted, the workstream **wraps up from the atomic
 results already flushed to disk — it never voids the batch** — and abandoned
 approaches go into the failed-approaches ledger (`failed_approaches_v1`);

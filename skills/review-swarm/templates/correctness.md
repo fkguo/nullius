@@ -51,6 +51,8 @@ Then include ALL of the following section headers, each on its own line
 
 ## Blockers
 
+## High-severity
+
 ## Non-blocking
 
 ## Real-research fit

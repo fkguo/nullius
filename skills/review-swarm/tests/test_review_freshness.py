@@ -68,6 +68,9 @@ VERDICT: READY
 ## Blockers
 - none
 
+## High-severity
+- none
+
 ## Non-blocking
 - none
 
@@ -102,6 +105,9 @@ cat >"${out}" <<'MD'
 VERDICT: READY
 
 ## Blockers
+- none
+
+## High-severity
 - none
 
 ## Non-blocking
