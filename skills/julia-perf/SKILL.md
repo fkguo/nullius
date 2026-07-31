@@ -105,8 +105,8 @@ Usage/config error (`exit 3`):
   - an accelerated path adopted without the equivalence evidence below
 - Hard-fail only on an identified hotpath — one that is profiled hot, or declared hot by the task —
   of an existing computational kernel:
-  - new type instability in critical paths
-  - non-concrete hotpath containers (`Vector{Any}`, `Dict{String,Any}`, `Array{Real}`, similar)
+  - new type instability in the identified hotpath
+  - non-concrete containers in the identified hotpath (`Vector{Any}`, `Dict{String,Any}`, `Array{Real}`, similar)
   - column-major violating loop order in identified matrix hotpaths
 - Outside an identified hotpath the same three observations are non-blocking suggestions: a reviewer
   may not declare a path "hot" without a measurement or task declaration and then block on it —

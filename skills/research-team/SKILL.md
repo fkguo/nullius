@@ -28,7 +28,7 @@ Use `research-team` when you want a project workflow with:
 ## Non-negotiable contracts (fail-fast)
 
 - **Strict convergence, severity-graded**: if either member reports mismatch/fail/needs revision, you must fix and rerun until converged (or explicitly narrow/kill as `SCOPE`/`MATCHING`). Review findings carry a severity grade, and only the top grade blocks by itself:
-  - **Blocking**: the finding changes a recorded result, invalidates a verification claim, breaks input identity / target-value isolation / origin traceability, or is a mismatch/fail inside the declared reproduction scope. Convergence requires every blocking finding fixed and re-reviewed.
+  - **Blocking**: the finding changes a recorded result, invalidates a verification claim, breaks input identity / target-value isolation / origin traceability, is a mismatch/fail inside the declared reproduction scope, or is a Major Gap inside the declared scope (a load-bearing item that cannot be verified from the packet, or required evidence that is missing). Convergence requires every blocking finding fixed and re-reviewed.
   - **Non-blocking** (hardening beyond the declared scope, mutation-style test-strengthening ideas, style): reported under Minor Issues, never flipping the verdict by itself. Each non-blocking finding gets an explicit disposition in the adjudication — fix now, attach to a named later acceptance point, or discard with a stated reason — never a silent drop and never an undated "later".
   - A reviewer whose only findings are non-blocking reports `ready` with the findings listed for disposition; reporting `needs revision` on non-blocking findings alone is a grading error, not extra rigor.
 - **Symbolic claims route through `derivation-verify`**: when a converging milestone rests on a symbolic / derivation claim (a closed form, an identity, a sign/branch choice), the independent confirmation for that claim is at least two independent blind re-derivations via [`derivation-verify`](../derivation-verify/SKILL.md) — reviewer agreement that a written derivation "looks right" is not independent confirmation. Computed numbers route through `numerical-reliability-gate`, the sibling gate.
@@ -257,9 +257,11 @@ dispatch** — one JSON file per delegation under `team/delegations/`, from
 - **`max_attempts`** — a cap on "one last attempt" retries; exhausting it
   means wrap up, not retry. Attempts count deliberate re-entries into the
   delivered task (the `research-harness` attempt semantics), **not**
-  individual diagnostic invocations, build fixes, or targeted test runs
-  inside the time box — those are ordinary development iteration and are
-  bounded by the time box alone. Choose a value in the 3–5 band by default;
+  individual diagnostic invocations, build fixes, targeted test runs, or
+  diagnostic-scale parameter tuning inside the time box — those are ordinary
+  development iteration and are bounded by the time box alone. A full-scale
+  relaunch of the delivered task with revised parameters is a deliberate
+  re-entry and consumes an attempt. Choose a value in the 3–5 band by default;
   reserve `1` for genuinely one-shot frozen-acceptance executions, and never
   write a development-phase contract that forbids diagnostics outright.
 - **`scope_negative_list`** — expansions the executor must **not** undertake

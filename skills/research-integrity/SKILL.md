@@ -675,7 +675,10 @@ When the note will carry a central claim — a claim downstream conclusions rest
 obtain at least one **candidate-withheld extraction**: a fresh reader receives the persisted
 source plus only a neutral locator/question list, not the candidate note, prior verdict,
 or proposed answer. (A note without a central claim needs only the candidate-visible
-literal comparison; the two-pass machinery is for load-bearing transcriptions.) Use the `review-swarm` `source-extraction` role so candidate artifacts,
+literal comparison; the two-pass machinery is for load-bearing transcriptions.) A note
+whose claim later becomes one a conclusion rests on owes the candidate-withheld
+extraction at that promotion moment, before the conclusion is folded — centrality is
+re-judged when the note's role changes, not only when the note is written. Use the `review-swarm` `source-extraction` role so candidate artifacts,
 diffs, and additional context are rejected by packet construction; separately inspect the
 request for answer anchoring because neutrality is not machine-decidable. Then run the
 candidate-visible literal comparison. At least one
