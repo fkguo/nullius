@@ -608,6 +608,57 @@ class NonIndependentCreditTests(unittest.TestCase):
             # Refused before execution: no agent output files were produced.
             self.assertEqual(list(out_dir.glob("agent_*.txt")), [])
 
+    def test_failed_lane_never_occupies_a_comparison_seat(self):
+        # A crashed lane produced no reviewable output: it must not pair into
+        # a dual-review diversity summary (previously one failed lane plus one
+        # successful lane still yielded diversity "ok" and two seats).
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            out_dir = td_path / "out"
+            argv = self._base_argv(td_path, out_dir)
+            _write_crashing_runner(td_path / "run_codex.sh")
+            code = _run_main_with_argv(self.mod, argv)
+            self.assertEqual(code, 1)  # partial failure: one lane crashed
+            meta = json.loads((out_dir / "meta.json").read_text(encoding="utf-8"))
+            self.assertFalse(meta["agents"][0]["success"])
+            self.assertTrue(meta["agents"][1]["success"])
+            self.assertNotIn("diversity", meta)
+
+    def test_timeout_recovered_by_fallback_is_a_success_without_family_credit(self):
+        # The fallback attempt's own timeout state replaces the original
+        # attempt's (a stale timed_out=True used to re-classify a successful
+        # recovery as a timeout), and a backend-default recovery records
+        # resolved.model = None — recovered lane counts as a success but its
+        # family is unattested: model_unattributed, zero independence credit.
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            out_dir = td_path / "out"
+            argv = self._base_argv(
+                td_path, out_dir,
+                "--timeout-secs", "1",
+                "--fallback-mode", "auto",
+                "--fallback-order", "gemini",
+                "--fallback-target-backends", "codex",
+            )
+            # Original codex lane hangs past the timeout; gemini recovers it.
+            sleeper = td_path / "run_codex.sh"
+            sleeper.write_text("#!/usr/bin/env bash\nsleep 5\n", encoding="utf-8")
+            sleeper.chmod(0o755)
+            argv[argv.index("--models") + 1] = "codex/default"
+            code = _run_main_with_argv(self.mod, argv)
+            self.assertEqual(code, 0)
+            meta = json.loads((out_dir / "meta.json").read_text(encoding="utf-8"))
+            lane = meta["agents"][0]
+            self.assertTrue(lane["success"])
+            self.assertEqual(lane["variant"], "fallback")
+            self.assertFalse(lane["timed_out"])
+            self.assertIsNone(lane["failure_reason"])
+            self.assertEqual(lane["resolved"], {"backend": "gemini", "model": None})
+            lanes = meta["independence"]["non_independent_lanes"]
+            self.assertEqual(len(lanes), 1)
+            self.assertEqual(lanes[0]["index"], 0)
+            self.assertEqual(lanes[0]["reason"], "model_unattributed")
+
 
 if __name__ == "__main__":
     unittest.main()

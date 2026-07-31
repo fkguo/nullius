@@ -537,10 +537,33 @@ describe('StateManager', () => {
     expect(launcher.healthy).toBe(false);
     expect(launcher.issue_code).toBe('PROJECT_LOCAL_LAUNCHER_TARGET_MISSING');
     expect(launcher.repair_command).toBe('nullius init --runtime-only');
+    // Runtime-health echoes are 'repair', not 'advisory': the machine field
+    // must agree with the prose taxonomy (run the repair command, continue —
+    // neither ignorable nor a stop-and-escalate condition).
     expect(recoveryContext.derivation_warnings).toEqual(expect.arrayContaining([
       expect.objectContaining({
         code: 'PROJECT_LOCAL_FALLBACK_UNHEALTHY',
         repair_command: 'nullius init --runtime-only',
+        severity: 'repair',
+      }),
+    ]));
+  });
+
+  it('marks the invalid-sentinel warning echo as repair severity', () => {
+    const state = baseState({ run_id: 'test-run-sentinel-repair', run_status: 'idle' });
+    const sm = new StateManager(tmpDir);
+    sm.saveState(state);
+    const sentinelPath = path.join(tmpDir, '.nullius', 'HARNESS');
+    fs.mkdirSync(path.dirname(sentinelPath), { recursive: true });
+    fs.writeFileSync(sentinelPath, 'not json', 'utf-8');
+
+    const view = buildRunStatusView(tmpDir, sm.readState());
+    const recoveryContext = view.recovery_context as Record<string, unknown>;
+    expect(recoveryContext.derivation_warnings).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: 'NULLIUS_HARNESS_SENTINEL_INVALID',
+        repair_command: 'nullius init --runtime-only',
+        severity: 'repair',
       }),
     ]));
   });
@@ -895,6 +918,7 @@ describe('StateManager', () => {
         code: 'PROJECT_LOCAL_FALLBACK_UNHEALTHY',
         issue_code: 'PROJECT_LOCAL_LAUNCHER_UNPARSEABLE',
         repair_command: 'nullius init --runtime-only',
+        severity: 'repair',
       }),
     ]));
   });

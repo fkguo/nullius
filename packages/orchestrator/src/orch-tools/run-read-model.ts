@@ -326,14 +326,32 @@ function selectPlanFocusFromPlanMd(projectRoot: string): RecoveryPlanFocus | nul
   }
 }
 
-// Every entry on the two advisory surfaces — recovery_context.derivation_warnings
-// and project_surface_drift.issues — is advisory by contract: it reports a
-// recoverable observation about auxiliary/derived state and is never a stop
-// condition. Stop conditions live elsewhere (non-null error fields, an invalid
-// HARNESS sentinel, an unhealthy launcher, failed machine gates). The severity
-// field makes that machine-readable, so a delegated agent deciding whether to
-// halt does not have to infer it from prose. Stamped centrally at assembly so
-// no present or future entry can ship without it.
+// Severity is derived from the surface and the warning code — never supplied
+// by the entry — and stamped centrally at assembly so no present or future
+// entry ships without it. Two values exist:
+// - 'advisory': a recoverable observation about auxiliary/derived state.
+//   Record it and keep working; never a stop condition.
+// - 'repair': the runtime plumbing needs its named repair_command run before
+//   state-touching work proceeds (dispatchers fail closed until then), after
+//   which work continues. Not a stop-and-escalate condition either.
+// Stop conditions live elsewhere entirely: non-null error fields and failed
+// machine gates. The authoritative surfaces for the two repair conditions are
+// the structured health objects (control_files.harness.valid,
+// project_local_launcher.healthy); their warning-array entries are echoes
+// that carry the repair command.
+const REPAIR_WARNING_CODES = new Set([
+  'PROJECT_LOCAL_FALLBACK_UNHEALTHY',
+  'NULLIUS_HARNESS_SENTINEL_INVALID',
+]);
+
+function markWarningSeverity(entries: Record<string, unknown>[]): Record<string, unknown>[] {
+  return entries.map(entry => ({
+    ...entry,
+    severity: REPAIR_WARNING_CODES.has(String(entry.code)) ? 'repair' : 'advisory',
+  }));
+}
+
+// project_surface_drift.issues carries observations only — uniformly advisory.
 function markAdvisory(entries: Record<string, unknown>[]): Record<string, unknown>[] {
   return entries.map(entry => ({ ...entry, severity: 'advisory' }));
 }
@@ -594,7 +612,7 @@ function readRecoveryContextView(
     latest_ledger_event: ledger.latest_event,
     human_status_entry: HUMAN_STATUS_ENTRY,
     recommended_files: recommendedFiles,
-    derivation_warnings: markAdvisory(warnings),
+    derivation_warnings: markWarningSeverity(warnings),
   };
 }
 
