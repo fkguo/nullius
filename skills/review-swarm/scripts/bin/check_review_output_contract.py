@@ -10,6 +10,7 @@ Markdown format:
 - First line exactly: "VERDICT: READY" or "VERDICT: NOT_READY"
 - Required Markdown headers (exact):
   - "## Blockers"
+  - "## High-severity"
   - "## Non-blocking"
   - "## Real-research fit"
   - "## Robustness & safety"

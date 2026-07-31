@@ -50,7 +50,7 @@ Use `research-team` when you want a project workflow with:
 - **No unrecorded retries — but two distinct retry regimes**: when a gate fails, stop, apply the minimal fix, and record the retry. Which regime applies depends on what failed:
   - **Development iteration stays inside one run.** Deterministic-gate failures, build errors, and diagnostic runs are fixed and re-tried within the same run/tag (`--preflight-only` reruns deterministic gates at zero reviewer cost; log the attempts in the run dir). Minting a fresh tag, contract, and packet for every such fix is the recorded anti-pattern that multiplies run directories without adding verification.
   - **A new cycle tag (`M2-r2`, `M2-r3`, ...) marks re-entry into the reviewed convergence cycle** — a new candidate going back to the members — not each intermediate fix that produced it. Batch every known blocking fix into the next candidate rather than cycling one finding at a time.
-  - **Bounded rounds**: cap reviewed rounds per tag family (default 5). Hitting the cap forces the narrowing rule — narrow scope, reduce claim strength, or explicitly classify as `SCOPE`/`MATCHING` — instead of another full round.
+  - **Bounded rounds**: cap reviewed rounds per tag family (config `bounded_rounds.max_per_tag_family`, default 5; machine-enforced at preflight). Hitting the cap forces the narrowing rule — narrow the candidate's scope, reduce the claim's strength, explicitly classify as `SCOPE`/`MATCHING`, or take the blocking question to the project owner — instead of another full round; a narrowed candidate continues under a new base tag.
 - **Run artifact identity**: the canonical project artifact root for
   lifecycle and compute runs is `artifacts/runs/<run_id>/`. Use a safe,
   sortable, readable `run_id`, preferably
@@ -301,7 +301,8 @@ holds only the contracts of **active** delegations; when a delegation
 completes, archive its contract with the run or review record it governed,
 so a stale contract can never satisfy `required=true` in place of the
 missing new one. And set `required=true` per milestone that actually
-dispatches delegations (or pass `--require`), not as a standing flag — a
+dispatches delegations (or pass `--require` when invoking the gate script
+directly), not as a standing flag — a
 standing `true` over a clean directory rejects every cycle of a milestone
 that delegates nothing.
 

@@ -1036,7 +1036,7 @@ PY
 if [[ "${round_cap_check}" == exceeded* ]]; then
   read -r _ round_n_val round_cap_val <<<"${round_cap_check}"
   echo "[gate] Fail-fast: tag family round ${round_n_val} exceeds the bounded-rounds cap (${round_cap_val})." >&2
-  echo "[gate] Another full round is not an allowed response at the cap: narrow the candidate's scope, reduce the claim's strength, or take the blocking question to the project owner." >&2
+  echo "[gate] Another full round is not an allowed response at the cap: narrow the candidate's scope, reduce the claim's strength, explicitly classify as SCOPE/MATCHING, or take the blocking question to the project owner — and continue a narrowed candidate under a new base tag." >&2
   echo "[gate] To deliberately allow more reviewed rounds for this family, raise bounded_rounds.max_per_tag_family in research_team_config.json." >&2
   exit 2
 fi
