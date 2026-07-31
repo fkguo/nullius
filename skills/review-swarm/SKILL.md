@@ -273,8 +273,9 @@ Flags:
 - `--timeout-secs`, `--backend-tool-mode`, `--<backend>-runner` — forwarded to
   the launcher unchanged.
 
-The assembled packet's first line is the advisory caveat ("single-family review —
-advisory; final verdicts require cross-family review"). When the reviewer returns,
+The assembled packet's first line is the independence caveat (single-family
+review — one model family; whether cross-family review is additionally required
+follows the artifact's scoping above). When the reviewer returns,
 the launcher recomputes every manifest hash, writes `post_review_freshness.json`,
 records the status in `meta.json`, and prints `acceptance_status` with the model
 verdict, `contract_ok`, and the output/packet/meta/trace paths. A successful model
@@ -601,6 +602,14 @@ python3 scripts/bin/run_multi_task.py \
   --convergence-threshold 0.8
 ```
 
+`--check-convergence` measures **lexical similarity** between reviewer outputs
+(Jaccard). It is a signal that reviewers are talking about the same things —
+it is **not** the acceptance convergence defined in the gate-loop discipline
+below: two similar NOT_READY reviews sharing the same blockers score high
+similarity while the artifact is not accepted at all. Acceptance convergence
+is always read from the verdicts (zero BLOCKING findings on the current
+artifact, dispositions complete), never from this similarity score.
+
 ### Re-review after every fix (gate-loop discipline)
 
 Convergence is a property of the **reviewers' agreement on the current artifact**, never a
@@ -637,7 +646,14 @@ converging round, not grounds for another full cycle. Once an artifact has passe
 later findings re-open it only if they meet the BLOCKING bar — "keep reviewing until no reviewer can
 imagine a stronger test" is an unbounded loop, not a standard. A later non-BLOCKING finding still
 receives the standard disposition (fix now / attach to a named acceptance point / discard with a
-stated reason): not re-opening the artifact is not discarding the finding. Batch fixes: one confirmation round
+stated reason): not re-opening the artifact is not discarding the finding.
+
+The loop is also **bounded**: cap review rounds per artifact (default 5, counting every round that
+reviewed a candidate of this artifact). Hitting the cap is not a license for one more round — it
+forces the narrowing rule: narrow the artifact's scope, reduce the claim's strength, or take the
+blocking question to the project owner. The mandatory confirmation round after an applied fix batch
+is unaffected — the cap bounds how many candidate revisions the loop may consume, not whether a
+revision gets its confirmation. Batch fixes: one confirmation round
 covers the whole accumulated fix batch, scoped to the exact delta by default (see packet composition
 above). Review verdicts are judged on content: a source-grounded READY whose verdict string or label
 spelling deviates from the requested format is a normalization task, never a new blocking round.

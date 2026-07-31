@@ -23,8 +23,10 @@ runs, and you can run them yourself for reproducibility and debugging.
 ## Quick start
 
 Single reviewer, one command — no hand-written prompt files. A single reviewer
-is one model family, so its verdict is **advisory only**; final verdicts require
-cross-family review:
+is one model family; whether a final verdict additionally requires cross-family
+review follows the artifact's scoping in SKILL.md (result-bearing /
+public-surface / irreversible artifacts do; internal implementation variants
+may close single-family, labeled as such):
 
 ```bash
 python3 scripts/bin/review_one.py \

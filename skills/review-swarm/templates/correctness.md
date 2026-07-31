@@ -27,6 +27,11 @@ How to work:
    context is absent, report the point as unverified rather than claiming the
    implementation lacks it.
 
+Grade every finding BLOCKING / HIGH / LOW (HIGH = in-scope correctness risk
+not changing current results, fix before the acceptance point; LOW = hardening
+beyond declared scope, never blocks, propose a disposition). Report every
+finding you can establish this round; only BLOCKING forces NOT_READY.
+
 Severity: **BLOCKING** means a defect that makes a result, derivation, or
 behavior wrong (or unverifiable where verification is the artifact's point).
 Style, clarity, and minor inefficiencies are non-blocking.

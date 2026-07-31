@@ -445,6 +445,26 @@ def _validate_contract(contract: Any) -> list[str]:
         mode = mem.get("mode")
         rss = mem.get("dry_run_peak_rss_mb")
         heap = mem.get("heap_limit_mb")
+        # Optional structured eligibility declaration: when the contract
+        # explicitly declares that the workstream launches a full-scale
+        # computation, the declared_cap form is contradictory — such a
+        # launch must carry a measured dry-run estimate. (The gate cannot
+        # judge the declaration's truth — no field here ever was machine-
+        # verifiable — but the cross-check turns a silent misuse into an
+        # auditable contradiction.)
+        launches = contract.get("launches_full_scale_computation")
+        if launches is not None and not isinstance(launches, bool):
+            issues.append(
+                "CONTRADICTORY_MEMORY_ESTIMATE: `launches_full_scale_computation` "
+                f"must be a boolean when present (got {launches!r})"
+            )
+        elif launches is True and mem.get("mode") == "declared_cap":
+            issues.append(
+                "CONTRADICTORY_MEMORY_ESTIMATE: the contract declares "
+                "`launches_full_scale_computation: true` but uses the "
+                '"declared_cap" memory form — a full-scale compute launch '
+                "requires the measured dry-run estimate"
+            )
         if "mode" in mem and mode is None:
             # An explicit null is not "absent": the measured form is selected
             # by leaving the key out entirely, so a null mode is rejected the
