@@ -9,7 +9,7 @@ This package is intentionally narrow:
 - one source of truth for immutable main-report registration and structural validation,
 - one source of truth for `real_project` root/output policy plus the lower-level internal maintainer-fixture guardrail.
 
-Refresh mode (`ensure_project_scaffold(..., refresh=True)`, surfaced as `nullius init --refresh`) re-renders only the managed support file (`AGENTS.md`), backs up changed copies under `.nullius/backups/`, and never writes the user-owned seed files (`research_plan.md`, `research_notebook.md`, `research_contract.md`, `project_charter.md`, `project_index.md`, `reports/main_research_report_template.md`).
+Refresh mode (`ensure_project_scaffold(..., refresh=True)`, surfaced as `nullius init --refresh`) re-renders only the managed support file (`AGENTS.md`), backs up changed copies under `.nullius/backups/`, and never writes the user-owned seed files (`research_plan.md`, `research_notebook.md`, `research_contract.md`, `project_charter.md`, `project_index.md`, `reports/main_research_report_template.md`, `.gitignore`).
 
 `nullius report-validate` delegates to this package. It checks the current-report
 entry, immutable registered hashes, supersession relations, report structure,

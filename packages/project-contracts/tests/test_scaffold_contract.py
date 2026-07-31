@@ -34,6 +34,7 @@ CANONICAL_SCAFFOLD_FILES = {
     "research_notebook.md",
     "research_contract.md",
     "reports/main_research_report_template.md",
+    ".gitignore",
 }
 
 LANGUAGE_DISCIPLINE_SNIPPETS = (
@@ -95,9 +96,47 @@ class TestScaffoldContract(unittest.TestCase):
         self.assertEqual(missing, [], msg="missing scaffold templates: " + ", ".join(missing))
 
     def test_template_inventory_has_no_orphans(self) -> None:
-        template_names = {path.name for path in scaffold_template_dir().glob("*.md")}
+        template_names = {
+            path.name
+            for path in scaffold_template_dir().iterdir()
+            # Local filesystem droppings (.DS_Store and similar) are not
+            # templates; dotfile names are excluded from the inventory.
+            if path.is_file() and not path.name.startswith(".")
+        }
         mapped_templates = set(SCAFFOLD_TEMPLATE_MAP.values())
         self.assertEqual(sorted(template_names), sorted(mapped_templates))
+
+    def test_gitignore_template_never_ignores_run_evidence_roots(self) -> None:
+        # The template's own principle: run-evidence tracking is an explicit
+        # project decision. No ignore pattern may pre-decide it — neither for
+        # the lifecycle roots nor for provider run/evidence stores.
+        text = (scaffold_template_dir() / "project_gitignore.txt").read_text(encoding="utf-8")
+        patterns = [
+            line.strip()
+            for line in text.splitlines()
+            if line.strip() and not line.strip().startswith("#")
+        ]
+        for pattern in patterns:
+            self.assertNotIn("artifacts/runs", pattern)
+            self.assertNotIn("team/runs", pattern)
+            # Reference source snapshots are citable raw evidence.
+            self.assertFalse(
+                pattern.lstrip("/").startswith("references/"),
+                msg=f"reference evidence must stay visible, got {pattern!r}",
+            )
+            # A provider data root may only be ignored via its cache subtrees,
+            # never wholesale.
+            if pattern.startswith("artifacts/") and "-mcp" in pattern:
+                # Only the downloads subtree is a pure cache; provider data
+                # roots keep project artifacts beside their downloads, so no
+                # other provider subtree may be blessed here.
+                self.assertTrue(
+                    pattern.rstrip("/").endswith("/downloads"),
+                    msg=f"provider pattern must target the downloads cache subtree, got {pattern!r}",
+                )
+        # Scratch stays root-anchored so evidence subtrees named tmp survive.
+        self.assertIn("/tmp/", patterns)
+        self.assertNotIn("tmp/", patterns)
 
     def test_scaffold_and_contract_sync_use_neutral_authority(self) -> None:
         with tempfile.TemporaryDirectory() as td:

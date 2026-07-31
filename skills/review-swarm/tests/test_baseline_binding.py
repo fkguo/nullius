@@ -135,6 +135,114 @@ class BaselineBindingTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "explicit BASE"):
             self.mod._verify_baseline_binding(self.baseline_dir, f"..{self.head_v2}")
 
+    def test_candidate_commit_resolves_ref_and_pins_the_range(self) -> None:
+        # A movable ref pins to its full commit id at dispatch; the returned
+        # range substitutes resolved ids for both sides, so ref movement
+        # between resolution and diff execution cannot drift the content.
+        oid, pinned = self.mod._resolve_candidate_commit(
+            "HEAD", f"{self.base_v1}..{self.head_v2}"
+        )
+        self.assertEqual(oid, self.head_v2)
+        self.assertEqual(pinned, f"{self.base_v1}..{self.head_v2}")
+        oid_short, pinned_none = self.mod._resolve_candidate_commit(self.head_v2[:10], None)
+        self.assertEqual(oid_short, self.head_v2)
+        self.assertIsNone(pinned_none)
+
+    def test_candidate_commit_mismatching_diff_head_fails_closed(self) -> None:
+        with self.assertRaisesRegex(ValueError, "must name exactly the state the diff measures"):
+            self.mod._resolve_candidate_commit(self.base_v1, f"{self.base_v1}..{self.head_v2}")
+
+    def test_candidate_commit_one_sided_range_fails_closed(self) -> None:
+        # `git diff <ref>` compares against the WORKING TREE — a commit header
+        # over worktree bytes is the exact mis-binding this refusal closes.
+        with self.assertRaisesRegex(ValueError, "one-sided range diffs against the working tree"):
+            self.mod._resolve_candidate_commit(self.base_v1, self.base_v1)
+
+    def test_candidate_commit_three_dot_range_fails_closed(self) -> None:
+        with self.assertRaisesRegex(ValueError, "three-dot"):
+            self.mod._resolve_candidate_commit(
+                self.head_v2, f"{self.base_v1}...{self.head_v2}"
+            )
+
+    def test_candidate_commit_unresolvable_ref_fails_closed(self) -> None:
+        with self.assertRaisesRegex(ValueError, "cannot resolve"):
+            self.mod._resolve_candidate_commit("no-such-ref-anywhere", None)
+
+    def test_candidate_commit_option_like_value_fails_closed(self) -> None:
+        with self.assertRaisesRegex(ValueError, "starts with '-'"):
+            self.mod._resolve_candidate_commit("--output=x", None)
+
+    def test_artifact_binding_refuses_uncommitted_bytes(self) -> None:
+        # An artifact whose disk bytes differ from the blob at the candidate
+        # commit may not carry that commit's header.
+        import hashlib as _hashlib
+
+        disk_text = self.target.read_text(encoding="utf-8")
+        artifacts = [
+            (
+                Path("notes.md"),
+                disk_text,
+                _hashlib.sha256(disk_text.encode()).hexdigest(),
+                len(disk_text),
+            )
+        ]
+        # Bytes match at head_v2: passes.
+        self.mod._verify_artifacts_at_commit(artifacts, self.head_v2)
+        # Same bytes claimed at base_v1 (older content): refused.
+        with self.assertRaisesRegex(ValueError, "may not cover uncommitted bytes"):
+            self.mod._verify_artifacts_at_commit(artifacts, self.base_v1)
+        # Uncommitted edit on disk: refused against any commit.
+        self.target.write_text(disk_text + "uncommitted tail\n", encoding="utf-8")
+        new_text = self.target.read_text(encoding="utf-8")
+        dirty = [
+            (
+                Path("notes.md"),
+                new_text,
+                _hashlib.sha256(new_text.encode()).hexdigest(),
+                len(new_text),
+            )
+        ]
+        with self.assertRaisesRegex(ValueError, "may not cover uncommitted bytes"):
+            self.mod._verify_artifacts_at_commit(dirty, self.head_v2)
+
+    def test_artifact_binding_refuses_non_utf8_bytes(self) -> None:
+        # The packet embeds artifact TEXT decoded with errors="replace" while
+        # the binding attests raw BYTES; for non-UTF-8 content the reviewed
+        # text is not the attested bytes (and distinct byte strings can decode
+        # to the same lossy text), so the binding is refused even when the
+        # raw-byte digest matches the commit blob exactly.
+        import hashlib as _hashlib
+
+        raw = b"caf\xe9 exact bytes, not UTF-8\n"
+        binary_path = self.repo / "legacy.txt"
+        binary_path.write_bytes(raw)
+        _git(self.repo, "add", "legacy.txt")
+        _git(self.repo, "commit", "-qm", "legacy encoding artifact")
+        head = _git(self.repo, "rev-parse", "HEAD")
+        artifacts = [
+            (
+                Path("legacy.txt"),
+                raw.decode("utf-8", errors="replace"),
+                _hashlib.sha256(raw).hexdigest(),
+                len(raw),
+            )
+        ]
+        with self.assertRaisesRegex(ValueError, "not valid UTF-8"):
+            self.mod._verify_artifacts_at_commit(artifacts, head)
+        # A valid-UTF-8 artifact at the same commit still binds.
+        clean = self.target.read_text(encoding="utf-8")
+        self.mod._verify_artifacts_at_commit(
+            [
+                (
+                    Path("notes.md"),
+                    clean,
+                    _hashlib.sha256(clean.encode()).hexdigest(),
+                    len(clean),
+                )
+            ],
+            head,
+        )
+
     def test_three_dot_range_fails_closed(self) -> None:
         # `git diff A...B` measures from the merge base, not from tree A, so
         # hashes verified at A would not describe what the diff covers.

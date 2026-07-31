@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { execFileSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
@@ -268,12 +269,19 @@ describe('StateManager', () => {
         derived_run_status: 'running',
       },
     });
-    expect((view.recovery_context as Record<string, unknown>).derivation_warnings).toEqual(expect.arrayContaining([
+    const derivationWarnings = (view.recovery_context as Record<string, unknown>).derivation_warnings as Array<Record<string, unknown>>;
+    expect(derivationWarnings).toEqual(expect.arrayContaining([
       expect.objectContaining({ code: 'RECOVERY_LEDGER_PARSE_ERROR' }),
       expect.objectContaining({ code: 'RECOVERY_RUN_STATUS_FROM_LEDGER' }),
       expect.objectContaining({ code: 'RECOVERY_PLAN_FOCUS_FROM_PLAN_MD' }),
       expect.objectContaining({ code: 'RECOVERY_GUIDANCE_FILES_UNAVAILABLE' }),
     ]));
+    // The surface is advisory by contract: every entry carries the
+    // machine-readable severity marker, so a delegated agent never has to
+    // infer from prose whether a warning is a stop condition (it is not).
+    for (const warning of derivationWarnings) {
+      expect(warning.severity).toBe('advisory');
+    }
   });
 
   it('scopes recovery_context ledger fallback to the active state.run_id instead of the newest project-wide event', () => {
@@ -348,10 +356,12 @@ describe('StateManager', () => {
         {
           code: 'LEGACY_MCP_TEMPLATE_NO_ACTIVE_CONFIG',
           path: '.mcp.template.json',
+          severity: 'advisory',
         },
         {
           code: 'LEGACY_PLAN_SCHEMA_IN_CANONICAL_ROOT',
           path: 'specs/plan.schema.json',
+          severity: 'advisory',
         },
       ],
     });
@@ -527,10 +537,33 @@ describe('StateManager', () => {
     expect(launcher.healthy).toBe(false);
     expect(launcher.issue_code).toBe('PROJECT_LOCAL_LAUNCHER_TARGET_MISSING');
     expect(launcher.repair_command).toBe('nullius init --runtime-only');
+    // Runtime-health echoes are 'repair', not 'advisory': the machine field
+    // must agree with the prose taxonomy (run the repair command, continue —
+    // neither ignorable nor a stop-and-escalate condition).
     expect(recoveryContext.derivation_warnings).toEqual(expect.arrayContaining([
       expect.objectContaining({
         code: 'PROJECT_LOCAL_FALLBACK_UNHEALTHY',
         repair_command: 'nullius init --runtime-only',
+        severity: 'repair',
+      }),
+    ]));
+  });
+
+  it('marks the invalid-sentinel warning echo as repair severity', () => {
+    const state = baseState({ run_id: 'test-run-sentinel-repair', run_status: 'idle' });
+    const sm = new StateManager(tmpDir);
+    sm.saveState(state);
+    const sentinelPath = path.join(tmpDir, '.nullius', 'HARNESS');
+    fs.mkdirSync(path.dirname(sentinelPath), { recursive: true });
+    fs.writeFileSync(sentinelPath, 'not json', 'utf-8');
+
+    const view = buildRunStatusView(tmpDir, sm.readState());
+    const recoveryContext = view.recovery_context as Record<string, unknown>;
+    expect(recoveryContext.derivation_warnings).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: 'NULLIUS_HARNESS_SENTINEL_INVALID',
+        repair_command: 'nullius init --runtime-only',
+        severity: 'repair',
       }),
     ]));
   });
@@ -885,6 +918,7 @@ describe('StateManager', () => {
         code: 'PROJECT_LOCAL_FALLBACK_UNHEALTHY',
         issue_code: 'PROJECT_LOCAL_LAUNCHER_UNPARSEABLE',
         repair_command: 'nullius init --runtime-only',
+        severity: 'repair',
       }),
     ]));
   });
@@ -986,6 +1020,162 @@ describe('StateManager', () => {
 });
 
 // ─── Stage 2: Write operations ───
+
+describe('uncommitted-work aging warning', () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = makeTmpDir();
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  function git(...args: string[]): void {
+    execFileSync('git', ['-C', tmpDir, ...args], { stdio: 'ignore' });
+  }
+
+  function initRepoWithOldCommit(): void {
+    git('init', '-q');
+    git('config', 'user.email', 't@example.invalid');
+    git('config', 'user.name', 't');
+    fs.writeFileSync(path.join(tmpDir, 'notes.md'), 'v1\n');
+    git('add', 'notes.md');
+    // Commit dated far in the past so head age exceeds the threshold.
+    execFileSync('git', ['-C', tmpDir, 'commit', '-q', '-m', 'v1'], {
+      stdio: 'ignore',
+      env: {
+        ...process.env,
+        GIT_AUTHOR_DATE: '2000-01-01T00:00:00Z',
+        GIT_COMMITTER_DATE: '2000-01-01T00:00:00Z',
+      },
+    });
+  }
+
+  function statusWarningCodes(): string[] {
+    const sm = new StateManager(tmpDir);
+    const view = buildRunStatusView(tmpDir, sm.readState()) as Record<string, unknown>;
+    const rc = view.recovery_context as Record<string, unknown>;
+    const warnings = (rc.derivation_warnings ?? rc.warnings ?? []) as Array<Record<string, unknown>>;
+    return warnings.map(w => String(w.code));
+  }
+
+  it('warns when tracked modifications age past the threshold', () => {
+    initRepoWithOldCommit();
+    fs.writeFileSync(path.join(tmpDir, 'notes.md'), 'v2 — uncommitted\n');
+    expect(statusWarningCodes()).toContain('UNCOMMITTED_WORK_AGING');
+  });
+
+  it('stays silent for a clean tree, untracked-only noise, and non-git roots', () => {
+    // Non-git root.
+    expect(statusWarningCodes()).not.toContain('UNCOMMITTED_WORK_AGING');
+    // Clean tree with an old commit.
+    initRepoWithOldCommit();
+    expect(statusWarningCodes()).not.toContain('UNCOMMITTED_WORK_AGING');
+    // Untracked files alone (caches, run dirs) are not aging tracked work.
+    fs.writeFileSync(path.join(tmpDir, 'untracked-cache.bin'), 'x');
+    expect(statusWarningCodes()).not.toContain('UNCOMMITTED_WORK_AGING');
+  });
+
+  it('stays silent for a zero-commit repository', () => {
+    git('init', '-q');
+    git('config', 'user.email', 't@example.invalid');
+    git('config', 'user.name', 't');
+    fs.writeFileSync(path.join(tmpDir, 'notes.md'), 'v1\n');
+    git('add', 'notes.md');
+    // No commit: `git log` fails, the probe yields null, the receipt survives.
+    expect(statusWarningCodes()).not.toContain('UNCOMMITTED_WORK_AGING');
+  });
+
+  it('scopes the count to the project subtree inside an enclosing repository', () => {
+    // The nullius project root is a subdirectory of a larger repo: dirt
+    // outside the project must not charge the project's warning.
+    git('init', '-q');
+    git('config', 'user.email', 't@example.invalid');
+    git('config', 'user.name', 't');
+    const projectDir = path.join(tmpDir, 'proj');
+    fs.mkdirSync(projectDir);
+    fs.writeFileSync(path.join(tmpDir, 'outer.md'), 'outer v1\n');
+    fs.writeFileSync(path.join(projectDir, 'inner.md'), 'inner v1\n');
+    git('add', '.');
+    execFileSync('git', ['-C', tmpDir, 'commit', '-q', '-m', 'v1'], {
+      stdio: 'ignore',
+      env: {
+        ...process.env,
+        GIT_AUTHOR_DATE: '2000-01-01T00:00:00Z',
+        GIT_COMMITTER_DATE: '2000-01-01T00:00:00Z',
+      },
+    });
+    const codesFor = (root: string): string[] => {
+      const sm = new StateManager(root);
+      const view = buildRunStatusView(root, sm.readState()) as Record<string, unknown>;
+      const rc = view.recovery_context as Record<string, unknown>;
+      const warnings = (rc.derivation_warnings ?? []) as Array<Record<string, unknown>>;
+      return warnings.map(w => String(w.code));
+    };
+    // Outer dirt only: the project stays silent.
+    fs.writeFileSync(path.join(tmpDir, 'outer.md'), 'outer v2 — uncommitted\n');
+    expect(codesFor(projectDir)).not.toContain('UNCOMMITTED_WORK_AGING');
+    // Dirt inside the project subtree: the warning fires.
+    fs.writeFileSync(path.join(projectDir, 'inner.md'), 'inner v2 — uncommitted\n');
+    expect(codesFor(projectDir)).toContain('UNCOMMITTED_WORK_AGING');
+  });
+
+  it('ignores untracked-only submodule noise but sees tracked submodule changes', () => {
+    // --ignore-submodules=untracked: a submodule dirty solely from untracked
+    // content must not trigger the warning; a tracked modification inside the
+    // submodule still counts.
+    const subDir = fs.mkdtempSync(path.join(os.tmpdir(), 'orch-sub-'));
+    try {
+      const gitAt = (root: string, ...args: string[]): void => {
+        execFileSync('git', ['-C', root, ...args], { stdio: 'ignore' });
+      };
+      gitAt(subDir, 'init', '-q');
+      gitAt(subDir, 'config', 'user.email', 't@example.invalid');
+      gitAt(subDir, 'config', 'user.name', 't');
+      fs.writeFileSync(path.join(subDir, 'lib.md'), 'lib v1\n');
+      gitAt(subDir, 'add', 'lib.md');
+      gitAt(subDir, 'commit', '-q', '-m', 'lib v1');
+
+      initRepoWithOldCommit();
+      execFileSync(
+        'git',
+        ['-C', tmpDir, '-c', 'protocol.file.allow=always', 'submodule', 'add', '-q', subDir, 'vendor'],
+        { stdio: 'ignore' },
+      );
+      execFileSync('git', ['-C', tmpDir, 'commit', '-q', '-m', 'add submodule'], {
+        stdio: 'ignore',
+        env: {
+          ...process.env,
+          GIT_AUTHOR_DATE: '2000-01-02T00:00:00Z',
+          GIT_COMMITTER_DATE: '2000-01-02T00:00:00Z',
+        },
+      });
+      // Untracked file inside the submodule: silent.
+      fs.writeFileSync(path.join(tmpDir, 'vendor', 'scratch.bin'), 'x');
+      expect(statusWarningCodes()).not.toContain('UNCOMMITTED_WORK_AGING');
+      // Tracked modification inside the submodule: warns.
+      fs.writeFileSync(path.join(tmpDir, 'vendor', 'lib.md'), 'lib v2 — modified\n');
+      expect(statusWarningCodes()).toContain('UNCOMMITTED_WORK_AGING');
+    } finally {
+      fs.rmSync(subDir, { recursive: true, force: true });
+    }
+  });
+
+  it('stays silent below the threshold: a dirty tree over a fresh commit', () => {
+    // Pins the threshold lower bound — without the age early-return the
+    // warning would fire on every dirty tree.
+    git('init', '-q');
+    git('config', 'user.email', 't@example.invalid');
+    git('config', 'user.name', 't');
+    fs.writeFileSync(path.join(tmpDir, 'notes.md'), 'v1\n');
+    git('add', 'notes.md');
+    git('commit', '-q', '-m', 'fresh');
+    fs.writeFileSync(path.join(tmpDir, 'notes.md'), 'v2 — in progress\n');
+    expect(statusWarningCodes()).not.toContain('UNCOMMITTED_WORK_AGING');
+  });
+});
 
 describe('StateManager write operations (Stage 2)', () => {
   let tmpDir: string;

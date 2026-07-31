@@ -44,7 +44,43 @@ project state, the anchor stays valid until project state actually
 changes — long thinking / reading between tool calls does not invalidate
 the anchor. Re-run `status --json` after any lifecycle event (own or
 other-process `nullius run`/`approve`/`verify`/...) to re-anchor;
-you do not need to invoke a separate "anchor" command.
+you do not need to invoke a separate "anchor" command. The same
+event-driven economy applies to routine health re-verification inside a
+review or work cycle, scoped to what the receipt actually witnessed: a
+status receipt binds the state/ledger identities it was computed from, so
+checks whose only inputs are `.nullius/state.json` and
+`.nullius/ledger.jsonl` may cite the receipt while those files are
+unchanged. Launcher and sentinel health have inputs outside that pair —
+re-check them when their own identities (launcher target, sentinel
+content) differ or cannot be established, and whenever any relevant
+identity is unknown, re-run the full check rather than citing the
+receipt. A re-check is owed on state change, never on cadence.
+
+**What in a status receipt stops work, what asks for a repair, and what
+is only advisory.** Three classes, machine-readable so nothing has to be
+inferred from prose:
+
+- **Stop and surface**: a non-null error field (for example
+  `final_conclusions_error`, `project_surface_drift_error`) or a failed
+  machine gate (a gate script exiting non-zero in the run evidence).
+  These mean the receipt or a gate could not do its job.
+- **Repair, then continue**: an invalid `HARNESS` sentinel or an
+  unhealthy project-local launcher — authoritative surfaces
+  `recovery_context.control_files.harness.valid` and
+  `recovery_context.control_files.project_local_launcher.healthy`,
+  echoed in the warning array with `severity: "repair"` and the exact
+  `repair_command` (typically `nullius init --runtime-only`). The
+  repair is cheap and self-contained: run it and keep going — neither
+  condition is a reason to abandon the task or escalate.
+- **Advisory**: every other entry under
+  `recovery_context.derivation_warnings` and all of
+  `project_surface_drift.issues`, marked `severity: "advisory"` —
+  recoverable observations about auxiliary or derived state (missing
+  optional manifests, plan-focus fallbacks, aging uncommitted work).
+  Record them in the run evidence and keep working; treating an
+  advisory-only receipt as a blocker halts real work over conditions the
+  receipt itself classifies as non-blocking. A warning worth acting on
+  becomes a task on the plan, not a reason to stop the current one.
 
 The check is also skipped for:
 
@@ -75,7 +111,7 @@ The check is also skipped for:
 
 **Anchor on the final adopted version — never build on a superseded one.** A long project accumulates earlier fits, methods, grids, and exploratory scripts; a *newer* adopted result (a better minimum, a more robust method, a finer grid) can silently coexist in the repo with the deprecated ones it replaced. Before extending or varying anything, resolve from the durable record (`research_plan.md#Current Status`, `research_contract.md`, the latest dated `artifacts/runs/<run_id>/`, and any explicit `superseded` / `voided` markers) **which** parameters, method, and configuration are the *current adopted* version — not the first script you happen to open or the most-cited earlier draft. Then **regression-anchor**: run that adopted reference configuration and assert it reproduces its known result (the published χ²/value/pole) *before* trusting any variation built on it. This is the project-state half of the [`numerical-reliability-gate`](../numerical-reliability-gate/SKILL.md) G4 anchor; skipping it is how work silently gets rebuilt on a stale fit or a retired method.
 
-To pull newer managed scaffold doc (`AGENTS.md`) into an existing project without disturbing user notes, run `nullius init --refresh` (preview with `nullius init --refresh --dry-run`). It backs up any changed managed file under `.nullius/backups/` and never rewrites `research_plan.md`, `research_notebook.md`, `research_contract.md`, `project_charter.md`, `project_index.md`, or `reports/main_research_report_template.md`.
+To pull newer managed scaffold doc (`AGENTS.md`) into an existing project without disturbing user notes, run `nullius init --refresh` (preview with `nullius init --refresh --dry-run`). It backs up any changed managed file under `.nullius/backups/` and never rewrites `research_plan.md`, `research_notebook.md`, `research_contract.md`, `project_charter.md`, `project_index.md`, `reports/main_research_report_template.md`, or `.gitignore`.
 
 For an existing project that predates the main-report registry, checkpoint the
 project before migration. Render the current scaffold in a separate temporary

@@ -1,0 +1,18 @@
+# Scaffolded default ignore list — user-owned; edit freely (refresh never rewrites it).
+#
+# Only reproducible download subtrees are ignored. Provider data roots
+# (for example artifacts/<provider>/) also hold project evidence stores, run
+# records, and provider-produced project artifacts, and reference source
+# snapshots (references/) are citable raw evidence — those stay visible.
+# When a provider keeps a pure cache elsewhere, add that exact subtree here
+# yourself after checking nothing project-scoped lives beneath it.
+artifacts/*-mcp/downloads/
+artifacts/cache/
+
+# Local scratch (root-anchored so evidence subtrees named tmp stay visible).
+/tmp/
+
+# Run evidence roots (artifacts/runs/, team/runs/, provider run records) and
+# reference source snapshots are deliberately NOT listed here: whether to
+# track them is a project decision — declare it explicitly (and record it
+# with `nullius decision record`) rather than inheriting a default either way.

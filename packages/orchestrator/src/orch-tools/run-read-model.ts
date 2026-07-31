@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -325,6 +326,36 @@ function selectPlanFocusFromPlanMd(projectRoot: string): RecoveryPlanFocus | nul
   }
 }
 
+// Severity is derived from the surface and the warning code — never supplied
+// by the entry — and stamped centrally at assembly so no present or future
+// entry ships without it. Two values exist:
+// - 'advisory': a recoverable observation about auxiliary/derived state.
+//   Record it and keep working; never a stop condition.
+// - 'repair': the runtime plumbing wants its named repair_command run (cheap
+//   and self-contained), after which work continues. Not a stop-and-escalate
+//   condition either.
+// Stop conditions live elsewhere entirely: non-null error fields and failed
+// machine gates. The authoritative surfaces for the two repair conditions are
+// the structured health objects (recovery_context.control_files.harness.valid,
+// recovery_context.control_files.project_local_launcher.healthy); their
+// warning-array entries are echoes that carry the repair command.
+const REPAIR_WARNING_CODES = new Set([
+  'PROJECT_LOCAL_FALLBACK_UNHEALTHY',
+  'NULLIUS_HARNESS_SENTINEL_INVALID',
+]);
+
+function markWarningSeverity(entries: Record<string, unknown>[]): Record<string, unknown>[] {
+  return entries.map(entry => ({
+    ...entry,
+    severity: REPAIR_WARNING_CODES.has(String(entry.code)) ? 'repair' : 'advisory',
+  }));
+}
+
+// project_surface_drift.issues carries observations only — uniformly advisory.
+function markAdvisory(entries: Record<string, unknown>[]): Record<string, unknown>[] {
+  return entries.map(entry => ({ ...entry, severity: 'advisory' }));
+}
+
 function readLatestLedgerEvent(projectRoot: string, preferredRunId: string | null, ledgerSnapshot = readLedgerSnapshot(projectRoot)): {
   latest_event: RecoveryLedgerEvent | null;
   warnings: Record<string, unknown>[];
@@ -377,7 +408,60 @@ function readLatestLedgerEvent(projectRoot: string, preferredRunId: string | nul
   };
 }
 
-function readRecoveryContextView(projectRoot: string, state: RunState, ledgerSnapshot = readLedgerSnapshot(projectRoot)): Record<string, unknown> {
+
+// Commit-as-memory aging check: tracked modifications sitting uncommitted
+// while the last commit ages past the threshold mean completed work exists
+// only in one working tree — a kill or crash loses it, and evidence pinned
+// by hash in review records cannot be recovered from history. Read-only,
+// best-effort: any git failure (not a repo, no git, no commits yet) yields
+// null and never degrades the status receipt itself.
+const UNCOMMITTED_WORK_AGING_THRESHOLD_HOURS = 6;
+
+function readUncommittedWorkAging(
+  projectRoot: string,
+): { modified_tracked_entries: number; head_age_hours: number } | null {
+  // --no-optional-locks + fsmonitor off keep the probe genuinely read-only
+  // (plain `git status` may refresh the index under an optional lock and can
+  // invoke a repository-configured fsmonitor hook); the trailing `.` pathspec
+  // scopes the count to the project subtree, so a project root nested inside
+  // a larger repository is not charged with the enclosing repository's dirt;
+  // submodules dirty only from untracked content are ignored, so the
+  // tracked-only contract holds through submodule boundaries too.
+  const git = (args: string[]): string =>
+    execFileSync('git', ['--no-optional-locks', '-c', 'core.fsmonitor=false', '-C', projectRoot, ...args], {
+      encoding: 'utf-8',
+      timeout: 5_000,
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+  try {
+    if (git(['rev-parse', '--is-inside-work-tree']).trim() !== 'true') return null;
+    const modified = git([
+      'status',
+      '--porcelain',
+      '--untracked-files=no',
+      '--ignore-submodules=untracked',
+      '--',
+      '.',
+    ])
+      .split('\n')
+      .filter(line => line.trim().length > 0).length;
+    if (modified === 0) return null;
+    const headEpoch = Number.parseInt(git(['log', '-1', '--format=%ct']).trim(), 10);
+    if (!Number.isFinite(headEpoch)) return null;
+    const ageHours = (Date.now() / 1000 - headEpoch) / 3600;
+    if (ageHours < UNCOMMITTED_WORK_AGING_THRESHOLD_HOURS) return null;
+    return { modified_tracked_entries: modified, head_age_hours: Math.round(ageHours * 10) / 10 };
+  } catch {
+    return null;
+  }
+}
+
+function readRecoveryContextView(
+  projectRoot: string,
+  state: RunState,
+  ledgerSnapshot = readLedgerSnapshot(projectRoot),
+  options: { skipWorkingTreeChecks?: boolean } = {},
+): Record<string, unknown> {
   const rawState = stateRecord(state);
   const launcherHealth = readProjectLocalNulliusLauncherHealth(projectRoot);
   const harnessSentinel = readNulliusHarnessSentinelHealth(projectRoot);
@@ -417,6 +501,22 @@ function readRecoveryContextView(projectRoot: string, state: RunState, ledgerSna
       message: harnessSentinel.message,
       issue_code: harnessSentinel.issue_code,
       repair_command: 'nullius init --runtime-only',
+    });
+  }
+  // Fleet aggregation discards recovery warnings — skip the git probe there
+  // rather than paying three subprocesses per project for output nobody reads.
+  const uncommittedAging = options.skipWorkingTreeChecks ? null : readUncommittedWorkAging(projectRoot);
+  if (uncommittedAging) {
+    warnings.push({
+      code: 'UNCOMMITTED_WORK_AGING',
+      message:
+        `${uncommittedAging.modified_tracked_entries} tracked change entr(y/ies) are not represented ` +
+        `in the current branch history, whose last commit is ${uncommittedAging.head_age_hours}h old. ` +
+        'Work absent from that history cannot be recovered from it; review records pinning hashes of ' +
+        'such content have no referent there. Commit each completed stage as cross-session memory.',
+      modified_tracked_entries: uncommittedAging.modified_tracked_entries,
+      head_age_hours: uncommittedAging.head_age_hours,
+      threshold_hours: UNCOMMITTED_WORK_AGING_THRESHOLD_HOURS,
     });
   }
   const stateRunId = typeof rawState.run_id === 'string' ? rawState.run_id : null;
@@ -512,7 +612,7 @@ function readRecoveryContextView(projectRoot: string, state: RunState, ledgerSna
     latest_ledger_event: ledger.latest_event,
     human_status_entry: HUMAN_STATUS_ENTRY,
     recommended_files: recommendedFiles,
-    derivation_warnings: warnings,
+    derivation_warnings: markWarningSeverity(warnings),
   };
 }
 
@@ -1198,7 +1298,7 @@ export function readProjectSurfaceDriftView(projectRoot: string, state: RunState
       project_surface_drift: {
         status: issues.length > 0 ? 'warning_only' : 'clean',
         warning_count: issues.length,
-        issues,
+        issues: markAdvisory(issues),
       },
       project_surface_drift_error: null,
     };
@@ -1555,7 +1655,11 @@ function readDecisionLedgerView(projectRoot: string): {
   }
 }
 
-export function buildRunStatusView(projectRoot: string, state: RunState) {
+export function buildRunStatusView(
+  projectRoot: string,
+  state: RunState,
+  options: { skipWorkingTreeChecks?: boolean } = {},
+) {
   const ledgerSnapshot = readLedgerSnapshot(projectRoot);
   const paused = fs.existsSync(pauseFilePath(projectRoot));
   const finalConclusions = readFinalConclusionsView(projectRoot, state);
@@ -1567,7 +1671,7 @@ export function buildRunStatusView(projectRoot: string, state: RunState) {
     state,
     workflowOutputs.current_run_workflow_outputs ? Object.keys(workflowOutputs.current_run_workflow_outputs) : [],
   );
-  const recoveryContext = readRecoveryContextView(projectRoot, state, ledgerSnapshot);
+  const recoveryContext = readRecoveryContextView(projectRoot, state, ledgerSnapshot, options);
   const repairProposal = readRepairProposalView(projectRoot, state);
   const optimizeProposal = readOptimizeProposalView(projectRoot, state);
   const innovateProposal = readInnovateProposalView(projectRoot, state);
