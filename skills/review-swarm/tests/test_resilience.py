@@ -103,6 +103,30 @@ fi
     path.chmod(0o755)
 
 
+def _write_strict_arg_runner(path: Path) -> None:
+    """Runner that mirrors the REAL codex runner's argument contract: unknown
+    flags are rejected with exit 2 (the real runner's `*)` case), so a launcher
+    that forwards a flag the runner does not accept fails the lane before
+    model execution. The permissive stubs above swallow unknown args and would
+    hide exactly that class of dispatch break."""
+    path.write_text(
+        """#!/usr/bin/env bash
+set -euo pipefail
+out=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --out) out="$2"; shift 2 ;;
+    --system-prompt-file|--prompt-file|--model) shift 2 ;;
+    *) echo "Unknown arg: $1" >&2; exit 2 ;;
+  esac
+done
+printf 'VERDICT: READY\\n' >"${out}"
+""",
+        encoding="utf-8",
+    )
+    path.chmod(0o755)
+
+
 def _run_main_with_argv(mod, argv: list[str]) -> int:
     import sys as _sys
 
@@ -607,6 +631,47 @@ class NonIndependentCreditTests(unittest.TestCase):
             self.assertIn("matched no lane", meta["error"])
             # Refused before execution: no agent output files were produced.
             self.assertEqual(list(out_dir.glob("agent_*.txt")), [])
+
+    def test_codex_command_line_never_carries_tool_mode(self):
+        # The codex runner has no --tool-mode flag: its modeled "review" mode
+        # is metadata-only (recorded, never forwarded). Forwarding it broke
+        # every real codex lane with "Unknown arg: --tool-mode".
+        self.assertIsNone(self.mod._resolve_backend_tool_mode("codex", {}))
+        self.assertEqual(self.mod._recorded_tool_mode("codex", {}), "review")
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            plan = self.mod.AgentPlan(
+                index=0, backend="codex", requested_model="codex/default",
+                runner_model=None, runner_path=td_path / "run_codex.sh",
+            )
+            cmd = self.mod._build_cmd(
+                plan=plan,
+                system=None,
+                prompt=td_path / "prompt.md",
+                out=td_path / "out.txt",
+                opencode_agent=None,
+                opencode_variant=None,
+                backend_tool_modes={},
+                review_workspace_dir=td_path,
+                gemini_cli_home=None,
+            )
+            self.assertNotIn("--tool-mode", cmd)
+
+    def test_codex_lane_succeeds_under_real_runner_arg_contract(self):
+        # End-to-end with a strict stub that rejects unknown flags exactly
+        # like the real codex runner: the lane must succeed and still record
+        # the metadata-only "review" mode.
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            out_dir = td_path / "out"
+            argv = self._base_argv(td_path, out_dir)
+            _write_strict_arg_runner(td_path / "run_codex.sh")
+            argv[argv.index("--models") + 1] = "codex/default"
+            code = _run_main_with_argv(self.mod, argv)
+            self.assertEqual(code, 0)
+            meta = json.loads((out_dir / "meta.json").read_text(encoding="utf-8"))
+            self.assertTrue(meta["agents"][0]["success"])
+            self.assertEqual(meta["agents"][0]["execution_tool_mode"], "review")
 
     def test_failed_lane_never_occupies_a_comparison_seat(self):
         # A crashed lane produced no reviewable output: it must not pair into

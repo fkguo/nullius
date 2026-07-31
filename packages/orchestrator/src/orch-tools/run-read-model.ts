@@ -331,14 +331,14 @@ function selectPlanFocusFromPlanMd(projectRoot: string): RecoveryPlanFocus | nul
 // entry ships without it. Two values exist:
 // - 'advisory': a recoverable observation about auxiliary/derived state.
 //   Record it and keep working; never a stop condition.
-// - 'repair': the runtime plumbing needs its named repair_command run before
-//   state-touching work proceeds (dispatchers fail closed until then), after
-//   which work continues. Not a stop-and-escalate condition either.
+// - 'repair': the runtime plumbing wants its named repair_command run (cheap
+//   and self-contained), after which work continues. Not a stop-and-escalate
+//   condition either.
 // Stop conditions live elsewhere entirely: non-null error fields and failed
 // machine gates. The authoritative surfaces for the two repair conditions are
-// the structured health objects (control_files.harness.valid,
-// project_local_launcher.healthy); their warning-array entries are echoes
-// that carry the repair command.
+// the structured health objects (recovery_context.control_files.harness.valid,
+// recovery_context.control_files.project_local_launcher.healthy); their
+// warning-array entries are echoes that carry the repair command.
 const REPAIR_WARNING_CODES = new Set([
   'PROJECT_LOCAL_FALLBACK_UNHEALTHY',
   'NULLIUS_HARNESS_SENTINEL_INVALID',

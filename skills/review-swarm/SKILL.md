@@ -544,7 +544,8 @@ from real contamination events that voided otherwise-clean review rounds:
   context carried another workstream's conclusions, and fallback lanes with no recorded execution
   model (reason `model_unattributed`: a backend-default recovery leaves the executed family
   unattested, and on a multi-family provider that would let an unknown family pair into a false
-  cross-family claim — pass an explicit fallback model to keep credit). Sealed
+  cross-family claim — explicit fallback-model flags exist for the codex and claude backends;
+  other backends' default recoveries stay unattributed, which is the conservative direction). Sealed
   derivation/recomputation lanes obey the stricter frozen-inputs-only contract of their own
   protocols (the sealed-derivation rule below and the independent-recomputation section above):
   launch those ONLY on backends whose modeled tool mode is explicitly a no-repo-access mode. The

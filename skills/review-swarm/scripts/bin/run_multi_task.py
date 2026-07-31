@@ -46,10 +46,15 @@ _DEFAULT_BACKEND_TOOL_MODES = {
     "claude": "none",
     "gemini": "none",
     "opencode": "none",
-    # The codex runner always executes inside a read-only repository sandbox:
-    # read-capable, never writable. Modeled as "review" so the per-result
-    # execution_tool_mode field records that honestly instead of null
-    # (null = unmodeled = attests nothing). Not a CLI-settable mode.
+}
+# Metadata-only modeled modes: RECORDED in results (execution_tool_mode) and
+# consulted for credit decisions, but NEVER forwarded to a runner command line.
+# The codex runner has no --tool-mode flag — it always executes inside a
+# read-only repository sandbox (read-capable, never writable), so its honest
+# record is "review" while its command line must not carry the flag. Command
+# building consults _resolve_backend_tool_mode only; recording and credit use
+# _recorded_tool_mode, which falls back to this map.
+_RECORDED_ONLY_BACKEND_TOOL_MODES = {
     "codex": "review",
 }
 _ALLOWED_BACKEND_TOOL_MODES = {
@@ -534,9 +539,23 @@ def _resolve_output_override_path(raw: str, *, out_dir: Path) -> Path:
 
 
 def _resolve_backend_tool_mode(backend: str, overrides: dict[str, str]) -> Optional[str]:
+    """Command-line tool mode: what runners actually receive as --tool-mode.
+    Backends absent here get no flag — do NOT add a backend whose runner has
+    no --tool-mode argument (that breaks its dispatch); model such backends in
+    _RECORDED_ONLY_BACKEND_TOOL_MODES instead."""
     if backend in overrides:
         return overrides[backend]
     return _DEFAULT_BACKEND_TOOL_MODES.get(backend)
+
+
+def _recorded_tool_mode(backend: str, overrides: dict[str, str]) -> Optional[str]:
+    """Tool mode for RECORDING and credit decisions: the command-line mode
+    when one exists, else the metadata-only modeled mode. None = unmodeled,
+    attests nothing."""
+    mode = _resolve_backend_tool_mode(backend, overrides)
+    if mode is not None:
+        return mode
+    return _RECORDED_ONLY_BACKEND_TOOL_MODES.get(backend)
 
 
 def _load_default_gemini_oauth_auth() -> Optional[dict[str, Any]]:
@@ -1727,7 +1746,7 @@ def _lane_exclusion_reason(
         # false cross-family claim). No credit without attestation — the
         # dispatcher regains credit by passing an explicit fallback model.
         return "model_unattributed"
-    tool_mode = _resolve_backend_tool_mode(_execution_backend(result), backend_tool_modes or {})
+    tool_mode = _recorded_tool_mode(_execution_backend(result), backend_tool_modes or {})
     if tool_mode == "workspace":
         return "tool_mode:workspace"
     return None
@@ -2903,10 +2922,11 @@ def main() -> int:
                     )
 
     # Every result records the tool mode its EXECUTION backend ran under
-    # (post-fallback) — the field a sealed-run audit checks to confirm no lane
-    # had repo access, and the one the credit decisions below are made from.
+    # (post-fallback): the command-line mode when one exists, else the
+    # metadata-only modeled mode (codex: "review"). None = unmodeled,
+    # attests nothing. Credit decisions below use the same resolution.
     for r in results:
-        r["execution_tool_mode"] = _resolve_backend_tool_mode(
+        r["execution_tool_mode"] = _recorded_tool_mode(
             _execution_backend(r), backend_tool_modes
         )
 

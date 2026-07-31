@@ -62,15 +62,16 @@ inferred from prose:
 
 - **Stop and surface**: a non-null error field (for example
   `final_conclusions_error`, `project_surface_drift_error`) or a failed
-  machine gate. These mean the receipt or a gate could not do its job.
+  machine gate (a gate script exiting non-zero in the run evidence).
+  These mean the receipt or a gate could not do its job.
 - **Repair, then continue**: an invalid `HARNESS` sentinel or an
   unhealthy project-local launcher — authoritative surfaces
-  `control_files.harness.valid` and `project_local_launcher.healthy`,
+  `recovery_context.control_files.harness.valid` and
+  `recovery_context.control_files.project_local_launcher.healthy`,
   echoed in the warning array with `severity: "repair"` and the exact
-  `repair_command` (typically `nullius init --runtime-only`). Run the
-  repair and keep going; state-touching dispatcher calls fail closed
-  until repaired, which is the enforcement — not a reason to abandon the
-  task or escalate.
+  `repair_command` (typically `nullius init --runtime-only`). The
+  repair is cheap and self-contained: run it and keep going — neither
+  condition is a reason to abandon the task or escalate.
 - **Advisory**: every other entry under
   `recovery_context.derivation_warnings` and all of
   `project_surface_drift.issues`, marked `severity: "advisory"` —
