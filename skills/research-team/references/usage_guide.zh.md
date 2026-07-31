@@ -74,7 +74,7 @@ bash "${SKILL_DIR}/scripts/bin/run_team_cycle.sh" \
   --preflight-only
 ```
 
-若 gate 失败：先修复最小根因（文档/产物/配置），再用解析后的新 tag 重跑（例如 `20260502T023000Z-m0-topic-r2`）。
+若确定性 gate 失败：先修复最小根因（文档/产物/配置），在同一 run 内用 `--preflight-only` 反复重跑直到确定性 gate 通过——这属于开发迭代，不是评审周期。只有携带新候选重新进入评审收敛周期时，才铸造新 tag（例如 `20260502T023000Z-m0-topic-r2`）；见 SKILL.md 的重试双轨与验证粒度契约。
 `--out-dir` 也应留在真实项目侧，不要把真实项目的 `team/` 产物再写回开发仓。
 
 ## review_access_mode（packet_only vs full_access）

@@ -28,6 +28,9 @@ It applies performance-first coding discipline continuously, and it can escalate
 
 - No shared control-plane dependency required.
 - Write artifacts to local output paths such as `.julia-perf/runs/<timestamp>/`.
+- Retention: during iterative development reuse a working run directory and keep only the baseline
+  plus the latest verifying run; mint a new immutable timestamped directory only for a run cited as
+  evidence for a recorded claim.
 
 ### `ecosystem` (optional)
 
@@ -98,11 +101,16 @@ Usage/config error (`exit 3`):
 - Do not claim speedup using `@time` only.
 - Do not skip baseline, diagnosis, or verification steps when entering evidence gate mode.
 - Do not emit unverifiable performance claims.
-- Treat the following as policy hard-fail findings in review, even when not yet auto-enforced by script:
-  - new type instability in critical paths
-  - non-concrete hotpath containers (`Vector{Any}`, `Dict{String,Any}`, `Array{Real}`, similar)
-  - column-major violating loop order in identified matrix hotpaths
+- Severity of review findings is graded by where they land. Always hard-fail, because it is correctness:
   - an accelerated path adopted without the equivalence evidence below
+- Hard-fail only on an identified hotpath — one that is profiled hot, or declared hot by the task —
+  of an existing computational kernel:
+  - new type instability in the identified hotpath
+  - non-concrete containers in the identified hotpath (`Vector{Any}`, `Dict{String,Any}`, `Array{Real}`, similar)
+  - column-major violating loop order in identified matrix hotpaths
+- Outside an identified hotpath the same three observations are non-blocking suggestions: a reviewer
+  may not declare a path "hot" without a measurement or task declaration and then block on it —
+  that would demand less evidence for the blocker than this skill demands for a speedup claim.
 
 ### Equivalence gate (an accelerated path must compute the same thing)
 

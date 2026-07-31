@@ -29,7 +29,11 @@ every trigger below:
   `research_plan.md#Current Status` or the `research_contract.md`
   claims table.
 - Checking off a task-board item whose output later work will build
-  on.
+  on — the item that makes a claim, interface, or result durable, not
+  each sub-step or remediation retry inside it; sub-steps inherit the
+  walk owed at their parent boundary, and a walk already recorded for
+  a boundary is not re-owed for intermediate patches that create no
+  new durable claim.
 - A milestone closeout commit.
 - Promoting or superseding the current main research report.
 - Marking a `research-team` cycle as converged, or acting on a
@@ -667,10 +671,14 @@ author clarification, or direct author confirmation. If those records do not dec
 issue uniquely, retain `unresolved_source_error`; repetition or citation count is not a
 vote on correctness.
 
-When the note will carry a central claim or be folded into a durable artifact, obtain
-at least one **candidate-withheld extraction**: a fresh reader receives the persisted
+When the note will carry a central claim — a claim downstream conclusions rest on —
+obtain at least one **candidate-withheld extraction**: a fresh reader receives the persisted
 source plus only a neutral locator/question list, not the candidate note, prior verdict,
-or proposed answer. Use the `review-swarm` `source-extraction` role so candidate artifacts,
+or proposed answer. (A note without a central claim needs only the candidate-visible
+literal comparison; the two-pass machinery is for load-bearing transcriptions.) A note
+whose claim later becomes one a conclusion rests on owes the candidate-withheld
+extraction at that promotion moment, before the conclusion is folded — centrality is
+re-judged when the note's role changes, not only when the note is written. Use the `review-swarm` `source-extraction` role so candidate artifacts,
 diffs, and additional context are rejected by packet construction; separately inspect the
 request for answer anchoring because neutrality is not machine-decidable. Then run the
 candidate-visible literal comparison. At least one
@@ -679,7 +687,10 @@ input/framing independence. Record all three axes separately: model family, meth
 candidate/prior-verdict visibility.
 
 Run the comparison through the gate harness (`review-swarm`'s source-fidelity reviewer),
-**re-reviewing after every fix** because a correction can introduce a fresh defect. In
+**re-reviewing after every fix** because a correction can introduce a fresh defect. The
+confirmation round may review the exact delta from the previously reviewed hashes (the
+option the freshness discipline below already grants) when the fix is localized; escalate
+to the full artifact when the fix reaches surface the panel never reviewed. In
 feedback rounds, provide the suspected discrepancy and source locator as a hypothesis;
 do not supply the desired corrected expression as a premise. Declare convergence only
 when the source-localized checks agree — never by majority vote or self-pronouncement.
@@ -858,6 +869,11 @@ deadline.
 | A3 | compute_runs (numerical result acceptance) | M3, M5, M6 |
 | A4 | paper_edits (manuscript text) | M2, M3, M4, M7 |
 | A5 | final_conclusions (project closeout) | M1–M7; confirm applicable M8 checks were run before computation |
+
+Walk depth scales with the diff's blast radius: an interface-level or
+result-bearing diff gets the full listed walk, while a micro-patch inside
+an already-walked boundary needs only the affected-mode re-walk described
+under "Recovery from a caught failure" — not a fresh full pass per patch.
 
 For A5 specifically, run the full M1–M7 pass, confirm that M8 was run
 before every computation to which it applied, and record both checks

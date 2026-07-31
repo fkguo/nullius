@@ -2,6 +2,23 @@
 
 This is a minimal, reusable contract for theory-heavy projects that also produce computation artifacts.
 
+## 0) Hash discipline: freeze-then-hash, never hash lifecycle state
+
+Hashes bind only bytes that are frozen:
+
+- **Before execution**: input and code identities (they cannot change afterwards by definition).
+- **At run completion**: produced outputs, which are write-once from that point on.
+- **Never**: files the workflow rewrites as the run advances toward acceptance — status fields,
+  evolving summaries, project registries, adjudication indexes. Hashing a status-bearing file
+  binds the record to a value that must change, so every lifecycle advance cascades into
+  re-hashing and re-verifying bookkeeping. When a hash-bound artifact genuinely needs to change,
+  freeze a new version and supersede the old one (the immutable-report-registry model), never
+  re-hash in place.
+
+A practical shape is a two-part record: a freeze manifest (inputs + code, hashed before launch)
+and an append-only result record (output identities added after execution). Status summaries live
+outside both.
+
 ## 1) Run Manifest (manifest.json)
 
 Goal: make every run reproducible and auditable.
@@ -14,7 +31,9 @@ Recommended minimal fields:
 - `params`: key parameters (JSON object)
 - `versions`: `{ "python": "...", "julia": "...", "packages": {...} }` (best effort)
 - `outputs`: list/dict of produced files (paths)
-- (Optional) `output_hashes`: `{ "path": "sha256:..." }` to detect post-hoc changes
+- (Optional) `output_hashes`: `{ "path": "sha256:..." }` to detect post-hoc changes — only for
+  outputs frozen at run completion, per the hash discipline above; never add hash entries for
+  files expected to be updated in place
 - `logs`: `{ "stdout": "...", "stderr": "..." }` (optional)
 
 ## 2) Summary (summary.json / summary.csv)

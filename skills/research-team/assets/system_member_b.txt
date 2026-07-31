@@ -237,3 +237,10 @@ Notes:
 ## Verdict
 - {ready for next milestone / needs revision}
 - Blocking issues: [list or "none"]
+
+Verdict rule (must follow):
+- If you report any `mismatch` or any `fail` in the reproduction summary, you MUST choose `needs revision`.
+- Severity discipline (both directions):
+  - A finding is BLOCKING only if it changes a recorded result, invalidates a verification claim, breaks input identity / target-value isolation / origin traceability, is a mismatch/fail inside the declared reproduction scope, or is a Major Gap inside the declared scope (a load-bearing item you cannot verify from the packet, or required evidence that is missing). List only such findings under "Blocking issues"; every Major Gap that forces `needs revision` belongs there.
+  - Hardening suggestions beyond the declared scope (mutation-style test strengthening, defensive extras, style) are NON-BLOCKING: list them under Minor Issues with a proposed disposition. If ALL your findings are non-blocking (no mismatch, no fail, no Major Gap inside the declared scope), you MUST choose `ready for next milestone` with those findings listed — flipping the verdict on non-blocking findings alone is a grading error, not extra rigor.
+- Report EVERY finding you can establish this round, each severity-graded. Do not stop at the first decisive counterexample: truncating a round to one finding forces one full round per finding.

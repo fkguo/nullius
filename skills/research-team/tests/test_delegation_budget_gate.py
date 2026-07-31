@@ -249,6 +249,116 @@ def test_heap_limit_below_dry_run_peak_fails(tmp_path: Path) -> None:
     _assert_fails_with(tmp_path, contract, "HEAP_LIMIT_BELOW_DRY_RUN_PEAK")
 
 
+def _declared_cap_contract() -> dict:
+    contract = _complete_contract()
+    contract["delegation_id"] = "verify-derivation-01"
+    contract["workstream"] = (
+        "blind re-derivation review of the milestone's closed-form result; no computation launched"
+    )
+    contract["launches_full_scale_computation"] = False
+    contract["peak_memory_estimate"] = {
+        "mode": "declared_cap",
+        "heap_limit_mb": 2048,
+        "basis": "short bounded verification pass; launches no full-scale computation",
+    }
+    return contract
+
+
+def test_declared_cap_memory_estimate_passes(tmp_path: Path) -> None:
+    proj = _make_project(tmp_path, contracts={"lane-scan-01.json": _declared_cap_contract()})
+    proc, verdict = _run_gate(proj)
+    assert proc.returncode == 0, proc.stderr
+    assert verdict is not None
+    _assert_verdict_valid(verdict)
+    assert verdict["status"] == "pass"
+
+
+def test_declared_cap_missing_basis_fails(tmp_path: Path) -> None:
+    contract = _declared_cap_contract()
+    del contract["peak_memory_estimate"]["basis"]
+    _assert_fails_with(tmp_path, contract, "MISSING_DECLARED_CAP_BASIS")
+
+
+def test_declared_cap_multiline_basis_fails(tmp_path: Path) -> None:
+    contract = _declared_cap_contract()
+    contract["peak_memory_estimate"]["basis"] = "short pass\nno compute launch"
+    _assert_fails_with(tmp_path, contract, "MISSING_DECLARED_CAP_BASIS")
+
+
+def test_declared_cap_missing_heap_limit_fails(tmp_path: Path) -> None:
+    contract = _declared_cap_contract()
+    del contract["peak_memory_estimate"]["heap_limit_mb"]
+    _assert_fails_with(tmp_path, contract, "MISSING_HEAP_LIMIT")
+
+
+def test_declared_cap_with_measured_rss_is_contradictory(tmp_path: Path) -> None:
+    contract = _declared_cap_contract()
+    contract["peak_memory_estimate"]["dry_run_peak_rss_mb"] = 178
+    _assert_fails_with(tmp_path, contract, "CONTRADICTORY_MEMORY_ESTIMATE")
+
+
+def test_unknown_memory_mode_fails_closed(tmp_path: Path) -> None:
+    contract = _declared_cap_contract()
+    contract["peak_memory_estimate"]["mode"] = "estimated"
+    _assert_fails_with(tmp_path, contract, "INVALID_MEMORY_MODE")
+
+
+def test_explicit_null_memory_mode_fails_closed(tmp_path: Path) -> None:
+    contract = _complete_contract()
+    contract["peak_memory_estimate"]["mode"] = None
+    _assert_fails_with(tmp_path, contract, "INVALID_MEMORY_MODE")
+
+
+def test_placeholder_declared_cap_basis_fails(tmp_path: Path) -> None:
+    contract = _declared_cap_contract()
+    contract["peak_memory_estimate"]["basis"] = "<one line: why no dry run>"
+    _assert_fails_with(tmp_path, contract, "PLACEHOLDER_VALUE")
+
+
+def test_declared_cap_without_launch_declaration_fails(tmp_path: Path) -> None:
+    contract = _declared_cap_contract()
+    del contract["launches_full_scale_computation"]
+    _assert_fails_with(tmp_path, contract, "MISSING_LAUNCH_DECLARATION")
+
+
+def test_declared_cap_with_null_launch_declaration_fails(tmp_path: Path) -> None:
+    contract = _declared_cap_contract()
+    contract["launches_full_scale_computation"] = None
+    _assert_fails_with(tmp_path, contract, "MISSING_LAUNCH_DECLARATION")
+
+
+def test_declared_cap_on_declared_compute_launch_is_contradictory(tmp_path: Path) -> None:
+    contract = _declared_cap_contract()
+    contract["launches_full_scale_computation"] = True
+    _assert_fails_with(tmp_path, contract, "CONTRADICTORY_MEMORY_ESTIMATE")
+
+
+def test_measured_form_with_declared_compute_launch_passes(tmp_path: Path) -> None:
+    contract = _complete_contract()
+    contract["launches_full_scale_computation"] = True
+    proj = _make_project(tmp_path, contracts={"lane-scan-01.json": contract})
+    proc, verdict = _run_gate(proj)
+    assert proc.returncode == 0, proc.stderr
+    assert verdict is not None
+    assert verdict["status"] == "pass"
+
+
+def test_declared_cap_with_explicit_no_launch_passes(tmp_path: Path) -> None:
+    contract = _declared_cap_contract()
+    contract["launches_full_scale_computation"] = False
+    proj = _make_project(tmp_path, contracts={"verify-derivation-01.json": contract})
+    proc, verdict = _run_gate(proj)
+    assert proc.returncode == 0, proc.stderr
+    assert verdict is not None
+    assert verdict["status"] == "pass"
+
+
+def test_non_boolean_launch_declaration_fails(tmp_path: Path) -> None:
+    contract = _complete_contract()
+    contract["launches_full_scale_computation"] = "yes"
+    _assert_fails_with(tmp_path, contract, "CONTRADICTORY_MEMORY_ESTIMATE")
+
+
 def test_unknown_contract_version_fails_closed(tmp_path: Path) -> None:
     contract = _complete_contract()
     contract["contract_version"] = 2

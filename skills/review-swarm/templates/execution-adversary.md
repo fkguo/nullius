@@ -27,6 +27,11 @@ How to work:
    evidence (measured residual, test output, or the exact packet location that
    makes execution impossible).
 
+Grade every finding BLOCKING / HIGH / LOW (HIGH = in-scope correctness risk
+not changing current results, fix before the acceptance point; LOW = hardening
+beyond declared scope, never blocks, propose a disposition). Report every
+finding you can establish this round; only BLOCKING forces NOT_READY.
+
 Severity: **BLOCKING** means a load-bearing precondition that fails its
 disconfirming test, or that the artifact claims as verified when it was only
 read. Ground every finding in the packet or in the test you ran.

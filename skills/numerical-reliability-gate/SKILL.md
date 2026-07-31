@@ -1,6 +1,6 @@
 ---
 name: numerical-reliability-gate
-description: "Convergence and reliability gate for NUMERICAL results in any field, including fits, optimizations, integrals, eigenvalues, roots, poles, zeros, ODE/PDE solutions, Monte-Carlo estimates, and downstream feature extraction. Use before trusting, comparing, publishing, or folding a computed number into durable research artifacts. Requires resolution convergence, independent-method checks, regression anchors, post-correction downstream recomputation, method-precondition checks, configuration-threading audits, gate-discrimination (negative-control) audits of purpose-built validation chains, accelerated/heuristic fast-path scoping (no false guarantee, unconditional escape hatch, production-validated precondition), and honest uncertainty/reporting. Emits an auditable reliability matrix. Sibling to derivation-verify for symbolic claims and julia-perf for speed claims."
+description: "Convergence and reliability gate for NUMERICAL results in any field, including fits, optimizations, integrals, eigenvalues, roots, poles, zeros, ODE/PDE solutions, Monte-Carlo estimates, and downstream feature extraction. Use before a RESULT-BEARING computed number — one a conclusion or durable artifact will rest on — is trusted, compared, published, or folded into durable research artifacts; numbers that exist only to exercise code (test fixtures, internal tooling values) are covered by ordinary tests, not this gate. Requires resolution convergence, independent-method checks, regression anchors, post-correction downstream recomputation, method-precondition checks, configuration-threading audits, gate-discrimination (negative-control) audits of purpose-built validation chains, accelerated/heuristic fast-path scoping (no false guarantee, unconditional escape hatch, production-validated precondition), and honest uncertainty/reporting. Emits an auditable reliability matrix. Sibling to derivation-verify for symbolic claims and julia-perf for speed claims."
 ---
 
 # Numerical Reliability Gate
@@ -20,8 +20,11 @@ superseded configuration.
 
 ## When to use
 
-Use when a **computed number** is about to be trusted, compared, or written into a durable artifact
-(a contract, a paper, a conclusion). Domain-neutral — only the caller's context carries the domain.
+Use when a **result-bearing computed number** — one a conclusion or durable artifact (a contract, a
+paper, a headline claim) will rest on — is about to be trusted, compared, or written in. The
+durable-record condition governs all three verbs: a number whose only consumer is a test, a fixture,
+or internal tooling is exercised by ordinary tests and does not enter this gate. Domain-neutral —
+only the caller's context carries the domain.
 Example quantities (illustrative, not a fixed list):
 
 - a fit result (a χ²/dof, a best-fit parameter, an error bar) from a nonlinear optimization,
@@ -39,8 +42,12 @@ Example quantities (illustrative, not a fixed list):
   still fails here, and — the easy trap — a CORRECT-but-wasteful number PASSES every check here (this gate
   does not surface performance waste: a value can be right and still computed orders of magnitude more
   expensively than needed, e.g. the whole result formed when only a part was used). So treat efficiency as
-  a first-class deliverable gated by `julia-perf`, not an afterthought bolted on once the number is
-  "reliable" — a green reliability matrix says nothing about whether the computation was efficient.
+  a deliverable in its own right, gated by `julia-perf` **once a computational kernel exists and its
+  cost matters, or a speedup is claimed** — a green reliability matrix says nothing about whether the
+  computation was efficient. The time-scoping matters in both directions: efficiency is not an
+  afterthought bolted on after the science ships, and it is also never a gate placed *before*
+  correctness work — a performance target contracted before a correct kernel exists blocks the
+  science behind a gate that cannot yet be evaluated.
 - **Reviewing an existing artifact** (a diff, a draft) against a contract →
   [`review-swarm`](../review-swarm/SKILL.md).
 - **Surviving the long, kill-prone COMPUTE that produces the numbers** (checkpoint / heartbeat / resume)
@@ -171,8 +178,13 @@ Each check names its own minimum disconfirming test — never accept a number be
 - **G6 — Report only converged values, with provenance.** Fold into the durable record only values that
   passed every applicable G1–G10 check at the converged setting, each tagged with its
   grid/node/method/contour. A coarse, intermediate, or non-converged number is **labeled as such or
-  discarded** — never silently reused. Check a reused artifact's timestamp against the current code
-  version before trusting it (a stale artifact from a since-fixed bug reads as current truth otherwise).
+  discarded** — never silently reused. Before trusting a reused artifact, check that the **evaluator
+  fingerprint** that produced it (code/model version, solver settings, source and dependency identity —
+  the same fingerprint the connected-series check below records) still matches what the current record
+  would produce; a stale artifact from a since-fixed bug reads as current truth otherwise. Fingerprint,
+  not timestamp, is the staleness key: an unrelated commit does not invalidate gate evidence whose
+  fingerprint inputs it provably did not touch, so a change re-opens only the checks whose inputs it
+  altered — untouched evidence remains valid without re-execution or re-review.
   **After a correction, recompute downstream — never relabel.** When a defect is found in anything upstream
   of already-accepted results, every downstream result — table rows, folded numbers, rendered figures — must
   be **recomputed**, not relabelled, caveated, or annotated in place. The record then states explicitly
@@ -360,7 +372,10 @@ unconverged | method_disagreement | fragile_method | anchor_failed | degenerate 
 heterogeneous_series | precondition_violated | reference_mismatch | circular_validation | overclaimed_heuristic`
 (`reliable` requires every *applicable* G1–G10 check to pass — including the G4 anchor, G6 non-staleness and connected-series fingerprint homogeneity, the G7 production-scale precondition, the G8 reference-match when a published-value match is claimed, the G9 gate-discrimination audit when trust rests on a purpose-built validation chain, and the G10 fast-path scoping when the value comes from an accelerated/heuristic path,
 not only G1–G3). Only `reliable` rows may be folded into the durable record; everything else is a labeled
-candidate or is discarded.
+candidate or is discarded. Gate evidence is keyed **per quantity** to the evaluator fingerprint that
+produced it: a later change re-opens only the checks whose fingerprint inputs it altered, and every
+other row's evidence remains valid without re-execution or re-review — the matrix is not globally
+invalidated by unrelated edits.
 
 ## Host-aware execution (quality first)
 

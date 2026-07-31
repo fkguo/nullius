@@ -395,7 +395,7 @@ class TestScaffoldContract(unittest.TestCase):
             self.assertIn(workflow, template)
         for moment in (
             "Derived a formula, closed form, identity",
-            "A computed number is about to be trusted, compared, or folded into durable artifacts",
+            "A computed number that a conclusion or durable artifact will rest on",
             "Wrote citation-backed claims (introduction, related work, discussion)",
             "Freezing a bibliography",
             "Finalized a data or results figure (once per generating script)",
@@ -405,8 +405,39 @@ class TestScaffoldContract(unittest.TestCase):
             "Before conclusions, a milestone closeout, or a handoff",
         ):
             self.assertIn(moment, template)
+        # The gates bind to result-bearing quantities; exercised-only numbers
+        # and internal scaffolding diffs are explicitly out of gate scope.
+        self.assertIn("is covered by ordinary tests", template)
+        self.assertIn(
+            "a diagnostic that establishes a headline claim's convergence is result-bearing",
+            template,
+        )
+        self.assertIn(
+            "internal scaffolding diffs close on local tests plus a single reviewer", template
+        )
         # The integrity row states where run evidence lands.
         self.assertIn("land run evidence under `artifacts/runs/<run_id>/` or `team/runs/<run>/`", template)
+        # Granularity and severity rules ship with the trigger table: the
+        # reviewed unit is a stable candidate, findings are severity-graded
+        # with explicit dispositions, confirmation rounds review the delta,
+        # and performance never blocks correctness.
+        self.assertIn("## Verification granularity and severity", template)
+        self.assertIn("The reviewed unit is a stable candidate", template)
+        self.assertIn("Review findings are severity-graded.", template)
+        self.assertIn("Non-blocking findings by themselves do not trigger a new round", template)
+        self.assertIn(
+            "any fix batch actually applied still gets its delta-scoped confirmation round",
+            template,
+        )
+        self.assertIn("Confirmation rounds review the delta.", template)
+        self.assertIn("Convergence is declared by the reviewers, never by the fixer.", template)
+        self.assertIn("Performance never blocks correctness.", template)
+        self.assertIn("supersede, don't re-hash", template)
+        # Stall detection: process artifacts alone are never progress, and a
+        # stalled loop must consolidate/narrow/re-plan instead of re-rounding.
+        self.assertIn("Process artifacts are not progress.", template)
+        self.assertIn("another round is not an allowed response", template)
+        self.assertIn("never as a review-round counter", template)
 
     def test_scaffold_agents_template_declares_execution_modes(self) -> None:
         template = (scaffold_template_dir() / "AGENTS.md").read_text(encoding="utf-8")

@@ -19,8 +19,9 @@
     "<no building a full test suite beyond the delegated checks>",
     "<no third-party benchmarking>"
   ],
+  "launches_full_scale_computation": "<boolean: true when the workstream launches a full-scale computation (then the measured memory form is required); MANDATORY false for a declared_cap contract — absent fails closed there>",
   "peak_memory_estimate": {
-    "_note": "Measured on a single-unit dry run BEFORE the full launch; estimating wall-clock alone is not a resource estimate. heap_limit_mb is the explicit cap the full run is launched with and must be >= dry_run_peak_rss_mb.",
+    "_note": "Two machine-checked forms. MEASURED (this shape — for workstreams launching a computation whose scale could threaten memory): dry_run_peak_rss_mb measured on a single-unit dry run BEFORE the full launch (estimating wall-clock alone is not a resource estimate), heap_limit_mb >= dry_run_peak_rss_mb. DECLARED_CAP (for short bounded workstreams launching no such computation, e.g. a quick verification pass or symbolic/review-only task): replace dry_run_peak_rss_mb with \"mode\": \"declared_cap\" and add \"basis\": one line stating why a dry-run measurement is not warranted. Do not measure an unrelated command's RSS just to fill the measured form.",
     "dry_run_peak_rss_mb": "<finite positive number: peak RSS of the single-unit dry run, in MB>",
     "heap_limit_mb": "<finite positive number: explicit heap cap for the full run, in MB>",
     "dry_run_ref": "<optional: pointer to the dry-run log / checkpoint that produced the measurement>"

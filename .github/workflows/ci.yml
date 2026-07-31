@@ -197,6 +197,18 @@ jobs:
       - name: Python tests (convergence gate machine-verdict contract)
         run: python -m pytest skills/research-team/tests/test_convergence_gate_json.py -q
 
+      - name: Adjudication disposition inventory tests
+        run: python -m pytest skills/research-team/tests/test_build_adjudication_response.py -q
+
+      - name: Adjudication completeness gate tests
+        run: python -m pytest skills/research-team/tests/test_adjudication_completeness_gate.py -q
+
+      - name: Fold guard runner integration tests
+        run: python -m pytest skills/research-team/tests/test_fold_guard_runner_integration.py -q
+
+      - name: Review baseline-binding tests
+        run: python -m pytest skills/review-swarm/tests/test_baseline_binding.py -q
+
       - name: Python tests (delegation-budget preflight brake, runner integration)
         run: python -m pytest skills/research-team/tests/test_delegation_budget_runner_integration.py -q
 

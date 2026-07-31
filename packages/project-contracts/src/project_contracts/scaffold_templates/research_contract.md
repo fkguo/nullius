@@ -53,6 +53,15 @@ current entry point and supersession registry in
   versions, produced files), `summary.json` (derived statistics, definitions, or
   aggregation rules), and `analysis.json` (headline results plus the pointers
   that justify them).
+- Hash only what is frozen: input and code identities before execution, and
+  outputs that are complete and immutable at run completion. The run trio
+  (`manifest.json`/`summary.json`/`analysis.json`) freezes at run completion —
+  a file that carries results is never lifecycle state. What never enters a
+  hash closure is what the lifecycle rewrites as the run advances toward
+  acceptance: status fields, summaries-in-progress, project registries,
+  adjudication indexes — a hashed status file forces a re-hash cascade on
+  every lifecycle advance. When a hash-bound artifact must change, freeze a
+  new version and supersede the old one instead of re-hashing in place.
 - `team/runs/<run>/` (written by milestone-executor review cycles) is a
   first-class evidence root alongside `artifacts/runs/<run_id>/`. A claim may
   cite evidence from either root directly; cite the path that actually holds

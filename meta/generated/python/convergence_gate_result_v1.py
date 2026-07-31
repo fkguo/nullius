@@ -53,6 +53,7 @@ class ReportStatus(BaseModel):
     )
     verdict: Verdict
     blocking_count: Annotated[int | None, Field(ge=0)]
+    minor_issues_count: Annotated[int | None, Field(ge=0)] = None
     parse_ok: bool
     derivation: Derivation | None = None
     computation: Computation | None = None
