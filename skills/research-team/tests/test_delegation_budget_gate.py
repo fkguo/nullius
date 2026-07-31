@@ -298,6 +298,12 @@ def test_unknown_memory_mode_fails_closed(tmp_path: Path) -> None:
     _assert_fails_with(tmp_path, contract, "INVALID_MEMORY_MODE")
 
 
+def test_explicit_null_memory_mode_fails_closed(tmp_path: Path) -> None:
+    contract = _complete_contract()
+    contract["peak_memory_estimate"]["mode"] = None
+    _assert_fails_with(tmp_path, contract, "INVALID_MEMORY_MODE")
+
+
 def test_placeholder_declared_cap_basis_fails(tmp_path: Path) -> None:
     contract = _declared_cap_contract()
     contract["peak_memory_estimate"]["basis"] = "<one line: why no dry run>"

@@ -445,7 +445,16 @@ def _validate_contract(contract: Any) -> list[str]:
         mode = mem.get("mode")
         rss = mem.get("dry_run_peak_rss_mb")
         heap = mem.get("heap_limit_mb")
-        if mode is None:
+        if "mode" in mem and mode is None:
+            # An explicit null is not "absent": the measured form is selected
+            # by leaving the key out entirely, so a null mode is rejected the
+            # same way any other non-"declared_cap" value is.
+            issues.append(
+                "INVALID_MEMORY_MODE: `peak_memory_estimate.mode` must be absent "
+                '(measured form) or the exact string "declared_cap" (got null); '
+                "unknown modes fail closed"
+            )
+        elif mode is None:
             # Measured form (the default): dry-run RSS + heap cap.
             if not _is_finite_positive_number(rss):
                 issues.append(
