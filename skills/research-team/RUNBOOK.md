@@ -444,9 +444,28 @@ In projects scaffolded by `research-team`, use the navigation front door instead
   - Write an adjudication note:
     - `mkdir -p team/runs/<next_tag>`
     - `python3 "${SKILL_DIR}/scripts/bin/build_adjudication_response.py" --tag <next_tag> --member-a team/runs/<tag>/<tag>_member_a.md --member-b team/runs/<tag>/<tag>_member_b.md --out team/runs/<next_tag>/<next_tag>_adjudication.md`
-  - Apply fixes to the notebook/code/artifacts and rerun with a fresh tag.
-- Rerun:
-  - Full cycle command with `--auto-tag` (do not reuse tags; trajectory is an upsert index).
+  - Grade the findings per the severity contract in SKILL.md (blocking vs
+    non-blocking); give every non-blocking finding an explicit disposition in
+    the adjudication (fix now / attach to a named acceptance point / discard
+    with reason).
+  - Batch ALL blocking fixes into one stabilized candidate; apply them to the
+    notebook/code/artifacts, run the full local test surface once, and only
+    then re-enter the reviewed cycle with a fresh tag.
+- Rerun (choose the narrowest sufficient form):
+  - **Delta confirmation round (default after a fix batch)**: when the prior
+    round's blocking findings are enumerable and the fixes are localized,
+    rebuild the packet as the reviewed baseline's identity plus the exact
+    diff plus a findings-to-resolutions table, and have the member(s) who
+    raised the findings re-review that delta. Escalate to a full-packet round
+    when formulas/assumptions, the data model or a global invariant, or an
+    origin-traceability root changed — or when a reviewer asks for the full
+    artifact.
+  - **Full cycle** with `--auto-tag` (do not reuse tags; trajectory is an
+    upsert index): first round of a milestone candidate, changed baseline, or
+    any escalation trigger above.
+  - Either way the confirmation round is mandatory after every fix batch —
+    convergence is declared by the reviewers on the current artifact, never
+    by the leader after applying fixes.
 
 ## Deterministic validation
 

@@ -28,12 +28,19 @@ delegated workstream, default location `<project_root>/team/delegations/`):
   - scope_negative_list: non-empty list of expansions the executor must
       NOT undertake on its own initiative (e.g. infrastructure rewrites,
       building a full test suite, third-party benchmarking)
-  - peak_memory_estimate:
-      dry_run_peak_rss_mb: peak resident-set size measured on a
-             single-unit dry run BEFORE the full launch (estimating
-             wall-clock alone is not a resource estimate)
-      heap_limit_mb: explicit heap cap for the full run
-             (must be >= dry_run_peak_rss_mb)
+  - peak_memory_estimate — one of two forms:
+      measured (default, for workstreams that launch a computation whose
+      scale could threaten memory):
+        dry_run_peak_rss_mb: peak resident-set size measured on a
+               single-unit dry run BEFORE the full launch (estimating
+               wall-clock alone is not a resource estimate)
+        heap_limit_mb: explicit heap cap for the full run
+               (must be >= dry_run_peak_rss_mb)
+      declared_cap (for short bounded workstreams that launch no such
+      computation — quick verification passes, symbolic/review-only tasks):
+        mode: the exact string "declared_cap"
+        heap_limit_mb: explicit heap cap for the workstream
+        basis: one line stating why a dry-run measurement is not warranted
 
 Falsification labels (all fail-closed):
   NO_CONTRACTS_FOUND, UNREADABLE_CONTRACT, UNSUPPORTED_CONTRACT_VERSION,
@@ -42,7 +49,9 @@ Falsification labels (all fail-closed):
   MISSING_TOLERANCE_ANCHOR, MISSING_TIME_BOX, MISSING_MAX_ATTEMPTS,
   MISSING_SCOPE_NEGATIVE_LIST, MISSING_PEAK_MEMORY_ESTIMATE,
   MISSING_DRY_RUN_PEAK_RSS, MISSING_HEAP_LIMIT,
-  HEAP_LIMIT_BELOW_DRY_RUN_PEAK, PLACEHOLDER_VALUE
+  HEAP_LIMIT_BELOW_DRY_RUN_PEAK, INVALID_MEMORY_MODE,
+  MISSING_DECLARED_CAP_BASIS, CONTRADICTORY_MEMORY_ESTIMATE,
+  PLACEHOLDER_VALUE
 
 Strictness notes (each closes a fail-open hole):
   - `contract_version` must be the exact integer 1: True / 1.0 do not pass.
@@ -415,32 +424,79 @@ def _validate_contract(contract: Any) -> list[str]:
             "undertake on its own initiative"
         )
 
-    # peak_memory_estimate: single-unit dry-run peak RSS + explicit heap cap.
+    # peak_memory_estimate: two machine-checked forms, both fail-closed.
+    #   measured (default): single-unit dry-run peak RSS + explicit heap cap —
+    #     required whenever the workstream launches a computation whose scale
+    #     could threaten memory (a long or production-scale job).
+    #   declared_cap: mode == "declared_cap" + heap cap + one-line basis — the
+    #     honest form for a short, bounded workstream that launches no such
+    #     computation (a quick verification pass, a symbolic or review-only
+    #     task), where measuring the RSS of an unrelated command would be an
+    #     empty formality rather than a resource estimate.
     mem = contract.get("peak_memory_estimate")
     if not isinstance(mem, dict):
         issues.append(
             "MISSING_PEAK_MEMORY_ESTIMATE: `peak_memory_estimate` object is required "
-            "(single-unit dry-run peak RSS + heap cap); estimating wall-clock alone "
-            "is not a resource estimate"
+            "(measured single-unit dry-run peak RSS + heap cap, or mode "
+            '"declared_cap" with a heap cap + one-line basis); estimating '
+            "wall-clock alone is not a resource estimate"
         )
     else:
+        mode = mem.get("mode")
         rss = mem.get("dry_run_peak_rss_mb")
         heap = mem.get("heap_limit_mb")
-        if not _is_finite_positive_number(rss):
+        if mode is None:
+            # Measured form (the default): dry-run RSS + heap cap.
+            if not _is_finite_positive_number(rss):
+                issues.append(
+                    "MISSING_DRY_RUN_PEAK_RSS: `peak_memory_estimate.dry_run_peak_rss_mb` "
+                    f"must be a finite positive number measured on a dry run (got {rss!r}); "
+                    'a workstream that launches no full-scale computation may use mode '
+                    '"declared_cap" with a heap cap + one-line basis instead'
+                )
+            if not _is_finite_positive_number(heap):
+                issues.append(
+                    "MISSING_HEAP_LIMIT: `peak_memory_estimate.heap_limit_mb` must be a "
+                    f"finite positive number (got {heap!r})"
+                )
+            if _is_finite_positive_number(rss) and _is_finite_positive_number(heap) and heap < rss:
+                issues.append(
+                    "HEAP_LIMIT_BELOW_DRY_RUN_PEAK: `heap_limit_mb` "
+                    f"({heap!r}) is below the measured dry-run peak RSS ({rss!r}); "
+                    "the full run would exceed its own cap"
+                )
+        elif mode == "declared_cap":
+            # Declared form: heap cap + basis; a measured RSS alongside it is
+            # contradictory (pick one form, never both).
+            if "dry_run_peak_rss_mb" in mem:
+                issues.append(
+                    "CONTRADICTORY_MEMORY_ESTIMATE: `peak_memory_estimate` carries both "
+                    'mode "declared_cap" and `dry_run_peak_rss_mb` — a contract uses the '
+                    "measured form or the declared form, never both"
+                )
+            if not _is_finite_positive_number(heap):
+                issues.append(
+                    "MISSING_HEAP_LIMIT: `peak_memory_estimate.heap_limit_mb` must be a "
+                    f"finite positive number (got {heap!r})"
+                )
+            basis = mem.get("basis")
+            if not isinstance(basis, str) or not basis.strip():
+                issues.append(
+                    "MISSING_DECLARED_CAP_BASIS: `peak_memory_estimate.basis` must be a "
+                    "non-empty one-line statement of why a dry-run measurement is not "
+                    "warranted (e.g. short bounded workstream, no full-scale computation "
+                    "launched)"
+                )
+            elif basis.splitlines() != [basis]:
+                issues.append(
+                    "MISSING_DECLARED_CAP_BASIS: `peak_memory_estimate.basis` must be a "
+                    "single line with no line-break characters"
+                )
+        else:
             issues.append(
-                "MISSING_DRY_RUN_PEAK_RSS: `peak_memory_estimate.dry_run_peak_rss_mb` "
-                f"must be a finite positive number measured on a dry run (got {rss!r})"
-            )
-        if not _is_finite_positive_number(heap):
-            issues.append(
-                "MISSING_HEAP_LIMIT: `peak_memory_estimate.heap_limit_mb` must be a "
-                f"finite positive number (got {heap!r})"
-            )
-        if _is_finite_positive_number(rss) and _is_finite_positive_number(heap) and heap < rss:
-            issues.append(
-                "HEAP_LIMIT_BELOW_DRY_RUN_PEAK: `heap_limit_mb` "
-                f"({heap!r}) is below the measured dry-run peak RSS ({rss!r}); "
-                "the full run would exceed its own cap"
+                "INVALID_MEMORY_MODE: `peak_memory_estimate.mode` must be absent "
+                f'(measured form) or the exact string "declared_cap" (got {mode!r}); '
+                "unknown modes fail closed"
             )
 
     # Whole-contract placeholder sweep, optional fields included.
@@ -874,7 +930,9 @@ def _run(
         print(
             "[gate] Fail-closed: delegation budget contract(s) incomplete. Fill every "
             "required budget field (tolerance ceiling + anchor, time box, attempt cap, "
-            "scope negative list, dry-run peak RSS + heap cap) before dispatch.",
+            "scope negative list, and a memory estimate — dry-run peak RSS + heap cap "
+            'for compute launches, or mode "declared_cap" + heap cap + basis for short '
+            "bounded workstreams) before dispatch.",
             file=sys.stderr,
         )
         return _emit(

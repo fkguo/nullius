@@ -17,7 +17,7 @@ Use it as the restart checklist before any new milestone, context switch, or lon
 - Human notebook: `research_notebook.md`
 - Main research report entry point: `project_index.md#Main research report`
 - Machine contract: `research_contract.md`
-- Evidence-first: every meaningful action writes auditable artifacts under `artifacts/runs/<run_id>/` (lifecycle and compute runs) or `team/runs/<run>/` (milestone-executor review cycles); both are first-class evidence roots — cite the one that actually holds the evidence.
+- Evidence-first: every meaningful action writes auditable artifacts under `artifacts/runs/<run_id>/` (lifecycle and compute runs) or `team/runs/<run>/` (milestone-executor review cycles); both are first-class evidence roots — cite the one that actually holds the evidence. A run directory records a unit of work worth auditing — a milestone candidate, a computation, a review cycle; development iteration toward that unit (diagnostics, build fixes, retries) is logged inside the unit's run directory, not minted as a fresh run per attempt.
 - `run_id` names the project-local research run. Prefer a safe, sortable, readable shape such as `<YYYYMMDDTHHMMSSZ>-<milestone>-<short-topic>-rN`; do not use bare UUIDs, `run_<uuid>`, path separators, `..`, or low-information generated names as human-facing run IDs.
 - Approval checkpoints: final-conclusion approval (A5) is always enforced through the finalize flow. Heavy-compute approval (A3) is opt-in — off by default so interactive work is not paused; set `require_approval_for.compute_runs: true` in `.nullius/approval_policy.json` to gate unattended runs. A1/A2/A4 (broad search, code/logic changes, manuscript edits) are advisory reminders, not hard blocks.
 - Keep `research_plan.md#Current Status` current enough that a researcher can see the final target, completion state, blocker, next step, and stop condition without reading the full log.
@@ -32,15 +32,24 @@ Verification runs on events, not on reminders: each moment below is the trigger,
 | The moment | Verification workflow |
 |---|---|
 | Derived a formula, closed form, identity, or a sign/branch/boundary choice that later work will rely on | `derivation-verify` — at least two independent blind re-derivations |
-| A computed number is about to be trusted, compared, or folded into durable artifacts | `numerical-reliability-gate` — convergence, independent methods, regression anchor |
+| A computed number that a conclusion or durable artifact will rest on is about to be trusted, compared, or folded in (numbers that exist only to exercise code — fixtures, tooling values, diagnostic intermediates — are covered by ordinary tests) | `numerical-reliability-gate` — convergence, independent methods, regression anchor |
 | Wrote citation-backed claims (introduction, related work, discussion) | `claim-grounding` — fetch each cited source and verify it supports the claim |
 | Freezing a bibliography, or admitting papers into a core reading set | `citation-triangulation` — cross-index metadata agreement per entry |
 | Finalized a data or results figure (once per generating script) | `figure-hygiene` — data fidelity and legibility checklist |
 | Drew or revised a schematic, process, or geometry diagram | `physics-diagrams` — layout and publication-readiness audit |
 | Claimed a speedup or performance regression, or wrote performance-critical numerical code | `julia-perf` — language-scoped benchmark gating; use an equivalent gate for other languages |
-| A result, manuscript, derivation, or diff needs independent review | `review-swarm` — clean-room cross-model review |
+| A result-bearing surface needs independent review: a headline result, manuscript, load-bearing derivation, public contract, or an irreversible change (internal scaffolding diffs close on local tests or a single reviewer) | `review-swarm` — clean-room cross-model review |
 | Before conclusions, a milestone closeout, or a handoff | `research-integrity` M1-M7 — record the outcome inline and land run evidence under `artifacts/runs/<run_id>/` or `team/runs/<run>/` |
 | Before promoting or superseding the main research report | `nullius report-validate` — fail closed on structural incompleteness, stale current pointers, mutated history, machine-only evidence, or replay mislabeled as independent validation |
+
+## Verification granularity and severity
+
+The triggers above bind to result-bearing moments; how much verification a moment deserves follows four rules:
+
+- **The reviewed unit is a stable candidate** — a milestone result or a stable interface version — never each patch on the way there. Iterate freely in bounded development (diagnostic runs and targeted tests inside the delegated time box are development work, not budgeted attempts), merge all known blocking fixes into one stabilized candidate, then run the review pair once on the frozen candidate. Full independent verification (cross-model review, independent executing reproduction, blind re-derivation) is reserved for result-bearing surfaces: headline claims, load-bearing derivations, public contracts. Internal plumbing stabilizes under local tests.
+- **Review findings are severity-graded.** Blocking: changes a recorded result, invalidates a verification claim, or breaks input identity / target-value isolation / origin traceability — fix and re-review. Non-blocking (hardening beyond declared scope, style): give each an explicit disposition — fix now, attach to a named acceptance point, or discard with a stated reason — never a silent drop, and never a new review round on non-blocking findings alone. After a candidate passes a full review pair, later findings re-open it only if they meet the blocking bar.
+- **Confirmation rounds review the delta.** After a fix batch, the mandatory re-review covers the exact diff from the reviewed baseline plus a findings-to-resolutions table; escalate to the full artifact when formulas/assumptions, the data model or a global invariant, or an origin-traceability root changed, or when a reviewer asks. Convergence is declared by the reviewers, never by the fixer.
+- **Performance never blocks correctness.** Resource ceilings exist to terminate runaway processes, not to gate progress; benchmark evidence is owed when a speedup claim is made or production-scale computation begins, never before a correct kernel exists. Run records hash frozen inputs and completed outputs only — status summaries and registries that the lifecycle rewrites stay out of every hash closure (supersede, don't re-hash).
 
 ## Scientific writing discipline
 
