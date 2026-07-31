@@ -194,6 +194,14 @@ def _validate_member_summary(member: str, payload: Any) -> list[str]:
     ):
         errors.append(f"report_status.{member}.blocking_count must be null or non-negative integer")
 
+    minor = payload.get("minor_issues_count")
+    if minor is not None and (
+        not isinstance(minor, int) or isinstance(minor, bool) or minor < 0
+    ):
+        errors.append(
+            f"report_status.{member}.minor_issues_count must be a non-negative integer when present"
+        )
+
     parse_ok = payload.get("parse_ok")
     if not isinstance(parse_ok, bool):
         errors.append(f"report_status.{member}.parse_ok must be boolean")
