@@ -309,12 +309,13 @@ class AgentsFileUnitTests(unittest.TestCase):
         self.assertEqual(info["when_below_minimum"], "native_subagents")
 
     def test_workspace_tool_mode_lane_earns_no_independence_credit(self):
-        # A lane that can read the working tree is not an isolated independent
-        # lane: excluded from family counting, listed with its reason.
+        # A lane running a WRITABLE workspace tool mode is discovery-grade
+        # (the reviewer read-only rule cannot be attested for it): excluded
+        # from family counting, listed with its index and reason.
         results = [
-            {"success": True, "backend": "codex", "model": "codex/x",
+            {"index": 0, "success": True, "backend": "codex", "model": "codex/x",
              "resolved": {"backend": "codex", "model": "codex/x"}},
-            {"success": True, "backend": "opencode", "model": "prov/y",
+            {"index": 1, "success": True, "backend": "opencode", "model": "prov/y",
              "resolved": {"backend": "opencode", "model": "prov/y"}},
         ]
         info = self.mod._independence_summary(
@@ -324,24 +325,92 @@ class AgentsFileUnitTests(unittest.TestCase):
         self.assertEqual(info["participating_families"], ["codex"])
         self.assertEqual(
             info["non_independent_lanes"],
-            [{"family": "opencode", "spec": "prov/y", "reason": "tool_mode:workspace"}],
+            [{"index": 1, "family": "opencode", "spec": "prov/y",
+              "reason": "tool_mode:workspace"}],
         )
+
+    def test_read_only_review_modes_keep_independence_credit(self):
+        # Source-grounded review REQUIRES reading the real code: read-only
+        # browsing modes never forfeit independence credit. Only writable
+        # workspace modes and declared contamination do.
+        results = [
+            {"index": 0, "success": True, "backend": "claude", "model": "claude/a",
+             "resolved": {"backend": "claude", "model": "claude/a"}},
+            {"index": 1, "success": True, "backend": "gemini", "model": "gemini/b",
+             "resolved": {"backend": "gemini", "model": "gemini/b"}},
+        ]
+        info = self.mod._independence_summary(
+            results, None, backend_tool_modes={"claude": "review", "gemini": "review"}
+        )
+        self.assertEqual(info["level"], "cross_family")
+        self.assertEqual(info["non_independent_lanes"], [])
 
     def test_contaminated_lane_earns_no_independence_credit(self):
         results = [
-            {"success": True, "backend": "codex", "model": "codex/x",
+            {"index": 0, "success": True, "backend": "codex", "model": "codex/x",
              "resolved": {"backend": "codex", "model": "codex/x"}},
-            {"success": True, "backend": "gemini", "model": "gemini/z",
+            {"index": 1, "success": True, "backend": "gemini", "model": "gemini/z",
              "resolved": {"backend": "gemini", "model": "gemini/z"}},
         ]
         info = self.mod._independence_summary(
-            results, None, contaminated_specs={"gemini/z"}
+            results, None, contaminated_indices={1}
         )
         self.assertEqual(info["level"], "single_family")
         self.assertEqual(info["participating_families"], ["codex"])
         self.assertEqual(
             info["non_independent_lanes"][0]["reason"], "AMBIENT_CONTEXT_CONTAMINATED"
         )
+        self.assertEqual(info["non_independent_lanes"][0]["index"], 1)
+
+    def test_fallback_lane_judged_by_resolved_execution_backend(self):
+        # A lane recovered through fallback executed somewhere else: the
+        # tool-mode decision must read the RESOLVED backend, not the requested
+        # one. A requested-gemini lane recovered through OpenCode workspace is
+        # a workspace lane.
+        results = [
+            {"index": 0, "success": True, "backend": "codex", "model": "codex/x",
+             "resolved": {"backend": "codex", "model": "codex/x"}},
+            {"index": 1, "success": True, "backend": "gemini", "model": "gemini/z",
+             "resolved": {"backend": "opencode", "model": "prov/y"},
+             "variant": "fallback", "fallback_reason": "timeout"},
+        ]
+        info = self.mod._independence_summary(
+            results, None, backend_tool_modes={"opencode": "workspace"}
+        )
+        self.assertEqual(info["level"], "single_family")
+        self.assertEqual(info["participating_families"], ["codex"])
+        self.assertEqual(
+            info["non_independent_lanes"][0]["reason"], "tool_mode:workspace"
+        )
+        self.assertEqual(info["non_independent_lanes"][0]["index"], 1)
+
+    def test_contaminated_selector_resolution_and_fail_closed(self):
+        # Selectors bind by raw CLI arg (family: form included), resolved
+        # model spec, backend name, or resolved family name; an unmatched
+        # selector aborts instead of silently leaving the lane independent.
+        from pathlib import Path as _Path
+
+        roster = _roster({"gem": {"runner": "gemini", "models": {"default": "gemini/default"}}})
+        plans = [
+            self.mod.AgentPlan(index=0, backend="codex", requested_model="codex/default",
+                               runner_model=None, runner_path=_Path("/dev/null")),
+            self.mod.AgentPlan(index=1, backend="gemini", requested_model="gemini/default",
+                               runner_model=None, runner_path=_Path("/dev/null")),
+        ]
+        family_specs = {1: "family:gem"}
+
+        def resolve(selectors):
+            return self.mod._resolve_contaminated_selectors(
+                selectors, plans=plans, family_spec_by_index=family_specs, roster=roster
+            )
+
+        self.assertEqual(resolve(["family:gem"]), {1})
+        self.assertEqual(resolve(["gem"]), {1})
+        self.assertEqual(resolve(["gemini"]), {1})
+        self.assertEqual(resolve(["gemini/default"]), {1})
+        self.assertEqual(resolve(["codex/default"]), {0})
+        with self.assertRaisesRegex(ValueError, "matched no lane"):
+            resolve(["gemni/default"])
 
     def test_independence_below_minimum_and_levels(self):
         roster = _roster(

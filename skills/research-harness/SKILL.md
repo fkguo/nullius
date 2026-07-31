@@ -56,6 +56,19 @@ content) differ or cannot be established, and whenever any relevant
 identity is unknown, re-run the full check rather than citing the
 receipt. A re-check is owed on state change, never on cadence.
 
+**What in a status receipt is a stop signal — and what is not.** Stop
+and surface the problem only on: a non-null error field (for example
+`final_conclusions_error`, `project_surface_drift_error`), an invalid
+`HARNESS` sentinel, an unhealthy project-local launcher, or a failed
+machine gate. Entries under `recovery_context.derivation_warnings` and
+`project_surface_drift.issues` carry `severity: "advisory"` — they
+report recoverable observations about auxiliary or derived state
+(missing optional manifests, plan-focus fallbacks, aging uncommitted
+work). Record them in the run evidence and keep working; treating an
+advisory-only receipt as a blocker halts real work over conditions the
+receipt itself classifies as non-blocking. A warning worth acting on
+becomes a task on the plan, not a reason to stop the current one.
+
 The check is also skipped for:
 
 - pure read-only provider queries (`arxiv_search`, `openalex_get`,

@@ -564,6 +564,22 @@ def _verify_artifacts_at_commit(
                 f"({digest[:12]}…) differs from its content at {candidate_oid} "
                 f"({commit_digest[:12]}…) — a commit header may not cover uncommitted bytes"
             )
+        # The packet embeds artifact TEXT (decoded with errors="replace") while
+        # this binding attests raw BYTES. For non-UTF-8 content those diverge:
+        # the reviewer would judge replacement-character text that is not the
+        # attested bytes, and distinct byte strings can decode to the same
+        # lossy text. Since the digests above matched, checking the blob bytes
+        # checks the disk bytes.
+        try:
+            show.stdout.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise ValueError(
+                f"--candidate-commit: artifact {rel.as_posix()} is not valid UTF-8 "
+                f"(decode error at byte {exc.start}); the packet embeds artifact text "
+                "after lossy decoding, so the reviewed text would not be the bytes this "
+                "commit binding attests. Re-encode the artifact as UTF-8 or drop "
+                "--candidate-commit rather than review silently replaced bytes"
+            ) from exc
 
 
 def _run_git_diff(diff_range: str) -> str:

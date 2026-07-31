@@ -326,6 +326,18 @@ function selectPlanFocusFromPlanMd(projectRoot: string): RecoveryPlanFocus | nul
   }
 }
 
+// Every entry on the two advisory surfaces — recovery_context.derivation_warnings
+// and project_surface_drift.issues — is advisory by contract: it reports a
+// recoverable observation about auxiliary/derived state and is never a stop
+// condition. Stop conditions live elsewhere (non-null error fields, an invalid
+// HARNESS sentinel, an unhealthy launcher, failed machine gates). The severity
+// field makes that machine-readable, so a delegated agent deciding whether to
+// halt does not have to infer it from prose. Stamped centrally at assembly so
+// no present or future entry can ship without it.
+function markAdvisory(entries: Record<string, unknown>[]): Record<string, unknown>[] {
+  return entries.map(entry => ({ ...entry, severity: 'advisory' }));
+}
+
 function readLatestLedgerEvent(projectRoot: string, preferredRunId: string | null, ledgerSnapshot = readLedgerSnapshot(projectRoot)): {
   latest_event: RecoveryLedgerEvent | null;
   warnings: Record<string, unknown>[];
@@ -582,7 +594,7 @@ function readRecoveryContextView(
     latest_ledger_event: ledger.latest_event,
     human_status_entry: HUMAN_STATUS_ENTRY,
     recommended_files: recommendedFiles,
-    derivation_warnings: warnings,
+    derivation_warnings: markAdvisory(warnings),
   };
 }
 
@@ -1268,7 +1280,7 @@ export function readProjectSurfaceDriftView(projectRoot: string, state: RunState
       project_surface_drift: {
         status: issues.length > 0 ? 'warning_only' : 'clean',
         warning_count: issues.length,
-        issues,
+        issues: markAdvisory(issues),
       },
       project_surface_drift_error: null,
     };
