@@ -5,11 +5,13 @@ import { recordOrReplay, responseIdempotency, storeIdempotency } from './idempot
 import { RpcError } from './errors.js';
 import {
   CONDITION_CARRYING_STATES,
+  DEMOTING_LIFECYCLE_STATES,
   LIFECYCLE_TRANSITIONS,
   ensureNodeInCampaign,
   lifecycleEntryPreconditionFailure,
   nodeLifecycleReason,
   nodeLifecycleState,
+  nodePosterior,
   type NodeLifecycleState,
 } from './node-shared.js';
 import { ensureCampaignNotCompleted, loadCampaignOrError } from './campaign-state.js';
@@ -23,8 +25,11 @@ import { ensureCampaignNotCompleted, loadCampaignOrError } from './campaign-stat
  * activation_condition; every other target state must not carry one (the
  * stored condition is cleared). archived requires a non-empty reason. The
  * reason is stored on the node as lifecycle_reason and recorded in the
- * mutation log. Does not consume step budget. Allowed in any campaign state
- * except completed.
+ * mutation log. Entering a demoting state (needs_refresh, admission_blocked,
+ * archived) rewrites a status=current posterior to status=stale in the same
+ * atomic write (values preserved as history; the log entry carries
+ * posterior_marked_stale). Does not consume step budget. Allowed in any
+ * campaign state except completed.
  */
 export function executeNodeSetLifecycle(options: {
   contracts: IdeaEngineContractCatalog;
@@ -143,6 +148,23 @@ export function executeNodeSetLifecycle(options: {
     updatedNode.activation_condition = targetCarriesCondition
       ? structuredClone(activationCondition)
       : null;
+    // Demoting states mean the stored posterior is no longer current
+    // guidance: mark a current posterior stale in the same atomic write
+    // (value, evidence_count, updated_at, gaia_package_ref preserved as
+    // history; provisional stays provisional). Without this, the store keeps
+    // a current-looking top score on a node the lifecycle has demoted, and
+    // every direct reader is misled until someone hand-runs the manual
+    // set_posterior stale-echo path.
+    const storedPosterior = nodePosterior(node);
+    const posteriorMarkedStale = (DEMOTING_LIFECYCLE_STATES as readonly string[]).includes(targetState)
+      && storedPosterior !== null
+      && storedPosterior.status === 'current';
+    if (posteriorMarkedStale) {
+      updatedNode.posterior = {
+        ...(node.posterior as Record<string, unknown>),
+        status: 'stale',
+      };
+    }
     updatedNode.revision = Number(updatedNode.revision ?? 0) + 1;
     updatedNode.updated_at = now;
     options.contracts.validateAgainstRef('./idea_node_v1.schema.json', updatedNode, `node.set_lifecycle/node/${nodeId}`);
@@ -178,7 +200,10 @@ export function executeNodeSetLifecycle(options: {
     });
 
     options.store.saveNodes(campaignId, nodes);
-    options.store.appendNodeLog(campaignId, updatedNode, 'set_lifecycle', reason === null ? undefined : { reason });
+    options.store.appendNodeLog(campaignId, updatedNode, 'set_lifecycle', {
+      ...(reason === null ? {} : { reason }),
+      ...(posteriorMarkedStale ? { posterior_marked_stale: true } : {}),
+    });
 
     storeIdempotency({
       campaignId,

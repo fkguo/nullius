@@ -4,7 +4,7 @@
   "title": "RankingResult v1",
   "description": "Result of rank.compute: nodes ordered by their externally computed belief posterior (descending; ties by evidence_count descending, then stable input order). Nodes excluded from the ordering are reported explicitly in skipped_nodes.",
   "type": "object",
-  "required": ["campaign_id", "method", "generated_at", "ranked_nodes", "skipped_nodes", "budget_snapshot", "idempotency", "ranking_artifact_ref"],
+  "required": ["campaign_id", "method", "generated_at", "ranked_nodes", "skipped_nodes", "budget_snapshot", "idempotency", "ranking_artifact_ref", "store_digest"],
   "properties": {
     "campaign_id": { "type": "string", "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$" },
     "method": { "const": "posterior" },
@@ -13,20 +13,38 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["node_id", "idea_id", "rank", "posterior_value", "evidence_count", "literature_coverage_status", "allocation_eligible", "exploratory_allocation"],
+        "required": ["node_id", "idea_id", "title", "rank", "posterior_value", "evidence_count", "literature_coverage_status", "allocation_eligible", "exploratory_allocation"],
         "properties": {
           "node_id": { "type": "string", "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$" },
           "idea_id": { "type": "string", "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$" },
+          "title": { "type": "string", "minLength": 1, "description": "The node's rationale_draft.title (sanitized), so a ranking is human-readable without a per-node second lookup." },
           "rank": { "type": "integer", "minimum": 1 },
           "posterior_value": { "type": "number", "minimum": 0, "maximum": 1 },
           "evidence_count": { "type": "integer", "minimum": 0 },
           "literature_coverage_status": { "enum": ["saturated", "coverage_incomplete", "metadata_only"] },
           "allocation_eligible": { "type": "boolean" },
-          "exploratory_allocation": { "type": "boolean" }
+          "exploratory_allocation": { "type": "boolean" },
+          "tie_group_id": { "type": "string", "minLength": 1, "description": "Present when this row belongs to a tie group (complete sort key equal to its neighbours): within-group order is stable input order only and carries no preference information." }
         },
         "additionalProperties": false
       },
       "description": "May be empty when no node carries a posterior yet."
+    },
+    "tie_groups": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["tie_group_id", "node_ids", "within_group_order_informative", "suggested_discriminator"],
+        "properties": {
+          "tie_group_id": { "type": "string", "minLength": 1 },
+          "node_ids": { "type": "array", "minItems": 2, "items": { "type": "string", "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$" } },
+          "within_group_order_informative": { "const": false },
+          "suggested_discriminator": { "const": "pairwise_match", "description": "Members are adjacent-posterior pairs at distance zero — the designed most-informative input for a pairwise comparison." }
+        },
+        "additionalProperties": false
+      },
+      "description": "Groups of adjacent rows whose complete sort key (posterior_value, evidence_count) is bit-for-bit equal. Omitted when no ties exist. Rows equal only on posterior_value are not grouped: the evidence_count tiebreak is informative."
     },
     "skipped_nodes": {
       "type": "array",
@@ -52,7 +70,17 @@
     },
     "budget_snapshot": { "$ref": "./budget_snapshot_v1.schema.json" },
     "idempotency": { "$ref": "./idempotency_meta_v1.schema.json" },
-    "ranking_artifact_ref": { "type": "string", "format": "uri" }
+    "ranking_artifact_ref": { "type": "string", "format": "uri" },
+    "store_digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "description": "Canonical digest (RFC 8785 + sha256) over the ranking-relevant projection of the filtered store plus the filter — stored values only, never recomputed quantities. Binds this ranking to the exact store state it ordered."
+    },
+    "unchanged_since": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Present when the store projection was unchanged since the campaign's recorded last ranking: ranking_artifact_ref points at that existing artifact (no new artifact minted, no step consumed) and this is its generated_at."
+    }
   },
   "additionalProperties": false
 }

@@ -154,12 +154,20 @@ export const NODE_LIFECYCLE_STATES: readonly NodeLifecycleState[] = [
  * archived is re-intake (candidate / needs_refresh), never a shortcut back to
  * admitted. node.set_posterior enters admitted / needs_refresh through its own
  * derivation, not through this table.
+ *
+ * There is deliberately NO needs_refresh -> admitted edge: entering a
+ * demoting state (see DEMOTING_LIFECYCLE_STATES) marks a current posterior
+ * stale in the same write, so re-admission is always a fresh
+ * node.set_posterior derivation — a re-attestation, never a lifecycle flip
+ * over a posterior the store itself says is no longer current guidance. The
+ * explicit edge into admitted exists only for returns from
+ * waiting_activation (suspension does not demote the posterior).
  */
 export const LIFECYCLE_TRANSITIONS: Readonly<Record<NodeLifecycleState, readonly NodeLifecycleState[]>> = {
   candidate: ['admission_review', 'admission_blocked', 'waiting_activation', 'archived'],
   admission_review: ['candidate', 'admitted', 'needs_refresh', 'admission_blocked', 'waiting_activation', 'archived'],
   admitted: ['needs_refresh', 'admission_blocked', 'waiting_activation', 'archived'],
-  needs_refresh: ['admitted', 'admission_blocked', 'waiting_activation', 'archived'],
+  needs_refresh: ['admission_blocked', 'waiting_activation', 'archived'],
   admission_blocked: ['admission_review', 'admission_blocked', 'waiting_activation', 'archived'],
   waiting_activation: ['candidate', 'admission_review', 'admitted', 'needs_refresh', 'admission_blocked', 'waiting_activation', 'archived'],
   archived: ['candidate', 'needs_refresh'],
@@ -167,6 +175,18 @@ export const LIFECYCLE_TRANSITIONS: Readonly<Record<NodeLifecycleState, readonly
 
 /** States whose nodes must carry an activation_condition (all others must not). */
 export const CONDITION_CARRYING_STATES: readonly NodeLifecycleState[] = ['waiting_activation', 'admission_blocked'];
+
+/**
+ * States whose entry means the stored posterior is no longer current
+ * guidance. Entering one of them via node.set_lifecycle rewrites a
+ * status=current posterior to status=stale in the same atomic write (value,
+ * evidence_count, updated_at, gaia_package_ref preserved as history) — the
+ * store then says what the lifecycle already means, instead of leaving a
+ * high current-looking score on a node the machine has demoted. provisional
+ * stays provisional (it already declares non-current coverage limits);
+ * waiting_activation is a suspension, not a judgment, and demotes nothing.
+ */
+export const DEMOTING_LIFECYCLE_STATES: readonly NodeLifecycleState[] = ['needs_refresh', 'admission_blocked', 'archived'];
 
 /** The only lifecycle states in which node.set_posterior may write. */
 export const POSTERIOR_WRITE_STATES: readonly NodeLifecycleState[] = ['admission_review', 'admitted', 'needs_refresh'];

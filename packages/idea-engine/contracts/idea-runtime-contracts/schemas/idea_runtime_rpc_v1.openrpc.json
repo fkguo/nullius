@@ -3,7 +3,7 @@
   "info": {
     "title": "Idea Campaign RPC (v1)",
     "version": "2.2.0",
-    "description": "JSON-RPC interface for the public idea campaign host surface, currently implemented by the TS idea-engine runtime. Contract schemas are referenced via $ref to sibling files in this directory.\n\nScope note: the search/eval runtime has been archived. The engine manages an idea portfolio: campaign lifecycle, node reads, externally computed belief posteriors (node.set_posterior), lifecycle transitions (node.set_lifecycle), independently produced grounding-audit records (node.set_grounding_audit), optimistic whole-card revisions (node.revise_card), scoped provenance corrections (node.rewrite_provenance), posterior-based ranking (rank.compute), and promotion (node.promote).\n\nRef resolution: All external schema $ref values are relative to this OpenRPC document's directory.\n\nIdempotency semantics (MUST):\n1) Side-effecting methods require idempotency_key.\n2) Engine deduplicates by (method, campaign_id, idempotency_key). For campaign.init (no campaign_id yet), dedupe by (method, idempotency_key).\n2b) If the same idempotency_key is reused with a different request payload, the engine MUST reject with schema_validation_failed (-32002) and MUST NOT execute the request. The error MUST include error.data.reason=\"idempotency_key_conflict\" and MUST include error.data.idempotency_key + error.data.payload_hash.\n2c) Payload identity MUST be machine-defined: compute payload_hash = sha256(JCS(params_without_idempotency_key)). JCS = RFC 8785 JSON Canonicalization Scheme (deterministic object key order + number formatting). Engines SHOULD apply default-value filling (e.g., node.list.limit omitted → 50) before hashing to avoid false conflicts for semantically identical intents.\n3) On duplicate, engine MUST return the same logical response as the first call (result or error), without repeating side-effects. The response MUST include idempotency metadata (idempotency_key + is_replay); is_replay MUST be true on duplicate hits and false on first execution. All other fields MUST match the first response. For non-deterministic methods, this MUST be implemented by storing and replaying the first response, not by re-execution.\n4) Idempotency records MUST be retained for the campaign lifetime (or until an explicit campaign.delete is added).\n\nError data contract (MUST):\nAll error responses MUST include a machine-readable JSON-RPC error.data object. Minimum fields: {\"reason\": string, \"details\"?: object}.\n- For code -32001 (budget_exhausted), error.data.reason MUST be \"dimension_exhausted\" and error.data.details.exhausted_dimensions MUST list one or more exhausted budget dimensions.\n- For code -32002 (schema_validation_failed), error.data.reason MUST distinguish at least: schema_invalid, idempotency_key_conflict, activation_condition_required, activation_condition_unexpected, archived_reason_required, posterior_status_not_supported_by_coverage.\n- For code -32017 (promotion_blocked), error.data.reason MUST be posterior_missing or node_not_admitted.\n- For code -32018 (lifecycle_transition_invalid), error.data.reason MUST distinguish at least: illegal_transition, entry_precondition_failed, posterior_write_lifecycle_invalid, grounding_audit_write_lifecycle_invalid, idea_card_revision_lifecycle_invalid, unknown_lifecycle_state. error.data.details MUST carry, per reason: illegal_transition — current_state, requested_state, allowed_next; entry_precondition_failed — current_state, requested_state, requirement; posterior_write_lifecycle_invalid / grounding_audit_write_lifecycle_invalid / idea_card_revision_lifecycle_invalid — current_state, allowed_states; unknown_lifecycle_state — found, allowed_states plus a migration hint.\n- For code -32019 (revision_conflict), error.data.reason MUST be stale_revision and details MUST carry expected_revision and current_revision."
+    "description": "JSON-RPC interface for the public idea campaign host surface, currently implemented by the TS idea-engine runtime. Contract schemas are referenced via $ref to sibling files in this directory.\n\nScope note: the search/eval runtime has been archived. The engine manages an idea portfolio: campaign lifecycle, node reads, externally computed belief posteriors (node.set_posterior), lifecycle transitions (node.set_lifecycle), evidence-caused batch dispositions (node.apply_evidence_event), independently produced grounding-audit records (node.set_grounding_audit), optimistic whole-card revisions (node.revise_card), scoped provenance corrections (node.rewrite_provenance), posterior-based ranking (rank.compute), and promotion (node.promote).\n\nRef resolution: All external schema $ref values are relative to this OpenRPC document's directory.\n\nIdempotency semantics (MUST):\n1) Side-effecting methods require idempotency_key.\n2) Engine deduplicates by (method, campaign_id, idempotency_key). For campaign.init (no campaign_id yet), dedupe by (method, idempotency_key).\n2b) If the same idempotency_key is reused with a different request payload, the engine MUST reject with schema_validation_failed (-32002) and MUST NOT execute the request. The error MUST include error.data.reason=\"idempotency_key_conflict\" and MUST include error.data.idempotency_key + error.data.payload_hash.\n2c) Payload identity MUST be machine-defined: compute payload_hash = sha256(JCS(params_without_idempotency_key)). JCS = RFC 8785 JSON Canonicalization Scheme (deterministic object key order + number formatting). Engines SHOULD apply default-value filling (e.g., node.list.limit omitted → 50) before hashing to avoid false conflicts for semantically identical intents.\n3) On duplicate, engine MUST return the same logical response as the first call (result or error), without repeating side-effects. The response MUST include idempotency metadata (idempotency_key + is_replay); is_replay MUST be true on duplicate hits and false on first execution. All other fields MUST match the first response. For non-deterministic methods, this MUST be implemented by storing and replaying the first response, not by re-execution.\n4) Idempotency records MUST be retained for the campaign lifetime (or until an explicit campaign.delete is added).\n\nError data contract (MUST):\nAll error responses MUST include a machine-readable JSON-RPC error.data object. Minimum fields: {\"reason\": string, \"details\"?: object}.\n- For code -32001 (budget_exhausted), error.data.reason MUST be \"dimension_exhausted\" and error.data.details.exhausted_dimensions MUST list one or more exhausted budget dimensions.\n- For code -32002 (schema_validation_failed), error.data.reason MUST distinguish at least: schema_invalid, idempotency_key_conflict, activation_condition_required, activation_condition_unexpected, archived_reason_required, posterior_status_not_supported_by_coverage.\n- For code -32017 (promotion_blocked), error.data.reason MUST be posterior_missing or node_not_admitted.\n- For code -32018 (lifecycle_transition_invalid), error.data.reason MUST distinguish at least: illegal_transition, entry_precondition_failed, posterior_write_lifecycle_invalid, grounding_audit_write_lifecycle_invalid, idea_card_revision_lifecycle_invalid, unknown_lifecycle_state. error.data.details MUST carry, per reason: illegal_transition — current_state, requested_state, allowed_next; entry_precondition_failed — current_state, requested_state, requirement; posterior_write_lifecycle_invalid / grounding_audit_write_lifecycle_invalid / idea_card_revision_lifecycle_invalid — current_state, allowed_states; unknown_lifecycle_state — found, allowed_states plus a migration hint.\n- For code -32019 (revision_conflict), error.data.reason MUST be stale_revision and details MUST carry expected_revision and current_revision."
   },
   "x-error-data-contract": {
     "schema": {
@@ -62,7 +62,8 @@
         "posterior_write_lifecycle_invalid",
         "grounding_audit_write_lifecycle_invalid",
         "idea_card_revision_lifecycle_invalid",
-        "unknown_lifecycle_state"
+        "unknown_lifecycle_state",
+        "batch_dispositions_invalid"
       ],
       "-32019": [
         "stale_revision"
@@ -655,7 +656,7 @@
           "required": true
         }
       ],
-      "description": "Side-effecting. Moves the node through the enforced lifecycle state machine, increments the node revision, records the reason as lifecycle_reason, and appends a set_lifecycle entry to the node mutation log. Does not consume step budget. Permitted in any campaign status except completed (campaign_not_active).\n\nTransition table (MUST; any request outside it is rejected with lifecycle_transition_invalid/illegal_transition, -32018, error.data.details listing the allowed next states): candidate -> admission_review | admission_blocked | waiting_activation | archived; admission_review -> candidate | admitted | needs_refresh | admission_blocked | waiting_activation | archived; admitted -> needs_refresh | admission_blocked | waiting_activation | archived; needs_refresh -> admitted | admission_blocked | waiting_activation | archived; admission_blocked -> admission_review | admission_blocked | waiting_activation | archived; waiting_activation -> candidate | admission_review | admitted | needs_refresh | admission_blocked | waiting_activation | archived; archived -> candidate | needs_refresh. Self-transitions exist only for the two condition-carrying states (condition update); revival from archived is re-intake (candidate or needs_refresh), never a shortcut back to admitted.\n\nEntry preconditions on stored data (MUST; violated -> lifecycle_transition_invalid/entry_precondition_failed with the failed requirement in error.data.details): candidate requires posterior=null; admitted requires a posterior with status=current AND scoring-eligible close-prior coverage (saturated, or coverage_incomplete with the explicit exploratory waiver, refs present); needs_refresh requires a non-null posterior. Request-shape requirements (MUST; violated -> schema_validation_failed, -32002): admission_blocked and waiting_activation require activation_condition (activation_condition_required) and every other target state must not carry one (activation_condition_unexpected); archived requires a non-empty reason (archived_reason_required). Entering any state that does not carry activation_condition clears the stored condition. Note the normal path INTO admitted is a node.set_posterior write (the engine derives admitted/needs_refresh from the posterior status); explicit set_lifecycle into admitted exists for returns from waiting_activation and equivalent recoveries, and is honest only because the precondition re-checks the stored data.",
+      "description": "Side-effecting. Moves the node through the enforced lifecycle state machine, increments the node revision, records the reason as lifecycle_reason, and appends a set_lifecycle entry to the node mutation log. Does not consume step budget. Permitted in any campaign status except completed (campaign_not_active).\n\nTransition table (MUST; any request outside it is rejected with lifecycle_transition_invalid/illegal_transition, -32018, error.data.details listing the allowed next states): candidate -> admission_review | admission_blocked | waiting_activation | archived; admission_review -> candidate | admitted | needs_refresh | admission_blocked | waiting_activation | archived; admitted -> needs_refresh | admission_blocked | waiting_activation | archived; needs_refresh -> admission_blocked | waiting_activation | archived; admission_blocked -> admission_review | admission_blocked | waiting_activation | archived; waiting_activation -> candidate | admission_review | admitted | needs_refresh | admission_blocked | waiting_activation | archived; archived -> candidate | needs_refresh. Self-transitions exist only for the two condition-carrying states (condition update); revival from archived is re-intake (candidate or needs_refresh), never a shortcut back to admitted. There is deliberately NO needs_refresh -> admitted edge: demotion marks the posterior stale (below), so re-admission is always a fresh node.set_posterior derivation (a re-attestation), never a lifecycle flip.\n\nEntry preconditions on stored data (MUST; violated -> lifecycle_transition_invalid/entry_precondition_failed with the failed requirement in error.data.details): candidate requires posterior=null; admitted requires a posterior with status=current AND scoring-eligible close-prior coverage (saturated, or coverage_incomplete with the explicit exploratory waiver, refs present); needs_refresh requires a non-null posterior. Request-shape requirements (MUST; violated -> schema_validation_failed, -32002): admission_blocked and waiting_activation require activation_condition (activation_condition_required) and every other target state must not carry one (activation_condition_unexpected); archived requires a non-empty reason (archived_reason_required). Entering any state that does not carry activation_condition clears the stored condition. Posterior demotion (MUST): entering needs_refresh, admission_blocked, or archived rewrites a stored posterior with status=current to status=stale in the same atomic write — value, evidence_count, updated_at, and gaia_package_ref are preserved as history, provisional stays provisional, and the node mutation-log entry carries posterior_marked_stale=true. Those states all mean the stored posterior is no longer current guidance; after this write the store says so directly instead of relying on report-layer hand compensation. waiting_activation is a suspension, not a judgment, and demotes nothing. Note the normal path INTO admitted is a node.set_posterior write (the engine derives admitted/needs_refresh from the posterior status); explicit set_lifecycle into admitted exists for returns from waiting_activation only, and is honest only because the precondition re-checks the stored data.",
       "result": {
         "name": "node_update_result",
         "schema": {
@@ -688,6 +689,120 @@
           "message": "lifecycle_transition_invalid"
         }
       ]
+    },
+    {
+      "name": "node.apply_evidence_event",
+      "summary": "Apply one evidence artifact's lifecycle dispositions to several nodes as a single recorded event.",
+      "description": "Side-effecting. One evidence artifact (a lane report, a computation result, a review verdict) caused lifecycle dispositions on several nodes: this method records that as ONE event instead of N unrelated node.set_lifecycle calls whose only grouping is a caller-side idempotency-key naming convention the ledger never stores.\n\nSemantics (MUST): every disposition is validated against the SAME rules as node.set_lifecycle — transition table, entry preconditions on stored data, activation-condition shape for the condition-carrying states, non-empty per-node reason for archived. Validation is batch-atomic and all-errors: when ANY disposition fails, the whole request is rejected with lifecycle_transition_invalid (-32018, error.data.reason=batch_dispositions_invalid) whose error.data.details.failures lists EVERY failing disposition (node_id + check + message), and nothing is applied — a partial sweep cannot happen and one resubmission fixes the whole batch. A node may appear at most once per event (duplicate_disposition_node failure).\n\nOn success each node transitions exactly as node.set_lifecycle would, including posterior demotion: entering needs_refresh, admission_blocked, or archived rewrites a status=current posterior to status=stale in the same atomic write. Per-node lifecycle_reason is the disposition's reason when given, else the shared event_reason. Each node's mutation-log entry (mutation=apply_evidence_event) carries the shared event_group (evt-<12 hex> derived from the payload hash, stable under idempotent replay), the evidence_ref, the event_reason, and posterior_marked_stale when it happened — the group binding is engine-recorded.\n\nevidence_ref is stored verbatim (the report_ref / survey_ref precedent): its shape is contract-checked (project-portable project://<relative-path>#sha256:<hex> — machine-absolute and file:// references are rejected by shape), and whether the artifact actually supports the dispositions stays a project-side audit concern. Does not consume step budget. Permitted in any campaign status except completed (campaign_not_active).",
+      "params": [
+        {
+          "name": "campaign_id",
+          "schema": {
+            "type": "string",
+            "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$"
+          },
+          "required": true
+        },
+        {
+          "name": "evidence_ref",
+          "schema": {
+            "type": "string",
+            "pattern": "^project://[^#]+#sha256:[0-9a-f]{64}$"
+          },
+          "required": true,
+          "description": "Project-portable, hash-bound reference of the evidence artifact that caused this batch."
+        },
+        {
+          "name": "event_reason",
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          },
+          "required": true,
+          "description": "The shared cause, in one sentence: what this evidence event established. Used as the per-node lifecycle_reason for dispositions without their own reason."
+        },
+        {
+          "name": "dispositions",
+          "schema": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": [
+                "node_id",
+                "lifecycle_state"
+              ],
+              "properties": {
+                "node_id": {
+                  "type": "string",
+                  "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$"
+                },
+                "lifecycle_state": {
+                  "enum": [
+                    "candidate",
+                    "admission_review",
+                    "admitted",
+                    "needs_refresh",
+                    "admission_blocked",
+                    "waiting_activation",
+                    "archived"
+                  ]
+                },
+                "reason": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Per-node reason; REQUIRED for archived. Defaults to the shared event_reason."
+                },
+                "activation_condition": {
+                  "type": "object",
+                  "required": [
+                    "kind",
+                    "description",
+                    "satisfied"
+                  ],
+                  "properties": {
+                    "kind": {
+                      "enum": [
+                        "tool_readiness",
+                        "data_release",
+                        "stage_reached",
+                        "exploratory_computation",
+                        "required_evidence",
+                        "other"
+                      ]
+                    },
+                    "description": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "satisfied": {
+                      "type": "boolean"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "required": true,
+          "description": "Per-node target states with optional per-node reasons; validated under exactly the node.set_lifecycle rules, all failures reported at once."
+        },
+        {
+          "name": "idempotency_key",
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "apply_evidence_event_result",
+        "schema": {
+          "$ref": "./apply_evidence_event_result_v1.schema.json"
+        }
+      }
     },
     {
       "name": "node.set_grounding_audit",

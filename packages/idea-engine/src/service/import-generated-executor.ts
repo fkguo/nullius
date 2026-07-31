@@ -42,14 +42,18 @@ const OPERATOR_FAMILY_ARITY: Record<string, ArityRule> = {
 };
 
 /**
- * Families a V0 import actually accepts — same treatment as trigger kinds:
- * the rest of the taxonomy is committed vocabulary (arity table above) but
+ * Families import actually accepts — same treatment as trigger kinds: the
+ * rest of the taxonomy is committed vocabulary (arity table above) but
  * import-rejected (operator_family_not_enabled) until each family's evidence
- * discipline (design §5: delta claims for Mutation, bridge claims for
- * Recombination, per-edge source verification for AnalogyTransfer) lands in
- * this validator. Prose in a skill is not a gate; the engine is the authority.
+ * discipline lands in this validator. Prose in a skill is not a gate; the
+ * engine is the authority. Mutation landed per the design's V1 ordering once
+ * posterior-bearing nodes accumulated in real campaigns: exactly one parent,
+ * a trigger artifact anchor, and the delta over the parent stated as a claim
+ * typed llm_inference/assumption (see the Mutation block below). Still
+ * pending their disciplines: Recombination (bridge claims, after the
+ * pairwise seam fix), AnalogyTransfer (per-edge source verification).
  */
-const ENABLED_OPERATOR_FAMILIES = ['LiteratureMining', 'FailureRouting'] as const;
+const ENABLED_OPERATOR_FAMILIES = ['LiteratureMining', 'FailureRouting', 'Mutation'] as const;
 
 const RESERVED_TRACE_INPUT_KEYS = [
   'trigger',
@@ -446,6 +450,43 @@ function validateCandidateSemantics(options: {
           { node_id: parents[0] },
         );
       }
+    }
+  }
+
+  if (family === 'Mutation') {
+    // Design §5: a mutation's born-with anchors are the parent's anchors
+    // (parent_node_ids, arity exactly 1, revision-pinned above) PLUS the
+    // trigger artifact that motivated mutating the parent; and the delta over
+    // the parent must be stated honestly as inference/assumption, not
+    // laundered as literature-supported.
+    const triggerRef = traceInputs.trigger_artifact_ref;
+    if (!isNonEmptyString(triggerRef)) {
+      throw importValidationError(
+        'anchor_missing',
+        campaignId,
+        `${label}: Mutation requires trace_inputs.trigger_artifact_ref — the artifact (a review, a computation result, an updated survey) that motivated mutating the parent`,
+      );
+    }
+    if (looksLikeUri(triggerRef) && !receipts.has(triggerRef)) {
+      throw importValidationError(
+        'anchor_missing',
+        campaignId,
+        `${label}: Mutation trigger_artifact_ref has no retrieval receipt in trace_inputs.retrieval_receipts`,
+        { uri: triggerRef },
+      );
+    }
+    const mutationClaims = Array.isArray(candidate.card_fields.claims) ? candidate.card_fields.claims : [];
+    const hasTypedDelta = mutationClaims.some(claim => {
+      if (!claim || typeof claim !== 'object' || Array.isArray(claim)) return false;
+      const support = (claim as Record<string, unknown>).support_type;
+      return support === 'llm_inference' || support === 'assumption';
+    });
+    if (!hasTypedDelta) {
+      throw importValidationError(
+        'delta_claim_missing',
+        campaignId,
+        `${label}: Mutation requires at least one card claim typed llm_inference or assumption stating the delta over the parent — a mutation born fully literature-supported is either not a mutation or mislabeling its inference`,
+      );
     }
   }
 
