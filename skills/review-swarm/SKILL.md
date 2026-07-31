@@ -211,6 +211,13 @@ Flags:
   registries, adjudication indexes). A packet that embeds a live mutable file
   goes STALE on every unrelated bookkeeping write, cascading re-reviews that
   verify nothing new.
+- **Candidate-commit binding**: a packet whose review target is a committed
+  candidate states **exactly one** candidate commit in a machine-readable
+  line (`Candidate-commit: <id>`); registration or bookkeeping commits, when
+  mentioned at all, are labeled as such and never share that line. A dispatch
+  in which the reviewer must guess which of two commits is under review is
+  refused before any reviewer is launched — an ambiguous binding voids the
+  whole round after the tokens are already spent.
 - `--role generic|correctness|execution-adversary|source-extraction|source-fidelity` — picks the
   system prompt from `templates/<role>.md` (default: `generic`). Each template
   embeds the required review-contract output format.
@@ -511,6 +518,24 @@ inputs** — never the claimant's answer, evidence selection, or initial judgmen
 **which axis the independent recomputation actually probed** (what it could have falsified); a
 recomputation whose probed axis does not intersect the claim's load-bearing axis leaves the swarm
 static-only for that claim, and it must be labeled as such rather than counted as a verification pass.
+
+### Reviewer context isolation and sealed-first-phase discipline
+
+Input-framing independence dies through the environment, not just the packet. Two rules, both learned
+from real contamination events that voided otherwise-clean review rounds:
+
+- **Strip ambient work-state from the reviewer's context.** A reviewer must not receive agent
+  rosters, task listings, other workstreams' status lines, or any environment surface that can carry
+  another lane's conclusions — one leaked status line about a sibling result is enough to anchor the
+  reviewer and void the round. The dispatch assembles a context containing the packet and nothing
+  else; when the host injects ambient listings the dispatcher cannot suppress, the round is labeled
+  candidate-visible/anchored, never independent.
+- **Seal the independent phase from the first round.** Whenever a review both (i) derives or
+  recomputes a target quantity and (ii) will afterwards read the candidate, run it as two phases
+  from round one: the reviewer derives from the problem statement and raw inputs alone, persists
+  that derivation (content hash recorded) **before** opening the candidate, then compares. Retrofitting
+  the sealed order only after a contamination event pays for the same round twice; opening the
+  candidate before the sealed derivation exists voids the independence claim regardless of intent.
 
 ## Model selection
 

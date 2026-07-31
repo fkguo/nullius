@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { execFileSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
@@ -986,6 +987,64 @@ describe('StateManager', () => {
 });
 
 // ─── Stage 2: Write operations ───
+
+describe('uncommitted-work aging warning', () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = makeTmpDir();
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  function git(...args: string[]): void {
+    execFileSync('git', ['-C', tmpDir, ...args], { stdio: 'ignore' });
+  }
+
+  function initRepoWithOldCommit(): void {
+    git('init', '-q');
+    git('config', 'user.email', 't@example.invalid');
+    git('config', 'user.name', 't');
+    fs.writeFileSync(path.join(tmpDir, 'notes.md'), 'v1\n');
+    git('add', 'notes.md');
+    // Commit dated far in the past so head age exceeds the threshold.
+    execFileSync('git', ['-C', tmpDir, 'commit', '-q', '-m', 'v1'], {
+      stdio: 'ignore',
+      env: {
+        ...process.env,
+        GIT_AUTHOR_DATE: '2000-01-01T00:00:00Z',
+        GIT_COMMITTER_DATE: '2000-01-01T00:00:00Z',
+      },
+    });
+  }
+
+  function statusWarningCodes(): string[] {
+    const sm = new StateManager(tmpDir);
+    const view = buildRunStatusView(tmpDir, sm.readState()) as Record<string, unknown>;
+    const rc = view.recovery_context as Record<string, unknown>;
+    const warnings = (rc.derivation_warnings ?? rc.warnings ?? []) as Array<Record<string, unknown>>;
+    return warnings.map(w => String(w.code));
+  }
+
+  it('warns when tracked modifications age past the threshold', () => {
+    initRepoWithOldCommit();
+    fs.writeFileSync(path.join(tmpDir, 'notes.md'), 'v2 — uncommitted\n');
+    expect(statusWarningCodes()).toContain('UNCOMMITTED_WORK_AGING');
+  });
+
+  it('stays silent for a clean tree, untracked-only noise, and non-git roots', () => {
+    // Non-git root.
+    expect(statusWarningCodes()).not.toContain('UNCOMMITTED_WORK_AGING');
+    // Clean tree with an old commit.
+    initRepoWithOldCommit();
+    expect(statusWarningCodes()).not.toContain('UNCOMMITTED_WORK_AGING');
+    // Untracked files alone (caches, run dirs) are not aging tracked work.
+    fs.writeFileSync(path.join(tmpDir, 'untracked-cache.bin'), 'x');
+    expect(statusWarningCodes()).not.toContain('UNCOMMITTED_WORK_AGING');
+  });
+});
 
 describe('StateManager write operations (Stage 2)', () => {
   let tmpDir: string;

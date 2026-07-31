@@ -44,7 +44,12 @@ project state, the anchor stays valid until project state actually
 changes — long thinking / reading between tool calls does not invalidate
 the anchor. Re-run `status --json` after any lifecycle event (own or
 other-process `nullius run`/`approve`/`verify`/...) to re-anchor;
-you do not need to invoke a separate "anchor" command.
+you do not need to invoke a separate "anchor" command. The same
+event-driven economy applies to routine health re-verification inside a
+review or work cycle: when project state has not changed since the last
+status receipt, cite that receipt instead of re-running the
+launcher/ledger/approval checks each round — a re-check is owed on state
+change, not on cadence.
 
 The check is also skipped for:
 
