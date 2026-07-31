@@ -293,10 +293,11 @@ def _count_section_items(text: str, heading: str) -> int:
     count = 0
     for ln in section.splitlines():
         s = ln.strip()
-        # CommonMark bullets: -, *, + (plus numbered items).
-        if not (s.startswith(("-", "*", "+")) or re.match(r"^\d+\.", s)):
+        # CommonMark list items: a bullet marker followed by whitespace,
+        # or a numbered item — a bold line like "**Note:**" is not a bullet.
+        if not (re.match(r"^[-*+]\s", s) or re.match(r"^\d+\.", s)):
             continue
-        body = s.lstrip("-*+").lstrip("0123456789.").strip().lower()
+        body = re.sub(r"^(?:[-*+]\s+|\d+\.\s*)", "", s).strip().lower()
         if body in {"", "(none)", "none", "...", "n/a"}:
             continue
         count += 1
@@ -306,9 +307,10 @@ def _count_section_items(text: str, heading: str) -> int:
 def _parse_blocking_count(text: str) -> int | None:
     """Parse the Verdict section's "Blocking issues:" line.
 
-    "none" (with or without brackets/emphasis) or the unfilled template
-    placeholder counts as 0 only when the verdict line exists; a missing line
-    yields None (unknown) — never a fabricated zero.
+    "none" (with or without emphasis) parses as 0. An unfilled template
+    placeholder or a missing line yields None (unknown) — never a fabricated
+    zero; the parse-error collector rejects a ready verdict whose blocking
+    count is unknown.
     """
     for heading in ("Verdict",):
         section = _extract_section(text, heading)
@@ -463,6 +465,12 @@ def _collect_parse_errors(status: ReportStatus, member: str, require_sweep: bool
         errors.append(f"{member}: failed to parse computation replication status")
     if status.verdict == "unknown":
         errors.append(f"{member}: failed to parse verdict section/value")
+    if status.verdict == "ready" and status.blocking_count is None:
+        errors.append(
+            f"{member}: verdict is ready but the Blocking issues line is missing or "
+            "still carries the unfilled template placeholder — an unknown blocking "
+            "count cannot converge"
+        )
     if require_sweep and status.sweep_semantics == "unknown":
         errors.append(f"{member}: failed to parse sweep semantics consistency verdict")
     return errors

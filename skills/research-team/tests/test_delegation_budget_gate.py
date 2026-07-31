@@ -321,6 +321,12 @@ def test_declared_cap_without_launch_declaration_fails(tmp_path: Path) -> None:
     _assert_fails_with(tmp_path, contract, "MISSING_LAUNCH_DECLARATION")
 
 
+def test_declared_cap_with_null_launch_declaration_fails(tmp_path: Path) -> None:
+    contract = _declared_cap_contract()
+    contract["launches_full_scale_computation"] = None
+    _assert_fails_with(tmp_path, contract, "MISSING_LAUNCH_DECLARATION")
+
+
 def test_declared_cap_on_declared_compute_launch_is_contradictory(tmp_path: Path) -> None:
     contract = _declared_cap_contract()
     contract["launches_full_scale_computation"] = True
