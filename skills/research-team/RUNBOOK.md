@@ -455,8 +455,13 @@ In projects scaffolded by `research-team`, use the navigation front door instead
   - **Delta confirmation round (default after a fix batch)**: when the prior
     round's blocking findings are enumerable and the fixes are localized,
     rebuild the packet as the reviewed baseline's identity plus the exact
-    diff plus a findings-to-resolutions table, and have the member(s) who
-    raised the findings re-review that delta. Escalate to a full-packet round
+    diff plus a findings-to-resolutions table, and run it as a normal cycle
+    under the next tag with that delta packet as input — **both members
+    receive it**: the member(s) who raised the findings verify the
+    resolutions, and the other member re-confirms on the delta, so the
+    convergence gate evaluates two fresh verdicts bound to the current
+    candidate. A verdict issued against the baseline hashes never carries
+    over to a changed candidate. Escalate to a full-packet round
     when formulas/assumptions, the data model or a global invariant, or an
     origin-traceability root changed — or when a reviewer asks for the full
     artifact.

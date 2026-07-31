@@ -100,7 +100,8 @@ or irreversible artifacts — headline claims and the derivations/numbers they
 rest on, cross-package contracts, default-entry behavior (the same scoping the
 two-phase formal review section uses). Internal implementation variants —
 writers, fixtures, launchers, schema plumbing — may close on a single-family
-review or local tests, with the independence level labeled honestly. Reviewer
+review plus local tests (an implementation never closes on its author's own
+tests alone), with the independence level labeled honestly. Reviewer
 investment scales with the artifact's stakes the same way reasoning effort
 does; spending the cross-family ceiling on every internal diff is the recorded
 waste pattern, not the safe default.
@@ -631,11 +632,15 @@ Convergence = zero BLOCKING findings on the current artifact, every HIGH fixed o
 named acceptance point, and every LOW dispositioned. A round that produces only LOW findings is a
 converging round, not grounds for another full cycle. Once an artifact has passed a full review pair,
 later findings re-open it only if they meet the BLOCKING bar — "keep reviewing until no reviewer can
-imagine a stronger test" is an unbounded loop, not a standard. Batch fixes: one confirmation round
+imagine a stronger test" is an unbounded loop, not a standard. A later non-BLOCKING finding still
+receives the standard disposition (fix now / attach to a named acceptance point / discard with a
+stated reason): not re-opening the artifact is not discarding the finding. Batch fixes: one confirmation round
 covers the whole accumulated fix batch, scoped to the exact delta by default (see packet composition
 above). Review verdicts are judged on content: a source-grounded READY whose verdict string or label
-spelling deviates from the requested format is a normalization task (same-model rerun or leader
-transcription with the original archived), never a new blocking round.
+spelling deviates from the requested format is a normalization task, never a new blocking round.
+Prefer a same-model rerun to normalize; leader transcription (with the original archived) is
+acceptable only when the archived output contains an explicit, unambiguous affirmative verdict —
+an ambiguous verdict is not normalized into a pass, it fails closed as usual.
 
 The verdict is scoped to the exact hashes in `inputs/review_input_manifest.json`.
 Before counting an older run toward a later convergence or closeout, rerun the

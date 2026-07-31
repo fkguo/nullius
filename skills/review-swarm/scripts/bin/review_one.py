@@ -62,7 +62,7 @@ _SOURCE_TEXT_ORIGINS = (
     "visually-verified-transcription",
 )
 
-ADVISORY_BANNER = "single-family review — advisory; final verdicts require cross-family review"
+ADVISORY_BANNER = "single-family review — one model family; whether a final verdict additionally requires cross-family review depends on the artifact's scoping (result-bearing / public-surface / irreversible artifacts do; internal implementation variants may close single-family, labeled as such)"
 STALE_ACCEPTANCE_EXIT_CODE = 86
 
 _PACKET_FRAMING = """\

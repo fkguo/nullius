@@ -409,7 +409,7 @@ class TestScaffoldContract(unittest.TestCase):
         # and internal scaffolding diffs are explicitly out of gate scope.
         self.assertIn("are covered by ordinary tests", template)
         self.assertIn(
-            "internal scaffolding diffs close on local tests or a single reviewer", template
+            "internal scaffolding diffs close on local tests plus a single reviewer", template
         )
         # The integrity row states where run evidence lands.
         self.assertIn("land run evidence under `artifacts/runs/<run_id>/` or `team/runs/<run>/`", template)
@@ -420,7 +420,11 @@ class TestScaffoldContract(unittest.TestCase):
         self.assertIn("## Verification granularity and severity", template)
         self.assertIn("The reviewed unit is a stable candidate", template)
         self.assertIn("Review findings are severity-graded.", template)
-        self.assertIn("never a new review round on non-blocking findings alone", template)
+        self.assertIn("Non-blocking findings by themselves do not trigger a new round", template)
+        self.assertIn(
+            "any fix batch actually applied still gets its delta-scoped confirmation round",
+            template,
+        )
         self.assertIn("Confirmation rounds review the delta.", template)
         self.assertIn("Convergence is declared by the reviewers, never by the fixer.", template)
         self.assertIn("Performance never blocks correctness.", template)
