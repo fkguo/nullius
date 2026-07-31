@@ -7,7 +7,8 @@
  * to refine precision indefinitely and to expand scope; a delegation without
  * explicit budgets is drift by construction — so every delegated computation /
  * verification workstream carries a machine-checked budget contract:
- * tolerance ceiling + anchor note, time box, attempt cap, scope negative
+ * numeric tolerance ceiling or exact stopping predicate + anchor note, time
+ * box, attempt cap, scope negative
  * list, dry-run peak RSS + heap cap") is enforced by
  * skills/research-team/scripts/gates/check_delegation_budget.py and
  * documented across the research-team and research-harness skill surfaces.
@@ -81,6 +82,9 @@ function requireAll(relPath, text, needles) {
 requireAll(GATE_FILE, read(GATE_FILE), [
   ['tolerance-ceiling falsification label', 'MISSING_TOLERANCE_CEILING'],
   ['tolerance-value falsification label', 'MISSING_TOLERANCE_VALUE'],
+  ['exact-predicate falsification label', 'MISSING_EXACT_PREDICATE'],
+  ['tolerance-mode falsification label', 'INVALID_TOLERANCE_MODE'],
+  ['mixed-tolerance-shape falsification label', 'CONTRADICTORY_TOLERANCE_FIELDS'],
   ['tolerance-anchor falsification label', 'MISSING_TOLERANCE_ANCHOR'],
   ['time-box falsification label', 'MISSING_TIME_BOX'],
   ['max-attempts falsification label', 'MISSING_MAX_ATTEMPTS'],
@@ -101,6 +105,8 @@ requireAll(GATE_FILE, read(GATE_FILE), [
   ['descriptor-verified regular file (no stat/open race)', 'os.fstat(fd)'],
   ['live->dangling ENOENT recheck', '_dangling_component()'],
   ['huge-int no-OverflowError guard', 'never route it through float'],
+  ['exact-predicate mode', '"exact_predicate"'],
+  ['numeric-zero exclusion', 'Numeric zero deliberately remains invalid'],
   ['input-alias fail-closed label', 'OUTPUT_ALIASES_INPUT'],
   ['input-ancestor fail-closed label', 'OUTPUT_NESTED_UNDER_INPUT'],
   ['output-ancestor fail-closed label', 'OUTPUT_ANCESTOR_OF_INPUT'],
@@ -287,6 +293,8 @@ requireAll('skills/research-team/scripts/lib/team_config.py',
 requireAll(TEMPLATE_FILE, read(TEMPLATE_FILE), [
   ['contract version pin', '"contract_version": 1'],
   ['tolerance ceiling group', '"tolerance_ceiling"'],
+  ['explicit numeric mode', '"mode": "numeric"'],
+  ['exact-predicate mode guidance', 'exact_predicate'],
   ['tolerance anchor note', '"anchor_note"'],
   ['time box group', '"time_box"'],
   ['max attempts field', '"max_attempts"'],
@@ -301,12 +309,17 @@ requireAll(CONFIG_TEMPLATE_FILE, read(CONFIG_TEMPLATE_FILE), [
   ['feature flag', '"delegation_budget_gate"'],
   ['config block', '"delegation_budget"'],
   ['delegations dir default', '"team/delegations"'],
+  ['both tolerance contract forms', 'numeric tolerance ceiling or exact stopping predicate'],
 ]);
 
 // 5. Prose + tests.
 requireAll(TEAM_SKILL_FILE, read(TEAM_SKILL_FILE), [
   ['budgets-before-dispatch discipline', 'drift by construction'],
   ['tolerance ceiling field', '`tolerance_ceiling`'],
+  ['numeric tolerance mode', '`mode: "numeric"`'],
+  ['exact-predicate tolerance mode', '`mode: "exact_predicate"`'],
+  ['exact predicate field', '`predicate`'],
+  ['numeric-zero exclusion', 'Numeric zero remains invalid'],
   ['time box field', '`time_box`'],
   ['max attempts field', '`max_attempts`'],
   ['scope negative list field', '`scope_negative_list`'],
@@ -316,6 +329,8 @@ requireAll(TEAM_SKILL_FILE, read(TEAM_SKILL_FILE), [
 requireAll(HARNESS_SKILL_FILE, read(HARNESS_SKILL_FILE), [
   ['settle-on-flushed-results clause', 'it never voids the batch'],
   ['failed-approaches routing for abandoned budgets', 'failed-approaches ledger'],
+  ['exact stopping predicate contract', 'one-line exact predicate'],
+  ['numeric-zero exclusion', 'never by numeric zero'],
   ['measured-memory clause', 'Estimating wall-clock alone is not a resource estimate'],
 ]);
 requireAll(SHARED_README_FILE, read(SHARED_README_FILE), [
@@ -362,6 +377,16 @@ requireAll(TESTS_FILE, testsText, [
   ['generated helper namespace regression', 'test_generated_delegation_helpers_are_schema_specific'],
   ['atomic success cleanup regression', 'test_atomic_output_success_leaves_no_temporary_file'],
   ['atomic failure preservation regression', 'test_atomic_replace_failure_preserves_previous_output_and_cleans_temp'],
+  ['mode-absent numeric compatibility', 'test_complete_contract_passes'],
+  ['explicit numeric mode positive control', 'test_explicit_numeric_tolerance_mode_passes'],
+  ['numeric-zero negative control', 'test_numeric_zero_tolerance_still_fails'],
+  ['exact-predicate positive control', 'test_exact_predicate_tolerance_mode_passes'],
+  ['missing exact-predicate negative control', 'test_exact_predicate_mode_missing_predicate_fails'],
+  ['multiline exact-predicate negative control', 'test_exact_predicate_mode_multiline_predicate_fails'],
+  ['placeholder exact-predicate negative control', 'test_exact_predicate_mode_placeholder_predicate_fails'],
+  ['exact-with-value contradiction control', 'test_exact_predicate_mode_with_value_fails'],
+  ['numeric-with-predicate contradiction control', 'test_numeric_tolerance_mode_with_predicate_fails'],
+  ['unknown tolerance-mode control', 'test_unknown_tolerance_mode_fails_closed'],
 ]);
 
 // The hang-guard timeout must live INSIDE the FIFO config-loader control —
