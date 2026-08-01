@@ -100,6 +100,9 @@ requireAll(GATE_FILE, read(GATE_FILE), [
   ['retry-fields falsification label', 'MISSING_RETRY_FIELDS'],
   ['retry-dimension falsification label', 'INVALID_RETRY_DIMENSION'],
   ['retry-below-measured falsification label', 'RETRY_BUDGET_BELOW_MEASURED_NEED'],
+  ['censored-boundary strict-exceed rationale', 'censored lower bound'],
+  ['huge-int diagnostic formatter', 'def _decimal_str'],
+  ['routes execution model', 'routes_execution'],
   ['unfilled-placeholder falsification label', 'PLACEHOLDER_VALUE'],
   ['unknown-version fail-closed label', 'UNSUPPORTED_CONTRACT_VERSION'],
   ['contracts-required falsification label', 'NO_CONTRACTS_FOUND'],
@@ -336,9 +339,13 @@ requireAll(TEAM_SKILL_FILE, read(TEAM_SKILL_FILE), [
   ['peak memory field', '`peak_memory_estimate`'],
   ['independence-requirement block', '`independence_requirement`'],
   ['joint-satisfiability discipline', 'joint satisfiability'],
+  ['routes execution model', '`routes_execution`'],
   ['retry-of block', '`retry_of`'],
+  ['strict-exceed cross-check', '**strictly exceeds**'],
+  ['censored-boundary rationale', 'censored lower bound'],
   ['measured re-budget discipline', 'never a chain of identical exhaustions'],
   ['prepared-execution-first closure rule', 'Prepared-execution-first closure'],
+  ['stall-option prepared-step clause', 'execute the already-prepared step when the prepared-execution-first rule below names one'],
   ['gate pointer', 'check_delegation_budget.py'],
 ]);
 requireAll(HARNESS_SKILL_FILE, read(HARNESS_SKILL_FILE), [
@@ -348,6 +355,7 @@ requireAll(HARNESS_SKILL_FILE, read(HARNESS_SKILL_FILE), [
   ['numeric-zero exclusion', 'never by numeric zero'],
   ['measured-memory clause', 'Estimating wall-clock alone is not a resource estimate'],
   ['measured-shortfall re-budget clause', 'measured shortfall'],
+  ['censored-boundary rationale', 'censored lower bound'],
   ['no-identical-exhaustion clause', 'never a chain of identical exhaustions'],
 ]);
 requireAll(SHARED_README_FILE, read(SHARED_README_FILE), [
@@ -414,6 +422,15 @@ requireAll(TESTS_FILE, testsText, [
   ['retry-of below-measured-heap negative control', 'test_retry_of_heap_budget_below_measured_need_fails'],
   ['retry-of unknown-dimension control', 'test_retry_of_unknown_dimension_fails_closed'],
   ['retry-of nonnumeric-time-measurement control', 'test_retry_of_nonnumeric_measured_for_time_fails'],
+  ['retry-of censored-equality time control', 'test_retry_of_time_budget_equal_to_measured_fails'],
+  ['retry-of censored-equality heap control', 'test_retry_of_heap_budget_equal_to_measured_fails'],
+  ['retry-of censored-equality attempts control', 'test_retry_of_attempts_cap_equal_to_measured_fails'],
+  ['retry-of explicit-null control', 'test_retry_of_explicit_null_fails'],
+  ['independence explicit-null control', 'test_independence_requirement_explicit_null_fails'],
+  ['retry-of one-round aggregation control', 'test_retry_of_bad_dimension_reports_measured_shape_same_round'],
+  ['independence concurrent-routes positive control', 'test_independence_concurrent_routes_share_wall_clock_passes'],
+  ['independence sequential-default control', 'test_independence_sequential_default_requires_stacked_floors'],
+  ['independence huge-product no-crash control', 'test_independence_huge_product_reports_label_not_crash'],
 ]);
 
 // The hang-guard timeout must live INSIDE the FIFO config-loader control —

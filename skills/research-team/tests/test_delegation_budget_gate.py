@@ -502,6 +502,135 @@ def test_retry_of_non_object_fails(tmp_path: Path) -> None:
     _assert_fails_with(tmp_path, contract, "MISSING_RETRY_FIELDS")
 
 
+# ------- round-2 controls: censored boundaries, nulls, concurrency, huge ints
+
+
+def test_retry_of_time_budget_equal_to_measured_fails(tmp_path: Path) -> None:
+    """A boundary death's measurement is censored AT the boundary: keeping the
+    same box while recording the wall as 'measured' is the identical
+    exhaustion with a stamp on it."""
+    contract = _retry_contract(
+        measured_requirement=7200,
+        adjustment_note="box kept at the previous wall while citing it as measured",
+    )
+    _assert_fails_with(tmp_path, contract, "RETRY_BUDGET_BELOW_MEASURED_NEED")
+
+
+def test_retry_of_heap_budget_equal_to_measured_fails(tmp_path: Path) -> None:
+    contract = _retry_contract(
+        exhausted_budget="heap_limit_mb",
+        measured_requirement=4096,
+        adjustment_note="heap cap kept at the exhausted limit while citing it as measured",
+    )
+    _assert_fails_with(tmp_path, contract, "RETRY_BUDGET_BELOW_MEASURED_NEED")
+
+
+def test_retry_of_attempts_cap_equal_to_measured_fails(tmp_path: Path) -> None:
+    """Citing the exhausted attempt count while raising nothing is not an
+    adjustment."""
+    contract = _retry_contract(
+        exhausted_budget="max_attempts",
+        measured_requirement=2,
+        adjustment_note="cap unchanged while citing the exhausted count as measured",
+    )
+    _assert_fails_with(tmp_path, contract, "RETRY_BUDGET_BELOW_MEASURED_NEED")
+
+
+def test_retry_of_attempts_cap_above_measured_passes(tmp_path: Path) -> None:
+    contract = _retry_contract(
+        exhausted_budget="max_attempts",
+        measured_requirement=1,
+        adjustment_note="cap of 2 strictly exceeds the single exhausted attempt",
+    )
+    proj = _make_project(tmp_path, contracts={"lane-scan-01.json": contract})
+    proc, verdict = _run_gate(proj)
+    assert proc.returncode == 0, proc.stderr
+    assert verdict is not None and verdict["status"] == "pass"
+
+
+def test_retry_of_attempts_qualitative_change_keeps_cap_passes(tmp_path: Path) -> None:
+    """A changed-approach retry may keep its cap: the change is stated as a
+    one-line measurement instead of a number."""
+    contract = _retry_contract(
+        exhausted_budget="max_attempts",
+        measured_requirement="approach replaced: direct evaluation instead of iterative refinement",
+        adjustment_note="cap kept; the exhausted approach was replaced, not re-attempted",
+    )
+    proj = _make_project(tmp_path, contracts={"lane-scan-01.json": contract})
+    proc, verdict = _run_gate(proj)
+    assert proc.returncode == 0, proc.stderr
+    assert verdict is not None and verdict["status"] == "pass"
+
+
+def test_retry_of_explicit_null_fails(tmp_path: Path) -> None:
+    """An explicit null is not 'absent' — same discipline as memory-mode null."""
+    contract = _complete_contract()
+    contract["retry_of"] = None
+    _assert_fails_with(tmp_path, contract, "MISSING_RETRY_FIELDS")
+
+
+def test_independence_requirement_explicit_null_fails(tmp_path: Path) -> None:
+    contract = _complete_contract()
+    contract["independence_requirement"] = None
+    _assert_fails_with(tmp_path, contract, "MISSING_INDEPENDENCE_FIELDS")
+
+
+def test_retry_of_bad_dimension_reports_measured_shape_same_round(tmp_path: Path) -> None:
+    """A bad dimension and a bad measurement are both reported in ONE round —
+    field defects aggregate, they do not serialize across fix rounds."""
+    contract = _retry_contract(exhausted_budget="wall_clock")
+    del contract["retry_of"]["measured_requirement"]
+    proj = _make_project(tmp_path, contracts={"c.json": contract})
+    proc, verdict = _run_gate(proj)
+    assert proc.returncode == 1
+    assert verdict is not None and verdict["status"] == "fail"
+    assert any("INVALID_RETRY_DIMENSION" in r for r in verdict["reasons"])
+    assert any(
+        "MISSING_RETRY_FIELDS" in r and "measured_requirement" in r for r in verdict["reasons"]
+    )
+
+
+def test_independence_concurrent_routes_share_wall_clock_passes(tmp_path: Path) -> None:
+    """Two concurrent routes at an 1800 s floor legitimately share an 1800 s
+    wall-clock box."""
+    contract = _independence_contract(routes_execution="concurrent")
+    contract["time_box"]["seconds"] = 1800
+    proj = _make_project(tmp_path, contracts={"lane-scan-01.json": contract})
+    proc, verdict = _run_gate(proj)
+    assert proc.returncode == 0, proc.stderr
+    assert verdict is not None and verdict["status"] == "pass"
+
+
+def test_independence_sequential_default_requires_stacked_floors(tmp_path: Path) -> None:
+    """Without a declared execution model the conservative sequential
+    arithmetic applies."""
+    contract = _independence_contract()
+    contract["time_box"]["seconds"] = 1800
+    _assert_fails_with(tmp_path, contract, "INDEPENDENCE_BUDGET_UNSATISFIABLE")
+
+
+def test_independence_unknown_execution_model_fails_closed(tmp_path: Path) -> None:
+    contract = _independence_contract(routes_execution="parallel")
+    _assert_fails_with(tmp_path, contract, "MISSING_INDEPENDENCE_FIELDS")
+
+
+def test_independence_huge_product_reports_label_not_crash(tmp_path: Path) -> None:
+    """Enormous (but valid JSON) route counts must fail with the
+    falsification label — the diagnostic must not crash the gate into
+    input_error via Python's int->str digit-conversion limit."""
+    contract = _independence_contract(routes_budgeted_here=41, per_route_seconds_floor=43)
+    body = json.dumps(contract)
+    body = body.replace('"routes_budgeted_here": 41', '"routes_budgeted_here": 1' + "0" * 3000, 1)
+    body = body.replace(
+        '"per_route_seconds_floor": 43', '"per_route_seconds_floor": 1' + "0" * 3000, 1
+    )
+    proj = _make_project(tmp_path, contracts={"c.json": body})
+    proc, verdict = _run_gate(proj)
+    assert proc.returncode == 1, proc.stderr
+    assert verdict is not None and verdict["status"] == "fail"
+    assert any("INDEPENDENCE_BUDGET_UNSATISFIABLE" in r for r in verdict["reasons"])
+
+
 def _declared_cap_contract() -> dict:
     contract = _complete_contract()
     contract["delegation_id"] = "verify-derivation-01"
