@@ -129,8 +129,10 @@ function preparedSideEffectsCommitted(store: IdeaEngineStore, method: string, re
     // Mint responses also advanced usage.steps_used and recorded
     // campaign.last_ranking. A crash between the artifact write and the
     // campaign save would otherwise replay a result whose budget/pointer
-    // effects never landed — complete them here from the recorded ABSOLUTE
-    // values (idempotent under repeated recovery).
+    // effects never landed — the ordered completion below lands them
+    // (pointer := this record; steps := current + 1, exactly this mint's
+    // lost step), at most once (repeat recovery short-circuits on pointer
+    // equality).
     const campaignId = payload.campaign_id;
     if (typeof campaignId !== 'string') {
       return false;
@@ -164,8 +166,14 @@ function preparedSideEffectsCommitted(store: IdeaEngineStore, method: string, re
       ? lastRanking.generated_at
       : null;
     const recordGeneratedAt = typeof payload.generated_at === 'string' ? payload.generated_at : null;
-    const recordIsNewest = pointerGeneratedAt === null
-      || (recordGeneratedAt !== null && recordGeneratedAt > pointerGeneratedAt);
+    // Completion requires a provable direction: the pointer must be ABSENT
+    // entirely, or both stamps must exist with this record strictly newer.
+    // A pointer that exists but cannot be ordered (no generated_at — not
+    // producible through the API, but a hand-edited store could carry one)
+    // takes the conservative no-write side like every other tie.
+    const recordIsNewest = lastRanking === null || lastRanking === undefined
+      ? true
+      : (pointerGeneratedAt !== null && recordGeneratedAt !== null && recordGeneratedAt > pointerGeneratedAt);
     if (!recordIsNewest) {
       return true;
     }
@@ -268,17 +276,21 @@ function preparedSideEffectsCommitted(store: IdeaEngineStore, method: string, re
       }
       // A crash mid-append tears the final JSONL line. Repair is attempted
       // ONLY when the torn fragment carries THIS event's group id: a short
-      // fragment is a byte prefix of many events' entries, and repairing it
-      // with our entry would replace another event's torn line with our
+      // fragment is a byte prefix of many events' entries, and repairing
+      // it with our entry would replace another event's torn line with our
       // provenance. The group id sits early in the serialized entry and is
-      // unique per operation, so its presence attributes the fragment
-      // beyond doubt; fragments torn before it stay fail-closed (manual
+      // operation-keyed (deterministic collisions eliminated; residual
+      // truncated-48-bit-hash odds accepted), so its presence attributes
+      // the fragment; fragments torn before it stay fail-closed (manual
       // inspection, no fabrication). Each store-matching row's expected
       // entry is tried in turn — the repair helper throws on a non-prefix
       // candidate, which just means "not this row", not corruption.
       const rawLog = readFileSync(store.nodesLogPath(campaignId), 'utf8');
       const fragment = rawLog.split('\n').filter(line => line.trim().length > 0).at(-1) ?? '';
-      if (!fragment.includes(`"event_group":"${eventGroup}"`)) {
+      // The group id is fixed-length, so a fragment ending right after it —
+      // before the closing quote — is already attributed beyond doubt; do
+      // not demand the quote byte.
+      if (!fragment.includes(`"event_group":"${eventGroup}`)) {
         throw error;
       }
       const repaired = rows.some(row => {
@@ -298,10 +310,24 @@ function preparedSideEffectsCommitted(store: IdeaEngineStore, method: string, re
     }
     const matchedRows = rows.filter(rowMatchesStore).length;
     const loggedNodeIds = new Set<string>();
-    // Same-stamp foreign lines: another evidence event wrote one of our
-    // nodes at exactly the recorded timestamp (the production clock has
+    // Same-stamp foreign candidates: another evidence event wrote one of
+    // our nodes at exactly the recorded timestamp (the production clock has
     // one-second resolution, so distinct events CAN share it). A row match
-    // then no longer proves OUR event landed.
+    // then no longer proves OUR event landed — but only when the foreign
+    // write could EQUALLY explain the observed store state: it must match
+    // the same complete tuple the store probe checks. A foreign same-second
+    // write with a different revision, state, or reason cannot be what the
+    // store shows and must not block a legitimate recovery.
+    const explainsRow = (row: Record<string, unknown>, candidate: {
+      lifecycle_reason?: unknown;
+      lifecycle_state?: unknown;
+      revision?: unknown;
+      updated_at?: unknown;
+    }): boolean =>
+      String(candidate.updated_at ?? '') === row.updated_at
+      && candidate.lifecycle_state === row.lifecycle_state
+      && Number(candidate.revision) === Number(row.revision)
+      && (candidate.lifecycle_reason ?? null) === (row.lifecycle_reason ?? null);
     let foreignSameStampLine = false;
     for (const entry of logEntries) {
       if (entry.mutation !== 'apply_evidence_event') {
@@ -315,7 +341,12 @@ function preparedSideEffectsCommitted(store: IdeaEngineStore, method: string, re
       const entryNode = entry.node && typeof entry.node === 'object' && !Array.isArray(entry.node)
         ? entry.node as Record<string, unknown>
         : null;
-      if (row && entryNode && String(entryNode.updated_at ?? '') === row.updated_at) {
+      if (row && entryNode && explainsRow(row, {
+        lifecycle_reason: entryNode.lifecycle_reason,
+        lifecycle_state: entryNode.lifecycle_state,
+        revision: entryNode.revision,
+        updated_at: entryNode.updated_at,
+      })) {
         foreignSameStampLine = true;
       }
     }
@@ -336,7 +367,7 @@ function preparedSideEffectsCommitted(store: IdeaEngineStore, method: string, re
       const otherRows = Array.isArray(otherPayload.nodes) ? otherPayload.nodes as Array<Record<string, unknown>> : [];
       for (const otherRow of otherRows) {
         const row = rowByNodeId.get(String(otherRow.node_id));
-        if (row && String(otherRow.updated_at ?? '') === row.updated_at) {
+        if (row && explainsRow(row, otherRow)) {
           foreignSameStampRecord = true;
         }
       }

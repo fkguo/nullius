@@ -50,8 +50,9 @@ interface DispositionFailure {
  *   does;
  * - each node's mutation-log entry carries the shared event_group (derived
  *   from the idempotency key AND the payload hash: stable under replay of
- *   the same key+payload, distinct across keys even for identical
- *   payloads), the evidence_ref, and the shared event_reason — the group
+ *   the same key+payload, and distinct across keys up to the accepted
+ *   truncated-48-bit-hash collision odds — deterministic collisions are
+ *   eliminated), the evidence_ref, and the shared event_reason — the group
  *   binding is engine-recorded;
  * - evidence_ref is stored verbatim (report_ref / survey_ref precedent):
  *   shape is contract-checked (project-portable, hash-bound), whether the
