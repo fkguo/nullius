@@ -1,8 +1,9 @@
 // # CONTRACT-EXEMPT: CODE-01.1 — pre-existing cross-method replay facade; card-revision recovery is extracted, while this lane retains only the required dispatch and shared error-record persistence change.
 import { existsSync } from 'fs';
 import { payloadHash as artifactPayloadHash } from '../hash/payload-hash.js';
-import { IdeaEngineStore } from '../store/engine-store.js';
+import { IdeaEngineStore, NodeLogCorruptionError } from '../store/engine-store.js';
 import { budgetSnapshot } from './budget-snapshot.js';
+import { setCampaignRunningIfBudgetAvailable, type CampaignRecord } from './campaign-state.js';
 import { RpcError } from './errors.js';
 import { IMPORT_GENERATED_METHOD, recoverImportGenerated } from './import-generated-recovery.js';
 import { recoverIdeaCardRevision } from './node-revise-card-recovery.js';
@@ -142,16 +143,35 @@ function preparedSideEffectsCommitted(store: IdeaEngineStore, method: string, re
     if (lastRanking && lastRanking.ranking_artifact_ref === payload.ranking_artifact_ref) {
       return true;
     }
+    if (lastRanking && typeof lastRanking.ranking_artifact_ref === 'string') {
+      // The pointer exists but names a DIFFERENT artifact: either this mint
+      // landed fully and a later mint superseded it, or this mint's campaign
+      // write was lost and a later mint landed. The two cases are not
+      // distinguishable from here, and rolling the pointer/step accounting
+      // BACK to this record's values would clobber the newer landed state
+      // (a silent campaign write on a duplicate request). Never write; just
+      // replay the recorded response. Residual, stated honestly: in the
+      // lost-write case one consumed step stays uncounted — undercounting a
+      // generous optional ceiling, never resurrecting old state.
+      return true;
+    }
+    // Pointer absent: this mint's campaign write never landed. Complete it
+    // from the recorded values — steps monotonically (node.promote also
+    // consumes steps and may have advanced the counter meanwhile), then
+    // re-derive the campaign status exactly as the original save would have
+    // (a completing step can exhaust the budget).
     const snapshot = payload.budget_snapshot as Record<string, unknown> | undefined;
     const recordedSteps = snapshot ? Number(snapshot.steps_used) : Number.NaN;
     if (Number.isInteger(recordedSteps)) {
-      (campaign.usage as Record<string, unknown>).steps_used = recordedSteps;
+      const currentSteps = Number((campaign.usage as Record<string, unknown>).steps_used ?? 0);
+      (campaign.usage as Record<string, unknown>).steps_used = Math.max(currentSteps, recordedSteps);
     }
     campaign.last_ranking = {
       store_digest: payload.store_digest,
       ranking_artifact_ref: payload.ranking_artifact_ref,
       generated_at: payload.generated_at,
     };
+    setCampaignRunningIfBudgetAvailable(campaign as CampaignRecord);
     store.saveCampaign(campaign as Record<string, unknown> & { campaign_id: string });
     return true;
   }
@@ -191,6 +211,9 @@ function preparedSideEffectsCommitted(store: IdeaEngineStore, method: string, re
       return false;
     }
     const nodes = store.loadNodes<Record<string, unknown>>(campaignId);
+    const rowByNodeId = new Map<string, Record<string, unknown>>(
+      rows.map(row => [String(row.node_id), row]),
+    );
     const rowMatchesStore = (row: Record<string, unknown>): boolean => {
       const node = nodes[String(row.node_id)];
       if (!node) {
@@ -201,15 +224,78 @@ function preparedSideEffectsCommitted(store: IdeaEngineStore, method: string, re
         && Number(node.revision) === Number(row.revision)
         && (node.lifecycle_reason ?? null) === (row.lifecycle_reason ?? null);
     };
+    // The exact entry the executor would have appended for a row (same key
+    // order, same values): used both to repair a torn final line and to
+    // complete missing lines.
+    const rebuildEntry = (row: Record<string, unknown>): Record<string, unknown> => ({
+      mutation: 'apply_evidence_event',
+      node_id: row.node_id,
+      revision: Number(row.revision),
+      event_group: eventGroup,
+      evidence_ref: String(payload.evidence_ref),
+      event_reason: String(payload.event_reason),
+      reason: String(row.lifecycle_reason ?? payload.event_reason),
+      ...(row.posterior_marked_stale === true ? { posterior_marked_stale: true } : {}),
+      node: nodes[String(row.node_id)],
+    });
+    let logEntries: Array<Record<string, unknown>>;
+    try {
+      logEntries = store.loadNodeLogEntriesStrict(campaignId);
+    } catch (error) {
+      if (!(error instanceof NodeLogCorruptionError)) {
+        throw error;
+      }
+      // A crash mid-append tears the final JSONL line. When the torn bytes
+      // are a strict prefix of one of THIS event's expected entries, the
+      // store's safe repair completes it; anything else stays fail-closed.
+      const repaired = rows.some(row =>
+        rowMatchesStore(row) && store.repairTornFinalNodeLogEntry(campaignId, rebuildEntry(row)));
+      if (!repaired) {
+        throw error;
+      }
+      logEntries = store.loadNodeLogEntriesStrict(campaignId);
+    }
     const matchedRows = rows.filter(rowMatchesStore).length;
     const loggedNodeIds = new Set<string>();
-    for (const entry of store.loadNodeLogEntriesStrict(campaignId)) {
-      if (entry.mutation === 'apply_evidence_event' && entry.event_group === eventGroup) {
+    // Same-stamp foreign lines: another evidence event wrote one of our
+    // nodes at exactly the recorded timestamp (the production clock has
+    // one-second resolution, so distinct events CAN share it). A row match
+    // then no longer proves OUR event landed.
+    let foreignSameStampLine = false;
+    for (const entry of logEntries) {
+      if (entry.mutation !== 'apply_evidence_event') {
+        continue;
+      }
+      if (entry.event_group === eventGroup) {
         loggedNodeIds.add(String(entry.node_id));
+        continue;
+      }
+      const row = rowByNodeId.get(String(entry.node_id));
+      const entryNode = entry.node && typeof entry.node === 'object' && !Array.isArray(entry.node)
+        ? entry.node as Record<string, unknown>
+        : null;
+      if (row && entryNode && String(entryNode.updated_at ?? '') === row.updated_at) {
+        foreignSameStampLine = true;
       }
     }
-    if (matchedRows === 0 && loggedNodeIds.size === 0) {
-      return false;
+    if (loggedNodeIds.size === 0) {
+      if (matchedRows === 0) {
+        return false;
+      }
+      if (foreignSameStampLine) {
+        // Ambiguous attribution: the store state matches our rows, but a
+        // DIFFERENT event's ledger line covers one of our nodes at the same
+        // timestamp — the matching state may be that event's work, not
+        // ours. Fabricating our lines here is exactly the false
+        // certification this probe exists to prevent.
+        throw new RpcError(-32603, 'internal_error', {
+          reason: 'evidence_event_recovery_conflict',
+          campaign_id: campaignId,
+          details: {
+            message: 'another evidence event wrote these nodes at the same timestamp; whether this event ever landed cannot be decided from the store — inspect the ledger before retrying',
+          },
+        });
+      }
     }
     for (const row of rows) {
       const nodeId = String(row.node_id);
@@ -230,13 +316,7 @@ function preparedSideEffectsCommitted(store: IdeaEngineStore, method: string, re
           },
         });
       }
-      store.appendNodeLog(campaignId, nodes[nodeId]!, 'apply_evidence_event', {
-        event_group: eventGroup,
-        evidence_ref: String(payload.evidence_ref),
-        event_reason: String(payload.event_reason),
-        reason: String(row.lifecycle_reason ?? payload.event_reason),
-        ...(row.posterior_marked_stale === true ? { posterior_marked_stale: true } : {}),
-      });
+      store.appendNodeLogEntry(campaignId, rebuildEntry(row));
     }
     return true;
   }

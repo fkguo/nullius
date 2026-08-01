@@ -160,8 +160,10 @@ naming the artifact that motivated the mutation (with a retrieval receipt
 when URI-shaped); `trace_inputs.parent_delta_statement` — at least 20
 characters after trimming, stating WHAT changed relative to the parent, so
 admission review audits the delta's content rather than just its
-existence; and the delta over the parent stated as at least one card claim
-typed `llm_inference` or `assumption` — a mutation born fully
+existence; and a card claim typed `llm_inference` or `assumption` whose
+`claim_text` contains that statement (whitespace-collapsed) — the delta
+IS the typed claim; an unrelated inference claim elsewhere on the card
+does not satisfy the discipline, and a mutation born fully
 literature-supported is either not a mutation or mislabeling its inference.
 `novelty_delta.closest_prior` keeps its literature/artifact meaning: the
 parent is named by `parent_node_ids`, never by `closest_prior`.

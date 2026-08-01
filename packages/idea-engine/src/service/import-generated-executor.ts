@@ -7,7 +7,7 @@ import { budgetSnapshot } from './budget-snapshot.js';
 import { RpcError } from './errors.js';
 import { recordOrReplay, responseIdempotency, storeIdempotency } from './idempotency.js';
 import { ensureCampaignRunning, loadCampaignOrError, setCampaignRunningIfBudgetAvailable } from './campaign-state.js';
-import { NOVELTY_DELTA_CLAIM_DELIMITER, NOVELTY_DELTA_CLAIM_PREFIX, nodeLifecycleState, PLACEHOLDER_EVIDENCE_URI } from './node-shared.js';
+import { NOVELTY_DELTA_CLAIM_DELIMITER, NOVELTY_DELTA_CLAIM_PREFIX, nodeLifecycleState, PLACEHOLDER_EVIDENCE_URI, sanitizeText } from './node-shared.js';
 import { drawUniqueId } from './seed-node.js';
 import { buildGeneratedNode, type GeneratedCandidate } from './generated-node.js';
 import { IMPORT_ARTIFACT_TYPE, IMPORT_GENERATED_METHOD, refreshImportGeneratedReplay } from './import-generated-recovery.js';
@@ -486,17 +486,25 @@ function validateCandidateSemantics(options: {
         `${label}: Mutation requires trace_inputs.parent_delta_statement — a statement (>= 20 characters after trimming) of what changed relative to the parent; it is recorded in the trace for admission review`,
       );
     }
+    // The typed claim must BE the parent delta, not merely coexist with it:
+    // an unrelated inference claim elsewhere on the card must not satisfy
+    // the discipline. Mechanical binding: some llm_inference/assumption
+    // claim's text contains the recorded parent_delta_statement
+    // (whitespace-collapsed on both sides).
+    const normalizedDelta = sanitizeText(parentDeltaStatement, '');
     const mutationClaims = Array.isArray(candidate.card_fields.claims) ? candidate.card_fields.claims : [];
-    const hasTypedDelta = mutationClaims.some(claim => {
+    const hasBoundTypedDelta = mutationClaims.some(claim => {
       if (!claim || typeof claim !== 'object' || Array.isArray(claim)) return false;
-      const support = (claim as Record<string, unknown>).support_type;
-      return support === 'llm_inference' || support === 'assumption';
+      const record = claim as Record<string, unknown>;
+      const support = record.support_type;
+      if (support !== 'llm_inference' && support !== 'assumption') return false;
+      return sanitizeText(record.claim_text, '').includes(normalizedDelta);
     });
-    if (!hasTypedDelta) {
+    if (!hasBoundTypedDelta) {
       throw importValidationError(
         'delta_claim_missing',
         campaignId,
-        `${label}: Mutation requires at least one card claim typed llm_inference or assumption stating the delta over the parent — a mutation born fully literature-supported is either not a mutation or mislabeling its inference`,
+        `${label}: Mutation requires a card claim typed llm_inference or assumption whose claim_text contains trace_inputs.parent_delta_statement (whitespace-collapsed) — the delta over the parent must be stated AS the typed claim, not laundered as literature-supported while an unrelated inference claim stands in`,
       );
     }
   }
