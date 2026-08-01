@@ -408,13 +408,17 @@ function preparedSideEffectsCommitted(store: IdeaEngineStore, method: string, re
         && typeof otherPayload.updated_at === 'string') {
         // Flat-result mutations (node.rewrite_provenance) carry no node
         // summary, only node_id / revision / updated_at — and that method
-        // preserves the lifecycle fields while advancing revision and
-        // timestamp, so an exact (node, timestamp, revision) hit IS a
-        // plausible alternative explanation of the matching store state.
-        // Reduced witness, conservative conflict; a record at any other
-        // timestamp or revision never trips it.
+        // PRESERVES the lifecycle state while advancing revision and
+        // timestamp. It can therefore only explain a row whose transition
+        // left the state unchanged (previous_state === lifecycle_state, the
+        // condition-carrying self-transitions): a demoting or promoting row
+        // is causally beyond a rewrite, and conflicting there would block
+        // legitimate recoveries. Within self-transitions an exact
+        // (node, timestamp, revision) hit IS a plausible alternative
+        // explanation — reduced witness, conservative conflict.
         const row = rowByNodeId.get(otherPayload.node_id);
         if (row
+          && row.previous_state === row.lifecycle_state
           && otherPayload.updated_at === row.updated_at
           && Number(otherPayload.revision) === Number(row.revision)) {
           foreignSameStampRecord = true;

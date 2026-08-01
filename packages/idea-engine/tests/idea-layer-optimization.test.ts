@@ -1055,13 +1055,94 @@ describe('node.apply_evidence_event', () => {
     );
   });
 
-  it('fails loud when a flat-result rewrite record could explain the stored state', () => {
-    // node.rewrite_provenance results carry only flat node_id / revision /
-    // updated_at (no node summary), and the rewrite preserves the lifecycle
-    // fields while advancing revision and timestamp — so an exact
+  function syntheticRewriteRecord(campaignId: string, nodeId: string, row: Record<string, unknown>): Record<string, unknown> {
+    // Schema-faithful provenance_rewrite_result_v1 payload (field enum value
+    // and full budget snapshot included).
+    return {
+      payload_hash: `sha256:${'d'.repeat(64)}`,
+      created_at: String(row.updated_at),
+      state: 'committed',
+      response: {
+        kind: 'result',
+        payload: {
+          campaign_id: campaignId,
+          node_id: nodeId,
+          idea_id: 'aaaaaaaa',
+          field: 'novelty_delta.closest_prior',
+          previous_value: 'prior-a',
+          new_value: 'prior-b',
+          delta_claim_updated: false,
+          grounding_audit_reset: false,
+          revision: row.revision,
+          updated_at: row.updated_at,
+          budget_snapshot: { steps_used: 0, steps_remaining: 20, nodes_used: 1, nodes_remaining: 19 },
+          idempotency: { idempotency_key: 'synthetic-rewrite', is_replay: false, payload_hash: `sha256:${'d'.repeat(64)}` },
+        },
+      },
+    };
+  }
+
+  it('fails loud when a flat rewrite record could explain a SELF-TRANSITION row', () => {
+    // node.rewrite_provenance preserves the lifecycle state while advancing
+    // revision and timestamp, so it can only explain a row whose transition
+    // left the state unchanged. For such a row, an exact
     // (node, timestamp, revision) record hit is a plausible alternative
-    // explanation and must raise the conflict, not certify our event.
+    // explanation and must raise the conflict.
     const rootDir = mkdtempSync(join(tmpdir(), 'idea-evt-rewrite-twin-'));
+    tempDirs.push(rootDir);
+    const service = new IdeaEngineRpcService({
+      rootDir,
+      now: () => '2026-07-21T07:30:00Z',
+    });
+    const { campaignId, nodeIds } = initCampaign(service);
+    const nodeId = nodeIds[0]!;
+    admitNode(service, campaignId, nodeId);
+    const condition = { kind: 'required_evidence', description: 'the follow-up computation', satisfied: false } as const;
+    service.handle('node.set_lifecycle', {
+      campaign_id: campaignId,
+      node_id: nodeId,
+      lifecycle_state: 'admission_blocked',
+      reason: 'missing evidence',
+      activation_condition: condition,
+      idempotency_key: 'block-first',
+    });
+    // Self-transition: blocked -> blocked, re-asserting the same condition.
+    const params = {
+      campaign_id: campaignId,
+      evidence_ref: EVIDENCE_REF,
+      event_reason: 'condition re-confirmed by the evidence artifact',
+      dispositions: [{ node_id: nodeId, lifecycle_state: 'admission_blocked', activation_condition: condition }],
+      idempotency_key: 'evt-rw-twin',
+    };
+    const first = service.handle('node.apply_evidence_event', params) as {
+      nodes: Array<Record<string, unknown>>;
+    };
+    const row = first.nodes[0]!;
+
+    const campaignDir = resolve(rootDir, 'campaigns', campaignId);
+    const idemPath = resolve(campaignDir, 'idempotency_store.json');
+    const idem = JSON.parse(readFileSync(idemPath, 'utf8')) as Record<string, Record<string, unknown>>;
+    idem['node.apply_evidence_event:evt-rw-twin']!.state = 'prepared';
+    idem['node.rewrite_provenance:synthetic-rewrite'] = syntheticRewriteRecord(campaignId, nodeId, row);
+    writeFileSync(idemPath, JSON.stringify(idem));
+    const logPath = resolve(campaignDir, 'nodes_log.jsonl');
+    const kept = readFileSync(logPath, 'utf8')
+      .split('\n')
+      .filter(line => line.trim().length > 0 && !line.includes('apply_evidence_event'));
+    writeFileSync(logPath, `${kept.join('\n')}\n`);
+
+    expectRpcError(
+      () => service.handle('node.apply_evidence_event', params),
+      -32603,
+      'evidence_event_recovery_conflict',
+    );
+  });
+
+  it('does not conflict on a flat rewrite record when the row is a real transition', () => {
+    // A demoting row (admitted -> needs_refresh) is causally beyond a
+    // rewrite, which preserves the lifecycle state: the flat record must
+    // not block the legitimate recovery.
+    const rootDir = mkdtempSync(join(tmpdir(), 'idea-evt-rewrite-fp-'));
     tempDirs.push(rootDir);
     const service = new IdeaEngineRpcService({
       rootDir,
@@ -1075,42 +1156,18 @@ describe('node.apply_evidence_event', () => {
       evidence_ref: EVIDENCE_REF,
       event_reason: 'shared supersession cause',
       dispositions: [{ node_id: nodeId, lifecycle_state: 'needs_refresh' }],
-      idempotency_key: 'evt-rw-twin',
+      idempotency_key: 'evt-rw-fp',
     };
     const first = service.handle('node.apply_evidence_event', params) as {
+      event_group: string;
       nodes: Array<Record<string, unknown>>;
     };
     const row = first.nodes[0]!;
-
-    // Crash window: our record prepared, our ledger lines lost — and a
-    // provenance-rewrite record (flat shape, exact revision + timestamp)
-    // exists for the same node.
     const campaignDir = resolve(rootDir, 'campaigns', campaignId);
     const idemPath = resolve(campaignDir, 'idempotency_store.json');
     const idem = JSON.parse(readFileSync(idemPath, 'utf8')) as Record<string, Record<string, unknown>>;
-    idem['node.apply_evidence_event:evt-rw-twin']!.state = 'prepared';
-    idem['node.rewrite_provenance:synthetic-rewrite'] = {
-      payload_hash: `sha256:${'d'.repeat(64)}`,
-      created_at: String(row.updated_at),
-      state: 'committed',
-      response: {
-        kind: 'result',
-        payload: {
-          campaign_id: campaignId,
-          node_id: nodeId,
-          idea_id: 'aaaaaaaa',
-          field: 'closest_prior',
-          previous_value: 'prior-a',
-          new_value: 'prior-b',
-          delta_claim_updated: false,
-          grounding_audit_reset: false,
-          revision: row.revision,
-          updated_at: row.updated_at,
-          budget_snapshot: {},
-          idempotency: { idempotency_key: 'synthetic-rewrite', is_replay: false, payload_hash: `sha256:${'d'.repeat(64)}` },
-        },
-      },
-    };
+    idem['node.apply_evidence_event:evt-rw-fp']!.state = 'prepared';
+    idem['node.rewrite_provenance:synthetic-rewrite'] = syntheticRewriteRecord(campaignId, nodeId, row);
     writeFileSync(idemPath, JSON.stringify(idem));
     const logPath = resolve(campaignDir, 'nodes_log.jsonl');
     const kept = readFileSync(logPath, 'utf8')
@@ -1118,11 +1175,13 @@ describe('node.apply_evidence_event', () => {
       .filter(line => line.trim().length > 0 && !line.includes('apply_evidence_event'));
     writeFileSync(logPath, `${kept.join('\n')}\n`);
 
-    expectRpcError(
-      () => service.handle('node.apply_evidence_event', params),
-      -32603,
-      'evidence_event_recovery_conflict',
-    );
+    const retry = service.handle('node.apply_evidence_event', params) as {
+      idempotency: Record<string, unknown>;
+    };
+    expect(retry.idempotency.is_replay).toBe(true);
+    const restored = service.read.store.loadNodeLogEntriesStrict(campaignId)
+      .filter(entry => entry.mutation === 'apply_evidence_event' && entry.event_group === first.event_group);
+    expect(restored).toHaveLength(1);
   });
 
   it('recovers honestly when a set_lifecycle twin wrote a DIFFERENT activation condition', () => {
