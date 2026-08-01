@@ -93,6 +93,13 @@ requireAll(GATE_FILE, read(GATE_FILE), [
   ['dry-run peak RSS falsification label', 'MISSING_DRY_RUN_PEAK_RSS'],
   ['heap-limit falsification label', 'MISSING_HEAP_LIMIT'],
   ['heap-below-peak falsification label', 'HEAP_LIMIT_BELOW_DRY_RUN_PEAK'],
+  ['independence-fields falsification label', 'MISSING_INDEPENDENCE_FIELDS'],
+  ['independence-satisfiability falsification label', 'INDEPENDENCE_BUDGET_UNSATISFIABLE'],
+  ['remaining-routes falsification label', 'MISSING_REMAINING_ROUTES_SOURCE'],
+  ['independence-contradiction falsification label', 'CONTRADICTORY_INDEPENDENCE_FIELDS'],
+  ['retry-fields falsification label', 'MISSING_RETRY_FIELDS'],
+  ['retry-dimension falsification label', 'INVALID_RETRY_DIMENSION'],
+  ['retry-below-measured falsification label', 'RETRY_BUDGET_BELOW_MEASURED_NEED'],
   ['unfilled-placeholder falsification label', 'PLACEHOLDER_VALUE'],
   ['unknown-version fail-closed label', 'UNSUPPORTED_CONTRACT_VERSION'],
   ['contracts-required falsification label', 'NO_CONTRACTS_FOUND'],
@@ -289,7 +296,8 @@ requireAll('skills/research-team/scripts/lib/team_config.py',
     ['delegation_budget config block default', '"delegations_dir": "team/delegations"'],
   ]);
 
-// 4. Template ships the five mandated field groups.
+// 4. Template ships the five mandated field groups plus the two
+// situation-mandatory optional blocks' documentation notes.
 requireAll(TEMPLATE_FILE, read(TEMPLATE_FILE), [
   ['contract version pin', '"contract_version": 1'],
   ['tolerance ceiling group', '"tolerance_ceiling"'],
@@ -302,6 +310,8 @@ requireAll(TEMPLATE_FILE, read(TEMPLATE_FILE), [
   ['peak memory group', '"peak_memory_estimate"'],
   ['dry-run peak RSS field', '"dry_run_peak_rss_mb"'],
   ['heap limit field', '"heap_limit_mb"'],
+  ['independence-requirement block note', '"_independence_requirement_note"'],
+  ['retry-of block note', '"_retry_of_note"'],
 ]);
 
 // Config template keeps the gate discoverable.
@@ -324,6 +334,11 @@ requireAll(TEAM_SKILL_FILE, read(TEAM_SKILL_FILE), [
   ['max attempts field', '`max_attempts`'],
   ['scope negative list field', '`scope_negative_list`'],
   ['peak memory field', '`peak_memory_estimate`'],
+  ['independence-requirement block', '`independence_requirement`'],
+  ['joint-satisfiability discipline', 'joint satisfiability'],
+  ['retry-of block', '`retry_of`'],
+  ['measured re-budget discipline', 'never a chain of identical exhaustions'],
+  ['prepared-execution-first closure rule', 'Prepared-execution-first closure'],
   ['gate pointer', 'check_delegation_budget.py'],
 ]);
 requireAll(HARNESS_SKILL_FILE, read(HARNESS_SKILL_FILE), [
@@ -332,6 +347,8 @@ requireAll(HARNESS_SKILL_FILE, read(HARNESS_SKILL_FILE), [
   ['exact stopping predicate contract', 'one-line exact predicate'],
   ['numeric-zero exclusion', 'never by numeric zero'],
   ['measured-memory clause', 'Estimating wall-clock alone is not a resource estimate'],
+  ['measured-shortfall re-budget clause', 'measured shortfall'],
+  ['no-identical-exhaustion clause', 'never a chain of identical exhaustions'],
 ]);
 requireAll(SHARED_README_FILE, read(SHARED_README_FILE), [
   ['dedicated gate-result contract', '`delegation_budget_gate_result_v1`'],
@@ -387,6 +404,16 @@ requireAll(TESTS_FILE, testsText, [
   ['exact-with-value contradiction control', 'test_exact_predicate_mode_with_value_fails'],
   ['numeric-with-predicate contradiction control', 'test_numeric_tolerance_mode_with_predicate_fails'],
   ['unknown tolerance-mode control', 'test_unknown_tolerance_mode_fails_closed'],
+  ['independence satisfiable positive control', 'test_independence_requirement_satisfiable_passes'],
+  ['independence unsatisfiable negative control', 'test_independence_budget_unsatisfiable_fails'],
+  ['independence remainder-source negative control', 'test_independence_partial_routes_without_source_fails'],
+  ['independence split-routes positive control', 'test_independence_partial_routes_with_source_passes'],
+  ['independence contradiction control', 'test_independence_full_routes_with_source_fails'],
+  ['retry-of covering-budget positive control', 'test_retry_of_time_dimension_covering_budget_passes'],
+  ['retry-of below-measured-time negative control', 'test_retry_of_time_budget_below_measured_need_fails'],
+  ['retry-of below-measured-heap negative control', 'test_retry_of_heap_budget_below_measured_need_fails'],
+  ['retry-of unknown-dimension control', 'test_retry_of_unknown_dimension_fails_closed'],
+  ['retry-of nonnumeric-time-measurement control', 'test_retry_of_nonnumeric_measured_for_time_fails'],
 ]);
 
 // The hang-guard timeout must live INSIDE the FIFO config-loader control —

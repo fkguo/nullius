@@ -75,6 +75,10 @@ requireAll(TEAM_SKILL_FILE, read(TEAM_SKILL_FILE), [
   ['degeneracy examples', 'window narrower than the feature'],
   ['neither-outcome-citable consequence', 'neither its positive nor its negative outcome may be cited'],
   ['review-side power check', 'carried this power estimate'],
+  ['unavailability-is-not-a-round bullet', 'Reviewer unavailability is a dispatch failure, not a review round'],
+  ['unavailability consumes no bounded round', 'never consumes a bounded round'],
+  ['unavailability mints no run record', 'never mints a run directory, packet, or verdict record'],
+  ['repeated-unavailability escalation', 'environment blocker to surface to the project owner'],
 ]);
 
 // 2. review-swarm: the general recomputation reviewer role.
