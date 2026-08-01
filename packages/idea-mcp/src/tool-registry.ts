@@ -35,10 +35,13 @@ const SeedPackSchema = z.object({
   extensions: LooseObject.optional(),
 }).strict();
 
+// Every dimension optional: declare only what this deployment actually
+// meters. An undeclared dimension is absent from budget snapshots and
+// rejects topups (mirrors budget_envelope_v1.schema.json).
 const BudgetEnvelopeSchema = z.object({
-  max_tokens: z.number().int().min(1),
-  max_cost_usd: z.number().min(0),
-  max_wall_clock_s: z.number().min(0),
+  max_tokens: z.number().int().min(1).optional(),
+  max_cost_usd: z.number().min(0).optional(),
+  max_wall_clock_s: z.number().min(0).optional(),
   max_nodes: z.number().int().min(1).optional(),
   max_steps: z.number().int().min(1).optional(),
   extensions: LooseObject.optional(),

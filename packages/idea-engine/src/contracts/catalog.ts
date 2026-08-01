@@ -105,28 +105,45 @@ export class IdeaEngineContractCatalog {
       throw new ContractRuntimeError('params must be an object (by-name)');
     }
 
+    // Collect EVERY request-shape problem — missing parameters, unknown
+    // parameters, and each present parameter's schema violations — into ONE
+    // throw: a caller fixing a malformed request sees the complete list in a
+    // single round-trip (Ajv already runs allErrors within each parameter;
+    // this extends the same promise across the whole parameter surface).
     const record = params as Record<string, unknown>;
+    const parameterProblems: string[] = [];
     const required = new Set((method.params ?? []).filter(param => param.required).map(param => param.name));
     const missing = [...required].filter(name => !(name in record));
     if (missing.length > 0) {
-      throw new ContractRuntimeError(`missing required params: ${missing.join(', ')}`);
+      parameterProblems.push(`missing required params: ${missing.join(', ')}`);
     }
 
     const allowed = new Set((method.params ?? []).map(param => param.name));
     const extras = Object.keys(record).filter(name => !allowed.has(name));
     if (extras.length > 0) {
-      throw new ContractRuntimeError(`unknown params: ${extras.join(', ')}`);
+      parameterProblems.push(`unknown params: ${extras.join(', ')}`);
     }
 
     for (const param of method.params ?? []) {
       if (!(param.name in record) || !param.schema || typeof param.schema !== 'object') {
         continue;
       }
-      this.validateWithSchema(
-        param.schema as Record<string, unknown>,
-        record[param.name],
-        this.scopedUri(`${methodName}/params/${param.name}`),
-      );
+      try {
+        this.validateWithSchema(
+          param.schema as Record<string, unknown>,
+          record[param.name],
+          this.scopedUri(`${methodName}/params/${param.name}`),
+        );
+      } catch (error) {
+        if (error instanceof ContractRuntimeError) {
+          parameterProblems.push(`param '${param.name}': ${error.message}`);
+          continue;
+        }
+        throw error;
+      }
+    }
+    if (parameterProblems.length > 0) {
+      throw new ContractRuntimeError(parameterProblems.join('; '));
     }
   }
 

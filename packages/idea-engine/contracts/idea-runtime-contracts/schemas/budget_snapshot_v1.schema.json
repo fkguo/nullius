@@ -2,20 +2,22 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "budget_snapshot_v1.schema.json",
   "title": "BudgetSnapshot v1",
-  "description": "Budget usage snapshot returned by the engine for monitoring and circuit breaking.",
+  "description": "Budget usage snapshot returned by the engine for monitoring and circuit breaking. Only declared dimensions appear: the tokens / cost / wall-clock pairs are present exactly when their ceiling was declared in the BudgetEnvelope — an undeclared dimension is omitted entirely instead of being rendered as a constant-zero counter under a ceiling nothing can ever touch. steps and nodes are always present (the engine itself meters them).",
   "type": "object",
   "required": [
-    "tokens_used",
-    "tokens_remaining",
-    "cost_usd_used",
-    "cost_usd_remaining",
-    "wall_clock_s_elapsed",
-    "wall_clock_s_remaining",
     "steps_used",
     "steps_remaining",
     "nodes_used",
     "nodes_remaining"
   ],
+  "dependentRequired": {
+    "tokens_used": ["tokens_remaining"],
+    "tokens_remaining": ["tokens_used"],
+    "cost_usd_used": ["cost_usd_remaining"],
+    "cost_usd_remaining": ["cost_usd_used"],
+    "wall_clock_s_elapsed": ["wall_clock_s_remaining"],
+    "wall_clock_s_remaining": ["wall_clock_s_elapsed"]
+  },
   "properties": {
     "tokens_used": { "type": "integer", "minimum": 0 },
     "tokens_remaining": { "type": "integer", "minimum": 0 },

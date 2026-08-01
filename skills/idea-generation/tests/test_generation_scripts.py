@@ -157,6 +157,69 @@ def test_unknown_family_and_arity_violations(make_candidate):
     assert any("analogy_mapping" in p for p in _problems(candidate))
 
 
+def test_mutation_mirror_requires_trigger_anchor_and_typed_delta(make_candidate):
+    PARENT_DELTA = "Restricts the parent proposition to the regime the trigger result supports."
+
+    def as_mutation(candidate):
+        candidate["provenance"]["operator_family"] = "Mutation"
+        candidate["provenance"]["parent_node_ids"] = ["nd000001"]
+        return candidate
+
+    candidate = as_mutation(make_candidate())
+    assert any("trigger_artifact_ref" in p for p in _problems(candidate))
+    assert any("parent_delta_statement" in p for p in _problems(candidate))
+
+    candidate = as_mutation(make_candidate())
+    candidate["provenance"]["trace_inputs"]["trigger_artifact_ref"] = "   "
+    assert any("trigger_artifact_ref" in p for p in _problems(candidate))
+
+    def bind_delta_claim(candidate):
+        for claim in candidate["card_fields"]["claims"]:
+            if claim.get("support_type") in ("llm_inference", "assumption"):
+                claim["claim_text"] = f"Delta vs parent: {PARENT_DELTA}"
+        return candidate
+
+    candidate = bind_delta_claim(as_mutation(make_candidate()))
+    candidate["provenance"]["trace_inputs"]["trigger_artifact_ref"] = "team/runs/review-cycle/report.json"
+    candidate["provenance"]["trace_inputs"]["parent_delta_statement"] = PARENT_DELTA
+    assert not any("trigger_artifact_ref" in p or "parent_delta_statement" in p for p in _problems(candidate))
+
+    # An unrelated typed claim does not satisfy the discipline: the typed
+    # claim must contain the parent-delta statement.
+    candidate = as_mutation(make_candidate())
+    candidate["provenance"]["trace_inputs"]["trigger_artifact_ref"] = "team/runs/review-cycle/report.json"
+    candidate["provenance"]["trace_inputs"]["parent_delta_statement"] = PARENT_DELTA
+    assert any("claim_text contains parent_delta_statement" in p for p in _problems(candidate))
+
+    candidate = as_mutation(make_candidate())
+    candidate["provenance"]["trace_inputs"]["trigger_artifact_ref"] = "https://example.com/unreceipted-trigger"
+    assert any("no retrieval receipt" in p and "trigger_artifact_ref" in p for p in _problems(candidate))
+
+    candidate = as_mutation(make_candidate())
+    candidate["provenance"]["trace_inputs"]["trigger_artifact_ref"] = "team/runs/review-cycle/report.json"
+    candidate["provenance"]["trace_inputs"]["parent_delta_statement"] = "   short   "
+    assert any("parent_delta_statement" in p for p in _problems(candidate))
+
+    candidate = as_mutation(make_candidate())
+    candidate["provenance"]["trace_inputs"]["trigger_artifact_ref"] = "team/runs/review-cycle/report.json"
+    candidate["provenance"]["trace_inputs"]["parent_delta_statement"] = PARENT_DELTA
+    for claim in candidate["card_fields"]["claims"]:
+        if claim.get("support_type") in ("llm_inference", "assumption"):
+            claim["support_type"] = "literature"
+            claim.setdefault("evidence_uris", []).extend(candidate["provenance"]["evidence_uris_used"][:1])
+    assert any("delta over the parent" in p for p in _problems(candidate))
+
+
+def test_card_enum_membership_checked_locally(make_candidate):
+    candidate = make_candidate()
+    candidate["card_fields"]["minimal_compute_plan"][0]["estimated_difficulty"] = "easy"
+    assert any("estimated_difficulty" in p and "straightforward" in p for p in _problems(candidate))
+
+    candidate = make_candidate()
+    candidate["card_fields"]["claims"][0]["support_type"] = "vibes"
+    assert any("support_type" in p and "llm_inference" in p for p in _problems(candidate))
+
+
 def test_reserved_trace_keys_are_rejected(make_candidate):
     candidate = make_candidate()
     candidate["provenance"]["trace_inputs"]["trigger"] = {"kind": "manual"}
@@ -295,16 +358,17 @@ def test_pack_shape_gates_triggers_and_parent_revisions(make_candidate, prompt_s
 
 
 def test_pack_shape_rejects_disabled_families_and_intra_pack_twins(make_candidate):
+    # Mutation is enabled now; Recombination stays committed-but-disabled.
     disabled = make_candidate()
-    disabled["provenance"]["operator_family"] = "Mutation"
-    disabled["provenance"]["parent_node_ids"] = ["nd000001"]
+    disabled["provenance"]["operator_family"] = "Recombination"
+    disabled["provenance"]["parent_node_ids"] = ["nd000001", "nd000002"]
     pack = {
         "campaign_id": "cmpn0001",
         "candidates": [disabled],
         "evidence_snapshot": {},
         "trigger": {"kind": "manual"},
     }
-    problems = build_pack.validate_pack_shape(pack, {"nd000001": 1})
+    problems = build_pack.validate_pack_shape(pack, {"nd000001": 1, "nd000002": 1})
     assert any("not yet enabled for import" in p for p in problems)
 
     twins = {
@@ -664,6 +728,30 @@ def test_enum_mirrors_match_engine_generation_pack_contract(engine_contract_dir)
     node_schema = json.loads((engine_contract_dir / "idea_node_v1.schema.json").read_text(encoding="utf-8"))
     assert schema["properties"]["campaign_id"]["pattern"] == node_schema["properties"]["campaign_id"]["pattern"]
     assert set(build_pack.ENABLED_TRIGGER_KINDS) <= set(build_pack.TRIGGER_VOCABULARY)
+
+
+def test_card_enum_mirrors_match_engine_card_schema(engine_contract_dir):
+    card = json.loads((engine_contract_dir / "idea_card_v1.schema.json").read_text(encoding="utf-8"))
+    plan_props = card["properties"]["minimal_compute_plan"]["items"]["properties"]
+    assert plan_props["estimated_difficulty"]["enum"] == build_pack.CARD_ESTIMATED_DIFFICULTY
+    assert plan_props["estimate_confidence"]["enum"] == build_pack.CARD_ESTIMATE_CONFIDENCE
+    assert plan_props["required_infrastructure"]["enum"] == build_pack.CARD_REQUIRED_INFRASTRUCTURE
+    claim_props = card["properties"]["claims"]["items"]["properties"]
+    assert claim_props["support_type"]["enum"] == build_pack.CARD_SUPPORT_TYPES
+    assert claim_props["verification_status"]["enum"] == build_pack.CARD_VERIFICATION_STATUS
+
+
+def test_skill_prompt_contract_carries_card_enum_vocabularies():
+    skill_text = (SKILL_ROOT / "SKILL.md").read_text(encoding="utf-8")
+    for vocabulary in (
+        build_pack.CARD_ESTIMATED_DIFFICULTY,
+        build_pack.CARD_ESTIMATE_CONFIDENCE,
+        build_pack.CARD_REQUIRED_INFRASTRUCTURE,
+        build_pack.CARD_SUPPORT_TYPES,
+        build_pack.CARD_VERIFICATION_STATUS,
+    ):
+        for word in vocabulary:
+            assert word in skill_text, f"SKILL.md prompt contract lost card enum word {word!r}"
 
 
 def _ts_const_strings(source, marker):

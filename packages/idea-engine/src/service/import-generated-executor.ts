@@ -7,7 +7,7 @@ import { budgetSnapshot } from './budget-snapshot.js';
 import { RpcError } from './errors.js';
 import { recordOrReplay, responseIdempotency, storeIdempotency } from './idempotency.js';
 import { ensureCampaignRunning, loadCampaignOrError, setCampaignRunningIfBudgetAvailable } from './campaign-state.js';
-import { NOVELTY_DELTA_CLAIM_DELIMITER, NOVELTY_DELTA_CLAIM_PREFIX, nodeLifecycleState, PLACEHOLDER_EVIDENCE_URI } from './node-shared.js';
+import { NOVELTY_DELTA_CLAIM_DELIMITER, NOVELTY_DELTA_CLAIM_PREFIX, nodeLifecycleState, PLACEHOLDER_EVIDENCE_URI, sanitizeText } from './node-shared.js';
 import { drawUniqueId } from './seed-node.js';
 import { buildGeneratedNode, type GeneratedCandidate } from './generated-node.js';
 import { IMPORT_ARTIFACT_TYPE, IMPORT_GENERATED_METHOD, refreshImportGeneratedReplay } from './import-generated-recovery.js';
@@ -42,14 +42,18 @@ const OPERATOR_FAMILY_ARITY: Record<string, ArityRule> = {
 };
 
 /**
- * Families a V0 import actually accepts — same treatment as trigger kinds:
- * the rest of the taxonomy is committed vocabulary (arity table above) but
+ * Families import actually accepts — same treatment as trigger kinds: the
+ * rest of the taxonomy is committed vocabulary (arity table above) but
  * import-rejected (operator_family_not_enabled) until each family's evidence
- * discipline (design §5: delta claims for Mutation, bridge claims for
- * Recombination, per-edge source verification for AnalogyTransfer) lands in
- * this validator. Prose in a skill is not a gate; the engine is the authority.
+ * discipline lands in this validator. Prose in a skill is not a gate; the
+ * engine is the authority. Mutation landed per the design's V1 ordering once
+ * posterior-bearing nodes accumulated in real campaigns: exactly one parent,
+ * a trigger artifact anchor, and the delta over the parent stated as a claim
+ * typed llm_inference/assumption (see the Mutation block below). Still
+ * pending their disciplines: Recombination (bridge claims, after the
+ * pairwise seam fix), AnalogyTransfer (per-edge source verification).
  */
-const ENABLED_OPERATOR_FAMILIES = ['LiteratureMining', 'FailureRouting'] as const;
+const ENABLED_OPERATOR_FAMILIES = ['LiteratureMining', 'FailureRouting', 'Mutation'] as const;
 
 const RESERVED_TRACE_INPUT_KEYS = [
   'trigger',
@@ -446,6 +450,62 @@ function validateCandidateSemantics(options: {
           { node_id: parents[0] },
         );
       }
+    }
+  }
+
+  if (family === 'Mutation') {
+    // Design §5: a mutation's born-with anchors are the parent's anchors
+    // (parent_node_ids, arity exactly 1, revision-pinned above) PLUS the
+    // trigger artifact that motivated mutating the parent; and the delta over
+    // the parent must be stated honestly as inference/assumption, not
+    // laundered as literature-supported. The parent-delta statement makes
+    // the "what changed vs the parent" content mechanical and auditable in
+    // the trace — an unrelated inference claim elsewhere on the card cannot
+    // satisfy the discipline by accident.
+    const triggerRef = traceInputs.trigger_artifact_ref;
+    if (!isNonEmptyString(triggerRef) || triggerRef.trim().length === 0) {
+      throw importValidationError(
+        'anchor_missing',
+        campaignId,
+        `${label}: Mutation requires a non-blank trace_inputs.trigger_artifact_ref — the artifact (a review, a computation result, an updated survey) that motivated mutating the parent`,
+      );
+    }
+    if (looksLikeUri(triggerRef) && !receipts.has(triggerRef)) {
+      throw importValidationError(
+        'anchor_missing',
+        campaignId,
+        `${label}: Mutation trigger_artifact_ref has no retrieval receipt in trace_inputs.retrieval_receipts`,
+        { uri: triggerRef },
+      );
+    }
+    const parentDeltaStatement = traceInputs.parent_delta_statement;
+    if (!isNonEmptyString(parentDeltaStatement) || parentDeltaStatement.trim().length < 20) {
+      throw importValidationError(
+        'anchor_missing',
+        campaignId,
+        `${label}: Mutation requires trace_inputs.parent_delta_statement — a statement (>= 20 characters after trimming) of what changed relative to the parent; it is recorded in the trace for admission review`,
+      );
+    }
+    // The typed claim must BE the parent delta, not merely coexist with it:
+    // an unrelated inference claim elsewhere on the card must not satisfy
+    // the discipline. Mechanical binding: some llm_inference/assumption
+    // claim's text contains the recorded parent_delta_statement
+    // (whitespace-collapsed on both sides).
+    const normalizedDelta = sanitizeText(parentDeltaStatement, '');
+    const mutationClaims = Array.isArray(candidate.card_fields.claims) ? candidate.card_fields.claims : [];
+    const hasBoundTypedDelta = mutationClaims.some(claim => {
+      if (!claim || typeof claim !== 'object' || Array.isArray(claim)) return false;
+      const record = claim as Record<string, unknown>;
+      const support = record.support_type;
+      if (support !== 'llm_inference' && support !== 'assumption') return false;
+      return sanitizeText(record.claim_text, '').includes(normalizedDelta);
+    });
+    if (!hasBoundTypedDelta) {
+      throw importValidationError(
+        'delta_claim_missing',
+        campaignId,
+        `${label}: Mutation requires a card claim typed llm_inference or assumption whose claim_text contains trace_inputs.parent_delta_statement (whitespace-collapsed) — the delta over the parent must be stated AS the typed claim, not laundered as literature-supported while an unrelated inference claim stands in`,
+      );
     }
   }
 

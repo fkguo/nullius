@@ -2,9 +2,8 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "budget_envelope_v1.schema.json",
   "title": "BudgetEnvelope v1",
-  "description": "Budget envelope for a campaign. Enforced by the campaign budget accounting.",
+  "description": "Budget envelope for a campaign. Enforced by the campaign budget accounting. Every dimension is optional: declare only the dimensions this deployment actually meters. An undeclared dimension is absent from budget snapshots (nothing measures it, so no ceiling is invented for it) and rejects topups; declaring a ceiling that no metering path can ever touch states a control that does not exist.",
   "type": "object",
-  "required": ["max_tokens", "max_cost_usd", "max_wall_clock_s"],
   "properties": {
     "max_tokens": { "type": "integer", "minimum": 1 },
     "max_cost_usd": { "type": "number", "minimum": 0 },
