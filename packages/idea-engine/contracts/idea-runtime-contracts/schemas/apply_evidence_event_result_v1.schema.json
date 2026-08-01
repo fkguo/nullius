@@ -23,12 +23,28 @@
       "minItems": 1,
       "items": {
         "type": "object",
-        "required": ["node_id", "previous_state", "lifecycle_state", "lifecycle_reason", "revision", "updated_at", "posterior_marked_stale"],
+        "required": ["node_id", "previous_state", "lifecycle_state", "lifecycle_reason", "activation_condition", "revision", "updated_at", "posterior_marked_stale"],
         "properties": {
           "node_id": { "type": "string", "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$" },
           "previous_state": { "enum": ["candidate", "admission_review", "admitted", "needs_refresh", "admission_blocked", "waiting_activation", "archived"] },
           "lifecycle_state": { "enum": ["candidate", "admission_review", "admitted", "needs_refresh", "admission_blocked", "waiting_activation", "archived"] },
           "lifecycle_reason": { "type": "string", "minLength": 1, "description": "The reason applied to the node: the disposition's own reason when given, else the shared event_reason. Recorded per row so crash recovery can rebuild missing ledger lines exactly." },
+          "activation_condition": {
+            "oneOf": [
+              { "type": "null" },
+              {
+                "type": "object",
+                "required": ["kind", "description", "satisfied"],
+                "properties": {
+                  "kind": { "enum": ["tool_readiness", "data_release", "stage_reached", "exploratory_computation", "required_evidence", "other"] },
+                  "description": { "type": "string", "minLength": 1 },
+                  "satisfied": { "type": "boolean" }
+                },
+                "additionalProperties": false
+              }
+            ],
+            "description": "The condition written to the node (null for states that carry none). Part of the complete written state crash recovery witnesses: it distinguishes same-tuple twins that differ only in their recorded condition."
+          },
           "revision": { "type": "integer", "minimum": 1 },
           "updated_at": { "type": "string", "format": "date-time" },
           "posterior_marked_stale": { "type": "boolean" }

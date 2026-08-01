@@ -248,10 +248,28 @@ function preparedSideEffectsCommitted(store: IdeaEngineStore, method: string, re
       if (!node) {
         return false;
       }
-      return String(node.updated_at ?? '') === row.updated_at
-        && nodeLifecycleState(node) === row.lifecycle_state
-        && Number(node.revision) === Number(row.revision)
-        && (node.lifecycle_reason ?? null) === (row.lifecycle_reason ?? null);
+      if (
+        String(node.updated_at ?? '') !== row.updated_at
+        || nodeLifecycleState(node) !== row.lifecycle_state
+        || Number(node.revision) !== Number(row.revision)
+        || (node.lifecycle_reason ?? null) !== (row.lifecycle_reason ?? null)
+      ) {
+        return false;
+      }
+      // Witness the COMPLETE written state: rows recorded before this field
+      // existed carry no activation_condition key and skip the comparison
+      // (legacy leniency); rows written now always carry it.
+      if ('activation_condition' in row
+        && JSON.stringify(node.activation_condition ?? null) !== JSON.stringify(row.activation_condition ?? null)) {
+        return false;
+      }
+      if (row.posterior_marked_stale === true) {
+        const posterior = node.posterior as Record<string, unknown> | null | undefined;
+        if (!posterior || posterior.status !== 'stale') {
+          return false;
+        }
+      }
+      return true;
     };
     // The exact entry the executor would have appended for a row (same key
     // order, same values): used both to repair a torn final line and to
@@ -319,6 +337,7 @@ function preparedSideEffectsCommitted(store: IdeaEngineStore, method: string, re
     // write with a different revision, state, or reason cannot be what the
     // store shows and must not block a legitimate recovery.
     const explainsRow = (row: Record<string, unknown>, candidate: {
+      activation_condition?: unknown;
       lifecycle_reason?: unknown;
       lifecycle_state?: unknown;
       revision?: unknown;
@@ -327,13 +346,16 @@ function preparedSideEffectsCommitted(store: IdeaEngineStore, method: string, re
       String(candidate.updated_at ?? '') === row.updated_at
       && candidate.lifecycle_state === row.lifecycle_state
       && Number(candidate.revision) === Number(row.revision)
-      && (candidate.lifecycle_reason ?? null) === (row.lifecycle_reason ?? null);
+      && (candidate.lifecycle_reason ?? null) === (row.lifecycle_reason ?? null)
+      && (!('activation_condition' in row)
+        || JSON.stringify(candidate.activation_condition ?? null) === JSON.stringify(row.activation_condition ?? null));
+    // Foreign-writer scan is METHOD-AGNOSTIC: any mutation's ledger line
+    // embeds the full written node, and a same-second write through ANY
+    // path (a hand set_lifecycle retry is the natural operator move after
+    // a failed batch call) could equally explain the observed state.
     let foreignSameStampLine = false;
     for (const entry of logEntries) {
-      if (entry.mutation !== 'apply_evidence_event') {
-        continue;
-      }
-      if (entry.event_group === eventGroup) {
+      if (entry.mutation === 'apply_evidence_event' && entry.event_group === eventGroup) {
         loggedNodeIds.add(String(entry.node_id));
         continue;
       }
@@ -342,6 +364,7 @@ function preparedSideEffectsCommitted(store: IdeaEngineStore, method: string, re
         ? entry.node as Record<string, unknown>
         : null;
       if (row && entryNode && explainsRow(row, {
+        activation_condition: entryNode.activation_condition,
         lifecycle_reason: entryNode.lifecycle_reason,
         lifecycle_state: entryNode.lifecycle_state,
         revision: entryNode.revision,
@@ -351,21 +374,30 @@ function preparedSideEffectsCommitted(store: IdeaEngineStore, method: string, re
       }
     }
     // A twin's prepared idempotency record exists BEFORE its node write, so
-    // scan the method's other records for rows covering our nodes at the
-    // recorded timestamp — this decides the twin case even when the twin's
-    // ledger lines were lost in the same crash.
+    // scan OTHER records for writes covering our nodes at the recorded
+    // timestamp — method-agnostic: batch records carry per-node rows,
+    // single-node mutations (set_lifecycle / set_posterior /
+    // set_grounding_audit) carry a node summary with the same comparable
+    // fields. This decides the twin case even when the twin's ledger lines
+    // were lost in the same crash.
     let foreignSameStampRecord = false;
     const idempotencyRecords = store.loadIdempotency<Record<string, unknown>>(campaignId) as unknown as Record<string, IdempotencyRecord>;
-    for (const [key, other] of Object.entries(idempotencyRecords)) {
-      if (!key.startsWith('node.apply_evidence_event:') || other.response.kind !== 'result') {
+    for (const [, other] of Object.entries(idempotencyRecords)) {
+      if (other.response.kind !== 'result') {
         continue;
       }
       const otherPayload = other.response.payload;
       if (otherPayload.event_group === eventGroup) {
         continue;
       }
-      const otherRows = Array.isArray(otherPayload.nodes) ? otherPayload.nodes as Array<Record<string, unknown>> : [];
-      for (const otherRow of otherRows) {
+      const candidates: Array<Record<string, unknown>> = [];
+      if (Array.isArray(otherPayload.nodes)) {
+        candidates.push(...otherPayload.nodes as Array<Record<string, unknown>>);
+      }
+      if (otherPayload.node && typeof otherPayload.node === 'object' && !Array.isArray(otherPayload.node)) {
+        candidates.push(otherPayload.node as Record<string, unknown>);
+      }
+      for (const otherRow of candidates) {
         const row = rowByNodeId.get(String(otherRow.node_id));
         if (row && explainsRow(row, otherRow)) {
           foreignSameStampRecord = true;
