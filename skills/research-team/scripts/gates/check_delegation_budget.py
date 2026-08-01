@@ -85,9 +85,10 @@ delegated workstream, default location `<project_root>/team/delegations/`):
                max_attempts, heap_limit_mb, unit_ceiling, other
         measured_requirement: the MEASURED need in the exhausted dimension
                (finite positive number for time_box_seconds / heap_limit_mb,
-               in the same units; a number or one line otherwise — for
-               max_attempts a one-line value states the approach change of a
-               retry that keeps the cap)
+               in the same units; for max_attempts a positive INTEGER —
+               attempt counts are discrete — or a one-line value stating the
+               approach change of a retry that keeps the cap; a number or
+               one line for unit_ceiling / other)
         adjustment_note: one line deriving THIS contract's budget from the
                measurement (for exhausted max_attempts: what changed in the
                approach — more identical attempts is not an adjustment)
@@ -410,7 +411,14 @@ def _decimal_str(value: Any) -> str:
         try:
             return str(value)
         except ValueError:
-            digits = int(math.log10(abs(value))) + 1
+            # Float log10 rounds at decimal boundaries (10**n - 1 would read
+            # as n+1 digits); correct exactly against integer powers.
+            magnitude = abs(value)
+            digits = int(math.log10(magnitude)) + 1
+            if 10 ** (digits - 1) > magnitude:
+                digits -= 1
+            elif 10**digits <= magnitude:
+                digits += 1
             return f"a {'negative ' if value < 0 else ''}{digits}-digit integer"
     return repr(value)
 
@@ -806,6 +814,19 @@ def _validate_contract(contract: Any) -> list[str]:
                         "positive number in the same units as the exhausted budget — the "
                         f"measured need, not a guess (got {_decimal_str(measured)})"
                     )
+            elif dimension == "max_attempts":
+                # Attempt counts are discrete: a fractional "measurement"
+                # (e.g. one epsilon below the kept cap) would defeat the
+                # strict-excess cross-check below. Numeric means positive
+                # integer here; the qualitative one-line form states a
+                # changed approach instead.
+                if not (_is_positive_int(measured) or _is_nonempty_single_line(measured)):
+                    issues.append(
+                        'MISSING_RETRY_FIELDS: for `exhausted_budget` "max_attempts", '
+                        "`retry_of.measured_requirement` must be a positive integer "
+                        "(attempt counts are discrete) or a non-empty single line stating "
+                        f"the approach change (got {_decimal_str(measured)})"
+                    )
             else:
                 # The union requirement every known dimension needs — checked
                 # even while the dimension itself is invalid, so a single
@@ -853,7 +874,7 @@ def _validate_contract(contract: Any) -> list[str]:
                         "retry budget derives from the measurement plus margin, never a "
                         "repeat of the exhausted number"
                     )
-            if dimension == "max_attempts" and _is_finite_positive_number(measured):
+            if dimension == "max_attempts" and _is_positive_int(measured):
                 attempts_value = contract.get("max_attempts")
                 if _is_positive_int(attempts_value) and attempts_value <= measured:
                     issues.append(
