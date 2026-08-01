@@ -242,7 +242,7 @@ bibliography, disposition, or method-taxonomy gap keeps
 the close prior at `coverage_incomplete` even when the terminal expansion round
 adds no new core paper. Writeback also revalidates finite provider request bounds,
 complete coverage of every declared query, terminal continuation/exhaustion and
-known totals, page/cursor accounting, candidate discovery provenance, the exact core disposition
+known totals, page/cursor accounting, candidate discovery origin records, the exact core disposition
 set, and bounded citation-graph coverage from the same ledger.
 
 Every close-prior/core paper must be source-first and machine-readable:
@@ -272,13 +272,20 @@ close priors' discussion/conclusion sections. Without that gate, write only
 "not found in incomplete search" and do not use the claim as strong evidence.
 
 If a later close-prior audit finds important missed prior work, take the idea
-out of current guidance in the store: either move the node to `needs_refresh`
-via `node.set_lifecycle` (the immediate coarse gate — ranking and allocation
-read the lifecycle state first), or re-run `node.set_posterior` with status
-`stale`/`provisional`, which makes the engine derive `needs_refresh` itself.
+out of current guidance in the store: move the node to `needs_refresh` via
+`node.set_lifecycle` — the engine marks the stored posterior `stale` in the
+same atomic write (value and evidence count preserved as history), so the
+store itself says the score is no longer current guidance; no separate
+stale-echo write is needed. Re-running `node.set_posterior` with status
+`stale`/`provisional` remains the path when the recorded values themselves
+must change. When one evidence artifact demotes several nodes at once, use
+`node.apply_evidence_event` — one call, one recorded evidence reference, one
+engine-recorded event group across all the affected nodes' ledger entries.
 Historical posterior records remain audit history, but they are not current
 allocation guidance until the graph is rebuilt and `node.set_posterior` is run
-again with a `current` result.
+again with a `current` result — the lifecycle machine has no shortcut edge
+back to `admitted` from a demoted state; re-admission is always a fresh
+posterior derivation.
 
 ## Sub-criterion decomposition
 
@@ -749,7 +756,12 @@ stage fails.
    posterior yields `admitted` (the only state strict ranking and allocation
    sample), anything else yields `needs_refresh`. Never set those two states
    by hand around a writeback — the derivation is the single writer that
-   keeps lifecycle and stored posterior consistent. If the admission gate
+   keeps lifecycle and stored posterior consistent. The consistency runs in
+   both directions: `node.set_posterior` remains the only writer of posterior
+   VALUES and of the `current`/`provisional` statuses, while
+   `node.set_lifecycle` (and `node.apply_evidence_event`) own the demotion
+   half — entering `needs_refresh`, `admission_blocked`, or `archived` marks
+   a `current` posterior `stale` in the same atomic write. If the admission gate
    instead finds named evidence missing, record it on the node as
    `admission_blocked` with an `activation_condition` (kind
    `required_evidence`) rather than leaving the review open. Before anything is sent, `posterior_writeback.py` runs the

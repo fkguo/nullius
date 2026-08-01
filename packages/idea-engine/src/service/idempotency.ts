@@ -1,8 +1,9 @@
 // # CONTRACT-EXEMPT: CODE-01.1 — pre-existing cross-method replay facade; card-revision recovery is extracted, while this lane retains only the required dispatch and shared error-record persistence change.
-import { existsSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { payloadHash as artifactPayloadHash } from '../hash/payload-hash.js';
-import { IdeaEngineStore } from '../store/engine-store.js';
+import { IdeaEngineStore, NodeLogCorruptionError } from '../store/engine-store.js';
 import { budgetSnapshot } from './budget-snapshot.js';
+import { setCampaignRunningIfBudgetAvailable, type CampaignRecord } from './campaign-state.js';
 import { RpcError } from './errors.js';
 import { IMPORT_GENERATED_METHOD, recoverImportGenerated } from './import-generated-recovery.js';
 import { recoverIdeaCardRevision } from './node-revise-card-recovery.js';
@@ -114,7 +115,84 @@ function preparedSideEffectsCommitted(store: IdeaEngineStore, method: string, re
       === JSON.stringify(expected.budget_snapshot);
   }
   if (method === 'rank.compute') {
-    return artifactExists(store, record.response.payload.ranking_artifact_ref);
+    const payload = record.response.payload;
+    if (!artifactExists(store, payload.ranking_artifact_ref)) {
+      return false;
+    }
+    // Reuse responses (unchanged_since) minted nothing and never touched the
+    // campaign: the referenced artifact existing is the whole effect. Legacy
+    // records (no store_digest, from before the campaign pointer existed)
+    // keep the old artifact-existence semantics.
+    if (typeof payload.unchanged_since === 'string' || typeof payload.store_digest !== 'string') {
+      return true;
+    }
+    // Mint responses also advanced usage.steps_used and recorded
+    // campaign.last_ranking. A crash between the artifact write and the
+    // campaign save would otherwise replay a result whose budget/pointer
+    // effects never landed — the ordered completion below lands them
+    // (pointer := this record; steps := current + 1, exactly this mint's
+    // lost step), at most once (repeat recovery short-circuits on pointer
+    // equality).
+    const campaignId = payload.campaign_id;
+    if (typeof campaignId !== 'string') {
+      return false;
+    }
+    const campaign = store.loadCampaign<Record<string, unknown>>(campaignId);
+    if (!campaign) {
+      return false;
+    }
+    const lastRanking = campaign.last_ranking as Record<string, unknown> | undefined;
+    if (lastRanking && lastRanking.ranking_artifact_ref === payload.ranking_artifact_ref) {
+      return true;
+    }
+    // A different (or absent) pointer means THIS mint's campaign write never
+    // landed: every mint's save sets the pointer to its own artifact, and
+    // nothing ever removes it — so had this save landed, either the pointer
+    // would still be ours (short-circuit above) or a LATER mint overwrote
+    // it. The two cases are ordered by the pointer's generated_at:
+    // - pointer strictly newer than this record → superseded; the newer
+    //   landed state must not be touched (no rollback, no step write — the
+    //   lost-save variant leaves one step uncounted, stated honestly: it
+    //   undercounts a generous optional ceiling, never resurrects state);
+    // - pointer absent or strictly older → this record is the newest mint
+    //   and its save is missing; complete it: the pointer becomes this
+    //   record's triple and steps_used advances by EXACTLY ONE over the
+    //   current value (this mint's own lost step — the current counter
+    //   already includes every other landed consumer, node.promote
+    //   included, so recorded absolutes could over- or under-count);
+    // - equal second-resolution stamps cannot be ordered → treat as
+    //   superseded (no write), the conservative side.
+    const pointerGeneratedAt = lastRanking && typeof lastRanking.generated_at === 'string'
+      ? lastRanking.generated_at
+      : null;
+    const recordGeneratedAt = typeof payload.generated_at === 'string' ? payload.generated_at : null;
+    // Completion requires a provable direction: the pointer must be ABSENT
+    // entirely, or both stamps must exist with this record strictly newer.
+    // A pointer that exists but cannot be ordered (no generated_at — not
+    // producible through the API, but a hand-edited store could carry one)
+    // takes the conservative no-write side like every other tie.
+    const recordIsNewest = lastRanking === null || lastRanking === undefined
+      ? true
+      : (pointerGeneratedAt !== null && recordGeneratedAt !== null && recordGeneratedAt > pointerGeneratedAt);
+    if (!recordIsNewest) {
+      return true;
+    }
+    const usage = campaign.usage as Record<string, unknown>;
+    usage.steps_used = Number(usage.steps_used ?? 0) + 1;
+    campaign.last_ranking = {
+      store_digest: payload.store_digest,
+      ranking_artifact_ref: payload.ranking_artifact_ref,
+      generated_at: payload.generated_at,
+    };
+    // Status is re-derived only from `running`: the original mint could only
+    // ever run there, so completion may flip running → exhausted (the step
+    // it lands can exhaust the budget) but must never resurrect a paused,
+    // early-stopped, or completed campaign on a duplicate request.
+    if (campaign.status === 'running') {
+      setCampaignRunningIfBudgetAvailable(campaign as CampaignRecord);
+    }
+    store.saveCampaign(campaign as Record<string, unknown> & { campaign_id: string });
+    return true;
   }
   if (method === 'node.promote') {
     return artifactExists(store, record.response.payload.handoff_artifact_ref);
@@ -130,6 +208,264 @@ function preparedSideEffectsCommitted(store: IdeaEngineStore, method: string, re
   }
   if (method === 'node.revise_card') {
     return recoverIdeaCardRevision(store, record);
+  }
+  if (method === 'node.apply_evidence_event') {
+    // saveNodes is one atomic file write: either every disposition's node
+    // state landed or none did. The production clock has ONE-SECOND
+    // resolution, so a row match alone is NOT proof this event landed — a
+    // same-second twin event can produce identical node state. The probe
+    // therefore cross-checks two surfaces before certifying on rows alone:
+    // ledger lines of OTHER events covering our nodes at the recorded
+    // timestamp, and OTHER apply_evidence_event idempotency records whose
+    // rows cover our nodes at that timestamp (a twin's prepared record
+    // exists BEFORE its node write by construction, so the twin case is
+    // decidable even when its ledger lines are lost). Ambiguity fails loud
+    // (evidence_event_recovery_conflict) instead of certifying and
+    // ledgering an event that may never have landed. When our own ledger
+    // lines prove landing, recovery COMPLETES the missing event-group lines
+    // (the engine-recorded binding is this method's purpose — rescue it,
+    // do not merely detect the gap) and replays the recorded result.
+    // Residual, stated honestly: a twin whose idempotency record was
+    // externally deleted AND whose ledger lines were all lost is
+    // indistinguishable; and if the crash lost every ledger line AND every
+    // affected node was mutated again before the retry, the probe reads
+    // "nothing landed" and re-executes (the demote edges then refuse and
+    // the retry records that refusal) — the same narrow class the
+    // single-node value-equality probes above accept.
+    const payload = record.response.payload;
+    const campaignId = payload.campaign_id;
+    const rows = Array.isArray(payload.nodes) ? payload.nodes as Array<Record<string, unknown>> : null;
+    const eventGroup = payload.event_group;
+    if (typeof campaignId !== 'string' || !rows || rows.length === 0 || typeof eventGroup !== 'string') {
+      return false;
+    }
+    const nodes = store.loadNodes<Record<string, unknown>>(campaignId);
+    const rowByNodeId = new Map<string, Record<string, unknown>>(
+      rows.map(row => [String(row.node_id), row]),
+    );
+    const rowMatchesStore = (row: Record<string, unknown>): boolean => {
+      const node = nodes[String(row.node_id)];
+      if (!node) {
+        return false;
+      }
+      if (
+        String(node.updated_at ?? '') !== row.updated_at
+        || nodeLifecycleState(node) !== row.lifecycle_state
+        || Number(node.revision) !== Number(row.revision)
+        || (node.lifecycle_reason ?? null) !== (row.lifecycle_reason ?? null)
+      ) {
+        return false;
+      }
+      // Witness the COMPLETE written state: rows recorded before this field
+      // existed carry no activation_condition key and skip the comparison
+      // (legacy leniency); rows written now always carry it.
+      if ('activation_condition' in row
+        && JSON.stringify(node.activation_condition ?? null) !== JSON.stringify(row.activation_condition ?? null)) {
+        return false;
+      }
+      if (row.posterior_marked_stale === true) {
+        const posterior = node.posterior as Record<string, unknown> | null | undefined;
+        if (!posterior || posterior.status !== 'stale') {
+          return false;
+        }
+      }
+      return true;
+    };
+    // The exact entry the executor would have appended for a row (same key
+    // order, same values): used both to repair a torn final line and to
+    // complete missing lines.
+    const rebuildEntry = (row: Record<string, unknown>): Record<string, unknown> => ({
+      mutation: 'apply_evidence_event',
+      node_id: row.node_id,
+      revision: Number(row.revision),
+      event_group: eventGroup,
+      evidence_ref: String(payload.evidence_ref),
+      event_reason: String(payload.event_reason),
+      reason: String(row.lifecycle_reason ?? payload.event_reason),
+      ...(row.posterior_marked_stale === true ? { posterior_marked_stale: true } : {}),
+      node: nodes[String(row.node_id)],
+    });
+    let logEntries: Array<Record<string, unknown>>;
+    try {
+      logEntries = store.loadNodeLogEntriesStrict(campaignId);
+    } catch (error) {
+      if (!(error instanceof NodeLogCorruptionError)) {
+        throw error;
+      }
+      // A crash mid-append tears the final JSONL line. Repair is attempted
+      // ONLY when the torn fragment carries THIS event's group id: a short
+      // fragment is a byte prefix of many events' entries, and repairing
+      // it with our entry would replace another event's torn line with our
+      // provenance. The group id sits early in the serialized entry and is
+      // operation-keyed (deterministic collisions eliminated; residual
+      // truncated-48-bit-hash odds accepted), so its presence attributes
+      // the fragment; fragments torn before it stay fail-closed (manual
+      // inspection, no fabrication). Each store-matching row's expected
+      // entry is tried in turn — the repair helper throws on a non-prefix
+      // candidate, which just means "not this row", not corruption.
+      const rawLog = readFileSync(store.nodesLogPath(campaignId), 'utf8');
+      const fragment = rawLog.split('\n').filter(line => line.trim().length > 0).at(-1) ?? '';
+      // The group id is fixed-length, so a fragment ending right after it —
+      // before the closing quote — is already attributed beyond doubt; do
+      // not demand the quote byte.
+      if (!fragment.includes(`"event_group":"${eventGroup}`)) {
+        throw error;
+      }
+      const repaired = rows.some(row => {
+        if (!rowMatchesStore(row)) {
+          return false;
+        }
+        try {
+          return store.repairTornFinalNodeLogEntry(campaignId, rebuildEntry(row));
+        } catch {
+          return false;
+        }
+      });
+      if (!repaired) {
+        throw error;
+      }
+      logEntries = store.loadNodeLogEntriesStrict(campaignId);
+    }
+    const matchedRows = rows.filter(rowMatchesStore).length;
+    const loggedNodeIds = new Set<string>();
+    // Same-stamp foreign candidates: another evidence event wrote one of
+    // our nodes at exactly the recorded timestamp (the production clock has
+    // one-second resolution, so distinct events CAN share it). A row match
+    // then no longer proves OUR event landed — but only when the foreign
+    // write could EQUALLY explain the observed store state: it must match
+    // the same complete tuple the store probe checks. A foreign same-second
+    // write with a different revision, state, or reason cannot be what the
+    // store shows and must not block a legitimate recovery.
+    const explainsRow = (row: Record<string, unknown>, candidate: {
+      activation_condition?: unknown;
+      lifecycle_reason?: unknown;
+      lifecycle_state?: unknown;
+      revision?: unknown;
+      updated_at?: unknown;
+    }): boolean =>
+      String(candidate.updated_at ?? '') === row.updated_at
+      && candidate.lifecycle_state === row.lifecycle_state
+      && Number(candidate.revision) === Number(row.revision)
+      && (candidate.lifecycle_reason ?? null) === (row.lifecycle_reason ?? null)
+      && (!('activation_condition' in row)
+        || JSON.stringify(candidate.activation_condition ?? null) === JSON.stringify(row.activation_condition ?? null));
+    // Foreign-writer scan is METHOD-AGNOSTIC: any mutation's ledger line
+    // embeds the full written node, and a same-second write through ANY
+    // path (a hand set_lifecycle retry is the natural operator move after
+    // a failed batch call) could equally explain the observed state.
+    let foreignSameStampLine = false;
+    for (const entry of logEntries) {
+      if (entry.mutation === 'apply_evidence_event' && entry.event_group === eventGroup) {
+        loggedNodeIds.add(String(entry.node_id));
+        continue;
+      }
+      const row = rowByNodeId.get(String(entry.node_id));
+      const entryNode = entry.node && typeof entry.node === 'object' && !Array.isArray(entry.node)
+        ? entry.node as Record<string, unknown>
+        : null;
+      if (row && entryNode && explainsRow(row, {
+        activation_condition: entryNode.activation_condition,
+        lifecycle_reason: entryNode.lifecycle_reason,
+        lifecycle_state: entryNode.lifecycle_state,
+        revision: entryNode.revision,
+        updated_at: entryNode.updated_at,
+      })) {
+        foreignSameStampLine = true;
+      }
+    }
+    // A twin's prepared idempotency record exists BEFORE its node write, so
+    // scan OTHER records for writes covering our nodes at the recorded
+    // timestamp — method-agnostic: batch records carry per-node rows,
+    // single-node mutations (set_lifecycle / set_posterior /
+    // set_grounding_audit) carry a node summary with the same comparable
+    // fields. This decides the twin case even when the twin's ledger lines
+    // were lost in the same crash.
+    let foreignSameStampRecord = false;
+    const idempotencyRecords = store.loadIdempotency<Record<string, unknown>>(campaignId) as unknown as Record<string, IdempotencyRecord>;
+    for (const [, other] of Object.entries(idempotencyRecords)) {
+      if (other.response.kind !== 'result') {
+        continue;
+      }
+      const otherPayload = other.response.payload;
+      if (otherPayload.event_group === eventGroup) {
+        continue;
+      }
+      const candidates: Array<Record<string, unknown>> = [];
+      if (Array.isArray(otherPayload.nodes)) {
+        candidates.push(...otherPayload.nodes as Array<Record<string, unknown>>);
+      }
+      if (otherPayload.node && typeof otherPayload.node === 'object' && !Array.isArray(otherPayload.node)) {
+        candidates.push(otherPayload.node as Record<string, unknown>);
+      }
+      for (const otherRow of candidates) {
+        const row = rowByNodeId.get(String(otherRow.node_id));
+        if (row && explainsRow(row, otherRow)) {
+          foreignSameStampRecord = true;
+        }
+      }
+      if (candidates.length === 0
+        && typeof otherPayload.node_id === 'string'
+        && typeof otherPayload.updated_at === 'string') {
+        // Flat-result mutations (node.rewrite_provenance) carry no node
+        // summary, only node_id / revision / updated_at — and that method
+        // PRESERVES the lifecycle state while advancing revision and
+        // timestamp. It can therefore only explain a row whose transition
+        // left the state unchanged (previous_state === lifecycle_state, the
+        // condition-carrying self-transitions): a demoting or promoting row
+        // is causally beyond a rewrite, and conflicting there would block
+        // legitimate recoveries. Within self-transitions an exact
+        // (node, timestamp, revision) hit IS a plausible alternative
+        // explanation — reduced witness, conservative conflict.
+        const row = rowByNodeId.get(otherPayload.node_id);
+        if (row
+          && row.previous_state === row.lifecycle_state
+          && otherPayload.updated_at === row.updated_at
+          && Number(otherPayload.revision) === Number(row.revision)) {
+          foreignSameStampRecord = true;
+        }
+      }
+    }
+    if (loggedNodeIds.size === 0) {
+      if (matchedRows === 0) {
+        return false;
+      }
+      if (foreignSameStampLine || foreignSameStampRecord) {
+        // Ambiguous attribution: the store state matches our rows, but a
+        // DIFFERENT event's ledger line covers one of our nodes at the same
+        // timestamp — the matching state may be that event's work, not
+        // ours. Fabricating our lines here is exactly the false
+        // certification this probe exists to prevent.
+        throw new RpcError(-32603, 'internal_error', {
+          reason: 'evidence_event_recovery_conflict',
+          campaign_id: campaignId,
+          details: {
+            message: 'another evidence event wrote these nodes at the same timestamp; whether this event ever landed cannot be decided from the store — inspect the ledger before retrying',
+          },
+        });
+      }
+    }
+    for (const row of rows) {
+      const nodeId = String(row.node_id);
+      if (loggedNodeIds.has(nodeId)) {
+        continue;
+      }
+      if (!rowMatchesStore(row)) {
+        // The event landed (some row or log line proves it), this node's
+        // ledger line is missing, and the node has been mutated since — the
+        // as-of-event node snapshot the ledger embeds cannot be faithfully
+        // reconstructed. Fail loud instead of stamping fiction.
+        throw new RpcError(-32603, 'internal_error', {
+          reason: 'evidence_event_recovery_conflict',
+          campaign_id: campaignId,
+          details: {
+            node_id: nodeId,
+            message: 'evidence event landed but this node\'s ledger line is missing and the node has been mutated since; the as-of-event snapshot cannot be reconstructed — restore the store from its history before retrying',
+          },
+        });
+      }
+      store.appendNodeLogEntry(campaignId, rebuildEntry(row));
+    }
+    return true;
   }
   if (method === 'node.set_posterior' || method === 'node.set_lifecycle' || method === 'node.set_grounding_audit') {
     const campaignId = record.response.payload.campaign_id;

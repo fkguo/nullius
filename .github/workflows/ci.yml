@@ -218,6 +218,12 @@ jobs:
       - name: Python tests (interactive argument-graph reader surface)
         run: python -m pytest skills/idea-posterior/tests/test_reader_surface_interactions.py -q
 
+      - name: Run idea-generation pack-builder tests (engine-mirror anti-drift locks)
+        run: python -m pytest skills/idea-generation/tests -q
+
+      - name: Run idea-posterior scaffold prose locks
+        run: python -m pytest skills/idea-posterior/tests/test_scaffold.py -q
+
   skills-market-checks:
     runs-on: ubuntu-latest
     defaults:

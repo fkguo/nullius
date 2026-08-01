@@ -1,6 +1,6 @@
 ---
 name: idea-generation
-description: "Generate derived (non-seed) idea nodes for an idea campaign from research-progress evidence deltas — V0 operator: LiteratureMining over a deep literature survey's tensions and re-anchored gaps (FailureRouting when a failed-approach ledger exists) — and import them through the engine's node.import_generated RPC as an auditable generation pack. Retrieval-first by construction (no retrieval receipt, no evidence URI), one candidate per structurally distinct anchor, mechanical dedup against every campaign node, novelty stated as a falsifiable closest-prior delta claim (never an LLM novelty score), zero generator-side scoring: nodes are born with posterior null and face the same idea-posterior admission gate as seeds. Use when a new or updated literature survey lands, when failed-approach entries accumulate, or when the operator deliberately runs a manual generation burst on a campaign."
+description: "Generate derived (non-seed) idea nodes for an idea campaign from research-progress evidence deltas — enabled operators: LiteratureMining over a deep literature survey's tensions and re-anchored gaps, FailureRouting when a failed-approach ledger exists, and Mutation for parent-bearing follow-on ideas (one parent, trigger-artifact anchor, inference-typed delta) — and import them through the engine's node.import_generated RPC as an auditable generation pack. Retrieval-first by construction (no retrieval receipt, no evidence URI), one candidate per structurally distinct anchor, mechanical dedup against every campaign node, novelty stated as a falsifiable closest-prior delta claim (never an LLM novelty score), zero generator-side scoring: nodes are born with posterior null and face the same idea-posterior admission gate as seeds. Use when a new or updated literature survey lands, when failed-approach entries accumulate, or when the operator deliberately runs a manual generation burst on a campaign."
 ---
 
 # Idea Generation (evidence-born, pack-imported)
@@ -112,6 +112,16 @@ import validator enforces the checkable parts):
   and copies `novelty_delta`, the dedup record, and `target_admission_route`
   onto the node's trace — do not put them in `trace_inputs` yourself (those
   keys are engine-owned).
+- Card enum vocabularies (use these EXACT words the first time — the engine
+  rejects anything else, and guessing enum spellings across submit rounds is
+  pure waste; mirrored in `build_pack.py`, drift-locked against the engine
+  schema at test time): `minimal_compute_plan[].estimated_difficulty` ∈
+  straightforward | moderate | challenging | research_frontier;
+  `minimal_compute_plan[].estimate_confidence` ∈ high | medium | low;
+  `minimal_compute_plan[].required_infrastructure` ∈ laptop | workstation |
+  cluster | not_yet_feasible; `claims[].support_type` ∈ literature | data |
+  calculation | llm_inference | assumption | expert_consensus;
+  `claims[].verification_status` ∈ verified | unverified | falsified.
 - Mandatory validations (before the pack is built): every URI has a receipt;
   the anchor is real (read the survey entry, do not paraphrase one into
   existence); a freshness retrieval checked whether literature AFTER the
@@ -137,14 +147,36 @@ parent to be ARCHIVED — rerouting only makes sense around a node that died.
 "Not the failed thing" is not a thesis — the candidate must state the new
 mechanism/method and the first check that would falsify the workaround.
 
-Other committed families (`Mutation`, `Recombination`, `AnalogyTransfer`)
-are contract-ready (arity table in the engine) but deliberately later-phase —
-and the ENGINE enforces that, exactly as it does for reserved trigger kinds:
-importing them today is refused with `operator_family_not_enabled` until each
-family's evidence discipline lands in the import validator. Prose is not a
-gate. LiteratureMining packs must also pin the mined survey in
-`evidence_snapshot` (`survey_artifact_ref` + `survey_content_hash`;
-`build_pack.py --survey-artifact-ref/--survey-file` does this).
+**Mutation (enabled — the parent-bearing follow-on family).** A follow-on
+idea derived from ONE existing node records that node as its single parent
+(`parent_node_ids = [parent]`, with the parent's read-time revision in
+`evidence_snapshot.parent_revisions`) — lineage lives in the trace, never
+in prose. Use it for the follow-on burst that previously had to be forced
+through a parentless LiteratureMining candidate: a review verdict, a
+computation result, or an updated survey suggests refining, restricting,
+inverting, or repairing an existing idea. The engine enforces: exactly one
+parent; `trace_inputs.trigger_artifact_ref`, non-blank after trimming,
+naming the artifact that motivated the mutation (with a retrieval receipt
+when URI-shaped); `trace_inputs.parent_delta_statement` — at least 20
+characters after trimming, stating WHAT changed relative to the parent, so
+admission review audits the delta's content rather than just its
+existence; and a card claim typed `llm_inference` or `assumption` whose
+`claim_text` contains that statement (whitespace-collapsed) — the delta
+IS the typed claim; an unrelated inference claim elsewhere on the card
+does not satisfy the discipline, and a mutation born fully
+literature-supported is either not a mutation or mislabeling its inference.
+`novelty_delta.closest_prior` keeps its literature/artifact meaning: the
+parent is named by `parent_node_ids`, never by `closest_prior`.
+
+Still later-phase (`Recombination`, `AnalogyTransfer`): contract-ready
+(arity table in the engine) but deliberately gated — and the ENGINE enforces
+that, exactly as it does for reserved trigger kinds: importing them today is
+refused with `operator_family_not_enabled` until each family's evidence
+discipline (bridge claims; per-edge source verification) lands in the import
+validator. Prose is not a gate. LiteratureMining packs must also pin the
+mined survey in `evidence_snapshot` (`survey_artifact_ref` +
+`survey_content_hash`; `build_pack.py --survey-artifact-ref/--survey-file`
+does this).
 
 ## Novelty as an auditable claim (never a score)
 

@@ -192,7 +192,7 @@
             },
             "trace_inputs": {
               "type": "object",
-              "description": "Becomes operator_trace.inputs (engine adds trigger, the pack artifact reference, the candidate's parent_revisions, target_admission_route, dedup, and novelty_delta; supplying any of those six keys yourself is rejected as trace_key_reserved). Per-family semantic requirements (anchor for LiteratureMining, failed_approach_refs for FailureRouting, retrieval_receipts covering every evidence URI) are enforced by the import executor."
+              "description": "Becomes operator_trace.inputs. Seven keys are engine-owned and rejected as trace_key_reserved when supplied: trigger, pack_artifact, parent_revisions, target_admission_route, dedup, and novelty_delta are added at import; provenance_rewrites is appended by later provenance corrections. Per-family semantic requirements (anchor for LiteratureMining; failed_approach_refs for FailureRouting; trigger_artifact_ref — non-blank after trimming, receipted when URI-shaped — plus parent_delta_statement (>= 20 chars trimmed, restated verbatim inside a claim typed llm_inference/assumption) for Mutation; retrieval_receipts covering every evidence URI) are enforced by the import executor."
             },
             "trace_params": {
               "type": "object",

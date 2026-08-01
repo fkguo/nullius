@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "apply_evidence_event_result_v1.schema.json",
+  "title": "ApplyEvidenceEventResult v1",
+  "description": "Result of node.apply_evidence_event: one evidence artifact caused a batch of per-node lifecycle dispositions, applied atomically. Every node row records its transition; the shared event_group ties the batch's mutation-log entries to this event and the ledger carries the evidence_ref on each entry — the group binding is engine-recorded, never a caller-side key-naming convention.",
+  "type": "object",
+  "required": ["campaign_id", "event_group", "evidence_ref", "event_reason", "nodes", "budget_snapshot", "idempotency"],
+  "properties": {
+    "campaign_id": { "type": "string", "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$" },
+    "event_group": {
+      "type": "string",
+      "pattern": "^evt-[0-9a-f]{12}$",
+      "description": "Deterministic group id derived from the request payload hash; identical on idempotent replay."
+    },
+    "evidence_ref": {
+      "type": "string",
+      "pattern": "^project://[^/#][^#]*#sha256:[0-9a-f]{64}$",
+      "description": "The project-portable, hash-bound reference of the evidence artifact that caused the batch. The pattern rejects machine-absolute forms; the engine additionally refuses empty, '.', '..', or badly percent-encoded path segments. Stored verbatim (like report_ref / survey_ref); whether the artifact supports the dispositions stays a project-side audit concern."
+    },
+    "event_reason": { "type": "string", "minLength": 1 },
+    "nodes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["node_id", "previous_state", "lifecycle_state", "lifecycle_reason", "activation_condition", "revision", "updated_at", "posterior_marked_stale"],
+        "properties": {
+          "node_id": { "type": "string", "pattern": "^[0123456789abcdefghjkmnpqrstvwxyz]{8}$" },
+          "previous_state": { "enum": ["candidate", "admission_review", "admitted", "needs_refresh", "admission_blocked", "waiting_activation", "archived"] },
+          "lifecycle_state": { "enum": ["candidate", "admission_review", "admitted", "needs_refresh", "admission_blocked", "waiting_activation", "archived"] },
+          "lifecycle_reason": { "type": "string", "minLength": 1, "description": "The reason applied to the node: the disposition's own reason when given, else the shared event_reason. Recorded per row so crash recovery can rebuild missing ledger lines exactly." },
+          "activation_condition": {
+            "oneOf": [
+              { "type": "null" },
+              {
+                "type": "object",
+                "required": ["kind", "description", "satisfied"],
+                "properties": {
+                  "kind": { "enum": ["tool_readiness", "data_release", "stage_reached", "exploratory_computation", "required_evidence", "other"] },
+                  "description": { "type": "string", "minLength": 1 },
+                  "satisfied": { "type": "boolean" }
+                },
+                "additionalProperties": false
+              }
+            ],
+            "description": "The condition written to the node (null for states that carry none). Part of the complete written state crash recovery witnesses: it distinguishes same-tuple twins that differ only in their recorded condition."
+          },
+          "revision": { "type": "integer", "minimum": 1 },
+          "updated_at": { "type": "string", "format": "date-time" },
+          "posterior_marked_stale": { "type": "boolean" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "budget_snapshot": { "$ref": "./budget_snapshot_v1.schema.json" },
+    "idempotency": { "$ref": "./idempotency_meta_v1.schema.json" }
+  },
+  "additionalProperties": false
+}

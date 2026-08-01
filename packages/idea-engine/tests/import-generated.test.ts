@@ -530,10 +530,12 @@ describe('node.import_generated', () => {
   });
 
   it('rejects committed-but-not-enabled families like reserved triggers', () => {
+    // Mutation is enabled now (parent-bearing derived import); Recombination
+    // and AnalogyTransfer stay committed vocabulary awaiting their evidence
+    // disciplines (bridge claims / per-edge source verification).
     const service = freshService();
     const campaignId = initCampaign(service);
     for (const [family, operatorId] of [
-      ['Mutation', 'mutation.risk_reroute.v1'],
       ['Recombination', 'recombine.method_transfer.v1'],
       ['AnalogyTransfer', 'analogy.structure_transfer.v1'],
     ] as const) {
@@ -543,7 +545,7 @@ describe('node.import_generated', () => {
         provenance.operator_id = operatorId;
       });
       const error = expectRpcError(() => importPack(service, campaignId, pack), -32002, 'operator_family_not_enabled');
-      expect((error.data.details as Record<string, unknown>).enabled).toEqual(['LiteratureMining', 'FailureRouting']);
+      expect((error.data.details as Record<string, unknown>).enabled).toEqual(['LiteratureMining', 'FailureRouting', 'Mutation']);
     }
   });
 
@@ -1384,6 +1386,134 @@ describe('node.import_generated', () => {
       const after = service.node.store.loadCampaign<Record<string, unknown>>(campaignId)!;
       expect((after.usage as Record<string, number>).nodes_used).toBe(2);
       expect(after.status).toBe('exhausted');
+    });
+  });
+
+  describe('Mutation family (parent-bearing derived import)', () => {
+    const TRIGGER_URI = 'https://example.com/trigger-review-report';
+
+    function mutationPack(service: IdeaEngineRpcService, campaignId: string): {
+      pack: Record<string, unknown>;
+      parentId: string;
+    } {
+      const parentId = Object.keys(service.node.store.loadNodes(campaignId))[0]!;
+      const candidate = tensionCandidate();
+      const provenance = candidate.provenance as Record<string, unknown>;
+      provenance.operator_family = 'Mutation';
+      provenance.operator_id = 'mutate.refine.v1';
+      provenance.parent_node_ids = [parentId];
+      const traceInputs = provenance.trace_inputs as Record<string, unknown>;
+      delete traceInputs.anchor;
+      traceInputs.trigger_artifact_ref = TRIGGER_URI;
+      const parentDelta = 'Restricts the parent proposition to the regime where the trigger result holds, adding the discriminating check.';
+      traceInputs.parent_delta_statement = parentDelta;
+      (traceInputs.retrieval_receipts as Array<Record<string, unknown>>).push({
+        source: 'team/runs/review-cycle#report',
+        uri: TRIGGER_URI,
+      });
+      // The typed delta claim must BE the parent delta (binding by
+      // whitespace-collapsed containment).
+      const claims = (candidate.card_fields as Record<string, unknown>).claims as Array<Record<string, unknown>>;
+      const inference = claims.find(claim => claim.support_type === 'llm_inference')!;
+      inference.claim_text = `Delta vs parent: ${parentDelta}`;
+      const draft = candidate.rationale_draft as Record<string, unknown>;
+      draft.title = 'Refine the parent proposition against the new result';
+      draft.rationale = 'The trigger artifact shows the parent proposition fails in one regime; the mutated variant restricts scope and adds the discriminating check.';
+      const pack = validPack(campaignId, { candidates: [candidate] });
+      (pack.evidence_snapshot as Record<string, unknown>).parent_revisions = { [parentId]: 1 };
+      return { pack, parentId };
+    }
+
+    it('imports a parented mutation whose delta is typed inference and whose trigger has a receipt', () => {
+      const service = freshService();
+      const campaignId = initCampaign(service);
+      const { pack, parentId } = mutationPack(service, campaignId);
+      const result = importPack(service, campaignId, pack);
+      expect(result.imported_count).toBe(1);
+      const entry = (result.imported as Array<Record<string, unknown>>)[0]!;
+      expect(entry.operator_family).toBe('Mutation');
+      const node = service.node.store.loadNodes<Record<string, unknown>>(campaignId)[String(entry.node_id)]!;
+      expect(node.parent_node_ids).toEqual([parentId]);
+      const trace = node.operator_trace as Record<string, unknown>;
+      const inputs = trace.inputs as Record<string, unknown>;
+      expect(inputs.trigger_artifact_ref).toBe(TRIGGER_URI);
+      expect((inputs.parent_revisions as Record<string, unknown>)[parentId]).toBe(1);
+    });
+
+    it('refuses a mutation without the trigger artifact anchor', () => {
+      const service = freshService();
+      const campaignId = initCampaign(service);
+      const { pack } = mutationPack(service, campaignId);
+      const candidate = (pack.candidates as Array<Record<string, unknown>>)[0]!;
+      const traceInputs = (candidate.provenance as Record<string, unknown>).trace_inputs as Record<string, unknown>;
+      delete traceInputs.trigger_artifact_ref;
+      expectRpcError(() => importPack(service, campaignId, pack), -32002, 'anchor_missing');
+    });
+
+    it('refuses a whitespace-only trigger anchor and a missing or short parent-delta statement', () => {
+      const service = freshService();
+      const campaignId = initCampaign(service);
+      const whitespace = mutationPack(service, campaignId);
+      const wsCandidate = (whitespace.pack.candidates as Array<Record<string, unknown>>)[0]!;
+      const wsInputs = (wsCandidate.provenance as Record<string, unknown>).trace_inputs as Record<string, unknown>;
+      wsInputs.trigger_artifact_ref = '   ';
+      expectRpcError(() => importPack(service, campaignId, whitespace.pack, 'import-ws'), -32002, 'anchor_missing');
+
+      const missingDelta = mutationPack(service, campaignId);
+      const mdCandidate = (missingDelta.pack.candidates as Array<Record<string, unknown>>)[0]!;
+      const mdInputs = (mdCandidate.provenance as Record<string, unknown>).trace_inputs as Record<string, unknown>;
+      delete mdInputs.parent_delta_statement;
+      const missingError = expectRpcError(
+        () => importPack(service, campaignId, missingDelta.pack, 'import-nodelta'),
+        -32002,
+        'anchor_missing',
+      );
+      expect(String((missingError.data.details as Record<string, unknown>).message)).toContain('parent_delta_statement');
+
+      const shortDelta = mutationPack(service, campaignId);
+      const sdCandidate = (shortDelta.pack.candidates as Array<Record<string, unknown>>)[0]!;
+      const sdInputs = (sdCandidate.provenance as Record<string, unknown>).trace_inputs as Record<string, unknown>;
+      sdInputs.parent_delta_statement = '   too short      ';
+      expectRpcError(() => importPack(service, campaignId, shortDelta.pack, 'import-short'), -32002, 'anchor_missing');
+    });
+
+    it('refuses an unbound typed claim: the inference claim must contain the parent-delta statement', () => {
+      const service = freshService();
+      const campaignId = initCampaign(service);
+      const { pack } = mutationPack(service, campaignId);
+      const candidate = (pack.candidates as Array<Record<string, unknown>>)[0]!;
+      const claims = (candidate.card_fields as Record<string, unknown>).claims as Array<Record<string, unknown>>;
+      const inference = claims.find(claim => claim.support_type === 'llm_inference')!;
+      inference.claim_text = 'an unrelated inference claim that never states the parent delta';
+      const error = expectRpcError(() => importPack(service, campaignId, pack, 'import-unbound'), -32002, 'delta_claim_missing');
+      expect(String((error.data.details as Record<string, unknown>).message)).toContain('contains trace_inputs.parent_delta_statement');
+    });
+
+    it('refuses a mutation whose every claim is literature-supported (no typed delta)', () => {
+      const service = freshService();
+      const campaignId = initCampaign(service);
+      const { pack } = mutationPack(service, campaignId);
+      const candidate = (pack.candidates as Array<Record<string, unknown>>)[0]!;
+      const claims = (candidate.card_fields as Record<string, unknown>).claims as Array<Record<string, unknown>>;
+      const inference = claims.find(claim => claim.support_type === 'llm_inference')!;
+      inference.support_type = 'literature';
+      inference.evidence_uris = [URI_A];
+      const error = expectRpcError(() => importPack(service, campaignId, pack), -32002, 'delta_claim_missing');
+      expect(String((error.data.details as Record<string, unknown>).message)).toContain('delta over the parent');
+    });
+
+    it('still refuses the not-yet-enabled families', () => {
+      const service = freshService();
+      const campaignId = initCampaign(service);
+      const { pack, parentId } = mutationPack(service, campaignId);
+      const candidate = (pack.candidates as Array<Record<string, unknown>>)[0]!;
+      const provenance = candidate.provenance as Record<string, unknown>;
+      provenance.operator_family = 'Recombination';
+      provenance.parent_node_ids = [parentId, parentId];
+      const error = expectRpcError(() => importPack(service, campaignId, pack), -32002, 'operator_family_not_enabled');
+      expect((error.data.details as Record<string, unknown>).enabled).toEqual([
+        'LiteratureMining', 'FailureRouting', 'Mutation',
+      ]);
     });
   });
 });
