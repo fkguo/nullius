@@ -403,6 +403,23 @@ function preparedSideEffectsCommitted(store: IdeaEngineStore, method: string, re
           foreignSameStampRecord = true;
         }
       }
+      if (candidates.length === 0
+        && typeof otherPayload.node_id === 'string'
+        && typeof otherPayload.updated_at === 'string') {
+        // Flat-result mutations (node.rewrite_provenance) carry no node
+        // summary, only node_id / revision / updated_at — and that method
+        // preserves the lifecycle fields while advancing revision and
+        // timestamp, so an exact (node, timestamp, revision) hit IS a
+        // plausible alternative explanation of the matching store state.
+        // Reduced witness, conservative conflict; a record at any other
+        // timestamp or revision never trips it.
+        const row = rowByNodeId.get(otherPayload.node_id);
+        if (row
+          && otherPayload.updated_at === row.updated_at
+          && Number(otherPayload.revision) === Number(row.revision)) {
+          foreignSameStampRecord = true;
+        }
+      }
     }
     if (loggedNodeIds.size === 0) {
       if (matchedRows === 0) {
