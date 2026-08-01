@@ -548,6 +548,31 @@ def test_retry_of_attempts_cap_above_measured_passes(tmp_path: Path) -> None:
     assert verdict is not None and verdict["status"] == "pass"
 
 
+def test_retry_of_attempts_fractional_measured_fails(tmp_path: Path) -> None:
+    """Attempt counts are discrete: a fractional 'measurement' one epsilon
+    below the kept cap must not defeat the strict-excess check."""
+    contract = _retry_contract(
+        exhausted_budget="max_attempts",
+        measured_requirement=1.999999,
+        adjustment_note="cap kept while citing a fractional attempt count",
+    )
+    _assert_fails_with(tmp_path, contract, "MISSING_RETRY_FIELDS")
+
+
+def test_decimal_str_exact_digit_count_at_boundary() -> None:
+    """The huge-int diagnostic fallback counts digits exactly — float log10
+    rounds at decimal boundaries (10**n - 1 must not read as n+1 digits)."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("check_delegation_budget_decimal_str", GATE)
+    assert spec is not None and spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    assert mod._decimal_str(10**5000 - 1) == "a 5000-digit integer"
+    assert mod._decimal_str(10**5000) == "a 5001-digit integer"
+    assert mod._decimal_str(-(10**6000)) == "a negative 6001-digit integer"
+
+
 def test_retry_of_attempts_qualitative_change_keeps_cap_passes(tmp_path: Path) -> None:
     """A changed-approach retry may keep its cap: the change is stated as a
     one-line measurement instead of a number."""
