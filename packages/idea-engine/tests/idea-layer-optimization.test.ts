@@ -1055,6 +1055,76 @@ describe('node.apply_evidence_event', () => {
     );
   });
 
+  it('fails loud when a flat-result rewrite record could explain the stored state', () => {
+    // node.rewrite_provenance results carry only flat node_id / revision /
+    // updated_at (no node summary), and the rewrite preserves the lifecycle
+    // fields while advancing revision and timestamp — so an exact
+    // (node, timestamp, revision) record hit is a plausible alternative
+    // explanation and must raise the conflict, not certify our event.
+    const rootDir = mkdtempSync(join(tmpdir(), 'idea-evt-rewrite-twin-'));
+    tempDirs.push(rootDir);
+    const service = new IdeaEngineRpcService({
+      rootDir,
+      now: () => '2026-07-21T07:30:00Z',
+    });
+    const { campaignId, nodeIds } = initCampaign(service);
+    const nodeId = nodeIds[0]!;
+    admitNode(service, campaignId, nodeId);
+    const params = {
+      campaign_id: campaignId,
+      evidence_ref: EVIDENCE_REF,
+      event_reason: 'shared supersession cause',
+      dispositions: [{ node_id: nodeId, lifecycle_state: 'needs_refresh' }],
+      idempotency_key: 'evt-rw-twin',
+    };
+    const first = service.handle('node.apply_evidence_event', params) as {
+      nodes: Array<Record<string, unknown>>;
+    };
+    const row = first.nodes[0]!;
+
+    // Crash window: our record prepared, our ledger lines lost — and a
+    // provenance-rewrite record (flat shape, exact revision + timestamp)
+    // exists for the same node.
+    const campaignDir = resolve(rootDir, 'campaigns', campaignId);
+    const idemPath = resolve(campaignDir, 'idempotency_store.json');
+    const idem = JSON.parse(readFileSync(idemPath, 'utf8')) as Record<string, Record<string, unknown>>;
+    idem['node.apply_evidence_event:evt-rw-twin']!.state = 'prepared';
+    idem['node.rewrite_provenance:synthetic-rewrite'] = {
+      payload_hash: `sha256:${'d'.repeat(64)}`,
+      created_at: String(row.updated_at),
+      state: 'committed',
+      response: {
+        kind: 'result',
+        payload: {
+          campaign_id: campaignId,
+          node_id: nodeId,
+          idea_id: 'aaaaaaaa',
+          field: 'closest_prior',
+          previous_value: 'prior-a',
+          new_value: 'prior-b',
+          delta_claim_updated: false,
+          grounding_audit_reset: false,
+          revision: row.revision,
+          updated_at: row.updated_at,
+          budget_snapshot: {},
+          idempotency: { idempotency_key: 'synthetic-rewrite', is_replay: false, payload_hash: `sha256:${'d'.repeat(64)}` },
+        },
+      },
+    };
+    writeFileSync(idemPath, JSON.stringify(idem));
+    const logPath = resolve(campaignDir, 'nodes_log.jsonl');
+    const kept = readFileSync(logPath, 'utf8')
+      .split('\n')
+      .filter(line => line.trim().length > 0 && !line.includes('apply_evidence_event'));
+    writeFileSync(logPath, `${kept.join('\n')}\n`);
+
+    expectRpcError(
+      () => service.handle('node.apply_evidence_event', params),
+      -32603,
+      'evidence_event_recovery_conflict',
+    );
+  });
+
   it('recovers honestly when a set_lifecycle twin wrote a DIFFERENT activation condition', () => {
     // Same second, same state/reason/revision, but the hand-applied write
     // recorded a different condition: the complete-state witness sees the
