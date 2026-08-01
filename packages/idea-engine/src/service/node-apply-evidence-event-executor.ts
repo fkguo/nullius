@@ -270,6 +270,10 @@ export function executeNodeApplyEvidenceEvent(options: {
         previous_state: previousState,
         lifecycle_state: targetState,
         lifecycle_reason: String(updatedNode.lifecycle_reason),
+        // The complete written state, so crash recovery can witness it: the
+        // activation condition distinguishes same-tuple twins that differ
+        // only in the condition they recorded.
+        activation_condition: (updatedNode.activation_condition as Record<string, unknown> | null) ?? null,
         revision: Number(updatedNode.revision),
         updated_at: now,
         posterior_marked_stale: posteriorMarkedStale,

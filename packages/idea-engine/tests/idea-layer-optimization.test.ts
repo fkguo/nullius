@@ -1003,6 +1003,115 @@ describe('node.apply_evidence_event', () => {
     expect(storedNode(service, campaignId, nodeIds[0]!).lifecycle_state).toBe('admitted');
   });
 
+  it('fails loud when a same-tuple set_lifecycle twin could explain the stored state', () => {
+    // The natural operator move after a failed batch call is a hand
+    // set_lifecycle retry with the same reason — a foreign writer OUTSIDE
+    // the apply method. When its written state is indistinguishable from
+    // our rows, certification must fail loud, not fabricate our line over
+    // the hand-applied transition.
+    const rootDir = mkdtempSync(join(tmpdir(), 'idea-evt-lifecycle-twin-'));
+    tempDirs.push(rootDir);
+    const service = new IdeaEngineRpcService({
+      rootDir,
+      now: () => '2026-07-21T07:30:00Z',
+    });
+    const { campaignId, nodeIds } = initCampaign(service);
+    const nodeId = nodeIds[0]!;
+    admitNode(service, campaignId, nodeId);
+    const campaignDir = resolve(rootDir, 'campaigns', campaignId);
+    const nodesPath = resolve(campaignDir, 'nodes_latest.json');
+    const preBatchNodes = readFileSync(nodesPath, 'utf8');
+    const logPath = resolve(campaignDir, 'nodes_log.jsonl');
+    const preBatchLog = readFileSync(logPath, 'utf8');
+
+    const eventA = {
+      campaign_id: campaignId,
+      evidence_ref: EVIDENCE_REF,
+      event_reason: 'shared supersession cause',
+      dispositions: [{ node_id: nodeId, lifecycle_state: 'needs_refresh' }],
+      idempotency_key: 'evt-lc-twin-a',
+    };
+    service.handle('node.apply_evidence_event', eventA);
+    // Rewind to pre-A with A prepared (crash before saveNodes); the
+    // operator hand-applies the identical demotion via set_lifecycle.
+    const idemPath = resolve(campaignDir, 'idempotency_store.json');
+    const idem = JSON.parse(readFileSync(idemPath, 'utf8')) as Record<string, { state: string }>;
+    idem['node.apply_evidence_event:evt-lc-twin-a']!.state = 'prepared';
+    writeFileSync(idemPath, JSON.stringify(idem));
+    writeFileSync(nodesPath, preBatchNodes);
+    writeFileSync(logPath, preBatchLog);
+    service.handle('node.set_lifecycle', {
+      campaign_id: campaignId,
+      node_id: nodeId,
+      lifecycle_state: 'needs_refresh',
+      reason: 'shared supersession cause',
+      idempotency_key: 'hand-retry',
+    });
+
+    expectRpcError(
+      () => service.handle('node.apply_evidence_event', eventA),
+      -32603,
+      'evidence_event_recovery_conflict',
+    );
+  });
+
+  it('recovers honestly when a set_lifecycle twin wrote a DIFFERENT activation condition', () => {
+    // Same second, same state/reason/revision, but the hand-applied write
+    // recorded a different condition: the complete-state witness sees the
+    // difference, reads "nothing of ours landed", and re-executes cleanly —
+    // the final store carries OUR condition via the legal self-transition,
+    // with both mutations honestly on the ledger.
+    const rootDir = mkdtempSync(join(tmpdir(), 'idea-evt-cond-twin-'));
+    tempDirs.push(rootDir);
+    const service = new IdeaEngineRpcService({
+      rootDir,
+      now: () => '2026-07-21T07:30:00Z',
+    });
+    const { campaignId, nodeIds } = initCampaign(service);
+    const nodeId = nodeIds[0]!;
+    admitNode(service, campaignId, nodeId);
+    const campaignDir = resolve(rootDir, 'campaigns', campaignId);
+    const nodesPath = resolve(campaignDir, 'nodes_latest.json');
+    const preBatchNodes = readFileSync(nodesPath, 'utf8');
+    const logPath = resolve(campaignDir, 'nodes_log.jsonl');
+    const preBatchLog = readFileSync(logPath, 'utf8');
+
+    const eventA = {
+      campaign_id: campaignId,
+      evidence_ref: EVIDENCE_REF,
+      event_reason: 'missing follow-up computation',
+      dispositions: [{
+        node_id: nodeId,
+        lifecycle_state: 'admission_blocked',
+        activation_condition: { kind: 'required_evidence', description: 'the follow-up computation from event A', satisfied: false },
+      }],
+      idempotency_key: 'evt-cond-a',
+    };
+    service.handle('node.apply_evidence_event', eventA);
+    const idemPath = resolve(campaignDir, 'idempotency_store.json');
+    const idem = JSON.parse(readFileSync(idemPath, 'utf8')) as Record<string, { state: string }>;
+    idem['node.apply_evidence_event:evt-cond-a']!.state = 'prepared';
+    writeFileSync(idemPath, JSON.stringify(idem));
+    writeFileSync(nodesPath, preBatchNodes);
+    writeFileSync(logPath, preBatchLog);
+    service.handle('node.set_lifecycle', {
+      campaign_id: campaignId,
+      node_id: nodeId,
+      lifecycle_state: 'admission_blocked',
+      reason: 'missing follow-up computation',
+      activation_condition: { kind: 'required_evidence', description: 'a DIFFERENT condition from the hand retry', satisfied: false },
+      idempotency_key: 'hand-retry-cond',
+    });
+
+    const retry = service.handle('node.apply_evidence_event', eventA) as {
+      idempotency: Record<string, unknown>;
+    };
+    expect(retry.idempotency.is_replay).toBe(false);
+    const node = storedNode(service, campaignId, nodeId);
+    expect((node.activation_condition as Record<string, unknown>).description)
+      .toBe('the follow-up computation from event A');
+  });
+
   it('does not conflict on a foreign same-second record whose write cannot explain the stored state', () => {
     // A foreign event that touched the same node in the same second but
     // with a DIFFERENT resulting tuple (state/revision/reason) cannot be
