@@ -105,24 +105,25 @@ export class IdeaEngineContractCatalog {
       throw new ContractRuntimeError('params must be an object (by-name)');
     }
 
+    // Collect EVERY request-shape problem — missing parameters, unknown
+    // parameters, and each present parameter's schema violations — into ONE
+    // throw: a caller fixing a malformed request sees the complete list in a
+    // single round-trip (Ajv already runs allErrors within each parameter;
+    // this extends the same promise across the whole parameter surface).
     const record = params as Record<string, unknown>;
+    const parameterProblems: string[] = [];
     const required = new Set((method.params ?? []).filter(param => param.required).map(param => param.name));
     const missing = [...required].filter(name => !(name in record));
     if (missing.length > 0) {
-      throw new ContractRuntimeError(`missing required params: ${missing.join(', ')}`);
+      parameterProblems.push(`missing required params: ${missing.join(', ')}`);
     }
 
     const allowed = new Set((method.params ?? []).map(param => param.name));
     const extras = Object.keys(record).filter(name => !allowed.has(name));
     if (extras.length > 0) {
-      throw new ContractRuntimeError(`unknown params: ${extras.join(', ')}`);
+      parameterProblems.push(`unknown params: ${extras.join(', ')}`);
     }
 
-    // Collect EVERY parameter's schema violations before throwing: a caller
-    // fixing a request with several bad parameters sees them all in one
-    // round-trip (Ajv already runs allErrors within each parameter; this
-    // extends the same promise across parameters).
-    const parameterProblems: string[] = [];
     for (const param of method.params ?? []) {
       if (!(param.name in record) || !param.schema || typeof param.schema !== 'object') {
         continue;

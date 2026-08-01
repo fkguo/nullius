@@ -49,8 +49,10 @@ interface DispositionFailure {
  * - demotion marks a current posterior stale exactly as node.set_lifecycle
  *   does;
  * - each node's mutation-log entry carries the shared event_group (derived
- *   from the payload hash, stable under replay), the evidence_ref, and the
- *   shared event_reason — the group binding is engine-recorded;
+ *   from the idempotency key AND the payload hash: stable under replay of
+ *   the same key+payload, distinct across keys even for identical
+ *   payloads), the evidence_ref, and the shared event_reason — the group
+ *   binding is engine-recorded;
  * - evidence_ref is stored verbatim (report_ref / survey_ref precedent):
  *   shape is contract-checked (project-portable, hash-bound), whether the
  *   artifact supports the dispositions stays a project-side audit concern.
