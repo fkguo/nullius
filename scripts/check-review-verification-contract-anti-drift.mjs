@@ -77,7 +77,8 @@ requireAll(TEAM_SKILL_FILE, read(TEAM_SKILL_FILE), [
   ['review-side power check', 'carried this power estimate'],
   ['unavailability-is-not-a-round bullet', 'Reviewer unavailability is a dispatch failure, not a review round'],
   ['unavailability consumes no bounded round', 'never consumes a bounded round'],
-  ['unavailability mints no run record', 'never mints a run directory, packet, or verdict record'],
+  ['unavailability advances no round suffix', 'never advances the round suffix'],
+  ['same-tag resume instruction', "re-enter the **same** cycle tag with the runner's `--resume` path"],
   ['repeated-unavailability escalation', 'environment blocker to surface to the project owner'],
 ]);
 
