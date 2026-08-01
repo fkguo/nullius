@@ -1,3 +1,4 @@
+import { createHash } from 'crypto';
 import { readFileSync, readdirSync, rmSync, writeFileSync } from 'fs';
 import { afterAll, describe, expect, it } from 'vitest';
 import { mkdtempSync } from 'fs';
@@ -297,6 +298,81 @@ describe('rank.compute store-state awareness', () => {
     expect(artifact.store_digest).toBe(second.store_digest);
   });
 
+  it('never rolls campaign state back to a superseded mint record', () => {
+    const { rootDir, service } = freshAdvancing('idea-rank-supersede-');
+    const { campaignId, nodeIds } = initCampaign(service, { seedCount: 2 });
+    admitNode(service, campaignId, nodeIds[0]!, { value: 0.8 });
+    const first = rank(service, campaignId, 'rank-k1');
+
+    // K1's record stays prepared (crash between campaign save and commit);
+    // the store then changes and K2 mints on top.
+    const campaignDir = resolve(rootDir, 'campaigns', campaignId);
+    const idemPath = resolve(campaignDir, 'idempotency_store.json');
+    const idem = JSON.parse(readFileSync(idemPath, 'utf8')) as Record<string, { state: string }>;
+    idem['rank.compute:rank-k1']!.state = 'prepared';
+    writeFileSync(idemPath, JSON.stringify(idem));
+    admitNode(service, campaignId, nodeIds[1]!, { value: 0.6 });
+    const second = rank(service, campaignId, 'rank-k2');
+    expect((second.budget_snapshot as Record<string, unknown>).steps_used).toBe(2);
+
+    // Duplicate delivery of K1 replays WITHOUT touching the newer state.
+    const replayed = rank(service, campaignId, 'rank-k1');
+    expect((replayed.idempotency as Record<string, unknown>).is_replay).toBe(true);
+    const campaign = JSON.parse(readFileSync(resolve(campaignDir, 'campaign.json'), 'utf8')) as Record<string, unknown>;
+    expect((campaign.usage as Record<string, unknown>).steps_used).toBe(2);
+    expect((campaign.last_ranking as Record<string, unknown>).ranking_artifact_ref).toBe(second.ranking_artifact_ref);
+
+    // And the restored world still reuses K2's ranking, not K1's.
+    const after = rank(service, campaignId, 'rank-k3');
+    expect(after.ranking_artifact_ref).toBe(second.ranking_artifact_ref);
+    expect(after.unchanged_since).toBe(second.generated_at);
+    expect(first.ranking_artifact_ref).not.toBe(second.ranking_artifact_ref);
+  });
+
+  it('re-derives exhaustion when completing a lost campaign write', () => {
+    const { rootDir, service } = freshAdvancing('idea-rank-exhaust-');
+    const { campaignId, nodeIds } = initCampaign(service, {
+      budget: { max_nodes: 20, max_steps: 1 },
+    });
+    admitNode(service, campaignId, nodeIds[0]!, { value: 0.8 });
+    rank(service, campaignId, 'rank-only');
+
+    // Crash window: artifact written, campaign save lost entirely.
+    const campaignDir = resolve(rootDir, 'campaigns', campaignId);
+    const idemPath = resolve(campaignDir, 'idempotency_store.json');
+    const idem = JSON.parse(readFileSync(idemPath, 'utf8')) as Record<string, { state: string }>;
+    idem['rank.compute:rank-only']!.state = 'prepared';
+    writeFileSync(idemPath, JSON.stringify(idem));
+    const campaignPath = resolve(campaignDir, 'campaign.json');
+    const campaign = JSON.parse(readFileSync(campaignPath, 'utf8')) as Record<string, unknown>;
+    delete campaign.last_ranking;
+    (campaign.usage as Record<string, unknown>).steps_used = 0;
+    campaign.status = 'running';
+    writeFileSync(campaignPath, JSON.stringify(campaign));
+
+    const retry = rank(service, campaignId, 'rank-only');
+    expect((retry.idempotency as Record<string, unknown>).is_replay).toBe(true);
+    const recovered = JSON.parse(readFileSync(campaignPath, 'utf8')) as Record<string, unknown>;
+    expect((recovered.usage as Record<string, unknown>).steps_used).toBe(1);
+    expect(recovered.status).toBe('exhausted');
+  });
+
+  it('mints distinct artifact names for distinct store states within one second', () => {
+    const rootDir = mkdtempSync(join(tmpdir(), 'idea-rank-samesec-'));
+    tempDirs.push(rootDir);
+    const service = new IdeaEngineRpcService({
+      rootDir,
+      now: () => '2026-07-21T07:30:00Z',
+    });
+    const { campaignId, nodeIds } = initCampaign(service, { seedCount: 2 });
+    admitNode(service, campaignId, nodeIds[0]!, { value: 0.8 });
+    const first = rank(service, campaignId, 'rank-s1');
+    admitNode(service, campaignId, nodeIds[1]!, { value: 0.6 });
+    const second = rank(service, campaignId, 'rank-s2');
+    expect(second.ranking_artifact_ref).not.toBe(first.ranking_artifact_ref);
+    expect(rankingsDir(rootDir, campaignId)).toHaveLength(2);
+  });
+
   it('completes the campaign pointer when a crash lost it after the artifact write', () => {
     const { rootDir, service } = freshAdvancing('idea-rank-recover-');
     const { campaignId, nodeIds } = initCampaign(service);
@@ -560,6 +636,132 @@ describe('node.apply_evidence_event', () => {
     // Node states untouched by recovery: still exactly one transition.
     expect(storedNode(service, campaignId, a).lifecycle_state).toBe('needs_refresh');
     expect(Number(storedNode(service, campaignId, a).revision)).toBe(Number(retry.nodes[0]!.revision));
+  });
+
+  it('derives the event group from the idempotency key and payload hash', () => {
+    const { service } = freshAdvancing('idea-evt-group-');
+    const { campaignId, nodeIds } = initCampaign(service);
+    admitNode(service, campaignId, nodeIds[0]!);
+    const result = service.handle('node.apply_evidence_event', {
+      campaign_id: campaignId,
+      evidence_ref: EVIDENCE_REF,
+      event_reason: 'the shared assumption fails',
+      dispositions: [{ node_id: nodeIds[0]!, lifecycle_state: 'needs_refresh' }],
+      idempotency_key: 'evt-key-derivation',
+    }) as { event_group: string; idempotency: { payload_hash: string } };
+    const expected = `evt-${createHash('sha256')
+      .update(`evt-key-derivation:${result.idempotency.payload_hash}`, 'utf8')
+      .digest('hex')
+      .slice(0, 12)}`;
+    expect(result.event_group).toBe(expected);
+  });
+
+  it('refuses to certify a prepared event when a same-timestamp twin wrote the same nodes', () => {
+    // Production clocks have one-second resolution: two DISTINCT events can
+    // stamp the same updated_at. A row match alone must not certify ours
+    // when another event's ledger line covers the node at that timestamp.
+    const rootDir = mkdtempSync(join(tmpdir(), 'idea-evt-twin-'));
+    tempDirs.push(rootDir);
+    const service = new IdeaEngineRpcService({
+      rootDir,
+      now: () => '2026-07-21T07:30:00Z',
+    });
+    const { campaignId, nodeIds } = initCampaign(service);
+    const nodeId = nodeIds[0]!;
+    admitNode(service, campaignId, nodeId);
+    const campaignDir = resolve(rootDir, 'campaigns', campaignId);
+    const nodesPath = resolve(campaignDir, 'nodes_latest.json');
+    const preBatchNodes = readFileSync(nodesPath, 'utf8');
+    const logPath = resolve(campaignDir, 'nodes_log.jsonl');
+    const preBatchLog = readFileSync(logPath, 'utf8');
+
+    const eventA = {
+      campaign_id: campaignId,
+      evidence_ref: EVIDENCE_REF,
+      event_reason: 'shared supersession cause',
+      dispositions: [{ node_id: nodeId, lifecycle_state: 'needs_refresh' }],
+      idempotency_key: 'evt-twin-a',
+    };
+    service.handle('node.apply_evidence_event', eventA);
+
+    // Rewind to the pre-A state with A's record left prepared (crash before
+    // saveNodes), then land twin event B fully at the same frozen second.
+    const idemPath = resolve(campaignDir, 'idempotency_store.json');
+    const idem = JSON.parse(readFileSync(idemPath, 'utf8')) as Record<string, { state: string }>;
+    idem['node.apply_evidence_event:evt-twin-a']!.state = 'prepared';
+    writeFileSync(idemPath, JSON.stringify(idem));
+    writeFileSync(nodesPath, preBatchNodes);
+    writeFileSync(logPath, preBatchLog);
+    service.handle('node.apply_evidence_event', {
+      ...eventA,
+      evidence_ref: `project://artifacts/runs/other-report.json#sha256:${'b'.repeat(64)}`,
+      idempotency_key: 'evt-twin-b',
+    });
+
+    expectRpcError(
+      () => service.handle('node.apply_evidence_event', eventA),
+      -32603,
+      'evidence_event_recovery_conflict',
+    );
+  });
+
+  it('repairs a torn final ledger line during recovery', () => {
+    const { rootDir, service } = freshAdvancing('idea-evt-torn-');
+    const { campaignId, nodeIds } = initCampaign(service, { seedCount: 2 });
+    const [a, b] = nodeIds as [string, string];
+    admitNode(service, campaignId, a);
+    admitNode(service, campaignId, b);
+    const params = {
+      campaign_id: campaignId,
+      evidence_ref: EVIDENCE_REF,
+      event_reason: 'one result supersedes the shared assumption',
+      dispositions: [
+        { node_id: a, lifecycle_state: 'needs_refresh' },
+        { node_id: b, lifecycle_state: 'needs_refresh' },
+      ],
+      idempotency_key: 'evt-torn',
+    };
+    const first = service.handle('node.apply_evidence_event', params) as { event_group: string };
+
+    const campaignDir = resolve(rootDir, 'campaigns', campaignId);
+    const idemPath = resolve(campaignDir, 'idempotency_store.json');
+    const idem = JSON.parse(readFileSync(idemPath, 'utf8')) as Record<string, { state: string }>;
+    idem['node.apply_evidence_event:evt-torn']!.state = 'prepared';
+    writeFileSync(idemPath, JSON.stringify(idem));
+    // Tear the final ledger line mid-byte (crash during the second append).
+    const logPath = resolve(campaignDir, 'nodes_log.jsonl');
+    const raw = readFileSync(logPath, 'utf8');
+    const lines = raw.split('\n').filter(line => line.trim().length > 0);
+    const torn = [...lines.slice(0, -1), lines.at(-1)!.slice(0, 40)].join('\n');
+    writeFileSync(logPath, torn);
+
+    const retry = service.handle('node.apply_evidence_event', params) as {
+      idempotency: Record<string, unknown>;
+    };
+    expect(retry.idempotency.is_replay).toBe(true);
+    const eventLines = service.read.store.loadNodeLogEntriesStrict(campaignId)
+      .filter(entry => entry.mutation === 'apply_evidence_event' && entry.event_group === first.event_group);
+    expect(eventLines).toHaveLength(2);
+  });
+
+  it('reports every bad parameter in one round', () => {
+    const { service } = freshAdvancing('idea-evt-params-');
+    const { campaignId, nodeIds } = initCampaign(service);
+    admitNode(service, campaignId, nodeIds[0]!);
+    const error = expectRpcError(
+      () => service.handle('node.apply_evidence_event', {
+        campaign_id: campaignId,
+        evidence_ref: 'not-a-portable-ref',
+        event_reason: '',
+        dispositions: [{ node_id: nodeIds[0]!, lifecycle_state: 'needs_refresh' }],
+        idempotency_key: 'evt-badparams',
+      }),
+      -32002,
+      'schema_invalid',
+    );
+    const message = String((error.data.details as Record<string, unknown>).message);
+    expect(message).toContain("param 'evidence_ref'");
+    expect(message).toContain("param 'event_reason'");
   });
 
   it('re-executes safely when nothing landed before the crash', () => {

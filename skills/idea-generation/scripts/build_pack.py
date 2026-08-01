@@ -263,13 +263,20 @@ def validate_candidate(candidate: Dict[str, Any], index: int) -> List[str]:
         parent_delta = trace_inputs.get("parent_delta_statement")
         if not (_is_nonempty_str(parent_delta) and len(parent_delta.strip()) >= 20):
             problems.append(f"{label}: Mutation requires trace_inputs.parent_delta_statement (>= 20 chars after trimming: what changed relative to the parent)")
-        mutation_claims = card_fields.get("claims") if isinstance(card_fields, dict) else None
-        typed_delta = any(
-            isinstance(claim, dict) and claim.get("support_type") in ("llm_inference", "assumption")
-            for claim in (mutation_claims if isinstance(mutation_claims, list) else [])
-        )
-        if not typed_delta:
-            problems.append(f"{label}: Mutation requires at least one claim typed llm_inference or assumption stating the delta over the parent")
+        else:
+            # The typed claim must BE the parent delta (whitespace-collapsed
+            # containment), mirroring the engine: an unrelated inference
+            # claim elsewhere on the card does not satisfy the discipline.
+            normalized_delta = " ".join(parent_delta.split())
+            mutation_claims = card_fields.get("claims") if isinstance(card_fields, dict) else None
+            bound_typed_delta = any(
+                isinstance(claim, dict)
+                and claim.get("support_type") in ("llm_inference", "assumption")
+                and normalized_delta in " ".join(str(claim.get("claim_text", "")).split())
+                for claim in (mutation_claims if isinstance(mutation_claims, list) else [])
+            )
+            if not bound_typed_delta:
+                problems.append(f"{label}: Mutation requires a claim typed llm_inference or assumption whose claim_text contains parent_delta_statement — the delta over the parent must be stated AS the typed claim")
 
     delta = candidate.get("novelty_delta")
     if isinstance(delta, dict):

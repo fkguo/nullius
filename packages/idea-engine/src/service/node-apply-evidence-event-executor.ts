@@ -3,6 +3,7 @@ import type { IdeaEngineStore } from '../store/engine-store.js';
 import { budgetSnapshot } from './budget-snapshot.js';
 import { recordOrReplay, responseIdempotency, storeIdempotency } from './idempotency.js';
 import { RpcError } from './errors.js';
+import { sha256Hex } from './sha256-hex.js';
 import {
   CONDITION_CARRYING_STATES,
   DEMOTING_LIFECYCLE_STATES,
@@ -78,14 +79,21 @@ export function executeNodeApplyEvidenceEvent(options: {
   const refBody = evidenceRef.slice('project://'.length, evidenceRef.indexOf('#'));
   const segments = refBody.split('/');
   const segmentsInvalid = segments.some(segment => {
-    if (segment === '' || segment === '.' || segment === '..') {
-      return true;
-    }
+    let decoded: string;
     try {
-      return decodeURIComponent(segment).includes('/');
+      decoded = decodeURIComponent(segment);
     } catch {
       return true;
     }
+    // Judge the DECODED segment: %2e%2e is '..', %5C is a backslash. A drive
+    // prefix (':') or a backslash would re-anchor the path on some platforms;
+    // dot segments traverse.
+    return decoded === ''
+      || decoded === '.'
+      || decoded === '..'
+      || decoded.includes('/')
+      || decoded.includes('\\')
+      || decoded.includes(':');
   });
   if (segmentsInvalid) {
     const data = {
@@ -213,7 +221,13 @@ export function executeNodeApplyEvidenceEvent(options: {
     // Apply pass: every disposition validated; mutate the loaded node map,
     // then persist once.
     const now = options.now();
-    const eventGroup = `evt-${options.payloadHash.slice('sha256:'.length, 'sha256:'.length + 12)}`;
+    // The group id must be unique PER OPERATION, not per payload: two
+    // operators applying the identical payload under different idempotency
+    // keys are two distinct events, and crash recovery tells their ledger
+    // lines apart by this id (the payload hash alone would collide them).
+    // Same key + same payload still derives the same id — stable under
+    // replay.
+    const eventGroup = `evt-${sha256Hex(`${idempotencyKeyValue}:${options.payloadHash}`).slice(0, 12)}`;
     const resultNodes: Array<Record<string, unknown>> = [];
     const logExtras: Array<{ node: Record<string, unknown>; extra: Record<string, unknown> }> = [];
     for (const disposition of dispositions) {

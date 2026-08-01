@@ -118,15 +118,31 @@ export class IdeaEngineContractCatalog {
       throw new ContractRuntimeError(`unknown params: ${extras.join(', ')}`);
     }
 
+    // Collect EVERY parameter's schema violations before throwing: a caller
+    // fixing a request with several bad parameters sees them all in one
+    // round-trip (Ajv already runs allErrors within each parameter; this
+    // extends the same promise across parameters).
+    const parameterProblems: string[] = [];
     for (const param of method.params ?? []) {
       if (!(param.name in record) || !param.schema || typeof param.schema !== 'object') {
         continue;
       }
-      this.validateWithSchema(
-        param.schema as Record<string, unknown>,
-        record[param.name],
-        this.scopedUri(`${methodName}/params/${param.name}`),
-      );
+      try {
+        this.validateWithSchema(
+          param.schema as Record<string, unknown>,
+          record[param.name],
+          this.scopedUri(`${methodName}/params/${param.name}`),
+        );
+      } catch (error) {
+        if (error instanceof ContractRuntimeError) {
+          parameterProblems.push(`param '${param.name}': ${error.message}`);
+          continue;
+        }
+        throw error;
+      }
+    }
+    if (parameterProblems.length > 0) {
+      throw new ContractRuntimeError(parameterProblems.join('; '));
     }
   }
 

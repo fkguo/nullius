@@ -304,7 +304,12 @@ export function executeRankCompute(options: {
       }
     }
 
-    const artifactName = `ranking-${now.replace(/[^0-9]/g, '')}.json`;
+    // The timestamp alone collides under the production one-second clock
+    // (two changed-store mints in the same second would overwrite each
+    // other); the digest prefix makes the name unique per ranked store
+    // state — and two mints of the SAME state cannot both reach here (the
+    // reuse branch serves the second one).
+    const artifactName = `ranking-${now.replace(/[^0-9]/g, '')}-${storeDigest.slice('sha256:'.length, 'sha256:'.length + 12)}.json`;
     const rankingArtifact = {
       campaign_id: campaignId,
       generated_at: now,

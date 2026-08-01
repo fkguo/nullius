@@ -1405,11 +1405,17 @@ describe('node.import_generated', () => {
       const traceInputs = provenance.trace_inputs as Record<string, unknown>;
       delete traceInputs.anchor;
       traceInputs.trigger_artifact_ref = TRIGGER_URI;
-      traceInputs.parent_delta_statement = 'Restricts the parent proposition to the regime where the trigger result holds, adding the discriminating check.';
+      const parentDelta = 'Restricts the parent proposition to the regime where the trigger result holds, adding the discriminating check.';
+      traceInputs.parent_delta_statement = parentDelta;
       (traceInputs.retrieval_receipts as Array<Record<string, unknown>>).push({
         source: 'team/runs/review-cycle#report',
         uri: TRIGGER_URI,
       });
+      // The typed delta claim must BE the parent delta (binding by
+      // whitespace-collapsed containment).
+      const claims = (candidate.card_fields as Record<string, unknown>).claims as Array<Record<string, unknown>>;
+      const inference = claims.find(claim => claim.support_type === 'llm_inference')!;
+      inference.claim_text = `Delta vs parent: ${parentDelta}`;
       const draft = candidate.rationale_draft as Record<string, unknown>;
       draft.title = 'Refine the parent proposition against the new result';
       draft.rationale = 'The trigger artifact shows the parent proposition fails in one regime; the mutated variant restricts scope and adds the discriminating check.';
@@ -1469,6 +1475,18 @@ describe('node.import_generated', () => {
       const sdInputs = (sdCandidate.provenance as Record<string, unknown>).trace_inputs as Record<string, unknown>;
       sdInputs.parent_delta_statement = '   too short      ';
       expectRpcError(() => importPack(service, campaignId, shortDelta.pack, 'import-short'), -32002, 'anchor_missing');
+    });
+
+    it('refuses an unbound typed claim: the inference claim must contain the parent-delta statement', () => {
+      const service = freshService();
+      const campaignId = initCampaign(service);
+      const { pack } = mutationPack(service, campaignId);
+      const candidate = (pack.candidates as Array<Record<string, unknown>>)[0]!;
+      const claims = (candidate.card_fields as Record<string, unknown>).claims as Array<Record<string, unknown>>;
+      const inference = claims.find(claim => claim.support_type === 'llm_inference')!;
+      inference.claim_text = 'an unrelated inference claim that never states the parent delta';
+      const error = expectRpcError(() => importPack(service, campaignId, pack, 'import-unbound'), -32002, 'delta_claim_missing');
+      expect(String((error.data.details as Record<string, unknown>).message)).toContain('contains trace_inputs.parent_delta_statement');
     });
 
     it('refuses a mutation whose every claim is literature-supported (no typed delta)', () => {

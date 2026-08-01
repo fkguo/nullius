@@ -173,10 +173,23 @@ def test_mutation_mirror_requires_trigger_anchor_and_typed_delta(make_candidate)
     candidate["provenance"]["trace_inputs"]["trigger_artifact_ref"] = "   "
     assert any("trigger_artifact_ref" in p for p in _problems(candidate))
 
-    candidate = as_mutation(make_candidate())
+    def bind_delta_claim(candidate):
+        for claim in candidate["card_fields"]["claims"]:
+            if claim.get("support_type") in ("llm_inference", "assumption"):
+                claim["claim_text"] = f"Delta vs parent: {PARENT_DELTA}"
+        return candidate
+
+    candidate = bind_delta_claim(as_mutation(make_candidate()))
     candidate["provenance"]["trace_inputs"]["trigger_artifact_ref"] = "team/runs/review-cycle/report.json"
     candidate["provenance"]["trace_inputs"]["parent_delta_statement"] = PARENT_DELTA
     assert not any("trigger_artifact_ref" in p or "parent_delta_statement" in p for p in _problems(candidate))
+
+    # An unrelated typed claim does not satisfy the discipline: the typed
+    # claim must contain the parent-delta statement.
+    candidate = as_mutation(make_candidate())
+    candidate["provenance"]["trace_inputs"]["trigger_artifact_ref"] = "team/runs/review-cycle/report.json"
+    candidate["provenance"]["trace_inputs"]["parent_delta_statement"] = PARENT_DELTA
+    assert any("claim_text contains parent_delta_statement" in p for p in _problems(candidate))
 
     candidate = as_mutation(make_candidate())
     candidate["provenance"]["trace_inputs"]["trigger_artifact_ref"] = "https://example.com/unreceipted-trigger"
