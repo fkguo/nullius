@@ -39,6 +39,10 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'
 
 const TEAM_SKILL_FILE = 'skills/research-team/SKILL.md';
 const SWARM_SKILL_FILE = 'skills/review-swarm/SKILL.md';
+const RUNNER_FILE = 'skills/research-team/scripts/bin/run_team_cycle.sh';
+const TAG_TOOL_FILE = 'skills/research-team/scripts/bin/next_team_tag.py';
+const RESUME_TESTS_FILE = 'skills/research-team/tests/test_health_aware_resume.py';
+const TAG_GUARD_TESTS_FILE = 'skills/research-team/tests/test_next_team_tag_verdict_guard.py';
 
 const errors = [];
 
@@ -82,6 +86,39 @@ requireAll(TEAM_SKILL_FILE, read(TEAM_SKILL_FILE), [
   ['garbage-report move-aside instruction', 'move that file aside (never delete it) before resuming'],
   ['health-aware resume named hardening', 'health-aware resume'],
   ['repeated-unavailability escalation', 'environment blocker to surface to the project owner'],
+  ['violation-quarantine bullet', 'quarantines evidence; it never destroys computation'],
+  ['quarantined values barred from steering', 'barred from steering the redo'],
+  ['post-hoc cross-check clause', 'post-hoc cross-check'],
+]);
+
+// 3. Machine legs of the unavailability discipline: health-aware resume in
+// the runner, and the round-advance guard in the tag tool. Prose that
+// promises machine behavior erodes silently unless the machine legs are
+// pinned alongside it.
+requireAll(RUNNER_FILE, read(RUNNER_FILE), [
+  ['verdict health predicate', 'member_report_healthy() {'],
+  ['unhealthy move-aside helper', 'move_aside_unhealthy_report() {'],
+  ['full-access member-a health-gated resume', 'if [[ "${RESUME}" -eq 1 && -s "${member_a_out}" && -s "${member_a_evidence}" ]] && member_report_healthy "${member_a_out}"; then'],
+  ['full-access member-b health-gated resume', 'if [[ "${RESUME}" -eq 1 && -s "${member_b_out}" && -s "${member_b_evidence}" ]] && member_report_healthy "${member_b_out}"; then'],
+  ['packet-only member-a health-gated resume', 'if [[ "${RESUME}" -eq 1 && -s "${member_a_out}" ]] && member_report_healthy "${member_a_out}"; then'],
+  ['packet-only member-b health-gated resume', 'if [[ "${RESUME}" -eq 1 && -s "${member_b_out}" ]] && member_report_healthy "${member_b_out}"; then'],
+  ['sidecar nonemptiness reuse (no verdict contract)', 'if [[ "${RESUME}" -eq 1 && -s "${sc_out}" ]]; then'],
+]);
+requireAll(TAG_TOOL_FILE, read(TAG_TOOL_FILE), [
+  ['verdict heading criterion', 'VERDICT_HEADING_RE'],
+  ['round-advance guard suggestion', 'prefer resuming the SAME tag'],
+  ['strict refuse flag', '--refuse-unverdicted'],
+]);
+requireAll(RESUME_TESTS_FILE, read(RESUME_TESTS_FILE), [
+  ['four health-gated conditions pinned', 'test_all_four_member_resume_conditions_are_health_gated'],
+  ['move-aside behavioral control', 'test_move_aside_preserves_content_and_removes_original'],
+  ['never-delete structural control', 'test_move_aside_never_deletes'],
+  ['sidecar exemption control', 'test_sidecar_reuse_stays_on_nonemptiness'],
+]);
+requireAll(TAG_GUARD_TESTS_FILE, read(TAG_GUARD_TESTS_FILE), [
+  ['verdict-less warn control', 'test_verdict_less_latest_round_warns_and_suggests_same_tag_resume'],
+  ['strict-refuse control', 'test_refuse_unverdicted_exits_3_and_emits_no_tag'],
+  ['partial-round exemption control', 'test_one_verdict_bearing_member_suffices'],
 ]);
 
 // 2. review-swarm: the general recomputation reviewer role.
