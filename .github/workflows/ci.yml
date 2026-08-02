@@ -215,6 +215,9 @@ jobs:
             skills/research-team/tests/test_next_team_tag_verdict_guard.py \
             -q
 
+      - name: Python tests (delegated attempt budget and delivery gate)
+        run: python -m pytest skills/review-swarm/tests/test_delegated_attempt_and_delivery.py -q
+
       - name: Python tests (convergence gate machine-verdict contract)
         run: python -m pytest skills/research-team/tests/test_convergence_gate_json.py -q
 
