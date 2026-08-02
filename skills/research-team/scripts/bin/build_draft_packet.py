@@ -37,7 +37,11 @@ from tex_draft import (  # type: ignore
     strip_tex_comments,
 )
 
-_CITE_INLINE_RE = re.compile(r"\\[A-Za-z]*cite[A-Za-z*]*\s*(?:\\[[^\\]]*\\]\\s*)*{([^}]+)}")
+# Raw-string discipline (same repair class as tex_draft.py): "\\[" in a raw
+# string is a literal backslash before a character class opener, so the old
+# optional-bracket group never matched bracketed \cite variants and emitted
+# a 'Possible nested set' FutureWarning at import.
+_CITE_INLINE_RE = re.compile(r"\\[A-Za-z]*cite[A-Za-z*]*\s*(?:\[[^\]]*\]\s*)*{([^}]+)}")
 
 
 @dataclass(frozen=True)

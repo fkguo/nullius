@@ -328,8 +328,8 @@ def extract_occurrences(flat: list[TexLine]) -> tuple[list[TexOccurrence], list[
     # FutureWarnings), so label/reference/figure preflight was dead.
     cite_re = re.compile(r"\\(?P<cmd>[A-Za-z]*cite[A-Za-z*]*)\s*(?:\[[^\]]*\]\s*)*{")
     label_re = re.compile(r"\\label\s*{")
-    ref_re = re.compile(r"\\(?P<cmd>ref|eqref|cref|Cref|autoref|pageref|vref)\s*{")
-    fig_re = re.compile(r"\\includegraphics\s*(?:\[[^\]]*\]\s*)?{")
+    ref_re = re.compile(r"\\(?P<cmd>ref|eqref|cref|Cref|autoref|pageref|vref)\*?\s*{")
+    fig_re = re.compile(r"\\includegraphics\*?\s*(?:\[[^\]]*\]\s*)?{")
 
     cites: list[TexOccurrence] = []
     labels: list[TexOccurrence] = []
