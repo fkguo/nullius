@@ -237,13 +237,38 @@ def test_health_check_is_quiet_on_unreadable(tmp_path: Path) -> None:
 
 def test_packet_only_guards_run_before_any_background_launch() -> None:
     """A guard exit after member A has been backgrounded would orphan A's
-    job mid-write: both seats' preflight must precede the first launch."""
+    job mid-write: EVERY guard call site must precede the first background
+    member launch. Anchored on code positions (the last guard invocation),
+    not on the preflight comment — a refactor separating comment from code
+    must not let the ordering assertion pass vacuously."""
     script = _script_text()
-    preflight_idx = script.find("Preflight both seats")
-    assert preflight_idx != -1
     first_background_launch = script.find('bash "${MEMBER_A_RUNNER}" "${member_a_args[@]}" &')
     assert first_background_launch != -1
-    assert preflight_idx < first_background_launch
+    last_guard_call = max(
+        script.rfind('guard_unreadable_report "member-a"'),
+        script.rfind('guard_unreadable_report "member-b"'),
+    )
+    assert last_guard_call != -1
+    assert last_guard_call < first_background_launch
+    # The comment marker still exists as the human-facing explanation.
+    assert "Preflight both seats" in script
+
+
+def test_symlink_aware_entry_conditions_are_pinned() -> None:
+    """The guard can only see symlink shapes if the entry conditions admit
+    them: pin all four widened (-s OR -L) entries — two packet_only
+    preflight legs, two full_access arm legs."""
+    script = _script_text()
+    packet_only_entries = [
+        'if [[ -s "${member_a_out}" || -L "${member_a_out}" ]]; then',
+        'if [[ -s "${member_b_out}" || -L "${member_b_out}" ]]; then',
+    ]
+    full_access_entries = [
+        'if [[ "${RESUME}" -eq 1 ]] && [[ -s "${member_a_out}" || -L "${member_a_out}" ]]; then',
+        'if [[ "${RESUME}" -eq 1 ]] && [[ -s "${member_b_out}" || -L "${member_b_out}" ]]; then',
+    ]
+    for needle in packet_only_entries + full_access_entries:
+        assert needle in script, f"missing symlink-aware entry condition: {needle}"
 
 
 def test_full_access_resume_restores_permissions_first() -> None:
