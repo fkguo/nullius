@@ -88,8 +88,8 @@ def test_main_warns_only_for_missing_labels_figures_and_kb(tmp_path: Path) -> No
         "\\graphicspath{{figs/}}\n"
         "\\begin{document}\n"
         "\\section{Results}\\label{sec:results}\n"
-        "See Sec.~\\ref{eq:missing}. \\includegraphics{plot} \\cite{Key1}\n"
-        "\\includegraphics[width=0.5\\textwidth]{ghost}\n"
+        "See Sec.~\\ref{eq:missing} and Fig.~\\cref*{fig:plot}. \\includegraphics{plot} \\cite{Key1}\n"
+        "\\includegraphics*[width=0.5\\textwidth]{ghost}\n"
         "\\end{document}\n",
         encoding="utf-8",
     )
@@ -100,10 +100,35 @@ def test_main_warns_only_for_missing_labels_figures_and_kb(tmp_path: Path) -> No
 
     assert _run_main_with_argv(mod, ["check_tex_draft_preflight.py", "--tex", str(tex), "--bib", str(bib), "--out-json", str(out_json)]) == 0
     obj = json.loads(out_json.read_text(encoding="utf-8"))
-    assert obj["labels"]["missing"] == ["eq:missing"]
+    # Starred reference commands (\cref*) and starred graphics
+    # (\includegraphics*) are legal TeX and must be extracted too.
+    assert obj["labels"]["missing"] == ["eq:missing", "fig:plot"]
     missing_specs = [entry["spec"] for entry in obj["figures"]["missing"]]
     assert missing_specs == ["ghost"]
     assert obj["kb_notes"]["missing"] == ["Key1"]
+
+
+def test_main_hard_fails_for_missing_key_cited_with_bracket_arguments(tmp_path: Path) -> None:
+    """A bracketed citation (\\cite[p.5]{...}) enters the hard-fail bib check
+    exactly like the plain form — the detection hole the broken bracket
+    group used to leave open."""
+    mod = _load_gate_module()
+    tex = tmp_path / "main.tex"
+    bib = tmp_path / "references.bib"
+    tex.write_text(
+        "\\documentclass{article}\n"
+        "\\begin{document}\n"
+        "\\cite[see][p.7]{BracketOnlyMissing}\n"
+        "\\end{document}\n",
+        encoding="utf-8",
+    )
+    bib.write_text("@article{Key1, title={Key1}}\n", encoding="utf-8")
+
+    rc = _run_main_with_argv(
+        mod,
+        ["check_tex_draft_preflight.py", "--tex", str(tex), "--bib", str(bib)],
+    )
+    assert rc == 1
 
 
 def test_main_returns_input_error_for_missing_paths(tmp_path: Path) -> None:
