@@ -72,6 +72,12 @@ def test_main_returns_fail_for_missing_bib_key_and_writes_outputs(tmp_path: Path
 
 
 def test_main_warns_only_for_missing_labels_figures_and_kb(tmp_path: Path) -> None:
+    """Missing labels and figure files are WARNING-level (rc stays 0); only
+    missing bib keys are hard failures. The fixture pins the repaired
+    extractor: an undefined reference and a genuinely absent figure (with a
+    bracketed width argument) must both be REPORTED — the original port
+    asserted both lists empty, which merely characterized the era when the
+    label/ref/figure regexes never matched anything."""
     mod = _load_gate_module()
     tex = tmp_path / "main.tex"
     bib = tmp_path / "references.bib"
@@ -83,6 +89,7 @@ def test_main_warns_only_for_missing_labels_figures_and_kb(tmp_path: Path) -> No
         "\\begin{document}\n"
         "\\section{Results}\\label{sec:results}\n"
         "See Sec.~\\ref{eq:missing}. \\includegraphics{plot} \\cite{Key1}\n"
+        "\\includegraphics[width=0.5\\textwidth]{ghost}\n"
         "\\end{document}\n",
         encoding="utf-8",
     )
@@ -93,8 +100,9 @@ def test_main_warns_only_for_missing_labels_figures_and_kb(tmp_path: Path) -> No
 
     assert _run_main_with_argv(mod, ["check_tex_draft_preflight.py", "--tex", str(tex), "--bib", str(bib), "--out-json", str(out_json)]) == 0
     obj = json.loads(out_json.read_text(encoding="utf-8"))
-    assert obj["labels"]["missing"] == []
-    assert obj["figures"]["missing"] == []
+    assert obj["labels"]["missing"] == ["eq:missing"]
+    missing_specs = [entry["spec"] for entry in obj["figures"]["missing"]]
+    assert missing_specs == ["ghost"]
     assert obj["kb_notes"]["missing"] == ["Key1"]
 
 
