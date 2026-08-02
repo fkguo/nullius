@@ -316,6 +316,36 @@ if python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" check --root "${HUMAN_
   exit 1
 fi
 
+cat >"${HUMAN_DIR}/good-code-labelled-links.md" <<'MD'
+[plain](https://example.org)
+
+[`function_name`](https://example.org/source.py#L10)
+
+| symbol | source |
+| --- | --- |
+| a | [`f1`](https://example.org/source.py#L1) |
+| b | [`f2`](https://example.org/source.py#L2) |
+
+`https://example.org/literal` is literal code, not a link.
+MD
+python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" check --root "${HUMAN_DIR}/good-code-labelled-links.md" --check-clickable-refs
+
+cat >"${HUMAN_DIR}/bad-bare-url-plain.md" <<'MD'
+https://example.org
+MD
+if python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" check --root "${HUMAN_DIR}/bad-bare-url-plain.md" --check-clickable-refs; then
+  echo "expected check to fail for a plain bare web URL" >&2
+  exit 1
+fi
+
+cat >"${HUMAN_DIR}/bad-bare-url-adjacent-to-code.md" <<'MD'
+`some code` https://example.org/bare
+MD
+if python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" check --root "${HUMAN_DIR}/bad-bare-url-adjacent-to-code.md" --check-clickable-refs; then
+  echo "expected check to fail only for the bare URL next to unrelated inline code" >&2
+  exit 1
+fi
+
 cat >"${HUMAN_DIR}/bad-human-raw-math.md" <<'MD'
 The transition a -> b has scale m^2.
 MD
