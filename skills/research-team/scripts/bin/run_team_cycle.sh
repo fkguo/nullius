@@ -161,6 +161,19 @@ member_report_healthy() {
   return 0
 }
 
+move_aside_unhealthy_report() {
+  # Health-aware resume: a nonempty report without the required verdict
+  # headings is a failed attempt, not a completed review — reusing it would
+  # skip the seat as "completed" on garbage output on every future resume.
+  # Move it aside (never delete) so the seat re-dispatches and the failed
+  # attempt stays auditable.
+  local member="${1:-}" path="${2:-}"
+  local backup
+  backup="${path}.unhealthy.$(date -u +%Y%m%dT%H%M%SZ)"
+  mv -f -- "${path}" "${backup}"
+  echo "[resume] ${member}: prior report failed the verdict health check; moved aside to ${backup}; re-dispatching"
+}
+
 fail_host_native_shell_runner() {
   local member="${1:-member}"
   local allowed="codex|claude"
@@ -2668,7 +2681,7 @@ if [[ "${REVIEW_ACCESS_MODE}" == "full_access" ]]; then
     done
   }
 
-  if [[ "${RESUME}" -eq 1 && -s "${member_a_out}" && -s "${member_a_evidence}" ]]; then
+  if [[ "${RESUME}" -eq 1 && -s "${member_a_out}" && -s "${member_a_evidence}" ]] && member_report_healthy "${member_a_out}"; then
     echo "[resume] member-a: using existing report+evidence: ${member_a_out}"
     cycle_state_update "member_a" "skipped" "running" ""
     # Recover workspace ID from the prior audit log so the gate's provenance check
@@ -2691,6 +2704,9 @@ except Exception:
       [[ -n "${_prior_ws_a}" ]] && MEMBER_A_WORKSPACE_ID="${_prior_ws_a}"
     fi
   else
+    if [[ "${RESUME}" -eq 1 && -s "${member_a_out}" ]] && ! member_report_healthy "${member_a_out}"; then
+      move_aside_unhealthy_report "member-a" "${member_a_out}"
+    fi
     deny_other_outputs "member_a" "member_b"
     cycle_state_update "member_a" "started" "running" ""
     set +e
@@ -2715,7 +2731,7 @@ except Exception:
     cycle_state_update "member_a" "done" "running" ""
   fi
 
-  if [[ "${RESUME}" -eq 1 && -s "${member_b_out}" && -s "${member_b_evidence}" ]]; then
+  if [[ "${RESUME}" -eq 1 && -s "${member_b_out}" && -s "${member_b_evidence}" ]] && member_report_healthy "${member_b_out}"; then
     echo "[resume] member-b: using existing report+evidence: ${member_b_out}"
     cycle_state_update "member_b" "skipped" "running" ""
     # Recover workspace ID from the prior audit log (same reason as member_a above).
@@ -2737,6 +2753,9 @@ except Exception:
       [[ -n "${_prior_ws_b}" ]] && MEMBER_B_WORKSPACE_ID="${_prior_ws_b}"
     fi
   else
+    if [[ "${RESUME}" -eq 1 && -s "${member_b_out}" ]] && ! member_report_healthy "${member_b_out}"; then
+      move_aside_unhealthy_report "member-b" "${member_b_out}"
+    fi
     deny_other_outputs "member_b" "member_a"
     cycle_state_update "member_b" "started" "running" ""
     set +e
@@ -2764,10 +2783,13 @@ except Exception:
   restore_outputs
 else
   # packet_only: run Member A + Member B in parallel (independent runners).
-  if [[ "${RESUME}" -eq 1 && -s "${member_a_out}" ]]; then
+  if [[ "${RESUME}" -eq 1 && -s "${member_a_out}" ]] && member_report_healthy "${member_a_out}"; then
     echo "[resume] member-a: using existing report: ${member_a_out}"
     cycle_state_update "member_a" "skipped" "running" ""
   else
+    if [[ "${RESUME}" -eq 1 && -s "${member_a_out}" ]]; then
+      move_aside_unhealthy_report "member-a" "${member_a_out}"
+    fi
     cycle_state_update "member_a" "started" "running" ""
     RESEARCH_TEAM_ATTEMPT_LOG_DIR="${attempt_logs_dir}" \
     RESEARCH_TEAM_ATTEMPT_LOG_PREFIX="${member_a_attempt_prefix}" \
@@ -2775,10 +2797,13 @@ else
     pid_a=$!
   fi
 
-  if [[ "${RESUME}" -eq 1 && -s "${member_b_out}" ]]; then
+  if [[ "${RESUME}" -eq 1 && -s "${member_b_out}" ]] && member_report_healthy "${member_b_out}"; then
     echo "[resume] member-b: using existing report: ${member_b_out}"
     cycle_state_update "member_b" "skipped" "running" ""
   else
+    if [[ "${RESUME}" -eq 1 && -s "${member_b_out}" ]]; then
+      move_aside_unhealthy_report "member-b" "${member_b_out}"
+    fi
     cycle_state_update "member_b" "started" "running" ""
     RESEARCH_TEAM_ATTEMPT_LOG_DIR="${attempt_logs_dir}" \
     RESEARCH_TEAM_ATTEMPT_LOG_PREFIX="${member_b_attempt_prefix}" \

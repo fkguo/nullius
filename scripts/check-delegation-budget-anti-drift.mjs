@@ -316,6 +316,7 @@ requireAll(TEMPLATE_FILE, read(TEMPLATE_FILE), [
   ['heap limit field', '"heap_limit_mb"'],
   ['independence-requirement block note', '"_independence_requirement_note"'],
   ['retry-of block note', '"_retry_of_note"'],
+  ['delegation-tiers note', '"_delegation_tiers_note"'],
 ]);
 
 // Config template keeps the gate discoverable.
@@ -338,6 +339,12 @@ requireAll(TEAM_SKILL_FILE, read(TEAM_SKILL_FILE), [
   ['max attempts field', '`max_attempts`'],
   ['scope negative list field', '`scope_negative_list`'],
   ['peak memory field', '`peak_memory_estimate`'],
+  ['delegation weight tiers heading', 'Delegation weight tiers'],
+  ['risk-anchored tier boundary', 'when in doubt, full tier'],
+  ['light-tier ledger form', 'append-only line in `team/delegations/LEDGER.md`'],
+  ['required-flag full-tier semantics', '**full-tier** delegation is expected there'],
+  ['stall clock counting basis', 'counts scientific objects, not run types'],
+  ['stall root-migration immunity', 'migrating packet cycles into a different run root does not reset it'],
   ['independence-requirement block', '`independence_requirement`'],
   ['joint-satisfiability discipline', 'joint satisfiability'],
   ['routes execution model', '`routes_execution`'],
