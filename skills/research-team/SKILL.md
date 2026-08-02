@@ -401,10 +401,10 @@ holds only the contracts of **active** delegations; when a delegation
 completes, archive its contract with the run or review record it governed,
 so a stale contract can never satisfy `required=true` in place of the
 missing new one. And set `required=true` per milestone that actually
-dispatches delegations (or pass `--require` when invoking the gate script
-directly), not as a standing flag — a
+dispatches **full-tier** delegations (or pass `--require` when invoking the
+gate script directly), not as a standing flag — a
 standing `true` over a clean directory rejects every cycle of a milestone
-that delegates nothing.
+that delegates nothing or delegates only light-tier work.
 
 When a budget is exhausted, the workstream **wraps up from the atomic
 results already flushed to disk — it never voids the batch** — and abandoned

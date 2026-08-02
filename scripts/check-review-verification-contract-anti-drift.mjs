@@ -100,7 +100,8 @@ requireAll(RUNNER_FILE, read(RUNNER_FILE), [
   ['unhealthy move-aside helper', 'move_aside_unhealthy_report() {'],
   ['unreadable-report guard (indeterminate, not unhealthy)', 'guard_unreadable_report() {'],
   ['crash-resume permission repair', 'Crash-resume repair'],
-  ['same-second backup uniquification', 'while [[ -e "${backup}" ]]'],
+  ['same-second backup uniquification (dangling-symlink aware)', 'while [[ -e "${backup}" || -L "${backup}" ]]'],
+  ['packet-only preflight before background launch', 'Preflight both seats'],
   ['full-access member-a health-gated resume', 'if [[ "${RESUME}" -eq 1 && -s "${member_a_out}" && -s "${member_a_evidence}" ]] && member_report_healthy "${member_a_out}"; then'],
   ['full-access member-b health-gated resume', 'if [[ "${RESUME}" -eq 1 && -s "${member_b_out}" && -s "${member_b_evidence}" ]] && member_report_healthy "${member_b_out}"; then'],
   ['packet-only member-a health-gated resume', 'if [[ "${RESUME}" -eq 1 && -s "${member_a_out}" ]] && member_report_healthy "${member_a_out}"; then'],
@@ -111,7 +112,7 @@ requireAll(TAG_TOOL_FILE, read(TAG_TOOL_FILE), [
   ['verdict heading criterion', 'VERDICT_HEADING_RE'],
   ['round-advance guard suggestion', 'prefer resuming the SAME tag'],
   ['strict refuse flag', '--refuse-unverdicted'],
-  ['unreadable-is-indeterminate status', "'indeterminate'"],
+  ['unreadable-is-indeterminate status', '"indeterminate" if unreadable else "no_verdict"'],
 ]);
 requireAll(RESUME_TESTS_FILE, read(RESUME_TESTS_FILE), [
   ['four health-gated conditions pinned', 'test_all_four_member_resume_conditions_are_health_gated'],
@@ -119,7 +120,10 @@ requireAll(RESUME_TESTS_FILE, read(RESUME_TESTS_FILE), [
   ['never-delete structural control', 'test_move_aside_never_deletes'],
   ['same-second backup coexistence control', 'test_move_aside_same_second_backups_coexist'],
   ['unreadable-guard behavioral control', 'test_guard_refuses_unreadable_report'],
+  ['dangling-symlink refusal control', 'test_guard_refuses_dangling_report_symlink'],
+  ['quiet-predicate control', 'test_health_check_is_quiet_on_unreadable'],
   ['guard wiring control', 'test_unreadable_guard_wired_before_every_move_aside'],
+  ['packet-only preflight ordering control', 'test_packet_only_guards_run_before_any_background_launch'],
   ['crash-resume permission-repair control', 'test_full_access_resume_restores_permissions_first'],
   ['sidecar exemption control', 'test_sidecar_reuse_stays_on_nonemptiness'],
 ]);
