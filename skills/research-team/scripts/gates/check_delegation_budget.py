@@ -50,6 +50,56 @@ delegated workstream, default location `<project_root>/team/delegations/`):
         plus, at the contract top level, the explicit eligibility declaration
         launches_full_scale_computation: false (absent fails closed; true is
         contradictory with the declared-cap form)
+  - independence_requirement — OPTIONAL block, mandatory by prose whenever
+      the acceptance criterion for the delegated work demands two or more
+      independent routes / confirmations (blind re-derivations, independent
+      recomputation). Joint satisfiability is the point: a delegation whose
+      acceptance target requires N independent routes while its own budget
+      admits fewer is self-defeating by construction — the budget, not the
+      science, then dictates the "not converged" verdict, and the same work
+      is re-dispatched to hit the same wall.
+        routes_required: independent routes the acceptance criterion needs
+        routes_budgeted_here: routes THIS delegation's budget is sized for
+        per_route_seconds_floor: declared minimum wall-clock seconds one
+               independent route needs
+        routes_execution: "sequential" (the conservative default when
+               absent) or "concurrent"; unknown values fail closed
+        remaining_routes_source: one line naming where the routes beyond
+               routes_budgeted_here come from — required exactly when
+               routes_budgeted_here < routes_required, forbidden otherwise
+      Machine cross-check: sequential routes stack their floors, so
+      time_box.seconds must fit routes_budgeted_here *
+      per_route_seconds_floor; concurrent routes share the wall clock, so
+      it must fit at least one full per_route_seconds_floor.
+      An explicit null block is rejected, not treated as absent.
+  - retry_of — OPTIONAL block, mandatory by prose on any contract or
+      amendment that re-dispatches work whose previous contract ended by
+      budget exhaustion. Re-dispatching after a budget death with an
+      unchanged budget and no measured shortfall is the recorded
+      anti-pattern this block closes: each identical attempt dies on the
+      same wall and contributes nothing. One measured re-budget decision —
+      never a chain of identical exhaustions.
+        supersedes: one line naming the previous contract revision /
+               delegation id this retry follows
+        exhausted_budget: which budget died — one of time_box_seconds,
+               max_attempts, heap_limit_mb, unit_ceiling, other
+        measured_requirement: the MEASURED need in the exhausted dimension
+               (finite positive number for time_box_seconds / heap_limit_mb,
+               in the same units; for max_attempts a positive INTEGER —
+               attempt counts are discrete — or a one-line value stating the
+               approach change of a retry that keeps the cap; a number or
+               one line for unit_ceiling / other)
+        adjustment_note: one line deriving THIS contract's budget from the
+               measurement (for exhausted max_attempts: what changed in the
+               approach — more identical attempts is not an adjustment)
+      Machine cross-check: where the contract carries the matching budget
+      field (time_box.seconds, peak_memory_estimate.heap_limit_mb,
+      max_attempts), the new budget must STRICTLY EXCEED a numeric measured
+      requirement — a budget-boundary death measures a censored lower bound
+      (the run was cut at the boundary with work remaining), so the true
+      need lies above the measurement and equality is the exhausted number
+      with a stamp on it. An explicit null block is rejected, not treated
+      as absent.
 
 Falsification labels (all fail-closed):
   NO_CONTRACTS_FOUND, UNREADABLE_CONTRACT, UNSUPPORTED_CONTRACT_VERSION,
@@ -62,7 +112,11 @@ Falsification labels (all fail-closed):
   MISSING_DRY_RUN_PEAK_RSS, MISSING_HEAP_LIMIT,
   HEAP_LIMIT_BELOW_DRY_RUN_PEAK, INVALID_MEMORY_MODE,
   MISSING_DECLARED_CAP_BASIS, CONTRADICTORY_MEMORY_ESTIMATE,
-  MISSING_LAUNCH_DECLARATION, PLACEHOLDER_VALUE
+  MISSING_LAUNCH_DECLARATION, MISSING_INDEPENDENCE_FIELDS,
+  INDEPENDENCE_BUDGET_UNSATISFIABLE, MISSING_REMAINING_ROUTES_SOURCE,
+  CONTRADICTORY_INDEPENDENCE_FIELDS, MISSING_RETRY_FIELDS,
+  INVALID_RETRY_DIMENSION, RETRY_BUDGET_BELOW_MEASURED_NEED,
+  PLACEHOLDER_VALUE
 
 Strictness notes (each closes a fail-open hole):
   - `contract_version` must be the exact integer 1: True / 1.0 do not pass.
@@ -343,6 +397,32 @@ def _is_positive_int(value: Any) -> bool:
     return isinstance(value, int) and not isinstance(value, bool) and value > 0
 
 
+def _is_nonempty_single_line(value: Any) -> bool:
+    return isinstance(value, str) and bool(value.strip()) and value.splitlines() == [value]
+
+
+def _decimal_str(value: Any) -> str:
+    """Format a numeric field for a diagnostic without tripping Python's
+    int->str digit-conversion limit: a contract carrying an enormous (but
+    valid JSON) integer must fail with its falsification label — the
+    diagnostic itself raising ValueError would crash the gate into
+    input_error instead."""
+    if isinstance(value, int) and not isinstance(value, bool):
+        try:
+            return str(value)
+        except ValueError:
+            # Float log10 rounds at decimal boundaries (10**n - 1 would read
+            # as n+1 digits); correct exactly against integer powers.
+            magnitude = abs(value)
+            digits = int(math.log10(magnitude)) + 1
+            if 10 ** (digits - 1) > magnitude:
+                digits -= 1
+            elif 10**digits <= magnitude:
+                digits += 1
+            return f"a {'negative ' if value < 0 else ''}{digits}-digit integer"
+    return repr(value)
+
+
 def _check_required_string(
     contract: dict[str, Any], key: str, label: str, issues: list[str]
 ) -> None:
@@ -594,6 +674,218 @@ def _validate_contract(contract: Any) -> list[str]:
                 f'(measured form) or the exact string "declared_cap" (got {mode!r}); '
                 "unknown modes fail closed"
             )
+
+    # independence_requirement (optional block; mandatory by prose whenever
+    # the acceptance criterion for the delegated work demands two or more
+    # independent routes/confirmations). Joint satisfiability is the point:
+    # an acceptance target of N independent routes frozen over a budget that
+    # admits fewer makes the criterion unsatisfiable by construction — the
+    # budget, not the science, then dictates the "not converged" verdict,
+    # and the same work is re-dispatched to hit the same wall.
+    if "independence_requirement" in contract:
+        indep = contract["independence_requirement"]
+        if not isinstance(indep, dict):
+            issues.append(
+                "MISSING_INDEPENDENCE_FIELDS: `independence_requirement` must be an object "
+                "with `routes_required`, `routes_budgeted_here`, and `per_route_seconds_floor` "
+                f"(got {indep!r}); an explicit null is not 'absent' — omit the key entirely "
+                "when the acceptance criterion needs no independent routes"
+            )
+        else:
+            routes_required = indep.get("routes_required")
+            routes_budgeted = indep.get("routes_budgeted_here")
+            floor_seconds = indep.get("per_route_seconds_floor")
+            execution = indep.get("routes_execution", "sequential")
+            if not _is_positive_int(routes_required):
+                issues.append(
+                    "MISSING_INDEPENDENCE_FIELDS: `independence_requirement.routes_required` "
+                    "must be a positive integer — the independent routes the acceptance "
+                    f"criterion needs (got {_decimal_str(routes_required)})"
+                )
+            if not _is_positive_int(routes_budgeted):
+                issues.append(
+                    "MISSING_INDEPENDENCE_FIELDS: `independence_requirement.routes_budgeted_here` "
+                    "must be a positive integer — the routes THIS delegation's budget is sized "
+                    f"for (got {_decimal_str(routes_budgeted)})"
+                )
+            if not _is_positive_int(floor_seconds):
+                issues.append(
+                    "MISSING_INDEPENDENCE_FIELDS: `independence_requirement.per_route_seconds_floor` "
+                    "must be a positive integer — the declared minimum wall-clock seconds one "
+                    f"independent route needs (got {_decimal_str(floor_seconds)})"
+                )
+            if not isinstance(execution, str) or execution not in ("sequential", "concurrent"):
+                # The execution model decides the satisfiability arithmetic, so
+                # an unknown value cannot default to either form.
+                issues.append(
+                    "MISSING_INDEPENDENCE_FIELDS: `independence_requirement.routes_execution` "
+                    'must be absent (sequential default), "sequential", or "concurrent" '
+                    f"(got {execution!r}); unknown execution models fail closed"
+                )
+                execution = None
+            seconds = time_box.get("seconds") if isinstance(time_box, dict) else None
+            if (
+                execution is not None
+                and _is_positive_int(routes_budgeted)
+                and _is_positive_int(floor_seconds)
+                and _is_positive_int(seconds)
+            ):
+                # Sequential routes stack their floors inside the wall clock;
+                # concurrent routes share it, so the box must fit at least one
+                # full per-route floor.
+                required_seconds = (
+                    routes_budgeted * floor_seconds if execution == "sequential" else floor_seconds
+                )
+                if seconds < required_seconds:
+                    issues.append(
+                        "INDEPENDENCE_BUDGET_UNSATISFIABLE: `time_box.seconds` "
+                        f"({_decimal_str(seconds)}) cannot fit the declared routes — "
+                        f"{execution} execution of {_decimal_str(routes_budgeted)} route(s) at "
+                        f"a per-route floor of {_decimal_str(floor_seconds)} s needs at least "
+                        f"{_decimal_str(required_seconds)} s; a budget that cannot fit the "
+                        "routes it declares makes the acceptance criterion unsatisfiable by "
+                        "construction — enlarge the time box, declare the true execution "
+                        "model, or split the routes across delegations and name the remainder "
+                        "in `remaining_routes_source`"
+                    )
+            if _is_positive_int(routes_required) and _is_positive_int(routes_budgeted):
+                source = indep.get("remaining_routes_source")
+                if routes_budgeted < routes_required:
+                    if not _is_nonempty_single_line(source):
+                        issues.append(
+                            "MISSING_REMAINING_ROUTES_SOURCE: `independence_requirement` budgets "
+                            f"{_decimal_str(routes_budgeted)} of {_decimal_str(routes_required)} "
+                            "required routes; `remaining_routes_source` must be a non-empty "
+                            "single line naming the delegation(s) or planned dispatch that "
+                            "covers the rest — an unnamed remainder is the "
+                            "unsatisfiable-acceptance pattern in disguise"
+                        )
+                elif "remaining_routes_source" in indep:
+                    issues.append(
+                        "CONTRADICTORY_INDEPENDENCE_FIELDS: `remaining_routes_source` is present "
+                        "but `routes_budgeted_here` already covers `routes_required` — remove "
+                        "the field, or lower the budgeted count to what this delegation "
+                        "actually funds"
+                    )
+
+    # retry_of (optional block; mandatory by prose on any contract or
+    # amendment that re-dispatches work whose previous contract ended by
+    # budget exhaustion): the one measured re-budget decision. Re-dispatching
+    # after a budget death with an unchanged budget and no measured shortfall
+    # is the recorded anti-pattern this block closes — each identical attempt
+    # dies on the same wall and contributes nothing.
+    if "retry_of" in contract:
+        retry = contract["retry_of"]
+        if not isinstance(retry, dict):
+            issues.append(
+                "MISSING_RETRY_FIELDS: `retry_of` must be an object with `supersedes`, "
+                "`exhausted_budget`, `measured_requirement`, and `adjustment_note` "
+                f"(got {retry!r}); an explicit null is not 'absent' — omit the key entirely "
+                "when this contract does not follow a budget exhaustion"
+            )
+        else:
+            if not _is_nonempty_single_line(retry.get("supersedes")):
+                issues.append(
+                    "MISSING_RETRY_FIELDS: `retry_of.supersedes` must be a non-empty single "
+                    "line naming the previous contract revision / delegation id this retry "
+                    f"follows (got {retry.get('supersedes')!r})"
+                )
+            dimension = retry.get("exhausted_budget")
+            known_dimensions = (
+                "time_box_seconds",
+                "max_attempts",
+                "heap_limit_mb",
+                "unit_ceiling",
+                "other",
+            )
+            if not isinstance(dimension, str) or dimension not in known_dimensions:
+                issues.append(
+                    "INVALID_RETRY_DIMENSION: `retry_of.exhausted_budget` must be one of "
+                    f"{', '.join(known_dimensions)} (got {dimension!r}); unknown dimensions "
+                    "fail closed"
+                )
+                dimension = None
+            measured = retry.get("measured_requirement")
+            if dimension in ("time_box_seconds", "heap_limit_mb"):
+                if not _is_finite_positive_number(measured):
+                    issues.append(
+                        "MISSING_RETRY_FIELDS: for `exhausted_budget` "
+                        f'"{dimension}", `retry_of.measured_requirement` must be a finite '
+                        "positive number in the same units as the exhausted budget — the "
+                        f"measured need, not a guess (got {_decimal_str(measured)})"
+                    )
+            elif dimension == "max_attempts":
+                # Attempt counts are discrete: a fractional "measurement"
+                # (e.g. one epsilon below the kept cap) would defeat the
+                # strict-excess cross-check below. Numeric means positive
+                # integer here; the qualitative one-line form states a
+                # changed approach instead.
+                if not (_is_positive_int(measured) or _is_nonempty_single_line(measured)):
+                    issues.append(
+                        'MISSING_RETRY_FIELDS: for `exhausted_budget` "max_attempts", '
+                        "`retry_of.measured_requirement` must be a positive integer "
+                        "(attempt counts are discrete) or a non-empty single line stating "
+                        f"the approach change (got {_decimal_str(measured)})"
+                    )
+            else:
+                # The union requirement every known dimension needs — checked
+                # even while the dimension itself is invalid, so a single
+                # round reports every field defect instead of serializing
+                # them across fix rounds.
+                if not (
+                    _is_finite_positive_number(measured) or _is_nonempty_single_line(measured)
+                ):
+                    issues.append(
+                        "MISSING_RETRY_FIELDS: `retry_of.measured_requirement` must be a "
+                        "finite positive number or a non-empty single line stating the "
+                        f"measured shortfall (got {_decimal_str(measured)})"
+                    )
+            if not _is_nonempty_single_line(retry.get("adjustment_note")):
+                issues.append(
+                    "MISSING_RETRY_FIELDS: `retry_of.adjustment_note` must be a non-empty "
+                    "single line deriving THIS contract's budget from the measurement "
+                    f"(got {retry.get('adjustment_note')!r})"
+                )
+            # Cross-checks: where the contract carries the matching budget
+            # field, the new budget must STRICTLY EXCEED a numeric measured
+            # requirement. A budget-boundary death measures a censored lower
+            # bound — the run was cut at the boundary with work remaining, so
+            # the true need lies above the measurement and equality is the
+            # exhausted number with a stamp on it.
+            if dimension == "time_box_seconds" and _is_finite_positive_number(measured):
+                seconds = time_box.get("seconds") if isinstance(time_box, dict) else None
+                if _is_positive_int(seconds) and seconds <= measured:
+                    issues.append(
+                        "RETRY_BUDGET_BELOW_MEASURED_NEED: `time_box.seconds` "
+                        f"({_decimal_str(seconds)}) does not strictly exceed the measured "
+                        f"requirement ({_decimal_str(measured)}) that exhausted the previous "
+                        "contract — a boundary death measures a censored lower bound, so the "
+                        "retry budget derives from the measurement plus margin, never a "
+                        "repeat of the exhausted number"
+                    )
+            if dimension == "heap_limit_mb" and _is_finite_positive_number(measured):
+                heap_value = mem.get("heap_limit_mb") if isinstance(mem, dict) else None
+                if _is_finite_positive_number(heap_value) and heap_value <= measured:
+                    issues.append(
+                        "RETRY_BUDGET_BELOW_MEASURED_NEED: `peak_memory_estimate.heap_limit_mb` "
+                        f"({_decimal_str(heap_value)}) does not strictly exceed the measured "
+                        f"requirement ({_decimal_str(measured)}) that exhausted the previous "
+                        "contract — a boundary death measures a censored lower bound, so the "
+                        "retry budget derives from the measurement plus margin, never a "
+                        "repeat of the exhausted number"
+                    )
+            if dimension == "max_attempts" and _is_positive_int(measured):
+                attempts_value = contract.get("max_attempts")
+                if _is_positive_int(attempts_value) and attempts_value <= measured:
+                    issues.append(
+                        "RETRY_BUDGET_BELOW_MEASURED_NEED: `max_attempts` "
+                        f"({_decimal_str(attempts_value)}) does not strictly exceed the "
+                        f"numeric measured requirement ({_decimal_str(measured)}) that "
+                        "exhausted the previous contract — raising nothing while citing the "
+                        "exhausted count is not an adjustment; for a changed-approach retry "
+                        "that keeps the cap, state the approach change as a one-line "
+                        "`measured_requirement` instead of a number"
+                    )
 
     # Whole-contract placeholder sweep, optional fields included.
     _scan_placeholders(contract, "", issues)
