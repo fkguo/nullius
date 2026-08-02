@@ -218,14 +218,18 @@ describe('store substrate', () => {
     mkdirSync(storeRoot, { recursive: true });
 
     const inventory = (): Map<string, string> => {
+      // Entry-typed inventory: directories are recorded too (an escaped
+      // EMPTY directory outside the store root must fail containment, not
+      // slip past a files-only walk).
       const seen = new Map<string, string>();
       const walk = (dir: string): void => {
         for (const entry of readdirSync(dir, { withFileTypes: true })) {
           const fullPath = resolve(dir, entry.name);
+          const relPath = fullPath.slice(projectRoot.length + 1).split('\\').join('/');
           if (entry.isDirectory()) {
+            seen.set(`${relPath}/`, 'dir');
             walk(fullPath);
           } else {
-            const relPath = fullPath.slice(projectRoot.length + 1).split('\\').join('/');
             seen.set(relPath, createHash('sha256').update(readFileSync(fullPath)).digest('hex'));
           }
         }
@@ -256,10 +260,14 @@ describe('store substrate', () => {
     for (const relPath of newPaths) {
       expect(relPath.startsWith(storePrefix), `write escaped the store root: ${relPath}`).toBe(true);
     }
-    for (const name of frontDoorFiles) {
-      expect(after.get(name), `front-door file changed: ${name}`).toBe(before.get(name));
+    // EVERY pre-existing entry — not a hand-maintained list — must survive
+    // byte-identical (files) or in place (directories) outside the store
+    // root; deletions are caught the same way. Inside the store root the
+    // engine may legitimately rewrite its own records.
+    for (const [relPath, digest] of before.entries()) {
+      if (relPath.startsWith(storePrefix)) continue;
+      expect(after.get(relPath), `pre-existing entry changed or vanished: ${relPath}`).toBe(digest);
     }
-    expect(after.get('artifacts/runs/README.md')).toBe(before.get('artifacts/runs/README.md'));
     for (const relPath of after.keys()) {
       expect(/\.lck$|\.tmp(?:$|\.)/.test(relPath), `lock/temp residue: ${relPath}`).toBe(false);
     }

@@ -59,27 +59,38 @@ def _write_audit(path: Path, *, tc_id: str, workspace: str) -> Path:
 
 
 def test_skip_when_gate_disabled(tmp_path: Path) -> None:
+    """The evidence is deliberately CONTAMINATED: rc 0 here proves the gate
+    was skipped, not that it ran and found nothing — a broken skip switch
+    would surface as rc 3."""
     mod = _load_gate_module()
     root, notes = _write_project(tmp_path, features={"clean_room_gate": False})
-    member_a = _write_evidence(root / "member_a.json", {})
+    member_a = _write_evidence(
+        root / "member_a.json",
+        {"files_read": [{"path": "team/runs/T123/member_b/report.md"}]},
+    )
     member_b = _write_evidence(root / "member_b.json", {})
 
     code = _run_main_with_argv(
         mod,
-        ["check_clean_room.py", "--notes", str(notes), "--member-a", str(member_a), "--member-b", str(member_b)],
+        ["check_clean_room.py", "--notes", str(notes), "--member-a", str(member_a), "--member-b", str(member_b), "--safe-tag", "T123"],
     )
     assert code == 0
 
 
 def test_skip_when_not_full_access(tmp_path: Path) -> None:
+    """Contaminated evidence again: packet_only mode must SKIP (rc 0), and a
+    silent break of the access-mode switch would show up as rc 3."""
     mod = _load_gate_module()
     root, notes = _write_project(tmp_path, review_access_mode="packet_only")
-    member_a = _write_evidence(root / "member_a.json", {})
+    member_a = _write_evidence(
+        root / "member_a.json",
+        {"files_read": [{"path": "team/runs/T123/member_b/report.md"}]},
+    )
     member_b = _write_evidence(root / "member_b.json", {})
 
     code = _run_main_with_argv(
         mod,
-        ["check_clean_room.py", "--notes", str(notes), "--member-a", str(member_a), "--member-b", str(member_b)],
+        ["check_clean_room.py", "--notes", str(notes), "--member-a", str(member_a), "--member-b", str(member_b), "--safe-tag", "T123"],
     )
     assert code == 0
 

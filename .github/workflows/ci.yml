@@ -194,6 +194,27 @@ jobs:
       - name: Python tests (delegation-budget gate behavior)
         run: python -m pytest skills/research-team/tests/test_delegation_budget_gate.py -q
 
+      - name: Python tests (ported gate and fixer characterization locks)
+        run: |
+          python -m pytest \
+            skills/research-team/tests/test_check_clean_room.py \
+            skills/research-team/tests/test_check_markdown_math_portability.py \
+            skills/research-team/tests/test_check_research_plan.py \
+            skills/research-team/tests/test_check_tex_draft_preflight.py \
+            skills/research-team/tests/test_fix_markdown_double_backslash_math.py \
+            skills/research-team/tests/test_fix_markdown_latex_macros.py \
+            skills/research-team/tests/test_fix_markdown_math_hygiene.py \
+            skills/research-team/tests/test_export_paper_bundle.py \
+            skills/review-swarm/tests/test_review_contract.py \
+            -q
+
+      - name: Python tests (health-aware resume and round-advance guard)
+        run: |
+          python -m pytest \
+            skills/research-team/tests/test_health_aware_resume.py \
+            skills/research-team/tests/test_next_team_tag_verdict_guard.py \
+            -q
+
       - name: Python tests (convergence gate machine-verdict contract)
         run: python -m pytest skills/research-team/tests/test_convergence_gate_json.py -q
 

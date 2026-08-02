@@ -580,13 +580,17 @@ export async function runPreparedManifest(
           ? `step '${step.id}' exited with code ${output.status}`
           : `step '${step.id}' did not produce expected outputs: ${missingOutputs.map(filePath => toPosixRelative(prepared.runDir, filePath)).join(', ')}`);
       status.errors.push(failureReason);
-      writeJsonAtomic(statusPath, status);
       if (prepared.onFailure === 'continue') {
-        // on_failure=continue: record the failure and keep executing steps
-        // whose dependencies all completed (their dependents skip); the run
-        // still ends failed after the loop.
+        // on_failure=continue: persist the recorded failure and keep
+        // executing steps whose dependencies all completed (their
+        // dependents skip); the run still ends failed after the loop.
+        writeJsonAtomic(statusPath, status);
         continue;
       }
+      // Fail-fast keeps the single terminal write: the failed step, the
+      // failed run status, and completed_at land in ONE atomic status
+      // write inside finalizeFailedRun — a crash or concurrent reader must
+      // never observe a failed step under a still-running run.
       return finalizeFailedRun(failureReason, step.id);
     }
     statusStep.status = 'completed';
