@@ -41,6 +41,7 @@ Use `research-team` when you want a project workflow with:
 - **Cross-check resolution honesty (mandatory)**: a cross-check whose tolerance/resolution is coarser than the discrepancy it must detect is **non-diagnostic**, not a pass. For every cross-check, record explicitly *what it cannot resolve* (e.g. an order-unity / scheme-ambiguous agreement cannot certify a finer absolute value, and cannot detect a non-variational shift smaller than its bracket). Never mark such a check "passed" for a property finer than its resolution. The same honesty applies **before** a proposed discriminator/test is executed: the proposer first computes its **discriminating power** — the expected signal against the degenerate background / confounders (a broad feature probed through a window narrower than the feature, or a smooth monotone factor compared against any smooth background, is background-degenerate). A test whose expected signal is not cleanly separable from its confounders is non-diagnostic before it runs: neither its positive nor its negative outcome may be cited as evidence, and executing it wastes budget. Reviewers check that every cited test carried this power estimate.
 - **Scope-qualified confidence (mandatory)**: every confidence label on a *computed / implemented / discretized* result ("machine-precise", "converged", "verification-grade", "exact") must carry the scale/configuration at which it was established; an unqualified label next to a headline produced at a *different* configuration is a defect, not shorthand. For a purely *symbolic / continuum / analytic* claim the qualifier is the scope itself — label it "symbolic/continuum only" (no numerical scale needed), and never let that be read as covering a discretization/implementation.
 - **Falsification gate, not agreement gate**: convergence requires, per precondition above, *the smallest test that could falsify it* plus evidence that test was actually run **at the production configuration**. Reviewer agreement on a derivation, or any check whose outcome was guaranteed before running it, does not substitute for executing the production-scale falsifiers.
+- **A process-compliance violation quarantines evidence; it never destroys computation.** When a completed computation is found to have violated a process rule — a blindness/visibility breach, a wrong workspace mode, a missing pre-registration — the produced numbers are demoted to a **quarantined lead**: excluded from seals, promotions, acceptance comparisons, and convergence votes (default not-passing), and barred from steering the redo (a candidate-hidden rerun must not see them). The computation itself is preserved under the violation record. Once a compliant rerun or re-derivation completes independently, the quarantined values serve as a post-hoc cross-check — agreement corroborates, disagreement is a tracing target. Voiding paid-for computation outright buys no additional rigor: the violation is cured by the compliant redo, while the destroyed record could still have caught a defect in it.
 - **Reference reproduction (mandatory whenever a recorded result claims to reproduce / match a published value)**: a claim that a result *reproduces / matches / agrees with* a published reference value is earned by **computing the claimed observable on a comparable state / regime / configuration and comparing to the published number numerically** — not by a qualitative "same scale / same sign" assertion and not by citing the source. Compare **term by term** where the claim is term-level (a net total can agree while individual contributions are suppressed or sign-flipped); an **order-of-magnitude same-direction discrepancy, or a sign reversal, is a finding, not convergence**. Independently: any established cross-validation must not **silently lapse** — a structurally *different-model* engine, or a check valid only in a degenerate / limit regime, is labeled as a different-model / limit-regime comparison, never presented as validation, and the absence of an apples-to-apples independent check is recorded as an explicit limitation. Routed to `numerical-reliability-gate` **G8** and the `review-swarm` reference-reproduction reviewer; the failure modes are catalogued in `research-integrity` (*Reference-reproduction fidelity*).
 - **Reproduction independence (full_access review; enforced whenever the `independent_reproduction_gate` feature is enabled — on in the shipped config template)**: an "independent reproduction" must not import / include / `using` the kernel under test, and the two members' reproduction paths must not share the same project-local module — agreement between copies of one kernel is a shared-error artifact, not a confirmation. Declare the modules under test in `independent_reproduction.kernel_modules` (a declared kernel is never allowlistable); the `check_independent_reproduction.py` gate fails closed with verdict `not_independent` (label `SHARED_KERNEL_INHERITANCE`) and emits a machine-readable `convergence_gate_result_v1` verdict — the caller does not self-judge independence. When two reproductions disagree, locate the first diverging intermediate quantity by tracing both paths; never settle a disagreement by majority vote, and never by re-running until agreement.
 - **Translation is not independence (mandatory)**: rewriting the same algorithm in another language — same mathematical representation, same discretization, same algorithmic route, line-for-line structure — reproduces the original kernel together with its conceptual errors, even though it imports nothing the import scanner could catch. Such a port is an *implementation check* (it can catch coding slips), never an *independent verification*. Independence must come from a genuinely different route — a different mathematical representation or formulation, a different algorithm or discretization, a different basis — or from an independent anchor outside both implementations, such as a published reference value. Every reproduction record therefore **declares its methodological difference** — one or two sentences naming what differs (representation / algorithm / discretization / basis) from the path under test — and the convergence reviewer checks that declaration against both implementations; a reproduction whose honest declaration is "same method, different language" is recorded as an implementation check and does not count toward the independent-verification requirement.
@@ -91,8 +92,8 @@ Placement rules complete the picture:
   loop until it lands; entering a second review round with no recorded probe is the loop's own
   fail-closed refusal condition.
 - **Reviews enumerate; they do not serialize.** A reviewer reports every finding it can establish in the round, severity-graded. Stopping at the first decisive counterexample turns an N-finding backlog into N full rounds; the existing leader early-stop (two CHALLENGED step verdicts) remains the only sanctioned early exit, because it abandons a doomed round rather than truncating a viable one.
-- **Reviewer unavailability is a dispatch failure, not a review round.** When a reviewer seat cannot run — backend unavailable, credential or tooling failure, no verdict returned — the round did not happen: re-enter the **same** cycle tag with the runner's `--resume` path, or reroute that seat to a fallback runner/model. Resume reuses each seat whose prior output satisfies its mode's reuse predicate — a nonempty report, plus the nonempty evidence file for full-access seats — and re-dispatches every other seat; so when a failed seat left a partial or verdict-less report behind, move that file aside (never delete it) before resuming, or resume would skip the seat as "completed" on its garbage output (removing the report alone forces re-dispatch in every mode); a machine-side health-aware resume (reuse only reports that pass the verdict health check) is the named hardening item for this. An unavailability event never advances the round suffix and never consumes a bounded round (`bounded_rounds.max_per_tag_family`): the partially-completed run directory is the same round's record resumed in place, not a new round's packet, and an unavailability note is never a verdict record. Two consecutive unavailability events on the same seat are an environment blocker to surface to the project owner — not a license to keep opening new rounds against a dead seat, each paying full packet cost to record that nothing happened.
-- **Stall detection: process artifacts are not progress.** At every coordination moment, the coordinator asks what moved *scientifically* since the last one — a new number, derivation, figure, code capability, or an explicitly decided narrowing. If the answer over the last three consecutive runs or rounds is "only process artifacts" (contracts, reviews, adjudications, re-hashes, re-frozen documents), the work is stalled, and **another round is not an allowed response to a stall**: the coordinator must consolidate (batch everything open into one stabilized candidate), narrow the scope, re-plan the decomposition, execute the already-prepared step when the prepared-execution-first rule below names one, or put the blocking question to the project owner. Review-round counters never appear as progress in the plan's status: progress is stated in terms of the scientific object that advanced, and a status whose "next step" is only another review of the same candidate is the stall signature to look for.
+- **Reviewer unavailability is a dispatch failure, not a review round.** When a reviewer seat cannot run — backend unavailable, credential or tooling failure, no verdict returned — the round did not happen: re-enter the **same** cycle tag with the runner's `--resume` path, or reroute that seat to a fallback runner/model. Resume reuses each seat whose prior output satisfies its mode's reuse predicate — a nonempty report, plus the nonempty evidence file for full-access seats — and re-dispatches every other seat; so when a failed seat left a partial or verdict-less report behind, move that file aside (never delete it) before resuming, or resume would skip the seat as "completed" on its garbage output (removing the report alone forces re-dispatch in every mode); the runner also performs a health-aware resume for verdict-bearing member seats — a nonempty report failing the verdict health check is moved aside automatically (never deleted) and the seat re-dispatches; sidecar consultations carry no verdict contract and reuse on nonemptiness, and the manual move-aside remains the fallback on older checkouts. An unavailability event never advances the round suffix and never consumes a bounded round (`bounded_rounds.max_per_tag_family`): the partially-completed run directory is the same round's record resumed in place, not a new round's packet, and an unavailability note is never a verdict record. Two consecutive unavailability events on the same seat are an environment blocker to surface to the project owner — not a license to keep opening new rounds against a dead seat, each paying full packet cost to record that nothing happened.
+- **Stall detection: the stall clock counts scientific objects, not run types.** At every coordination moment, the coordinator asks when the last new scientific object landed — a new number, derivation, figure, code capability, or an explicitly decided narrowing — **anywhere in the project**: the clock ticks across every run root (the canonical lifecycle root, the reviewer-cycle root, and any project-specific run surface) and every run or round type together, and it resets only when such an object lands. Alternating derivation-labelled and review-labelled runs does not reset it, and migrating packet cycles into a different run root does not reset it — process artifacts (contracts, reviews, adjudications, re-hashes, re-frozen documents) are not progress wherever they are minted. Three consecutive runs or rounds without a new scientific object, counted across all roots together, is a stall, and **another round is not an allowed response to a stall**: the coordinator must consolidate (batch everything open into one stabilized candidate), narrow the scope, re-plan the decomposition, execute the already-prepared step when the prepared-execution-first rule below names one, or put the blocking question to the project owner. Review-round counters never appear as progress in the plan's status: progress is stated in terms of the scientific object that advanced, and a status whose "next step" is only another review of the same candidate is the stall signature to look for.
 - **Prepared-execution-first closure.** When a milestone's closure is blocked on exactly one already-prepared execution — the comparison, analysis, or computation is implemented and self-tested but has never been run against its real target — the next dispatch is that execution, before any new derivation, review, or design lane opens. An unexecuted prepared step is the cheapest possible scientific advance in the plan, and every round spent around it reviews a state the execution would change. The only sanctioned deferral is a named blocking gate recorded in the plan that forbids the run; then resolving that gate is the only allowed next lane. Either way the plan's next-step row states the execution or the named gate — never another review of the unchanged candidate.
 
 ## Quick Start (3 commands)
@@ -250,16 +251,42 @@ recorded here as the standing contract:
   waiting-on, artifact paths, last-heartbeat) in a gitignored scratch area is
   enough for the coordinator to poll; keep it out of the durable artifact tree.
 
-## Delegation budget contract: every delegated workstream gets explicit budgets
+## Delegation budgets and weight tiers: the record matches the risk
 
 A delegated executing agent's default drift is to refine precision
 indefinitely and to expand scope on its own initiative; a delegation without
-explicit budgets is drift by construction. So every delegated computation or
-verification workstream (a lane, a compute job, a verification pass handed to
-another agent) gets a **budget contract** written by the coordinator **before
-dispatch** — one JSON file per delegation under `team/delegations/`, from
-`assets/delegation_budget_contract_template.json`
-(`delegation_budget_contract_v1`). Required field groups, all machine-checked:
+explicit budgets is drift by construction. So every **full-tier** delegated
+computation or verification workstream (a lane, a compute job, a
+result-bearing verification pass handed to another agent — the tier rule
+below decides) gets a **budget contract** written by the coordinator
+**before dispatch** — one JSON file per delegation under
+`team/delegations/`, from `assets/delegation_budget_contract_template.json`
+(`delegation_budget_contract_v1`).
+
+**Delegation weight tiers — the packet matches the risk, not the ritual.**
+Not every dispatch pays the full pre-dispatch freeze. A delegation is
+**full-tier** — this budget contract plus the freeze-then-hash input
+discipline — exactly when it executes computation, produces a result a
+durable claim will rest on, or depends on blindness / frozen inputs for its
+evidential value. Every other dispatch — a read-only analysis, a review-only
+reading pass, a consultation — is **light-tier**: it records one
+append-only line in `team/delegations/LEDGER.md`
+(date | delegation id | seat | one-line workstream | outcome reference)
+and mints no contract file, no frozen packet, and no per-dispatch budget
+gate. The boundary is risk-anchored, not effort-anchored: anything that
+could change a recorded number or seal a claim is full-tier by definition,
+and when in doubt, full tier. Review seats are already bounded by the
+review-cycle machinery (bounded rounds, severity grading, adjudication
+dispositions); wrapping a second frozen packet around a bounded review pays
+full dispatch cost to duplicate an existing brake — the measured signature
+of that duplication is a run ledger where packet files outnumber and outweigh
+the scientific objects produced. With tiers in force,
+`delegation_budget.required=true` on a milestone asserts that at least one
+**full-tier** delegation is expected there; light-tier ledger lines never
+satisfy it, and a milestone dispatching only light-tier work leaves it
+unset.
+
+Required field groups of the full-tier contract, all machine-checked:
 
 - **`tolerance_ceiling`** — choose exactly one machine-checked stopping form,
   always with a one-line `anchor_note` stating which task requirement derives
@@ -362,8 +389,11 @@ missing any required field, still carrying an unfilled template placeholder,
 or using an unknown contract version does **not** pass. `run_team_cycle.sh`
 validates every contract present at preflight in every project stage (no
 exploration downgrade); set `delegation_budget.required=true` in the team
-config when a milestone dispatches delegated workstreams, so a run with no
-contract at all also fails (`NO_CONTRACTS_FOUND`).
+config when a milestone dispatches **full-tier** delegated workstreams
+(execution / claim-bearing results / blindness-dependent — the tier rule
+above), so a run with no full-tier contract also fails
+(`NO_CONTRACTS_FOUND`); a milestone dispatching only light-tier work leaves
+the flag unset — its ledger lines are deliberately not contracts.
 
 Directory hygiene keeps `required` meaningful: the configured delegations
 directory (`delegation_budget.delegations_dir`, scanned non-recursively)
@@ -371,10 +401,10 @@ holds only the contracts of **active** delegations; when a delegation
 completes, archive its contract with the run or review record it governed,
 so a stale contract can never satisfy `required=true` in place of the
 missing new one. And set `required=true` per milestone that actually
-dispatches delegations (or pass `--require` when invoking the gate script
-directly), not as a standing flag — a
+dispatches **full-tier** delegations (or pass `--require` when invoking the
+gate script directly), not as a standing flag — a
 standing `true` over a clean directory rejects every cycle of a milestone
-that delegates nothing.
+that delegates nothing or delegates only light-tier work.
 
 When a budget is exhausted, the workstream **wraps up from the atomic
 results already flushed to disk — it never voids the batch** — and abandoned

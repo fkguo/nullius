@@ -1,5 +1,6 @@
 {
   "_note": "Delegation budget contract (delegation_budget_contract_v1): one file per delegated computation / verification workstream, written by the coordinator BEFORE dispatch, kept under team/delegations/. A delegated executor's default drift is to refine precision indefinitely and to expand scope; a delegation without explicit budgets is drift by construction. Validation is fail-closed (check_delegation_budget.py): a missing field, an unfilled <placeholder>, or an unknown contract_version does not pass.",
+  "_delegation_tiers_note": "FULL-TIER ONLY: this contract applies to full-tier delegations — the dispatch executes computation, produces a result a durable claim will rest on, or depends on blindness/frozen inputs. Light-tier dispatches (read-only analysis, review-only reading pass, consultation) record one append-only line in team/delegations/LEDGER.md and mint no contract, no frozen packet, no per-dispatch budget gate — see 'Delegation weight tiers' in the research-team skill. Risk-anchored boundary: anything that could change a recorded number or seal a claim is full-tier; when in doubt, full tier.",
   "contract_version": 1,
   "delegation_id": "<short-stable-id>",
   "workstream": "<one line: what is delegated (the computation / verification task, its deliverable)>",

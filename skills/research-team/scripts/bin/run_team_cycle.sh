@@ -152,13 +152,53 @@ member_report_healthy() {
   if [[ -z "${path}" || ! -f "${path}" || ! -s "${path}" ]]; then
     return 1
   fi
-  if ! grep -qiE '^##[[:space:]]+Verdict[[:space:]]*$' "${path}"; then
+  if ! grep -qiE '^##[[:space:]]+Verdict[[:space:]]*$' "${path}" 2>/dev/null; then
     return 1
   fi
-  if ! grep -qiE '^##[[:space:]]+Sweep Semantics / Parameter Dependence[[:space:]]*$' "${path}"; then
+  if ! grep -qiE '^##[[:space:]]+Sweep Semantics / Parameter Dependence[[:space:]]*$' "${path}" 2>/dev/null; then
     return 1
   fi
   return 0
+}
+
+guard_unreadable_report() {
+  # An unreadable report is INDETERMINATE, not unhealthy: the health check
+  # greps the content, so a permission lock surviving an ungraceful kill
+  # (SIGKILL / OOM skips the EXIT trap that restores clean-room chmod locks)
+  # would otherwise make a completed healthy report look verdict-less and
+  # get moved aside. Never judge — and never move — a report the check
+  # could not actually read: refuse loudly instead. A dangling report
+  # symlink is equally unjudgeable (and dispatching over it would write the
+  # new report through the link to wherever it points): same loud refusal.
+  local member="${1:-}" path="${2:-}"
+  if [[ ( -e "${path}" || -L "${path}" ) && ! -r "${path}" ]]; then
+    echo "ERROR: [resume] ${member}: prior report exists but is unreadable (permission lock from an ungraceful kill, or a dangling symlink?): ${path}" >&2
+    echo "Restore read permission (chmod u+r), or move the file/symlink aside manually, then re-run with --resume." >&2
+    exit 2
+  fi
+}
+
+move_aside_unhealthy_report() {
+  # Health-aware resume: a nonempty report without the required verdict
+  # headings is a failed attempt, not a completed review — reusing it would
+  # skip the seat as "completed" on garbage output on every future resume.
+  # Move it aside (never delete) so the seat re-dispatches and the failed
+  # attempt stays auditable. The backup name is uniquified: the wall clock
+  # has second resolution, so two same-second move-asides for one seat must
+  # not overwrite each other.
+  local member="${1:-}" path="${2:-}"
+  local ts backup n
+  ts="$(date -u +%Y%m%dT%H%M%SZ)"
+  backup="${path}.unhealthy.${ts}"
+  n=1
+  # -L alongside -e: a dangling symlink occupies the name even though -e
+  # is false — mv onto it would replace the symlink.
+  while [[ -e "${backup}" || -L "${backup}" ]]; do
+    backup="${path}.unhealthy.${ts}.${n}"
+    n=$((n + 1))
+  done
+  mv -- "${path}" "${backup}"
+  echo "[resume] ${member}: prior report failed the verdict health check; moved aside to ${backup}; re-dispatching"
 }
 
 fail_host_native_shell_runner() {
@@ -2668,7 +2708,16 @@ if [[ "${REVIEW_ACCESS_MODE}" == "full_access" ]]; then
     done
   }
 
-  if [[ "${RESUME}" -eq 1 && -s "${member_a_out}" && -s "${member_a_evidence}" ]]; then
+  if [[ "${RESUME}" -eq 1 ]]; then
+    # Crash-resume repair: an ungraceful kill (SIGKILL / OOM / power loss)
+    # skips the EXIT trap, so clean-room permission locks from
+    # deny_other_outputs can survive on completed outputs. Restore before
+    # judging any report's health — the check must never call a report it
+    # cannot read unhealthy.
+    restore_outputs
+  fi
+
+  if [[ "${RESUME}" -eq 1 && -s "${member_a_out}" && -s "${member_a_evidence}" ]] && member_report_healthy "${member_a_out}"; then
     echo "[resume] member-a: using existing report+evidence: ${member_a_out}"
     cycle_state_update "member_a" "skipped" "running" ""
     # Recover workspace ID from the prior audit log so the gate's provenance check
@@ -2691,6 +2740,12 @@ except Exception:
       [[ -n "${_prior_ws_a}" ]] && MEMBER_A_WORKSPACE_ID="${_prior_ws_a}"
     fi
   else
+    if [[ "${RESUME}" -eq 1 ]] && [[ -s "${member_a_out}" || -L "${member_a_out}" ]]; then
+      guard_unreadable_report "member-a" "${member_a_out}"
+      if ! member_report_healthy "${member_a_out}"; then
+        move_aside_unhealthy_report "member-a" "${member_a_out}"
+      fi
+    fi
     deny_other_outputs "member_a" "member_b"
     cycle_state_update "member_a" "started" "running" ""
     set +e
@@ -2715,7 +2770,7 @@ except Exception:
     cycle_state_update "member_a" "done" "running" ""
   fi
 
-  if [[ "${RESUME}" -eq 1 && -s "${member_b_out}" && -s "${member_b_evidence}" ]]; then
+  if [[ "${RESUME}" -eq 1 && -s "${member_b_out}" && -s "${member_b_evidence}" ]] && member_report_healthy "${member_b_out}"; then
     echo "[resume] member-b: using existing report+evidence: ${member_b_out}"
     cycle_state_update "member_b" "skipped" "running" ""
     # Recover workspace ID from the prior audit log (same reason as member_a above).
@@ -2737,6 +2792,12 @@ except Exception:
       [[ -n "${_prior_ws_b}" ]] && MEMBER_B_WORKSPACE_ID="${_prior_ws_b}"
     fi
   else
+    if [[ "${RESUME}" -eq 1 ]] && [[ -s "${member_b_out}" || -L "${member_b_out}" ]]; then
+      guard_unreadable_report "member-b" "${member_b_out}"
+      if ! member_report_healthy "${member_b_out}"; then
+        move_aside_unhealthy_report "member-b" "${member_b_out}"
+      fi
+    fi
     deny_other_outputs "member_b" "member_a"
     cycle_state_update "member_b" "started" "running" ""
     set +e
@@ -2764,7 +2825,25 @@ except Exception:
   restore_outputs
 else
   # packet_only: run Member A + Member B in parallel (independent runners).
-  if [[ "${RESUME}" -eq 1 && -s "${member_a_out}" ]]; then
+  # Preflight both seats' resume state BEFORE launching either background
+  # runner: a guard exit after member A has been launched would orphan A's
+  # background job mid-write (the EXIT trap neither kills nor waits member
+  # jobs).
+  if [[ "${RESUME}" -eq 1 ]]; then
+    if [[ -s "${member_a_out}" || -L "${member_a_out}" ]]; then
+      guard_unreadable_report "member-a" "${member_a_out}"
+      if ! member_report_healthy "${member_a_out}"; then
+        move_aside_unhealthy_report "member-a" "${member_a_out}"
+      fi
+    fi
+    if [[ -s "${member_b_out}" || -L "${member_b_out}" ]]; then
+      guard_unreadable_report "member-b" "${member_b_out}"
+      if ! member_report_healthy "${member_b_out}"; then
+        move_aside_unhealthy_report "member-b" "${member_b_out}"
+      fi
+    fi
+  fi
+  if [[ "${RESUME}" -eq 1 && -s "${member_a_out}" ]] && member_report_healthy "${member_a_out}"; then
     echo "[resume] member-a: using existing report: ${member_a_out}"
     cycle_state_update "member_a" "skipped" "running" ""
   else
@@ -2775,7 +2854,7 @@ else
     pid_a=$!
   fi
 
-  if [[ "${RESUME}" -eq 1 && -s "${member_b_out}" ]]; then
+  if [[ "${RESUME}" -eq 1 && -s "${member_b_out}" ]] && member_report_healthy "${member_b_out}"; then
     echo "[resume] member-b: using existing report: ${member_b_out}"
     cycle_state_update "member_b" "skipped" "running" ""
   else
