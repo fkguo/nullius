@@ -75,6 +75,13 @@ requireAll(TEAM_SKILL_FILE, read(TEAM_SKILL_FILE), [
   ['degeneracy examples', 'window narrower than the feature'],
   ['neither-outcome-citable consequence', 'neither its positive nor its negative outcome may be cited'],
   ['review-side power check', 'carried this power estimate'],
+  ['unavailability-is-not-a-round bullet', 'Reviewer unavailability is a dispatch failure, not a review round'],
+  ['unavailability consumes no bounded round', 'never consumes a bounded round'],
+  ['unavailability advances no round suffix', 'never advances the round suffix'],
+  ['same-tag resume instruction', "re-enter the **same** cycle tag with the runner's `--resume` path"],
+  ['garbage-report move-aside instruction', 'move that file aside (never delete it) before resuming'],
+  ['health-aware resume named hardening', 'health-aware resume'],
+  ['repeated-unavailability escalation', 'environment blocker to surface to the project owner'],
 ]);
 
 // 2. review-swarm: the general recomputation reviewer role.

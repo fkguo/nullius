@@ -328,6 +328,334 @@ def test_heap_limit_below_dry_run_peak_fails(tmp_path: Path) -> None:
     _assert_fails_with(tmp_path, contract, "HEAP_LIMIT_BELOW_DRY_RUN_PEAK")
 
 
+# ------------------- independence_requirement (joint satisfiability, L-block)
+
+
+def _independence_contract(**overrides) -> dict:
+    contract = _complete_contract()
+    contract["independence_requirement"] = {
+        "routes_required": 2,
+        "routes_budgeted_here": 2,
+        "per_route_seconds_floor": 1800,
+        **overrides,
+    }
+    return contract
+
+
+def test_independence_requirement_satisfiable_passes(tmp_path: Path) -> None:
+    """Two routes at an 1800 s floor fit the 7200 s time box."""
+    proj = _make_project(tmp_path, contracts={"lane-scan-01.json": _independence_contract()})
+    proc, verdict = _run_gate(proj)
+    assert proc.returncode == 0, proc.stderr
+    assert verdict is not None and verdict["status"] == "pass"
+
+
+def test_independence_budget_unsatisfiable_fails(tmp_path: Path) -> None:
+    """An acceptance target of 2 routes over a box that fits fewer fails at freeze."""
+    contract = _independence_contract(per_route_seconds_floor=4000)
+    _assert_fails_with(tmp_path, contract, "INDEPENDENCE_BUDGET_UNSATISFIABLE")
+
+
+def test_independence_partial_routes_without_source_fails(tmp_path: Path) -> None:
+    contract = _independence_contract(routes_budgeted_here=1)
+    _assert_fails_with(tmp_path, contract, "MISSING_REMAINING_ROUTES_SOURCE")
+
+
+def test_independence_partial_routes_with_source_passes(tmp_path: Path) -> None:
+    contract = _independence_contract(
+        routes_budgeted_here=1,
+        remaining_routes_source="second route runs as its own delegation with a different method family",
+    )
+    proj = _make_project(tmp_path, contracts={"lane-scan-01.json": contract})
+    proc, verdict = _run_gate(proj)
+    assert proc.returncode == 0, proc.stderr
+    assert verdict is not None and verdict["status"] == "pass"
+
+
+def test_independence_full_routes_with_source_fails(tmp_path: Path) -> None:
+    """A remainder source with no remainder is a contradiction, not decoration."""
+    contract = _independence_contract(
+        remaining_routes_source="no remainder exists; both routes are funded here"
+    )
+    _assert_fails_with(tmp_path, contract, "CONTRADICTORY_INDEPENDENCE_FIELDS")
+
+
+def test_independence_multiline_source_fails(tmp_path: Path) -> None:
+    contract = _independence_contract(
+        routes_budgeted_here=1,
+        remaining_routes_source="second route\nruns elsewhere",
+    )
+    _assert_fails_with(tmp_path, contract, "MISSING_REMAINING_ROUTES_SOURCE")
+
+
+def test_independence_placeholder_source_fails(tmp_path: Path) -> None:
+    contract = _independence_contract(
+        routes_budgeted_here=1,
+        remaining_routes_source="<one line: where the remaining routes come from>",
+    )
+    _assert_fails_with(tmp_path, contract, "PLACEHOLDER_VALUE")
+
+
+def test_independence_zero_routes_required_fails(tmp_path: Path) -> None:
+    contract = _independence_contract(routes_required=0)
+    _assert_fails_with(tmp_path, contract, "MISSING_INDEPENDENCE_FIELDS")
+
+
+def test_independence_non_integer_floor_fails(tmp_path: Path) -> None:
+    contract = _independence_contract(per_route_seconds_floor="1800")
+    _assert_fails_with(tmp_path, contract, "MISSING_INDEPENDENCE_FIELDS")
+
+
+def test_independence_non_object_fails(tmp_path: Path) -> None:
+    contract = _complete_contract()
+    contract["independence_requirement"] = "two independent routes"
+    _assert_fails_with(tmp_path, contract, "MISSING_INDEPENDENCE_FIELDS")
+
+
+# ---------------------- retry_of (measured re-budget after budget exhaustion)
+
+
+def _retry_contract(**overrides) -> dict:
+    contract = _complete_contract()
+    contract["retry_of"] = {
+        "supersedes": "lane-scan-01 revision of 2026-01-01, exhausted its wall clock",
+        "exhausted_budget": "time_box_seconds",
+        "measured_requirement": 5400,
+        "adjustment_note": "time box set to the measured 5400 s need plus one-third margin",
+        **overrides,
+    }
+    return contract
+
+
+def test_retry_of_time_dimension_covering_budget_passes(tmp_path: Path) -> None:
+    """New 7200 s box covers the measured 5400 s need."""
+    proj = _make_project(tmp_path, contracts={"lane-scan-01.json": _retry_contract()})
+    proc, verdict = _run_gate(proj)
+    assert proc.returncode == 0, proc.stderr
+    assert verdict is not None and verdict["status"] == "pass"
+
+
+def test_retry_of_time_budget_below_measured_need_fails(tmp_path: Path) -> None:
+    """A retry box below the measured need repeats the exhaustion by construction."""
+    contract = _retry_contract(measured_requirement=9000)
+    _assert_fails_with(tmp_path, contract, "RETRY_BUDGET_BELOW_MEASURED_NEED")
+
+
+def test_retry_of_heap_dimension_covering_budget_passes(tmp_path: Path) -> None:
+    contract = _retry_contract(
+        exhausted_budget="heap_limit_mb",
+        measured_requirement=2048,
+        adjustment_note="heap cap already covers the measured 2048 MB peak with margin",
+    )
+    proj = _make_project(tmp_path, contracts={"lane-scan-01.json": contract})
+    proc, verdict = _run_gate(proj)
+    assert proc.returncode == 0, proc.stderr
+    assert verdict is not None and verdict["status"] == "pass"
+
+
+def test_retry_of_heap_budget_below_measured_need_fails(tmp_path: Path) -> None:
+    contract = _retry_contract(
+        exhausted_budget="heap_limit_mb",
+        measured_requirement=8192,
+        adjustment_note="heap cap must be raised to the measured 8192 MB peak",
+    )
+    _assert_fails_with(tmp_path, contract, "RETRY_BUDGET_BELOW_MEASURED_NEED")
+
+
+def test_retry_of_unit_ceiling_string_measurement_passes(tmp_path: Path) -> None:
+    """Dimensions without a matching contract field validate shape only."""
+    contract = _retry_contract(
+        exhausted_budget="unit_ceiling",
+        measured_requirement="the scan reached 213 of the 180 permitted units before the ceiling",
+        adjustment_note="unit ceiling raised to 240, the measured 213 plus margin",
+    )
+    proj = _make_project(tmp_path, contracts={"lane-scan-01.json": contract})
+    proc, verdict = _run_gate(proj)
+    assert proc.returncode == 0, proc.stderr
+    assert verdict is not None and verdict["status"] == "pass"
+
+
+def test_retry_of_unknown_dimension_fails_closed(tmp_path: Path) -> None:
+    contract = _retry_contract(exhausted_budget="wall_clock")
+    _assert_fails_with(tmp_path, contract, "INVALID_RETRY_DIMENSION")
+
+
+def test_retry_of_nonnumeric_measured_for_time_fails(tmp_path: Path) -> None:
+    contract = _retry_contract(measured_requirement="about ninety minutes")
+    _assert_fails_with(tmp_path, contract, "MISSING_RETRY_FIELDS")
+
+
+def test_retry_of_missing_adjustment_note_fails(tmp_path: Path) -> None:
+    contract = _retry_contract()
+    del contract["retry_of"]["adjustment_note"]
+    _assert_fails_with(tmp_path, contract, "MISSING_RETRY_FIELDS")
+
+
+def test_retry_of_multiline_supersedes_fails(tmp_path: Path) -> None:
+    contract = _retry_contract(supersedes="previous contract\nexhausted")
+    _assert_fails_with(tmp_path, contract, "MISSING_RETRY_FIELDS")
+
+
+def test_retry_of_non_object_fails(tmp_path: Path) -> None:
+    contract = _complete_contract()
+    contract["retry_of"] = "retry after wall-clock exhaustion"
+    _assert_fails_with(tmp_path, contract, "MISSING_RETRY_FIELDS")
+
+
+# ------- round-2 controls: censored boundaries, nulls, concurrency, huge ints
+
+
+def test_retry_of_time_budget_equal_to_measured_fails(tmp_path: Path) -> None:
+    """A boundary death's measurement is censored AT the boundary: keeping the
+    same box while recording the wall as 'measured' is the identical
+    exhaustion with a stamp on it."""
+    contract = _retry_contract(
+        measured_requirement=7200,
+        adjustment_note="box kept at the previous wall while citing it as measured",
+    )
+    _assert_fails_with(tmp_path, contract, "RETRY_BUDGET_BELOW_MEASURED_NEED")
+
+
+def test_retry_of_heap_budget_equal_to_measured_fails(tmp_path: Path) -> None:
+    contract = _retry_contract(
+        exhausted_budget="heap_limit_mb",
+        measured_requirement=4096,
+        adjustment_note="heap cap kept at the exhausted limit while citing it as measured",
+    )
+    _assert_fails_with(tmp_path, contract, "RETRY_BUDGET_BELOW_MEASURED_NEED")
+
+
+def test_retry_of_attempts_cap_equal_to_measured_fails(tmp_path: Path) -> None:
+    """Citing the exhausted attempt count while raising nothing is not an
+    adjustment."""
+    contract = _retry_contract(
+        exhausted_budget="max_attempts",
+        measured_requirement=2,
+        adjustment_note="cap unchanged while citing the exhausted count as measured",
+    )
+    _assert_fails_with(tmp_path, contract, "RETRY_BUDGET_BELOW_MEASURED_NEED")
+
+
+def test_retry_of_attempts_cap_above_measured_passes(tmp_path: Path) -> None:
+    contract = _retry_contract(
+        exhausted_budget="max_attempts",
+        measured_requirement=1,
+        adjustment_note="cap of 2 strictly exceeds the single exhausted attempt",
+    )
+    proj = _make_project(tmp_path, contracts={"lane-scan-01.json": contract})
+    proc, verdict = _run_gate(proj)
+    assert proc.returncode == 0, proc.stderr
+    assert verdict is not None and verdict["status"] == "pass"
+
+
+def test_retry_of_attempts_fractional_measured_fails(tmp_path: Path) -> None:
+    """Attempt counts are discrete: a fractional 'measurement' one epsilon
+    below the kept cap must not defeat the strict-excess check."""
+    contract = _retry_contract(
+        exhausted_budget="max_attempts",
+        measured_requirement=1.999999,
+        adjustment_note="cap kept while citing a fractional attempt count",
+    )
+    _assert_fails_with(tmp_path, contract, "MISSING_RETRY_FIELDS")
+
+
+def test_decimal_str_exact_digit_count_at_boundary() -> None:
+    """The huge-int diagnostic fallback counts digits exactly — float log10
+    rounds at decimal boundaries (10**n - 1 must not read as n+1 digits)."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("check_delegation_budget_decimal_str", GATE)
+    assert spec is not None and spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    assert mod._decimal_str(10**5000 - 1) == "a 5000-digit integer"
+    assert mod._decimal_str(10**5000) == "a 5001-digit integer"
+    assert mod._decimal_str(-(10**6000)) == "a negative 6001-digit integer"
+
+
+def test_retry_of_attempts_qualitative_change_keeps_cap_passes(tmp_path: Path) -> None:
+    """A changed-approach retry may keep its cap: the change is stated as a
+    one-line measurement instead of a number."""
+    contract = _retry_contract(
+        exhausted_budget="max_attempts",
+        measured_requirement="approach replaced: direct evaluation instead of iterative refinement",
+        adjustment_note="cap kept; the exhausted approach was replaced, not re-attempted",
+    )
+    proj = _make_project(tmp_path, contracts={"lane-scan-01.json": contract})
+    proc, verdict = _run_gate(proj)
+    assert proc.returncode == 0, proc.stderr
+    assert verdict is not None and verdict["status"] == "pass"
+
+
+def test_retry_of_explicit_null_fails(tmp_path: Path) -> None:
+    """An explicit null is not 'absent' — same discipline as memory-mode null."""
+    contract = _complete_contract()
+    contract["retry_of"] = None
+    _assert_fails_with(tmp_path, contract, "MISSING_RETRY_FIELDS")
+
+
+def test_independence_requirement_explicit_null_fails(tmp_path: Path) -> None:
+    contract = _complete_contract()
+    contract["independence_requirement"] = None
+    _assert_fails_with(tmp_path, contract, "MISSING_INDEPENDENCE_FIELDS")
+
+
+def test_retry_of_bad_dimension_reports_measured_shape_same_round(tmp_path: Path) -> None:
+    """A bad dimension and a bad measurement are both reported in ONE round —
+    field defects aggregate, they do not serialize across fix rounds."""
+    contract = _retry_contract(exhausted_budget="wall_clock")
+    del contract["retry_of"]["measured_requirement"]
+    proj = _make_project(tmp_path, contracts={"c.json": contract})
+    proc, verdict = _run_gate(proj)
+    assert proc.returncode == 1
+    assert verdict is not None and verdict["status"] == "fail"
+    assert any("INVALID_RETRY_DIMENSION" in r for r in verdict["reasons"])
+    assert any(
+        "MISSING_RETRY_FIELDS" in r and "measured_requirement" in r for r in verdict["reasons"]
+    )
+
+
+def test_independence_concurrent_routes_share_wall_clock_passes(tmp_path: Path) -> None:
+    """Two concurrent routes at an 1800 s floor legitimately share an 1800 s
+    wall-clock box."""
+    contract = _independence_contract(routes_execution="concurrent")
+    contract["time_box"]["seconds"] = 1800
+    proj = _make_project(tmp_path, contracts={"lane-scan-01.json": contract})
+    proc, verdict = _run_gate(proj)
+    assert proc.returncode == 0, proc.stderr
+    assert verdict is not None and verdict["status"] == "pass"
+
+
+def test_independence_sequential_default_requires_stacked_floors(tmp_path: Path) -> None:
+    """Without a declared execution model the conservative sequential
+    arithmetic applies."""
+    contract = _independence_contract()
+    contract["time_box"]["seconds"] = 1800
+    _assert_fails_with(tmp_path, contract, "INDEPENDENCE_BUDGET_UNSATISFIABLE")
+
+
+def test_independence_unknown_execution_model_fails_closed(tmp_path: Path) -> None:
+    contract = _independence_contract(routes_execution="parallel")
+    _assert_fails_with(tmp_path, contract, "MISSING_INDEPENDENCE_FIELDS")
+
+
+def test_independence_huge_product_reports_label_not_crash(tmp_path: Path) -> None:
+    """Enormous (but valid JSON) route counts must fail with the
+    falsification label — the diagnostic must not crash the gate into
+    input_error via Python's int->str digit-conversion limit."""
+    contract = _independence_contract(routes_budgeted_here=41, per_route_seconds_floor=43)
+    body = json.dumps(contract)
+    body = body.replace('"routes_budgeted_here": 41', '"routes_budgeted_here": 1' + "0" * 3000, 1)
+    body = body.replace(
+        '"per_route_seconds_floor": 43', '"per_route_seconds_floor": 1' + "0" * 3000, 1
+    )
+    proj = _make_project(tmp_path, contracts={"c.json": body})
+    proc, verdict = _run_gate(proj)
+    assert proc.returncode == 1, proc.stderr
+    assert verdict is not None and verdict["status"] == "fail"
+    assert any("INDEPENDENCE_BUDGET_UNSATISFIABLE" in r for r in verdict["reasons"])
+
+
 def _declared_cap_contract() -> dict:
     contract = _complete_contract()
     contract["delegation_id"] = "verify-derivation-01"

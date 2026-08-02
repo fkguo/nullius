@@ -91,7 +91,9 @@ Placement rules complete the picture:
   loop until it lands; entering a second review round with no recorded probe is the loop's own
   fail-closed refusal condition.
 - **Reviews enumerate; they do not serialize.** A reviewer reports every finding it can establish in the round, severity-graded. Stopping at the first decisive counterexample turns an N-finding backlog into N full rounds; the existing leader early-stop (two CHALLENGED step verdicts) remains the only sanctioned early exit, because it abandons a doomed round rather than truncating a viable one.
-- **Stall detection: process artifacts are not progress.** At every coordination moment, the coordinator asks what moved *scientifically* since the last one — a new number, derivation, figure, code capability, or an explicitly decided narrowing. If the answer over the last three consecutive runs or rounds is "only process artifacts" (contracts, reviews, adjudications, re-hashes, re-frozen documents), the work is stalled, and **another round is not an allowed response to a stall**: the coordinator must consolidate (batch everything open into one stabilized candidate), narrow the scope, re-plan the decomposition, or put the blocking question to the project owner. Review-round counters never appear as progress in the plan's status: progress is stated in terms of the scientific object that advanced, and a status whose "next step" is only another review of the same candidate is the stall signature to look for.
+- **Reviewer unavailability is a dispatch failure, not a review round.** When a reviewer seat cannot run — backend unavailable, credential or tooling failure, no verdict returned — the round did not happen: re-enter the **same** cycle tag with the runner's `--resume` path, or reroute that seat to a fallback runner/model. Resume reuses each seat whose prior output satisfies its mode's reuse predicate — a nonempty report, plus the nonempty evidence file for full-access seats — and re-dispatches every other seat; so when a failed seat left a partial or verdict-less report behind, move that file aside (never delete it) before resuming, or resume would skip the seat as "completed" on its garbage output (removing the report alone forces re-dispatch in every mode); a machine-side health-aware resume (reuse only reports that pass the verdict health check) is the named hardening item for this. An unavailability event never advances the round suffix and never consumes a bounded round (`bounded_rounds.max_per_tag_family`): the partially-completed run directory is the same round's record resumed in place, not a new round's packet, and an unavailability note is never a verdict record. Two consecutive unavailability events on the same seat are an environment blocker to surface to the project owner — not a license to keep opening new rounds against a dead seat, each paying full packet cost to record that nothing happened.
+- **Stall detection: process artifacts are not progress.** At every coordination moment, the coordinator asks what moved *scientifically* since the last one — a new number, derivation, figure, code capability, or an explicitly decided narrowing. If the answer over the last three consecutive runs or rounds is "only process artifacts" (contracts, reviews, adjudications, re-hashes, re-frozen documents), the work is stalled, and **another round is not an allowed response to a stall**: the coordinator must consolidate (batch everything open into one stabilized candidate), narrow the scope, re-plan the decomposition, execute the already-prepared step when the prepared-execution-first rule below names one, or put the blocking question to the project owner. Review-round counters never appear as progress in the plan's status: progress is stated in terms of the scientific object that advanced, and a status whose "next step" is only another review of the same candidate is the stall signature to look for.
+- **Prepared-execution-first closure.** When a milestone's closure is blocked on exactly one already-prepared execution — the comparison, analysis, or computation is implemented and self-tested but has never been run against its real target — the next dispatch is that execution, before any new derivation, review, or design lane opens. An unexecuted prepared step is the cheapest possible scientific advance in the plan, and every round spent around it reviews a state the execution would change. The only sanctioned deferral is a named blocking gate recorded in the plan that forbids the run; then resolving that gate is the only allowed next lane. Either way the plan's next-step row states the execution or the named gate — never another review of the unchanged candidate.
 
 ## Quick Start (3 commands)
 
@@ -303,6 +305,55 @@ dispatch** — one JSON file per delegation under `team/delegations/`, from
   null fails closed; `true` together with the declared-cap form is
   machine-rejected as contradictory). Measured-form contracts may carry the
   same field optionally.
+
+Two further blocks are optional in shape but **mandatory in the named
+situations**, and machine-checked whenever present:
+
+- **`independence_requirement`** — mandatory whenever the acceptance
+  criterion for the delegated work demands two or more independent routes /
+  confirmations (blind re-derivations, independent recomputation). Declare
+  `routes_required` (what acceptance needs), `routes_budgeted_here` (what
+  this delegation's budget is sized for), `per_route_seconds_floor` (the
+  declared minimum wall-clock one route needs), optionally
+  `routes_execution` (`"sequential"` — the conservative default when absent
+  — or `"concurrent"`; unknown values fail closed), and — exactly when
+  `routes_budgeted_here < routes_required` — a one-line
+  `remaining_routes_source` naming the delegation(s) or planned dispatch
+  that covers the rest. The gate cross-checks **joint satisfiability**
+  (`INDEPENDENCE_BUDGET_UNSATISFIABLE`): sequential routes stack their
+  floors inside the time box, concurrent routes share the wall clock but
+  the box must still fit one full per-route floor. This closes a
+  self-defeating freeze pattern: an acceptance target requiring N
+  independent routes frozen over a budget that admits fewer cannot converge
+  **by construction** — the budget, not the science, dictates the "not
+  converged" verdict, the inadmissible attempt contributes nothing, and the
+  same work is re-dispatched to hit the same wall. Freeze the acceptance
+  criterion and the budget that can satisfy it together, or do not freeze.
+- **`retry_of`** — mandatory on any contract or amendment that re-dispatches
+  work whose previous contract ended by budget exhaustion. Declare
+  `supersedes` (the previous contract revision / delegation id),
+  `exhausted_budget` (`time_box_seconds` | `max_attempts` | `heap_limit_mb`
+  | `unit_ceiling` | `other`), `measured_requirement` (the **measured** need
+  in that dimension — a finite positive number for time / heap in the same
+  units; a number or one line otherwise), and a one-line `adjustment_note`
+  deriving the new budget from the measurement (for exhausted attempts: what
+  changed in the approach — more identical attempts is not an adjustment).
+  The gate cross-checks (`RETRY_BUDGET_BELOW_MEASURED_NEED`) that the
+  matching budget field — `time_box.seconds`, `heap_limit_mb`, or
+  `max_attempts` — **strictly exceeds** a numeric `measured_requirement`,
+  because a budget-boundary death measures a **censored lower bound**: the
+  run was cut at the boundary with work remaining, the true need lies above
+  the measured value, and equality is the exhausted number with a stamp on
+  it. An attempts retry that keeps its cap because the *approach* changed
+  states that change as a one-line `measured_requirement` instead of a
+  number; dimensions without a matching contract field (`unit_ceiling`,
+  `other`) validate shape only, with the old and new ceiling values named
+  in `adjustment_note`. Re-dispatching after a budget death with an
+  unchanged numeric budget is forbidden — with or without a recorded
+  shortfall: **one measured re-budget decision,
+  never a chain of identical exhaustions** — every boundary death whose
+  partial output was discarded and whose successor got the same budget pays
+  the full dispatch cost to learn nothing.
 
 The check is fail-closed and machine-judged
 (`scripts/gates/check_delegation_budget.py`, machine verdict
