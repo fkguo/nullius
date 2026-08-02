@@ -124,6 +124,7 @@ requireAll(RESUME_TESTS_FILE, read(RESUME_TESTS_FILE), [
   ['quiet-predicate control', 'test_health_check_is_quiet_on_unreadable'],
   ['guard wiring control', 'test_unreadable_guard_wired_before_every_move_aside'],
   ['packet-only preflight ordering control', 'test_packet_only_guards_run_before_any_background_launch'],
+  ['symlink-aware entry-condition control', 'test_symlink_aware_entry_conditions_are_pinned'],
   ['crash-resume permission-repair control', 'test_full_access_resume_restores_permissions_first'],
   ['sidecar exemption control', 'test_sidecar_reuse_stays_on_nonemptiness'],
 ]);
