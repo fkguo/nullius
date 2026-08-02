@@ -115,8 +115,10 @@ def test_unreadable_report_is_indeterminate_not_verdict_less(tmp_path: Path) -> 
     strict flag — it announces the indeterminate status and steps aside."""
     import os
 
+    import pytest
+
     if os.geteuid() == 0:
-        return  # root reads through permission bits; scenario unbuildable
+        pytest.skip("root reads through permission bits; scenario unbuildable")
     report = _write(
         tmp_path / "runs" / f"{BASE}-r1" / f"{BASE}-r1_member_a.md", VERDICT_REPORT
     )

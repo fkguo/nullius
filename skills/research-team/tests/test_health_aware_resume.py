@@ -128,12 +128,14 @@ def test_move_aside_preserves_content_and_removes_original(tmp_path: Path) -> No
 
 
 def test_move_aside_never_deletes() -> None:
-    """No forced overwrite, no removal: uniquified backup name + plain mv."""
+    """No forced overwrite, no removal: uniquified backup name + plain mv.
+    The occupancy test includes -L: a dangling symlink occupies the backup
+    name even though -e is false, and mv onto it would replace the symlink."""
     body = _shell_function_body(_script_text(), "move_aside_unhealthy_report")
     assert "mv -- " in body
     assert "mv -f" not in body
     assert "rm " not in body
-    assert 'while [[ -e "${backup}" ]]' in body
+    assert 'while [[ -e "${backup}" || -L "${backup}" ]]' in body
 
 
 def test_move_aside_same_second_backups_coexist(tmp_path: Path) -> None:
@@ -161,8 +163,10 @@ def test_guard_refuses_unreadable_report(tmp_path: Path) -> None:
     kill must never get a completed report moved aside)."""
     import os
 
+    import pytest
+
     if os.geteuid() == 0:
-        return  # root reads through permission bits; scenario unbuildable
+        pytest.skip("root reads through permission bits; scenario unbuildable")
     report = tmp_path / "tag_member_a.md"
     report.write_text(HEALTHY_REPORT, encoding="utf-8")
     report.chmod(0)
@@ -191,6 +195,55 @@ def test_unreadable_guard_wired_before_every_move_aside() -> None:
     script = _script_text()
     assert script.count('guard_unreadable_report "member-a"') == 2
     assert script.count('guard_unreadable_report "member-b"') == 2
+
+
+def test_guard_refuses_dangling_report_symlink(tmp_path: Path) -> None:
+    """A dangling report symlink is unjudgeable state — dispatching over it
+    would write the new report through the link to wherever it points; the
+    guard refuses loudly instead."""
+    link = tmp_path / "tag_member_a.md"
+    link.symlink_to(tmp_path / "absent-target.md")
+    proc = _run_extracted(
+        ["guard_unreadable_report"],
+        'guard_unreadable_report "member-a" "$1"',
+        str(link),
+    )
+    assert proc.returncode == 2
+    assert "unreadable" in proc.stderr
+    assert link.is_symlink()
+
+
+def test_health_check_is_quiet_on_unreadable(tmp_path: Path) -> None:
+    """The predicate must not spray grep permission noise ahead of the
+    guard's actionable error."""
+    import os
+
+    import pytest
+
+    if os.geteuid() == 0:
+        pytest.skip("root reads through permission bits; scenario unbuildable")
+    report = tmp_path / "r.md"
+    report.write_text(HEALTHY_REPORT, encoding="utf-8")
+    report.chmod(0)
+    try:
+        proc = _run_extracted(
+            ["member_report_healthy"], 'member_report_healthy "$1"', str(report)
+        )
+        assert proc.returncode != 0
+        assert proc.stderr.strip() == ""
+    finally:
+        report.chmod(0o644)
+
+
+def test_packet_only_guards_run_before_any_background_launch() -> None:
+    """A guard exit after member A has been backgrounded would orphan A's
+    job mid-write: both seats' preflight must precede the first launch."""
+    script = _script_text()
+    preflight_idx = script.find("Preflight both seats")
+    assert preflight_idx != -1
+    first_background_launch = script.find('bash "${MEMBER_A_RUNNER}" "${member_a_args[@]}" &')
+    assert first_background_launch != -1
+    assert preflight_idx < first_background_launch
 
 
 def test_full_access_resume_restores_permissions_first() -> None:
