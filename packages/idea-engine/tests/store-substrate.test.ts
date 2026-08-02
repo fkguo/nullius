@@ -192,4 +192,76 @@ describe('store substrate', () => {
 
     expect(() => store.loadArtifactFromRef(missingRef)).toThrow(/ENOENT/);
   });
+
+  it('confines every RPC write to the declared store root inside a populated project root', async () => {
+    // Whole-project-root containment: the engine tests above isolate the
+    // store root, so a writer that escaped into the surrounding project
+    // (front-door files, sibling directories) would never be seen. This
+    // fixture plants the store INSIDE a project root carrying front-door
+    // files, inventories every byte before and after a realistic RPC
+    // sequence, and asserts (i) new files land only under the store root,
+    // (ii) front-door bytes are untouched, (iii) no lock/temp residue
+    // anywhere in the project.
+    const { createHash } = await import('crypto');
+    const { writeFileSync, mkdirSync } = await import('fs');
+    const { IdeaEngineRpcService } = await import('../src/service/rpc-service.js');
+
+    const projectRoot = mkdtempSync(join(tmpdir(), 'idea-engine-containment-'));
+    tempDirs.push(projectRoot);
+    const frontDoorFiles = ['project_index.md', 'research_plan.md', 'research_contract.md', 'AGENTS.md'];
+    for (const name of frontDoorFiles) {
+      writeFileSync(join(projectRoot, name), `# ${name}\n\nfront-door fixture content\n`, 'utf-8');
+    }
+    mkdirSync(join(projectRoot, 'artifacts', 'runs'), { recursive: true });
+    writeFileSync(join(projectRoot, 'artifacts', 'runs', 'README.md'), 'run root fixture\n', 'utf-8');
+    const storeRoot = join(projectRoot, 'ideas');
+    mkdirSync(storeRoot, { recursive: true });
+
+    const inventory = (): Map<string, string> => {
+      const seen = new Map<string, string>();
+      const walk = (dir: string): void => {
+        for (const entry of readdirSync(dir, { withFileTypes: true })) {
+          const fullPath = resolve(dir, entry.name);
+          if (entry.isDirectory()) {
+            walk(fullPath);
+          } else {
+            const relPath = fullPath.slice(projectRoot.length + 1).split('\\').join('/');
+            seen.set(relPath, createHash('sha256').update(readFileSync(fullPath)).digest('hex'));
+          }
+        }
+      };
+      walk(projectRoot);
+      return seen;
+    };
+
+    const before = inventory();
+    const service = new IdeaEngineRpcService({
+      rootDir: storeRoot,
+      now: () => '2026-08-02T00:00:00.000Z',
+    });
+    const { initCampaign, enterReview, setPosterior } = await import('./helpers/revise-card-test-fixture.js');
+    const { campaignId, nodeId } = initCampaign(service, 'containment-init');
+    enterReview(service, campaignId, nodeId, 'containment-review');
+    setPosterior(service, campaignId, nodeId, 'containment-posterior');
+    service.handle('rank.compute', {
+      campaign_id: campaignId,
+      method: 'posterior',
+      idempotency_key: 'containment-rank',
+    });
+    const after = inventory();
+
+    const storePrefix = 'ideas/';
+    const newPaths = [...after.keys()].filter(relPath => !before.has(relPath));
+    expect(newPaths.length).toBeGreaterThan(0);
+    for (const relPath of newPaths) {
+      expect(relPath.startsWith(storePrefix), `write escaped the store root: ${relPath}`).toBe(true);
+    }
+    for (const name of frontDoorFiles) {
+      expect(after.get(name), `front-door file changed: ${name}`).toBe(before.get(name));
+    }
+    expect(after.get('artifacts/runs/README.md')).toBe(before.get('artifacts/runs/README.md'));
+    for (const relPath of after.keys()) {
+      expect(/\.lck$|\.tmp(?:$|\.)/.test(relPath), `lock/temp residue: ${relPath}`).toBe(false);
+    }
+  });
 });

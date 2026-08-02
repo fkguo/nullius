@@ -12,7 +12,7 @@ export type { StepExecutionSnapshotV1 } from '@nullius/shared';
 
 export type ManifestTool = 'mathematica' | 'julia' | 'python' | 'bash';
 export type ExecutionStatus = 'dry_run' | 'planned' | 'requires_approval' | 'completed' | 'failed';
-export type StepStatus = 'pending' | 'running' | 'completed' | 'failed';
+export type StepStatus = 'pending' | 'running' | 'completed' | 'failed' | 'skipped';
 
 export interface ExecuteComputationManifestInput {
   runId: string;
@@ -33,6 +33,7 @@ export interface StepCommandPlan {
   expectedOutputs: string[];
   expectedOutputPaths: string[];
   timeoutMinutes: number | null;
+  gates: string[];
 }
 
 export type ProcessEnvironmentV1 = ProductionEnvironment;
@@ -52,6 +53,7 @@ export interface PreparedManifest {
   stepOrder: string[];
   steps: StepCommandPlan[];
   topLevelOutputs: string[];
+  onFailure: 'fail-fast' | 'continue';
 }
 
 export interface ExecutionArtifactPaths {
@@ -173,6 +175,7 @@ export interface ExecutionStatusFile {
     post_snapshot_sha256: string | null;
     output_refs: WorkspaceFileSnapshotEntry[];
     status: StepStatus;
+    skip_reason: string | null;
     exit_code: number | null;
     started_at: string | null;
     completed_at: string | null;
