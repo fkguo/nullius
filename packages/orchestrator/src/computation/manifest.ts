@@ -1,7 +1,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import Ajv2020 from 'ajv/dist/2020.js';
-import { invalidParams, notFound, type ComputationManifestV1 } from '@nullius/shared';
+import { APPROVAL_GATE_IDS, invalidParams, notFound, type ComputationManifestV1 } from '@nullius/shared';
 import computationManifestSchema from '../../../../meta/schemas/computation_manifest_v1.schema.json' with { type: 'json' };
 import { sha256File, toPosixRelative } from './io.js';
 import {
@@ -118,6 +118,22 @@ export function prepareManifest(input: ExecuteComputationManifestInput): Prepare
       readinessError(`step '${step.id}' script must resolve to an existing regular file`);
     }
     const args = (step.args ?? []).map((value: string) => String(value));
+    // Step gates bind to the shared approval-gate vocabulary at preparation
+    // time: an unknown gate id can never be satisfied at execution time, so
+    // accepting it would freeze an unsatisfiable step.
+    const gates = step.gates ?? [];
+    const seenGates = new Set<string>();
+    for (const gateId of gates) {
+      if (!APPROVAL_GATE_IDS.includes(gateId)) {
+        readinessError(`step '${step.id}' names unknown approval gate '${gateId}'`, {
+          known_gate_ids: [...APPROVAL_GATE_IDS],
+        });
+      }
+      if (seenGates.has(gateId)) {
+        readinessError(`step '${step.id}' names approval gate '${gateId}' more than once`);
+      }
+      seenGates.add(gateId);
+    }
     const runtimeIdentity = resolveCanonicalNativeRuntime({
       projectRoot: input.projectRoot,
       runDir: input.runDir,
@@ -161,6 +177,7 @@ export function prepareManifest(input: ExecuteComputationManifestInput): Prepare
       expectedOutputs,
       expectedOutputPaths,
       timeoutMinutes: step.timeout_minutes ?? null,
+      gates,
     };
   });
   const entryPointScript = sanitizeRelativePath(
@@ -187,5 +204,6 @@ export function prepareManifest(input: ExecuteComputationManifestInput): Prepare
     topLevelOutputs: (manifest.outputs ?? []).map((output: string) =>
       toPosixRelative(input.runDir, resolveWithinRoot(workspaceDir, sanitizeRelativePath(output, 'outputs'), 'outputs')),
     ),
+    onFailure: manifest.on_failure ?? 'fail-fast',
   };
 }

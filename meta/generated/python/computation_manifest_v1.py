@@ -41,6 +41,15 @@ class EntryPoint(BaseModel):
     ] = None
 
 
+class OnFailure(StrEnum):
+    fail_fast = "fail-fast"
+    continue_ = "continue"
+
+
+class Gate(RootModel[str]):
+    root: Annotated[str, Field(min_length=1)]
+
+
 class Step(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -75,6 +84,12 @@ class Step(BaseModel):
     ] = None
     timeout_minutes: Annotated[
         int | None, Field(description="Per-step timeout in minutes.", ge=1)
+    ] = None
+    gates: Annotated[
+        list[Gate] | None,
+        Field(
+            description="Approval gate ids (shared gate registry) that must already be satisfied in the orchestrator state before this step executes. An unsatisfied gate fails the step closed; the step never mints an approval request itself."
+        ),
     ] = None
 
 
@@ -216,6 +231,12 @@ class ComputationmanifestV1(BaseModel):
     entry_point: Annotated[
         EntryPoint, Field(description="Primary execution entry point.")
     ]
+    on_failure: Annotated[
+        OnFailure | None,
+        Field(
+            description="Failure policy for the step sequence. 'fail-fast' (the default) stops at the first failed step. 'continue' keeps executing steps whose dependencies all completed, marks transitive dependents of a failed step as skipped, records every failure, and still ends the overall execution failed."
+        ),
+    ] = "fail-fast"
     steps: Annotated[
         list[Step],
         Field(

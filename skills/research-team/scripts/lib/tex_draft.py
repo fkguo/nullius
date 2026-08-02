@@ -233,7 +233,7 @@ def _read_balanced_braces(flat: list[TexLine], start_idx: int, start_col: int, m
 
 def extract_sections(flat: list[TexLine]) -> list[TexSection]:
     sec_re = re.compile(
-        r"\\(?P<cmd>chapter|section|subsection|subsubsection|paragraph|subparagraph)\*?\s*(?:\\[[^\\]]*\\]\\s*)?{"
+        r"\\(?P<cmd>chapter|section|subsection|subsubsection|paragraph|subparagraph)\*?\s*(?:\[[^\]]*\]\s*)?{"
     )
     level_map = {
         "chapter": 1,
@@ -321,10 +321,15 @@ def extract_env_blocks(flat: list[TexLine], max_blocks: int = 50_000) -> tuple[l
 
 
 def extract_occurrences(flat: list[TexLine]) -> tuple[list[TexOccurrence], list[TexOccurrence], list[TexOccurrence], list[TexOccurrence]]:
-    cite_re = re.compile(r"\\(?P<cmd>[A-Za-z]*cite[A-Za-z*]*)\s*(?:\\[[^\\]]*\\]\\s*)*{")
-    label_re = re.compile(r"\\label\\s*{")
-    ref_re = re.compile(r"\\(?P<cmd>ref|eqref|cref|Cref|autoref|pageref|vref)\\s*{")
-    fig_re = re.compile(r"\\includegraphics\\s*(?:\\[[^\\]]*\\]\\s*)?{")
+    # Raw-string discipline: "\\s" in a raw string is a literal backslash
+    # followed by 's', never the whitespace class — the previous forms made
+    # \label / \ref / \includegraphics unmatched (and the broken optional
+    # bracket groups were the source of the 'Possible nested set'
+    # FutureWarnings), so label/reference/figure preflight was dead.
+    cite_re = re.compile(r"\\(?P<cmd>[A-Za-z]*cite[A-Za-z*]*)\s*(?:\[[^\]]*\]\s*)*{")
+    label_re = re.compile(r"\\label\s*{")
+    ref_re = re.compile(r"\\(?P<cmd>ref|eqref|cref|Cref|autoref|pageref|vref)\*?\s*{")
+    fig_re = re.compile(r"\\includegraphics\*?\s*(?:\[[^\]]*\]\s*)?{")
 
     cites: list[TexOccurrence] = []
     labels: list[TexOccurrence] = []
