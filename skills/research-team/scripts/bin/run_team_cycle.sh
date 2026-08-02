@@ -161,16 +161,39 @@ member_report_healthy() {
   return 0
 }
 
+guard_unreadable_report() {
+  # An unreadable report is INDETERMINATE, not unhealthy: the health check
+  # greps the content, so a permission lock surviving an ungraceful kill
+  # (SIGKILL / OOM skips the EXIT trap that restores clean-room chmod locks)
+  # would otherwise make a completed healthy report look verdict-less and
+  # get moved aside. Never judge — and never move — a report the check
+  # could not actually read: refuse loudly instead.
+  local member="${1:-}" path="${2:-}"
+  if [[ -e "${path}" && ! -r "${path}" ]]; then
+    echo "ERROR: [resume] ${member}: prior report exists but is unreadable (permission lock from an ungraceful kill?): ${path}" >&2
+    echo "Restore read permission (chmod u+r) or move the file aside manually, then re-run with --resume." >&2
+    exit 2
+  fi
+}
+
 move_aside_unhealthy_report() {
   # Health-aware resume: a nonempty report without the required verdict
   # headings is a failed attempt, not a completed review — reusing it would
   # skip the seat as "completed" on garbage output on every future resume.
   # Move it aside (never delete) so the seat re-dispatches and the failed
-  # attempt stays auditable.
+  # attempt stays auditable. The backup name is uniquified: the wall clock
+  # has second resolution, so two same-second move-asides for one seat must
+  # not overwrite each other.
   local member="${1:-}" path="${2:-}"
-  local backup
-  backup="${path}.unhealthy.$(date -u +%Y%m%dT%H%M%SZ)"
-  mv -f -- "${path}" "${backup}"
+  local ts backup n
+  ts="$(date -u +%Y%m%dT%H%M%SZ)"
+  backup="${path}.unhealthy.${ts}"
+  n=1
+  while [[ -e "${backup}" ]]; do
+    backup="${path}.unhealthy.${ts}.${n}"
+    n=$((n + 1))
+  done
+  mv -- "${path}" "${backup}"
   echo "[resume] ${member}: prior report failed the verdict health check; moved aside to ${backup}; re-dispatching"
 }
 
@@ -2681,6 +2704,15 @@ if [[ "${REVIEW_ACCESS_MODE}" == "full_access" ]]; then
     done
   }
 
+  if [[ "${RESUME}" -eq 1 ]]; then
+    # Crash-resume repair: an ungraceful kill (SIGKILL / OOM / power loss)
+    # skips the EXIT trap, so clean-room permission locks from
+    # deny_other_outputs can survive on completed outputs. Restore before
+    # judging any report's health — the check must never call a report it
+    # cannot read unhealthy.
+    restore_outputs
+  fi
+
   if [[ "${RESUME}" -eq 1 && -s "${member_a_out}" && -s "${member_a_evidence}" ]] && member_report_healthy "${member_a_out}"; then
     echo "[resume] member-a: using existing report+evidence: ${member_a_out}"
     cycle_state_update "member_a" "skipped" "running" ""
@@ -2704,8 +2736,11 @@ except Exception:
       [[ -n "${_prior_ws_a}" ]] && MEMBER_A_WORKSPACE_ID="${_prior_ws_a}"
     fi
   else
-    if [[ "${RESUME}" -eq 1 && -s "${member_a_out}" ]] && ! member_report_healthy "${member_a_out}"; then
-      move_aside_unhealthy_report "member-a" "${member_a_out}"
+    if [[ "${RESUME}" -eq 1 && -s "${member_a_out}" ]]; then
+      guard_unreadable_report "member-a" "${member_a_out}"
+      if ! member_report_healthy "${member_a_out}"; then
+        move_aside_unhealthy_report "member-a" "${member_a_out}"
+      fi
     fi
     deny_other_outputs "member_a" "member_b"
     cycle_state_update "member_a" "started" "running" ""
@@ -2753,8 +2788,11 @@ except Exception:
       [[ -n "${_prior_ws_b}" ]] && MEMBER_B_WORKSPACE_ID="${_prior_ws_b}"
     fi
   else
-    if [[ "${RESUME}" -eq 1 && -s "${member_b_out}" ]] && ! member_report_healthy "${member_b_out}"; then
-      move_aside_unhealthy_report "member-b" "${member_b_out}"
+    if [[ "${RESUME}" -eq 1 && -s "${member_b_out}" ]]; then
+      guard_unreadable_report "member-b" "${member_b_out}"
+      if ! member_report_healthy "${member_b_out}"; then
+        move_aside_unhealthy_report "member-b" "${member_b_out}"
+      fi
     fi
     deny_other_outputs "member_b" "member_a"
     cycle_state_update "member_b" "started" "running" ""
@@ -2788,6 +2826,7 @@ else
     cycle_state_update "member_a" "skipped" "running" ""
   else
     if [[ "${RESUME}" -eq 1 && -s "${member_a_out}" ]]; then
+      guard_unreadable_report "member-a" "${member_a_out}"
       move_aside_unhealthy_report "member-a" "${member_a_out}"
     fi
     cycle_state_update "member_a" "started" "running" ""
@@ -2802,6 +2841,7 @@ else
     cycle_state_update "member_b" "skipped" "running" ""
   else
     if [[ "${RESUME}" -eq 1 && -s "${member_b_out}" ]]; then
+      guard_unreadable_report "member-b" "${member_b_out}"
       move_aside_unhealthy_report "member-b" "${member_b_out}"
     fi
     cycle_state_update "member_b" "started" "running" ""

@@ -251,15 +251,16 @@ recorded here as the standing contract:
   waiting-on, artifact paths, last-heartbeat) in a gitignored scratch area is
   enough for the coordinator to poll; keep it out of the durable artifact tree.
 
-## Delegation budget contract: every delegated workstream gets explicit budgets
+## Delegation budgets and weight tiers: the record matches the risk
 
 A delegated executing agent's default drift is to refine precision
 indefinitely and to expand scope on its own initiative; a delegation without
-explicit budgets is drift by construction. So every delegated computation or
-verification workstream (a lane, a compute job, a verification pass handed to
-another agent) gets a **budget contract** written by the coordinator **before
-dispatch** — one JSON file per delegation under `team/delegations/`, from
-`assets/delegation_budget_contract_template.json`
+explicit budgets is drift by construction. So every **full-tier** delegated
+computation or verification workstream (a lane, a compute job, a
+result-bearing verification pass handed to another agent — the tier rule
+below decides) gets a **budget contract** written by the coordinator
+**before dispatch** — one JSON file per delegation under
+`team/delegations/`, from `assets/delegation_budget_contract_template.json`
 (`delegation_budget_contract_v1`).
 
 **Delegation weight tiers — the packet matches the risk, not the ritual.**
@@ -388,8 +389,11 @@ missing any required field, still carrying an unfilled template placeholder,
 or using an unknown contract version does **not** pass. `run_team_cycle.sh`
 validates every contract present at preflight in every project stage (no
 exploration downgrade); set `delegation_budget.required=true` in the team
-config when a milestone dispatches delegated workstreams, so a run with no
-contract at all also fails (`NO_CONTRACTS_FOUND`).
+config when a milestone dispatches **full-tier** delegated workstreams
+(execution / claim-bearing results / blindness-dependent — the tier rule
+above), so a run with no full-tier contract also fails
+(`NO_CONTRACTS_FOUND`); a milestone dispatching only light-tier work leaves
+the flag unset — its ledger lines are deliberately not contracts.
 
 Directory hygiene keeps `required` meaningful: the configured delegations
 directory (`delegation_budget.delegations_dir`, scanned non-recursively)

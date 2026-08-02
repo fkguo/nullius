@@ -107,3 +107,28 @@ def test_out_dir_root_fallback_layout_is_scanned(tmp_path: Path) -> None:
     proc = _run(tmp_path, BASE)
     assert proc.returncode == 0
     assert "WARNING" in proc.stderr
+
+
+def test_unreadable_report_is_indeterminate_not_verdict_less(tmp_path: Path) -> None:
+    """A permission-locked report (ungraceful-kill residue) is indeterminate:
+    the guard neither warns with the resume suggestion nor refuses under the
+    strict flag — it announces the indeterminate status and steps aside."""
+    import os
+
+    if os.geteuid() == 0:
+        return  # root reads through permission bits; scenario unbuildable
+    report = _write(
+        tmp_path / "runs" / f"{BASE}-r1" / f"{BASE}-r1_member_a.md", VERDICT_REPORT
+    )
+    report.chmod(0)
+    try:
+        proc = _run(tmp_path, BASE)
+        assert proc.returncode == 0
+        assert proc.stdout.strip() == f"{BASE}-r2"
+        assert "WARNING" not in proc.stderr
+        assert "indeterminate" in proc.stderr
+        strict = _run(tmp_path, BASE, "--refuse-unverdicted")
+        assert strict.returncode == 0
+        assert strict.stdout.strip() == f"{BASE}-r2"
+    finally:
+        report.chmod(0o644)

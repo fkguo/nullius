@@ -98,6 +98,9 @@ requireAll(TEAM_SKILL_FILE, read(TEAM_SKILL_FILE), [
 requireAll(RUNNER_FILE, read(RUNNER_FILE), [
   ['verdict health predicate', 'member_report_healthy() {'],
   ['unhealthy move-aside helper', 'move_aside_unhealthy_report() {'],
+  ['unreadable-report guard (indeterminate, not unhealthy)', 'guard_unreadable_report() {'],
+  ['crash-resume permission repair', 'Crash-resume repair'],
+  ['same-second backup uniquification', 'while [[ -e "${backup}" ]]'],
   ['full-access member-a health-gated resume', 'if [[ "${RESUME}" -eq 1 && -s "${member_a_out}" && -s "${member_a_evidence}" ]] && member_report_healthy "${member_a_out}"; then'],
   ['full-access member-b health-gated resume', 'if [[ "${RESUME}" -eq 1 && -s "${member_b_out}" && -s "${member_b_evidence}" ]] && member_report_healthy "${member_b_out}"; then'],
   ['packet-only member-a health-gated resume', 'if [[ "${RESUME}" -eq 1 && -s "${member_a_out}" ]] && member_report_healthy "${member_a_out}"; then'],
@@ -108,17 +111,23 @@ requireAll(TAG_TOOL_FILE, read(TAG_TOOL_FILE), [
   ['verdict heading criterion', 'VERDICT_HEADING_RE'],
   ['round-advance guard suggestion', 'prefer resuming the SAME tag'],
   ['strict refuse flag', '--refuse-unverdicted'],
+  ['unreadable-is-indeterminate status', "'indeterminate'"],
 ]);
 requireAll(RESUME_TESTS_FILE, read(RESUME_TESTS_FILE), [
   ['four health-gated conditions pinned', 'test_all_four_member_resume_conditions_are_health_gated'],
   ['move-aside behavioral control', 'test_move_aside_preserves_content_and_removes_original'],
   ['never-delete structural control', 'test_move_aside_never_deletes'],
+  ['same-second backup coexistence control', 'test_move_aside_same_second_backups_coexist'],
+  ['unreadable-guard behavioral control', 'test_guard_refuses_unreadable_report'],
+  ['guard wiring control', 'test_unreadable_guard_wired_before_every_move_aside'],
+  ['crash-resume permission-repair control', 'test_full_access_resume_restores_permissions_first'],
   ['sidecar exemption control', 'test_sidecar_reuse_stays_on_nonemptiness'],
 ]);
 requireAll(TAG_GUARD_TESTS_FILE, read(TAG_GUARD_TESTS_FILE), [
   ['verdict-less warn control', 'test_verdict_less_latest_round_warns_and_suggests_same_tag_resume'],
   ['strict-refuse control', 'test_refuse_unverdicted_exits_3_and_emits_no_tag'],
   ['partial-round exemption control', 'test_one_verdict_bearing_member_suffices'],
+  ['unreadable-indeterminate control', 'test_unreadable_report_is_indeterminate_not_verdict_less'],
 ]);
 
 // 2. review-swarm: the general recomputation reviewer role.
