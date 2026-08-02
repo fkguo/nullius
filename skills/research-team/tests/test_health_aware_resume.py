@@ -128,9 +128,84 @@ def test_move_aside_preserves_content_and_removes_original(tmp_path: Path) -> No
 
 
 def test_move_aside_never_deletes() -> None:
+    """No forced overwrite, no removal: uniquified backup name + plain mv."""
     body = _shell_function_body(_script_text(), "move_aside_unhealthy_report")
-    assert "mv -f --" in body
+    assert "mv -- " in body
+    assert "mv -f" not in body
     assert "rm " not in body
+    assert 'while [[ -e "${backup}" ]]' in body
+
+
+def test_move_aside_same_second_backups_coexist(tmp_path: Path) -> None:
+    """The wall clock has second resolution: two move-asides for the same
+    seat within one second must both survive (the second must not overwrite
+    the first)."""
+    report = tmp_path / "tag_member_a.md"
+    body = (
+        'move_aside_unhealthy_report "member-a" "$1"\n'
+        'printf "%s" "second attempt" > "$1"\n'
+        'move_aside_unhealthy_report "member-a" "$1"\n'
+    )
+    report.write_text(GARBAGE_REPORT, encoding="utf-8")
+    proc = _run_extracted(["move_aside_unhealthy_report"], body, str(report))
+    assert proc.returncode == 0, proc.stderr
+    backups = sorted(tmp_path.glob("tag_member_a.md.unhealthy.*"))
+    assert len(backups) == 2, backups
+    contents = {b.read_text(encoding="utf-8") for b in backups}
+    assert contents == {GARBAGE_REPORT, "second attempt"}
+
+
+def test_guard_refuses_unreadable_report(tmp_path: Path) -> None:
+    """An unreadable report is indeterminate, not unhealthy: the guard exits
+    2 without touching the file (a permission lock surviving an ungraceful
+    kill must never get a completed report moved aside)."""
+    import os
+
+    if os.geteuid() == 0:
+        return  # root reads through permission bits; scenario unbuildable
+    report = tmp_path / "tag_member_a.md"
+    report.write_text(HEALTHY_REPORT, encoding="utf-8")
+    report.chmod(0)
+    try:
+        proc = _run_extracted(
+            ["guard_unreadable_report"],
+            'guard_unreadable_report "member-a" "$1"',
+            str(report),
+        )
+        assert proc.returncode == 2
+        assert "unreadable" in proc.stderr
+        assert report.exists()
+        assert not list(tmp_path.glob("tag_member_a.md.unhealthy.*"))
+    finally:
+        report.chmod(0o644)
+    # Readable report: guard passes silently.
+    proc = _run_extracted(
+        ["guard_unreadable_report"],
+        'guard_unreadable_report "member-a" "$1"',
+        str(report),
+    )
+    assert proc.returncode == 0, proc.stderr
+
+
+def test_unreadable_guard_wired_before_every_move_aside() -> None:
+    script = _script_text()
+    assert script.count('guard_unreadable_report "member-a"') == 2
+    assert script.count('guard_unreadable_report "member-b"') == 2
+
+
+def test_full_access_resume_restores_permissions_first() -> None:
+    """Crash-resume repair: full_access restores clean-room permission locks
+    before any report's health is judged (SIGKILL / OOM skips the EXIT trap
+    that normally restores them)."""
+    script = _script_text()
+    repair_idx = script.find("Crash-resume repair")
+    assert repair_idx != -1
+    first_full_access_condition = script.find(
+        'if [[ "${RESUME}" -eq 1 && -s "${member_a_out}" && -s "${member_a_evidence}" ]] '
+        '&& member_report_healthy "${member_a_out}"; then'
+    )
+    assert first_full_access_condition != -1
+    assert repair_idx < first_full_access_condition
 
 
 # ------------------------------------------------- resume wiring (structure)

@@ -69,13 +69,20 @@ def find_max_round(base: str, out_dir: Path) -> int:
     return max_n
 
 
-def round_has_verdict_report(base: str, round_n: int, out_dir: Path) -> bool | None:
-    """True when any member report of round N carries a '## Verdict' heading;
-    False when reports exist but none does (an unavailability-terminated or
-    otherwise failed round); None when no report file of that round is found."""
+def round_verdict_status(base: str, round_n: int, out_dir: Path) -> str:
+    """Classify the latest round's verdict evidence:
+    'verdict'       — some member report carries a '## Verdict' heading;
+    'no_verdict'    — reports exist, all readable, none carries the heading
+                      (the unavailability-terminated / failed-round signature);
+    'indeterminate' — at least one report file could not be read (a
+                      permission lock surviving an ungraceful kill makes a
+                      completed report unreadable — that is not evidence of
+                      a verdict-less round);
+    'absent'        — no report file of that round found."""
     if not out_dir.is_dir():
-        return None
+        return "absent"
     found = False
+    unreadable = False
     for d in _scan_dirs(out_dir):
         for member in ("member_a", "member_b"):
             p = d / f"{base}-r{round_n}_{member}.md"
@@ -85,10 +92,13 @@ def round_has_verdict_report(base: str, round_n: int, out_dir: Path) -> bool | N
             try:
                 text = p.read_text(encoding="utf-8", errors="replace")
             except OSError:
+                unreadable = True
                 continue
             if VERDICT_HEADING_RE.search(text):
-                return True
-    return False if found else None
+                return "verdict"
+    if not found:
+        return "absent"
+    return "indeterminate" if unreadable else "no_verdict"
 
 
 def main() -> int:
@@ -114,18 +124,29 @@ def main() -> int:
     max_round = find_max_round(base, args.out_dir)
     # Round-advance guard: unavailability is not a round. When the latest
     # round left report files but no verdict-bearing report, the honest move
-    # is a same-tag --resume of that round, not minting r(N+1).
-    if max_round >= 1 and round_has_verdict_report(base, max_round, args.out_dir) is False:
-        message = (
-            f"latest round {base}-r{max_round} has report files but none carries a "
-            "'## Verdict' heading — that round likely ended in reviewer "
-            "unavailability or a failed cycle; prefer resuming the SAME tag "
-            f"({base}-r{max_round} with --resume) instead of advancing the round suffix"
-        )
-        if args.refuse_unverdicted:
-            print(f"ERROR: {message}", file=sys.stderr)
-            return 3
-        print(f"WARNING: {message}", file=sys.stderr)
+    # is a same-tag --resume of that round, not minting r(N+1). An
+    # unreadable report is indeterminate, never counted as verdict-less —
+    # the guard neither warns nor refuses on evidence it could not read.
+    if max_round >= 1:
+        status = round_verdict_status(base, max_round, args.out_dir)
+        if status == "no_verdict":
+            message = (
+                f"latest round {base}-r{max_round} has report files but none carries a "
+                "'## Verdict' heading — that round likely ended in reviewer "
+                "unavailability or a failed cycle; prefer resuming the SAME tag "
+                f"({base}-r{max_round} with --resume) instead of advancing the round suffix"
+            )
+            if args.refuse_unverdicted:
+                print(f"ERROR: {message}", file=sys.stderr)
+                return 3
+            print(f"WARNING: {message}", file=sys.stderr)
+        elif status == "indeterminate":
+            print(
+                f"NOTE: latest round {base}-r{max_round} verdict status is indeterminate — "
+                "at least one report file could not be read (permission lock from an "
+                "ungraceful kill?); the round-advance guard is skipped, not passed",
+                file=sys.stderr,
+            )
     next_n = max_round + 1
     print(f"{base}-r{next_n}")
     return 0
