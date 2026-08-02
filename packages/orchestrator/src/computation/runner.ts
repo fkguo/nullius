@@ -61,6 +61,7 @@ function buildStatus(prepared: PreparedManifest): ExecutionStatusFile {
       post_snapshot_sha256: null,
       output_refs: [],
       status: 'pending',
+      skip_reason: null,
       exit_code: null,
       started_at: null,
       completed_at: null,
@@ -247,15 +248,177 @@ export async function runPreparedManifest(
   const statusPath = path.join(prepared.workspaceDir, 'execution_status.json');
   const status = buildStatus(prepared);
   writeJsonAtomic(statusPath, status);
+  const failedSteps = new Set<string>();
+  const skippedSteps = new Set<string>();
+  const finalizeFailedRun = async (
+    failureReason: string,
+    failedStepId: string,
+  ): Promise<FailedExecutionResult> => {
+    status.status = 'failed';
+    status.completed_at = utcNowIso();
+    writeJsonAtomic(statusPath, status);
+    const failedState = stateManager.readState();
+    if (failedState.run_status === 'running') {
+      stateManager.transitionStatus(failedState, 'failed', {
+        eventType: 'execution_failed',
+        details: { run_id: prepared.runId, step_id: failedStepId, execution_status: statusPath },
+      });
+    }
+    const { computationResult, computationResultPath, computationResultRef } = writeComputationResultArtifact({
+      prepared,
+      status,
+      statusPath,
+      logsDir,
+      producedOutputs: prepared.steps.flatMap(currentStep => currentStep.expectedOutputPaths.filter(filePath => fs.existsSync(filePath))),
+      failureReason,
+    });
+    maybeQueueIdeaEngineComputationFeedback({
+      prepared,
+      computationResult,
+    });
+    const memoryGraph = await recordComputationResultToMemoryGraph({
+      projectRoot,
+      manifest: prepared.manifest,
+      computationResult,
+    });
+    if (memoryGraph.repairProposalPath) {
+      const state = stateManager.readState();
+      state.artifacts = {
+        ...state.artifacts,
+        mutation_proposal_repair_v1: toPosixRelative(projectRoot, memoryGraph.repairProposalPath),
+      };
+      stateManager.saveState(state);
+      stateManager.appendLedger('repair_mutation_proposed', {
+        run_id: prepared.runId,
+        workflow_id: 'computation',
+        details: {
+          proposal_id: memoryGraph.repairProposalId,
+          proposal_path: toPosixRelative(projectRoot, memoryGraph.repairProposalPath),
+        },
+      });
+    } else if (memoryGraph.repairProposalSuppressed) {
+      stateManager.appendLedger('proposal_suppressed', {
+        run_id: prepared.runId,
+        workflow_id: 'computation',
+        details: {
+          proposal_kind: 'repair',
+          proposal_fingerprint: memoryGraph.repairProposalFingerprint,
+          suppression_decision: memoryGraph.repairSuppressionDecision,
+        },
+      });
+    }
+    const skillProposal = maybeGenerateSkillProposal({
+      projectRoot,
+      runId: prepared.runId,
+      manifest: prepared.manifest,
+      computationResult,
+    });
+    if (skillProposal && !skillProposal.suppressed) {
+      const state = stateManager.readState();
+      state.artifacts = {
+        ...state.artifacts,
+        skill_proposal_v2: toPosixRelative(projectRoot, skillProposal.proposalPath),
+      };
+      stateManager.saveState(state);
+      stateManager.appendLedger('skill_proposal_generated', {
+        run_id: prepared.runId,
+        workflow_id: 'computation',
+        details: {
+          proposal_id: skillProposal.proposal.proposal_id,
+          proposal_path: toPosixRelative(projectRoot, skillProposal.proposalPath),
+        },
+      });
+    } else if (skillProposal?.suppressed) {
+      stateManager.appendLedger('proposal_suppressed', {
+        run_id: prepared.runId,
+        workflow_id: 'computation',
+        details: {
+          proposal_kind: 'skill',
+          proposal_fingerprint: skillProposal.proposalFingerprint,
+          suppression_decision: skillProposal.decision,
+        },
+      });
+    }
+    const opportunityProposals = maybeGenerateOpportunityProposals({
+      projectRoot,
+      runId: prepared.runId,
+      manifest: prepared.manifest,
+      computationResult,
+    });
+    if (opportunityProposals.optimize || opportunityProposals.innovate) {
+      const state = stateManager.readState();
+      state.artifacts = {
+        ...state.artifacts,
+        ...(generatedProposal(opportunityProposals.optimize) ? { mutation_proposal_optimize_v1: toPosixRelative(projectRoot, opportunityProposals.optimize.proposalPath) } : {}),
+        ...(generatedProposal(opportunityProposals.innovate) ? { mutation_proposal_innovate_v1: toPosixRelative(projectRoot, opportunityProposals.innovate.proposalPath) } : {}),
+      };
+      stateManager.saveState(state);
+      for (const [proposalKind, proposal] of [['optimize', opportunityProposals.optimize], ['innovate', opportunityProposals.innovate]] as const) {
+        if (proposal && !('proposalPath' in proposal)) {
+          stateManager.appendLedger('proposal_suppressed', {
+            run_id: prepared.runId,
+            workflow_id: 'computation',
+            details: {
+              proposal_kind: proposalKind,
+              proposal_fingerprint: proposal.proposalFingerprint,
+              suppression_decision: proposal.decision,
+            },
+          });
+        }
+      }
+    }
+    return {
+      status: 'failed',
+      ok: false,
+      run_id: prepared.runId,
+      manifest_path: prepared.manifestRelativePath,
+      manifest_sha256: prepared.manifestSha256,
+      artifact_paths: {
+        execution_status: statusPath,
+        logs_dir: logsDir,
+        computation_result: computationResultPath,
+      },
+      outcome_ref: computationResultRef,
+      next_actions: computationResult.next_actions,
+      followup_bridge_refs: computationResult.followup_bridge_refs,
+      summary: computationResult.summary,
+      errors: [...status.errors],
+    };
+  };
   for (const stepId of prepared.stepOrder) {
     const step = prepared.steps.find(candidate => candidate.id === stepId)!;
     const statusStep = status.steps.find(candidate => candidate.id === stepId)!;
     const logDir = path.join(logsDir, stepId);
+    const blockedOn = (prepared.manifest.steps.find(candidate => candidate.id === stepId)?.depends_on ?? [])
+      .filter(dependency => failedSteps.has(dependency) || skippedSteps.has(dependency));
+    if (blockedOn.length > 0) {
+      // Only reachable under on_failure=continue (fail-fast returns at the
+      // first failure): a dependent of a failed or skipped step is skipped,
+      // recorded as such, and never counted as its own failure.
+      statusStep.status = 'skipped';
+      statusStep.skip_reason = `dependency did not complete: ${blockedOn.join(', ')}`;
+      statusStep.completed_at = utcNowIso();
+      skippedSteps.add(step.id);
+      writeJsonAtomic(statusPath, status);
+      continue;
+    }
     statusStep.status = 'running';
     statusStep.started_at = utcNowIso();
     statusStep.log_dir = toPosixRelative(prepared.workspaceDir, logDir);
     writeJsonAtomic(statusPath, status);
     let integrityFailure: string | null = null;
+    if (step.gates.length > 0) {
+      // Step gates are a binding check against approvals already recorded in
+      // the orchestrator state — never a request flow: an unsatisfied gate
+      // fails the step closed instead of minting an approval packet.
+      const gateState = stateManager.readState();
+      const unsatisfiedGates = step.gates.filter(
+        gateId => typeof gateState.gate_satisfied[gateId] !== 'string',
+      );
+      if (unsatisfiedGates.length > 0) {
+        integrityFailure = `step '${step.id}' requires unsatisfied approval gate(s): ${unsatisfiedGates.join(', ')} — record the approval(s) before re-running`;
+      }
+    }
     let liveManifestHash = '';
     let liveScriptHash = '';
     let workspaceRefs: WorkspaceFileSnapshotEntry[] = [];
@@ -263,7 +426,7 @@ export async function runPreparedManifest(
     const preSnapshotPath = path.join(logDir, 'pre_snapshot_v1.json');
     const postSnapshotPath = path.join(logDir, 'post_snapshot_v1.json');
     ensureDir(logDir);
-    try {
+    if (!integrityFailure) try {
       assertNativeRuntimeIdentityLive({
         identity: step.runtimeIdentity,
         projectRoot,
@@ -411,144 +574,36 @@ export async function runPreparedManifest(
     });
     if (integrityFailure || output.error || output.status !== 0 || missingOutputs.length > 0) {
       statusStep.status = 'failed';
-      status.status = 'failed';
-      status.completed_at = utcNowIso();
+      failedSteps.add(step.id);
       const failureReason = integrityFailure ?? output.error?.message
         ?? (output.status !== 0
           ? `step '${step.id}' exited with code ${output.status}`
           : `step '${step.id}' did not produce expected outputs: ${missingOutputs.map(filePath => toPosixRelative(prepared.runDir, filePath)).join(', ')}`);
       status.errors.push(failureReason);
-      writeJsonAtomic(statusPath, status);
-      const failedState = stateManager.readState();
-      if (failedState.run_status === 'running') {
-        stateManager.transitionStatus(failedState, 'failed', {
-          eventType: 'execution_failed',
-          details: { run_id: prepared.runId, step_id: step.id, execution_status: statusPath },
-        });
+      if (prepared.onFailure === 'continue') {
+        // on_failure=continue: persist the recorded failure and keep
+        // executing steps whose dependencies all completed (their
+        // dependents skip); the run still ends failed after the loop.
+        writeJsonAtomic(statusPath, status);
+        continue;
       }
-      const { computationResult, computationResultPath, computationResultRef } = writeComputationResultArtifact({
-        prepared,
-        status,
-        statusPath,
-        logsDir,
-        producedOutputs: prepared.steps.flatMap(currentStep => currentStep.expectedOutputPaths.filter(filePath => fs.existsSync(filePath))),
-        failureReason,
-      });
-      maybeQueueIdeaEngineComputationFeedback({
-        prepared,
-        computationResult,
-      });
-      const memoryGraph = await recordComputationResultToMemoryGraph({
-        projectRoot,
-        manifest: prepared.manifest,
-        computationResult,
-      });
-      if (memoryGraph.repairProposalPath) {
-        const state = stateManager.readState();
-        state.artifacts = {
-          ...state.artifacts,
-          mutation_proposal_repair_v1: toPosixRelative(projectRoot, memoryGraph.repairProposalPath),
-        };
-        stateManager.saveState(state);
-        stateManager.appendLedger('repair_mutation_proposed', {
-          run_id: prepared.runId,
-          workflow_id: 'computation',
-          details: {
-            proposal_id: memoryGraph.repairProposalId,
-            proposal_path: toPosixRelative(projectRoot, memoryGraph.repairProposalPath),
-          },
-        });
-      } else if (memoryGraph.repairProposalSuppressed) {
-        stateManager.appendLedger('proposal_suppressed', {
-          run_id: prepared.runId,
-          workflow_id: 'computation',
-          details: {
-            proposal_kind: 'repair',
-            proposal_fingerprint: memoryGraph.repairProposalFingerprint,
-            suppression_decision: memoryGraph.repairSuppressionDecision,
-          },
-        });
-      }
-      const skillProposal = maybeGenerateSkillProposal({
-        projectRoot,
-        runId: prepared.runId,
-        manifest: prepared.manifest,
-        computationResult,
-      });
-      if (skillProposal && !skillProposal.suppressed) {
-        const state = stateManager.readState();
-        state.artifacts = {
-          ...state.artifacts,
-          skill_proposal_v2: toPosixRelative(projectRoot, skillProposal.proposalPath),
-        };
-        stateManager.saveState(state);
-        stateManager.appendLedger('skill_proposal_generated', {
-          run_id: prepared.runId,
-          workflow_id: 'computation',
-          details: {
-            proposal_id: skillProposal.proposal.proposal_id,
-            proposal_path: toPosixRelative(projectRoot, skillProposal.proposalPath),
-          },
-        });
-      } else if (skillProposal?.suppressed) {
-        stateManager.appendLedger('proposal_suppressed', {
-          run_id: prepared.runId,
-          workflow_id: 'computation',
-          details: {
-            proposal_kind: 'skill',
-            proposal_fingerprint: skillProposal.proposalFingerprint,
-            suppression_decision: skillProposal.decision,
-          },
-        });
-      }
-      const opportunityProposals = maybeGenerateOpportunityProposals({
-        projectRoot,
-        runId: prepared.runId,
-        manifest: prepared.manifest,
-        computationResult,
-      });
-      if (opportunityProposals.optimize || opportunityProposals.innovate) {
-        const state = stateManager.readState();
-        state.artifacts = {
-          ...state.artifacts,
-          ...(generatedProposal(opportunityProposals.optimize) ? { mutation_proposal_optimize_v1: toPosixRelative(projectRoot, opportunityProposals.optimize.proposalPath) } : {}),
-          ...(generatedProposal(opportunityProposals.innovate) ? { mutation_proposal_innovate_v1: toPosixRelative(projectRoot, opportunityProposals.innovate.proposalPath) } : {}),
-        };
-        stateManager.saveState(state);
-        for (const [proposalKind, proposal] of [['optimize', opportunityProposals.optimize], ['innovate', opportunityProposals.innovate]] as const) {
-          if (proposal && !('proposalPath' in proposal)) {
-            stateManager.appendLedger('proposal_suppressed', {
-              run_id: prepared.runId,
-              workflow_id: 'computation',
-              details: {
-                proposal_kind: proposalKind,
-                proposal_fingerprint: proposal.proposalFingerprint,
-                suppression_decision: proposal.decision,
-              },
-            });
-          }
-        }
-      }
-      return {
-        status: 'failed',
-        ok: false,
-        run_id: prepared.runId,
-        manifest_path: prepared.manifestRelativePath,
-        manifest_sha256: prepared.manifestSha256,
-        artifact_paths: {
-          execution_status: statusPath,
-          logs_dir: logsDir,
-          computation_result: computationResultPath,
-        },
-        outcome_ref: computationResultRef,
-        next_actions: computationResult.next_actions,
-        followup_bridge_refs: computationResult.followup_bridge_refs,
-        summary: computationResult.summary,
-        errors: [...status.errors],
-      };
+      // Fail-fast keeps the single terminal write: the failed step, the
+      // failed run status, and completed_at land in ONE atomic status
+      // write inside finalizeFailedRun — a crash or concurrent reader must
+      // never observe a failed step under a still-running run.
+      return finalizeFailedRun(failureReason, step.id);
     }
     statusStep.status = 'completed';
     writeJsonAtomic(statusPath, status);
+  }
+  if (failedSteps.size > 0) {
+    // on_failure=continue reached the end of the sequence with recorded
+    // failures: the overall execution is failed, with every error kept.
+    // The aggregate reason joins status.errors exactly as each per-step
+    // reason did before its finalize call on the fail-fast path.
+    const aggregateReason = `${failedSteps.size} of ${prepared.stepOrder.length} step(s) failed under on_failure=continue: ${[...failedSteps].join(', ')}`;
+    status.errors.push(aggregateReason);
+    return finalizeFailedRun(aggregateReason, [...failedSteps][0]!);
   }
   try {
     assertWorkspaceRefsLive(prepared.workspaceDir, priorOutputRefs(status), 'final production output');
