@@ -588,11 +588,20 @@ def check_clickable_references_in_file(path: Path, text: str) -> list[HygieneIss
         if in_display_math or is_display_math_boundary(line):
             in_display_math = display_math_state_after_line(line, in_display_math)
             continue
-        for segment, is_inline_code in split_inline_code_segments(line):
+        # Mask complete clickable-reference spans (Markdown links, reference
+        # links, HTML anchors, autolinks) on the WHOLE line before splitting
+        # it into inline-code segments. A link label that is itself an
+        # inline code span, e.g. [`function_name`](url), still has its
+        # opening "[" and closing ")" on this one line; splitting first
+        # would sever the label from "](url)" and iter_inline_markdown_link_spans
+        # could never find the opening bracket, leaving the target
+        # misdetected as a bare URL.
+        masked_line = mask_clickable_reference_spans(line, reference_labels)
+        for segment, is_inline_code in split_inline_code_segments(masked_line):
             if is_inline_code:
                 continue
 
-            searchable = mask_inline_math_spans(mask_clickable_reference_spans(segment, reference_labels))
+            searchable = mask_inline_math_spans(segment)
             bare_url_spans: list[tuple[int, int]] = []
             for match in BARE_WEB_URL_RE.finditer(searchable):
                 bare_url_spans.append((match.start(), match.end()))
