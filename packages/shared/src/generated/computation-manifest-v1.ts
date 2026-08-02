@@ -39,6 +39,10 @@ export interface ComputationManifestV1 {
     };
   };
   /**
+   * Failure policy for the step sequence. 'fail-fast' (the default) stops at the first failed step. 'continue' keeps executing steps whose dependencies all completed, marks transitive dependents of a failed step as skipped, records every failure, and still ends the overall execution failed.
+   */
+  on_failure?: "fail-fast" | "continue";
+  /**
    * Ordered or dependency-resolved execution steps.
    *
    * @minItems 1
@@ -83,6 +87,10 @@ export interface ComputationManifestV1 {
        * Per-step timeout in minutes.
        */
       timeout_minutes?: number;
+      /**
+       * Approval gate ids (shared gate registry) that must already be satisfied in the orchestrator state before this step executes. An unsatisfied gate fails the step closed; the step never mints an approval request itself.
+       */
+      gates?: string[];
     },
     ...{
       /**
@@ -123,6 +131,10 @@ export interface ComputationManifestV1 {
        * Per-step timeout in minutes.
        */
       timeout_minutes?: number;
+      /**
+       * Approval gate ids (shared gate registry) that must already be satisfied in the orchestrator state before this step executes. An unsatisfied gate fails the step closed; the step never mints an approval request itself.
+       */
+      gates?: string[];
     }[],
   ];
   /**
