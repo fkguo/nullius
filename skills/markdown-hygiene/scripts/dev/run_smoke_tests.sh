@@ -415,6 +415,8 @@ if python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" check --root "${HUMAN_
 fi
 
 cat >"${HUMAN_DIR}/bad-line-break-pipe.md" <<'MD'
+The same-line form is what the parity scanner exists for: $a \\| b$.
+
 $$
 a \\
 | b |
@@ -437,11 +439,18 @@ $$
 $$
 
 A column rule is a column rule, not an absolute value; none of the named
-delimiters is valid in a column specification:
+delimiters is valid in a column specification, including a nested-brace
+column spec:
 
 $$
 \begin{array}{cc|c}
 a & b & c
+\end{array}
+$$
+
+$$
+\begin{array}{c|>{\bf}c}
+a & b
 \end{array}
 $$
 

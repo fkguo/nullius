@@ -197,6 +197,45 @@ class NotebookSectionCollectorTest(unittest.TestCase):
         self.assertIn("10.1000/a", references[0])
         self.assertIn("10.1000/b", references[1])
 
+    def test_fenced_examples_are_not_references(self):
+        """A fenced illustration inside References is not bibliography: it
+        once became a fictitious entry that a deliberate re-sync would write
+        into a user's contract."""
+        notebook = (
+            "# NB\n\n## References\n\n"
+            "1. Real one, [DOI](https://doi.org/10.1000/a)\n\n"
+            "```\n1. fake code-block item\n- and this bullet is code\n```\n\n"
+            "2. Real two, [DOI](https://doi.org/10.1000/b)\n"
+        )
+        _, references = _collect_notebook_sections(notebook)
+        self.assertEqual(len(references), 2, references)
+        self.assertIn("10.1000/a", references[0])
+        self.assertIn("10.1000/b", references[1])
+
+    def test_mismatched_fence_markers_do_not_close_each_other(self):
+        """CommonMark: a ~~~ line inside a ``` block is content, not a
+        closer. Toggling on any marker re-enabled collection mid-block."""
+        notebook = (
+            "# NB\n\n## References\n\n"
+            "1. Real one, [DOI](https://doi.org/10.1000/a)\n\n"
+            "```\n~~~\n1. still code, not a reference\n```\n\n"
+            "2. Real two, [DOI](https://doi.org/10.1000/b)\n"
+        )
+        _, references = _collect_notebook_sections(notebook)
+        self.assertEqual(len(references), 2, references)
+        self.assertTrue(all("still code" not in ref for ref in references))
+
+    def test_nested_annotation_folds_into_its_entry(self):
+        notebook = (
+            "# NB\n\n## References\n\n"
+            "1. Primary, [DOI](https://doi.org/10.1000/a)\n"
+            "   - annotation about it\n"
+            "2. Second, [DOI](https://doi.org/10.1000/b)\n"
+        )
+        _, references = _collect_notebook_sections(notebook)
+        self.assertEqual(len(references), 2, references)
+        self.assertIn("annotation about it", references[0])
+
     def test_references_stop_at_the_next_heading(self):
         notebook = (
             "# Notebook\n\n## References\n\n"
