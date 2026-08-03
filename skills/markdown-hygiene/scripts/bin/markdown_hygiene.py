@@ -54,8 +54,9 @@ BARE_PIPE_IN_MATH_MESSAGE = (
 # rule must not demand LaTeX that cannot compile. \multicolumn carries the
 # same kind of spec in its second argument.
 MATH_COLUMN_SPEC_RE = re.compile(
-    r"\\begin\{(?:array|subarray|tabular|tabularx|array\*)\}(?:\s*\[[^\]]*\])?\s*\{[^{}]*\}"
-    r"|\\multicolumn\s*\{[^{}]*\}\s*\{[^{}]*\}"
+    r"\\begin\{(?:array|subarray|tabular|tabularx|array\*)\}(?:\s*\[[^\]]*\])?\s*"
+    r"\{(?:[^{}]|\{[^{}]*\})*\}"
+    r"|\\multicolumn\s*\{[^{}]*\}\s*\{(?:[^{}]|\{[^{}]*\})*\}"
 )
 UNESCAPED_ASTERISK_RE = re.compile(r"(?<!\\)\*")
 GFM_FRAGILE_BAR_RE = re.compile(r"\\bar\{[^{}]+}\s*_[A-Za-z]")

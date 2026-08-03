@@ -40,7 +40,7 @@ def _replace_sync_block(contract_text: str, block: str) -> str:
 # replaced real entries with the "(add references ...)" placeholder.
 _ORDERED_ITEM_RE = re.compile(r"^\d+[.)]\s+")
 _BULLET_ITEM_RE = re.compile(r"^[-*]\s+")
-_FENCE_RE = re.compile(r"^\s*(?:```|~~~)")
+_FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
 
 
 def _collect_notebook_sections(notebook_text: str) -> tuple[list[str], list[str]]:
@@ -48,6 +48,7 @@ def _collect_notebook_sections(notebook_text: str) -> tuple[list[str], list[str]
     references: list[str] = []
     in_references = False
     in_fence = False
+    fence_marker = ""
     current: list[str] = []
     current_indent = 0
 
@@ -63,11 +64,21 @@ def _collect_notebook_sections(notebook_text: str) -> tuple[list[str], list[str]
         # Fenced blocks are illustrations, not bibliography. Without this a
         # ``` example inside the References section became a fictitious
         # reference, and the closing fence was folded into the entry above it.
-        if _FENCE_RE.match(line):
-            if in_references:
-                _flush()
-            in_fence = not in_fence
-            continue
+        # Only a fence of the SAME marker family closes an open one, as
+        # CommonMark requires: a ~~~ line inside a ``` block is content.
+        fence_match = _FENCE_RE.match(line)
+        if fence_match:
+            marker = fence_match.group(1)[0]
+            if not in_fence:
+                if in_references:
+                    _flush()
+                in_fence = True
+                fence_marker = marker
+                continue
+            if marker == fence_marker:
+                in_fence = False
+                fence_marker = ""
+                continue
         if in_fence:
             continue
 
