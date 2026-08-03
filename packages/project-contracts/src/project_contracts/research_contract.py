@@ -242,22 +242,77 @@ def sync_research_contract(
         contract.parent.mkdir(parents=True, exist_ok=True)
         contract.write_text(load_scaffold_template(RESEARCH_CONTRACT), encoding="utf-8")
 
-    contract_text = contract.read_text(encoding="utf-8", errors="replace")
+    # newline="" keeps the file's own line endings, and strict decoding refuses
+    # rather than replacing a byte it cannot read: both regions outside the
+    # block belong to the project, and rewriting them is not this function's
+    # business even when the block itself is still the template's.
+    with contract.open(encoding="utf-8", errors="strict", newline="") as handle:
+        contract_text = handle.read()
     if not _is_untouched_template_block(contract_text):
         raise ResearchContractBlockIsNotTemplate(contract)
 
     notebook_text = notebook.read_text(encoding="utf-8", errors="replace")
     headings, references = _collect_notebook_sections(notebook_text)
     lines = _derived_block_lines(notebook, notebook_text)
-    contract.write_text(
-        _replace_sync_block(contract_text, "\n".join(lines)).rstrip() + "\n", encoding="utf-8"
-    )
+    updated = _replace_sync_block(contract_text, "\n".join(lines)).rstrip() + "\n"
+    if "\r\n" in contract_text:
+        updated = updated.replace("\r\n", "\n").replace("\n", "\r\n")
+    with contract.open("w", encoding="utf-8", newline="") as handle:
+        handle.write(updated)
     return {
         "contract_path": str(contract),
         "notebook_sha256": _sha256_file(notebook),
         "section_count": len(headings),
         "reference_count": len(references),
     }
+
+
+PROPOSAL_SENTINEL = "<!-- Derived from research_notebook.md."
+PROPOSAL_HEADER = (
+    PROPOSAL_SENTINEL + " NOT applied to research_contract.md.\n"
+    "     The scan that produced this reads `-`/`*`/`+` and numbered items; it does\n"
+    "     not see references written as a table, as running prose, inside a block\n"
+    "     quote, or as an HTML list. Merge what is right into the contract's sync\n"
+    "     block by hand. -->\n\n"
+)
+
+
+class ProposalWouldOverwriteProjectFile(RuntimeError):
+    """Raised instead of writing a derived block over something the project owns."""
+
+    def __init__(self, proposal: Path, reason: str) -> None:
+        self.proposal = proposal
+        super().__init__(
+            f"refusing to write the derived block to {proposal}: {reason}. Nothing was "
+            "written. The proposal is generated output and must go to a path that "
+            "holds nothing else — the contract is merged by hand from it."
+        )
+
+
+def _assert_safe_proposal_destination(proposal: Path, *, contract: Path, notebook: Path) -> None:
+    """The destination must not be a file the project already owns.
+
+    Being inside the project root is the wrong question, and answering only
+    that let a derived 585-byte block replace a ten-kilobyte curated contract
+    through the shipped entry point, exit code zero. Symlinks are why the
+    comparison is on RESOLVED paths: a link at the default proposal location
+    pointing at the contract needed no unusual argument at all.
+    """
+    if proposal == contract.resolve():
+        raise ProposalWouldOverwriteProjectFile(proposal, "that is the research contract")
+    if proposal == notebook.resolve():
+        raise ProposalWouldOverwriteProjectFile(proposal, "that is the research notebook")
+    if proposal.exists():
+        if not proposal.is_file():
+            raise ProposalWouldOverwriteProjectFile(proposal, "that path is not a regular file")
+        try:
+            head = proposal.read_text(encoding="utf-8", errors="replace")[: len(PROPOSAL_SENTINEL)]
+        except OSError as exc:  # unreadable: refuse rather than clobber
+            raise ProposalWouldOverwriteProjectFile(proposal, f"it cannot be read ({exc})") from exc
+        if head != PROPOSAL_SENTINEL:
+            raise ProposalWouldOverwriteProjectFile(
+                proposal, "a file already exists there and is not a previous proposal"
+            )
 
 
 def propose_research_contract_block(
@@ -284,28 +339,28 @@ def propose_research_contract_block(
     proposal = (
         proposal_path.expanduser().resolve()
         if proposal_path
-        else repo_root / "artifacts" / "research_contract_block.proposed.md"
+        else (repo_root / "artifacts" / "research_contract_block.proposed.md").resolve()
     )
     assert_path_allowed(proposal, project_policy=project_policy, label="block proposal")
     assert_path_within_project(proposal, project_root=repo_root, label="block proposal")
+    _assert_safe_proposal_destination(proposal, contract=contract, notebook=notebook)
 
     notebook_text = notebook.read_text(encoding="utf-8", errors="replace")
+    notebook_sha = _sha256_file(notebook)
     headings, references = _collect_notebook_sections(notebook_text)
     lines = _derived_block_lines(notebook, notebook_text)
+    contract_before = _sha256_file(contract) if contract.is_file() else None
     proposal.parent.mkdir(parents=True, exist_ok=True)
-    proposal.write_text(
-        "<!-- Derived from research_notebook.md. NOT applied to research_contract.md.\n"
-        "     The scan that produced this reads `-`/`*`/`+` and numbered items; it does\n"
-        "     not see references written as a table, as running prose, inside a block\n"
-        "     quote, or as an HTML list. Merge what is right into the contract's sync\n"
-        "     block by hand. -->\n\n" + "\n".join(lines) + "\n",
-        encoding="utf-8",
-    )
+    proposal.write_text(PROPOSAL_HEADER + "\n".join(lines) + "\n", encoding="utf-8")
+    contract_after = _sha256_file(contract) if contract.is_file() else None
     return {
         "proposal_path": str(proposal),
         "contract_path": str(contract),
-        "contract_modified": False,
-        "notebook_sha256": _sha256_file(notebook),
+        # Observed, not asserted: an earlier version returned a hardcoded False
+        # here, so the one field that would have reported the destination bug
+        # was a constant, and the test asserting it could not fail.
+        "contract_modified": contract_before != contract_after,
+        "notebook_sha256": notebook_sha,
         "section_count": len(headings),
         "reference_count": len(references),
     }
