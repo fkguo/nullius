@@ -35,7 +35,7 @@ sys.path.insert(0, str(_src_root()))
 from project_contracts.project_scaffold import ensure_project_scaffold  # noqa: E402
 from project_contracts.project_policy import PROJECT_POLICY_REAL_PROJECT  # noqa: E402
 from project_contracts.research_contract import (
-    ResearchContractSyncWouldLoseEntries,  # noqa: E402
+    RETAINED_HEADING,
     _collect_notebook_sections,
     sync_research_contract,
 )
@@ -252,94 +252,185 @@ class NotebookSectionCollectorTest(unittest.TestCase):
         self.assertIn("Appendix", headings)
 
 
-class SyncReportsLossTest(unittest.TestCase):
-    """The two things a shrinking sync can mean, and why only one of them stops it."""
+def _project_with(root: Path, contract_entries: list[str], notebook_references: str) -> None:
+    """A project whose block already holds `contract_entries`, paired with a
+    notebook whose References section is written as `notebook_references`."""
+    root.mkdir(parents=True, exist_ok=True)
+    block = "\n".join(
+        [
+            "<!-- RESEARCH_NOTEBOOK_SYNC_START -->",
+            "- Source notebook: [research_notebook.md](research_notebook.md)",
+            "- Notebook sha256: `deadbeef`",
+            "",
+            "### Notebook sections",
+            "",
+            "- Scope",
+            "",
+            "### Notebook references",
+            "",
+            *contract_entries,
+            "<!-- RESEARCH_NOTEBOOK_SYNC_END -->",
+        ]
+    )
+    (root / "research_contract.md").write_text(
+        f"# Research contract\n\n## Notebook sync\n\n{block}\n\n## Owner section\n\n- Owned.\n",
+        encoding="utf-8",
+    )
+    (root / "research_notebook.md").write_text(
+        f"# Research notebook\n\n## Scope\n\nText.\n\n## References\n\n{notebook_references}",
+        encoding="utf-8",
+    )
 
-    def test_a_genuine_deletion_is_written_and_reported(self):
-        # The notebook really dropped those sections and references — their text
-        # is nowhere in it any more. That is the sync doing its job, so it
-        # writes; but it says what left, because a silent replacement of
-        # curated entries by placeholders is exactly the reported incident.
+
+def _sync(root: Path, **kwargs):
+    return sync_research_contract(
+        repo_root=root, create_missing=False, project_policy=PROJECT_POLICY_REAL_PROJECT, **kwargs
+    )
+
+
+class RetainsWhatItCannotDeriveTest(unittest.TestCase):
+    """The guarantee, and why it is structural rather than a judgement call.
+
+    Rounds four and five each disproved a text heuristic that decided whether a
+    vanished entry had been deleted on purpose. Both shipped; both were measured
+    destroying real references on input the tool itself had written. So nothing
+    decides that any more: a line the new parse does not reproduce is written
+    back. Every case below is a shape the scanner genuinely cannot read.
+    """
+
+    def test_a_table_shaped_bibliography_is_kept_not_dropped(self):
+        entry = "- Author A and Author B (2001), [DOI](https://doi.org/10.1000/example-a)"
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            _project_with(
+                root,
+                [entry],
+                "| Source | Link |\n| --- | --- |\n"
+                "| Author A and Author B (2001) | [DOI](https://doi.org/10.1000/example-a) |\n",
+            )
+            result = _sync(root)
+            contract = (root / "research_contract.md").read_text(encoding="utf-8")
+            self.assertIn(entry, result["retained_entries"])
+            self.assertIn("https://doi.org/10.1000/example-a", contract)
+            self.assertIn(RETAINED_HEADING, contract)
+
+    def test_an_entry_opening_with_a_qualifier_is_protected(self):
+        # Every Markdown inline link ends with ")", so a placeholder test asking
+        # "starts with ( and ends with )" silently unprotected every entry whose
+        # first token is a qualifier. Placeholders are matched by exact text now.
+        entry = "- (Erratum) Author A (2004), [DOI](https://doi.org/10.1000/example-erratum)"
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            _project_with(root, [entry], "| Source |\n| --- |\n| (Erratum) Author A (2004) |\n")
+            result = _sync(root)
+            self.assertIn(entry, result["retained_entries"])
+            self.assertIn(entry, (root / "research_contract.md").read_text(encoding="utf-8"))
+
+    def test_a_prefix_related_target_does_not_count_as_reproduction(self):
+        # Sequential identifiers stand in a prefix relation. Substring matching
+        # let the longer one absolve the shorter, which destroyed the shorter.
+        entry = "- Dataset A, [record](https://zenodo.org/record/117532)"
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            _project_with(root, [entry], "- Dataset B, [record](https://zenodo.org/record/1175321)\n")
+            result = _sync(root)
+            self.assertIn(entry, result["retained_entries"])
+            self.assertIn("https://zenodo.org/record/117532)", (root / "research_contract.md").read_text(encoding="utf-8"))
+
+    def test_a_numbered_block_entry_is_protected(self):
+        # The incident's own bibliography style. Protecting only bullet lines
+        # meant the diagnostic told operators to hand-edit the block, and the
+        # most natural bibliography form turned the protection off.
+        entry = "1. Author A (2001), [DOI](https://doi.org/10.1000/example-a)"
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            _project_with(root, [entry], "| Source |\n| --- |\n| Author A (2001) |\n")
+            result = _sync(root)
+            self.assertIn(entry, result["retained_entries"])
+
+    def test_an_unlinked_entry_reformatted_into_cells_is_protected(self):
+        entry = "- Smith (2020), Canonical study"
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            _project_with(root, [entry], "| Smith (2020) | Canonical study |\n| --- | --- |\n")
+            result = _sync(root)
+            self.assertIn(entry, result["retained_entries"])
+
+    def test_a_faithful_resync_retains_nothing(self):
+        entry = "- Author A (2001), [DOI](https://doi.org/10.1000/example-a)"
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            _project_with(root, [entry], f"{entry}\n")
+            result = _sync(root)
+            self.assertEqual(result["retained_entries"], [])
+            self.assertNotIn(RETAINED_HEADING, (root / "research_contract.md").read_text(encoding="utf-8"))
+
+    def test_retained_entries_are_stable_and_do_not_multiply(self):
+        entry = "- Author A (2001), [DOI](https://doi.org/10.1000/example-a)"
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            _project_with(root, [entry], "| Source |\n| --- |\n| Author A (2001) |\n")
+            for _ in range(3):
+                _sync(root)
+            contract = (root / "research_contract.md").read_text(encoding="utf-8")
+            self.assertEqual(contract.count(entry), 1)
+            self.assertEqual(contract.count(RETAINED_HEADING), 1)
+
+    def test_drop_unreproduced_is_the_only_path_that_removes(self):
+        entry = "- Author A (2001), [DOI](https://doi.org/10.1000/example-a)"
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            _project_with(root, [entry], "| Source |\n| --- |\n| Author A (2001) |\n")
+            result = _sync(root, drop_unreproduced=True)
+            self.assertIn(entry, result["dropped_entries"])
+            self.assertNotIn(entry, (root / "research_contract.md").read_text(encoding="utf-8"))
+
+    def test_a_template_placeholder_is_not_retained(self):
+        # Otherwise a fresh project would carry its own placeholder forever.
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            _project_with(root, ["- (refresh to populate)"], "- Author A (2001)\n")
+            result = _sync(root)
+            self.assertEqual(result["retained_entries"], [])
+            self.assertNotIn("(refresh to populate)", (root / "research_contract.md").read_text(encoding="utf-8"))
+
+    def test_a_plus_bullet_is_not_emitted_as_a_nested_list(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            _project_with(root, [], "+ Author A (2001), [DOI](https://doi.org/10.1000/example-a)\n")
+            _sync(root)
+            contract = (root / "research_contract.md").read_text(encoding="utf-8")
+            self.assertNotIn("- + Author A", contract)
+            self.assertIn("+ Author A (2001)", contract)
+
+
+class ForceReportsWhatItReplacedTest(unittest.TestCase):
+    def test_force_names_the_files_it_overwrote(self):
+        # `--force` stays destructive: it is an explicit request. But it
+        # replaces the contract BEFORE the notebook sync looks at it, so the
+        # sync then truthfully reports removing nothing, and the run as a whole
+        # reads clean while a curated block is gone.
         with tempfile.TemporaryDirectory() as td:
             root = Path(td) / "proj"
             _mature_project(root)
-            result = sync_research_contract(
+            result = ensure_project_scaffold(
                 repo_root=root,
-                create_missing=False,
+                project_name="Mature Project",
+                project_policy=PROJECT_POLICY_REAL_PROJECT,
+                force=True,
+            )
+            self.assertIn("research_contract.md", result["overwritten"])
+
+    def test_a_plain_init_overwrites_nothing(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            _mature_project(root)
+            result = ensure_project_scaffold(
+                repo_root=root,
+                project_name="Mature Project",
                 project_policy=PROJECT_POLICY_REAL_PROJECT,
             )
-            self.assertIn("- Correction chain", result["removed_entries"])
-            self.assertEqual(result["unreproduced_entries"], [])
-            self.assertEqual(result["reference_count"], 2)
-            self.assertEqual(result["section_count"], 2)
-
-    def test_sync_refuses_to_write_when_it_would_drop_entries(self):
-        # The guarantee the collector itself cannot give. Here the references
-        # are still in the notebook, in a shape the line scanner does not
-        # recognize — a table. A parser that cannot see them must not be
-        # allowed to erase them.
-        notebook = (
-            "# Research notebook\n\n## Scope\n\nText.\n\n## References\n\n"
-            "| Source | Link |\n| --- | --- |\n"
-            "| Author A and Author B (2001) | [DOI](https://doi.org/10.1000/example-a) |\n"
-        )
-        with tempfile.TemporaryDirectory() as td:
-            root = Path(td) / "proj"
-            _mature_project(root)
-            (root / "research_notebook.md").write_text(notebook, encoding="utf-8")
-            before = (root / "research_contract.md").read_bytes()
-
-            with self.assertRaises(ResearchContractSyncWouldLoseEntries) as caught:
-                sync_research_contract(
-                    repo_root=root,
-                    create_missing=False,
-                    project_policy=PROJECT_POLICY_REAL_PROJECT,
-                )
-
-            self.assertEqual(
-                before,
-                (root / "research_contract.md").read_bytes(),
-                "a refused sync still touched the contract",
-            )
-            self.assertIn(
-                "- Author A and Author B (2001), [DOI](https://doi.org/10.1000/example-a)",
-                caught.exception.dropped,
-            )
-
-    def test_allow_entry_loss_confirms_the_refused_write(self):
-        # The escape hatch has to be unconditional: a guard with no way past it
-        # becomes a reason to delete the guard.
-        notebook = (
-            "# Research notebook\n\n## Scope\n\nText.\n\n## References\n\n"
-            "| Source | Link |\n| --- | --- |\n"
-            "| Author A and Author B (2001) | [DOI](https://doi.org/10.1000/example-a) |\n"
-        )
-        with tempfile.TemporaryDirectory() as td:
-            root = Path(td) / "proj"
-            _mature_project(root)
-            (root / "research_notebook.md").write_text(notebook, encoding="utf-8")
-            result = sync_research_contract(
-                repo_root=root,
-                create_missing=False,
-                project_policy=PROJECT_POLICY_REAL_PROJECT,
-                allow_entry_loss=True,
-            )
-            self.assertTrue(result["unreproduced_entries"])
-            self.assertIn("- Scope", (root / "research_contract.md").read_text(encoding="utf-8"))
-
-    def test_a_faithful_resync_removes_nothing(self):
-        with tempfile.TemporaryDirectory() as td:
-            root = Path(td) / "proj"
-            _mature_project(root)
-            # Re-sync twice: the second pass sees the block the first wrote.
-            sync_research_contract(
-                repo_root=root, create_missing=False, project_policy=PROJECT_POLICY_REAL_PROJECT
-            )
-            result = sync_research_contract(
-                repo_root=root, create_missing=False, project_policy=PROJECT_POLICY_REAL_PROJECT
-            )
-            self.assertEqual(result["removed_entries"], [])
-            self.assertEqual(result["unreproduced_entries"], [])
+            self.assertEqual(result["overwritten"], [])
 
 
 if __name__ == "__main__":

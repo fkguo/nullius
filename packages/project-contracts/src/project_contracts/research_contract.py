@@ -33,9 +33,8 @@ def _replace_sync_block(contract_text: str, block: str) -> str:
     return contract_text[:start] + "\n" + block.strip() + "\n" + contract_text[end:]
 
 
-# WHAT THIS COLLECTOR ACTUALLY RECOGNIZES — a deterministic line scanner,
-# not a CommonMark parser, and the difference is load-bearing enough to
-# state exactly:
+# WHAT THIS SCAN ACTUALLY RECOGNIZES — a deterministic line scanner, not a
+# CommonMark parser, and the difference is load-bearing enough to state:
 #   * an entry starts at a line whose first non-space characters are "-",
 #     "*", "+", or an ordered marker such as "1." / "2)";
 #   * any other non-blank line folds into the entry above it, which is where
@@ -47,18 +46,20 @@ def _replace_sync_block(contract_text: str, block: str) -> str:
 # Entries written as a table, as running prose, inside a block quote, or as
 # an HTML list are not recognized at all.
 #
-# So it can UNDER-collect, and an adversarial review measured that on
-# thousands of generated notebooks. An earlier version of this comment
-# claimed it "cannot lose anything"; that claim was false, and asserting it
-# was worse than the gap itself, because it invited the next maintainer to
-# skip the guard below.
+# It therefore UNDER-collects, measurably: an adversarial review put the rate
+# at roughly 15% over thousands of generated notebooks. Two earlier comments
+# here claimed otherwise. The first said the scan "cannot lose anything"; the
+# second admitted it could and claimed the sync would REFUSE whenever it
+# mattered. Both were absolutes about untested code, and both were falsified
+# by measurement within one review round — the second because deciding
+# whether a vanished entry was deleted on purpose is itself a text heuristic,
+# and every version of that heuristic destroyed real references.
 #
-# The guarantee lives in sync_research_contract instead, where it can
-# actually hold: a sync that would drop entries the block already carries
-# REFUSES TO WRITE. Under-collection therefore costs a refusal and a
-# diagnostic, never a curated bibliography. Four rounds of a cleverer
-# parser each shipped a new way to lose data; moving the guarantee off the
-# parser is what ends that.
+# So nothing here decides that any more. sync_research_contract writes back
+# every existing line it did not just re-derive. Under-collection costs a
+# stale line a reader can see and delete; it cannot cost a bibliography. That
+# is structural, not a judgement, which is the only reason it can be stated
+# without measuring the scanner first.
 _ORDERED_ITEM_RE = re.compile(r"^\d+[.)]\s+")
 _BULLET_ITEM_RE = re.compile(r"^[-*+]\s+")
 
@@ -75,7 +76,7 @@ def _collect_notebook_sections(notebook_text: str) -> tuple[list[str], list[str]
         joined = " ".join(part for part in current if part)
         current.clear()
         if joined:
-            references.append(joined if joined.startswith(("- ", "* ")) else f"- {joined}")
+            references.append(joined if _BULLET_ITEM_RE.match(joined) else f"- {joined}")
 
     for line in notebook_text.splitlines():
         stripped = line.strip()
@@ -110,110 +111,100 @@ def _collect_notebook_sections(notebook_text: str) -> tuple[list[str], list[str]
     return headings, references
 
 
-class ResearchContractSyncWouldLoseEntries(RuntimeError):
-    """Raised instead of writing a block that drops existing entries."""
+# The three lines this module itself emits when it has nothing to list. A
+# placeholder is recognized by exact text, never by shape: an earlier version
+# asked whether an entry starts with "(" and ends with ")", and since every
+# Markdown inline link ends with ")", that silently unprotected every real
+# entry opening with a qualifier — "(Erratum) Author (2004), [DOI](...)".
+PLACEHOLDER_REFRESH = "(refresh to populate)"
+PLACEHOLDER_NO_SECTIONS = "(none yet)"
+PLACEHOLDER_NO_REFERENCES = (
+    "(add references in [research_notebook.md](research_notebook.md) when available)"
+)
+_PLACEHOLDER_BODIES = frozenset(
+    {PLACEHOLDER_REFRESH, PLACEHOLDER_NO_SECTIONS, PLACEHOLDER_NO_REFERENCES}
+)
 
-    def __init__(self, contract: Path, dropped: list[str]) -> None:
-        self.contract = contract
-        self.dropped = dropped
-        listed = "\n".join(f"  {entry}" for entry in dropped)
-        super().__init__(
-            f"refusing to sync {contract}: the derived block would drop "
-            f"{len(dropped)} existing entr{'y' if len(dropped) == 1 else 'ies'} "
-            f"that the notebook parse did not reproduce:\n{listed}\n"
-            "Nothing was written. Either the notebook really lost that content "
-            "(then pass allow_entry_loss / --allow-entry-loss to confirm), or "
-            "the notebook uses a Markdown shape this deterministic collector "
-            "does not recognize — in which case editing the block by hand is "
-            "correct and the sync must not overwrite it."
-        )
+RETAINED_HEADING = "### Entries the last refresh could not derive"
+RETAINED_NOTE = (
+    "<!-- Kept verbatim: these lines were in this block before the refresh and "
+    "the notebook scan did not reproduce them. The scan is a line scanner, not "
+    "a Markdown parser, so this list is where its blind spots surface. Delete "
+    "any line here that is genuinely stale, or re-run with drop_unreproduced / "
+    "--drop-unreproduced to clear them all. -->"
+)
 
 
 def _is_placeholder_entry(entry: str) -> bool:
-    """A template/placeholder line is not curated content: dropping it is
-    not a loss, so a freshly created contract can still be synced."""
-    body = entry.lstrip("-*+ ").strip()
-    return body.startswith("(") and body.endswith(")")
+    return _entry_body(entry) in _PLACEHOLDER_BODIES
 
 
-def _existing_block_entries(contract_text: str) -> list[str]:
-    """Curated bullet entries currently inside the notebook-sync block."""
+def _existing_block_lines(contract_text: str) -> list[str]:
+    """Every content line currently inside the notebook-sync block.
+
+    Deliberately not "every bullet": an earlier version protected only lines
+    starting with a bullet marker, so a numbered bibliography — the style of
+    the incident this guard exists for — had no protection at all, while the
+    refusal text was telling operators to hand-edit the block. Structure lines
+    (the two metadata lines, sub-headings, this module's own note) are the
+    module's own output and are excluded; everything else is treated as content
+    to be preserved, whoever wrote it.
+    """
     if SYNC_START not in contract_text or SYNC_END not in contract_text:
         return []
     start = contract_text.index(SYNC_START) + len(SYNC_START)
     end = contract_text.index(SYNC_END)
-    entries = []
+    lines = []
     for line in contract_text[start:end].splitlines():
         stripped = line.strip()
-        if not stripped.startswith(("- ", "* ", "+ ")):
+        if not stripped or stripped.startswith(("#", "<!--")):
             continue
         if stripped.startswith(("- Source notebook:", "- Notebook sha256:")):
             continue
         if _is_placeholder_entry(stripped):
             continue
-        entries.append(stripped)
-    return entries
+        lines.append(line.rstrip())
+    return lines
 
 
 def _entry_body(entry: str) -> str:
-    """The comparable text of a block entry: bullet marker off, spaces collapsed."""
-    return _normalize_ws(entry.lstrip("-*+ "))
+    """The comparable text of a block entry: list marker off, spaces collapsed."""
+    body = _ORDERED_ITEM_RE.sub("", entry.strip(), count=1)
+    return _normalize_ws(body.lstrip("-*+ "))
 
 
 _LINK_TARGET_RE = re.compile(r"\]\(([^)\s]+)")
 
 
-def _entry_tokens(entry: str) -> list[str]:
-    """What identifies an entry across reformatting.
+def _entry_targets(entry: str) -> set[str]:
+    """Link targets, compared by exact identity.
 
-    Comparing whole entry text is too brittle: a bibliography line reads
-    differently in a numbered list, in a table cell and in the derived block,
-    while its link target stays put. So a linked entry is identified by its
-    targets and an unlinked one — a section heading, typically — by its text.
+    Two rounds of review destroyed real references here by asking whether a
+    target occurred as a SUBSTRING of the concatenated new entries. Sequential
+    identifiers stand in a prefix relation, so `zenodo.117532` was "found"
+    inside `zenodo.1175321`, and one shared preprint link absolved a paper and
+    its erratum of each other. Identity serves the actual motivation — a
+    reference reads differently in a numbered list, a table cell and this
+    block, while its target does not move — and adds no such hole.
     """
-    targets = _LINK_TARGET_RE.findall(entry)
-    return targets or [_entry_body(entry)]
+    return set(_LINK_TARGET_RE.findall(entry))
 
 
 def _normalize_ws(text: str) -> str:
     return " ".join(text.split())
 
 
-def _removed_and_unreproduced(
-    contract_text: str,
-    *,
-    headings: list[str],
-    references: list[str],
-    notebook_text: str,
-) -> tuple[list[str], list[str]]:
-    """Split what a sync would take out of the block into its two meanings.
+def _reproduced(entry: str, *, derived_bodies: set[str], derived_targets: set[str]) -> bool:
+    """Is this existing line already carried by the newly derived entries?
 
-    `removed` is everything the re-derived block no longer lists, for any
-    reason — informational, and the normal outcome when a notebook section is
-    deleted on purpose. `unreproduced` is the subset whose text is STILL in the
-    notebook, which can only mean the collector failed to see it. Only the
-    second one is a reason to refuse: the first is the sync doing its job.
+    Only a POSITIVE answer suppresses retention, and only exact evidence counts
+    as positive. Getting this wrong therefore costs a duplicate line a reader
+    can see, never a line that disappears.
     """
-    # Compare on the entry body: the collector emits items already carrying a
-    # bullet marker, and the block is written with one, so comparing raw lines
-    # would depend on how many markers each side happens to have.
-    derived_items = (*headings, *references)
-    derived_bodies = {_entry_body(item) for item in derived_items}
-    derived_blob = _normalize_ws(" ".join(derived_items))
-    notebook_norm = _normalize_ws(notebook_text)
-    removed: list[str] = []
-    unreproduced: list[str] = []
-    for entry in _existing_block_entries(contract_text):
-        if _entry_body(entry) in derived_bodies or _is_placeholder_entry(entry):
-            continue
-        tokens = [token for token in _entry_tokens(entry) if token]
-        if any(token in derived_blob for token in tokens):
-            # Same source, written differently by the new parse. Not a loss.
-            continue
-        removed.append(entry)
-        if any(token in notebook_norm for token in tokens):
-            unreproduced.append(entry)
-    return removed, unreproduced
+    if _entry_body(entry) in derived_bodies:
+        return True
+    targets = _entry_targets(entry)
+    return bool(targets) and targets <= derived_targets
 
 
 def sync_research_contract(
@@ -223,18 +214,27 @@ def sync_research_contract(
     contract_path: Path | None = None,
     create_missing: bool,
     project_policy: str | None = PROJECT_POLICY_REAL_PROJECT,
-    allow_entry_loss: bool = False,
+    drop_unreproduced: bool = False,
 ) -> dict[str, Any]:
-    """Rewrite the notebook-derived block, refusing to lose curated entries.
+    """Rewrite the notebook-derived block, keeping what it cannot re-derive.
 
-    The collector below is a deterministic line scanner, not a CommonMark
-    parser, and four review rounds established that every hand-rolled
-    version of it has some Markdown shape it reads wrongly. That is
-    survivable only because parser accuracy is NOT load-bearing here: if the
-    parse comes back with fewer entries than the block already holds, this
-    refuses to write and says so. A collector bug therefore costs a refusal
-    and a diagnostic, never a curated bibliography — which is exactly what
-    the incident behind this guard destroyed.
+    The scan above is a deterministic line scanner, not a CommonMark parser,
+    and five review rounds established that every hand-rolled version of it
+    reads some valid Markdown wrongly. Rounds four and five also established
+    that no text heuristic decides reliably whether a vanished entry was
+    deleted on purpose or merely missed — each such judge shipped, and each
+    was measured destroying real references on ordinary input.
+
+    So no judge decides that here. This never removes a line it did not just
+    derive: existing lines the new parse does not reproduce are written back
+    verbatim under RETAINED_HEADING. That is structural rather than heuristic,
+    which is the whole point — a scanner blind spot now costs a stale line a
+    reader can see and delete, and cannot cost a bibliography. Matching still
+    decides whether a line is REPRODUCED, but a matching mistake now costs a
+    duplicate, not a deletion.
+
+    `drop_unreproduced` is the explicit way to clear retained lines, and it is
+    the only path on which this function removes anything.
     """
     repo_root = repo_root.expanduser().resolve()
     assert_project_root_allowed(repo_root, project_policy=project_policy)
@@ -265,23 +265,27 @@ def sync_research_contract(
     if headings:
         lines.extend(f"- {heading}" for heading in headings)
     else:
-        lines.append("- (none yet)")
+        lines.append(f"- {PLACEHOLDER_NO_SECTIONS}")
     lines.extend(["", "### Notebook references", ""])
     if references:
         lines.extend(references)
     else:
-        lines.append("- (add references in [research_notebook.md](research_notebook.md) when available)")
+        lines.append(f"- {PLACEHOLDER_NO_REFERENCES}")
 
     contract_text = contract.read_text(encoding="utf-8", errors="replace")
-    # A derived block that shrinks is legitimate (the notebook lost a section)
-    # but must never be silent: this sync once replaced curated entries with
-    # placeholders and nobody was told. Report what leaves the block, and stop
-    # outright when what leaves is still sitting in the notebook.
-    removed, unreproduced = _removed_and_unreproduced(
-        contract_text, headings=headings, references=references, notebook_text=notebook_text
-    )
-    if unreproduced and not allow_entry_loss:
-        raise ResearchContractSyncWouldLoseEntries(contract, unreproduced)
+    derived_bodies = {_entry_body(item) for item in (*(f"- {h}" for h in headings), *references)}
+    derived_targets: set[str] = set()
+    for item in references:
+        derived_targets |= _entry_targets(item)
+    retained = [
+        line
+        for line in _existing_block_lines(contract_text)
+        if not _reproduced(line, derived_bodies=derived_bodies, derived_targets=derived_targets)
+    ]
+    if retained and not drop_unreproduced:
+        lines.extend(["", RETAINED_HEADING, "", RETAINED_NOTE, ""])
+        lines.extend(retained)
+
     updated = _replace_sync_block(contract_text, "\n".join(lines))
     contract.write_text(updated.rstrip() + "\n", encoding="utf-8")
     return {
@@ -289,6 +293,6 @@ def sync_research_contract(
         "notebook_sha256": _sha256_file(notebook),
         "section_count": len(headings),
         "reference_count": len(references),
-        "removed_entries": removed,
-        "unreproduced_entries": unreproduced,
+        "retained_entries": [] if drop_unreproduced else retained,
+        "dropped_entries": retained if drop_unreproduced else [],
     }

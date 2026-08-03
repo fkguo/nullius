@@ -15,7 +15,6 @@ from .project_policy import (
 from .main_research_report import validate_main_research_report
 from .project_scaffold import ensure_project_scaffold
 from .research_contract import (
-    ResearchContractSyncWouldLoseEntries,
     sync_research_contract,
 )
 
@@ -30,7 +29,6 @@ __all__ = [
     "ensure_project_scaffold",
     "maintainer_fixture_roots",
     "resolve_user_path",
-    "ResearchContractSyncWouldLoseEntries",
     "sync_research_contract",
     "validate_main_research_report",
     "validate_project_policy",
