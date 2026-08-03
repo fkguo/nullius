@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import re
 from pathlib import Path
 from typing import Any
@@ -49,30 +50,25 @@ def _replace_sync_block(contract_text: str, block: str) -> str:
 #     a DOI link on a continuation line survives;
 #   * a blank line closes the open entry;
 #   * the References section ENDS at any line beginning with "#" — including
-#     a "### Errata and corrections" subsection a curator adds, and a lazy
-#     continuation line that merely starts with "#".
+#     a "### Errata and corrections" subsection a curator adds.
 # Entries written as a table, as running prose, inside a block quote, or as
 # an HTML list are not recognized at all. It therefore UNDER-collects, at a
 # rate an adversarial review put near 15% over generated notebooks.
 #
-# WHAT sync_research_contract GUARANTEES, and this is now bounded on purpose:
-# a content line inside the block is removed only if the new parse derived a
-# line with exactly the same text, or drop_unreproduced was passed. Everything
-# else is written back verbatim. The named exceptions, which are the whole of
-# them: lines this module itself emits (the source-notebook line, the sha256
-# line, its three headings, the retained-list note, and its three placeholder
-# strings) are module output and are replaced each sync; and a contract whose
-# markers are out of order is refused rather than synced.
+# That is survivable because nothing downstream rewrites curated text on the
+# strength of this scan. sync_research_contract replaces the block only while
+# the block is byte-for-byte the scaffold template's, and refuses otherwise;
+# propose_research_contract_block writes to a separate file and never opens the
+# contract for writing. An incomplete scan therefore costs an incomplete
+# reading, which a person discards.
 #
-# Three earlier comments here claimed more than that and each was falsified by
-# measurement within one review round: that the scan "cannot lose anything";
-# that a judge would refuse whenever it mattered; and that retention made
-# matching harmless. The last one failed for a reason worth keeping: retention
-# only disarms a false NEGATIVE. A false POSITIVE — a line wrongly judged
-# already-derived — is neither retained nor re-derived, so it disappears. That
-# is why matching is exact text here and consults no link targets: target-set
-# matching treated an erratum as reproduced by the article it corrects, and a
-# union over all derived entries let entries absolve each other collectively.
+# Four earlier versions of this comment promised more — that the scan could not
+# lose anything, that a judge would refuse whenever it mattered, that retention
+# made matching harmless, that a `drop_unreproduced` flag was the only path
+# that removed anything. Each was an absolute about untested code and each was
+# falsified by measurement within one review round; the flag itself no longer
+# exists. The guarantee moved out of this scan entirely, which is the only
+# reason anything here can be stated without measuring the scanner first.
 _ORDERED_ITEM_RE = re.compile(r"^\d+[.)]\s+")
 _BULLET_ITEM_RE = re.compile(r"^[-*+]\s+")
 
@@ -175,11 +171,11 @@ def _is_untouched_template_block(contract_text: str) -> bool:
     return _block_text(contract_text).strip() == template_block.strip()
 
 
-def _derived_block_lines(notebook: Path, notebook_text: str) -> list[str]:
+def _derived_block_lines(notebook_sha: str, notebook_text: str) -> list[str]:
     headings, references = _collect_notebook_sections(notebook_text)
     lines = [
         "- Source notebook: [research_notebook.md](research_notebook.md)",
-        f"- Notebook sha256: `{_sha256_file(notebook)}`",
+        f"- Notebook sha256: `{notebook_sha}`",
         "",
         "### Notebook sections",
         "",
@@ -252,16 +248,24 @@ def sync_research_contract(
         raise ResearchContractBlockIsNotTemplate(contract)
 
     notebook_text = notebook.read_text(encoding="utf-8", errors="replace")
+    notebook_sha = _sha256_file(notebook)
     headings, references = _collect_notebook_sections(notebook_text)
-    lines = _derived_block_lines(notebook, notebook_text)
-    updated = _replace_sync_block(contract_text, "\n".join(lines)).rstrip() + "\n"
-    if "\r\n" in contract_text:
-        updated = updated.replace("\r\n", "\n").replace("\n", "\r\n")
+    lines = _derived_block_lines(notebook_sha, notebook_text)
+    # The block is spliced in with the line ending the file already uses AROUND
+    # it, and every byte outside the markers is carried through untouched. An
+    # earlier version normalized the whole file, which rewrote owner-authored
+    # regions whenever their endings were mixed.
+    block = "\n".join(lines)
+    if "\r\n" in _block_text(contract_text) or (
+        not _block_text(contract_text).strip() and "\r\n" in contract_text
+    ):
+        block = block.replace("\n", "\r\n")
+    updated = _replace_sync_block(contract_text, block)
     with contract.open("w", encoding="utf-8", newline="") as handle:
         handle.write(updated)
     return {
         "contract_path": str(contract),
-        "notebook_sha256": _sha256_file(notebook),
+        "notebook_sha256": notebook_sha,
         "section_count": len(headings),
         "reference_count": len(references),
     }
@@ -289,6 +293,21 @@ class ProposalWouldOverwriteProjectFile(RuntimeError):
         )
 
 
+def _same_file(left: Path, right: Path) -> bool:
+    """Same file, by identity rather than by spelling.
+
+    Comparing resolved path strings misses a hardlink — a second name for one
+    inode — and misses a case-fold alias on a case-insensitive filesystem. Both
+    were demonstrated reaching the contract. `st_dev`/`st_ino` is the question
+    actually being asked: is this destination the file the project owns.
+    """
+    try:
+        a, b = left.stat(), right.stat()
+    except OSError:
+        return left.resolve() == right.resolve()
+    return (a.st_dev, a.st_ino) == (b.st_dev, b.st_ino)
+
+
 def _assert_safe_proposal_destination(proposal: Path, *, contract: Path, notebook: Path) -> None:
     """The destination must not be a file the project already owns.
 
@@ -298,10 +317,9 @@ def _assert_safe_proposal_destination(proposal: Path, *, contract: Path, noteboo
     comparison is on RESOLVED paths: a link at the default proposal location
     pointing at the contract needed no unusual argument at all.
     """
-    if proposal == contract.resolve():
-        raise ProposalWouldOverwriteProjectFile(proposal, "that is the research contract")
-    if proposal == notebook.resolve():
-        raise ProposalWouldOverwriteProjectFile(proposal, "that is the research notebook")
+    for owned, label in ((contract, "the research contract"), (notebook, "the research notebook")):
+        if _same_file(proposal, owned):
+            raise ProposalWouldOverwriteProjectFile(proposal, f"that is {label}")
     if proposal.exists():
         if not proposal.is_file():
             raise ProposalWouldOverwriteProjectFile(proposal, "that path is not a regular file")
@@ -313,6 +331,36 @@ def _assert_safe_proposal_destination(proposal: Path, *, contract: Path, noteboo
             raise ProposalWouldOverwriteProjectFile(
                 proposal, "a file already exists there and is not a previous proposal"
             )
+
+
+def _write_proposal_atomically(proposal: Path, text: str) -> None:
+    """Write via a fresh temporary file and rename over the destination.
+
+    The destination check and the write are separate operations, so a plain
+    open() through the checked path can land somewhere else if that path became
+    a symlink in between. Writing to a name created with O_EXCL and then
+    renaming means the write itself can never follow a link, and the rename
+    replaces the destination entry rather than opening whatever it points at.
+    """
+    tmp = proposal.with_name(proposal.name + ".partial")
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    try:
+        os.unlink(tmp)
+    except FileNotFoundError:
+        pass
+    fd = os.open(tmp, flags, 0o644)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(text)
+        os.replace(tmp, proposal)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except FileNotFoundError:
+            pass
+        raise
 
 
 def propose_research_contract_block(
@@ -348,10 +396,10 @@ def propose_research_contract_block(
     notebook_text = notebook.read_text(encoding="utf-8", errors="replace")
     notebook_sha = _sha256_file(notebook)
     headings, references = _collect_notebook_sections(notebook_text)
-    lines = _derived_block_lines(notebook, notebook_text)
+    lines = _derived_block_lines(notebook_sha, notebook_text)
     contract_before = _sha256_file(contract) if contract.is_file() else None
     proposal.parent.mkdir(parents=True, exist_ok=True)
-    proposal.write_text(PROPOSAL_HEADER + "\n".join(lines) + "\n", encoding="utf-8")
+    _write_proposal_atomically(proposal, PROPOSAL_HEADER + "\n".join(lines) + "\n")
     contract_after = _sha256_file(contract) if contract.is_file() else None
     return {
         "proposal_path": str(proposal),

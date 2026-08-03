@@ -48,6 +48,15 @@ def main() -> int:
         project_policy=args.project_policy,
     )
     print(json.dumps(result, indent=2, sort_keys=True))
+    if result.get("contract_modified"):
+        # Observed, not expected. Nothing on this path is supposed to touch the
+        # contract, so a true reading means something did and the exit status
+        # must not say the run was fine.
+        print(
+            "[error] the research contract changed during this run; it should not have",
+            file=sys.stderr,
+        )
+        return 1
     return 0
 
 
