@@ -49,19 +49,20 @@ BARE_PIPE_IN_MATH_MESSAGE = (
     r"\mid (such-that bar), or \vert / \middle\vert / \big\vert (sized and "
     r"evaluation bars)"
 )
-# Column specifications are the one place a literal | is not a delimiter but
-# a column rule, and none of the named commands above is valid there — the
-# rule must not demand LaTeX that cannot compile. \multicolumn carries the
-# same kind of spec in its second argument.
+# Column specifications are the one place a literal | is a column rule
+# rather than a delimiter, and none of the named commands is valid there —
+# the rule must not demand LaTeX that cannot compile. Each environment
+# family is matched with its OWN argument grammar: array takes a single
+# braced specification, while tabularx / tabular* take the width FIRST and
+# an optional position AFTER it. A shared "optional width" group was worse
+# than no exemption: it read array's sole argument as a width and the next
+# braced group as the specification, masking a real pipe in cell content.
 _BRACED_ARG = r"\{(?:[^{}]|\{[^{}]*\})*\}"
+_POS_ARG = r"(?:\s*\[[^\]]*\])?"
 MATH_COLUMN_SPEC_RE = re.compile(
-    # \begin{env}[pos]{width}{colspec} — the width argument is present for
-    # tabularx / tabular*, absent for array; the optional group backtracks so
-    # both shapes reach the same required column-spec group.
-    r"\\begin\{(?:array|subarray|tabular|tabularx|tabular\*|array\*)\}"
-    r"(?:\s*\[[^\]]*\])?"
-    rf"(?:\s*{_BRACED_ARG})?"
-    rf"\s*{_BRACED_ARG}"
+    rf"\\begin\{{(?:array|subarray|array\*)\}}{_POS_ARG}\s*{_BRACED_ARG}"
+    rf"|\\begin\{{(?:tabularx|tabular\*)\}}\s*{_BRACED_ARG}{_POS_ARG}\s*{_BRACED_ARG}"
+    rf"|\\begin\{{tabular\}}{_POS_ARG}\s*{_BRACED_ARG}"
     rf"|\\multicolumn\s*{_BRACED_ARG}\s*{_BRACED_ARG}"
 )
 UNESCAPED_ASTERISK_RE = re.compile(r"(?<!\\)\*")
@@ -167,14 +168,20 @@ def strip_math_column_specs(content: str) -> str:
     return MATH_COLUMN_SPEC_RE.sub(lambda m: " " * len(m.group(0)), content)
 
 
-def has_bare_pipe(content: str) -> bool:
-    r"""True when an unescaped | survives outside a column specification.
+def has_bare_pipe(content: str, *, exempt_column_specs: bool = True) -> bool:
+    r"""True when an unescaped | survives.
 
     Backslash parity matters: in ``\|`` the pipe is escaped, but in ``\\|``
     the ``\\`` is a TeX line break and the pipe that follows is genuinely
     bare — a lookbehind for a single backslash cannot tell the two apart.
+
+    ``exempt_column_specs`` is for prose math, where a column rule is a
+    column rule. It must be FALSE inside a Markdown table cell: there every
+    unescaped pipe ends the cell, so a column rule truncates the formula
+    exactly like any other bare pipe, and the honest advice is to move the
+    formula out of the table rather than to rewrite the rule.
     """
-    text = strip_math_column_specs(content)
+    text = strip_math_column_specs(content) if exempt_column_specs else content
     index = 0
     while index < len(text):
         char = text[index]
@@ -745,7 +752,7 @@ def check_table_math_pipes_in_file(path: Path, text: str) -> list[HygieneIssue]:
                 # column-spec exemption. Two rules judging the same hazard by
                 # two different definitions of "escaped" left a seam where a
                 # bare pipe after a TeX line break was reported by neither.
-                if has_bare_pipe(content):
+                if has_bare_pipe(content, exempt_column_specs=False):
                     issues.append(
                         HygieneIssue(
                             path,
