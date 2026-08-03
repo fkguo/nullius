@@ -399,6 +399,34 @@ if python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" check --root "${HUMAN_
   exit 1
 fi
 
+# A bare | inside math collides with the Markdown table-cell separator the
+# moment the formula is moved into a table, so it is flagged wherever it
+# appears — inline and display alike.
+cat >"${HUMAN_DIR}/bad-bare-pipe-math.md" <<'MD'
+The bound is $|x - x_0| < \epsilon$ in inline math.
+
+$$
+|E - E_0| < \delta
+$$
+MD
+if python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" check --root "${HUMAN_DIR}/bad-bare-pipe-math.md" --check-github-math; then
+  echo "expected check to fail for bare | inside math" >&2
+  exit 1
+fi
+
+cat >"${HUMAN_DIR}/good-delimited-math.md" <<'MD'
+The bound is $\lvert x - x_0 \rvert < \epsilon$ and the norm is $\lVert \psi \rVert$.
+
+Set-builder bars are fine: $\{x \mid x > 0\}$, and so is an escaped $a \| b$.
+
+$$
+\lvert E - E_0 \rvert < \delta
+$$
+
+Inline code `a | b` and prose pipes a | b are untouched.
+MD
+python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" check --root "${HUMAN_DIR}/good-delimited-math.md" --check-github-math
+
 JSON_ONLY_DIR="${TMP_DIR}/json-only"
 mkdir -p "${JSON_ONLY_DIR}"
 cat >"${JSON_ONLY_DIR}/agent-artifact.json" <<'JSON'
