@@ -416,11 +416,6 @@ fi
 
 cat >"${HUMAN_DIR}/bad-line-break-pipe.md" <<'MD'
 The same-line form is what the parity scanner exists for: $a \\| b$.
-
-$$
-a \\
-| b |
-$$
 MD
 if python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" check --root "${HUMAN_DIR}/bad-line-break-pipe.md" --check-github-math; then
   echo "expected check to fail for a bare | after a TeX line break" >&2
@@ -454,9 +449,25 @@ a & b
 \end{array}
 $$
 
+$$
+\begin{tabularx}{\textwidth}{c|c}
+a & b
+\end{tabularx}
+$$
+
 Inline code `a | b` and prose pipes a | b are untouched.
 MD
 python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" check --root "${HUMAN_DIR}/good-delimited-math.md" --check-github-math
+
+cat >"${HUMAN_DIR}/bad-table-break-pipe.md" <<'MD'
+| quantity | bound |
+| --- | --- |
+| a | $x \\| y$ |
+MD
+if python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" check --root "${HUMAN_DIR}/bad-table-break-pipe.md" --check-table-math-pipes; then
+  echo "expected table check to fail for a bare | after a TeX line break" >&2
+  exit 1
+fi
 
 JSON_ONLY_DIR="${TMP_DIR}/json-only"
 mkdir -p "${JSON_ONLY_DIR}"
