@@ -12,6 +12,7 @@ from .project_policy import (
 )
 from .project_surface import (
     BOUNDARY_NAMING_AUDIT,
+    RESEARCH_CONTRACT,
     SCAFFOLD_CONTEXT_FILES,
     SCAFFOLD_ROOT_FILES,
     SCAFFOLD_SUPPORT_FILES,
@@ -191,10 +192,23 @@ def ensure_project_scaffold(
             force=force,
         )
 
-    sync_research_contract(repo_root=repo_root, create_missing=False, project_policy=project_policy)
+    # Sync ONLY a contract this invocation just wrote. Running the notebook
+    # sync over a pre-existing, user-owned research_contract.md rewrites a
+    # block the project owns: an init on a mature project (e.g. to declare a
+    # mode) silently replaced curated section entries and DOI references with
+    # derived content. `init` never rewrites user files — the seed writes
+    # above already honor that via _write_text_if_missing, and this call must
+    # honor it too. A deliberate re-sync stays available through the explicit
+    # refresh entry point (`refresh_research_contract.py`).
+    contract_sync: dict[str, Any] | None = None
+    if RESEARCH_CONTRACT in created:
+        contract_sync = sync_research_contract(
+            repo_root=repo_root, create_missing=False, project_policy=project_policy
+        )
     return {
         "created": sorted(dict.fromkeys(created)),
         "skipped": sorted(dict.fromkeys(skipped)),
+        "contract_sync": contract_sync,
         "context_files": list(SCAFFOLD_CONTEXT_FILES),
         "naming_audit": [decision.__dict__ for decision in BOUNDARY_NAMING_AUDIT],
         "scaffold": "canonical",
