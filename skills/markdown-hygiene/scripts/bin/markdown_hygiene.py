@@ -38,6 +38,16 @@ CODE_MATH_RATIO_RE = re.compile(r"^[A-Za-z](?:_[A-Za-z]+|\d+)?/[A-Za-z](?:_[A-Za
 CODE_MATH_OPERATOR_RE = re.compile(r"(?:<->|->|<-|<=>|=>|<=|>=|[+*^=]|≈|≃|≲|≳|≤|≥|±|×|·|√|→|←|↔)")
 CODE_ESCAPE_RE = re.compile(r"\\[ntr0abfv]$")
 UNESCAPED_PIPE_RE = re.compile(r"(?<!\\)\|")
+# A bare | inside math is fragile wherever it appears, not only in a table
+# row: it collides with the Markdown table-cell separator the moment the
+# formula is moved or wrapped into a table, and renderers disagree about it
+# even outside tables. The semantic delimiters carry their own spacing and
+# never collide: \lvert…\rvert for an absolute value, \lVert…\rVert for a
+# norm, \mid for a set-builder or conditional bar.
+BARE_PIPE_IN_MATH_MESSAGE = (
+    r"bare | inside math is fragile and collides with Markdown table cells; "
+    r"use \lvert...\rvert (absolute value), \lVert...\rVert (norm), or \mid (such-that bar)"
+)
 UNESCAPED_ASTERISK_RE = re.compile(r"(?<!\\)\*")
 GFM_FRAGILE_BAR_RE = re.compile(r"\\bar\{[^{}]+}\s*_[A-Za-z]")
 HTML_LINK_RE = re.compile(r"<a\s+[^>]*href=[\"']([^\"']+)[\"']", re.IGNORECASE)
@@ -702,6 +712,9 @@ def check_table_math_pipes_in_file(path: Path, text: str) -> list[HygieneIssue]:
 
 def check_github_math_in_file(path: Path, text: str) -> list[HygieneIssue]:
     issues: list[HygieneIssue] = []
+    # Table lines carry the stricter table-specific pipe message from
+    # check_table_math_pipes_in_file; reporting both there would be noise.
+    table_lines = collect_markdown_table_lines(text)
     in_display_math = False
     for line_number, (line, in_code_block) in enumerate(split_fenced_lines(text), start=1):
         if in_code_block:
@@ -711,6 +724,8 @@ def check_github_math_in_file(path: Path, text: str) -> list[HygieneIssue]:
                 issues.append(HygieneIssue(path, line_number, r"raw * inside display math may break GitHub math; use \ast"))
             if GFM_FRAGILE_BAR_RE.search(line):
                 issues.append(HygieneIssue(path, line_number, r"\bar{...}_... can be fragile in GitHub math; prefer \bar X_..."))
+            if UNESCAPED_PIPE_RE.search(line):
+                issues.append(HygieneIssue(path, line_number, BARE_PIPE_IN_MATH_MESSAGE))
             in_display_math = display_math_state_after_line(line, in_display_math)
             continue
         if is_display_math_boundary(line):
@@ -725,6 +740,8 @@ def check_github_math_in_file(path: Path, text: str) -> list[HygieneIssue]:
                     issues.append(HygieneIssue(path, line_number, r"raw * inside Markdown math may break GitHub math; use \ast"))
                 if GFM_FRAGILE_BAR_RE.search(content):
                     issues.append(HygieneIssue(path, line_number, r"\bar{...}_... can be fragile in GitHub math; prefer \bar X_..."))
+                if line_number not in table_lines and UNESCAPED_PIPE_RE.search(content):
+                    issues.append(HygieneIssue(path, line_number, BARE_PIPE_IN_MATH_MESSAGE))
                 if delimiter == "$" and end < len(segment) and segment[end] == ")":
                     issues.append(
                         HygieneIssue(
