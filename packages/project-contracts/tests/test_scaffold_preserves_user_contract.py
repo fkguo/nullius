@@ -22,7 +22,9 @@ Three independent mechanisms produced that single loss:
 
 import sys
 import hashlib
+import os
 import tempfile
+from unittest import mock
 import unittest
 from pathlib import Path
 
@@ -37,7 +39,9 @@ from project_contracts.project_scaffold import ensure_project_scaffold  # noqa: 
 from project_contracts.project_policy import PROJECT_POLICY_REAL_PROJECT  # noqa: E402
 from project_contracts.scaffold_template_loader import load_scaffold_template  # noqa: E402
 from project_contracts.project_surface import RESEARCH_CONTRACT  # noqa: E402
+from project_contracts import research_contract  # noqa: E402
 from project_contracts.research_contract import (
+    PROPOSAL_SENTINEL,
     ProposalWouldOverwriteProjectFile,
     _block_text,
     ResearchContractBlockIsNotTemplate,
@@ -409,6 +413,48 @@ class MatureContractIsNeverRewrittenTest(unittest.TestCase):
                     self.assertEqual(before, _project_digest(root), f"{label}: a file changed")
             link.unlink(missing_ok=True)
 
+    def test_an_alias_of_the_contract_is_recognized_as_the_contract(self):
+        # A hardlink is a second NAME for one inode, so comparing resolved path
+        # strings misses it — and the file it aliases was the contract. The
+        # question the guard has to ask is identity, not spelling. The alias
+        # also carries this tool's own header, which is the one thing that
+        # otherwise makes an existing destination replaceable.
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            _mature_project(root)
+            (root / "artifacts").mkdir()
+            contract = root / "research_contract.md"
+            contract.write_text(
+                PROPOSAL_SENTINEL + " pasted while merging -->\n"
+                + contract.read_text(encoding="utf-8"),
+                encoding="utf-8",
+            )
+            alias = root / "artifacts" / "research_contract_block.proposed.md"
+            os.link(contract, alias)
+
+            before = _project_digest(root)
+            with self.assertRaises(ProposalWouldOverwriteProjectFile):
+                propose_research_contract_block(
+                    repo_root=root, project_policy=PROJECT_POLICY_REAL_PROJECT
+                )
+            self.assertEqual(before, _project_digest(root))
+
+    def test_a_case_variant_of_the_contract_is_recognized_as_the_contract(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            _mature_project(root)
+            variant = root / "RESEARCH_CONTRACT.MD"
+            if not variant.exists():
+                self.skipTest("case-sensitive filesystem: no alias to recognize")
+            before = _project_digest(root)
+            with self.assertRaises(ProposalWouldOverwriteProjectFile):
+                propose_research_contract_block(
+                    repo_root=root,
+                    proposal_path=variant,
+                    project_policy=PROJECT_POLICY_REAL_PROJECT,
+                )
+            self.assertEqual(before, _project_digest(root))
+
     def test_the_proposal_still_escapes_nothing(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td) / "proj"
@@ -432,6 +478,51 @@ class MatureContractIsNeverRewrittenTest(unittest.TestCase):
             )
             self.assertEqual(first["proposal_path"], again["proposal_path"])
             self.assertFalse(again["contract_modified"])
+
+    def test_contract_modified_is_observed_and_not_a_constant(self):
+        # A previous version returned a hardcoded False here, and the test that
+        # asserted it could not fail in any circumstance. Reverting the field to
+        # a literal must break this: the contract really does change during the
+        # call, and the receipt has to say so.
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            _mature_project(root)
+            contract = root / "research_contract.md"
+            real_write = research_contract._write_proposal_atomically
+
+            def write_and_disturb(proposal, text):
+                real_write(proposal, text)
+                contract.write_text("disturbed\n", encoding="utf-8")
+
+            with mock.patch.object(
+                research_contract, "_write_proposal_atomically", write_and_disturb
+            ):
+                result = propose_research_contract_block(
+                    repo_root=root, project_policy=PROJECT_POLICY_REAL_PROJECT
+                )
+            self.assertTrue(result["contract_modified"])
+
+    def test_the_notebook_digest_is_taken_once(self):
+        # The receipt's digest and the one embedded in the proposal must be the
+        # same reading: an earlier version hashed the notebook twice, so a
+        # concurrent edit made the receipt disagree with the block beside it.
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            _mature_project(root)
+            calls = []
+            real_sha = research_contract._sha256_file
+
+            def counting_sha(path):
+                calls.append(Path(path).name)
+                return real_sha(path)
+
+            with mock.patch.object(research_contract, "_sha256_file", counting_sha):
+                result = propose_research_contract_block(
+                    repo_root=root, project_policy=PROJECT_POLICY_REAL_PROJECT
+                )
+            self.assertEqual(calls.count("research_notebook.md"), 1)
+            proposal = Path(result["proposal_path"]).read_text(encoding="utf-8")
+            self.assertIn(result["notebook_sha256"], proposal)
 
     def test_the_template_block_carries_no_render_placeholder(self):
         # The in-place precondition compares the RAW template while the scaffold
