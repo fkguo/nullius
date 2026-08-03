@@ -53,10 +53,16 @@ BARE_PIPE_IN_MATH_MESSAGE = (
 # a column rule, and none of the named commands above is valid there — the
 # rule must not demand LaTeX that cannot compile. \multicolumn carries the
 # same kind of spec in its second argument.
+_BRACED_ARG = r"\{(?:[^{}]|\{[^{}]*\})*\}"
 MATH_COLUMN_SPEC_RE = re.compile(
-    r"\\begin\{(?:array|subarray|tabular|tabularx|array\*)\}(?:\s*\[[^\]]*\])?\s*"
-    r"\{(?:[^{}]|\{[^{}]*\})*\}"
-    r"|\\multicolumn\s*\{[^{}]*\}\s*\{(?:[^{}]|\{[^{}]*\})*\}"
+    # \begin{env}[pos]{width}{colspec} — the width argument is present for
+    # tabularx / tabular*, absent for array; the optional group backtracks so
+    # both shapes reach the same required column-spec group.
+    r"\\begin\{(?:array|subarray|tabular|tabularx|tabular\*|array\*)\}"
+    r"(?:\s*\[[^\]]*\])?"
+    rf"(?:\s*{_BRACED_ARG})?"
+    rf"\s*{_BRACED_ARG}"
+    rf"|\\multicolumn\s*{_BRACED_ARG}\s*{_BRACED_ARG}"
 )
 UNESCAPED_ASTERISK_RE = re.compile(r"(?<!\\)\*")
 GFM_FRAGILE_BAR_RE = re.compile(r"\\bar\{[^{}]+}\s*_[A-Za-z]")
@@ -735,7 +741,11 @@ def check_table_math_pipes_in_file(path: Path, text: str) -> list[HygieneIssue]:
             if is_inline_code:
                 continue
             for _, _, content, _ in iter_inline_math_contents(segment):
-                if UNESCAPED_PIPE_RE.search(content):
+                # Same predicate as the general rule: backslash parity and
+                # column-spec exemption. Two rules judging the same hazard by
+                # two different definitions of "escaped" left a seam where a
+                # bare pipe after a TeX line break was reported by neither.
+                if has_bare_pipe(content):
                     issues.append(
                         HygieneIssue(
                             path,

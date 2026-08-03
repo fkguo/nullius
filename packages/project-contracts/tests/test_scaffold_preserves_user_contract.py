@@ -236,6 +236,41 @@ class NotebookSectionCollectorTest(unittest.TestCase):
         self.assertEqual(len(references), 2, references)
         self.assertIn("annotation about it", references[0])
 
+    def test_longer_fence_is_not_closed_by_a_shorter_inner_run(self):
+        """CommonMark: a closing fence is the same char and at least as long
+        as the opener. Without the length rule a ``` line inside a ````
+        block closed it, promoting fenced text to a reference and swallowing
+        the heading that followed."""
+        notebook = (
+            "# NB\n\n## References\n\n"
+            "1. Ref A, [DOI](https://doi.org/10.1000/a)\n\n"
+            "````\n```\n- fenced text, not a reference\n````\n\n"
+            "2. Ref B, [DOI](https://doi.org/10.1000/b)\n"
+        )
+        _, references = _collect_notebook_sections(notebook)
+        self.assertEqual(len(references), 2, references)
+        self.assertTrue(all("fenced text" not in ref for ref in references))
+        self.assertIn("10.1000/b", references[1])
+
+    def test_tab_indented_annotation_folds_and_does_not_absorb_the_next_entry(self):
+        """Indentation is columns, not characters: a tab counted as one
+        character looked less indented than a two-space entry, so the
+        annotation became its own reference and swallowed the entry after
+        it."""
+        notebook = (
+            "# NB\n\n## References\n\n"
+            "  - Ref A\n\t- annotation of Ref A\n  - Ref B\n"
+        )
+        _, references = _collect_notebook_sections(notebook)
+        self.assertEqual(len(references), 2, references)
+        self.assertIn("annotation of Ref A", references[0])
+        self.assertEqual(references[1], "- Ref B")
+
+    def test_indented_code_with_no_open_entry_is_not_a_reference(self):
+        notebook = "# NB\n\n## References\n\n    - indented code, not a reference\n"
+        _, references = _collect_notebook_sections(notebook)
+        self.assertEqual(references, [])
+
     def test_references_stop_at_the_next_heading(self):
         notebook = (
             "# Notebook\n\n## References\n\n"

@@ -40,7 +40,10 @@ def _replace_sync_block(contract_text: str, block: str) -> str:
 # replaced real entries with the "(add references ...)" placeholder.
 _ORDERED_ITEM_RE = re.compile(r"^\d+[.)]\s+")
 _BULLET_ITEM_RE = re.compile(r"^[-*]\s+")
-_FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
+_FENCE_RE = re.compile(r"^(\s*)(`{3,}|~{3,})")
+# Markdown promotes a >=4-column-indented line with no open list item to an
+# indented code block, not a list item.
+_INDENTED_CODE_COLUMNS = 4
 
 
 def _collect_notebook_sections(notebook_text: str) -> tuple[list[str], list[str]]:
@@ -49,6 +52,7 @@ def _collect_notebook_sections(notebook_text: str) -> tuple[list[str], list[str]
     in_references = False
     in_fence = False
     fence_marker = ""
+    fence_length = 0
     current: list[str] = []
     current_indent = 0
 
@@ -68,16 +72,23 @@ def _collect_notebook_sections(notebook_text: str) -> tuple[list[str], list[str]
         # CommonMark requires: a ~~~ line inside a ``` block is content.
         fence_match = _FENCE_RE.match(line)
         if fence_match:
-            marker = fence_match.group(1)[0]
+            run = fence_match.group(2)
+            marker, length = run[0], len(run)
             if not in_fence:
                 if in_references:
                     _flush()
                 in_fence = True
                 fence_marker = marker
+                fence_length = length
                 continue
-            if marker == fence_marker:
+            # CommonMark: a closing fence uses the SAME character and is at
+            # least as long as the opening run. Without the length rule a
+            # ``` line inside a ```` block closed it, promoting fenced text
+            # to a reference and swallowing the heading that followed.
+            if marker == fence_marker and length >= fence_length:
                 in_fence = False
                 fence_marker = ""
+                fence_length = 0
                 continue
         if in_fence:
             continue
@@ -98,8 +109,16 @@ def _collect_notebook_sections(notebook_text: str) -> tuple[list[str], list[str]
             _flush()
             continue
 
-        indent = len(line) - len(line.lstrip())
+        # Indentation is measured in COLUMNS, not characters: a tab-indented
+        # annotation counted as one character looked less indented than a
+        # two-space entry, so it became its own reference and absorbed the
+        # entry that followed it.
+        prefix = line[: len(line) - len(line.lstrip())]
+        indent = len(prefix.expandtabs(_INDENTED_CODE_COLUMNS))
         is_item = bool(_BULLET_ITEM_RE.match(stripped) or _ORDERED_ITEM_RE.match(stripped))
+        if not current and indent >= _INDENTED_CODE_COLUMNS:
+            # Indented code with no entry to attach to: not bibliography.
+            continue
         # A more-indented item is an annotation OF the open entry, not a new
         # one: folding keeps an entry and its notes together instead of
         # splitting one reference into several.
