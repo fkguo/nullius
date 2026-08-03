@@ -36,6 +36,8 @@ from project_contracts.project_scaffold import ensure_project_scaffold  # noqa: 
 from project_contracts.project_policy import PROJECT_POLICY_REAL_PROJECT  # noqa: E402
 from project_contracts.research_contract import (
     RETAINED_HEADING,
+    SYNC_END,
+    SYNC_START,
     _collect_notebook_sections,
     sync_research_contract,
 )
@@ -208,7 +210,7 @@ class NotebookSectionCollectorTest(unittest.TestCase):
         line scanner and DOES under-collect on shapes it cannot see (tables,
         prose bibliographies, "#"-prefixed lines inside the section). The
         guarantee that under-collection cannot destroy content lives in
-        test_sync_refuses_to_write_when_it_would_drop_entries, not here."""
+        test_a_table_shaped_bibliography_is_kept_not_dropped, not here."""
         layouts = {
             "loose list with a nested item": (
                 "# NB\n\n## References\n\n- Ref A\n\n    - Ref B\n\n- Ref C\n",
@@ -402,6 +404,116 @@ class RetainsWhatItCannotDeriveTest(unittest.TestCase):
             contract = (root / "research_contract.md").read_text(encoding="utf-8")
             self.assertNotIn("- + Author A", contract)
             self.assertIn("+ Author A (2001)", contract)
+
+
+class MatchingMistakesMustNotDeleteTest(unittest.TestCase):
+    """A false POSITIVE match deletes: the line is judged reproduced, so it is
+    not retained, and if the judgement was wrong it was never re-derived either.
+    Every case here has a SURVIVING derived entry that a looser rule would let
+    absolve the vanished one — the structure the previous suite lacked, which is
+    why an any-overlap mutant passed all of it."""
+
+    def test_an_erratum_is_not_absolved_by_the_paper_it_corrects(self):
+        erratum = "- (Erratum) Author (1980), [DOI](https://doi.org/10.1000/eichten)"
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            _project_with(
+                root,
+                [erratum],
+                # The article survives in the derived block carrying the SAME target.
+                "- Author (1978), [DOI](https://doi.org/10.1000/eichten)\n",
+            )
+            result = _sync(root)
+            self.assertIn(erratum, result["retained_entries"])
+            self.assertIn(erratum, (root / "research_contract.md").read_text(encoding="utf-8"))
+
+    def test_a_curator_annotation_is_not_absolved_by_the_bare_entry(self):
+        # The derived body is a strict SUBSTRING of the existing one, which is
+        # what a curator's added note looks like. Substring matching — the
+        # round-5 bug — reads that as reproduced and deletes the annotation.
+        annotated = "- Author (1978), [DOI](https://ex.org/e) — superseded by the 1980 erratum"
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            _project_with(root, [annotated], "- Author (1978), [DOI](https://ex.org/e)\n")
+            result = _sync(root)
+            self.assertIn(annotated, result["retained_entries"])
+            self.assertIn(annotated, (root / "research_contract.md").read_text(encoding="utf-8"))
+
+    def test_entries_do_not_absolve_one_another_collectively(self):
+        combined = "- Gamma (2003) combined, [x](https://ex.org/x), [y](https://ex.org/y)"
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            _project_with(
+                root,
+                [combined],
+                "- Alpha, [x](https://ex.org/x)\n\n- Beta, [y](https://ex.org/y)\n",
+            )
+            result = _sync(root)
+            self.assertIn(combined, result["retained_entries"])
+
+    def test_two_targets_differing_after_a_parenthesis_are_distinct(self):
+        other = "- Epsilon (2005), [Rept](https://doi.org/10.1016/S0370-1573(01)00010-2)"
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            _project_with(
+                root,
+                [other],
+                "- Delta (2004), [Rept](https://doi.org/10.1016/S0370-1573(01)00009-6)\n",
+            )
+            result = _sync(root)
+            self.assertIn(other, result["retained_entries"])
+
+
+class StructureIsIdentityNotShapeTest(unittest.TestCase):
+    """Excluding a line from retention deletes it, so "is this the module's own
+    output" must be answered by what the module writes, not by how a line looks."""
+
+    def test_user_content_shaped_like_structure_survives(self):
+        lines = [
+            "#### Reviews and errata",
+            "<!-- Zeta (2006), unpublished note, no public link -->",
+            "#1729 internal report, no DOI, see lab archive",
+            "- Source notebook: [archived scan](https://example.org/scan-1729)",
+        ]
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            _project_with(root, lines, "- Unrelated (2009), [DOI](https://ex.org/u)\n")
+            _sync(root)
+            contract = (root / "research_contract.md").read_text(encoding="utf-8")
+            for line in lines:
+                self.assertIn(line, contract, f"structure-shaped user content deleted: {line}")
+
+    def test_a_hard_break_is_written_back_verbatim(self):
+        entry = "- Eta (2007), trailing hard break  "
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            _project_with(root, [entry], "- Unrelated (2009), [DOI](https://ex.org/u)\n")
+            result = _sync(root)
+            self.assertIn(entry, result["retained_entries"])
+
+    def test_reversed_markers_are_refused_rather_than_duplicated(self):
+        # Each marker index was taken independently, so an END before a START
+        # duplicated the span between them on every sync, unbounded.
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            _project_with(root, ["- A, [DOI](https://ex.org/a)"], "- A, [DOI](https://ex.org/a)\n")
+            contract = root / "research_contract.md"
+            text = contract.read_text(encoding="utf-8")
+            swapped = text.replace(SYNC_START, "@@S@@").replace(SYNC_END, SYNC_START).replace("@@S@@", SYNC_END)
+            contract.write_text(swapped, encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "out of order"):
+                _sync(root)
+            self.assertEqual(swapped, contract.read_text(encoding="utf-8"))
+
+    def test_crlf_line_endings_are_preserved(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            _project_with(root, ["- A, [DOI](https://ex.org/a)"], "- A, [DOI](https://ex.org/a)\n")
+            contract = root / "research_contract.md"
+            contract.write_bytes(contract.read_text(encoding="utf-8").replace("\n", "\r\n").encode())
+            _sync(root)
+            self.assertIn(b"\r\n", contract.read_bytes())
+            self.assertNotIn(b"\n\n\n", contract.read_bytes().replace(b"\r", b""))
 
 
 class ForceReportsWhatItReplacedTest(unittest.TestCase):
