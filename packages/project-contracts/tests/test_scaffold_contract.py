@@ -22,7 +22,10 @@ from project_contracts.project_surface import (
     SCAFFOLD_TEMPLATE_FILES,
     SCAFFOLD_TEMPLATE_MAP,
 )
-from project_contracts.research_contract import sync_research_contract
+from project_contracts.research_contract import (
+    propose_research_contract_block,
+    sync_research_contract,
+)
 from project_contracts.scaffold_template_loader import scaffold_template_dir
 
 
@@ -152,13 +155,19 @@ class TestScaffoldContract(unittest.TestCase):
                 "# research_notebook.md\n\n## Goal\n\n- Keep the scaffold generic.\n\n## References\n\n- [DemoRef](knowledge_base/literature/demo.md)\n",
                 encoding="utf-8",
             )
-            sync_research_contract(repo_root=root, create_missing=False, project_policy="real_project")
+            # The block was filled at creation; a second in-place rewrite is
+            # refused by design, so the neutrality of DERIVED content is
+            # asserted on the proposal the refresh entry point produces.
+            proposed = propose_research_contract_block(
+                repo_root=root, project_policy="real_project"
+            )
+            block_text = Path(proposed["proposal_path"]).read_text(encoding="utf-8")
             contract_text = (root / "research_contract.md").read_text(encoding="utf-8")
 
         self.assertIn("research_contract.md", result["created"])
-        self.assertIn("Source notebook: [research_notebook.md](research_notebook.md)", contract_text)
-        self.assertIn("- Goal", contract_text)
-        self.assertIn("- [DemoRef](knowledge_base/literature/demo.md)", contract_text)
+        self.assertIn("Source notebook: [research_notebook.md](research_notebook.md)", block_text)
+        self.assertIn("- Goal", block_text)
+        self.assertIn("- [DemoRef](knowledge_base/literature/demo.md)", block_text)
         self.assertNotIn("(refresh to populate)", contract_text)
 
     def test_scaffold_and_contract_sync_default_to_real_project_policy(self) -> None:

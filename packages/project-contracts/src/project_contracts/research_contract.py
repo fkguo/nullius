@@ -134,98 +134,81 @@ PLACEHOLDER_NO_SECTIONS = "(none yet)"
 PLACEHOLDER_NO_REFERENCES = (
     "(add references in [research_notebook.md](research_notebook.md) when available)"
 )
-_PLACEHOLDER_BODIES = frozenset(
-    {PLACEHOLDER_REFRESH, PLACEHOLDER_NO_SECTIONS, PLACEHOLDER_NO_REFERENCES}
-)
-
-RETAINED_HEADING = "### Entries the last refresh could not derive"
-RETAINED_NOTE = (
-    "<!-- Kept verbatim: these lines were in this block before the refresh and "
-    "the notebook scan did not reproduce them. The scan is a line scanner, not "
-    "a Markdown parser, so this list is where its blind spots surface. Delete "
-    "any line here that is genuinely stale, or re-run with drop_unreproduced / "
-    "--drop-unreproduced to clear them all. -->"
-)
 
 
-def _is_placeholder_entry(entry: str) -> bool:
-    return _entry_body(entry) in _PLACEHOLDER_BODIES
+class ResearchContractBlockIsNotTemplate(RuntimeError):
+    """Raised instead of rewriting a block this module did not just write."""
+
+    def __init__(self, contract: Path) -> None:
+        self.contract = contract
+        super().__init__(
+            f"refusing to rewrite the notebook-sync block in {contract}: it no longer "
+            "matches the scaffold template, so it holds content this module did not "
+            "write. Nothing was written. Use the refresh entry point, which derives a "
+            "block into a separate proposal file and leaves the contract alone."
+        )
 
 
-SOURCE_LINE = "- Source notebook: [research_notebook.md](research_notebook.md)"
-# The key belongs to this module; the value varies (a digest, or the
-# template's own placeholder before the first sync).
-_SHA_LINE_RE = re.compile(r"^- Notebook sha256: `[^`]*`$")
-SECTIONS_HEADING = "### Notebook sections"
-REFERENCES_HEADING = "### Notebook references"
-
-
-def _is_module_structure(line: str) -> bool:
-    """Is this line one this module itself emits?
-
-    Matched by EXACT identity, never by shape. An earlier version skipped any
-    line starting with "#", "<!--", or "- Source notebook:", which silently
-    deleted real content: a sub-heading a curator added to organize the block,
-    a reference commented out with a reason, a bibliography entry beginning
-    "#1729 internal report", and a notebook reference that genuinely read
-    "- Source notebook: [archived scan](...)". Whether a line is this module's
-    output is a question about what this module writes, not about how the line
-    looks.
-    """
-    stripped = line.strip()
-    return (
-        stripped in (SOURCE_LINE, SECTIONS_HEADING, REFERENCES_HEADING, RETAINED_HEADING, RETAINED_NOTE)
-        or bool(_SHA_LINE_RE.match(stripped))
-        or _entry_body(stripped) in _PLACEHOLDER_BODIES
-    )
-
-
-def _existing_block_lines(contract_text: str) -> list[str]:
-    """Every content line currently inside the notebook-sync block, verbatim.
-
-    Verbatim matters: trailing double spaces are a Markdown hard break, and an
-    earlier version rstripped them off the lines it wrote back.
-    """
+def _block_text(contract_text: str) -> str:
+    """The raw text between the sync markers, or "" when there is no block."""
     if SYNC_START not in contract_text or SYNC_END not in contract_text:
-        return []
+        return ""
     start = contract_text.index(SYNC_START) + len(SYNC_START)
     end = contract_text.index(SYNC_END)
-    if end < start:
-        return []
-    return [
-        line
-        for line in contract_text[start:end].splitlines()
-        if line.strip() and not _is_module_structure(line)
-    ]
+    return contract_text[start:end] if end >= start else ""
 
 
-def _entry_body(entry: str) -> str:
-    """The comparable text of a block entry: list marker off, spaces collapsed."""
-    body = _ORDERED_ITEM_RE.sub("", entry.strip(), count=1)
-    return _normalize_ws(body.lstrip("-*+ "))
+def _is_untouched_template_block(contract_text: str) -> bool:
+    """Is this block still exactly the one the scaffold template ships?
 
-
-def _normalize_ws(text: str) -> str:
-    return " ".join(text.split())
-
-
-def _reproduced(line: str, derived_bodies: set[str]) -> bool:
-    """Did the new parse derive a line with exactly this text?
-
-    Link targets are NOT consulted. Two rounds tried to be cleverer than exact
-    text and both deleted real references. Matching by target set treated an
-    erratum as reproduced by the article it corrects, since they share a DOI;
-    taking the union over all derived entries let entries absolve each other
-    collectively; and the target regex truncated at the first ")", so two
-    Elsevier DOIs differing after "(01)" became one key.
-
-    The deeper reason those failed is that a false POSITIVE here deletes. A
-    line judged reproduced is neither retained nor, if the judgement is wrong,
-    re-derived — so it simply disappears. Only exact text makes a false
-    positive impossible: if some derived line reads the same, nothing is lost
-    by dropping this one, whatever it means.
+    This is the whole precondition for writing in place, and it is deliberately
+    a comparison against a FIXED KNOWN STRING rather than against a parse. Four
+    review rounds were spent on rules that tried to decide, entry by entry,
+    which lines in a mature block were machine-derived and which were curated.
+    Every one of them was measured deleting real references, because each was a
+    text heuristic and a false positive deletes. There is no heuristic here and
+    nothing to be wrong about: either the block is byte-for-byte what the
+    template ships, in which case there is nothing to lose, or it is not, in
+    which case this refuses and the proposal path applies.
     """
-    return _entry_body(line) in derived_bodies
+    template_block = _block_text(load_scaffold_template(RESEARCH_CONTRACT))
+    return _block_text(contract_text).strip() == template_block.strip()
+
+
+def _derived_block_lines(notebook: Path, notebook_text: str) -> list[str]:
+    headings, references = _collect_notebook_sections(notebook_text)
+    lines = [
+        "- Source notebook: [research_notebook.md](research_notebook.md)",
+        f"- Notebook sha256: `{_sha256_file(notebook)}`",
+        "",
+        "### Notebook sections",
+        "",
+    ]
+    lines.extend(f"- {heading}" for heading in headings) if headings else lines.append(
+        f"- {PLACEHOLDER_NO_SECTIONS}"
+    )
+    lines.extend(["", "### Notebook references", ""])
+    lines.extend(references) if references else lines.append(f"- {PLACEHOLDER_NO_REFERENCES}")
+    return lines
+
+
+def _resolve_pair(
+    repo_root: Path,
+    notebook_path: Path | None,
+    contract_path: Path | None,
+    project_policy: str | None,
+) -> tuple[Path, Path, Path]:
+    repo_root = repo_root.expanduser().resolve()
+    assert_project_root_allowed(repo_root, project_policy=project_policy)
+    notebook = notebook_path.expanduser().resolve() if notebook_path else repo_root / RESEARCH_NOTEBOOK
+    contract = contract_path.expanduser().resolve() if contract_path else repo_root / RESEARCH_CONTRACT
+    assert_path_allowed(notebook, project_policy=project_policy, label="research notebook")
+    assert_path_allowed(contract, project_policy=project_policy, label="research contract")
+    assert_path_within_project(notebook, project_root=repo_root, label="research notebook")
+    assert_path_within_project(contract, project_root=repo_root, label="research contract")
+    if not notebook.is_file():
+        raise FileNotFoundError(f"research notebook not found: {notebook}")
+    return repo_root, notebook, contract
 
 
 def sync_research_contract(
@@ -235,85 +218,94 @@ def sync_research_contract(
     contract_path: Path | None = None,
     create_missing: bool,
     project_policy: str | None = PROJECT_POLICY_REAL_PROJECT,
-    drop_unreproduced: bool = False,
 ) -> dict[str, Any]:
-    """Rewrite the notebook-derived block, keeping what it cannot re-derive.
+    """Fill the notebook-derived block of a contract this run just created.
 
-    Removes a content line only when the new parse derived a line with exactly
-    the same text, or when `drop_unreproduced` is set. See the module comment
-    above for the named exceptions and for why matching consults nothing but
-    exact text.
+    Writes in place ONLY while the block is still byte-for-byte the one the
+    scaffold template ships — the state it is in immediately after creation,
+    where there is nothing to lose. Any other block is refused.
 
-    The scan above reads some valid Markdown wrongly, and no text heuristic
-    reliably decides whether a vanished entry was deleted on purpose — each one
-    tried was measured destroying real references. So nothing decides that
-    here: unreproduced lines are written back under RETAINED_HEADING, and a
-    scanner blind spot costs a stale line a reader can delete.
-
-    `drop_unreproduced` is the explicit way to clear retained lines, and it is
-    the only path on which this function removes anything.
+    That precondition replaces four rounds of rules that tried to decide, line
+    by line, which entries in a mature block were machine-derived and which
+    were curated. Each was a text heuristic; each was measured deleting real
+    references; and the reason is structural, not incidental: a false positive
+    there is neither kept nor re-derived, so it simply disappears. Comparing
+    against a fixed known string cannot fail that way. For a mature contract,
+    derive into a proposal instead — see propose_research_contract_block.
     """
-    repo_root = repo_root.expanduser().resolve()
-    assert_project_root_allowed(repo_root, project_policy=project_policy)
-
-    notebook = (notebook_path.expanduser().resolve() if notebook_path else repo_root / RESEARCH_NOTEBOOK)
-    contract = (contract_path.expanduser().resolve() if contract_path else repo_root / RESEARCH_CONTRACT)
-    assert_path_allowed(notebook, project_policy=project_policy, label="research notebook")
-    assert_path_allowed(contract, project_policy=project_policy, label="research contract")
-    assert_path_within_project(notebook, project_root=repo_root, label="research notebook")
-    assert_path_within_project(contract, project_root=repo_root, label="research contract")
-    if not notebook.is_file():
-        raise FileNotFoundError(f"research notebook not found: {notebook}")
+    repo_root, notebook, contract = _resolve_pair(
+        repo_root, notebook_path, contract_path, project_policy
+    )
     if not contract.exists():
         if not create_missing:
             raise FileNotFoundError(f"research contract not found: {contract}")
         contract.parent.mkdir(parents=True, exist_ok=True)
         contract.write_text(load_scaffold_template(RESEARCH_CONTRACT), encoding="utf-8")
 
+    contract_text = contract.read_text(encoding="utf-8", errors="replace")
+    if not _is_untouched_template_block(contract_text):
+        raise ResearchContractBlockIsNotTemplate(contract)
+
     notebook_text = notebook.read_text(encoding="utf-8", errors="replace")
     headings, references = _collect_notebook_sections(notebook_text)
-    lines = [
-        "- Source notebook: [research_notebook.md](research_notebook.md)",
-        f"- Notebook sha256: `{_sha256_file(notebook)}`",
-        "",
-        "### Notebook sections",
-        "",
-    ]
-    if headings:
-        lines.extend(f"- {heading}" for heading in headings)
-    else:
-        lines.append(f"- {PLACEHOLDER_NO_SECTIONS}")
-    lines.extend(["", "### Notebook references", ""])
-    if references:
-        lines.extend(references)
-    else:
-        lines.append(f"- {PLACEHOLDER_NO_REFERENCES}")
-
-    # newline="" so the file's own line endings survive the round trip: the
-    # default universal-newline translation turns CRLF into LF on READ, which
-    # made a CRLF contract come back rewritten in regions this function has no
-    # business touching.
-    with contract.open(encoding="utf-8", errors="replace", newline="") as handle:
-        contract_text = handle.read()
-    derived_bodies = {_entry_body(item) for item in (*(f"- {h}" for h in headings), *references)}
-    retained = [
-        line for line in _existing_block_lines(contract_text) if not _reproduced(line, derived_bodies)
-    ]
-    if retained and not drop_unreproduced:
-        lines.extend(["", RETAINED_HEADING, "", RETAINED_NOTE, ""])
-        lines.extend(retained)
-
-    updated = _replace_sync_block(contract_text, "\n".join(lines)).rstrip() + "\n"
-    if "\r\n" in contract_text:
-        # The contract belongs to the project. Rewriting its line endings edits
-        # regions this function has no business touching.
-        updated = updated.replace("\r\n", "\n").replace("\n", "\r\n")
-    contract.write_text(updated, encoding="utf-8", newline="")
+    lines = _derived_block_lines(notebook, notebook_text)
+    contract.write_text(
+        _replace_sync_block(contract_text, "\n".join(lines)).rstrip() + "\n", encoding="utf-8"
+    )
     return {
         "contract_path": str(contract),
         "notebook_sha256": _sha256_file(notebook),
         "section_count": len(headings),
         "reference_count": len(references),
-        "retained_entries": [] if drop_unreproduced else retained,
-        "dropped_entries": retained if drop_unreproduced else [],
+    }
+
+
+def propose_research_contract_block(
+    *,
+    repo_root: Path,
+    notebook_path: Path | None = None,
+    contract_path: Path | None = None,
+    proposal_path: Path | None = None,
+    project_policy: str | None = PROJECT_POLICY_REAL_PROJECT,
+) -> dict[str, Any]:
+    """Derive the block a refresh would produce, and write it somewhere else.
+
+    The contract is never opened for writing. Refreshing a mature contract in
+    place was the source of every blocking defect in this area, and they all
+    shared one cause: a derived region and a curated region occupying the same
+    lines, with no reliable way to tell them apart. Deriving into a separate
+    file removes the ambiguity instead of arbitrating it — the reader merges
+    what they want, and a blind spot in the scan costs a reading, never a
+    bibliography.
+    """
+    repo_root, notebook, contract = _resolve_pair(
+        repo_root, notebook_path, contract_path, project_policy
+    )
+    proposal = (
+        proposal_path.expanduser().resolve()
+        if proposal_path
+        else repo_root / "artifacts" / "research_contract_block.proposed.md"
+    )
+    assert_path_allowed(proposal, project_policy=project_policy, label="block proposal")
+    assert_path_within_project(proposal, project_root=repo_root, label="block proposal")
+
+    notebook_text = notebook.read_text(encoding="utf-8", errors="replace")
+    headings, references = _collect_notebook_sections(notebook_text)
+    lines = _derived_block_lines(notebook, notebook_text)
+    proposal.parent.mkdir(parents=True, exist_ok=True)
+    proposal.write_text(
+        "<!-- Derived from research_notebook.md. NOT applied to research_contract.md.\n"
+        "     The scan that produced this reads `-`/`*`/`+` and numbered items; it does\n"
+        "     not see references written as a table, as running prose, inside a block\n"
+        "     quote, or as an HTML list. Merge what is right into the contract's sync\n"
+        "     block by hand. -->\n\n" + "\n".join(lines) + "\n",
+        encoding="utf-8",
+    )
+    return {
+        "proposal_path": str(proposal),
+        "contract_path": str(contract),
+        "contract_modified": False,
+        "notebook_sha256": _sha256_file(notebook),
+        "section_count": len(headings),
+        "reference_count": len(references),
     }

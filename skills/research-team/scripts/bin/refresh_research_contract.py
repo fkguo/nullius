@@ -15,9 +15,14 @@ def main() -> int:
     project_contracts_src = _repo_root() / "packages" / "project-contracts" / "src"
     if project_contracts_src.is_dir():
         sys.path.insert(0, str(project_contracts_src))
-    from project_contracts.research_contract import sync_research_contract
+    from project_contracts.research_contract import propose_research_contract_block
 
-    ap = argparse.ArgumentParser(description="Refresh research_contract.md from research_notebook.md.")
+    ap = argparse.ArgumentParser(
+        description=(
+            "Derive the notebook-sync block from research_notebook.md into a proposal "
+            "file. research_contract.md is never modified."
+        )
+    )
     ap.add_argument("--root", type=Path, default=Path.cwd(), help="Project root.")
     ap.add_argument("--notebook", type=Path, default=None, help="Optional notebook path override.")
     ap.add_argument("--contract", type=Path, default=None, help="Optional contract path override.")
@@ -28,25 +33,19 @@ def main() -> int:
         help="Project root policy (`maintainer_fixture` is internal maintainer-only; public use should stay on `real_project`).",
     )
     ap.add_argument(
-        "--drop-unreproduced",
-        action="store_true",
-        help=(
-            "Delete the entries the notebook scan could not reproduce instead "
-            "of writing them back. Off by default: the scan is a line scanner, "
-            "not a Markdown parser, so a shape it misreads must cost a stale "
-            "line a reader can delete, never a curated bibliography. Use this "
-            "once you have read the retained list and it really is stale."
-        ),
+        "--proposal",
+        type=Path,
+        default=None,
+        help="Where to write the derived block (default: artifacts/research_contract_block.proposed.md).",
     )
     args = ap.parse_args()
 
-    result = sync_research_contract(
+    result = propose_research_contract_block(
         repo_root=args.root.expanduser().resolve(),
         notebook_path=args.notebook.expanduser().resolve() if args.notebook else None,
         contract_path=args.contract.expanduser().resolve() if args.contract else None,
-        create_missing=False,
+        proposal_path=args.proposal.expanduser().resolve() if args.proposal else None,
         project_policy=args.project_policy,
-        drop_unreproduced=args.drop_unreproduced,
     )
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0
