@@ -50,27 +50,27 @@ CURATED_CONTRACT = """# Research contract
 
 ### Notebook sections
 
-- Scientific question and present scope
-- Primary sources and reading coverage
-- Authoritative correction chain
-- Verified bare radial problem
-- Six-state bare spectrum at printed precision
-- Energy continuation and the pole equation
-- Adjacent-sheet pole spectrum
+- Scope and question
+- Source coverage
+- Correction chain
+- Verified baseline problem
+- Baseline results at printed precision
+- Continuation and the defining equation
+- Adjacent-branch results
 - Bounded conclusion
 - Reusable production operations
-- Remaining physical work
+- Remaining work
 
 ### Notebook references
 
-- First author et al. (1978), [DOI](https://doi.org/10.1103/PhysRevD.17.3090)
-- First author et al. (1980), [DOI](https://doi.org/10.1103/PhysRevD.21.203)
-- Published Erratum, [DOI](https://doi.org/10.1103/PhysRevD.21.313.2)
+- Author A and Author B (2001), [DOI](https://doi.org/10.1000/example-a)
+- Author A, Author B, and Author C (2002), [DOI](https://doi.org/10.1000/example-b)
+- Author A (2003), [DOI](https://doi.org/10.1000/example-c)
 <!-- RESEARCH_NOTEBOOK_SYNC_END -->
 
 ## Owner-authored acceptance criteria
 
-- The bounded negative result closes the milestone.
+- The bounded result closes the milestone.
 """
 
 # A numbered bibliography whose DOI link sits on a continuation line: the
@@ -88,10 +88,10 @@ Text.
 ## References
 
 1. E. Author, K. Second, and T. Third,
-   ["Model paper," *Phys. Rev. D* **17**, 3090 (1978)](https://doi.org/10.1103/PhysRevD.17.3090).
+   ["First study," *Journal of Examples* **17**, 3090 (2001)](https://doi.org/10.1000/example-a).
 
 2. E. Author and K. Second,
-   ["Comparison paper," *Phys. Rev. D* **21**, 203 (1980)](https://doi.org/10.1103/PhysRevD.21.203).
+   ["Second study," *Journal of Examples* **21**, 203 (2002)](https://doi.org/10.1000/example-b).
 """
 
 
@@ -183,8 +183,8 @@ class NotebookSectionCollectorTest(unittest.TestCase):
         self.assertEqual(len(references), 2, f"numbered bibliography parsed as {references}")
         self.assertTrue(all(ref.startswith("- ") for ref in references))
         # The DOI lives on the continuation line and must survive.
-        self.assertIn("10.1103/PhysRevD.17.3090", references[0])
-        self.assertIn("10.1103/PhysRevD.21.203", references[1])
+        self.assertIn("10.1000/example-a", references[0])
+        self.assertIn("10.1000/example-b", references[1])
 
     def test_bullet_references_still_supported(self):
         notebook = (
@@ -224,7 +224,7 @@ class SyncReportsLossTest(unittest.TestCase):
             dropped = result["dropped_entries"]
             self.assertTrue(dropped, "a shrinking sync reported no dropped entries")
             # The curated contract listed sections the notebook no longer has.
-            self.assertIn("- Authoritative correction chain", dropped)
+            self.assertIn("- Correction chain", dropped)
             self.assertEqual(result["reference_count"], 2)
             self.assertEqual(result["section_count"], 2)
 

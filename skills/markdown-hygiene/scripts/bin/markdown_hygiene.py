@@ -41,12 +41,21 @@ UNESCAPED_PIPE_RE = re.compile(r"(?<!\\)\|")
 # A bare | inside math is fragile wherever it appears, not only in a table
 # row: it collides with the Markdown table-cell separator the moment the
 # formula is moved or wrapped into a table, and renderers disagree about it
-# even outside tables. The semantic delimiters carry their own spacing and
-# never collide: \lvert…\rvert for an absolute value, \lVert…\rVert for a
-# norm, \mid for a set-builder or conditional bar.
+# even outside tables. Every bar role has a named command that carries its
+# own spacing and never collides.
 BARE_PIPE_IN_MATH_MESSAGE = (
     r"bare | inside math is fragile and collides with Markdown table cells; "
-    r"use \lvert...\rvert (absolute value), \lVert...\rVert (norm), or \mid (such-that bar)"
+    r"use \lvert...\rvert (absolute value), \lVert...\rVert (norm), "
+    r"\mid (such-that bar), or \vert / \middle\vert / \big\vert (sized and "
+    r"evaluation bars)"
+)
+# Column specifications are the one place a literal | is not a delimiter but
+# a column rule, and none of the named commands above is valid there — the
+# rule must not demand LaTeX that cannot compile. \multicolumn carries the
+# same kind of spec in its second argument.
+MATH_COLUMN_SPEC_RE = re.compile(
+    r"\\begin\{(?:array|subarray|tabular|tabularx|array\*)\}(?:\s*\[[^\]]*\])?\s*\{[^{}]*\}"
+    r"|\\multicolumn\s*\{[^{}]*\}\s*\{[^{}]*\}"
 )
 UNESCAPED_ASTERISK_RE = re.compile(r"(?<!\\)\*")
 GFM_FRAGILE_BAR_RE = re.compile(r"\\bar\{[^{}]+}\s*_[A-Za-z]")
@@ -143,6 +152,32 @@ def split_inline_code_segments(line: str) -> Iterable[tuple[str, bool]]:
         end += tick_count
         yield line[start:end], True
         cursor = end
+
+
+def strip_math_column_specs(content: str) -> str:
+    """Blank out array/tabular column specifications so their column rules
+    are not read as absolute-value bars."""
+    return MATH_COLUMN_SPEC_RE.sub(lambda m: " " * len(m.group(0)), content)
+
+
+def has_bare_pipe(content: str) -> bool:
+    r"""True when an unescaped | survives outside a column specification.
+
+    Backslash parity matters: in ``\|`` the pipe is escaped, but in ``\\|``
+    the ``\\`` is a TeX line break and the pipe that follows is genuinely
+    bare — a lookbehind for a single backslash cannot tell the two apart.
+    """
+    text = strip_math_column_specs(content)
+    index = 0
+    while index < len(text):
+        char = text[index]
+        if char == "\\":
+            index += 2
+            continue
+        if char == "|":
+            return True
+        index += 1
+    return False
 
 
 def parse_inline_code_span(segment: str) -> tuple[str, str] | None:
@@ -724,7 +759,7 @@ def check_github_math_in_file(path: Path, text: str) -> list[HygieneIssue]:
                 issues.append(HygieneIssue(path, line_number, r"raw * inside display math may break GitHub math; use \ast"))
             if GFM_FRAGILE_BAR_RE.search(line):
                 issues.append(HygieneIssue(path, line_number, r"\bar{...}_... can be fragile in GitHub math; prefer \bar X_..."))
-            if UNESCAPED_PIPE_RE.search(line):
+            if has_bare_pipe(line):
                 issues.append(HygieneIssue(path, line_number, BARE_PIPE_IN_MATH_MESSAGE))
             in_display_math = display_math_state_after_line(line, in_display_math)
             continue
@@ -740,7 +775,7 @@ def check_github_math_in_file(path: Path, text: str) -> list[HygieneIssue]:
                     issues.append(HygieneIssue(path, line_number, r"raw * inside Markdown math may break GitHub math; use \ast"))
                 if GFM_FRAGILE_BAR_RE.search(content):
                     issues.append(HygieneIssue(path, line_number, r"\bar{...}_... can be fragile in GitHub math; prefer \bar X_..."))
-                if line_number not in table_lines and UNESCAPED_PIPE_RE.search(content):
+                if line_number not in table_lines and has_bare_pipe(content):
                     issues.append(HygieneIssue(path, line_number, BARE_PIPE_IN_MATH_MESSAGE))
                 if delimiter == "$" and end < len(segment) and segment[end] == ")":
                     issues.append(
