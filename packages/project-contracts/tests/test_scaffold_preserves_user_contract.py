@@ -34,7 +34,8 @@ sys.path.insert(0, str(_src_root()))
 
 from project_contracts.project_scaffold import ensure_project_scaffold  # noqa: E402
 from project_contracts.project_policy import PROJECT_POLICY_REAL_PROJECT  # noqa: E402
-from project_contracts.research_contract import (  # noqa: E402
+from project_contracts.research_contract import (
+    ResearchContractSyncWouldLoseEntries,  # noqa: E402
     _collect_notebook_sections,
     sync_research_contract,
 )
@@ -197,14 +198,17 @@ class NotebookSectionCollectorTest(unittest.TestCase):
         self.assertIn("10.1000/a", references[0])
         self.assertIn("10.1000/b", references[1])
 
-    def test_collector_never_loses_a_reference_on_any_layout(self):
-        """The safety property the collector is built around: it may ADD a
-        spurious entry, never drop a real one. Three review rounds of a
-        cleverer parser each shipped a new way to lose a reference — a
-        shorter fence run closing a longer block, a tab-indented annotation
-        absorbing the entry after it, an indented sub-item of a loose list
-        read as code. Every layout below is valid Markdown that broke one of
-        those attempts."""
+    def test_collector_handles_these_six_layouts_without_loss(self):
+        """Six layouts, each of which broke one attempt at a cleverer
+        parser: a shorter fence run closing a longer block, a tab-indented
+        annotation absorbing the entry after it, an indented sub-item of a
+        loose list read as code.
+
+        This proves those six cases and nothing more — the collector is a
+        line scanner and DOES under-collect on shapes it cannot see (tables,
+        prose bibliographies, "#"-prefixed lines inside the section). The
+        guarantee that under-collection cannot destroy content lives in
+        test_sync_refuses_to_write_when_it_would_drop_entries, not here."""
         layouts = {
             "loose list with a nested item": (
                 "# NB\n\n## References\n\n- Ref A\n\n    - Ref B\n\n- Ref C\n",
@@ -249,10 +253,13 @@ class NotebookSectionCollectorTest(unittest.TestCase):
 
 
 class SyncReportsLossTest(unittest.TestCase):
-    def test_sync_reports_entries_it_drops(self):
-        # A deliberate re-sync may legitimately shrink the block (the notebook
-        # dropped a section), but never silently: the dropped entries come
-        # back in the result so a caller can surface them.
+    """The two things a shrinking sync can mean, and why only one of them stops it."""
+
+    def test_a_genuine_deletion_is_written_and_reported(self):
+        # The notebook really dropped those sections and references — their text
+        # is nowhere in it any more. That is the sync doing its job, so it
+        # writes; but it says what left, because a silent replacement of
+        # curated entries by placeholders is exactly the reported incident.
         with tempfile.TemporaryDirectory() as td:
             root = Path(td) / "proj"
             _mature_project(root)
@@ -261,14 +268,66 @@ class SyncReportsLossTest(unittest.TestCase):
                 create_missing=False,
                 project_policy=PROJECT_POLICY_REAL_PROJECT,
             )
-            dropped = result["dropped_entries"]
-            self.assertTrue(dropped, "a shrinking sync reported no dropped entries")
-            # The curated contract listed sections the notebook no longer has.
-            self.assertIn("- Correction chain", dropped)
+            self.assertIn("- Correction chain", result["removed_entries"])
+            self.assertEqual(result["unreproduced_entries"], [])
             self.assertEqual(result["reference_count"], 2)
             self.assertEqual(result["section_count"], 2)
 
-    def test_sync_of_a_faithful_notebook_drops_nothing(self):
+    def test_sync_refuses_to_write_when_it_would_drop_entries(self):
+        # The guarantee the collector itself cannot give. Here the references
+        # are still in the notebook, in a shape the line scanner does not
+        # recognize — a table. A parser that cannot see them must not be
+        # allowed to erase them.
+        notebook = (
+            "# Research notebook\n\n## Scope\n\nText.\n\n## References\n\n"
+            "| Source | Link |\n| --- | --- |\n"
+            "| Author A and Author B (2001) | [DOI](https://doi.org/10.1000/example-a) |\n"
+        )
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            _mature_project(root)
+            (root / "research_notebook.md").write_text(notebook, encoding="utf-8")
+            before = (root / "research_contract.md").read_bytes()
+
+            with self.assertRaises(ResearchContractSyncWouldLoseEntries) as caught:
+                sync_research_contract(
+                    repo_root=root,
+                    create_missing=False,
+                    project_policy=PROJECT_POLICY_REAL_PROJECT,
+                )
+
+            self.assertEqual(
+                before,
+                (root / "research_contract.md").read_bytes(),
+                "a refused sync still touched the contract",
+            )
+            self.assertIn(
+                "- Author A and Author B (2001), [DOI](https://doi.org/10.1000/example-a)",
+                caught.exception.dropped,
+            )
+
+    def test_allow_entry_loss_confirms_the_refused_write(self):
+        # The escape hatch has to be unconditional: a guard with no way past it
+        # becomes a reason to delete the guard.
+        notebook = (
+            "# Research notebook\n\n## Scope\n\nText.\n\n## References\n\n"
+            "| Source | Link |\n| --- | --- |\n"
+            "| Author A and Author B (2001) | [DOI](https://doi.org/10.1000/example-a) |\n"
+        )
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            _mature_project(root)
+            (root / "research_notebook.md").write_text(notebook, encoding="utf-8")
+            result = sync_research_contract(
+                repo_root=root,
+                create_missing=False,
+                project_policy=PROJECT_POLICY_REAL_PROJECT,
+                allow_entry_loss=True,
+            )
+            self.assertTrue(result["unreproduced_entries"])
+            self.assertIn("- Scope", (root / "research_contract.md").read_text(encoding="utf-8"))
+
+    def test_a_faithful_resync_removes_nothing(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td) / "proj"
             _mature_project(root)
@@ -279,7 +338,8 @@ class SyncReportsLossTest(unittest.TestCase):
             result = sync_research_contract(
                 repo_root=root, create_missing=False, project_policy=PROJECT_POLICY_REAL_PROJECT
             )
-            self.assertEqual(result["dropped_entries"], [])
+            self.assertEqual(result["removed_entries"], [])
+            self.assertEqual(result["unreproduced_entries"], [])
 
 
 if __name__ == "__main__":

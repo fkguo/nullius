@@ -27,6 +27,16 @@ def main() -> int:
         default="real_project",
         help="Project root policy (`maintainer_fixture` is internal maintainer-only; public use should stay on `real_project`).",
     )
+    ap.add_argument(
+        "--allow-entry-loss",
+        action="store_true",
+        help=(
+            "Write even when the derived block would drop entries the block "
+            "already holds. Off by default: the collector is a line scanner, "
+            "not a Markdown parser, so a shape it misreads must cost a "
+            "refusal rather than a curated bibliography."
+        ),
+    )
     args = ap.parse_args()
 
     result = sync_research_contract(
@@ -35,6 +45,7 @@ def main() -> int:
         contract_path=args.contract.expanduser().resolve() if args.contract else None,
         create_missing=False,
         project_policy=args.project_policy,
+        allow_entry_loss=args.allow_entry_loss,
     )
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0
