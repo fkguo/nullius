@@ -34,27 +34,33 @@ def _replace_sync_block(contract_text: str, block: str) -> str:
 
 
 # A reference item may open with a bullet OR an ordered marker ("1.", "2)"),
-# and academic entries routinely carry the DOI link on an indented
-# continuation line. Recognizing only bullets, and only their first line,
-# made a numbered bibliography look like NO references at all — which then
-# replaced real entries with the "(add references ...)" placeholder.
+# and academic entries routinely carry the DOI link on a continuation line.
+# Recognizing only bullets, and only their first line, made a numbered
+# bibliography look like NO references at all — which then replaced real
+# entries with the "(add references ...)" placeholder.
+#
+# DELIBERATELY NAIVE, and the naivety is the safety property. Three review
+# rounds of a cleverer collector (fence tracking, indentation comparison,
+# indented-code detection) each shipped a new way to LOSE a real reference:
+# a shorter fence run closing a longer block, a tab-indented annotation
+# absorbing the entry after it, an indented sub-item of a loose list being
+# read as code. Hand-rolling CommonMark is how that happens, and this
+# package must stay dependency-light, so it does not try.
+#
+# What is left cannot lose anything: every item line opens an entry, every
+# other non-blank line folds into the open one. When it is wrong it is wrong
+# by ADDING an entry (a fenced example, a nested annotation listed
+# separately), never by dropping one — and a spurious entry is visible in
+# the block a human reads, while a dropped reference is not.
 _ORDERED_ITEM_RE = re.compile(r"^\d+[.)]\s+")
 _BULLET_ITEM_RE = re.compile(r"^[-*]\s+")
-_FENCE_RE = re.compile(r"^(\s*)(`{3,}|~{3,})")
-# Markdown promotes a >=4-column-indented line with no open list item to an
-# indented code block, not a list item.
-_INDENTED_CODE_COLUMNS = 4
 
 
 def _collect_notebook_sections(notebook_text: str) -> tuple[list[str], list[str]]:
     headings: list[str] = []
     references: list[str] = []
     in_references = False
-    in_fence = False
-    fence_marker = ""
-    fence_length = 0
     current: list[str] = []
-    current_indent = 0
 
     def _flush() -> None:
         if not current:
@@ -65,34 +71,6 @@ def _collect_notebook_sections(notebook_text: str) -> tuple[list[str], list[str]
             references.append(joined if joined.startswith(("- ", "* ")) else f"- {joined}")
 
     for line in notebook_text.splitlines():
-        # Fenced blocks are illustrations, not bibliography. Without this a
-        # ``` example inside the References section became a fictitious
-        # reference, and the closing fence was folded into the entry above it.
-        # Only a fence of the SAME marker family closes an open one, as
-        # CommonMark requires: a ~~~ line inside a ``` block is content.
-        fence_match = _FENCE_RE.match(line)
-        if fence_match:
-            run = fence_match.group(2)
-            marker, length = run[0], len(run)
-            if not in_fence:
-                if in_references:
-                    _flush()
-                in_fence = True
-                fence_marker = marker
-                fence_length = length
-                continue
-            # CommonMark: a closing fence uses the SAME character and is at
-            # least as long as the opening run. Without the length rule a
-            # ``` line inside a ```` block closed it, promoting fenced text
-            # to a reference and swallowing the heading that followed.
-            if marker == fence_marker and length >= fence_length:
-                in_fence = False
-                fence_marker = ""
-                fence_length = 0
-                continue
-        if in_fence:
-            continue
-
         stripped = line.strip()
         if stripped.startswith("#"):
             _flush()
@@ -108,31 +86,15 @@ def _collect_notebook_sections(notebook_text: str) -> tuple[list[str], list[str]
         if not stripped:
             _flush()
             continue
-
-        # Indentation is measured in COLUMNS, not characters: a tab-indented
-        # annotation counted as one character looked less indented than a
-        # two-space entry, so it became its own reference and absorbed the
-        # entry that followed it.
-        prefix = line[: len(line) - len(line.lstrip())]
-        indent = len(prefix.expandtabs(_INDENTED_CODE_COLUMNS))
-        is_item = bool(_BULLET_ITEM_RE.match(stripped) or _ORDERED_ITEM_RE.match(stripped))
-        if not current and indent >= _INDENTED_CODE_COLUMNS:
-            # Indented code with no entry to attach to: not bibliography.
-            continue
-        # A more-indented item is an annotation OF the open entry, not a new
-        # one: folding keeps an entry and its notes together instead of
-        # splitting one reference into several.
-        if is_item and (not current or indent <= current_indent):
+        if _BULLET_ITEM_RE.match(stripped) or _ORDERED_ITEM_RE.match(stripped):
             _flush()
-            current_indent = indent
             current.append(
                 _ORDERED_ITEM_RE.sub("", stripped, count=1)
                 if _ORDERED_ITEM_RE.match(stripped)
                 else stripped
             )
         elif current:
-            # Continuation of the open item (where the DOI link usually is)
-            # or a nested annotation under it.
+            # Continuation of the open item — where the DOI link usually is.
             current.append(stripped)
     _flush()
     # No truncation: a silent cap dropped every section past the eighth from a

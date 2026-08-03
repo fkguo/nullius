@@ -455,6 +455,12 @@ a & b
 \end{tabularx}
 $$
 
+$$
+\begin{tabularx}{\textwidth}[t]{c|c}
+a & b
+\end{tabularx}
+$$
+
 Inline code `a | b` and prose pipes a | b are untouched.
 MD
 python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" check --root "${HUMAN_DIR}/good-delimited-math.md" --check-github-math
@@ -463,6 +469,7 @@ cat >"${HUMAN_DIR}/bad-table-break-pipe.md" <<'MD'
 | quantity | bound |
 | --- | --- |
 | a | $x \\| y$ |
+| b | $\begin{array}{c|c}p & q\end{array}$ |
 MD
 if python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" check --root "${HUMAN_DIR}/bad-table-break-pipe.md" --check-table-math-pipes; then
   echo "expected table check to fail for a bare | after a TeX line break" >&2
