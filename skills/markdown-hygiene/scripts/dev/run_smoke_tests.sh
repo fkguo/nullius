@@ -414,13 +414,35 @@ if python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" check --root "${HUMAN_
   exit 1
 fi
 
+cat >"${HUMAN_DIR}/bad-line-break-pipe.md" <<'MD'
+$$
+a \\
+| b |
+$$
+MD
+if python3 "${SKILL_DIR}/scripts/bin/markdown_hygiene.py" check --root "${HUMAN_DIR}/bad-line-break-pipe.md" --check-github-math; then
+  echo "expected check to fail for a bare | after a TeX line break" >&2
+  exit 1
+fi
+
 cat >"${HUMAN_DIR}/good-delimited-math.md" <<'MD'
 The bound is $\lvert x - x_0 \rvert < \epsilon$ and the norm is $\lVert \psi \rVert$.
 
 Set-builder bars are fine: $\{x \mid x > 0\}$, and so is an escaped $a \| b$.
 
+Sized bars: $\left\langle a \middle\vert b \right\rangle$ and $f\big\vert_{x=0}$.
+
 $$
 \lvert E - E_0 \rvert < \delta
+$$
+
+A column rule is a column rule, not an absolute value; none of the named
+delimiters is valid in a column specification:
+
+$$
+\begin{array}{cc|c}
+a & b & c
+\end{array}
 $$
 
 Inline code `a | b` and prose pipes a | b are untouched.

@@ -39,13 +39,17 @@ def _replace_sync_block(contract_text: str, block: str) -> str:
 # made a numbered bibliography look like NO references at all — which then
 # replaced real entries with the "(add references ...)" placeholder.
 _ORDERED_ITEM_RE = re.compile(r"^\d+[.)]\s+")
+_BULLET_ITEM_RE = re.compile(r"^[-*]\s+")
+_FENCE_RE = re.compile(r"^\s*(?:```|~~~)")
 
 
 def _collect_notebook_sections(notebook_text: str) -> tuple[list[str], list[str]]:
     headings: list[str] = []
     references: list[str] = []
     in_references = False
+    in_fence = False
     current: list[str] = []
+    current_indent = 0
 
     def _flush() -> None:
         if not current:
@@ -56,6 +60,17 @@ def _collect_notebook_sections(notebook_text: str) -> tuple[list[str], list[str]
             references.append(joined if joined.startswith(("- ", "* ")) else f"- {joined}")
 
     for line in notebook_text.splitlines():
+        # Fenced blocks are illustrations, not bibliography. Without this a
+        # ``` example inside the References section became a fictitious
+        # reference, and the closing fence was folded into the entry above it.
+        if _FENCE_RE.match(line):
+            if in_references:
+                _flush()
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+
         stripped = line.strip()
         if stripped.startswith("#"):
             _flush()
@@ -71,14 +86,23 @@ def _collect_notebook_sections(notebook_text: str) -> tuple[list[str], list[str]
         if not stripped:
             _flush()
             continue
-        if stripped.startswith(("- ", "* ")):
+
+        indent = len(line) - len(line.lstrip())
+        is_item = bool(_BULLET_ITEM_RE.match(stripped) or _ORDERED_ITEM_RE.match(stripped))
+        # A more-indented item is an annotation OF the open entry, not a new
+        # one: folding keeps an entry and its notes together instead of
+        # splitting one reference into several.
+        if is_item and (not current or indent <= current_indent):
             _flush()
-            current.append(stripped)
-        elif _ORDERED_ITEM_RE.match(stripped):
-            _flush()
-            current.append(_ORDERED_ITEM_RE.sub("", stripped, count=1))
+            current_indent = indent
+            current.append(
+                _ORDERED_ITEM_RE.sub("", stripped, count=1)
+                if _ORDERED_ITEM_RE.match(stripped)
+                else stripped
+            )
         elif current:
-            # Continuation of the open item (where the DOI link usually is).
+            # Continuation of the open item (where the DOI link usually is)
+            # or a nested annotation under it.
             current.append(stripped)
     _flush()
     # No truncation: a silent cap dropped every section past the eighth from a
