@@ -633,33 +633,9 @@ review content, so a degraded run is legible as "backend down" rather than
 mistaken for reviewer disagreement:
 
 - Every agent result carries a `failure_class`: `infrastructure` (timeout,
-  crash exit, empty output, externalized output — the backend never delivered
-  reviewable content) or `content` (the backend answered but the answer failed
-  a protocol check, e.g. an invalid two-phase criteria block). Successes carry
-  `null`.
-- **Three separate re-execution budgets, never one number.** A delegated
-  contract that allows one attempt per reviewer must bind all three, and
-  `meta.json` records them separately under `attempt_budgets`:
-  - `--backend-max-attempts N` bounds attempts **inside** each backend runner
-    (forwarded as `--max-attempts` to kimi/opencode and `--max-retries` to
-    claude/codex — both are total-attempt counters; gemini has no attempt loop
-    and takes no flag). **Leave it unset and each runner keeps its own default
-    (3 or 6) and will re-run even a permanently failed provider call** — a
-    spent billing-cycle quota was re-tried three times before this flag
-    existed. Pass `1` for a one-attempt, no-spontaneous-rerun contract.
-  - `--retry-empty-output N` is the orchestration-level rerun (below); it
-    cannot reach inside a runner.
-  - `--fallback-mode` governs substituting a different backend.
-- **A pointer is not a delivery.** An agent that writes its report into its own
-  workspace and returns only a sentence naming that file (`report written to
-  analysis.md`) has delivered nothing: the path is unreachable to every
-  downstream consumer. Such an output fails as `externalized_output`
-  (infrastructure class) with the named target recorded in
-  `externalized_output_reason`, instead of scoring a success on a non-blank
-  stub. The detector requires a short output **and** a write verb bound to a
-  deliverable noun **and** a filename-like target, so a substantive review that
-  merely mentions a file keeps passing; `--allow-pointer-output` opts out
-  entirely when a pointer answer is the intended deliverable.
+  crash exit, empty output — the backend never delivered reviewable content) or
+  `content` (the backend answered but the answer failed a protocol check, e.g.
+  an invalid two-phase criteria block). Successes carry `null`.
 - `--retry-empty-output N` (default `0` — disabled, so existing callers of the
   launcher keep their behavior; `review_one.py` passes `1` explicitly for its
   delegated run): an agent whose runner exited 0 but wrote an empty output file
