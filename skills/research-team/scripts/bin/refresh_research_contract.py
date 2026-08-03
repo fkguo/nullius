@@ -28,13 +28,14 @@ def main() -> int:
         help="Project root policy (`maintainer_fixture` is internal maintainer-only; public use should stay on `real_project`).",
     )
     ap.add_argument(
-        "--allow-entry-loss",
+        "--drop-unreproduced",
         action="store_true",
         help=(
-            "Write even when the derived block would drop entries the block "
-            "already holds. Off by default: the collector is a line scanner, "
-            "not a Markdown parser, so a shape it misreads must cost a "
-            "refusal rather than a curated bibliography."
+            "Delete the entries the notebook scan could not reproduce instead "
+            "of writing them back. Off by default: the scan is a line scanner, "
+            "not a Markdown parser, so a shape it misreads must cost a stale "
+            "line a reader can delete, never a curated bibliography. Use this "
+            "once you have read the retained list and it really is stale."
         ),
     )
     args = ap.parse_args()
@@ -45,7 +46,7 @@ def main() -> int:
         contract_path=args.contract.expanduser().resolve() if args.contract else None,
         create_missing=False,
         project_policy=args.project_policy,
-        allow_entry_loss=args.allow_entry_loss,
+        drop_unreproduced=args.drop_unreproduced,
     )
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0
