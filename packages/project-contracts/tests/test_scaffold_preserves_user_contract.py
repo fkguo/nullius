@@ -21,6 +21,7 @@ Three independent mechanisms produced that single loss:
 """
 
 import sys
+import hashlib
 import tempfile
 import unittest
 from pathlib import Path
@@ -37,6 +38,8 @@ from project_contracts.project_policy import PROJECT_POLICY_REAL_PROJECT  # noqa
 from project_contracts.scaffold_template_loader import load_scaffold_template  # noqa: E402
 from project_contracts.project_surface import RESEARCH_CONTRACT  # noqa: E402
 from project_contracts.research_contract import (
+    ProposalWouldOverwriteProjectFile,
+    _block_text,
     ResearchContractBlockIsNotTemplate,
     propose_research_contract_block,
     _collect_notebook_sections,
@@ -285,6 +288,16 @@ def _project_with(root: Path, contract_entries: list[str], notebook_references: 
     )
 
 
+def _project_digest(root: Path) -> dict[str, str]:
+    """sha256 of every file in the project — the observable for "nothing the
+    project owns changed", which no path-shaped check can stand in for."""
+    return {
+        path.relative_to(root).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in sorted(root.rglob("*"))
+        if path.is_file() and not path.is_symlink()
+    }
+
+
 def _sync(root: Path, **kwargs):
     return sync_research_contract(
         repo_root=root, create_missing=False, project_policy=PROJECT_POLICY_REAL_PROJECT, **kwargs
@@ -362,7 +375,41 @@ class MatureContractIsNeverRewrittenTest(unittest.TestCase):
             self.assertEqual(result["reference_count"], 0)
             self.assertEqual(before, (root / "research_contract.md").read_bytes())
 
-    def test_the_proposal_never_escapes_the_project(self):
+    def test_the_proposal_never_overwrites_a_file_the_project_owns(self):
+        # The observable is "did any pre-existing project file change", not "was
+        # the path outside the project root". The earlier test asked the second
+        # question, which is the same question assert_path_within_project asks,
+        # so it could only confirm that check exists — and every destination in
+        # this test is INSIDE the project, where the damage was.
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            _mature_project(root)
+            (root / "artifacts").mkdir()
+            (root / "artifacts" / "someone_elses.md").write_text("owned\n", encoding="utf-8")
+            link = root / "artifacts" / "research_contract_block.proposed.md"
+
+            destinations = [
+                ("the contract itself", root / "research_contract.md", None),
+                ("the notebook", root / "research_notebook.md", None),
+                ("an unrelated existing file", root / "artifacts" / "someone_elses.md", None),
+                ("a symlink at the default location", None, link),
+            ]
+            for label, dest, symlink in destinations:
+                with self.subTest(destination=label):
+                    if symlink is not None:
+                        symlink.unlink(missing_ok=True)
+                        symlink.symlink_to(Path("..") / "research_contract.md")
+                    before = _project_digest(root)
+                    with self.assertRaises(ProposalWouldOverwriteProjectFile):
+                        propose_research_contract_block(
+                            repo_root=root,
+                            proposal_path=dest,
+                            project_policy=PROJECT_POLICY_REAL_PROJECT,
+                        )
+                    self.assertEqual(before, _project_digest(root), f"{label}: a file changed")
+            link.unlink(missing_ok=True)
+
+    def test_the_proposal_still_escapes_nothing(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td) / "proj"
             _mature_project(root)
@@ -372,6 +419,27 @@ class MatureContractIsNeverRewrittenTest(unittest.TestCase):
                     proposal_path=Path(td) / "outside.md",
                     project_policy=PROJECT_POLICY_REAL_PROJECT,
                 )
+
+    def test_a_previous_proposal_is_the_one_thing_it_may_replace(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            _mature_project(root)
+            first = propose_research_contract_block(
+                repo_root=root, project_policy=PROJECT_POLICY_REAL_PROJECT
+            )
+            again = propose_research_contract_block(
+                repo_root=root, project_policy=PROJECT_POLICY_REAL_PROJECT
+            )
+            self.assertEqual(first["proposal_path"], again["proposal_path"])
+            self.assertFalse(again["contract_modified"])
+
+    def test_the_template_block_carries_no_render_placeholder(self):
+        # The in-place precondition compares the RAW template while the scaffold
+        # writes the RENDERED one. They agree only while the block contains no
+        # substitution token; adding one would make every init raise.
+        block = _block_text(load_scaffold_template(RESEARCH_CONTRACT))
+        for token in ("<PROJECT_NAME>", "<PROJECT_ROOT>", "<PROFILE>", "<YYYY-MM-DD>"):
+            self.assertNotIn(token, block)
 
 
 class ForceReportsWhatItReplacedTest(unittest.TestCase):
