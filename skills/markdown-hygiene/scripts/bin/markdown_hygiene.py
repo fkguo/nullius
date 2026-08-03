@@ -757,7 +757,10 @@ def check_table_math_pipes_in_file(path: Path, text: str) -> list[HygieneIssue]:
                         HygieneIssue(
                             path,
                             line_number,
-                            r"literal pipe inside table math can break Markdown tables; use \mid, \lvert/\rvert, or \lVert/\rVert",
+                            r"literal pipe inside table math can break Markdown tables; use \mid, "
+                            r"\lvert/\rvert, or \lVert/\rVert — and for an array/tabular column "
+                            r"rule, where none of those is valid LaTeX, move the formula out of "
+                            r"the table into a display block",
                         )
                     )
     return issues
