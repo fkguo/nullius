@@ -322,13 +322,9 @@ is_deterministic_parse_error() {
 # script (cross-skill imports are forbidden: each skill must stay self-contained).
 # Retry-with-backoff exists for TRANSIENT failures (rate limits, network blips,
 # 5xx, timeouts). Deterministic failures — usage errors, unbound variables,
-# missing commands/files, auth or region ineligibility, and an exhausted plan
-# quota / billing allowance — reproduce identically on every retry, so the
-# runner fails immediately with the diagnostic instead of burning the backoff
-# budget re-running them. A spent billing-cycle allowance is NOT a rate limit:
-# a per-minute rate limit clears on its own and stays retryable, while
-# "you've reached your usage limit for this billing cycle" cannot clear
-# inside the run.
+# missing commands/files, auth or region ineligibility — reproduce identically
+# on every retry, so the runner fails immediately with the diagnostic instead
+# of burning the backoff budget re-running them.
 # Usage: classify_deterministic_failure EXIT_CODE [DIAG_FILE...]
 # Prints a one-line classification and returns 0 when (exit code, diagnostics)
 # look deterministic; prints nothing and returns 1 when the failure may be
@@ -358,12 +354,7 @@ classify_deterministic_failure() {
         'location is not supported' \
         'unauthorized' \
         'forbidden' \
-        'invalid api key' \
-        'usage limit' \
-        'quota' \
-        'billing' \
-        'payment required' \
-        'credit balance'; do
+        'invalid api key'; do
         if grep -qiF -- "${pat}" "${f}" 2>/dev/null; then
           reason="diagnostic output matched '${pat}'"
           break 2

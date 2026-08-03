@@ -354,62 +354,6 @@ def _is_blank_file(path: Path) -> bool:
         return True
 
 
-# An agent that writes its deliverable into its own sandbox and returns only a
-# sentence pointing at that file has NOT delivered: the launcher's contract is
-# that the answer comes back in the out file, and a path inside a discarded
-# workspace is unreachable to every downstream consumer. Non-blank + exit 0
-# used to be enough to score such a stub as a success, so an "unavailable"
-# lane could silently occupy a reviewer seat with 188 bytes of prose.
-#
-# Two independent signals must coincide, so a genuine answer that merely
-# mentions a file in passing is never demoted:
-#   1. a write verb bound to a deliverable noun, and
-#   2. a filename-like token or an explicit "to a file" phrase.
-# The length ceiling keeps a long, substantive review that also saved a copy
-# of itself out of scope.
-_POINTER_OUTPUT_MAX_CHARS = 800
-_POINTER_WRITE_VERB = r"(?:write|writes|writing|wrote|written|save|saves|saving|saved|output|outputs|emitted|placed|put)"
-_POINTER_DELIVERABLE = r"(?:report|analysis|review|verification|assessment|answer|findings|results?|summary|response|output|file)"
-_POINTER_ENGLISH_RE = re.compile(
-    rf"\b{_POINTER_WRITE_VERB}\b[^.\n]{{0,60}}?\b{_POINTER_DELIVERABLE}\b[^.\n]{{0,80}}"
-    rf"|(?:\b{_POINTER_DELIVERABLE}\b[^.\n]{{0,40}}?\b{_POINTER_WRITE_VERB}\b[^.\n]{{0,80}})",
-    re.IGNORECASE,
-)
-_POINTER_CJK_RE = re.compile(
-    r"(?:报告|分析|复核|评审|验证|结果|答复|输出)[^。\n]{0,20}?(?:已)?(?:写入|写到|保存到|存到|输出到)"
-    r"|(?:写入|写到|保存到|存到|输出到)[^。\n]{0,20}?(?:文件|报告)",
-)
-_POINTER_FILENAME_RE = re.compile(
-    r"[\w./\\-]+\.(?:md|markdown|txt|json|jsonl|csv|tsv|ya?ml|toml|py|sh|tex|log)",
-    re.IGNORECASE,
-)
-_POINTER_GENERIC_TARGET_RE = re.compile(
-    r"(?:\bto a file\b)|(?:\binto a file\b)|(?:到文件)|(?:至文件)",
-    re.IGNORECASE,
-)
-
-
-def _externalized_deliverable_reason(text: str) -> Optional[str]:
-    """Return a reason when the output only POINTS AT its deliverable instead
-    of carrying it. Conservative by construction: short output + a write verb
-    bound to a deliverable noun + a filename-like target."""
-    stripped = text.strip()
-    if not stripped or len(stripped) > _POINTER_OUTPUT_MAX_CHARS:
-        return None
-    announces = bool(_POINTER_ENGLISH_RE.search(stripped) or _POINTER_CJK_RE.search(stripped))
-    if not announces:
-        return None
-    # Name the actual file when the output names one: the operator needs to
-    # know WHERE the lost deliverable went, not merely that it went somewhere.
-    target = _POINTER_FILENAME_RE.search(stripped) or _POINTER_GENERIC_TARGET_RE.search(stripped)
-    if not target:
-        return None
-    return (
-        f"output points at a deliverable written elsewhere ({target.group(0)}) "
-        f"instead of containing it ({len(stripped)} chars)"
-    )
-
-
 def _word_set(text: str) -> set[str]:
     return set(re.findall(r"[A-Za-z0-9_]+", text.lower()))
 
@@ -786,37 +730,6 @@ def _validate_runners(plans: list[AgentPlan]) -> None:
         checked.add(plan.runner_path)
 
 
-# Per-backend flag that bounds TOTAL attempts inside the backend runner.
-# Both spellings carry total-attempts semantics despite the differing names:
-# run_kimi.sh / run_opencode.sh gate on `attempt -ge MAX_ATTEMPTS`, and
-# run_claude.sh / run_codex.sh gate on `attempt -ge MAX_RETRIES` and report
-# "failed after N attempts" — so 1 means one invocation everywhere.
-# run_gemini.sh has no attempt loop at all (single invocation plus an optional
-# model fallback), so it takes no flag and is absent from this map by design.
-_BACKEND_ATTEMPT_FLAGS: dict[str, str] = {
-    "kimi": "--max-attempts",
-    "opencode": "--max-attempts",
-    "claude": "--max-retries",
-    "codex": "--max-retries",
-}
-
-
-def _backend_attempt_args(backend: str, backend_max_attempts: Optional[int]) -> list[str]:
-    """Bind the backend runner's internal retry budget to the delegated
-    attempt allowance. Without this, a frozen "one attempt per reviewer, no
-    spontaneous rerun" contract had no machine path into the runner: every
-    runner kept its own default (3 for kimi/opencode, 6 for claude/codex) and
-    silently re-ran a permanently failed provider call. Orchestration-level
-    retries (--retry-empty-output) and fallback are separate budgets and do
-    not reach inside the runner."""
-    if backend_max_attempts is None:
-        return []
-    flag = _BACKEND_ATTEMPT_FLAGS.get(backend)
-    if flag is None:
-        return []
-    return [flag, str(int(backend_max_attempts))]
-
-
 def _build_cmd(
     *,
     plan: AgentPlan,
@@ -828,7 +741,6 @@ def _build_cmd(
     backend_tool_modes: dict[str, str],
     review_workspace_dir: Path,
     gemini_cli_home: Optional[str],
-    backend_max_attempts: Optional[int] = None,
 ) -> list[str]:
     cmd = ["bash", str(plan.runner_path)]
     if system is not None:
@@ -856,7 +768,6 @@ def _build_cmd(
             cmd.extend(["--workspace-dir", str(review_workspace_dir)])
     if plan.backend == "gemini" and gemini_cli_home:
         cmd.extend(["--gemini-cli-home", gemini_cli_home])
-    cmd.extend(_backend_attempt_args(plan.backend, backend_max_attempts))
     return cmd
 
 
@@ -954,7 +865,6 @@ def _run_one(
     gemini_cli_home: Optional[str],
     gemini_review_profile: Optional[dict[str, Any]],
     timeout_secs: int,
-    backend_max_attempts: Optional[int] = None,
     output_path: Optional[Path] = None,
     trace_phase: Optional[str] = None,
 ) -> dict[str, Any]:
@@ -970,7 +880,6 @@ def _run_one(
         backend_tool_modes=backend_tool_modes,
         review_workspace_dir=review_workspace_dir,
         gemini_cli_home=gemini_cli_home,
-        backend_max_attempts=backend_max_attempts,
     )
 
     start_event: dict[str, Any] = {
@@ -1174,7 +1083,6 @@ def _run_two_phase_one(
     gemini_cli_home: Optional[str],
     gemini_review_profile: Optional[dict[str, Any]],
     timeout_secs: int,
-    backend_max_attempts: Optional[int] = None,
     output_path: Optional[Path] = None,
     scope_prompt: Path,
 ) -> dict[str, Any]:
@@ -1220,7 +1128,6 @@ def _run_two_phase_one(
         gemini_cli_home=gemini_cli_home,
         gemini_review_profile=gemini_review_profile,
         timeout_secs=timeout_secs,
-        backend_max_attempts=backend_max_attempts,
     )
 
     def _phase_failure(base: dict[str, Any], failure: str) -> dict[str, Any]:
@@ -1333,10 +1240,6 @@ def _finalize_two_phase_result(result: dict[str, Any], *, trace_path: Path) -> N
 _INFRASTRUCTURE_FAILURE_REASONS = {
     "timeout",
     "empty_output",
-    # A lane that returned only a pointer to a deliverable left in its own
-    # workspace delivered no reviewable content — the same kind of outage as
-    # an empty output, not a review disagreement.
-    "externalized_output",
     "phase1_command_failed",
     "phase1_empty_output",
 }
@@ -1392,7 +1295,6 @@ def _postprocess_result(
     result: dict[str, Any],
     *,
     check_review_contract: bool,
-    allow_pointer_output: bool = False,
 ) -> dict[str, Any]:
     out_path = Path(str(result.get("out", "")))
     backend = str(result.get("resolved", {}).get("backend") or result.get("backend") or "")
@@ -1418,19 +1320,6 @@ def _postprocess_result(
     elif "contract_errors" in result:
         result.pop("contract_errors", None)
 
-    pointer_reason: Optional[str] = None
-    if not allow_pointer_output and out_path.exists() and not blank_output:
-        try:
-            pointer_reason = _externalized_deliverable_reason(
-                out_path.read_text(encoding="utf-8", errors="replace")
-            )
-        except Exception:
-            pointer_reason = None
-    if pointer_reason:
-        result["externalized_output_reason"] = pointer_reason
-    else:
-        result.pop("externalized_output_reason", None)
-
     command_success = bool(result.get("command_success", result.get("success", False)))
     failure_reason: Optional[str] = None
     if bool(result.get("timed_out")):
@@ -1439,9 +1328,6 @@ def _postprocess_result(
         failure_reason = f"exit_code_{result.get('exit_code', 'unknown')}"
     elif blank_output:
         failure_reason = "empty_output"
-    elif pointer_reason:
-        # Not a format complaint: nothing reviewable came back at all.
-        failure_reason = "externalized_output"
     # NOTE: contract_fail is informational only — does NOT trigger fallback.
     # Content matters more than format. Contract compliance is recorded in
     # contract_ok/contract_errors for downstream consumers but never blocks.
@@ -2228,33 +2114,6 @@ def _parse_args() -> argparse.Namespace:
         ),
     )
     ap.add_argument(
-        "--allow-pointer-output",
-        action="store_true",
-        help=(
-            "Accept an output that only points at a deliverable written "
-            "elsewhere (e.g. 'report written to analysis.md'). Off by "
-            "default: such a lane returned no reviewable content, since a "
-            "path inside the agent's own workspace never reaches downstream "
-            "consumers. Set only when a pointer answer is the intended "
-            "deliverable for this task."
-        ),
-    )
-    ap.add_argument(
-        "--backend-max-attempts",
-        type=int,
-        default=None,
-        metavar="N",
-        help=(
-            "Bound TOTAL attempts inside each backend runner (kimi/opencode "
-            "--max-attempts, claude/codex --max-retries; gemini has no attempt "
-            "loop). Set 1 when the delegation contract allows one attempt per "
-            "reviewer and forbids spontaneous reruns. Unset keeps each "
-            "runner's own default (3 or 6), which silently re-runs even a "
-            "permanently failed provider call. Distinct from "
-            "--retry-empty-output (orchestration-level) and --fallback-mode."
-        ),
-    )
-    ap.add_argument(
         "--backend-system",
         action="append",
         default=[],
@@ -2419,7 +2278,6 @@ def main() -> int:
     gemini_runner = args.gemini_runner.expanduser().resolve() if args.gemini_runner else _gemini_runner()
     kimi_runner = args.kimi_runner.expanduser().resolve() if args.kimi_runner else _kimi_runner()
 
-    backend_max_attempts = args.backend_max_attempts
     system_prompt = args.system.expanduser().resolve()
     user_prompt = args.prompt.expanduser().resolve()
     explicit_gemini_cli_home = None
@@ -2450,8 +2308,6 @@ def main() -> int:
             raise ValueError("--timeout-secs must be >= 0")
         if args.retry_empty_output < 0:
             raise ValueError("--retry-empty-output must be >= 0")
-        if args.backend_max_attempts is not None and args.backend_max_attempts < 1:
-            raise ValueError("--backend-max-attempts must be >= 1")
         if not (0.0 <= args.convergence_threshold <= 1.0):
             raise ValueError("--convergence-threshold must be between 0 and 1")
         if args.fallback_mode != "off" and not fallback_order:
@@ -2788,7 +2644,6 @@ def main() -> int:
                     gemini_cli_home=plan_gemini_cli_home,
                     gemini_review_profile=plan_gemini_review_profile,
                     timeout_secs=int(args.timeout_secs),
-                    backend_max_attempts=backend_max_attempts,
                     output_path=plan_out,
                     **two_phase_extra,
                 ): (plan, plan_out)
@@ -2839,7 +2694,6 @@ def main() -> int:
                     gemini_cli_home=plan_gemini_cli_home,
                     gemini_review_profile=plan_gemini_review_profile,
                     timeout_secs=int(args.timeout_secs),
-                    backend_max_attempts=backend_max_attempts,
                     output_path=plan_out,
                     **two_phase_extra,
                 )
@@ -2857,11 +2711,7 @@ def main() -> int:
         family_spec = family_spec_by_index.get(int(r.get("index", -1)))
         if family_spec is not None:
             r["family_spec"] = family_spec
-        _postprocess_result(
-            r,
-            check_review_contract=bool(args.check_review_contract),
-            allow_pointer_output=bool(args.allow_pointer_output),
-        )
+        _postprocess_result(r, check_review_contract=bool(args.check_review_contract))
 
     if args.two_phase:
         for r in results:
@@ -2908,7 +2758,6 @@ def main() -> int:
                     gemini_cli_home=plan_gemini_cli_home,
                     gemini_review_profile=plan_gemini_review_profile,
                     timeout_secs=int(args.timeout_secs),
-                    backend_max_attempts=backend_max_attempts,
                     output_path=plan_out,
                     **two_phase_extra,
                 )
@@ -2918,11 +2767,7 @@ def main() -> int:
                 r["out"] = rerun.get("out", r.get("out"))
                 if "two_phase" in rerun:
                     r["two_phase"] = rerun["two_phase"]
-                _postprocess_result(
-            r,
-            check_review_contract=bool(args.check_review_contract),
-            allow_pointer_output=bool(args.allow_pointer_output),
-        )
+                _postprocess_result(r, check_review_contract=bool(args.check_review_contract))
                 if args.two_phase:
                     _finalize_two_phase_result(r, trace_path=trace_path)
             if attempts:
@@ -3060,11 +2905,7 @@ def main() -> int:
                     # a timeout (same field copy the empty-output retry does).
                     r["timed_out"] = bool(fb.get("timed_out", False))
                     r["out"] = fb.get("out", r.get("out"))
-                    _postprocess_result(
-            r,
-            check_review_contract=bool(args.check_review_contract),
-            allow_pointer_output=bool(args.allow_pointer_output),
-        )
+                    _postprocess_result(r, check_review_contract=bool(args.check_review_contract))
                     if r.get("success"):
                         recovered = True
                         break
@@ -3155,22 +2996,6 @@ def main() -> int:
         # output, at which independence level. A run below the cross-family
         # minimum is allowed but must be visible as degraded, never silent.
         "agents_file": {"path": str(agents_path) if agents_path else None, "source": agents_source},
-        # Three DISTINCT re-execution budgets, never summed into one number:
-        # a delegated "one attempt per reviewer" contract binds all three, and
-        # conflating them is what let a runner-internal retry loop re-run a
-        # permanently failed provider call while the orchestration budget read
-        # as zero. `backend_max_attempts: null` means each runner kept its own
-        # default (3 for kimi/opencode, 6 for claude/codex; gemini has no
-        # attempt loop) — bounded by the runner, not by this invocation.
-        "attempt_budgets": {
-            "backend_max_attempts": backend_max_attempts,
-            "backend_attempt_flags": {
-                backend: _BACKEND_ATTEMPT_FLAGS.get(backend)
-                for backend in sorted({plan.backend for plan in plans})
-            },
-            "orchestration_empty_output_retries": int(args.retry_empty_output),
-            "fallback_mode": args.fallback_mode,
-        },
         "independence": independence,
         # Requested specs whose runs ALL failed at the infrastructure level
         # (timeout / crash exit / empty output): a degraded run reads as a
