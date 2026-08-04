@@ -4,6 +4,7 @@ import hashlib
 import os
 import re
 import secrets
+import stat
 from pathlib import Path
 from typing import Any
 
@@ -354,19 +355,51 @@ def _write_file_atomically(target: Path, text: str, *, newline: str | None = Non
       for a symlink after validation redirects both the create and the rename
       into somewhere else entirely — a probe replaced an owner's file that way.
 
-    So the parent is opened ONCE, with O_NOFOLLOW so a symlinked directory is
-    refused outright, and every later operation is relative to that descriptor.
-    Renaming the directory afterwards cannot move where these writes land.
+    So the destination's IMMEDIATE parent is opened once with O_NOFOLLOW, and
+    every later operation is relative to that descriptor.
+
+    The scope of that is worth stating exactly, because an earlier version of
+    this paragraph claimed "renaming the directory afterwards cannot move where
+    these writes land" and that is false. O_NOFOLLOW constrains only the FINAL
+    component of the path being opened; the components above it are still
+    walked normally. Swapping a GRANDparent for a symlink mid-run therefore
+    still redirects both operations. What is closed is every construction that
+    can be built ahead of time — a link anywhere in the chain is collapsed by
+    resolve() and then judged by the within-project check — and a swap of the
+    immediate parent. What remains is a live race whose winner must already
+    hold write permission on a directory inside the project, and could
+    therefore overwrite the file directly without any of this.
     """
     flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
     parent_fd = os.open(target.parent, flags)
     try:
+        # rename() needs write permission on the DIRECTORY, not on the file it
+        # replaces, so it silently overwrites a destination the owner made
+        # read-only where the previous open("w") raised. This module refuses
+        # rather than clobbers everywhere else; keep that here.
+        existing_mode: int | None = None
+        try:
+            existing = os.stat(target.name, dir_fd=parent_fd, follow_symlinks=False)
+        except FileNotFoundError:
+            pass
+        else:
+            existing_mode = stat.S_IMODE(existing.st_mode)
+            if not os.access(target.name, os.W_OK, dir_fd=parent_fd, follow_symlinks=False):
+                raise PermissionError(
+                    f"refusing to replace {target}: it is not writable"
+                )
         tmp_name = f".{target.name}.{os.getpid()}.{secrets.token_hex(8)}.partial"
         create = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
         fd = os.open(tmp_name, create, 0o644, dir_fd=parent_fd)
         try:
             with os.fdopen(fd, "w", encoding="utf-8", newline=newline) as handle:
                 handle.write(text)
+            if existing_mode is not None:
+                # A replaced inode does not inherit the old one's permissions.
+                # A contract its owner had chmod'd 0600 came back 0644 — a file
+                # deliberately made private became world-readable, which no
+                # content-hash observable can see, and every test here uses one.
+                os.chmod(tmp_name, existing_mode, dir_fd=parent_fd)
             os.replace(tmp_name, target.name, src_dir_fd=parent_fd, dst_dir_fd=parent_fd)
         except BaseException:
             try:
