@@ -721,6 +721,26 @@ class MatureContractIsNeverRewrittenTest(unittest.TestCase):
             )
             self.assertEqual(0o600, stat.S_IMODE(proposal.stat().st_mode))
 
+    @unittest.skipUnless(hasattr(os, "listxattr"), "platform exposes no extended attributes")
+    def test_extended_attributes_survive_the_replacement(self):
+        # A replaced inode inherits nothing from the one it displaces. Mode is
+        # the consequential loss and is covered above; this covers the rest,
+        # where the standard library can see it. macOS ships no os.listxattr,
+        # so this skips there and the docstring says so rather than implying
+        # the attributes are carried everywhere.
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            _mature_project(root)
+            first = propose_research_contract_block(
+                repo_root=root, project_policy=PROJECT_POLICY_REAL_PROJECT
+            )
+            proposal = Path(first["proposal_path"])
+            os.setxattr(proposal, "user.nullius_test", b"kept")
+            propose_research_contract_block(
+                repo_root=root, project_policy=PROJECT_POLICY_REAL_PROJECT
+            )
+            self.assertEqual(b"kept", os.getxattr(proposal, "user.nullius_test"))
+
     def test_the_template_block_carries_no_render_placeholder(self):
         # The in-place precondition compares the RAW template while the scaffold
         # writes the RENDERED one. They agree only while the block contains no

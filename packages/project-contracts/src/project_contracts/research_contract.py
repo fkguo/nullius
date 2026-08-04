@@ -341,6 +341,36 @@ def _assert_safe_proposal_destination(proposal: Path, *, contract: Path, noteboo
             )
 
 
+def _carry_extended_attributes(target: Path, tmp_name: str, *, parent_fd: int) -> None:
+    """Copy what a replaced inode would otherwise drop, beyond its mode.
+
+    Honest about its own limits, because the claim this supports has been
+    overstated once already. Extended attributes are carried where the standard
+    library exposes them, which is Linux; macOS builds ship no `os.listxattr`,
+    so Finder tags and resource forks are NOT carried there. POSIX ACLs are not
+    carried on any platform — the standard library cannot read them.
+
+    That residual is bounded by what these two destinations actually are: a
+    contract this run just created, which has no user-set attributes yet, and
+    this tool's own generated proposal, which is regenerable by construction.
+    It is not bounded by anything in this function, and saying so is the point.
+    """
+    if not hasattr(os, "listxattr"):
+        return
+    try:
+        names = os.listxattr(target, follow_symlinks=False)
+    except OSError:
+        return
+    for name in names:
+        try:
+            value = os.getxattr(target, name, follow_symlinks=False)
+            os.setxattr(tmp_name, name, value, follow_symlinks=False, dir_fd=parent_fd)
+        except OSError:
+            # A single unreadable or unsettable attribute must not cost the
+            # write; the file's content is the thing being protected here.
+            continue
+
+
 def _write_file_atomically(target: Path, text: str, *, newline: str | None = None) -> None:
     """Write `target` through a pinned directory and a rename.
 
@@ -395,11 +425,14 @@ def _write_file_atomically(target: Path, text: str, *, newline: str | None = Non
             with os.fdopen(fd, "w", encoding="utf-8", newline=newline) as handle:
                 handle.write(text)
             if existing_mode is not None:
-                # A replaced inode does not inherit the old one's permissions.
-                # A contract its owner had chmod'd 0600 came back 0644 — a file
-                # deliberately made private became world-readable, which no
-                # content-hash observable can see, and every test here uses one.
+                # A replaced inode inherits NOTHING from the one it displaces.
+                # Permissions first, because losing those is the consequential
+                # one: a contract its owner had chmod'd 0600 came back 0644, a
+                # deliberately private file made world-readable with its content
+                # byte-perfect — invisible to every content-hash observable, and
+                # every test here was one.
                 os.chmod(tmp_name, existing_mode, dir_fd=parent_fd)
+                _carry_extended_attributes(target, tmp_name, parent_fd=parent_fd)
             os.replace(tmp_name, target.name, src_dir_fd=parent_fd, dst_dir_fd=parent_fd)
         except BaseException:
             try:
