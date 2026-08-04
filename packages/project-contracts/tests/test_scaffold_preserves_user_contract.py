@@ -524,6 +524,63 @@ class MatureContractIsNeverRewrittenTest(unittest.TestCase):
             proposal = Path(result["proposal_path"]).read_text(encoding="utf-8")
             self.assertIn(result["notebook_sha256"], proposal)
 
+    def test_a_link_planted_after_the_check_cannot_capture_the_write(self):
+        # The atomicity control. The destination check and the write are separate
+        # operations; the write must not be a second open() of the checked path,
+        # or a symlink planted in between captures it. Gutting the atomic write
+        # while keeping its name passes every other test in this file.
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            _mature_project(root)
+            contract = root / "research_contract.md"
+            proposal = root / "artifacts" / "research_contract_block.proposed.md"
+            proposal.parent.mkdir()
+            real_guard = research_contract._assert_safe_proposal_destination
+
+            def plant_after_check(dest, **kwargs):
+                real_guard(dest, **kwargs)
+                dest.symlink_to(contract)
+
+            before = _project_digest(root)
+            with mock.patch.object(
+                research_contract, "_assert_safe_proposal_destination", plant_after_check
+            ):
+                propose_research_contract_block(
+                    repo_root=root, project_policy=PROJECT_POLICY_REAL_PROJECT
+                )
+            self.assertEqual(
+                before[Path("research_contract.md").as_posix()],
+                _project_digest(root)[Path("research_contract.md").as_posix()],
+                "a link planted after the destination check captured the write",
+            )
+
+    def test_an_owned_neighbour_of_the_destination_survives(self):
+        # The temp file used to be a fixed `<destination>.partial` sibling that
+        # the destination guard never validated and that was unlinked anyway.
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            _mature_project(root)
+            (root / "artifacts").mkdir()
+            neighbour = root / "artifacts" / "derived.md.partial"
+            neighbour.write_text("owner-authored\n", encoding="utf-8")
+            propose_research_contract_block(
+                repo_root=root,
+                proposal_path=root / "artifacts" / "derived.md",
+                project_policy=PROJECT_POLICY_REAL_PROJECT,
+            )
+            self.assertTrue(neighbour.is_file())
+            self.assertEqual("owner-authored\n", neighbour.read_text(encoding="utf-8"))
+
+    def test_no_temporary_file_is_left_behind(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            _mature_project(root)
+            propose_research_contract_block(
+                repo_root=root, project_policy=PROJECT_POLICY_REAL_PROJECT
+            )
+            leftovers = [p.name for p in (root / "artifacts").iterdir() if ".partial" in p.name]
+            self.assertEqual([], leftovers)
+
     def test_the_template_block_carries_no_render_placeholder(self):
         # The in-place precondition compares the RAW template while the scaffold
         # writes the RENDERED one. They agree only while the block contains no
