@@ -344,16 +344,32 @@ def _assert_safe_proposal_destination(proposal: Path, *, contract: Path, noteboo
 def _carry_extended_attributes(target: Path, tmp_name: str, *, parent_fd: int) -> None:
     """Copy what a replaced inode would otherwise drop, beyond its mode.
 
-    Honest about its own limits, because the claim this supports has been
-    overstated once already. Extended attributes are carried where the standard
-    library exposes them, which is Linux; macOS builds ship no `os.listxattr`,
-    so Finder tags and resource forks are NOT carried there. POSIX ACLs are not
-    carried on any platform — the standard library cannot read them.
+    What is carried, stated from measurement rather than from expectation,
+    because the previous two versions of this paragraph were both wrong:
 
-    That residual is bounded by what these two destinations actually are: a
-    contract this run just created, which has no user-set attributes yet, and
-    this tool's own generated proposal, which is regenerable by construction.
-    It is not bounded by anything in this function, and saying so is the point.
+    * On Linux, everything `os.listxattr` exposes. That is more than the
+      `user.*` namespace — it includes `system.posix_acl_access`, so POSIX ACLs
+      ARE carried here, and `security.*` labels such as SELinux contexts and
+      file capabilities, which an unprivileged writer usually cannot set and
+      which are then skipped.
+    * On macOS, nothing: those builds ship no `os.listxattr` at all, so Finder
+      tags and resource forks are not carried.
+
+    `os.setxattr` takes no `dir_fd`, and `tmp_name` is a bare name meaningful
+    only against `parent_fd`, so the temp file is opened against that
+    descriptor and the descriptor is what `setxattr` receives. Passing the bare
+    name instead raises FileNotFoundError — an OSError, which the loop below
+    would swallow, leaving nothing carried and nothing said.
+
+    It runs before the destination's mode is restored, since the kernel checks
+    write permission on the inode for setxattr and a temp file already wearing a
+    read-only mode would fail EACCES on every attribute. That ordering is
+    defensive rather than load-bearing, and saying which is the point: a review
+    seat measured the loss on modes 0400 and 0444, but those destinations are
+    refused outright before any write, so with that refusal in place the loss is
+    not reachable. Measured on Linux: 0400 and 0444 refuse, 0600 carries the
+    attribute. The ordering costs nothing and removes the dependence on that
+    refusal staying where it is.
     """
     if not hasattr(os, "listxattr"):
         return
@@ -361,14 +377,22 @@ def _carry_extended_attributes(target: Path, tmp_name: str, *, parent_fd: int) -
         names = os.listxattr(target, follow_symlinks=False)
     except OSError:
         return
-    for name in names:
-        try:
-            value = os.getxattr(target, name, follow_symlinks=False)
-            os.setxattr(tmp_name, name, value, follow_symlinks=False, dir_fd=parent_fd)
-        except OSError:
-            # A single unreadable or unsettable attribute must not cost the
-            # write; the file's content is the thing being protected here.
-            continue
+    if not names:
+        return
+    try:
+        fd = os.open(tmp_name, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0), dir_fd=parent_fd)
+    except OSError:
+        return
+    try:
+        for name in names:
+            try:
+                os.setxattr(fd, name, os.getxattr(target, name, follow_symlinks=False))
+            except OSError:
+                # One attribute that cannot be read or set must not cost the
+                # write; content is what is being protected here.
+                continue
+    finally:
+        os.close(fd)
 
 
 def _write_file_atomically(target: Path, text: str, *, newline: str | None = None) -> None:
@@ -431,8 +455,8 @@ def _write_file_atomically(target: Path, text: str, *, newline: str | None = Non
                 # deliberately private file made world-readable with its content
                 # byte-perfect — invisible to every content-hash observable, and
                 # every test here was one.
-                os.chmod(tmp_name, existing_mode, dir_fd=parent_fd)
                 _carry_extended_attributes(target, tmp_name, parent_fd=parent_fd)
+                os.chmod(tmp_name, existing_mode, dir_fd=parent_fd)
             os.replace(tmp_name, target.name, src_dir_fd=parent_fd, dst_dir_fd=parent_fd)
         except BaseException:
             try:
