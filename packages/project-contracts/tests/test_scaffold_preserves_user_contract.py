@@ -488,14 +488,14 @@ class MatureContractIsNeverRewrittenTest(unittest.TestCase):
             root = Path(td) / "proj"
             _mature_project(root)
             contract = root / "research_contract.md"
-            real_write = research_contract._write_proposal_atomically
+            real_write = research_contract._write_file_atomically
 
-            def write_and_disturb(proposal, text):
-                real_write(proposal, text)
+            def write_and_disturb(proposal, text, **kwargs):
+                real_write(proposal, text, **kwargs)
                 contract.write_text("disturbed\n", encoding="utf-8")
 
             with mock.patch.object(
-                research_contract, "_write_proposal_atomically", write_and_disturb
+                research_contract, "_write_file_atomically", write_and_disturb
             ):
                 result = propose_research_contract_block(
                     repo_root=root, project_policy=PROJECT_POLICY_REAL_PROJECT
@@ -580,6 +580,83 @@ class MatureContractIsNeverRewrittenTest(unittest.TestCase):
             )
             leftovers = [p.name for p in (root / "artifacts").iterdir() if ".partial" in p.name]
             self.assertEqual([], leftovers)
+
+    def test_byte_for_byte_means_byte_for_byte(self):
+        # The predicate is named and documented byte-for-byte. It used .strip(),
+        # so one added newline, space or tab at a block boundary produced a
+        # non-template block that was accepted and rewritten anyway — the fifth
+        # time this file has carried a claim stronger than its code.
+        template = load_scaffold_template(RESEARCH_CONTRACT)
+        self.assertTrue(research_contract._is_untouched_template_block(template))
+        mutations = {
+            "a blank line after the start marker": lambda s: s.replace(
+                "RESEARCH_NOTEBOOK_SYNC_START -->\n", "RESEARCH_NOTEBOOK_SYNC_START -->\n\n", 1
+            ),
+            "a trailing space before the end marker": lambda s: s.replace(
+                "\n<!-- RESEARCH_NOTEBOOK_SYNC_END", " \n<!-- RESEARCH_NOTEBOOK_SYNC_END", 1
+            ),
+            "a trailing tab before the end marker": lambda s: s.replace(
+                "\n<!-- RESEARCH_NOTEBOOK_SYNC_END", "\t\n<!-- RESEARCH_NOTEBOOK_SYNC_END", 1
+            ),
+        }
+        for label, mutate in mutations.items():
+            with self.subTest(mutation=label):
+                self.assertFalse(research_contract._is_untouched_template_block(mutate(template)))
+
+    def test_swapping_the_destination_directory_cannot_redirect_the_write(self):
+        # Pinning only the destination leaf is not enough: renaming its PARENT
+        # to a symlink after validation redirected both the temp create and the
+        # rename into an owner's directory, and replaced their file.
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            _mature_project(root)
+            (root / "safe").mkdir()
+            (root / "owned").mkdir()
+            owned = root / "owned" / "result.md"
+            owned.write_text("OWNER\n", encoding="utf-8")
+            real_guard = research_contract._assert_safe_proposal_destination
+
+            def swap_parent(dest, **kwargs):
+                real_guard(dest, **kwargs)
+                os.rename(root / "safe", root / "safe_gone")
+                os.symlink(root / "owned", root / "safe")
+
+            with mock.patch.object(
+                research_contract, "_assert_safe_proposal_destination", swap_parent
+            ):
+                with self.assertRaises(OSError):
+                    propose_research_contract_block(
+                        repo_root=root,
+                        proposal_path=root / "safe" / "result.md",
+                        project_policy=PROJECT_POLICY_REAL_PROJECT,
+                    )
+            self.assertEqual("OWNER\n", owned.read_text(encoding="utf-8"))
+
+    def test_a_link_planted_after_the_template_check_cannot_capture_the_sync(self):
+        # The in-place write had the same capture the proposal path was fixed
+        # for: it re-opened the checked path with open("w").
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            root.mkdir(parents=True)
+            contract = root / "research_contract.md"
+            contract.write_text(load_scaffold_template(RESEARCH_CONTRACT), encoding="utf-8")
+            (root / "research_notebook.md").write_text("# N\n\n## Scope\n\nT.\n", encoding="utf-8")
+            victim = root / "victim.md"
+            victim.write_text("VICTIM\n", encoding="utf-8")
+            real_check = research_contract._is_untouched_template_block
+
+            def check_then_plant(text):
+                verdict = real_check(text)
+                if verdict and not contract.is_symlink():
+                    contract.unlink()
+                    contract.symlink_to(victim)
+                return verdict
+
+            with mock.patch.object(
+                research_contract, "_is_untouched_template_block", check_then_plant
+            ):
+                _sync(root)
+            self.assertEqual("VICTIM\n", victim.read_text(encoding="utf-8"))
 
     def test_the_template_block_carries_no_render_placeholder(self):
         # The in-place precondition compares the RAW template while the scaffold

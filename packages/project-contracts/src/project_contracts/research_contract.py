@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import os
 import re
-import tempfile
+import secrets
 from pathlib import Path
 from typing import Any
 
@@ -168,8 +168,13 @@ def _is_untouched_template_block(contract_text: str) -> bool:
     template ships, in which case there is nothing to lose, or it is not, in
     which case this refuses and the proposal path applies.
     """
+    # No .strip(). The predicate is named byte-for-byte and the docstring says
+    # byte-for-byte; tolerating whitespace made that false, and a claim stronger
+    # than its code is the recurring defect of this file. A contract this run
+    # just wrote from the template compares exactly, which is the only state the
+    # in-place write is for.
     template_block = _block_text(load_scaffold_template(RESEARCH_CONTRACT))
-    return _block_text(contract_text).strip() == template_block.strip()
+    return _block_text(contract_text) == template_block
 
 
 def _derived_block_lines(notebook_sha: str, notebook_text: str) -> list[str]:
@@ -264,8 +269,7 @@ def sync_research_contract(
     # execute, and this file has carried enough comments promising more than the
     # code delivers.
     updated = _replace_sync_block(contract_text, "\n".join(lines))
-    with contract.open("w", encoding="utf-8", newline="") as handle:
-        handle.write(updated)
+    _write_file_atomically(contract, updated, newline="")
     return {
         "contract_path": str(contract),
         "notebook_sha256": notebook_sha,
@@ -336,39 +340,42 @@ def _assert_safe_proposal_destination(proposal: Path, *, contract: Path, noteboo
             )
 
 
-def _write_proposal_atomically(proposal: Path, text: str) -> None:
-    """Write via a fresh temporary file and rename over the destination.
+def _write_file_atomically(target: Path, text: str, *, newline: str | None = None) -> None:
+    """Write `target` through a pinned directory and a rename.
 
-    The destination check and the write are separate operations, so a plain
-    open() through the checked path can land somewhere else if that path became
-    a symlink in between. Writing to a name created with O_EXCL and then
-    renaming means the write itself can never follow a link, and the rename
-    replaces the destination entry rather than opening whatever it points at.
+    Three separate captures had to be closed here, and each needed a different
+    part of this:
+
+    * the write must not re-open the path that was checked, or a symlink
+      planted in between captures it — hence the temp file plus `os.replace`;
+    * the temp name must be fresh and unshared, or an owner-authored neighbour
+      is destroyed and concurrent runs delete each other's file mid-write;
+    * and the destination's PARENT must be pinned, or swapping that directory
+      for a symlink after validation redirects both the create and the rename
+      into somewhere else entirely — a probe replaced an owner's file that way.
+
+    So the parent is opened ONCE, with O_NOFOLLOW so a symlinked directory is
+    refused outright, and every later operation is relative to that descriptor.
+    Renaming the directory afterwards cannot move where these writes land.
     """
-    # A FIXED sibling name was wrong twice over: the destination guard validated
-    # `proposal`, never `proposal.partial`, and that path was unlinked
-    # unconditionally — so naming an owned file with a `.partial` suffix and
-    # deriving next to it deleted it. Two concurrent runs also shared the one
-    # name, and each removed the other's file mid-write. mkstemp gives a fresh
-    # name in the destination directory, created O_EXCL by the library.
-    fd, tmp_name = tempfile.mkstemp(
-        dir=proposal.parent, prefix=proposal.name + ".", suffix=".partial"
-    )
-    tmp = Path(tmp_name)
+    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
+    parent_fd = os.open(target.parent, flags)
     try:
-        with os.fdopen(fd, "w", encoding="utf-8") as handle:
-            handle.write(text)
-        os.chmod(tmp, 0o644)
-        # Rename, never a second open(): the write cannot follow a link planted
-        # after the destination check, and this replaces the directory entry
-        # rather than opening whatever it points at.
-        os.replace(tmp, proposal)
-    except BaseException:
+        tmp_name = f".{target.name}.{os.getpid()}.{secrets.token_hex(8)}.partial"
+        create = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+        fd = os.open(tmp_name, create, 0o644, dir_fd=parent_fd)
         try:
-            os.unlink(tmp)
-        except FileNotFoundError:
-            pass
-        raise
+            with os.fdopen(fd, "w", encoding="utf-8", newline=newline) as handle:
+                handle.write(text)
+            os.replace(tmp_name, target.name, src_dir_fd=parent_fd, dst_dir_fd=parent_fd)
+        except BaseException:
+            try:
+                os.unlink(tmp_name, dir_fd=parent_fd)
+            except FileNotFoundError:
+                pass
+            raise
+    finally:
+        os.close(parent_fd)
 
 
 def propose_research_contract_block(
@@ -407,7 +414,7 @@ def propose_research_contract_block(
     lines = _derived_block_lines(notebook_sha, notebook_text)
     contract_before = _sha256_file(contract) if contract.is_file() else None
     proposal.parent.mkdir(parents=True, exist_ok=True)
-    _write_proposal_atomically(proposal, PROPOSAL_HEADER + "\n".join(lines) + "\n")
+    _write_file_atomically(proposal, PROPOSAL_HEADER + "\n".join(lines) + "\n")
     contract_after = _sha256_file(contract) if contract.is_file() else None
     return {
         "proposal_path": str(proposal),
