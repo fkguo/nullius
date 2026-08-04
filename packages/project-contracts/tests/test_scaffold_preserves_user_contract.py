@@ -23,6 +23,7 @@ Three independent mechanisms produced that single loss:
 import sys
 import hashlib
 import os
+import stat
 import tempfile
 from unittest import mock
 import unittest
@@ -297,6 +298,23 @@ def _project_digest(root: Path) -> dict[str, str]:
     project owns changed", which no path-shaped check can stand in for."""
     return {
         path.relative_to(root).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in sorted(root.rglob("*"))
+        if path.is_file() and not path.is_symlink()
+    }
+
+
+def _project_modes(root: Path) -> dict[str, int]:
+    """Permission bits of every project file.
+
+    A SECOND observable, deliberately not a content hash. Every other test here
+    compares bytes, and a whole class of damage is invisible to that: replacing
+    an inode by rename does not carry the old one's mode, so a contract its
+    owner had made private came back world-readable with its content perfectly
+    intact. However many byte-comparing tests were added, none of them could
+    have seen it.
+    """
+    return {
+        path.relative_to(root).as_posix(): stat.S_IMODE(path.stat().st_mode)
         for path in sorted(root.rglob("*"))
         if path.is_file() and not path.is_symlink()
     }
@@ -657,6 +675,51 @@ class MatureContractIsNeverRewrittenTest(unittest.TestCase):
             ):
                 _sync(root)
             self.assertEqual("VICTIM\n", victim.read_text(encoding="utf-8"))
+
+    def test_a_private_contract_stays_private(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            root.mkdir(parents=True)
+            contract = root / "research_contract.md"
+            contract.write_text(load_scaffold_template(RESEARCH_CONTRACT), encoding="utf-8")
+            (root / "research_notebook.md").write_text("# N\n\n## Scope\n\nT.\n", encoding="utf-8")
+            contract.chmod(0o600)
+
+            _sync(root)
+
+            self.assertEqual(0o600, _project_modes(root)["research_contract.md"])
+
+    def test_a_read_only_destination_is_refused_rather_than_replaced(self):
+        # rename() needs write permission on the directory, not on the file it
+        # replaces, so the atomic writer silently overwrote where the previous
+        # open("w") raised. This module refuses rather than clobbers elsewhere.
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            root.mkdir(parents=True)
+            contract = root / "research_contract.md"
+            contract.write_text(load_scaffold_template(RESEARCH_CONTRACT), encoding="utf-8")
+            (root / "research_notebook.md").write_text("# N\n\n## Scope\n\nT.\n", encoding="utf-8")
+            contract.chmod(0o444)
+            before = contract.read_bytes()
+
+            with self.assertRaises(PermissionError):
+                _sync(root)
+
+            self.assertEqual(before, contract.read_bytes())
+
+    def test_a_proposal_replacing_an_earlier_one_keeps_its_mode(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            _mature_project(root)
+            first = propose_research_contract_block(
+                repo_root=root, project_policy=PROJECT_POLICY_REAL_PROJECT
+            )
+            proposal = Path(first["proposal_path"])
+            proposal.chmod(0o600)
+            propose_research_contract_block(
+                repo_root=root, project_policy=PROJECT_POLICY_REAL_PROJECT
+            )
+            self.assertEqual(0o600, stat.S_IMODE(proposal.stat().st_mode))
 
     def test_the_template_block_carries_no_render_placeholder(self):
         # The in-place precondition compares the RAW template while the scaffold
