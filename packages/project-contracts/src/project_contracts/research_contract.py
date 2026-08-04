@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import os
 import re
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -251,16 +252,18 @@ def sync_research_contract(
     notebook_sha = _sha256_file(notebook)
     headings, references = _collect_notebook_sections(notebook_text)
     lines = _derived_block_lines(notebook_sha, notebook_text)
-    # The block is spliced in with the line ending the file already uses AROUND
-    # it, and every byte outside the markers is carried through untouched. An
-    # earlier version normalized the whole file, which rewrote owner-authored
-    # regions whenever their endings were mixed.
-    block = "\n".join(lines)
-    if "\r\n" in _block_text(contract_text) or (
-        not _block_text(contract_text).strip() and "\r\n" in contract_text
-    ):
-        block = block.replace("\n", "\r\n")
-    updated = _replace_sync_block(contract_text, block)
+    # Every byte outside the markers is carried through untouched, which is the
+    # guarantee that matters: an earlier version normalized the whole file and
+    # so rewrote owner-authored regions whenever their endings were mixed.
+    #
+    # The block itself is written LF, and that is not a choice — the write only
+    # runs when the block is byte-for-byte the template's, which is LF, so a
+    # CRLF block cannot reach here at all (a CRLF contract is refused, and the
+    # proposal path applies to it). A previous comment claimed the block adopted
+    # the surrounding ending; the branch that would have done so could not
+    # execute, and this file has carried enough comments promising more than the
+    # code delivers.
+    updated = _replace_sync_block(contract_text, "\n".join(lines))
     with contract.open("w", encoding="utf-8", newline="") as handle:
         handle.write(updated)
     return {
@@ -342,18 +345,23 @@ def _write_proposal_atomically(proposal: Path, text: str) -> None:
     renaming means the write itself can never follow a link, and the rename
     replaces the destination entry rather than opening whatever it points at.
     """
-    tmp = proposal.with_name(proposal.name + ".partial")
-    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
-    if hasattr(os, "O_NOFOLLOW"):
-        flags |= os.O_NOFOLLOW
-    try:
-        os.unlink(tmp)
-    except FileNotFoundError:
-        pass
-    fd = os.open(tmp, flags, 0o644)
+    # A FIXED sibling name was wrong twice over: the destination guard validated
+    # `proposal`, never `proposal.partial`, and that path was unlinked
+    # unconditionally — so naming an owned file with a `.partial` suffix and
+    # deriving next to it deleted it. Two concurrent runs also shared the one
+    # name, and each removed the other's file mid-write. mkstemp gives a fresh
+    # name in the destination directory, created O_EXCL by the library.
+    fd, tmp_name = tempfile.mkstemp(
+        dir=proposal.parent, prefix=proposal.name + ".", suffix=".partial"
+    )
+    tmp = Path(tmp_name)
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
             handle.write(text)
+        os.chmod(tmp, 0o644)
+        # Rename, never a second open(): the write cannot follow a link planted
+        # after the destination check, and this replaces the directory entry
+        # rather than opening whatever it points at.
         os.replace(tmp, proposal)
     except BaseException:
         try:
