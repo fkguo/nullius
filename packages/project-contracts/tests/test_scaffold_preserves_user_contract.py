@@ -670,10 +670,14 @@ class MatureContractIsNeverRewrittenTest(unittest.TestCase):
                     contract.symlink_to(victim)
                 return verdict
 
+            # The descriptor is held from the content check through to the
+            # write, so the name no longer matching what was validated is now
+            # refused outright rather than merely landing somewhere safe.
             with mock.patch.object(
                 research_contract, "_is_untouched_template_block", check_then_plant
             ):
-                _sync(root)
+                with self.assertRaises(FileExistsError):
+                    _sync(root)
             self.assertEqual("VICTIM\n", victim.read_text(encoding="utf-8"))
 
     def test_a_private_contract_stays_private(self):
@@ -864,6 +868,82 @@ class MatureContractIsNeverRewrittenTest(unittest.TestCase):
                     propose_research_contract_block(
                         repo_root=root, project_policy=PROJECT_POLICY_REAL_PROJECT
                     )
+
+    def test_a_file_swapped_in_after_the_content_check_is_not_overwritten(self):
+        """The decision and the file it was about must be the same file.
+
+        This function's judgement is "that block is still the template, so
+        overwriting it loses nothing". Reading by path and writing by path let a
+        rename in between apply that judgement to a file it was never about — a
+        curated contract, overwritten because a different file passed the check.
+        That is the incident this whole package exists for, arriving through the
+        one gap the writer's own identity check could not see: the writer bound
+        its open to its own stat, not to the caller's content read.
+        """
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            root.mkdir(parents=True)
+            contract = root / "research_contract.md"
+            contract.write_text(load_scaffold_template(RESEARCH_CONTRACT), encoding="utf-8")
+            (root / "research_notebook.md").write_text("# N\n\n## Scope\n\nT.\n", encoding="utf-8")
+            curated = root / "curated.md"
+            curated.write_text("# CURATED — eighteen months of work\n", encoding="utf-8")
+            swapped = {"done": False}
+            real_check = research_contract._is_untouched_template_block
+
+            def check_then_swap(text):
+                verdict = real_check(text)
+                if verdict and not swapped["done"]:
+                    os.replace(curated, contract)
+                    swapped["done"] = True
+                return verdict
+
+            with mock.patch.object(
+                research_contract, "_is_untouched_template_block", check_then_swap
+            ):
+                with self.assertRaises(FileExistsError):
+                    _sync(root)
+
+            self.assertTrue(swapped["done"], "the probe never swapped")
+            self.assertEqual(
+                "# CURATED — eighteen months of work\n",
+                contract.read_text(encoding="utf-8"),
+            )
+
+    @unittest.skipUnless(hasattr(os, "listxattr"), "platform exposes no extended attributes")
+    def test_the_attribute_read_uses_the_descriptor_not_the_path(self):
+        # The property the descriptor design exists for. Reverting the carry to
+        # read the source by path passed the entire suite while copying an
+        # intruder's attributes onto the destination — the shape this round
+        # closed, behind a suite that accepted it.
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            _mature_project(root)
+            first = propose_research_contract_block(
+                repo_root=root, project_policy=PROJECT_POLICY_REAL_PROJECT
+            )
+            proposal = Path(first["proposal_path"])
+            os.setxattr(proposal, "user.victim", b"mine")
+            intruder = root / "artifacts" / "intruder.md"
+            intruder.write_text("x\n", encoding="utf-8")
+            os.setxattr(intruder, "user.intruder", b"theirs")
+            real_carry = research_contract._carry_extended_attributes
+
+            def swap_then_carry(source_fd, tmp_name, *, parent_fd):
+                # The name now points at the intruder; a path-based read would
+                # pick up its attributes, a descriptor read cannot.
+                os.replace(intruder, proposal)
+                return real_carry(source_fd, tmp_name, parent_fd=parent_fd)
+
+            with mock.patch.object(
+                research_contract, "_carry_extended_attributes", swap_then_carry
+            ):
+                propose_research_contract_block(
+                    repo_root=root, project_policy=PROJECT_POLICY_REAL_PROJECT
+                )
+            carried = [n for n in os.listxattr(proposal) if n.startswith("user.")]
+            self.assertIn("user.victim", carried)
+            self.assertNotIn("user.intruder", carried)
 
     def test_the_template_block_carries_no_render_placeholder(self):
         # The in-place precondition compares the RAW template while the scaffold
