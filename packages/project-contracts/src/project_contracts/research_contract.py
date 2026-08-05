@@ -341,40 +341,40 @@ def _assert_safe_proposal_destination(proposal: Path, *, contract: Path, noteboo
             )
 
 
-def _carry_extended_attributes(target: Path, tmp_name: str, *, parent_fd: int) -> None:
+def _carry_extended_attributes(source_fd: int, tmp_name: str, *, parent_fd: int) -> None:
     """Copy what a replaced inode would otherwise drop, beyond its mode.
 
-    What is carried, stated from measurement rather than from expectation,
-    because the previous two versions of this paragraph were both wrong:
+    What is carried, stated from measurement because three earlier versions of
+    this paragraph were written from expectation and each was wrong:
 
-    * On Linux, everything `os.listxattr` exposes. That is more than the
-      `user.*` namespace — it includes `system.posix_acl_access`, so POSIX ACLs
-      ARE carried here, and `security.*` labels such as SELinux contexts and
-      file capabilities, which an unprivileged writer usually cannot set and
-      which are then skipped.
+    * On Linux, every attribute `os.listxattr` exposes THAT THIS PROCESS CAN
+      READ AND SET. Both exclusions are real and both are silent: a destination
+      at mode 0200 lists an attribute whose `getxattr` raises EACCES, and
+      `security.*` labels — SELinux contexts, file capabilities — usually raise
+      EPERM on the way in for an unprivileged writer. What is carried does
+      include `system.posix_acl_access`, so POSIX ACLs ARE carried here.
     * On macOS, nothing: those builds ship no `os.listxattr` at all, so Finder
-      tags and resource forks are not carried.
+      tags and resource forks are lost on every replacement.
 
-    `os.setxattr` takes no `dir_fd`, and `tmp_name` is a bare name meaningful
-    only against `parent_fd`, so the temp file is opened against that
-    descriptor and the descriptor is what `setxattr` receives. Passing the bare
-    name instead raises FileNotFoundError — an OSError, which the loop below
-    would swallow, leaving nothing carried and nothing said.
+    Both files are addressed by descriptor, never by path. `os.setxattr` takes
+    no `dir_fd`, and `tmp_name` means nothing except against `parent_fd`, so the
+    temp file is opened against it; the SOURCE is read through a descriptor for
+    the same reason the parent is pinned — reading it by path lets a rename
+    between the pin and the read return ENOENT, or worse, return a different
+    file whose ACL would then be copied onto the destination.
 
-    It runs before the destination's mode is restored, since the kernel checks
-    write permission on the inode for setxattr and a temp file already wearing a
-    read-only mode would fail EACCES on every attribute. That ordering is
-    defensive rather than load-bearing, and saying which is the point: a review
-    seat measured the loss on modes 0400 and 0444, but those destinations are
-    refused outright before any write, so with that refusal in place the loss is
-    not reachable. Measured on Linux: 0400 and 0444 refuse, 0600 carries the
-    attribute. The ordering costs nothing and removes the dependence on that
-    refusal staying where it is.
+    This MUST run before the destination's mode is restored, and that ordering
+    is load-bearing rather than defensive. The obvious case — a read-only
+    destination — is refused earlier, but a file owned by someone else at mode
+    0460 in a shared group is not: it passes the writability check because the
+    caller is in the group, while the temp file it produces belongs to the
+    caller, whose own bits in 0460 are read-only. Attributes carried after that
+    chmod would fail EACCES on every one of them, silently.
     """
     if not hasattr(os, "listxattr"):
         return
     try:
-        names = os.listxattr(target, follow_symlinks=False)
+        names = os.listxattr(source_fd)
     except OSError:
         return
     if not names:
@@ -386,13 +386,19 @@ def _carry_extended_attributes(target: Path, tmp_name: str, *, parent_fd: int) -
     try:
         for name in names:
             try:
-                os.setxattr(fd, name, os.getxattr(target, name, follow_symlinks=False))
+                os.setxattr(fd, name, os.getxattr(source_fd, name))
             except OSError:
                 # One attribute that cannot be read or set must not cost the
                 # write; content is what is being protected here.
                 continue
     finally:
-        os.close(fd)
+        try:
+            os.close(fd)
+        except OSError:
+            # Closing is bookkeeping for an attribute copy. An EIO here would
+            # otherwise propagate into the caller's cleanup and destroy a
+            # content write that had already succeeded.
+            pass
 
 
 def _write_file_atomically(target: Path, text: str, *, newline: str | None = None) -> None:
@@ -432,6 +438,7 @@ def _write_file_atomically(target: Path, text: str, *, newline: str | None = Non
         # read-only where the previous open("w") raised. This module refuses
         # rather than clobbers everywhere else; keep that here.
         existing_mode: int | None = None
+        source_fd: int | None = None
         try:
             existing = os.stat(target.name, dir_fd=parent_fd, follow_symlinks=False)
         except FileNotFoundError:
@@ -442,20 +449,27 @@ def _write_file_atomically(target: Path, text: str, *, newline: str | None = Non
                 raise PermissionError(
                     f"refusing to replace {target}: it is not writable"
                 )
+            try:
+                source_fd = os.open(
+                    target.name, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0), dir_fd=parent_fd
+                )
+            except OSError:
+                source_fd = None
         tmp_name = f".{target.name}.{os.getpid()}.{secrets.token_hex(8)}.partial"
         create = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
         fd = os.open(tmp_name, create, 0o644, dir_fd=parent_fd)
         try:
             with os.fdopen(fd, "w", encoding="utf-8", newline=newline) as handle:
                 handle.write(text)
-            if existing_mode is not None:
+            if source_fd is not None:
                 # A replaced inode inherits NOTHING from the one it displaces.
                 # Permissions first, because losing those is the consequential
                 # one: a contract its owner had chmod'd 0600 came back 0644, a
                 # deliberately private file made world-readable with its content
                 # byte-perfect — invisible to every content-hash observable, and
                 # every test here was one.
-                _carry_extended_attributes(target, tmp_name, parent_fd=parent_fd)
+                _carry_extended_attributes(source_fd, tmp_name, parent_fd=parent_fd)
+            if existing_mode is not None:
                 os.chmod(tmp_name, existing_mode, dir_fd=parent_fd)
             os.replace(tmp_name, target.name, src_dir_fd=parent_fd, dst_dir_fd=parent_fd)
         except BaseException:
@@ -465,6 +479,11 @@ def _write_file_atomically(target: Path, text: str, *, newline: str | None = Non
                 pass
             raise
     finally:
+        if source_fd is not None:
+            try:
+                os.close(source_fd)
+            except OSError:
+                pass
         os.close(parent_fd)
 
 
