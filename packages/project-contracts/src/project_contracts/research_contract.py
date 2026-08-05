@@ -348,11 +348,19 @@ def _carry_extended_attributes(source_fd: int, tmp_name: str, *, parent_fd: int)
     this paragraph were written from expectation and each was wrong:
 
     * On Linux, every attribute `os.listxattr` exposes THAT THIS PROCESS CAN
-      READ AND SET. Both exclusions are real and both are silent: a destination
-      at mode 0200 lists an attribute whose `getxattr` raises EACCES, and
-      `security.*` labels — SELinux contexts, file capabilities — usually raise
-      EPERM on the way in for an unprivileged writer. What is carried does
-      include `system.posix_acl_access`, so POSIX ACLs ARE carried here.
+      SET. `security.*` labels — SELinux contexts, file capabilities — usually
+      raise EPERM on the way in for an unprivileged writer and are skipped
+      silently. What is carried does include `system.posix_acl_access`, so
+      POSIX ACLs ARE carried here.
+
+      One exclusion sits earlier and is easy to state wrongly, as an earlier
+      version of this paragraph did: it named a destination whose attributes
+      list but do not read, which was the behaviour of the previous path-based
+      code and is now unreachable — a review seat swept all 512 modes and found
+      none where the descriptor opens and the read then fails. The exclusion
+      this writer HAS is that a destination which cannot be opened for reading
+      at all, such as a write-only file, yields no descriptor and therefore no
+      attributes, silently. The caller decides that, not this function.
     * On macOS, nothing: those builds ship no `os.listxattr` at all, so Finder
       tags and resource forks are lost on every replacement.
 
@@ -437,24 +445,45 @@ def _write_file_atomically(target: Path, text: str, *, newline: str | None = Non
         # replaces, so it silently overwrites a destination the owner made
         # read-only where the previous open("w") raised. This module refuses
         # rather than clobbers everywhere else; keep that here.
+        # Everything about the destination — its mode, its attributes, and the
+        # decision to refuse — is bound to ONE descriptor, and the name is then
+        # confirmed to still refer to that same inode.
+        #
+        # Reading the source by path was closed last round; this closes the
+        # window that remained between the checks and the open. A rename that
+        # put a different file at the name in between bound the descriptor to
+        # the intruder, whose ACL was then copied onto the destination — a
+        # review seat reproduced exactly that, granting access from a file the
+        # caller never named.
         existing_mode: int | None = None
         source_fd: int | None = None
         try:
-            existing = os.stat(target.name, dir_fd=parent_fd, follow_symlinks=False)
+            source_fd = os.open(
+                target.name, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0), dir_fd=parent_fd
+            )
         except FileNotFoundError:
             pass
+        except OSError:
+            # The destination exists but cannot be opened for reading — a
+            # write-only file, most plainly. THIS is the exclusion this writer
+            # actually has: no descriptor, so no attributes are carried, and
+            # nothing says so at the time. The mode is still preserved, from a
+            # path stat, and the refusal below still applies.
+            existing_mode = stat.S_IMODE(
+                os.stat(target.name, dir_fd=parent_fd, follow_symlinks=False).st_mode
+            )
         else:
-            existing_mode = stat.S_IMODE(existing.st_mode)
+            source_stat = os.fstat(source_fd)
+            existing_mode = stat.S_IMODE(source_stat.st_mode)
+        if existing_mode is not None:
             if not os.access(target.name, os.W_OK, dir_fd=parent_fd, follow_symlinks=False):
-                raise PermissionError(
-                    f"refusing to replace {target}: it is not writable"
-                )
-            try:
-                source_fd = os.open(
-                    target.name, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0), dir_fd=parent_fd
-                )
-            except OSError:
-                source_fd = None
+                raise PermissionError(f"refusing to replace {target}: it is not writable")
+            if source_fd is not None:
+                named = os.stat(target.name, dir_fd=parent_fd, follow_symlinks=False)
+                if (named.st_dev, named.st_ino) != (source_stat.st_dev, source_stat.st_ino):
+                    raise FileExistsError(
+                        f"refusing to replace {target}: it changed identity during validation"
+                    )
         tmp_name = f".{target.name}.{os.getpid()}.{secrets.token_hex(8)}.partial"
         create = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
         fd = os.open(tmp_name, create, 0o644, dir_fd=parent_fd)

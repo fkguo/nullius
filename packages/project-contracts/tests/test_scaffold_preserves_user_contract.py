@@ -689,6 +689,7 @@ class MatureContractIsNeverRewrittenTest(unittest.TestCase):
 
             self.assertEqual(0o600, _project_modes(root)["research_contract.md"])
 
+    @unittest.skipIf(os.geteuid() == 0, "root holds CAP_DAC_OVERRIDE: os.access ignores the mode")
     def test_a_read_only_destination_is_refused_rather_than_replaced(self):
         # rename() needs write permission on the directory, not on the file it
         # replaces, so the atomic writer silently overwrote where the previous
@@ -740,6 +741,129 @@ class MatureContractIsNeverRewrittenTest(unittest.TestCase):
                 repo_root=root, project_policy=PROJECT_POLICY_REAL_PROJECT
             )
             self.assertEqual(b"kept", os.getxattr(proposal, "user.nullius_test"))
+
+    def test_attributes_are_carried_before_the_mode_is_restored(self):
+        """The ordering, locked by observing the call sequence.
+
+        A review seat found that nothing locked it: the only attribute test uses
+        a caller-owned proposal, where the order cannot matter, so a later edit
+        merging the chmod up next to the stat would pass the whole suite while
+        silently losing attributes on a shared-group destination at mode 0460.
+        Establishing that took an entire review round; this keeps it.
+        """
+        calls: list[str] = []
+        real_chmod, real_carry = os.chmod, research_contract._carry_extended_attributes
+
+        def note_chmod(*a, **k):
+            calls.append("chmod")
+            return real_chmod(*a, **k)
+
+        def note_carry(*a, **k):
+            calls.append("carry")
+            return real_carry(*a, **k)
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            _mature_project(root)
+            propose_research_contract_block(
+                repo_root=root, project_policy=PROJECT_POLICY_REAL_PROJECT
+            )
+            calls.clear()
+            with mock.patch.object(os, "chmod", note_chmod), mock.patch.object(
+                research_contract, "_carry_extended_attributes", note_carry
+            ):
+                propose_research_contract_block(
+                    repo_root=root, project_policy=PROJECT_POLICY_REAL_PROJECT
+                )
+            self.assertIn("carry", calls)
+            self.assertIn("chmod", calls)
+            self.assertLess(
+                calls.index("carry"), calls.index("chmod"), f"order was {calls}"
+            )
+
+    @unittest.skipUnless(hasattr(os, "setxattr"), "platform exposes no extended attributes")
+    def test_an_attribute_that_cannot_be_set_does_not_cost_the_write(self):
+        # `security.*` on an unprivileged writer raises EPERM for real. The
+        # carry must swallow it: content is what is being protected.
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            _mature_project(root)
+            first = propose_research_contract_block(
+                repo_root=root, project_policy=PROJECT_POLICY_REAL_PROJECT
+            )
+            proposal = Path(first["proposal_path"])
+            os.setxattr(proposal, "user.kept", b"v")
+
+            def refusing_setxattr(*args, **kwargs):
+                raise OSError(1, "Operation not permitted")
+
+            with mock.patch.object(os, "setxattr", refusing_setxattr):
+                result = propose_research_contract_block(
+                    repo_root=root, project_policy=PROJECT_POLICY_REAL_PROJECT
+                )
+            self.assertIn(
+                "### Notebook sections",
+                Path(result["proposal_path"]).read_text(encoding="utf-8"),
+            )
+
+    @unittest.skipUnless(hasattr(os, "setxattr"), "platform exposes no extended attributes")
+    def test_a_close_error_on_the_attribute_descriptor_does_not_cost_the_write(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            _mature_project(root)
+            first = propose_research_contract_block(
+                repo_root=root, project_policy=PROJECT_POLICY_REAL_PROJECT
+            )
+            # Without an attribute the carry early-returns and never opens the
+            # descriptor whose close is under test — the first version of this
+            # test passed against a mutant for exactly that reason.
+            os.setxattr(Path(first["proposal_path"]), "user.probe", b"1")
+            real_close = os.close
+            state = {"raised": False}
+
+            def flaky_close(fd):
+                real_close(fd)
+                if not state["raised"]:
+                    state["raised"] = True
+                    raise OSError(5, "EIO")
+
+            with mock.patch.object(os, "close", flaky_close):
+                result = propose_research_contract_block(
+                    repo_root=root, project_policy=PROJECT_POLICY_REAL_PROJECT
+                )
+            self.assertTrue(state["raised"], "the probe never exercised a close")
+            self.assertIn(
+                "### Notebook sections",
+                Path(result["proposal_path"]).read_text(encoding="utf-8"),
+            )
+
+    def test_a_destination_swapped_during_validation_is_refused(self):
+        # The mode, the attributes and the refusal are all bound to one
+        # descriptor. Putting a different inode at the name between the open and
+        # the identity check made the descriptor bind the intruder, whose ACL
+        # was then copied onto the destination.
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            _mature_project(root)
+            first = propose_research_contract_block(
+                repo_root=root, project_policy=PROJECT_POLICY_REAL_PROJECT
+            )
+            proposal = Path(first["proposal_path"])
+            intruder = root / "artifacts" / "intruder.md"
+            intruder.write_text("INTRUDER\n", encoding="utf-8")
+            real_open = os.open
+
+            def swap_after_open(*args, **kwargs):
+                fd = real_open(*args, **kwargs)
+                if args and args[0] == proposal.name and "dir_fd" in kwargs:
+                    os.replace(intruder, proposal)
+                return fd
+
+            with mock.patch.object(os, "open", swap_after_open):
+                with self.assertRaises(FileExistsError):
+                    propose_research_contract_block(
+                        repo_root=root, project_policy=PROJECT_POLICY_REAL_PROJECT
+                    )
 
     def test_the_template_block_carries_no_render_placeholder(self):
         # The in-place precondition compares the RAW template while the scaffold
