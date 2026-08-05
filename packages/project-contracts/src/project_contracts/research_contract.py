@@ -249,28 +249,38 @@ def sync_research_contract(
     # rather than replacing a byte it cannot read: both regions outside the
     # block belong to the project, and rewriting them is not this function's
     # business even when the block itself is still the template's.
-    with contract.open(encoding="utf-8", errors="strict", newline="") as handle:
-        contract_text = handle.read()
-    if not _is_untouched_template_block(contract_text):
-        raise ResearchContractBlockIsNotTemplate(contract)
+    # The content is read through a descriptor that is HELD until the write, and
+    # handed to the writer. Reading by path and writing by path leaves the whole
+    # decision unbound: this function's judgement is "that block is still the
+    # template, so overwriting it loses nothing", and a rename between the read
+    # and the write applies that judgement to a file it was never about — a
+    # curated contract, overwritten because a different file passed the check.
+    validated_fd = os.open(contract, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+    try:
+        with os.fdopen(os.dup(validated_fd), encoding="utf-8", errors="strict", newline="") as handle:
+            contract_text = handle.read()
+        if not _is_untouched_template_block(contract_text):
+            raise ResearchContractBlockIsNotTemplate(contract)
 
-    notebook_text = notebook.read_text(encoding="utf-8", errors="replace")
-    notebook_sha = _sha256_file(notebook)
-    headings, references = _collect_notebook_sections(notebook_text)
-    lines = _derived_block_lines(notebook_sha, notebook_text)
-    # Every byte outside the markers is carried through untouched, which is the
-    # guarantee that matters: an earlier version normalized the whole file and
-    # so rewrote owner-authored regions whenever their endings were mixed.
-    #
-    # The block itself is written LF, and that is not a choice — the write only
-    # runs when the block is byte-for-byte the template's, which is LF, so a
-    # CRLF block cannot reach here at all (a CRLF contract is refused, and the
-    # proposal path applies to it). A previous comment claimed the block adopted
-    # the surrounding ending; the branch that would have done so could not
-    # execute, and this file has carried enough comments promising more than the
-    # code delivers.
-    updated = _replace_sync_block(contract_text, "\n".join(lines))
-    _write_file_atomically(contract, updated, newline="")
+        notebook_text = notebook.read_text(encoding="utf-8", errors="replace")
+        notebook_sha = _sha256_file(notebook)
+        headings, references = _collect_notebook_sections(notebook_text)
+        lines = _derived_block_lines(notebook_sha, notebook_text)
+        # Every byte outside the markers is carried through untouched, which is the
+        # guarantee that matters: an earlier version normalized the whole file and
+        # so rewrote owner-authored regions whenever their endings were mixed.
+        #
+        # The block itself is written LF, and that is not a choice — the write only
+        # runs when the block is byte-for-byte the template's, which is LF, so a
+        # CRLF block cannot reach here at all (a CRLF contract is refused, and the
+        # proposal path applies to it). A previous comment claimed the block adopted
+        # the surrounding ending; the branch that would have done so could not
+        # execute, and this file has carried enough comments promising more than the
+        # code delivers.
+        updated = _replace_sync_block(contract_text, "\n".join(lines))
+        _write_file_atomically(contract, updated, newline="", validated_fd=validated_fd)
+    finally:
+        os.close(validated_fd)
     return {
         "contract_path": str(contract),
         "notebook_sha256": notebook_sha,
@@ -409,7 +419,9 @@ def _carry_extended_attributes(source_fd: int, tmp_name: str, *, parent_fd: int)
             pass
 
 
-def _write_file_atomically(target: Path, text: str, *, newline: str | None = None) -> None:
+def _write_file_atomically(
+    target: Path, text: str, *, newline: str | None = None, validated_fd: int | None = None
+) -> None:
     """Write `target` through a pinned directory and a rename.
 
     Three separate captures had to be closed here, and each needed a different
@@ -455,35 +467,52 @@ def _write_file_atomically(target: Path, text: str, *, newline: str | None = Non
         # the intruder, whose ACL was then copied onto the destination — a
         # review seat reproduced exactly that, granting access from a file the
         # caller never named.
+        # `validated_fd`, when the caller has one, is the inode whose CONTENT the
+        # caller inspected before deciding this write was safe. Binding to it is
+        # what makes that decision apply to the file it was actually about; a
+        # descriptor opened here would only bind this function's own checks to
+        # each other, which is a weaker statement than the caller needs.
         existing_mode: int | None = None
         source_fd: int | None = None
-        try:
-            source_fd = os.open(
-                target.name, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0), dir_fd=parent_fd
-            )
-        except FileNotFoundError:
-            pass
-        except OSError:
-            # The destination exists but cannot be opened for reading — a
-            # write-only file, most plainly. THIS is the exclusion this writer
-            # actually has: no descriptor, so no attributes are carried, and
-            # nothing says so at the time. The mode is still preserved, from a
-            # path stat, and the refusal below still applies.
-            existing_mode = stat.S_IMODE(
-                os.stat(target.name, dir_fd=parent_fd, follow_symlinks=False).st_mode
-            )
+        owns_source_fd = False
+        if validated_fd is not None:
+            source_fd = validated_fd
         else:
+            try:
+                source_fd = os.open(
+                    target.name, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0), dir_fd=parent_fd
+                )
+                owns_source_fd = True
+            except FileNotFoundError:
+                source_fd = None
+            except OSError:
+                # The destination exists but cannot be opened for reading — a
+                # write-only file, most plainly. THIS is the exclusion this
+                # writer actually has: no descriptor, so no attributes are
+                # carried, and nothing says so at the time.
+                source_fd = None
+                existing_mode = stat.S_IMODE(
+                    os.stat(target.name, dir_fd=parent_fd, follow_symlinks=False).st_mode
+                )
+        if source_fd is not None:
             source_stat = os.fstat(source_fd)
             existing_mode = stat.S_IMODE(source_stat.st_mode)
         if existing_mode is not None:
-            if not os.access(target.name, os.W_OK, dir_fd=parent_fd, follow_symlinks=False):
-                raise PermissionError(f"refusing to replace {target}: it is not writable")
             if source_fd is not None:
                 named = os.stat(target.name, dir_fd=parent_fd, follow_symlinks=False)
                 if (named.st_dev, named.st_ino) != (source_stat.st_dev, source_stat.st_ino):
                     raise FileExistsError(
                         f"refusing to replace {target}: it changed identity during validation"
                     )
+            # This refusal is a courtesy to an operator who made the file
+            # read-only, not a guarantee against a racing writer: `os.access`
+            # judges the NAME, so showing it a writable inode and restoring the
+            # original before the identity check above bypasses it. What that
+            # buys an attacker is nothing — the identity check still holds, so
+            # no unnamed file's mode or attributes can land. Integrity comes
+            # from the descriptor; this line only prevents an accident.
+            if not os.access(target.name, os.W_OK, dir_fd=parent_fd, follow_symlinks=False):
+                raise PermissionError(f"refusing to replace {target}: it is not writable")
         tmp_name = f".{target.name}.{os.getpid()}.{secrets.token_hex(8)}.partial"
         create = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
         fd = os.open(tmp_name, create, 0o644, dir_fd=parent_fd)
@@ -508,7 +537,7 @@ def _write_file_atomically(target: Path, text: str, *, newline: str | None = Non
                 pass
             raise
     finally:
-        if source_fd is not None:
+        if owns_source_fd and source_fd is not None:
             try:
                 os.close(source_fd)
             except OSError:
