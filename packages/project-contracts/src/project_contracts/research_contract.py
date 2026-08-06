@@ -363,14 +363,17 @@ def _carry_extended_attributes(source_fd: int, tmp_name: str, *, parent_fd: int)
       silently. What is carried does include `system.posix_acl_access`, so
       POSIX ACLs ARE carried here.
 
-      One exclusion sits earlier and is easy to state wrongly, as an earlier
-      version of this paragraph did: it named a destination whose attributes
-      list but do not read, which was the behaviour of the previous path-based
-      code and is now unreachable — a review seat swept all 512 modes and found
-      none where the descriptor opens and the read then fails. The exclusion
-      this writer HAS is that a destination which cannot be opened for reading
-      at all, such as a write-only file, yields no descriptor and therefore no
-      attributes, silently. The caller decides that, not this function.
+      One exclusion sits earlier, and naming it correctly has taken three
+      attempts. It is NOT "attributes that list but do not read" — that was the
+      previous path-based code's behaviour, and a review seat swept all 512
+      modes finding none where the descriptor opens and the read then fails. It
+      is NOT "a write-only file" either: a seat instrumented the branch across
+      the whole suite and 140 ordinary calls and it was entered exactly once,
+      by a SYMLINK, never by a write-only destination, which both entry points
+      refuse earlier. The exclusion is simply: any destination this writer
+      cannot open for reading yields no descriptor and therefore no attributes,
+      silently. On the evidence, the tenant of that branch is a symlink whose
+      lstat mode then becomes the replacement's mode.
     * On macOS, nothing: those builds ship no `os.listxattr` at all, so Finder
       tags and resource forks are lost on every replacement.
 
@@ -506,11 +509,14 @@ def _write_file_atomically(
                     )
             # This refusal is a courtesy to an operator who made the file
             # read-only, not a guarantee against a racing writer: `os.access`
-            # judges the NAME, so showing it a writable inode and restoring the
-            # original before the identity check above bypasses it. What that
-            # buys an attacker is nothing — the identity check still holds, so
-            # no unnamed file's mode or attributes can land. Integrity comes
-            # from the descriptor; this line only prevents an accident.
+            # judges the NAME, so a swap landing between the identity check just
+            # above and this line lets a writable inode answer for a read-only
+            # one. (An earlier version of this comment described the bypass in
+            # terms of the PREVIOUS statement order and was carried across the
+            # reorder unchanged — both seats caught it.) What that buys is
+            # nothing: the identity check still holds, so no unnamed file's mode
+            # or attributes can land. Integrity comes from the descriptor; this
+            # line only prevents an accident.
             if not os.access(target.name, os.W_OK, dir_fd=parent_fd, follow_symlinks=False):
                 raise PermissionError(f"refusing to replace {target}: it is not writable")
         tmp_name = f".{target.name}.{os.getpid()}.{secrets.token_hex(8)}.partial"
