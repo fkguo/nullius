@@ -1,8 +1,11 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import Ajv2020 from 'ajv/dist/2020.js';
 import { appendJsonlDurable, mintUlid, withLedgerLock, ULID_PATTERN } from '@nullius/shared';
 import type { ValidityEventV1 } from '@nullius/shared';
 import type { RunOriginV1 } from '@nullius/shared';
+import validityEventSchema from '../../../meta/schemas/validity_event_v1.schema.json' with { type: 'json' };
+import runOriginSchema from '../../../meta/schemas/run_origin_v1.schema.json' with { type: 'json' };
 
 /** Project validity ledger: the append-only record separating result VALIDITY
  *  ("does this run's result still count") from execution status ("did it
@@ -110,76 +113,34 @@ export type ValidityLedgerView = {
 
 type ParsedLine = { raw: string; event: ValidityEventV1 };
 
-const VALIDITY_EVENT_TYPES = new Set(['supersede', 'void', 'reinstate', 'stamp']);
 const TS_UTC_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
 
-/** Semantic line validation, not just shape: a line that parses as JSON but
- *  violates the event contract (bad ULID, unknown event type, missing actor
- *  or timestamp, a supersede without by_run_id/reason, a void/reinstate
- *  without reason, a stamp without payload) is MALFORMED — counted and
- *  reported, never replayed. Accepting it would let an invalid line mutate
- *  run validity while claiming schema conformance. */
+type AjvConstructor = new (options: Record<string, unknown>) => {
+  compile: (schema: Record<string, unknown>) => { (value: unknown): boolean; errors?: unknown[] };
+  addSchema: (schema: Record<string, unknown>) => unknown;
+};
+const Ajv2020Ctor = Ajv2020 as unknown as AjvConstructor;
+
+// The checked-in JSON Schemas are the ONE contract; hand-written validators
+// were reviewed twice and both times diverged from them in accepting and in
+// rejecting directions — that whole class of drift ends by compiling the
+// schemas themselves. validateFormats stays off (ajv core has no date-time
+// format without the formats package), so the two format-bearing fields are
+// re-checked by pattern below alongside the one relation a JSON Schema cannot
+// express: a stamp payload must be ABOUT the run its event names.
+const eventSchemaValidator = (() => {
+  const ajv = new Ajv2020Ctor({ allErrors: false, strict: false, validateFormats: false });
+  ajv.addSchema(runOriginSchema as Record<string, unknown>);
+  return ajv.compile(validityEventSchema as Record<string, unknown>);
+})();
+
 function validateLedgerEvent(value: Record<string, unknown>): boolean {
-  if (value.schema_id !== 'validity_event_v1') return false;
-  if (typeof value.event_id !== 'string' || !ULID_PATTERN.test(value.event_id)) return false;
-  if (typeof value.event !== 'string' || !VALIDITY_EVENT_TYPES.has(value.event)) return false;
-  if (typeof value.run_id !== 'string' || value.run_id.length === 0) return false;
-  if (typeof value.actor !== 'string' || value.actor.length === 0) return false;
-  if (typeof value.ts_utc !== 'string' || !TS_UTC_PATTERN.test(value.ts_utc)) return false;
-  if (value.scope !== undefined && (typeof value.scope !== 'string' || value.scope.length === 0)) return false;
-  const reasonOk = typeof value.reason === 'string' && value.reason.trim().length > 0;
-  if (value.event === 'supersede') {
-    if (typeof value.by_run_id !== 'string' || value.by_run_id.length === 0) return false;
-    if (!reasonOk) return false;
-  }
-  if ((value.event === 'void' || value.event === 'reinstate') && !reasonOk) return false;
-  if (value.event === 'reinstate' && value.scope !== undefined && value.scope !== 'full') return false;
+  if (!eventSchemaValidator(value)) return false;
+  if (!TS_UTC_PATTERN.test(String(value.ts_utc))) return false;
   if (value.event === 'stamp') {
-    if (!validateStampPayload(value.stamp)) return false;
-  }
-  return true;
-}
-
-const BINDING_QUALITIES = new Set([
-  'exact_clean', 'exact_tracked_snapshot', 'head_plus_untracked', 'aligned_heuristic', 'unbound',
-]);
-const SHA_PATTERN = /^[0-9a-f]{40}$/;
-
-/** Deep validation of the origin payload — a stamp whose payload violates
- *  the run_origin_v1 contract must not replay as a stamp: shallow
- *  schema_id-only checking would let an arbitrary object masquerade as an
- *  origin record and reach every downstream consumer. */
-export function validateStampPayload(stamp: unknown): boolean {
-  if (!stamp || typeof stamp !== 'object' || Array.isArray(stamp)) return false;
-  const value = stamp as Record<string, unknown>;
-  if (value.schema_id !== 'run_origin_v1') return false;
-  if (typeof value.event_id !== 'string' || !ULID_PATTERN.test(value.event_id)) return false;
-  if (typeof value.run_id !== 'string' || value.run_id.length === 0) return false;
-  if (typeof value.captured_at_utc !== 'string' || !TS_UTC_PATTERN.test(value.captured_at_utc)) return false;
-  if (typeof value.binding_quality !== 'string' || !BINDING_QUALITIES.has(value.binding_quality)) return false;
-  if (value.baseline_commit !== null && value.baseline_commit !== undefined
-    && (typeof value.baseline_commit !== 'string' || !SHA_PATTERN.test(value.baseline_commit))) return false;
-  const dirty = value.dirty;
-  if (!dirty || typeof dirty !== 'object' || Array.isArray(dirty)) return false;
-  const dirtyRecord = dirty as Record<string, unknown>;
-  if (typeof dirtyRecord.tracked_modified !== 'number' || dirtyRecord.tracked_modified < 0) return false;
-  if (typeof dirtyRecord.untracked_count !== 'number' || dirtyRecord.untracked_count < 0) return false;
-  switch (value.binding_quality) {
-    case 'unbound':
-      if (typeof value.no_repo_reason !== 'string' || value.no_repo_reason.length === 0) return false;
-      break;
-    case 'exact_tracked_snapshot':
-      if (typeof value.snapshot_commit !== 'string' || !SHA_PATTERN.test(value.snapshot_commit)) return false;
-      if (typeof value.snapshot_tree !== 'string' || !SHA_PATTERN.test(value.snapshot_tree)) return false;
-      break;
-    case 'aligned_heuristic':
-      if (typeof value.aligned_commit !== 'string' || !SHA_PATTERN.test(value.aligned_commit)) return false;
-      if (!value.alignment || typeof value.alignment !== 'object') return false;
-      break;
-    case 'exact_clean':
-    case 'head_plus_untracked':
-      if (typeof value.baseline_commit !== 'string') return false;
-      break;
+    const stamp = value.stamp as Record<string, unknown>;
+    if (!TS_UTC_PATTERN.test(String(stamp.captured_at_utc))) return false;
+    if (stamp.run_id !== value.run_id) return false;
   }
   return true;
 }
