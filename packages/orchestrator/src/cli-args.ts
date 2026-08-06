@@ -53,6 +53,19 @@ export type ParsedCliArgs =
     json: boolean;
   }
   | { command: 'status'; projectRoot: string | null; json: boolean }
+  | {
+    command: 'trace';
+    projectRoot: string | null;
+    action: 'stamp' | 'supersede' | 'void' | 'reinstate';
+    target: string;
+    by: string | null;
+    reason: string | null;
+    scope: string | null;
+    actor: string | null;
+    eventId: string | null;
+    deps: Record<string, string>;
+  }
+  | { command: 'current'; projectRoot: string | null; json: boolean }
   | { command: 'report-validate'; projectRoot: string | null }
   | { command: 'pause'; projectRoot: string | null; note: string | null }
   | { command: 'resume'; projectRoot: string | null; note: string | null; force: boolean }
@@ -364,6 +377,82 @@ function parseProposalDecisionArgs(args: string[]): {
   if (!proposalId) throw new Error('proposal-decision requires --proposal-id <id>');
   if (!decision) throw new Error('proposal-decision requires --decision <accepted_for_later|dismissed|already_captured>');
   return { proposalKind, proposalId, decision, note };
+}
+
+function parseTraceArgs(args: string[]): {
+  action: 'stamp' | 'supersede' | 'void' | 'reinstate';
+  target: string;
+  by: string | null;
+  reason: string | null;
+  scope: string | null;
+  actor: string | null;
+  eventId: string | null;
+  deps: Record<string, string>;
+} {
+  const rawAction = args[0];
+  if (rawAction !== 'stamp' && rawAction !== 'supersede' && rawAction !== 'void' && rawAction !== 'reinstate') {
+    throw new Error('trace requires an action: stamp | supersede | void | reinstate');
+  }
+  const action = rawAction;
+  let target: string | null = null;
+  let by: string | null = null;
+  let reason: string | null = null;
+  let scope: string | null = null;
+  let actor: string | null = null;
+  let eventId: string | null = null;
+  const deps: Record<string, string> = {};
+  for (let index = 1; index < args.length; index += 1) {
+    const arg = args[index]!;
+    if (arg === '--by') {
+      if (action !== 'supersede') throw new Error(`trace ${action} does not take --by`);
+      by = readOptionValue(args, index, '--by');
+      index += 1;
+      continue;
+    }
+    if (arg === '--reason') {
+      reason = readOptionValue(args, index, '--reason');
+      index += 1;
+      continue;
+    }
+    if (arg === '--scope') {
+      if (action === 'stamp') throw new Error('trace stamp does not take --scope');
+      if (action === 'reinstate') throw new Error('trace reinstate applies to full scope only');
+      scope = readOptionValue(args, index, '--scope');
+      index += 1;
+      continue;
+    }
+    if (arg === '--actor') {
+      actor = readOptionValue(args, index, '--actor');
+      index += 1;
+      continue;
+    }
+    if (arg === '--event-id') {
+      eventId = readOptionValue(args, index, '--event-id');
+      index += 1;
+      continue;
+    }
+    if (arg === '--dep') {
+      if (action !== 'stamp') throw new Error(`trace ${action} does not take --dep`);
+      const value = readOptionValue(args, index, '--dep');
+      const eq = value.indexOf('=');
+      if (eq <= 0) throw new Error('--dep expects name=path');
+      deps[value.slice(0, eq)] = value.slice(eq + 1);
+      index += 1;
+      continue;
+    }
+    if (arg.startsWith('--')) throw new Error(`unknown trace argument: ${arg}`);
+    if (target === null) {
+      target = arg;
+      continue;
+    }
+    throw new Error(`unknown trace argument: ${arg}`);
+  }
+  if (target === null) {
+    throw new Error(action === 'stamp'
+      ? 'trace stamp requires a run directory path'
+      : `trace ${action} requires a run id`);
+  }
+  return { action, target, by, reason, scope, actor, eventId, deps };
 }
 
 function parseDecisionArgs(args: string[]): {
@@ -866,6 +955,10 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
       return { command: 'export', projectRoot, passthrough: rest };
     case 'status':
       return { command: 'status', projectRoot, ...parseStatusArgs(rest) };
+    case 'trace':
+      return { command: 'trace', projectRoot, ...parseTraceArgs(rest) };
+    case 'current':
+      return { command: 'current', projectRoot, ...parseStatusArgs(rest) };
     case 'report-validate':
       if (rest.length > 0) throw new Error(`unknown report-validate argument: ${rest[0]}`);
       return { command: 'report-validate', projectRoot };

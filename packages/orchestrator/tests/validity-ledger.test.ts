@@ -258,6 +258,25 @@ describe('captureRunOrigin (real git fixtures)', () => {
     expect(unborn.no_repo_reason).toMatch(/unborn HEAD/);
   });
 
+  it('excludes traceability artifacts from untracked noise (no self-referential demotion)', () => {
+    initRepo(projectRoot);
+    fs.writeFileSync(path.join(projectRoot, 'code.py'), 'x = 1\n');
+    commitAll(projectRoot, 'initial');
+    // Simulate a prior stamp: ledger + a mirror exist but are not yet committed.
+    fs.writeFileSync(path.join(projectRoot, 'artifacts', 'runs', 'validity_ledger.jsonl'), '');
+    const runDir = path.join(projectRoot, 'artifacts', 'runs', 'earlier-run');
+    fs.mkdirSync(runDir, { recursive: true });
+    fs.writeFileSync(path.join(runDir, 'run_origin.json'), '{}');
+    const origin = captureRunOrigin(projectRoot, 'run-after-stamps');
+    // Clean research tree + only tool artifacts untracked → still exact.
+    expect(origin.binding_quality).toBe('exact_clean');
+    expect((origin.dirty as { untracked_count: number }).untracked_count).toBe(0);
+    // A real untracked research file still demotes.
+    fs.writeFileSync(path.join(projectRoot, 'new_code.py'), 'y = 2\n');
+    const demoted = captureRunOrigin(projectRoot, 'run-with-real-untracked');
+    expect(demoted.binding_quality).toBe('head_plus_untracked');
+  });
+
   it('pin is create-if-absent: idempotent on same object, hard error on rebind', () => {
     initRepo(projectRoot);
     fs.writeFileSync(path.join(projectRoot, 'a.txt'), '1');

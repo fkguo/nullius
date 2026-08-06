@@ -41,6 +41,14 @@
           "usage": "nullius status [--json]"
         },
         {
+          "command": "trace",
+          "usage": "nullius trace stamp <run_dir> [--dep name=path] [--event-id <ulid>] | nullius trace supersede <old_run_id> --by <new_run_id> --reason \"...\" [--scope <name>] | nullius trace void <run_id> --reason \"...\" [--scope <name>] | nullius trace reinstate <run_id> --reason \"...\""
+        },
+        {
+          "command": "current",
+          "usage": "nullius current [--json]"
+        },
+        {
           "command": "approve",
           "usage": "nullius approve <approval_id> [--note \"...\"]"
         },

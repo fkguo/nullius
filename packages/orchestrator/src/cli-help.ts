@@ -174,6 +174,45 @@ Behavior:
   end-of-options terminator: \`nullius decision record -- "-keep the negative branch"\`.
 `,
   status: STATUS_HELP,
+  trace: `nullius trace stamp <run_dir> [--dep name=path] [--event-id <ulid>] [--actor <who>]
+nullius trace supersede <old_run_id> --by <new_run_id> --reason "..." [--scope <name>] [--event-id <ulid>] [--actor <who>]
+nullius trace void <run_id> --reason "..." [--scope <name>] [--event-id <ulid>] [--actor <who>]
+nullius trace reinstate <run_id> --reason "..." [--event-id <ulid>] [--actor <who>]
+
+Write surface of run origin stamps and the project validity ledger
+(artifacts/runs/validity_ledger.jsonl, append-only, never rewritten).
+
+stamp: bind a run directory to the exact code state that produced it.
+  Records baseline commit, a pinned snapshot of tracked modifications
+  (refs/nullius/runs/*), the snapshot tree hash, and honest binding quality:
+  exact_clean | exact_tracked_snapshot | head_plus_untracked | unbound.
+  Untracked files are counted and sampled, never auto-ignored and never
+  silently treated as exact. The ledger event is authoritative; the
+  run-directory run_origin.json is a browsing mirror.
+  Run stamp at run creation, before the run loads code.
+
+supersede / void / reinstate: validity beyond execution status.
+  supersede is declared by the NEW run's author about the OLD run
+  (superseded_by is derived at read time; old run directories are never
+  edited). --reason is required prose: why the result no longer counts
+  (or counts again). --scope other than "full" records a named partial
+  supersession that annotates but never flips overall validity.
+
+--event-id reuses a previously minted ULID when retrying the SAME logical
+  event (crash recovery); a payload mismatch under a reused id is refused.
+`,
+  current: `nullius current [--json]
+
+Answer, as prose a human reads directly: what the current best result is,
+which exact code revision produced it, where the current manuscript is,
+which notebook sections are current vs stale, and which runs are still
+valid vs superseded or void.
+
+Clauses the project cannot answer are stated explicitly every time (no
+repository; unclassified legacy runs; stages not yet delivered) — honest
+unanswerability instead of silent or false precision. --json emits the same
+read model that \`nullius status --json\` carries as its traceability block.
+`,
   approve: APPROVE_HELP,
   pause: PAUSE_HELP,
   resume: RESUME_HELP,

@@ -71,6 +71,14 @@ export async function runCli(argv: string[], io: CliIo = defaultIo()): Promise<n
     const { runReportValidateCommand } = await import('./project-report.js');
     return runReportValidateCommand(projectRoot, io);
   }
+  if (parsed.command === 'trace') {
+    const { runTraceCommand } = await import('./cli-trace.js');
+    return runTraceCommand(projectRoot, parsed, io);
+  }
+  if (parsed.command === 'current') {
+    const { runCurrentCommand } = await import('./cli-trace.js');
+    return runCurrentCommand(projectRoot, parsed.json, io);
+  }
   if (parsed.command === 'verify') {
     const { runVerifyCommand } = await import('./cli-lifecycle.js');
     await runVerifyCommand(projectRoot, parsed, io);
