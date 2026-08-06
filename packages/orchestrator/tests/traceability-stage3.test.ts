@@ -529,6 +529,14 @@ describe('stage-3 r2 native-seat locks', () => {
       row('e', 'c', 'none'), row('c', 'd', 'e'), row('d', 'c', 'c'), row('f', 'd', 'none'),
     ], issues, defective);
     expect(defective.has('f')).toBe(true);
+    // Transitive one hop deeper: g reaches DONE non-cyclic e, which is
+    // defective-as-prefix — g must be tainted too (codex r3 fixture).
+    const issues2: Array<{ code: string; message: string; path: string }> = [];
+    const defective2 = new Set<string>();
+    checkChains([
+      row('e', 'c', 'none'), row('c', 'd', 'e'), row('d', 'c', 'c'), row('g', 'e', 'none'),
+    ], issues2, defective2);
+    expect(defective2.has('g')).toBe(true);
   });
 
   it('a row missing its leading pipe is reported, not silently invisible', () => {

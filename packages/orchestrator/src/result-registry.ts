@@ -176,7 +176,11 @@ export function checkChains(rows: ResultRegistryRow[], issues: ResultRegistryIss
         // A LATER walker whose chain reaches an already-processed cyclic
         // node is a prefix over that cycle too — first-walker-only marking
         // would let it render as a clean head over a cyclic lineage.
-        if (cyclicIds.has(cursor.result_id)) {
+        // Transitive: reaching a cyclic node OR any node already marked
+        // defective taints the whole trail — p → e → cycle must not leave
+        // p looking like a clean head just because e absorbed the mark
+        // first.
+        if (cyclicIds.has(cursor.result_id) || defective?.has(cursor.result_id)) {
           for (const id of trail) defective?.add(id);
         }
         break;
