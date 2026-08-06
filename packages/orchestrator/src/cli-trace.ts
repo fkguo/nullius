@@ -2,7 +2,8 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import type { ValidityEventV1 } from '@nullius/shared';
-import { appendValidityEvent, buildValidityEvent } from './validity-ledger.js';
+import { mintUlid } from '@nullius/shared';
+import { appendValidityEvent, buildValidityEvent, readValidityLedger } from './validity-ledger.js';
 import { captureRunOrigin } from './run-origin.js';
 import { buildTraceabilityView, renderTraceabilityProse } from './traceability-view.js';
 
@@ -54,12 +55,42 @@ export function runTraceCommand(projectRoot: string, parsed: TraceParsed, io: Cl
         return 1;
       }
       const runId = path.basename(runDir);
+      // Canonical-root rule (D9): when the same run id exists under BOTH run
+      // roots, artifacts/runs is the canonical location and stamps are
+      // written there — stamping the team/runs mirror would seed two
+      // divergent origin records for one logical run.
+      const canonicalDir = path.join(projectRoot, 'artifacts', 'runs', runId);
+      const mirrorDirOfCanonical = path.join(projectRoot, 'team', 'runs', runId);
+      if (
+        path.resolve(runDir) === path.resolve(mirrorDirOfCanonical)
+        && fs.existsSync(canonicalDir)
+      ) {
+        io.stderr(
+          `trace stamp: ${runId} exists under artifacts/runs (canonical) and team/runs (review mirror); `
+          + `stamp the canonical directory: artifacts/runs/${runId}\n`,
+        );
+        return 1;
+      }
+      // One logical stamp = one ULID for life: with --event-id the retry
+      // entrance is the LEDGER (was this event already recorded?), not a
+      // payload comparison — a re-capture would legitimately differ (time
+      // moved, the tree may have moved) and must not read as divergence.
+      if (parsed.eventId) {
+        const existing = readValidityLedger(projectRoot)
+          .events.find(event => event.event_id === parsed.eventId);
+        if (existing) {
+          io.stdout(`already stamped ${existing.run_id} (event ${parsed.eventId} recorded)\n`);
+          return 0;
+        }
+      }
+      const eventId = parsed.eventId ?? mintUlid();
       const origin = captureRunOrigin(projectRoot, runId, {
         deps: parsed.deps,
-        ...(parsed.eventId ? { eventId: parsed.eventId } : {}),
+        eventId,
       });
-      // Mirror first so its outcome is recorded in the authoritative event;
-      // authority stays with the ledger (all consumers read the ledger).
+      // Mirror attempted before the append so its outcome is recorded in the
+      // authoritative event; AUTHORITY stays with the ledger regardless of
+      // write order (all consumers read the ledger, D2).
       const mirrorPath = path.join(runDir, 'run_origin.json');
       let mirrorWritten = true;
       try {
@@ -77,7 +108,8 @@ export function runTraceCommand(projectRoot: string, parsed: TraceParsed, io: Cl
         actor,
         reason: null,
         stamp: payload as ValidityEventV1['stamp'],
-        ...(parsed.eventId ? { event_id: parsed.eventId } : {}),
+        event_id: eventId,
+        ts_utc: (payload as { captured_at_utc: string }).captured_at_utc,
       });
       const outcome = appendValidityEvent(projectRoot, event);
       const record = payload as { binding_quality?: string; baseline_commit?: string | null };

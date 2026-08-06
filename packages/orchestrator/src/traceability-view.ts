@@ -45,6 +45,11 @@ export type TraceabilityView = {
     mirrored_ids: number;
     counts: Record<TraceabilityRunClass, number>;
     stamped: number;
+    /** Distribution of stamp binding qualities among stamped runs. The
+     *  aligned_heuristic and unbound buckets are the honesty-critical ones:
+     *  they must be visible, never folded into exact-sounding wording. */
+    binding_quality_counts: Record<string, number>;
+    conflicting_stamps: string[];
     /** Ledger events about run_ids with no directory on disk (renames,
      *  removals): reported, never silently dropped. */
     ledger_only_run_ids: string[];
@@ -183,6 +188,8 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
     active: 0, superseded: 0, void: 0, unclassified: 0,
   };
   let stamped = 0;
+  const bindingQualityCounts: Record<string, number> = {};
+  const conflictingStamps: string[] = [];
   const superseded: TraceabilityView['runs']['superseded'] = [];
   const voided: TraceabilityView['runs']['voided'] = [];
   const noIdentity: string[] = [];
@@ -197,7 +204,15 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
       continue;
     }
     counts[known.validity] += 1;
-    if (known.stamped) stamped += 1;
+    if (known.stamped) {
+      stamped += 1;
+      const originRecord = known.origin as unknown as Record<string, unknown> | null;
+      const quality = originRecord && typeof originRecord.binding_quality === 'string'
+        ? originRecord.binding_quality
+        : 'unknown';
+      bindingQualityCounts[quality] = (bindingQualityCounts[quality] ?? 0) + 1;
+      if (known.conflicting_stamps) conflictingStamps.push(entry.run_id);
+    }
     if (known.validity === 'superseded') {
       superseded.push({ run_id: entry.run_id, by: known.superseded_by, reason: known.reason });
     } else if (known.validity === 'void') {
@@ -215,6 +230,27 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
       clause: 'exact code revision',
       reason: 'project root is not a git repository — run `nullius init` to bootstrap one, or the clause stays unanswerable',
     });
+  } else if (!head) {
+    // A repository with an unborn HEAD has no commit to bind anything to —
+    // exactly as unanswerable as no repository, and stated the same way.
+    unanswerable.push({
+      clause: 'exact code revision',
+      reason: 'repository has no commit yet (unborn HEAD); commit once and the clause becomes answerable',
+    });
+  } else if (trackedModified === null || untrackedCount === null) {
+    unanswerable.push({
+      clause: 'exact code revision',
+      reason: 'working-tree measurement failed (git status/ls-files errored); dirtiness is UNKNOWN, not clean',
+    });
+  }
+  const aligned = bindingQualityCounts['aligned_heuristic'] ?? 0;
+  const unbound = bindingQualityCounts['unbound'] ?? 0;
+  if (aligned > 0 || unbound > 0) {
+    unanswerable.push({
+      clause: 'exact code revision (per-run)',
+      reason: `${aligned} run stamp(s) are retroactive timestamp alignments (heuristic, never exact) and `
+        + `${unbound} are unbound; only exact_clean / exact_tracked_snapshot stamps identify code exactly`,
+    });
   }
   if (counts.unclassified > 0) {
     unanswerable.push({
@@ -227,6 +263,14 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
     unanswerable.push({
       clause: 'current manuscript',
       reason: 'project_index.md has no manuscript registry block',
+    });
+  } else if (!manuscript.pointer_parse_ok) {
+    // A present block whose pointer lines do not parse is a FORMAT problem,
+    // not a missing promotion — say which one it is.
+    unanswerable.push({
+      clause: 'current manuscript',
+      reason: 'the manuscript registry block is present but its current-pointer lines did not parse; '
+        + 'run `nullius report-validate` for the authoritative diagnosis',
     });
   } else if (manuscript.current_report_id === null) {
     unanswerable.push({
@@ -258,6 +302,8 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
       mirrored_ids: directories.filter(entry => entry.mirrored).length,
       counts,
       stamped,
+      binding_quality_counts: bindingQualityCounts,
+      conflicting_stamps: conflictingStamps,
       ledger_only_run_ids: ledgerOnly,
       superseded,
       voided,
@@ -282,6 +328,27 @@ export function renderTraceabilityProse(view: TraceabilityView): string {
   lines.push('# Current project state');
   lines.push('');
 
+  // Ledger-integrity conditions come FIRST: while they stand, every
+  // downstream classification is provisional, and burying that below the
+  // sections it undermines would be its own dishonesty.
+  if (view.ledger.integrity_defects > 0 || view.runs.conflicting_stamps.length > 0) {
+    lines.push('## LEDGER INTEGRITY CONDITION');
+    if (view.ledger.integrity_defects > 0) {
+      lines.push(
+        `${view.ledger.integrity_defects} event id(s) carry divergent payloads; affected runs are `
+        + `quarantined at their worst candidate state and have no authoritative identity: `
+        + `${view.runs.no_authoritative_identity.join(', ') || '(none currently on disk)'}.`,
+      );
+    }
+    if (view.runs.conflicting_stamps.length > 0) {
+      lines.push(
+        `${view.runs.conflicting_stamps.length} run(s) carry CONFLICTING origin stamps (never resolved by guessing): `
+        + `${view.runs.conflicting_stamps.join(', ')}.`,
+      );
+    }
+    lines.push('');
+  }
+
   lines.push('## Current best result');
   const resultClause = view.unanswerable.find(entry => entry.clause === 'current best result');
   lines.push(resultClause ? `Unanswerable: ${resultClause.reason}.` : '(rendered from the results registry)');
@@ -290,6 +357,11 @@ export function renderTraceabilityProse(view: TraceabilityView): string {
   lines.push('## Code revision');
   if (!view.git.is_repo) {
     lines.push('Unanswerable: this project is not a git repository, so no result can be bound to an exact code revision. `nullius init` bootstraps one.');
+  } else if (!view.git.head) {
+    lines.push('Unanswerable: the repository has no commit yet (unborn HEAD); commit once and this clause becomes answerable.');
+  } else if (view.git.tracked_modified === null || view.git.untracked_count === null) {
+    // A failed measurement must read as UNKNOWN, never as clean.
+    lines.push(`HEAD is ${view.git.head_describe ?? view.git.head}; working-tree dirtiness could NOT be measured (git status/ls-files failed) — unknown, not clean.`);
   } else {
     const dirtyBits: string[] = [];
     if (view.git.tracked_modified) dirtyBits.push(`${view.git.tracked_modified} tracked file(s) modified`);
@@ -320,6 +392,13 @@ export function renderTraceabilityProse(view: TraceabilityView): string {
     + `${counts.active} active, ${counts.superseded} superseded, ${counts.void} void, `
     + `${counts.unclassified} unclassified legacy; ${stamped} carry origin stamps.`,
   );
+  const qualityEntries = Object.entries(view.runs.binding_quality_counts);
+  if (qualityEntries.length > 0) {
+    lines.push(`- stamp binding qualities: ${qualityEntries.map(([q, n]) => `${n} ${q}`).join(', ')}`
+      + `${(view.runs.binding_quality_counts['aligned_heuristic'] ?? 0) > 0 || (view.runs.binding_quality_counts['unbound'] ?? 0) > 0
+        ? ' (aligned_heuristic and unbound never identify code exactly)'
+        : ''}`);
+  }
   for (const entry of view.runs.superseded.slice(0, 10)) {
     lines.push(`- superseded: ${entry.run_id}${entry.by ? ` → ${entry.by}` : ''}${entry.reason ? ` (${entry.reason})` : ''}`);
   }

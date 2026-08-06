@@ -76,6 +76,11 @@ export type RunValidity = {
   scoped_annotations: ScopedAnnotation[];
   stamped: boolean;
   origin: RunOriginV1 | null;
+  /** True when more than one stamp event claims this run with DIFFERENT
+   *  origin payloads — a reported defect (D9: never resolved by guessing).
+   *  `origin` still holds the latest payload for display, flagged as
+   *  conflicted. Identical re-stamps (same payload) do not conflict. */
+  conflicting_stamps: boolean;
   /** True when a ledger-integrity defect (same event_id, divergent payloads)
    *  touches this run: it has no authoritative effective identity, its
    *  validity above is the WORST candidate state, results-registry rows
@@ -105,6 +110,37 @@ export type ValidityLedgerView = {
 
 type ParsedLine = { raw: string; event: ValidityEventV1 };
 
+const VALIDITY_EVENT_TYPES = new Set(['supersede', 'void', 'reinstate', 'stamp']);
+const TS_UTC_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
+
+/** Semantic line validation, not just shape: a line that parses as JSON but
+ *  violates the event contract (bad ULID, unknown event type, missing actor
+ *  or timestamp, a supersede without by_run_id/reason, a void/reinstate
+ *  without reason, a stamp without payload) is MALFORMED — counted and
+ *  reported, never replayed. Accepting it would let an invalid line mutate
+ *  run validity while claiming schema conformance. */
+function validateLedgerEvent(value: Record<string, unknown>): boolean {
+  if (value.schema_id !== 'validity_event_v1') return false;
+  if (typeof value.event_id !== 'string' || !ULID_PATTERN.test(value.event_id)) return false;
+  if (typeof value.event !== 'string' || !VALIDITY_EVENT_TYPES.has(value.event)) return false;
+  if (typeof value.run_id !== 'string' || value.run_id.length === 0) return false;
+  if (typeof value.actor !== 'string' || value.actor.length === 0) return false;
+  if (typeof value.ts_utc !== 'string' || !TS_UTC_PATTERN.test(value.ts_utc)) return false;
+  if (value.scope !== undefined && (typeof value.scope !== 'string' || value.scope.length === 0)) return false;
+  const reasonOk = typeof value.reason === 'string' && value.reason.trim().length > 0;
+  if (value.event === 'supersede') {
+    if (typeof value.by_run_id !== 'string' || value.by_run_id.length === 0) return false;
+    if (!reasonOk) return false;
+  }
+  if ((value.event === 'void' || value.event === 'reinstate') && !reasonOk) return false;
+  if (value.event === 'reinstate' && value.scope !== undefined && value.scope !== 'full') return false;
+  if (value.event === 'stamp') {
+    if (!value.stamp || typeof value.stamp !== 'object' || Array.isArray(value.stamp)) return false;
+    if ((value.stamp as Record<string, unknown>).schema_id !== 'run_origin_v1') return false;
+  }
+  return true;
+}
+
 function parseLedgerLines(text: string): { parsed: ParsedLine[]; malformed: number } {
   const parsed: ParsedLine[] = [];
   let malformed = 0;
@@ -113,13 +149,7 @@ function parseLedgerLines(text: string): { parsed: ParsedLine[]; malformed: numb
     if (trimmed.length === 0) continue;
     try {
       const value = JSON.parse(trimmed) as Record<string, unknown>;
-      if (
-        value.schema_id !== 'validity_event_v1'
-        || typeof value.event_id !== 'string'
-        || typeof value.event !== 'string'
-        || typeof value.run_id !== 'string'
-        || typeof value.ts_utc !== 'string'
-      ) {
+      if (!validateLedgerEvent(value)) {
         malformed += 1;
         continue;
       }
@@ -222,6 +252,7 @@ export function readValidityLedger(projectRoot: string): ValidityLedgerView {
         scoped_annotations: [],
         stamped: false,
         origin: null,
+        conflicting_stamps: false,
         no_authoritative_identity: false,
       };
       runs.set(runId, entry);
@@ -234,8 +265,13 @@ export function readValidityLedger(projectRoot: string): ValidityLedgerView {
     const scope = event.scope ?? 'full';
     switch (event.event) {
       case 'stamp': {
+        const incoming = (event.stamp ?? null) as RunOriginV1 | null;
+        if (entry.stamped && entry.origin && incoming
+          && canonicalJson(entry.origin) !== canonicalJson(incoming)) {
+          entry.conflicting_stamps = true;
+        }
         entry.stamped = true;
-        entry.origin = (event.stamp ?? null) as RunOriginV1 | null;
+        entry.origin = incoming;
         break;
       }
       case 'supersede': {
@@ -320,17 +356,28 @@ export function appendValidityEvent(
     throw new Error(`event_id ${JSON.stringify(event.event_id)} is not a ULID`);
   }
   const ledgerPath = validityLedgerPath(projectRoot);
+  // The lock file lives next to the ledger; on a project whose artifacts/runs
+  // does not exist yet (e.g. only team/runs so far), the O_EXCL create would
+  // fail on the missing parent before any append could create it.
+  fs.mkdirSync(path.dirname(ledgerPath), { recursive: true });
+  ensureLedgerMergeAttributes(projectRoot);
   return withLedgerLock(ledgerPath, LEDGER_REPAIR_GUIDANCE, () => {
     if (fs.existsSync(ledgerPath)) {
       const { parsed } = parseLedgerLines(fs.readFileSync(ledgerPath, 'utf-8'));
       const incoming = canonicalJson(event);
-      for (const { event: existing } of parsed) {
-        if (existing.event_id !== event.event_id) continue;
-        if (canonicalJson(existing) === incoming) return 'already_present';
-        throw new Error(
-          `event_id ${event.event_id} already exists in ${ledgerPath} with a different payload; `
-          + 'mint a fresh event id for a different event instead of reusing this one',
-        );
+      // Inspect EVERY line carrying this event_id before deciding: a matching
+      // duplicate must not short-circuit past a later divergent line (that
+      // divergence is exactly what the writer must refuse to extend).
+      const sameId = parsed.filter(({ event: existing }) => existing.event_id === event.event_id);
+      if (sameId.length > 0) {
+        const divergent = sameId.some(({ event: existing }) => canonicalJson(existing) !== incoming);
+        if (divergent) {
+          throw new Error(
+            `event_id ${event.event_id} already exists in ${ledgerPath} with a different payload; `
+            + 'mint a fresh event id for a different event instead of reusing this one',
+          );
+        }
+        return 'already_present';
       }
       // A hand edit can leave the last line unterminated; appending blindly
       // would corrupt both lines. Repair in place (append-only, inode kept).
@@ -342,6 +389,30 @@ export function appendValidityEvent(
     appendJsonlDurable(ledgerPath, event);
     return 'appended';
   });
+}
+
+/** The D3 merge contract is only real if the repository actually carries the
+ *  union-merge declaration — assuming it exists is not delivering it. The
+ *  writer maintains a small .gitattributes next to the ledger (idempotent;
+ *  never overwrites a hand-customized line). Union merge is safe here
+ *  because lines are self-contained, id-deduplicated by the reader, and
+ *  order-independent (effective order is re-derived from ts_utc, event_id). */
+export function ensureLedgerMergeAttributes(projectRoot: string): void {
+  const attributesPath = path.join(projectRoot, 'artifacts', 'runs', '.gitattributes');
+  const line = 'validity_ledger.jsonl merge=union';
+  try {
+    if (fs.existsSync(attributesPath)) {
+      const text = fs.readFileSync(attributesPath, 'utf-8');
+      if (text.split('\n').some(existing => existing.trim().startsWith('validity_ledger.jsonl'))) return;
+      fs.appendFileSync(attributesPath, `${text.endsWith('\n') || text.length === 0 ? '' : '\n'}${line}\n`);
+      return;
+    }
+    fs.writeFileSync(attributesPath, `${line}\n`);
+  } catch {
+    // Best-effort: an unwritable attributes file must not block the append;
+    // without it a branch merge conflicts loudly instead of silently, which
+    // is the safe direction.
+  }
 }
 
 /** Build a validity event with a freshly minted id (or a caller-supplied one

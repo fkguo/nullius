@@ -23,14 +23,24 @@ import { mintUlid } from '@nullius/shared';
 const SHA_PATTERN = /^[0-9a-f]{40}$/;
 export const RUN_SNAPSHOT_REF_PREFIX = 'refs/nullius/runs/';
 
-/** Paths produced by the traceability machinery itself (ledger, its lock,
- *  run-directory origin mirrors). Excluded from untracked-noise counting so
- *  stamping does not demote later stamps self-referentially. */
+/** Paths produced by the traceability machinery itself (the ledger, its
+ *  lock, .gitattributes carrier, and run-directory origin mirrors). Excluded
+ *  from untracked-noise counting so stamping does not demote later stamps
+ *  self-referentially. NARROW by construction: only the exact ledger-family
+ *  paths under artifacts/runs, and only run_origin.json mirrors that sit
+ *  inside one of the two run roots — a research file that happens to share
+ *  one of these names anywhere else still counts as untracked. */
 export function isTraceabilityArtifactPath(relativePath: string): boolean {
-  const base = path.basename(relativePath);
-  return base === 'run_origin.json'
-    || base === 'validity_ledger.jsonl'
-    || base === 'validity_ledger.jsonl.lock';
+  const normalized = relativePath.split(path.sep).join('/');
+  if (
+    normalized === 'artifacts/runs/validity_ledger.jsonl'
+    || normalized === 'artifacts/runs/validity_ledger.jsonl.lock'
+    || normalized === 'artifacts/runs/.gitattributes'
+  ) {
+    return true;
+  }
+  return path.posix.basename(normalized) === 'run_origin.json'
+    && (normalized.startsWith('artifacts/runs/') || normalized.startsWith('team/runs/'));
 }
 
 function git(projectRoot: string, args: string[], options: { allowFailure?: boolean } = {}): string | null {
@@ -78,17 +88,19 @@ export function pinSnapshotRef(
   snapshotCommit: string,
 ): { outcome: SnapshotPinOutcome; ref: string } {
   const ref = RUN_SNAPSHOT_REF_PREFIX + sanitizeRunRefComponent(runId);
+  // Atomic create-if-absent: the empty <oldvalue> makes git itself require
+  // that the ref does not exist yet, closing the read-then-write race two
+  // concurrent stampers would otherwise have. On failure, re-read to decide
+  // idempotent-success (same object) vs hard error (cross-binding).
+  const created = git(projectRoot, ['update-ref', ref, snapshotCommit, ''], { allowFailure: true });
+  if (created !== null) return { outcome: 'created', ref };
   const existing = git(projectRoot, ['rev-parse', '--verify', '--quiet', ref], { allowFailure: true });
   const existingSha = existing?.trim() || null;
-  if (existingSha) {
-    if (existingSha === snapshotCommit) return { outcome: 'already_pinned', ref };
-    throw new Error(
-      `snapshot ref ${ref} already points at ${existingSha}, refusing to rebind it to ${snapshotCommit}; `
-      + 'two different runs (or two sessions) appear to share one sanitized run id',
-    );
-  }
-  git(projectRoot, ['update-ref', ref, snapshotCommit]);
-  return { outcome: 'created', ref };
+  if (existingSha === snapshotCommit) return { outcome: 'already_pinned', ref };
+  throw new Error(
+    `snapshot ref ${ref} already points at ${existingSha ?? '(unreadable)'}, refusing to rebind it to `
+    + `${snapshotCommit}; two different runs (or two sessions) appear to share one sanitized run id`,
+  );
 }
 
 function listSubmodulePaths(projectRoot: string): string[] {
@@ -154,7 +166,11 @@ export function captureRunOrigin(
 
   // Snapshot FIRST, then derive the tracked-modification count from the
   // snapshot object itself — no window between inspect and snapshot.
-  const stashOutput = git(projectRoot, ['stash', 'create'], { allowFailure: true });
+  // NOT allowFailure: a failing `stash create` must throw, because mapping a
+  // failure onto the same null as a legitimately clean tree would grade a
+  // broken measurement `exact_clean` — the one direction the honesty ladder
+  // must never err in. Empty output on success = genuinely clean.
+  const stashOutput = git(projectRoot, ['stash', 'create']);
   const snapshotCommit = stashOutput?.trim() || null;
   let snapshotTree: string | null = null;
   let trackedModified = 0;
@@ -187,8 +203,11 @@ export function captureRunOrigin(
   for (const submodulePath of listSubmodulePaths(projectRoot)) {
     const absolute = path.join(projectRoot, submodulePath);
     if (!fs.existsSync(path.join(absolute, '.git'))) continue;
-    const inner = git(absolute, ['status', '--porcelain', '--untracked-files=no'], { allowFailure: true });
-    if (inner && inner.trim().length > 0) submodulesDirty += 1;
+    // Untracked files INSIDE a submodule are also invisible to the
+    // superproject snapshot, so they count toward the dirty grade too —
+    // hiding them behind --untracked-files=no would over-claim exactness.
+    const inner = git(absolute, ['status', '--porcelain'], { allowFailure: true });
+    if (inner === null || inner.trim().length > 0) submodulesDirty += 1;
   }
 
   const dirty = {

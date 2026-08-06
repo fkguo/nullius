@@ -16,9 +16,17 @@ import {
 import {
   captureRunOrigin,
   effectiveCodeIdentity,
+  isTraceabilityArtifactPath,
   pinSnapshotRef,
   sanitizeRunRefComponent,
 } from '../src/run-origin.js';
+import {
+  buildTraceabilityView,
+  listRunDirectories,
+  readManuscriptPointer,
+  renderTraceabilityProse,
+} from '../src/traceability-view.js';
+import { runTraceCommand } from '../src/cli-trace.js';
 
 let projectRoot: string;
 
@@ -167,6 +175,269 @@ describe('appendValidityEvent / readValidityLedger', () => {
     const view = readValidityLedger(projectRoot);
     expect(view.runs.get('r-stamped')?.stamped).toBe(true);
     expect(view.runs.get('r-stamped')?.validity).toBe('active');
+  });
+});
+
+describe('review-locked contracts (stage-1 r1 findings)', () => {
+  it('breaks equal-ts_utc ties by event_id, deterministically', () => {
+    const run = 'r-tie';
+    const ts = '2026-08-01T00:00:00Z';
+    const a = event({ event: 'supersede', run_id: run, by_run_id: 'n', ts_utc: ts, event_id: mintUlid(1_000) });
+    const b = event({ event: 'void', run_id: run, ts_utc: ts, event_id: mintUlid(2_000) });
+    // Physical order reversed relative to event_id order.
+    appendValidityEvent(projectRoot, b);
+    appendValidityEvent(projectRoot, a);
+    // b's ULID sorts after a's → void is the effective last event.
+    expect(readValidityLedger(projectRoot).runs.get(run)?.validity).toBe('void');
+  });
+
+  it('keeps scoped void as annotation and reinstates after full void', () => {
+    const run = 'r-scoped-void';
+    appendValidityEvent(projectRoot, event({ event: 'void', run_id: run, scope: 'figure_only' }));
+    let view = readValidityLedger(projectRoot);
+    expect(view.runs.get(run)?.validity).toBe('active');
+    expect(view.runs.get(run)?.scoped_annotations[0]?.event).toBe('void');
+
+    appendValidityEvent(projectRoot, event({ event: 'void', run_id: run }));
+    appendValidityEvent(projectRoot, event({
+      event: 'reinstate', run_id: run, ts_utc: '2100-01-01T00:00:00Z',
+    }));
+    view = readValidityLedger(projectRoot);
+    expect(view.runs.get(run)?.validity).toBe('active');
+  });
+
+  it('rejects semantically invalid lines as malformed instead of replaying them', () => {
+    const ledger = validityLedgerPath(projectRoot);
+    const badUlid = { schema_id: 'validity_event_v1', event_id: 'not-a-ulid', event: 'void', run_id: 'r', reason: 'x', actor: 't', ts_utc: '2026-08-01T00:00:00Z' };
+    const unknownEvent = { schema_id: 'validity_event_v1', event_id: mintUlid(), event: 'obliterate', run_id: 'r', actor: 't', ts_utc: '2026-08-01T00:00:00Z' };
+    const supersedeNoReason = { schema_id: 'validity_event_v1', event_id: mintUlid(), event: 'supersede', run_id: 'r', by_run_id: 'n', actor: 't', ts_utc: '2026-08-01T00:00:00Z' };
+    const voidNoActor = { schema_id: 'validity_event_v1', event_id: mintUlid(), event: 'void', run_id: 'r', reason: 'x', ts_utc: '2026-08-01T00:00:00Z' };
+    const badTs = { schema_id: 'validity_event_v1', event_id: mintUlid(), event: 'void', run_id: 'r', reason: 'x', actor: 't', ts_utc: 'yesterday' };
+    fs.writeFileSync(ledger, [badUlid, unknownEvent, supersedeNoReason, voidNoActor, badTs]
+      .map(value => JSON.stringify(value)).join('\n') + '\n');
+    const view = readValidityLedger(projectRoot);
+    expect(view.malformed_lines).toBe(5);
+    expect(view.events).toHaveLength(0);
+    expect(view.runs.get('r')).toBeUndefined();
+  });
+
+  it('refuses a divergent event_id even when a matching duplicate precedes it', () => {
+    const e = event({ event: 'void', run_id: 'r-dup' });
+    appendValidityEvent(projectRoot, e);
+    // Manufacture union-merge residue: duplicate line THEN a divergent one.
+    const divergent = { ...e, reason: 'a different reason' };
+    fs.appendFileSync(validityLedgerPath(projectRoot),
+      `${JSON.stringify(e)}\n${JSON.stringify(divergent)}\n`);
+    expect(() => appendValidityEvent(projectRoot, e)).toThrow(/different payload/);
+  });
+
+  it('reports conflicting stamps as a defect instead of silently last-wins', () => {
+    const stampOf = (quality: string, eventId: string) => event({
+      event: 'stamp', run_id: 'r-twice', reason: null, event_id: eventId,
+      stamp: {
+        schema_id: 'run_origin_v1', event_id: eventId, run_id: 'r-twice',
+        captured_at_utc: '2026-08-01T00:00:00Z', binding_quality: quality,
+        baseline_commit: 'a'.repeat(40), dirty: { tracked_modified: 0, untracked_count: 0 },
+      } as ValidityEventV1['stamp'],
+    });
+    appendValidityEvent(projectRoot, stampOf('exact_clean', mintUlid(1_000)));
+    appendValidityEvent(projectRoot, stampOf('head_plus_untracked', mintUlid(2_000)));
+    const entry = readValidityLedger(projectRoot).runs.get('r-twice');
+    expect(entry?.conflicting_stamps).toBe(true);
+  });
+
+  it('creates the union-merge gitattributes idempotently without clobbering custom lines', () => {
+    appendValidityEvent(projectRoot, event({ event: 'void', run_id: 'r' }));
+    const attributesPath = path.join(projectRoot, 'artifacts', 'runs', '.gitattributes');
+    expect(fs.readFileSync(attributesPath, 'utf-8')).toContain('validity_ledger.jsonl merge=union');
+    fs.writeFileSync(attributesPath, 'validity_ledger.jsonl merge=ours\ncustom.txt -diff\n');
+    appendValidityEvent(projectRoot, event({ event: 'void', run_id: 'r2' }));
+    const text = fs.readFileSync(attributesPath, 'utf-8');
+    expect(text).toContain('merge=ours');
+    expect(text).not.toContain('merge=union');
+  });
+
+  it('appends successfully when artifacts/runs does not exist yet', () => {
+    fs.rmSync(path.join(projectRoot, 'artifacts'), { recursive: true, force: true });
+    expect(appendValidityEvent(projectRoot, event({ event: 'void', run_id: 'r' }))).toBe('appended');
+  });
+});
+
+describe('isTraceabilityArtifactPath (narrow by construction)', () => {
+  it('excludes only the machinery paths, not lookalikes elsewhere', () => {
+    expect(isTraceabilityArtifactPath('artifacts/runs/validity_ledger.jsonl')).toBe(true);
+    expect(isTraceabilityArtifactPath('artifacts/runs/validity_ledger.jsonl.lock')).toBe(true);
+    expect(isTraceabilityArtifactPath('artifacts/runs/.gitattributes')).toBe(true);
+    expect(isTraceabilityArtifactPath('artifacts/runs/some-run/run_origin.json')).toBe(true);
+    expect(isTraceabilityArtifactPath('team/runs/some-run/run_origin.json')).toBe(true);
+    // Lookalikes OUTSIDE the machinery locations still count as untracked.
+    expect(isTraceabilityArtifactPath('src/run_origin.json')).toBe(false);
+    expect(isTraceabilityArtifactPath('validity_ledger.jsonl')).toBe(false);
+    expect(isTraceabilityArtifactPath('notes/validity_ledger.jsonl')).toBe(false);
+  });
+});
+
+describe('traceability view and CLI (review-locked)', () => {
+  function initRepo(dir: string): void {
+    execFileSync('git', ['-C', dir, 'init', '-q']);
+    execFileSync('git', ['-C', dir, 'config', 'user.email', 't@example.com']);
+    execFileSync('git', ['-C', dir, 'config', 'user.name', 'T']);
+  }
+  function commitAll(dir: string, message: string): void {
+    execFileSync('git', ['-C', dir, 'add', '-A']);
+    execFileSync('git', ['-C', dir, 'commit', '-q', '-m', message]);
+  }
+  const io = () => {
+    const out: string[] = [];
+    const err: string[] = [];
+    return {
+      cwd: projectRoot,
+      stdout: (t: string) => { out.push(t); },
+      stderr: (t: string) => { err.push(t); },
+      out, err,
+    };
+  };
+
+  it('merges mirrored run ids with artifacts/runs canonical', () => {
+    fs.mkdirSync(path.join(projectRoot, 'artifacts', 'runs', 'shared-run'), { recursive: true });
+    fs.mkdirSync(path.join(projectRoot, 'team', 'runs', 'shared-run'), { recursive: true });
+    fs.mkdirSync(path.join(projectRoot, 'team', 'runs', 'team-only-run'), { recursive: true });
+    const entries = listRunDirectories(projectRoot);
+    const shared = entries.find(entry => entry.run_id === 'shared-run');
+    expect(shared?.canonical_root).toBe(path.join('artifacts', 'runs'));
+    expect(shared?.mirrored).toBe(true);
+    expect(entries.find(entry => entry.run_id === 'team-only-run')?.canonical_root)
+      .toBe(path.join('team', 'runs'));
+    expect(entries).toHaveLength(2);
+  });
+
+  it('reads the manuscript pointer in all three states without over-claiming', () => {
+    const indexPath = path.join(projectRoot, 'project_index.md');
+    expect(readManuscriptPointer(projectRoot).registry_block_found).toBe(false);
+    fs.writeFileSync(indexPath, [
+      '<!-- MAIN_RESEARCH_REPORT_REGISTRY_START -->',
+      'unparseable pointer lines',
+      '<!-- MAIN_RESEARCH_REPORT_REGISTRY_END -->',
+    ].join('\n'));
+    const broken = readManuscriptPointer(projectRoot);
+    expect(broken.registry_block_found).toBe(true);
+    expect(broken.pointer_parse_ok).toBe(false);
+    fs.writeFileSync(indexPath, [
+      '<!-- MAIN_RESEARCH_REPORT_REGISTRY_START -->',
+      '- Current report ID: `m9-report`',
+      '- Current report: [The report](reports/the_report.md)',
+      '<!-- MAIN_RESEARCH_REPORT_REGISTRY_END -->',
+    ].join('\n'));
+    const ok = readManuscriptPointer(projectRoot);
+    expect(ok.pointer_parse_ok).toBe(true);
+    expect(ok.current_report_id).toBe('m9-report');
+    expect(ok.current_report_link).toBe('reports/the_report.md');
+    expect(ok.validation).toBe('deferred');
+  });
+
+  it('reports unborn HEAD and parse-failed pointers as their own unanswerable reasons', () => {
+    initRepo(projectRoot);
+    fs.writeFileSync(path.join(projectRoot, 'project_index.md'), [
+      '<!-- MAIN_RESEARCH_REPORT_REGISTRY_START -->',
+      'garbled',
+      '<!-- MAIN_RESEARCH_REPORT_REGISTRY_END -->',
+    ].join('\n'));
+    const view = buildTraceabilityView(projectRoot);
+    expect(view.unanswerable.some(u => u.reason.includes('unborn HEAD'))).toBe(true);
+    expect(view.unanswerable.some(u => u.reason.includes('did not parse'))).toBe(true);
+    const prose = renderTraceabilityProse(view);
+    expect(prose).toContain('unborn HEAD');
+    expect(prose).not.toContain('clean tracked tree');
+  });
+
+  it('surfaces heuristic/unbound stamps and integrity defects at the top of the prose', () => {
+    initRepo(projectRoot);
+    fs.writeFileSync(path.join(projectRoot, 'a.txt'), '1');
+    commitAll(projectRoot, 'one');
+    fs.mkdirSync(path.join(projectRoot, 'artifacts', 'runs', 'r-aligned'), { recursive: true });
+    const alignedId = mintUlid();
+    appendValidityEvent(projectRoot, event({
+      event: 'stamp', run_id: 'r-aligned', reason: null, event_id: alignedId,
+      stamp: {
+        schema_id: 'run_origin_v1', event_id: alignedId, run_id: 'r-aligned',
+        captured_at_utc: '2026-08-01T00:00:00Z', binding_quality: 'aligned_heuristic',
+        baseline_commit: null, aligned_commit: 'b'.repeat(40),
+        alignment: { window_prev_s: 10, nominal_timestamp: false },
+        dirty: { tracked_modified: 0, untracked_count: 0 },
+      } as ValidityEventV1['stamp'],
+    }));
+    const sharedId = mintUlid();
+    const ledger = validityLedgerPath(projectRoot);
+    fs.appendFileSync(ledger, [
+      JSON.stringify({ schema_id: 'validity_event_v1', event_id: sharedId, event: 'void', run_id: 'r-aligned', reason: 'A', actor: 't', ts_utc: '2026-08-02T00:00:00Z' }),
+      JSON.stringify({ schema_id: 'validity_event_v1', event_id: sharedId, event: 'supersede', run_id: 'r-aligned', by_run_id: 'x', reason: 'B', actor: 't', ts_utc: '2026-08-02T00:00:00Z' }),
+    ].join('\n') + '\n');
+    const view = buildTraceabilityView(projectRoot);
+    expect(view.runs.binding_quality_counts['aligned_heuristic']).toBe(1);
+    expect(view.unanswerable.some(u => u.clause === 'exact code revision (per-run)')).toBe(true);
+    expect(view.ledger.integrity_defects).toBe(1);
+    const prose = renderTraceabilityProse(view);
+    expect(prose.indexOf('LEDGER INTEGRITY CONDITION')).toBeGreaterThanOrEqual(0);
+    expect(prose.indexOf('LEDGER INTEGRITY CONDITION')).toBeLessThan(prose.indexOf('Current best result'));
+    expect(prose).toContain('aligned_heuristic');
+  });
+
+  it('stamp --event-id retry short-circuits on the ledger, and canonical root is enforced', () => {
+    initRepo(projectRoot);
+    fs.writeFileSync(path.join(projectRoot, 'a.txt'), '1');
+    commitAll(projectRoot, 'one');
+    fs.mkdirSync(path.join(projectRoot, 'artifacts', 'runs', 'the-run'), { recursive: true });
+    const stdio1 = io();
+    const parsedBase = { by: null, reason: null, scope: null, actor: 'test', deps: {} };
+    expect(runTraceCommand(projectRoot, {
+      action: 'stamp', target: 'artifacts/runs/the-run', eventId: null, ...parsedBase,
+    }, stdio1)).toBe(0);
+    const eventId = /event (\S+)/.exec(stdio1.out.join(''))![1]!;
+    // Retry with the SAME event id: recognized on the ledger, no divergence
+    // error even though a re-capture would differ (time moved).
+    const stdio2 = io();
+    expect(runTraceCommand(projectRoot, {
+      action: 'stamp', target: 'artifacts/runs/the-run', eventId, ...parsedBase,
+    }, stdio2)).toBe(0);
+    expect(stdio2.out.join('')).toContain('already stamped');
+    // Mirror of a canonical run refuses the stamp and names the canonical path.
+    fs.mkdirSync(path.join(projectRoot, 'team', 'runs', 'the-run'), { recursive: true });
+    const stdio3 = io();
+    expect(runTraceCommand(projectRoot, {
+      action: 'stamp', target: 'team/runs/the-run', eventId: null, ...parsedBase,
+    }, stdio3)).toBe(1);
+    expect(stdio3.err.join('')).toContain('canonical');
+  });
+
+  it('propagates a stash-create failure instead of grading it exact_clean', () => {
+    initRepo(projectRoot);
+    fs.writeFileSync(path.join(projectRoot, 'a.txt'), '1');
+    commitAll(projectRoot, 'one');
+    fs.writeFileSync(path.join(projectRoot, 'a.txt'), '2'); // dirty → stash must write objects
+    const objectsDir = path.join(projectRoot, '.git', 'objects');
+    fs.chmodSync(objectsDir, 0o500); // object writes now fail
+    try {
+      expect(() => captureRunOrigin(projectRoot, 'run-broken')).toThrow();
+    } finally {
+      fs.chmodSync(objectsDir, 0o755);
+    }
+  });
+
+  it('records dependency repository commits via deps', () => {
+    initRepo(projectRoot);
+    fs.writeFileSync(path.join(projectRoot, 'a.txt'), '1');
+    commitAll(projectRoot, 'one');
+    const depRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'dep-repo-'));
+    try {
+      initRepo(depRoot);
+      fs.writeFileSync(path.join(depRoot, 'lib.jl'), 'f() = 1');
+      commitAll(depRoot, 'dep');
+      const depHead = execFileSync('git', ['-C', depRoot, 'rev-parse', 'HEAD'], { encoding: 'utf-8' }).trim();
+      const origin = captureRunOrigin(projectRoot, 'run-with-dep', { deps: { toolkit: depRoot } });
+      expect((origin.deps as Record<string, string>).toolkit).toBe(depHead);
+    } finally {
+      fs.rmSync(depRoot, { recursive: true, force: true });
+    }
   });
 });
 

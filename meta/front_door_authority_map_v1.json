@@ -42,7 +42,7 @@
         },
         {
           "command": "trace",
-          "usage": "nullius trace stamp <run_dir> [--dep name=path] [--event-id <ulid>] | nullius trace supersede <old_run_id> --by <new_run_id> --reason \"...\" [--scope <name>] | nullius trace void <run_id> --reason \"...\" [--scope <name>] | nullius trace reinstate <run_id> --reason \"...\""
+          "usage": "nullius trace stamp <run_dir> [--dep name=path] [--event-id <ulid>] [--actor <who>] | nullius trace supersede <old_run_id> --by <new_run_id> --reason \"...\" [--scope <name>] [--event-id <ulid>] [--actor <who>] | nullius trace void <run_id> --reason \"...\" [--scope <name>] [--event-id <ulid>] [--actor <who>] | nullius trace reinstate <run_id> --reason \"...\" [--event-id <ulid>] [--actor <who>]"
         },
         {
           "command": "current",
