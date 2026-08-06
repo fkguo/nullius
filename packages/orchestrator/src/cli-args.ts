@@ -56,7 +56,7 @@ export type ParsedCliArgs =
   | {
     command: 'trace';
     projectRoot: string | null;
-    action: 'stamp' | 'supersede' | 'void' | 'reinstate';
+    action: 'stamp' | 'supersede' | 'void' | 'reinstate' | 'backfill' | 'propose-chains' | 'confirm-chains';
     target: string;
     by: string | null;
     reason: string | null;
@@ -441,7 +441,7 @@ function parseResultArgs(args: string[]): {
 }
 
 function parseTraceArgs(args: string[]): {
-  action: 'stamp' | 'supersede' | 'void' | 'reinstate';
+  action: 'stamp' | 'supersede' | 'void' | 'reinstate' | 'backfill' | 'propose-chains' | 'confirm-chains';
   target: string;
   by: string | null;
   reason: string | null;
@@ -451,10 +451,25 @@ function parseTraceArgs(args: string[]): {
   deps: Record<string, string>;
 } {
   const rawAction = args[0];
-  if (rawAction !== 'stamp' && rawAction !== 'supersede' && rawAction !== 'void' && rawAction !== 'reinstate') {
-    throw new Error('trace requires an action: stamp | supersede | void | reinstate');
+  const projectActions = new Set(['backfill', 'propose-chains', 'confirm-chains']);
+  if (rawAction !== 'stamp' && rawAction !== 'supersede' && rawAction !== 'void' && rawAction !== 'reinstate'
+    && !projectActions.has(rawAction ?? '')) {
+    throw new Error('trace requires an action: stamp | supersede | void | reinstate | backfill | propose-chains | confirm-chains');
   }
-  const action = rawAction;
+  const action = rawAction as 'stamp' | 'supersede' | 'void' | 'reinstate' | 'backfill' | 'propose-chains' | 'confirm-chains';
+  if (projectActions.has(action)) {
+    let actor: string | null = null;
+    for (let index = 1; index < args.length; index += 1) {
+      const arg = args[index]!;
+      if (arg === '--actor') {
+        actor = readOptionValue(args, index, '--actor');
+        index += 1;
+        continue;
+      }
+      throw new Error(`unknown trace ${action} argument: ${arg}`);
+    }
+    return { action, target: '', by: null, reason: null, scope: null, actor, eventId: null, deps: {} };
+  }
   let target: string | null = null;
   let by: string | null = null;
   let reason: string | null = null;
