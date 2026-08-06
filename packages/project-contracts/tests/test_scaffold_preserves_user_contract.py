@@ -43,6 +43,7 @@ from project_contracts.project_surface import RESEARCH_CONTRACT  # noqa: E402
 from project_contracts import research_contract  # noqa: E402
 from project_contracts.research_contract import (
     PROPOSAL_SENTINEL,
+    SYNC_START,
     ProposalWouldOverwriteProjectFile,
     _block_text,
     ResearchContractBlockIsNotTemplate,
@@ -944,6 +945,79 @@ class MatureContractIsNeverRewrittenTest(unittest.TestCase):
             carried = [n for n in os.listxattr(proposal) if n.startswith("user.")]
             self.assertIn("user.victim", carried)
             self.assertNotIn("user.intruder", carried)
+
+    def test_owner_regions_keep_their_line_endings(self):
+        # Stated in a commit message, measured across 324 trials of LF/CRLF/mixed
+        # — and held by nothing. Dropping `newline=""` from the contract READ is
+        # a one-token edit that passed the entire suite while destroying every
+        # CRLF pair in the owner's regions. The write side is inert on POSIX, so
+        # the lock has to be a mixed-ending fixture, not an assertion about the
+        # parameter.
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            root.mkdir(parents=True)
+            template = load_scaffold_template(RESEARCH_CONTRACT)
+            head, sep, tail = template.partition(SYNC_START)
+            mixed = head.replace("\n", "\r\n") + sep + tail
+            contract = root / "research_contract.md"
+            contract.write_bytes(mixed.encode("utf-8"))
+            (root / "research_notebook.md").write_text("# N\n\n## Scope\n\nT.\n", encoding="utf-8")
+            before = contract.read_bytes()
+            owner_prefix_before = before[: before.index(SYNC_START.encode())]
+
+            _sync(root)
+
+            after = contract.read_bytes()
+            self.assertEqual(
+                owner_prefix_before,
+                after[: after.index(SYNC_START.encode())],
+                "the owner-authored region was rewritten",
+            )
+            self.assertEqual(before.count(b"\r\n"), after.count(b"\r\n"))
+
+    def test_a_byte_it_cannot_decode_is_refused_not_replaced(self):
+        # `errors="strict"` is promised in the comment above the read and was
+        # held by nothing: flipping it to "replace" passed the whole suite while
+        # substituting U+FFFD into owner text — a smart quote pasted from a PDF
+        # is enough.
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            root.mkdir(parents=True)
+            template = load_scaffold_template(RESEARCH_CONTRACT)
+            contract = root / "research_contract.md"
+            contract.write_bytes(b"# Note: caf\xe9\n\n" + template.encode("utf-8"))
+            (root / "research_notebook.md").write_text("# N\n\n## Scope\n\nT.\n", encoding="utf-8")
+            before = contract.read_bytes()
+
+            with self.assertRaises(UnicodeDecodeError):
+                _sync(root)
+
+            self.assertEqual(before, contract.read_bytes())
+
+    def test_repeated_proposals_do_not_leak_descriptors(self):
+        # The writer borrows a caller-supplied descriptor and owns the one it
+        # opens itself. Closing unconditionally is locked (it double-closes and
+        # takes the suite red); NOT closing was not — a "this flag looks
+        # redundant" cleanup leaked one descriptor per call.
+        def open_fds() -> int:
+            for probe in ("/dev/fd", "/proc/self/fd"):
+                if os.path.isdir(probe):
+                    return len(os.listdir(probe))
+            raise unittest.SkipTest("no way to count open descriptors here")
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            _mature_project(root)
+            for _ in range(3):
+                propose_research_contract_block(
+                    repo_root=root, project_policy=PROJECT_POLICY_REAL_PROJECT
+                )
+            settled = open_fds()
+            for _ in range(20):
+                propose_research_contract_block(
+                    repo_root=root, project_policy=PROJECT_POLICY_REAL_PROJECT
+                )
+            self.assertLessEqual(open_fds(), settled + 2, "descriptors accumulated")
 
     def test_the_template_block_carries_no_render_placeholder(self):
         # The in-place precondition compares the RAW template while the scaffold
