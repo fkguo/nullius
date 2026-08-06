@@ -225,6 +225,109 @@ describe('notebook staleness checker (D5)', () => {
   });
 });
 
+describe('stage-3 r1 review locks', () => {
+  it('confirm-chains honors decisions made AFTER the proposal (no relitigation)', () => {
+    initRepo(projectRoot);
+    commitAt(projectRoot, '2026-08-01T10:00:00Z', 'a.txt');
+    mkRun('20260801T110000Z-m1-alpha-r1');
+    mkRun('20260802T110000Z-m1-alpha-r2');
+    proposeRoundChains(projectRoot);
+    // Between proposal and confirmation, a human decides: r1 stands.
+    appendValidityEvent(projectRoot, buildValidityEvent({
+      event: 'void', run_id: '20260801T110000Z-m1-alpha-r1', actor: 'human', reason: 'decided',
+    }));
+    appendValidityEvent(projectRoot, buildValidityEvent({
+      event: 'reinstate', run_id: '20260801T110000Z-m1-alpha-r1', actor: 'human', reason: 'it stands',
+      ts_utc: '2100-01-01T00:00:00Z',
+    }));
+    const result = confirmRoundChains(projectRoot, 'tester');
+    expect(result.appended).toBe(0);
+    expect(result.skippedDecided).toBe(1);
+    expect(readValidityLedger(projectRoot).runs.get('20260801T110000Z-m1-alpha-r1')?.validity).toBe('active');
+  });
+
+  it('quarantined runs (divergent ledger ids) are never proposed', () => {
+    initRepo(projectRoot);
+    commitAt(projectRoot, '2026-08-01T10:00:00Z', 'a.txt');
+    mkRun('20260801T110000Z-m1-alpha-r1');
+    mkRun('20260802T110000Z-m1-alpha-r2');
+    const sharedId = mintUlid();
+    const ledgerPath = path.join(projectRoot, 'artifacts', 'runs', 'validity_ledger.jsonl');
+    fs.mkdirSync(path.dirname(ledgerPath), { recursive: true });
+    fs.writeFileSync(ledgerPath, [
+      JSON.stringify({ schema_id: 'validity_event_v1', event_id: sharedId, event: 'void', run_id: '20260801T110000Z-m1-alpha-r1', reason: 'A', actor: 't', ts_utc: '2026-08-01T12:00:00Z' }),
+      JSON.stringify({ schema_id: 'validity_event_v1', event_id: sharedId, event: 'supersede', run_id: '20260801T110000Z-m1-alpha-r1', by_run_id: 'x', reason: 'B', actor: 't', ts_utc: '2026-08-01T12:00:00Z' }),
+    ].join('\n') + '\n');
+    // The divergent pair is excluded from `events` but assigns worst-state
+    // validity — the exact path where an event-only check re-proposes it.
+    const { proposals } = proposeRoundChains(projectRoot);
+    expect(proposals).toHaveLength(0);
+  });
+
+  it('a failed ledger append removes the just-written backfill mirror (no orphan)', () => {
+    initRepo(projectRoot);
+    commitAt(projectRoot, '2026-08-01T10:00:00Z', 'a.txt');
+    mkRun('20260802T121530Z-m1-alpha-r1');
+    // Hold the ledger lock so the append fails closed.
+    const ledgerPath = path.join(projectRoot, 'artifacts', 'runs', 'validity_ledger.jsonl');
+    fs.mkdirSync(path.dirname(ledgerPath), { recursive: true });
+    fs.writeFileSync(`${ledgerPath}.lock`, JSON.stringify({ pid: 99999, ts: 'held' }));
+    try {
+      expect(() => backfillRunOrigins(projectRoot)).toThrow(/ledger is locked/);
+    } finally {
+      fs.rmSync(`${ledgerPath}.lock`, { force: true });
+    }
+    expect(fs.existsSync(path.join(projectRoot, 'artifacts', 'runs', '20260802T121530Z-m1-alpha-r1', 'run_origin.json'))).toBe(false);
+  });
+
+  it('fenced ## lines are content, not section headings', () => {
+    initRepo(projectRoot);
+    const c1 = commitAt(projectRoot, '2026-08-01T10:00:00Z', 'a.txt');
+    fs.writeFileSync(path.join(projectRoot, 'research_notebook.md'), [
+      '# Notebook',
+      '## Real section',
+      `<!-- written-against: ${c1} -->`,
+      'text',
+      '```markdown',
+      '## Fenced fake section',
+      '<!-- written-against: deadbeef00 -->',
+      '```',
+      'more text of the real section',
+    ].join('\n'));
+    const report = checkNotebookStaleness(projectRoot);
+    expect(report.sections).toHaveLength(1);
+    expect(report.sections[0]!.heading).toBe('Real section');
+    // The fenced fake stamp must not have overridden the real one — with an
+    // empty baseline set the real stamp resolves and classifies current.
+    expect(report.sections[0]!.class).toBe('current');
+  });
+
+  it('a vanished mirror is divergence unless the ledger recorded run_dir_unwritable', () => {
+    initRepo(projectRoot);
+    commitAt(projectRoot, '2026-08-01T10:00:00Z', 'a.txt');
+    mkRun('20260802T121530Z-m1-alpha-r1');
+    backfillRunOrigins(projectRoot);
+    fs.rmSync(path.join(projectRoot, 'artifacts', 'runs', '20260802T121530Z-m1-alpha-r1', 'run_origin.json'));
+    const view = buildTraceabilityView(projectRoot);
+    expect(view.warnings.mirror_divergence).toContain('20260802T121530Z-m1-alpha-r1');
+    // A run whose ledger payload says run_dir_unwritable legitimately has no
+    // mirror and is NOT flagged.
+    const unwritableId = mintUlid();
+    appendValidityEvent(projectRoot, buildValidityEvent({
+      event: 'stamp', run_id: 'legacy-unwritable', actor: 't', reason: null, event_id: unwritableId,
+      stamp: {
+        schema_id: 'run_origin_v1', event_id: unwritableId, run_id: 'legacy-unwritable',
+        captured_at_utc: '2026-08-01T00:00:00Z', binding_quality: 'unbound',
+        baseline_commit: null, no_repo_reason: 'legacy', run_dir_unwritable: true,
+        dirty: { tracked_modified: 0, untracked_count: 0 },
+      } as ValidityEventV1['stamp'],
+    }));
+    mkRun('legacy-unwritable');
+    const view2 = buildTraceabilityView(projectRoot);
+    expect(view2.warnings.mirror_divergence).not.toContain('legacy-unwritable');
+  });
+});
+
 describe('round-cap warning and mirror divergence in the view (D9 + hook)', () => {
   it('warns past the slug threshold and on mirrors diverging from the ledger', () => {
     initRepo(projectRoot);

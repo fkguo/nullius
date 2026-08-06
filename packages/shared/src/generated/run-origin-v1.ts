@@ -291,6 +291,10 @@ export interface RunOriginV1 {
      * Other commits sharing the boundary timestamp or competing branch tips; non-empty means the alignment choice was not unique.
      */
     ambiguous_candidates?: string[];
+    /**
+     * Which commit set the alignment drew from. all_refs: every ref (git log --all) — side branches compete with the mainline, part of why the binding is heuristic.
+     */
+    history_scope?: "all_refs";
   } | null;
   /**
    * True when writing the run-directory mirror failed (e.g. read-only bits on legacy runs). The ledger event remains the truth; backfill never fails on filesystem bits.

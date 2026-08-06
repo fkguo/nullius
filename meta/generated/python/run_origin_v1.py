@@ -55,6 +55,10 @@ class AmbiguousCandidate(RootModel[str]):
     root: Annotated[str, Field(pattern="^[0-9a-f]{40}$")]
 
 
+class HistoryScope(StrEnum):
+    all_refs = "all_refs"
+
+
 class Alignment(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -82,6 +86,12 @@ class Alignment(BaseModel):
         list[AmbiguousCandidate] | None,
         Field(
             description="Other commits sharing the boundary timestamp or competing branch tips; non-empty means the alignment choice was not unique."
+        ),
+    ] = None
+    history_scope: Annotated[
+        HistoryScope | None,
+        Field(
+            description="Which commit set the alignment drew from. all_refs: every ref (git log --all) — side branches compete with the mainline, part of why the binding is heuristic."
         ),
     ] = None
 
