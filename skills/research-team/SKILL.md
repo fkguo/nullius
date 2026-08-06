@@ -32,6 +32,27 @@ Use `research-team` when you want a project workflow with:
   - **Non-blocking** (hardening beyond the declared scope, mutation-style test-strengthening ideas, style): reported under Minor Issues, never flipping the verdict by itself. Each non-blocking finding gets an explicit disposition in the adjudication — fix now, attach to a named later acceptance point, or discard with a stated reason — never a silent drop and never an undated "later". This is machine-enforced at the fold boundary: the convergence result carries per-member `minor_issues_count`, and `scripts/gates/check_adjudication_completeness.py` fails closed when a converged cycle's recorded minor issues lack completed disposition rows in the adjudication — run it before folding a converged cycle's results into the durable record.
   - A reviewer whose only findings are non-blocking reports `ready` with the findings listed for disposition; reporting `needs revision` on non-blocking findings alone is a grading error, not extra rigor.
 - **Symbolic claims route through `derivation-verify`**: when a converging milestone rests on a symbolic / derivation claim (a closed form, an identity, a sign/branch choice), the independent confirmation for that claim is at least two independent blind re-derivations via [`derivation-verify`](../derivation-verify/SKILL.md) — reviewer agreement that a written derivation "looks right" is not independent confirmation. Computed numbers route through `numerical-reliability-gate`, the sibling gate.
+- **Result registration at convergence (mandatory where the project has a
+  nullius launcher)**: milestone convergence is when "which result is
+  current" changes, so the convergence deliverable includes updating the
+  project's traceability record, not only producing the new numbers:
+  - a converged headline result gets a row in the results registry
+    (`nullius result set-current <result_id> --run <run_id> ...` in
+    `project_index.md`) — selection is the research judgment just made at
+    adjudication, so record it while it is being made;
+  - every run the new result replaces is superseded on the validity ledger
+    with the reason (`nullius trace supersede <old_run> --by <new_run>
+    --reason ...`); a run found wrong rather than replaced is voided. This
+    is what later makes "which of these hundreds of runs still count"
+    answerable by a machine instead of by archaeology;
+  - rewritten memo sections carry a fresh version stamp
+    (`<!-- written-against: <commit> -->` at the section end), so the
+    per-section staleness check keeps discriminating current prose from
+    holdover prose;
+  - before folding, `nullius current` must answer cleanly for the affected
+    result chain — no defective registry rows, no stale stamped sections
+    citing the milestone's runs — or the residual is named in the
+    adjudication with a disposition, same as any non-blocking finding.
 - **Notebook split**: `research_notebook.md` is the human entry; `research_contract.md` is the machine-stable gate surface.
 - **Memo discipline (mandatory)**: `research_notebook.md` is a self-contained research memo organized like a paper — connected prose with complete derivations, computations, and analysis — not a change log. Its quality bar: a colleague in the field could read it alone (no runs, no plan) and come away with the project's full current understanding, able to re-derive every load-bearing result. It updates by **rewriting the affected sections into a self-consistent whole**, never by appending stage fragments ("this milestone changed X"); dated progress belongs to `research_plan.md` and `artifacts/runs/<run_id>/`, revision history to git. A milestone does not converge while the memo still describes the pre-milestone understanding: rewriting the affected memo sections is part of the milestone's deliverable, checked in the convergence review like any other artifact.
 - **Reproducibility Capsule (mandatory)**: `research_contract.md` must include a filled capsule block (between `<!-- REPRO_CAPSULE_START -->` and `<!-- REPRO_CAPSULE_END -->`).
@@ -55,12 +76,28 @@ Use `research-team` when you want a project workflow with:
 - **Run artifact identity**: the canonical project artifact root for
   lifecycle and compute runs is `artifacts/runs/<run_id>/`. Use a safe,
   sortable, readable `run_id`, preferably
-  `<YYYYMMDDTHHMMSSZ>-<milestone>-<short-topic>-rN`. `team/runs/<tag>/` is the
+  `<YYYYMMDD>-<milestone>-r<NNN>-<slug>[-rK]` (date + milestone + a
+  milestone-global ordinal + a short topic slug; the optional trailing `-rK`
+  is the reviewed-round suffix). The exact time of day does not belong in the
+  directory name — machine truth (precise timestamp, commit, dirty state)
+  lives in the run's origin stamp, and sub-day precision in names measured as
+  unreliable in practice. The older
+  `<YYYYMMDDTHHMMSSZ>-<milestone>-<short-topic>-rN` shape stays valid for
+  existing runs. `team/runs/<tag>/` is the
   research-team reviewer packet/log surface and a first-class evidence root in
   its own right: contract claims may cite `team/runs/<tag>/...` paths directly.
   Mirror or summarize under `artifacts/runs/<run_id>/research_team/` when a
   milestone's headline evidence should live with the run record, not as a
   precondition for citing it.
+- **Stamp the run at creation (mandatory where the project has a nullius
+  launcher)**: immediately after creating `artifacts/runs/<run_id>/`, run
+  `nullius trace stamp <run_id>` from the project root. The stamp binds the
+  run to the exact code state that will produce its results (commit, snapshot
+  of uncommitted tracked edits, untracked-file caveats) — recorded at run
+  time, when the binding is exact, instead of reconstructed later, when it
+  can only be a heuristic alignment. A run created without a stamp stays
+  usable but its origin degrades to timeline guesswork; treat a missing
+  stamp on a result-bearing run as a review finding.
 - **Tag relation**: with `--auto-tag`, pass a meaningful base tag such as
   `20260502T023000Z-m3-branch-scan`; the resolved `<base>-rN` is the
   research-team cycle tag and may be used as the control-plane `run_id` for

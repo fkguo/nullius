@@ -45,7 +45,7 @@ HEP 工具清单由代码拥有，并由 `HEP_TOOL_MODE` 做模式过滤；精�
 | Provider atoms | `openalex_*`、`arxiv_*`、`hepdata_*`、`pdg_*`、`zotero_*` | bounded、schema-driven MCP operators 比 provider-local CLI mirrors 更易组合 |
 | Project-local truth | `.nullius/` 加 durable memory 文件 | reconnect truth 继续位于外部 project root，而不是开发仓本身 |
 
-在 project-local truth 里，`research_plan.md#Current Status` 是给人看的状态入口并应保持简洁，`research_notebook.md` 是持续更新的问题逻辑主线；两者都不是不可变的主研究报告。被提升的主报告应是 `reports/` 下完整、面向研究者的叙事，`project_index.md#Main research report` 是唯一当前入口和 supersession registry。机器 JSON、hash 与 receipt 只绑定 provenance，不能替代解释性叙事和可点击的人类可读证据。提升前运行 `nullius report-validate`；它检查结构、不可变 hash、链接、validation 分类与 supersession 一致性，但通过不代表科学充分性已经成立。重要文献 note 必须全文/source-first 阅读，记录可审查的 section/page/equation/figure 覆盖，并用 LaTeX math 写科学记号。带日期的执行记录、原始 workflow 摘要和工具调用过程应放在 `research_plan.md` progress log 或 `artifacts/runs/<run_id>/`，再把长期有效的理解折回 notebook。
+在 project-local truth 里，`research_plan.md#Current Status` 是给人看的状态入口并应保持简洁，`research_notebook.md` 是持续更新的问题逻辑主线；两者都不是不可变的主研究报告。被提升的主报告应是 `reports/` 下完整、面向研究者的叙事，`project_index.md#Main research report` 是唯一当前入口和 supersession registry。在结果粒度上，`project_index.md#Current results` 承担同样的登记角色：每个 headline 结果的当前行写明产生它的 run 与该 run 的精确代码版本，run 通过 origin stamp 绑定到 commit，有效性记录在 append-only validity ledger；`nullius current` 把完整答案——当前结果、产生它的代码修订、稿件指针、notebook 各节新旧、哪些 run 仍有效哪些已被取代或作废——渲染成人可以直接读的散文。机器 JSON、hash 与 receipt 只绑定 provenance，不能替代解释性叙事和可点击的人类可读证据。提升前运行 `nullius report-validate`；它检查结构、不可变 hash、链接、validation 分类与 supersession 一致性，但通过不代表科学充分性已经成立。重要文献 note 必须全文/source-first 阅读，记录可审查的 section/page/equation/figure 覆盖，并用 LaTeX math 写科学记号。带日期的执行记录、原始 workflow 摘要和工具调用过程应放在 `research_plan.md` progress log 或 `artifacts/runs/<run_id>/`，再把长期有效的理解折回 notebook。
 
 Skill 源码面与分发面是分离的：
 
@@ -203,6 +203,10 @@ authority, research-team as the milestone executor, and fold stable results back
 research_contract.md, research_plan.md#Current Status, and artifacts/runs/<run_id>/.
 Promote a complete immutable report through project_index.md#Main research report,
 then run: nullius report-validate
+Stamp each run's code origin at creation with: nullius trace stamp <run_id>
+Record replacements with: nullius trace supersede <old> --by <new> --reason "..."
+Register headline results with: nullius result set-current <result-id> --run <run_id> --artifact <path>
+Read the whole current-version answer as prose with: nullius current
 Declare (or re-declare) where project truth lives with: nullius init --mode=engine|file
 (file mode: work executed by hand or external runners; run_status staying idle is normal)
 Record decisions made in conversation with: nullius decision record "<what was decided>"

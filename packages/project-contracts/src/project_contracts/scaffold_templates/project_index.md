@@ -80,7 +80,9 @@ and the named run stamped and still valid in the validity ledger. Rows are
 written with `nullius result set-current` (hand edits stay legal; the same
 checks validate either way). When a conclusion changes, register the
 superseding row and keep both direction columns consistent, exactly like the
-report registry above.
+report registry above. Inside the block, every non-blank line must be a
+table row or a single-line HTML comment; multi-line comments are reported
+as malformed (fail-closed).
 
 <!-- RESULT_REGISTRY_START -->
 | Result ID | Description & artifact | Artifact SHA-256 | Current run | Supersedes | Superseded by |
