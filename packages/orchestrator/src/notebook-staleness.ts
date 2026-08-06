@@ -145,11 +145,12 @@ export function checkNotebookStaleness(
   for (const line of lines) {
     if (/^\s*(```|~~~)/.test(line)) {
       inFence = !inFence;
-      if (currentSection) currentSection.body.push(line);
-      continue;
+      continue; // fence delimiters and fenced content stay OUT of the
+      // matching body: a fenced example must not smuggle stamps or
+      // citations into classification. (An unclosed fence extends to EOF —
+      // CommonMark semantics — so everything after it is fenced content.)
     }
     if (inFence) {
-      if (currentSection) currentSection.body.push(line);
       continue;
     }
     if (/^##\s+/.test(line)) {
