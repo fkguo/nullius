@@ -135,8 +135,51 @@ function validateLedgerEvent(value: Record<string, unknown>): boolean {
   if ((value.event === 'void' || value.event === 'reinstate') && !reasonOk) return false;
   if (value.event === 'reinstate' && value.scope !== undefined && value.scope !== 'full') return false;
   if (value.event === 'stamp') {
-    if (!value.stamp || typeof value.stamp !== 'object' || Array.isArray(value.stamp)) return false;
-    if ((value.stamp as Record<string, unknown>).schema_id !== 'run_origin_v1') return false;
+    if (!validateStampPayload(value.stamp)) return false;
+  }
+  return true;
+}
+
+const BINDING_QUALITIES = new Set([
+  'exact_clean', 'exact_tracked_snapshot', 'head_plus_untracked', 'aligned_heuristic', 'unbound',
+]);
+const SHA_PATTERN = /^[0-9a-f]{40}$/;
+
+/** Deep validation of the origin payload — a stamp whose payload violates
+ *  the run_origin_v1 contract must not replay as a stamp: shallow
+ *  schema_id-only checking would let an arbitrary object masquerade as an
+ *  origin record and reach every downstream consumer. */
+export function validateStampPayload(stamp: unknown): boolean {
+  if (!stamp || typeof stamp !== 'object' || Array.isArray(stamp)) return false;
+  const value = stamp as Record<string, unknown>;
+  if (value.schema_id !== 'run_origin_v1') return false;
+  if (typeof value.event_id !== 'string' || !ULID_PATTERN.test(value.event_id)) return false;
+  if (typeof value.run_id !== 'string' || value.run_id.length === 0) return false;
+  if (typeof value.captured_at_utc !== 'string' || !TS_UTC_PATTERN.test(value.captured_at_utc)) return false;
+  if (typeof value.binding_quality !== 'string' || !BINDING_QUALITIES.has(value.binding_quality)) return false;
+  if (value.baseline_commit !== null && value.baseline_commit !== undefined
+    && (typeof value.baseline_commit !== 'string' || !SHA_PATTERN.test(value.baseline_commit))) return false;
+  const dirty = value.dirty;
+  if (!dirty || typeof dirty !== 'object' || Array.isArray(dirty)) return false;
+  const dirtyRecord = dirty as Record<string, unknown>;
+  if (typeof dirtyRecord.tracked_modified !== 'number' || dirtyRecord.tracked_modified < 0) return false;
+  if (typeof dirtyRecord.untracked_count !== 'number' || dirtyRecord.untracked_count < 0) return false;
+  switch (value.binding_quality) {
+    case 'unbound':
+      if (typeof value.no_repo_reason !== 'string' || value.no_repo_reason.length === 0) return false;
+      break;
+    case 'exact_tracked_snapshot':
+      if (typeof value.snapshot_commit !== 'string' || !SHA_PATTERN.test(value.snapshot_commit)) return false;
+      if (typeof value.snapshot_tree !== 'string' || !SHA_PATTERN.test(value.snapshot_tree)) return false;
+      break;
+    case 'aligned_heuristic':
+      if (typeof value.aligned_commit !== 'string' || !SHA_PATTERN.test(value.aligned_commit)) return false;
+      if (!value.alignment || typeof value.alignment !== 'object') return false;
+      break;
+    case 'exact_clean':
+    case 'head_plus_untracked':
+      if (typeof value.baseline_commit !== 'string') return false;
+      break;
   }
   return true;
 }
