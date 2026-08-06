@@ -12,7 +12,8 @@ import {
   validateResultRegistry,
 } from '../src/result-registry.js';
 import { buildTraceabilityView, renderTraceabilityProse } from '../src/traceability-view.js';
-import { runInitCommand } from '../src/cli-init.js';
+import { rollbackBootstrapGitDir, runInitCommand } from '../src/cli-init.js';
+import { captureRunOrigin } from '../src/run-origin.js';
 
 let projectRoot: string;
 
@@ -313,6 +314,163 @@ describe('result registry — stage-2 r1 review locks', () => {
       resultId: 'res-a', runId: 'run-1', artifactRelPath: 'artifacts/runs/run-1/v.json',
       description: '[elsewhere](other/file.json)',
     })).toThrow(/must name the hashed artifact/);
+  });
+});
+
+describe('result registry — stage-2 r2 review locks', () => {
+  function setupRepo(): void {
+    initRepo(projectRoot);
+    writeRegistryBlock();
+    fs.writeFileSync(path.join(projectRoot, 'a.txt'), '1');
+    commitAll(projectRoot);
+  }
+
+  it('detects a forward cycle even with incomplete reverse columns (partial-cycle case)', () => {
+    setupRepo();
+    const indexPath = path.join(projectRoot, 'project_index.md');
+    const text = fs.readFileSync(indexPath, 'utf-8');
+    // c.supersedes=d, d.supersedes=c, but only c has a reverse link.
+    fs.writeFileSync(indexPath, text.replace(
+      '<!-- RESULT_REGISTRY_END -->',
+      '| `c` | [c](x.md) | `' + '0'.repeat(64) + '` | `r1` | `d` | `d` |\n'
+      + '| `d` | [d](x.md) | `' + '0'.repeat(64) + '` | `r2` | `c` | `none` |\n'
+      + '<!-- RESULT_REGISTRY_END -->',
+    ));
+    const state = validateResultRegistry(projectRoot);
+    expect(state.issues.some(entry => entry.code === 'cyclic_result_supersession')).toBe(true);
+    expect(state.defective_result_ids.has('d')).toBe(true);
+  });
+
+  it('flags a fork with two heads as head-not-unique', () => {
+    setupRepo();
+    const indexPath = path.join(projectRoot, 'project_index.md');
+    const text = fs.readFileSync(indexPath, 'utf-8');
+    // B and C both supersede A; both are heads of one component.
+    fs.writeFileSync(indexPath, text.replace(
+      '<!-- RESULT_REGISTRY_END -->',
+      '| `a` | [a](x.md) | `' + '0'.repeat(64) + '` | `r1` | `none` | `b` |\n'
+      + '| `b` | [b](x.md) | `' + '0'.repeat(64) + '` | `r2` | `a` | `none` |\n'
+      + '| `c` | [c](x.md) | `' + '0'.repeat(64) + '` | `r3` | `a` | `none` |\n'
+      + '<!-- RESULT_REGISTRY_END -->',
+    ));
+    const state = validateResultRegistry(projectRoot);
+    expect(state.issues.some(entry => entry.code === 'result_chain_head_not_unique')).toBe(true);
+  });
+
+  it('refuses reparenting an existing superseder', () => {
+    setupRepo();
+    for (const n of [1, 2, 3]) {
+      stampedRun(`run-${n}`);
+      fs.writeFileSync(path.join(projectRoot, 'artifacts', 'runs', `run-${n}`, 'v.json'), `{"v":${n}}`);
+    }
+    setCurrentResult(projectRoot, { resultId: 'res-a', runId: 'run-1', artifactRelPath: 'artifacts/runs/run-1/v.json' });
+    setCurrentResult(projectRoot, { resultId: 'res-b', runId: 'run-2', artifactRelPath: 'artifacts/runs/run-2/v.json', supersedes: 'res-a' });
+    setCurrentResult(projectRoot, { resultId: 'res-c', runId: 'run-3', artifactRelPath: 'artifacts/runs/run-3/v.json' });
+    expect(() => setCurrentResult(projectRoot, {
+      resultId: 'res-b', runId: 'run-2', artifactRelPath: 'artifacts/runs/run-2/v.json', supersedes: 'res-c',
+    })).toThrow(/reparenting/);
+  });
+
+  it('refuses conflicting-stamp runs and flags commit-less current rows', () => {
+    setupRepo();
+    fs.mkdirSync(path.join(projectRoot, 'artifacts', 'runs', 'twice-run'), { recursive: true });
+    const head = execFileSync('git', ['-C', projectRoot, 'rev-parse', 'HEAD'], { encoding: 'utf-8' }).trim();
+    for (const quality of ['exact_clean', 'head_plus_untracked']) {
+      const id = mintUlid();
+      appendValidityEvent(projectRoot, buildValidityEvent({
+        event: 'stamp', run_id: 'twice-run', actor: 't', reason: null, event_id: id,
+        stamp: {
+          schema_id: 'run_origin_v1', event_id: id, run_id: 'twice-run',
+          captured_at_utc: '2026-08-01T00:00:00Z', binding_quality: quality,
+          baseline_commit: head, dirty: { tracked_modified: 0, untracked_count: quality === 'head_plus_untracked' ? 1 : 0 },
+        } as ValidityEventV1['stamp'],
+      }));
+    }
+    fs.writeFileSync(path.join(projectRoot, 'artifacts', 'runs', 'twice-run', 'v.json'), '{}');
+    expect(() => setCurrentResult(projectRoot, {
+      resultId: 'r', runId: 'twice-run', artifactRelPath: 'artifacts/runs/twice-run/v.json',
+    })).toThrow(/CONFLICTING/);
+    // Hand-written current row naming a STAMPED run but carrying no
+    // "@ sha" identity cell → its own defect (not a free pass past the
+    // mismatch check).
+    stampedRun('bare-run');
+    const indexPath = path.join(projectRoot, 'project_index.md');
+    const text = fs.readFileSync(indexPath, 'utf-8');
+    fs.writeFileSync(indexPath, text.replace(
+      '<!-- RESULT_REGISTRY_END -->',
+      '| `bare` | [b](x.md) | `' + '0'.repeat(64) + '` | `bare-run` | `none` | `none` |\n<!-- RESULT_REGISTRY_END -->',
+    ));
+    const state = validateResultRegistry(projectRoot);
+    expect(state.issues.some(entry => entry.code === 'result_row_commit_missing')).toBe(true);
+  });
+
+  it('refuses link-breaking artifact paths and multi-link descriptions', () => {
+    setupRepo();
+    stampedRun('run-1');
+    fs.mkdirSync(path.join(projectRoot, 'artifacts', 'runs', 'run-1', 'odd(dir)'), { recursive: true });
+    fs.writeFileSync(path.join(projectRoot, 'artifacts', 'runs', 'run-1', 'v.json'), '{}');
+    expect(() => setCurrentResult(projectRoot, {
+      resultId: 'r', runId: 'run-1', artifactRelPath: 'artifacts/runs/run-1/odd(dir)/v.json',
+    })).toThrow(/markdown link round-trip/);
+    expect(() => setCurrentResult(projectRoot, {
+      resultId: 'r', runId: 'run-1', artifactRelPath: 'artifacts/runs/run-1/v.json',
+      description: 'see [one](artifacts/runs/run-1/v.json) and [two](other.md)',
+    })).toThrow(/at most one Markdown link/);
+  });
+
+  it('marks the kept twin of a duplicated id defective and words the no-head state honestly', () => {
+    setupRepo();
+    stampedRun('run-1');
+    fs.writeFileSync(path.join(projectRoot, 'artifacts', 'runs', 'run-1', 'v.json'), '{}');
+    // A fully CLEAN registered row (validates green), then duplicate its
+    // exact line by hand — the kept twin now has NO other defect, so a
+    // defective marking can only come from the duplicate-id path.
+    setCurrentResult(projectRoot, { resultId: 'dup', runId: 'run-1', artifactRelPath: 'artifacts/runs/run-1/v.json' });
+    const indexPath = path.join(projectRoot, 'project_index.md');
+    const text = fs.readFileSync(indexPath, 'utf-8');
+    const rowLine = text.split('\n').find(line => line.includes('`dup`'))!;
+    fs.writeFileSync(indexPath, text.replace(rowLine, `${rowLine}\n${rowLine}`));
+    const state = validateResultRegistry(projectRoot);
+    expect(state.duplicate_ids.has('dup')).toBe(true);
+    expect(state.defective_result_ids.has('dup')).toBe(true);
+    // Separate fixture for the no-head wording: a lone superseded row.
+    fs.writeFileSync(indexPath, text.replace(rowLine, rowLine.replace('| `none` |$', '').replace(/\| `none` \|$/, '| `ghost` |')));
+    const view = buildTraceabilityView(projectRoot);
+    const clause = view.unanswerable.find(entry => entry.clause === 'current best result');
+    expect(clause?.reason).toContain('valid current head');
+    expect(clause?.reason).not.toContain('empty');
+  });
+
+  it('renders the +snapshot qualifier for dirty-tree identities', () => {
+    setupRepo();
+    fs.writeFileSync(path.join(projectRoot, 'a.txt'), 'dirty edit\n');
+    fs.mkdirSync(path.join(projectRoot, 'artifacts', 'runs', 'snap-run'), { recursive: true });
+    // Stamp via the real capture path so a snapshot commit exists.
+    const origin = captureRunOrigin(projectRoot, 'snap-run');
+    const event = buildValidityEvent({
+      event: 'stamp', run_id: 'snap-run', actor: 't', reason: null,
+      event_id: (origin as { event_id: string }).event_id,
+      stamp: origin as ValidityEventV1['stamp'],
+    });
+    appendValidityEvent(projectRoot, event);
+    fs.writeFileSync(path.join(projectRoot, 'artifacts', 'runs', 'snap-run', 'v.json'), '{}');
+    setCurrentResult(projectRoot, { resultId: 'snap-res', runId: 'snap-run', artifactRelPath: 'artifacts/runs/snap-run/v.json' });
+    const view = buildTraceabilityView(projectRoot);
+    const row = view.results.current.find(entry => entry.result_id === 'snap-res');
+    expect(row?.has_snapshot).toBe(true);
+    expect(renderTraceabilityProse(view)).toMatch(/snap-res: run snap-run @ [0-9a-f]{12}\+snapshot/);
+  });
+});
+
+describe('bootstrap rollback guard (stage-2 r2, both seats)', () => {
+  it('removes only a .git this invocation created', () => {
+    const gitDir = path.join(projectRoot, '.git');
+    fs.mkdirSync(gitDir, { recursive: true });
+    fs.writeFileSync(path.join(gitDir, 'precious'), 'history');
+    rollbackBootstrapGitDir(projectRoot, true);
+    expect(fs.existsSync(path.join(gitDir, 'precious'))).toBe(true);
+    rollbackBootstrapGitDir(projectRoot, false);
+    expect(fs.existsSync(gitDir)).toBe(false);
   });
 });
 

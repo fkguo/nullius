@@ -58,6 +58,10 @@ export type ResultRegistryState = {
   /** Rows with superseded_by === 'none' — the current results. */
   current: ResultRegistryRow[];
   issues: ResultRegistryIssue[];
+  /** Ids that appeared more than once — the KEPT twin is untrustworthy too
+   *  (which of the two lines the human meant is undecidable), so validation
+   *  marks it defective. */
+  duplicate_ids: Set<string>;
 };
 
 function issue(code: string, message: string): ResultRegistryIssue {
@@ -91,7 +95,8 @@ function parseRunCell(cell: string): { run_id: string; effective_commit: string 
 
 export function parseResultRegistry(projectRoot: string): ResultRegistryState {
   const issues: ResultRegistryIssue[] = [];
-  const state: ResultRegistryState = { block_found: false, rows: [], current: [], issues };
+  const duplicateIds = new Set<string>();
+  const state: ResultRegistryState = { block_found: false, rows: [], current: [], issues, duplicate_ids: duplicateIds };
   const indexPath = path.join(projectRoot, 'project_index.md');
   if (!fs.existsSync(indexPath)) return state;
   const text = fs.readFileSync(indexPath, 'utf-8');
@@ -118,6 +123,7 @@ export function parseResultRegistry(projectRoot: string): ResultRegistryState {
     }
     if (seen.has(resultId)) {
       issues.push(issue('duplicate_result_id', `duplicate registry row for ${resultId}`));
+      duplicateIds.add(resultId);
       continue;
     }
     seen.add(resultId);
@@ -146,40 +152,71 @@ export function parseResultRegistry(projectRoot: string): ResultRegistryState {
  *  "no result registered" — a misdiagnosis. */
 function checkChains(rows: ResultRegistryRow[], issues: ResultRegistryIssue[], defective?: Set<string>): void {
   const byId = new Map(rows.map(row => [row.result_id, row]));
-  const visitedGlobal = new Set<string>();
-  for (const row of rows) {
-    if (visitedGlobal.has(row.result_id)) continue;
-    // Walk back to the oldest ancestor, cycle-guarded.
-    const seen = new Set<string>();
-    let cursor: ResultRegistryRow | undefined = row;
-    while (cursor && cursor.supersedes !== 'none' && byId.has(cursor.supersedes)) {
-      if (seen.has(cursor.result_id)) break;
-      seen.add(cursor.result_id);
-      cursor = byId.get(cursor.supersedes);
-    }
-    // Walk forward from the oldest ancestor collecting the component.
-    const component: string[] = [];
-    const forwardSeen = new Set<string>();
-    let node: ResultRegistryRow | undefined = cursor;
-    let cyclic = false;
-    while (node) {
-      if (forwardSeen.has(node.result_id)) {
-        cyclic = true;
+  // Cycle detection runs on the FORWARD `supersedes` pointers alone — the
+  // reverse column can be incomplete on a hand-edited registry, and a cycle
+  // whose reverse links are broken must still be a cycle, not a clean head.
+  const cyclicIds = new Set<string>();
+  const walkState = new Map<string, 'walking' | 'done'>();
+  for (const start of rows) {
+    if (walkState.has(start.result_id)) continue;
+    const trail: string[] = [];
+    let cursor: ResultRegistryRow | undefined = start;
+    while (cursor) {
+      const state = walkState.get(cursor.result_id);
+      if (state === 'done') break;
+      if (state === 'walking') {
+        // Everything from the first occurrence of cursor in the trail on is
+        // the cycle proper.
+        const cycleStart = trail.indexOf(cursor.result_id);
+        for (const id of trail.slice(cycleStart)) cyclicIds.add(id);
         break;
       }
-      forwardSeen.add(node.result_id);
-      component.push(node.result_id);
-      node = node.superseded_by !== 'none' ? byId.get(node.superseded_by) : undefined;
+      walkState.set(cursor.result_id, 'walking');
+      trail.push(cursor.result_id);
+      cursor = cursor.supersedes !== 'none' ? byId.get(cursor.supersedes) : undefined;
     }
-    for (const id of component) visitedGlobal.add(id);
-    if (cyclic) {
-      issues.push(issue('cyclic_result_supersession', `supersession cycle through ${component.join(' → ')}`));
-      for (const id of component) defective?.add(id);
-      continue;
+    for (const id of trail) walkState.set(id, 'done');
+  }
+  if (cyclicIds.size > 0) {
+    issues.push(issue('cyclic_result_supersession', `supersession cycle through ${[...cyclicIds].sort().join(', ')}`));
+    for (const id of cyclicIds) defective?.add(id);
+  }
+  // Head uniqueness per UNDIRECTED component of the supersedes relation:
+  // exactly one row with superseded_by = none. Undirected union survives
+  // broken reverse columns.
+  const parent = new Map<string, string>();
+  const find = (id: string): string => {
+    let root = id;
+    while (parent.get(root) !== root) root = parent.get(root)!;
+    let cursor = id;
+    while (parent.get(cursor) !== root) {
+      const next = parent.get(cursor)!;
+      parent.set(cursor, root);
+      cursor = next;
     }
+    return root;
+  };
+  for (const row of rows) parent.set(row.result_id, row.result_id);
+  for (const row of rows) {
+    if (row.supersedes !== 'none' && byId.has(row.supersedes)) {
+      parent.set(find(row.result_id), find(row.supersedes));
+    }
+    if (row.superseded_by !== 'none' && byId.has(row.superseded_by)) {
+      parent.set(find(row.result_id), find(row.superseded_by));
+    }
+  }
+  const components = new Map<string, string[]>();
+  for (const row of rows) {
+    const root = find(row.result_id);
+    const bucket = components.get(root) ?? [];
+    bucket.push(row.result_id);
+    components.set(root, bucket);
+  }
+  for (const component of components.values()) {
+    if (component.some(id => cyclicIds.has(id))) continue;
     const heads = component.filter(id => byId.get(id)!.superseded_by === 'none');
     if (heads.length !== 1) {
-      issues.push(issue('result_chain_head_not_unique', `chain ${component.join(' → ')} has ${heads.length} current head(s); exactly one expected`));
+      issues.push(issue('result_chain_head_not_unique', `chain ${component.sort().join(' → ')} has ${heads.length} current head(s); exactly one expected`));
       for (const id of component) defective?.add(id);
     }
   }
@@ -258,6 +295,7 @@ export function validateResultRegistry(
   };
   const byId = new Map(state.rows.map(row => [row.result_id, row]));
   const ledger = ledgerView ?? readValidityLedger(projectRoot);
+  for (const id of state.duplicate_ids) defective.add(id);
   checkChains(state.rows, state.issues, defective);
   for (const row of state.rows) {
     const before = issuesBefore();
@@ -291,6 +329,9 @@ export function validateResultRegistry(
       if (known.no_authoritative_identity) {
         state.issues.push(issue('result_run_no_identity', `${row.result_id} names run ${row.run_id}, which is quarantined by a ledger-integrity defect`));
       }
+      if (known.conflicting_stamps) {
+        state.issues.push(issue('result_run_conflicting_stamps', `${row.result_id} names run ${row.run_id}, which carries CONFLICTING origin stamps`));
+      }
       const effective = known.origin ? effectiveCodeIdentity(known.origin as RunOriginV1) : null;
       if (row.superseded_by === 'none') {
         if (known.validity !== 'active') {
@@ -298,6 +339,12 @@ export function validateResultRegistry(
         }
         if (!effective) {
           state.issues.push(issue('result_run_not_exact', `${row.result_id} names run ${row.run_id}, whose stamp has no exact code identity (aligned/unbound bindings cannot back a current result)`));
+        }
+        if (row.effective_commit === null) {
+          // A hand-written current row without the "@ sha" identity cell
+          // states no commit at all — that absence is itself a defect, not
+          // a free pass past the mismatch check below.
+          state.issues.push(issue('result_row_commit_missing', `${row.result_id}'s current-run cell records no code identity ("run_id @ sha" expected)`));
         }
       }
       if (row.effective_commit && effective && !effective.startsWith(row.effective_commit)) {
@@ -326,6 +373,12 @@ export function setCurrentResult(
   if (input.description !== undefined) assertCellSafe('description', input.description);
   if (input.runId.includes('`')) {
     throw new Error('run id must not contain backticks (the registry cell is backtick-wrapped)');
+  }
+  // Link-syntax safety: ')' would truncate the markdown link target on
+  // re-parse, and '#' silently splits as a fragment, hashing a different
+  // file than the row names. Both refused up front.
+  if (/[()#]/.test(input.artifactRelPath)) {
+    throw new Error("artifact path must not contain '(', ')' or '#' (they break the markdown link round-trip)");
   }
   const indexPath = path.join(projectRoot, 'project_index.md');
   if (!fs.existsSync(indexPath)) throw new Error('project_index.md not found; run nullius init first');
@@ -357,6 +410,9 @@ export function setCurrentResult(
   if (known.no_authoritative_identity) {
     throw new Error(`run ${input.runId} is quarantined by a ledger-integrity defect; repair the ledger first`);
   }
+  if (known.conflicting_stamps) {
+    throw new Error(`run ${input.runId} carries CONFLICTING origin stamps; repair the ledger before registering results on it`);
+  }
   const effective = known.origin ? effectiveCodeIdentity(known.origin as RunOriginV1) : null;
   if (!effective) {
     throw new Error(
@@ -376,6 +432,17 @@ export function setCurrentResult(
     throw new Error(
       `${input.resultId} is already superseded by ${existing.superseded_by}; register the new value as a `
       + 'NEW result id superseding that head instead of re-currenting a superseded row',
+    );
+  }
+  // Reparenting protection: an existing row that already supersedes A must
+  // not be re-pointed at C — A's reverse link would silently orphan.
+  if (
+    existing && input.supersedes !== undefined
+    && existing.supersedes !== 'none' && input.supersedes !== existing.supersedes
+  ) {
+    throw new Error(
+      `${input.resultId} already supersedes ${existing.supersedes}; reparenting it to ${input.supersedes} `
+      + `would orphan ${existing.supersedes}'s reverse link — register a new result id instead`,
     );
   }
   const supersedes = input.supersedes ?? existing?.supersedes ?? 'none';
@@ -399,7 +466,14 @@ export function setCurrentResult(
   // describe one file and hash another).
   let description: string;
   if (input.description !== undefined) {
-    const linked = MARKDOWN_LINK.exec(input.description);
+    // Exactly-one-link rule (report-registry parity): the single link must
+    // name the hashed artifact — a second divergent link would describe one
+    // file while the hash column vouches for another.
+    const links = [...input.description.matchAll(new RegExp(MARKDOWN_LINK.source, 'g'))];
+    if (links.length > 1) {
+      throw new Error('--description must contain at most one Markdown link (the hashed artifact)');
+    }
+    const linked = links[0];
     if (linked) {
       if (linked[1]!.trim() !== input.artifactRelPath) {
         throw new Error(
@@ -417,6 +491,23 @@ export function setCurrentResult(
     description = `[${input.resultId}](${input.artifactRelPath})`;
   }
   const newLine = `| \`${input.resultId}\` | ${description} | \`${digest}\` | \`${runCell}\` | \`${supersedes}\` | \`none\` |`;
+  // Airtight round-trip: the exact line about to be written must re-parse to
+  // the row we intend. Any field-level guard this writer missed surfaces
+  // HERE as a refusal instead of an exit-0 row the registry cannot read.
+  {
+    const cells = newLine.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(cell => cell.trim());
+    const reparsedRun = cells.length === RESULT_TABLE_COLUMNS ? parseRunCell(cells[3]!) : null;
+    const reparsedLink = cells.length === RESULT_TABLE_COLUMNS ? MARKDOWN_LINK.exec(cells[1]!) : null;
+    if (
+      cells.length !== RESULT_TABLE_COLUMNS
+      || cells[0]!.replace(/`/g, '') !== input.resultId
+      || !reparsedRun || reparsedRun.run_id !== input.runId
+      || reparsedRun.effective_commit === null
+      || !reparsedLink || reparsedLink[1]!.trim() !== input.artifactRelPath
+    ) {
+      throw new Error('internal refusal: the registry line would not round-trip; no row was written');
+    }
+  }
 
   const block = text.slice(bounds.start, bounds.end);
   const lines = block.split('\n');
