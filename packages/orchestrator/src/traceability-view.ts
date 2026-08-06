@@ -329,7 +329,16 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
     const known = ledger.runs.get(entry.run_id);
     if (!known?.stamped || !known.origin) continue;
     const mirrorPath = path.join(projectRoot, entry.canonical_root, entry.run_id, 'run_origin.json');
-    if (!fs.existsSync(mirrorPath)) continue;
+    if (!fs.existsSync(mirrorPath)) {
+      // A mirror the stamp reported WRITTEN that has since disappeared is
+      // divergence too — silence here would hide a deletion. Only a ledger
+      // payload that recorded run_dir_unwritable legitimately has no mirror.
+      const ledgerPayload = known.origin as unknown as Record<string, unknown>;
+      if (ledgerPayload.run_dir_unwritable !== true) {
+        mirrorDivergence.push(entry.run_id);
+      }
+      continue;
+    }
     try {
       const mirror = JSON.parse(fs.readFileSync(mirrorPath, 'utf-8')) as Record<string, unknown>;
       // The ledger payload may carry run_dir_unwritable appended at stamp

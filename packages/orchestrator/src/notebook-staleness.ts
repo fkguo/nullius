@@ -129,7 +129,20 @@ export function checkNotebookStaleness(
   const lines = text.split('\n');
   const sections: Array<{ heading: string; body: string[] }> = [];
   let currentSection: { heading: string; body: string[] } | null = null;
+  // Fence-aware: a `## ...` line INSIDE a fenced code block is content, not
+  // a section heading — treating it as one would let fenced examples smuggle
+  // stamps and citations into the classification.
+  let inFence = false;
   for (const line of lines) {
+    if (/^\s*(```|~~~)/.test(line)) {
+      inFence = !inFence;
+      if (currentSection) currentSection.body.push(line);
+      continue;
+    }
+    if (inFence) {
+      if (currentSection) currentSection.body.push(line);
+      continue;
+    }
     if (/^##\s+/.test(line)) {
       if (currentSection) sections.push(currentSection);
       currentSection = { heading: line.replace(/^##\s+/, '').trim(), body: [] };

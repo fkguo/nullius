@@ -69,8 +69,11 @@ export function runTraceCommand(projectRoot: string, parsed: TraceParsed, io: Cl
       return 0;
     }
     case 'confirm-chains': {
-      const { appended, already } = confirmRoundChains(projectRoot, actor);
-      io.stdout(`confirmed: ${appended} supersede event(s) appended, ${already} already recorded.\n`);
+      const { appended, already, skippedDecided } = confirmRoundChains(projectRoot, actor);
+      io.stdout(
+        `confirmed: ${appended} supersede event(s) appended, ${already} already recorded`
+        + `${skippedDecided > 0 ? `, ${skippedDecided} skipped (decided since the proposal — not relitigated)` : ''}.\n`,
+      );
       return 0;
     }
     case 'stamp': {

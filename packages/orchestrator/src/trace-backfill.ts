@@ -149,6 +149,10 @@ export function backfillRunOrigins(projectRoot: string): {
             window_prev_s: parsed.epoch - chosen.epoch,
             window_next_s: next ? next.epoch - parsed.epoch : null,
             nominal_timestamp: parsed.nominal,
+            // The timeline scope is part of the heuristic's evidence: a
+            // reader judging this binding must know it drew from ALL refs,
+            // not the first-parent mainline.
+            history_scope: 'all_refs',
             ...(ambiguous.length > 0 ? { ambiguous_candidates: ambiguous } : {}),
           },
           dirty: { tracked_modified: 0, untracked_count: 0 },
@@ -156,7 +160,11 @@ export function backfillRunOrigins(projectRoot: string): {
         aligned += 1;
       }
     }
-    // Ledger first (the truth), mirror best-effort.
+    // Mirror attempted first ONLY so its outcome lands inside the
+    // authoritative ledger event; the ledger stays the truth. If the append
+    // itself fails, the just-written mirror is REMOVED — an orphan mirror
+    // with no ledger event behind it would look like a valid stamp to a
+    // human browsing the run directory.
     const mirrorPath = path.join(projectRoot, entry.canonical_root, entry.run_id, 'run_origin.json');
     let mirrorWritten = true;
     try {
@@ -165,12 +173,17 @@ export function backfillRunOrigins(projectRoot: string): {
       mirrorWritten = false;
       payload.run_dir_unwritable = true;
     }
-    appendValidityEvent(projectRoot, buildValidityEvent({
-      event: 'stamp', run_id: entry.run_id, actor: 'backfill', reason: null,
-      event_id: eventId,
-      ts_utc: String(payload.captured_at_utc),
-      stamp: payload as ValidityEventV1['stamp'],
-    }));
+    try {
+      appendValidityEvent(projectRoot, buildValidityEvent({
+        event: 'stamp', run_id: entry.run_id, actor: 'backfill', reason: null,
+        event_id: eventId,
+        ts_utc: String(payload.captured_at_utc),
+        stamp: payload as ValidityEventV1['stamp'],
+      }));
+    } catch (error) {
+      if (mirrorWritten) fs.rmSync(mirrorPath, { force: true });
+      throw error;
+    }
     const quality = String(payload.binding_quality);
     outcomes.push({
       run_id: entry.run_id,
@@ -195,6 +208,20 @@ export type ChainProposal = {
   supersede: Array<{ old_run_id: string; new_run_id: string }>;
 };
 
+/** True when someone already DECIDED about this run — an explicit event on
+ *  it (including a reinstate that put it back to active), OR a validity that
+ *  is not plain-active for any reason the event list cannot show: a
+ *  quarantined ledger assigns worst-state validity from DIVERGENT event ids
+ *  that are deliberately excluded from `events`, so the event check alone is
+ *  NOT sufficient (that gap survived one mutation round as "dead code"
+ *  before review traced the divergent path). */
+function isAlreadyDecided(ledger: ReturnType<typeof readValidityLedger>, runId: string): boolean {
+  const known = ledger.runs.get(runId);
+  if (known && (known.validity !== 'active' || known.no_authoritative_identity)) return true;
+  return ledger.events.some(event => event.run_id === runId
+    && (event.event === 'supersede' || event.event === 'void' || event.event === 'reinstate'));
+}
+
 export const CHAIN_PROPOSAL_RELATIVE_PATH = path.join('artifacts', 'runs', 'round_chain_proposal.json');
 
 export function proposeRoundChains(projectRoot: string): { proposals: ChainProposal[]; path: string } {
@@ -216,13 +243,7 @@ export function proposeRoundChains(projectRoot: string): { proposals: ChainPropo
       const older = runs[index]!;
       const newer = runs[index + 1]!;
       if (older.round === newer.round) continue; // same round twice: not a chain step
-      // Skip runs someone already DECIDED about — any supersede/void/
-      // reinstate event, including a reinstate that put the run back to
-      // active (an explicit human decision the proposal must not relitigate).
-      // This one check subsumes "validity !== active": a non-active validity
-      // cannot exist without such an event.
-      if (ledger.events.some(event => event.run_id === older.run_id
-        && (event.event === 'supersede' || event.event === 'void' || event.event === 'reinstate'))) continue;
+      if (isAlreadyDecided(ledger, older.run_id)) continue;
       supersede.push({ old_run_id: older.run_id, new_run_id: newer.run_id });
     }
     if (supersede.length > 0) proposals.push({ slug, supersede });
@@ -244,7 +265,7 @@ export function proposeRoundChains(projectRoot: string): { proposals: ChainPropo
 export function confirmRoundChains(
   projectRoot: string,
   actor: string,
-): { appended: number; already: number } {
+): { appended: number; already: number; skippedDecided: number } {
   const proposalPath = path.join(projectRoot, CHAIN_PROPOSAL_RELATIVE_PATH);
   if (!fs.existsSync(proposalPath)) {
     throw new Error(`no proposal file at ${CHAIN_PROPOSAL_RELATIVE_PATH}; run \`nullius trace propose-chains\` first`);
@@ -256,14 +277,30 @@ export function confirmRoundChains(
   const ledger = readValidityLedger(projectRoot);
   let appended = 0;
   let already = 0;
+  let skippedDecided = 0;
+  const confirmed = new Set<string>();
   for (const proposal of parsed.proposals ?? []) {
     for (const pair of proposal.supersede) {
+      // A duplicate pair inside one hand-edited proposal confirms once.
+      const key = `${pair.old_run_id}→${pair.new_run_id}`;
+      if (confirmed.has(key)) {
+        already += 1;
+        continue;
+      }
+      confirmed.add(key);
       const recorded = ledger.events.some(event => event.event === 'supersede'
         && event.run_id === pair.old_run_id
         && event.by_run_id === pair.new_run_id
         && (event.scope ?? 'full') === 'full');
       if (recorded) {
         already += 1;
+        continue;
+      }
+      // Decisions made BETWEEN proposal generation and confirmation are
+      // honored, not relitigated: re-check at confirm time with the same
+      // rule the proposer used.
+      if (isAlreadyDecided(ledger, pair.old_run_id)) {
+        skippedDecided += 1;
         continue;
       }
       appendValidityEvent(projectRoot, buildValidityEvent({
@@ -276,5 +313,5 @@ export function confirmRoundChains(
       appended += 1;
     }
   }
-  return { appended, already };
+  return { appended, already, skippedDecided };
 }
