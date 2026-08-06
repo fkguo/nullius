@@ -213,6 +213,22 @@ repository; unclassified legacy runs; stages not yet delivered) — honest
 unanswerability instead of silent or false precision. --json emits the same
 read model that \`nullius status --json\` carries as its traceability block.
 `,
+  result: `nullius result set-current <result-id> --run <run_id> --artifact <path> [--description "..."] [--supersedes <result-id>]
+
+Register or update a row of the current-results registry in project_index.md
+(the RESULT_REGISTRY block): the project's answer to "what is the current
+best result". Selection is research judgment, made at milestone convergence;
+the machine enforces structure and liveness:
+  - the named run must carry an origin stamp and be ACTIVE in the validity
+    ledger (not superseded, not void, not quarantined);
+  - the artifact must exist; its SHA-256 is computed and registered;
+  - --supersedes updates both direction columns, keeping the chain
+    consistent like the report registry;
+  - result ids are unique; a superseding row leaves exactly one current row
+    per chain.
+Hand edits stay legal; \`nullius status --json\` / \`nullius current\`
+validate the block either way.
+`,
   approve: APPROVE_HELP,
   pause: PAUSE_HELP,
   resume: RESUME_HELP,

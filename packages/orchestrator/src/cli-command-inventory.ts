@@ -8,6 +8,7 @@ export const NULLIUS_PUBLIC_COMMAND_INVENTORY = [
   { command: 'status', usage: 'nullius status [--json]' },
   { command: 'trace', usage: 'nullius trace stamp <run_dir> [--dep name=path] [--event-id <ulid>] [--actor <who>] | nullius trace supersede <old_run_id> --by <new_run_id> --reason \"...\" [--scope <name>] [--event-id <ulid>] [--actor <who>] | nullius trace void <run_id> --reason \"...\" [--scope <name>] [--event-id <ulid>] [--actor <who>] | nullius trace reinstate <run_id> --reason \"...\" [--event-id <ulid>] [--actor <who>]' },
   { command: 'current', usage: 'nullius current [--json]' },
+  { command: 'result', usage: 'nullius result set-current <result-id> --run <run_id> --artifact <path> [--description "..."] [--supersedes <result-id>]' },
   { command: 'approve', usage: 'nullius approve <approval_id> [--note "..."]' },
   { command: 'integrity-record', usage: 'nullius integrity-record --approval-id <id> --modes <M1[,M2,...]> --notes "<summary>" [--skip <Mx:reason>[,Mx:reason]...]' },
   { command: 'report-validate', usage: 'nullius report-validate' },

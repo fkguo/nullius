@@ -49,6 +49,10 @@
           "usage": "nullius current [--json]"
         },
         {
+          "command": "result",
+          "usage": "nullius result set-current <result-id> --run <run_id> --artifact <path> [--description \"...\"] [--supersedes <result-id>]"
+        },
+        {
           "command": "approve",
           "usage": "nullius approve <approval_id> [--note \"...\"]"
         },

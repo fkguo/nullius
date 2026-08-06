@@ -3,6 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { readValidityLedger, validityLedgerPath, type ValidityLedgerView, type RunValidity } from './validity-ledger.js';
 import { isTraceabilityArtifactPath, listSubmodulePaths } from './run-origin.js';
+import { validateResultRegistry, type ResultRegistryState } from './result-registry.js';
 
 /** ONE read model behind both consumers of the acceptance sentence:
  *  `nullius status --json` embeds this object as its `traceability` block
@@ -76,6 +77,17 @@ export type TraceabilityView = {
     /** Deep validation stays with the authoritative parser behind
      *  `nullius report-validate`; this reader never claims validated. */
     validation: 'deferred';
+  };
+  results: {
+    block_found: boolean;
+    current: Array<{
+      result_id: string;
+      run_id: string;
+      effective_commit: string | null;
+      artifact: string | null;
+    }>;
+    rows: number;
+    issues: Array<{ code: string; message: string }>;
   };
   /** Clauses of the acceptance sentence this view cannot answer yet or
    *  cannot answer for this project, each with its reason. Honest
@@ -251,6 +263,7 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
   noIdentity.sort();
 
   const manuscript = readManuscriptPointer(projectRoot);
+  const resultRegistry: ResultRegistryState = validateResultRegistry(projectRoot);
 
   const unanswerable: TraceabilityView['unanswerable'] = [];
   if (!insideWorkTree) {
@@ -312,12 +325,20 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
         + 'no Markdown link; run `nullius report-validate` for the authoritative diagnosis',
     });
   }
-  // Result registry (current best result) and notebook staleness land in
-  // later delivery stages; until then the clauses are honestly open.
-  unanswerable.push({
-    clause: 'current best result',
-    reason: 'the current-results registry is not implemented yet (delivery stage 2)',
-  });
+  if (!resultRegistry.block_found) {
+    unanswerable.push({
+      clause: 'current best result',
+      reason: 'project_index.md has no RESULT_REGISTRY block — new scaffolds carry it; existing '
+        + 'projects paste the Current results section once, then register rows with `nullius result set-current`',
+    });
+  } else if (resultRegistry.current.length === 0) {
+    unanswerable.push({
+      clause: 'current best result',
+      reason: 'the current-results registry is empty — no result has been registered yet '
+        + '(`nullius result set-current` at milestone convergence)',
+    });
+  }
+  // Notebook staleness lands in delivery stage 3; the clause is honestly open.
   unanswerable.push({
     clause: 'notebook sections current vs stale',
     reason: 'the written-against section checker is not implemented yet (delivery stage 3)',
@@ -368,6 +389,17 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
       merge_union_declared: mergeUnionDeclared,
     },
     manuscript,
+    results: {
+      block_found: resultRegistry.block_found,
+      current: resultRegistry.current.map(row => ({
+        result_id: row.result_id,
+        run_id: row.run_id,
+        effective_commit: row.effective_commit,
+        artifact: row.artifact_target,
+      })),
+      rows: resultRegistry.rows.length,
+      issues: resultRegistry.issues.map(entry => ({ code: entry.code, message: entry.message })),
+    },
     unanswerable,
     binding_caveat: BINDING_CAVEAT,
   };
@@ -410,7 +442,20 @@ export function renderTraceabilityProse(view: TraceabilityView): string {
 
   lines.push('## Current best result');
   const resultClause = view.unanswerable.find(entry => entry.clause === 'current best result');
-  lines.push(resultClause ? `Unanswerable: ${resultClause.reason}.` : '(rendered from the results registry)');
+  if (resultClause) {
+    lines.push(`Unanswerable: ${resultClause.reason}.`);
+  } else {
+    for (const row of view.results.current) {
+      lines.push(
+        `- ${row.result_id}: run ${row.run_id}`
+        + `${row.effective_commit ? ` @ ${row.effective_commit}` : ''}`
+        + `${row.artifact ? ` → ${row.artifact}` : ''}`,
+      );
+    }
+  }
+  if (view.results.issues.length > 0) {
+    lines.push(`- REGISTRY DEFECTS: ${view.results.issues.length} issue(s) — ${view.results.issues.slice(0, 5).map(entry => entry.code).join(', ')}${view.results.issues.length > 5 ? ', …' : ''}`);
+  }
   lines.push('');
 
   lines.push('## Code revision');

@@ -67,6 +67,26 @@ scientific sufficiency remains a judgment on the reasoning and evidence.
 |---|---|---|---|---|
 <!-- MAIN_RESEARCH_REPORT_REGISTRY_END -->
 
+## Current results
+
+The registry below is the project's answer to "what is the current best
+result": one row per HEADLINE result object, each naming the run that
+produced its current value and that run's effective code identity (the
+commit whose tree is the code that ran). The machine never chooses which
+result is best — selection is research judgment, made at milestone
+convergence. The machine enforces the rest: result ids unique, exactly one
+current row per result chain, the artifact present and matching its SHA-256,
+and the named run stamped and still valid in the validity ledger. Rows are
+written with `nullius result set-current` (hand edits stay legal; the same
+checks validate either way). When a conclusion changes, register the
+superseding row and keep both direction columns consistent, exactly like the
+report registry above.
+
+<!-- RESULT_REGISTRY_START -->
+| Result ID | Description & artifact | Artifact SHA-256 | Current run | Supersedes | Superseded by |
+|---|---|---|---|---|---|
+<!-- RESULT_REGISTRY_END -->
+
 ## Optional expansions
 
 - Optional provider config, schema files, notes, references, or local automation surfaces are created later by explicit project need or host-specific tooling.
