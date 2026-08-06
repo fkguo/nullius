@@ -1,8 +1,8 @@
 import { execFileSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { readValidityLedger, type ValidityLedgerView, type RunValidity } from './validity-ledger.js';
-import { isTraceabilityArtifactPath } from './run-origin.js';
+import { readValidityLedger, validityLedgerPath, type ValidityLedgerView, type RunValidity } from './validity-ledger.js';
+import { isTraceabilityArtifactPath, listSubmodulePaths } from './run-origin.js';
 
 /** ONE read model behind both consumers of the acceptance sentence:
  *  `nullius status --json` embeds this object as its `traceability` block
@@ -39,6 +39,7 @@ export type TraceabilityView = {
     head_describe: string | null;
     tracked_modified: number | null;
     untracked_count: number | null;
+    submodules_dirty: number | null;
   };
   runs: {
     total_directories: number;
@@ -62,6 +63,10 @@ export type TraceabilityView = {
     events: number;
     malformed_lines: number;
     integrity_defects: number;
+    /** True when artifacts/runs/.gitattributes declares the union merge for
+     *  the ledger; false means a branch merge will conflict loudly instead
+     *  of union-merging (safe direction, but worth surfacing). */
+    merge_union_declared: boolean;
   };
   manuscript: {
     registry_block_found: boolean;
@@ -167,6 +172,7 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
     : null;
   let trackedModified: number | null = null;
   let untrackedCount: number | null = null;
+  let submodulesDirty: number | null = null;
   if (head) {
     const status = git(projectRoot, ['status', '--porcelain', '--untracked-files=no', '--ignore-submodules=untracked', '--', '.']);
     trackedModified = status === null
@@ -178,6 +184,15 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
       : untracked.split('\n')
         .filter(line => line.trim().length > 0)
         .filter(line => !isTraceabilityArtifactPath(line)).length;
+    // Same submodule honesty as the stamp: content dirty INSIDE a submodule
+    // is invisible to the superproject probes above and must not read clean.
+    submodulesDirty = 0;
+    for (const submodulePath of listSubmodulePaths(projectRoot)) {
+      const absolute = path.join(projectRoot, submodulePath);
+      if (!fs.existsSync(path.join(absolute, '.git'))) continue;
+      const inner = git(absolute, ['status', '--porcelain']);
+      if (inner === null || inner.trim().length > 0) submodulesDirty += 1;
+    }
   }
 
   const ledger: ValidityLedgerView = readValidityLedger(projectRoot);
@@ -204,15 +219,7 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
       continue;
     }
     counts[known.validity] += 1;
-    if (known.stamped) {
-      stamped += 1;
-      const originRecord = known.origin as unknown as Record<string, unknown> | null;
-      const quality = originRecord && typeof originRecord.binding_quality === 'string'
-        ? originRecord.binding_quality
-        : 'unknown';
-      bindingQualityCounts[quality] = (bindingQualityCounts[quality] ?? 0) + 1;
-      if (known.conflicting_stamps) conflictingStamps.push(entry.run_id);
-    }
+    if (known.stamped) stamped += 1;
     if (known.validity === 'superseded') {
       superseded.push({ run_id: entry.run_id, by: known.superseded_by, reason: known.reason });
     } else if (known.validity === 'void') {
@@ -221,6 +228,21 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
     if (known.no_authoritative_identity) noIdentity.push(entry.run_id);
   }
   const ledgerOnly = [...ledger.runs.keys()].filter(runId => !directoryIds.has(runId)).sort();
+
+  // Binding-quality distribution and stamp conflicts cover EVERY stamped run
+  // the ledger knows — including ledger-only ids whose directory is gone. A
+  // heuristic or unbound stamp does not stop deserving its caveat because
+  // someone removed the directory.
+  for (const known of ledger.runs.values()) {
+    if (!known.stamped) continue;
+    const originRecord = known.origin as unknown as Record<string, unknown> | null;
+    const quality = originRecord && typeof originRecord.binding_quality === 'string'
+      ? originRecord.binding_quality
+      : 'unknown';
+    bindingQualityCounts[quality] = (bindingQualityCounts[quality] ?? 0) + 1;
+    if (known.conflicting_stamps) conflictingStamps.push(known.run_id);
+  }
+  conflictingStamps.sort();
 
   const manuscript = readManuscriptPointer(projectRoot);
 
@@ -277,6 +299,12 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
       clause: 'current manuscript',
       reason: 'no report is promoted yet (registry pointer is "(none yet)")',
     });
+  } else if (manuscript.current_report_link === null) {
+    unanswerable.push({
+      clause: 'current manuscript',
+      reason: `the registry names ${manuscript.current_report_id} as current but its pointer line carries `
+        + 'no Markdown link; run `nullius report-validate` for the authoritative diagnosis',
+    });
   }
   // Result registry (current best result) and notebook staleness land in
   // later delivery stages; until then the clauses are honestly open.
@@ -289,6 +317,17 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
     reason: 'the written-against section checker is not implemented yet (delivery stage 3)',
   });
 
+  let mergeUnionDeclared = false;
+  try {
+    const attributesPath = path.join(path.dirname(validityLedgerPath(projectRoot)), '.gitattributes');
+    mergeUnionDeclared = fs.existsSync(attributesPath)
+      && fs.readFileSync(attributesPath, 'utf-8')
+        .split('\n')
+        .some(line => line.trim().startsWith('validity_ledger.jsonl') && line.includes('merge=union'));
+  } catch {
+    mergeUnionDeclared = false;
+  }
+
   return {
     git: {
       is_repo: insideWorkTree,
@@ -296,6 +335,7 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
       head_describe: headDescribe,
       tracked_modified: trackedModified,
       untracked_count: untrackedCount,
+      submodules_dirty: submodulesDirty,
     },
     runs: {
       total_directories: directories.length,
@@ -314,6 +354,7 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
       events: ledger.events.length,
       malformed_lines: ledger.malformed_lines,
       integrity_defects: ledger.integrity_defects.length,
+      merge_union_declared: mergeUnionDeclared,
     },
     manuscript,
     unanswerable,
@@ -331,7 +372,8 @@ export function renderTraceabilityProse(view: TraceabilityView): string {
   // Ledger-integrity conditions come FIRST: while they stand, every
   // downstream classification is provisional, and burying that below the
   // sections it undermines would be its own dishonesty.
-  if (view.ledger.integrity_defects > 0 || view.runs.conflicting_stamps.length > 0) {
+  if (view.ledger.integrity_defects > 0 || view.runs.conflicting_stamps.length > 0
+    || view.ledger.malformed_lines > 0) {
     lines.push('## LEDGER INTEGRITY CONDITION');
     if (view.ledger.integrity_defects > 0) {
       lines.push(
@@ -344,6 +386,12 @@ export function renderTraceabilityProse(view: TraceabilityView): string {
       lines.push(
         `${view.runs.conflicting_stamps.length} run(s) carry CONFLICTING origin stamps (never resolved by guessing): `
         + `${view.runs.conflicting_stamps.join(', ')}.`,
+      );
+    }
+    if (view.ledger.malformed_lines > 0) {
+      lines.push(
+        `${view.ledger.malformed_lines} ledger line(s) are malformed or contract-invalid; they are `
+        + 'counted, never replayed — every classification below is provisional until they are repaired.',
       );
     }
     lines.push('');
@@ -366,6 +414,7 @@ export function renderTraceabilityProse(view: TraceabilityView): string {
     const dirtyBits: string[] = [];
     if (view.git.tracked_modified) dirtyBits.push(`${view.git.tracked_modified} tracked file(s) modified`);
     if (view.git.untracked_count) dirtyBits.push(`${view.git.untracked_count} untracked file(s) pending a track-or-ignore decision`);
+    if (view.git.submodules_dirty) dirtyBits.push(`${view.git.submodules_dirty} submodule(s) with dirty contents`);
     lines.push(`HEAD is ${view.git.head_describe ?? view.git.head}${dirtyBits.length > 0 ? ` (${dirtyBits.join('; ')})` : ' (clean tracked tree)'}.`);
     lines.push(`Note: ${view.binding_caveat}.`);
   }

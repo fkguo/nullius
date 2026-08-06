@@ -103,7 +103,7 @@ export function pinSnapshotRef(
   );
 }
 
-function listSubmodulePaths(projectRoot: string): string[] {
+export function listSubmodulePaths(projectRoot: string): string[] {
   if (!fs.existsSync(path.join(projectRoot, '.gitmodules'))) return [];
   const output = git(
     projectRoot,

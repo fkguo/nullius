@@ -2,7 +2,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import type { ValidityEventV1 } from '@nullius/shared';
-import { mintUlid } from '@nullius/shared';
+import { mintUlid, ULID_PATTERN } from '@nullius/shared';
 import { appendValidityEvent, buildValidityEvent, readValidityLedger } from './validity-ledger.js';
 import { captureRunOrigin } from './run-origin.js';
 import { buildTraceabilityView, renderTraceabilityProse } from './traceability-view.js';
@@ -54,6 +54,21 @@ export function runTraceCommand(projectRoot: string, parsed: TraceParsed, io: Cl
         io.stderr(`trace stamp: run directory not found: ${runDir}\n`);
         return 1;
       }
+      // Only the two run roots are stampable: a stamp elsewhere would land
+      // in the ledger but be invisible to every directory scan — a record
+      // about a run the read model can never show is a silent hole.
+      const resolvedRunDir = path.resolve(runDir);
+      const inRunRoot = ['artifacts/runs', 'team/runs'].some((relRoot) => {
+        const root = path.resolve(projectRoot, relRoot);
+        return path.dirname(resolvedRunDir) === root;
+      });
+      if (!inRunRoot) {
+        io.stderr(
+          'trace stamp: run directories live directly under artifacts/runs/ or team/runs/; '
+          + `${parsed.target} is outside both roots and would be invisible to the read model\n`,
+        );
+        return 1;
+      }
       const runId = path.basename(runDir);
       // Canonical-root rule (D9): when the same run id exists under BOTH run
       // roots, artifacts/runs is the canonical location and stamps are
@@ -75,10 +90,25 @@ export function runTraceCommand(projectRoot: string, parsed: TraceParsed, io: Cl
       // entrance is the LEDGER (was this event already recorded?), not a
       // payload comparison — a re-capture would legitimately differ (time
       // moved, the tree may have moved) and must not read as divergence.
+      // The short-circuit accepts ONLY a stamp event for THIS run: reusing
+      // an id that belongs to any other event must fail loudly, never
+      // report a stamp that was not taken. Validation happens BEFORE any
+      // mirror write so a rejected id leaves no half-state behind.
       if (parsed.eventId) {
+        if (!ULID_PATTERN.test(parsed.eventId)) {
+          io.stderr(`trace stamp: --event-id ${JSON.stringify(parsed.eventId)} is not a ULID\n`);
+          return 1;
+        }
         const existing = readValidityLedger(projectRoot)
           .events.find(event => event.event_id === parsed.eventId);
         if (existing) {
+          if (existing.event !== 'stamp' || existing.run_id !== runId) {
+            io.stderr(
+              `trace stamp: event ${parsed.eventId} is already recorded as a ${existing.event} `
+              + `for ${existing.run_id}; it cannot identify a stamp of ${runId}\n`,
+            );
+            return 1;
+          }
           io.stdout(`already stamped ${existing.run_id} (event ${parsed.eventId} recorded)\n`);
           return 0;
         }

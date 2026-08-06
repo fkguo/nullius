@@ -414,13 +414,116 @@ describe('traceability view and CLI (review-locked)', () => {
     fs.writeFileSync(path.join(projectRoot, 'a.txt'), '1');
     commitAll(projectRoot, 'one');
     fs.writeFileSync(path.join(projectRoot, 'a.txt'), '2'); // dirty → stash must write objects
+    // Recursive chmod: existing fanout subdirectories must also be sealed,
+    // or a new object landing in one of them would let stash succeed and
+    // make this injection nondeterministic.
     const objectsDir = path.join(projectRoot, '.git', 'objects');
-    fs.chmodSync(objectsDir, 0o500); // object writes now fail
+    const sealed: string[] = [];
+    const walk = (dir: string): void => {
+      sealed.push(dir);
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (entry.isDirectory()) walk(path.join(dir, entry.name));
+      }
+    };
+    walk(objectsDir);
+    for (const dir of sealed) fs.chmodSync(dir, 0o500);
     try {
       expect(() => captureRunOrigin(projectRoot, 'run-broken')).toThrow();
     } finally {
-      fs.chmodSync(objectsDir, 0o755);
+      for (const dir of sealed) fs.chmodSync(dir, 0o755);
     }
+  });
+
+  it('rejects stamp payloads that violate the origin contract (deep validation)', () => {
+    const ledger = validityLedgerPath(projectRoot);
+    fs.mkdirSync(path.dirname(ledger), { recursive: true });
+    const base = { schema_id: 'validity_event_v1', event: 'stamp', run_id: 'r', actor: 't', ts_utc: '2026-08-01T00:00:00Z' };
+    const goodId = mintUlid();
+    const badPayloads = [
+      { note: 'just a schema_id' , stamp: { schema_id: 'run_origin_v1' } },
+      { note: 'bad quality', stamp: { schema_id: 'run_origin_v1', event_id: goodId, run_id: 'r', captured_at_utc: '2026-08-01T00:00:00Z', binding_quality: 'perfect', baseline_commit: 'a'.repeat(40), dirty: { tracked_modified: 0, untracked_count: 0 } } },
+      { note: 'unbound without reason', stamp: { schema_id: 'run_origin_v1', event_id: goodId, run_id: 'r', captured_at_utc: '2026-08-01T00:00:00Z', binding_quality: 'unbound', baseline_commit: null, dirty: { tracked_modified: 0, untracked_count: 0 } } },
+      { note: 'snapshot quality without snapshot', stamp: { schema_id: 'run_origin_v1', event_id: goodId, run_id: 'r', captured_at_utc: '2026-08-01T00:00:00Z', binding_quality: 'exact_tracked_snapshot', baseline_commit: 'a'.repeat(40), dirty: { tracked_modified: 1, untracked_count: 0 } } },
+    ];
+    fs.writeFileSync(ledger, badPayloads
+      .map(entry => JSON.stringify({ ...base, event_id: mintUlid(), stamp: entry.stamp }))
+      .join('\n') + '\n');
+    const view = readValidityLedger(projectRoot);
+    expect(view.malformed_lines).toBe(badPayloads.length);
+    expect(view.runs.get('r')?.stamped ?? false).toBe(false);
+  });
+
+  it('refuses stamping outside the two run roots', () => {
+    initRepo(projectRoot);
+    fs.writeFileSync(path.join(projectRoot, 'a.txt'), '1');
+    commitAll(projectRoot, 'one');
+    fs.mkdirSync(path.join(projectRoot, 'misc', 'run'), { recursive: true });
+    const stdio = io();
+    expect(runTraceCommand(projectRoot, {
+      action: 'stamp', target: 'misc/run', eventId: null,
+      by: null, reason: null, scope: null, actor: 'test', deps: {},
+    }, stdio)).toBe(1);
+    expect(stdio.err.join('')).toContain('artifacts/runs');
+    expect(fs.existsSync(validityLedgerPath(projectRoot))).toBe(false);
+  });
+
+  it('refuses --event-id reuse of a non-stamp or other-run event, before any mirror write', () => {
+    initRepo(projectRoot);
+    fs.writeFileSync(path.join(projectRoot, 'a.txt'), '1');
+    commitAll(projectRoot, 'one');
+    fs.mkdirSync(path.join(projectRoot, 'artifacts', 'runs', 'the-run'), { recursive: true });
+    const voidEvent = event({ event: 'void', run_id: 'other-run' });
+    appendValidityEvent(projectRoot, voidEvent);
+    const stdio = io();
+    expect(runTraceCommand(projectRoot, {
+      action: 'stamp', target: 'artifacts/runs/the-run', eventId: voidEvent.event_id,
+      by: null, reason: null, scope: null, actor: 'test', deps: {},
+    }, stdio)).toBe(1);
+    expect(stdio.err.join('')).toContain('void');
+    expect(fs.existsSync(path.join(projectRoot, 'artifacts', 'runs', 'the-run', 'run_origin.json'))).toBe(false);
+    const stdio2 = io();
+    expect(runTraceCommand(projectRoot, {
+      action: 'stamp', target: 'artifacts/runs/the-run', eventId: 'not-a-ulid',
+      by: null, reason: null, scope: null, actor: 'test', deps: {},
+    }, stdio2)).toBe(1);
+    expect(fs.existsSync(path.join(projectRoot, 'artifacts', 'runs', 'the-run', 'run_origin.json'))).toBe(false);
+  });
+
+  it('counts ledger-only stamps in the quality distribution and flags merge attributes', () => {
+    initRepo(projectRoot);
+    fs.writeFileSync(path.join(projectRoot, 'a.txt'), '1');
+    commitAll(projectRoot, 'one');
+    // Stamp for a run whose directory does NOT exist (ledger-only).
+    const goneId = mintUlid();
+    appendValidityEvent(projectRoot, event({
+      event: 'stamp', run_id: 'gone-run', reason: null, event_id: goneId,
+      stamp: {
+        schema_id: 'run_origin_v1', event_id: goneId, run_id: 'gone-run',
+        captured_at_utc: '2026-08-01T00:00:00Z', binding_quality: 'unbound',
+        baseline_commit: null, no_repo_reason: 'legacy',
+        dirty: { tracked_modified: 0, untracked_count: 0 },
+      } as ValidityEventV1['stamp'],
+    }));
+    const view = buildTraceabilityView(projectRoot);
+    expect(view.runs.binding_quality_counts['unbound']).toBe(1);
+    expect(view.unanswerable.some(u => u.clause === 'exact code revision (per-run)')).toBe(true);
+    expect(view.ledger.merge_union_declared).toBe(true);
+  });
+
+  it('marks a linkless current manuscript pointer unanswerable', () => {
+    fs.writeFileSync(path.join(projectRoot, 'project_index.md'), [
+      '<!-- MAIN_RESEARCH_REPORT_REGISTRY_START -->',
+      '- Current report ID: `m9-report`',
+      '- Current report: the report, no markdown link here',
+      '<!-- MAIN_RESEARCH_REPORT_REGISTRY_END -->',
+    ].join('\n'));
+    const view = buildTraceabilityView(projectRoot);
+    expect(view.manuscript.current_report_id).toBe('m9-report');
+    expect(view.manuscript.current_report_link).toBeNull();
+    expect(view.unanswerable.some(u => u.reason.includes('no Markdown link'))).toBe(true);
+    // No ledger has been written here → no attributes file → declared=false
+    // (locks the negative direction, not just the happy path).
+    expect(view.ledger.merge_union_declared).toBe(false);
   });
 
   it('records dependency repository commits via deps', () => {
