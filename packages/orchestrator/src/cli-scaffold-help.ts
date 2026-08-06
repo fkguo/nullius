@@ -29,6 +29,10 @@ Pass-through options:
   --dry-run        With --refresh: preview what would change without writing.
   --allow-nested
   --runtime-only
+  --no-git         Decline the git bootstrap on a non-repository root. The
+                   decline is recorded, and the status/current traceability
+                   surface reports the code-revision clause as unanswerable
+                   on every reconnect — the opt-out is never silent.
   --checkpoint-interval-seconds <seconds>
   --mode <engine|file>   Declare where project truth lives. engine: the nullius
                          run/approve lifecycle drives the project. file: work is
