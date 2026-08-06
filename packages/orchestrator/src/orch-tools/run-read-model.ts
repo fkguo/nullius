@@ -20,6 +20,7 @@ import { StateManager } from '../state-manager.js';
 import { pauseFilePath, readJson, type ApprovalGateFilter } from './common.js';
 import { TeamExecutionStateManager } from '../team-execution-storage.js';
 import { buildTeamLiveStatusView } from '../team-execution-view.js';
+import { buildTraceabilityView } from '../traceability-view.js';
 
 export type VisibleRunStatusFilter =
   | 'idle'
@@ -1681,6 +1682,21 @@ export function buildRunStatusView(
   const projectRecentDigest = readProjectRecentDigestView(projectRoot, ledgerSnapshot);
   const projectSurfaceDrift = readProjectSurfaceDriftView(projectRoot, state);
   const decisionLedger = readDecisionLedgerView(projectRoot);
+  // Result-traceability block: the SAME read model `nullius current` renders
+  // as prose, embedded here so the mandated reconnect command carries run
+  // validity, origin-stamp coverage, and honest-unanswerable clauses without
+  // anyone learning a new command. Best-effort: a traceability read failure
+  // degrades to an error field, never the whole status receipt.
+  let traceability: Record<string, unknown> | null = null;
+  let traceabilityError: Record<string, unknown> | null = null;
+  try {
+    traceability = buildTraceabilityView(projectRoot) as unknown as Record<string, unknown>;
+  } catch (error) {
+    traceabilityError = {
+      code: 'TRACEABILITY_VIEW_UNAVAILABLE',
+      message: error instanceof Error ? error.message : String(error),
+    };
+  }
   return {
     run_id: state.run_id,
     run_status: paused ? 'paused' : state.run_status,
@@ -1741,6 +1757,8 @@ export function buildRunStatusView(
     project_surface_drift_error: projectSurfaceDrift.project_surface_drift_error,
     decision_ledger: decisionLedger.decision_ledger,
     decision_ledger_error: decisionLedger.decision_ledger_error,
+    traceability,
+    traceability_error: traceabilityError,
   };
 }
 

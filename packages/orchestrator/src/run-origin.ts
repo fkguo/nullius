@@ -23,6 +23,16 @@ import { mintUlid } from '@nullius/shared';
 const SHA_PATTERN = /^[0-9a-f]{40}$/;
 export const RUN_SNAPSHOT_REF_PREFIX = 'refs/nullius/runs/';
 
+/** Paths produced by the traceability machinery itself (ledger, its lock,
+ *  run-directory origin mirrors). Excluded from untracked-noise counting so
+ *  stamping does not demote later stamps self-referentially. */
+export function isTraceabilityArtifactPath(relativePath: string): boolean {
+  const base = path.basename(relativePath);
+  return base === 'run_origin.json'
+    || base === 'validity_ledger.jsonl'
+    || base === 'validity_ledger.jsonl.lock';
+}
+
 function git(projectRoot: string, args: string[], options: { allowFailure?: boolean } = {}): string | null {
   try {
     return execFileSync(
@@ -158,9 +168,17 @@ export function captureRunOrigin(
   }
 
   // Untracked, non-ignored paths: a pure-read enumeration (ls-files touches
-  // no index), labeled an instantaneous observation.
+  // no index), labeled an instantaneous observation. The traceability
+  // machinery's own on-disk artifacts are excluded — a stamp writes the
+  // ledger and a run_origin.json mirror, and counting those as "unknown code
+  // delta" would demote every stamp after the first for self-referential
+  // noise, not for actual code drift. (They still belong in version control;
+  // exclusion here only keeps the honesty grade about the RESEARCH tree.)
   const untrackedOutput = git(projectRoot, ['ls-files', '--others', '--exclude-standard'])!;
-  const untracked = untrackedOutput.split('\n').filter(line => line.trim().length > 0);
+  const untracked = untrackedOutput
+    .split('\n')
+    .filter(line => line.trim().length > 0)
+    .filter(line => !isTraceabilityArtifactPath(line));
 
   // Dirty submodule CONTENTS (gitlink unchanged, inner tree dirty) are the
   // one tracked-side change the snapshot cannot carry; count them so the
