@@ -3,7 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { readValidityLedger, validityLedgerPath, type ValidityLedgerView, type RunValidity } from './validity-ledger.js';
 import { isTraceabilityArtifactPath, listSubmodulePaths } from './run-origin.js';
-import { validateResultRegistry, type ResultRegistryState } from './result-registry.js';
+import { validateResultRegistry } from './result-registry.js';
 
 /** ONE read model behind both consumers of the acceptance sentence:
  *  `nullius status --json` embeds this object as its `traceability` block
@@ -85,6 +85,9 @@ export type TraceabilityView = {
       run_id: string;
       effective_commit: string | null;
       artifact: string | null;
+      /** True when validation raised issues touching this row — renderers
+       *  must mark it, never present it as a clean current result. */
+      defective: boolean;
     }>;
     rows: number;
     issues: Array<{ code: string; message: string }>;
@@ -263,7 +266,9 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
   noIdentity.sort();
 
   const manuscript = readManuscriptPointer(projectRoot);
-  const resultRegistry: ResultRegistryState = validateResultRegistry(projectRoot);
+  // Reuse the ledger view built above — validate would otherwise reparse
+  // the whole ledger a second time on every status read.
+  const resultRegistry = validateResultRegistry(projectRoot, ledger);
 
   const unanswerable: TraceabilityView['unanswerable'] = [];
   if (!insideWorkTree) {
@@ -396,6 +401,7 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
         run_id: row.run_id,
         effective_commit: row.effective_commit,
         artifact: row.artifact_target,
+        defective: resultRegistry.defective_result_ids.has(row.result_id),
       })),
       rows: resultRegistry.rows.length,
       issues: resultRegistry.issues.map(entry => ({ code: entry.code, message: entry.message })),
@@ -446,10 +452,13 @@ export function renderTraceabilityProse(view: TraceabilityView): string {
     lines.push(`Unanswerable: ${resultClause.reason}.`);
   } else {
     for (const row of view.results.current) {
+      // A defective row is never presented as a clean current result — the
+      // defect marker rides on the same line the reader would trust.
       lines.push(
         `- ${row.result_id}: run ${row.run_id}`
         + `${row.effective_commit ? ` @ ${row.effective_commit}` : ''}`
-        + `${row.artifact ? ` → ${row.artifact}` : ''}`,
+        + `${row.artifact ? ` → ${row.artifact}` : ''}`
+        + `${row.defective ? ' — DEFECTIVE (see registry defects below; do not trust until repaired)' : ''}`,
       );
     }
   }

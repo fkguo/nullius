@@ -203,7 +203,15 @@ export function runTraceCommand(projectRoot: string, parsed: TraceParsed, io: Cl
 }
 
 export function runCurrentCommand(projectRoot: string, json: boolean, io: CliIo): number {
-  const view = buildTraceabilityView(projectRoot);
+  // Same containment as the status embedding: a traceability read failure
+  // degrades to an explicit error, never a partial false picture.
+  let view;
+  try {
+    view = buildTraceabilityView(projectRoot);
+  } catch (error) {
+    io.stderr(`current: traceability view unavailable: ${error instanceof Error ? error.message : String(error)}\n`);
+    return 1;
+  }
   if (json) {
     io.stdout(`${JSON.stringify(view, null, 2)}\n`);
   } else {

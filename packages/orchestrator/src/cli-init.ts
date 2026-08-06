@@ -83,14 +83,9 @@ function ensureGitPresence(
     insideWorkTree = false;
   }
   if (insideWorkTree) return;
-  if (options.runtimeOnly) {
-    io.stdout(
-      '[warn] this project root is not a git repository: results cannot be bound to an exact code '
-      + 'revision until one exists. Bootstrap with a full `nullius init` (or plain `git init`), '
-      + 'then backfill run bindings.\n',
-    );
-    return;
-  }
+  // The explicit decline wins over every other branch — a user who passed
+  // --no-git (even with --runtime-only) gets the decline RECORDED, not a
+  // bootstrap suggestion that ignores what they just said.
   if (options.noGit) {
     manager.appendLedger('git_bootstrap_declined', { details: { reason: '--no-git' } });
     io.stdout(
@@ -100,8 +95,24 @@ function ensureGitPresence(
     );
     return;
   }
+  if (options.runtimeOnly) {
+    io.stdout(
+      '[warn] this project root is not a git repository: results cannot be bound to an exact code '
+      + 'revision until one exists. Bootstrap with a full `nullius init` (or plain `git init`), '
+      + 'then backfill run bindings.\n',
+    );
+    return;
+  }
   try {
     git(['init', '-q']);
+  } catch (error) {
+    io.stdout(
+      `[warn] git init failed (${error instanceof Error ? error.message.split('\n')[0] : String(error)}); `
+      + 'the project stays without a repository and the code-revision clause stays unanswerable.\n',
+    );
+    return;
+  }
+  try {
     const scaffoldFiles = [
       ...(scaffold?.created ?? []),
       ...(scaffold?.refreshed ?? []),
@@ -109,23 +120,30 @@ function ensureGitPresence(
     ].filter(rel => fs.existsSync(path.join(repoRoot, rel)));
     if (scaffoldFiles.length > 0) {
       git(['add', '--', ...scaffoldFiles]);
-      // Scaffold-only initial commit: research content the user already has
-      // in the directory stays untracked for their own explicit decision.
-      git([
-        '-c', 'user.name=nullius-init',
-        '-c', 'user.email=nullius-init@localhost',
-        'commit', '-q', '-m', 'chore: nullius project scaffold',
-      ]);
     }
+    // Scaffold-only initial commit: research content the user already has in
+    // the directory stays untracked for their own explicit decision.
+    // --allow-empty keeps the guarantee that a bootstrapped repository has a
+    // HEAD even when no scaffold file exists (runtime-only layouts) — an
+    // unborn-HEAD repo would leave every stamp unbindable.
+    git([
+      '-c', 'user.name=nullius-init',
+      '-c', 'user.email=nullius-init@localhost',
+      'commit', '-q', '--allow-empty', '-m', 'chore: nullius project scaffold',
+    ]);
     manager.appendLedger('git_bootstrap_completed', { details: { committed_files: scaffoldFiles.length } });
     io.stdout(
       `[ok] initialized a git repository (scaffold-only initial commit, ${scaffoldFiles.length} file(s)); `
       + 'pre-existing research files stay untracked until you add them — an explicit track-or-ignore decision.\n',
     );
   } catch (error) {
+    // We created this .git moments ago and it holds nothing yet — removing
+    // it returns the project to a clean, RETRYABLE no-repository state
+    // instead of a poisoned unborn-HEAD repo that a rerun would skip over.
+    fs.rmSync(path.join(repoRoot, '.git'), { recursive: true, force: true });
     io.stdout(
-      `[warn] git bootstrap failed (${error instanceof Error ? error.message.split('\n')[0] : String(error)}); `
-      + 'the project stays without a repository and the code-revision clause stays unanswerable.\n',
+      `[warn] git bootstrap failed after init (${error instanceof Error ? error.message.split('\n')[0] : String(error)}); `
+      + 'the just-created repository was removed so a rerun can retry cleanly; the code-revision clause stays unanswerable.\n',
     );
   }
 }
