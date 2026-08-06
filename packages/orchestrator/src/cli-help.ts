@@ -200,6 +200,18 @@ supersede / void / reinstate: validity beyond execution status.
 
 --event-id reuses a previously minted ULID when retrying the SAME logical
   event (crash recovery); a payload mismatch under a reused id is refused.
+
+backfill: retroactive origin stamps for legacy runs, by timestamp alignment
+  against the commit history. HEURISTIC by construction — every record is
+  binding_quality aligned_heuristic (never exact) with its alignment
+  evidence (window, nominal-timestamp flag, ambiguous candidates), or
+  honestly unbound with a reason. Validity is NEVER backfilled.
+
+propose-chains / confirm-chains: same-slug round chains (r1 → r2 → …, the
+  measured review-driven redo pattern) become a PROPOSAL file
+  (artifacts/runs/round_chain_proposal.json). Nothing touches the ledger
+  until you review it (delete pairs you reject) and run confirm-chains,
+  which appends the supersede events under your actor identity.
 `,
   current: `nullius current [--json]
 

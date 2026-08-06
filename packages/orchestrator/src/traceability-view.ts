@@ -4,6 +4,8 @@ import * as path from 'node:path';
 import { readValidityLedger, validityLedgerPath, type ValidityLedgerView, type RunValidity } from './validity-ledger.js';
 import { isTraceabilityArtifactPath, listSubmodulePaths } from './run-origin.js';
 import { validateResultRegistry } from './result-registry.js';
+import { checkNotebookStaleness, type NotebookStalenessReport } from './notebook-staleness.js';
+import { canonicalJson } from './validity-ledger.js';
 
 /** ONE read model behind both consumers of the acceptance sentence:
  *  `nullius status --json` embeds this object as its `traceability` block
@@ -95,6 +97,23 @@ export type TraceabilityView = {
     }>;
     rows: number;
     issues: Array<{ code: string; message: string }>;
+  };
+  notebook: {
+    found: boolean;
+    counts: NotebookStalenessReport['counts'];
+    stale: Array<{ heading: string; cause: string }>;
+    incomparable: Array<{ heading: string; cause: string }>;
+  };
+  warnings: {
+    /** Slugs whose run count crossed the bounded-rounds threshold. An
+     *  OBSERVATION in a different dimension than the team-cycle tag-round
+     *  enforcement, which stays authoritative where it applies. */
+    round_cap: Array<{ slug: string; runs: number; threshold: number }>;
+    /** Runs whose run-directory mirror diverges from the authoritative
+     *  ledger stamp (the narrow unlocked-preflight window, or a hand edit).
+     *  The ledger is the truth; a divergent mirror misleads humans browsing
+     *  the run directory. */
+    mirror_divergence: string[];
   };
   /** Clauses of the acceptance sentence this view cannot answer yet or
    *  cannot answer for this project, each with its reason. Honest
@@ -273,6 +292,60 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
   // Reuse the ledger view built above — validate would otherwise reparse
   // the whole ledger a second time on every status read.
   const resultRegistry = validateResultRegistry(projectRoot, ledger);
+  const notebook = checkNotebookStaleness(projectRoot, ledger);
+
+  // D9 round-cap observation: same-slug run counts across BOTH roots against
+  // the configured team-cycle threshold (default 5). Slug = run id minus
+  // timestamp/milestone/ordinal prefixes and the trailing round suffix.
+  let roundThreshold = 5;
+  try {
+    const teamConfigPath = path.join(projectRoot, 'research_team_config.json');
+    if (fs.existsSync(teamConfigPath)) {
+      const parsed = JSON.parse(fs.readFileSync(teamConfigPath, 'utf-8')) as {
+        bounded_rounds?: { max_per_tag_family?: number };
+      };
+      const raw = parsed.bounded_rounds?.max_per_tag_family;
+      if (typeof raw === 'number' && Number.isFinite(raw) && raw >= 1) roundThreshold = raw;
+    }
+  } catch {
+    // unreadable config keeps the default
+  }
+  const slugCounts = new Map<string, number>();
+  const SLUG_FROM_ID = /^(?:\d{8}(?:T\d{6}Z)?)[-_.](?:m\d+-)?(?:r\d+-)?(.+?)(?:-r\d+)?$/;
+  for (const entry of directories) {
+    const slug = SLUG_FROM_ID.exec(entry.run_id)?.[1] ?? entry.run_id;
+    slugCounts.set(slug, (slugCounts.get(slug) ?? 0) + 1);
+  }
+  const roundCap = [...slugCounts.entries()]
+    .filter(([, count]) => count > roundThreshold)
+    .map(([slug, runs]) => ({ slug, runs, threshold: roundThreshold }))
+    .sort((a, b) => b.runs - a.runs);
+
+  // Mirror-vs-ledger divergence (stage-1 acceptance hook): the ledger is the
+  // authority; a run-directory mirror that no longer matches it — the narrow
+  // unlocked-preflight window, or a hand edit — is surfaced, never trusted.
+  const mirrorDivergence: string[] = [];
+  for (const entry of directories) {
+    const known = ledger.runs.get(entry.run_id);
+    if (!known?.stamped || !known.origin) continue;
+    const mirrorPath = path.join(projectRoot, entry.canonical_root, entry.run_id, 'run_origin.json');
+    if (!fs.existsSync(mirrorPath)) continue;
+    try {
+      const mirror = JSON.parse(fs.readFileSync(mirrorPath, 'utf-8')) as Record<string, unknown>;
+      // The ledger payload may carry run_dir_unwritable appended at stamp
+      // time; compare modulo that writer-side annotation.
+      const ledgerPayload = { ...(known.origin as unknown as Record<string, unknown>) };
+      delete ledgerPayload.run_dir_unwritable;
+      const mirrorPayload = { ...mirror };
+      delete mirrorPayload.run_dir_unwritable;
+      if (canonicalJson(mirrorPayload) !== canonicalJson(ledgerPayload)) {
+        mirrorDivergence.push(entry.run_id);
+      }
+    } catch {
+      mirrorDivergence.push(entry.run_id);
+    }
+  }
+  mirrorDivergence.sort();
 
   const unanswerable: TraceabilityView['unanswerable'] = [];
   if (!insideWorkTree) {
@@ -350,11 +423,23 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
           + '(registry defects present — see the defect list; repair before trusting any of them)',
     });
   }
-  // Notebook staleness lands in delivery stage 3; the clause is honestly open.
-  unanswerable.push({
-    clause: 'notebook sections current vs stale',
-    reason: 'the written-against section checker is not implemented yet (delivery stage 3)',
-  });
+  if (!notebook.notebook_found) {
+    unanswerable.push({
+      clause: 'notebook sections current vs stale',
+      reason: 'research_notebook.md not found',
+    });
+  } else if (notebook.sections.length === 0) {
+    unanswerable.push({
+      clause: 'notebook sections current vs stale',
+      reason: 'the notebook has no ## sections to classify',
+    });
+  } else if (notebook.counts.unstamped === notebook.sections.length) {
+    unanswerable.push({
+      clause: 'notebook sections current vs stale',
+      reason: `none of the ${notebook.sections.length} sections carries a written-against stamp yet `
+        + '(add `<!-- written-against: <commit-sha> -->` when rewriting a section)',
+    });
+  }
 
   let mergeUnionDeclared = false;
   try {
@@ -401,6 +486,18 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
       merge_union_declared: mergeUnionDeclared,
     },
     manuscript,
+    notebook: {
+      found: notebook.notebook_found,
+      counts: notebook.counts,
+      stale: notebook.sections.filter(section => section.class === 'stale')
+        .map(section => ({ heading: section.heading, cause: section.cause })),
+      incomparable: notebook.sections.filter(section => section.class === 'incomparable')
+        .map(section => ({ heading: section.heading, cause: section.cause })),
+    },
+    warnings: {
+      round_cap: roundCap,
+      mirror_divergence: mirrorDivergence,
+    },
     results: {
       block_found: resultRegistry.block_found,
       current: resultRegistry.current.map(row => ({
@@ -507,7 +604,21 @@ export function renderTraceabilityProse(view: TraceabilityView): string {
 
   lines.push('## Notebook sections');
   const notebookClause = view.unanswerable.find(entry => entry.clause === 'notebook sections current vs stale');
-  lines.push(notebookClause ? `Unanswerable: ${notebookClause.reason}.` : '(rendered from the section checker)');
+  if (notebookClause) {
+    lines.push(`Unanswerable: ${notebookClause.reason}.`);
+  } else {
+    const counts = view.notebook.counts;
+    lines.push(
+      `${counts.current} current, ${counts['current-modulo-untracked']} current-modulo-untracked, `
+      + `${counts.stale} stale, ${counts.unstamped} unstamped, ${counts.incomparable} incomparable.`,
+    );
+    for (const section of view.notebook.stale.slice(0, 10)) {
+      lines.push(`- STALE: ${section.heading} (${section.cause})`);
+    }
+    for (const section of view.notebook.incomparable.slice(0, 5)) {
+      lines.push(`- incomparable: ${section.heading} (${section.cause})`);
+    }
+  }
   lines.push('');
 
   lines.push('## Runs');
@@ -538,6 +649,19 @@ export function renderTraceabilityProse(view: TraceabilityView): string {
   }
   if (view.ledger.malformed_lines > 0 || view.ledger.integrity_defects > 0) {
     lines.push(`- ledger health: ${view.ledger.malformed_lines} malformed line(s), ${view.ledger.integrity_defects} integrity defect(s).`);
+  }
+  for (const cap of view.warnings.round_cap.slice(0, 5)) {
+    lines.push(
+      `- ROUND CAP: ${cap.runs} runs share the object "${cap.slug}" (threshold ${cap.threshold}) — `
+      + 'an observation in the slug dimension; the team-cycle tag-round gate stays authoritative where it applies.',
+    );
+  }
+  if (view.warnings.mirror_divergence.length > 0) {
+    lines.push(
+      `- MIRROR DIVERGENCE: ${view.warnings.mirror_divergence.length} run director(y/ies) hold a run_origin.json `
+      + `that no longer matches the authoritative ledger stamp: ${view.warnings.mirror_divergence.slice(0, 5).join(', ')}`
+      + `${view.warnings.mirror_divergence.length > 5 ? ', …' : ''} — trust the ledger.`,
+    );
   }
   lines.push('');
   return lines.join('\n');

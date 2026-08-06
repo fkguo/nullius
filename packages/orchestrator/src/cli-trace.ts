@@ -6,6 +6,7 @@ import { mintUlid, ULID_PATTERN } from '@nullius/shared';
 import { appendValidityEvent, buildValidityEvent, readValidityLedger } from './validity-ledger.js';
 import { captureRunOrigin } from './run-origin.js';
 import { buildTraceabilityView, renderTraceabilityProse } from './traceability-view.js';
+import { backfillRunOrigins, confirmRoundChains, proposeRoundChains } from './trace-backfill.js';
 
 /** `nullius trace <stamp|supersede|void|reinstate>` — the write surface of
  *  the validity ledger and origin stamps — and `nullius current`, the human
@@ -25,7 +26,7 @@ type CliIo = {
 };
 
 export type TraceParsed = {
-  action: 'stamp' | 'supersede' | 'void' | 'reinstate';
+  action: 'stamp' | 'supersede' | 'void' | 'reinstate' | 'backfill' | 'propose-chains' | 'confirm-chains';
   target: string;
   by: string | null;
   reason: string | null;
@@ -46,6 +47,32 @@ function defaultActor(): string {
 export function runTraceCommand(projectRoot: string, parsed: TraceParsed, io: CliIo): number {
   const actor = parsed.actor ?? defaultActor();
   switch (parsed.action) {
+    case 'backfill': {
+      const result = backfillRunOrigins(projectRoot);
+      for (const outcome of result.outcomes) {
+        if (outcome.action === 'already_stamped') continue;
+        io.stdout(`${outcome.action === 'stamped_aligned' ? 'aligned' : outcome.action === 'stamped_unbound' ? 'unbound' : 'mirror-unwritable'} ${outcome.run_id}: ${outcome.detail}\n`);
+      }
+      io.stdout(
+        `backfill: ${result.aligned} aligned (heuristic — never exact), ${result.unbound} unbound, `
+        + `${result.skipped} already stamped. Validity was NOT backfilled; run \`nullius trace propose-chains\` next.\n`,
+      );
+      return 0;
+    }
+    case 'propose-chains': {
+      const { proposals, path: proposalPath } = proposeRoundChains(projectRoot);
+      const pairs = proposals.reduce((sum, proposal) => sum + proposal.supersede.length, 0);
+      io.stdout(
+        `proposed ${pairs} round-chain supersession(s) across ${proposals.length} slug(s) → ${proposalPath}\n`
+        + 'PROPOSAL ONLY: review the file (delete pairs you reject), then `nullius trace confirm-chains`.\n',
+      );
+      return 0;
+    }
+    case 'confirm-chains': {
+      const { appended, already } = confirmRoundChains(projectRoot, actor);
+      io.stdout(`confirmed: ${appended} supersede event(s) appended, ${already} already recorded.\n`);
+      return 0;
+    }
     case 'stamp': {
       const runDir = path.isAbsolute(parsed.target)
         ? parsed.target

@@ -91,7 +91,7 @@ export async function runCli(argv: string[], io: CliIo = defaultIo()): Promise<n
       });
       io.stdout(
         `registered ${row.result_id}: run ${row.run_id}`
-        + `${row.effective_commit ? ` @ ${row.effective_commit}` : ''}`
+        + `${row.effective_commit ? ` @ ${row.effective_commit}${row.has_snapshot ? '+snapshot' : ''}` : ''}`
         + `${row.supersedes !== 'none' ? ` (supersedes ${row.supersedes})` : ''}\n`,
       );
       return 0;
