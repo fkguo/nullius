@@ -84,6 +84,10 @@ export type TraceabilityView = {
       result_id: string;
       run_id: string;
       effective_commit: string | null;
+      /** True when the identity is a dirty-tree snapshot commit — rendered
+       *  with the +snapshot qualifier so it is never mistaken for plain
+       *  HEAD (design D4/D5 snapshot qualification). */
+      has_snapshot: boolean;
       artifact: string | null;
       /** True when validation raised issues touching this row — renderers
        *  must mark it, never present it as a clean current result. */
@@ -339,8 +343,11 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
   } else if (resultRegistry.current.length === 0) {
     unanswerable.push({
       clause: 'current best result',
-      reason: 'the current-results registry is empty — no result has been registered yet '
-        + '(`nullius result set-current` at milestone convergence)',
+      reason: resultRegistry.rows.length === 0
+        ? 'the current-results registry is empty — no result has been registered yet '
+          + '(`nullius result set-current` at milestone convergence)'
+        : `${resultRegistry.rows.length} result row(s) are registered but none is a valid current head `
+          + '(registry defects present — see the defect list; repair before trusting any of them)',
     });
   }
   // Notebook staleness lands in delivery stage 3; the clause is honestly open.
@@ -400,6 +407,7 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
         result_id: row.result_id,
         run_id: row.run_id,
         effective_commit: row.effective_commit,
+        has_snapshot: row.has_snapshot,
         artifact: row.artifact_target,
         defective: resultRegistry.defective_result_ids.has(row.result_id),
       })),
@@ -456,7 +464,7 @@ export function renderTraceabilityProse(view: TraceabilityView): string {
       // defect marker rides on the same line the reader would trust.
       lines.push(
         `- ${row.result_id}: run ${row.run_id}`
-        + `${row.effective_commit ? ` @ ${row.effective_commit}` : ''}`
+        + `${row.effective_commit ? ` @ ${row.effective_commit}${row.has_snapshot ? '+snapshot' : ''}` : ''}`
         + `${row.artifact ? ` → ${row.artifact}` : ''}`
         + `${row.defective ? ' — DEFECTIVE (see registry defects below; do not trust until repaired)' : ''}`,
       );

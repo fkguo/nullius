@@ -103,6 +103,13 @@ function ensureGitPresence(
     );
     return;
   }
+  // Guard the destructive rollback below on a VERIFIED precondition: a
+  // pre-existing .git can fail the worktree probe while still holding real
+  // history (dubious-ownership refusal on foreign-owned mounts, a
+  // crash-truncated HEAD, an inherited GIT_DIR) — reinit would succeed, the
+  // commit would fail, and an unguarded rollback would delete the user's
+  // repository. Only a .git this invocation created is ever removed.
+  const gitDirExistedBefore = fs.existsSync(path.join(repoRoot, '.git'));
   try {
     git(['init', '-q']);
   } catch (error) {
@@ -137,15 +144,23 @@ function ensureGitPresence(
       + 'pre-existing research files stay untracked until you add them — an explicit track-or-ignore decision.\n',
     );
   } catch (error) {
-    // We created this .git moments ago and it holds nothing yet — removing
-    // it returns the project to a clean, RETRYABLE no-repository state
-    // instead of a poisoned unborn-HEAD repo that a rerun would skip over.
-    fs.rmSync(path.join(repoRoot, '.git'), { recursive: true, force: true });
+    rollbackBootstrapGitDir(repoRoot, gitDirExistedBefore);
     io.stdout(
       `[warn] git bootstrap failed after init (${error instanceof Error ? error.message.split('\n')[0] : String(error)}); `
-      + 'the just-created repository was removed so a rerun can retry cleanly; the code-revision clause stays unanswerable.\n',
+      + (gitDirExistedBefore
+        ? 'a pre-existing .git was found and left untouched (it may need manual repair); '
+        : 'the just-created repository was removed so a rerun can retry cleanly; ')
+      + 'the code-revision clause stays unanswerable.\n',
     );
   }
+}
+
+/** Remove .git ONLY when this invocation created it. Exported for the direct
+ *  unit test of both directions — the destructive branch of a traceability
+ *  tool must be provably guarded, not assumed. */
+export function rollbackBootstrapGitDir(repoRoot: string, gitDirExistedBefore: boolean): void {
+  if (gitDirExistedBefore) return;
+  fs.rmSync(path.join(repoRoot, '.git'), { recursive: true, force: true });
 }
 
 function findParentProjectRoot(start: string): string | null {
