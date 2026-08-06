@@ -176,6 +176,15 @@ export function backfillRunOrigins(projectRoot: string): {
     } catch {
       mirrorWritten = false;
       payload.run_dir_unwritable = true;
+      // Commit-uncertain (see cli-trace stamp path): the rename may have
+      // landed before the durability step failed — best-effort restore so a
+      // legacy mirror is never left clobbered without a ledger event.
+      try {
+        if (previousMirror !== null) writeBytesAtomicDurable(mirrorPath, previousMirror);
+        else fs.rmSync(mirrorPath, { force: true });
+      } catch {
+        // Restore is best-effort; the divergence scan surfaces leftovers.
+      }
     }
     try {
       appendValidityEvent(projectRoot, buildValidityEvent({
