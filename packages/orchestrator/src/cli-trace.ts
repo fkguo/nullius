@@ -171,6 +171,7 @@ export function runTraceCommand(projectRoot: string, parsed: TraceParsed, io: Cl
       // authoritative event; AUTHORITY stays with the ledger regardless of
       // write order (all consumers read the ledger, D2).
       const mirrorPath = path.join(runDir, 'run_origin.json');
+      const previousMirror = fs.existsSync(mirrorPath) ? fs.readFileSync(mirrorPath, 'utf-8') : null;
       let mirrorWritten = true;
       try {
         fs.writeFileSync(mirrorPath, `${JSON.stringify(origin, null, 2)}\n`);
@@ -190,7 +191,18 @@ export function runTraceCommand(projectRoot: string, parsed: TraceParsed, io: Cl
         event_id: eventId,
         ts_utc: (payload as { captured_at_utc: string }).captured_at_utc,
       });
-      const outcome = appendValidityEvent(projectRoot, event);
+      let outcome;
+      try {
+        outcome = appendValidityEvent(projectRoot, event);
+      } catch (error) {
+        // No orphan and no clobber: a mirror this invocation created is
+        // removed; a pre-existing one is restored to its prior content.
+        if (mirrorWritten) {
+          if (previousMirror !== null) fs.writeFileSync(mirrorPath, previousMirror);
+          else fs.rmSync(mirrorPath, { force: true });
+        }
+        throw error;
+      }
       const record = payload as { binding_quality?: string; baseline_commit?: string | null };
       io.stdout(
         `${outcome === 'appended' ? 'stamped' : 'already stamped'} ${runId}: `

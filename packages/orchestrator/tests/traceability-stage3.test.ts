@@ -16,6 +16,7 @@ import {
 import { checkNotebookStaleness } from '../src/notebook-staleness.js';
 import { buildTraceabilityView, renderTraceabilityProse } from '../src/traceability-view.js';
 import { captureRunOrigin } from '../src/run-origin.js';
+import { runTraceCommand } from '../src/cli-trace.js';
 import { checkChains, setCurrentResult, validateResultRegistry, type ResultRegistryRow } from '../src/result-registry.js';
 
 let projectRoot: string;
@@ -434,6 +435,68 @@ describe('stage-3 r1 native-seat locks', () => {
     const view = readValidityLedger(projectRoot);
     const origin = view.runs.get('20260806T121530Z-m1-alpha-r1')!.origin as unknown as Record<string, unknown>;
     expect(origin.aligned_commit).not.toBe(later);
+  });
+});
+
+describe('stage-3 r2 review locks', () => {
+  it('a named-scope-only supersession does not shield a run from proposals', () => {
+    initRepo(projectRoot);
+    commitAt(projectRoot, '2026-08-01T10:00:00Z', 'a.txt');
+    mkRun('20260801T110000Z-m1-alpha-r1');
+    mkRun('20260802T110000Z-m1-alpha-r2');
+    appendValidityEvent(projectRoot, buildValidityEvent({
+      event: 'supersede', run_id: '20260801T110000Z-m1-alpha-r1', by_run_id: 'x',
+      actor: 't', reason: 'partial only', scope: 'budget_only',
+    }));
+    const { proposals } = proposeRoundChains(projectRoot);
+    // The run is still ACTIVE (scoped events never decide validity), so the
+    // round chain is still proposed.
+    expect(proposals).toHaveLength(1);
+  });
+
+  it('fenced stamps and citations never reach classification', () => {
+    initRepo(projectRoot);
+    const c1 = commitAt(projectRoot, '2026-08-01T10:00:00Z', 'a.txt');
+    appendValidityEvent(projectRoot, buildValidityEvent({
+      event: 'void', run_id: 'dead-run', actor: 't', reason: 'withdrawn',
+    }));
+    fs.writeFileSync(path.join(projectRoot, 'research_notebook.md'), [
+      '# N',
+      '## Section',
+      `<!-- written-against: ${c1} -->`,
+      '```markdown',
+      '<!-- cites-runs: dead-run -->',
+      '<!-- written-against: deadbeef00 -->',
+      '```',
+      'text',
+    ].join('\n'));
+    const report = checkNotebookStaleness(projectRoot);
+    // The fenced dead citation and fake stamp are content: the real stamp
+    // resolves and the section classifies current (empty baseline set).
+    expect(report.sections[0]!.class).toBe('current');
+  });
+
+  it('stamp CLI restores a pre-existing mirror when the append fails', () => {
+    initRepo(projectRoot);
+    fs.writeFileSync(path.join(projectRoot, '.gitignore'), 'artifacts/\n');
+    commitAt(projectRoot, '2026-08-01T10:00:00Z', 'a.txt');
+    mkRun('the-run');
+    fs.writeFileSync(path.join(projectRoot, 'artifacts', 'runs', 'the-run', 'run_origin.json'), '{"legacy":"mirror"}');
+    const ledgerPath = path.join(projectRoot, 'artifacts', 'runs', 'validity_ledger.jsonl');
+    fs.writeFileSync(`${ledgerPath}.lock`, JSON.stringify({ pid: 99999, ts: 'held' }));
+    const out: string[] = [];
+    const err: string[] = [];
+    try {
+      expect(() => runTraceCommand(projectRoot, {
+        action: 'stamp', target: 'artifacts/runs/the-run', eventId: null,
+        by: null, reason: null, scope: null, actor: 'test', deps: {},
+      }, { cwd: projectRoot, stdout: (t: string) => { out.push(t); }, stderr: (t: string) => { err.push(t); } }))
+        .toThrow(/ledger is locked/);
+    } finally {
+      fs.rmSync(`${ledgerPath}.lock`, { force: true });
+    }
+    expect(fs.readFileSync(path.join(projectRoot, 'artifacts', 'runs', 'the-run', 'run_origin.json'), 'utf-8'))
+      .toBe('{"legacy":"mirror"}');
   });
 });
 

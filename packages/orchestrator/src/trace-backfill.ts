@@ -166,6 +166,10 @@ export function backfillRunOrigins(projectRoot: string): {
     // with no ledger event behind it would look like a valid stamp to a
     // human browsing the run directory.
     const mirrorPath = path.join(projectRoot, entry.canonical_root, entry.run_id, 'run_origin.json');
+    // A pre-existing (legacy, hand-made) mirror is preserved across failure:
+    // rollback RESTORES it rather than deleting it — only a mirror this
+    // invocation created from nothing is removed.
+    const previousMirror = fs.existsSync(mirrorPath) ? fs.readFileSync(mirrorPath, 'utf-8') : null;
     let mirrorWritten = true;
     try {
       fs.writeFileSync(mirrorPath, `${JSON.stringify(payload, null, 2)}\n`);
@@ -181,7 +185,10 @@ export function backfillRunOrigins(projectRoot: string): {
         stamp: payload as ValidityEventV1['stamp'],
       }));
     } catch (error) {
-      if (mirrorWritten) fs.rmSync(mirrorPath, { force: true });
+      if (mirrorWritten) {
+        if (previousMirror !== null) fs.writeFileSync(mirrorPath, previousMirror);
+        else fs.rmSync(mirrorPath, { force: true });
+      }
       throw error;
     }
     const quality = String(payload.binding_quality);
@@ -218,8 +225,12 @@ export type ChainProposal = {
 function isAlreadyDecided(ledger: ReturnType<typeof readValidityLedger>, runId: string): boolean {
   const known = ledger.runs.get(runId);
   if (known && (known.validity !== 'active' || known.no_authoritative_identity)) return true;
+  // Only FULL-scope events are decisions about the run's overall validity;
+  // a named-scope supersession annotates without deciding (schema contract),
+  // so it must not shield the run from a round-chain proposal.
   return ledger.events.some(event => event.run_id === runId
-    && (event.event === 'supersede' || event.event === 'void' || event.event === 'reinstate'));
+    && (event.event === 'supersede' || event.event === 'void' || event.event === 'reinstate')
+    && (event.scope ?? 'full') === 'full');
 }
 
 export const CHAIN_PROPOSAL_RELATIVE_PATH = path.join('artifacts', 'runs', 'round_chain_proposal.json');
