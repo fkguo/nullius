@@ -184,8 +184,11 @@ export function checkNotebookStaleness(
         continue;
       }
     }
-    // Step 2: no stamp.
-    const stampMatch = STAMP_PATTERN.exec(body);
+    // Step 2: no stamp. Per the stated convention sections END with their
+    // stamp, so with multiple stamps the LAST one is authoritative — a
+    // first-match rule would let any earlier example outrank the real one.
+    const stampMatches = [...body.matchAll(new RegExp(STAMP_PATTERN.source, 'g'))];
+    const stampMatch = stampMatches.length > 0 ? stampMatches[stampMatches.length - 1]! : null;
     if (!stampMatch) {
       classify('unstamped', 'never-stamped');
       continue;

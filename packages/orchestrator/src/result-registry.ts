@@ -106,7 +106,16 @@ export function parseResultRegistry(projectRoot: string): ResultRegistryState {
   const block = text.slice(bounds.start, bounds.end);
   const seen = new Set<string>();
   for (const line of block.split('\n')) {
-    if (!line.trim().startsWith('|')) continue;
+    const trimmedLine = line.trim();
+    if (!trimmedLine.startsWith('|')) {
+      // A non-empty, non-comment line inside the block that is not a table
+      // row renders as content on GitHub while being invisible here — the
+      // written-row-unseen misdiagnosis. Reported, never silently skipped.
+      if (trimmedLine.length > 0 && !trimmedLine.startsWith('<!--')) {
+        issues.push(issue('malformed_result_row', `non-table line inside the registry block: ${trimmedLine.slice(0, 80)}`));
+      }
+      continue;
+    }
     const cells = line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(cell => cell.trim());
     if (cells.length !== RESULT_TABLE_COLUMNS) {
       // A pipe-prefixed line inside the block with the wrong cell count is a
@@ -163,7 +172,15 @@ export function checkChains(rows: ResultRegistryRow[], issues: ResultRegistryIss
     let cursor: ResultRegistryRow | undefined = start;
     while (cursor) {
       const state = walkState.get(cursor.result_id);
-      if (state === 'done') break;
+      if (state === 'done') {
+        // A LATER walker whose chain reaches an already-processed cyclic
+        // node is a prefix over that cycle too — first-walker-only marking
+        // would let it render as a clean head over a cyclic lineage.
+        if (cyclicIds.has(cursor.result_id)) {
+          for (const id of trail) defective?.add(id);
+        }
+        break;
+      }
       if (state === 'walking') {
         // Everything from the first occurrence of cursor in the trail on is
         // the cycle proper; the PREFIX that walked into it is defective too
