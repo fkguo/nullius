@@ -500,6 +500,77 @@ describe('stage-3 r2 review locks', () => {
   });
 });
 
+describe('stage-3 r2 native-seat locks', () => {
+  it('with multiple stamps the LAST one is authoritative (section-end convention)', () => {
+    initRepo(projectRoot);
+    const c1 = commitAt(projectRoot, '2026-08-01T10:00:00Z', 'a.txt');
+    fs.writeFileSync(path.join(projectRoot, 'research_notebook.md'), [
+      '# N',
+      '## Section',
+      '<!-- written-against: deadbeef00 -->',
+      'prose discussing an earlier example stamp',
+      `<!-- written-against: ${c1} -->`,
+    ].join('\n'));
+    const report = checkNotebookStaleness(projectRoot);
+    expect(report.sections[0]!.class).toBe('current');
+  });
+
+  it('a later clean prefix reaching an already-processed cycle is defective too', () => {
+    const row = (id: string, supersedes: string, supersededBy: string): ResultRegistryRow => ({
+      result_id: id, description: `[${id}](x.md)`, artifact_target: 'x.md',
+      artifact_sha256: '0'.repeat(64), run_id: `run-${id}`, effective_commit: null,
+      has_snapshot: false, supersedes, superseded_by: supersededBy,
+    });
+    const issues: Array<{ code: string; message: string; path: string }> = [];
+    const defective = new Set<string>();
+    // Walk order: e first (marks the cycle), THEN f whose chain reaches the
+    // done cycle — first-walker-only marking would let f escape.
+    checkChains([
+      row('e', 'c', 'none'), row('c', 'd', 'e'), row('d', 'c', 'c'), row('f', 'd', 'none'),
+    ], issues, defective);
+    expect(defective.has('f')).toBe(true);
+  });
+
+  it('a row missing its leading pipe is reported, not silently invisible', () => {
+    initRepo(projectRoot);
+    fs.writeFileSync(path.join(projectRoot, 'project_index.md'), [
+      '<!-- RESULT_REGISTRY_START -->',
+      '| Result ID | Description & artifact | Artifact SHA-256 | Current run | Supersedes | Superseded by |',
+      '|---|---|---|---|---|---|',
+      'r1 | [r](x.md) | `' + '0'.repeat(64) + '` | `run` | `none` | `none` |',
+      '<!-- RESULT_REGISTRY_END -->',
+    ].join('\n'));
+    const state = validateResultRegistry(projectRoot);
+    expect(state.issues.some(entry => entry.code === 'malformed_result_row'
+      && entry.message.includes('non-table line'))).toBe(true);
+  });
+
+  it('marker mismatch fires in the missing-marker direction too', () => {
+    initRepo(projectRoot);
+    commitAt(projectRoot, '2026-08-01T10:00:00Z', 'a.txt');
+    fs.writeFileSync(path.join(projectRoot, 'a.txt'), 'dirty');
+    mkRun('snap-run');
+    const origin = captureRunOrigin(projectRoot, 'snap-run'); // dirty tracked → snapshot
+    appendValidityEvent(projectRoot, buildValidityEvent({
+      event: 'stamp', run_id: 'snap-run', actor: 't', reason: null,
+      event_id: (origin as { event_id: string }).event_id,
+      stamp: origin as ValidityEventV1['stamp'],
+    }));
+    const effective = String((origin as unknown as Record<string, unknown>).snapshot_commit).slice(0, 12);
+    fs.writeFileSync(path.join(projectRoot, 'project_index.md'), [
+      '<!-- RESULT_REGISTRY_START -->',
+      '| Result ID | Description & artifact | Artifact SHA-256 | Current run | Supersedes | Superseded by |',
+      '|---|---|---|---|---|---|',
+      // Row records the snapshot sha but DROPS the +snapshot marker.
+      `| \`r\` | [r](x.md) | \`${'0'.repeat(64)}\` | \`snap-run @ ${effective}\` | \`none\` | \`none\` |`,
+      '<!-- RESULT_REGISTRY_END -->',
+    ].join('\n'));
+    const state = validateResultRegistry(projectRoot);
+    expect(state.issues.some(entry => entry.code === 'result_row_snapshot_marker_mismatch'
+      && entry.message.includes('lacks'))).toBe(true);
+  });
+});
+
 describe('round-cap warning and mirror divergence in the view (D9 + hook)', () => {
   it('warns past the slug threshold and on mirrors diverging from the ledger', () => {
     initRepo(projectRoot);
