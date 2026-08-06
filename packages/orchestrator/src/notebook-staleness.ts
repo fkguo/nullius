@@ -103,6 +103,15 @@ export function checkNotebookStaleness(
   // Baseline set B from the current registry rows. Fail-closed admission:
   // a row whose identity is not a resolvable exact commit is a sentinel.
   const baseline: Array<{ result_id: string; commit: string | null; sentinel: boolean; untracked_qualified: boolean }> = [];
+  // Design D5's fail-closed admission includes "whose registry line is
+  // malformed": a table line the parser could not see may BE a current row,
+  // so its mere existence blocks unqualified currency — a sentinel with no
+  // commit keeps every stamped section at `incomparable` until repaired.
+  if (registry.issues.some(entry => entry.code === 'malformed_result_row')) {
+    baseline.push({
+      result_id: '(malformed registry line)', commit: null, sentinel: true, untracked_qualified: false,
+    });
+  }
   for (const row of registry.current) {
     const known = ledger.runs.get(row.run_id);
     const origin = known?.origin as unknown as Record<string, unknown> | null;
@@ -160,9 +169,11 @@ export function checkNotebookStaleness(
     };
 
     // Step 1: cited runs outrank commit currency.
-    const cites = CITES_PATTERN.exec(body);
-    if (cites) {
-      const citedIds = cites[1]!.split(',').map(id => id.trim()).filter(id => id.length > 0);
+    const citesMatches = [...body.matchAll(new RegExp(CITES_PATTERN.source, 'g'))];
+    if (citesMatches.length > 0) {
+      const citedIds = citesMatches
+        .flatMap(match => match[1]!.split(','))
+        .map(id => id.trim()).filter(id => id.length > 0);
       const dead = citedIds.find((id) => {
         const known = ledger.runs.get(id);
         return known !== undefined && known.validity !== 'active';
@@ -207,9 +218,19 @@ export function checkNotebookStaleness(
         stale = `stamp-behind: ${member.result_id}`;
         break; // worst outcome for this section is decided
       }
+      if (stampBehind === null) {
+        // A git FAILURE is not divergence — same class (incomparable), but
+        // the cause must say what actually happened.
+        incomparable = incomparable ?? `comparison-failed: ${member.result_id}`;
+        continue;
+      }
       const stampAhead = isAncestor(projectRoot, resolved, stamp);
       if (stampAhead === true) {
         if (member.untracked_qualified) untrackedQualified = true;
+        continue;
+      }
+      if (stampAhead === null) {
+        incomparable = incomparable ?? `comparison-failed: ${member.result_id}`;
         continue;
       }
       incomparable = incomparable ?? `diverged-history: ${member.result_id}`;

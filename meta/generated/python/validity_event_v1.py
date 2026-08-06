@@ -85,7 +85,7 @@ class Alignment(BaseModel):
     ambiguous_candidates: Annotated[
         list[AmbiguousCandidate] | None,
         Field(
-            description="Other commits sharing the boundary timestamp or competing branch tips; non-empty means the alignment choice was not unique."
+            description="Other commits sharing the exact boundary timestamp; non-empty means the alignment choice at that instant was not unique. (Cross-branch near-boundary competition is NOT enumerated here; the all_refs history_scope already marks the binding heuristic.)"
         ),
     ] = None
     history_scope: Annotated[

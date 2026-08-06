@@ -288,7 +288,7 @@ export interface RunOriginV1 {
      */
     nominal_timestamp?: boolean;
     /**
-     * Other commits sharing the boundary timestamp or competing branch tips; non-empty means the alignment choice was not unique.
+     * Other commits sharing the exact boundary timestamp; non-empty means the alignment choice at that instant was not unique. (Cross-branch near-boundary competition is NOT enumerated here; the all_refs history_scope already marks the binding heuristic.)
      */
     ambiguous_candidates?: string[];
     /**
