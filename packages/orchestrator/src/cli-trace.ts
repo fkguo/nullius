@@ -177,6 +177,17 @@ export function runTraceCommand(projectRoot: string, parsed: TraceParsed, io: Cl
         writeBytesAtomicDurable(mirrorPath, `${JSON.stringify(origin, null, 2)}\n`);
       } catch {
         mirrorWritten = false;
+        // Commit-uncertain: the atomic helper renames before its final
+        // durability step, so on failure the destination may already hold
+        // the new bytes. Best-effort restore either way — harmless when the
+        // rename never happened, and the only defense against clobbering a
+        // pre-existing legacy mirror with no ledger event behind it.
+        try {
+          if (previousMirror !== null) writeBytesAtomicDurable(mirrorPath, previousMirror);
+          else fs.rmSync(mirrorPath, { force: true });
+        } catch {
+          // Restore is best-effort; the divergence scan surfaces leftovers.
+        }
       }
       const payload = {
         ...(origin as unknown as Record<string, unknown>),
