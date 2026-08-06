@@ -44,7 +44,18 @@ export * from "./integrity-check-v1.js";
 export * from "./integrity-report-v1.js";
 export * from "./launch-authorization-v1.js";
 export * from "./memory-graph-edge-v1.js";
-export * from "./memory-graph-event-v1.js";
+export type {
+  EventType,
+  OutcomePayload,
+  MemoryGraphEventV1,
+  SignalPayload,
+  HypothesisPayload,
+  AttemptPayload,
+  ConfidenceEdgePayload,
+  ConfidenceGeneOutcomePayload,
+  ExternalCandidatePayload,
+  BlastRadiusSummary,
+} from "./memory-graph-event-v1.js";
 export type {
   NodeType,
   MemoryGraphNodeV1,
@@ -84,6 +95,7 @@ export type {
 export type { ResearchOutcomeV1 } from "./research-outcome-v1.js";
 export * from "./research-signal-v1.js";
 export * from "./research-strategy-v1.js";
+export type { RunOriginV1 } from "./run-origin-v1.js";
 export type { SanitizedCheckerEnvironmentV1 } from "./sanitized-checker-environment-v1.js";
 export * from "./skill-proposal-v2.js";
 export type {
@@ -114,6 +126,7 @@ export type {
 } from "./validation-chain-binding-v1.js";
 export type { ValidationCheckerRequestV1 } from "./validation-checker-request-v1.js";
 export * from "./validation-checker-verdict-v1.js";
+export type { ValidityEventV1 } from "./validity-event-v1.js";
 export type {
   VerificationCheckRunV1,
   DecisiveVerificationCheckRun,

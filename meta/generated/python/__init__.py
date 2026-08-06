@@ -40,6 +40,7 @@ from .research_loop_packet_v1 import *  # noqa: F401,F403
 from .research_outcome_v1 import *  # noqa: F401,F403
 from .research_signal_v1 import *  # noqa: F401,F403
 from .research_strategy_v1 import *  # noqa: F401,F403
+from .run_origin_v1 import *  # noqa: F401,F403
 from .sanitized_checker_environment_v1 import *  # noqa: F401,F403
 from .skill_proposal_v2 import *  # noqa: F401,F403
 from .step_execution_snapshot_v1 import *  # noqa: F401,F403
@@ -47,6 +48,7 @@ from .strategy_state_v1 import *  # noqa: F401,F403
 from .validation_chain_binding_v1 import *  # noqa: F401,F403
 from .validation_checker_request_v1 import *  # noqa: F401,F403
 from .validation_checker_verdict_v1 import *  # noqa: F401,F403
+from .validity_event_v1 import *  # noqa: F401,F403
 from .verification_check_run_v1 import *  # noqa: F401,F403
 from .verification_coverage_v1 import *  # noqa: F401,F403
 from .verification_subject_v1 import *  # noqa: F401,F403
