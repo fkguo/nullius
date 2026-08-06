@@ -56,11 +56,20 @@ export function runTraceCommand(projectRoot: string, parsed: TraceParsed, io: Cl
       }
       // Only the two run roots are stampable: a stamp elsewhere would land
       // in the ledger but be invisible to every directory scan — a record
-      // about a run the read model can never show is a silent hole.
-      const resolvedRunDir = path.resolve(runDir);
+      // about a run the read model can never show is a silent hole. The
+      // check is SYMLINK-RESOLVED on both sides, and a run directory that is
+      // itself a symlink is refused outright: the directory scan skips
+      // symlink entries, so stamping one would create the same invisible
+      // record through a side door.
+      if (fs.lstatSync(runDir).isSymbolicLink()) {
+        io.stderr(`trace stamp: ${parsed.target} is a symlink; run directories must be real directories under a run root\n`);
+        return 1;
+      }
+      const resolvedRunDir = fs.realpathSync(runDir);
       const inRunRoot = ['artifacts/runs', 'team/runs'].some((relRoot) => {
         const root = path.resolve(projectRoot, relRoot);
-        return path.dirname(resolvedRunDir) === root;
+        if (!fs.existsSync(root)) return false;
+        return path.dirname(resolvedRunDir) === fs.realpathSync(root);
       });
       if (!inRunRoot) {
         io.stderr(
@@ -99,8 +108,18 @@ export function runTraceCommand(projectRoot: string, parsed: TraceParsed, io: Cl
           io.stderr(`trace stamp: --event-id ${JSON.stringify(parsed.eventId)} is not a ULID\n`);
           return 1;
         }
-        const existing = readValidityLedger(projectRoot)
-          .events.find(event => event.event_id === parsed.eventId);
+        const ledgerView = readValidityLedger(projectRoot);
+        // Divergent ids are excluded from `events` by the reader's dedup —
+        // check the defect list too, or a divergent id would sail past this
+        // preflight into a mirror write before the append rejects it.
+        if (ledgerView.integrity_defects.some(defect => defect.event_id === parsed.eventId)) {
+          io.stderr(
+            `trace stamp: event ${parsed.eventId} is a ledger-integrity defect (divergent payloads); `
+            + 'repair the ledger and mint a fresh event id\n',
+          );
+          return 1;
+        }
+        const existing = ledgerView.events.find(event => event.event_id === parsed.eventId);
         if (existing) {
           if (existing.event !== 'stamp' || existing.run_id !== runId) {
             io.stderr(

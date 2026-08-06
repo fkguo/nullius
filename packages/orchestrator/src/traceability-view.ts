@@ -234,6 +234,11 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
   // heuristic or unbound stamp does not stop deserving its caveat because
   // someone removed the directory.
   for (const known of ledger.runs.values()) {
+    if (known.no_authoritative_identity && !noIdentity.includes(known.run_id)) {
+      // A quarantined run stays visible even when its directory is gone —
+      // the defect list must cover every run the ledger knows.
+      noIdentity.push(known.run_id);
+    }
     if (!known.stamped) continue;
     const originRecord = known.origin as unknown as Record<string, unknown> | null;
     const quality = originRecord && typeof originRecord.binding_quality === 'string'
@@ -243,6 +248,7 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
     if (known.conflicting_stamps) conflictingStamps.push(known.run_id);
   }
   conflictingStamps.sort();
+  noIdentity.sort();
 
   const manuscript = readManuscriptPointer(projectRoot);
 
@@ -320,10 +326,15 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
   let mergeUnionDeclared = false;
   try {
     const attributesPath = path.join(path.dirname(validityLedgerPath(projectRoot)), '.gitattributes');
+    // Exact token match: "merge=unionish" or a glob pattern that merely
+    // CONTAINS the token must not report the union driver as declared.
     mergeUnionDeclared = fs.existsSync(attributesPath)
       && fs.readFileSync(attributesPath, 'utf-8')
         .split('\n')
-        .some(line => line.trim().startsWith('validity_ledger.jsonl') && line.includes('merge=union'));
+        .some((line) => {
+          const fields = line.trim().split(/\s+/);
+          return fields[0] === 'validity_ledger.jsonl' && fields.includes('merge=union');
+        });
   } catch {
     mergeUnionDeclared = false;
   }
@@ -421,9 +432,12 @@ export function renderTraceabilityProse(view: TraceabilityView): string {
   lines.push('');
 
   lines.push('## Current manuscript');
-  if (view.manuscript.current_report_id) {
-    lines.push(`${view.manuscript.current_report_id} → ${view.manuscript.current_report_link ?? '(link missing)'} (structural validation via \`nullius report-validate\`).`);
+  if (view.manuscript.current_report_id && view.manuscript.current_report_link) {
+    lines.push(`${view.manuscript.current_report_id} → ${view.manuscript.current_report_link} (structural validation via \`nullius report-validate\`).`);
   } else {
+    // Any degraded pointer state (missing block, unparseable lines, none
+    // promoted, or a name without a link) renders through its unanswerable
+    // reason — the prose never presents a half-pointer as the current one.
     const clause = view.unanswerable.find(entry => entry.clause === 'current manuscript');
     lines.push(`Unanswerable: ${clause?.reason ?? 'no manuscript pointer found'}.`);
   }
