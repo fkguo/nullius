@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { writeBytesAtomicDurable, writeJsonAtomicDurable } from '@nullius/shared';
@@ -18,6 +19,7 @@ type InitOptions = {
   dryRun: boolean;
   runtimeOnly: boolean;
   mode: ExecutionMode | null;
+  noGit: boolean;
 };
 
 function parseExecutionMode(raw: string): ExecutionMode {
@@ -26,7 +28,7 @@ function parseExecutionMode(raw: string): ExecutionMode {
 }
 
 function parseInitArgs(args: string[]): InitOptions {
-  const options: InitOptions = { allowNested: false, checkpointIntervalSeconds: null, force: false, refresh: false, dryRun: false, runtimeOnly: false, mode: null };
+  const options: InitOptions = { allowNested: false, checkpointIntervalSeconds: null, force: false, refresh: false, dryRun: false, runtimeOnly: false, mode: null, noGit: false };
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index]!;
     const value = arg.startsWith('--checkpoint-interval-seconds=') ? arg.split('=', 2)[1] ?? '' : null;
@@ -36,6 +38,7 @@ function parseInitArgs(args: string[]): InitOptions {
     else if (arg === '--dry-run') options.dryRun = true;
     else if (arg === '--allow-nested') options.allowNested = true;
     else if (arg === '--runtime-only') options.runtimeOnly = true;
+    else if (arg === '--no-git') options.noGit = true;
     else if (arg === '--mode' || modeValue !== null) {
       const raw = modeValue ?? args[++index] ?? '';
       if (!raw || raw.startsWith('-')) throw new Error('missing value for --mode (engine or file)');
@@ -55,6 +58,76 @@ function parseInitArgs(args: string[]): InitOptions {
   if (options.refresh && options.runtimeOnly) throw new Error('--refresh cannot be combined with --runtime-only');
   if (options.dryRun && !options.refresh) throw new Error('--dry-run is only valid together with --refresh');
   return options;
+}
+
+/** D7: init owns git presence. On a full init of a non-repo root, bootstrap
+ *  a repository and commit the scaffold files only, announcing what happened;
+ *  with --no-git the opt-out is recorded and the status/current traceability
+ *  surface reports the unanswerable code-revision clause EVERY reconnect —
+ *  never a silent absence. runtime-only performs the presence CHECK and
+ *  prints the suggestion but creates nothing scaffold-owned. */
+function ensureGitPresence(
+  repoRoot: string,
+  options: InitOptions,
+  scaffold: ProjectScaffoldResult | null,
+  manager: StateManager,
+  io: CliIo,
+): void {
+  const git = (args: string[]): string => execFileSync('git', ['-C', repoRoot, ...args], {
+    encoding: 'utf-8', timeout: 30_000, stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  let insideWorkTree = false;
+  try {
+    insideWorkTree = git(['rev-parse', '--is-inside-work-tree']).trim() === 'true';
+  } catch {
+    insideWorkTree = false;
+  }
+  if (insideWorkTree) return;
+  if (options.runtimeOnly) {
+    io.stdout(
+      '[warn] this project root is not a git repository: results cannot be bound to an exact code '
+      + 'revision until one exists. Bootstrap with a full `nullius init` (or plain `git init`), '
+      + 'then backfill run bindings.\n',
+    );
+    return;
+  }
+  if (options.noGit) {
+    manager.appendLedger('git_bootstrap_declined', { details: { reason: '--no-git' } });
+    io.stdout(
+      '[ok] git bootstrap declined (--no-git); recorded. The status/current traceability surface '
+      + 'will report the code-revision clause as unanswerable on every reconnect. Record the '
+      + 'rationale durably with: nullius decision record "declined git bootstrap: <why>"\n',
+    );
+    return;
+  }
+  try {
+    git(['init', '-q']);
+    const scaffoldFiles = [
+      ...(scaffold?.created ?? []),
+      ...(scaffold?.refreshed ?? []),
+      ...(scaffold?.unchanged ?? []),
+    ].filter(rel => fs.existsSync(path.join(repoRoot, rel)));
+    if (scaffoldFiles.length > 0) {
+      git(['add', '--', ...scaffoldFiles]);
+      // Scaffold-only initial commit: research content the user already has
+      // in the directory stays untracked for their own explicit decision.
+      git([
+        '-c', 'user.name=nullius-init',
+        '-c', 'user.email=nullius-init@localhost',
+        'commit', '-q', '-m', 'chore: nullius project scaffold',
+      ]);
+    }
+    manager.appendLedger('git_bootstrap_completed', { details: { committed_files: scaffoldFiles.length } });
+    io.stdout(
+      `[ok] initialized a git repository (scaffold-only initial commit, ${scaffoldFiles.length} file(s)); `
+      + 'pre-existing research files stay untracked until you add them — an explicit track-or-ignore decision.\n',
+    );
+  } catch (error) {
+    io.stdout(
+      `[warn] git bootstrap failed (${error instanceof Error ? error.message.split('\n')[0] : String(error)}); `
+      + 'the project stays without a repository and the code-revision clause stays unanswerable.\n',
+    );
+  }
 }
 
 function findParentProjectRoot(start: string): string | null {
@@ -189,10 +262,12 @@ export async function runInitCommand(projectRoot: string | null, cwd: string, ar
   io.stdout(`[ok] wrote: ${harnessSentinelPath}\n`);
   io.stdout(`[ok] runtime dir: ${runtimeDir}\n`);
   if (options.runtimeOnly) {
+    ensureGitPresence(repoRoot, options, scaffold, manager, io);
     io.stdout(`[ok] project-local fallback launcher ready: ${projectLocalNulliusRelativePath()} (${launcher.launcher_mode})\n`);
     io.stdout('[ok] project scaffold skipped (--runtime-only)\n');
     return;
   }
+  ensureGitPresence(repoRoot, options, scaffold, manager, io);
   if (options.refresh) {
     emitRefreshSummary(io, scaffold!, false);
   } else if (scaffold && scaffold.created.length > 0) {

@@ -359,6 +359,16 @@ export function appendValidityEvent(
   if (!ULID_PATTERN.test(event.event_id)) {
     throw new Error(`event_id ${JSON.stringify(event.event_id)} is not a ULID`);
   }
+  // Writer-side schema gate (stage-2 acceptance hook, native r4 nb#1): the
+  // compiled validator that guards every read also guards the write, so a
+  // schema-invalid event is refused HERE instead of being appended and then
+  // permanently quarantined as a malformed line by every future reader.
+  if (!validateLedgerEvent(event as unknown as Record<string, unknown>)) {
+    throw new Error(
+      'event does not validate against validity_event_v1 (schema-compiled check); '
+      + 'refusing to append a line every reader would only quarantine',
+    );
+  }
   const ledgerPath = validityLedgerPath(projectRoot);
   // The lock file lives next to the ledger; on a project whose artifacts/runs
   // does not exist yet (e.g. only team/runs so far), the O_EXCL create would

@@ -96,6 +96,15 @@ describe('appendValidityEvent / readValidityLedger', () => {
     expect(view.runs.get(run)?.scoped_annotations[0]?.scope).toBe('budget_only');
   });
 
+  it('refuses schema-invalid events at the writer (stage-2 hook)', () => {
+    const emptyRunId = event({ event: 'void', run_id: 'placeholder' });
+    (emptyRunId as unknown as Record<string, unknown>).run_id = '';
+    expect(() => appendValidityEvent(projectRoot, emptyRunId)).toThrow(/schema-compiled/);
+    const emptyActor = { ...event({ event: 'void', run_id: 'r' }), actor: '' };
+    expect(() => appendValidityEvent(projectRoot, emptyActor)).toThrow(/schema-compiled/);
+    expect(fs.existsSync(validityLedgerPath(projectRoot))).toBe(false);
+  });
+
   it('is idempotent for the same event_id + payload and refuses divergent reuse', () => {
     const e = event({ event: 'void', run_id: 'r1' });
     expect(appendValidityEvent(projectRoot, e)).toBe('appended');

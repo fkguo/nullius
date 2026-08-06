@@ -66,6 +66,16 @@ export type ParsedCliArgs =
     deps: Record<string, string>;
   }
   | { command: 'current'; projectRoot: string | null; json: boolean }
+  | {
+    command: 'result';
+    projectRoot: string | null;
+    action: 'set-current';
+    resultId: string;
+    runId: string;
+    artifact: string;
+    description: string | null;
+    supersedes: string | null;
+  }
   | { command: 'report-validate'; projectRoot: string | null }
   | { command: 'pause'; projectRoot: string | null; note: string | null }
   | { command: 'resume'; projectRoot: string | null; note: string | null; force: boolean }
@@ -377,6 +387,57 @@ function parseProposalDecisionArgs(args: string[]): {
   if (!proposalId) throw new Error('proposal-decision requires --proposal-id <id>');
   if (!decision) throw new Error('proposal-decision requires --decision <accepted_for_later|dismissed|already_captured>');
   return { proposalKind, proposalId, decision, note };
+}
+
+function parseResultArgs(args: string[]): {
+  action: 'set-current';
+  resultId: string;
+  runId: string;
+  artifact: string;
+  description: string | null;
+  supersedes: string | null;
+} {
+  if (args[0] !== 'set-current') {
+    throw new Error('result requires an action: set-current');
+  }
+  let resultId: string | null = null;
+  let runId: string | null = null;
+  let artifact: string | null = null;
+  let description: string | null = null;
+  let supersedes: string | null = null;
+  for (let index = 1; index < args.length; index += 1) {
+    const arg = args[index]!;
+    if (arg === '--run') {
+      runId = readOptionValue(args, index, '--run');
+      index += 1;
+      continue;
+    }
+    if (arg === '--artifact') {
+      artifact = readOptionValue(args, index, '--artifact');
+      index += 1;
+      continue;
+    }
+    if (arg === '--description') {
+      description = readOptionValue(args, index, '--description');
+      index += 1;
+      continue;
+    }
+    if (arg === '--supersedes') {
+      supersedes = readOptionValue(args, index, '--supersedes');
+      index += 1;
+      continue;
+    }
+    if (arg.startsWith('--')) throw new Error(`unknown result argument: ${arg}`);
+    if (resultId === null) {
+      resultId = arg;
+      continue;
+    }
+    throw new Error(`unknown result argument: ${arg}`);
+  }
+  if (!resultId) throw new Error('result set-current requires a result id');
+  if (!runId) throw new Error('result set-current requires --run <run_id>');
+  if (!artifact) throw new Error('result set-current requires --artifact <path>');
+  return { action: 'set-current', resultId, runId, artifact, description, supersedes };
 }
 
 function parseTraceArgs(args: string[]): {
@@ -959,6 +1020,8 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
       return { command: 'trace', projectRoot, ...parseTraceArgs(rest) };
     case 'current':
       return { command: 'current', projectRoot, ...parseStatusArgs(rest) };
+    case 'result':
+      return { command: 'result', projectRoot, ...parseResultArgs(rest) };
     case 'report-validate':
       if (rest.length > 0) throw new Error(`unknown report-validate argument: ${rest[0]}`);
       return { command: 'report-validate', projectRoot };
