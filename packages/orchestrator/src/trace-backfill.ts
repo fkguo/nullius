@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { mintUlid } from '@nullius/shared';
+import { mintUlid, writeBytesAtomicDurable } from '@nullius/shared';
 import type { ValidityEventV1 } from '@nullius/shared';
 import {
   appendValidityEvent,
@@ -172,7 +172,7 @@ export function backfillRunOrigins(projectRoot: string): {
     const previousMirror = fs.existsSync(mirrorPath) ? fs.readFileSync(mirrorPath, 'utf-8') : null;
     let mirrorWritten = true;
     try {
-      fs.writeFileSync(mirrorPath, `${JSON.stringify(payload, null, 2)}\n`);
+      writeBytesAtomicDurable(mirrorPath, `${JSON.stringify(payload, null, 2)}\n`);
     } catch {
       mirrorWritten = false;
       payload.run_dir_unwritable = true;
@@ -186,8 +186,13 @@ export function backfillRunOrigins(projectRoot: string): {
       }));
     } catch (error) {
       if (mirrorWritten) {
-        if (previousMirror !== null) fs.writeFileSync(mirrorPath, previousMirror);
-        else fs.rmSync(mirrorPath, { force: true });
+        try {
+          if (previousMirror !== null) writeBytesAtomicDurable(mirrorPath, previousMirror);
+          else fs.rmSync(mirrorPath, { force: true });
+        } catch {
+          // A failing restore must not mask the append error; the
+          // divergence scan surfaces the leftover mirror on the next read.
+        }
       }
       throw error;
     }

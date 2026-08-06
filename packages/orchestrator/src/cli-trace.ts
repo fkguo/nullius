@@ -2,7 +2,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import type { ValidityEventV1 } from '@nullius/shared';
-import { mintUlid, ULID_PATTERN } from '@nullius/shared';
+import { mintUlid, ULID_PATTERN, writeBytesAtomicDurable } from '@nullius/shared';
 import { appendValidityEvent, buildValidityEvent, readValidityLedger } from './validity-ledger.js';
 import { captureRunOrigin } from './run-origin.js';
 import { buildTraceabilityView, renderTraceabilityProse } from './traceability-view.js';
@@ -174,7 +174,7 @@ export function runTraceCommand(projectRoot: string, parsed: TraceParsed, io: Cl
       const previousMirror = fs.existsSync(mirrorPath) ? fs.readFileSync(mirrorPath, 'utf-8') : null;
       let mirrorWritten = true;
       try {
-        fs.writeFileSync(mirrorPath, `${JSON.stringify(origin, null, 2)}\n`);
+        writeBytesAtomicDurable(mirrorPath, `${JSON.stringify(origin, null, 2)}\n`);
       } catch {
         mirrorWritten = false;
       }
@@ -198,8 +198,13 @@ export function runTraceCommand(projectRoot: string, parsed: TraceParsed, io: Cl
         // No orphan and no clobber: a mirror this invocation created is
         // removed; a pre-existing one is restored to its prior content.
         if (mirrorWritten) {
-          if (previousMirror !== null) fs.writeFileSync(mirrorPath, previousMirror);
-          else fs.rmSync(mirrorPath, { force: true });
+          try {
+            if (previousMirror !== null) writeBytesAtomicDurable(mirrorPath, previousMirror);
+            else fs.rmSync(mirrorPath, { force: true });
+          } catch {
+            // A failing restore must not mask the append error; the
+            // divergence scan surfaces the leftover mirror on the next read.
+          }
         }
         throw error;
       }
