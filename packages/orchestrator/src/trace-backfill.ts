@@ -51,7 +51,7 @@ function readCommitTimeline(projectRoot: string): CommitPoint[] | null {
   try {
     const output = execFileSync(
       'git',
-      ['--no-optional-locks', '-C', projectRoot, 'log', '--all', '--format=%H %ct'],
+      ['--no-optional-locks', '-C', projectRoot, 'log', '--exclude=refs/nullius/*', '--exclude=refs/stash', '--all', '--format=%H %ct'],
       { encoding: 'utf-8', timeout: 60_000, stdio: ['ignore', 'pipe', 'ignore'] },
     );
     const points: CommitPoint[] = [];

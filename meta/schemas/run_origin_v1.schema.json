@@ -153,7 +153,7 @@
             "type": "string",
             "pattern": "^[0-9a-f]{40}$"
           },
-          "description": "Other commits sharing the boundary timestamp or competing branch tips; non-empty means the alignment choice was not unique."
+          "description": "Other commits sharing the exact boundary timestamp; non-empty means the alignment choice at that instant was not unique. (Cross-branch near-boundary competition is NOT enumerated here; the all_refs history_scope already marks the binding heuristic.)"
         },
         "history_scope": {
           "type": "string",

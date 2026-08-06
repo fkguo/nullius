@@ -16,7 +16,7 @@ import {
 import { checkNotebookStaleness } from '../src/notebook-staleness.js';
 import { buildTraceabilityView, renderTraceabilityProse } from '../src/traceability-view.js';
 import { captureRunOrigin } from '../src/run-origin.js';
-import { setCurrentResult } from '../src/result-registry.js';
+import { checkChains, setCurrentResult, validateResultRegistry, type ResultRegistryRow } from '../src/result-registry.js';
 
 let projectRoot: string;
 
@@ -325,6 +325,115 @@ describe('stage-3 r1 review locks', () => {
     mkRun('legacy-unwritable');
     const view2 = buildTraceabilityView(projectRoot);
     expect(view2.warnings.mirror_divergence).not.toContain('legacy-unwritable');
+  });
+});
+
+describe('stage-3 r1 native-seat locks', () => {
+  it('a malformed registry line contributes a sentinel: no unqualified current over a corrupt registry', () => {
+    initRepo(projectRoot);
+    const c1 = commitAt(projectRoot, '2026-08-01T10:00:00Z', 'a.txt');
+    fs.writeFileSync(path.join(projectRoot, 'project_index.md'), [
+      '<!-- RESULT_REGISTRY_START -->',
+      '| Result ID | Description & artifact | Artifact SHA-256 | Current run | Supersedes | Superseded by |',
+      '|---|---|---|---|---|---|',
+      '| `broken` | too | many | cells | in | this | row |',
+      '<!-- RESULT_REGISTRY_END -->',
+    ].join('\n'));
+    fs.writeFileSync(path.join(projectRoot, 'research_notebook.md'), [
+      '# N', '## Section', `<!-- written-against: ${c1} -->`, 'text',
+    ].join('\n'));
+    const report = checkNotebookStaleness(projectRoot);
+    expect(report.sections[0]!.class).toBe('incomparable');
+    expect(report.sections[0]!.cause).toContain('unbindable-result-row');
+  });
+
+  it('snapshot-marker mismatch between row and stamp is a reported issue', () => {
+    initRepo(projectRoot);
+    fs.writeFileSync(path.join(projectRoot, '.gitignore'), 'artifacts/\n');
+    commitAt(projectRoot, '2026-08-01T10:00:00Z', 'a.txt');
+    mkRun('run-1');
+    const origin = captureRunOrigin(projectRoot, 'run-1'); // clean → no snapshot
+    appendValidityEvent(projectRoot, buildValidityEvent({
+      event: 'stamp', run_id: 'run-1', actor: 't', reason: null,
+      event_id: (origin as { event_id: string }).event_id,
+      stamp: origin as ValidityEventV1['stamp'],
+    }));
+    fs.writeFileSync(path.join(projectRoot, 'artifacts', 'runs', 'run-1', 'v.json'), '{}');
+    fs.writeFileSync(path.join(projectRoot, 'project_index.md'), [
+      '<!-- RESULT_REGISTRY_START -->',
+      '| Result ID | Description & artifact | Artifact SHA-256 | Current run | Supersedes | Superseded by |',
+      '|---|---|---|---|---|---|',
+      '<!-- RESULT_REGISTRY_END -->',
+    ].join('\n'));
+    setCurrentResult(projectRoot, { resultId: 'r', runId: 'run-1', artifactRelPath: 'artifacts/runs/run-1/v.json' });
+    // Hand-add a spurious +snapshot marker to the run cell.
+    const indexPath = path.join(projectRoot, 'project_index.md');
+    const text = fs.readFileSync(indexPath, 'utf-8');
+    fs.writeFileSync(indexPath, text.replace(/(@ [0-9a-f]{12})`/, '$1+snapshot`'));
+    const state = validateResultRegistry(projectRoot);
+    expect(state.issues.some(entry => entry.code === 'result_row_snapshot_marker_mismatch')).toBe(true);
+  });
+
+  it('the clean prefix chained into a cycle is marked defective too', () => {
+    // Pure-function fixture: no other per-row defect can mask the
+    // prefix-marking path (the integration fixture's artifact-missing issue
+    // did exactly that in the first mutation round).
+    const row = (id: string, supersedes: string, supersededBy: string): ResultRegistryRow => ({
+      result_id: id, description: `[${id}](x.md)`, artifact_target: 'x.md',
+      artifact_sha256: '0'.repeat(64), run_id: `run-${id}`, effective_commit: null,
+      has_snapshot: false, supersedes, superseded_by: supersededBy,
+    });
+    const issues: Array<{ code: string; message: string; path: string }> = [];
+    const defective = new Set<string>();
+    checkChains([row('e', 'c', 'none'), row('c', 'd', 'e'), row('d', 'c', 'c')], issues, defective);
+    expect(issues.some(entry => entry.code === 'cyclic_result_supersession')).toBe(true);
+    expect(defective.has('e')).toBe(true);
+  });
+
+  it('carried-forward multi-link descriptions are refused on update', () => {
+    initRepo(projectRoot);
+    fs.writeFileSync(path.join(projectRoot, '.gitignore'), 'artifacts/\n');
+    commitAt(projectRoot, '2026-08-01T10:00:00Z', 'a.txt');
+    for (const runId of ['run-1', 'run-2']) {
+      mkRun(runId);
+      const origin = captureRunOrigin(projectRoot, runId);
+      appendValidityEvent(projectRoot, buildValidityEvent({
+        event: 'stamp', run_id: runId, actor: 't', reason: null,
+        event_id: (origin as { event_id: string }).event_id,
+        stamp: origin as ValidityEventV1['stamp'],
+      }));
+      fs.writeFileSync(path.join(projectRoot, 'artifacts', 'runs', runId, 'v.json'), '{}');
+    }
+    fs.writeFileSync(path.join(projectRoot, 'project_index.md'), [
+      '<!-- RESULT_REGISTRY_START -->',
+      '| Result ID | Description & artifact | Artifact SHA-256 | Current run | Supersedes | Superseded by |',
+      '|---|---|---|---|---|---|',
+      '<!-- RESULT_REGISTRY_END -->',
+    ].join('\n'));
+    setCurrentResult(projectRoot, { resultId: 'r', runId: 'run-1', artifactRelPath: 'artifacts/runs/run-1/v.json' });
+    // Hand-edit a second link into the description cell.
+    const indexPath = path.join(projectRoot, 'project_index.md');
+    const text = fs.readFileSync(indexPath, 'utf-8');
+    fs.writeFileSync(indexPath, text.replace('[r](artifacts/runs/run-1/v.json)', '[r](artifacts/runs/run-1/v.json) and [x](other.md)'));
+    expect(() => setCurrentResult(projectRoot, {
+      resultId: 'r', runId: 'run-2', artifactRelPath: 'artifacts/runs/run-2/v.json',
+    })).toThrow(/at most one link/);
+  });
+
+  it('the alignment timeline excludes the machinery refs (no self-alignment to pinned snapshots)', () => {
+    initRepo(projectRoot);
+    commitAt(projectRoot, '2026-08-01T10:00:00Z', 'a.txt');
+    // Pin a much-later commit under the machinery namespace; alignment must
+    // NOT see it.
+    const later = commitAt(projectRoot, '2026-08-05T10:00:00Z', 'b.txt');
+    execFileSync('git', ['-C', projectRoot, 'update-ref', 'refs/nullius/runs/other-run', later]);
+    execFileSync('git', ['-C', projectRoot, 'reset', '-q', '--hard', 'HEAD~1']);
+    // The later commit survives only via the machinery ref now.
+    mkRun('20260806T121530Z-m1-alpha-r1');
+    backfillRunOrigins(projectRoot);
+    const view = readValidityLedger(projectRoot);
+    const origin = view.runs.get('20260806T121530Z-m1-alpha-r1')!.origin as unknown as Record<string, unknown>;
+    expect(origin.aligned_commit).not.toBe(later);
   });
 });
 

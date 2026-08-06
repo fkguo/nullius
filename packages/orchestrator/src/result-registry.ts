@@ -150,7 +150,7 @@ export function parseResultRegistry(projectRoot: string): ResultRegistryState {
  *  exactly one head (superseded_by = none). A hand-edited cycle otherwise
  *  validates with zero issues, zero current rows, and the surface saying
  *  "no result registered" — a misdiagnosis. */
-function checkChains(rows: ResultRegistryRow[], issues: ResultRegistryIssue[], defective?: Set<string>): void {
+export function checkChains(rows: ResultRegistryRow[], issues: ResultRegistryIssue[], defective?: Set<string>): void {
   const byId = new Map(rows.map(row => [row.result_id, row]));
   // Cycle detection runs on the FORWARD `supersedes` pointers alone — the
   // reverse column can be incomplete on a hand-edited registry, and a cycle
@@ -166,9 +166,12 @@ function checkChains(rows: ResultRegistryRow[], issues: ResultRegistryIssue[], d
       if (state === 'done') break;
       if (state === 'walking') {
         // Everything from the first occurrence of cursor in the trail on is
-        // the cycle proper.
+        // the cycle proper; the PREFIX that walked into it is defective too
+        // (carried stage-2 hook) — a clean-looking head chained onto a
+        // cyclic lineage must not render as a trustworthy current result.
         const cycleStart = trail.indexOf(cursor.result_id);
         for (const id of trail.slice(cycleStart)) cyclicIds.add(id);
+        for (const id of trail.slice(0, cycleStart)) defective?.add(id);
         break;
       }
       walkState.set(cursor.result_id, 'walking');
@@ -350,6 +353,17 @@ export function validateResultRegistry(
       if (row.effective_commit && effective && !effective.startsWith(row.effective_commit)) {
         state.issues.push(issue('result_run_commit_mismatch', `${row.result_id} records commit ${row.effective_commit} but the run's stamp says ${effective.slice(0, 12)}`));
       }
+      // Snapshot-marker fidelity (carried stage-2 hook): the row's +snapshot
+      // marker must agree with the stamp — a hand-dropped marker renders a
+      // dirty-snapshot identity as plain HEAD, a spurious one claims a
+      // snapshot that never existed. Either direction is the D4 conflation.
+      const stampHasSnapshot = typeof (known.origin as unknown as Record<string, unknown> | null)?.snapshot_commit === 'string';
+      if (row.effective_commit !== null && row.has_snapshot !== stampHasSnapshot) {
+        state.issues.push(issue(
+          'result_row_snapshot_marker_mismatch',
+          `${row.result_id}'s run cell ${row.has_snapshot ? 'carries' : 'lacks'} the +snapshot marker but the stamp ${stampHasSnapshot ? 'records a snapshot commit' : 'records none'}`,
+        ));
+      }
     }
     markIfGrew(row, before);
   }
@@ -486,6 +500,16 @@ export function setCurrentResult(
       description = `${input.description} — [artifact](${input.artifactRelPath})`;
     }
   } else if (existing) {
+    // Carried-forward descriptions obey the same one-link rule as provided
+    // ones — a hand-edited second link would ride along re-emitted and
+    // unvouched (the hash column vouches only for the first).
+    const carriedLinks = [...existing.description.matchAll(new RegExp(MARKDOWN_LINK.source, 'g'))];
+    if (carriedLinks.length > 1) {
+      throw new Error(
+        `${input.resultId}'s existing description carries ${carriedLinks.length} Markdown links; `
+        + 'pass an explicit --description with at most one link (the hashed artifact)',
+      );
+    }
     description = existing.description.replace(/\]\([^)]*\)/, `](${input.artifactRelPath})`);
   } else {
     description = `[${input.resultId}](${input.artifactRelPath})`;
