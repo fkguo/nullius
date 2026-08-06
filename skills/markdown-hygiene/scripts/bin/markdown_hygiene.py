@@ -38,6 +38,33 @@ CODE_MATH_RATIO_RE = re.compile(r"^[A-Za-z](?:_[A-Za-z]+|\d+)?/[A-Za-z](?:_[A-Za
 CODE_MATH_OPERATOR_RE = re.compile(r"(?:<->|->|<-|<=>|=>|<=|>=|[+*^=]|≈|≃|≲|≳|≤|≥|±|×|·|√|→|←|↔)")
 CODE_ESCAPE_RE = re.compile(r"\\[ntr0abfv]$")
 UNESCAPED_PIPE_RE = re.compile(r"(?<!\\)\|")
+# A bare | inside math is fragile wherever it appears, not only in a table
+# row: it collides with the Markdown table-cell separator the moment the
+# formula is moved or wrapped into a table, and renderers disagree about it
+# even outside tables. Every bar role has a named command that carries its
+# own spacing and never collides.
+BARE_PIPE_IN_MATH_MESSAGE = (
+    r"bare | inside math is fragile and collides with Markdown table cells; "
+    r"use \lvert...\rvert (absolute value), \lVert...\rVert (norm), "
+    r"\mid (such-that bar), or \vert / \middle\vert / \big\vert (sized and "
+    r"evaluation bars)"
+)
+# Column specifications are the one place a literal | is a column rule
+# rather than a delimiter, and none of the named commands is valid there —
+# the rule must not demand LaTeX that cannot compile. Each environment
+# family is matched with its OWN argument grammar: array takes a single
+# braced specification, while tabularx / tabular* take the width FIRST and
+# an optional position AFTER it. A shared "optional width" group was worse
+# than no exemption: it read array's sole argument as a width and the next
+# braced group as the specification, masking a real pipe in cell content.
+_BRACED_ARG = r"\{(?:[^{}]|\{[^{}]*\})*\}"
+_POS_ARG = r"(?:\s*\[[^\]]*\])?"
+MATH_COLUMN_SPEC_RE = re.compile(
+    rf"\\begin\{{(?:array|subarray|array\*)\}}{_POS_ARG}\s*{_BRACED_ARG}"
+    rf"|\\begin\{{(?:tabularx|tabular\*)\}}\s*{_BRACED_ARG}{_POS_ARG}\s*{_BRACED_ARG}"
+    rf"|\\begin\{{tabular\}}{_POS_ARG}\s*{_BRACED_ARG}"
+    rf"|\\multicolumn\s*{_BRACED_ARG}\s*{_BRACED_ARG}"
+)
 UNESCAPED_ASTERISK_RE = re.compile(r"(?<!\\)\*")
 GFM_FRAGILE_BAR_RE = re.compile(r"\\bar\{[^{}]+}\s*_[A-Za-z]")
 HTML_LINK_RE = re.compile(r"<a\s+[^>]*href=[\"']([^\"']+)[\"']", re.IGNORECASE)
@@ -133,6 +160,38 @@ def split_inline_code_segments(line: str) -> Iterable[tuple[str, bool]]:
         end += tick_count
         yield line[start:end], True
         cursor = end
+
+
+def strip_math_column_specs(content: str) -> str:
+    """Blank out array/tabular column specifications so their column rules
+    are not read as absolute-value bars."""
+    return MATH_COLUMN_SPEC_RE.sub(lambda m: " " * len(m.group(0)), content)
+
+
+def has_bare_pipe(content: str, *, exempt_column_specs: bool = True) -> bool:
+    r"""True when an unescaped | survives.
+
+    Backslash parity matters: in ``\|`` the pipe is escaped, but in ``\\|``
+    the ``\\`` is a TeX line break and the pipe that follows is genuinely
+    bare — a lookbehind for a single backslash cannot tell the two apart.
+
+    ``exempt_column_specs`` is for prose math, where a column rule is a
+    column rule. It must be FALSE inside a Markdown table cell: there every
+    unescaped pipe ends the cell, so a column rule truncates the formula
+    exactly like any other bare pipe, and the honest advice is to move the
+    formula out of the table rather than to rewrite the rule.
+    """
+    text = strip_math_column_specs(content) if exempt_column_specs else content
+    index = 0
+    while index < len(text):
+        char = text[index]
+        if char == "\\":
+            index += 2
+            continue
+        if char == "|":
+            return True
+        index += 1
+    return False
 
 
 def parse_inline_code_span(segment: str) -> tuple[str, str] | None:
@@ -689,12 +748,19 @@ def check_table_math_pipes_in_file(path: Path, text: str) -> list[HygieneIssue]:
             if is_inline_code:
                 continue
             for _, _, content, _ in iter_inline_math_contents(segment):
-                if UNESCAPED_PIPE_RE.search(content):
+                # Same predicate as the general rule: backslash parity and
+                # column-spec exemption. Two rules judging the same hazard by
+                # two different definitions of "escaped" left a seam where a
+                # bare pipe after a TeX line break was reported by neither.
+                if has_bare_pipe(content, exempt_column_specs=False):
                     issues.append(
                         HygieneIssue(
                             path,
                             line_number,
-                            r"literal pipe inside table math can break Markdown tables; use \mid, \lvert/\rvert, or \lVert/\rVert",
+                            r"literal pipe inside table math can break Markdown tables; use \mid, "
+                            r"\lvert/\rvert, or \lVert/\rVert — and for an array/tabular column "
+                            r"rule, where none of those is valid LaTeX, move the formula out of "
+                            r"the table into a display block",
                         )
                     )
     return issues
@@ -702,6 +768,9 @@ def check_table_math_pipes_in_file(path: Path, text: str) -> list[HygieneIssue]:
 
 def check_github_math_in_file(path: Path, text: str) -> list[HygieneIssue]:
     issues: list[HygieneIssue] = []
+    # Table lines carry the stricter table-specific pipe message from
+    # check_table_math_pipes_in_file; reporting both there would be noise.
+    table_lines = collect_markdown_table_lines(text)
     in_display_math = False
     for line_number, (line, in_code_block) in enumerate(split_fenced_lines(text), start=1):
         if in_code_block:
@@ -711,6 +780,8 @@ def check_github_math_in_file(path: Path, text: str) -> list[HygieneIssue]:
                 issues.append(HygieneIssue(path, line_number, r"raw * inside display math may break GitHub math; use \ast"))
             if GFM_FRAGILE_BAR_RE.search(line):
                 issues.append(HygieneIssue(path, line_number, r"\bar{...}_... can be fragile in GitHub math; prefer \bar X_..."))
+            if has_bare_pipe(line):
+                issues.append(HygieneIssue(path, line_number, BARE_PIPE_IN_MATH_MESSAGE))
             in_display_math = display_math_state_after_line(line, in_display_math)
             continue
         if is_display_math_boundary(line):
@@ -725,6 +796,8 @@ def check_github_math_in_file(path: Path, text: str) -> list[HygieneIssue]:
                     issues.append(HygieneIssue(path, line_number, r"raw * inside Markdown math may break GitHub math; use \ast"))
                 if GFM_FRAGILE_BAR_RE.search(content):
                     issues.append(HygieneIssue(path, line_number, r"\bar{...}_... can be fragile in GitHub math; prefer \bar X_..."))
+                if line_number not in table_lines and has_bare_pipe(content):
+                    issues.append(HygieneIssue(path, line_number, BARE_PIPE_IN_MATH_MESSAGE))
                 if delimiter == "$" and end < len(segment) and segment[end] == ")":
                     issues.append(
                         HygieneIssue(
