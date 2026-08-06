@@ -52,6 +52,10 @@ authority, research-team as the milestone executor, and fold stable results back
 research_contract.md, research_plan.md#Current Status, and artifacts/runs/<run_id>/.
 Promote a complete immutable report through project_index.md#Main research report,
 then run: nullius report-validate
+Stamp each run's code origin at creation with: nullius trace stamp <run_id>
+Record replacements with: nullius trace supersede <old> --by <new> --reason "..."
+Register headline results with: nullius result set-current <result-id> --run <run_id> --artifact <path>
+Read the whole current-version answer as prose with: nullius current
 Declare (or re-declare) where project truth lives with: nullius init --mode=engine|file
 (file mode: work executed by hand or external runners; run_status staying idle is normal)
 Record decisions made in conversation with: nullius decision record "<what was decided>"
