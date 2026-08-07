@@ -76,6 +76,15 @@ export type ParsedCliArgs =
     description: string | null;
     supersedes: string | null;
   }
+  | {
+    command: 'release';
+    projectRoot: string | null;
+    targetDir: string;
+    commit: string | null;
+    tag: string | null;
+    actor: string | null;
+    dryRun: boolean;
+  }
   | { command: 'report-validate'; projectRoot: string | null }
   | { command: 'pause'; projectRoot: string | null; note: string | null }
   | { command: 'resume'; projectRoot: string | null; note: string | null; force: boolean }
@@ -387,6 +396,47 @@ function parseProposalDecisionArgs(args: string[]): {
   if (!proposalId) throw new Error('proposal-decision requires --proposal-id <id>');
   if (!decision) throw new Error('proposal-decision requires --decision <accepted_for_later|dismissed|already_captured>');
   return { proposalKind, proposalId, decision, note };
+}
+
+function parseReleaseArgs(args: string[]): {
+  targetDir: string;
+  commit: string | null;
+  tag: string | null;
+  actor: string | null;
+  dryRun: boolean;
+} {
+  let targetDir: string | null = null;
+  let commit: string | null = null;
+  let tag: string | null = null;
+  let actor: string | null = null;
+  let dryRun = false;
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index]!;
+    if (arg === '--commit') {
+      commit = readOptionValue(args, index, '--commit');
+      index += 1;
+      continue;
+    }
+    if (arg === '--tag') {
+      tag = readOptionValue(args, index, '--tag');
+      index += 1;
+      continue;
+    }
+    if (arg === '--actor') {
+      actor = readOptionValue(args, index, '--actor');
+      index += 1;
+      continue;
+    }
+    if (arg === '--dry-run') {
+      dryRun = true;
+      continue;
+    }
+    if (arg.startsWith('--')) throw new Error(`unknown release option: ${arg}`);
+    if (targetDir !== null) throw new Error(`unexpected release argument: ${arg}`);
+    targetDir = arg;
+  }
+  if (!targetDir) throw new Error('release requires a target directory: nullius release <target-dir>');
+  return { targetDir, commit, tag, actor, dryRun };
 }
 
 function parseResultArgs(args: string[]): {
@@ -1037,6 +1087,8 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
       return { command: 'current', projectRoot, ...parseStatusArgs(rest) };
     case 'result':
       return { command: 'result', projectRoot, ...parseResultArgs(rest) };
+    case 'release':
+      return { command: 'release', projectRoot, ...parseReleaseArgs(rest) };
     case 'report-validate':
       if (rest.length > 0) throw new Error(`unknown report-validate argument: ${rest[0]}`);
       return { command: 'report-validate', projectRoot };
