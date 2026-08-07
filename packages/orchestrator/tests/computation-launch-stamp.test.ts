@@ -7,6 +7,7 @@ import { mintUlid } from '@nullius/shared';
 import type { ValidityEventV1 } from '@nullius/shared';
 import { executeComputationManifest } from '../src/computation/index.js';
 import { runTraceCommand } from '../src/cli-trace.js';
+import { mirrorRollbackAction } from '../src/run-stamp.js';
 import { appendValidityEvent, buildValidityEvent, readValidityLedger } from '../src/validity-ledger.js';
 import {
   cleanupRegisteredDirs,
@@ -315,5 +316,46 @@ describe('run identity and stamp idempotency hardening (review r1)', () => {
     expect(runTraceCommand(projectRoot, parsed, cliIo)).toBe(1);
     expect(io.err.join('')).toContain('DIFFERENT tracked code tree');
     expect(ledgerStampEvents(projectRoot, runId)).toHaveLength(1);
+  });
+});
+
+describe('confirmation-round regressions (review r2)', () => {
+  it('the identity check and the stamper agree under a symlinked project root', async () => {
+    const realRoot = makeTmpDir();
+    registerCleanup(realRoot);
+    initRepo(realRoot);
+    const linkRoot = `${realRoot}-link`;
+    fs.symlinkSync(realRoot, linkRoot);
+    registerCleanup(linkRoot);
+    const runDir = path.join(realRoot, 'artifacts', 'runs', 'run-B');
+    fs.mkdirSync(runDir, { recursive: true });
+    const manifestPath = stageComputation(runDir);
+    const manager = initRunState(linkRoot, 'run-A');
+    markA3Satisfied(manager, 'A3-0001');
+    commitAll(realRoot);
+
+    // projectRoot given through the symlink alias, runDir through the real
+    // path, runId mismatching the basename: the stamper's realpath predicate
+    // calls this INSIDE the run root, so the identity check must refuse it
+    // with the same resolution semantics — a lexical comparison here would
+    // wave it through and stamp run-B while the result records run-A.
+    await expect(
+      executeComputationManifest({ manifestPath, projectRoot: linkRoot, runDir, runId: 'run-A' }),
+    ).rejects.toThrow(/run_id must equal the run directory basename/);
+    expect(readValidityLedger(linkRoot).exists).toBe(false);
+  });
+
+  it('mirror rollback undoes only this invocation\'s bytes (a concurrent winner\'s mirror is left alone)', () => {
+    // Loser wrote OUR bytes and nothing changed since → roll back (remove
+    // what we created / restore what preceded us).
+    expect(mirrorRollbackAction('ours', 'ours', null)).toBe('remove');
+    expect(mirrorRollbackAction('ours', 'ours', 'previous')).toBe('restore_previous');
+    // The race winner replaced the mirror after us → leave the winner's
+    // file untouched (removing it would orphan a successful stamp that
+    // just reported mirror_written).
+    expect(mirrorRollbackAction('winners', 'ours', null)).toBe('leave');
+    expect(mirrorRollbackAction('winners', 'ours', 'previous')).toBe('leave');
+    // File vanished entirely → nothing of ours to undo.
+    expect(mirrorRollbackAction(null, 'ours', 'previous')).toBe('leave');
   });
 });

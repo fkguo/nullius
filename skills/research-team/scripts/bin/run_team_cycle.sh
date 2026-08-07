@@ -1102,7 +1102,7 @@ if [[ -x "${NULLIUS_LAUNCHER}" ]]; then
     echo "[trace] origin ${stamp_output}" | head -n 1
   else
     echo "[trace] WARNING: origin stamp failed for ${run_dir}: ${stamp_output}" >&2
-    echo "[trace] the run will appear unstamped in 'nullius current' until stamped by hand (nullius trace stamp '${run_dir_abs}')." >&2
+    echo "[trace] the run's origin record was NOT updated by this cycle — see the refusal above (an unstamped run can be stamped by hand: nullius trace stamp '${run_dir_abs}'; a stale stamp means this tag belongs to different code — use a fresh run id)." >&2
   fi
 else
   echo "[trace] note: no nullius launcher at .nullius/bin/nullius; run origin not stamped (enable with 'nullius init --runtime-only', then runs bind to code automatically)." >&2
@@ -3498,8 +3498,8 @@ else
     echo "2. Fill every disposition row (fix now / acceptance point <name> / discard: <reason>)"
     echo "3. Register the traceability updates the adjudication declares: \`nullius result set-current <result-id> --run <run_id> --artifact <path>\` (or declare \`none — <reason>\`), \`nullius trace supersede <old> --by <new> --reason \"...\"\` per replaced run, and a fresh \`<!-- written-against: <commit> -->\` stamp on each rewritten memo section"
     echo "4. Re-run both gates:"
-    echo "   python3 ${ADJUDICATION_COMPLETENESS_GATE} --convergence-json ${gate_json} --member-report ${member_a_out} --member-report ${member_b_out} --adjudication ${fold_adjudication_path}"
-    echo "   python3 ${CONVERGENCE_REGISTRATION_GATE} --convergence-json ${gate_json} --adjudication ${fold_adjudication_path} --project-root ${PROJECT_ROOT}"
+    echo "   python3 '${ADJUDICATION_COMPLETENESS_GATE}' --convergence-json '${gate_json}' --member-report '${member_a_out}' --member-report '${member_b_out}' --adjudication '${fold_adjudication_path}'"
+    echo "   python3 '${CONVERGENCE_REGISTRATION_GATE}' --convergence-json '${gate_json}' --adjudication '${fold_adjudication_path}' --project-root '${PROJECT_ROOT}'"
     echo "5. Then apply the plan/claim updates (update_research_plan_progress.py / claim auto-update)."
   } > "${pending_marker}"
   echo "[gate] NOTE: fold pending (dispositions and/or result registration) — automatic plan/claim fold withheld; see ${pending_marker}" >&2

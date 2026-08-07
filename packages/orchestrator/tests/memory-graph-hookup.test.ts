@@ -472,6 +472,11 @@ describe('memory-graph hookup', () => {
       }),
     });
     expect((proposal.evidence_traces as unknown[]).length).toBeGreaterThanOrEqual(3);
+    // Every emitted evidence path must exist on disk: a proposal whose
+    // traces point at a layout no writer uses is unauditable evidence.
+    for (const trace of proposal.evidence_traces as Array<{ file_path: string }>) {
+      expect(fs.existsSync(path.join(projectRoot, trace.file_path)), trace.file_path).toBe(true);
+    }
 
     const statusView = await handleOrchRunStatus({ project_root: projectRoot }) as Record<string, unknown>;
     expect(statusView.skill_proposal).toMatchObject({

@@ -3,6 +3,7 @@ import { invalidParams } from '@nullius/shared';
 import { prepareManifest } from './manifest.js';
 import { ensureA3Approval } from './approval.js';
 import { stampComputationLaunch } from './launch-stamp.js';
+import { isInsideStampableRoot } from '../run-stamp.js';
 import { runPreparedManifest } from './runner.js';
 import type {
   DryRunExecutionResult,
@@ -47,11 +48,11 @@ export async function executeComputationManifest(
   // validation being exactly what dry-run is for. OUTSIDE the run roots
   // (the MCP surface's free-location workspaces) no stamp is taken, no
   // directory-scan identity exists, and the names may legitimately differ.
-  const resolvedRunDir = path.resolve(input.runDir);
-  const runDirBasename = path.basename(resolvedRunDir);
-  const inStampableRoot = ['artifacts/runs', 'team/runs'].some(relRoot =>
-    path.dirname(resolvedRunDir) === path.resolve(input.projectRoot, relRoot));
-  if (inStampableRoot && runDirBasename !== input.runId) {
+  // Root membership uses the SAME symlink-resolved predicate as the stamp
+  // containment — two resolution semantics would let an aliased project
+  // root stamp a directory this check called outside.
+  const runDirBasename = path.basename(path.resolve(input.runDir));
+  if (isInsideStampableRoot(input.projectRoot, input.runDir) && runDirBasename !== input.runId) {
     throw invalidParams(
       'run_id must equal the run directory basename inside a run root (one run, one identity)',
       {

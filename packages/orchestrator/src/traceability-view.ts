@@ -672,10 +672,10 @@ export function renderTraceabilityProse(view: TraceabilityView): string {
         : ''}`);
   }
   for (const entry of view.runs.superseded.slice(0, 10)) {
-    lines.push(`- superseded: ${entry.run_id}${entry.by ? ` → ${entry.by}` : ''}${entry.reason ? ` (${entry.reason})` : ''}`);
+    lines.push(`- superseded: ${entry.run_id}${entry.directory_missing ? ' [directory removed]' : ''}${entry.by ? ` → ${entry.by}` : ''}${entry.reason ? ` (${entry.reason})` : ''}`);
   }
   for (const entry of view.runs.voided.slice(0, 10)) {
-    lines.push(`- void: ${entry.run_id}${entry.reason ? ` (${entry.reason})` : ''}`);
+    lines.push(`- void: ${entry.run_id}${entry.directory_missing ? ' [directory removed]' : ''}${entry.reason ? ` (${entry.reason})` : ''}`);
   }
   if (view.runs.no_authoritative_identity.length > 0) {
     lines.push(`- LEDGER INTEGRITY: ${view.runs.no_authoritative_identity.length} run(s) have divergent ledger events and no authoritative identity: ${view.runs.no_authoritative_identity.join(', ')}`);
