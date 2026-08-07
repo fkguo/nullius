@@ -241,6 +241,31 @@ the machine enforces structure and liveness:
 Hand edits stay legal; \`nullius status --json\` / \`nullius current\`
 validate the block either way.
 `,
+  release: `nullius release <target-dir> [--commit <sha>] [--tag <name>] [--actor <who>] [--dry-run]
+
+Export a public snapshot of the project's CODE at a chosen commit into an
+empty directory outside the project root, so it can seed a public repository
+whose history starts clean at version one. The internal repository keeps the
+full history; the exported commit gets a local tag (default public-vN,
+auto-incremented, never reused or moved) and the release is recorded on the
+decisions ledger — the mapping between public version and internal revision
+is pinned twice.
+
+Defaults to HEAD and then requires a clean working tree; --commit names any
+exact revision (including a run's snapshot commit) and skips that check.
+
+A fixed exclusion list keeps run products, machine state, and internal
+process files out of the export — and the receipt PRINTS which of them were
+actually present in the exported tree, so nothing is dropped silently:
+  artifacts/, team/runs/, .nullius/, host-agent dirs (.claude/ etc.),
+  research_plan.md, research_notebook.md, research_contract.md,
+  project_index.md, AGENTS.md, CLAUDE.md
+
+No network side effects: creating the public repository, adding a
+reader-facing README and LICENSE, and pushing remain explicit human steps
+(the receipt lists them). --dry-run previews the commit, tag, and
+exclusions without writing anything.
+`,
   approve: APPROVE_HELP,
   pause: PAUSE_HELP,
   resume: RESUME_HELP,
