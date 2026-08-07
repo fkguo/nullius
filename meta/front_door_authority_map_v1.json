@@ -53,6 +53,10 @@
           "usage": "nullius result set-current <result-id> --run <run_id> --artifact <path> [--description \"...\"] [--supersedes <result-id>]"
         },
         {
+          "command": "release",
+          "usage": "nullius release <target-dir> [--commit <sha>] [--tag <name>] [--actor <who>] [--dry-run]"
+        },
+        {
           "command": "approve",
           "usage": "nullius approve <approval_id> [--note \"...\"]"
         },
