@@ -1,11 +1,12 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { runDirFor } from '../run-paths.js';
 import type { RunState } from '../types.js';
 import { TeamExecutionStateManager } from '../team-execution-storage.js';
 import { buildTeamLiveStatusView } from '../team-execution-view.js';
 
 function expectsTeamState(projectRoot: string, runId: string): boolean {
-  const resultPath = path.join(projectRoot, runId, 'artifacts', 'computation_result_v1.json');
+  const resultPath = path.join(runDirFor(projectRoot, runId), 'artifacts', 'computation_result_v1.json');
   if (!fs.existsSync(resultPath)) {
     return false;
   }

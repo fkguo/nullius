@@ -1,6 +1,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { runDirFor } from '../run-paths.js';
 import type {
   ArtifactRefV1,
   ValidationChainBindingV1,
@@ -241,7 +242,7 @@ export async function handleOrchRunRecordVerification(
     });
   }
 
-  const runDir = path.join(projectRoot, params.run_id);
+  const runDir = runDirFor(projectRoot, params.run_id);
   const computationResultPath = path.join(runDir, 'artifacts', 'computation_result_v1.json');
   const subjectPath = path.join(runDir, 'artifacts', 'verification_subject_computation_result_v1.json');
   const subjectVerdictPath = path.join(runDir, 'artifacts', 'verification_subject_verdict_computation_result_v1.json');

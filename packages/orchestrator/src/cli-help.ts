@@ -44,7 +44,7 @@ Options:
 Behavior:
   Requires an initialized external project root (\`nullius init\`).
   Computation requests A3 approval when gate_satisfied.A3 is absent.
-  Computation stamps the run's code origin automatically at launch (after approval, before the first step) when the run dir sits under artifacts/runs/ or team/runs/; the outcome is reported as \`origin_stamp\` in the result and never blocks execution. A same-tree relaunch is not re-stamped; a relaunch on changed code reports \`stale_stamp\` and asks for a fresh run id.
+  Computation stamps the run's code origin automatically at launch (after approval, before the first step) when the run dir sits under artifacts/runs/ or team/runs/; the outcome is reported as \`origin_stamp\` in the result and never blocks execution. A same-tree relaunch is not re-stamped; a relaunch on changed code reports \`stale_stamp\` and asks for a fresh run id. Inside those run roots the directory basename must equal --run-id (one run, one identity).
   Persisted workflow-plan steps advance in a bounded loop until completion or a blocking failure is reached.
   A \`connection_scan\` step with an empty \`recids\` paper set is skipped with a structured no-input result instead of being reported as a tool failure.
   Workflow-step execution requires a configured local MCP stdio server via \`NULLIUS_RUN_MCP_COMMAND\`

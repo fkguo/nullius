@@ -337,3 +337,75 @@ def test_builder_template_carries_the_registration_section(tmp_path: Path) -> No
     from check_convergence_registration import extract_registration_section  # type: ignore
 
     assert extract_registration_section(text) is not None
+
+
+def test_backtick_wrapped_heading_containing_a_double_quote_passes(tmp_path: Path) -> None:
+    view = json.loads(json.dumps(DEFAULT_VIEW))
+    view["notebook"]["sections"].append(
+        {"heading": 'The "exact" spectrum', "class": "current", "cause": "stamp matches HEAD"}
+    )
+    body = GOOD_DECLARATION.replace(
+        '- Rewritten sections: "Spectrum results"',
+        '- Rewritten sections: `The "exact" spectrum`',
+    )
+    result = _run_gate(
+        _convergence_json(tmp_path),
+        _adjudication(tmp_path, body),
+        _project_root(tmp_path, view),
+    )
+    assert result.returncode == 0, result.stderr + result.stdout
+
+
+def test_headline_issue_match_is_word_bounded_not_substring(tmp_path: Path) -> None:
+    # An issue about result "m01-fit" must not trip the declaration of "m0".
+    view = json.loads(json.dumps(DEFAULT_VIEW))
+    view["results"]["current"].append(
+        {
+            "result_id": "m0",
+            "run_id": "20260808-m2-r010-final",
+            "effective_commit": "a" * 40,
+            "has_snapshot": False,
+            "artifact": "artifacts/runs/20260808-m2-r010-final/v.json",
+            "defective": False,
+        }
+    )
+    view["results"]["issues"] = [
+        {"code": "row_defect", "message": "registry row for m01-fit cites a voided run"},
+    ]
+    body = GOOD_DECLARATION.replace(
+        "- Headline result: binding-energy @ 20260808-m2-r010-final",
+        "- Headline result: m0 @ 20260808-m2-r010-final",
+    )
+    result = _run_gate(
+        _convergence_json(tmp_path),
+        _adjudication(tmp_path, body),
+        _project_root(tmp_path, view),
+    )
+    assert result.returncode == 0, result.stderr + result.stdout
+
+
+def test_duplicate_heading_with_one_stale_namesake_fails(tmp_path: Path) -> None:
+    view = json.loads(json.dumps(DEFAULT_VIEW))
+    view["notebook"]["sections"].append(
+        {"heading": "Spectrum results", "class": "stale", "cause": "stamp predates superseding run"}
+    )
+    result = _run_gate(
+        _convergence_json(tmp_path),
+        _adjudication(tmp_path, GOOD_DECLARATION),
+        _project_root(tmp_path, view),
+    )
+    assert result.returncode == 1
+    assert "namesake" in result.stderr
+
+
+def test_supersession_of_a_cleaned_up_run_directory_passes(tmp_path: Path) -> None:
+    # The view row carries directory_missing (ledger truth survives run-dir
+    # cleanup); the gate accepts the declared relation all the same.
+    view = json.loads(json.dumps(DEFAULT_VIEW))
+    view["runs"]["superseded"][0]["directory_missing"] = True
+    result = _run_gate(
+        _convergence_json(tmp_path),
+        _adjudication(tmp_path, GOOD_DECLARATION),
+        _project_root(tmp_path, view),
+    )
+    assert result.returncode == 0, result.stderr + result.stdout

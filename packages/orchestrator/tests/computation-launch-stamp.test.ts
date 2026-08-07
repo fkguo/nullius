@@ -3,8 +3,11 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { mintUlid } from '@nullius/shared';
+import type { ValidityEventV1 } from '@nullius/shared';
 import { executeComputationManifest } from '../src/computation/index.js';
-import { readValidityLedger } from '../src/validity-ledger.js';
+import { runTraceCommand } from '../src/cli-trace.js';
+import { appendValidityEvent, buildValidityEvent, readValidityLedger } from '../src/validity-ledger.js';
 import {
   cleanupRegisteredDirs,
   createManifest,
@@ -225,5 +228,92 @@ describe('computation front door launch stamp', () => {
     expect(stamp?.status).toBe('failed');
     expect(typeof stamp?.error).toBe('string');
     expect(fs.existsSync(path.join(runDir, 'computation', 'outputs', 'ok.json'))).toBe(true);
+  });
+});
+
+describe('run identity and stamp idempotency hardening (review r1)', () => {
+  it('refuses a runId that does not equal the run directory basename (one run, one identity)', async () => {
+    const projectRoot = makeTmpDir();
+    registerCleanup(projectRoot);
+    initRepo(projectRoot);
+    const runDir = path.join(projectRoot, 'artifacts', 'runs', 'run-B');
+    fs.mkdirSync(runDir, { recursive: true });
+    const manifestPath = stageComputation(runDir);
+    const manager = initRunState(projectRoot, 'run-A');
+    markA3Satisfied(manager, 'A3-0001');
+    commitAll(projectRoot);
+
+    await expect(
+      executeComputationManifest({ manifestPath, projectRoot, runDir, runId: 'run-A' }),
+    ).rejects.toThrow(/run_id must equal the run directory basename/);
+    // Dry-run is validation, so it refuses too.
+    await expect(
+      executeComputationManifest({ dryRun: true, manifestPath, projectRoot, runDir, runId: 'run-A' }),
+    ).rejects.toThrow(/run_id must equal the run directory basename/);
+    expect(readValidityLedger(projectRoot).exists).toBe(false);
+  });
+
+  it('appendValidityEvent onlyIfRunUnstamped skips inside the lock when a stamp exists', async () => {
+    const projectRoot = makeTmpDir();
+    registerCleanup(projectRoot);
+    const mk = (eventId: string) => buildValidityEvent({
+      event: 'stamp',
+      run_id: 'run-guarded',
+      actor: 't',
+      reason: null,
+      event_id: eventId,
+      stamp: {
+        schema_id: 'run_origin_v1',
+        event_id: eventId,
+        run_id: 'run-guarded',
+        captured_at_utc: '2026-08-08T00:00:00Z',
+        binding_quality: 'unbound',
+        baseline_commit: null,
+        dirty: { tracked_modified: 0, untracked_count: 0 },
+        no_repo_reason: 'test fixture',
+      } as ValidityEventV1['stamp'],
+    });
+    const first = mk(mintUlid());
+    expect(appendValidityEvent(projectRoot, first, { onlyIfRunUnstamped: true })).toBe('appended');
+    // A DIFFERENT stamp event for the same run is skipped by the guard…
+    expect(appendValidityEvent(projectRoot, mk(mintUlid()), { onlyIfRunUnstamped: true }))
+      .toBe('skipped_run_already_stamped');
+    // …while the crash-retry of the SAME event stays a no-op success.
+    expect(appendValidityEvent(projectRoot, first, { onlyIfRunUnstamped: true })).toBe('already_present');
+    const view = readValidityLedger(projectRoot);
+    expect(view.events.filter(e => e.event === 'stamp' && e.run_id === 'run-guarded')).toHaveLength(1);
+    expect(view.runs.get('run-guarded')?.conflicting_stamps).toBe(false);
+  });
+
+  it('the CLI verb is idempotent after a front-door auto-stamp: same tree exits 0 without a second event, changed tree refuses', async () => {
+    const projectRoot = makeTmpDir();
+    registerCleanup(projectRoot);
+    initRepo(projectRoot);
+    const runId = 'run-cli-idem';
+    const { runDir, manifestPath } = setupStampableRun(projectRoot, runId);
+    commitAll(projectRoot);
+    const first = await executeComputationManifest({ manifestPath, projectRoot, runDir, runId });
+    expect((first as { origin_stamp?: { status: string } }).origin_stamp?.status).toBe('stamped');
+
+    const io = { cwd: projectRoot, out: [] as string[], err: [] as string[] };
+    const cliIo = { cwd: projectRoot, stdout: (t: string) => io.out.push(t), stderr: (t: string) => io.err.push(t) };
+    const parsed = {
+      action: 'stamp' as const,
+      target: path.join('artifacts', 'runs', runId),
+      by: null, reason: null, scope: null, actor: 't', eventId: null, deps: {},
+    };
+    // Same tree: the manual follow-up an agent runs from the skill
+    // instruction is a benign no-op, not a conflicting-stamps factory.
+    expect(runTraceCommand(projectRoot, parsed, cliIo)).toBe(0);
+    expect(io.out.join('')).toContain('already stamped');
+    expect(ledgerStampEvents(projectRoot, runId)).toHaveLength(1);
+    expect(readValidityLedger(projectRoot).runs.get(runId)?.conflicting_stamps).toBe(false);
+
+    // Changed research code: the manual verb refuses instead of rebinding.
+    fs.writeFileSync(path.join(projectRoot, 'changed.py'), 'x = 1\n');
+    commitAll(projectRoot);
+    expect(runTraceCommand(projectRoot, parsed, cliIo)).toBe(1);
+    expect(io.err.join('')).toContain('DIFFERENT tracked code tree');
+    expect(ledgerStampEvents(projectRoot, runId)).toHaveLength(1);
   });
 });

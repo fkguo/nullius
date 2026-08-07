@@ -57,8 +57,13 @@ export type TraceabilityView = {
     /** Ledger events about run_ids with no directory on disk (renames,
      *  removals): reported, never silently dropped. */
     ledger_only_run_ids: string[];
-    superseded: Array<{ run_id: string; by: string | null; reason: string | null }>;
-    voided: Array<{ run_id: string; reason: string | null }>;
+    /** EVERY superseded relation the ledger records — including runs whose
+     *  directory is gone (cleaned up after replacement). A consumer
+     *  verifying "was old→new recorded?" must see the ledger truth, not a
+     *  directory-scan projection of it; rows without a directory carry the
+     *  marker instead of vanishing. */
+    superseded: Array<{ run_id: string; by: string | null; reason: string | null; directory_missing?: true }>;
+    voided: Array<{ run_id: string; reason: string | null; directory_missing?: true }>;
     no_authoritative_identity: string[];
   };
   ledger: {
@@ -271,6 +276,18 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
     if (known.no_authoritative_identity) noIdentity.push(entry.run_id);
   }
   const ledgerOnly = [...ledger.runs.keys()].filter(runId => !directoryIds.has(runId)).sort();
+  // Superseded/void relations are LEDGER truth: a run replaced and then
+  // cleaned off disk still was replaced — dropping its row because the
+  // directory scan cannot see it would make the relation unverifiable
+  // (and tempt a caller into appending a duplicate supersede event).
+  for (const runId of ledgerOnly) {
+    const known = ledger.runs.get(runId)!;
+    if (known.validity === 'superseded') {
+      superseded.push({ run_id: runId, by: known.superseded_by, reason: known.reason, directory_missing: true });
+    } else if (known.validity === 'void') {
+      voided.push({ run_id: runId, reason: known.reason, directory_missing: true });
+    }
+  }
 
   // Binding-quality distribution and stamp conflicts cover EVERY stamped run
   // the ledger knows — including ledger-only ids whose directory is gone. A
