@@ -1,7 +1,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import Ajv2020 from 'ajv/dist/2020.js';
-import { appendJsonlDurable, mintUlid, withLedgerLock, ULID_PATTERN } from '@nullius/shared';
+import { appendBytesDurable, appendJsonlDurable, mintUlid, withLedgerLock, writeBytesAtomicDurable, ULID_PATTERN } from '@nullius/shared';
 import type { ValidityEventV1 } from '@nullius/shared';
 import type { RunOriginV1 } from '@nullius/shared';
 import validityEventSchema from '../../../meta/schemas/validity_event_v1.schema.json' with { type: 'json' };
@@ -397,7 +397,7 @@ export function appendValidityEvent(
       // would corrupt both lines. Repair in place (append-only, inode kept).
       const text = fs.readFileSync(ledgerPath, 'utf-8');
       if (text.length > 0 && !text.endsWith('\n')) {
-        fs.appendFileSync(ledgerPath, '\n');
+        appendBytesDurable(ledgerPath, '\n');
       }
     }
     appendJsonlDurable(ledgerPath, event);
@@ -418,10 +418,10 @@ export function ensureLedgerMergeAttributes(projectRoot: string): void {
     if (fs.existsSync(attributesPath)) {
       const text = fs.readFileSync(attributesPath, 'utf-8');
       if (text.split('\n').some(existing => existing.trim().startsWith('validity_ledger.jsonl'))) return;
-      fs.appendFileSync(attributesPath, `${text.endsWith('\n') || text.length === 0 ? '' : '\n'}${line}\n`);
+      appendBytesDurable(attributesPath, `${text.endsWith('\n') || text.length === 0 ? '' : '\n'}${line}\n`);
       return;
     }
-    fs.writeFileSync(attributesPath, `${line}\n`);
+    writeBytesAtomicDurable(attributesPath, `${line}\n`);
   } catch {
     // Best-effort: an unwritable attributes file must not block the append;
     // without it a branch merge conflicts loudly instead of silently, which
