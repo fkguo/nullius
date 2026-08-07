@@ -1,10 +1,11 @@
+import { execFileSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import type { RunOriginV1, ValidityEventV1 } from '@nullius/shared';
 import { mintUlid, ULID_PATTERN, writeBytesAtomicDurable } from '@nullius/shared';
 import { appendValidityEvent, buildValidityEvent, readValidityLedger } from './validity-ledger.js';
-import { captureRunOrigin } from './run-origin.js';
+import { captureRunOrigin, isTraceabilityArtifactPath } from './run-origin.js';
 
 /** The actor recorded on ledger events when the caller has no better name:
  *  the OS user, matching what the hand-invoked CLI has always written. */
@@ -41,6 +42,12 @@ export type StampRunResult =
   | { kind: 'rejected'; message: string }
   /** --event-id preflight found the event already recorded for this run. */
   | { kind: 'already_recorded'; runId: string; eventId: string }
+  /** A stamp for this run (under a DIFFERENT event id) is already on the
+   *  ledger — one run id carries one stamp, so nothing was appended.
+   *  `recordedOrigin` is the authoritative stamp payload (null only when
+   *  the ledger line lacks one), for the caller to grade the current tree
+   *  against (same tree → benign no-op; different tree → stale). */
+  | { kind: 'run_already_stamped'; runId: string; recordedOrigin: RunOriginV1 | null }
   /** Capture ran and the ledger append completed (or found the identical
    *  line already present under the lock). */
   | {
@@ -56,6 +63,73 @@ export type StampRunResult =
  *  relative paths resolve against the PROJECT ROOT (not the shell cwd). */
 export function resolveStampTarget(projectRoot: string, target: string): string {
   return path.isAbsolute(target) ? target : path.resolve(projectRoot, target);
+}
+
+/** The commit whose TREE is the code a stamp describes: snapshot when
+ *  tracked files were dirty, else the baseline. Null for aligned/unbound
+ *  stamps (no exact identity to compare against). */
+export function stampedCodeCommit(origin: unknown): string | null {
+  const record = origin as Record<string, unknown> | null;
+  if (!record) return null;
+  if (record.binding_quality === 'aligned_heuristic' || record.binding_quality === 'unbound') return null;
+  const snapshot = typeof record.snapshot_commit === 'string' ? record.snapshot_commit : null;
+  const baseline = typeof record.baseline_commit === 'string' ? record.baseline_commit : null;
+  return snapshot ?? baseline;
+}
+
+/** Control-plane bookkeeping the execution machinery itself rewrites on
+ *  every launch (run state, the decision ledger, approval receipts under
+ *  .nullius/). Counting those as research-code drift would make EVERY
+ *  relaunch read as "different code" — the same self-referential noise the
+ *  untracked-side exclusion (isTraceabilityArtifactPath) already handles. */
+function isControlPlanePath(relativePath: string): boolean {
+  const normalized = relativePath.split('\\').join('/');
+  return normalized === '.nullius' || normalized.startsWith('.nullius/');
+}
+
+/** True when two stamped code identities differ ONLY in control-plane
+ *  bookkeeping — i.e. the RESEARCH code is the same tree. Throws when git
+ *  cannot compare the objects (e.g. a recorded commit missing from this
+ *  repository); callers map that to an explicit failure, never to "same". */
+export function sameResearchCode(projectRoot: string, commitA: string, commitB: string): boolean {
+  if (commitA === commitB) return true;
+  const diff = execFileSync(
+    'git',
+    ['--no-optional-locks', '-c', 'core.fsmonitor=false', '-C', projectRoot, 'diff', '--name-only', commitA, commitB],
+    { encoding: 'utf-8', timeout: 30_000, stdio: ['ignore', 'pipe', 'pipe'] },
+  );
+  return diff
+    .split('\n')
+    .map(line => line.trim())
+    .filter(line => line.length > 0)
+    .every(line => isControlPlanePath(line) || isTraceabilityArtifactPath(line));
+}
+
+export type ExistingStampGrade =
+  | { grade: 'same_tree'; bindingQuality: string }
+  | { grade: 'different_tree' };
+
+/** Grade an already-recorded stamp against the CURRENT tree: same research
+ *  code (a benign re-entry — nothing new to record) or a different tree
+ *  (the recorded stamp no longer describes what would run — the honest
+ *  response is a fresh run id, never a silent rebind). The probe is
+ *  read-only (pin:false). */
+export function gradeExistingStamp(
+  projectRoot: string,
+  runId: string,
+  recordedOrigin: RunOriginV1 | null,
+): ExistingStampGrade {
+  const probe = captureRunOrigin(projectRoot, runId, { pin: false });
+  const knownCommit = stampedCodeCommit(recordedOrigin);
+  const probeCommit = stampedCodeCommit(probe);
+  const same = knownCommit === null || probeCommit === null
+    ? knownCommit === probeCommit
+    : sameResearchCode(projectRoot, knownCommit, probeCommit);
+  if (same) {
+    const quality = (recordedOrigin as unknown as Record<string, unknown> | null)?.binding_quality;
+    return { grade: 'same_tree', bindingQuality: typeof quality === 'string' ? quality : 'unknown' };
+  }
+  return { grade: 'different_tree' };
 }
 
 export function stampRunDirectory(
@@ -148,6 +222,16 @@ export function stampRunDirectory(
       return { kind: 'already_recorded', runId: existing.run_id, eventId: options.eventId };
     }
   }
+  // One run id, one stamp: a stamp already on the ledger (under another
+  // event id) short-circuits before any capture or write. This unlocked
+  // pre-read serves the common re-entry case; the race two concurrent
+  // stampers would run past it is closed by the same predicate evaluated
+  // INSIDE the append lock below.
+  const preRead = readValidityLedger(projectRoot);
+  const preKnown = preRead.runs.get(runId);
+  if (preKnown?.stamped) {
+    return { kind: 'run_already_stamped', runId, recordedOrigin: preKnown.origin };
+  }
   const eventId = options.eventId ?? mintUlid();
   const origin = captureRunOrigin(projectRoot, runId, {
     deps: options.deps ?? {},
@@ -188,22 +272,36 @@ export function stampRunDirectory(
     event_id: eventId,
     ts_utc: (payload as { captured_at_utc: string }).captured_at_utc,
   });
+  const rollbackMirror = () => {
+    if (!mirrorWritten) return;
+    try {
+      if (previousMirror !== null) writeBytesAtomicDurable(mirrorPath, previousMirror);
+      else fs.rmSync(mirrorPath, { force: true });
+    } catch {
+      // A failing restore must not mask the primary outcome; the
+      // divergence scan surfaces the leftover mirror on the next read.
+    }
+  };
   let appendOutcome;
   try {
-    appendOutcome = appendValidityEvent(projectRoot, event);
+    appendOutcome = appendValidityEvent(projectRoot, event, { onlyIfRunUnstamped: true });
   } catch (error) {
     // No orphan and no clobber: a mirror this invocation created is
     // removed; a pre-existing one is restored to its prior content.
-    if (mirrorWritten) {
-      try {
-        if (previousMirror !== null) writeBytesAtomicDurable(mirrorPath, previousMirror);
-        else fs.rmSync(mirrorPath, { force: true });
-      } catch {
-        // A failing restore must not mask the append error; the
-        // divergence scan surfaces the leftover mirror on the next read.
-      }
-    }
+    rollbackMirror();
     throw error;
+  }
+  if (appendOutcome === 'skipped_run_already_stamped') {
+    // A concurrent stamper won the race between our pre-read and the lock:
+    // their stamp is the record, our capture and mirror are not. Roll the
+    // mirror back and report theirs.
+    rollbackMirror();
+    const postRead = readValidityLedger(projectRoot);
+    return {
+      kind: 'run_already_stamped',
+      runId,
+      recordedOrigin: postRead.runs.get(runId)?.origin ?? null,
+    };
   }
   return {
     kind: 'stamped',

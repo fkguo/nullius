@@ -168,7 +168,7 @@ def test_converged_with_minors_withholds_fold_and_writes_marker(
     marker = run_dir / f"{tag}_dispositions_pending.md"
     assert marker.is_file(), "pending marker must name the withheld fold"
     assert "withheld" in marker.read_text(encoding="utf-8")
-    assert "dispositions pending" in proc.stderr
+    assert "fold pending" in proc.stderr
     # The automatic plan fold was withheld: no converged progress entry for
     # this tag in the research plan.
     plan_text = (project / "research_plan.md").read_text(encoding="utf-8")
@@ -186,5 +186,50 @@ def test_converged_without_minors_folds_as_before(project: Path, tmp_path: Path)
         (run_dir / f"{tag}_dispositions_gate.json").read_text(encoding="utf-8")
     )
     assert gate_verdict["status"] == "pass"
+    # No launcher in this fixture: the registration gate SKIPs, so the fold
+    # proceeds exactly as before on non-nullius projects.
+    registration_verdict = json.loads(
+        (run_dir / f"{tag}_registration_gate.json").read_text(encoding="utf-8")
+    )
+    assert registration_verdict["status"] == "skip"
     assert not (run_dir / f"{tag}_dispositions_pending.md").exists()
-    assert "dispositions pending" not in proc.stderr
+    assert "fold pending" not in proc.stderr
+
+
+def test_launcher_project_zero_minors_withholds_fold_until_registration(
+    project: Path, tmp_path: Path
+) -> None:
+    # On a project WITH a nullius launcher, the registration gate is live:
+    # a zero-minors converged cycle whose adjudication (and its Result
+    # registration declaration) does not exist yet withholds the automatic
+    # fold — writing the declaration is part of the convergence deliverable.
+    launcher = project / ".nullius" / "bin" / "nullius"
+    launcher.parent.mkdir(parents=True, exist_ok=True)
+    launcher.write_text(
+        "#!/usr/bin/env bash\n"
+        'for a in "$@"; do\n'
+        '  if [[ "$a" == "current" ]]; then echo "{}"; exit 0; fi\n'
+        "done\n"
+        "exit 0\n",
+        encoding="utf-8",
+    )
+    launcher.chmod(0o755)
+
+    stub = _make_stub(tmp_path, "stub_clean_launcher.sh", minors=False)
+    tag = "20260731T000000Z-m0-fg-launcher-r1"
+    proc = _run_full_cycle(project, tag, stub)
+    assert proc.returncode == 0, f"cycle should converge; log:\n{proc.stderr[-3000:]}"
+
+    run_dir = project / "team" / "runs" / tag
+    registration_verdict = json.loads(
+        (run_dir / f"{tag}_registration_gate.json").read_text(encoding="utf-8")
+    )
+    assert registration_verdict["status"] == "fail"
+    marker = run_dir / f"{tag}_dispositions_pending.md"
+    assert marker.is_file(), "registration gate refusal must withhold the fold"
+    marker_text = marker.read_text(encoding="utf-8")
+    assert "result registration gate: PENDING" in marker_text
+    assert "check_convergence_registration.py" in marker_text
+    assert "fold pending" in proc.stderr
+    plan_text = (project / "research_plan.md").read_text(encoding="utf-8")
+    assert tag not in plan_text

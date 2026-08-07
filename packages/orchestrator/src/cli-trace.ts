@@ -1,5 +1,5 @@
 import { appendValidityEvent, buildValidityEvent } from './validity-ledger.js';
-import { defaultStampActor, stampRunDirectory } from './run-stamp.js';
+import { defaultStampActor, gradeExistingStamp, stampRunDirectory } from './run-stamp.js';
 import { buildTraceabilityView, renderTraceabilityProse } from './traceability-view.js';
 import { backfillRunOrigins, confirmRoundChains, proposeRoundChains } from './trace-backfill.js';
 
@@ -79,6 +79,24 @@ export function runTraceCommand(projectRoot: string, parsed: TraceParsed, io: Cl
       if (result.kind === 'already_recorded') {
         io.stdout(`already stamped ${result.runId} (event ${result.eventId} recorded)\n`);
         return 0;
+      }
+      if (result.kind === 'run_already_stamped') {
+        // One run id, one stamp. Same research tree → benign no-op (an
+        // agent following "stamp at launch" after the front door already
+        // stamped must not manufacture a conflicting-stamps defect);
+        // different tree → refuse and name the honest fix.
+        const graded = gradeExistingStamp(projectRoot, result.runId, result.recordedOrigin);
+        if (graded.grade === 'same_tree') {
+          io.stdout(
+            `already stamped ${result.runId}: ${graded.bindingQuality} (existing stamp binds the same tracked code tree)\n`,
+          );
+          return 0;
+        }
+        io.stderr(
+          `trace stamp: ${result.runId} already carries an origin stamp bound to a DIFFERENT tracked code tree; `
+          + 'a run id never silently rebinds. Use a fresh run id for the changed code (round-suffix convention).\n',
+        );
+        return 1;
       }
       const record = result.origin as unknown as { binding_quality?: string; baseline_commit?: string | null };
       io.stdout(

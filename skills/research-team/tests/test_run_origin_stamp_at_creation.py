@@ -4,9 +4,11 @@ Run-directory creation is a mandatory machine moment: measured adoption
 showed that stamping left to a remembered second command simply does not
 happen (hundreds of runs later reconstructed heuristically). These tests pin
 (a) the stamp block sits between run-dir creation and the first phase work,
-(b) the launcher is invoked with the project root and the absolute run dir,
-(c) a re-entered run that already carries a stamp mirror is not re-stamped,
-(d) a failing or missing launcher warns and never aborts the cycle.
+(b) the launcher is invoked with the project root and the absolute run dir —
+    unconditionally: re-entry idempotency lives in the ledger-locked stamp
+    writer (one stamp per run id), never in an on-disk mirror check the
+    ledger does not vouch for,
+(c) a failing or missing launcher warns and never aborts the cycle.
 """
 
 from __future__ import annotations
@@ -46,7 +48,7 @@ def test_stamp_block_never_exits_the_cycle_on_failure() -> None:
     assert "WARNING" in block
 
 
-def _run_block(tmp_path: Path, *, launcher_body: str | None, premade_mirror: bool) -> subprocess.CompletedProcess[str]:
+def _run_block(tmp_path: Path, *, launcher_body: str | None) -> subprocess.CompletedProcess[str]:
     project_root = tmp_path / "proj"
     run_dir = project_root / "team" / "runs" / "tag-r1"
     run_dir.mkdir(parents=True)
@@ -60,12 +62,13 @@ def _run_block(tmp_path: Path, *, launcher_body: str | None, premade_mirror: boo
             encoding="utf-8",
         )
         launcher.chmod(0o755)
-    if premade_mirror:
-        (run_dir / "run_origin.json").write_text("{}\n", encoding="utf-8")
 
     block = _stamp_block(RUN_TEAM_CYCLE.read_text(encoding="utf-8"))
+    # Same shell options as the production script (set -euo pipefail): the
+    # no-exit-on-failure property must hold under -e, not only under the
+    # text lock.
     driver = (
-        "set -uo pipefail\n"
+        "set -euo pipefail\n"
         f"PROJECT_ROOT={project_root}\n"
         f"run_dir=team/runs/tag-r1\n"
         f"run_dir_abs={run_dir}\n"
@@ -85,7 +88,6 @@ def test_launcher_invoked_once_with_project_root_and_absolute_run_dir(tmp_path: 
     result = _run_block(
         tmp_path,
         launcher_body='echo "stamped tag-r1: exact_clean @ abc"\nexit 0\n',
-        premade_mirror=False,
     )
     assert result.returncode == 0
     assert "CYCLE_CONTINUED" in result.stdout
@@ -98,22 +100,35 @@ def test_launcher_invoked_once_with_project_root_and_absolute_run_dir(tmp_path: 
     assert str(tmp_path / "proj" / "team" / "runs" / "tag-r1") in call
 
 
-def test_reentered_run_with_existing_mirror_is_not_restamped(tmp_path: Path) -> None:
+def test_reentry_invokes_the_idempotent_writer_and_continues(tmp_path: Path) -> None:
+    # Re-entry semantics live in the stamp writer (ledger-idempotent): the
+    # block always invokes it, and an already-stamped answer flows through
+    # as a normal success. No mirror-file check may gate the invocation —
+    # a crash-orphaned mirror without a ledger event must not suppress
+    # stamping forever.
     result = _run_block(
         tmp_path,
-        launcher_body="exit 0\n",
-        premade_mirror=True,
+        launcher_body='echo "already stamped tag-r1: exact_clean (existing stamp binds the same tracked code tree)"\nexit 0\n',
     )
     assert result.returncode == 0
     assert "CYCLE_CONTINUED" in result.stdout
-    assert not (tmp_path / "calls.log").exists(), "a stamped run must not be re-stamped on re-entry"
+    assert "[trace] origin already stamped tag-r1" in result.stdout
+    calls = (tmp_path / "calls.log").read_text(encoding="utf-8").strip().splitlines()
+    assert len(calls) == 1
+
+
+def test_stamp_block_consults_no_mirror_file(tmp_path: Path) -> None:
+    block = _stamp_block(RUN_TEAM_CYCLE.read_text(encoding="utf-8"))
+    assert "run_origin.json" not in block, (
+        "the ledger is the stamp authority; gating on a mirror file lets a "
+        "crash-orphaned mirror suppress stamping forever"
+    )
 
 
 def test_failed_stamp_warns_and_continues(tmp_path: Path) -> None:
     result = _run_block(
         tmp_path,
         launcher_body='echo "boom" >&2\nexit 1\n',
-        premade_mirror=False,
     )
     assert result.returncode == 0
     assert "CYCLE_CONTINUED" in result.stdout
@@ -122,7 +137,7 @@ def test_failed_stamp_warns_and_continues(tmp_path: Path) -> None:
 
 
 def test_missing_launcher_notes_and_continues(tmp_path: Path) -> None:
-    result = _run_block(tmp_path, launcher_body=None, premade_mirror=False)
+    result = _run_block(tmp_path, launcher_body=None)
     assert result.returncode == 0
     assert "CYCLE_CONTINUED" in result.stdout
     assert "no nullius launcher" in result.stderr

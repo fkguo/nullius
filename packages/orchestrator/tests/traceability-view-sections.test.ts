@@ -4,6 +4,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { buildTraceabilityView } from '../src/traceability-view.js';
+import { appendValidityEvent, buildValidityEvent } from '../src/validity-ledger.js';
 
 /** The view exports EVERY notebook section with its staleness class — the
  *  per-section truth the fold-boundary registration gate consumes (the
@@ -57,5 +58,32 @@ describe('traceability view notebook.sections export', () => {
     for (const [cls, count] of Object.entries(view.notebook.counts)) {
       expect(listedCounts[cls] ?? 0).toBe(count);
     }
+  });
+});
+
+describe('superseded relations are ledger truth (review r1)', () => {
+  it('a supersession whose old run directory is gone still appears, marked directory_missing', () => {
+    git('init', '-q');
+    git('config', 'user.email', 't@example.com');
+    git('config', 'user.name', 'T');
+    fs.writeFileSync(path.join(projectRoot, 'a.txt'), '1');
+    git('add', '-A');
+    git('commit', '-q', '-m', 'c');
+    // Only the NEW run exists on disk; the replaced one was cleaned up.
+    fs.mkdirSync(path.join(projectRoot, 'artifacts', 'runs', 'run-new'), { recursive: true });
+    appendValidityEvent(projectRoot, buildValidityEvent({
+      event: 'supersede',
+      run_id: 'run-old',
+      actor: 't',
+      reason: 'replaced by refit',
+      by_run_id: 'run-new',
+    }));
+
+    const view = buildTraceabilityView(projectRoot);
+
+    const row = view.runs.superseded.find(entry => entry.run_id === 'run-old');
+    expect(row).toBeDefined();
+    expect(row!.by).toBe('run-new');
+    expect(row!.directory_missing).toBe(true);
   });
 });

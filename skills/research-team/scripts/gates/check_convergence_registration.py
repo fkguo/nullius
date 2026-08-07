@@ -77,7 +77,11 @@ _HEADLINE_RE = re.compile(r"^(?P<result_id>\S+)\s+@\s+(?P<run_id>\S+)$")
 # are full of hyphens, and a zero-width separator match would truncate
 # `...-r010-final` into `...` plus a phantom note.
 _SUPERSEDES_RE = re.compile(r"^(?P<old>\S+)\s*->\s*(?P<new>\S+)(?:\s+[—–-]\s+\S.*)?$")
-_QUOTED_HEADING_RE = re.compile(r'"([^"]+)"')
+# A heading is wrapped in double quotes OR backticks — the alternative
+# exists because a heading may itself contain a double quote (headings are
+# literal text); a heading containing BOTH wrappers stays out of the
+# grammar and must be renamed to be declarable.
+_QUOTED_HEADING_RE = re.compile(r'"([^"]+)"|`([^`]+)`')
 
 
 def _fail(messages: list[str]) -> int:
@@ -168,10 +172,11 @@ def parse_declaration(section: str) -> Declaration:
             if value.lower() == "none":
                 decl.rewritten_none = True
                 continue
-            headings = _QUOTED_HEADING_RE.findall(value)
+            headings = [double or backtick for double, backtick in _QUOTED_HEADING_RE.findall(value)]
             if not headings:
                 decl.errors.append(
-                    f"malformed rewritten-sections declaration {value!r} (expected quoted headings or `none`)"
+                    f"malformed rewritten-sections declaration {value!r} "
+                    '(expected "quoted" or `backtick-quoted` headings, or `none`)'
                 )
                 continue
             decl.rewritten.extend(headings)
@@ -200,7 +205,9 @@ def verify_against_view(decl: Declaration, view: dict) -> list[str]:
     conflicting = set(runs.get("conflicting_stamps") or [])
     no_identity = set(runs.get("no_authoritative_identity") or [])
     notebook = view.get("notebook") or {}
-    sections = {entry.get("heading"): entry for entry in (notebook.get("sections") or [])}
+    sections_by_heading: dict[str, list[dict]] = {}
+    for entry in notebook.get("sections") or []:
+        sections_by_heading.setdefault(entry.get("heading"), []).append(entry)
 
     if decl.headline is not None:
         result_id, run_id = decl.headline
@@ -218,7 +225,10 @@ def verify_against_view(decl: Declaration, view: dict) -> list[str]:
                 )
             if row.get("defective"):
                 failures.append(f"declared headline result {result_id!r} is a defective registry row")
-        mentioned = [issue.get("message", "") for issue in issues if result_id in issue.get("message", "")]
+        # Word-boundary match, not substring: result ids share prefixes
+        # ("m0" must not trip on an issue about "m01-fit").
+        id_mention = re.compile(rf"(?<![\w-]){re.escape(result_id)}(?![\w-])")
+        mentioned = [issue.get("message", "") for issue in issues if id_mention.search(issue.get("message", ""))]
         for message in mentioned:
             failures.append(f"results-registry issue touches declared result {result_id!r}: {message}")
         if run_id in conflicting:
@@ -235,15 +245,26 @@ def verify_against_view(decl: Declaration, view: dict) -> list[str]:
             )
 
     for heading in decl.rewritten:
-        entry = sections.get(heading)
-        if entry is None:
+        entries = sections_by_heading.get(heading, [])
+        if not entries:
             failures.append(f"declared rewritten section {heading!r} does not exist in the notebook")
             continue
-        if entry.get("class") not in ("current", "current-modulo-untracked"):
-            failures.append(
-                f"declared rewritten section {heading!r} is {entry.get('class')!r} "
-                f"({entry.get('cause')}); a rewrite carries a fresh `<!-- written-against: <commit> -->` stamp"
-            )
+        # Duplicate headings: the declaration cannot name one of them, so
+        # EVERY section under that heading must carry a fresh stamp — a
+        # stale namesake hiding behind a fresh one is exactly the holdover
+        # prose the stamp exists to catch.
+        for entry in entries:
+            if entry.get("class") not in ("current", "current-modulo-untracked"):
+                duplicate_note = (
+                    f" (heading appears {len(entries)} times; every namesake section must be current)"
+                    if len(entries) > 1
+                    else ""
+                )
+                failures.append(
+                    f"declared rewritten section {heading!r} is {entry.get('class')!r} "
+                    f"({entry.get('cause')}){duplicate_note}; a rewrite carries a fresh "
+                    "`<!-- written-against: <commit> -->` stamp"
+                )
     return failures
 
 

@@ -4,6 +4,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { ComputationManifestV1, ComputationResultV1, SkillProposalV2 } from '@nullius/shared';
 import { writeJsonAtomic } from './io.js';
+import { RUNS_ROOT_RELATIVE } from '../run-paths.js';
 import { shouldSuppressProposal, skillProposalFingerprint } from '../proposal-decisions.js';
 
 function proposalArtifactPath(projectRoot: string, runId: string): string {
@@ -49,15 +50,15 @@ function matchingSuccessfulRuns(params: {
   computationResult: ComputationResultV1;
   manifestPath: string;
 }> {
-  const runsRoot = params.projectRoot;
+  const runsRoot = path.join(params.projectRoot, RUNS_ROOT_RELATIVE);
   if (!fs.existsSync(runsRoot)) {
     return [];
   }
   const matches: Array<{ runId: string; computationResult: ComputationResultV1; manifestPath: string }> = [];
   for (const runId of fs.readdirSync(runsRoot).sort()) {
-    const runDir = path.join(params.projectRoot, runId);
+    const runDir = path.join(runsRoot, runId);
     if (!fs.existsSync(runDir) || !fs.statSync(runDir).isDirectory()) continue;
-    if (runId === '.nullius' || runId === 'artifacts' || runId.startsWith('.')) continue;
+    if (runId.startsWith('.')) continue;
     const resultPath = path.join(runDir, 'artifacts', 'computation_result_v1.json');
     const result = readJsonIfExists<ComputationResultV1>(resultPath);
     if (!result || result.execution_status !== 'completed') continue;
