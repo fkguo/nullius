@@ -3,6 +3,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { appendDecision } from './decisions-ledger.js';
+import { nulliusControlDir } from './state-manager.js';
 
 /** `nullius release` — export a public snapshot of the project's CODE at a
  *  chosen commit, excluding run artifacts, machine state, and internal
@@ -13,8 +14,9 @@ import { appendDecision } from './decisions-ledger.js';
  *  - The version object is the git commit (the traceability design's D1);
  *    this command only EXPORTS a commit's tree — it never invents a second
  *    "clean copy" that could drift from the repository.
- *  - The exclusion list is fixed and printed in full on every run: hiding
- *    what was left out would turn an export into a silent editorial step.
+ *  - The exclusion list is fixed, and every entry of it that is PRESENT in
+ *    the exported tree is printed on the receipt: hiding what was left out
+ *    would turn an export into a silent editorial step.
  *  - Bookkeeping goes to the decisions ledger ("this revision is public
  *    version N"), and the exported commit gets a local tag, so the mapping
  *    between the public release and the internal history is pinned twice.
@@ -62,6 +64,21 @@ function git(projectRoot: string, args: string[]): string {
   });
 }
 
+/** Canonical form of a path that may not exist yet: realpath of the nearest
+ *  existing ancestor plus the non-existing tail. A lexical-only comparison
+ *  would let a symlink smuggle the target back inside the project root. */
+function canonicalizeMaybeMissing(target: string): string {
+  let existing = target;
+  const tail: string[] = [];
+  while (!fs.existsSync(existing)) {
+    const parent = path.dirname(existing);
+    if (parent === existing) break;
+    tail.unshift(path.basename(existing));
+    existing = parent;
+  }
+  return path.join(fs.realpathSync(existing), ...tail);
+}
+
 function resolveCommit(projectRoot: string, ref: string): string {
   try {
     return git(projectRoot, ['rev-parse', '--verify', `${ref}^{commit}`]).trim();
@@ -74,7 +91,10 @@ function resolveCommit(projectRoot: string, ref: string): string {
  *  reported so the receipt states what was left out of THIS export, not the
  *  full hypothetical list. */
 export function excludedPresentInTree(projectRoot: string, commit: string): string[] {
-  const tree = git(projectRoot, ['ls-tree', '-r', '--name-only', commit]).split('\n');
+  // -z: NUL-delimited, so non-ASCII names arrive verbatim instead of
+  // C-quoted ("\346\225\260..."), which would dodge the prefix match and
+  // under-report the receipt.
+  const tree = git(projectRoot, ['ls-tree', '-r', '--name-only', '-z', commit]).split('\0');
   const present: string[] = [];
   for (const prefix of RELEASE_EXCLUDED_PATHS) {
     const hit = tree.some(entry => entry === prefix || entry.startsWith(`${prefix}/`));
@@ -99,6 +119,12 @@ export function runReleaseCommand(projectRoot: string, options: ReleaseOptions, 
   if (!fs.existsSync(path.join(projectRoot, '.git'))) {
     throw new Error('release requires a git repository (the commit IS the version object); run git init and commit first');
   }
+  // The ledger entry is part of the contract, and whether it CAN be written
+  // is knowable up front — refuse before exporting anything rather than
+  // discovering it after the export and tag already landed.
+  if (!fs.existsSync(path.join(nulliusControlDir(projectRoot), 'state.json'))) {
+    throw new Error('project is not initialized (missing state.json in the control dir); the release is recorded on the decisions ledger — run nullius init first');
+  }
 
   // Default HEAD demands a clean tree: exporting HEAD while edits are
   // pending would publish a tree that is not what the working directory
@@ -119,7 +145,9 @@ export function runReleaseCommand(projectRoot: string, options: ReleaseOptions, 
   }
 
   const targetDir = path.resolve(options.targetDir);
-  if (path.resolve(projectRoot) === targetDir || targetDir.startsWith(`${path.resolve(projectRoot)}${path.sep}`)) {
+  const canonicalTarget = canonicalizeMaybeMissing(targetDir);
+  const canonicalRoot = fs.realpathSync(path.resolve(projectRoot));
+  if (canonicalRoot === canonicalTarget || canonicalTarget.startsWith(`${canonicalRoot}${path.sep}`)) {
     throw new Error('target directory must be OUTSIDE the project root (the public snapshot must not nest into the internal repository)');
   }
   if (fs.existsSync(targetDir) && fs.readdirSync(targetDir).length > 0) {
@@ -127,9 +155,43 @@ export function runReleaseCommand(projectRoot: string, options: ReleaseOptions, 
   }
 
   const tag = options.tag ?? nextReleaseTag(projectRoot);
+  try {
+    execFileSync('git', ['check-ref-format', `refs/tags/${tag}`], { timeout: 15_000, stdio: ['ignore', 'ignore', 'ignore'] });
+  } catch {
+    throw new Error(`'${tag}' is not a valid tag name (git check-ref-format refused it); pick another --tag`);
+  }
   const existing = git(projectRoot, ['tag', '--list', tag]).trim();
   if (existing.length > 0) {
     throw new Error(`tag ${tag} already exists; a release tag is never moved — pick another name with --tag`);
+  }
+
+  // git archive honors export-ignore / export-subst attributes (from the
+  // commit's .gitattributes files or $GIT_DIR/info/attributes), which would
+  // let the export silently omit or rewrite files BEYOND the fixed printed
+  // exclusion list. That breaks this command's transparency contract, so
+  // their presence is a hard refusal, not a silent modifier.
+  const attributeHits: string[] = [];
+  try {
+    const hits = git(projectRoot, [
+      'grep', '-l', '-e', 'export-ignore', '-e', 'export-subst', commit, '--', '.gitattributes', '**/.gitattributes',
+    ]).trim();
+    if (hits.length > 0) attributeHits.push(...hits.split('\n'));
+  } catch {
+    // git grep exits 1 on zero matches — that is the clean case.
+  }
+  const gitDir = git(projectRoot, ['rev-parse', '--absolute-git-dir']).trim();
+  const infoAttributes = path.join(gitDir, 'info', 'attributes');
+  if (fs.existsSync(infoAttributes)) {
+    const text = fs.readFileSync(infoAttributes, 'utf-8');
+    if (/export-ignore|export-subst/.test(text)) attributeHits.push(infoAttributes);
+  }
+  if (attributeHits.length > 0) {
+    throw new Error(
+      `export-ignore/export-subst attributes are in effect (${attributeHits.join(', ')}); `
+      + 'these would silently alter the export beyond the fixed exclusion list. Remove them '
+      + '(or release a commit without them) so the export is determined by the commit and '
+      + 'the printed list alone',
+    );
   }
 
   const excluded = excludedPresentInTree(projectRoot, commit);
@@ -171,11 +233,22 @@ export function runReleaseCommand(projectRoot: string, options: ReleaseOptions, 
 
   // Tag AFTER a successful export, ledger AFTER the tag; a failure between
   // the steps is reported with exactly what completed, never papered over.
-  git(projectRoot, ['tag', tag, commit]);
+  try {
+    git(projectRoot, ['tag', tag, commit]);
+  } catch (error) {
+    io.stderr(
+      `WARNING: the export completed at ${targetDir}, but tagging FAILED `
+      + `(${error instanceof Error ? error.message : String(error)}). Tag by hand: `
+      + `git tag ${tag} ${commit} — the ledger entry was NOT recorded.\n`,
+    );
+    return 1;
+  }
   try {
     appendDecision(projectRoot, {
       kind: 'decided',
-      text: `Released public snapshot ${tag} from commit ${commit.slice(0, 12)}: `
+      // The ledger must pin the version object INDEPENDENTLY of the tag, so
+      // it carries the full object id; short forms are display-only.
+      text: `Released public snapshot ${tag} from commit ${commit}: `
         + `${fileCount} file(s) exported to ${targetDir}`
         + `${excluded.length > 0 ? `; excluded: ${excluded.join(', ')}` : ''}`,
       by: options.actor ?? 'release',
@@ -184,7 +257,7 @@ export function runReleaseCommand(projectRoot: string, options: ReleaseOptions, 
     io.stderr(
       `WARNING: export and tag ${tag} completed, but the decisions ledger entry FAILED `
       + `(${error instanceof Error ? error.message : String(error)}). Record it by hand: `
-      + `nullius decision record "Released public snapshot ${tag} from commit ${commit.slice(0, 12)}"\n`,
+      + `nullius decision record "Released public snapshot ${tag} from commit ${commit}"\n`,
     );
     return 1;
   }
