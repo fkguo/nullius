@@ -1,5 +1,6 @@
 import { prepareManifest } from './manifest.js';
 import { ensureA3Approval } from './approval.js';
+import { stampComputationLaunch } from './launch-stamp.js';
 import { runPreparedManifest } from './runner.js';
 import type {
   DryRunExecutionResult,
@@ -43,7 +44,12 @@ export async function executeComputationManifest(
   if (approval) {
     return approval;
   }
-  return runPreparedManifest(input.projectRoot, prepared);
+  // Origin stamp at launch: approval has cleared and the next thing that
+  // happens is execution, so the tree captured here IS the code that
+  // produces the results. Never blocks the run (see launch-stamp.ts).
+  const originStamp = stampComputationLaunch(input.projectRoot, input.runDir);
+  const result = await runPreparedManifest(input.projectRoot, prepared);
+  return { ...result, origin_stamp: originStamp };
 }
 
 export async function planComputationFromRunDir(input: {
