@@ -174,6 +174,73 @@ Behavior:
   end-of-options terminator: \`nullius decision record -- "-keep the negative branch"\`.
 `,
   status: STATUS_HELP,
+  trace: `nullius trace stamp <run_dir> [--dep name=path] [--event-id <ulid>] [--actor <who>]
+nullius trace supersede <old_run_id> --by <new_run_id> --reason "..." [--scope <name>] [--event-id <ulid>] [--actor <who>]
+nullius trace void <run_id> --reason "..." [--scope <name>] [--event-id <ulid>] [--actor <who>]
+nullius trace reinstate <run_id> --reason "..." [--event-id <ulid>] [--actor <who>]
+
+Write surface of run origin stamps and the project validity ledger
+(artifacts/runs/validity_ledger.jsonl, append-only, never rewritten).
+
+stamp: bind a run directory to the exact code state that produced it.
+  Records baseline commit, a pinned snapshot of tracked modifications
+  (refs/nullius/runs/*), the snapshot tree hash, and honest binding quality:
+  exact_clean | exact_tracked_snapshot | head_plus_untracked | unbound.
+  Untracked files are counted and sampled, never auto-ignored and never
+  silently treated as exact. The ledger event is authoritative; the
+  run-directory run_origin.json is a browsing mirror.
+  Run stamp at run creation, before the run loads code.
+
+supersede / void / reinstate: validity beyond execution status.
+  supersede is declared by the NEW run's author about the OLD run
+  (superseded_by is derived at read time; old run directories are never
+  edited). --reason is required prose: why the result no longer counts
+  (or counts again). --scope other than "full" records a named partial
+  supersession that annotates but never flips overall validity.
+
+--event-id reuses a previously minted ULID when retrying the SAME logical
+  event (crash recovery); a payload mismatch under a reused id is refused.
+
+backfill: retroactive origin stamps for legacy runs, by timestamp alignment
+  against the commit history. HEURISTIC by construction — every record is
+  binding_quality aligned_heuristic (never exact) with its alignment
+  evidence (window, nominal-timestamp flag, ambiguous candidates), or
+  honestly unbound with a reason. Validity is NEVER backfilled.
+
+propose-chains / confirm-chains: same-slug round chains (r1 → r2 → …, the
+  measured review-driven redo pattern) become a PROPOSAL file
+  (artifacts/runs/round_chain_proposal.json). Nothing touches the ledger
+  until you review it (delete pairs you reject) and run confirm-chains,
+  which appends the supersede events under your actor identity.
+`,
+  current: `nullius current [--json]
+
+Answer, as prose a human reads directly: what the current best result is,
+which exact code revision produced it, where the current manuscript is,
+which notebook sections are current vs stale, and which runs are still
+valid vs superseded or void.
+
+Clauses the project cannot answer are stated explicitly every time (no
+repository; unclassified legacy runs; stages not yet delivered) — honest
+unanswerability instead of silent or false precision. --json emits the same
+read model that \`nullius status --json\` carries as its traceability block.
+`,
+  result: `nullius result set-current <result-id> --run <run_id> --artifact <path> [--description "..."] [--supersedes <result-id>]
+
+Register or update a row of the current-results registry in project_index.md
+(the RESULT_REGISTRY block): the project's answer to "what is the current
+best result". Selection is research judgment, made at milestone convergence;
+the machine enforces structure and liveness:
+  - the named run must carry an origin stamp and be ACTIVE in the validity
+    ledger (not superseded, not void, not quarantined);
+  - the artifact must exist; its SHA-256 is computed and registered;
+  - --supersedes updates both direction columns, keeping the chain
+    consistent like the report registry;
+  - result ids are unique; a superseding row leaves exactly one current row
+    per chain.
+Hand edits stay legal; \`nullius status --json\` / \`nullius current\`
+validate the block either way.
+`,
   approve: APPROVE_HELP,
   pause: PAUSE_HELP,
   resume: RESUME_HELP,

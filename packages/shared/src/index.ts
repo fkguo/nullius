@@ -94,6 +94,9 @@ export {
   type AtomicWriteAuditEvent,
 } from './atomic-write.js';
 
+// Path-keyed ledger lock + ULID identity for append-only JSONL ledgers
+export { withLedgerLock, mintUlid, ULID_PATTERN } from './ledger-lock.js';
+
 // Constants (H-13, M-21)
 export { MAX_INLINE_RESULT_BYTES, HARD_CAP_RESULT_BYTES, STDIO_MAX_RESULT_BYTES } from './constants.js';
 

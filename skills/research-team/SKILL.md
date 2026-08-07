@@ -32,6 +32,27 @@ Use `research-team` when you want a project workflow with:
   - **Non-blocking** (hardening beyond the declared scope, mutation-style test-strengthening ideas, style): reported under Minor Issues, never flipping the verdict by itself. Each non-blocking finding gets an explicit disposition in the adjudication — fix now, attach to a named later acceptance point, or discard with a stated reason — never a silent drop and never an undated "later". This is machine-enforced at the fold boundary: the convergence result carries per-member `minor_issues_count`, and `scripts/gates/check_adjudication_completeness.py` fails closed when a converged cycle's recorded minor issues lack completed disposition rows in the adjudication — run it before folding a converged cycle's results into the durable record.
   - A reviewer whose only findings are non-blocking reports `ready` with the findings listed for disposition; reporting `needs revision` on non-blocking findings alone is a grading error, not extra rigor.
 - **Symbolic claims route through `derivation-verify`**: when a converging milestone rests on a symbolic / derivation claim (a closed form, an identity, a sign/branch choice), the independent confirmation for that claim is at least two independent blind re-derivations via [`derivation-verify`](../derivation-verify/SKILL.md) — reviewer agreement that a written derivation "looks right" is not independent confirmation. Computed numbers route through `numerical-reliability-gate`, the sibling gate.
+- **Result registration at convergence (mandatory where the project has a
+  nullius launcher)**: milestone convergence is when "which result is
+  current" changes, so the convergence deliverable includes updating the
+  project's traceability record, not only producing the new numbers:
+  - a converged headline result gets a row in the results registry
+    (`nullius result set-current <result_id> --run <run_id> ...` in
+    `project_index.md`) — selection is the research judgment just made at
+    adjudication, so record it while it is being made;
+  - every run the new result replaces is superseded on the validity ledger
+    with the reason (`nullius trace supersede <old_run> --by <new_run>
+    --reason ...`); a run found wrong rather than replaced is voided. This
+    is what later makes "which of these hundreds of runs still count"
+    answerable by a machine instead of by archaeology;
+  - rewritten memo sections carry a fresh version stamp
+    (`<!-- written-against: <commit> -->` at the section end), so the
+    per-section staleness check keeps discriminating current prose from
+    holdover prose;
+  - before folding, `nullius current` must answer cleanly for the affected
+    result chain — no defective registry rows, no stale stamped sections
+    citing the milestone's runs — or the residual is named in the
+    adjudication with a disposition, same as any non-blocking finding.
 - **Notebook split**: `research_notebook.md` is the human entry; `research_contract.md` is the machine-stable gate surface.
 - **Memo discipline (mandatory)**: `research_notebook.md` is a self-contained research memo organized like a paper — connected prose with complete derivations, computations, and analysis — not a change log. Its quality bar: a colleague in the field could read it alone (no runs, no plan) and come away with the project's full current understanding, able to re-derive every load-bearing result. It updates by **rewriting the affected sections into a self-consistent whole**, never by appending stage fragments ("this milestone changed X"); dated progress belongs to `research_plan.md` and `artifacts/runs/<run_id>/`, revision history to git. A milestone does not converge while the memo still describes the pre-milestone understanding: rewriting the affected memo sections is part of the milestone's deliverable, checked in the convergence review like any other artifact.
 - **Reproducibility Capsule (mandatory)**: `research_contract.md` must include a filled capsule block (between `<!-- REPRO_CAPSULE_START -->` and `<!-- REPRO_CAPSULE_END -->`).
@@ -55,12 +76,28 @@ Use `research-team` when you want a project workflow with:
 - **Run artifact identity**: the canonical project artifact root for
   lifecycle and compute runs is `artifacts/runs/<run_id>/`. Use a safe,
   sortable, readable `run_id`, preferably
-  `<YYYYMMDDTHHMMSSZ>-<milestone>-<short-topic>-rN`. `team/runs/<tag>/` is the
+  `<YYYYMMDD>-<milestone>-r<NNN>-<slug>[-rK]` (date + milestone + a
+  milestone-global ordinal + a short topic slug; the optional trailing `-rK`
+  is the reviewed-round suffix). The exact time of day does not belong in the
+  directory name — machine truth (precise timestamp, commit, dirty state)
+  lives in the run's origin stamp, and sub-day precision in names measured as
+  unreliable in practice. The older
+  `<YYYYMMDDTHHMMSSZ>-<milestone>-<short-topic>-rN` shape stays valid for
+  existing runs. `team/runs/<tag>/` is the
   research-team reviewer packet/log surface and a first-class evidence root in
   its own right: contract claims may cite `team/runs/<tag>/...` paths directly.
   Mirror or summarize under `artifacts/runs/<run_id>/research_team/` when a
   milestone's headline evidence should live with the run record, not as a
   precondition for citing it.
+- **Stamp the run at creation (mandatory where the project has a nullius
+  launcher)**: immediately after creating `artifacts/runs/<run_id>/`, run
+  `nullius trace stamp <run_id>` from the project root. The stamp binds the
+  run to the exact code state that will produce its results (commit, snapshot
+  of uncommitted tracked edits, untracked-file caveats) — recorded at run
+  time, when the binding is exact, instead of reconstructed later, when it
+  can only be a heuristic alignment. A run created without a stamp stays
+  usable but its origin degrades to timeline guesswork; treat a missing
+  stamp on a result-bearing run as a review finding.
 - **Tag relation**: with `--auto-tag`, pass a meaningful base tag such as
   `20260502T023000Z-m3-branch-scan`; the resolved `<base>-rN` is the
   research-team cycle tag and may be used as the control-plane `run_id` for
@@ -199,6 +236,11 @@ a run lives at the run_dir top level (`cycle_state.json`, `<tag>_member_*.md`,
   - Literature/reference/knowledge-evidence work must maintain both `knowledge_base/methodology_traces/literature_queries.md` and `knowledge_base/methodology_traces/literature_saturation.json`; a single result page or fixed paper count is not a completion criterion.
   - `literature_saturation.json` is also the candidate-disposition, core-bibliography-reconciliation, and method-family-audit authority. Each queried provider records finite `execution_bounds` and a per-request query/page-or-cursor/continuation log whose counts reconcile to `returned_count`; every declared query must appear, and `saturated` requires an exhausted terminal request plus full coverage of any known total. A resolved candidate carries canonical DOI/URL/provider identity metadata bound to citation-triangulation-compatible provider blocks through a project-root-bounded exact-SHA reference; unknown identities remain explicit debt. The separate `url` display field is not a join key unless it is also an archived canonical id or explicit alias. Every selected core source similarly binds its JSON raw-reference manifest, and each raw entry joins back to the same canonical candidate identity. Method coverage records one `method_bearing`, `not_method_bearing`, or `coverage_debt` screening disposition for every reconciled bibliography candidate; both positive and negative dispositions require source-text evidence, while method-bearing records additionally require descriptions/features and taxonomy classification. The gate rejects `saturated` until all surfaces close.
   - Subcommands (arXiv): `arxiv-search`, `arxiv-get --write-note`, `arxiv-source` (syntax: `python3 "${SKILL_DIR:-$(for r in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${CODEX_HOME:-$HOME/.codex}" "$HOME/.config/opencode" "$HOME/.kimi-code"; do [ -d "$r/skills/research-team" ] && echo "$r/skills/research-team" && break; done || true)}/scripts/bin/literature_fetch.py" <subcommand> ...`; downloads LaTeX source to `references/arxiv_src/<arxiv_id>/` by default).
+- **Derive the contract's notebook-sync block**: `scripts/bin/refresh_research_contract.py --root /path/to/project`. It writes the derived block to `artifacts/research_contract_block.proposed.md` and **does not modify `research_contract.md` at all** — merge what is right into the contract's sync block by hand.
+  - It works that way because the block is machine-derived while the contract around it is curated, and no rule reliably told the two apart: every version that rewrote the block in place was measured deleting real references. Deriving into a separate file removes the ambiguity instead of arbitrating it.
+  - The section and reference lists come from a deterministic line scanner, not a Markdown parser: it reads `-`/`*`/`+` and numbered items, and does not see references written as a table, as running prose, inside a block quote, or as an HTML list. The proposal is therefore incomplete on such notebooks — that costs a reading, not a bibliography, and the proposal file says so in its own header.
+  - `--proposal` chooses the destination. It refuses the contract and the notebook by file identity — `st_dev`/`st_ino`, so a hardlink or a case-variant name is caught, not just a different spelling — and refuses any other path that already holds a file, unless that file carries this tool's own generated-output header. The write goes through a fresh temporary file and a rename, so it cannot follow a link created after the check. A run that nevertheless observes the contract changing exits non-zero.
+  - `nullius init` fills this block only on a contract it just created from the template, and never touches an existing one.
 - **Export a portable bundle**: `scripts/bin/export_paper_bundle.sh` (wrapper) / `scripts/bin/export_paper_bundle.py`.
 - **KB index export (deterministic/L1)**: `scripts/bin/kb_export.py` + `scripts/bin/validate_kb_index.py` + `scripts/schemas/kb_index.schema.json`.
 - **Demo generation**: `scripts/bin/generate_demo_milestone.sh`.

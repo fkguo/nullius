@@ -91,7 +91,7 @@ python3 "$SKILL_DIR/scripts/bin/markdown_hygiene.py" check \
   --check-github-math
 ```
 
-`--check-github-math` flags known GitHub Markdown math hazards such as raw `*` inside math, fragile `\bar{...}_...` constructs, and inline math immediately followed by `)`. Fix with standard LaTeX that remains readable in offline renderers, for example `\ast`, `\bar X_...`, and a small wording or punctuation change after the closing `$`.
+`--check-github-math` flags known GitHub Markdown math hazards such as raw `*` inside math, fragile `\bar{...}_...` constructs, inline math immediately followed by `)`, and a bare `|` inside math. Fix with standard LaTeX that remains readable in offline renderers, for example `\ast`, `\bar X_...`, `\lvert...\rvert` / `\lVert...\rVert` / `\mid`, and a small wording or punctuation change after the closing `$`.
 
 Apply the deterministic fixes in place:
 
@@ -115,7 +115,7 @@ python3 "$SKILL_DIR/scripts/bin/markdown_hygiene.py" fix-toc --check --root Draf
 - For human-facing Markdown, all formula content intended as math must be written in renderable Markdown math: inline formulas in `$...$`, display formulas in standalone `$$...$$` blocks, or renderer-supported display environments. Do not leave formulas as plain text or inline code when a human reader should see compiled math.
 - For Markdown files, do not rewrite inline math into Unicode text. `$...$` is the portable form for inline formulas in Markdown documents; Unicode-only inline math is a chat-client workaround, not the document standard.
 - Put display `$$` delimiters on standalone lines with a blank line before the opening delimiter and after the closing delimiter. Single-line or prose-adjacent display math is fragile across renderers.
-- In Markdown tables, do not put literal `|` characters inside math cells; use `\mid`, `\lvert...\rvert`, or `\lVert...\rVert` so the table parser cannot split the formula.
+- Do not put a bare `|` inside math anywhere — inline or display, in a table or in prose. Write `\lvert...\rvert` for an absolute value, `\lVert...\rVert` for a norm, and `\mid` for a set-builder or conditional bar. A bare `|` collides with the Markdown table-cell separator the moment the formula is moved or wrapped into a table, and the semantic delimiters also carry the correct spacing and stretching. Inside table cells this is a hard breakage (`--check-table-math-pipes`); everywhere else it is flagged by `--check-github-math`.
 - For GitHub-facing Markdown, preserve standard LaTeX math but use GFM-safe forms such as `\ast` instead of raw `*`, avoid fragile `\bar{...}_...` forms when a simpler `\bar X_...` works, and avoid a closing inline `$` immediately followed by `)`.
 - In display formulas, prefer visual LaTeX fractions such as `\frac{...}{...}` when a mathematical fraction is intended; slash notation is acceptable only when it is semantically a ratio or part of prose-like notation.
 - For human-facing Markdown, web pages and paper references must be clickable Markdown/HTML links. Bare `http://...`, `https://...`, DOI strings, and arXiv identifiers in prose are hygiene failures; use `[label](url)`, `<https://...>`, reference-style Markdown links, or equivalent HTML anchors.

@@ -12,6 +12,7 @@ from .project_policy import (
 )
 from .project_surface import (
     BOUNDARY_NAMING_AUDIT,
+    RESEARCH_CONTRACT,
     SCAFFOLD_CONTEXT_FILES,
     SCAFFOLD_ROOT_FILES,
     SCAFFOLD_SUPPORT_FILES,
@@ -29,14 +30,30 @@ def _safe_rel(repo_root: Path, path: Path) -> str:
         return os.fspath(path)
 
 
-def _write_text_if_missing(*, repo_root: Path, path: Path, text: str, created: list[str], skipped: list[str], force: bool) -> None:
+def _write_text_if_missing(
+    *,
+    repo_root: Path,
+    path: Path,
+    text: str,
+    created: list[str],
+    skipped: list[str],
+    overwritten: list[str],
+    force: bool,
+) -> None:
     rel = _safe_rel(repo_root, path)
-    if path.exists() and not force:
+    existed = path.exists()
+    if existed and not force:
         skipped.append(rel)
         return
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text.rstrip() + "\n", encoding="utf-8")
     created.append(rel)
+    if existed:
+        # `force` is an explicit destructive request and stays destructive, but
+        # the report must not read like a clean run: replacing the contract here
+        # discards its curated block BEFORE the notebook sync ever looks at it,
+        # so the sync then truthfully reports having removed nothing.
+        overwritten.append(rel)
 
 
 def _render_template(name: str, *, project_name: str, project_root: Path, profile: str) -> str:
@@ -171,6 +188,7 @@ def ensure_project_scaffold(
 
     created: list[str] = []
     skipped: list[str] = []
+    overwritten: list[str] = []
 
     scaffold_dirs = ["artifacts/runs"]
     for rel in scaffold_dirs:
@@ -188,13 +206,28 @@ def ensure_project_scaffold(
             ),
             created=created,
             skipped=skipped,
+            overwritten=overwritten,
             force=force,
         )
 
-    sync_research_contract(repo_root=repo_root, create_missing=False, project_policy=project_policy)
+    # Sync ONLY a contract this invocation just wrote. Running the notebook
+    # sync over a pre-existing, user-owned research_contract.md rewrites a
+    # block the project owns: an init on a mature project (e.g. to declare a
+    # mode) silently replaced curated section entries and DOI references with
+    # derived content. `init` never rewrites user files — the seed writes
+    # above already honor that via _write_text_if_missing, and this call must
+    # honor it too. A deliberate re-sync stays available through the explicit
+    # refresh entry point (`refresh_research_contract.py`).
+    contract_sync: dict[str, Any] | None = None
+    if RESEARCH_CONTRACT in created:
+        contract_sync = sync_research_contract(
+            repo_root=repo_root, create_missing=False, project_policy=project_policy
+        )
     return {
         "created": sorted(dict.fromkeys(created)),
         "skipped": sorted(dict.fromkeys(skipped)),
+        "overwritten": sorted(dict.fromkeys(overwritten)),
+        "contract_sync": contract_sync,
         "context_files": list(SCAFFOLD_CONTEXT_FILES),
         "naming_audit": [decision.__dict__ for decision in BOUNDARY_NAMING_AUDIT],
         "scaffold": "canonical",
