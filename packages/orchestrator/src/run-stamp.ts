@@ -65,6 +65,31 @@ export function resolveStampTarget(projectRoot: string, target: string): string 
   return path.isAbsolute(target) ? target : path.resolve(projectRoot, target);
 }
 
+/** True when `runDir` sits DIRECTLY under one of the two stampable run
+ *  roots. Symlink-resolved on BOTH sides — every root-membership decision
+ *  (the stamp containment below AND the front door's identity check) must
+ *  share this one predicate: two callers answering "inside a run root?"
+ *  with different resolution semantics is how a symlinked project root
+ *  makes one of them stamp what the other refused to bind. A path that
+ *  cannot be resolved is not inside any root. */
+export function isInsideStampableRoot(projectRoot: string, runDir: string): boolean {
+  let resolvedRunDir: string;
+  try {
+    resolvedRunDir = fs.realpathSync(runDir);
+  } catch {
+    return false;
+  }
+  return ['artifacts/runs', 'team/runs'].some((relRoot) => {
+    const root = path.resolve(projectRoot, relRoot);
+    if (!fs.existsSync(root)) return false;
+    try {
+      return path.dirname(resolvedRunDir) === fs.realpathSync(root);
+    } catch {
+      return false;
+    }
+  });
+}
+
 /** The commit whose TREE is the code a stamp describes: snapshot when
  *  tracked files were dirty, else the baseline. Null for aligned/unbound
  *  stamps (no exact identity to compare against). */
@@ -103,6 +128,22 @@ export function sameResearchCode(projectRoot: string, commitA: string, commitB: 
     .map(line => line.trim())
     .filter(line => line.length > 0)
     .every(line => isControlPlanePath(line) || isTraceabilityArtifactPath(line));
+}
+
+/** What a stamp rollback may do to the mirror file: undo only what THIS
+ *  invocation wrote. Between our mirror write and the rollback a concurrent
+ *  stamper may have won the ledger race and written ITS mirror — removing
+ *  or overwriting the winner's file would orphan a successful stamp that
+ *  just reported its mirror written. So: bytes on disk are ours → restore
+ *  whatever preceded us (previous content, or remove what we created);
+ *  bytes are anyone else's (or the file is gone) → leave it alone. */
+export function mirrorRollbackAction(
+  currentBytes: string | null,
+  ourBytes: string,
+  previousBytes: string | null,
+): 'restore_previous' | 'remove' | 'leave' {
+  if (currentBytes !== ourBytes) return 'leave';
+  return previousBytes !== null ? 'restore_previous' : 'remove';
 }
 
 export type ExistingStampGrade =
@@ -154,13 +195,7 @@ export function stampRunDirectory(
       message: `trace stamp: ${target} is a symlink; run directories must be real directories under a run root`,
     };
   }
-  const resolvedRunDir = fs.realpathSync(runDir);
-  const inRunRoot = ['artifacts/runs', 'team/runs'].some((relRoot) => {
-    const root = path.resolve(projectRoot, relRoot);
-    if (!fs.existsSync(root)) return false;
-    return path.dirname(resolvedRunDir) === fs.realpathSync(root);
-  });
-  if (!inRunRoot) {
+  if (!isInsideStampableRoot(projectRoot, runDir)) {
     return {
       kind: 'rejected',
       message: 'trace stamp: run directories live directly under artifacts/runs/ or team/runs/; '
@@ -272,11 +307,17 @@ export function stampRunDirectory(
     event_id: eventId,
     ts_utc: (payload as { captured_at_utc: string }).captured_at_utc,
   });
+  const writtenMirrorBytes = `${JSON.stringify(origin, null, 2)}\n`;
   const rollbackMirror = () => {
     if (!mirrorWritten) return;
     try {
-      if (previousMirror !== null) writeBytesAtomicDurable(mirrorPath, previousMirror);
-      else fs.rmSync(mirrorPath, { force: true });
+      const current = fs.existsSync(mirrorPath) ? fs.readFileSync(mirrorPath, 'utf-8') : null;
+      const action = mirrorRollbackAction(current, writtenMirrorBytes, previousMirror);
+      if (action === 'restore_previous') writeBytesAtomicDurable(mirrorPath, previousMirror!);
+      else if (action === 'remove') fs.rmSync(mirrorPath, { force: true });
+      // (A writer sneaking in between the read above and the write here is
+      // a residual window; its worst case is the same divergence the
+      // mirror scan already surfaces.)
     } catch {
       // A failing restore must not mask the primary outcome; the
       // divergence scan surfaces the leftover mirror on the next read.
