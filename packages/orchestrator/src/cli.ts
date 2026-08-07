@@ -79,6 +79,18 @@ export async function runCli(argv: string[], io: CliIo = defaultIo()): Promise<n
     const { runCurrentCommand } = await import('./cli-trace.js');
     return runCurrentCommand(projectRoot, parsed.json, io);
   }
+  if (parsed.command === 'release') {
+    const { runReleaseCommand } = await import('./cli-release.js');
+    try {
+      return runReleaseCommand(projectRoot, {
+        targetDir: parsed.targetDir, commit: parsed.commit, tag: parsed.tag,
+        actor: parsed.actor, dryRun: parsed.dryRun,
+      }, io);
+    } catch (error) {
+      io.stderr(`release failed: ${error instanceof Error ? error.message : String(error)}\n`);
+      return 1;
+    }
+  }
   if (parsed.command === 'result') {
     const { setCurrentResult } = await import('./result-registry.js');
     try {
