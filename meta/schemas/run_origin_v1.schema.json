@@ -1,0 +1,280 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nullius.dev/schemas/run_origin_v1.schema.json",
+  "title": "RunOrigin V1",
+  "description": "Origin stamp binding one run to the exact code state that produced it. The authoritative copy of this payload is the `stamp` event appended to the project validity ledger; the run-directory `run_origin.json` is a best-effort human-browsable mirror of the same object. The binding_quality ladder is the honesty core: `exact` wording is reserved for the two levels where the recorded commit tree IS the tracked code that ran. Exactness refers to the snapshot object captured at stamp time; runs launched while the same worktree was being edited concurrently are outside this guarantee (one-worktree-per-lane norm).",
+  "type": "object",
+  "required": [
+    "schema_id",
+    "event_id",
+    "run_id",
+    "captured_at_utc",
+    "binding_quality",
+    "baseline_commit",
+    "dirty"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "run_origin_v1",
+      "description": "Schema discriminator, always run_origin_v1."
+    },
+    "event_id": {
+      "type": "string",
+      "pattern": "^[0-7][0-9ABCDEFGHJKMNPQRSTVWXYZ]{25}$",
+      "description": "ULID minted ONCE per logical stamp; a retry of the same logical stamp (including cross-process crash recovery via --event-id) reuses it, so ledger readers can deduplicate."
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Run directory name this stamp binds. Unparseable legacy names are accepted verbatim (slug degrades to the whole name)."
+    },
+    "captured_at_utc": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 UTC instant the stamp was taken. This, not the run_id timestamp, is the machine time truth."
+    },
+    "binding_quality": {
+      "type": "string",
+      "enum": [
+        "exact_clean",
+        "exact_tracked_snapshot",
+        "head_plus_untracked",
+        "aligned_heuristic",
+        "unbound"
+      ],
+      "description": "exact_clean: tree clean, code IS baseline_commit. exact_tracked_snapshot: tracked modifications captured as snapshot_commit (tree = snapshot_tree), untracked_count 0. head_plus_untracked: untracked files present \u2014 tracked-history identity is baseline_commit (or snapshot_commit when tracked modifications were also present) but the binding is NOT exact; consumers must render outcomes against it as qualified (e.g. current-modulo-untracked), never as unqualified exact/current. aligned_heuristic: retroactive timestamp alignment (backfill) \u2014 a heuristic, never presented as exact. unbound: no repository or no alignable identity (no_repo_reason required)."
+    },
+    "baseline_commit": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9a-f]{40}$",
+      "description": "Full sha of HEAD at stamp time (null only when unbound)."
+    },
+    "snapshot_commit": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9a-f]{40}$",
+      "description": "Commit object capturing tracked modifications (git stash create semantics; parent = baseline_commit), pinned at refs/nullius/runs/<sanitized-run-id> so gc cannot prune it. Null when the tracked tree was clean. The EFFECTIVE CODE IDENTITY of a run is snapshot_commit ?? baseline_commit."
+    },
+    "snapshot_tree": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9a-f]{40}$",
+      "description": "Tree sha of the snapshot commit (or of baseline_commit when clean). Byte-identical code between two runs is decidable by equality of this field."
+    },
+    "dirty": {
+      "type": "object",
+      "required": [
+        "tracked_modified",
+        "untracked_count"
+      ],
+      "properties": {
+        "tracked_modified": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Count of tracked paths differing from baseline_commit, derived FROM the snapshot commit's diff (one object-level operation \u2014 no inspect-then-snapshot window)."
+        },
+        "untracked_count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Untracked, non-ignored paths present at stamp time (instantaneous observation). Never auto-ignored and never snapshotted: whether to track or ignore them is an explicit project decision."
+        },
+        "untracked_sample": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 20,
+          "description": "Up to 20 untracked path names for human triage; the run-directory mirror may carry the full list."
+        },
+        "submodules_dirty": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Submodules whose contents differ from their recorded gitlink. Dirty submodule CONTENTS are not captured (known limit); a nonzero count demotes the honesty wording the same way untracked files do."
+        }
+      },
+      "additionalProperties": false
+    },
+    "deps": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^[0-9a-f]{40}$"
+      },
+      "description": "Optional dependency-repository commits, keyed by a caller-chosen repository name."
+    },
+    "no_repo_reason": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Required non-empty when binding_quality is unbound: why no commit identity exists (e.g. project has no git repository; unparseable_run_id with no usable timestamp)."
+    },
+    "aligned_commit": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9a-f]{40}$",
+      "description": "Backfill only: the latest commit at or before the run timestamp. A heuristic binding \u2014 rebased or force-pushed history can make it plausible-but-wrong, which is why aligned_heuristic is never rendered as exact."
+    },
+    "alignment": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "window_prev_s": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Seconds from the aligned commit to the run timestamp."
+        },
+        "window_next_s": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "description": "Seconds from the run timestamp to the next commit (null when the aligned commit is the newest)."
+        },
+        "nominal_timestamp": {
+          "type": "boolean",
+          "description": "True when the run_id carries a hand-rounded (nominal) timestamp \u2014 alignment confidence is degraded."
+        },
+        "ambiguous_candidates": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{40}$"
+          },
+          "description": "Other commits sharing the exact boundary timestamp; non-empty means the alignment choice at that instant was not unique. (Cross-branch near-boundary competition is NOT enumerated here; the all_refs history_scope already marks the binding heuristic.)"
+        },
+        "history_scope": {
+          "type": "string",
+          "enum": [
+            "all_refs"
+          ],
+          "description": "Which commit set the alignment drew from. all_refs: every ref (git log --all) \u2014 side branches compete with the mainline, part of why the binding is heuristic."
+        }
+      },
+      "additionalProperties": false,
+      "description": "Backfill only: the evidence behind an aligned_heuristic binding."
+    },
+    "run_dir_unwritable": {
+      "type": "boolean",
+      "default": false,
+      "description": "True when writing the run-directory mirror failed (e.g. read-only bits on legacy runs). The ledger event remains the truth; backfill never fails on filesystem bits."
+    }
+  },
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "binding_quality": {
+            "const": "unbound"
+          }
+        },
+        "required": [
+          "binding_quality"
+        ]
+      },
+      "then": {
+        "properties": {
+          "no_repo_reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "no_repo_reason"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "binding_quality": {
+            "const": "exact_tracked_snapshot"
+          }
+        },
+        "required": [
+          "binding_quality"
+        ]
+      },
+      "then": {
+        "properties": {
+          "snapshot_commit": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{40}$"
+          },
+          "snapshot_tree": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{40}$"
+          }
+        },
+        "required": [
+          "snapshot_commit",
+          "snapshot_tree"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "binding_quality": {
+            "const": "aligned_heuristic"
+          }
+        },
+        "required": [
+          "binding_quality"
+        ]
+      },
+      "then": {
+        "properties": {
+          "aligned_commit": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{40}$"
+          },
+          "alignment": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "aligned_commit",
+          "alignment"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "binding_quality": {
+            "enum": [
+              "exact_clean",
+              "exact_tracked_snapshot",
+              "head_plus_untracked"
+            ]
+          }
+        },
+        "required": [
+          "binding_quality"
+        ]
+      },
+      "then": {
+        "properties": {
+          "baseline_commit": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{40}$"
+          }
+        }
+      }
+    }
+  ]
+}

@@ -109,7 +109,7 @@ The check is also skipped for:
    - the current main research report linked from
      `project_index.md#Main research report`, when one is promoted
 
-**Anchor on the final adopted version — never build on a superseded one.** A long project accumulates earlier fits, methods, grids, and exploratory scripts; a *newer* adopted result (a better minimum, a more robust method, a finer grid) can silently coexist in the repo with the deprecated ones it replaced. Before extending or varying anything, resolve from the durable record (`research_plan.md#Current Status`, `research_contract.md`, the latest dated `artifacts/runs/<run_id>/`, and any explicit `superseded` / `voided` markers) **which** parameters, method, and configuration are the *current adopted* version — not the first script you happen to open or the most-cited earlier draft. Then **regression-anchor**: run that adopted reference configuration and assert it reproduces its known result (the published χ²/value/pole) *before* trusting any variation built on it. This is the project-state half of the [`numerical-reliability-gate`](../numerical-reliability-gate/SKILL.md) G4 anchor; skipping it is how work silently gets rebuilt on a stale fit or a retired method.
+**Anchor on the final adopted version — never build on a superseded one.** A long project accumulates earlier fits, methods, grids, and exploratory scripts; a *newer* adopted result (a better minimum, a more robust method, a finer grid) can silently coexist in the repo with the deprecated ones it replaced. Where the project has a nullius launcher, the machine-readable answer comes first: `nullius current` renders the results registry (which result rows are current, produced by which run at which commit) and the validity ledger (which runs are still active, which are superseded or voided and why) — consult it before any manual archaeology, and keep it authoritative by recording supersessions there when you replace a run. Where that surface is absent or silent on the question, resolve from the durable record (`research_plan.md#Current Status`, `research_contract.md`, the latest dated `artifacts/runs/<run_id>/`, and any explicit `superseded` / `voided` markers) **which** parameters, method, and configuration are the *current adopted* version — not the first script you happen to open or the most-cited earlier draft. Then **regression-anchor**: run that adopted reference configuration and assert it reproduces its known result (the published χ²/value/pole) *before* trusting any variation built on it. This is the project-state half of the [`numerical-reliability-gate`](../numerical-reliability-gate/SKILL.md) G4 anchor; skipping it is how work silently gets rebuilt on a stale fit or a retired method.
 
 To pull newer managed scaffold doc (`AGENTS.md`) into an existing project without disturbing user notes, run `nullius init --refresh` (preview with `nullius init --refresh --dry-run`). It backs up any changed managed file under `.nullius/backups/` and never rewrites `research_plan.md`, `research_notebook.md`, `research_contract.md`, `project_charter.md`, `project_index.md`, `reports/main_research_report_template.md`, or `.gitignore`.
 
@@ -180,6 +180,7 @@ Run the witness on every build; reserve the expensive agent-follows-doc pass for
 **Launch contract.**
 
 - Write durable state only inside the managed run dir `artifacts/runs/<run_id>/` (human-meaningful tag, never a bare UUID). Never keep durable state in `/tmp`: a kill or a new session loses the results and, if the script also lives there, the code that produced them.
+- Stamp the run's code origin at launch, before the job starts: `nullius trace stamp <run_id>` (where the project has a nullius launcher). The stamp records the exact commit — snapshotting uncommitted tracked edits so even a dirty tree gets an exact identity — and is the difference between "this result came from this code" being a recorded fact and being a later guess. Delegated compute contracts should require the stamp as part of the launch preflight, alongside the budget fields.
 - Keep the compute script in the repo (committed), not in `/tmp`. Stream stdout to a log *inside the run dir* from a pipefail-enabled shell (`set -o pipefail; <cmd> 2>&1 | tee artifacts/runs/<run_id>/<job>.log`) for tailing; the log is for eyeballing, the checkpoint is the durable record. A bare logging pipeline reports the sink's status even when the producer fails, so record the producer/component status or a structured verdict and never treat the pipeline status alone as success.
 - Pin a **project-local, lockfile-committed environment** (commit the lockfile — `Manifest.toml` / `uv.lock` / `requirements.lock` / `Cargo.lock` — and run the job explicitly against it). Never run a long job against a shared/global interpreter env: a runtime-version mismatch silently invalidates the compiled cache (every relaunch re-pays full startup) and makes results non-reproducible.
 
@@ -227,6 +228,44 @@ A run record keeps three artifact classes separate, and only the first two ever 
 3. **Lifecycle state** — status fields, summaries-in-progress, project registries, adjudication indexes: anything the workflow itself rewrites as the run advances toward acceptance. These are **never** part of any hash closure. Hashing a status-bearing file binds the record to a value that must change, so every lifecycle advance cascades into re-hashing and re-verifying files whose changes verify nothing — the record ends up maintaining itself instead of the research.
 
 When a hash-bound artifact genuinely needs to change, the model is supersession, not in-place re-hash: freeze a new version, register it, and point the current pointer at it (exactly the main-report registry discipline). If a mutable file must appear in a review packet, embed an immutable content snapshot of it, so review freshness tracks the reviewed claim rather than unrelated bookkeeping writes.
+
+## Result Traceability: Which Runs Still Count, From Which Code
+
+The acceptance question this surface answers, as prose from one command
+(`nullius current`): what the current best result is, which exact code
+revision produced it, where the current manuscript is, which notebook
+sections are current versus stale, and which runs are still valid versus
+superseded or voided — with honestly-unanswerable clauses where the record
+cannot support an answer. The version object is the git commit; runs bind to
+commits via origin stamps; validity lives in an append-only ledger; result
+selection lives in the results registry in `project_index.md`.
+
+Daily discipline (each covered in its own section or in `research-team`):
+stamp runs at creation, supersede or void on the ledger when a result is
+replaced or found wrong, register headline results at milestone convergence,
+stamp rewritten memo sections.
+
+**Adopting this in an existing project** (one that already has runs but no
+stamps) is explicit — templates and launchers do not migrate anything by
+themselves:
+
+1. `nullius init --runtime-only` from the project root refreshes the
+   launcher so the `trace`, `current`, and `result` commands are available.
+2. `nullius trace backfill` writes retroactive origin stamps for legacy
+   runs by aligning run-directory timestamps against the commit timeline —
+   explicitly labeled as heuristic alignment (`aligned_heuristic`), never
+   presented as exact, and honestly `unbound` with a reason where no
+   alignment is defensible. Validity is never backfilled.
+3. `nullius trace propose-chains` derives same-topic round chains
+   (r1 → r2 → r3 within one milestone) as a supersession *proposal file*;
+   a human reviews and edits it, then `nullius trace confirm-chains`
+   records only what the reviewed file says. The machine never decides by
+   itself that a run was superseded.
+4. The results registry block is pasted into `project_index.md` by hand
+   once, copying the Current results section from the scaffold template —
+   existing generated projects never gain it automatically, because
+   refresh never rewrites user-owned files. `nullius result set-current`
+   refuses with exactly this instruction until the block exists.
 
 ## Runaway Protection Is Not a Performance Gate
 

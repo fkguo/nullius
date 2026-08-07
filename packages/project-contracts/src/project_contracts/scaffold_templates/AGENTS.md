@@ -41,6 +41,9 @@ Verification runs on events, not on reminders: each moment below is the trigger,
 | A result-bearing surface needs independent review: a headline result, manuscript, load-bearing derivation, public contract, or an irreversible change (internal scaffolding diffs close on local tests plus a single reviewer — never on the author's own tests alone) | `review-swarm` — clean-room cross-model review |
 | Before conclusions, a milestone closeout, or a handoff | `research-integrity` M1-M7 — record the outcome inline and land run evidence under `artifacts/runs/<run_id>/` or `team/runs/<run>/` |
 | Before promoting or superseding the main research report | `nullius report-validate` — fail closed on structural incompleteness, stale current pointers, mutated history, machine-only evidence, or replay mislabeled as independent validation |
+| Created a run directory under `artifacts/runs/` | `nullius trace stamp <run_id>` — bind the run to the exact code state producing it, at the moment the binding is exact |
+| A result replaced an earlier run's, or a run's output was found wrong | `nullius trace supersede <old> --by <new> --reason "..."` (or `nullius trace void <run_id> --reason "..."`) — record it on the validity ledger while the reason is fresh |
+| A headline result converged, or you need to know which results and runs currently count | `nullius result set-current` to register; `nullius current` to read the whole answer — current results, producing code revision, manuscript pointer, notebook staleness, run validity — as prose |
 
 ## Verification granularity and severity
 
