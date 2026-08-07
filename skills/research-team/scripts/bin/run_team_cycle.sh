@@ -1085,6 +1085,25 @@ safe_tag="${RESOLVED_TAG}"
 run_dir="${OUT_DIR}/runs/${safe_tag}"
 mkdir -p "${run_dir}"
 run_dir_abs="$(cd "${run_dir}" && pwd)"
+# Origin stamp at run creation: bind this cycle's run directory to the exact
+# code state BEFORE any member work starts — recorded now, when the binding
+# is exact, not reconstructed later, when it can only be a heuristic. The
+# stamp is bookkeeping, never a gate: a missing launcher or a failed stamp
+# must not abort the cycle (the run then surfaces as unstamped in the
+# traceability read model until stamped by hand). A re-entered tag that
+# already carries a stamp mirror is not re-stamped: a second stamp of one
+# run id is the reader's conflicting-stamps defect, noise for a re-entry.
+NULLIUS_LAUNCHER="${PROJECT_ROOT}/.nullius/bin/nullius"
+if [[ -x "${NULLIUS_LAUNCHER}" && ! -f "${run_dir_abs}/run_origin.json" ]]; then
+  if stamp_output="$("${NULLIUS_LAUNCHER}" --project-root "${PROJECT_ROOT}" trace stamp "${run_dir_abs}" 2>&1)"; then
+    echo "[trace] origin ${stamp_output}" | head -n 1
+  else
+    echo "[trace] WARNING: origin stamp failed for ${run_dir}: ${stamp_output}" >&2
+    echo "[trace] the run will appear unstamped in 'nullius current' until stamped by hand (nullius trace stamp '${run_dir_abs}')." >&2
+  fi
+elif [[ ! -x "${NULLIUS_LAUNCHER}" ]]; then
+  echo "[trace] note: no nullius launcher at .nullius/bin/nullius; run origin not stamped (enable with 'nullius init --runtime-only', then runs bind to code automatically)." >&2
+fi
 attempt_logs_dir="${run_dir}/logs"
 # Per-member subdirs isolate attempt logs so deny_other_outputs can revoke cross-member access.
 mkdir -p "${attempt_logs_dir}" "${attempt_logs_dir}/member_a" "${attempt_logs_dir}/member_b" >/dev/null 2>&1 || true
