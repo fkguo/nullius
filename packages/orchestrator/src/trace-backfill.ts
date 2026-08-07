@@ -276,7 +276,7 @@ export function proposeRoundChains(projectRoot: string): { proposals: ChainPropo
   proposals.sort((a, b) => a.slug.localeCompare(b.slug));
   const proposalPath = path.join(projectRoot, CHAIN_PROPOSAL_RELATIVE_PATH);
   fs.mkdirSync(path.dirname(proposalPath), { recursive: true });
-  fs.writeFileSync(proposalPath, `${JSON.stringify({
+  writeBytesAtomicDurable(proposalPath, `${JSON.stringify({
     schema: 'round_chain_proposal_v1',
     generated_at_utc: new Date().toISOString(),
     note: 'PROPOSAL ONLY — nothing here has touched the validity ledger. Review each pair; '
