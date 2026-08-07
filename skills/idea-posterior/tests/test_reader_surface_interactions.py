@@ -126,11 +126,15 @@ function probe() {{
         text=True,
         start_new_session=True,
     )
+    # Wall-clock budgets only guard against a wedged browser; the in-page work
+    # is bounded by --virtual-time-budget, so generous values do not slow a
+    # healthy run and keep cold Chrome starts on shared CI runners (which can
+    # stall past 15 s on D-Bus waits) from being killed mid-startup.
     try:
-        stdout, stderr = proc.communicate(timeout=15)
+        stdout, stderr = proc.communicate(timeout=30)
     except subprocess.TimeoutExpired:
         os.killpg(proc.pid, signal.SIGTERM)
-        stdout, stderr = proc.communicate(timeout=5)
+        stdout, stderr = proc.communicate(timeout=30)
     assert stdout, stderr
     match = re.search(
         rf'<pre id="{result_id}">(.*?)</pre>', stdout, flags=re.DOTALL
