@@ -251,7 +251,12 @@ function resolveRunInput(input: RunCommandInput, io: CliIo): AnyResolvedRunInput
       dryRun: input.dryRun,
     };
   }
-  const runDir = input.runDir ? resolveUserPath(input.runDir, io.cwd) : path.join(projectRoot, runId);
+  // Default run dir lives under artifacts/runs/ — the canonical stampable
+  // run root — so a front-door run is visible to the traceability read model
+  // and receives its automatic launch stamp without any flag.
+  const runDir = input.runDir
+    ? resolveUserPath(input.runDir, io.cwd)
+    : path.join(projectRoot, 'artifacts', 'runs', runId);
   if (!isWithinPath(projectRoot, runDir)) {
     throw new Error(`run dir must stay within project root: ${runDir}`);
   }
