@@ -101,6 +101,11 @@ export type TraceabilityView = {
   notebook: {
     found: boolean;
     counts: NotebookStalenessReport['counts'];
+    /** Every section with its staleness class — the per-section truth a
+     *  fold-boundary gate needs to verify that a declared rewrite actually
+     *  carries a fresh written-against stamp (the aggregates alone cannot
+     *  name which section is which). */
+    sections: Array<{ heading: string; class: NotebookStalenessReport['sections'][number]['class']; cause: string }>;
     stale: Array<{ heading: string; cause: string }>;
     incomparable: Array<{ heading: string; cause: string }>;
   };
@@ -498,6 +503,11 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
     notebook: {
       found: notebook.notebook_found,
       counts: notebook.counts,
+      sections: notebook.sections.map(section => ({
+        heading: section.heading,
+        class: section.class,
+        cause: section.cause,
+      })),
       stale: notebook.sections.filter(section => section.class === 'stale')
         .map(section => ({ heading: section.heading, cause: section.cause })),
       incomparable: notebook.sections.filter(section => section.class === 'incomparable')
