@@ -549,10 +549,40 @@ export type OpenRetryResult =
     mirrorWritten: boolean;
   };
 
-const RETRY_BOOKKEEPING_ALLOWLIST = new Set(['run_origin.json', 'attempts', 'manifest.json']);
+const RETRY_BOOKKEEPING_ALLOWLIST = new Set(['run_origin.json', 'attempts', 'manifest.json', 'computation']);
 
-function listRunSurfaceEntries(runDir: string): string[] {
-  return fs.readdirSync(runDir).filter(name => !RETRY_BOOKKEEPING_ALLOWLIST.has(name));
+/** The PRODUCT surface a resultless crash must leave empty: top-level
+ *  entries beyond bookkeeping and inputs, plus the runner write surface
+ *  under computation/ (status, logs, outputs, workspace). The computation/
+ *  directory itself — manifest, scripts, staged inputs — is INPUT and
+ *  never counts as residue: a launch that dies before its first product
+ *  must heal as `missing`, not demand a declaration for its own inputs. */
+function listRunProductEntries(runDir: string): string[] {
+  const products = fs.readdirSync(runDir).filter(name => !RETRY_BOOKKEEPING_ALLOWLIST.has(name));
+  const computationDir = path.join(runDir, 'computation');
+  if (fs.existsSync(computationDir)) {
+    for (const entry of RUNNER_PRODUCT_ENTRIES) {
+      if (fs.existsSync(path.join(computationDir, entry))) products.push(path.join('computation', entry));
+    }
+  }
+  return products;
+}
+
+/** The terminal result artifact a COMPLETED front-door run writes. The
+ *  status file is runner-owned but mutable on disk; the terminal artifact
+ *  is a second, independent completion witness — a retry that trusted the
+ *  status file alone could be laundered by hand-editing one JSON field. */
+function completedResultArtifactPresent(runDir: string): boolean {
+  const artifactPath = path.join(runDir, 'artifacts', 'computation_result_v1.json');
+  try {
+    if (!fs.existsSync(artifactPath)) return false;
+    const parsed = JSON.parse(fs.readFileSync(artifactPath, 'utf-8')) as { status?: string; ok?: boolean };
+    return parsed.status === 'completed' || parsed.ok === true;
+  } catch {
+    // An unreadable terminal artifact is suspicious, not conclusive; the
+    // status-file path still governs.
+    return false;
+  }
 }
 
 /** Quarantine the failed attempt's execution PRODUCTS into
@@ -566,41 +596,78 @@ function listRunSurfaceEntries(runDir: string): string[] {
  *  moved. */
 const RUNNER_PRODUCT_ENTRIES = ['execution_status.json', 'logs', 'outputs', 'workspace'];
 
-function quarantineFailedAttempt(runDir: string, closedOrdinal: number): { dest: string | null; moved: number } {
-  const destRel = path.join('attempts', `attempt-${closedOrdinal}`);
-  const destAbs = path.join(runDir, destRel);
+/** Quarantine into a PRIVATE staging directory first; only the appended
+ *  winner promotes it to the canonical attempts/attempt-<N>/ name. Two
+ *  concurrent retries therefore never share an archive: each stages its own
+ *  moves, the race loser restores from ITS OWN staging only, and the
+ *  winner's products are untouchable by the loser's rollback. */
+function quarantineFailedAttempt(
+  runDir: string,
+  eventId: string,
+): { staging: string | null; moved: number } {
+  const stagingRel = path.join('attempts', `.staging-${eventId}`);
+  const stagingAbs = path.join(runDir, stagingRel);
   const computationDir = path.join(runDir, 'computation');
-  if (!fs.existsSync(computationDir)) return { dest: null, moved: 0 };
+  if (!fs.existsSync(computationDir)) return { staging: null, moved: 0 };
   let moved = 0;
   for (const entry of RUNNER_PRODUCT_ENTRIES) {
     const from = path.join(computationDir, entry);
     if (!fs.existsSync(from)) continue;
-    const to = path.join(destAbs, 'computation', entry);
+    const to = path.join(stagingAbs, 'computation', entry);
     fs.mkdirSync(path.dirname(to), { recursive: true });
     fs.renameSync(from, to);
     moved += 1;
   }
-  return moved > 0 ? { dest: destRel, moved } : { dest: null, moved: 0 };
+  return moved > 0 ? { staging: stagingRel, moved } : { staging: null, moved: 0 };
 }
 
-function restoreQuarantine(runDir: string, destRel: string): void {
-  // Best-effort rollback for the lost chain-head race: move archived
-  // entries back where they came from. A partial restore surfaces on the
-  // next read as attempt bookkeeping without a matching closure.
-  const destAbs = path.join(runDir, destRel, 'computation');
-  if (!fs.existsSync(destAbs)) return;
-  const computationDir = path.join(runDir, 'computation');
-  fs.mkdirSync(computationDir, { recursive: true });
-  for (const entry of fs.readdirSync(destAbs)) {
-    try {
-      fs.renameSync(path.join(destAbs, entry), path.join(computationDir, entry));
-    } catch {
-      // leave the remainder in the archive; visible, never lost
+/** Promote this invocation's staging to the canonical archive name. If the
+ *  canonical name already exists (a prior attempt archived there — one
+ *  canonical dir per ordinal), merge by moving staging entries under it. */
+function promoteQuarantine(runDir: string, stagingRel: string, closedOrdinal: number): string {
+  const destRel = path.join('attempts', `attempt-${closedOrdinal}`);
+  const destAbs = path.join(runDir, destRel);
+  const stagingAbs = path.join(runDir, stagingRel);
+  if (!fs.existsSync(destAbs)) {
+    fs.renameSync(stagingAbs, destAbs);
+    return destRel;
+  }
+  const stagingComputation = path.join(stagingAbs, 'computation');
+  if (fs.existsSync(stagingComputation)) {
+    for (const entry of fs.readdirSync(stagingComputation)) {
+      const to = path.join(destAbs, 'computation', entry);
+      fs.mkdirSync(path.dirname(to), { recursive: true });
+      try {
+        fs.renameSync(path.join(stagingComputation, entry), to);
+      } catch {
+        // leave in staging; visible, never lost
+      }
     }
   }
   try {
-    fs.rmdirSync(destAbs);
-    fs.rmdirSync(path.join(runDir, destRel));
+    fs.rmdirSync(stagingComputation);
+    fs.rmdirSync(stagingAbs);
+  } catch { /* non-empty leftovers stay visible */ }
+  return destRel;
+}
+
+function restoreQuarantine(runDir: string, stagingRel: string): void {
+  // Rollback for the lost race — restores ONLY this invocation's staged
+  // moves; the winner's archive is a different directory by construction.
+  const stagingComputation = path.join(runDir, stagingRel, 'computation');
+  if (!fs.existsSync(stagingComputation)) return;
+  const computationDir = path.join(runDir, 'computation');
+  fs.mkdirSync(computationDir, { recursive: true });
+  for (const entry of fs.readdirSync(stagingComputation)) {
+    try {
+      fs.renameSync(path.join(stagingComputation, entry), path.join(computationDir, entry));
+    } catch {
+      // leave the remainder staged; visible, never lost
+    }
+  }
+  try {
+    fs.rmdirSync(stagingComputation);
+    fs.rmdirSync(path.join(runDir, stagingRel));
   } catch {
     // non-empty leftovers stay visible
   }
@@ -685,6 +752,14 @@ export function openRetryAttempt(
         + 'cheap path; supersede or void it (full ceremony) and open a fresh run id',
     };
   }
+  if (completedResultArtifactPresent(runDir)) {
+    return {
+      kind: 'rejected',
+      message: `trace retry: ${runId}'s terminal result artifact records a COMPLETED execution — a hand-edited `
+        + 'status file cannot relabel it a crash; "completed but wrong" is content territory: supersede or void '
+        + 'it (full ceremony) and open a fresh run id',
+    };
+  }
   const closedOrdinal = entry.attempts.latest_ordinal;
   if (entry.attempts.closures.some(closure => closure.ordinal === closedOrdinal)) {
     return {
@@ -736,18 +811,18 @@ export function openRetryAttempt(
       return { kind: 'rejected', message: `trace retry: ${runId}'s execution status is unrecognized (${String(status.status)})` };
     }
   } else {
-    const surface = listRunSurfaceEntries(runDir);
+    const surface = listRunProductEntries(runDir);
     if (surface.length === 0) {
       // Nothing was ever produced — the stamp-predates-source class heals
       // as an honest chain advance; never counts against attempt budgets.
       outcome = 'missing';
       evidence.method = 'outputs_scan';
-      evidence.detail = 'run surface empty: no execution products ever materialized';
+      evidence.detail = 'product surface empty: no execution products ever materialized';
     } else {
       if (!options.reason) {
         return {
           kind: 'rejected',
-          message: `trace retry: ${runId} has ${surface.length} file(s) on its surface and no execution status — `
+          message: `trace retry: ${runId} has ${surface.length} product file(s) on its surface and no execution status — `
             + 'retrying a hand run requires --reason declaring the execution produced no retained result '
             + '(recorded as a declaration, visibly second-class)',
         };
@@ -783,11 +858,17 @@ export function openRetryAttempt(
   }
 
   const eventId = options.eventId ?? mintUlid();
+  // Stage the archive under this invocation's own name; the canonical
+  // attempts/attempt-N destination is claimed only AFTER the append wins.
+  let staging: string | null = null;
   let quarantinedTo: string | null = null;
   if (!options.recordOnly) {
-    const quarantine = quarantineFailedAttempt(runDir, closedOrdinal);
-    quarantinedTo = quarantine.dest;
-    if (quarantine.moved > 0) evidence.quarantined_paths_count = quarantine.moved;
+    const quarantine = quarantineFailedAttempt(runDir, eventId);
+    staging = quarantine.staging;
+    if (quarantine.moved > 0) {
+      evidence.quarantined_paths_count = quarantine.moved;
+      quarantinedTo = path.join('attempts', `attempt-${closedOrdinal}`);
+    }
   }
 
   let origin: RunOriginV1 | null = null;
@@ -815,6 +896,14 @@ export function openRetryAttempt(
     : view.events.find(event => event.event === 'attempt' && event.run_id === runId
       && ((event as { attempt?: { origin?: { attempt_ordinal?: number } | null } }).attempt?.origin?.attempt_ordinal
         === closedOrdinal))?.event_id ?? null;
+  if (supersedesEvent === null) {
+    if (staging) restoreQuarantine(runDir, staging);
+    return {
+      kind: 'rejected',
+      message: `trace retry: cannot identify the event that opened attempt ${closedOrdinal} of ${runId}; `
+        + 'the chain is unreadable — repair the ledger before retrying',
+    };
+  }
   const event = buildValidityEvent({
     event: 'attempt',
     run_id: runId,
@@ -838,14 +927,14 @@ export function openRetryAttempt(
       onlyIfAttemptChainHead: { closesOrdinal: closedOrdinal },
     });
   } catch (error) {
-    if (quarantinedTo) restoreQuarantine(runDir, quarantinedTo);
+    if (staging) restoreQuarantine(runDir, staging);
     if (!options.recordOnly && mirrorWritten && previousMirror !== null) {
       try { writeBytesAtomicDurable(mirrorPath, previousMirror); } catch { /* divergence scan surfaces it */ }
     }
     throw error;
   }
   if (appendOutcome === 'skipped_attempt_not_chain_head') {
-    if (quarantinedTo) restoreQuarantine(runDir, quarantinedTo);
+    if (staging) restoreQuarantine(runDir, staging);
     if (!options.recordOnly && mirrorWritten && previousMirror !== null) {
       try { writeBytesAtomicDurable(mirrorPath, previousMirror); } catch { /* divergence scan surfaces it */ }
     }
@@ -854,6 +943,16 @@ export function openRetryAttempt(
       runId,
       message: `trace retry: a concurrent retry advanced ${runId}'s attempt chain first; re-read and retry from the new state`,
     };
+  }
+  // The append is the record; promote this invocation's staging to the
+  // canonical archive name (merge-tolerant, never deletes).
+  if (staging) {
+    try {
+      promoteQuarantine(runDir, staging, closedOrdinal);
+    } catch {
+      // staged files stay visible under attempts/.staging-<event>; the
+      // event's quarantined_to names the canonical intent
+    }
   }
 
   return {

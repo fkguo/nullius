@@ -448,6 +448,18 @@ export function setCurrentResult(
   if (known.conflicting_stamps) {
     throw new Error(`run ${input.runId} carries CONFLICTING origin stamps; repair the ledger before registering results on it`);
   }
+  if (known.attempts.chain_defect || known.attempts.conflicting_attempts) {
+    throw new Error(
+      `run ${input.runId}'s attempt chain is defective (gap, forged ordinal, or divergent concurrent retries); `
+      + 'repair the ledger before registering results on it — a defective chain cannot say which code produced the artifact',
+    );
+  }
+  if (known.attempts.latest_failed) {
+    throw new Error(
+      `run ${input.runId}'s latest attempt is CLOSED as resultless (${known.attempts.closures.at(-1)?.previous_outcome ?? 'failed'}); `
+      + 'a current result must come from a delivering attempt — retry first, or register a different run',
+    );
+  }
   const effective = known.origin ? effectiveCodeIdentity(known.origin as RunOriginV1) : null;
   if (!effective) {
     throw new Error(

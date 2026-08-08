@@ -417,12 +417,30 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
   // exactly what the order_uncertain boundary marker below discloses; the
   // view invents no key of its own (a payload-embedded id would even be
   // freely choosable by a hand-written ledger line).
-  const seenStampRuns = new Set<string>();
+  const seenCapturePoints = new Set<string>();
   for (const event of ledger.events) {
-    if (event.event !== 'stamp' || seenStampRuns.has(event.run_id)) continue;
-    seenStampRuns.add(event.run_id);
+    // Capture points come from BOTH binding writers: initial stamps and
+    // the origins embedded in attempt (retry) events — a retried run's
+    // later attempts are real captures on possibly-different trees, and
+    // omitting them would narrate only attempt 1's code.
+    let capturePayload: Record<string, unknown> | null = null;
+    if (event.event === 'stamp') {
+      capturePayload = event.stamp as unknown as Record<string, unknown> | null;
+    } else if (event.event === 'attempt') {
+      const embedded = (event as { attempt?: { origin?: unknown | null } }).attempt?.origin ?? null;
+      capturePayload = embedded as Record<string, unknown> | null;
+    }
+    if (!capturePayload) continue;
+    const ordinal = typeof capturePayload.attempt_ordinal === 'number' ? capturePayload.attempt_ordinal : 1;
+    const pointKey = `${event.run_id}#${ordinal}`;
+    if (seenCapturePoints.has(pointKey)) continue;
+    seenCapturePoints.add(pointKey);
     const known = ledger.runs.get(event.run_id);
     if (!known?.stamped) continue;
+    if (known.attempts.chain_defect || known.attempts.conflicting_attempts) {
+      codeStatesExcludedInexact += 1;
+      continue;
+    }
     // A run with conflicting stamps (or no authoritative identity) has no
     // single true tree — narrating ANY of its payloads at ANY position
     // would pair a tree with a moment that may never have held it. Such
@@ -435,7 +453,7 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
       codeStatesExcludedInexact += 1;
       continue;
     }
-    const record = event.stamp as unknown as Record<string, unknown> | null;
+    const record = capturePayload;
     const quality = record?.binding_quality;
     const tree = record && typeof record.snapshot_tree === 'string' ? record.snapshot_tree : null;
     if (!record || typeof quality !== 'string' || !EXACT_TREE_QUALITIES.has(quality) || !tree) {

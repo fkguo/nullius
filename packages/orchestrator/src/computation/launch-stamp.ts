@@ -102,15 +102,16 @@ export function stampComputationLaunch(projectRoot: string, runDir: string): Exe
               binding_quality: String(origin.binding_quality ?? 'unknown'),
             };
           }
-          // Machine boundary said no (registry-named, chain defect, cap
-          // exhausted, concurrent race …): fall through to the honest warn
-          // carrying the entrance's own sentence.
+          // Machine boundary said no (registry-named, decided, chain
+          // defect, cap exhausted, concurrent race …). Executing anyway
+          // would overwrite exactly what the refusal protects — so the
+          // launch is REFUSED, carrying the entrance's own sentence.
           const detail = retry.kind === 'rejected' ? retry.message
             : retry.kind === 'attempt_conflict' ? retry.message
               : 'retry entrance did not open a new attempt';
           return {
-            status: 'stale_stamp',
-            detail: `${detail} — executing anyway would overwrite results the recorded stamp no longer describes.`,
+            status: 'refused_relaunch',
+            detail: `${detail} — executing would overwrite what this refusal protects.`,
           };
         }
         if (graded.grade === 'untracked_delta') {
