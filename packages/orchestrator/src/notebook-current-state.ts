@@ -250,14 +250,26 @@ function locateBlock(text: string): BlockLocation {
   for (const pair of pairedBlocks) {
     const interiorContent = pair.interiorLines
       .map(line => (line.endsWith('\r') ? line.slice(0, -1) : line));
-    const containsDigest = DIGEST_LINE_PATTERN.test(interiorContent.join('\n'));
+    // The rendered block's digest sits on the FIRST interior line — an
+    // unanchored substring match would bless a stray pair wrapping prose
+    // that merely CONTAINS a digest-shaped comment further down. (Prose a
+    // human adds BELOW the digest of a real block is the designed
+    // machine-owned-region case: flagged as a hand edit, restored by an
+    // explicit sync — that is the contract the block itself states.)
+    const digestFirst = DIGEST_LINE_PATTERN.test(interiorContent[0] ?? '');
     const trimmedInterior = interiorContent.join('\n').trim();
-    const placeholderShaped = !interiorContent.some(line => line.trim() === '')
-      && !interiorContent.some(line => /^ {0,3}##\s+/.test(line))
+    // The placeholder arm is deliberately narrow: a short parenthetical
+    // note — no blank lines, no ATX heading of ANY level at legal indent,
+    // no inline or reference link syntax, few lines, small byte count.
+    const placeholderShaped = interiorContent.length <= 6
+      && trimmedInterior.length <= 400
+      && !interiorContent.some(line => line.trim() === '')
+      && !interiorContent.some(line => /^ {0,3}#{1,6}\s+/.test(line))
       && trimmedInterior.startsWith('(')
       && trimmedInterior.endsWith(')')
-      && !trimmedInterior.includes('](');
-    if (!containsDigest && !placeholderShaped) {
+      && !trimmedInterior.includes('](')
+      && !trimmedInterior.includes('][');
+    if (!digestFirst && !placeholderShaped) {
       strayFromInvalidPairs += 2;
       continue;
     }

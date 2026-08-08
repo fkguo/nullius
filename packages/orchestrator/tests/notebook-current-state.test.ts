@@ -201,6 +201,9 @@ describe('refresh + check', () => {
       ['Front-matter paragraph one.', '', 'Front-matter paragraph two.'], // blank line, no digest
       ['  ## Indented heading', 'Contiguous prose.'], // 1-3 space heading is still a heading
       [`<!-- state-digest: ${'a'.repeat(63)} -->`, 'Contiguous researcher prose.'], // corrupted digest, no blank
+      ['A prose sentence first.', `<!-- state-digest: ${'a'.repeat(64)} -->`], // valid digest NOT on the first line
+      ['(', '### Interpretation', 'The extrapolation caveat is scientifically material.', ')'], // parenthesized smuggle with ### heading
+      ['(' + 'x'.repeat(450) + ')'], // parenthetical over the byte cap
     ]) {
       fs.writeFileSync(notebookPath(), [
         '# Memo',
