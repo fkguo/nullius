@@ -113,7 +113,7 @@ describe('refresh + check', () => {
     expect(edited.reason).toContain('hand edit');
   });
 
-  it('refuses duplicated complete blocks instead of guessing', () => {
+  it('two garbage pairs are strays (no machine interior = no claim), and adoption refuses', () => {
     fs.writeFileSync(notebookPath(), [
       '# Memo',
       CURRENT_STATE_START, 'a', CURRENT_STATE_END,
@@ -121,7 +121,9 @@ describe('refresh + check', () => {
       '## Results',
     ].join('\n'));
     expect(refreshNotebookCurrentState(projectRoot, { insertIfMissing: true }).action).toBe('skipped');
-    expect(checkCurrentStateBlock(projectRoot, EMPTY).duplicated_markers).toBe(true);
+    const status = checkCurrentStateBlock(projectRoot, EMPTY);
+    expect(status.duplicated_markers).toBe(false);
+    expect(status.reason).toContain('stray');
   });
 
   it('stray unpaired marker lines are NOT duplication (claim nothing, advisory only), and block adoption', () => {
@@ -197,6 +199,8 @@ describe('refresh + check', () => {
     for (const interior of [
       ['## Results', 'Six months of analysis prose.', 'Another finding.'], // heading inside
       ['Front-matter paragraph one.', '', 'Front-matter paragraph two.'], // blank line, no digest
+      ['  ## Indented heading', 'Contiguous prose.'], // 1-3 space heading is still a heading
+      [`<!-- state-digest: ${'a'.repeat(63)} -->`, 'Contiguous researcher prose.'], // corrupted digest, no blank
     ]) {
       fs.writeFileSync(notebookPath(), [
         '# Memo',
@@ -219,10 +223,24 @@ describe('refresh + check', () => {
     }
   });
 
-  it('nested marker pairs are duplicated (two complete blocks) and refresh refuses to write', () => {
+  it('nested garbage pairs are strays (no valid claim) and refresh refuses to write', () => {
     fs.writeFileSync(notebookPath(), [
       '# Memo',
       CURRENT_STATE_START, CURRENT_STATE_START, 'inner', CURRENT_STATE_END, CURRENT_STATE_END,
+      '## Results',
+    ].join('\n'));
+    const status = checkCurrentStateBlock(projectRoot, NO_REGISTRY);
+    expect(status.duplicated_markers).toBe(false);
+    expect(status.block_found).toBe(false);
+    expect(status.reason).toContain('stray');
+    expect(refreshNotebookCurrentState(projectRoot, { insertIfMissing: true }).action).toBe('skipped');
+  });
+
+  it('two sibling rendered blocks are duplicated (ambiguous claim) and refresh refuses to write', () => {
+    fs.writeFileSync(notebookPath(), [
+      '# Memo', '',
+      renderCurrentStateBlock(NO_REGISTRY), '',
+      renderCurrentStateBlock(EMPTY), '',
       '## Results',
     ].join('\n'));
     expect(checkCurrentStateBlock(projectRoot, NO_REGISTRY).duplicated_markers).toBe(true);

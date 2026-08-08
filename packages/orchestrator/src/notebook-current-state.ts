@@ -236,20 +236,28 @@ function locateBlock(text: string): BlockLocation {
     }
   }
   // Interior validation — the last line of defense against splicing away
-  // researcher prose. A REAL block's interior is machine-rendered (always
-  // carries the digest line); the template placeholder's interior is a
-  // short contiguous note (no blank line). An interior with a `##` heading,
-  // or with blank lines but no digest, is a stray marker pair wrapped
-  // around human prose: its markers are strays, never a rewritable block.
+  // researcher prose. The write paths only ever produce TWO interiors, so
+  // rewritability is a WHITELIST (a blacklist of prose shapes proved
+  // unwinnable — indented headings, corrupted digests, contiguous prose):
+  //  - the rendered block: carries a VALID digest line;
+  //  - the template placeholder: one parenthetical note — no blank lines,
+  //    no heading at any legal indent, no markdown link, wrapped in
+  //    parentheses as the scaffold writes it.
+  // Every other interior is a stray marker pair wrapped around human
+  // content: advisory, adoption-blocked, never rewritable.
   let strayFromInvalidPairs = 0;
   const completeBlocks: BlockBounds[] = [];
   for (const pair of pairedBlocks) {
     const interiorContent = pair.interiorLines
       .map(line => (line.endsWith('\r') ? line.slice(0, -1) : line));
-    const containsHeading = interiorContent.some(line => /^##\s+/.test(line));
-    const containsBlank = interiorContent.some(line => line.trim() === '');
     const containsDigest = DIGEST_LINE_PATTERN.test(interiorContent.join('\n'));
-    if (containsHeading || (containsBlank && !containsDigest)) {
+    const trimmedInterior = interiorContent.join('\n').trim();
+    const placeholderShaped = !interiorContent.some(line => line.trim() === '')
+      && !interiorContent.some(line => /^ {0,3}##\s+/.test(line))
+      && trimmedInterior.startsWith('(')
+      && trimmedInterior.endsWith(')')
+      && !trimmedInterior.includes('](');
+    if (!containsDigest && !placeholderShaped) {
       strayFromInvalidPairs += 2;
       continue;
     }
