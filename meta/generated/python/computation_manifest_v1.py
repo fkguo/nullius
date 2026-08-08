@@ -213,6 +213,10 @@ class ComputationBudget(BaseModel):
     ] = None
 
 
+class PreflightItem(RootModel[str]):
+    root: Annotated[str, Field(min_length=1)]
+
+
 class ComputationmanifestV1(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -262,4 +266,18 @@ class ComputationmanifestV1(BaseModel):
     created_at: Annotated[
         AwareDatetime | None,
         Field(description="ISO 8601 UTC timestamp when this manifest was created."),
+    ] = None
+    preflight: Annotated[
+        list[PreflightItem] | None,
+        Field(
+            description="Optional argv template executed BEFORE the launch stamp captures anything; the literal token {entry} is substituted with the resolved entry-point path. A non-zero exit aborts before any ledger event exists, so source that cannot even parse never enters the record. Generic by construction: the project supplies the interpreter/loader command.",
+            min_length=1,
+        ),
+    ] = None
+    max_attempts: Annotated[
+        int | None,
+        Field(
+            description="Optional cap on CRASH retry attempts for this run (missing-source self-heals never count). On exhaustion the retry entrance refuses and the full supersede/void ceremony with a fresh run id is the only path — delegation-contract attempt budgets should reference this same counter rather than inventing their own.",
+            ge=1,
+        ),
     ] = None

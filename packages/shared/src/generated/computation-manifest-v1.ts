@@ -236,4 +236,14 @@ export interface ComputationManifestV1 {
    * ISO 8601 UTC timestamp when this manifest was created.
    */
   created_at?: string;
+  /**
+   * Optional argv template executed BEFORE the launch stamp captures anything; the literal token {entry} is substituted with the resolved entry-point path. A non-zero exit aborts before any ledger event exists, so source that cannot even parse never enters the record. Generic by construction: the project supplies the interpreter/loader command.
+   *
+   * @minItems 1
+   */
+  preflight?: [string, ...string[]];
+  /**
+   * Optional cap on CRASH retry attempts for this run (missing-source self-heals never count). On exhaustion the retry entrance refuses and the full supersede/void ceremony with a fresh run id is the only path — delegation-contract attempt budgets should reference this same counter rather than inventing their own.
+   */
+  max_attempts?: number;
 }
