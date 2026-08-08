@@ -22,6 +22,11 @@ import { mintUlid } from '@nullius/shared';
 
 const SHA_PATTERN = /^[0-9a-f]{40}$/;
 export const RUN_SNAPSHOT_REF_PREFIX = 'refs/nullius/runs/';
+/** Sibling namespace for attempt ordinals above 1: refs/nullius/attempts/
+ *  <sanitized-id>/<n>. Nesting attempt refs UNDER refs/nullius/runs/<id>
+ *  is impossible once the attempt-1 ref exists (git directory/file
+ *  conflict), so per-attempt pins live beside, not below. */
+export const ATTEMPT_SNAPSHOT_REF_PREFIX = 'refs/nullius/attempts/';
 
 /** Paths produced by the traceability machinery itself (the ledger, its
  *  lock, .gitattributes carrier, and run-directory origin mirrors). Excluded
@@ -127,6 +132,27 @@ export function pinSnapshotRef(
   );
 }
 
+/** Per-attempt pin in the sibling namespace, same create-if-absent /
+ *  idempotent-same-object / hard-error-on-cross-binding contract as
+ *  pinSnapshotRef. */
+export function pinAttemptSnapshotRef(
+  projectRoot: string,
+  runId: string,
+  attemptOrdinal: number,
+  snapshotCommit: string,
+): { outcome: SnapshotPinOutcome; ref: string } {
+  const ref = `${ATTEMPT_SNAPSHOT_REF_PREFIX}${sanitizeRunRefComponent(runId)}/${attemptOrdinal}`;
+  const created = git(projectRoot, ['update-ref', ref, snapshotCommit, ''], { allowFailure: true });
+  if (created !== null) return { outcome: 'created', ref };
+  const existing = git(projectRoot, ['rev-parse', '--verify', '--quiet', ref], { allowFailure: true });
+  const existingSha = existing?.trim() || null;
+  if (existingSha === snapshotCommit) return { outcome: 'already_pinned', ref };
+  throw new Error(
+    `attempt snapshot ref ${ref} already points at ${existingSha ?? '(unreadable)'}, refusing to rebind it to `
+    + `${snapshotCommit}; two concurrent retries appear to have raced on one attempt ordinal`,
+  );
+}
+
 export function listSubmodulePaths(projectRoot: string): string[] {
   if (!fs.existsSync(path.join(projectRoot, '.gitmodules'))) return [];
   const output = git(
@@ -148,6 +174,13 @@ export type CaptureRunOriginOptions = {
   /** Reuse a previously minted event id (crash-recovery retry of the SAME
    *  logical stamp). */
   eventId?: string;
+  /** Which execution attempt this capture binds (absent/1 = the initial
+   *  stamp). Ordinals above 1 pin their snapshot in the SIBLING namespace
+   *  refs/nullius/attempts/<id>/<n> — nesting under refs/nullius/runs/<id>
+   *  is a git directory/file conflict with the attempt-1 ref (empirically
+   *  verified), so the sibling root is the only per-attempt layout git
+   *  accepts. */
+  attemptOrdinal?: number;
   /** When false, capture WITHOUT pinning the snapshot at
    *  refs/nullius/runs/<run-id> — an identity probe that creates no ref
    *  (the stash object stays an unreferenced dangling commit for git to
@@ -174,6 +207,9 @@ export function captureRunOrigin(
     event_id: eventId,
     run_id: runId,
     captured_at_utc: capturedAt,
+    // Absent means ordinal 1 (the initial stamp); higher ordinals appear
+    // only in captures made by the retry entrance.
+    ...((options.attemptOrdinal ?? 1) > 1 ? { attempt_ordinal: options.attemptOrdinal } : {}),
   };
 
   const insideWorkTree = git(projectRoot, ['rev-parse', '--is-inside-work-tree'], { allowFailure: true });
@@ -217,7 +253,13 @@ export function captureRunOrigin(
   let snapshotTree: string | null = null;
   let trackedModified = 0;
   if (snapshotCommit && SHA_PATTERN.test(snapshotCommit)) {
-    if (options.pin !== false) pinSnapshotRef(projectRoot, runId, snapshotCommit);
+    if (options.pin !== false) {
+      if ((options.attemptOrdinal ?? 1) > 1) {
+        pinAttemptSnapshotRef(projectRoot, runId, options.attemptOrdinal!, snapshotCommit);
+      } else {
+        pinSnapshotRef(projectRoot, runId, snapshotCommit);
+      }
+    }
     snapshotTree = git(projectRoot, ['rev-parse', `${snapshotCommit}^{tree}`])!.trim();
     const diff = git(projectRoot, ['diff', '--name-only', baselineCommit, snapshotCommit])!;
     trackedModified = diff.split('\n').filter(line => line.trim().length > 0).length;

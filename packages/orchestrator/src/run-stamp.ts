@@ -4,8 +4,10 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import type { RunOriginV1, ValidityEventV1 } from '@nullius/shared';
 import { mintUlid, ULID_PATTERN, writeBytesAtomicDurable } from '@nullius/shared';
+import { createHash } from 'node:crypto';
 import { appendValidityEvent, buildValidityEvent, readValidityLedger } from './validity-ledger.js';
 import { captureRunOrigin, isTraceabilityArtifactPath } from './run-origin.js';
+import { validateResultRegistry } from './result-registry.js';
 import { refreshNotebookCurrentState } from './notebook-current-state.js';
 
 /** The actor recorded on ledger events when the caller has no better name:
@@ -225,11 +227,64 @@ function declaredOutputPaths(projectRoot: string, ownRunPrefix: string): Set<str
 /** The runner's own write surface inside a run directory — files the
  *  execution machinery itself produces on every launch. Counting these as
  *  code deltas would flag every same-tree relaunch of a completed run. */
+type ContainedRunDir =
+  | { kind: 'ok'; runDir: string; runId: string }
+  | { kind: 'rejected'; message: string };
+
+/** Shared containment for every verb that writes about a run directory:
+ *  only the two run roots are addressable (a record about a run the read
+ *  model can never show is a silent hole), symlinked run dirs are refused
+ *  (the directory scan skips symlink entries — same hole through a side
+ *  door), and the canonical-root rule (D9) sends writers to artifacts/runs
+ *  when both roots carry the id. */
+function resolveContainedRunDirectory(
+  projectRoot: string,
+  target: string,
+  verb: string,
+  verbNoun: string,
+): ContainedRunDir {
+  const runDir = resolveStampTarget(projectRoot, target);
+  if (!fs.existsSync(runDir) || !fs.statSync(runDir).isDirectory()) {
+    return { kind: 'rejected', message: `${verb}: run directory not found: ${runDir}` };
+  }
+  if (fs.lstatSync(runDir).isSymbolicLink()) {
+    return {
+      kind: 'rejected',
+      message: `${verb}: ${target} is a symlink; run directories must be real directories under a run root`,
+    };
+  }
+  if (!isInsideStampableRoot(projectRoot, runDir)) {
+    return {
+      kind: 'rejected',
+      message: `${verb}: run directories live directly under artifacts/runs/ or team/runs/; `
+        + `${target} is outside both roots and would be invisible to the read model`,
+    };
+  }
+  const runId = path.basename(runDir);
+  const canonicalDir = path.join(projectRoot, 'artifacts', 'runs', runId);
+  const mirrorDirOfCanonical = path.join(projectRoot, 'team', 'runs', runId);
+  if (
+    path.resolve(runDir) === path.resolve(mirrorDirOfCanonical)
+    && fs.existsSync(canonicalDir)
+  ) {
+    return {
+      kind: 'rejected',
+      message: `${verb}: ${runId} exists under artifacts/runs (canonical) and team/runs (review mirror); `
+        + `${verbNoun} the canonical directory: artifacts/runs/${runId}`,
+    };
+  }
+  return { kind: 'ok', runDir, runId };
+}
+
 function isRunnerWriteSurface(insideOwnRun: string): boolean {
   return insideOwnRun === 'computation/execution_status.json'
     || insideOwnRun.startsWith('computation/logs/')
     || insideOwnRun.startsWith('computation/outputs/')
     || insideOwnRun.startsWith('computation/workspace/')
+    // Prior attempts' archived residue: quarantined by the retry entrance,
+    // never deleted; counting it as "unknown code delta" would demote every
+    // post-retry stamp for bookkeeping the machinery itself created.
+    || insideOwnRun.startsWith('attempts/')
     || insideOwnRun.startsWith('artifacts/');
 }
 
@@ -284,47 +339,9 @@ export function stampRunDirectory(
   target: string,
   options: StampRunOptions,
 ): StampRunResult {
-  const runDir = resolveStampTarget(projectRoot, target);
-  if (!fs.existsSync(runDir) || !fs.statSync(runDir).isDirectory()) {
-    return { kind: 'rejected', message: `trace stamp: run directory not found: ${runDir}` };
-  }
-  // Only the two run roots are stampable: a stamp elsewhere would land
-  // in the ledger but be invisible to every directory scan — a record
-  // about a run the read model can never show is a silent hole. The
-  // check is SYMLINK-RESOLVED on both sides, and a run directory that is
-  // itself a symlink is refused outright: the directory scan skips
-  // symlink entries, so stamping one would create the same invisible
-  // record through a side door.
-  if (fs.lstatSync(runDir).isSymbolicLink()) {
-    return {
-      kind: 'rejected',
-      message: `trace stamp: ${target} is a symlink; run directories must be real directories under a run root`,
-    };
-  }
-  if (!isInsideStampableRoot(projectRoot, runDir)) {
-    return {
-      kind: 'rejected',
-      message: 'trace stamp: run directories live directly under artifacts/runs/ or team/runs/; '
-        + `${target} is outside both roots and would be invisible to the read model`,
-    };
-  }
-  const runId = path.basename(runDir);
-  // Canonical-root rule (D9): when the same run id exists under BOTH run
-  // roots, artifacts/runs is the canonical location and stamps are
-  // written there — stamping the team/runs mirror would seed two
-  // divergent origin records for one logical run.
-  const canonicalDir = path.join(projectRoot, 'artifacts', 'runs', runId);
-  const mirrorDirOfCanonical = path.join(projectRoot, 'team', 'runs', runId);
-  if (
-    path.resolve(runDir) === path.resolve(mirrorDirOfCanonical)
-    && fs.existsSync(canonicalDir)
-  ) {
-    return {
-      kind: 'rejected',
-      message: `trace stamp: ${runId} exists under artifacts/runs (canonical) and team/runs (review mirror); `
-        + `stamp the canonical directory: artifacts/runs/${runId}`,
-    };
-  }
+  const contained = resolveContainedRunDirectory(projectRoot, target, 'trace stamp', 'stamp');
+  if (contained.kind === 'rejected') return contained;
+  const { runDir, runId } = contained;
   // One logical stamp = one ULID for life: with --event-id the retry
   // entrance is the LEDGER (was this event already recorded?), not a
   // payload comparison — a re-capture would legitimately differ (time
@@ -450,6 +467,12 @@ export function stampRunDirectory(
       recordedOrigin: postRead.runs.get(runId)?.origin ?? null,
     };
   }
+  if (appendOutcome === 'skipped_attempt_not_chain_head') {
+    // Plain stamps never pass onlyIfAttemptChainHead; reaching this arm
+    // would mean the option object above changed without this fork.
+    rollbackMirror();
+    throw new Error('unreachable: plain stamp append reported an attempt-chain skip');
+  }
   // Best-effort notebook current-state refresh at the ONE writer shared by
   // the CLI stamp verb and the computation front door's launch stamp. The
   // block renders from the registry projection, so a plain stamp almost
@@ -485,5 +508,336 @@ export function stampRunDirectory(
     origin: payload as unknown as RunOriginV1,
     mirrorWritten,
     appendOutcome,
+  };
+}
+
+/** ---- Attempt–run separation: the retry entrance -------------------------
+ *
+ *  A run id names one EXPERIMENT SLOT; each execution of it is an ATTEMPT
+ *  with its own launch-time code capture. A crash that provably (or, for
+ *  hand runs, declaredly) produced no retained result is retriable under
+ *  the SAME id at near-zero ceremony: one atomic `attempt` ledger event
+ *  closes the failed ordinal (typed outcome + machine evidence + quarantine
+ *  record) and embeds the NEXT attempt's fresh origin — a silent rebind is
+ *  unrepresentable because a new binding can only ride inside a closure.
+ *  Content-wrong results NEVER pass here: they keep the full supersede/void
+ *  ceremony and a fresh id.
+ */
+
+export type RetryEvidence = {
+  method: 'execution_status' | 'outputs_scan' | 'declared';
+  detail: string;
+  execution_status_sha256?: string;
+  exit_code?: number;
+  quarantined_paths_count?: number;
+};
+
+export type OpenRetryResult =
+  | { kind: 'rejected'; message: string }
+  | { kind: 'already_recorded'; runId: string; eventId: string }
+  | { kind: 'attempt_conflict'; runId: string; message: string }
+  | {
+    kind: 'retried';
+    runId: string;
+    eventId: string;
+    closedOrdinal: number;
+    openedOrdinal: number | null; // null = record-only closure
+    previousOutcome: 'failed' | 'missing' | 'stalled' | 'declared_no_result';
+    evidence: RetryEvidence;
+    quarantinedTo: string | null;
+    origin: RunOriginV1 | null;
+    mirrorWritten: boolean;
+  };
+
+const RETRY_BOOKKEEPING_ALLOWLIST = new Set(['run_origin.json', 'attempts', 'manifest.json']);
+
+function listRunSurfaceEntries(runDir: string): string[] {
+  return fs.readdirSync(runDir).filter(name => !RETRY_BOOKKEEPING_ALLOWLIST.has(name));
+}
+
+/** Quarantine the failed attempt's execution products into
+ *  attempts/attempt-<N>/ (never deleted). Precise where the machinery can
+ *  be precise: the whole computation/ area except the manifest (runner
+ *  status, logs, workspace, outputs). Hand runs without a computation/
+ *  area keep their surface in place — their retries ride on DECLARED
+ *  evidence, visibly second-class, and the per-attempt bindings still
+ *  bound what an auditor must check (a recorded limitation, not a silent
+ *  one). Returns run-relative destination or null when nothing moved. */
+function quarantineFailedAttempt(runDir: string, closedOrdinal: number): { dest: string | null; moved: number } {
+  const destRel = path.join('attempts', `attempt-${closedOrdinal}`);
+  const destAbs = path.join(runDir, destRel);
+  const computationDir = path.join(runDir, 'computation');
+  if (!fs.existsSync(computationDir)) return { dest: null, moved: 0 };
+  let moved = 0;
+  for (const entry of fs.readdirSync(computationDir)) {
+    if (entry === 'manifest.json') continue; // input, not product — the retry re-runs it
+    const from = path.join(computationDir, entry);
+    const to = path.join(destAbs, 'computation', entry);
+    fs.mkdirSync(path.dirname(to), { recursive: true });
+    fs.renameSync(from, to);
+    moved += 1;
+  }
+  return moved > 0 ? { dest: destRel, moved } : { dest: null, moved: 0 };
+}
+
+function restoreQuarantine(runDir: string, destRel: string): void {
+  // Best-effort rollback for the lost chain-head race: move archived
+  // entries back where they came from. A partial restore surfaces on the
+  // next read as attempt bookkeeping without a matching closure.
+  const destAbs = path.join(runDir, destRel, 'computation');
+  if (!fs.existsSync(destAbs)) return;
+  const computationDir = path.join(runDir, 'computation');
+  fs.mkdirSync(computationDir, { recursive: true });
+  for (const entry of fs.readdirSync(destAbs)) {
+    try {
+      fs.renameSync(path.join(destAbs, entry), path.join(computationDir, entry));
+    } catch {
+      // leave the remainder in the archive; visible, never lost
+    }
+  }
+  try {
+    fs.rmdirSync(destAbs);
+    fs.rmdirSync(path.join(runDir, destRel));
+  } catch {
+    // non-empty leftovers stay visible
+  }
+}
+
+export function openRetryAttempt(
+  projectRoot: string,
+  target: string,
+  options: {
+    actor?: string;
+    reason?: string;
+    recordOnly?: boolean;
+    eventId?: string;
+    deps?: Record<string, string>;
+  } = {},
+): OpenRetryResult {
+  const contained = resolveContainedRunDirectory(projectRoot, target, 'trace retry', 'retry');
+  if (contained.kind === 'rejected') return contained;
+  const { runDir, runId } = contained;
+
+  if (options.eventId && !ULID_PATTERN.test(options.eventId)) {
+    return { kind: 'rejected', message: `trace retry: --event-id ${JSON.stringify(options.eventId)} is not a ULID` };
+  }
+  const view = readValidityLedger(projectRoot);
+  if (options.eventId) {
+    if (view.integrity_defects.some(defect => defect.event_id === options.eventId)) {
+      return {
+        kind: 'rejected',
+        message: `trace retry: event ${options.eventId} is a ledger-integrity defect (divergent payloads); `
+          + 'repair the ledger and mint a fresh event id',
+      };
+    }
+    const existing = view.events.find(event => event.event_id === options.eventId);
+    if (existing) {
+      if (existing.event !== 'attempt' || existing.run_id !== runId) {
+        return {
+          kind: 'rejected',
+          message: `trace retry: event ${options.eventId} is already recorded as a ${existing.event} `
+            + `for ${existing.run_id}; it cannot identify a retry of ${runId}`,
+        };
+      }
+      return { kind: 'already_recorded', runId, eventId: options.eventId };
+    }
+  }
+
+  const entry = view.runs.get(runId);
+  if (!entry || !entry.stamped || entry.attempts.latest_ordinal < 1) {
+    return {
+      kind: 'rejected',
+      message: `trace retry: ${runId} carries no origin binding — stamp the first attempt with \`nullius trace stamp\`, `
+        + 'then retry only after a resultless crash',
+    };
+  }
+  if (entry.validity !== 'active') {
+    return {
+      kind: 'rejected',
+      message: `trace retry: ${runId} is ${entry.validity} — a DECIDED run is content territory; `
+        + 'reinstate first if the decision was wrong, or open a fresh run id',
+    };
+  }
+  if (entry.conflicting_stamps || entry.attempts.conflicting_attempts || entry.no_authoritative_identity
+    || entry.attempts.chain_defect) {
+    return {
+      kind: 'rejected',
+      message: `trace retry: ${runId} has ledger integrity or attempt-chain defects; repair the record first — `
+        + 'a retry must chain from an unambiguous binding',
+    };
+  }
+  const bindingQuality = (entry.origin as { binding_quality?: string } | null)?.binding_quality ?? null;
+  if (bindingQuality === 'aligned_heuristic' || bindingQuality === 'unbound') {
+    return {
+      kind: 'rejected',
+      message: `trace retry: ${runId}'s binding is ${bindingQuality} — no exact identity to chain from; `
+        + 'legacy-aligned runs take fresh run ids',
+    };
+  }
+  const registry = validateResultRegistry(projectRoot, view);
+  if (registry.rows.some(row => row.run_id === runId)) {
+    return {
+      kind: 'rejected',
+      message: `trace retry: ${runId} is named by the results registry — a consumed result never takes the `
+        + 'cheap path; supersede or void it (full ceremony) and open a fresh run id',
+    };
+  }
+  const closedOrdinal = entry.attempts.latest_ordinal;
+  if (entry.attempts.closures.some(closure => closure.ordinal === closedOrdinal)) {
+    return {
+      kind: 'rejected',
+      message: `trace retry: attempt ${closedOrdinal} of ${runId} is already closed`
+        + `${options.recordOnly ? '' : ' — a new attempt was not opened; retry again from the current state'}`,
+    };
+  }
+
+  // Evidence: machine where the machine can see, declared (and visibly
+  // second-class) where it cannot. "Completed" is content territory.
+  const statusPath = path.join(runDir, 'computation', 'execution_status.json');
+  let outcome: 'failed' | 'missing' | 'stalled' | 'declared_no_result';
+  const evidence: RetryEvidence = { method: 'declared', detail: '' };
+  if (fs.existsSync(statusPath)) {
+    let statusRaw: string;
+    let status: { status?: string; errors?: string[] } = {};
+    try {
+      statusRaw = fs.readFileSync(statusPath, 'utf-8');
+      status = JSON.parse(statusRaw) as { status?: string; errors?: string[] };
+    } catch {
+      return { kind: 'rejected', message: `trace retry: ${runId}'s execution status file is unreadable; repair or remove it first` };
+    }
+    if (status.status === 'completed') {
+      return {
+        kind: 'rejected',
+        message: `trace retry: ${runId} recorded a COMPLETED execution — "completed but wrong" is content `
+          + 'territory: supersede or void it (full ceremony) and open a fresh run id',
+      };
+    }
+    if (status.status === 'failed') {
+      outcome = 'failed';
+      evidence.method = 'execution_status';
+      evidence.detail = (status.errors ?? [])[0] ?? 'execution status records failure';
+      evidence.execution_status_sha256 = createHash('sha256').update(statusRaw!, 'utf-8').digest('hex');
+    } else if (status.status === 'running') {
+      if (!options.reason) {
+        return {
+          kind: 'rejected',
+          message: `trace retry: ${runId}'s execution status still says running — declaring it stalled requires `
+            + '--reason (the declaration is recorded as such)',
+        };
+      }
+      outcome = 'stalled';
+      evidence.method = 'declared';
+      evidence.detail = options.reason;
+      evidence.execution_status_sha256 = createHash('sha256').update(statusRaw!, 'utf-8').digest('hex');
+    } else {
+      return { kind: 'rejected', message: `trace retry: ${runId}'s execution status is unrecognized (${String(status.status)})` };
+    }
+  } else {
+    const surface = listRunSurfaceEntries(runDir);
+    if (surface.length === 0) {
+      // Nothing was ever produced — the stamp-predates-source class heals
+      // as an honest chain advance; never counts against attempt budgets.
+      outcome = 'missing';
+      evidence.method = 'outputs_scan';
+      evidence.detail = 'run surface empty: no execution products ever materialized';
+    } else {
+      if (!options.reason) {
+        return {
+          kind: 'rejected',
+          message: `trace retry: ${runId} has ${surface.length} file(s) on its surface and no execution status — `
+            + 'retrying a hand run requires --reason declaring the execution produced no retained result '
+            + '(recorded as a declaration, visibly second-class)',
+        };
+      }
+      outcome = 'declared_no_result';
+      evidence.method = 'declared';
+      evidence.detail = options.reason;
+    }
+  }
+  const eventId = options.eventId ?? mintUlid();
+  let quarantinedTo: string | null = null;
+  if (!options.recordOnly) {
+    const quarantine = quarantineFailedAttempt(runDir, closedOrdinal);
+    quarantinedTo = quarantine.dest;
+    if (quarantine.moved > 0) evidence.quarantined_paths_count = quarantine.moved;
+  }
+
+  let origin: RunOriginV1 | null = null;
+  let mirrorWritten = true;
+  const mirrorPath = path.join(runDir, 'run_origin.json');
+  const previousMirror = fs.existsSync(mirrorPath) ? fs.readFileSync(mirrorPath, 'utf-8') : null;
+  if (!options.recordOnly) {
+    origin = captureRunOrigin(projectRoot, runId, {
+      deps: options.deps ?? {},
+      eventId,
+      attemptOrdinal: closedOrdinal + 1,
+    });
+    try {
+      writeBytesAtomicDurable(mirrorPath, `${JSON.stringify(origin, null, 2)}\n`);
+    } catch {
+      mirrorWritten = false;
+    }
+  }
+
+  // Skew-immune predecessor: the event that OPENED the ordinal being
+  // closed — the initial stamp for ordinal 1, else the attempt event whose
+  // embedded origin bound this ordinal.
+  const supersedesEvent = closedOrdinal === 1
+    ? view.events.find(event => event.event === 'stamp' && event.run_id === runId)?.event_id ?? null
+    : view.events.find(event => event.event === 'attempt' && event.run_id === runId
+      && ((event as { attempt?: { origin?: { attempt_ordinal?: number } | null } }).attempt?.origin?.attempt_ordinal
+        === closedOrdinal))?.event_id ?? null;
+  const event = buildValidityEvent({
+    event: 'attempt',
+    run_id: runId,
+    actor: options.actor,
+    reason: options.reason ?? evidence.detail,
+    attempt: {
+      closes_ordinal: closedOrdinal,
+      previous_outcome: outcome,
+      evidence,
+      quarantined_to: quarantinedTo,
+      supersedes_attempt_event: supersedesEvent,
+      origin: origin as ValidityEventV1['stamp'] | null,
+    },
+    event_id: eventId,
+    ...(origin ? { ts_utc: (origin as unknown as { captured_at_utc: string }).captured_at_utc } : {}),
+  } as Omit<ValidityEventV1, 'schema_id' | 'event_id' | 'ts_utc'> & { event_id?: string; ts_utc?: string });
+
+  let appendOutcome;
+  try {
+    appendOutcome = appendValidityEvent(projectRoot, event, {
+      onlyIfAttemptChainHead: { closesOrdinal: closedOrdinal },
+    });
+  } catch (error) {
+    if (quarantinedTo) restoreQuarantine(runDir, quarantinedTo);
+    if (!options.recordOnly && mirrorWritten && previousMirror !== null) {
+      try { writeBytesAtomicDurable(mirrorPath, previousMirror); } catch { /* divergence scan surfaces it */ }
+    }
+    throw error;
+  }
+  if (appendOutcome === 'skipped_attempt_not_chain_head') {
+    if (quarantinedTo) restoreQuarantine(runDir, quarantinedTo);
+    if (!options.recordOnly && mirrorWritten && previousMirror !== null) {
+      try { writeBytesAtomicDurable(mirrorPath, previousMirror); } catch { /* divergence scan surfaces it */ }
+    }
+    return {
+      kind: 'attempt_conflict',
+      runId,
+      message: `trace retry: a concurrent retry advanced ${runId}'s attempt chain first; re-read and retry from the new state`,
+    };
+  }
+
+  return {
+    kind: 'retried',
+    runId,
+    eventId: event.event_id,
+    closedOrdinal,
+    openedOrdinal: options.recordOnly ? null : closedOrdinal + 1,
+    previousOutcome: outcome,
+    evidence,
+    quarantinedTo,
+    origin,
+    mirrorWritten,
   };
 }

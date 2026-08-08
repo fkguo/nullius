@@ -71,6 +71,43 @@ export type ScopedAnnotation = {
   ts_utc: string;
 };
 
+export type AttemptClosure = {
+  ordinal: number;
+  previous_outcome: 'failed' | 'missing' | 'stalled' | 'declared_no_result';
+  evidence_method: 'execution_status' | 'outputs_scan' | 'declared';
+  reason: string | null;
+  quarantined_to: string | null;
+  event_id: string;
+  ts_utc: string;
+};
+
+/** Execution-attempt bookkeeping for one run. Attempts are HISTORY, never
+ *  validity: a run id names one experiment slot, each attempt is one
+ *  execution of it with its own launch-time code capture, and the retained
+ *  outputs are bound by the HIGHEST-ordinal capture (sound because retry
+ *  admission certifies every prior attempt produced no retained result).
+ *  Chain logic keys on explicit ordinals and predecessor links only —
+ *  sub-millisecond event order is minted, never measured. */
+export type RunAttempts = {
+  /** Highest ordinal that carries a code binding (1 = the initial stamp). */
+  latest_ordinal: number;
+  /** Closures whose outcome was a real crash/stall — `missing` self-heals
+   *  (stamp-predates-source repairs) never count against attempt budgets. */
+  crash_retry_count: number;
+  closures: AttemptClosure[];
+  /** The latest bound attempt has a recorded closure and nothing newer:
+   *  the run crashed and awaits a retry (or was abandoned record-only). */
+  latest_failed: boolean;
+  /** Ordinal gaps, an opened ordinal without its predecessor's closure, a
+   *  closure above the highest binding, or a plain stamp claiming an
+   *  ordinal above 1 — conservative, never guessed away. */
+  chain_defect: boolean;
+  /** Two divergent payloads competing for one ordinal (union merge of two
+   *  concurrent retries, or a forged line) — same severity class as
+   *  conflicting_stamps. */
+  conflicting_attempts: boolean;
+};
+
 export type RunValidity = {
   run_id: string;
   validity: ValidityState;
@@ -78,6 +115,7 @@ export type RunValidity = {
   reason: string | null;
   scoped_annotations: ScopedAnnotation[];
   stamped: boolean;
+  attempts: RunAttempts;
   origin: RunOriginV1 | null;
   /** True when more than one stamp event claims this run with DIFFERENT
    *  origin payloads — a reported defect (D9: never resolved by guessing).
@@ -265,6 +303,14 @@ export function readValidityLedger(projectRoot: string): ValidityLedgerView {
         reason: null,
         scoped_annotations: [],
         stamped: false,
+        attempts: {
+          latest_ordinal: 0,
+          crash_retry_count: 0,
+          closures: [],
+          latest_failed: false,
+          chain_defect: false,
+          conflicting_attempts: false,
+        },
         origin: null,
         conflicting_stamps: false,
         no_authoritative_identity: false,
@@ -273,6 +319,33 @@ export function readValidityLedger(projectRoot: string): ValidityLedgerView {
     }
     return entry;
   };
+  // Per-run per-ordinal bookkeeping, resolved AFTER the event loop: the
+  // effective origin is the highest-ordinal binding, and chain health is a
+  // property of the whole chain, not of any single event.
+  const ordinalOrigins = new Map<string, Map<number, RunOriginV1>>();
+  const ordinalClosures = new Map<string, Map<number, string>>();
+  const bindingFor = (runId: string): Map<number, RunOriginV1> => {
+    let m = ordinalOrigins.get(runId);
+    if (!m) { m = new Map(); ordinalOrigins.set(runId, m); }
+    return m;
+  };
+  const closuresFor = (runId: string): Map<number, string> => {
+    let m = ordinalClosures.get(runId);
+    if (!m) { m = new Map(); ordinalClosures.set(runId, m); }
+    return m;
+  };
+  const recordBinding = (entry: RunValidity, ordinal: number, incoming: RunOriginV1): void => {
+    const bindings = bindingFor(entry.run_id);
+    const existing = bindings.get(ordinal);
+    if (existing && canonicalJson(existing) !== canonicalJson(incoming)) {
+      // D9 doctrine unchanged: divergence is flagged, and the LATEST payload
+      // stays visible for display — flagged as conflicted, never trusted.
+      if (ordinal === 1) entry.conflicting_stamps = true;
+      else entry.attempts.conflicting_attempts = true;
+    }
+    bindings.set(ordinal, incoming);
+    entry.stamped = true;
+  };
 
   for (const event of events) {
     const entry = ensure(event.run_id);
@@ -280,12 +353,57 @@ export function readValidityLedger(projectRoot: string): ValidityLedgerView {
     switch (event.event) {
       case 'stamp': {
         const incoming = (event.stamp ?? null) as RunOriginV1 | null;
-        if (entry.stamped && entry.origin && incoming
-          && canonicalJson(entry.origin) !== canonicalJson(incoming)) {
-          entry.conflicting_stamps = true;
+        if (incoming) {
+          const ordinal = (incoming as { attempt_ordinal?: number }).attempt_ordinal ?? 1;
+          if (ordinal !== 1) {
+            // A plain stamp may only bind ordinal 1; higher ordinals are
+            // legal only embedded in an attempt closure (the entrance that
+            // certifies the prior attempt left no retained result).
+            entry.attempts.chain_defect = true;
+          } else {
+            recordBinding(entry, 1, incoming);
+          }
         }
-        entry.stamped = true;
-        entry.origin = incoming;
+        break;
+      }
+      case 'attempt': {
+        const record = (event as { attempt?: {
+          closes_ordinal: number;
+          previous_outcome: AttemptClosure['previous_outcome'];
+          evidence: { method: AttemptClosure['evidence_method']; detail: string };
+          quarantined_to: string | null;
+          supersedes_attempt_event: string | null;
+          origin: RunOriginV1 | null;
+        } }).attempt;
+        if (!record) break; // schema-guarded; a malformed line never reaches here
+        const closures = closuresFor(entry.run_id);
+        const canon = canonicalJson({ ...record, origin: undefined });
+        const existing = closures.get(record.closes_ordinal);
+        if (existing !== undefined && existing !== canon) {
+          entry.attempts.conflicting_attempts = true;
+        } else if (existing === undefined) {
+          closures.set(record.closes_ordinal, canon);
+          entry.attempts.closures.push({
+            ordinal: record.closes_ordinal,
+            previous_outcome: record.previous_outcome,
+            evidence_method: record.evidence.method,
+            reason: event.reason ?? null,
+            quarantined_to: record.quarantined_to,
+            event_id: event.event_id,
+            ts_utc: event.ts_utc,
+          });
+          if (record.previous_outcome !== 'missing') {
+            entry.attempts.crash_retry_count += 1;
+          }
+        }
+        if (record.origin) {
+          const openedOrdinal = (record.origin as { attempt_ordinal?: number }).attempt_ordinal ?? null;
+          if (openedOrdinal !== record.closes_ordinal + 1) {
+            entry.attempts.chain_defect = true;
+          } else {
+            recordBinding(entry, openedOrdinal, record.origin);
+          }
+        }
         break;
       }
       case 'supersede': {
@@ -333,6 +451,34 @@ export function readValidityLedger(projectRoot: string): ValidityLedgerView {
     }
   }
 
+  // Resolve attempt chains AFTER the whole event stream: the effective
+  // origin is the highest-ordinal binding, and chain health is a property
+  // of the complete chain (gaps, missing predecessor closures, closures of
+  // never-opened ordinals) — conservative flags, none guessed away.
+  for (const [runId, bindings] of ordinalOrigins) {
+    const entry = ensure(runId);
+    const ordinals = [...bindings.keys()].sort((a, b) => a - b);
+    const latest = ordinals[ordinals.length - 1]!;
+    entry.attempts.latest_ordinal = latest;
+    entry.origin = bindings.get(latest) ?? null;
+    const closures = ordinalClosures.get(runId) ?? new Map<number, string>();
+    for (let k = 2; k <= latest; k += 1) {
+      if (!bindings.has(k)) entry.attempts.chain_defect = true;
+      if (!closures.has(k - 1)) entry.attempts.chain_defect = true;
+    }
+    for (const closedOrdinal of closures.keys()) {
+      if (closedOrdinal > latest) entry.attempts.chain_defect = true;
+    }
+    entry.attempts.latest_failed = closures.has(latest);
+  }
+  for (const [runId, closures] of ordinalClosures) {
+    if (!ordinalOrigins.has(runId) && closures.size > 0) {
+      // A closure with no binding at all: history about an attempt the
+      // ledger never saw opened.
+      ensure(runId).attempts.chain_defect = true;
+    }
+  }
+
   for (const runId of defectRunIds) {
     const entry = ensure(runId);
     entry.no_authoritative_identity = true;
@@ -350,7 +496,7 @@ export function readValidityLedger(projectRoot: string): ValidityLedgerView {
   };
 }
 
-export type AppendOutcome = 'appended' | 'already_present' | 'skipped_run_already_stamped';
+export type AppendOutcome = 'appended' | 'already_present' | 'skipped_run_already_stamped' | 'skipped_attempt_not_chain_head';
 
 export type AppendValidityEventOptions = {
   /** Stamp-writer guard, evaluated INSIDE the ledger lock: refuse to append
@@ -363,6 +509,13 @@ export type AppendValidityEventOptions = {
    *  runs first: a crash-retry of the SAME logical stamp stays a no-op
    *  success, never a skip. */
   onlyIfRunUnstamped?: boolean;
+  /** attempt events: append only when the closed ordinal is the CURRENT
+   *  chain head (highest bound ordinal) and no closure for it exists yet —
+   *  the same in-lock atomicity that onlyIfRunUnstamped gives the first
+   *  stamp, extended one level down. Two concurrent retries race to one
+   *  append; the loser is skipped instead of manufacturing the divergence
+   *  the reader would have to quarantine. */
+  onlyIfAttemptChainHead?: { closesOrdinal: number };
 };
 
 /** Append one event under the ledger's own lock.
@@ -420,6 +573,29 @@ export function appendValidityEvent(
       if (options.onlyIfRunUnstamped
         && parsed.some(({ event: existing }) => existing.event === 'stamp' && existing.run_id === event.run_id)) {
         return 'skipped_run_already_stamped';
+      }
+      if (options.onlyIfAttemptChainHead) {
+        const target = options.onlyIfAttemptChainHead.closesOrdinal;
+        let latestOrdinal = 0;
+        let closureExists = false;
+        for (const { event: existing } of parsed) {
+          if (existing.run_id !== event.run_id) continue;
+          if (existing.event === 'stamp' && existing.stamp) {
+            const ordinal = (existing.stamp as { attempt_ordinal?: number }).attempt_ordinal ?? 1;
+            if (ordinal === 1 && latestOrdinal < 1) latestOrdinal = 1;
+          } else if (existing.event === 'attempt') {
+            const record = (existing as { attempt?: { closes_ordinal: number; origin: unknown | null } }).attempt;
+            if (!record) continue;
+            if (record.closes_ordinal === target) closureExists = true;
+            if (record.origin) {
+              const opened = (record.origin as { attempt_ordinal?: number }).attempt_ordinal ?? 0;
+              if (opened > latestOrdinal) latestOrdinal = opened;
+            }
+          }
+        }
+        if (latestOrdinal !== target || closureExists) {
+          return 'skipped_attempt_not_chain_head';
+        }
       }
       // A hand edit can leave the last line unterminated; appending blindly
       // would corrupt both lines. Repair in place (append-only, inode kept).
