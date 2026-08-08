@@ -134,12 +134,21 @@ export function pinSnapshotRef(
 
 /** Per-attempt pin in the sibling namespace, same create-if-absent /
  *  idempotent-same-object / hard-error-on-cross-binding contract as
- *  pinSnapshotRef. */
+ *  pinSnapshotRef — with ONE recovery arm the run-level pin does not need:
+ *  a retry that crashed between pinning and appending its ledger event
+ *  leaves a ref no record references, and because the ordinal never
+ *  advanced, every later retry re-derives the SAME ordinal and would hit
+ *  the mismatch error forever. The caller certifies the orphanhood (it
+ *  holds the ledger view proving no event opened this ordinal) by passing
+ *  the observed sha as `reclaimSha`; the replacement is a compare-and-swap
+ *  on that exact sha, so a concurrent pin between observation and swap
+ *  fails closed into the hard error rather than clobbering it. */
 export function pinAttemptSnapshotRef(
   projectRoot: string,
   runId: string,
   attemptOrdinal: number,
   snapshotCommit: string,
+  reclaimSha?: string | null,
 ): { outcome: SnapshotPinOutcome; ref: string } {
   const ref = `${ATTEMPT_SNAPSHOT_REF_PREFIX}${sanitizeRunRefComponent(runId)}/${attemptOrdinal}`;
   const created = git(projectRoot, ['update-ref', ref, snapshotCommit, ''], { allowFailure: true });
@@ -147,10 +156,27 @@ export function pinAttemptSnapshotRef(
   const existing = git(projectRoot, ['rev-parse', '--verify', '--quiet', ref], { allowFailure: true });
   const existingSha = existing?.trim() || null;
   if (existingSha === snapshotCommit) return { outcome: 'already_pinned', ref };
+  if (reclaimSha && existingSha === reclaimSha) {
+    const swapped = git(projectRoot, ['update-ref', ref, snapshotCommit, reclaimSha], { allowFailure: true });
+    if (swapped !== null) return { outcome: 'created', ref };
+  }
   throw new Error(
     `attempt snapshot ref ${ref} already points at ${existingSha ?? '(unreadable)'}, refusing to rebind it to `
     + `${snapshotCommit}; two concurrent retries appear to have raced on one attempt ordinal`,
   );
+}
+
+/** Current object of the per-attempt pin, or null when the ref does not
+ *  exist. Read-only; used by the retry entrance to detect a pin left by a
+ *  crashed prior retry (a ref no ledger event references). */
+export function readAttemptSnapshotRef(
+  projectRoot: string,
+  runId: string,
+  attemptOrdinal: number,
+): string | null {
+  const ref = `${ATTEMPT_SNAPSHOT_REF_PREFIX}${sanitizeRunRefComponent(runId)}/${attemptOrdinal}`;
+  const existing = git(projectRoot, ['rev-parse', '--verify', '--quiet', ref], { allowFailure: true });
+  return existing?.trim() || null;
 }
 
 export function listSubmodulePaths(projectRoot: string): string[] {
@@ -181,6 +207,11 @@ export type CaptureRunOriginOptions = {
    *  verified), so the sibling root is the only per-attempt layout git
    *  accepts. */
   attemptOrdinal?: number;
+  /** Orphan-pin recovery (attempt ordinals only): the sha the caller
+   *  observed on this ordinal's ref while holding proof that no ledger
+   *  event references it. Passed through to pinAttemptSnapshotRef's
+   *  compare-and-swap arm. */
+  attemptPinReclaimSha?: string | null;
   /** When false, capture WITHOUT pinning the snapshot at
    *  refs/nullius/runs/<run-id> — an identity probe that creates no ref
    *  (the stash object stays an unreferenced dangling commit for git to
@@ -255,7 +286,7 @@ export function captureRunOrigin(
   if (snapshotCommit && SHA_PATTERN.test(snapshotCommit)) {
     if (options.pin !== false) {
       if ((options.attemptOrdinal ?? 1) > 1) {
-        pinAttemptSnapshotRef(projectRoot, runId, options.attemptOrdinal!, snapshotCommit);
+        pinAttemptSnapshotRef(projectRoot, runId, options.attemptOrdinal!, snapshotCommit, options.attemptPinReclaimSha);
       } else {
         pinSnapshotRef(projectRoot, runId, snapshotCommit);
       }

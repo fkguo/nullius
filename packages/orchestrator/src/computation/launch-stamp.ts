@@ -1,6 +1,11 @@
 import * as fs from 'node:fs';
-import * as path from 'node:path';
-import { defaultStampActor, gradeExistingStamp, openRetryAttempt, stampRunDirectory } from '../run-stamp.js';
+import {
+  defaultStampActor,
+  findComputationWorkspaces,
+  gradeExistingStamp,
+  openRetryAttempt,
+  stampRunDirectory,
+} from '../run-stamp.js';
 import type { ExecutionOriginStampOutcome } from './types.js';
 
 /** Automatic origin stamp at the computation front door.
@@ -40,7 +45,7 @@ import type { ExecutionOriginStampOutcome } from './types.js';
  *    hand. */
 export type ExecutionOriginStamp = ExecutionOriginStampOutcome;
 
-export function stampComputationLaunch(projectRoot: string, runDir: string): ExecutionOriginStamp {
+export function stampComputationLaunch(projectRoot: string, runDir: string, reentry = false): ExecutionOriginStamp {
   try {
     const result = stampRunDirectory(projectRoot, runDir, { actor: defaultStampActor() });
     switch (result.kind) {
@@ -69,15 +74,24 @@ export function stampComputationLaunch(projectRoot: string, runDir: string): Exe
         // fresh capture at zero operator cost; anything the machine cannot
         // certify falls back to today's non-blocking stale warning, now
         // naming the retry fork.
-        const statusPath = path.join(runDir, 'computation', 'execution_status.json');
-        let executionStatus: string | null = null;
-        try {
-          executionStatus = fs.existsSync(statusPath)
-            ? (JSON.parse(fs.readFileSync(statusPath, 'utf-8')) as { status?: string }).status ?? null
-            : null;
-        } catch {
-          executionStatus = null;
+        // The status file lives wherever the manifest put the workspace —
+        // the same discovery the retry entrance uses, so this fork can
+        // never disagree with the boundary about what the machine saw.
+        // Any COMPLETED status wins conservatively; ambiguity (multiple
+        // status files) is the retry entrance's refusal to make.
+        const statuses: string[] = [];
+        for (const workspace of findComputationWorkspaces(runDir)) {
+          if (!workspace.statusPath) continue;
+          try {
+            const parsed = JSON.parse(fs.readFileSync(workspace.statusPath, 'utf-8')) as { status?: string };
+            if (typeof parsed.status === 'string') statuses.push(parsed.status);
+          } catch {
+            // unreadable status decides nothing here
+          }
         }
+        const executionStatus = statuses.includes('completed')
+          ? 'completed'
+          : statuses.includes('failed') ? 'failed' : statuses[0] ?? null;
         if (executionStatus === 'completed') {
           return {
             status: 'refused_relaunch',
@@ -102,10 +116,20 @@ export function stampComputationLaunch(projectRoot: string, runDir: string): Exe
               binding_quality: String(origin.binding_quality ?? 'unknown'),
             };
           }
+          // A LOST RACE is transient, not a boundary verdict: a concurrent
+          // retry advanced the chain first, and the honest response is to
+          // re-enter the whole decision once against the new state (the
+          // winner may have bound exactly our tree, making this launch a
+          // benign already-stamped re-entry). One bounded re-entry — a
+          // second conflict in the same window is refused like any other
+          // unresolved ambiguity.
+          if (retry.kind === 'attempt_conflict' && !reentry) {
+            return stampComputationLaunch(projectRoot, runDir, true);
+          }
           // Machine boundary said no (registry-named, decided, chain
-          // defect, cap exhausted, concurrent race …). Executing anyway
-          // would overwrite exactly what the refusal protects — so the
-          // launch is REFUSED, carrying the entrance's own sentence.
+          // defect, cap exhausted …). Executing anyway would overwrite
+          // exactly what the refusal protects — so the launch is REFUSED,
+          // carrying the entrance's own sentence.
           const detail = retry.kind === 'rejected' ? retry.message
             : retry.kind === 'attempt_conflict' ? retry.message
               : 'retry entrance did not open a new attempt';

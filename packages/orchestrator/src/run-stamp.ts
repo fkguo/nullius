@@ -5,8 +5,8 @@ import * as path from 'node:path';
 import type { RunOriginV1, ValidityEventV1 } from '@nullius/shared';
 import { mintUlid, ULID_PATTERN, writeBytesAtomicDurable } from '@nullius/shared';
 import { createHash } from 'node:crypto';
-import { appendValidityEvent, buildValidityEvent, readValidityLedger } from './validity-ledger.js';
-import { captureRunOrigin, isTraceabilityArtifactPath } from './run-origin.js';
+import { appendValidityEvent, buildValidityEvent, readValidityLedger, type ValidityLedgerView } from './validity-ledger.js';
+import { captureRunOrigin, isTraceabilityArtifactPath, readAttemptSnapshotRef } from './run-origin.js';
 import { validateResultRegistry } from './result-registry.js';
 import { refreshNotebookCurrentState } from './notebook-current-state.js';
 
@@ -205,21 +205,26 @@ export function gradeExistingStamp(
  *  manifest → empty set (conservative: nothing gets excluded on its say-so). */
 function declaredOutputPaths(projectRoot: string, ownRunPrefix: string): Set<string> {
   const declared = new Set<string>();
-  try {
-    const manifestPath = path.join(projectRoot, ownRunPrefix, 'computation', 'manifest.json');
-    if (!fs.existsSync(manifestPath)) return declared;
-    const parsed = JSON.parse(fs.readFileSync(manifestPath, 'utf-8')) as {
-      steps?: Array<{ expected_outputs?: string[] }>;
-    };
-    for (const step of parsed.steps ?? []) {
-      for (const output of step.expected_outputs ?? []) {
-        if (typeof output === 'string' && output.length > 0) {
-          declared.add(path.posix.join(`${ownRunPrefix}/computation`, output.split('\\').join('/')));
+  const runDir = path.join(projectRoot, ownRunPrefix);
+  for (const workspace of findComputationWorkspaces(runDir)) {
+    if (!workspace.manifestPath) continue;
+    const workspacePrefix = workspace.workspaceRel === ''
+      ? ownRunPrefix
+      : path.posix.join(ownRunPrefix, workspace.workspaceRel);
+    try {
+      const parsed = JSON.parse(fs.readFileSync(workspace.manifestPath, 'utf-8')) as {
+        steps?: Array<{ expected_outputs?: string[] }>;
+      };
+      for (const step of parsed.steps ?? []) {
+        for (const output of step.expected_outputs ?? []) {
+          if (typeof output === 'string' && output.length > 0) {
+            declared.add(path.posix.join(workspacePrefix, output.split('\\').join('/')));
+          }
         }
       }
+    } catch {
+      // Conservative: an unreadable manifest excludes nothing.
     }
-  } catch {
-    // Conservative: an unreadable manifest excludes nothing.
   }
   return declared;
 }
@@ -276,16 +281,21 @@ function resolveContainedRunDirectory(
   return { kind: 'ok', runDir, runId };
 }
 
-function isRunnerWriteSurface(insideOwnRun: string): boolean {
-  return insideOwnRun === 'computation/execution_status.json'
-    || insideOwnRun.startsWith('computation/logs/')
-    || insideOwnRun.startsWith('computation/outputs/')
-    || insideOwnRun.startsWith('computation/workspace/')
-    // Prior attempts' archived residue: quarantined by the retry entrance,
-    // never deleted; counting it as "unknown code delta" would demote every
-    // post-retry stamp for bookkeeping the machinery itself created.
-    || insideOwnRun.startsWith('attempts/')
-    || insideOwnRun.startsWith('artifacts/');
+function isRunnerWriteSurface(insideOwnRun: string, workspaceRels: string[]): boolean {
+  // Prior attempts' archived residue: quarantined by the retry entrance,
+  // never deleted; counting it as "unknown code delta" would demote every
+  // post-retry stamp for bookkeeping the machinery itself created.
+  if (insideOwnRun.startsWith('attempts/') || insideOwnRun.startsWith('artifacts/')) return true;
+  // The runner's own entries under WHATEVER directory the manifest made
+  // the workspace ('computation' is the convention, not a guarantee).
+  const roots = workspaceRels.length > 0 ? workspaceRels : ['computation'];
+  return roots.some((workspaceRel) => {
+    const prefix = workspaceRel === '' ? '' : `${workspaceRel}/`;
+    return insideOwnRun === `${prefix}execution_status.json`
+      || insideOwnRun.startsWith(`${prefix}logs/`)
+      || insideOwnRun.startsWith(`${prefix}outputs/`)
+      || insideOwnRun.startsWith(`${prefix}workspace/`);
+  });
 }
 
 /** Untracked paths that bear on THIS run's code identity, for re-entry
@@ -312,6 +322,12 @@ function countCodeBearingUntracked(projectRoot: string, runId: string): number {
   const declaredOutputs = new Set<string>(
     ownRunPrefixes.flatMap(prefix => [...declaredOutputPaths(projectRoot, prefix)]),
   );
+  const workspaceRelsByPrefix = new Map<string, string[]>(
+    ownRunPrefixes.map(prefix => [
+      prefix,
+      findComputationWorkspaces(path.join(projectRoot, prefix)).map(workspace => workspace.workspaceRel),
+    ]),
+  );
   return output
     .split('\n')
     .map(line => line.trim())
@@ -322,7 +338,7 @@ function countCodeBearingUntracked(projectRoot: string, runId: string): number {
       const own = ownRunPrefixes.find(prefix => line.startsWith(`${prefix}/`));
       if (own) {
         const inside = line.slice(own.length + 1);
-        if (isRunnerWriteSurface(inside)) return false;
+        if (isRunnerWriteSurface(inside, workspaceRelsByPrefix.get(own) ?? [])) return false;
         if (declaredOutputs.has(line)) return false;
         return true;
       }
@@ -549,23 +565,187 @@ export type OpenRetryResult =
     mirrorWritten: boolean;
   };
 
-const RETRY_BOOKKEEPING_ALLOWLIST = new Set(['run_origin.json', 'attempts', 'manifest.json', 'computation']);
+/** Where a run's computation actually lives. `nullius run --manifest`
+ *  accepts a manifest ANYWHERE inside the run directory and derives the
+ *  workspace (and the runner's execution_status.json) from the manifest's
+ *  own directory — so every boundary that hardcoded computation/ was blind
+ *  to a relocated manifest. This discovery is the one shared answer:
+ *  directories (bounded depth, attempts/ excluded — quarantined residue
+ *  must never read as a live workspace) that hold a manifest or a status
+ *  file. */
+export type ComputationWorkspace = {
+  /** Run-relative posix path ('' = the run root itself). */
+  workspaceRel: string;
+  manifestPath: string | null;
+  statusPath: string | null;
+};
 
-/** The PRODUCT surface a resultless crash must leave empty: top-level
- *  entries beyond bookkeeping and inputs, plus the runner write surface
- *  under computation/ (status, logs, outputs, workspace). The computation/
- *  directory itself — manifest, scripts, staged inputs — is INPUT and
- *  never counts as residue: a launch that dies before its first product
- *  must heal as `missing`, not demand a declaration for its own inputs. */
-function listRunProductEntries(runDir: string): string[] {
-  const products = fs.readdirSync(runDir).filter(name => !RETRY_BOOKKEEPING_ALLOWLIST.has(name));
-  const computationDir = path.join(runDir, 'computation');
-  if (fs.existsSync(computationDir)) {
-    for (const entry of RUNNER_PRODUCT_ENTRIES) {
-      if (fs.existsSync(path.join(computationDir, entry))) products.push(path.join('computation', entry));
+export function findComputationWorkspaces(runDir: string): ComputationWorkspace[] {
+  const found: ComputationWorkspace[] = [];
+  const walk = (rel: string, depth: number): void => {
+    const abs = rel === '' ? runDir : path.join(runDir, rel);
+    let entries: fs.Dirent[];
+    try {
+      entries = fs.readdirSync(abs, { withFileTypes: true });
+    } catch {
+      return;
     }
+    const fileNames = new Set(entries.filter(entry => entry.isFile()).map(entry => entry.name));
+    if (fileNames.has('manifest.json') || fileNames.has('execution_status.json')) {
+      found.push({
+        workspaceRel: rel,
+        manifestPath: fileNames.has('manifest.json') ? path.join(abs, 'manifest.json') : null,
+        statusPath: fileNames.has('execution_status.json') ? path.join(abs, 'execution_status.json') : null,
+      });
+    }
+    if (depth >= 4) return;
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      if (entry.name.startsWith('.')) continue;
+      if (rel === '' && (entry.name === 'attempts' || entry.name === 'artifacts')) continue;
+      walk(rel === '' ? entry.name : path.posix.join(rel, entry.name), depth + 1);
+    }
+  };
+  walk('', 0);
+  return found;
+}
+
+/** Script paths a manifest names, workspace-relative → run-relative.
+ *  Malformed entries (absolute, dot-dot) are simply not credited as inputs
+ *  — conservative toward the product side. */
+function manifestInputPaths(workspace: ComputationWorkspace): Set<string> {
+  const inputs = new Set<string>();
+  if (!workspace.manifestPath) return inputs;
+  const prefix = workspace.workspaceRel;
+  const toRunRel = (wsRel: string): string => (prefix === '' ? wsRel : path.posix.join(prefix, wsRel));
+  inputs.add(toRunRel('manifest.json'));
+  try {
+    const parsed = JSON.parse(fs.readFileSync(workspace.manifestPath, 'utf-8')) as {
+      entry_point?: { script?: string };
+      steps?: Array<{ script?: string }>;
+    };
+    const scripts = [
+      parsed.entry_point?.script,
+      ...(parsed.steps ?? []).map(step => step.script),
+    ];
+    for (const script of scripts) {
+      if (typeof script !== 'string' || script.length === 0) continue;
+      const clean = script.split('\\').join('/');
+      if (clean.startsWith('/') || clean.split('/').includes('..')) continue;
+      inputs.add(toRunRel(clean));
+    }
+  } catch {
+    // Unreadable manifest credits nothing as input beyond itself.
   }
-  return products;
+  return inputs;
+}
+
+/** Run-relative paths of files git tracks inside this run directory.
+ *  Tracked files are part of the captured tree by definition — moving one
+ *  would DIRTY the very tree the fresh capture is about to bind, so they
+ *  are residue (they exist) but never movable. Empty set when git cannot
+ *  answer. */
+function trackedPathsUnder(projectRoot: string, runDir: string): Set<string> {
+  const tracked = new Set<string>();
+  const rel = path.relative(projectRoot, runDir);
+  if (rel.startsWith('..')) return tracked;
+  try {
+    const output = execFileSync(
+      'git',
+      ['--no-optional-locks', '-c', 'core.fsmonitor=false', '-C', projectRoot, 'ls-files', '--', rel],
+      { encoding: 'utf-8', timeout: 30_000, stdio: ['ignore', 'pipe', 'pipe'] },
+    );
+    const prefix = `${rel.split(path.sep).join('/')}/`;
+    for (const line of output.split('\n')) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith(prefix)) tracked.add(trimmed.slice(prefix.length));
+    }
+  } catch {
+    // No git answer → nothing credited as tracked.
+  }
+  return tracked;
+}
+
+/** The PRODUCT surface of the current attempt, one enumeration shared by
+ *  the residue check (is there anything a resultless crash left behind?)
+ *  and the quarantine (what must move aside so attempt N's bytes cannot
+ *  ride into attempt N+1's binding). Sharing one walk is the point — the
+ *  two consumers drifting apart is exactly how a checkpoint file stayed
+ *  live while the residue check reported the surface handled.
+ *
+ *  Classification, walking from the run root:
+ *  - bookkeeping at the root (run_origin.json, attempts/, a root-level
+ *    manifest.json) is neither residue nor movable;
+ *  - manifest-credited inputs (each workspace's manifest + the scripts it
+ *    names) stay;
+ *  - a root-level computation/ WITHOUT a manifest or status file keeps the
+ *    legacy convention: it is an input-staging area, and only the runner's
+ *    own four entries under it count (a launch that dies before its first
+ *    product must still heal as `missing`);
+ *  - everything else — runner write surface, declared outputs, terminal
+ *    artifacts/, checkpoints, ANY undeclared write — is residue; the
+ *    movable subset excludes git-tracked files (part of the captured tree)
+ *    and recurses into directories that mix inputs or tracked files with
+ *    products. */
+function enumerateAttemptProducts(
+  projectRoot: string,
+  runDir: string,
+): { workspaces: ComputationWorkspace[]; residue: string[]; movable: string[] } {
+  const workspaces = findComputationWorkspaces(runDir);
+  const inputs = new Set<string>();
+  for (const workspace of workspaces) {
+    for (const input of manifestInputPaths(workspace)) inputs.add(input);
+  }
+  const tracked = trackedPathsUnder(projectRoot, runDir);
+  const residue: string[] = [];
+  const movable: string[] = [];
+  const hasPrefixIn = (set: Set<string>, rel: string): boolean => {
+    const prefix = `${rel}/`;
+    for (const candidate of set) {
+      if (candidate.startsWith(prefix)) return true;
+    }
+    return false;
+  };
+  const workspaceRoots = new Set(workspaces.map(workspace => workspace.workspaceRel));
+  const classify = (rel: string): void => {
+    const abs = rel === '' ? runDir : path.join(runDir, rel);
+    let entries: fs.Dirent[];
+    try {
+      entries = fs.readdirSync(abs, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      const childRel = rel === '' ? entry.name : path.posix.join(rel, entry.name);
+      if (rel === '' && (entry.name === 'run_origin.json' || entry.name === 'attempts' || entry.name === 'manifest.json')) {
+        continue;
+      }
+      if (inputs.has(childRel)) continue;
+      if (entry.isDirectory()) {
+        if (rel === '' && entry.name === 'computation' && !workspaceRoots.has('computation')) {
+          // Legacy input-staging convention: only the runner's entries count.
+          for (const runnerEntry of RUNNER_PRODUCT_ENTRIES) {
+            const runnerRel = path.posix.join('computation', runnerEntry);
+            if (!fs.existsSync(path.join(runDir, runnerRel))) continue;
+            residue.push(runnerRel);
+            if (!tracked.has(runnerRel) && !hasPrefixIn(tracked, runnerRel)) movable.push(runnerRel);
+          }
+          continue;
+        }
+        if (hasPrefixIn(inputs, childRel) || hasPrefixIn(tracked, childRel)) {
+          classify(childRel);
+          continue;
+        }
+        residue.push(childRel);
+        movable.push(childRel);
+      } else {
+        residue.push(childRel);
+        if (!tracked.has(childRel)) movable.push(childRel);
+      }
+    }
+  };
+  classify('');
+  return { workspaces, residue, movable };
 }
 
 /** The terminal result artifact a COMPLETED front-door run writes. The
@@ -585,38 +765,77 @@ function completedResultArtifactPresent(runDir: string): boolean {
   }
 }
 
-/** Quarantine the failed attempt's execution PRODUCTS into
- *  attempts/attempt-<N>/ (never deleted): exactly the runner write surface
- *  — status file, logs, outputs, workspace. INPUTS (the manifest, script
- *  areas) stay in place: the retry re-runs them, and archiving an input
- *  would break the relaunch it exists to enable. Hand runs without a
- *  computation/ area keep their surface in place — their retries ride on
- *  DECLARED evidence, visibly second-class (a recorded limitation, not a
- *  silent one). Returns run-relative destination or null when nothing
- *  moved. */
+/** The runner's own write entries under a workspace directory. */
 const RUNNER_PRODUCT_ENTRIES = ['execution_status.json', 'logs', 'outputs', 'workspace'];
 
-/** Quarantine into a PRIVATE staging directory first; only the appended
- *  winner promotes it to the canonical attempts/attempt-<N>/ name. Two
- *  concurrent retries therefore never share an archive: each stages its own
- *  moves, the race loser restores from ITS OWN staging only, and the
- *  winner's products are untouchable by the loser's rollback. */
+/** Recursively merge-move the contents of `fromDir` into `toDir`,
+ *  preserving relative structure. A child whose destination already exists
+ *  as a non-directory (or whose rename fails) is left in place — visible,
+ *  never lost, never overwritten. Returns the number of renames performed. */
+function moveTreeMerge(fromDir: string, toDir: string): number {
+  let moved = 0;
+  let entries: fs.Dirent[];
+  try {
+    entries = fs.readdirSync(fromDir, { withFileTypes: true });
+  } catch {
+    return moved;
+  }
+  for (const entry of entries) {
+    const from = path.join(fromDir, entry.name);
+    const to = path.join(toDir, entry.name);
+    if (fs.existsSync(to)) {
+      if (entry.isDirectory() && fs.statSync(to).isDirectory()) {
+        moved += moveTreeMerge(from, to);
+      }
+      // Non-directory collision: leave staged, visible.
+      continue;
+    }
+    try {
+      fs.mkdirSync(path.dirname(to), { recursive: true });
+      fs.renameSync(from, to);
+      moved += 1;
+    } catch {
+      // leave in place; visible, never lost
+    }
+  }
+  try {
+    fs.rmdirSync(fromDir);
+  } catch {
+    // non-empty leftovers stay visible
+  }
+  return moved;
+}
+
+/** Quarantine the failed attempt's PRODUCTS (the shared enumeration's
+ *  movable set — runner write surface, declared outputs, terminal
+ *  artifacts/, checkpoints, undeclared writes; git-tracked files and
+ *  manifest-credited inputs stay) into a PRIVATE staging directory first;
+ *  only the appended winner promotes it to the canonical
+ *  attempts/attempt-<N>/ name. Two concurrent retries therefore never
+ *  share an archive: each stages its own moves, the race loser restores
+ *  from ITS OWN staging only, and the winner's products are untouchable by
+ *  the loser's rollback. Structure inside staging mirrors the run-relative
+ *  layout, so promote and restore are the same generic merge-move. */
 function quarantineFailedAttempt(
   runDir: string,
   eventId: string,
+  movable: string[],
 ): { staging: string | null; moved: number } {
   const stagingRel = path.join('attempts', `.staging-${eventId}`);
   const stagingAbs = path.join(runDir, stagingRel);
-  const computationDir = path.join(runDir, 'computation');
-  if (!fs.existsSync(computationDir)) return { staging: null, moved: 0 };
   let moved = 0;
-  for (const entry of RUNNER_PRODUCT_ENTRIES) {
-    const from = path.join(computationDir, entry);
+  for (const rel of movable) {
+    const from = path.join(runDir, rel);
     if (!fs.existsSync(from)) continue;
-    const to = path.join(stagingAbs, 'computation', entry);
-    fs.mkdirSync(path.dirname(to), { recursive: true });
-    fs.renameSync(from, to);
-    moved += 1;
+    const to = path.join(stagingAbs, rel);
+    try {
+      fs.mkdirSync(path.dirname(to), { recursive: true });
+      fs.renameSync(from, to);
+      moved += 1;
+    } catch {
+      // Leave in place; the residue stays visible and the attempt archive
+      // records what DID move.
+    }
   }
   return moved > 0 ? { staging: stagingRel, moved } : { staging: null, moved: 0 };
 }
@@ -632,44 +851,64 @@ function promoteQuarantine(runDir: string, stagingRel: string, closedOrdinal: nu
     fs.renameSync(stagingAbs, destAbs);
     return destRel;
   }
-  const stagingComputation = path.join(stagingAbs, 'computation');
-  if (fs.existsSync(stagingComputation)) {
-    for (const entry of fs.readdirSync(stagingComputation)) {
-      const to = path.join(destAbs, 'computation', entry);
-      fs.mkdirSync(path.dirname(to), { recursive: true });
-      try {
-        fs.renameSync(path.join(stagingComputation, entry), to);
-      } catch {
-        // leave in staging; visible, never lost
-      }
-    }
-  }
-  try {
-    fs.rmdirSync(stagingComputation);
-    fs.rmdirSync(stagingAbs);
-  } catch { /* non-empty leftovers stay visible */ }
+  moveTreeMerge(stagingAbs, destAbs);
   return destRel;
 }
 
 function restoreQuarantine(runDir: string, stagingRel: string): void {
   // Rollback for the lost race — restores ONLY this invocation's staged
   // moves; the winner's archive is a different directory by construction.
-  const stagingComputation = path.join(runDir, stagingRel, 'computation');
-  if (!fs.existsSync(stagingComputation)) return;
-  const computationDir = path.join(runDir, 'computation');
-  fs.mkdirSync(computationDir, { recursive: true });
-  for (const entry of fs.readdirSync(stagingComputation)) {
-    try {
-      fs.renameSync(path.join(stagingComputation, entry), path.join(computationDir, entry));
-    } catch {
-      // leave the remainder staged; visible, never lost
-    }
-  }
+  // Staging mirrors run-relative structure, so restoring is merging the
+  // staging tree back onto the run root.
+  const stagingAbs = path.join(runDir, stagingRel);
+  if (!fs.existsSync(stagingAbs)) return;
+  moveTreeMerge(stagingAbs, runDir);
+}
+
+/** How long a staging directory may sit before a later retry treats it as
+ *  the debris of a CRASHED invocation (rather than a concurrent one still
+ *  in flight) and recovers it. In-flight retries hold staging for seconds. */
+const STALE_STAGING_MS = 10 * 60_000;
+
+/** Crash recovery for the two windows a prior retry can die in:
+ *  - staged but never appended (event id absent from the ledger) → the
+ *    products belong back on the live surface;
+ *  - appended but never promoted (closure recorded, archive still under
+ *    the private staging name) → finish the promotion.
+ *  Age-gated so a CONCURRENT retry's live staging is never touched. */
+function recoverOrphanStagings(runDir: string, view: ValidityLedgerView, runId: string): void {
+  const attemptsDir = path.join(runDir, 'attempts');
+  let entries: string[];
   try {
-    fs.rmdirSync(stagingComputation);
-    fs.rmdirSync(path.join(runDir, stagingRel));
+    entries = fs.readdirSync(attemptsDir);
   } catch {
-    // non-empty leftovers stay visible
+    return;
+  }
+  for (const name of entries) {
+    if (!name.startsWith('.staging-')) continue;
+    const stagedEventId = name.slice('.staging-'.length);
+    if (!ULID_PATTERN.test(stagedEventId)) continue;
+    const rel = path.join('attempts', name);
+    try {
+      if (Date.now() - fs.statSync(path.join(runDir, rel)).mtimeMs < STALE_STAGING_MS) continue;
+    } catch {
+      continue;
+    }
+    const recorded = view.events.find(event => event.event_id === stagedEventId);
+    if (!recorded) {
+      restoreQuarantine(runDir, rel);
+      continue;
+    }
+    if (recorded.event === 'attempt' && recorded.run_id === runId) {
+      const closes = (recorded as { attempt?: { closes_ordinal?: number } }).attempt?.closes_ordinal;
+      if (typeof closes === 'number') {
+        try {
+          promoteQuarantine(runDir, rel, closes);
+        } catch {
+          // stays visible under the staging name
+        }
+      }
+    }
   }
 }
 
@@ -687,6 +926,12 @@ export function openRetryAttempt(
   const contained = resolveContainedRunDirectory(projectRoot, target, 'trace retry', 'retry');
   if (contained.kind === 'rejected') return contained;
   const { runDir, runId } = contained;
+  // Normalize BEFORE any side effect: the ledger schema requires a
+  // non-empty actor and reason, and discovering that only at append time
+  // would leave a quarantine and a pinned capture behind a validation
+  // throw. Whitespace-only reasons are treated as absent.
+  const actor = options.actor?.trim() || defaultStampActor();
+  const declaredReason = options.reason?.trim() || undefined;
 
   if (options.eventId && !ULID_PATTERN.test(options.eventId)) {
     return { kind: 'rejected', message: `trace retry: --event-id ${JSON.stringify(options.eventId)} is not a ULID` };
@@ -752,6 +997,10 @@ export function openRetryAttempt(
         + 'cheap path; supersede or void it (full ceremony) and open a fresh run id',
     };
   }
+  // Heal the debris of prior CRASHED retries first, so the boundary below
+  // judges the true surface (a stranded archive would otherwise hide the
+  // very residue — or terminal artifact — the checks exist to see).
+  recoverOrphanStagings(runDir, view, runId);
   if (completedResultArtifactPresent(runDir)) {
     return {
       kind: 'rejected',
@@ -770,11 +1019,23 @@ export function openRetryAttempt(
   }
 
   // Evidence: machine where the machine can see, declared (and visibly
-  // second-class) where it cannot. "Completed" is content territory.
-  const statusPath = path.join(runDir, 'computation', 'execution_status.json');
+  // second-class) where it cannot. "Completed" is content territory. The
+  // status file lives wherever the manifest put the workspace — discovery,
+  // not a hardcoded computation/ path, decides what the machine can see.
+  const products = enumerateAttemptProducts(projectRoot, runDir);
+  const statusWorkspaces = products.workspaces.filter(workspace => workspace.statusPath !== null);
+  if (statusWorkspaces.length > 1) {
+    return {
+      kind: 'rejected',
+      message: `trace retry: ${runId} carries ${statusWorkspaces.length} execution status files `
+        + `(${statusWorkspaces.map(workspace => workspace.workspaceRel || '.').join(', ')}) — ambiguous evidence; `
+        + 'remove or archive the stale workspace before retrying',
+    };
+  }
+  const statusPath = statusWorkspaces[0]?.statusPath ?? null;
   let outcome: 'failed' | 'missing' | 'stalled' | 'declared_no_result';
   const evidence: RetryEvidence = { method: 'declared', detail: '' };
-  if (fs.existsSync(statusPath)) {
+  if (statusPath !== null) {
     let statusRaw: string;
     let status: { status?: string; errors?: string[] } = {};
     try {
@@ -793,10 +1054,10 @@ export function openRetryAttempt(
     if (status.status === 'failed') {
       outcome = 'failed';
       evidence.method = 'execution_status';
-      evidence.detail = (status.errors ?? [])[0] ?? 'execution status records failure';
+      evidence.detail = ((status.errors ?? [])[0] ?? '').trim() || 'execution status records failure';
       evidence.execution_status_sha256 = createHash('sha256').update(statusRaw!, 'utf-8').digest('hex');
     } else if (status.status === 'running') {
-      if (!options.reason) {
+      if (!declaredReason) {
         return {
           kind: 'rejected',
           message: `trace retry: ${runId}'s execution status still says running — declaring it stalled requires `
@@ -805,43 +1066,60 @@ export function openRetryAttempt(
       }
       outcome = 'stalled';
       evidence.method = 'declared';
-      evidence.detail = options.reason;
+      evidence.detail = declaredReason;
       evidence.execution_status_sha256 = createHash('sha256').update(statusRaw!, 'utf-8').digest('hex');
     } else {
       return { kind: 'rejected', message: `trace retry: ${runId}'s execution status is unrecognized (${String(status.status)})` };
     }
   } else {
-    const surface = listRunProductEntries(runDir);
-    if (surface.length === 0) {
+    if (products.residue.length === 0) {
       // Nothing was ever produced — the stamp-predates-source class heals
       // as an honest chain advance; never counts against attempt budgets.
       outcome = 'missing';
       evidence.method = 'outputs_scan';
       evidence.detail = 'product surface empty: no execution products ever materialized';
     } else {
-      if (!options.reason) {
+      if (!declaredReason) {
         return {
           kind: 'rejected',
-          message: `trace retry: ${runId} has ${surface.length} product file(s) on its surface and no execution status — `
+          message: `trace retry: ${runId} has ${products.residue.length} product path(s) on its surface and no execution status — `
             + 'retrying a hand run requires --reason declaring the execution produced no retained result '
             + '(recorded as a declaration, visibly second-class)',
         };
       }
       outcome = 'declared_no_result';
       evidence.method = 'declared';
-      evidence.detail = options.reason;
+      evidence.detail = declaredReason;
+    }
+  }
+  // The zero-ceremony self-heal is for the OCCASIONAL early crash. A run
+  // id that keeps advancing its chain without ever producing a byte is
+  // churning — after a handful of heals the honest move is a fresh id.
+  if (outcome === 'missing') {
+    const missingHeals = entry.attempts.closures.filter(closure => closure.previous_outcome === 'missing').length;
+    if (missingHeals >= 5) {
+      return {
+        kind: 'rejected',
+        message: `trace retry: ${runId} already carries ${missingHeals} missing-source self-heals — this id is `
+          + 'churning without ever executing; open a fresh run id (the zero-ceremony heal is for the occasional '
+          + 'early crash, not a loop)',
+      };
     }
   }
   // Manifest-declared crash budget: total executions allowed, counting the
   // initial attempt and every CRASH retry (missing self-heals excluded).
   // Exhaustion restores the full ceremony; record-only closures stay
-  // available so an abandoned run is still cheap to book.
+  // available so an abandoned run is still cheap to book. The budget reads
+  // from the evidence workspace's manifest (or the single manifest when no
+  // status file exists).
   if (outcome !== 'missing' && !options.recordOnly) {
-    const manifestPath = path.join(runDir, 'computation', 'manifest.json');
+    const manifestWorkspaces = products.workspaces.filter(workspace => workspace.manifestPath !== null);
+    const budgetManifestPath = statusWorkspaces[0]?.manifestPath
+      ?? (manifestWorkspaces.length === 1 ? manifestWorkspaces[0]!.manifestPath : null);
     let maxAttempts: number | null = null;
     try {
-      if (fs.existsSync(manifestPath)) {
-        const parsed = JSON.parse(fs.readFileSync(manifestPath, 'utf-8')) as { max_attempts?: number };
+      if (budgetManifestPath !== null) {
+        const parsed = JSON.parse(fs.readFileSync(budgetManifestPath, 'utf-8')) as { max_attempts?: number };
         if (typeof parsed.max_attempts === 'number' && parsed.max_attempts >= 1) maxAttempts = parsed.max_attempts;
       }
     } catch {
@@ -857,13 +1135,29 @@ export function openRetryAttempt(
     }
   }
 
+  // Skew-immune predecessor, resolved BEFORE any side effect: the event
+  // that OPENED the ordinal being closed — the initial stamp for ordinal 1,
+  // else the attempt event whose embedded origin bound this ordinal.
+  const supersedesEvent = closedOrdinal === 1
+    ? view.events.find(event => event.event === 'stamp' && event.run_id === runId)?.event_id ?? null
+    : view.events.find(event => event.event === 'attempt' && event.run_id === runId
+      && ((event as { attempt?: { origin?: { attempt_ordinal?: number } | null } }).attempt?.origin?.attempt_ordinal
+        === closedOrdinal))?.event_id ?? null;
+  if (supersedesEvent === null) {
+    return {
+      kind: 'rejected',
+      message: `trace retry: cannot identify the event that opened attempt ${closedOrdinal} of ${runId}; `
+        + 'the chain is unreadable — repair the ledger before retrying',
+    };
+  }
+
   const eventId = options.eventId ?? mintUlid();
   // Stage the archive under this invocation's own name; the canonical
   // attempts/attempt-N destination is claimed only AFTER the append wins.
   let staging: string | null = null;
   let quarantinedTo: string | null = null;
   if (!options.recordOnly) {
-    const quarantine = quarantineFailedAttempt(runDir, eventId);
+    const quarantine = quarantineFailedAttempt(runDir, eventId, products.movable);
     staging = quarantine.staging;
     if (quarantine.moved > 0) {
       evidence.quarantined_paths_count = quarantine.moved;
@@ -875,69 +1169,93 @@ export function openRetryAttempt(
   let mirrorWritten = true;
   const mirrorPath = path.join(runDir, 'run_origin.json');
   const previousMirror = fs.existsSync(mirrorPath) ? fs.readFileSync(mirrorPath, 'utf-8') : null;
+  let writtenMirrorBytes: string | null = null;
   if (!options.recordOnly) {
-    origin = captureRunOrigin(projectRoot, runId, {
-      deps: options.deps ?? {},
-      eventId,
-      attemptOrdinal: closedOrdinal + 1,
-    });
     try {
-      writeBytesAtomicDurable(mirrorPath, `${JSON.stringify(origin, null, 2)}\n`);
+      // A pin already sitting on the NEXT ordinal can only be the debris
+      // of a retry that crashed between pinning and appending — the chain
+      // head is still `closedOrdinal` (checked above), so no ledger event
+      // references that ref. Reclaim it by compare-and-swap; a concurrent
+      // pin between observation and swap fails closed into the hard error.
+      origin = captureRunOrigin(projectRoot, runId, {
+        deps: options.deps ?? {},
+        eventId,
+        attemptOrdinal: closedOrdinal + 1,
+        attemptPinReclaimSha: readAttemptSnapshotRef(projectRoot, runId, closedOrdinal + 1),
+      });
+    } catch (error) {
+      // The capture failed AFTER products moved into staging; put them
+      // back — a throw must not strand the live surface in the archive.
+      if (staging) restoreQuarantine(runDir, staging);
+      throw error;
+    }
+    try {
+      writtenMirrorBytes = `${JSON.stringify(origin, null, 2)}\n`;
+      writeBytesAtomicDurable(mirrorPath, writtenMirrorBytes);
     } catch {
       mirrorWritten = false;
+      // Same commit-uncertain restore as the stamp path: the atomic helper
+      // renames before its final durability step, so the destination may
+      // already hold the new bytes.
+      try {
+        if (previousMirror !== null) writeBytesAtomicDurable(mirrorPath, previousMirror);
+        else fs.rmSync(mirrorPath, { force: true });
+      } catch {
+        // Restore is best-effort; the divergence scan surfaces leftovers.
+      }
     }
   }
-
-  // Skew-immune predecessor: the event that OPENED the ordinal being
-  // closed — the initial stamp for ordinal 1, else the attempt event whose
-  // embedded origin bound this ordinal.
-  const supersedesEvent = closedOrdinal === 1
-    ? view.events.find(event => event.event === 'stamp' && event.run_id === runId)?.event_id ?? null
-    : view.events.find(event => event.event === 'attempt' && event.run_id === runId
-      && ((event as { attempt?: { origin?: { attempt_ordinal?: number } | null } }).attempt?.origin?.attempt_ordinal
-        === closedOrdinal))?.event_id ?? null;
-  if (supersedesEvent === null) {
-    if (staging) restoreQuarantine(runDir, staging);
-    return {
-      kind: 'rejected',
-      message: `trace retry: cannot identify the event that opened attempt ${closedOrdinal} of ${runId}; `
-        + 'the chain is unreadable — repair the ledger before retrying',
-    };
-  }
+  // The mirror outcome is recorded IN the authoritative event, exactly as
+  // the initial stamp records it — a read-only run directory is a
+  // legitimate, visible state, not a silent divergence.
+  const originPayload = origin === null ? null : {
+    ...(origin as unknown as Record<string, unknown>),
+    ...(mirrorWritten ? {} : { run_dir_unwritable: true }),
+  };
   const event = buildValidityEvent({
     event: 'attempt',
     run_id: runId,
-    actor: options.actor,
-    reason: options.reason ?? evidence.detail,
+    actor,
+    reason: declaredReason ?? evidence.detail,
     attempt: {
       closes_ordinal: closedOrdinal,
       previous_outcome: outcome,
       evidence,
       quarantined_to: quarantinedTo,
       supersedes_attempt_event: supersedesEvent,
-      origin: origin as ValidityEventV1['stamp'] | null,
+      origin: originPayload as ValidityEventV1['stamp'] | null,
     },
     event_id: eventId,
     ...(origin ? { ts_utc: (origin as unknown as { captured_at_utc: string }).captured_at_utc } : {}),
   } as Omit<ValidityEventV1, 'schema_id' | 'event_id' | 'ts_utc'> & { event_id?: string; ts_utc?: string });
 
+  // Rollback discipline shared with the stamp path: undo only what THIS
+  // invocation wrote — a concurrent winner's mirror is left alone, and a
+  // mirror WE created (no predecessor) is removed, not orphaned.
+  const rollbackMirror = (): void => {
+    if (options.recordOnly || !mirrorWritten || writtenMirrorBytes === null) return;
+    try {
+      const current = fs.existsSync(mirrorPath) ? fs.readFileSync(mirrorPath, 'utf-8') : null;
+      const action = mirrorRollbackAction(current, writtenMirrorBytes, previousMirror);
+      if (action === 'restore_previous') writeBytesAtomicDurable(mirrorPath, previousMirror!);
+      else if (action === 'remove') fs.rmSync(mirrorPath, { force: true });
+    } catch {
+      // A failing restore must not mask the primary outcome; the
+      // divergence scan surfaces the leftover mirror on the next read.
+    }
+  };
+
   let appendOutcome;
   try {
-    appendOutcome = appendValidityEvent(projectRoot, event, {
-      onlyIfAttemptChainHead: { closesOrdinal: closedOrdinal },
-    });
+    appendOutcome = appendValidityEvent(projectRoot, event, { onlyIfAttemptChainHead: true });
   } catch (error) {
     if (staging) restoreQuarantine(runDir, staging);
-    if (!options.recordOnly && mirrorWritten && previousMirror !== null) {
-      try { writeBytesAtomicDurable(mirrorPath, previousMirror); } catch { /* divergence scan surfaces it */ }
-    }
+    rollbackMirror();
     throw error;
   }
   if (appendOutcome === 'skipped_attempt_not_chain_head') {
     if (staging) restoreQuarantine(runDir, staging);
-    if (!options.recordOnly && mirrorWritten && previousMirror !== null) {
-      try { writeBytesAtomicDurable(mirrorPath, previousMirror); } catch { /* divergence scan surfaces it */ }
-    }
+    rollbackMirror();
     return {
       kind: 'attempt_conflict',
       runId,
