@@ -3,7 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { readValidityLedger, validityLedgerPath, type ValidityLedgerView, type RunValidity } from './validity-ledger.js';
 import { isTraceabilityArtifactPath, listSubmodulePaths } from './run-origin.js';
-import { findComputationWorkspaces } from './run-stamp.js';
+import { completedResultArtifactPresent, findComputationWorkspaces } from './run-stamp.js';
 import { validateResultRegistry } from './result-registry.js';
 import { checkNotebookStaleness, type NotebookStalenessReport } from './notebook-staleness.js';
 import { analyzeNotebookRunLinks, type NotebookRunLinksReport } from './notebook-run-links.js';
@@ -781,8 +781,11 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
           // status is not a crash; one failed status makes it a candidate.
           const runDirAbs = path.join(projectRoot, entry.canonical_root, entry.run_id);
           const statuses: string[] = [];
-          for (const workspace of findComputationWorkspaces(runDirAbs)) {
+          const statusWorkspaces: Array<{ statusPath: string; manifestPath: string | null }> = [];
+          const discovery = { truncated: false };
+          for (const workspace of findComputationWorkspaces(runDirAbs, discovery)) {
             if (!workspace.statusPath) continue;
+            statusWorkspaces.push({ statusPath: workspace.statusPath, manifestPath: workspace.manifestPath });
             try {
               const parsed = JSON.parse(fs.readFileSync(workspace.statusPath, 'utf-8')) as { status?: string };
               if (typeof parsed.status === 'string') statuses.push(parsed.status);
@@ -791,6 +794,26 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
             }
           }
           if (!statuses.includes('failed') || statuses.includes('completed')) return false;
+          // Refusals the entrance would issue on this evidence: a
+          // truncated discovery (cannot certify the surface), multiple
+          // live status files (ambiguous), a terminal artifact recording
+          // completion, or an exhausted crash budget.
+          if (discovery.truncated) return false;
+          if (statusWorkspaces.length > 1) return false;
+          if (completedResultArtifactPresent(runDirAbs)) return false;
+          try {
+            const manifestPath = statusWorkspaces[0]?.manifestPath ?? null;
+            if (manifestPath !== null) {
+              const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8')) as { max_attempts?: number };
+              const maxAttempts = typeof manifest.max_attempts === 'number' && manifest.max_attempts >= 1
+                ? manifest.max_attempts
+                : null;
+              const crashRetries = ledger.runs.get(entry.run_id)?.attempts.crash_retry_count ?? 0;
+              if (maxAttempts !== null && crashRetries + 1 >= maxAttempts) return false;
+            }
+          } catch {
+            // an unreadable manifest never decides the hint
+          }
           // Only runs the retry entrance would actually ADMIT belong under
           // a "retry this" hint — advising `nullius trace retry` for an
           // unstamped, decided, defective, inexact, or registry-named run

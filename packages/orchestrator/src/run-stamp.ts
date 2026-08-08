@@ -580,7 +580,10 @@ export type ComputationWorkspace = {
   statusPath: string | null;
 };
 
-export function findComputationWorkspaces(runDir: string): ComputationWorkspace[] {
+export function findComputationWorkspaces(
+  runDir: string,
+  stats?: { truncated: boolean },
+): ComputationWorkspace[] {
   const found: ComputationWorkspace[] = [];
   // The manifest may sit at ANY depth (prepareManifest only requires
   // containment in the run directory), so discovery has no depth cap — a
@@ -589,9 +592,15 @@ export function findComputationWorkspaces(runDir: string): ComputationWorkspace[
   // subtrees (logs/outputs/workspace — a manifest planted inside runner
   // products is not an execution surface), never following directory
   // symlinks, and bounding pathological trees by visited-directory count.
+  // Hitting the bound is REPORTED via `stats.truncated` — a truncated walk
+  // may have missed a workspace, and every boundary consuming this must
+  // refuse to rule rather than rule on a partial survey.
   let visited = 0;
   const walk = (rel: string): void => {
-    if (visited >= 10_000) return;
+    if (visited >= 10_000) {
+      if (stats) stats.truncated = true;
+      return;
+    }
     visited += 1;
     const abs = rel === '' ? runDir : path.join(runDir, rel);
     let entries: fs.Dirent[];
@@ -611,7 +620,11 @@ export function findComputationWorkspaces(runDir: string): ComputationWorkspace[
     }
     for (const entry of entries) {
       if (!entry.isDirectory() || entry.isSymbolicLink()) continue;
-      if (entry.name.startsWith('.')) continue;
+      // Manifest preparation accepts dot-prefixed directories, so discovery
+      // must walk them too — only .git (never an execution surface) stays
+      // out. Staging directories live under attempts/, excluded at the
+      // root.
+      if (entry.name === '.git') continue;
       if (rel === '' && (entry.name === 'attempts' || entry.name === 'artifacts')) continue;
       if (isWorkspace && (entry.name === 'logs' || entry.name === 'outputs' || entry.name === 'workspace')) continue;
       walk(rel === '' ? entry.name : path.posix.join(rel, entry.name));
@@ -710,8 +723,9 @@ function trackedPathsUnder(projectRoot: string, runDir: string): Set<string> {
 function enumerateAttemptProducts(
   projectRoot: string,
   runDir: string,
-): { workspaces: ComputationWorkspace[]; residue: string[]; movable: string[] } {
-  const workspaces = findComputationWorkspaces(runDir);
+): { workspaces: ComputationWorkspace[]; residue: string[]; movable: string[]; truncated: boolean } {
+  const discovery = { truncated: false };
+  const workspaces = findComputationWorkspaces(runDir, discovery);
   const inputs = new Set<string>();
   for (const workspace of workspaces) {
     for (const input of manifestInputPaths(workspace)) inputs.add(input);
@@ -770,14 +784,14 @@ function enumerateAttemptProducts(
     }
   };
   classify('');
-  return { workspaces, residue, movable };
+  return { workspaces, residue, movable, truncated: discovery.truncated };
 }
 
 /** The terminal result artifact a COMPLETED front-door run writes. The
  *  status file is runner-owned but mutable on disk; the terminal artifact
  *  is a second, independent completion witness — a retry that trusted the
  *  status file alone could be laundered by hand-editing one JSON field. */
-function completedResultArtifactPresent(runDir: string): boolean {
+export function completedResultArtifactPresent(runDir: string): boolean {
   const artifactPath = path.join(runDir, 'artifacts', 'computation_result_v1.json');
   try {
     if (!fs.existsSync(artifactPath)) return false;
@@ -853,7 +867,7 @@ function quarantineFailedAttempt(
   eventId: string,
   closedOrdinal: number,
   movable: string[],
-): { staging: string | null; moved: number } {
+): { staging: string | null; moved: number; failed: string[] } {
   // The staging name carries the ordinal the products BELONG to, so a
   // later recovery can decide their rightful place (the ordinal's
   // canonical archive if someone else closed it, the live surface if the
@@ -862,6 +876,7 @@ function quarantineFailedAttempt(
   const stagingRel = path.join('attempts', `.staging-${eventId}-o${closedOrdinal}`);
   const stagingAbs = path.join(runDir, stagingRel);
   let moved = 0;
+  const failed: string[] = [];
   for (const rel of movable) {
     const from = path.join(runDir, rel);
     if (!fs.existsSync(from)) continue;
@@ -871,11 +886,12 @@ function quarantineFailedAttempt(
       fs.renameSync(from, to);
       moved += 1;
     } catch {
-      // Leave in place; the residue stays visible and the attempt archive
-      // records what DID move.
+      // A product that CANNOT move is a product that would stay live under
+      // the next attempt's binding — the caller must refuse, not proceed.
+      failed.push(rel);
     }
   }
-  return moved > 0 ? { staging: stagingRel, moved } : { staging: null, moved: 0 };
+  return { staging: moved > 0 ? stagingRel : null, moved, failed };
 }
 
 /** Promote this invocation's staging to the canonical archive name. If the
@@ -957,6 +973,22 @@ function recoverOrphanStagings(runDir: string, view: ValidityLedgerView, runId: 
   }
   const entry = view.runs.get(runId);
   const closureOrdinals = new Set((entry?.attempts.closures ?? []).map(closure => closure.ordinal));
+  // Whatever a recovery pass could not place (a file-vs-file collision
+  // with the recreated live surface, a permission failure) must not stay
+  // under the .staging-* name — that name blocks every future retry with
+  // a promise of self-healing it can no longer keep. Park the remainder
+  // visibly under attempts/unattributed-* for human attribution.
+  const parkRemainder = (rel: string, eventId: string): void => {
+    const from = path.join(runDir, rel);
+    if (!fs.existsSync(from)) return;
+    const dest = path.join(runDir, 'attempts', `unattributed-${eventId}`);
+    try {
+      if (!fs.existsSync(dest)) fs.renameSync(from, dest);
+      else moveTreeMerge(from, dest);
+    } catch {
+      // deepest fallback: stays visible under the staging name
+    }
+  };
   for (const name of entries) {
     const parsed = parseStagingName(name);
     if (!parsed) continue;
@@ -976,8 +1008,9 @@ function recoverOrphanStagings(runDir: string, view: ValidityLedgerView, runId: 
           try {
             promoteQuarantine(runDir, rel, closes);
           } catch {
-            // stays visible under the staging name
+            // parked below
           }
+          parkRemainder(rel, parsed.eventId);
         }
       }
       continue;
@@ -998,20 +1031,17 @@ function recoverOrphanStagings(runDir: string, view: ValidityLedgerView, runId: 
       try {
         promoteQuarantine(runDir, rel, ordinal);
       } catch {
-        // stays visible under the staging name
+        // parked below
       }
     } else if (
       (ordinal !== null && entry?.attempts.latest_ordinal === ordinal)
       || (ordinal === null && (entry?.attempts.latest_ordinal ?? 1) === 1 && closureOrdinals.size === 0)
     ) {
       restoreQuarantine(runDir, rel);
-    } else {
-      try {
-        fs.renameSync(path.join(runDir, rel), path.join(runDir, 'attempts', `unattributed-${parsed.eventId}`));
-      } catch {
-        // stays visible under the staging name
-      }
     }
+    // Whether promoted, restored, or unattributable: nothing may remain
+    // under the blocking .staging-* name after a recovery pass.
+    parkRemainder(rel, parsed.eventId);
   }
 }
 
@@ -1140,6 +1170,14 @@ export function openRetryAttempt(
   // status file lives wherever the manifest put the workspace — discovery,
   // not a hardcoded computation/ path, decides what the machine can see.
   const products = enumerateAttemptProducts(projectRoot, runDir);
+  if (products.truncated) {
+    return {
+      kind: 'rejected',
+      message: `trace retry: ${runId}'s directory is too large to enumerate (workspace discovery truncated at its `
+        + 'safety bound) — the boundary cannot certify what the surface holds; archive or remove bulk '
+        + 'subdirectories and retry',
+    };
+  }
   const statusWorkspaces = products.workspaces.filter(workspace => workspace.statusPath !== null);
   if (statusWorkspaces.length > 1) {
     return {
@@ -1291,6 +1329,18 @@ export function openRetryAttempt(
   if (!options.recordOnly) {
     const quarantine = quarantineFailedAttempt(runDir, eventId, closedOrdinal, products.movable);
     staging = quarantine.staging;
+    if (quarantine.failed.length > 0) {
+      // A product left live would ride into the next attempt's binding —
+      // refuse admission entirely and put back what did move.
+      if (staging) restoreQuarantine(runDir, staging);
+      return {
+        kind: 'rejected',
+        message: `trace retry: cannot quarantine ${quarantine.failed.length} product path(s) of ${runId} `
+          + `(${quarantine.failed.slice(0, 3).join(', ')}${quarantine.failed.length > 3 ? ', …' : ''}) — `
+          + 'a product left on the live surface would ride into the next attempt\'s binding; '
+          + 'fix permissions (or archive it by hand) and retry',
+      };
+    }
     if (quarantine.moved > 0) {
       evidence.quarantined_paths_count = quarantine.moved;
       quarantinedTo = path.join('attempts', `attempt-${closedOrdinal}`);

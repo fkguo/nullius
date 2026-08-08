@@ -17,6 +17,7 @@ import {
   registerCleanup,
 } from './executeManifestTestUtils.js';
 import { executeComputationManifest } from '../src/computation/index.js';
+import { stampComputationLaunch } from '../src/computation/launch-stamp.js';
 
 /** Negative controls for the attempt–run separation: the retriable boundary
  *  refuses everything that is content territory, the honest paths cost one
@@ -705,6 +706,217 @@ describe('confirmation-round regressions (review r5)', () => {
     await expect(executeComputationManifest({ manifestPath, projectRoot, runDir, runId }))
       .rejects.toThrow(/could not rule/);
     fs.rmSync(path.join(projectRoot, 'artifacts', 'runs', 'validity_ledger.jsonl.lock'), { recursive: true, force: true });
+  });
+});
+
+describe('confirmation-round regressions (review r6)', () => {
+  it('a removed status file cannot route a completed run past the front-door refusal — the terminal artifact rules', async () => {
+    const projectRoot = makeTmpDir();
+    registerCleanup(projectRoot);
+    initRepo(projectRoot);
+    const runId = 'run-artifact-witness-frontdoor';
+    const runDir = path.join(projectRoot, 'artifacts', 'runs', runId);
+    fs.mkdirSync(runDir, { recursive: true });
+    createPythonStep(
+      runDir,
+      'scripts/ok.py',
+      "from pathlib import Path\nPath('outputs').mkdir(parents=True, exist_ok=True)\nPath('outputs/ok.json').write_text('{}', encoding='utf-8')\n",
+    );
+    const manifestPath = createManifest(runDir, {
+      schema_version: 1,
+      entry_point: { script: 'scripts/ok.py', tool: 'python' },
+      steps: [{ id: 's', tool: 'python', script: 'scripts/ok.py', expected_outputs: ['outputs/ok.json'] }],
+      environment: { python_version: '3.11', platform: 'any' },
+      dependencies: {},
+    });
+    const manager = initRunState(projectRoot, runId);
+    markA3Satisfied(manager, 'A3-0001');
+    commitAll(projectRoot);
+    const first = await executeComputationManifest({ manifestPath, projectRoot, runDir, runId });
+    expect(first.status).toBe('completed');
+    expect(fs.existsSync(path.join(runDir, 'artifacts', 'computation_result_v1.json'))).toBe(true);
+    // Remove the status file and change the tree: without the terminal
+    // witness this would fall to a non-blocking stale warning and execute.
+    fs.rmSync(path.join(runDir, 'computation', 'execution_status.json'));
+    fs.writeFileSync(path.join(projectRoot, 'solver.py'), 'V = 2\n');
+    commitAll(projectRoot);
+    await expect(executeComputationManifest({ manifestPath, projectRoot, runDir, runId }))
+      .rejects.toThrow(/terminal result artifact records a COMPLETED/);
+  });
+
+  it('crashed_unretried excludes a run whose crash budget is exhausted', () => {
+    const runId = 'run-hint-budget';
+    const { projectRoot, runDir } = makeStampedRun(runId);
+    fs.mkdirSync(path.join(runDir, 'computation'), { recursive: true });
+    fs.writeFileSync(path.join(runDir, 'computation', 'manifest.json'), JSON.stringify({ max_attempts: 1 }));
+    writeFailedStatus(runDir);
+    // The entrance would refuse (1-attempt budget, first execution spent);
+    // the ambient hint must not advertise the refusing verb.
+    const view = buildTraceabilityView(projectRoot);
+    expect(view.runs.crashed_unretried).not.toContain(runId);
+  });
+
+  it('a dot-prefixed workspace is discovered: its COMPLETED status refuses instead of reading as residue', () => {
+    const runId = 'run-dot-workspace';
+    const { projectRoot, runDir } = makeStampedRun(runId);
+    fs.mkdirSync(path.join(runDir, '.work'), { recursive: true });
+    fs.writeFileSync(path.join(runDir, '.work', 'execution_status.json'), JSON.stringify({ status: 'completed' }));
+    const result = openRetryAttempt(projectRoot, runDir, { actor: 'test', reason: 'should not matter' });
+    expect(result.kind).toBe('rejected');
+    if (result.kind === 'rejected') expect(result.message).toContain('COMPLETED');
+  });
+
+  it('a head_plus_untracked binding registers with the +untracked qualifier, and dropping it is a read-side defect', () => {
+    const projectRoot = makeTmpDir();
+    registerCleanup(projectRoot);
+    initRepo(projectRoot);
+    const runId = 'run-untracked-marker';
+    const runDir = path.join(projectRoot, 'artifacts', 'runs', runId);
+    fs.mkdirSync(runDir, { recursive: true });
+    fs.writeFileSync(path.join(projectRoot, 'seed.txt'), 'seed\n');
+    commitAll(projectRoot);
+    // An untracked helper is present at capture: the binding is
+    // head_plus_untracked — exact tracked identity, uncaptured extras.
+    fs.writeFileSync(path.join(projectRoot, 'helper.py'), 'h = 1\n');
+    const stamped = stampRunDirectory(projectRoot, runDir, { actor: 'test' });
+    expect(stamped.kind).toBe('stamped');
+    if (stamped.kind !== 'stamped') return;
+    expect((stamped.origin as unknown as { binding_quality?: string }).binding_quality).toBe('head_plus_untracked');
+    fs.writeFileSync(path.join(runDir, 'value.json'), '{"v": 1}\n');
+    fs.writeFileSync(path.join(projectRoot, 'project_index.md'), [
+      '# Index', '',
+      '<!-- RESULT_REGISTRY_START -->',
+      '| Result | Run | Artifact | SHA-256 | Supersedes | Superseded by |',
+      '| --- | --- | --- | --- | --- | --- |',
+      '<!-- RESULT_REGISTRY_END -->', '',
+    ].join('\n'));
+    setCurrentResult(projectRoot, { resultId: 'headline', runId, artifactRelPath: `artifacts/runs/${runId}/value.json` });
+    const indexText = fs.readFileSync(path.join(projectRoot, 'project_index.md'), 'utf-8');
+    expect(indexText).toContain('+untracked');
+    const clean = validateResultRegistry(projectRoot, readValidityLedger(projectRoot));
+    expect(clean.issues.some(entry => entry.code === 'result_row_untracked_marker_mismatch')).toBe(false);
+    // A hand edit that drops the qualifier renders the binding as fully
+    // exact — the read side must say so.
+    fs.writeFileSync(
+      path.join(projectRoot, 'project_index.md'),
+      indexText.replace('+untracked', ''),
+    );
+    const validated = validateResultRegistry(projectRoot, readValidityLedger(projectRoot));
+    expect(validated.issues.some(entry => entry.code === 'result_row_untracked_marker_mismatch')).toBe(true);
+  });
+
+  it('a grading throw refuses the relaunch of an already-stamped run — never fail-open into execution', async () => {
+    const projectRoot = makeTmpDir();
+    registerCleanup(projectRoot);
+    initRepo(projectRoot);
+    const runId = 'run-grading-throw';
+    const runDir = path.join(projectRoot, 'artifacts', 'runs', runId);
+    fs.mkdirSync(runDir, { recursive: true });
+    createPythonStep(
+      runDir,
+      'scripts/ok.py',
+      "from pathlib import Path\nPath('outputs').mkdir(parents=True, exist_ok=True)\nPath('outputs/ok.json').write_text('{}', encoding='utf-8')\n",
+    );
+    const manifestPath = createManifest(runDir, {
+      schema_version: 1,
+      entry_point: { script: 'scripts/ok.py', tool: 'python' },
+      steps: [{ id: 's', tool: 'python', script: 'scripts/ok.py', expected_outputs: ['outputs/ok.json'] }],
+      environment: { python_version: '3.11', platform: 'any' },
+      dependencies: {},
+    });
+    const manager = initRunState(projectRoot, runId);
+    markA3Satisfied(manager, 'A3-0001');
+    commitAll(projectRoot);
+    const first = await executeComputationManifest({ manifestPath, projectRoot, runDir, runId });
+    expect(first.status).toBe('completed');
+    const artifactBytes = fs.readFileSync(path.join(runDir, 'artifacts', 'computation_result_v1.json'), 'utf-8');
+    // A held index.lock makes the grading probe's `git stash create`
+    // throw; the completed run must be REFUSED, not overwritten.
+    fs.writeFileSync(path.join(projectRoot, '.git', 'index.lock'), '');
+    try {
+      await expect(executeComputationManifest({ manifestPath, projectRoot, runDir, runId }))
+        .rejects.toThrow(/could not grade|terminal result artifact/);
+    } finally {
+      fs.rmSync(path.join(projectRoot, '.git', 'index.lock'), { force: true });
+    }
+    // The completed evidence is untouched.
+    expect(fs.readFileSync(path.join(runDir, 'artifacts', 'computation_result_v1.json'), 'utf-8')).toBe(artifactBytes);
+  });
+
+  it('a RUNNING status under a changed tree refuses the relaunch (declare the stall or wait)', () => {
+    const runId = 'run-running-refusal';
+    const { projectRoot, runDir } = makeStampedRun(runId);
+    fs.mkdirSync(path.join(runDir, 'computation'), { recursive: true });
+    fs.writeFileSync(path.join(runDir, 'computation', 'execution_status.json'), JSON.stringify({ status: 'running' }));
+    fs.writeFileSync(path.join(projectRoot, 'seed.txt'), 'changed tracked code\n');
+    execFileSync('git', ['-C', projectRoot, 'add', '-A']);
+    execFileSync('git', ['-C', projectRoot, 'commit', '-q', '-m', 'change']);
+    const stamp = stampComputationLaunch(projectRoot, runDir);
+    expect(stamp.status).toBe('refused_relaunch');
+    if (stamp.status === 'refused_relaunch') expect(stamp.detail).toContain('RUNNING');
+  });
+
+  it('a recovery collision parks the staging remainder — never a permanent .staging jam', () => {
+    const runId = 'run-staging-jam';
+    const { projectRoot, runDir } = makeStampedRun(runId);
+    // Live surface holds a REGENERATED status file…
+    writeFailedStatus(runDir);
+    // …and a stale orphan staging holds the OLD one at the same path:
+    // restore collides file-vs-file and must park, not jam.
+    const orphanId = mintUlid();
+    const orphanRel = path.join('attempts', `.staging-${orphanId}-o1`);
+    fs.mkdirSync(path.join(runDir, orphanRel, 'computation'), { recursive: true });
+    fs.writeFileSync(
+      path.join(runDir, orphanRel, 'computation', 'execution_status.json'),
+      JSON.stringify({ status: 'failed', errors: ['older attempt'] }),
+    );
+    const stale = new Date(Date.now() - 30 * 60_000);
+    fs.utimesSync(path.join(runDir, orphanRel), stale, stale);
+    const result = openRetryAttempt(projectRoot, runDir, { actor: 'test' });
+    expect(result.kind).toBe('retried');
+    expect(fs.existsSync(path.join(runDir, orphanRel))).toBe(false);
+    expect(fs.existsSync(path.join(runDir, 'attempts', `unattributed-${orphanId}`, 'computation', 'execution_status.json'))).toBe(true);
+  });
+
+  it('a truncated workspace discovery refuses to rule instead of misreading the surface', () => {
+    const runId = 'run-discovery-truncated';
+    const { projectRoot, runDir } = makeStampedRun(runId);
+    writeFailedStatus(runDir);
+    const bulk = path.join(runDir, 'bulk');
+    fs.mkdirSync(bulk, { recursive: true });
+    for (let i = 0; i < 10_100; i += 1) fs.mkdirSync(path.join(bulk, `d${i}`));
+    const result = openRetryAttempt(projectRoot, runDir, { actor: 'test' });
+    expect(result.kind).toBe('rejected');
+    if (result.kind === 'rejected') expect(result.message).toContain('truncated');
+  });
+
+  it('a product that CANNOT be quarantined aborts admission — never left live under the next binding', () => {
+    const runId = 'run-unmovable-product';
+    const { projectRoot, runDir } = makeStampedRun(runId);
+    const computation = path.join(runDir, 'computation');
+    fs.mkdirSync(path.join(computation, 'scripts'), { recursive: true });
+    fs.writeFileSync(path.join(computation, 'manifest.json'), JSON.stringify({
+      schema_version: 1,
+      entry_point: { script: 'scripts/main.py', tool: 'python' },
+      steps: [{ id: 's', tool: 'python', script: 'scripts/main.py', expected_outputs: [] }],
+    }));
+    fs.writeFileSync(path.join(computation, 'scripts', 'main.py'), 'print(1)\n');
+    // A stray product inside the scripts dir (which recursion enters
+    // because it holds an input), then the dir is made read-only so the
+    // per-file move fails.
+    fs.writeFileSync(path.join(computation, 'scripts', 'stray.json'), '{"partial": true}\n');
+    writeFailedStatus(runDir);
+    fs.chmodSync(path.join(computation, 'scripts'), 0o555);
+    try {
+      const result = openRetryAttempt(projectRoot, runDir, { actor: 'test' });
+      expect(result.kind).toBe('rejected');
+      if (result.kind === 'rejected') expect(result.message).toContain('cannot quarantine');
+      // Nothing half-moved: the status file went back to the live surface.
+      expect(fs.existsSync(path.join(computation, 'execution_status.json'))).toBe(true);
+      expect(fs.existsSync(path.join(computation, 'scripts', 'stray.json'))).toBe(true);
+    } finally {
+      fs.chmodSync(path.join(computation, 'scripts'), 0o755);
+    }
   });
 });
 

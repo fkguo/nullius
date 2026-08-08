@@ -33,6 +33,10 @@ export type ResultRegistryRow = {
   run_id: string;
   effective_commit: string | null;
   has_snapshot: boolean;
+  /** The run cell's +untracked marker: the binding is head_plus_untracked
+   *  — the tracked tree is exact but untracked files were present, so the
+   *  commit alone over-claims what produced the artifact. */
+  has_untracked: boolean;
   supersedes: string;
   superseded_by: string;
 };
@@ -80,17 +84,20 @@ function blockBounds(text: string): { start: number; end: number } | null {
  *  after the last " @ " is not a commit, the WHOLE cell is the run id —
  *  never silently truncate an exotic id at a separator that happened to
  *  match. */
-function parseRunCell(cell: string): { run_id: string; effective_commit: string | null; has_snapshot: boolean } {
+function parseRunCell(cell: string): { run_id: string; effective_commit: string | null; has_snapshot: boolean; has_untracked: boolean } {
   const trimmed = cell.replace(/`/g, '').trim();
   const at = trimmed.lastIndexOf(' @ ');
-  if (at < 0) return { run_id: trimmed, effective_commit: null, has_snapshot: false };
-  const tail = trimmed.slice(at + 3).trim();
+  if (at < 0) return { run_id: trimmed, effective_commit: null, has_snapshot: false, has_untracked: false };
+  let tail = trimmed.slice(at + 3).trim();
+  // Render order is <sha>[+snapshot][+untracked]; strip outermost first.
+  const hasUntracked = tail.endsWith('+untracked');
+  if (hasUntracked) tail = tail.slice(0, -'+untracked'.length);
   const hasSnapshot = tail.endsWith('+snapshot');
-  const commit = hasSnapshot ? tail.slice(0, -'+snapshot'.length) : tail;
-  if (!/^[0-9a-f]{7,40}$/.test(commit)) {
-    return { run_id: trimmed, effective_commit: null, has_snapshot: false };
+  if (hasSnapshot) tail = tail.slice(0, -'+snapshot'.length);
+  if (!/^[0-9a-f]{7,40}$/.test(tail)) {
+    return { run_id: trimmed, effective_commit: null, has_snapshot: false, has_untracked: false };
   }
-  return { run_id: trimmed.slice(0, at).trim(), effective_commit: commit, has_snapshot: hasSnapshot };
+  return { run_id: trimmed.slice(0, at).trim(), effective_commit: tail, has_snapshot: hasSnapshot, has_untracked: hasUntracked };
 }
 
 export function parseResultRegistry(projectRoot: string): ResultRegistryState {
@@ -146,6 +153,7 @@ export function parseResultRegistry(projectRoot: string): ResultRegistryState {
       run_id: runCell.run_id,
       effective_commit: runCell.effective_commit,
       has_snapshot: runCell.has_snapshot,
+      has_untracked: runCell.has_untracked,
       supersedes: cells[4]!.replace(/`/g, '') || 'none',
       superseded_by: cells[5]!.replace(/`/g, '') || 'none',
     });
@@ -396,6 +404,16 @@ export function validateResultRegistry(
           `${row.result_id}'s run cell ${row.has_snapshot ? 'carries' : 'lacks'} the +snapshot marker but the stamp ${stampHasSnapshot ? 'records a snapshot commit' : 'records none'}`,
         ));
       }
+      // Same fidelity rule for the +untracked qualifier: dropping it
+      // renders a head_plus_untracked binding as a fully exact identity —
+      // the exact over-claim the marker exists to prevent.
+      const stampHasUntracked = (known.origin as unknown as Record<string, unknown> | null)?.binding_quality === 'head_plus_untracked';
+      if (row.effective_commit !== null && row.has_untracked !== stampHasUntracked) {
+        state.issues.push(issue(
+          'result_row_untracked_marker_mismatch',
+          `${row.result_id}'s run cell ${row.has_untracked ? 'carries' : 'lacks'} the +untracked marker but the stamp's binding is ${String((known.origin as unknown as Record<string, unknown> | null)?.binding_quality ?? 'unknown')}`,
+        ));
+      }
     }
     markIfGrew(row, before);
   }
@@ -480,7 +498,11 @@ export function setCurrentResult(
   }
   const originRecord = known.origin as unknown as Record<string, unknown> | null;
   const snapshotMarker = originRecord && typeof originRecord.snapshot_commit === 'string' ? '+snapshot' : '';
-  const runCell = `${input.runId} @ ${effective.slice(0, 12)}${snapshotMarker}`;
+  // head_plus_untracked has an exact TRACKED identity but untracked files
+  // were present at capture — the sha alone would over-claim, so the cell
+  // carries the qualifier and the read side keeps it honest.
+  const untrackedMarker = originRecord?.binding_quality === 'head_plus_untracked' ? '+untracked' : '';
+  const runCell = `${input.runId} @ ${effective.slice(0, 12)}${snapshotMarker}${untrackedMarker}`;
 
   const state = parseResultRegistry(projectRoot);
   const existing = state.rows.find(row => row.result_id === input.resultId);
@@ -612,6 +634,7 @@ export function setCurrentResult(
       run_id: input.runId,
       effective_commit: effective.slice(0, 12),
       has_snapshot: snapshotMarker.length > 0,
+      has_untracked: untrackedMarker.length > 0,
       supersedes,
       superseded_by: 'none',
     },
