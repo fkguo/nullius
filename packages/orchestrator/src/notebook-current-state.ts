@@ -278,7 +278,7 @@ function locateBlock(text: string): BlockLocation {
         && trimmedInterior.length <= 400
         && !interiorContent.some(line => line.trim() === '')
         && !interiorContent.some(line => /^ {0,3}#{1,6}\s+/.test(line))
-        && !interiorContent.some(line => /^ {0,3}(?:=+|-{2,}) *$/.test(line))
+        && !interiorContent.some(line => /^ {0,3}(?:=+|-+) *$/.test(line))
         && trimmedInterior.startsWith('(')
         && trimmedInterior.endsWith(')')
         && !trimmedInterior.includes('](')
