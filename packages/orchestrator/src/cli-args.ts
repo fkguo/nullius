@@ -66,6 +66,7 @@ export type ParsedCliArgs =
     deps: Record<string, string>;
   }
   | { command: 'current'; projectRoot: string | null; json: boolean }
+  | { command: 'notebook'; projectRoot: string | null; action: 'sync'; json: boolean }
   | {
     command: 'result';
     projectRoot: string | null;
@@ -216,6 +217,22 @@ function parseStatusArgs(args: string[]): { json: boolean } {
     throw new Error(`unknown status argument: ${arg}`);
   }
   return { json };
+}
+
+function parseNotebookArgs(args: string[]): { action: 'sync'; json: boolean } {
+  if (args.length === 0 || args[0] !== 'sync') {
+    throw new Error('notebook: expected `nullius notebook sync [--json]` '
+      + '(inserts the machine-maintained current-state block if missing, refreshes it otherwise)');
+  }
+  let json = false;
+  for (const arg of args.slice(1)) {
+    if (arg === '--json') {
+      json = true;
+      continue;
+    }
+    throw new Error(`unknown notebook sync argument: ${arg}`);
+  }
+  return { action: 'sync', json };
 }
 
 function parseNoteArgs(command: 'pause' | 'resume', args: string[]): { note: string | null } {
@@ -1085,6 +1102,8 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
       return { command: 'trace', projectRoot, ...parseTraceArgs(rest) };
     case 'current':
       return { command: 'current', projectRoot, ...parseStatusArgs(rest) };
+    case 'notebook':
+      return { command: 'notebook', projectRoot, ...parseNotebookArgs(rest) };
     case 'result':
       return { command: 'result', projectRoot, ...parseResultArgs(rest) };
     case 'release':

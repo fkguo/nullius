@@ -49,6 +49,10 @@
           "usage": "nullius current [--json]"
         },
         {
+          "command": "notebook",
+          "usage": "nullius notebook sync [--json]"
+        },
+        {
           "command": "result",
           "usage": "nullius result set-current <result-id> --run <run_id> --artifact <path> [--description \"...\"] [--supersedes <result-id>]"
         },

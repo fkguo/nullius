@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import type { FinalConclusionsV1, MutationProposalV1, SkillProposalV2 } from '@nullius/shared';
 import { invalidParams } from '@nullius/shared';
 import { readFinalConclusionsView, readResearchOutcomeProjectionView } from './final-conclusions.js';
+import { stripCurrentStateBlock } from '../notebook-current-state.js';
 import { readLearningSummaryView } from './learning-summary.js';
 import { readInnovateProposalView, readOptimizeProposalView, readRepairProposalView } from './repair-proposal.js';
 import { readSkillProposalView } from './skill-proposal.js';
@@ -219,7 +220,10 @@ function hasSubstantiveResearchNotebook(projectRoot: string): boolean {
   const notebookPath = path.join(projectRoot, 'research_notebook.md');
   if (!fs.existsSync(notebookPath)) return false;
   try {
-    const content = fs.readFileSync(notebookPath, 'utf-8');
+    // The machine-rendered current-state block is a view, not research
+    // content: a pristine scaffold carries one, so counting its lines would
+    // make every fresh notebook "substantive".
+    const content = stripCurrentStateBlock(fs.readFileSync(notebookPath, 'utf-8'));
     const templateLines = currentNotebookTemplateLines();
     const lines = content
       .split(/\r?\n/)
