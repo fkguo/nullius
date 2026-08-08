@@ -226,6 +226,19 @@ repository; unclassified legacy runs; stages not yet delivered) — honest
 unanswerability instead of silent or false precision. --json emits the same
 read model that \`nullius status --json\` carries as its traceability block.
 `,
+  notebook: `nullius notebook sync [--json]
+
+Insert (first run) or refresh the machine-maintained current-state block at
+the top of research_notebook.md. The block is rendered from the results
+registry and the validity ledger — the same read model behind \`nullius
+current\` — so the notebook opens with what is CURRENTLY promoted (or the
+honest statement that nothing is yet). It rewrites itself automatically
+after ledger-writing commands; this verb exists for adoption in an existing
+project and for repair after a hand edit. Never edit between the block's
+markers: a present block that no longer matches its canonical render is
+reported OUT OF SYNC by \`nullius status --json\` / \`nullius current\` and
+refuses milestone convergence until refreshed.
+`,
   result: `nullius result set-current <result-id> --run <run_id> --artifact <path> [--description "..."] [--supersedes <result-id>]
 
 Register or update a row of the current-results registry in project_index.md

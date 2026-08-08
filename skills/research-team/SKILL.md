@@ -59,7 +59,15 @@ Use `research-team` when you want a project workflow with:
     converged cycle's declaration is missing, malformed, or does not match
     the project's traceability record — run it alongside
     `check_adjudication_completeness.py` before folding. A declared fact
-    that is not on the record is a refusal, not a warning.
+    that is not on the record is a refusal, not a warning. The same gate
+    refuses when the notebook's machine-maintained current-state block is
+    present but OUT OF SYNC with its canonical render (a present block
+    claims currency; refresh with `nullius notebook sync`), and when a
+    section this fold declares rewritten still links a superseded/void run
+    as live-looking prose with no acknowledgment (a visible superseded/void
+    word in the section, a link to the replacement run, or a declared
+    log-role section all count). A MISSING block never refuses a fold — it
+    is named as advisory by `nullius status --json` until adopted.
 - **Notebook split**: `research_notebook.md` is the human entry; `research_contract.md` is the machine-stable gate surface.
 - **Memo discipline (mandatory)**: `research_notebook.md` is a self-contained research memo organized like a paper — connected prose with complete derivations, computations, and analysis — not a change log. Its quality bar: a colleague in the field could read it alone (no runs, no plan) and come away with the project's full current understanding, able to re-derive every load-bearing result. It updates by **rewriting the affected sections into a self-consistent whole**, never by appending stage fragments ("this milestone changed X"); dated progress belongs to `research_plan.md` and `artifacts/runs/<run_id>/`, revision history to git. A milestone does not converge while the memo still describes the pre-milestone understanding: rewriting the affected memo sections is part of the milestone's deliverable, checked in the convergence review like any other artifact.
 - **Reproducibility Capsule (mandatory)**: `research_contract.md` must include a filled capsule block (between `<!-- REPRO_CAPSULE_START -->` and `<!-- REPRO_CAPSULE_END -->`).

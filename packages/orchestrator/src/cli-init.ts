@@ -300,6 +300,17 @@ export async function runInitCommand(projectRoot: string | null, cwd: string, ar
     io.stdout('[ok] project scaffold skipped (--runtime-only)\n');
     return;
   }
+  // Render the notebook's current-state block BEFORE the git bootstrap so
+  // the scaffold commit already carries the canonical render (a post-commit
+  // refresh would leave a fresh project dirty on its first stamp). A
+  // pre-existing notebook without markers is skipped — adopting one is the
+  // explicit `nullius notebook sync` decision, never an init side effect.
+  try {
+    const { refreshNotebookCurrentState } = await import('./notebook-current-state.js');
+    refreshNotebookCurrentState(repoRoot, { insertIfMissing: false });
+  } catch {
+    // the next status/current read names the block out-of-sync
+  }
   ensureGitPresence(repoRoot, options, scaffold, manager, io);
   if (options.refresh) {
     emitRefreshSummary(io, scaffold!, false);
