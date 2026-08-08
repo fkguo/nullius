@@ -36,6 +36,10 @@ export type CurrentStateRow = {
 };
 
 export type CurrentStateProjection = {
+  /** False when project_index.md carries no RESULT_REGISTRY block at all —
+   *  a distinct honest state: "nothing is registered" and "there is nowhere
+   *  to register" must never render as the same sentence. */
+  registry_block_found: boolean;
   current_rows: CurrentStateRow[];
   total_rows: number;
   issue_codes: string[];
@@ -48,6 +52,7 @@ type ValidatedRegistry = ReturnType<typeof validateResultRegistry>;
  *  the ledger twice. */
 export function projectionFromRegistryState(registry: ValidatedRegistry): CurrentStateProjection {
   return {
+    registry_block_found: registry.block_found,
     current_rows: registry.current.map(row => ({
       result_id: row.result_id,
       run_id: row.run_id,
@@ -84,8 +89,23 @@ export function renderCurrentStateBlock(projection: CurrentStateProjection): str
   lines.push('registry and the validity ledger. Do not edit between these markers —');
   lines.push('refresh with `nullius notebook sync`; full answer: `nullius current`.');
   lines.push('');
-  if (projection.current_rows.length === 0) {
-    if (projection.total_rows === 0) {
+  if (!projection.registry_block_found) {
+    // "Nowhere to register" is not "nothing registered": calling a missing
+    // registry an honest empty state would send the researcher to a
+    // `result set-current` that can only refuse.
+    lines.push('project_index.md carries no results-registry block, so nothing can be');
+    lines.push('registered yet. Restore or paste the RESULT_REGISTRY section there');
+    lines.push('(fresh scaffolds carry it), then register results with');
+    lines.push('`nullius result set-current`.');
+  } else if (projection.current_rows.length === 0) {
+    if (projection.total_rows === 0 && projection.issue_codes.length > 0) {
+      // Zero PARSED rows with parse issues means a written row may be
+      // unseen — the exact misdiagnosis the registry parser guards
+      // against must not be re-introduced by this surface.
+      lines.push('The results registry did not parse cleanly and zero rows were read —');
+      lines.push('a written row may be going unseen. Repair the registry block before');
+      lines.push('trusting this surface; `nullius current` lists the defects.');
+    } else if (projection.total_rows === 0) {
       lines.push('No result is promoted yet: the results registry has no rows — an honest');
       lines.push('state, not an error. Sections below are the current understanding; no');
       lines.push('number in them has passed the promotion bar. Register a headline result');
@@ -107,7 +127,10 @@ export function renderCurrentStateBlock(projection: CurrentStateProjection): str
       lines.push(`| ${row.result_id}${marker} | ${row.run_id} | ${identity} | ${artifact} |`);
     }
   }
-  if (projection.issue_codes.length > 0 && projection.current_rows.length > 0) {
+  // Issue codes render UNCONDITIONALLY: suppressing them behind a
+  // rows-present guard hid malformed-row diagnostics exactly when they
+  // mattered most (zero parsed rows).
+  if (projection.issue_codes.length > 0) {
     lines.push('');
     lines.push(`Registry issues present: ${projection.issue_codes.join(', ')} — see \`nullius current\`.`);
   }
@@ -155,16 +178,19 @@ function locateBlock(text: string): BlockLocation {
   const starts: BlockBounds[] = [];
   const ends: BlockBounds[] = [];
   for (const line of lines) {
-    const lineEnd = offset + line.length;
-    if (/^\s*(```|~~~)/.test(line)) {
+    // A CRLF file splits into lines with a trailing '\r'; the marker-line
+    // extent must exclude it so block slices never carry a stray '\r'.
+    const content = line.endsWith('\r') ? line.slice(0, -1) : line;
+    const contentEnd = offset + content.length;
+    if (/^\s*(```|~~~)/.test(content)) {
       inFence = !inFence;
     } else if (!inFence) {
-      const trimmed = line.trim();
-      if (trimmed === CURRENT_STATE_START) starts.push({ start: offset, end: lineEnd });
-      else if (trimmed === CURRENT_STATE_END) ends.push({ start: offset, end: lineEnd });
-      else if (/^##\s+/.test(line) && firstHeadingOffset === text.length) firstHeadingOffset = offset;
+      const trimmed = content.trim();
+      if (trimmed === CURRENT_STATE_START) starts.push({ start: offset, end: contentEnd });
+      else if (trimmed === CURRENT_STATE_END) ends.push({ start: offset, end: contentEnd });
+      else if (/^##\s+/.test(content) && firstHeadingOffset === text.length) firstHeadingOffset = offset;
     }
-    offset = lineEnd + 1;
+    offset = offset + line.length + 1;
   }
   const duplicated = starts.length > 1 || ends.length > 1;
   const bounds = starts.length === 1 && ends.length === 1 && ends[0]!.start > starts[0]!.start
@@ -205,7 +231,11 @@ export function checkCurrentStateBlock(
       + '`nullius notebook sync` relocates it';
     return status;
   }
-  const onDisk = text.slice(bounds.start, bounds.end);
+  // EOL-normalized comparison: an editor or a checkout filter converting
+  // the file to CRLF is not a content change, and treating it as one would
+  // make the block permanently out-of-sync on such setups (an unrepairable
+  // fold refusal — sync writes LF, the next save re-converts, forever).
+  const onDisk = normalizeEol(text.slice(bounds.start, bounds.end));
   const rendered = renderCurrentStateBlock(projection);
   if (onDisk === rendered) {
     status.in_sync = true;
@@ -213,9 +243,12 @@ export function checkCurrentStateBlock(
   }
   status.in_sync = false;
   const digestMatch = DIGEST_LINE_PATTERN.exec(onDisk);
-  status.reason = digestMatch === null || digestMatch[1] !== projectionDigest(projection)
-    ? 'registry/validity state changed since the block was written'
-    : 'block text differs from the canonical render (hand edit inside the markers, or a renderer update)';
+  status.reason = digestMatch === null
+    ? 'the block was never rendered (template placeholder, or its digest line was removed) — '
+      + 'run `nullius notebook sync`'
+    : digestMatch[1] !== projectionDigest(projection)
+      ? 'registry/validity state changed since the block was written'
+      : 'block text differs from the canonical render (hand edit inside the markers, or a renderer update)';
   return status;
 }
 
@@ -235,14 +268,26 @@ export type RefreshOutcome = {
   reason: string | null;
 };
 
+const normalizeEol = (value: string): string => value.replace(/\r\n/g, '\n');
+
 /** Front-matter insertion (before the first `##` heading, fence-aware),
- *  with blank-line padding on both sides. */
+ *  with blank-line padding on both sides. A memo with no `##` heading at
+ *  all gets the block right after its opening `#` title line (or at the
+ *  very top) — appending an "opening surface" to EOF would be the opposite
+ *  of its contract — and a file without a trailing newline gains one so the
+ *  markers are never glued onto prose. */
 function insertAtFrontMatter(text: string, rendered: string): string {
-  const offset = locateBlock(text).firstHeadingOffset;
+  let offset = locateBlock(text).firstHeadingOffset;
+  if (offset === text.length) {
+    const firstLineEnd = text.indexOf('\n');
+    offset = text.startsWith('# ') && firstLineEnd !== -1 ? firstLineEnd + 1 : 0;
+  }
   const before = text.slice(0, offset);
   const after = text.slice(offset);
-  const needsLeadingNewline = before.length > 0 && !before.endsWith('\n\n') && before.endsWith('\n');
-  return `${before}${needsLeadingNewline ? '\n' : ''}${rendered}\n\n${after}`;
+  const separator = before.length === 0 || before.endsWith('\n\n')
+    ? ''
+    : before.endsWith('\n') ? '\n' : '\n\n';
+  return `${before}${separator}${rendered}\n\n${after}`;
 }
 
 export function refreshNotebookCurrentState(
@@ -268,25 +313,29 @@ export function refreshNotebookCurrentState(
     if (duplicated) {
       return { action: 'skipped', reason: 'duplicated current-state markers — repair by hand first' };
     }
+    // Respect the file's own end-of-line flavor: comparison is
+    // EOL-normalized, and a CRLF file gets a CRLF block spliced in —
+    // rewriting it to LF would fight the editor/checkout filter forever.
+    const renderedForFile = text.includes('\r\n') ? rendered.replace(/\n/g, '\r\n') : rendered;
     let updated: string;
     let action: RefreshOutcome['action'];
     if (!bounds) {
       if (!options?.insertIfMissing) {
         return { action: 'skipped', reason: 'no current-state block (run `nullius notebook sync` to adopt)' };
       }
-      updated = insertAtFrontMatter(text, rendered);
+      updated = insertAtFrontMatter(text, renderedForFile);
       action = 'inserted';
     } else if (!positionOk) {
       // Relocate: a block below the first heading is inside a section,
       // where the classifier and the citation analyzer would read it as
       // content. Remove it there, reinsert canonically in front matter.
       const removed = text.slice(0, bounds.start) + text.slice(bounds.end);
-      updated = insertAtFrontMatter(removed, rendered);
+      updated = insertAtFrontMatter(removed, renderedForFile);
       action = 'rewritten';
     } else {
       const onDisk = text.slice(bounds.start, bounds.end);
-      if (onDisk === rendered) return { action: 'unchanged', reason: null };
-      updated = text.slice(0, bounds.start) + rendered + text.slice(bounds.end);
+      if (normalizeEol(onDisk) === rendered) return { action: 'unchanged', reason: null };
+      updated = text.slice(0, bounds.start) + renderedForFile + text.slice(bounds.end);
       action = 'rewritten';
     }
     let latest: string;

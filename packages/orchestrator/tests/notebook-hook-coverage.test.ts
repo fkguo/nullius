@@ -39,6 +39,29 @@ describe('notebook current-state refresh hook coverage', () => {
     expect(read('cli-init.ts')).toContain('refreshNotebookCurrentState(repoRoot, { insertIfMissing: false })');
   });
 
+  it('no OTHER module registers results without a documented refresh story', () => {
+    // The registry writer is the change the block EXISTS to reflect: a
+    // future tool calling setCurrentResult directly (bypassing the CLI
+    // handler that refreshes) must show up here and join consciously.
+    const audited = new Set(['result-registry.ts', 'cli.ts']);
+    const offenders: string[] = [];
+    const walk = (dir: string): void => {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const abs = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          walk(abs);
+          continue;
+        }
+        if (!entry.name.endsWith('.ts')) continue;
+        if (fs.readFileSync(abs, 'utf-8').includes('setCurrentResult(') && !audited.has(entry.name)) {
+          offenders.push(path.relative(SRC, abs));
+        }
+      }
+    };
+    walk(SRC);
+    expect(offenders).toEqual([]);
+  });
+
   it('no OTHER module appends validity events without a documented refresh story', () => {
     // The ledger's append surface is the choke point: enumerate its callers
     // RECURSIVELY (a writer hidden in a subdirectory must not evade the
