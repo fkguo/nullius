@@ -258,19 +258,31 @@ function locateBlock(text: string): BlockLocation {
     // explicit sync — that is the contract the block itself states.)
     // Anchored: the first interior line must BE the digest comment — an
     // unanchored test would bless prose sharing the line with a digest.
-    const digestFirst = /^ {0,3}<!--\s*state-digest:\s*[0-9a-f]{64}\s*--> *$/.test(interiorContent[0] ?? '');
+    // Arm (a) needs a CLOSING-side guard too: with a real block's END line
+    // deleted, its START pairs with a leftover END far below, the first
+    // interior line is the genuine digest, and the splice would swallow
+    // every researcher section in between. The canonical render emits NO
+    // heading, so any ATX heading at legal indent inside a digest-first
+    // interior marks a mispaired span — strays, never rewritable.
+    const digestFirst = /^ {0,3}<!--\s*state-digest:\s*[0-9a-f]{64}\s*--> *$/.test(interiorContent[0] ?? '')
+      && !interiorContent.some(line => /^ {0,3}#{1,6}\s+/.test(line));
     const trimmedInterior = interiorContent.join('\n').trim();
     // The placeholder arm is deliberately narrow: a short parenthetical
     // note — no blank lines, no ATX heading of ANY level at legal indent,
     // no inline or reference link syntax, few lines, small byte count.
-    const placeholderShaped = interiorContent.length <= 6
-      && trimmedInterior.length <= 400
-      && !interiorContent.some(line => line.trim() === '')
-      && !interiorContent.some(line => /^ {0,3}#{1,6}\s+/.test(line))
-      && trimmedInterior.startsWith('(')
-      && trimmedInterior.endsWith(')')
-      && !trimmedInterior.includes('](')
-      && !trimmedInterior.includes('][');
+    // An EMPTY interior (placeholder text deleted by hand) holds nothing
+    // to lose: rewritable, so the next sync self-heals instead of leaving
+    // an invisible marker pair that permanently blocks adoption.
+    const placeholderShaped = trimmedInterior === ''
+      || (interiorContent.length <= 6
+        && trimmedInterior.length <= 400
+        && !interiorContent.some(line => line.trim() === '')
+        && !interiorContent.some(line => /^ {0,3}#{1,6}\s+/.test(line))
+        && !interiorContent.some(line => /^ {0,3}(?:=+|-{2,}) *$/.test(line))
+        && trimmedInterior.startsWith('(')
+        && trimmedInterior.endsWith(')')
+        && !trimmedInterior.includes('](')
+        && !trimmedInterior.includes(']['));
     if (!digestFirst && !placeholderShaped) {
       strayFromInvalidPairs += 2;
       continue;
