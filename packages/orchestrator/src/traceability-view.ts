@@ -71,6 +71,23 @@ export type TraceabilityView = {
     superseded: Array<{ run_id: string; by: string | null; reason: string | null; directory_missing?: true }>;
     voided: Array<{ run_id: string; reason: string | null; directory_missing?: true }>;
     no_authoritative_identity: string[];
+    /** Runs whose attempt chain advanced past the initial stamp (crash
+     *  retries and missing-source self-heals), with the crash-budget
+     *  counter the delegation caps consume. */
+    retried: Array<{
+      run_id: string;
+      latest_ordinal: number;
+      crash_retries: number;
+      latest_failed: boolean;
+    }>;
+    /** Chains the reader could not trust (ordinal gaps, closures of
+     *  never-opened attempts, plain stamps claiming ordinals above 1, or
+     *  divergent payloads racing for one ordinal). */
+    attempt_chain_defects: string[];
+    /** Directories whose execution status records `failed` with no closure
+     *  on the ledger: crashed, awaiting either a retry or a record-only
+     *  closure — ambient visibility, no ledger event required. */
+    crashed_unretried: string[];
     /** The recorded snapshot trees organize stamped runs into CODE-STATE
      *  EPISODES: consecutive captures on the SAME tracked research tree
      *  form one episode, and the sequence of episodes (in capture order)
@@ -725,6 +742,38 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
       superseded,
       voided,
       no_authoritative_identity: noIdentity,
+      retried: [...ledger.runs.values()]
+        .filter(entry => entry.attempts.latest_ordinal > 1 || entry.attempts.closures.length > 0)
+        .map(entry => ({
+          run_id: entry.run_id,
+          latest_ordinal: entry.attempts.latest_ordinal,
+          crash_retries: entry.attempts.crash_retry_count,
+          latest_failed: entry.attempts.latest_failed,
+        }))
+        .sort((a, b) => (a.run_id < b.run_id ? -1 : 1)),
+      attempt_chain_defects: [...ledger.runs.values()]
+        .filter(entry => entry.attempts.chain_defect || entry.attempts.conflicting_attempts)
+        .map(entry => entry.run_id)
+        .sort(),
+      crashed_unretried: directories
+        .filter((entry) => {
+          const statusPath = path.join(
+            projectRoot, entry.canonical_root, entry.run_id, 'computation', 'execution_status.json',
+          );
+          try {
+            if (!fs.existsSync(statusPath)) return false;
+            const parsed = JSON.parse(fs.readFileSync(statusPath, 'utf-8')) as { status?: string };
+            if (parsed.status !== 'failed') return false;
+          } catch {
+            return false;
+          }
+          // Crashed AND the chain head carries no closure: nobody retried
+          // or booked it. A retry quarantines the status file (drops out
+          // above); a record-only closure sets latest_failed (drops here).
+          return !(ledger.runs.get(entry.run_id)?.attempts.latest_failed ?? false);
+        })
+        .map(entry => entry.run_id)
+        .sort(),
       code_states: codeStates,
       code_states_excluded_inexact: codeStatesExcludedInexact,
       slug_families: slugFamilies,
@@ -964,6 +1013,21 @@ export function renderTraceabilityProse(view: TraceabilityView): string {
   }
   if (view.runs.no_authoritative_identity.length > 0) {
     lines.push(`- LEDGER INTEGRITY: ${view.runs.no_authoritative_identity.length} run(s) have divergent ledger events and no authoritative identity: ${view.runs.no_authoritative_identity.join(', ')}`);
+  }
+  for (const entry of view.runs.retried.slice(0, 5)) {
+    lines.push(`- retried: ${entry.run_id} (attempt ${entry.latest_ordinal}, ${entry.crash_retries} crash retr${entry.crash_retries === 1 ? 'y' : 'ies'}`
+      + `${entry.latest_failed ? '; latest attempt FAILED — awaiting retry or record-only closure' : ''})`);
+  }
+  if (view.runs.retried.length > 5) {
+    lines.push(`- retried: ${view.runs.retried.length - 5} more run(s) — see \`nullius current --json\`.`);
+  }
+  if (view.runs.attempt_chain_defects.length > 0) {
+    lines.push(`- ATTEMPT CHAIN DEFECTS: ${view.runs.attempt_chain_defects.join(', ')} — repair before trusting these bindings.`);
+  }
+  if (view.runs.crashed_unretried.length > 0) {
+    lines.push(`- CRASHED, unretried: ${view.runs.crashed_unretried.slice(0, 5).join(', ')}`
+      + `${view.runs.crashed_unretried.length > 5 ? ', …' : ''} — \`nullius trace retry <run_dir>\` chains the next attempt, `
+      + 'or --record-only books an abandoned crash.');
   }
   if (view.runs.ledger_only_run_ids.length > 0) {
     lines.push(`- ${view.runs.ledger_only_run_ids.length} ledger-known run id(s) have no directory on disk: ${view.runs.ledger_only_run_ids.slice(0, 5).join(', ')}${view.runs.ledger_only_run_ids.length > 5 ? ', …' : ''}`);

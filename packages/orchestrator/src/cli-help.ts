@@ -176,6 +176,7 @@ Behavior:
 `,
   status: STATUS_HELP,
   trace: `nullius trace stamp <run_dir> [--dep name=path] [--event-id <ulid>] [--actor <who>]
+nullius trace retry <run_dir> [--reason "..."] [--record-only] [--event-id <ulid>] [--actor <who>]
 nullius trace supersede <old_run_id> --by <new_run_id> --reason "..." [--scope <name>] [--event-id <ulid>] [--actor <who>]
 nullius trace void <run_id> --reason "..." [--scope <name>] [--event-id <ulid>] [--actor <who>]
 nullius trace reinstate <run_id> --reason "..." [--event-id <ulid>] [--actor <who>]
@@ -191,6 +192,21 @@ stamp: bind a run directory to the exact code state that produced it.
   silently treated as exact. The ledger event is authoritative; the
   run-directory run_origin.json is a browsing mirror.
   Run stamp at run creation, before the run loads code.
+
+retry: chain the NEXT execution attempt of a run that crashed with no
+  retained result — same run id, near-zero ceremony. A run id names one
+  experiment slot; each execution is an attempt bound to its own exact
+  launch-time capture, and the retained outputs are bound by the highest
+  attempt's stamp. The boundary is machine-narrow: a recorded COMPLETED
+  execution, a results-registry row naming the run, a decided (superseded/
+  void) run, or a heuristic binding all refuse — "completed but wrong" is
+  content territory (supersede/void + fresh id, always). Machine-evidenced
+  failures chain automatically; hand runs with residue need --reason (the
+  declaration is recorded, visibly second-class); an empty surface heals
+  the stamp-predates-source class at zero ceremony and never consumes the
+  crash budget (manifest max_attempts). Prior products are archived under
+  attempts/attempt-N/ (never deleted); --record-only books a crash without
+  retrying.
 
 supersede / void / reinstate: validity beyond execution status.
   supersede is declared by the NEW run's author about the OLD run

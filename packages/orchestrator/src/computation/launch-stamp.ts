@@ -1,4 +1,6 @@
-import { defaultStampActor, gradeExistingStamp, stampRunDirectory } from '../run-stamp.js';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import { defaultStampActor, gradeExistingStamp, openRetryAttempt, stampRunDirectory } from '../run-stamp.js';
 import type { ExecutionOriginStampOutcome } from './types.js';
 
 /** Automatic origin stamp at the computation front door.
@@ -60,6 +62,57 @@ export function stampComputationLaunch(projectRoot: string, runDir: string): Exe
             detail: 'an origin stamp for this run already binds the same tracked code tree; not re-stamped',
           };
         }
+        // The tree changed since the recorded binding. Consult the attempt
+        // boundary BEFORE warning: a COMPLETED execution is content
+        // territory (refuse — the one deliberate never-blocks exception);
+        // a machine-evidenced crash auto-opens the next attempt with a
+        // fresh capture at zero operator cost; anything the machine cannot
+        // certify falls back to today's non-blocking stale warning, now
+        // naming the retry fork.
+        const statusPath = path.join(runDir, 'computation', 'execution_status.json');
+        let executionStatus: string | null = null;
+        try {
+          executionStatus = fs.existsSync(statusPath)
+            ? (JSON.parse(fs.readFileSync(statusPath, 'utf-8')) as { status?: string }).status ?? null
+            : null;
+        } catch {
+          executionStatus = null;
+        }
+        if (executionStatus === 'completed') {
+          return {
+            status: 'refused_relaunch',
+            detail: 'this run recorded a COMPLETED execution and the tree has changed since its stamp; '
+              + 'running would overwrite a completed result\'s provenance. "Completed but wrong" is content '
+              + 'territory: supersede or void it (full ceremony) and use a fresh run id.',
+          };
+        }
+        if (executionStatus === 'failed') {
+          const retry = openRetryAttempt(projectRoot, runDir, {
+            actor: defaultStampActor(),
+            reason: 'front-door relaunch under a changed tree after a failed execution (auto-recorded)',
+          });
+          if (retry.kind === 'retried' && retry.origin) {
+            const origin = retry.origin as unknown as Record<string, unknown>;
+            return {
+              status: 'retried',
+              event_id: retry.eventId,
+              closed_ordinal: retry.closedOrdinal,
+              opened_ordinal: retry.openedOrdinal ?? retry.closedOrdinal + 1,
+              previous_outcome: retry.previousOutcome,
+              binding_quality: String(origin.binding_quality ?? 'unknown'),
+            };
+          }
+          // Machine boundary said no (registry-named, chain defect, cap
+          // exhausted, concurrent race …): fall through to the honest warn
+          // carrying the entrance's own sentence.
+          const detail = retry.kind === 'rejected' ? retry.message
+            : retry.kind === 'attempt_conflict' ? retry.message
+              : 'retry entrance did not open a new attempt';
+          return {
+            status: 'stale_stamp',
+            detail: `${detail} — executing anyway would overwrite results the recorded stamp no longer describes.`,
+          };
+        }
         if (graded.grade === 'untracked_delta') {
           return {
             status: 'stale_stamp',
@@ -73,7 +126,9 @@ export function stampComputationLaunch(projectRoot: string, runDir: string): Exe
           status: 'stale_stamp',
           detail: 'this run already carries an origin stamp bound to a DIFFERENT tracked code tree; '
             + 'this launch will overwrite results the recorded stamp no longer describes. '
-            + 'Use a fresh run id for the changed code (round-suffix convention) so each result keeps an exact origin.',
+            + 'Use a fresh run id for the changed code (round-suffix convention) — or, if the prior '
+            + 'execution crashed with no retained result, `nullius trace retry` chains the next attempt '
+            + 'under this same id.',
         };
       }
       case 'stamped': {
