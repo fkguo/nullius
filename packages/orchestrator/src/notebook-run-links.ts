@@ -113,10 +113,13 @@ function sanitizeProse(text: string): string {
  *  death. Blank inline destinations, definition lines entirely, and the
  *  label part of both reference-usage forms before scanning. */
 function blankLinkDestinations(text: string): string {
+  // The FULL form's label ([text][label]) renders nowhere and is blanked;
+  // the COLLAPSED form's label ([label][]) IS the rendered link text —
+  // visible prose — and stays (a token word there is on the page for the
+  // reader; id-shaped labels are handled by known-id blanking).
   return text
     .replace(LINK_TARGET_PATTERN, '](#)')
     .replace(/(\[[^\]]*\]\[)[^\]]+(\])/g, '$1#$2')
-    .replace(/\[[^\]]+\](\[\])/g, '[#]$1')
     .split('\n')
     .map(line => line.replace(REFERENCE_DEFINITION_PATTERN, () => '[#]: #'))
     .join('\n');
@@ -191,9 +194,21 @@ type CitationBlock = { runIds: string[]; units: TokenUnit[] };
 function splitTokenUnits(blockText: string): string[] {
   const lines = blockText.split('\n');
   const units: string[][] = [];
+  let inList = false;
   for (const line of lines) {
-    if (LIST_ITEM_PATTERN.test(line) || units.length === 0) units.push([line]);
-    else units[units.length - 1]!.push(line);
+    // A bullet always starts an item; an ORDERED marker only interrupts a
+    // paragraph when it is `1.`/`1)` (CommonMark) or we are already inside
+    // a list — a hard-wrapped sentence continuing onto a `3)` line is one
+    // paragraph on the page and must stay one token unit.
+    const startsItem: boolean = /^\s*[-*+]\s/.test(line)
+      || /^\s*1[.)]\s/.test(line)
+      || (inList && LIST_ITEM_PATTERN.test(line));
+    if (startsItem || units.length === 0) {
+      units.push([line]);
+      inList = inList || startsItem;
+    } else {
+      units[units.length - 1]!.push(line);
+    }
   }
   return units.map(unit => unit.join('\n'));
 }
@@ -222,22 +237,25 @@ export function segmentCitationBlocks(body: string[]): string[] {
   if (current.length > 0) rawBlocks.push(current);
 
   // List-shaped requires at least one ACTUAL item line: an all-indented
-  // block satisfies the continuation pattern on every line, and treating
-  // it as a list would let a second indented-code chunk ride in as the
-  // "continuation" of the first dropped one.
+  // block satisfies the continuation pattern on every line, and calling it
+  // a list would let indented CODE pose as one. Whether an all-indented
+  // block is code or a loose-list CONTINUATION is decided against the
+  // previous RETAINED block — after a list it continues the list (and
+  // merges into it, so a curated list whose links live in indented
+  // continuations stays ONE citation block); anywhere else it is code and
+  // is dropped, including a second chunk after a dropped first one.
   const isListShaped = (block: string[]): boolean =>
     block.some(line => LIST_ITEM_PATTERN.test(line))
     && block.every(line => LIST_ITEM_PATTERN.test(line) || /^\s{2,}/.test(line));
   const merged: string[][] = [];
-  for (let index = 0; index < rawBlocks.length; index += 1) {
-    const block = rawBlocks[index]!;
-    const prevRaw = index > 0 ? rawBlocks[index - 1]! : null;
-    if (block.every(line => INDENTED_CODE_LINE.test(line))
-      && (prevRaw === null || !isListShaped(prevRaw))) {
+  for (const block of rawBlocks) {
+    const allIndented = block.every(line => INDENTED_CODE_LINE.test(line));
+    const prev = merged.length > 0 ? merged[merged.length - 1]! : null;
+    const prevIsList = prev !== null && isListShaped(prev);
+    if (allIndented && !prevIsList) {
       continue; // indented code, not prose
     }
-    const prev = merged.length > 0 ? merged[merged.length - 1]! : null;
-    if (isListShaped(block) && prev !== null && isListShaped(prev)) {
+    if (prevIsList && (isListShaped(block) || allIndented)) {
       prev.push(...block);
     } else {
       merged.push([...block]);
