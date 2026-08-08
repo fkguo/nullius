@@ -6,7 +6,7 @@ import { mintUlid } from '@nullius/shared';
 import { openRetryAttempt, stampRunDirectory } from '../src/run-stamp.js';
 import { appendValidityEvent, buildValidityEvent, readValidityLedger } from '../src/validity-ledger.js';
 import { setCurrentResult, validateResultRegistry } from '../src/result-registry.js';
-import { buildTraceabilityView } from '../src/traceability-view.js';
+import { buildTraceabilityView, renderTraceabilityProse } from '../src/traceability-view.js';
 import {
   cleanupRegisteredDirs,
   createManifest,
@@ -795,6 +795,11 @@ describe('confirmation-round regressions (review r6)', () => {
     expect(indexText).toContain('+untracked');
     const clean = validateResultRegistry(projectRoot, readValidityLedger(projectRoot));
     expect(clean.issues.some(entry => entry.code === 'result_row_untracked_marker_mismatch')).toBe(false);
+    // The qualifier survives into BOTH render surfaces of `nullius current`
+    // — JSON and prose — never presenting the binding as fully exact.
+    const view = buildTraceabilityView(projectRoot);
+    expect(view.results.current[0]?.has_untracked).toBe(true);
+    expect(renderTraceabilityProse(view)).toContain('+untracked');
     // A hand edit that drops the qualifier renders the binding as fully
     // exact — the read side must say so.
     fs.writeFileSync(
@@ -878,6 +883,25 @@ describe('confirmation-round regressions (review r6)', () => {
     expect(fs.existsSync(path.join(runDir, 'attempts', `unattributed-${orphanId}`, 'computation', 'execution_status.json'))).toBe(true);
   });
 
+  it('an UNREADABLE terminal artifact refuses the retry — truncation cannot launder a completed run', () => {
+    const runId = 'run-unreadable-witness';
+    const { projectRoot, runDir } = makeStampedRun(runId);
+    fs.mkdirSync(path.join(runDir, 'artifacts'), { recursive: true });
+    fs.writeFileSync(path.join(runDir, 'artifacts', 'computation_result_v1.json'), '{"execution_status": "comp');
+    writeFailedStatus(runDir);
+    const result = openRetryAttempt(projectRoot, runDir, { actor: 'test' });
+    expect(result.kind).toBe('rejected');
+    if (result.kind === 'rejected') expect(result.message).toContain('unreadable');
+    // A FAILED terminal artifact (what every front-door crash writes) is
+    // NOT a refusal — the entrance admits it as ordinary residue.
+    fs.writeFileSync(
+      path.join(runDir, 'artifacts', 'computation_result_v1.json'),
+      JSON.stringify({ schema_version: 1, run_id: runId, execution_status: 'failed' }),
+    );
+    const admitted = openRetryAttempt(projectRoot, runDir, { actor: 'test' });
+    expect(admitted.kind).toBe('retried');
+  });
+
   it('a truncated workspace discovery refuses to rule instead of misreading the surface', () => {
     const runId = 'run-discovery-truncated';
     const { projectRoot, runDir } = makeStampedRun(runId);
@@ -888,7 +912,11 @@ describe('confirmation-round regressions (review r6)', () => {
     const result = openRetryAttempt(projectRoot, runDir, { actor: 'test' });
     expect(result.kind).toBe('rejected');
     if (result.kind === 'rejected') expect(result.message).toContain('truncated');
-  });
+    // Clean the bulk INSIDE the test's own (raised) timeout — leaving 10k
+    // directories to the afterEach hook trips vitest's 10s hookTimeout
+    // under full-suite parallel load.
+    fs.rmSync(bulk, { recursive: true, force: true });
+  }, 120_000); // 10k mkdirs + the bounded walk are slow under full-suite parallel load
 
   it('a product that CANNOT be quarantined aborts admission — never left live under the next binding', () => {
     const runId = 'run-unmovable-product';

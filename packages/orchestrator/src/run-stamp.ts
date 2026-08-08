@@ -791,10 +791,12 @@ function enumerateAttemptProducts(
  *  status file is runner-owned but mutable on disk; the terminal artifact
  *  is a second, independent completion witness — a retry that trusted the
  *  status file alone could be laundered by hand-editing one JSON field. */
-export function completedResultArtifactPresent(runDir: string): boolean {
+export type TerminalResultWitness = 'completed' | 'absent' | 'unreadable' | 'other';
+
+export function readTerminalResultWitness(runDir: string): TerminalResultWitness {
   const artifactPath = path.join(runDir, 'artifacts', 'computation_result_v1.json');
   try {
-    if (!fs.existsSync(artifactPath)) return false;
+    if (!fs.existsSync(artifactPath)) return 'absent';
     const parsed = JSON.parse(fs.readFileSync(artifactPath, 'utf-8')) as {
       execution_status?: string;
       status?: string;
@@ -803,11 +805,16 @@ export function completedResultArtifactPresent(runDir: string): boolean {
     // The canonical artifact (computation/result.ts) records
     // `execution_status`; the extra spellings keep hand-written or older
     // artifacts conservative.
-    return parsed.execution_status === 'completed' || parsed.status === 'completed' || parsed.ok === true;
+    if (parsed.execution_status === 'completed' || parsed.status === 'completed' || parsed.ok === true) {
+      return 'completed';
+    }
+    return 'other';
   } catch {
-    // An unreadable terminal artifact is suspicious, not conclusive; the
-    // status-file path still governs.
-    return false;
+    // An UNREADABLE witness is fail-closed at every consumer: a truncated
+    // or corrupted artifact plus a removed status file must never read as
+    // "nothing completed here" — that is precisely the laundering shape
+    // the witness exists to block.
+    return 'unreadable';
   }
 }
 
@@ -891,7 +898,33 @@ function quarantineFailedAttempt(
       failed.push(rel);
     }
   }
+  if (moved === 0) {
+    // Nothing of ours is inside; the mkdir skeleton left by failed renames
+    // must not survive — an empty .staging-* would lock every later retry
+    // behind the in-flight refusal while promising a self-heal that has
+    // nothing to heal.
+    try {
+      fs.rmSync(stagingAbs, { recursive: true, force: true });
+    } catch {
+      // visible leftover; recovery parks it
+    }
+  }
   return { staging: moved > 0 ? stagingRel : null, moved, failed };
+}
+
+/** Move whatever remains of a staging directory to the visible
+ *  attempts/unattributed-* parking name. Nothing may survive under the
+ *  retry-blocking .staging-* name once its invocation is over. */
+function parkStagingRemainder(runDir: string, stagingRel: string, eventId: string): void {
+  const from = path.join(runDir, stagingRel);
+  if (!fs.existsSync(from)) return;
+  const dest = path.join(runDir, 'attempts', `unattributed-${eventId}`);
+  try {
+    if (!fs.existsSync(dest)) fs.renameSync(from, dest);
+    else moveTreeMerge(from, dest);
+  } catch {
+    // deepest fallback: stays visible under the staging name
+  }
 }
 
 /** Promote this invocation's staging to the canonical archive name. If the
@@ -976,19 +1009,8 @@ function recoverOrphanStagings(runDir: string, view: ValidityLedgerView, runId: 
   // Whatever a recovery pass could not place (a file-vs-file collision
   // with the recreated live surface, a permission failure) must not stay
   // under the .staging-* name — that name blocks every future retry with
-  // a promise of self-healing it can no longer keep. Park the remainder
-  // visibly under attempts/unattributed-* for human attribution.
-  const parkRemainder = (rel: string, eventId: string): void => {
-    const from = path.join(runDir, rel);
-    if (!fs.existsSync(from)) return;
-    const dest = path.join(runDir, 'attempts', `unattributed-${eventId}`);
-    try {
-      if (!fs.existsSync(dest)) fs.renameSync(from, dest);
-      else moveTreeMerge(from, dest);
-    } catch {
-      // deepest fallback: stays visible under the staging name
-    }
-  };
+  // a promise of self-healing it can no longer keep; parkStagingRemainder
+  // moves it to the visible attempts/unattributed-* name.
   for (const name of entries) {
     const parsed = parseStagingName(name);
     if (!parsed) continue;
@@ -1010,7 +1032,7 @@ function recoverOrphanStagings(runDir: string, view: ValidityLedgerView, runId: 
           } catch {
             // parked below
           }
-          parkRemainder(rel, parsed.eventId);
+          parkStagingRemainder(runDir, rel, parsed.eventId);
         }
       }
       continue;
@@ -1041,7 +1063,7 @@ function recoverOrphanStagings(runDir: string, view: ValidityLedgerView, runId: 
     }
     // Whether promoted, restored, or unattributable: nothing may remain
     // under the blocking .staging-* name after a recovery pass.
-    parkRemainder(rel, parsed.eventId);
+    parkStagingRemainder(runDir, rel, parsed.eventId);
   }
 }
 
@@ -1148,12 +1170,21 @@ export function openRetryAttempt(
         + 'retry again shortly (stale stagings recover automatically after ~10 minutes)',
     };
   }
-  if (completedResultArtifactPresent(runDir)) {
+  const terminalWitness = readTerminalResultWitness(runDir);
+  if (terminalWitness === 'completed') {
     return {
       kind: 'rejected',
       message: `trace retry: ${runId}'s terminal result artifact records a COMPLETED execution — a hand-edited `
         + 'status file cannot relabel it a crash; "completed but wrong" is content territory: supersede or void '
         + 'it (full ceremony) and open a fresh run id',
+    };
+  }
+  if (terminalWitness === 'unreadable') {
+    return {
+      kind: 'rejected',
+      message: `trace retry: ${runId}'s terminal result artifact (artifacts/computation_result_v1.json) is `
+        + 'unreadable — the boundary cannot certify the prior execution did not complete; repair or remove the '
+        + 'artifact (recording why) before retrying',
     };
   }
   const closedOrdinal = entry.attempts.latest_ordinal;
@@ -1174,8 +1205,8 @@ export function openRetryAttempt(
     return {
       kind: 'rejected',
       message: `trace retry: ${runId}'s directory is too large to enumerate (workspace discovery truncated at its `
-        + 'safety bound) — the boundary cannot certify what the surface holds; archive or remove bulk '
-        + 'subdirectories and retry',
+        + 'safety bound) — the boundary cannot certify what the surface holds; relocate bulk subdirectories '
+        + '(tool caches and dot-directories inside the run dir count too) and retry',
     };
   }
   const statusWorkspaces = products.workspaces.filter(workspace => workspace.statusPath !== null);
@@ -1331,8 +1362,13 @@ export function openRetryAttempt(
     staging = quarantine.staging;
     if (quarantine.failed.length > 0) {
       // A product left live would ride into the next attempt's binding —
-      // refuse admission entirely and put back what did move.
-      if (staging) restoreQuarantine(runDir, staging);
+      // refuse admission entirely, put back what did move, and leave
+      // NOTHING under the .staging-* name (a leftover would lock the very
+      // "fix and retry" this message advises behind the in-flight refusal).
+      if (staging) {
+        restoreQuarantine(runDir, staging);
+        parkStagingRemainder(runDir, staging, eventId);
+      }
       return {
         kind: 'rejected',
         message: `trace retry: cannot quarantine ${quarantine.failed.length} product path(s) of ${runId} `
