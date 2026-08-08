@@ -359,3 +359,124 @@ describe('confirmation-round regressions (review r2)', () => {
     expect(mirrorRollbackAction(null, 'ours', 'previous')).toBe('leave');
   });
 });
+
+describe('re-entry untracked-delta grading (review r1 of the version batch)', () => {
+  it('an exact stamp followed by a NEW project-level script refuses re-entry; execution metabolism does not', async () => {
+    const projectRoot = makeTmpDir();
+    registerCleanup(projectRoot);
+    initRepo(projectRoot);
+    const runId = 'run-delta-guard';
+    const { runDir, manifestPath } = setupStampableRun(projectRoot, runId);
+    commitAll(projectRoot);
+
+    const first = await executeComputationManifest({ manifestPath, projectRoot, runDir, runId });
+    expect((first as { origin_stamp?: { status: string } }).origin_stamp?.status).toBe('stamped');
+
+    // Execution metabolism alone (outputs, status files, logs written by
+    // the first run) must NOT trip the delta guard: same tree relaunch
+    // stays a benign no-op.
+    const second = await executeComputationManifest({ manifestPath, projectRoot, runDir, runId });
+    expect((second as { origin_stamp?: { status: string } }).origin_stamp?.status).toBe('already_stamped');
+
+    // A new UNTRACKED project-level script is a code-bearing delta: the
+    // recorded exact grade no longer describes what a relaunch executes.
+    fs.writeFileSync(path.join(projectRoot, 'new_helper.py'), 'h = 1\n');
+    const third = await executeComputationManifest({ manifestPath, projectRoot, runDir, runId });
+    const stamp = (third as { origin_stamp?: { status: string; detail?: string } }).origin_stamp;
+    expect(stamp?.status).toBe('stale_stamp');
+    expect(stamp?.detail).toContain('untracked path(s)');
+    expect(stamp?.detail).toContain('Commit the new files or use a fresh run id');
+    // Nothing was appended in any of this.
+    expect(ledgerStampEvents(projectRoot, runId)).toHaveLength(1);
+
+    // The manual CLI verb refuses identically.
+    const io = { out: [] as string[], err: [] as string[] };
+    const cliIo = { cwd: projectRoot, stdout: (t: string) => io.out.push(t), stderr: (t: string) => io.err.push(t) };
+    const code = runTraceCommand(projectRoot, {
+      action: 'stamp' as const,
+      target: path.join('artifacts', 'runs', runId),
+      by: null, reason: null, scope: null, actor: 't', eventId: null, deps: {},
+    }, cliIo);
+    expect(code).toBe(1);
+    expect(io.err.join('')).toContain('no longer describes the tree');
+  });
+});
+
+describe('re-entry signal derives from the manifest (review r2)', () => {
+  it('a new helper module inside computation/ trips the guard; a DECLARED output under scripts/ does not', async () => {
+    const projectRoot = makeTmpDir();
+    registerCleanup(projectRoot);
+    initRepo(projectRoot);
+    const runId = 'run-manifest-signal';
+    const runDir = path.join(projectRoot, 'artifacts', 'runs', runId);
+    fs.mkdirSync(runDir, { recursive: true });
+    createPythonStep(
+      runDir,
+      'scripts/write_ok.py',
+      "from pathlib import Path\nPath('outputs').mkdir(parents=True, exist_ok=True)\nPath('outputs/ok.json').write_text('{}', encoding='utf-8')\nPath('scripts/diagnostics.json').write_text('{}', encoding='utf-8')\n",
+    );
+    const manifestPath = createManifest(runDir, {
+      schema_version: 1,
+      entry_point: { script: 'scripts/write_ok.py', tool: 'python' },
+      steps: [
+        {
+          id: 'write_ok',
+          tool: 'python',
+          script: 'scripts/write_ok.py',
+          // An output legally declared UNDER scripts/: location alone must
+          // not classify it as code.
+          expected_outputs: ['outputs/ok.json', 'scripts/diagnostics.json'],
+        },
+      ],
+      environment: { python_version: '3.11', platform: 'any' },
+      dependencies: {},
+    });
+    const manager = initRunState(projectRoot, runId);
+    markA3Satisfied(manager, 'A3-0001');
+    commitAll(projectRoot);
+
+    const first = await executeComputationManifest({ manifestPath, projectRoot, runDir, runId });
+    expect((first as { origin_stamp?: { status: string } }).origin_stamp?.status).toBe('stamped');
+
+    // The declared scripts/-located output landed during execution; the
+    // relaunch must stay a benign no-op (no false alarm on a declared
+    // output, wherever it was declared).
+    const second = await executeComputationManifest({ manifestPath, projectRoot, runDir, runId });
+    expect((second as { origin_stamp?: { status: string } }).origin_stamp?.status).toBe('already_stamped');
+
+    // A new UNDECLARED module inside computation/ — a helper the manifest
+    // could reference from anywhere — is a code-bearing delta (no location
+    // whitelist may clear it).
+    fs.mkdirSync(path.join(runDir, 'computation', 'helpers'), { recursive: true });
+    fs.writeFileSync(path.join(runDir, 'computation', 'helpers', 'plugin.py'), 'p = 1\n');
+    const third = await executeComputationManifest({ manifestPath, projectRoot, runDir, runId });
+    expect((third as { origin_stamp?: { status: string } }).origin_stamp?.status).toBe('stale_stamp');
+    expect(ledgerStampEvents(projectRoot, runId)).toHaveLength(1);
+  });
+});
+
+describe('ledger cross-field validation (review r2)', () => {
+  it('refuses a stamp claiming more foreign untracked paths than untracked paths exist', () => {
+    const projectRoot = makeTmpDir();
+    registerCleanup(projectRoot);
+    const eventId = mintUlid();
+    const impossible = buildValidityEvent({
+      event: 'stamp',
+      run_id: 'run-impossible',
+      actor: 't',
+      reason: null,
+      event_id: eventId,
+      stamp: {
+        schema_id: 'run_origin_v1',
+        event_id: eventId,
+        run_id: 'run-impossible',
+        captured_at_utc: '2026-08-08T00:00:00.000Z',
+        binding_quality: 'unbound',
+        baseline_commit: null,
+        dirty: { tracked_modified: 0, untracked_count: 0, foreign_run_untracked: 1 },
+        no_repo_reason: 'test fixture',
+      } as ValidityEventV1['stamp'],
+    });
+    expect(() => appendValidityEvent(projectRoot, impossible)).toThrow(/does not validate/);
+  });
+});

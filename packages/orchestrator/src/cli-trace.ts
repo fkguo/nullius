@@ -92,6 +92,14 @@ export function runTraceCommand(projectRoot: string, parsed: TraceParsed, io: Cl
           );
           return 0;
         }
+        if (graded.grade === 'untracked_delta') {
+          io.stderr(
+            `trace stamp: ${result.runId} carries a ${graded.bindingQuality} stamp, but ${graded.signalUntracked} `
+            + 'new untracked path(s) bearing on this run have appeared since; the recorded exactness no longer '
+            + 'describes the tree. Commit the new files or use a fresh run id.\n',
+          );
+          return 1;
+        }
         io.stderr(
           `trace stamp: ${result.runId} already carries an origin stamp bound to a DIFFERENT tracked code tree; `
           + 'a run id never silently rebinds. Use a fresh run id for the changed code (round-suffix convention).\n',

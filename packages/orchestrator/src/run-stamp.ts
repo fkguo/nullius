@@ -148,13 +148,28 @@ export function mirrorRollbackAction(
 
 export type ExistingStampGrade =
   | { grade: 'same_tree'; bindingQuality: string }
+  | { grade: 'untracked_delta'; bindingQuality: string; signalUntracked: number }
   | { grade: 'different_tree' };
 
-/** Grade an already-recorded stamp against the CURRENT tree: same research
- *  code (a benign re-entry — nothing new to record) or a different tree
- *  (the recorded stamp no longer describes what would run — the honest
- *  response is a fresh run id, never a silent rebind). The probe is
- *  read-only (pin:false). */
+/** Grade an already-recorded stamp against the CURRENT tree.
+ *
+ *  - same_tree: the tracked research code is the same AND no new
+ *    code-bearing untracked paths appeared — a benign re-entry.
+ *  - untracked_delta: the tracked tree is unchanged, but the recorded
+ *    stamp claims an EXACT grade while the probe now sees SIGNAL
+ *    untracked paths (the run's own directory, or outside the run roots).
+ *    The recorded exactness no longer describes what a relaunch would
+ *    execute; commit the new files or use a fresh run id. The signal
+ *    scope is deliberate: FOREIGN runs' accumulation (which the honesty
+ *    grade conservatively keeps counting) must not trip this, or every
+ *    re-entry in a busy project would false-alarm — quality asks "how
+ *    certain is this stamp" (full set), re-entry asks "did code RELEVANT
+ *    TO THIS RUN change" (signal set).
+ *  - different_tree: the tracked code itself changed — the honest
+ *    response is a fresh run id, never a silent rebind.
+ *
+ *  The probe is read-only apart from a git stat-cache refresh
+ *  (pin:false — no ref is created). */
 export function gradeExistingStamp(
   projectRoot: string,
   runId: string,
@@ -166,11 +181,101 @@ export function gradeExistingStamp(
   const same = knownCommit === null || probeCommit === null
     ? knownCommit === probeCommit
     : sameResearchCode(projectRoot, knownCommit, probeCommit);
-  if (same) {
-    const quality = (recordedOrigin as unknown as Record<string, unknown> | null)?.binding_quality;
-    return { grade: 'same_tree', bindingQuality: typeof quality === 'string' ? quality : 'unknown' };
+  if (!same) return { grade: 'different_tree' };
+  const recordedRecord = recordedOrigin as unknown as Record<string, unknown> | null;
+  const recordedQuality = typeof recordedRecord?.binding_quality === 'string'
+    ? recordedRecord.binding_quality
+    : 'unknown';
+  if (recordedQuality === 'exact_clean' || recordedQuality === 'exact_tracked_snapshot') {
+    const signalUntracked = countCodeBearingUntracked(projectRoot, runId);
+    if (signalUntracked > 0) {
+      return { grade: 'untracked_delta', bindingQuality: recordedQuality, signalUntracked };
+    }
   }
-  return { grade: 'different_tree' };
+  return { grade: 'same_tree', bindingQuality: recordedQuality };
+}
+
+/** The run's declared OUTPUT paths, workspace-relative, read from its own
+ *  manifest. A manifest may declare outputs anywhere inside the workspace
+ *  (including under scripts/), so metabolism-vs-code cannot be decided by
+ *  location alone — the declaration decides. Unreadable or malformed
+ *  manifest → empty set (conservative: nothing gets excluded on its say-so). */
+function declaredOutputPaths(projectRoot: string, ownRunPrefix: string): Set<string> {
+  const declared = new Set<string>();
+  try {
+    const manifestPath = path.join(projectRoot, ownRunPrefix, 'computation', 'manifest.json');
+    if (!fs.existsSync(manifestPath)) return declared;
+    const parsed = JSON.parse(fs.readFileSync(manifestPath, 'utf-8')) as {
+      steps?: Array<{ expected_outputs?: string[] }>;
+    };
+    for (const step of parsed.steps ?? []) {
+      for (const output of step.expected_outputs ?? []) {
+        if (typeof output === 'string' && output.length > 0) {
+          declared.add(path.posix.join(`${ownRunPrefix}/computation`, output.split('\\').join('/')));
+        }
+      }
+    }
+  } catch {
+    // Conservative: an unreadable manifest excludes nothing.
+  }
+  return declared;
+}
+
+/** The runner's own write surface inside a run directory — files the
+ *  execution machinery itself produces on every launch. Counting these as
+ *  code deltas would flag every same-tree relaunch of a completed run. */
+function isRunnerWriteSurface(insideOwnRun: string): boolean {
+  return insideOwnRun === 'computation/execution_status.json'
+    || insideOwnRun.startsWith('computation/logs/')
+    || insideOwnRun.startsWith('computation/outputs/')
+    || insideOwnRun.startsWith('computation/workspace/')
+    || insideOwnRun.startsWith('artifacts/');
+}
+
+/** Untracked paths that bear on THIS run's code identity, for re-entry
+ *  grading. Signal = everything untracked EXCEPT (a) control-plane and
+ *  traceability bookkeeping, (b) OTHER runs' directories (their
+ *  accumulation is not this run's code — the honesty GRADE still counts
+ *  them conservatively; this narrower scope answers a different question:
+ *  did code relevant to this run change), (c) stray files directly ON a
+ *  run root (indistinguishable from machine-maintained files — stated
+ *  limit), and (d) inside the run's OWN directory, the runner's write
+ *  surface plus the manifest's DECLARED expected outputs. Everything else
+ *  in the own directory — a helper module, an undeclared file, the
+ *  manifest itself — is conservatively signal: manifests may reference
+ *  scripts anywhere in the workspace, so no location whitelist can clear
+ *  a file as non-code, and an undeclared output SHOULD have been declared
+ *  (the manifest contract) — its one-line fix is to declare or commit it. */
+function countCodeBearingUntracked(projectRoot: string, runId: string): number {
+  const output = execFileSync(
+    'git',
+    ['--no-optional-locks', '-c', 'core.fsmonitor=false', '-C', projectRoot, 'ls-files', '--others', '--exclude-standard'],
+    { encoding: 'utf-8', timeout: 30_000, stdio: ['ignore', 'pipe', 'pipe'] },
+  );
+  const ownRunPrefixes = ['artifacts/runs', 'team/runs'].map(root => `${root}/${runId}`);
+  const declaredOutputs = new Set<string>(
+    ownRunPrefixes.flatMap(prefix => [...declaredOutputPaths(projectRoot, prefix)]),
+  );
+  return output
+    .split('\n')
+    .map(line => line.trim())
+    .filter(line => line.length > 0)
+    .filter(line => !isTraceabilityArtifactPath(line))
+    .filter(line => !isControlPlanePath(line))
+    .filter((line) => {
+      const own = ownRunPrefixes.find(prefix => line.startsWith(`${prefix}/`));
+      if (own) {
+        const inside = line.slice(own.length + 1);
+        if (isRunnerWriteSurface(inside)) return false;
+        if (declaredOutputs.has(line)) return false;
+        return true;
+      }
+      // Inside a run root but another run's directory, or a stray file
+      // directly on the root: not this run's code signal.
+      if (line.startsWith('artifacts/runs/') || line.startsWith('team/runs/')) return false;
+      return true;
+    })
+    .length;
 }
 
 export function stampRunDirectory(

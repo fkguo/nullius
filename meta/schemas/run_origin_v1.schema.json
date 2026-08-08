@@ -42,7 +42,7 @@
         "aligned_heuristic",
         "unbound"
       ],
-      "description": "exact_clean: tree clean, code IS baseline_commit. exact_tracked_snapshot: tracked modifications captured as snapshot_commit (tree = snapshot_tree), untracked_count 0. head_plus_untracked: untracked files present \u2014 tracked-history identity is baseline_commit (or snapshot_commit when tracked modifications were also present) but the binding is NOT exact; consumers must render outcomes against it as qualified (e.g. current-modulo-untracked), never as unqualified exact/current. aligned_heuristic: retroactive timestamp alignment (backfill) \u2014 a heuristic, never presented as exact. unbound: no repository or no alignable identity (no_repo_reason required)."
+      "description": "exact_clean: tree clean, code IS baseline_commit. exact_tracked_snapshot: tracked modifications captured as snapshot_commit (tree = snapshot_tree), untracked_count 0. head_plus_untracked: untracked files present — tracked-history identity is baseline_commit (or snapshot_commit when tracked modifications were also present) but the binding is NOT exact; consumers must render outcomes against it as qualified (e.g. current-modulo-untracked), never as unqualified exact/current. aligned_heuristic: retroactive timestamp alignment (backfill) — a heuristic, never presented as exact. unbound: no repository or no alignable identity (no_repo_reason required)."
     },
     "baseline_commit": {
       "type": [
@@ -78,7 +78,7 @@
         "tracked_modified": {
           "type": "integer",
           "minimum": 0,
-          "description": "Count of tracked paths differing from baseline_commit, derived FROM the snapshot commit's diff (one object-level operation \u2014 no inspect-then-snapshot window)."
+          "description": "Count of tracked paths differing from baseline_commit, derived FROM the snapshot commit's diff (one object-level operation — no inspect-then-snapshot window)."
         },
         "untracked_count": {
           "type": "integer",
@@ -92,6 +92,11 @@
           },
           "maxItems": 20,
           "description": "Up to 20 untracked path names for human triage; the run-directory mirror may carry the full list."
+        },
+        "foreign_run_untracked": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Of untracked_count, how many paths sit inside ANOTHER run's directory under a run root (accumulated outputs of earlier runs). Reporting split only: these paths remain in untracked_count and in the honesty grade — a foreign run directory can hold uncommitted executable files this run imports, so excluding them would manufacture a false exact claim. The sample lists non-foreign paths first."
         },
         "submodules_dirty": {
           "type": "integer",
@@ -122,7 +127,7 @@
         "null"
       ],
       "pattern": "^[0-9a-f]{40}$",
-      "description": "Backfill only: the latest commit at or before the run timestamp. A heuristic binding \u2014 rebased or force-pushed history can make it plausible-but-wrong, which is why aligned_heuristic is never rendered as exact."
+      "description": "Backfill only: the latest commit at or before the run timestamp. A heuristic binding — rebased or force-pushed history can make it plausible-but-wrong, which is why aligned_heuristic is never rendered as exact."
     },
     "alignment": {
       "type": [
@@ -145,7 +150,7 @@
         },
         "nominal_timestamp": {
           "type": "boolean",
-          "description": "True when the run_id carries a hand-rounded (nominal) timestamp \u2014 alignment confidence is degraded."
+          "description": "True when the run_id carries a hand-rounded (nominal) timestamp — alignment confidence is degraded."
         },
         "ambiguous_candidates": {
           "type": "array",
@@ -160,7 +165,7 @@
           "enum": [
             "all_refs"
           ],
-          "description": "Which commit set the alignment drew from. all_refs: every ref (git log --all) \u2014 side branches compete with the mainline, part of why the binding is heuristic."
+          "description": "Which commit set the alignment drew from. all_refs: every ref (git log --all) — side branches compete with the mainline, part of why the binding is heuristic."
         }
       },
       "additionalProperties": false,

@@ -42,6 +42,10 @@ export type TraceabilityView = {
     head_describe: string | null;
     tracked_modified: number | null;
     untracked_count: number | null;
+    /** Of untracked_count, how many sit under the run roots (accumulated
+     *  run outputs). Orientation split only — the count and every honesty
+     *  judgment stay over the full set. */
+    untracked_under_run_roots: number | null;
     submodules_dirty: number | null;
   };
   runs: {
@@ -65,6 +69,46 @@ export type TraceabilityView = {
     superseded: Array<{ run_id: string; by: string | null; reason: string | null; directory_missing?: true }>;
     voided: Array<{ run_id: string; reason: string | null; directory_missing?: true }>;
     no_authoritative_identity: string[];
+    /** The recorded snapshot trees organize stamped runs into CODE-STATE
+     *  EPISODES: consecutive captures on the SAME tracked research tree
+     *  form one episode, and the sequence of episodes (in capture order)
+     *  is the session's version narrative, reconstructed from stamps alone
+     *  (no commits required of the agent). A tree the session returns to
+     *  forms a NEW episode marked `revisited` — the return transition is
+     *  part of the story. The grouping key is the tracked tree, which is
+     *  exactly known even for head_plus_untracked stamps; untracked deltas
+     *  are NOT captured by it (see binding qualities). Aligned/unbound
+     *  stamps have no exact tree and stay outside (excluded_inexact). */
+    code_states: Array<{
+      tree: string;
+      run_count: number;
+      run_ids: string[];
+      first_captured_at: string | null;
+      last_captured_at: string | null;
+      /** This tree appeared in an EARLIER episode; the session returned
+       *  to it after diverging. */
+      revisited?: true;
+      /** The boundary into this episode falls between two capture points
+       *  sharing one captured_at (or lacking one). Their relative order is
+       *  the ledger's effective (ts_utc, event_id) order — deterministic,
+       *  but carrying NO time information below one recorded instant (a
+       *  ULID's sub-millisecond suffix is random) — so the sequence across
+       *  this boundary is disclosed as uncertain, never presented as
+       *  established chronology. */
+      order_uncertain?: true;
+      /** Absent on the first state. `files`/`total` cover RESEARCH files
+       *  only — control-plane and traceability bookkeeping are filtered
+       *  out, and changes under the run roots (accumulating outputs of the
+       *  runs themselves) are folded into `run_artifact_changes` so the
+       *  code narrative is not drowned by its own byproducts. */
+      changed_from_previous?: { total: number; files: string[]; run_artifact_changes: number } | { unavailable: string };
+    }>;
+    code_states_excluded_inexact: number;
+    /** Slug stem families (first two hyphen-separated words) — a DISPLAY
+     *  grouping of an exploratory chain's many one-off slugs into concept
+     *  families. Heuristic, for orientation only; feeds no gate and no
+     *  validity decision. */
+    slug_families: Array<{ family: string; runs: number; void: number; superseded: number }>;
   };
   ledger: {
     exists: boolean;
@@ -220,6 +264,7 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
     : null;
   let trackedModified: number | null = null;
   let untrackedCount: number | null = null;
+  let untrackedUnderRunRoots: number | null = null;
   let submodulesDirty: number | null = null;
   if (head) {
     const status = git(projectRoot, ['status', '--porcelain', '--untracked-files=no', '--ignore-submodules=untracked', '--', '.']);
@@ -227,11 +272,18 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
       ? null
       : status.split('\n').filter(line => line.trim().length > 0).length;
     const untracked = git(projectRoot, ['ls-files', '--others', '--exclude-standard']);
-    untrackedCount = untracked === null
-      ? null
-      : untracked.split('\n')
+    if (untracked === null) {
+      untrackedCount = null;
+    } else {
+      const paths = untracked.split('\n')
         .filter(line => line.trim().length > 0)
-        .filter(line => !isTraceabilityArtifactPath(line)).length;
+        .filter(line => !isTraceabilityArtifactPath(line));
+      untrackedCount = paths.length;
+      // Orientation split (project-level): how much of the untracked total
+      // is run-root accumulation. The count itself stays the full set.
+      untrackedUnderRunRoots = paths
+        .filter(line => line.startsWith('artifacts/runs/') || line.startsWith('team/runs/')).length;
+    }
     // Same submodule honesty as the stamp: content dirty INSIDE a submodule
     // is invisible to the superproject probes above and must not read clean.
     submodulesDirty = 0;
@@ -309,6 +361,145 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
   }
   conflictingStamps.sort();
   noIdentity.sort();
+
+  // Code states: group runs with an exact tracked-tree identity by their
+  // recorded snapshot tree. The stamps already carry the complete evolution
+  // of the tracked research tree across a working session; this organizes it.
+  type StatePoint = { runId: string; tree: string; at: string | null };
+  const statePoints: StatePoint[] = [];
+  let codeStatesExcludedInexact = 0;
+  // WHITELIST of qualities whose snapshot_tree is an exact tracked-tree
+  // identity. Everything else — aligned/unbound, a stamped run whose
+  // origin payload is missing, an unrecognized quality string — is
+  // excluded AND counted: a degenerate record must not silently vanish
+  // from the classification's own arithmetic.
+  const EXACT_TREE_QUALITIES = new Set(['exact_clean', 'exact_tracked_snapshot', 'head_plus_untracked']);
+  // Point order IS the ledger's effective (ts_utc, event_id) order — the
+  // ledger reader's one existing chronology contract, reused instead of a
+  // second view-private sort. Sub-second event-id order is NOT a time
+  // claim (a ULID's suffix is random within one millisecond), which is
+  // exactly what the order_uncertain boundary marker below discloses; the
+  // view invents no key of its own (a payload-embedded id would even be
+  // freely choosable by a hand-written ledger line).
+  const seenStampRuns = new Set<string>();
+  for (const event of ledger.events) {
+    if (event.event !== 'stamp' || seenStampRuns.has(event.run_id)) continue;
+    seenStampRuns.add(event.run_id);
+    const known = ledger.runs.get(event.run_id);
+    if (!known?.stamped) continue;
+    // A run with conflicting stamps (or no authoritative identity) has no
+    // single true tree — narrating ANY of its payloads at ANY position
+    // would pair a tree with a moment that may never have held it. Such
+    // runs are excluded and counted, like every other unclassifiable
+    // record. A clean run has exactly one stamp event (a byte-different
+    // second stamp IS the conflicting case), so the event's own payload
+    // and its ledger position describe the same capture by construction —
+    // never event A's position with event B's tree.
+    if (known.conflicting_stamps || known.no_authoritative_identity) {
+      codeStatesExcludedInexact += 1;
+      continue;
+    }
+    const record = event.stamp as unknown as Record<string, unknown> | null;
+    const quality = record?.binding_quality;
+    const tree = record && typeof record.snapshot_tree === 'string' ? record.snapshot_tree : null;
+    if (!record || typeof quality !== 'string' || !EXACT_TREE_QUALITIES.has(quality) || !tree) {
+      codeStatesExcludedInexact += 1;
+      continue;
+    }
+    statePoints.push({
+      runId: known.run_id,
+      tree,
+      at: typeof record.captured_at_utc === 'string' ? record.captured_at_utc : null,
+    });
+  }
+  // Chronological EPISODES, not unique-tree cohorts: walk the capture
+  // points in the ledger's effective order and break a segment whenever
+  // the tree changes. A tree the session RETURNS to (edit → run → revert
+  // → run) forms a new episode marked `revisited` — folding it into the
+  // first occurrence would erase the return transition from the
+  // narrative. Where an episode boundary falls between two points sharing
+  // one captured_at (or lacking one), the sub-second order carries no
+  // time information, and the later episode says so (order_uncertain): a
+  // tie is presented as a tie, never dressed up as sequence.
+  const orderedPoints = statePoints;
+  const seenTrees = new Set<string>();
+  const codeStates: TraceabilityView['runs']['code_states'] = [];
+  let previousPoint: StatePoint | null = null;
+  for (const point of orderedPoints) {
+    const current = codeStates[codeStates.length - 1];
+    if (current && current.tree === point.tree) {
+      current.run_count += 1;
+      current.run_ids.push(point.runId);
+      if (point.at !== null) current.last_captured_at = point.at;
+      previousPoint = point;
+      continue;
+    }
+    const boundaryTied = previousPoint !== null
+      && (point.at === null || previousPoint.at === null || point.at === previousPoint.at);
+    codeStates.push({
+      tree: point.tree,
+      run_count: 1,
+      run_ids: [point.runId],
+      first_captured_at: point.at,
+      last_captured_at: point.at,
+      ...(seenTrees.has(point.tree) ? { revisited: true as const } : {}),
+      ...(boundaryTied ? { order_uncertain: true as const } : {}),
+    });
+    seenTrees.add(point.tree);
+    previousPoint = point;
+  }
+  // Adjacent-episode diffs are one git call each; cap the computation so a
+  // status read never launches an unbounded subprocess train (worst case:
+  // one episode per run). Episodes beyond the cap carry an explicit
+  // not-computed marker instead of a silently absent field.
+  const ADJACENT_DIFF_CAP = 12;
+  for (let index = 1; index < codeStates.length; index += 1) {
+    const previous = codeStates[index - 1]!;
+    const current = codeStates[index]!;
+    if (index > ADJACENT_DIFF_CAP) {
+      current.changed_from_previous = {
+        unavailable: `not computed (beyond the ${ADJACENT_DIFF_CAP}-episode adjacent-diff cap; compare the trees directly)`,
+      };
+      continue;
+    }
+    const diff = git(projectRoot, ['diff', '--name-only', previous.tree, current.tree]);
+    if (diff === null) {
+      current.changed_from_previous = {
+        unavailable: 'git could not compare the snapshot trees (an object may be missing from this repository)',
+      };
+      continue;
+    }
+    const files = diff
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => line.length > 0)
+      .filter(line => !isTraceabilityArtifactPath(line))
+      .filter(line => !(line === '.nullius' || line.startsWith('.nullius/')));
+    const research = files.filter(line => !line.startsWith('artifacts/runs/') && !line.startsWith('team/runs/'));
+    current.changed_from_previous = {
+      total: research.length,
+      files: research.slice(0, 5),
+      run_artifact_changes: files.length - research.length,
+    };
+  }
+
+  // Slug stem families: display grouping of one-off exploratory slugs into
+  // concept families (first two words of the slug).
+  const SLUG_STEM_FROM_ID = /^(?:\d{8}(?:T\d{6}Z)?)[-_.](?:m\d+-)?(?:r\d+-)?(.+?)(?:-r\d+)?$/;
+  const familyStats = new Map<string, { runs: number; void: number; superseded: number }>();
+  for (const entry of directories) {
+    const slug = SLUG_STEM_FROM_ID.exec(entry.run_id)?.[1] ?? entry.run_id;
+    const family = slug.split('-').slice(0, 2).join('-');
+    const stats = familyStats.get(family) ?? { runs: 0, void: 0, superseded: 0 };
+    stats.runs += 1;
+    const validity = ledger.runs.get(entry.run_id)?.validity;
+    if (validity === 'void') stats.void += 1;
+    else if (validity === 'superseded') stats.superseded += 1;
+    familyStats.set(family, stats);
+  }
+  const slugFamilies = [...familyStats.entries()]
+    .map(([family, stats]) => ({ family, ...stats }))
+    .sort((a, b) => b.runs - a.runs || (a.family < b.family ? -1 : 1));
 
   const manuscript = readManuscriptPointer(projectRoot);
   // Reuse the ledger view built above — validate would otherwise reparse
@@ -493,6 +684,7 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
       is_repo: insideWorkTree,
       head,
       head_describe: headDescribe,
+      untracked_under_run_roots: untrackedUnderRunRoots,
       tracked_modified: trackedModified,
       untracked_count: untrackedCount,
       submodules_dirty: submodulesDirty,
@@ -508,6 +700,9 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
       superseded,
       voided,
       no_authoritative_identity: noIdentity,
+      code_states: codeStates,
+      code_states_excluded_inexact: codeStatesExcludedInexact,
+      slug_families: slugFamilies,
     },
     ledger: {
       exists: ledger.exists,
@@ -619,7 +814,12 @@ export function renderTraceabilityProse(view: TraceabilityView): string {
   } else {
     const dirtyBits: string[] = [];
     if (view.git.tracked_modified) dirtyBits.push(`${view.git.tracked_modified} tracked file(s) modified`);
-    if (view.git.untracked_count) dirtyBits.push(`${view.git.untracked_count} untracked file(s) pending a track-or-ignore decision`);
+    if (view.git.untracked_count) {
+      const runRootShare = view.git.untracked_under_run_roots
+        ? ` (${view.git.untracked_under_run_roots} of these under the run roots)`
+        : '';
+      dirtyBits.push(`${view.git.untracked_count} untracked file(s) pending a track-or-ignore decision${runRootShare}`);
+    }
     if (view.git.submodules_dirty) dirtyBits.push(`${view.git.submodules_dirty} submodule(s) with dirty contents`);
     lines.push(`HEAD is ${view.git.head_describe ?? view.git.head}${dirtyBits.length > 0 ? ` (${dirtyBits.join('; ')})` : ' (clean tracked tree)'}.`);
     lines.push(`Note: ${view.binding_caveat}.`);
@@ -671,6 +871,13 @@ export function renderTraceabilityProse(view: TraceabilityView): string {
         ? ' (aligned_heuristic and unbound never identify code exactly)'
         : ''}`);
   }
+  if (view.runs.slug_families.length > 1) {
+    const top = view.runs.slug_families.slice(0, 8)
+      .map(family => `${family.family} (${family.runs}${family.void > 0 ? `, ${family.void} void` : ''}${family.superseded > 0 ? `, ${family.superseded} superseded` : ''})`)
+      .join(', ');
+    lines.push(`- slug families (display grouping): ${top}`
+      + `${view.runs.slug_families.length > 8 ? `, … ${view.runs.slug_families.length - 8} more` : ''}`);
+  }
   for (const entry of view.runs.superseded.slice(0, 10)) {
     lines.push(`- superseded: ${entry.run_id}${entry.directory_missing ? ' [directory removed]' : ''}${entry.by ? ` → ${entry.by}` : ''}${entry.reason ? ` (${entry.reason})` : ''}`);
   }
@@ -698,6 +905,45 @@ export function renderTraceabilityProse(view: TraceabilityView): string {
       + `that no longer matches the authoritative ledger stamp: ${view.warnings.mirror_divergence.slice(0, 5).join(', ')}`
       + `${view.warnings.mirror_divergence.length > 5 ? ', …' : ''} — trust the ledger.`,
     );
+  }
+  if (view.runs.code_states.length > 0) {
+    lines.push('');
+    lines.push('## Code states');
+    const classifiedRuns = view.runs.code_states.reduce((sum, state) => sum + state.run_count, 0);
+    // Wording contract: "exact" is reserved for the two exact grades; a
+    // head_plus_untracked run's TRACKED tree is exactly known, which is
+    // what this grouping keys on — say that, never "exactly-stamped".
+    lines.push(
+      `${classifiedRuns} stamped run(s) with an exact tracked-tree identity span `
+      + `${view.runs.code_states.length} code-state episode(s) — consecutive captures on the same tracked `
+      + 'research tree form one episode (untracked deltas are not captured by the tree; see binding qualities)'
+      + `${view.runs.code_states_excluded_inexact > 0
+        ? `; ${view.runs.code_states_excluded_inexact} stamp(s) without an exact tree (aligned/unbound/degenerate) are not classified`
+        : ''}.`,
+    );
+    for (const state of view.runs.code_states.slice(0, 10)) {
+      const span = state.first_captured_at && state.last_captured_at && state.first_captured_at !== state.last_captured_at
+        ? `${state.first_captured_at} → ${state.last_captured_at}`
+        : state.first_captured_at ?? 'capture time unknown';
+      const runsPreview = state.run_ids.length <= 3
+        ? state.run_ids.join(', ')
+        : `${state.run_ids[0]} … ${state.run_ids[state.run_ids.length - 1]}`;
+      let changed = '';
+      if (state.changed_from_previous) {
+        if ('files' in state.changed_from_previous) {
+          const delta = state.changed_from_previous;
+          changed = `; vs previous: ${delta.total} research file(s) changed`
+            + `${delta.files.length > 0 ? ` (${delta.files.join(', ')}${delta.total > delta.files.length ? ', …' : ''})` : ''}`
+            + `${delta.run_artifact_changes > 0 ? ` [+${delta.run_artifact_changes} run-artifact change(s)]` : ''}`;
+        } else {
+          changed = `; vs previous: ${state.changed_from_previous.unavailable}`;
+        }
+      }
+      lines.push(`- tree ${state.tree.slice(0, 12)}${state.revisited ? ' (revisited)' : ''}${state.order_uncertain ? ' (order uncertain: boundary shares one capture time)' : ''} — ${state.run_count} run(s) [${runsPreview}], ${span}${changed}`);
+    }
+    if (view.runs.code_states.length > 10) {
+      lines.push(`- … ${view.runs.code_states.length - 10} more episode(s) (full list in --json runs.code_states)`);
+    }
   }
   lines.push('');
   return lines.join('\n');
