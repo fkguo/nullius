@@ -166,6 +166,23 @@ export function pinAttemptSnapshotRef(
   );
 }
 
+/** Compare-and-swap the per-attempt pin from one known sha to another.
+ *  Best-effort repair used when a retry reclaimed an observed pin and then
+ *  LOST its append — the displaced sha may be the one the winning event
+ *  references, so it is swapped back to keep that snapshot GC-protected.
+ *  Returns false when the ref no longer holds `fromSha` (someone else
+ *  moved it; leave it alone). */
+export function swapAttemptSnapshotRef(
+  projectRoot: string,
+  runId: string,
+  attemptOrdinal: number,
+  fromSha: string,
+  toSha: string,
+): boolean {
+  const ref = `${ATTEMPT_SNAPSHOT_REF_PREFIX}${sanitizeRunRefComponent(runId)}/${attemptOrdinal}`;
+  return git(projectRoot, ['update-ref', ref, toSha, fromSha], { allowFailure: true }) !== null;
+}
+
 /** Current object of the per-attempt pin, or null when the ref does not
  *  exist. Read-only; used by the retry entrance to detect a pin left by a
  *  crashed prior retry (a ref no ledger event references). */

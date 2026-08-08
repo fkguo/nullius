@@ -6,7 +6,7 @@ import type { RunOriginV1, ValidityEventV1 } from '@nullius/shared';
 import { mintUlid, ULID_PATTERN, writeBytesAtomicDurable } from '@nullius/shared';
 import { createHash } from 'node:crypto';
 import { appendValidityEvent, buildValidityEvent, readValidityLedger, type ValidityLedgerView } from './validity-ledger.js';
-import { captureRunOrigin, isTraceabilityArtifactPath, readAttemptSnapshotRef } from './run-origin.js';
+import { captureRunOrigin, isTraceabilityArtifactPath, readAttemptSnapshotRef, swapAttemptSnapshotRef } from './run-origin.js';
 import { validateResultRegistry } from './result-registry.js';
 import { refreshNotebookCurrentState } from './notebook-current-state.js';
 
@@ -737,7 +737,12 @@ function enumerateAttemptProducts(
     }
     for (const entry of entries) {
       const childRel = rel === '' ? entry.name : path.posix.join(rel, entry.name);
-      if (rel === '' && (entry.name === 'run_origin.json' || entry.name === 'attempts' || entry.name === 'manifest.json')) {
+      // Root-level bookkeeping is neither residue nor movable: the mirror,
+      // the attempt archives, a root-level manifest, and the A3 approval
+      // audit trail (approvals/ holds the packets pending approvals are
+      // read back from — archiving it would sever a pending approval).
+      if (rel === '' && (entry.name === 'run_origin.json' || entry.name === 'attempts'
+        || entry.name === 'manifest.json' || entry.name === 'approvals')) {
         continue;
       }
       if (inputs.has(childRel)) continue;
@@ -846,9 +851,15 @@ function moveTreeMerge(fromDir: string, toDir: string): number {
 function quarantineFailedAttempt(
   runDir: string,
   eventId: string,
+  closedOrdinal: number,
   movable: string[],
 ): { staging: string | null; moved: number } {
-  const stagingRel = path.join('attempts', `.staging-${eventId}`);
+  // The staging name carries the ordinal the products BELONG to, so a
+  // later recovery can decide their rightful place (the ordinal's
+  // canonical archive if someone else closed it, the live surface if the
+  // chain never moved) instead of blindly restoring attempt N's bytes
+  // onto a surface already bound to attempt N+1.
+  const stagingRel = path.join('attempts', `.staging-${eventId}-o${closedOrdinal}`);
   const stagingAbs = path.join(runDir, stagingRel);
   let moved = 0;
   for (const rel of movable) {
@@ -897,6 +908,18 @@ function restoreQuarantine(runDir: string, stagingRel: string): void {
  *  in flight) and recovers it. In-flight retries hold staging for seconds. */
 const STALE_STAGING_MS = 10 * 60_000;
 
+/** Parse a staging directory name: `.staging-<eventId>-o<ordinal>` (the
+ *  ordinal the staged products belong to), tolerating the earlier
+ *  ordinal-less form. Null for anything else. */
+function parseStagingName(name: string): { eventId: string; ordinal: number | null } | null {
+  if (!name.startsWith('.staging-')) return null;
+  const rest = name.slice('.staging-'.length);
+  const match = /^([0-9A-HJKMNP-TV-Z]{26})(?:-o([1-9]\d*))?$/.exec(rest);
+  if (!match) return null;
+  if (!ULID_PATTERN.test(match[1]!)) return null;
+  return { eventId: match[1]!, ordinal: match[2] ? Number(match[2]) : null };
+}
+
 /** Staging directories whose event id the ledger does NOT know: either a
  *  retry in flight right now or one that crashed inside the recovery
  *  window. Their contents are part of the surface being judged, so while
@@ -911,10 +934,9 @@ function listUnrecordedStagings(runDir: string, view: ValidityLedgerView): strin
   }
   const unrecorded: string[] = [];
   for (const name of entries) {
-    if (!name.startsWith('.staging-')) continue;
-    const stagedEventId = name.slice('.staging-'.length);
-    if (!ULID_PATTERN.test(stagedEventId)) continue;
-    if (!view.events.some(event => event.event_id === stagedEventId)) unrecorded.push(name);
+    const parsed = parseStagingName(name);
+    if (!parsed) continue;
+    if (!view.events.some(event => event.event_id === parsed.eventId)) unrecorded.push(name);
   }
   return unrecorded;
 }
@@ -933,29 +955,61 @@ function recoverOrphanStagings(runDir: string, view: ValidityLedgerView, runId: 
   } catch {
     return;
   }
+  const entry = view.runs.get(runId);
+  const closureOrdinals = new Set((entry?.attempts.closures ?? []).map(closure => closure.ordinal));
   for (const name of entries) {
-    if (!name.startsWith('.staging-')) continue;
-    const stagedEventId = name.slice('.staging-'.length);
-    if (!ULID_PATTERN.test(stagedEventId)) continue;
+    const parsed = parseStagingName(name);
+    if (!parsed) continue;
     const rel = path.join('attempts', name);
     try {
       if (Date.now() - fs.statSync(path.join(runDir, rel)).mtimeMs < STALE_STAGING_MS) continue;
     } catch {
       continue;
     }
-    const recorded = view.events.find(event => event.event_id === stagedEventId);
-    if (!recorded) {
-      restoreQuarantine(runDir, rel);
+    const recorded = view.events.find(event => event.event_id === parsed.eventId);
+    if (recorded) {
+      // Appended but never promoted: finish the promotion under the
+      // ordinal the EVENT says it closed.
+      if (recorded.event === 'attempt' && recorded.run_id === runId) {
+        const closes = (recorded as { attempt?: { closes_ordinal?: number } }).attempt?.closes_ordinal;
+        if (typeof closes === 'number') {
+          try {
+            promoteQuarantine(runDir, rel, closes);
+          } catch {
+            // stays visible under the staging name
+          }
+        }
+      }
       continue;
     }
-    if (recorded.event === 'attempt' && recorded.run_id === runId) {
-      const closes = (recorded as { attempt?: { closes_ordinal?: number } }).attempt?.closes_ordinal;
-      if (typeof closes === 'number') {
-        try {
-          promoteQuarantine(runDir, rel, closes);
-        } catch {
-          // stays visible under the staging name
-        }
+    // Unrecorded: the append never landed. The products belong to the
+    // ordinal the staging name carries — where they go depends on what the
+    // chain did since:
+    //  - that ordinal is CLOSED now (a sibling won) → they are that closed
+    //    attempt's residue; promote into its canonical archive. Restoring
+    //    them live would hand attempt N's bytes to attempt N+1's binding.
+    //  - the chain never moved (head still that ordinal, unclosed) → the
+    //    live surface is still theirs; restore for honest re-evidence.
+    //  - anything else (legacy nameless ordinal on an advanced chain,
+    //    inconsistent state) → park visibly under attempts/unattributed-*,
+    //    never guessed onto the live surface.
+    const ordinal = parsed.ordinal;
+    if (ordinal !== null && closureOrdinals.has(ordinal)) {
+      try {
+        promoteQuarantine(runDir, rel, ordinal);
+      } catch {
+        // stays visible under the staging name
+      }
+    } else if (
+      (ordinal !== null && entry?.attempts.latest_ordinal === ordinal)
+      || (ordinal === null && (entry?.attempts.latest_ordinal ?? 1) === 1 && closureOrdinals.size === 0)
+    ) {
+      restoreQuarantine(runDir, rel);
+    } else {
+      try {
+        fs.renameSync(path.join(runDir, rel), path.join(runDir, 'attempts', `unattributed-${parsed.eventId}`));
+      } catch {
+        // stays visible under the staging name
       }
     }
   }
@@ -1214,42 +1268,95 @@ export function openRetryAttempt(
     };
   }
 
+  // Bracket the evidence window: every reading above (product enumeration,
+  // status parse) is trusted ONLY if no sibling retry was mid-quarantine
+  // while we read. A sibling creates its staging directory before its
+  // first move, so any move that emptied the surface under us left its
+  // staging visible here — refusing now is what makes an empty-residue
+  // conclusion honest rather than a misread of a freshly emptied surface.
+  if (listUnrecordedStagings(runDir, view).length > 0) {
+    return {
+      kind: 'attempt_conflict',
+      runId,
+      message: `trace retry: a concurrent retry of ${runId} began quarantining while this one read the surface; `
+        + 're-read and retry from the new state',
+    };
+  }
+
   const eventId = options.eventId ?? mintUlid();
   // Stage the archive under this invocation's own name; the canonical
   // attempts/attempt-N destination is claimed only AFTER the append wins.
   let staging: string | null = null;
   let quarantinedTo: string | null = null;
   if (!options.recordOnly) {
-    const quarantine = quarantineFailedAttempt(runDir, eventId, products.movable);
+    const quarantine = quarantineFailedAttempt(runDir, eventId, closedOrdinal, products.movable);
     staging = quarantine.staging;
     if (quarantine.moved > 0) {
       evidence.quarantined_paths_count = quarantine.moved;
       quarantinedTo = path.join('attempts', `attempt-${closedOrdinal}`);
     }
   }
+  // Where OUR staged products go if this invocation does not win the
+  // append: they belong to `closedOrdinal`, so if someone else closed that
+  // ordinal meanwhile they go to its canonical archive (restoring them
+  // live would hand attempt N's bytes to attempt N+1's binding); if the
+  // chain never moved, the live surface is still theirs.
+  const rollbackStaging = (): void => {
+    if (!staging) return;
+    try {
+      const fresh = readValidityLedger(projectRoot).runs.get(runId);
+      const closedNow = fresh?.attempts.closures.some(closure => closure.ordinal === closedOrdinal) ?? false;
+      if (closedNow) promoteQuarantine(runDir, staging, closedOrdinal);
+      else restoreQuarantine(runDir, staging);
+    } catch {
+      // Leave staged; the age-gated recovery attributes it by its
+      // ordinal-carrying name.
+    }
+  };
 
   let origin: RunOriginV1 | null = null;
   let mirrorWritten = true;
   const mirrorPath = path.join(runDir, 'run_origin.json');
   const previousMirror = fs.existsSync(mirrorPath) ? fs.readFileSync(mirrorPath, 'utf-8') : null;
   let writtenMirrorBytes: string | null = null;
+  let reclaimedSha: string | null = null;
   if (!options.recordOnly) {
+    // A pin already sitting on the NEXT ordinal is normally the debris of
+    // a retry that crashed between pinning and appending. But "no ledger
+    // event references it" was proven by a view that has aged — a sibling
+    // may have pinned AND appended since. Re-read immediately before
+    // reclaiming: if the chain moved, this invocation lost and must not
+    // touch the ref (stealing a committed pin would leave the authoritative
+    // binding's snapshot unprotected).
+    const observedPin = readAttemptSnapshotRef(projectRoot, runId, closedOrdinal + 1);
+    if (observedPin !== null) {
+      const fresh = readValidityLedger(projectRoot).runs.get(runId);
+      const chainMoved = (fresh?.attempts.latest_ordinal ?? closedOrdinal) !== closedOrdinal
+        || (fresh?.attempts.closures.some(closure => closure.ordinal === closedOrdinal) ?? false);
+      if (chainMoved) {
+        rollbackStaging();
+        return {
+          kind: 'attempt_conflict',
+          runId,
+          message: `trace retry: a concurrent retry advanced ${runId}'s attempt chain first; re-read and retry from the new state`,
+        };
+      }
+    }
     try {
-      // A pin already sitting on the NEXT ordinal can only be the debris
-      // of a retry that crashed between pinning and appending — the chain
-      // head is still `closedOrdinal` (checked above), so no ledger event
-      // references that ref. Reclaim it by compare-and-swap; a concurrent
-      // pin between observation and swap fails closed into the hard error.
       origin = captureRunOrigin(projectRoot, runId, {
         deps: options.deps ?? {},
         eventId,
         attemptOrdinal: closedOrdinal + 1,
-        attemptPinReclaimSha: readAttemptSnapshotRef(projectRoot, runId, closedOrdinal + 1),
+        attemptPinReclaimSha: observedPin,
       });
+      const pinned = (origin as unknown as { snapshot_commit?: string }).snapshot_commit;
+      if (observedPin !== null && typeof pinned === 'string' && pinned !== observedPin) {
+        reclaimedSha = observedPin;
+      }
     } catch (error) {
       // The capture failed AFTER products moved into staging; put them
       // back — a throw must not strand the live surface in the archive.
-      if (staging) restoreQuarantine(runDir, staging);
+      rollbackStaging();
       throw error;
     }
     try {
@@ -1308,17 +1415,29 @@ export function openRetryAttempt(
     }
   };
 
+  // If this invocation reclaimed an observed pin and then LOST, the sha it
+  // displaced may be the one a winning sibling's event references — swap
+  // it back so the authoritative binding's snapshot stays GC-protected.
+  const rollbackReclaimedPin = (): void => {
+    if (reclaimedSha === null || origin === null) return;
+    const ours = (origin as unknown as { snapshot_commit?: string }).snapshot_commit;
+    if (typeof ours !== 'string') return;
+    swapAttemptSnapshotRef(projectRoot, runId, closedOrdinal + 1, ours, reclaimedSha);
+  };
+
   let appendOutcome;
   try {
     appendOutcome = appendValidityEvent(projectRoot, event, { onlyIfAttemptChainHead: true });
   } catch (error) {
-    if (staging) restoreQuarantine(runDir, staging);
+    rollbackStaging();
     rollbackMirror();
+    rollbackReclaimedPin();
     throw error;
   }
   if (appendOutcome === 'skipped_attempt_not_chain_head') {
-    if (staging) restoreQuarantine(runDir, staging);
+    rollbackStaging();
     rollbackMirror();
+    rollbackReclaimedPin();
     return {
       kind: 'attempt_conflict',
       runId,

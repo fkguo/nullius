@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { mintUlid } from '@nullius/shared';
 import { openRetryAttempt, stampRunDirectory } from '../src/run-stamp.js';
 import { appendValidityEvent, buildValidityEvent, readValidityLedger } from '../src/validity-ledger.js';
-import { setCurrentResult } from '../src/result-registry.js';
+import { setCurrentResult, validateResultRegistry } from '../src/result-registry.js';
 import { buildTraceabilityView } from '../src/traceability-view.js';
 import {
   cleanupRegisteredDirs,
@@ -586,6 +586,125 @@ describe('confirmation-round regressions (review r4)', () => {
     const result = openRetryAttempt(projectRoot, runDir, { actor: 'test' });
     expect(result.kind).toBe('rejected');
     if (result.kind === 'rejected') expect(result.message).toContain('COMPLETED');
+  });
+});
+
+describe('confirmation-round regressions (review r5)', () => {
+  it('a stale staging whose ordinal was closed by a sibling is PROMOTED to that archive, never restored live', () => {
+    const runId = 'run-promote-not-restore';
+    const { projectRoot, runDir } = makeStampedRun(runId);
+    const headSha = execFileSync('git', ['-C', projectRoot, 'rev-parse', 'HEAD'], { encoding: 'utf-8' }).trim();
+    const view0 = readValidityLedger(projectRoot);
+    const stampEventId = view0.events.find(event => event.event === 'stamp' && event.run_id === runId)!.event_id;
+    // A sibling retry closed ordinal 1 (missing) and opened ordinal 2 with
+    // an exact binding; OUR crashed invocation's staging (products of
+    // attempt 1) survived it.
+    appendValidityEvent(projectRoot, buildValidityEvent({
+      event: 'attempt', run_id: runId, actor: 'sibling', reason: 'sibling won the race',
+      attempt: {
+        closes_ordinal: 1,
+        previous_outcome: 'missing',
+        evidence: { method: 'outputs_scan', detail: 'surface empty at its read' },
+        quarantined_to: null,
+        supersedes_attempt_event: stampEventId,
+        origin: {
+          schema_id: 'run_origin_v1', event_id: mintUlid(), run_id: runId,
+          captured_at_utc: new Date().toISOString(), binding_quality: 'exact_clean',
+          baseline_commit: headSha,
+          dirty: { tracked_modified: 0, untracked_count: 0, untracked_sample: [] },
+          attempt_ordinal: 2,
+        },
+      },
+    } as never));
+    const staleRel = path.join('attempts', `.staging-${mintUlid()}-o1`);
+    fs.mkdirSync(path.join(runDir, staleRel, 'computation', 'outputs'), { recursive: true });
+    fs.writeFileSync(path.join(runDir, staleRel, 'computation', 'outputs', 'partial.tsv'), '1\n');
+    const stale = new Date(Date.now() - 30 * 60_000);
+    fs.utimesSync(path.join(runDir, staleRel), stale, stale);
+    // Attempt 2 then crashed with a status file on the live surface.
+    writeFailedStatus(runDir);
+
+    const result = openRetryAttempt(projectRoot, runDir, { actor: 'test' });
+    expect(result.kind).toBe('retried');
+    if (result.kind !== 'retried') return;
+    expect(result.closedOrdinal).toBe(2);
+    // The stale products landed in ATTEMPT 1's canonical archive — they
+    // never touched the live surface now bound to attempt 2+.
+    expect(fs.existsSync(path.join(runDir, 'attempts', 'attempt-1', 'computation', 'outputs', 'partial.tsv'))).toBe(true);
+    expect(fs.existsSync(path.join(runDir, 'computation', 'outputs', 'partial.tsv'))).toBe(false);
+    expect(fs.existsSync(path.join(runDir, staleRel))).toBe(false);
+  });
+
+  it('the A3 approvals audit trail survives quarantine', () => {
+    const runId = 'run-approvals-survive';
+    const { projectRoot, runDir } = makeStampedRun(runId);
+    fs.mkdirSync(path.join(runDir, 'approvals', 'A3-0001'), { recursive: true });
+    fs.writeFileSync(path.join(runDir, 'approvals', 'A3-0001', 'approval_packet_v1.json'), '{"gate_id":"A3"}\n');
+    writeFailedStatus(runDir);
+    const result = openRetryAttempt(projectRoot, runDir, { actor: 'test' });
+    expect(result.kind).toBe('retried');
+    expect(fs.existsSync(path.join(runDir, 'approvals', 'A3-0001', 'approval_packet_v1.json'))).toBe(true);
+  });
+
+  it('the registry READ side keeps saying what the write side refuses: a later resultless head marks the row', () => {
+    const runId = 'run-registry-readside';
+    const { projectRoot, runDir } = makeStampedRun(runId);
+    fs.writeFileSync(path.join(runDir, 'value.json'), '{"v": 1}\n');
+    fs.writeFileSync(path.join(projectRoot, 'project_index.md'), [
+      '# Index', '',
+      '<!-- RESULT_REGISTRY_START -->',
+      '| Result | Run | Artifact | SHA-256 | Supersedes | Superseded by |',
+      '| --- | --- | --- | --- | --- | --- |',
+      '<!-- RESULT_REGISTRY_END -->', '',
+    ].join('\n'));
+    setCurrentResult(projectRoot, { resultId: 'headline', runId, artifactRelPath: `artifacts/runs/${runId}/value.json` });
+    // Registered clean; NOW a record-only closure books the head attempt
+    // as resultless (e.g. a union merge landed it).
+    const view = readValidityLedger(projectRoot);
+    const stampEventId = view.events.find(event => event.event === 'stamp' && event.run_id === runId)!.event_id;
+    appendValidityEvent(projectRoot, buildValidityEvent({
+      event: 'attempt', run_id: runId, actor: 'test', reason: 'booked resultless after registration',
+      attempt: {
+        closes_ordinal: 1,
+        previous_outcome: 'declared_no_result',
+        evidence: { method: 'declared', detail: 'booked resultless after registration' },
+        quarantined_to: null,
+        supersedes_attempt_event: stampEventId,
+        origin: null,
+      },
+    } as never));
+    const validated = validateResultRegistry(projectRoot, readValidityLedger(projectRoot));
+    expect(validated.issues.some(entry => entry.code === 'result_run_latest_attempt_failed')).toBe(true);
+  });
+
+  it('a boundary that cannot RULE refuses the launch — never fail-open into execution', async () => {
+    const projectRoot = makeTmpDir();
+    registerCleanup(projectRoot);
+    initRepo(projectRoot);
+    const runId = 'run-boundary-throw';
+    const runDir = path.join(projectRoot, 'artifacts', 'runs', runId);
+    fs.mkdirSync(runDir, { recursive: true });
+    createPythonStep(runDir, 'scripts/ok.py', 'import sys\nsys.exit(3)\n');
+    const manifestPath = createManifest(runDir, {
+      schema_version: 1,
+      entry_point: { script: 'scripts/ok.py', tool: 'python' },
+      steps: [{ id: 's', tool: 'python', script: 'scripts/ok.py', expected_outputs: ['outputs/never.json'] }],
+      environment: { python_version: '3.11', platform: 'any' },
+      dependencies: {},
+    });
+    const manager = initRunState(projectRoot, runId);
+    markA3Satisfied(manager, 'A3-0001');
+    commitAll(projectRoot);
+    const first = await executeComputationManifest({ manifestPath, projectRoot, runDir, runId });
+    expect(first.status).toBe('failed');
+    // Change the tracked tree, then jam the ledger lock: the boundary
+    // cannot rule, so the relaunch must refuse rather than execute.
+    fs.writeFileSync(path.join(projectRoot, 'solver.py'), 'V = 2\n');
+    commitAll(projectRoot);
+    fs.mkdirSync(path.join(projectRoot, 'artifacts', 'runs', 'validity_ledger.jsonl.lock'), { recursive: true });
+    await expect(executeComputationManifest({ manifestPath, projectRoot, runDir, runId }))
+      .rejects.toThrow(/could not rule/);
+    fs.rmSync(path.join(projectRoot, 'artifacts', 'runs', 'validity_ledger.jsonl.lock'), { recursive: true, force: true });
   });
 });
 
