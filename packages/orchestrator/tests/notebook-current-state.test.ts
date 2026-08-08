@@ -206,6 +206,10 @@ describe('refresh + check', () => {
       [`\t<!-- state-digest: ${'a'.repeat(64)} -->`], // tab-indented digest line is code, not a machine block
       ['(', '### Interpretation', 'The extrapolation caveat is scientifically material.', ')'], // parenthesized smuggle with ### heading
       ['(' + 'x'.repeat(450) + ')'], // parenthetical over the byte cap
+      // missing-END topology: genuine digest first, researcher sections
+      // below (the real END was deleted; a leftover END closes the pair)
+      [`<!-- state-digest: ${'a'.repeat(64)} -->`, '**Current state (auto-maintained).** lead', '## Results', 'Six months of prose.'],
+      ['(Findings', '==='], // parenthetical smuggle via setext underline
     ]) {
       fs.writeFileSync(notebookPath(), [
         '# Memo',
@@ -226,6 +230,19 @@ describe('refresh + check', () => {
         if (line) expect(before).toContain(line);
       }
     }
+  });
+
+  it('an EMPTY interior self-heals: rewritable, not a permanent invisible blocker', () => {
+    fs.writeFileSync(notebookPath(), [
+      '# Memo', '',
+      CURRENT_STATE_START, CURRENT_STATE_END,
+      '', '## Results', 'Body.',
+    ].join('\n'));
+    expect(refreshNotebookCurrentState(projectRoot, { insertIfMissing: false }).action).toBe('rewritten');
+    expect(checkCurrentStateBlock(projectRoot, NO_REGISTRY).in_sync).toBe(true);
+    const text = fs.readFileSync(notebookPath(), 'utf-8');
+    expect(text).toContain('## Results');
+    expect(text).toContain('Body.');
   });
 
   it('nested garbage pairs are strays (no valid claim) and refresh refuses to write', () => {
