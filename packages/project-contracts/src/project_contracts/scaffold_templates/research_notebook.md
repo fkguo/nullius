@@ -3,6 +3,11 @@
 Project: <PROJECT_NAME>
 Last updated: <YYYY-MM-DD>
 
+<!-- NOTEBOOK_CURRENT_STATE_START -->
+(rendered by `nullius init` / `nullius notebook sync` — machine-maintained,
+never edited by hand)
+<!-- NOTEBOOK_CURRENT_STATE_END -->
+
 This file is the research memo: the one document a colleague in the field
 could read, without opening anything else in the repository, and come away
 with the project's complete current understanding — including every
@@ -30,7 +35,12 @@ Three disciplines keep it that way:
    the whole document is self-consistent again — as if writing the section
    fresh with today's knowledge. Never leave stage markers ("in the previous
    version...", "as of this week...") or patch-on-patch fragments; the
-   revision history is git's job.
+   revision history is git's job. This discipline is machine-visible:
+   `nullius status --json` / `nullius current` flag sections that read as a
+   run-ordered log (many one-run paragraphs in run order) and links to
+   superseded or void runs that stand as live-looking prose. Both signals
+   are advisory; a section that is deliberately a chronicle declares
+   `<!-- notebook-section-role: log -->` once and is exempt.
 3. **Complete but not cluttered.** Every load-bearing derivation appears in
    full (all steps a careful reader needs, with conventions stated), every
    trusted number appears with its uncertainty and provenance link — but
@@ -70,7 +80,10 @@ numbers/figures show, how they were validated (link the verification
 artifacts next to each trusted value), how they compare with prior work, and
 what scientific conclusions they do and do not support. Superseded results are
 removed, not struck through — if the change of value itself carries a
-lesson, one sentence with a link to the run record is enough.
+lesson, one sentence with a link to the run record is enough; say in that
+sentence that the run was superseded or voided (or link its replacement),
+so the dead link is visibly acknowledged rather than reading as a live
+result.
 
 ## Open questions and risks
 

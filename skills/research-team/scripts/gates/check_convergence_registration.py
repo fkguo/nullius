@@ -36,7 +36,15 @@ undeclared objects belong to `nullius current`, not to this fold):
   - every declared supersession must already be recorded on the validity
     ledger with the declared replacement;
   - every declared rewritten section must exist in the notebook and carry a
-    fresh written-against stamp (class current / current-modulo-untracked).
+    fresh written-against stamp (class current / current-modulo-untracked);
+  - a PRESENT notebook current-state block must be in sync with its
+    canonical render (a present block claims currency; an out-of-sync one
+    is a false claim — `nullius notebook sync` refreshes it). A MISSING
+    block claims nothing and is advisory territory, never a fold refusal;
+  - a declared rewritten section must carry zero unacknowledged links to
+    superseded/void runs (the read model accepts any acknowledgment
+    channel: a visible superseded/void word in the paragraph's section, a
+    link to the replacement run, or a declared log-role section).
 
 Scope limits (deliberate): this gate does not audit undeclared runs, does
 not enforce global ledger cleanliness, and does not re-check the cycle
@@ -264,6 +272,34 @@ def verify_against_view(decl: Declaration, view: dict) -> list[str]:
                     f"declared rewritten section {heading!r} is {entry.get('class')!r} "
                     f"({entry.get('cause')}){duplicate_note}; a rewrite carries a fresh "
                     "`<!-- written-against: <commit> -->` stamp"
+                )
+
+    # Current-state block: only a PRESENT block claims currency. Views from
+    # launchers predating the block report no field and add no clause.
+    block = notebook.get("current_state_block") or {}
+    if block.get("duplicated_markers"):
+        failures.append(
+            "the notebook current-state block has duplicated markers — repair by hand, "
+            "then `nullius notebook sync`"
+        )
+    elif block.get("block_found") and block.get("in_sync") is False:
+        failures.append(
+            f"the notebook current-state block is OUT OF SYNC ({block.get('reason')}); "
+            "a present block claims currency — run `nullius notebook sync` before folding"
+        )
+
+    # Dead citations: zero-threshold, but ONLY inside sections this fold
+    # declares rewritten — historical prose elsewhere stays advisory.
+    declared_headings = set(decl.rewritten)
+    if declared_headings:
+        run_links = notebook.get("run_links") or {}
+        for entry in run_links.get("unacknowledged_dead") or []:
+            if entry.get("section") in declared_headings:
+                failures.append(
+                    f"declared rewritten section {entry.get('section')!r} still cites "
+                    f"{entry.get('run_id')} ({entry.get('validity')}) as live-looking prose; "
+                    "acknowledge it in place (say superseded/void or link the replacement run), "
+                    "or remove the link"
                 )
     return failures
 

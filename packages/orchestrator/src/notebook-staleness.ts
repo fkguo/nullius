@@ -83,6 +83,40 @@ function isAncestor(projectRoot: string, ancestor: string, descendant: string): 
   }
 }
 
+export type NotebookSection = { heading: string; body: string[] };
+
+/** The ONE notebook section parser, shared by the staleness classifier and
+ *  the run-link/drift analyzer so the two can never disagree about section
+ *  boundaries. Content before the first `##` is front matter and excluded.
+ *  Fence-aware: a `## ...` line INSIDE a fenced code block is content, not a
+ *  section heading, and fenced lines stay OUT of the returned bodies — a
+ *  fenced example must not smuggle stamps or citations into classification.
+ *  (An unclosed fence extends to EOF — CommonMark semantics — so everything
+ *  after it is fenced content.) */
+export function splitNotebookSections(text: string): NotebookSection[] {
+  const lines = text.split('\n');
+  const sections: NotebookSection[] = [];
+  let currentSection: NotebookSection | null = null;
+  let inFence = false;
+  for (const line of lines) {
+    if (/^\s*(```|~~~)/.test(line)) {
+      inFence = !inFence;
+      continue;
+    }
+    if (inFence) {
+      continue;
+    }
+    if (/^##\s+/.test(line)) {
+      if (currentSection) sections.push(currentSection);
+      currentSection = { heading: line.replace(/^##\s+/, '').trim(), body: [] };
+    } else if (currentSection) {
+      currentSection.body.push(line);
+    }
+  }
+  if (currentSection) sections.push(currentSection);
+  return sections;
+}
+
 export function checkNotebookStaleness(
   projectRoot: string,
   ledgerView?: ValidityLedgerView,
@@ -135,32 +169,7 @@ export function checkNotebookStaleness(
   // Split the notebook into ## sections (content before the first ## is
   // front matter and not classified).
   const text = fs.readFileSync(notebookPath, 'utf-8');
-  const lines = text.split('\n');
-  const sections: Array<{ heading: string; body: string[] }> = [];
-  let currentSection: { heading: string; body: string[] } | null = null;
-  // Fence-aware: a `## ...` line INSIDE a fenced code block is content, not
-  // a section heading — treating it as one would let fenced examples smuggle
-  // stamps and citations into the classification.
-  let inFence = false;
-  for (const line of lines) {
-    if (/^\s*(```|~~~)/.test(line)) {
-      inFence = !inFence;
-      continue; // fence delimiters and fenced content stay OUT of the
-      // matching body: a fenced example must not smuggle stamps or
-      // citations into classification. (An unclosed fence extends to EOF —
-      // CommonMark semantics — so everything after it is fenced content.)
-    }
-    if (inFence) {
-      continue;
-    }
-    if (/^##\s+/.test(line)) {
-      if (currentSection) sections.push(currentSection);
-      currentSection = { heading: line.replace(/^##\s+/, '').trim(), body: [] };
-    } else if (currentSection) {
-      currentSection.body.push(line);
-    }
-  }
-  if (currentSection) sections.push(currentSection);
+  const sections = splitNotebookSections(text);
 
   for (const section of sections) {
     const body = section.body.join('\n');
