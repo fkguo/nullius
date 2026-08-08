@@ -190,6 +190,21 @@ function validateLedgerEvent(value: Record<string, unknown>): boolean {
       return false;
     }
   }
+  if (value.event === 'attempt') {
+    const record = value.attempt as Record<string, unknown> | undefined;
+    const origin = record?.origin as Record<string, unknown> | null | undefined;
+    if (origin) {
+      // Same ABOUT-relation as stamps: an embedded origin must belong to
+      // the run the event names, its capture time must parse, and its
+      // ordinal must be exactly the closed ordinal plus one — a payload
+      // rebinding another run's code (or teleporting ordinals) is refused
+      // at the writer, not merely quarantined by readers.
+      if (origin.run_id !== value.run_id) return false;
+      if (!TS_UTC_PATTERN.test(String(origin.captured_at_utc))) return false;
+      const closes = record?.closes_ordinal;
+      if (typeof closes !== 'number' || origin.attempt_ordinal !== closes + 1) return false;
+    }
+  }
   return true;
 }
 
@@ -398,7 +413,14 @@ export function readValidityLedger(projectRoot: string): ValidityLedgerView {
         }
         if (record.origin) {
           const openedOrdinal = (record.origin as { attempt_ordinal?: number }).attempt_ordinal ?? null;
-          if (openedOrdinal !== record.closes_ordinal + 1) {
+          const originRunId = (record.origin as { run_id?: string }).run_id ?? null;
+          if (openedOrdinal !== record.closes_ordinal + 1
+            || originRunId !== event.run_id
+            // A retry always knows what it closes: the initial stamp for
+            // ordinal 1, the opening attempt event otherwise. A null
+            // predecessor on an OPENING closure is a forged or hand-built
+            // line — conservative defect, binding never promoted.
+            || record.supersedes_attempt_event === null) {
             entry.attempts.chain_defect = true;
           } else {
             recordBinding(entry, openedOrdinal, record.origin);
