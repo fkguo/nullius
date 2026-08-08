@@ -76,7 +76,48 @@ describe('code states from recorded snapshot trees', () => {
 
     const prose = renderTraceabilityProse(view);
     expect(prose).toContain('## Code states');
-    expect(prose).toContain('3 exactly-stamped run(s) span 2 code state(s)');
+    // "exact" stays reserved for the exact grades; the grouping speaks of
+    // the tracked-tree identity (head_plus_untracked runs belong — their
+    // TRACKED tree is exactly known).
+    expect(prose).toContain('3 stamped run(s) with an exact tracked-tree identity span 2 code-state episode(s)');
+    expect(prose).not.toContain('exactly-stamped');
+  });
+
+  it('a returned-to tree forms a NEW revisited episode with the return transition visible', () => {
+    git('init', '-q');
+    git('config', 'user.email', 't@example.com');
+    git('config', 'user.name', 'T');
+    fs.writeFileSync(path.join(projectRoot, '.gitignore'), 'artifacts/\n');
+    fs.writeFileSync(path.join(projectRoot, 'solver.py'), 'VERSION = 1\n');
+    git('add', '-A');
+    git('commit', '-q', '-m', 'c1');
+
+    stampNow('20260808-m1-r001-alpha-probe', '2026-08-08T10:00:00.000Z');
+    fs.writeFileSync(path.join(projectRoot, 'solver.py'), 'VERSION = 2\n');
+    stampNow('20260808-m1-r002-beta-scan', '2026-08-08T11:00:00.000Z');
+    // The session REVERTS the edit and runs again on the original tree.
+    fs.writeFileSync(path.join(projectRoot, 'solver.py'), 'VERSION = 1\n');
+    const solver = path.join(projectRoot, 'solver.py');
+    const future = new Date(Date.now() + 2000);
+    fs.utimesSync(solver, future, future);
+    stampNow('20260808-m1-r003-alpha-return', '2026-08-08T12:00:00.000Z');
+
+    const view = buildTraceabilityView(projectRoot);
+
+    // A → B → A is THREE episodes, not two cohorts: folding the return
+    // into the first occurrence would erase the B→A transition.
+    expect(view.runs.code_states).toHaveLength(3);
+    expect(view.runs.code_states[0]!.run_ids).toEqual(['20260808-m1-r001-alpha-probe']);
+    expect(view.runs.code_states[1]!.run_ids).toEqual(['20260808-m1-r002-beta-scan']);
+    expect(view.runs.code_states[2]!.run_ids).toEqual(['20260808-m1-r003-alpha-return']);
+    expect(view.runs.code_states[0]!.tree).toBe(view.runs.code_states[2]!.tree);
+    expect(view.runs.code_states[2]!.revisited).toBe(true);
+    const returnDiff = view.runs.code_states[2]!.changed_from_previous!;
+    if (!('files' in returnDiff)) throw new Error('return diff unavailable');
+    expect(returnDiff.files).toEqual(['solver.py']);
+
+    const prose = renderTraceabilityProse(view);
+    expect(prose).toContain('(revisited)');
   });
 
   it('folds tracked run-artifact churn out of the research diff (projects that commit their runs)', () => {
@@ -192,5 +233,37 @@ describe('slug families display grouping', () => {
 
     const prose = renderTraceabilityProse(view);
     expect(prose).toContain('slug families (display grouping): branch-bypass (3, 1 void), root-locus (2)');
+  });
+});
+
+describe('adjacent-diff computation cap', () => {
+  it('episodes beyond the cap carry an explicit not-computed marker, never a silently absent diff', () => {
+    git('init', '-q');
+    git('config', 'user.email', 't@example.com');
+    git('config', 'user.name', 'T');
+    fs.writeFileSync(path.join(projectRoot, '.gitignore'), 'artifacts/\n');
+    fs.writeFileSync(path.join(projectRoot, 'solver.py'), 'V = 0\n');
+    git('add', '-A');
+    git('commit', '-q', '-m', 'c');
+    // 15 distinct trees → 15 episodes → adjacent pairs beyond the cap of 12.
+    for (let index = 1; index <= 15; index += 1) {
+      fs.writeFileSync(path.join(projectRoot, 'solver.py'), `V = ${index}\n`);
+      stampNow(
+        `20260808-m1-r${String(index).padStart(3, '0')}-step-${index}`,
+        `2026-08-08T10:${String(index).padStart(2, '0')}:00.000Z`,
+      );
+    }
+
+    const view = buildTraceabilityView(projectRoot);
+    expect(view.runs.code_states).toHaveLength(15);
+    const within = view.runs.code_states[12]!.changed_from_previous!;
+    expect('files' in within).toBe(true);
+    const beyond = view.runs.code_states[13]!.changed_from_previous!;
+    if ('files' in beyond) throw new Error('expected the beyond-cap episode to carry a not-computed marker');
+    expect(beyond.unavailable).toContain('not computed');
+    // Every episode past the first says SOMETHING about its predecessor.
+    for (const state of view.runs.code_states.slice(1)) {
+      expect(state.changed_from_previous).toBeDefined();
+    }
   });
 });

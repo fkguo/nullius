@@ -60,6 +60,15 @@ export function stampComputationLaunch(projectRoot: string, runDir: string): Exe
             detail: 'an origin stamp for this run already binds the same tracked code tree; not re-stamped',
           };
         }
+        if (graded.grade === 'untracked_delta') {
+          return {
+            status: 'stale_stamp',
+            detail: `the recorded stamp claims ${graded.bindingQuality}, but ${graded.signalUntracked} `
+              + 'new untracked path(s) bearing on this run have appeared since (its own directory or outside '
+              + 'the run roots); the recorded exactness no longer describes what this relaunch executes. '
+              + 'Commit the new files or use a fresh run id.',
+          };
+        }
         return {
           status: 'stale_stamp',
           detail: 'this run already carries an origin stamp bound to a DIFFERENT tracked code tree; '

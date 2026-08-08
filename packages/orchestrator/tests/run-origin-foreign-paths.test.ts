@@ -5,10 +5,11 @@ import * as path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { captureRunOrigin, isForeignRunPath } from '../src/run-origin.js';
 
-/** Untracked demotion counts only what bears on THIS run's code identity:
- *  other runs' accumulated artifacts are foreign noise (the measured
- *  91-run chain demoted every stamp on its predecessors' outputs); the
- *  run's OWN uncommitted scripts remain a real, reported uncertainty. */
+/** Foreign-run untracked paths (other runs' accumulated artifacts) are
+ *  SPLIT OUT for reporting — never excluded from the count or the honesty
+ *  grade: a foreign run directory can hold uncommitted executable files
+ *  this run imports, and no machine test proves it does not. Over-counting
+ *  is a conservative label; under-counting would be a false exact claim. */
 
 let projectRoot: string;
 
@@ -40,11 +41,14 @@ describe('isForeignRunPath', () => {
     expect(isForeignRunPath('src/analysis.py', 'run-mine')).toBe(false);
     // A file directly ON the root is not inside any run directory.
     expect(isForeignRunPath('artifacts/runs/stray-file.txt', 'run-mine')).toBe(false);
+    // Literal backslashes in a POSIX path are ordinary characters, not
+    // separators: this is one root-level file, not a nested foreign path.
+    expect(isForeignRunPath(String.raw`artifacts/runs/weird\name`, 'run-mine')).toBe(false);
   });
 });
 
 describe('captureRunOrigin with foreign run artifacts on disk', () => {
-  it('other runs\' outputs do not demote this run; its own uncommitted script still does', () => {
+  it('foreign artifacts stay in the count and the grade, split out and sampled last', () => {
     initRepoWithCommit();
     // Accumulated outputs of two EARLIER runs (untracked).
     for (const other of ['run-a', 'run-b']) {
@@ -52,37 +56,56 @@ describe('captureRunOrigin with foreign run artifacts on disk', () => {
       fs.mkdirSync(dir, { recursive: true });
       fs.writeFileSync(path.join(dir, 'result.json'), '{}');
     }
-
-    const clean = captureRunOrigin(projectRoot, 'run-now', { pin: false });
-    expect(clean.binding_quality).toBe('exact_clean');
-    expect((clean as unknown as { dirty: { untracked_count: number } }).dirty.untracked_count).toBe(0);
-
-    // The run's OWN uncommitted script is a real code-identity uncertainty.
+    // The run's own uncommitted script — the signal path.
     const ownDir = path.join(projectRoot, 'artifacts', 'runs', 'run-now', 'computation', 'scripts');
     fs.mkdirSync(ownDir, { recursive: true });
     fs.writeFileSync(path.join(ownDir, 'compute.py'), 'y = 2\n');
 
-    const own = captureRunOrigin(projectRoot, 'run-now', { pin: false });
-    expect(own.binding_quality).toBe('head_plus_untracked');
-    const dirty = (own as unknown as { dirty: { untracked_count: number; untracked_sample: string[] } }).dirty;
-    expect(dirty.untracked_count).toBe(1);
+    const origin = captureRunOrigin(projectRoot, 'run-now', { pin: false });
+    // Conservative grade over the FULL set — foreign artifacts included.
+    expect(origin.binding_quality).toBe('head_plus_untracked');
+    const dirty = (origin as unknown as {
+      dirty: { untracked_count: number; foreign_run_untracked?: number; untracked_sample: string[] };
+    }).dirty;
+    expect(dirty.untracked_count).toBe(3);
+    expect(dirty.foreign_run_untracked).toBe(2);
+    // The sample leads with the path that bears on THIS run's code identity.
     expect(dirty.untracked_sample[0]).toContain('run-now');
   });
 
-  it('an untracked file outside every run root still demotes', () => {
+  it('only foreign artifacts: grade still demotes (an imported foreign script cannot be ruled out)', () => {
+    initRepoWithCommit();
+    const dir = path.join(projectRoot, 'artifacts', 'runs', 'run-a', 'scripts');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'helper.py'), 'h = 1\n');
+
+    const origin = captureRunOrigin(projectRoot, 'run-now', { pin: false });
+    expect(origin.binding_quality).toBe('head_plus_untracked');
+    const dirty = (origin as unknown as { dirty: { untracked_count: number; foreign_run_untracked?: number } }).dirty;
+    expect(dirty.untracked_count).toBe(1);
+    expect(dirty.foreign_run_untracked).toBe(1);
+  });
+
+  it('an untracked file outside every run root still demotes and is not counted foreign', () => {
     initRepoWithCommit();
     fs.writeFileSync(path.join(projectRoot, 'new-model.py'), 'z = 3\n');
     const origin = captureRunOrigin(projectRoot, 'run-now', { pin: false });
     expect(origin.binding_quality).toBe('head_plus_untracked');
+    const dirty = (origin as unknown as { dirty: { foreign_run_untracked?: number } }).dirty;
+    expect(dirty.foreign_run_untracked).toBeUndefined();
   });
 
   it('a byte-identical revert still stamps exact_clean (stat-dirty index must not break the capture)', () => {
     initRepoWithCommit();
-    // Edit, then revert to the committed bytes: the index is stat-dirty
-    // while the content is clean — `git stash create` exits nonzero on its
-    // first call in that state unless the stat cache is refreshed first.
-    fs.writeFileSync(path.join(projectRoot, 'solver.py'), 'x = 2\n');
-    fs.writeFileSync(path.join(projectRoot, 'solver.py'), 'x = 1\n');
+    // Edit, then revert to the committed bytes; force the mtime FORWARD so
+    // the index is deterministically stat-dirty (same-second writes often
+    // fall inside git's racy-clean handling and would make this lock
+    // probabilistic — measured 39/40 survival without the forced mtime).
+    const solver = path.join(projectRoot, 'solver.py');
+    fs.writeFileSync(solver, 'x = 2\n');
+    fs.writeFileSync(solver, 'x = 1\n');
+    const future = new Date(Date.now() + 2000);
+    fs.utimesSync(solver, future, future);
     const origin = captureRunOrigin(projectRoot, 'run-after-revert', { pin: false });
     expect(origin.binding_quality).toBe('exact_clean');
   });

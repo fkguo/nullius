@@ -43,16 +43,17 @@ export function isTraceabilityArtifactPath(relativePath: string): boolean {
     && (normalized.startsWith('artifacts/runs/') || normalized.startsWith('team/runs/'));
 }
 
-/** Paths inside ANOTHER run's directory under either run root. Excluded
- *  from untracked-noise counting when stamping THIS run: accumulated
- *  outputs of earlier runs say nothing about what code the current run
- *  executes, and counting them demotes every later stamp in a working
- *  session for foreign noise (measured: a 91-run exploratory chain where
- *  every stamp degraded on the previous runs' artifacts). The run's OWN
- *  directory is deliberately NOT excluded — its uncommitted scripts and
- *  manifest are exactly the code-identity uncertainty the grade must
- *  keep reporting. Files sitting directly ON a run root (not inside a run
- *  directory) stay counted too. */
+/** Paths inside ANOTHER run's directory under either run root. Counted
+ *  SEPARATELY (dirty.foreign_run_untracked) so a reader can see how much
+ *  of the untracked total is other runs' accumulation (measured: a 91-run
+ *  exploratory chain where the untracked count was dominated by earlier
+ *  runs' artifacts) — but NEVER excluded from the honesty grade or the
+ *  total: a foreign run directory can hold uncommitted EXECUTABLE files
+ *  this run imports, and no machine test can prove it does not, so
+ *  removing them from the grade would manufacture a false exact claim.
+ *  The asymmetry decides it: over-counting is a conservative label,
+ *  under-counting is a false exactness. Files directly ON a run root and
+ *  everything in the run's OWN directory are not foreign. */
 export function isForeignRunPath(relativePath: string, runId: string): boolean {
   const normalized = relativePath.split(path.sep).join('/');
   for (const root of ['artifacts/runs/', 'team/runs/']) {
@@ -148,11 +149,14 @@ export type CaptureRunOriginOptions = {
    *  logical stamp). */
   eventId?: string;
   /** When false, capture WITHOUT pinning the snapshot at
-   *  refs/nullius/runs/<run-id> — a read-only identity probe (the stash
-   *  object stays an unreferenced dangling commit for git to collect). Used
-   *  to compare the current tree against an already-recorded stamp before
-   *  deciding whether a new ledger event is warranted. Default true: a
-   *  recorded stamp must always pin what it describes. */
+   *  refs/nullius/runs/<run-id> — an identity probe that creates no ref
+   *  (the stash object stays an unreferenced dangling commit for git to
+   *  collect). Not byte-for-byte read-only: every capture, probe included,
+   *  refreshes the git stat cache first (an index write with no content
+   *  effect — see the stat-dirty note below) and creates dangling objects.
+   *  Used to compare the current tree against an already-recorded stamp
+   *  before deciding whether a new ledger event is warranted. Default
+   *  true: a recorded stamp must always pin what it describes. */
   pin?: boolean;
 };
 
@@ -232,9 +236,13 @@ export function captureRunOrigin(
   const untracked = untrackedOutput
     .split('\n')
     .filter(line => line.trim().length > 0)
-    .filter(line => !isTraceabilityArtifactPath(line))
-    // Other runs' accumulated artifacts are not THIS run's code delta.
-    .filter(line => !isForeignRunPath(line, runId));
+    .filter(line => !isTraceabilityArtifactPath(line));
+  // Split for REPORTING only: the count and the grade stay conservative
+  // over the full set (see isForeignRunPath); the sample leads with the
+  // paths that actually bear on this run's code identity.
+  const signalUntracked = untracked.filter(line => !isForeignRunPath(line, runId));
+  const foreignUntrackedCount = untracked.length - signalUntracked.length;
+  const sampleOrdered = [...signalUntracked, ...untracked.filter(line => isForeignRunPath(line, runId))];
 
   // Dirty submodule CONTENTS (gitlink unchanged, inner tree dirty) are the
   // one tracked-side change the snapshot cannot carry; count them so the
@@ -253,7 +261,8 @@ export function captureRunOrigin(
   const dirty = {
     tracked_modified: trackedModified,
     untracked_count: untracked.length,
-    ...(untracked.length > 0 ? { untracked_sample: untracked.slice(0, 20) } : {}),
+    ...(untracked.length > 0 ? { untracked_sample: sampleOrdered.slice(0, 20) } : {}),
+    ...(foreignUntrackedCount > 0 ? { foreign_run_untracked: foreignUntrackedCount } : {}),
     ...(submodulesDirty > 0 ? { submodules_dirty: submodulesDirty } : {}),
   };
 

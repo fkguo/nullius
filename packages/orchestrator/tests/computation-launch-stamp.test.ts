@@ -359,3 +359,45 @@ describe('confirmation-round regressions (review r2)', () => {
     expect(mirrorRollbackAction(null, 'ours', 'previous')).toBe('leave');
   });
 });
+
+describe('re-entry untracked-delta grading (review r1 of the version batch)', () => {
+  it('an exact stamp followed by a NEW project-level script refuses re-entry; execution metabolism does not', async () => {
+    const projectRoot = makeTmpDir();
+    registerCleanup(projectRoot);
+    initRepo(projectRoot);
+    const runId = 'run-delta-guard';
+    const { runDir, manifestPath } = setupStampableRun(projectRoot, runId);
+    commitAll(projectRoot);
+
+    const first = await executeComputationManifest({ manifestPath, projectRoot, runDir, runId });
+    expect((first as { origin_stamp?: { status: string } }).origin_stamp?.status).toBe('stamped');
+
+    // Execution metabolism alone (outputs, status files, logs written by
+    // the first run) must NOT trip the delta guard: same tree relaunch
+    // stays a benign no-op.
+    const second = await executeComputationManifest({ manifestPath, projectRoot, runDir, runId });
+    expect((second as { origin_stamp?: { status: string } }).origin_stamp?.status).toBe('already_stamped');
+
+    // A new UNTRACKED project-level script is a code-bearing delta: the
+    // recorded exact grade no longer describes what a relaunch executes.
+    fs.writeFileSync(path.join(projectRoot, 'new_helper.py'), 'h = 1\n');
+    const third = await executeComputationManifest({ manifestPath, projectRoot, runDir, runId });
+    const stamp = (third as { origin_stamp?: { status: string; detail?: string } }).origin_stamp;
+    expect(stamp?.status).toBe('stale_stamp');
+    expect(stamp?.detail).toContain('untracked path(s)');
+    expect(stamp?.detail).toContain('Commit the new files or use a fresh run id');
+    // Nothing was appended in any of this.
+    expect(ledgerStampEvents(projectRoot, runId)).toHaveLength(1);
+
+    // The manual CLI verb refuses identically.
+    const io = { out: [] as string[], err: [] as string[] };
+    const cliIo = { cwd: projectRoot, stdout: (t: string) => io.out.push(t), stderr: (t: string) => io.err.push(t) };
+    const code = runTraceCommand(projectRoot, {
+      action: 'stamp' as const,
+      target: path.join('artifacts', 'runs', runId),
+      by: null, reason: null, scope: null, actor: 't', eventId: null, deps: {},
+    }, cliIo);
+    expect(code).toBe(1);
+    expect(io.err.join('')).toContain('no longer describes the tree');
+  });
+});
