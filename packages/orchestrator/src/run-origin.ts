@@ -43,6 +43,30 @@ export function isTraceabilityArtifactPath(relativePath: string): boolean {
     && (normalized.startsWith('artifacts/runs/') || normalized.startsWith('team/runs/'));
 }
 
+/** Paths inside ANOTHER run's directory under either run root. Counted
+ *  SEPARATELY (dirty.foreign_run_untracked) so a reader can see how much
+ *  of the untracked total is other runs' accumulation (measured: a 91-run
+ *  exploratory chain where the untracked count was dominated by earlier
+ *  runs' artifacts) — but NEVER excluded from the honesty grade or the
+ *  total: a foreign run directory can hold uncommitted EXECUTABLE files
+ *  this run imports, and no machine test can prove it does not, so
+ *  removing them from the grade would manufacture a false exact claim.
+ *  The asymmetry decides it: over-counting is a conservative label,
+ *  under-counting is a false exactness. Files directly ON a run root and
+ *  everything in the run's OWN directory are not foreign. */
+export function isForeignRunPath(relativePath: string, runId: string): boolean {
+  const normalized = relativePath.split(path.sep).join('/');
+  for (const root of ['artifacts/runs/', 'team/runs/']) {
+    if (!normalized.startsWith(root)) continue;
+    const remainder = normalized.slice(root.length);
+    const firstSegment = remainder.split('/', 1)[0] ?? '';
+    // A first segment with no trailing path is a file on the root itself.
+    if (!remainder.includes('/')) return false;
+    return firstSegment !== runId;
+  }
+  return false;
+}
+
 function git(projectRoot: string, args: string[], options: { allowFailure?: boolean } = {}): string | null {
   try {
     return execFileSync(
@@ -125,11 +149,14 @@ export type CaptureRunOriginOptions = {
    *  logical stamp). */
   eventId?: string;
   /** When false, capture WITHOUT pinning the snapshot at
-   *  refs/nullius/runs/<run-id> — a read-only identity probe (the stash
-   *  object stays an unreferenced dangling commit for git to collect). Used
-   *  to compare the current tree against an already-recorded stamp before
-   *  deciding whether a new ledger event is warranted. Default true: a
-   *  recorded stamp must always pin what it describes. */
+   *  refs/nullius/runs/<run-id> — an identity probe that creates no ref
+   *  (the stash object stays an unreferenced dangling commit for git to
+   *  collect). Not byte-for-byte read-only: every capture, probe included,
+   *  refreshes the git stat cache first (an index write with no content
+   *  effect — see the stat-dirty note below) and creates dangling objects.
+   *  Used to compare the current tree against an already-recorded stamp
+   *  before deciding whether a new ledger event is warranted. Default
+   *  true: a recorded stamp must always pin what it describes. */
   pin?: boolean;
 };
 
@@ -173,6 +200,14 @@ export function captureRunOrigin(
 
   // Snapshot FIRST, then derive the tracked-modification count from the
   // snapshot object itself — no window between inspect and snapshot.
+  // Stat-cache refresh precedes the snapshot: after an edit is REVERTED
+  // byte-identically (a routine agent motion), the index is stat-dirty
+  // while the content is clean, and `git stash create` exits nonzero on
+  // its FIRST invocation in that state — which would misread an ordinary
+  // tree as a broken measurement. The refresh's own exit code carries no
+  // information here (nonzero merely means real modifications exist),
+  // hence allowFailure.
+  git(projectRoot, ['update-index', '-q', '--refresh'], { allowFailure: true });
   // NOT allowFailure: a failing `stash create` must throw, because mapping a
   // failure onto the same null as a legitimately clean tree would grade a
   // broken measurement `exact_clean` — the one direction the honesty ladder
@@ -202,6 +237,12 @@ export function captureRunOrigin(
     .split('\n')
     .filter(line => line.trim().length > 0)
     .filter(line => !isTraceabilityArtifactPath(line));
+  // Split for REPORTING only: the count and the grade stay conservative
+  // over the full set (see isForeignRunPath); the sample leads with the
+  // paths that actually bear on this run's code identity.
+  const signalUntracked = untracked.filter(line => !isForeignRunPath(line, runId));
+  const foreignUntrackedCount = untracked.length - signalUntracked.length;
+  const sampleOrdered = [...signalUntracked, ...untracked.filter(line => isForeignRunPath(line, runId))];
 
   // Dirty submodule CONTENTS (gitlink unchanged, inner tree dirty) are the
   // one tracked-side change the snapshot cannot carry; count them so the
@@ -220,7 +261,8 @@ export function captureRunOrigin(
   const dirty = {
     tracked_modified: trackedModified,
     untracked_count: untracked.length,
-    ...(untracked.length > 0 ? { untracked_sample: untracked.slice(0, 20) } : {}),
+    ...(untracked.length > 0 ? { untracked_sample: sampleOrdered.slice(0, 20) } : {}),
+    ...(foreignUntrackedCount > 0 ? { foreign_run_untracked: foreignUntrackedCount } : {}),
     ...(submodulesDirty > 0 ? { submodules_dirty: submodulesDirty } : {}),
   };
 

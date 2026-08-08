@@ -253,6 +253,10 @@ export interface RunOriginV1 {
           string,
         ];
     /**
+     * Of untracked_count, how many paths sit inside ANOTHER run's directory under a run root (accumulated outputs of earlier runs). Reporting split only: these paths remain in untracked_count and in the honesty grade — a foreign run directory can hold uncommitted executable files this run imports, so excluding them would manufacture a false exact claim. The sample lists non-foreign paths first.
+     */
+    foreign_run_untracked?: number;
+    /**
      * Submodules whose contents differ from their recorded gitlink. Dirty submodule CONTENTS are not captured (known limit); a nonzero count demotes the honesty wording the same way untracked files do.
      */
     submodules_dirty?: number;
