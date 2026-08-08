@@ -263,9 +263,33 @@ export function stampComputationLaunch(projectRoot: string, runDir: string, reen
     // always leaves its terminal artifact.) No witness → first launch →
     // the never-blocks doctrine stands (a missing stamp is visible; a
     // killed run is lost science).
-    const priorExecutionWitness = fs.existsSync(path.join(runDir, 'run_origin.json'))
+    // Witness reading follows the terminal witness's own rule: only
+    // provable absence (ENOENT/ENOTDIR on the ENTRY) is absence — a
+    // dangling symlink or an unreadable entry is evidence, not nothing.
+    // The attempts/ directory counts only when NON-EMPTY (an empty
+    // migrated skeleton proves no prior execution; an unreadable one
+    // cannot prove emptiness and stays conservative).
+    const entryPresent = (candidate: string): boolean => {
+      try {
+        fs.lstatSync(candidate);
+        return true;
+      } catch (lstatError) {
+        const code = (lstatError as NodeJS.ErrnoException).code;
+        return !(code === 'ENOENT' || code === 'ENOTDIR');
+      }
+    };
+    const attemptsDir = path.join(runDir, 'attempts');
+    const attemptsWitness = entryPresent(attemptsDir)
+      && (() => {
+        try {
+          return fs.readdirSync(attemptsDir).length > 0;
+        } catch {
+          return true;
+        }
+      })();
+    const priorExecutionWitness = entryPresent(path.join(runDir, 'run_origin.json'))
       || readTerminalResultWitness(runDir) !== 'absent'
-      || fs.existsSync(path.join(runDir, 'attempts'));
+      || attemptsWitness;
     if (priorExecutionWitness) {
       return {
         status: 'refused_relaunch',
