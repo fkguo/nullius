@@ -104,6 +104,32 @@ describe('refresh + check', () => {
     expect(checkCurrentStateBlock(projectRoot, EMPTY).duplicated_markers).toBe(true);
   });
 
+  it('a fenced example quoting the markers is neither a block nor duplication', () => {
+    fs.writeFileSync(notebookPath(), [
+      '# Memo', '',
+      renderCurrentStateBlock(EMPTY),
+      '', '## Mechanism notes',
+      '```', CURRENT_STATE_START, 'example', CURRENT_STATE_END, '```',
+    ].join('\n'));
+    const status = checkCurrentStateBlock(projectRoot, EMPTY);
+    expect(status.duplicated_markers).toBe(false);
+    expect(status.in_sync).toBe(true);
+  });
+
+  it('a canonical block moved below a heading is out of sync, and sync relocates it to front matter', () => {
+    fs.writeFileSync(notebookPath(), [
+      '# Memo', '', '## Results', 'Body.', '',
+      renderCurrentStateBlock(EMPTY), '',
+    ].join('\n'));
+    const status = checkCurrentStateBlock(projectRoot, EMPTY);
+    expect(status.in_sync).toBe(false);
+    expect(status.reason).toContain('front matter');
+    expect(refreshNotebookCurrentState(projectRoot, { insertIfMissing: false }).action).toBe('rewritten');
+    const text = fs.readFileSync(notebookPath(), 'utf-8');
+    expect(text.indexOf(CURRENT_STATE_START)).toBeLessThan(text.indexOf('## Results'));
+    expect(checkCurrentStateBlock(projectRoot, EMPTY).in_sync).toBe(true);
+  });
+
   it('skips a missing notebook, and skips (with the adoption hint) when markers are absent and insertion is off', () => {
     expect(refreshNotebookCurrentState(projectRoot, { insertIfMissing: true }).action).toBe('skipped');
     fs.writeFileSync(notebookPath(), '# Memo\n## Results\n');

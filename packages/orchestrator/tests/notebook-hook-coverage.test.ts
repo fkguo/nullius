@@ -41,17 +41,26 @@ describe('notebook current-state refresh hook coverage', () => {
 
   it('no OTHER module appends validity events without a documented refresh story', () => {
     // The ledger's append surface is the choke point: enumerate its callers
-    // and require each to be one of the audited writers above (or the
+    // RECURSIVELY (a writer hidden in a subdirectory must not evade the
+    // lock) and require each to be one of the audited writers above (or the
     // ledger module itself). A new caller must join this list consciously.
     const audited = new Set(['validity-ledger.ts', 'run-stamp.ts', 'cli-trace.ts', 'trace-backfill.ts']);
     const offenders: string[] = [];
-    for (const entry of fs.readdirSync(SRC)) {
-      if (!entry.endsWith('.ts')) continue;
-      const source = fs.readFileSync(path.join(SRC, entry), 'utf-8');
-      if (source.includes('appendValidityEvent(') && !audited.has(entry)) {
-        offenders.push(entry);
+    const walk = (dir: string): void => {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const abs = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          walk(abs);
+          continue;
+        }
+        if (!entry.name.endsWith('.ts')) continue;
+        const source = fs.readFileSync(abs, 'utf-8');
+        if (source.includes('appendValidityEvent(') && !audited.has(entry.name)) {
+          offenders.push(path.relative(SRC, abs));
+        }
       }
-    }
+    };
+    walk(SRC);
     // trace-backfill's batch writers are refreshed by their CLI arms in
     // cli-trace.ts (asserted above), the only entry points that invoke them.
     expect(offenders).toEqual([]);
