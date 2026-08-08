@@ -209,8 +209,8 @@ describe('refresh + check', () => {
       // missing-END topology: genuine digest first, researcher sections
       // below (the real END was deleted; a leftover END closes the pair)
       [`<!-- state-digest: ${'a'.repeat(64)} -->`, '**Current state (auto-maintained).** lead', '## Results', 'Six months of prose.'],
-      ['(Findings', '==='], // parenthetical smuggle via setext underline
-      ['(Findings', '-'], // single-hyphen setext underline is legal too
+      ['(Findings', '===', ')'], // parenthetical smuggle via setext underline — paren-closed so the setext clause is load-bearing
+      ['(Findings', '-', ')'], // single-hyphen setext underline is legal too (twice-broken clause; this control catches its removal)
     ]) {
       fs.writeFileSync(notebookPath(), [
         '# Memo',
