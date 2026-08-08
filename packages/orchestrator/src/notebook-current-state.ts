@@ -258,7 +258,7 @@ function locateBlock(text: string): BlockLocation {
     // explicit sync — that is the contract the block itself states.)
     // Anchored: the first interior line must BE the digest comment — an
     // unanchored test would bless prose sharing the line with a digest.
-    const digestFirst = /^\s{0,3}<!--\s*state-digest:\s*[0-9a-f]{64}\s*-->\s*$/.test(interiorContent[0] ?? '');
+    const digestFirst = /^ {0,3}<!--\s*state-digest:\s*[0-9a-f]{64}\s*--> *$/.test(interiorContent[0] ?? '');
     const trimmedInterior = interiorContent.join('\n').trim();
     // The placeholder arm is deliberately narrow: a short parenthetical
     // note — no blank lines, no ATX heading of ANY level at legal indent,
