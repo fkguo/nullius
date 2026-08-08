@@ -27,17 +27,26 @@ function git(...args: string[]): string {
   return execFileSync('git', ['-C', projectRoot, ...args], { encoding: 'utf-8' });
 }
 
-function stampNow(runId: string, capturedAt: string, explicitEventId?: string): void {
+function stampNow(
+  runId: string,
+  capturedAt: string,
+  explicitLedgerEventId?: string,
+  explicitPayloadEventId?: string,
+): void {
   fs.mkdirSync(path.join(projectRoot, 'artifacts', 'runs', runId), { recursive: true });
   const origin = captureRunOrigin(projectRoot, runId) as unknown as Record<string, unknown>;
   origin.captured_at_utc = capturedAt;
-  if (explicitEventId) origin.event_id = explicitEventId;
+  // The ENCLOSING ledger event id (effective-order participant) and the
+  // payload-embedded id are deliberately independent knobs: a view must
+  // order by the former only, and a fixture that couples them cannot kill
+  // a payload-id-ordering mutation.
+  if (explicitPayloadEventId) origin.event_id = explicitPayloadEventId;
   appendValidityEvent(projectRoot, buildValidityEvent({
     event: 'stamp',
     run_id: runId,
     actor: 't',
     reason: null,
-    event_id: origin.event_id as string,
+    event_id: explicitLedgerEventId ?? (origin.event_id as string),
     ts_utc: capturedAt,
     stamp: origin as ValidityEventV1['stamp'],
   }));
@@ -308,30 +317,37 @@ describe('tie handling at episode boundaries (review r2)', () => {
     git('commit', '-q', '-m', 'c1');
 
     const SAME_INSTANT = '2026-08-08T10:00:00.000Z';
-    // Explicit ledger event ids in ascending lexical order: within one
+    // Explicit LEDGER event ids in ascending lexical order: within one
     // captured_at, the ledger's effective order is (ts_utc, event_id), and
     // that — not any view-private key — must drive the episode walk. (A
     // freshly minted ULID's sub-millisecond suffix is RANDOM, so real
     // same-instant ids carry no time information; the ids here are chosen
     // to make the effective order deterministic for the test.)
-    stampNow('20260808-m1-r001-alpha-probe', SAME_INSTANT, '01KZEAAAAAAAAAAAAAAAAAAAA1');
+    //
+    // Every other candidate ordering key is deliberately made to DISAGREE
+    // with the effective order, so a view that consults any of them
+    // cannot pass by luck: run ids DESCEND (r009, r005, r001), and the
+    // payload-embedded ids DESCEND (…Z9, …Z5, …Z1) — only the enclosing
+    // ledger event ids ascend.
+    stampNow('20260808-m1-r009-alpha-probe', SAME_INSTANT, '01KZEAAAAAAAAAAAAAAAAAAAA1', '01KZEAAAAAAAAAAAAAAAAAAAZ9');
     fs.writeFileSync(path.join(projectRoot, 'solver.py'), 'VERSION = 2\n');
-    stampNow('20260808-m1-r002-beta-scan', SAME_INSTANT, '01KZEAAAAAAAAAAAAAAAAAAAA2');
+    stampNow('20260808-m1-r005-beta-scan', SAME_INSTANT, '01KZEAAAAAAAAAAAAAAAAAAAA2', '01KZEAAAAAAAAAAAAAAAAAAAZ5');
     fs.writeFileSync(path.join(projectRoot, 'solver.py'), 'VERSION = 1\n');
     const solver = path.join(projectRoot, 'solver.py');
     const future = new Date(Date.now() + 2000);
     fs.utimesSync(solver, future, future);
-    stampNow('20260808-m1-r003-alpha-return', SAME_INSTANT, '01KZEAAAAAAAAAAAAAAAAAAAA3');
+    stampNow('20260808-m1-r001-alpha-return', SAME_INSTANT, '01KZEAAAAAAAAAAAAAAAAAAAA3', '01KZEAAAAAAAAAAAAAAAAAAAZ1');
 
     const view = buildTraceabilityView(projectRoot);
-    // ANY view-private ordering key (tree, run id, payload id, …) puts the
-    // two same-tree points adjacent and folds A→B→A into two episodes,
-    // erasing the return — exactly the fabrication under review.
+    // ANY view-private ordering key folds or reorders: tree order puts the
+    // two same-tree points adjacent (two episodes, return erased); run-id
+    // or payload-id order REVERSES the walk (alpha-return first). Only the
+    // ledger's effective order produces this exact three-episode sequence.
     expect(view.runs.code_states).toHaveLength(3);
     expect(view.runs.code_states.map(state => state.run_ids[0])).toEqual([
-      '20260808-m1-r001-alpha-probe',
-      '20260808-m1-r002-beta-scan',
-      '20260808-m1-r003-alpha-return',
+      '20260808-m1-r009-alpha-probe',
+      '20260808-m1-r005-beta-scan',
+      '20260808-m1-r001-alpha-return',
     ]);
     expect(view.runs.code_states[2]!.revisited).toBe(true);
   });
@@ -370,5 +386,52 @@ describe('project-level run-root untracked split (review r2)', () => {
     expect(view.git.untracked_under_run_roots).toBe(1);
     const prose = renderTraceabilityProse(view);
     expect(prose).toContain('2 untracked file(s) pending a track-or-ignore decision (1 of these under the run roots)');
+  });
+});
+
+describe('conflicting-stamp runs stay out of the narrative (review r4)', () => {
+  it('a run with two byte-different stamps is excluded and counted, never narrated from either payload', () => {
+    git('init', '-q');
+    git('config', 'user.email', 't@example.com');
+    git('config', 'user.name', 'T');
+    fs.writeFileSync(path.join(projectRoot, '.gitignore'), 'artifacts/\n');
+    fs.writeFileSync(path.join(projectRoot, 'solver.py'), 'VERSION = 1\n');
+    git('add', '-A');
+    git('commit', '-q', '-m', 'c1');
+
+    stampNow('20260808-m1-r001-clean-run', '2026-08-08T10:00:00.000Z');
+    // Same run stamped again against a DIFFERENT tree: the reader marks it
+    // conflicting — no single true tree exists, so no position/payload
+    // pairing can honestly narrate it. (Constructed as a hand-written
+    // second line: the live writer's create-if-absent snapshot ref exists
+    // precisely to refuse this, so the conflicting state only ever arises
+    // from hand edits or legacy writers — which is what the reader guards.)
+    fs.writeFileSync(path.join(projectRoot, 'solver.py'), 'VERSION = 2\n');
+    stampNow('20260808-m1-r002-conflicted', '2026-08-08T11:00:00.000Z');
+    const forgedId = '01KZEAAAAAAAAAAAAAAAAAAAF2';
+    appendValidityEvent(projectRoot, buildValidityEvent({
+      event: 'stamp',
+      run_id: '20260808-m1-r002-conflicted',
+      actor: 't',
+      reason: null,
+      event_id: forgedId,
+      ts_utc: '2026-08-08T12:00:00.000Z',
+      stamp: {
+        schema_id: 'run_origin_v1',
+        event_id: forgedId,
+        run_id: '20260808-m1-r002-conflicted',
+        captured_at_utc: '2026-08-08T12:00:00.000Z',
+        binding_quality: 'exact_clean',
+        baseline_commit: 'f'.repeat(40),
+        snapshot_tree: 'e'.repeat(40),
+        dirty: { tracked_modified: 0, untracked_count: 0 },
+      } as ValidityEventV1['stamp'],
+    }));
+
+    const view = buildTraceabilityView(projectRoot);
+    expect(view.runs.conflicting_stamps).toEqual(['20260808-m1-r002-conflicted']);
+    const narrated = view.runs.code_states.flatMap(state => state.run_ids);
+    expect(narrated).toEqual(['20260808-m1-r001-clean-run']);
+    expect(view.runs.code_states_excluded_inexact).toBe(1);
   });
 });

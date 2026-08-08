@@ -387,7 +387,19 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
     seenStampRuns.add(event.run_id);
     const known = ledger.runs.get(event.run_id);
     if (!known?.stamped) continue;
-    const record = known.origin as unknown as Record<string, unknown> | null;
+    // A run with conflicting stamps (or no authoritative identity) has no
+    // single true tree — narrating ANY of its payloads at ANY position
+    // would pair a tree with a moment that may never have held it. Such
+    // runs are excluded and counted, like every other unclassifiable
+    // record. A clean run has exactly one stamp event (a byte-different
+    // second stamp IS the conflicting case), so the event's own payload
+    // and its ledger position describe the same capture by construction —
+    // never event A's position with event B's tree.
+    if (known.conflicting_stamps || known.no_authoritative_identity) {
+      codeStatesExcludedInexact += 1;
+      continue;
+    }
+    const record = event.stamp as unknown as Record<string, unknown> | null;
     const quality = record?.binding_quality;
     const tree = record && typeof record.snapshot_tree === 'string' ? record.snapshot_tree : null;
     if (!record || typeof quality !== 'string' || !EXACT_TREE_QUALITIES.has(quality) || !tree) {
