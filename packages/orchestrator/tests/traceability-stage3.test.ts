@@ -382,7 +382,7 @@ describe('stage-3 r1 native-seat locks', () => {
     const row = (id: string, supersedes: string, supersededBy: string): ResultRegistryRow => ({
       result_id: id, description: `[${id}](x.md)`, artifact_target: 'x.md',
       artifact_sha256: '0'.repeat(64), run_id: `run-${id}`, effective_commit: null,
-      has_snapshot: false, supersedes, superseded_by: supersededBy,
+      has_snapshot: false, has_untracked: false, supersedes, superseded_by: supersededBy,
     });
     const issues: Array<{ code: string; message: string; path: string }> = [];
     const defective = new Set<string>();
@@ -519,7 +519,7 @@ describe('stage-3 r2 native-seat locks', () => {
     const row = (id: string, supersedes: string, supersededBy: string): ResultRegistryRow => ({
       result_id: id, description: `[${id}](x.md)`, artifact_target: 'x.md',
       artifact_sha256: '0'.repeat(64), run_id: `run-${id}`, effective_commit: null,
-      has_snapshot: false, supersedes, superseded_by: supersededBy,
+      has_snapshot: false, has_untracked: false, supersedes, superseded_by: supersededBy,
     });
     const issues: Array<{ code: string; message: string; path: string }> = [];
     const defective = new Set<string>();

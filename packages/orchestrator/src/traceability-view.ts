@@ -3,7 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { readValidityLedger, validityLedgerPath, type ValidityLedgerView, type RunValidity } from './validity-ledger.js';
 import { isTraceabilityArtifactPath, listSubmodulePaths } from './run-origin.js';
-import { completedResultArtifactPresent, findComputationWorkspaces } from './run-stamp.js';
+import { findComputationWorkspaces, readTerminalResultWitness } from './run-stamp.js';
 import { validateResultRegistry } from './result-registry.js';
 import { checkNotebookStaleness, type NotebookStalenessReport } from './notebook-staleness.js';
 import { analyzeNotebookRunLinks, type NotebookRunLinksReport } from './notebook-run-links.js';
@@ -159,6 +159,10 @@ export type TraceabilityView = {
        *  with the +snapshot qualifier so it is never mistaken for plain
        *  HEAD (design D4/D5 snapshot qualification). */
       has_snapshot: boolean;
+      /** True when the binding is head_plus_untracked — rendered with the
+       *  +untracked qualifier so an uncaptured-extras binding is never
+       *  presented as fully exact. */
+      has_untracked: boolean;
       artifact: string | null;
       /** True when validation raised issues touching this row — renderers
        *  must mark it, never present it as a clean current result. */
@@ -782,8 +786,10 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
           const runDirAbs = path.join(projectRoot, entry.canonical_root, entry.run_id);
           const statuses: string[] = [];
           const statusWorkspaces: Array<{ statusPath: string; manifestPath: string | null }> = [];
+          const manifestPaths: string[] = [];
           const discovery = { truncated: false };
           for (const workspace of findComputationWorkspaces(runDirAbs, discovery)) {
+            if (workspace.manifestPath) manifestPaths.push(workspace.manifestPath);
             if (!workspace.statusPath) continue;
             statusWorkspaces.push({ statusPath: workspace.statusPath, manifestPath: workspace.manifestPath });
             try {
@@ -800,9 +806,17 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
           // completion, or an exhausted crash budget.
           if (discovery.truncated) return false;
           if (statusWorkspaces.length > 1) return false;
-          if (completedResultArtifactPresent(runDirAbs)) return false;
+          // Only the two REFUSING witness states exclude: 'other' is the
+          // normal failed-run terminal artifact every front-door crash
+          // carries, and the entrance admits it.
+          const witness = readTerminalResultWitness(runDirAbs);
+          if (witness === 'completed' || witness === 'unreadable') return false;
           try {
-            const manifestPath = statusWorkspaces[0]?.manifestPath ?? null;
+            // SAME budget-manifest resolution rule as the retry entrance:
+            // the evidence workspace's manifest, else the single manifest
+            // anywhere in the run dir.
+            const manifestPath = statusWorkspaces[0]?.manifestPath
+              ?? (manifestPaths.length === 1 ? manifestPaths[0]! : null);
             if (manifestPath !== null) {
               const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8')) as { max_attempts?: number };
               const maxAttempts = typeof manifest.max_attempts === 'number' && manifest.max_attempts >= 1
@@ -878,6 +892,7 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
         run_id: row.run_id,
         effective_commit: row.effective_commit,
         has_snapshot: row.has_snapshot,
+        has_untracked: row.has_untracked,
         artifact: row.artifact_target,
         defective: resultRegistry.defective_result_ids.has(row.result_id),
       })),
@@ -934,7 +949,7 @@ export function renderTraceabilityProse(view: TraceabilityView): string {
       // defect marker rides on the same line the reader would trust.
       lines.push(
         `- ${row.result_id}: run ${row.run_id}`
-        + `${row.effective_commit ? ` @ ${row.effective_commit}${row.has_snapshot ? '+snapshot' : ''}` : ''}`
+        + `${row.effective_commit ? ` @ ${row.effective_commit}${row.has_snapshot ? '+snapshot' : ''}${row.has_untracked ? '+untracked' : ''}` : ''}`
         + `${row.artifact ? ` → ${row.artifact}` : ''}`
         + `${row.defective ? ' — DEFECTIVE (see registry defects below; do not trust until repaired)' : ''}`,
       );

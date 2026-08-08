@@ -1,6 +1,7 @@
 import * as fs from 'node:fs';
+import * as path from 'node:path';
 import {
-  completedResultArtifactPresent,
+  readTerminalResultWitness,
   defaultStampActor,
   findComputationWorkspaces,
   gradeExistingStamp,
@@ -90,14 +91,25 @@ export function stampComputationLaunch(projectRoot: string, runDir: string, reen
           // witness, consulted before the status fork: a status file that
           // was removed or edited must not route a completed run's changed-
           // tree relaunch past the refusal (the retry entrance checks this
-          // witness too, but only the `failed` fork ever reaches it).
-          if (completedResultArtifactPresent(runDir)) {
+          // witness too, but only the `failed` fork ever reaches it). An
+          // UNREADABLE witness refuses just the same — a truncated
+          // artifact must never read as "nothing completed here".
+          const terminalWitness = readTerminalResultWitness(runDir);
+          if (terminalWitness === 'completed') {
             return {
               status: 'refused_relaunch',
               detail: 'this run\'s terminal result artifact records a COMPLETED execution and the tree has changed '
                 + 'since its stamp; running would overwrite a completed result\'s provenance (an absent or edited '
                 + 'status file cannot relabel it). "Completed but wrong" is content territory: supersede or void it '
                 + '(full ceremony) and use a fresh run id.',
+            };
+          }
+          if (terminalWitness === 'unreadable') {
+            return {
+              status: 'refused_relaunch',
+              detail: 'this run\'s terminal result artifact (artifacts/computation_result_v1.json) is unreadable '
+                + 'and the tree has changed since its stamp — the boundary cannot certify the prior execution did '
+                + 'not complete; repair or remove the artifact (recording why) before relaunching.',
             };
           }
           // The status file lives wherever the manifest put the workspace —
@@ -240,6 +252,22 @@ export function stampComputationLaunch(projectRoot: string, runDir: string, reen
       }
     }
   } catch (error) {
+    // The ledger read that DECIDES whether this run is already stamped can
+    // itself throw (unreadable file, replaced by a directory) — before the
+    // fail-closed case is ever entered. The run's own mirror is the local
+    // witness that a stamp was recorded: if it exists, this launch is a
+    // RELAUNCH that cannot be graded, and executing blind would overwrite
+    // whatever the unreadable ledger protects. No mirror → first launch →
+    // the never-blocks doctrine stands (a missing stamp is visible; a
+    // killed run is lost science).
+    if (fs.existsSync(path.join(runDir, 'run_origin.json'))) {
+      return {
+        status: 'refused_relaunch',
+        detail: `the launch boundary could not read the ledger while this run carries a recorded stamp mirror `
+          + `(${error instanceof Error ? error.message : String(error)}) — executing without grading the relaunch `
+          + 'is refused; repair the ledger state first.',
+      };
+    }
     return { status: 'failed', error: error instanceof Error ? error.message : String(error) };
   }
 }
