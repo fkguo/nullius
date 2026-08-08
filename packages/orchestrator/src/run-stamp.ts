@@ -795,8 +795,17 @@ export type TerminalResultWitness = 'completed' | 'absent' | 'unreadable' | 'oth
 
 export function readTerminalResultWitness(runDir: string): TerminalResultWitness {
   const artifactPath = path.join(runDir, 'artifacts', 'computation_result_v1.json');
+  // Existence is judged by the ENTRY (lstat), not by what it resolves to:
+  // existsSync follows symlinks, so a dangling symlink planted where the
+  // artifact lived would read as 'absent' — reopening exactly the
+  // laundering path the witness closes. An entry that exists but cannot
+  // be read (dangling link, permission, truncation) is 'unreadable'.
   try {
-    if (!fs.existsSync(artifactPath)) return 'absent';
+    fs.lstatSync(artifactPath);
+  } catch {
+    return 'absent';
+  }
+  try {
     const parsed = JSON.parse(fs.readFileSync(artifactPath, 'utf-8')) as {
       execution_status?: string;
       status?: string;
