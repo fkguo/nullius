@@ -295,10 +295,12 @@ export function checkCurrentStateBlock(
   }
   if (!bounds) {
     if (markerLinesPresent) {
-      // Stray unpaired marker lines claim nothing (never a refusal), but
-      // adoption is blocked until they are removed — say so.
-      status.reason = 'stray current-state marker line(s) present without a complete block — '
-        + 'remove them, then `nullius notebook sync`';
+      // Stray marker lines claim nothing (never a refusal), but adoption
+      // is blocked until they are removed. Name both faces of the state:
+      // unpaired lines, AND syntactically complete pairs whose interior is
+      // not machine content (the researcher SEES a START..END on screen).
+      status.reason = 'stray current-state marker line(s) present — unpaired, or a marker pair whose '
+        + 'interior is not machine-rendered content; remove them, then `nullius notebook sync`';
     }
     return status;
   }
@@ -432,7 +434,7 @@ export function refreshNotebookCurrentState(
         return {
           projection,
           action: 'skipped',
-          reason: 'stray current-state marker line(s) present without a complete block — remove them first',
+          reason: 'stray current-state marker line(s) present (unpaired, or a pair whose interior is not machine-rendered content) — remove them first',
         };
       }
       if (!options?.insertIfMissing) {

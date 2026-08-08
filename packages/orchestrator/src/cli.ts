@@ -99,8 +99,8 @@ export async function runCli(argv: string[], io: CliIo = defaultIo()): Promise<n
           // The reason already reads "in sync; …" when strays ride along —
           // print one or the other, never both.
           + `${status.in_sync === true ? (status.reason !== null ? ` — ${status.reason}` : ' (in sync)') : ''}`
-          + `${status.in_sync === false
-            ? ` — WARNING: post-write check reports out-of-sync (${status.reason ?? 'unknown cause'}); a concurrent writer may have landed`
+          + `${status.in_sync !== true
+            ? ` — WARNING: post-write check does not confirm the block (${status.reason ?? (status.block_found ? 'out of sync' : 'block not found')}); a concurrent writer may have landed`
             : ''}\n`,
         );
       }
