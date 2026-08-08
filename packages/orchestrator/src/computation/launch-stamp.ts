@@ -294,8 +294,9 @@ export function stampComputationLaunch(projectRoot: string, runDir: string, reen
       return {
         status: 'refused_relaunch',
         detail: `the launch boundary could not read the ledger while this run carries local evidence of a prior `
-          + `stamped execution (${error instanceof Error ? error.message : String(error)}) — executing without `
-          + 'grading the relaunch is refused; repair the ledger state first.',
+          + `execution — a stamp mirror, a terminal result artifact, or an attempt archive `
+          + `(${error instanceof Error ? error.message : String(error)}) — executing without grading the relaunch `
+          + 'is refused; repair the ledger and reconcile that local evidence first.',
       };
     }
     return { status: 'failed', error: error instanceof Error ? error.message : String(error) };
