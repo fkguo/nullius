@@ -348,17 +348,19 @@ describe('dead-citation acknowledgment union', () => {
 
   it('a curated loose list with links in indented continuations stays ONE citation block', () => {
     const ledger = ascendingLedger(9);
-    const items = Array.from({ length: 9 }, (_, i) => [
-      `- sweep ${i + 1}:`,
-      '',
-      `    the record lives at [run ${i + 1}](artifacts/runs/${runId(i + 1)}/out.tsv)`,
-      '',
-    ]).flat();
-    writeNotebook(['# Memo', '## Evidence', 'One framing paragraph.', '', ...items].join('\n'));
-    const section = analyzeNotebookRunLinks(projectRoot, ledger, new Set())
-      .sections.find(entry => entry.heading === 'Evidence')!;
-    expect(section.citing_paragraphs).toBeLessThan(DRIFT_FLOOR_CITING_PARAGRAPHS);
-    expect(section.verdict).toBe('insufficient_signal');
+    for (const indent of ['  ', '    ']) { // two-space and four-space continuations are both prose
+      const items = Array.from({ length: 9 }, (_, i) => [
+        `- sweep ${i + 1}:`,
+        '',
+        `${indent}the record lives at [run ${i + 1}](artifacts/runs/${runId(i + 1)}/out.tsv)`,
+        '',
+      ]).flat();
+      writeNotebook(['# Memo', '## Evidence', 'One framing paragraph.', '', ...items].join('\n'));
+      const section = analyzeNotebookRunLinks(projectRoot, ledger, new Set())
+        .sections.find(entry => entry.heading === 'Evidence')!;
+      expect(section.citing_paragraphs, `indent=${JSON.stringify(indent)}`).toBeLessThan(DRIFT_FLOOR_CITING_PARAGRAPHS);
+      expect(section.verdict).toBe('insufficient_signal');
+    }
   });
 
   it('a SECOND consecutive indented-code chunk is still code, not loose-list continuation', () => {
