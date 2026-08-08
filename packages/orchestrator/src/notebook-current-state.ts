@@ -256,7 +256,9 @@ function locateBlock(text: string): BlockLocation {
     // human adds BELOW the digest of a real block is the designed
     // machine-owned-region case: flagged as a hand edit, restored by an
     // explicit sync — that is the contract the block itself states.)
-    const digestFirst = DIGEST_LINE_PATTERN.test(interiorContent[0] ?? '');
+    // Anchored: the first interior line must BE the digest comment — an
+    // unanchored test would bless prose sharing the line with a digest.
+    const digestFirst = /^\s{0,3}<!--\s*state-digest:\s*[0-9a-f]{64}\s*-->\s*$/.test(interiorContent[0] ?? '');
     const trimmedInterior = interiorContent.join('\n').trim();
     // The placeholder arm is deliberately narrow: a short parenthetical
     // note — no blank lines, no ATX heading of ANY level at legal indent,
