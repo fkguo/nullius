@@ -264,8 +264,12 @@ function locateBlock(text: string): BlockLocation {
     // every researcher section in between. The canonical render emits NO
     // heading, so any ATX heading at legal indent inside a digest-first
     // interior marks a mispaired span — strays, never rewritable.
+    // Recorded limitation: heading detection is ATX-only (bare `##`, a
+    // legal empty heading, included); a notebook deviating from the
+    // scaffold to SETEXT section headings would not trigger these guards —
+    // reaching that requires the deviation PLUS a leftover END marker.
     const digestFirst = /^ {0,3}<!--\s*state-digest:\s*[0-9a-f]{64}\s*--> *$/.test(interiorContent[0] ?? '')
-      && !interiorContent.some(line => /^ {0,3}#{1,6}\s+/.test(line));
+      && !interiorContent.some(line => /^ {0,3}#{1,6}(?:\s|$)/.test(line));
     const trimmedInterior = interiorContent.join('\n').trim();
     // The placeholder arm is deliberately narrow: a short parenthetical
     // note — no blank lines, no ATX heading of ANY level at legal indent,
@@ -277,7 +281,7 @@ function locateBlock(text: string): BlockLocation {
       || (interiorContent.length <= 6
         && trimmedInterior.length <= 400
         && !interiorContent.some(line => line.trim() === '')
-        && !interiorContent.some(line => /^ {0,3}#{1,6}\s+/.test(line))
+        && !interiorContent.some(line => /^ {0,3}#{1,6}(?:\s|$)/.test(line))
         && !interiorContent.some(line => /^ {0,3}(?:=+|-+) *$/.test(line))
         && trimmedInterior.startsWith('(')
         && trimmedInterior.endsWith(')')
