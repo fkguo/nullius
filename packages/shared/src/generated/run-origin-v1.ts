@@ -304,4 +304,8 @@ export interface RunOriginV1 {
    * True when writing the run-directory mirror failed (e.g. read-only bits on legacy runs). The ledger event remains the truth; backfill never fails on filesystem bits.
    */
   run_dir_unwritable?: boolean;
+  /**
+   * Which execution attempt of the run this capture binds (absent = 1, the initial stamp). Ordinals above 1 are legal only embedded in an `attempt` ledger event — the retry entrance that certifies the prior attempt produced no retained result.
+   */
+  attempt_ordinal?: number;
 }

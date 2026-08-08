@@ -22,6 +22,11 @@ import { mintUlid } from '@nullius/shared';
 
 const SHA_PATTERN = /^[0-9a-f]{40}$/;
 export const RUN_SNAPSHOT_REF_PREFIX = 'refs/nullius/runs/';
+/** Sibling namespace for attempt ordinals above 1: refs/nullius/attempts/
+ *  <sanitized-id>/<n>. Nesting attempt refs UNDER refs/nullius/runs/<id>
+ *  is impossible once the attempt-1 ref exists (git directory/file
+ *  conflict), so per-attempt pins live beside, not below. */
+export const ATTEMPT_SNAPSHOT_REF_PREFIX = 'refs/nullius/attempts/';
 
 /** Paths produced by the traceability machinery itself (the ledger, its
  *  lock, .gitattributes carrier, and run-directory origin mirrors). Excluded
@@ -127,6 +132,70 @@ export function pinSnapshotRef(
   );
 }
 
+/** Per-attempt pin in the sibling namespace, same create-if-absent /
+ *  idempotent-same-object / hard-error-on-cross-binding contract as
+ *  pinSnapshotRef — with ONE recovery arm the run-level pin does not need:
+ *  a retry that crashed between pinning and appending its ledger event
+ *  leaves a ref no record references, and because the ordinal never
+ *  advanced, every later retry re-derives the SAME ordinal and would hit
+ *  the mismatch error forever. The caller certifies the orphanhood (it
+ *  holds the ledger view proving no event opened this ordinal) by passing
+ *  the observed sha as `reclaimSha`; the replacement is a compare-and-swap
+ *  on that exact sha, so a concurrent pin between observation and swap
+ *  fails closed into the hard error rather than clobbering it. */
+export function pinAttemptSnapshotRef(
+  projectRoot: string,
+  runId: string,
+  attemptOrdinal: number,
+  snapshotCommit: string,
+  reclaimSha?: string | null,
+): { outcome: SnapshotPinOutcome; ref: string } {
+  const ref = `${ATTEMPT_SNAPSHOT_REF_PREFIX}${sanitizeRunRefComponent(runId)}/${attemptOrdinal}`;
+  const created = git(projectRoot, ['update-ref', ref, snapshotCommit, ''], { allowFailure: true });
+  if (created !== null) return { outcome: 'created', ref };
+  const existing = git(projectRoot, ['rev-parse', '--verify', '--quiet', ref], { allowFailure: true });
+  const existingSha = existing?.trim() || null;
+  if (existingSha === snapshotCommit) return { outcome: 'already_pinned', ref };
+  if (reclaimSha && existingSha === reclaimSha) {
+    const swapped = git(projectRoot, ['update-ref', ref, snapshotCommit, reclaimSha], { allowFailure: true });
+    if (swapped !== null) return { outcome: 'created', ref };
+  }
+  throw new Error(
+    `attempt snapshot ref ${ref} already points at ${existingSha ?? '(unreadable)'}, refusing to rebind it to `
+    + `${snapshotCommit}; two concurrent retries appear to have raced on one attempt ordinal`,
+  );
+}
+
+/** Compare-and-swap the per-attempt pin from one known sha to another.
+ *  Best-effort repair used when a retry reclaimed an observed pin and then
+ *  LOST its append — the displaced sha may be the one the winning event
+ *  references, so it is swapped back to keep that snapshot GC-protected.
+ *  Returns false when the ref no longer holds `fromSha` (someone else
+ *  moved it; leave it alone). */
+export function swapAttemptSnapshotRef(
+  projectRoot: string,
+  runId: string,
+  attemptOrdinal: number,
+  fromSha: string,
+  toSha: string,
+): boolean {
+  const ref = `${ATTEMPT_SNAPSHOT_REF_PREFIX}${sanitizeRunRefComponent(runId)}/${attemptOrdinal}`;
+  return git(projectRoot, ['update-ref', ref, toSha, fromSha], { allowFailure: true }) !== null;
+}
+
+/** Current object of the per-attempt pin, or null when the ref does not
+ *  exist. Read-only; used by the retry entrance to detect a pin left by a
+ *  crashed prior retry (a ref no ledger event references). */
+export function readAttemptSnapshotRef(
+  projectRoot: string,
+  runId: string,
+  attemptOrdinal: number,
+): string | null {
+  const ref = `${ATTEMPT_SNAPSHOT_REF_PREFIX}${sanitizeRunRefComponent(runId)}/${attemptOrdinal}`;
+  const existing = git(projectRoot, ['rev-parse', '--verify', '--quiet', ref], { allowFailure: true });
+  return existing?.trim() || null;
+}
+
 export function listSubmodulePaths(projectRoot: string): string[] {
   if (!fs.existsSync(path.join(projectRoot, '.gitmodules'))) return [];
   const output = git(
@@ -148,6 +217,18 @@ export type CaptureRunOriginOptions = {
   /** Reuse a previously minted event id (crash-recovery retry of the SAME
    *  logical stamp). */
   eventId?: string;
+  /** Which execution attempt this capture binds (absent/1 = the initial
+   *  stamp). Ordinals above 1 pin their snapshot in the SIBLING namespace
+   *  refs/nullius/attempts/<id>/<n> — nesting under refs/nullius/runs/<id>
+   *  is a git directory/file conflict with the attempt-1 ref (empirically
+   *  verified), so the sibling root is the only per-attempt layout git
+   *  accepts. */
+  attemptOrdinal?: number;
+  /** Orphan-pin recovery (attempt ordinals only): the sha the caller
+   *  observed on this ordinal's ref while holding proof that no ledger
+   *  event references it. Passed through to pinAttemptSnapshotRef's
+   *  compare-and-swap arm. */
+  attemptPinReclaimSha?: string | null;
   /** When false, capture WITHOUT pinning the snapshot at
    *  refs/nullius/runs/<run-id> — an identity probe that creates no ref
    *  (the stash object stays an unreferenced dangling commit for git to
@@ -174,6 +255,9 @@ export function captureRunOrigin(
     event_id: eventId,
     run_id: runId,
     captured_at_utc: capturedAt,
+    // Absent means ordinal 1 (the initial stamp); higher ordinals appear
+    // only in captures made by the retry entrance.
+    ...((options.attemptOrdinal ?? 1) > 1 ? { attempt_ordinal: options.attemptOrdinal } : {}),
   };
 
   const insideWorkTree = git(projectRoot, ['rev-parse', '--is-inside-work-tree'], { allowFailure: true });
@@ -217,7 +301,13 @@ export function captureRunOrigin(
   let snapshotTree: string | null = null;
   let trackedModified = 0;
   if (snapshotCommit && SHA_PATTERN.test(snapshotCommit)) {
-    if (options.pin !== false) pinSnapshotRef(projectRoot, runId, snapshotCommit);
+    if (options.pin !== false) {
+      if ((options.attemptOrdinal ?? 1) > 1) {
+        pinAttemptSnapshotRef(projectRoot, runId, options.attemptOrdinal!, snapshotCommit, options.attemptPinReclaimSha);
+      } else {
+        pinSnapshotRef(projectRoot, runId, snapshotCommit);
+      }
+    }
     snapshotTree = git(projectRoot, ['rev-parse', `${snapshotCommit}^{tree}`])!.trim();
     const diff = git(projectRoot, ['diff', '--name-only', baselineCommit, snapshotCommit])!;
     trackedModified = diff.split('\n').filter(line => line.trim().length > 0).length;

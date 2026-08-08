@@ -3,6 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { readValidityLedger, validityLedgerPath, type ValidityLedgerView, type RunValidity } from './validity-ledger.js';
 import { isTraceabilityArtifactPath, listSubmodulePaths } from './run-origin.js';
+import { findComputationWorkspaces, readTerminalResultWitness } from './run-stamp.js';
 import { validateResultRegistry } from './result-registry.js';
 import { checkNotebookStaleness, type NotebookStalenessReport } from './notebook-staleness.js';
 import { analyzeNotebookRunLinks, type NotebookRunLinksReport } from './notebook-run-links.js';
@@ -71,6 +72,23 @@ export type TraceabilityView = {
     superseded: Array<{ run_id: string; by: string | null; reason: string | null; directory_missing?: true }>;
     voided: Array<{ run_id: string; reason: string | null; directory_missing?: true }>;
     no_authoritative_identity: string[];
+    /** Runs whose attempt chain advanced past the initial stamp (crash
+     *  retries and missing-source self-heals), with the crash-budget
+     *  counter the delegation caps consume. */
+    retried: Array<{
+      run_id: string;
+      latest_ordinal: number;
+      crash_retries: number;
+      latest_failed: boolean;
+    }>;
+    /** Chains the reader could not trust (ordinal gaps, closures of
+     *  never-opened attempts, plain stamps claiming ordinals above 1, or
+     *  divergent payloads racing for one ordinal). */
+    attempt_chain_defects: string[];
+    /** Directories whose execution status records `failed` with no closure
+     *  on the ledger: crashed, awaiting either a retry or a record-only
+     *  closure — ambient visibility, no ledger event required. */
+    crashed_unretried: string[];
     /** The recorded snapshot trees organize stamped runs into CODE-STATE
      *  EPISODES: consecutive captures on the SAME tracked research tree
      *  form one episode, and the sequence of episodes (in capture order)
@@ -141,6 +159,10 @@ export type TraceabilityView = {
        *  with the +snapshot qualifier so it is never mistaken for plain
        *  HEAD (design D4/D5 snapshot qualification). */
       has_snapshot: boolean;
+      /** True when the binding is head_plus_untracked — rendered with the
+       *  +untracked qualifier so an uncaptured-extras binding is never
+       *  presented as fully exact. */
+      has_untracked: boolean;
       artifact: string | null;
       /** True when validation raised issues touching this row — renderers
        *  must mark it, never present it as a clean current result. */
@@ -400,12 +422,30 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
   // exactly what the order_uncertain boundary marker below discloses; the
   // view invents no key of its own (a payload-embedded id would even be
   // freely choosable by a hand-written ledger line).
-  const seenStampRuns = new Set<string>();
+  const seenCapturePoints = new Set<string>();
   for (const event of ledger.events) {
-    if (event.event !== 'stamp' || seenStampRuns.has(event.run_id)) continue;
-    seenStampRuns.add(event.run_id);
+    // Capture points come from BOTH binding writers: initial stamps and
+    // the origins embedded in attempt (retry) events — a retried run's
+    // later attempts are real captures on possibly-different trees, and
+    // omitting them would narrate only attempt 1's code.
+    let capturePayload: Record<string, unknown> | null = null;
+    if (event.event === 'stamp') {
+      capturePayload = event.stamp as unknown as Record<string, unknown> | null;
+    } else if (event.event === 'attempt') {
+      const embedded = (event as { attempt?: { origin?: unknown | null } }).attempt?.origin ?? null;
+      capturePayload = embedded as Record<string, unknown> | null;
+    }
+    if (!capturePayload) continue;
+    const ordinal = typeof capturePayload.attempt_ordinal === 'number' ? capturePayload.attempt_ordinal : 1;
+    const pointKey = `${event.run_id}#${ordinal}`;
+    if (seenCapturePoints.has(pointKey)) continue;
+    seenCapturePoints.add(pointKey);
     const known = ledger.runs.get(event.run_id);
     if (!known?.stamped) continue;
+    if (known.attempts.chain_defect || known.attempts.conflicting_attempts) {
+      codeStatesExcludedInexact += 1;
+      continue;
+    }
     // A run with conflicting stamps (or no authoritative identity) has no
     // single true tree — narrating ANY of its payloads at ANY position
     // would pair a tree with a moment that may never have held it. Such
@@ -418,7 +458,7 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
       codeStatesExcludedInexact += 1;
       continue;
     }
-    const record = event.stamp as unknown as Record<string, unknown> | null;
+    const record = capturePayload;
     const quality = record?.binding_quality;
     const tree = record && typeof record.snapshot_tree === 'string' ? record.snapshot_tree : null;
     if (!record || typeof quality !== 'string' || !EXACT_TREE_QUALITIES.has(quality) || !tree) {
@@ -725,6 +765,89 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
       superseded,
       voided,
       no_authoritative_identity: noIdentity,
+      retried: [...ledger.runs.values()]
+        .filter(entry => entry.attempts.latest_ordinal > 1 || entry.attempts.closures.length > 0)
+        .map(entry => ({
+          run_id: entry.run_id,
+          latest_ordinal: entry.attempts.latest_ordinal,
+          crash_retries: entry.attempts.crash_retry_count,
+          latest_failed: entry.attempts.latest_failed,
+        }))
+        .sort((a, b) => (a.run_id < b.run_id ? -1 : 1)),
+      attempt_chain_defects: [...ledger.runs.values()]
+        .filter(entry => entry.attempts.chain_defect || entry.attempts.conflicting_attempts)
+        .map(entry => entry.run_id)
+        .sort(),
+      crashed_unretried: directories
+        .filter((entry) => {
+          // The status file lives wherever the manifest put the workspace —
+          // same discovery as the retry entrance. A run with ANY completed
+          // status is not a crash; one failed status makes it a candidate.
+          const runDirAbs = path.join(projectRoot, entry.canonical_root, entry.run_id);
+          const statuses: string[] = [];
+          const statusWorkspaces: Array<{ statusPath: string; manifestPath: string | null }> = [];
+          const manifestPaths: string[] = [];
+          const discovery = { truncated: false };
+          for (const workspace of findComputationWorkspaces(runDirAbs, discovery)) {
+            if (workspace.manifestPath) manifestPaths.push(workspace.manifestPath);
+            if (!workspace.statusPath) continue;
+            statusWorkspaces.push({ statusPath: workspace.statusPath, manifestPath: workspace.manifestPath });
+            try {
+              const parsed = JSON.parse(fs.readFileSync(workspace.statusPath, 'utf-8')) as { status?: string };
+              if (typeof parsed.status === 'string') statuses.push(parsed.status);
+            } catch {
+              // unreadable status decides nothing
+            }
+          }
+          if (!statuses.includes('failed') || statuses.includes('completed')) return false;
+          // Refusals the entrance would issue on this evidence: a
+          // truncated discovery (cannot certify the surface), multiple
+          // live status files (ambiguous), a terminal artifact recording
+          // completion, or an exhausted crash budget.
+          if (discovery.truncated) return false;
+          if (statusWorkspaces.length > 1) return false;
+          // Only the two REFUSING witness states exclude: 'other' is the
+          // normal failed-run terminal artifact every front-door crash
+          // carries, and the entrance admits it.
+          const witness = readTerminalResultWitness(runDirAbs);
+          if (witness === 'completed' || witness === 'unreadable') return false;
+          try {
+            // SAME budget-manifest resolution rule as the retry entrance:
+            // the evidence workspace's manifest, else the single manifest
+            // anywhere in the run dir.
+            const manifestPath = statusWorkspaces[0]?.manifestPath
+              ?? (manifestPaths.length === 1 ? manifestPaths[0]! : null);
+            if (manifestPath !== null) {
+              const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8')) as { max_attempts?: number };
+              const maxAttempts = typeof manifest.max_attempts === 'number' && manifest.max_attempts >= 1
+                ? manifest.max_attempts
+                : null;
+              const crashRetries = ledger.runs.get(entry.run_id)?.attempts.crash_retry_count ?? 0;
+              if (maxAttempts !== null && crashRetries + 1 >= maxAttempts) return false;
+            }
+          } catch {
+            // an unreadable manifest never decides the hint
+          }
+          // Only runs the retry entrance would actually ADMIT belong under
+          // a "retry this" hint — advising `nullius trace retry` for an
+          // unstamped, decided, defective, inexact, or registry-named run
+          // sends the operator into a guaranteed refusal. Those runs are
+          // already visible in their own sections.
+          const run = ledger.runs.get(entry.run_id);
+          if (!run || !run.stamped) return false;
+          if (run.validity !== 'active') return false;
+          if (run.conflicting_stamps || run.no_authoritative_identity
+            || run.attempts.chain_defect || run.attempts.conflicting_attempts) return false;
+          const quality = (run.origin as { binding_quality?: string } | null)?.binding_quality ?? null;
+          if (quality === 'aligned_heuristic' || quality === 'unbound') return false;
+          if (resultRegistry.rows.some(row => row.run_id === entry.run_id)) return false;
+          // Crashed AND the chain head carries no closure: nobody retried
+          // or booked it. A retry quarantines the status file (drops out
+          // above); a record-only closure sets latest_failed (drops here).
+          return !run.attempts.latest_failed;
+        })
+        .map(entry => entry.run_id)
+        .sort(),
       code_states: codeStates,
       code_states_excluded_inexact: codeStatesExcludedInexact,
       slug_families: slugFamilies,
@@ -769,6 +892,7 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
         run_id: row.run_id,
         effective_commit: row.effective_commit,
         has_snapshot: row.has_snapshot,
+        has_untracked: row.has_untracked,
         artifact: row.artifact_target,
         defective: resultRegistry.defective_result_ids.has(row.result_id),
       })),
@@ -825,7 +949,7 @@ export function renderTraceabilityProse(view: TraceabilityView): string {
       // defect marker rides on the same line the reader would trust.
       lines.push(
         `- ${row.result_id}: run ${row.run_id}`
-        + `${row.effective_commit ? ` @ ${row.effective_commit}${row.has_snapshot ? '+snapshot' : ''}` : ''}`
+        + `${row.effective_commit ? ` @ ${row.effective_commit}${row.has_snapshot ? '+snapshot' : ''}${row.has_untracked ? '+untracked' : ''}` : ''}`
         + `${row.artifact ? ` → ${row.artifact}` : ''}`
         + `${row.defective ? ' — DEFECTIVE (see registry defects below; do not trust until repaired)' : ''}`,
       );
@@ -964,6 +1088,21 @@ export function renderTraceabilityProse(view: TraceabilityView): string {
   }
   if (view.runs.no_authoritative_identity.length > 0) {
     lines.push(`- LEDGER INTEGRITY: ${view.runs.no_authoritative_identity.length} run(s) have divergent ledger events and no authoritative identity: ${view.runs.no_authoritative_identity.join(', ')}`);
+  }
+  for (const entry of view.runs.retried.slice(0, 5)) {
+    lines.push(`- retried: ${entry.run_id} (attempt ${entry.latest_ordinal}, ${entry.crash_retries} crash retr${entry.crash_retries === 1 ? 'y' : 'ies'}`
+      + `${entry.latest_failed ? '; latest attempt FAILED — awaiting retry or record-only closure' : ''})`);
+  }
+  if (view.runs.retried.length > 5) {
+    lines.push(`- retried: ${view.runs.retried.length - 5} more run(s) — see \`nullius current --json\`.`);
+  }
+  if (view.runs.attempt_chain_defects.length > 0) {
+    lines.push(`- ATTEMPT CHAIN DEFECTS: ${view.runs.attempt_chain_defects.join(', ')} — repair before trusting these bindings.`);
+  }
+  if (view.runs.crashed_unretried.length > 0) {
+    lines.push(`- CRASHED, unretried: ${view.runs.crashed_unretried.slice(0, 5).join(', ')}`
+      + `${view.runs.crashed_unretried.length > 5 ? ', …' : ''} — \`nullius trace retry <run_dir>\` chains the next attempt, `
+      + 'or --record-only books an abandoned crash.');
   }
   if (view.runs.ledger_only_run_ids.length > 0) {
     lines.push(`- ${view.runs.ledger_only_run_ids.length} ledger-known run id(s) have no directory on disk: ${view.runs.ledger_only_run_ids.slice(0, 5).join(', ')}${view.runs.ledger_only_run_ids.length > 5 ? ', …' : ''}`);
