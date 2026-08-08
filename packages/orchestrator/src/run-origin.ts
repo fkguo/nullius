@@ -43,6 +43,29 @@ export function isTraceabilityArtifactPath(relativePath: string): boolean {
     && (normalized.startsWith('artifacts/runs/') || normalized.startsWith('team/runs/'));
 }
 
+/** Paths inside ANOTHER run's directory under either run root. Excluded
+ *  from untracked-noise counting when stamping THIS run: accumulated
+ *  outputs of earlier runs say nothing about what code the current run
+ *  executes, and counting them demotes every later stamp in a working
+ *  session for foreign noise (measured: a 91-run exploratory chain where
+ *  every stamp degraded on the previous runs' artifacts). The run's OWN
+ *  directory is deliberately NOT excluded — its uncommitted scripts and
+ *  manifest are exactly the code-identity uncertainty the grade must
+ *  keep reporting. Files sitting directly ON a run root (not inside a run
+ *  directory) stay counted too. */
+export function isForeignRunPath(relativePath: string, runId: string): boolean {
+  const normalized = relativePath.split(path.sep).join('/');
+  for (const root of ['artifacts/runs/', 'team/runs/']) {
+    if (!normalized.startsWith(root)) continue;
+    const remainder = normalized.slice(root.length);
+    const firstSegment = remainder.split('/', 1)[0] ?? '';
+    // A first segment with no trailing path is a file on the root itself.
+    if (!remainder.includes('/')) return false;
+    return firstSegment !== runId;
+  }
+  return false;
+}
+
 function git(projectRoot: string, args: string[], options: { allowFailure?: boolean } = {}): string | null {
   try {
     return execFileSync(
@@ -173,6 +196,14 @@ export function captureRunOrigin(
 
   // Snapshot FIRST, then derive the tracked-modification count from the
   // snapshot object itself — no window between inspect and snapshot.
+  // Stat-cache refresh precedes the snapshot: after an edit is REVERTED
+  // byte-identically (a routine agent motion), the index is stat-dirty
+  // while the content is clean, and `git stash create` exits nonzero on
+  // its FIRST invocation in that state — which would misread an ordinary
+  // tree as a broken measurement. The refresh's own exit code carries no
+  // information here (nonzero merely means real modifications exist),
+  // hence allowFailure.
+  git(projectRoot, ['update-index', '-q', '--refresh'], { allowFailure: true });
   // NOT allowFailure: a failing `stash create` must throw, because mapping a
   // failure onto the same null as a legitimately clean tree would grade a
   // broken measurement `exact_clean` — the one direction the honesty ladder
@@ -201,7 +232,9 @@ export function captureRunOrigin(
   const untracked = untrackedOutput
     .split('\n')
     .filter(line => line.trim().length > 0)
-    .filter(line => !isTraceabilityArtifactPath(line));
+    .filter(line => !isTraceabilityArtifactPath(line))
+    // Other runs' accumulated artifacts are not THIS run's code delta.
+    .filter(line => !isForeignRunPath(line, runId));
 
   // Dirty submodule CONTENTS (gitlink unchanged, inner tree dirty) are the
   // one tracked-side change the snapshot cannot carry; count them so the

@@ -65,6 +65,32 @@ export type TraceabilityView = {
     superseded: Array<{ run_id: string; by: string | null; reason: string | null; directory_missing?: true }>;
     voided: Array<{ run_id: string; reason: string | null; directory_missing?: true }>;
     no_authoritative_identity: string[];
+    /** The recorded snapshot trees organize exactly-stamped runs into CODE
+     *  STATES: every run in one state executed the same tracked research
+     *  tree. Ordered by first capture time; each later state carries the
+     *  file-level diff against the previous one — the version narrative of
+     *  an exploratory session, reconstructed from stamps alone (no commits
+     *  required of the agent). Aligned/unbound stamps have no exact tree
+     *  and stay outside (counted in excluded_inexact). */
+    code_states: Array<{
+      tree: string;
+      run_count: number;
+      run_ids: string[];
+      first_captured_at: string | null;
+      last_captured_at: string | null;
+      /** Absent on the first state. `files`/`total` cover RESEARCH files
+       *  only — control-plane and traceability bookkeeping are filtered
+       *  out, and changes under the run roots (accumulating outputs of the
+       *  runs themselves) are folded into `run_artifact_changes` so the
+       *  code narrative is not drowned by its own byproducts. */
+      changed_from_previous?: { total: number; files: string[]; run_artifact_changes: number } | { unavailable: string };
+    }>;
+    code_states_excluded_inexact: number;
+    /** Slug stem families (first two hyphen-separated words) — a DISPLAY
+     *  grouping of an exploratory chain's many one-off slugs into concept
+     *  families. Heuristic, for orientation only; feeds no gate and no
+     *  validity decision. */
+    slug_families: Array<{ family: string; runs: number; void: number; superseded: number }>;
   };
   ledger: {
     exists: boolean;
@@ -310,6 +336,100 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
   conflictingStamps.sort();
   noIdentity.sort();
 
+  // Code states: group exactly-stamped runs by their recorded snapshot
+  // tree. The stamps already carry the complete evolution of the tracked
+  // research tree across a working session; this just organizes it.
+  type StatePoint = { runId: string; tree: string; at: string | null };
+  const statePoints: StatePoint[] = [];
+  let codeStatesExcludedInexact = 0;
+  for (const known of ledger.runs.values()) {
+    if (!known.stamped || !known.origin) continue;
+    const record = known.origin as unknown as Record<string, unknown>;
+    const quality = record.binding_quality;
+    if (quality === 'aligned_heuristic' || quality === 'unbound') {
+      codeStatesExcludedInexact += 1;
+      continue;
+    }
+    const tree = typeof record.snapshot_tree === 'string' ? record.snapshot_tree : null;
+    if (!tree) {
+      codeStatesExcludedInexact += 1;
+      continue;
+    }
+    statePoints.push({
+      runId: known.run_id,
+      tree,
+      at: typeof record.captured_at_utc === 'string' ? record.captured_at_utc : null,
+    });
+  }
+  const stateByTree = new Map<string, StatePoint[]>();
+  for (const point of statePoints) {
+    const bucket = stateByTree.get(point.tree);
+    if (bucket) bucket.push(point);
+    else stateByTree.set(point.tree, [point]);
+  }
+  const codeStates: TraceabilityView['runs']['code_states'] = [...stateByTree.entries()]
+    .map(([tree, points]) => {
+      const times = points.map(point => point.at).filter((at): at is string => at !== null).sort();
+      return {
+        tree,
+        run_count: points.length,
+        run_ids: points.map(point => point.runId).sort(),
+        first_captured_at: times[0] ?? null,
+        last_captured_at: times[times.length - 1] ?? null,
+      };
+    })
+    // Chronological narrative: states ordered by first capture; a state
+    // with no capture time sorts last (stably, by tree).
+    .sort((a, b) => {
+      if (a.first_captured_at === null && b.first_captured_at === null) return a.tree < b.tree ? -1 : 1;
+      if (a.first_captured_at === null) return 1;
+      if (b.first_captured_at === null) return -1;
+      return a.first_captured_at < b.first_captured_at ? -1
+        : a.first_captured_at > b.first_captured_at ? 1
+          : a.tree < b.tree ? -1 : 1;
+    });
+  for (let index = 1; index < codeStates.length; index += 1) {
+    const previous = codeStates[index - 1]!;
+    const current = codeStates[index]!;
+    const diff = git(projectRoot, ['diff', '--name-only', previous.tree, current.tree]);
+    if (diff === null) {
+      current.changed_from_previous = {
+        unavailable: 'git could not compare the snapshot trees (an object may be missing from this repository)',
+      };
+      continue;
+    }
+    const files = diff
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => line.length > 0)
+      .filter(line => !isTraceabilityArtifactPath(line))
+      .filter(line => !(line === '.nullius' || line.startsWith('.nullius/')));
+    const research = files.filter(line => !line.startsWith('artifacts/runs/') && !line.startsWith('team/runs/'));
+    current.changed_from_previous = {
+      total: research.length,
+      files: research.slice(0, 5),
+      run_artifact_changes: files.length - research.length,
+    };
+  }
+
+  // Slug stem families: display grouping of one-off exploratory slugs into
+  // concept families (first two words of the slug).
+  const SLUG_STEM_FROM_ID = /^(?:\d{8}(?:T\d{6}Z)?)[-_.](?:m\d+-)?(?:r\d+-)?(.+?)(?:-r\d+)?$/;
+  const familyStats = new Map<string, { runs: number; void: number; superseded: number }>();
+  for (const entry of directories) {
+    const slug = SLUG_STEM_FROM_ID.exec(entry.run_id)?.[1] ?? entry.run_id;
+    const family = slug.split('-').slice(0, 2).join('-');
+    const stats = familyStats.get(family) ?? { runs: 0, void: 0, superseded: 0 };
+    stats.runs += 1;
+    const validity = ledger.runs.get(entry.run_id)?.validity;
+    if (validity === 'void') stats.void += 1;
+    else if (validity === 'superseded') stats.superseded += 1;
+    familyStats.set(family, stats);
+  }
+  const slugFamilies = [...familyStats.entries()]
+    .map(([family, stats]) => ({ family, ...stats }))
+    .sort((a, b) => b.runs - a.runs || (a.family < b.family ? -1 : 1));
+
   const manuscript = readManuscriptPointer(projectRoot);
   // Reuse the ledger view built above — validate would otherwise reparse
   // the whole ledger a second time on every status read.
@@ -508,6 +628,9 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
       superseded,
       voided,
       no_authoritative_identity: noIdentity,
+      code_states: codeStates,
+      code_states_excluded_inexact: codeStatesExcludedInexact,
+      slug_families: slugFamilies,
     },
     ledger: {
       exists: ledger.exists,
@@ -671,6 +794,13 @@ export function renderTraceabilityProse(view: TraceabilityView): string {
         ? ' (aligned_heuristic and unbound never identify code exactly)'
         : ''}`);
   }
+  if (view.runs.slug_families.length > 1) {
+    const top = view.runs.slug_families.slice(0, 8)
+      .map(family => `${family.family} (${family.runs}${family.void > 0 ? `, ${family.void} void` : ''}${family.superseded > 0 ? `, ${family.superseded} superseded` : ''})`)
+      .join(', ');
+    lines.push(`- slug families (display grouping): ${top}`
+      + `${view.runs.slug_families.length > 8 ? `, … ${view.runs.slug_families.length - 8} more` : ''}`);
+  }
   for (const entry of view.runs.superseded.slice(0, 10)) {
     lines.push(`- superseded: ${entry.run_id}${entry.directory_missing ? ' [directory removed]' : ''}${entry.by ? ` → ${entry.by}` : ''}${entry.reason ? ` (${entry.reason})` : ''}`);
   }
@@ -698,6 +828,41 @@ export function renderTraceabilityProse(view: TraceabilityView): string {
       + `that no longer matches the authoritative ledger stamp: ${view.warnings.mirror_divergence.slice(0, 5).join(', ')}`
       + `${view.warnings.mirror_divergence.length > 5 ? ', …' : ''} — trust the ledger.`,
     );
+  }
+  if (view.runs.code_states.length > 0) {
+    lines.push('');
+    lines.push('## Code states');
+    const stampedExact = view.runs.code_states.reduce((sum, state) => sum + state.run_count, 0);
+    lines.push(
+      `${stampedExact} exactly-stamped run(s) span ${view.runs.code_states.length} code state(s) — `
+      + 'every run within one state executed the same tracked research tree'
+      + `${view.runs.code_states_excluded_inexact > 0
+        ? ` (${view.runs.code_states_excluded_inexact} aligned/unbound stamp(s) have no exact tree and are not classified)`
+        : ''}.`,
+    );
+    for (const state of view.runs.code_states.slice(0, 10)) {
+      const span = state.first_captured_at && state.last_captured_at && state.first_captured_at !== state.last_captured_at
+        ? `${state.first_captured_at} → ${state.last_captured_at}`
+        : state.first_captured_at ?? 'capture time unknown';
+      const runsPreview = state.run_ids.length <= 3
+        ? state.run_ids.join(', ')
+        : `${state.run_ids[0]} … ${state.run_ids[state.run_ids.length - 1]}`;
+      let changed = '';
+      if (state.changed_from_previous) {
+        if ('files' in state.changed_from_previous) {
+          const delta = state.changed_from_previous;
+          changed = `; vs previous: ${delta.total} research file(s) changed`
+            + `${delta.files.length > 0 ? ` (${delta.files.join(', ')}${delta.total > delta.files.length ? ', …' : ''})` : ''}`
+            + `${delta.run_artifact_changes > 0 ? ` [+${delta.run_artifact_changes} run-artifact change(s)]` : ''}`;
+        } else {
+          changed = `; vs previous: ${state.changed_from_previous.unavailable}`;
+        }
+      }
+      lines.push(`- tree ${state.tree.slice(0, 12)} — ${state.run_count} run(s) [${runsPreview}], ${span}${changed}`);
+    }
+    if (view.runs.code_states.length > 10) {
+      lines.push(`- … ${view.runs.code_states.length - 10} more code state(s) (full list in --json runs.code_states)`);
+    }
   }
   lines.push('');
   return lines.join('\n');
