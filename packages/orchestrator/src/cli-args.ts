@@ -56,13 +56,14 @@ export type ParsedCliArgs =
   | {
     command: 'trace';
     projectRoot: string | null;
-    action: 'stamp' | 'supersede' | 'void' | 'reinstate' | 'backfill' | 'propose-chains' | 'confirm-chains';
+    action: 'stamp' | 'retry' | 'supersede' | 'void' | 'reinstate' | 'backfill' | 'propose-chains' | 'confirm-chains';
     target: string;
     by: string | null;
     reason: string | null;
     scope: string | null;
     actor: string | null;
     eventId: string | null;
+    recordOnly: boolean;
     deps: Record<string, string>;
   }
   | { command: 'current'; projectRoot: string | null; json: boolean }
@@ -508,22 +509,23 @@ function parseResultArgs(args: string[]): {
 }
 
 function parseTraceArgs(args: string[]): {
-  action: 'stamp' | 'supersede' | 'void' | 'reinstate' | 'backfill' | 'propose-chains' | 'confirm-chains';
+  action: 'stamp' | 'retry' | 'supersede' | 'void' | 'reinstate' | 'backfill' | 'propose-chains' | 'confirm-chains';
   target: string;
   by: string | null;
   reason: string | null;
   scope: string | null;
   actor: string | null;
   eventId: string | null;
+  recordOnly: boolean;
   deps: Record<string, string>;
 } {
   const rawAction = args[0];
   const projectActions = new Set(['backfill', 'propose-chains', 'confirm-chains']);
-  if (rawAction !== 'stamp' && rawAction !== 'supersede' && rawAction !== 'void' && rawAction !== 'reinstate'
+  if (rawAction !== 'stamp' && rawAction !== 'retry' && rawAction !== 'supersede' && rawAction !== 'void' && rawAction !== 'reinstate'
     && !projectActions.has(rawAction ?? '')) {
-    throw new Error('trace requires an action: stamp | supersede | void | reinstate | backfill | propose-chains | confirm-chains');
+    throw new Error('trace requires an action: stamp | retry | supersede | void | reinstate | backfill | propose-chains | confirm-chains');
   }
-  const action = rawAction as 'stamp' | 'supersede' | 'void' | 'reinstate' | 'backfill' | 'propose-chains' | 'confirm-chains';
+  const action = rawAction as 'stamp' | 'retry' | 'supersede' | 'void' | 'reinstate' | 'backfill' | 'propose-chains' | 'confirm-chains';
   if (projectActions.has(action)) {
     let actor: string | null = null;
     for (let index = 1; index < args.length; index += 1) {
@@ -535,7 +537,7 @@ function parseTraceArgs(args: string[]): {
       }
       throw new Error(`unknown trace ${action} argument: ${arg}`);
     }
-    return { action, target: '', by: null, reason: null, scope: null, actor, eventId: null, deps: {} };
+    return { action, target: '', by: null, reason: null, scope: null, actor, eventId: null, recordOnly: false, deps: {} };
   }
   let target: string | null = null;
   let by: string | null = null;
@@ -543,6 +545,7 @@ function parseTraceArgs(args: string[]): {
   let scope: string | null = null;
   let actor: string | null = null;
   let eventId: string | null = null;
+  let recordOnly = false;
   const deps: Record<string, string> = {};
   for (let index = 1; index < args.length; index += 1) {
     const arg = args[index]!;
@@ -557,8 +560,14 @@ function parseTraceArgs(args: string[]): {
       index += 1;
       continue;
     }
+    if (arg === '--record-only') {
+      if (action !== 'retry') throw new Error(`trace ${action} does not take --record-only`);
+      recordOnly = true;
+      continue;
+    }
     if (arg === '--scope') {
       if (action === 'stamp') throw new Error('trace stamp does not take --scope');
+      if (action === 'retry') throw new Error('trace retry applies to full scope only');
       if (action === 'reinstate') throw new Error('trace reinstate applies to full scope only');
       scope = readOptionValue(args, index, '--scope');
       index += 1;
@@ -575,7 +584,7 @@ function parseTraceArgs(args: string[]): {
       continue;
     }
     if (arg === '--dep') {
-      if (action !== 'stamp') throw new Error(`trace ${action} does not take --dep`);
+      if (action !== 'stamp' && action !== 'retry') throw new Error(`trace ${action} does not take --dep`);
       const value = readOptionValue(args, index, '--dep');
       const eq = value.indexOf('=');
       if (eq <= 0) throw new Error('--dep expects name=path');
@@ -591,11 +600,11 @@ function parseTraceArgs(args: string[]): {
     throw new Error(`unknown trace argument: ${arg}`);
   }
   if (target === null) {
-    throw new Error(action === 'stamp'
-      ? 'trace stamp requires a run directory path'
+    throw new Error(action === 'stamp' || action === 'retry'
+      ? `trace ${action} requires a run directory path`
       : `trace ${action} requires a run id`);
   }
-  return { action, target, by, reason, scope, actor, eventId, deps };
+  return { action, target, by, reason, scope, actor, eventId, recordOnly, deps };
 }
 
 function parseDecisionArgs(args: string[]): {

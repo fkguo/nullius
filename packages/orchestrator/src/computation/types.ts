@@ -118,6 +118,23 @@ export type ExecutionOriginStampOutcome =
   | { status: 'stamped'; event_id: string; binding_quality: string; baseline_commit: string | null }
   | { status: 'already_stamped'; binding_quality: string; detail: string }
   | { status: 'stale_stamp'; detail: string }
+  /** A retriable crashed run relaunched under a changed tree: the retry
+   *  entrance closed the failed attempt and opened the next one with a
+   *  fresh capture — zero operator commands, results bind to the new
+   *  ordinal's exact tree. */
+  | {
+    status: 'retried';
+    event_id: string;
+    closed_ordinal: number;
+    opened_ordinal: number;
+    previous_outcome: string;
+    binding_quality: string;
+  }
+  /** A COMPLETED run relaunched under a different tree: refused BEFORE
+   *  execution (the one deliberate exception to never-blocks — running
+   *  would overwrite a completed result's provenance; "completed but
+   *  wrong" is content territory: supersede/void + fresh id). */
+  | { status: 'refused_relaunch'; detail: string }
   | { status: 'skipped'; reason: string }
   | { status: 'failed'; error: string };
 

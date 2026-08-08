@@ -1,5 +1,5 @@
 import { appendValidityEvent, buildValidityEvent } from './validity-ledger.js';
-import { defaultStampActor, gradeExistingStamp, stampRunDirectory } from './run-stamp.js';
+import { defaultStampActor, gradeExistingStamp, openRetryAttempt, stampRunDirectory } from './run-stamp.js';
 import { buildTraceabilityView, renderTraceabilityProse } from './traceability-view.js';
 import { backfillRunOrigins, confirmRoundChains, proposeRoundChains } from './trace-backfill.js';
 import { refreshNotebookCurrentState } from './notebook-current-state.js';
@@ -22,13 +22,14 @@ type CliIo = {
 };
 
 export type TraceParsed = {
-  action: 'stamp' | 'supersede' | 'void' | 'reinstate' | 'backfill' | 'propose-chains' | 'confirm-chains';
+  action: 'stamp' | 'retry' | 'supersede' | 'void' | 'reinstate' | 'backfill' | 'propose-chains' | 'confirm-chains';
   target: string;
   by: string | null;
   reason: string | null;
   scope: string | null;
   actor: string | null;
   eventId: string | null;
+  recordOnly: boolean;
   deps: Record<string, string>;
 };
 
@@ -118,13 +119,15 @@ export function runTraceCommand(projectRoot: string, parsed: TraceParsed, io: Cl
           io.stderr(
             `trace stamp: ${result.runId} carries a ${graded.bindingQuality} stamp, but ${graded.signalUntracked} `
             + 'new untracked path(s) bearing on this run have appeared since; the recorded exactness no longer '
-            + 'describes the tree. Commit the new files or use a fresh run id.\n',
+            + 'describes the tree. Commit the new files, use a fresh run id for content follow-ups, or — after a '
+            + 'resultless crash — `nullius trace retry` chains the next attempt under this id.\n',
           );
           return 1;
         }
         io.stderr(
           `trace stamp: ${result.runId} already carries an origin stamp bound to a DIFFERENT tracked code tree; `
-          + 'a run id never silently rebinds. Use a fresh run id for the changed code (round-suffix convention).\n',
+          + 'a run id never silently rebinds. Use a fresh run id for content follow-ups (round-suffix convention), '
+          + 'or — after a resultless crash — `nullius trace retry` chains the next attempt under this id.\n',
         );
         return 1;
       }
@@ -135,6 +138,41 @@ export function runTraceCommand(projectRoot: string, parsed: TraceParsed, io: Cl
         + `${result.mirrorWritten ? '' : ' (run directory unwritable; ledger event is the record)'}\n`
         + `event ${result.eventId}\n`,
       );
+      return 0;
+    }
+    case 'retry': {
+      const result = openRetryAttempt(projectRoot, parsed.target, {
+        actor,
+        ...(parsed.reason ? { reason: parsed.reason } : {}),
+        recordOnly: parsed.recordOnly,
+        ...(parsed.eventId ? { eventId: parsed.eventId } : {}),
+        deps: parsed.deps,
+      });
+      if (result.kind === 'rejected') {
+        io.stderr(`${result.message}\n`);
+        return 1;
+      }
+      if (result.kind === 'already_recorded') {
+        io.stdout(`already recorded retry of ${result.runId} (event ${result.eventId})\n`);
+        return 0;
+      }
+      if (result.kind === 'attempt_conflict') {
+        io.stderr(`${result.message}\n`);
+        return 1;
+      }
+      const originRecord = result.origin as unknown as { binding_quality?: string; baseline_commit?: string | null } | null;
+      io.stdout(
+        `${result.openedOrdinal === null
+          ? `recorded attempt ${result.closedOrdinal} of ${result.runId} as ${result.previousOutcome} (record-only; no new attempt opened)`
+          : `retried ${result.runId}: attempt ${result.closedOrdinal} closed as ${result.previousOutcome} `
+          + `(${result.evidence.method}), attempt ${result.openedOrdinal} opened`
+          + `${originRecord?.binding_quality ? `: ${originRecord.binding_quality}` : ''}`
+          + `${originRecord?.baseline_commit ? ` @ ${originRecord.baseline_commit.slice(0, 12)}` : ''}`}`
+        + `${result.quarantinedTo ? `\nprior products archived under ${result.quarantinedTo}/ (never deleted)` : ''}`
+        + `\nevent ${result.eventId}\n`,
+      );
+      // A retried run cannot be registry-named (the boundary refuses those),
+      // so the notebook block cannot have moved — no refresh needed.
       return 0;
     }
     case 'supersede':

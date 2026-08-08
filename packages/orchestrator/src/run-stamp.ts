@@ -555,23 +555,26 @@ function listRunSurfaceEntries(runDir: string): string[] {
   return fs.readdirSync(runDir).filter(name => !RETRY_BOOKKEEPING_ALLOWLIST.has(name));
 }
 
-/** Quarantine the failed attempt's execution products into
- *  attempts/attempt-<N>/ (never deleted). Precise where the machinery can
- *  be precise: the whole computation/ area except the manifest (runner
- *  status, logs, workspace, outputs). Hand runs without a computation/
- *  area keep their surface in place — their retries ride on DECLARED
- *  evidence, visibly second-class, and the per-attempt bindings still
- *  bound what an auditor must check (a recorded limitation, not a silent
- *  one). Returns run-relative destination or null when nothing moved. */
+/** Quarantine the failed attempt's execution PRODUCTS into
+ *  attempts/attempt-<N>/ (never deleted): exactly the runner write surface
+ *  — status file, logs, outputs, workspace. INPUTS (the manifest, script
+ *  areas) stay in place: the retry re-runs them, and archiving an input
+ *  would break the relaunch it exists to enable. Hand runs without a
+ *  computation/ area keep their surface in place — their retries ride on
+ *  DECLARED evidence, visibly second-class (a recorded limitation, not a
+ *  silent one). Returns run-relative destination or null when nothing
+ *  moved. */
+const RUNNER_PRODUCT_ENTRIES = ['execution_status.json', 'logs', 'outputs', 'workspace'];
+
 function quarantineFailedAttempt(runDir: string, closedOrdinal: number): { dest: string | null; moved: number } {
   const destRel = path.join('attempts', `attempt-${closedOrdinal}`);
   const destAbs = path.join(runDir, destRel);
   const computationDir = path.join(runDir, 'computation');
   if (!fs.existsSync(computationDir)) return { dest: null, moved: 0 };
   let moved = 0;
-  for (const entry of fs.readdirSync(computationDir)) {
-    if (entry === 'manifest.json') continue; // input, not product — the retry re-runs it
+  for (const entry of RUNNER_PRODUCT_ENTRIES) {
     const from = path.join(computationDir, entry);
+    if (!fs.existsSync(from)) continue;
     const to = path.join(destAbs, 'computation', entry);
     fs.mkdirSync(path.dirname(to), { recursive: true });
     fs.renameSync(from, to);
@@ -754,6 +757,31 @@ export function openRetryAttempt(
       evidence.detail = options.reason;
     }
   }
+  // Manifest-declared crash budget: total executions allowed, counting the
+  // initial attempt and every CRASH retry (missing self-heals excluded).
+  // Exhaustion restores the full ceremony; record-only closures stay
+  // available so an abandoned run is still cheap to book.
+  if (outcome !== 'missing' && !options.recordOnly) {
+    const manifestPath = path.join(runDir, 'computation', 'manifest.json');
+    let maxAttempts: number | null = null;
+    try {
+      if (fs.existsSync(manifestPath)) {
+        const parsed = JSON.parse(fs.readFileSync(manifestPath, 'utf-8')) as { max_attempts?: number };
+        if (typeof parsed.max_attempts === 'number' && parsed.max_attempts >= 1) maxAttempts = parsed.max_attempts;
+      }
+    } catch {
+      // an unreadable manifest never decides the boundary; the schema gate owns manifest validity
+    }
+    if (maxAttempts !== null && entry.attempts.crash_retry_count + 1 >= maxAttempts) {
+      return {
+        kind: 'rejected',
+        message: `trace retry: ${runId} has exhausted its ${maxAttempts}-attempt crash budget — the full `
+          + 'supersede/void ceremony with a fresh run id is the remaining path (a --record-only closure '
+          + 'stays available for honest bookkeeping)',
+      };
+    }
+  }
+
   const eventId = options.eventId ?? mintUlid();
   let quarantinedTo: string | null = null;
   if (!options.recordOnly) {
