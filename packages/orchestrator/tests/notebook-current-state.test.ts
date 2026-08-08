@@ -142,6 +142,17 @@ describe('refresh + check', () => {
     expect(outcome.reason).toContain('stray');
   });
 
+  it('preserves the researcher\'s own file mode across a refresh', () => {
+    fs.writeFileSync(notebookPath(), [
+      '# Memo', '',
+      CURRENT_STATE_START, '(rendered at init)', CURRENT_STATE_END,
+      '', '## Results',
+    ].join('\n'));
+    fs.chmodSync(notebookPath(), 0o600);
+    expect(refreshNotebookCurrentState(projectRoot, { insertIfMissing: false }).action).toBe('rewritten');
+    expect(fs.statSync(notebookPath()).mode & 0o777).toBe(0o600);
+  });
+
   it('markers inside four-space-indented code are examples, not blocks', () => {
     fs.writeFileSync(notebookPath(), [
       '# Memo', '',

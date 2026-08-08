@@ -314,10 +314,18 @@ function insertAtFrontMatter(text: string, rendered: string, eol: string): strin
 
 export function refreshNotebookCurrentState(
   projectRoot: string,
-  options?: { insertIfMissing?: boolean; ledgerView?: ValidityLedgerView },
+  options?: {
+    insertIfMissing?: boolean;
+    ledgerView?: ValidityLedgerView;
+    /** A caller that already computed the projection passes it here so one
+     *  command never hashes the registered artifacts twice. */
+    projection?: CurrentStateProjection;
+  },
 ): RefreshOutcome {
   const notebookPath = path.join(projectRoot, 'research_notebook.md');
-  const rendered = renderCurrentStateBlock(computeCurrentStateProjection(projectRoot, options?.ledgerView));
+  const rendered = renderCurrentStateBlock(
+    options?.projection ?? computeCurrentStateProjection(projectRoot, options?.ledgerView),
+  );
   // Optimistic concurrency: the notebook is a human-owned file an editor may
   // save between our read and our write, and a whole-file reconstruction
   // built on a stale read would silently discard that prose. Re-reading
@@ -369,14 +377,28 @@ export function refreshNotebookCurrentState(
       updated = text.slice(0, bounds.start) + renderedForFile + text.slice(bounds.end);
       action = 'rewritten';
     }
-    let latest: string;
+    // Preserve the researcher's own file mode; the guard re-validates the
+    // optimistic read at the last userspace point before the rename (the
+    // repo's beforeRename primitive exists for exactly this), shrinking the
+    // clobber window from the whole staged write to the rename itself.
+    let mode: number | undefined;
     try {
-      latest = fs.readFileSync(notebookPath, 'utf-8');
+      mode = fs.statSync(notebookPath).mode & 0o7777;
     } catch {
-      return { action: 'skipped', reason: 'research_notebook.md unreadable during refresh' };
+      mode = undefined;
     }
-    if (latest !== text) continue; // a concurrent edit landed — recompute on the new content
-    writeBytesAtomicDurable(notebookPath, Buffer.from(updated, 'utf-8'));
+    try {
+      writeBytesAtomicDurable(notebookPath, Buffer.from(updated, 'utf-8'), mode, () => {
+        if (fs.readFileSync(notebookPath, 'utf-8') !== text) {
+          throw new Error('concurrent notebook edit during refresh');
+        }
+      });
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('concurrent notebook edit')) {
+        continue; // recompute on the new content
+      }
+      throw error;
+    }
     return { action, reason: null };
   }
   return {

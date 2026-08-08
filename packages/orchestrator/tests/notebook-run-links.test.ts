@@ -212,15 +212,49 @@ describe('dead-citation acknowledgment union', () => {
     expect(report.unacknowledged_dead).toHaveLength(1);
   });
 
-  it('a run slug containing a token word never self-acknowledges (link destinations are blanked)', () => {
+  it('a run slug containing a token word never self-acknowledges (destinations, link text, bare mentions)', () => {
     const slugDead = '20260808-m1-r007-void-check';
     const ledger = syntheticLedger([
       { id: slugDead, ts: '2026-08-08T01:00:00.000Z', validity: 'void' },
     ]);
-    writeNotebook(`# Memo\n## Results\nThe clearance came from [this run](artifacts/runs/${slugDead}/out.tsv).\n`);
-    const report = analyzeNotebookRunLinks(projectRoot, ledger, new Set());
-    expect(report.unacknowledged_dead).toHaveLength(1);
-    expect(report.unacknowledged_dead[0]!.run_id).toBe(slugDead);
+    const shapes = [
+      `The clearance came from [this run](artifacts/runs/${slugDead}/out.tsv).`,
+      `The clearance came from [${slugDead}](artifacts/runs/${slugDead}/out.tsv).`,
+      `Run ${slugDead} produced the value; see [record](artifacts/runs/${slugDead}/out.tsv).`,
+      `The clearance came from [titled](artifacts/runs/${slugDead}/out.tsv "run record").`,
+    ];
+    for (const line of shapes) {
+      writeNotebook(`# Memo\n## Results\n${line}\n`);
+      const report = analyzeNotebookRunLinks(projectRoot, ledger, new Set());
+      expect(report.unacknowledged_dead, line).toHaveLength(1);
+      expect(report.unacknowledged_dead[0]!.run_id).toBe(slugDead);
+    }
+  });
+
+  it('a commented-out passage spanning blank lines never leaks its interior as live citation', () => {
+    writeNotebook([
+      '# Memo', '## Results',
+      '<!--', '',
+      `old draft: an estimate from [r](artifacts/runs/${dead}/out.tsv)`, '',
+      '-->',
+      'Live prose without links.',
+    ].join('\n'));
+    const report = analyzeNotebookRunLinks(projectRoot, ledgerWithDead('void'), new Set());
+    expect(report.dead_citations).toHaveLength(0);
+  });
+
+  it('a backticked example of the role marker does not smuggle the log exemption in', () => {
+    const ledger = ascendingLedger(9);
+    writeNotebook([
+      '# Memo', '## Results',
+      'Declare `<!-- notebook-section-role: log -->` once for chronicles.',
+      '',
+      ...Array.from({ length: 9 }, (_, i) => `${paragraphCiting(i + 1)}\n`),
+    ].join('\n'));
+    const section = analyzeNotebookRunLinks(projectRoot, ledger, new Set())
+      .sections.find(entry => entry.heading === 'Results')!;
+    expect(section.declared_log_role).toBe(false);
+    expect(section.verdict).toBe('drifted');
   });
 
   it('accepts the present-tense charter idiom: "run B supersedes the earlier estimate"', () => {

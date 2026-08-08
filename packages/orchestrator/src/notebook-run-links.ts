@@ -24,12 +24,16 @@ import type { ValidityLedgerView, ValidityState } from './validity-ledger.js';
  *    block too and therefore invisible to the drift signals — a recorded
  *    limitation, chosen over false-flagging curated lists, and bounded by
  *    the fact that drift is advisory everywhere.
- *  - Dead-citation acknowledgment is a UNION of channels: a replacement-
- *    chain link (language-neutral), a small fixed token list (the charter's
- *    own lesson idiom links the OLD run record, and void runs have no
- *    replacement chain — link-only acknowledgment would refuse charter-exact
- *    prose), or a declared `log` section role. Acknowledgment aggregates at
- *    SECTION scope: one honest sentence covers its section's other mentions.
+ *  - Dead-citation acknowledgment is a UNION of channels with two scopes:
+ *    a replacement-chain link counts SECTION-wide (a chain member names the
+ *    one dead run it replaces — it cannot mask another), and a declared
+ *    `log` section role is section-wide by definition; the generic TOKEN
+ *    channel counts only in the CITING paragraph or list item — the
+ *    charter's lesson idiom puts word and link in one sentence, and a wider
+ *    scope would let one "superseded" blanket-acknowledge unrelated dead
+ *    runs (and void runs have no replacement chain, so the token channel
+ *    must exist at all — link-only acknowledgment would refuse
+ *    charter-exact prose).
  */
 
 export const DRIFT_FLOOR_CITING_PARAGRAPHS = 8;
@@ -57,23 +61,36 @@ const SECTION_ROLE_PATTERN = /<!--\s*notebook-section-role:\s*log\s*-->/;
  *  shortcut without a full CommonMark pass, and guessing would create false
  *  citations. A dead run cited ONLY via a shortcut reference escapes the
  *  analysis (recorded limitation). */
-const LINK_TARGET_PATTERN = /\]\(([^()\s]+)\)/g;
+/** Inline destinations accept a plain path, an angle-bracketed path, and an
+ *  optional quoted title (CommonMark's three everyday forms). */
+const LINK_TARGET_PATTERN = /\]\(\s*(<[^<>]*>|[^()\s]+)(?:\s+"[^"]*")?\s*\)/g;
 const REFERENCE_DEFINITION_PATTERN = /^\s{0,3}\[([^\]]+)\]:\s*(\S+)/;
 const REFERENCE_FULL_PATTERN = /\[[^\]]*\]\[([^\]]+)\]/g;
 const REFERENCE_COLLAPSED_PATTERN = /\[([^\]]+)\]\[\]/g;
 const RUN_LINK_PATTERN = /^(?:\.\/)?(?:artifacts|team)\/runs\/([^/#?]+)/;
 
-/** Inline code spans and HTML comments are not prose: a dead-run link inside
- *  backticks documents a path, it does not cite evidence — counting it would
- *  manufacture false fold refusals. (Fenced blocks are already excluded by
- *  the shared section splitter.) The section-role marker is read from the
- *  RAW body before this sanitization. */
+/** Code spans are not prose: a dead-run link inside backticks documents a
+ *  path, it does not cite evidence — counting it would manufacture false
+ *  fold refusals. Spans open with a run of backticks and close with an
+ *  EQUAL run (CommonMark), so double-backtick examples (the idiom for code
+ *  containing a backtick) are covered too. (Fenced blocks are already
+ *  excluded by the shared section splitter.) */
+function stripCodeSpans(text: string): string {
+  return text.replace(/(`+)[\s\S]*?\1/g, ' ');
+}
+
+/** HTML comments render nowhere. Stripped at SECTION level, before
+ *  paragraph segmentation — a commented-out passage spanning blank lines
+ *  would otherwise leak its interior as a live block. The section-role
+ *  marker IS a comment, so role detection runs before this (on
+ *  code-stripped text, lest a backticked example of the marker smuggle the
+ *  exemption in). */
+function stripHtmlComments(text: string): string {
+  return text.replace(/<!--[\s\S]*?-->/g, ' ');
+}
+
 function sanitizeProse(text: string): string {
-  // Code spans open with a run of backticks and close with an EQUAL run
-  // (CommonMark) — a single-backtick-only pattern would leave
-  // double-backtick examples (the idiom for code containing a backtick)
-  // visible to extraction.
-  return text.replace(/<!--[\s\S]*?-->/g, ' ').replace(/(`+)[\s\S]*?\1/g, ' ');
+  return stripHtmlComments(stripCodeSpans(text));
 }
 
 /** For TOKEN matching only: link destinations are paths, not prose — a run
@@ -82,10 +99,22 @@ function sanitizeProse(text: string): string {
  *  inline destination and reference-definition target before scanning. */
 function blankLinkDestinations(text: string): string {
   return text
-    .replace(/\]\([^()\s]+\)/g, '](#)')
+    .replace(LINK_TARGET_PATTERN, '](#)')
     .split('\n')
     .map(line => line.replace(REFERENCE_DEFINITION_PATTERN, (_full, label: string) => `[${label}]: #`))
     .join('\n');
+}
+
+/** The same slug hazard reaches token scope through link TEXT, reference
+ *  labels, and bare prose mentions ("Run <id> produced X"), which
+ *  destination blanking cannot touch: blank every KNOWN run id string
+ *  outright before scanning. */
+function blankKnownRunIds(text: string, knownIds: readonly string[]): string {
+  let out = text;
+  for (const id of knownIds) {
+    if (out.includes(id)) out = out.split(id).join('#');
+  }
+  return out;
 }
 
 export type AckChannel = 'replacement-link' | 'token' | 'declared-log';
@@ -281,16 +310,23 @@ export function analyzeNotebookRunLinks(
   }
 
   const unknownSeen = new Set<string>();
+  const knownIds = [...new Set([...ledger.runs.keys(), ...existingRunDirIds])];
   // The machine-rendered current-state block is a view, not prose: its
   // artifact links must never count as citations, wherever the block sits.
   for (const section of splitNotebookSections(stripCurrentStateBlock(text))) {
-    const body = section.body.join('\n');
-    // Role detection reads the RAW body — the marker IS an HTML comment.
-    const declaredLog = SECTION_ROLE_PATTERN.test(body);
-    const definitions = collectReferenceDefinitions(section.body);
+    const rawBody = section.body.join('\n');
+    // Role detection runs on code-stripped text (the marker IS an HTML
+    // comment, so it must happen before comment stripping — but a
+    // backticked example of the marker must not smuggle the exemption in).
+    const declaredLog = SECTION_ROLE_PATTERN.test(stripCodeSpans(rawBody));
+    // Comments are stripped at SECTION level, before segmentation: a
+    // commented-out passage spanning blank lines must not leak its
+    // interior as a live citing block.
+    const commentlessLines = stripHtmlComments(rawBody).split('\n');
+    const definitions = collectReferenceDefinitions(commentlessLines);
     const blocks: CitationBlock[] = [];
-    for (const blockText of segmentCitationBlocks(section.body)) {
-      const sanitized = sanitizeProse(blockText);
+    for (const blockText of segmentCitationBlocks(commentlessLines)) {
+      const sanitized = stripCodeSpans(blockText);
       const candidates = extractRunIds(sanitized, definitions);
       const runIds = candidates.filter(id => ledger.runs.has(id) || existingRunDirIds.has(id));
       for (const id of candidates) {
@@ -301,11 +337,11 @@ export function analyzeNotebookRunLinks(
       }
       if (runIds.length > 0) {
         const units = splitTokenUnits(blockText).map(unitText => {
-          const unitSanitized = sanitizeProse(unitText);
+          const unitSanitized = stripCodeSpans(unitText);
           return {
             runIds: extractRunIds(unitSanitized, definitions)
               .filter(id => ledger.runs.has(id) || existingRunDirIds.has(id)),
-            tokenText: blankLinkDestinations(unitSanitized),
+            tokenText: blankKnownRunIds(blankLinkDestinations(unitSanitized), knownIds),
           };
         });
         blocks.push({ runIds, units });
