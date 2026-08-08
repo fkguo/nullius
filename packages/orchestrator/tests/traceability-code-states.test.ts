@@ -27,10 +27,11 @@ function git(...args: string[]): string {
   return execFileSync('git', ['-C', projectRoot, ...args], { encoding: 'utf-8' });
 }
 
-function stampNow(runId: string, capturedAt: string): void {
+function stampNow(runId: string, capturedAt: string, explicitEventId?: string): void {
   fs.mkdirSync(path.join(projectRoot, 'artifacts', 'runs', runId), { recursive: true });
   const origin = captureRunOrigin(projectRoot, runId) as unknown as Record<string, unknown>;
   origin.captured_at_utc = capturedAt;
+  if (explicitEventId) origin.event_id = explicitEventId;
   appendValidityEvent(projectRoot, buildValidityEvent({
     event: 'stamp',
     run_id: runId,
@@ -269,7 +270,7 @@ describe('adjacent-diff computation cap', () => {
 });
 
 describe('tie handling at episode boundaries (review r2)', () => {
-  it('equal capture times order by stamp ULID (truthful mint order) and mark the boundary uncertain', () => {
+  it('equal capture times follow the ledger effective order and mark the boundary uncertain', () => {
     git('init', '-q');
     git('config', 'user.email', 't@example.com');
     git('config', 'user.name', 'T');
@@ -279,12 +280,12 @@ describe('tie handling at episode boundaries (review r2)', () => {
     git('commit', '-q', '-m', 'c1');
 
     const SAME_INSTANT = '2026-08-08T10:00:00.000Z';
-    // Mint order (the ULIDs) is A then B; the wall clock cannot tell them
-    // apart. The narrative must follow mint order and SAY the boundary is
-    // a tie — never present the invented alternative as chronology.
-    stampNow('20260808-m1-r001-alpha-probe', SAME_INSTANT);
+    // Same recorded instant: the wall clock cannot order these. The walk
+    // follows the ledger's effective (ts_utc, event_id) order and must SAY
+    // the boundary is a tie — never present it as established chronology.
+    stampNow('20260808-m1-r001-alpha-probe', SAME_INSTANT, '01KZEAAAAAAAAAAAAAAAAAAAB1');
     fs.writeFileSync(path.join(projectRoot, 'solver.py'), 'VERSION = 2\n');
-    stampNow('20260808-m1-r002-beta-scan', SAME_INSTANT);
+    stampNow('20260808-m1-r002-beta-scan', SAME_INSTANT, '01KZEAAAAAAAAAAAAAAAAAAAB2');
 
     const view = buildTraceabilityView(projectRoot);
     expect(view.runs.code_states).toHaveLength(2);
@@ -307,18 +308,24 @@ describe('tie handling at episode boundaries (review r2)', () => {
     git('commit', '-q', '-m', 'c1');
 
     const SAME_INSTANT = '2026-08-08T10:00:00.000Z';
-    stampNow('20260808-m1-r001-alpha-probe', SAME_INSTANT);
+    // Explicit ledger event ids in ascending lexical order: within one
+    // captured_at, the ledger's effective order is (ts_utc, event_id), and
+    // that — not any view-private key — must drive the episode walk. (A
+    // freshly minted ULID's sub-millisecond suffix is RANDOM, so real
+    // same-instant ids carry no time information; the ids here are chosen
+    // to make the effective order deterministic for the test.)
+    stampNow('20260808-m1-r001-alpha-probe', SAME_INSTANT, '01KZEAAAAAAAAAAAAAAAAAAAA1');
     fs.writeFileSync(path.join(projectRoot, 'solver.py'), 'VERSION = 2\n');
-    stampNow('20260808-m1-r002-beta-scan', SAME_INSTANT);
+    stampNow('20260808-m1-r002-beta-scan', SAME_INSTANT, '01KZEAAAAAAAAAAAAAAAAAAAA2');
     fs.writeFileSync(path.join(projectRoot, 'solver.py'), 'VERSION = 1\n');
     const solver = path.join(projectRoot, 'solver.py');
     const future = new Date(Date.now() + 2000);
     fs.utimesSync(solver, future, future);
-    stampNow('20260808-m1-r003-alpha-return', SAME_INSTANT);
+    stampNow('20260808-m1-r003-alpha-return', SAME_INSTANT, '01KZEAAAAAAAAAAAAAAAAAAAA3');
 
     const view = buildTraceabilityView(projectRoot);
-    // ANY ordering key other than mint order (tree, run id, …) puts the two
-    // same-tree points adjacent and folds A→B→A into two episodes,
+    // ANY view-private ordering key (tree, run id, payload id, …) puts the
+    // two same-tree points adjacent and folds A→B→A into two episodes,
     // erasing the return — exactly the fabrication under review.
     expect(view.runs.code_states).toHaveLength(3);
     expect(view.runs.code_states.map(state => state.run_ids[0])).toEqual([
