@@ -229,6 +229,43 @@ describe('dead-citation acknowledgment union', () => {
     expect(report.dead_citations[0]!.ack_channel).toBe('token');
   });
 
+  it('resolves angle-bracketed reference destinations: [r]: <path>', () => {
+    writeNotebook([
+      '# Memo', '## Results',
+      'The [old estimate][r] anchored the fit.',
+      '',
+      `[r]: <artifacts/runs/${dead}/out.json>`,
+    ].join('\n'));
+    const report = analyzeNotebookRunLinks(projectRoot, ledgerWithDead('void'), new Set());
+    expect(report.unacknowledged_dead.map(entry => entry.run_id)).toEqual([dead]);
+  });
+
+  it('ignores links inside multi-backtick code spans (the backtick-containing-code idiom)', () => {
+    writeNotebook([
+      '# Memo', '## Results',
+      `Paths render as \`\`code with \` tick [example](artifacts/runs/${dead}/out.json)\`\` in docs.`,
+    ].join('\n'));
+    const report = analyzeNotebookRunLinks(projectRoot, ledgerWithDead('void'), new Set());
+    expect(report.dead_citations).toHaveLength(0);
+  });
+
+  it('a token in one list item does not acknowledge a dead run linked from the next item', () => {
+    const deadB = runId(3);
+    const ledger = syntheticLedger([
+      { id: dead, ts: '2026-08-08T01:00:00.000Z', validity: 'void' },
+      { id: deadB, ts: '2026-08-08T01:30:00.000Z', validity: 'void' },
+    ]);
+    writeNotebook([
+      '# Memo', '## Results',
+      `- run A was voided (bad seed): [A](artifacts/runs/${dead}/out.tsv)`,
+      `- [B](artifacts/runs/${deadB}/out.tsv) established the clearance`,
+    ].join('\n'));
+    const report = analyzeNotebookRunLinks(projectRoot, ledger, new Set());
+    const byRun = Object.fromEntries(report.dead_citations.map(entry => [entry.run_id, entry]));
+    expect(byRun[dead]!.acknowledged).toBe(true);
+    expect(byRun[deadB]!.acknowledged).toBe(false);
+  });
+
   it('detects a dead run cited only via a reference-style link', () => {
     writeNotebook([
       '# Memo', '## Results',

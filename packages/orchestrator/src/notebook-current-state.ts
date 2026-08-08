@@ -156,9 +156,17 @@ type BlockBounds = { start: number; end: number };
 
 type BlockLocation = {
   bounds: BlockBounds | null;
+  /** True only when marker duplication coexists with at least one complete
+   *  START..END pair — a renderable structure that CLAIMS currency
+   *  ambiguously. Stray unpaired marker lines in prose claim nothing and
+   *  must stay advisory (R3), never a refusal. */
   duplicated: boolean;
-  /** Byte offset of the first `##` heading outside fences (text.length when
-   *  none) — the block's required position is strictly before it. */
+  /** Any marker line present at all (paired or stray) — adoption must not
+   *  insert a second structure next to leftovers. */
+  markerLinesPresent: boolean;
+  /** Byte offset of the first `##` heading outside fences/indented code
+   *  (text.length when none) — the block's required position is strictly
+   *  before it. */
   firstHeadingOffset: number;
   /** False when a well-formed block sits at or after the first heading:
    *  inside a section it would be read as section content by the staleness
@@ -167,9 +175,10 @@ type BlockLocation = {
   positionOk: boolean;
 };
 
-/** Fence-aware, line-based marker location: a fenced example QUOTING the
- *  markers (documentation of this very mechanism) must neither count as a
- *  block nor trip the duplicated-markers refusal. */
+/** Fence-aware, line-based marker location: an example QUOTING the markers
+ *  inside a fenced block OR a four-space/tab indented code block
+ *  (CommonMark's other code form) must neither count as a block nor trip
+ *  the duplicated-markers refusal. */
 function locateBlock(text: string): BlockLocation {
   const lines = text.split('\n');
   let inFence = false;
@@ -182,9 +191,10 @@ function locateBlock(text: string): BlockLocation {
     // extent must exclude it so block slices never carry a stray '\r'.
     const content = line.endsWith('\r') ? line.slice(0, -1) : line;
     const contentEnd = offset + content.length;
-    if (/^\s*(```|~~~)/.test(content)) {
+    const indentedCode = /^(?: {4}|\t)/.test(content);
+    if (/^\s{0,3}(```|~~~)/.test(content)) {
       inFence = !inFence;
-    } else if (!inFence) {
+    } else if (!inFence && !indentedCode) {
       const trimmed = content.trim();
       if (trimmed === CURRENT_STATE_START) starts.push({ start: offset, end: contentEnd });
       else if (trimmed === CURRENT_STATE_END) ends.push({ start: offset, end: contentEnd });
@@ -192,12 +202,15 @@ function locateBlock(text: string): BlockLocation {
     }
     offset = offset + line.length + 1;
   }
-  const duplicated = starts.length > 1 || ends.length > 1;
+  const markerLinesPresent = starts.length > 0 || ends.length > 0;
+  const pairPresent = starts.length > 0 && ends.length > 0
+    && ends.some(end => starts.some(start => end.start > start.start));
+  const duplicated = pairPresent && (starts.length > 1 || ends.length > 1);
   const bounds = starts.length === 1 && ends.length === 1 && ends[0]!.start > starts[0]!.start
     ? { start: starts[0]!.start, end: ends[0]!.end }
     : null;
   const positionOk = bounds === null ? true : bounds.start < firstHeadingOffset;
-  return { bounds, duplicated, firstHeadingOffset, positionOk };
+  return { bounds, duplicated, markerLinesPresent, firstHeadingOffset, positionOk };
 }
 
 export function checkCurrentStateBlock(
@@ -215,13 +228,21 @@ export function checkCurrentStateBlock(
     return status;
   }
   status.notebook_found = true;
-  const { bounds, duplicated, positionOk } = locateBlock(text);
+  const { bounds, duplicated, markerLinesPresent, positionOk } = locateBlock(text);
   status.duplicated_markers = duplicated;
   if (duplicated) {
     status.reason = 'duplicated current-state markers — repair by hand, then `nullius notebook sync`';
     return status;
   }
-  if (!bounds) return status;
+  if (!bounds) {
+    if (markerLinesPresent) {
+      // Stray unpaired marker lines claim nothing (never a refusal), but
+      // adoption is blocked until they are removed — say so.
+      status.reason = 'stray current-state marker line(s) present without a complete block — '
+        + 'remove them, then `nullius notebook sync`';
+    }
+    return status;
+  }
   status.block_found = true;
   if (!positionOk) {
     // A block inside a section is not the fixed front surface the contract
@@ -271,12 +292,12 @@ export type RefreshOutcome = {
 const normalizeEol = (value: string): string => value.replace(/\r\n/g, '\n');
 
 /** Front-matter insertion (before the first `##` heading, fence-aware),
- *  with blank-line padding on both sides. A memo with no `##` heading at
- *  all gets the block right after its opening `#` title line (or at the
- *  very top) — appending an "opening surface" to EOF would be the opposite
- *  of its contract — and a file without a trailing newline gains one so the
- *  markers are never glued onto prose. */
-function insertAtFrontMatter(text: string, rendered: string): string {
+ *  with blank-line padding on both sides IN THE FILE'S OWN EOL FLAVOR. A
+ *  memo with no `##` heading at all gets the block right after its opening
+ *  `#` title line (or at the very top) — appending an "opening surface" to
+ *  EOF would be the opposite of its contract — and a file without a
+ *  trailing newline gains one so the markers are never glued onto prose. */
+function insertAtFrontMatter(text: string, rendered: string, eol: string): string {
   let offset = locateBlock(text).firstHeadingOffset;
   if (offset === text.length) {
     const firstLineEnd = text.indexOf('\n');
@@ -284,10 +305,11 @@ function insertAtFrontMatter(text: string, rendered: string): string {
   }
   const before = text.slice(0, offset);
   const after = text.slice(offset);
-  const separator = before.length === 0 || before.endsWith('\n\n')
+  const normalizedBefore = normalizeEol(before);
+  const separator = normalizedBefore.length === 0 || normalizedBefore.endsWith('\n\n')
     ? ''
-    : before.endsWith('\n') ? '\n' : '\n\n';
-  return `${before}${separator}${rendered}\n\n${after}`;
+    : normalizedBefore.endsWith('\n') ? eol : `${eol}${eol}`;
+  return `${before}${separator}${rendered}${eol}${eol}${after}`;
 }
 
 export function refreshNotebookCurrentState(
@@ -309,28 +331,37 @@ export function refreshNotebookCurrentState(
     } catch {
       return { action: 'skipped', reason: 'research_notebook.md not found' };
     }
-    const { bounds, duplicated, positionOk } = locateBlock(text);
+    const { bounds, duplicated, markerLinesPresent, positionOk } = locateBlock(text);
     if (duplicated) {
       return { action: 'skipped', reason: 'duplicated current-state markers — repair by hand first' };
     }
     // Respect the file's own end-of-line flavor: comparison is
     // EOL-normalized, and a CRLF file gets a CRLF block spliced in —
     // rewriting it to LF would fight the editor/checkout filter forever.
-    const renderedForFile = text.includes('\r\n') ? rendered.replace(/\n/g, '\r\n') : rendered;
+    const eol = text.includes('\r\n') ? '\r\n' : '\n';
+    const renderedForFile = eol === '\r\n' ? rendered.replace(/\n/g, '\r\n') : rendered;
     let updated: string;
     let action: RefreshOutcome['action'];
     if (!bounds) {
+      if (markerLinesPresent) {
+        // Inserting a fresh block NEXT TO leftover marker lines would
+        // manufacture the duplicated state the gate refuses on.
+        return {
+          action: 'skipped',
+          reason: 'stray current-state marker line(s) present without a complete block — remove them first',
+        };
+      }
       if (!options?.insertIfMissing) {
         return { action: 'skipped', reason: 'no current-state block (run `nullius notebook sync` to adopt)' };
       }
-      updated = insertAtFrontMatter(text, renderedForFile);
+      updated = insertAtFrontMatter(text, renderedForFile, eol);
       action = 'inserted';
     } else if (!positionOk) {
       // Relocate: a block below the first heading is inside a section,
       // where the classifier and the citation analyzer would read it as
       // content. Remove it there, reinsert canonically in front matter.
       const removed = text.slice(0, bounds.start) + text.slice(bounds.end);
-      updated = insertAtFrontMatter(removed, renderedForFile);
+      updated = insertAtFrontMatter(removed, renderedForFile, eol);
       action = 'rewritten';
     } else {
       const onDisk = text.slice(bounds.start, bounds.end);

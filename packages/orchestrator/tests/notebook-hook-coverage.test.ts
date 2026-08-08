@@ -53,8 +53,9 @@ describe('notebook current-state refresh hook coverage', () => {
           continue;
         }
         if (!entry.name.endsWith('.ts')) continue;
-        if (fs.readFileSync(abs, 'utf-8').includes('setCurrentResult(') && !audited.has(entry.name)) {
-          offenders.push(path.relative(SRC, abs));
+        const rel = path.relative(SRC, abs);
+        if (fs.readFileSync(abs, 'utf-8').includes('setCurrentResult(') && !audited.has(rel)) {
+          offenders.push(rel);
         }
       }
     };
@@ -78,8 +79,9 @@ describe('notebook current-state refresh hook coverage', () => {
         }
         if (!entry.name.endsWith('.ts')) continue;
         const source = fs.readFileSync(abs, 'utf-8');
-        if (source.includes('appendValidityEvent(') && !audited.has(entry.name)) {
-          offenders.push(path.relative(SRC, abs));
+        const rel = path.relative(SRC, abs);
+        if (source.includes('appendValidityEvent(') && !audited.has(rel)) {
+          offenders.push(rel);
         }
       }
     };
