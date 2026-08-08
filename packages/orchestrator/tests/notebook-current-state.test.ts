@@ -153,6 +153,20 @@ describe('refresh + check', () => {
     expect(fs.statSync(notebookPath()).mode & 0o777).toBe(0o600);
   });
 
+  it('one complete block plus a stray marker stays advisory: in_sync judged, never duplicated', () => {
+    fs.writeFileSync(notebookPath(), [
+      '# Memo', '',
+      renderCurrentStateBlock(NO_REGISTRY), '',
+      CURRENT_STATE_START, // botched hand edit left a stray START below the real block
+      '', '## Results', 'Body.',
+    ].join('\n'));
+    const status = checkCurrentStateBlock(projectRoot, NO_REGISTRY);
+    expect(status.duplicated_markers).toBe(false);
+    expect(status.block_found).toBe(true);
+    expect(status.in_sync).toBe(true);
+    expect(status.reason).toContain('stray');
+  });
+
   it('markers inside four-space-indented code are examples, not blocks', () => {
     fs.writeFileSync(notebookPath(), [
       '# Memo', '',

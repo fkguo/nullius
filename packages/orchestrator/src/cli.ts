@@ -80,13 +80,14 @@ export async function runCli(argv: string[], io: CliIo = defaultIo()): Promise<n
     return runCurrentCommand(projectRoot, parsed.json, io);
   }
   if (parsed.command === 'notebook') {
-    const { refreshNotebookCurrentState, checkCurrentStateBlock, computeCurrentStateProjection } = await import('./notebook-current-state.js');
+    const { refreshNotebookCurrentState, checkCurrentStateBlock } = await import('./notebook-current-state.js');
     try {
-      // One projection for both steps: computing it twice would hash every
-      // registered artifact twice per sync.
-      const projection = computeCurrentStateProjection(projectRoot);
-      const outcome = refreshNotebookCurrentState(projectRoot, { insertIfMissing: true, projection });
-      const status = checkCurrentStateBlock(projectRoot, projection);
+      // The post-write check compares against the projection the refresh
+      // actually RENDERED (one compute, and no window for a concurrent
+      // writer's newer block to be misjudged against a stale recompute —
+      // or vice versa).
+      const outcome = refreshNotebookCurrentState(projectRoot, { insertIfMissing: true });
+      const status = checkCurrentStateBlock(projectRoot, outcome.projection);
       if (parsed.json) {
         io.stdout(`${JSON.stringify({ action: outcome.action, reason: outcome.reason, block: status }, null, 2)}\n`);
       } else if (outcome.action === 'skipped') {
