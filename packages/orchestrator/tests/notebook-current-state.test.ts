@@ -203,6 +203,7 @@ describe('refresh + check', () => {
       [`<!-- state-digest: ${'a'.repeat(63)} -->`, 'Contiguous researcher prose.'], // corrupted digest, no blank
       ['A prose sentence first.', `<!-- state-digest: ${'a'.repeat(64)} -->`], // valid digest NOT on the first line
       [`Research note <!-- state-digest: ${'a'.repeat(64)} -->`], // prose sharing the digest line
+      [`\t<!-- state-digest: ${'a'.repeat(64)} -->`], // tab-indented digest line is code, not a machine block
       ['(', '### Interpretation', 'The extrapolation caveat is scientifically material.', ')'], // parenthesized smuggle with ### heading
       ['(' + 'x'.repeat(450) + ')'], // parenthetical over the byte cap
     ]) {
