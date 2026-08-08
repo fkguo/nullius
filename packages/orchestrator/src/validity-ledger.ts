@@ -141,6 +141,16 @@ function validateLedgerEvent(value: Record<string, unknown>): boolean {
     const stamp = value.stamp as Record<string, unknown>;
     if (!TS_UTC_PATTERN.test(String(stamp.captured_at_utc))) return false;
     if (stamp.run_id !== value.run_id) return false;
+    // Cross-field relation JSON Schema cannot express: the foreign split
+    // is "of untracked_count" — a payload claiming more foreign paths than
+    // untracked paths is arithmetically impossible and must be refused,
+    // not quietly consumed.
+    const dirty = stamp.dirty as Record<string, unknown> | undefined;
+    if (dirty && typeof dirty.foreign_run_untracked === 'number'
+      && typeof dirty.untracked_count === 'number'
+      && dirty.foreign_run_untracked > dirty.untracked_count) {
+      return false;
+    }
   }
   return true;
 }

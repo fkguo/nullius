@@ -9,10 +9,10 @@ import { captureRunOrigin } from '../src/run-origin.js';
 import { backfillRunOrigins } from '../src/trace-backfill.js';
 import { buildTraceabilityView, renderTraceabilityProse } from '../src/traceability-view.js';
 
-/** Code states organize exactly-stamped runs by their recorded snapshot
- *  trees — the version narrative of an exploratory session reconstructed
- *  from stamps alone. Slug families are a display grouping of one-off
- *  slugs into concept stems. */
+/** Code states organize runs with an exact tracked-tree identity by their
+ *  recorded snapshot trees — the version narrative of an exploratory
+ *  session reconstructed from stamps alone. Slug families are a display
+ *  grouping of one-off slugs into concept stems. */
 
 let projectRoot: string;
 
@@ -265,5 +265,103 @@ describe('adjacent-diff computation cap', () => {
     for (const state of view.runs.code_states.slice(1)) {
       expect(state.changed_from_previous).toBeDefined();
     }
+  });
+});
+
+describe('tie handling at episode boundaries (review r2)', () => {
+  it('equal capture times order by stamp ULID (truthful mint order) and mark the boundary uncertain', () => {
+    git('init', '-q');
+    git('config', 'user.email', 't@example.com');
+    git('config', 'user.name', 'T');
+    fs.writeFileSync(path.join(projectRoot, '.gitignore'), 'artifacts/\n');
+    fs.writeFileSync(path.join(projectRoot, 'solver.py'), 'VERSION = 1\n');
+    git('add', '-A');
+    git('commit', '-q', '-m', 'c1');
+
+    const SAME_INSTANT = '2026-08-08T10:00:00.000Z';
+    // Mint order (the ULIDs) is A then B; the wall clock cannot tell them
+    // apart. The narrative must follow mint order and SAY the boundary is
+    // a tie — never present the invented alternative as chronology.
+    stampNow('20260808-m1-r001-alpha-probe', SAME_INSTANT);
+    fs.writeFileSync(path.join(projectRoot, 'solver.py'), 'VERSION = 2\n');
+    stampNow('20260808-m1-r002-beta-scan', SAME_INSTANT);
+
+    const view = buildTraceabilityView(projectRoot);
+    expect(view.runs.code_states).toHaveLength(2);
+    expect(view.runs.code_states[0]!.run_ids).toEqual(['20260808-m1-r001-alpha-probe']);
+    expect(view.runs.code_states[1]!.run_ids).toEqual(['20260808-m1-r002-beta-scan']);
+    expect(view.runs.code_states[1]!.order_uncertain).toBe(true);
+    expect(view.runs.code_states[0]!.order_uncertain).toBeUndefined();
+
+    const prose = renderTraceabilityProse(view);
+    expect(prose).toContain('(order uncertain');
+  });
+
+  it('a same-instant A→B→A keeps its return transition (mint order, not any invented key)', () => {
+    git('init', '-q');
+    git('config', 'user.email', 't@example.com');
+    git('config', 'user.name', 'T');
+    fs.writeFileSync(path.join(projectRoot, '.gitignore'), 'artifacts/\n');
+    fs.writeFileSync(path.join(projectRoot, 'solver.py'), 'VERSION = 1\n');
+    git('add', '-A');
+    git('commit', '-q', '-m', 'c1');
+
+    const SAME_INSTANT = '2026-08-08T10:00:00.000Z';
+    stampNow('20260808-m1-r001-alpha-probe', SAME_INSTANT);
+    fs.writeFileSync(path.join(projectRoot, 'solver.py'), 'VERSION = 2\n');
+    stampNow('20260808-m1-r002-beta-scan', SAME_INSTANT);
+    fs.writeFileSync(path.join(projectRoot, 'solver.py'), 'VERSION = 1\n');
+    const solver = path.join(projectRoot, 'solver.py');
+    const future = new Date(Date.now() + 2000);
+    fs.utimesSync(solver, future, future);
+    stampNow('20260808-m1-r003-alpha-return', SAME_INSTANT);
+
+    const view = buildTraceabilityView(projectRoot);
+    // ANY ordering key other than mint order (tree, run id, …) puts the two
+    // same-tree points adjacent and folds A→B→A into two episodes,
+    // erasing the return — exactly the fabrication under review.
+    expect(view.runs.code_states).toHaveLength(3);
+    expect(view.runs.code_states.map(state => state.run_ids[0])).toEqual([
+      '20260808-m1-r001-alpha-probe',
+      '20260808-m1-r002-beta-scan',
+      '20260808-m1-r003-alpha-return',
+    ]);
+    expect(view.runs.code_states[2]!.revisited).toBe(true);
+  });
+
+  it('distinct capture times carry no uncertainty marker', () => {
+    git('init', '-q');
+    git('config', 'user.email', 't@example.com');
+    git('config', 'user.name', 'T');
+    fs.writeFileSync(path.join(projectRoot, '.gitignore'), 'artifacts/\n');
+    fs.writeFileSync(path.join(projectRoot, 'solver.py'), 'VERSION = 1\n');
+    git('add', '-A');
+    git('commit', '-q', '-m', 'c1');
+    stampNow('20260808-m1-r001-alpha-probe', '2026-08-08T10:00:00.000Z');
+    fs.writeFileSync(path.join(projectRoot, 'solver.py'), 'VERSION = 2\n');
+    stampNow('20260808-m1-r002-beta-scan', '2026-08-08T11:00:00.000Z');
+
+    const view = buildTraceabilityView(projectRoot);
+    expect(view.runs.code_states[1]!.order_uncertain).toBeUndefined();
+  });
+});
+
+describe('project-level run-root untracked split (review r2)', () => {
+  it('the code-revision line splits out how many untracked paths sit under the run roots', () => {
+    git('init', '-q');
+    git('config', 'user.email', 't@example.com');
+    git('config', 'user.name', 'T');
+    fs.writeFileSync(path.join(projectRoot, 'solver.py'), 'x = 1\n');
+    git('add', '-A');
+    git('commit', '-q', '-m', 'c');
+    fs.mkdirSync(path.join(projectRoot, 'artifacts', 'runs', 'run-a'), { recursive: true });
+    fs.writeFileSync(path.join(projectRoot, 'artifacts', 'runs', 'run-a', 'out.json'), '{}');
+    fs.writeFileSync(path.join(projectRoot, 'notes.md'), 'n\n');
+
+    const view = buildTraceabilityView(projectRoot);
+    expect(view.git.untracked_count).toBe(2);
+    expect(view.git.untracked_under_run_roots).toBe(1);
+    const prose = renderTraceabilityProse(view);
+    expect(prose).toContain('2 untracked file(s) pending a track-or-ignore decision (1 of these under the run roots)');
   });
 });

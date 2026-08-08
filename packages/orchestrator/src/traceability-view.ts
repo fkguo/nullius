@@ -88,6 +88,12 @@ export type TraceabilityView = {
       /** This tree appeared in an EARLIER episode; the session returned
        *  to it after diverging. */
       revisited?: true;
+      /** The boundary into this episode falls between two capture points
+       *  sharing one captured_at (or lacking one): their order comes from
+       *  the stamp event ULIDs (truthful mint order), but wall-clock alone
+       *  cannot confirm the sequence — presented as uncertain, never as
+       *  invented chronology. */
+      order_uncertain?: true;
       /** Absent on the first state. `files`/`total` cover RESEARCH files
        *  only — control-plane and traceability bookkeeping are filtered
        *  out, and changes under the run roots (accumulating outputs of the
@@ -354,10 +360,10 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
   conflictingStamps.sort();
   noIdentity.sort();
 
-  // Code states: group exactly-stamped runs by their recorded snapshot
-  // tree. The stamps already carry the complete evolution of the tracked
-  // research tree across a working session; this just organizes it.
-  type StatePoint = { runId: string; tree: string; at: string | null };
+  // Code states: group runs with an exact tracked-tree identity by their
+  // recorded snapshot tree. The stamps already carry the complete evolution
+  // of the tracked research tree across a working session; this organizes it.
+  type StatePoint = { runId: string; tree: string; at: string | null; eventId: string };
   const statePoints: StatePoint[] = [];
   let codeStatesExcludedInexact = 0;
   // WHITELIST of qualities whose snapshot_tree is an exact tracked-tree
@@ -379,34 +385,44 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
       runId: known.run_id,
       tree,
       at: typeof record.captured_at_utc === 'string' ? record.captured_at_utc : null,
+      eventId: typeof record.event_id === 'string' ? record.event_id : '',
     });
   }
   // Chronological EPISODES, not unique-tree cohorts: sort every capture
   // point on the time axis and break a segment whenever the tree changes.
   // A tree the session RETURNS to (edit → run → revert → run) forms a new
   // episode marked `revisited` — folding it into the first occurrence
-  // would erase the return transition from the narrative. Points with no
-  // capture time sort last (stably by tree, then run id).
+  // would erase the return transition from the narrative.
+  //
+  // Tie-breaking must not INVENT chronology: within one captured_at (and
+  // for the null-time fallback) the order is the stamp EVENT ID — a ULID
+  // minted in the same call that captured the tree, so its lexicographic
+  // order is the truthful mint order down to the millisecond. Where an
+  // episode boundary still falls between two points sharing one
+  // captured_at, the later episode is marked order_uncertain: a tie is
+  // presented as a tie, never dressed up as sequence.
   const orderedPoints = [...statePoints].sort((a, b) => {
-    if (a.at === null && b.at === null) {
-      return a.tree < b.tree ? -1 : a.tree > b.tree ? 1 : a.runId < b.runId ? -1 : 1;
-    }
+    if (a.at === null && b.at === null) return a.eventId < b.eventId ? -1 : 1;
     if (a.at === null) return 1;
     if (b.at === null) return -1;
     return a.at < b.at ? -1
       : a.at > b.at ? 1
-        : a.tree < b.tree ? -1 : a.tree > b.tree ? 1 : a.runId < b.runId ? -1 : 1;
+        : a.eventId < b.eventId ? -1 : 1;
   });
   const seenTrees = new Set<string>();
   const codeStates: TraceabilityView['runs']['code_states'] = [];
+  let previousPoint: StatePoint | null = null;
   for (const point of orderedPoints) {
     const current = codeStates[codeStates.length - 1];
     if (current && current.tree === point.tree) {
       current.run_count += 1;
       current.run_ids.push(point.runId);
       if (point.at !== null) current.last_captured_at = point.at;
+      previousPoint = point;
       continue;
     }
+    const boundaryTied = previousPoint !== null
+      && (point.at === null || previousPoint.at === null || point.at === previousPoint.at);
     codeStates.push({
       tree: point.tree,
       run_count: 1,
@@ -414,8 +430,10 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
       first_captured_at: point.at,
       last_captured_at: point.at,
       ...(seenTrees.has(point.tree) ? { revisited: true as const } : {}),
+      ...(boundaryTied ? { order_uncertain: true as const } : {}),
     });
     seenTrees.add(point.tree);
+    previousPoint = point;
   }
   // Adjacent-episode diffs are one git call each; cap the computation so a
   // status read never launches an unbounded subprocess train (worst case:
@@ -785,7 +803,7 @@ export function renderTraceabilityProse(view: TraceabilityView): string {
     if (view.git.tracked_modified) dirtyBits.push(`${view.git.tracked_modified} tracked file(s) modified`);
     if (view.git.untracked_count) {
       const runRootShare = view.git.untracked_under_run_roots
-        ? ` (${view.git.untracked_under_run_roots} of these under the run roots — accumulated run outputs)`
+        ? ` (${view.git.untracked_under_run_roots} of these under the run roots)`
         : '';
       dirtyBits.push(`${view.git.untracked_count} untracked file(s) pending a track-or-ignore decision${runRootShare}`);
     }
@@ -908,7 +926,7 @@ export function renderTraceabilityProse(view: TraceabilityView): string {
           changed = `; vs previous: ${state.changed_from_previous.unavailable}`;
         }
       }
-      lines.push(`- tree ${state.tree.slice(0, 12)}${state.revisited ? ' (revisited)' : ''} — ${state.run_count} run(s) [${runsPreview}], ${span}${changed}`);
+      lines.push(`- tree ${state.tree.slice(0, 12)}${state.revisited ? ' (revisited)' : ''}${state.order_uncertain ? ' (order uncertain: boundary shares one capture time)' : ''} — ${state.run_count} run(s) [${runsPreview}], ${span}${changed}`);
     }
     if (view.runs.code_states.length > 10) {
       lines.push(`- … ${view.runs.code_states.length - 10} more episode(s) (full list in --json runs.code_states)`);
