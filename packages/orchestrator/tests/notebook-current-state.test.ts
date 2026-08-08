@@ -210,6 +210,7 @@ describe('refresh + check', () => {
       // below (the real END was deleted; a leftover END closes the pair)
       [`<!-- state-digest: ${'a'.repeat(64)} -->`, '**Current state (auto-maintained).** lead', '## Results', 'Six months of prose.'],
       ['(Findings', '==='], // parenthetical smuggle via setext underline
+      ['(Findings', '-'], // single-hyphen setext underline is legal too
     ]) {
       fs.writeFileSync(notebookPath(), [
         '# Memo',
