@@ -3,6 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { readValidityLedger, validityLedgerPath, type ValidityLedgerView, type RunValidity } from './validity-ledger.js';
 import { isTraceabilityArtifactPath, listSubmodulePaths } from './run-origin.js';
+import { findComputationWorkspaces } from './run-stamp.js';
 import { validateResultRegistry } from './result-registry.js';
 import { checkNotebookStaleness, type NotebookStalenessReport } from './notebook-staleness.js';
 import { analyzeNotebookRunLinks, type NotebookRunLinksReport } from './notebook-run-links.js';
@@ -775,20 +776,38 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
         .sort(),
       crashed_unretried: directories
         .filter((entry) => {
-          const statusPath = path.join(
-            projectRoot, entry.canonical_root, entry.run_id, 'computation', 'execution_status.json',
-          );
-          try {
-            if (!fs.existsSync(statusPath)) return false;
-            const parsed = JSON.parse(fs.readFileSync(statusPath, 'utf-8')) as { status?: string };
-            if (parsed.status !== 'failed') return false;
-          } catch {
-            return false;
+          // The status file lives wherever the manifest put the workspace —
+          // same discovery as the retry entrance. A run with ANY completed
+          // status is not a crash; one failed status makes it a candidate.
+          const runDirAbs = path.join(projectRoot, entry.canonical_root, entry.run_id);
+          const statuses: string[] = [];
+          for (const workspace of findComputationWorkspaces(runDirAbs)) {
+            if (!workspace.statusPath) continue;
+            try {
+              const parsed = JSON.parse(fs.readFileSync(workspace.statusPath, 'utf-8')) as { status?: string };
+              if (typeof parsed.status === 'string') statuses.push(parsed.status);
+            } catch {
+              // unreadable status decides nothing
+            }
           }
+          if (!statuses.includes('failed') || statuses.includes('completed')) return false;
+          // Only runs the retry entrance would actually ADMIT belong under
+          // a "retry this" hint — advising `nullius trace retry` for an
+          // unstamped, decided, defective, inexact, or registry-named run
+          // sends the operator into a guaranteed refusal. Those runs are
+          // already visible in their own sections.
+          const run = ledger.runs.get(entry.run_id);
+          if (!run || !run.stamped) return false;
+          if (run.validity !== 'active') return false;
+          if (run.conflicting_stamps || run.no_authoritative_identity
+            || run.attempts.chain_defect || run.attempts.conflicting_attempts) return false;
+          const quality = (run.origin as { binding_quality?: string } | null)?.binding_quality ?? null;
+          if (quality === 'aligned_heuristic' || quality === 'unbound') return false;
+          if (resultRegistry.rows.some(row => row.run_id === entry.run_id)) return false;
           // Crashed AND the chain head carries no closure: nobody retried
           // or booked it. A retry quarantines the status file (drops out
           // above); a record-only closure sets latest_failed (drops here).
-          return !(ledger.runs.get(entry.run_id)?.attempts.latest_failed ?? false);
+          return !run.attempts.latest_failed;
         })
         .map(entry => entry.run_id)
         .sort(),

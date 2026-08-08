@@ -6,6 +6,7 @@ import { mintUlid } from '@nullius/shared';
 import { openRetryAttempt, stampRunDirectory } from '../src/run-stamp.js';
 import { appendValidityEvent, buildValidityEvent, readValidityLedger } from '../src/validity-ledger.js';
 import { setCurrentResult } from '../src/result-registry.js';
+import { buildTraceabilityView } from '../src/traceability-view.js';
 import {
   cleanupRegisteredDirs,
   createManifest,
@@ -64,8 +65,12 @@ describe('the retry loop (hand path)', () => {
     writeFailedStatus(runDir);
     fs.mkdirSync(path.join(runDir, 'computation', 'workspace'), { recursive: true });
     fs.writeFileSync(path.join(runDir, 'computation', 'workspace', 'partial.tsv'), '1\t2\n');
-    // The operator's fix lives outside the runner write surface and stays.
+    // The operator's fix is COMMITTED — git-tracked files are part of the
+    // captured tree and never quarantined (moving one would dirty the very
+    // tree the fresh capture binds).
     fs.writeFileSync(path.join(runDir, 'fixed_script.jl'), 'x = 1\n');
+    execFileSync('git', ['-C', projectRoot, 'add', path.join('artifacts', 'runs', runId, 'fixed_script.jl')]);
+    execFileSync('git', ['-C', projectRoot, 'commit', '-q', '-m', 'fix']);
 
     const result = openRetryAttempt(projectRoot, runDir, { actor: 'test' });
     expect(result.kind).toBe('retried');
@@ -246,7 +251,7 @@ describe('chain integrity', () => {
         supersedes_attempt_event: null,
         origin: null,
       },
-    } as never), { onlyIfAttemptChainHead: { closesOrdinal: 1 } });
+    } as never), { onlyIfAttemptChainHead: true });
     expect(outcome).toBe('skipped_attempt_not_chain_head');
   });
 
@@ -301,6 +306,190 @@ describe('chain integrity', () => {
   });
 });
 
+describe('chain rooting and link resolution (r3)', () => {
+  it('an attempt event with NO initial stamp cannot mint a clean binding — rooted chains only', () => {
+    const projectRoot = makeTmpDir();
+    registerCleanup(projectRoot);
+    const runId = 'run-rootless-chain';
+    appendValidityEvent(projectRoot, buildValidityEvent({
+      event: 'attempt', run_id: runId, actor: 'forger', reason: 'no stamp ever existed',
+      attempt: {
+        closes_ordinal: 1,
+        previous_outcome: 'failed',
+        evidence: { method: 'declared', detail: 'forged' },
+        quarantined_to: null,
+        supersedes_attempt_event: mintUlid(),
+        origin: {
+          schema_id: 'run_origin_v1', event_id: mintUlid(), run_id: runId,
+          captured_at_utc: new Date().toISOString(), binding_quality: 'unbound',
+          baseline_commit: null,
+          no_repo_reason: 'fixture',
+          dirty: { tracked_modified: 0, untracked_count: 0, untracked_sample: [] },
+          attempt_ordinal: 2,
+        },
+      },
+    } as never));
+    const entry = readValidityLedger(projectRoot).runs.get(runId)!;
+    expect(entry.attempts.chain_defect).toBe(true);
+  });
+
+  it('a closure whose supersedes link does not resolve to the ordinal opener is a chain defect', () => {
+    const runId = 'run-forged-link';
+    const { projectRoot, runDir } = makeStampedRun(runId);
+    writeFailedStatus(runDir);
+    const first = openRetryAttempt(projectRoot, runDir, { actor: 'test' });
+    expect(first.kind).toBe('retried');
+    // Hand-append a closure of ordinal 2 whose predecessor link names a
+    // random ULID instead of the attempt event that opened ordinal 2.
+    appendValidityEvent(projectRoot, buildValidityEvent({
+      event: 'attempt', run_id: runId, actor: 'forger', reason: 'wrong predecessor',
+      attempt: {
+        closes_ordinal: 2,
+        previous_outcome: 'failed',
+        evidence: { method: 'declared', detail: 'forged link' },
+        quarantined_to: null,
+        supersedes_attempt_event: mintUlid(),
+        origin: {
+          schema_id: 'run_origin_v1', event_id: mintUlid(), run_id: runId,
+          captured_at_utc: new Date().toISOString(), binding_quality: 'unbound',
+          baseline_commit: null,
+          no_repo_reason: 'fixture',
+          dirty: { tracked_modified: 0, untracked_count: 0, untracked_sample: [] },
+          attempt_ordinal: 3,
+        },
+      },
+    } as never));
+    const entry = readValidityLedger(projectRoot).runs.get(runId)!;
+    expect(entry.attempts.chain_defect).toBe(true);
+    // And the boundary refuses to chain from the defect:
+    writeFailedStatus(runDir);
+    const refused = openRetryAttempt(projectRoot, runDir, { actor: 'test' });
+    expect(refused.kind).toBe('rejected');
+    if (refused.kind === 'rejected') expect(refused.message).toContain('chain');
+  });
+});
+
+describe('quarantine covers the full product surface (r3)', () => {
+  it('checkpoints, declared outputs, and terminal artifacts all move; manifest and scripts stay', () => {
+    const runId = 'run-checkpoint-launder';
+    const { projectRoot, runDir } = makeStampedRun(runId);
+    const computation = path.join(runDir, 'computation');
+    fs.mkdirSync(path.join(computation, 'scripts'), { recursive: true });
+    fs.writeFileSync(path.join(computation, 'manifest.json'), JSON.stringify({
+      schema_version: 1,
+      entry_point: { script: 'scripts/main.py', tool: 'python' },
+      steps: [{ id: 's', tool: 'python', script: 'scripts/main.py', expected_outputs: ['scripts/diag.json'] }],
+    }));
+    fs.writeFileSync(path.join(computation, 'scripts', 'main.py'), 'print(1)\n');
+    // The laundering vector: a checkpoint the runner-era code wrote outside
+    // the four runner entries, plus a declared output under scripts/, plus
+    // a terminal artifact — none were covered by an entry-name allowlist.
+    fs.writeFileSync(path.join(computation, 'units.checkpoint'), 'unit-1 done\n');
+    fs.writeFileSync(path.join(computation, 'scripts', 'diag.json'), '{"partial": true}\n');
+    fs.mkdirSync(path.join(runDir, 'artifacts'), { recursive: true });
+    fs.writeFileSync(path.join(runDir, 'artifacts', 'partial_table.json'), '{"rows": 3}\n');
+    writeFailedStatus(runDir);
+
+    const result = openRetryAttempt(projectRoot, runDir, { actor: 'test' });
+    expect(result.kind).toBe('retried');
+    const archive = path.join(runDir, 'attempts', 'attempt-1');
+    expect(fs.existsSync(path.join(archive, 'computation', 'units.checkpoint'))).toBe(true);
+    expect(fs.existsSync(path.join(archive, 'computation', 'scripts', 'diag.json'))).toBe(true);
+    expect(fs.existsSync(path.join(archive, 'artifacts', 'partial_table.json'))).toBe(true);
+    expect(fs.existsSync(path.join(archive, 'computation', 'execution_status.json'))).toBe(true);
+    // Live surface: nothing of attempt 1 remains to ride into attempt 2…
+    expect(fs.existsSync(path.join(computation, 'units.checkpoint'))).toBe(false);
+    expect(fs.existsSync(path.join(computation, 'scripts', 'diag.json'))).toBe(false);
+    expect(fs.existsSync(path.join(runDir, 'artifacts', 'partial_table.json'))).toBe(false);
+    // …while the relaunch inputs are intact.
+    expect(fs.existsSync(path.join(computation, 'manifest.json'))).toBe(true);
+    expect(fs.existsSync(path.join(computation, 'scripts', 'main.py'))).toBe(true);
+  });
+
+  it('a manifest relocated outside computation/ is still seen: completed refuses, failed quarantines', () => {
+    const runId = 'run-relocated-workspace';
+    const { projectRoot, runDir } = makeStampedRun(runId);
+    const work = path.join(runDir, 'work');
+    fs.mkdirSync(path.join(work, 'scripts'), { recursive: true });
+    fs.writeFileSync(path.join(work, 'manifest.json'), JSON.stringify({
+      schema_version: 1,
+      entry_point: { script: 'scripts/main.py', tool: 'python' },
+      steps: [{ id: 's', tool: 'python', script: 'scripts/main.py', expected_outputs: [] }],
+    }));
+    fs.writeFileSync(path.join(work, 'scripts', 'main.py'), 'print(1)\n');
+    fs.writeFileSync(path.join(work, 'execution_status.json'), JSON.stringify({ status: 'completed' }));
+    const refused = openRetryAttempt(projectRoot, runDir, { actor: 'test' });
+    expect(refused.kind).toBe('rejected');
+    if (refused.kind === 'rejected') expect(refused.message).toContain('COMPLETED');
+
+    fs.writeFileSync(path.join(work, 'execution_status.json'), JSON.stringify({ status: 'failed', errors: ['boom'] }));
+    const result = openRetryAttempt(projectRoot, runDir, { actor: 'test' });
+    expect(result.kind).toBe('retried');
+    if (result.kind !== 'retried') return;
+    expect(result.evidence.method).toBe('execution_status');
+    expect(fs.existsSync(path.join(runDir, 'attempts', 'attempt-1', 'work', 'execution_status.json'))).toBe(true);
+    expect(fs.existsSync(path.join(work, 'execution_status.json'))).toBe(false);
+    expect(fs.existsSync(path.join(work, 'manifest.json'))).toBe(true);
+    expect(fs.existsSync(path.join(work, 'scripts', 'main.py'))).toBe(true);
+  });
+
+  it('two live status files are ambiguous evidence — refused, never arbitrated', () => {
+    const runId = 'run-two-statuses';
+    const { projectRoot, runDir } = makeStampedRun(runId);
+    writeFailedStatus(runDir);
+    fs.mkdirSync(path.join(runDir, 'work'), { recursive: true });
+    fs.writeFileSync(path.join(runDir, 'work', 'execution_status.json'), JSON.stringify({ status: 'failed', errors: ['x'] }));
+    const result = openRetryAttempt(projectRoot, runDir, { actor: 'test' });
+    expect(result.kind).toBe('rejected');
+    if (result.kind === 'rejected') expect(result.message).toContain('ambiguous');
+  });
+});
+
+describe('crash-window recovery and honest fallbacks (r3)', () => {
+  it('a stale orphan staging (append never landed) is restored, then re-quarantined by the next retry', () => {
+    const runId = 'run-orphan-staging';
+    const { projectRoot, runDir } = makeStampedRun(runId);
+    writeFailedStatus(runDir);
+    // Debris of a crashed prior retry: staged logs whose event id never
+    // reached the ledger, older than the in-flight window.
+    const orphanRel = path.join('attempts', `.staging-${mintUlid()}`);
+    fs.mkdirSync(path.join(runDir, orphanRel, 'computation', 'logs'), { recursive: true });
+    fs.writeFileSync(path.join(runDir, orphanRel, 'computation', 'logs', 'attempt.log'), 'died mid-move\n');
+    const stale = new Date(Date.now() - 30 * 60_000);
+    fs.utimesSync(path.join(runDir, orphanRel), stale, stale);
+
+    const result = openRetryAttempt(projectRoot, runDir, { actor: 'test' });
+    expect(result.kind).toBe('retried');
+    // The orphan is gone; its contents ended up in the REAL attempt archive
+    // (restored to the live surface, then quarantined with everything else).
+    expect(fs.existsSync(path.join(runDir, orphanRel))).toBe(false);
+    expect(fs.existsSync(path.join(runDir, 'attempts', 'attempt-1', 'computation', 'logs', 'attempt.log'))).toBe(true);
+  });
+
+  it('an empty failure message still records non-empty evidence (schema-valid after side effects)', () => {
+    const runId = 'run-empty-error';
+    const { projectRoot, runDir } = makeStampedRun(runId);
+    writeFailedStatus(runDir, ['']);
+    const result = openRetryAttempt(projectRoot, runDir, { actor: 'test' });
+    expect(result.kind).toBe('retried');
+    if (result.kind !== 'retried') return;
+    expect(result.evidence.detail).toBe('execution status records failure');
+  });
+
+  it('the missing self-heal is capped: a run id churning without ever executing is sent to a fresh id', () => {
+    const runId = 'run-heal-churn';
+    const { projectRoot, runDir } = makeStampedRun(runId);
+    for (let i = 0; i < 5; i += 1) {
+      const healed = openRetryAttempt(projectRoot, runDir, { actor: 'test' });
+      expect(healed.kind).toBe('retried');
+      if (healed.kind === 'retried') expect(healed.previousOutcome).toBe('missing');
+    }
+    const refused = openRetryAttempt(projectRoot, runDir, { actor: 'test' });
+    expect(refused.kind).toBe('rejected');
+    if (refused.kind === 'rejected') expect(refused.message).toContain('churning');
+  });
+});
+
 describe('front-door preflight', () => {
   it('a failing preflight aborts BEFORE any capture: no stamp, no ledger', async () => {
     const projectRoot = makeTmpDir();
@@ -326,5 +515,106 @@ describe('front-door preflight', () => {
       .rejects.toThrow(/preflight refused the entry source/);
     expect(fs.existsSync(path.join(runDir, 'run_origin.json'))).toBe(false);
     expect(readValidityLedger(projectRoot).exists).toBe(false);
+  });
+
+  it('the preflight command passes the same blocked-command gate as every step', async () => {
+    const projectRoot = makeTmpDir();
+    registerCleanup(projectRoot);
+    initRepo(projectRoot);
+    const runId = 'run-preflight-blocked';
+    const runDir = path.join(projectRoot, 'artifacts', 'runs', runId);
+    fs.mkdirSync(runDir, { recursive: true });
+    createPythonStep(runDir, 'scripts/ok.py', 'print(1)\n');
+    const manifestPath = createManifest(runDir, {
+      schema_version: 1,
+      entry_point: { script: 'scripts/ok.py', tool: 'python' },
+      preflight: ['chmod', '777', '{entry}'],
+      steps: [{ id: 's', tool: 'python', script: 'scripts/ok.py', expected_outputs: [] }],
+      environment: { python_version: '3.11', platform: 'any' },
+      dependencies: {},
+    });
+    const manager = initRunState(projectRoot, runId);
+    markA3Satisfied(manager, 'A3-0001');
+    commitAll(projectRoot);
+    await expect(executeComputationManifest({ manifestPath, projectRoot, runDir, runId }))
+      .rejects.toThrow(/[Bb]locked command/);
+    expect(readValidityLedger(projectRoot).exists).toBe(false);
+  });
+
+  it('the A3 approval packet lists the preflight command — approval covers everything that executes', async () => {
+    const projectRoot = makeTmpDir();
+    registerCleanup(projectRoot);
+    initRepo(projectRoot);
+    const runId = 'run-preflight-packet';
+    const runDir = path.join(projectRoot, 'artifacts', 'runs', runId);
+    fs.mkdirSync(runDir, { recursive: true });
+    createPythonStep(runDir, 'scripts/ok.py', 'print(1)\n');
+    const manifestPath = createManifest(runDir, {
+      schema_version: 1,
+      entry_point: { script: 'scripts/ok.py', tool: 'python' },
+      preflight: ['python3', '-m', 'py_compile', '{entry}'],
+      steps: [{ id: 's', tool: 'python', script: 'scripts/ok.py', expected_outputs: [] }],
+      environment: { python_version: '3.11', platform: 'any' },
+      dependencies: {},
+    });
+    initRunState(projectRoot, runId); // A3 NOT satisfied…
+    fs.writeFileSync(
+      path.join(projectRoot, '.nullius', 'approval_policy.json'),
+      JSON.stringify({ schema_version: 1, mode: 'safe', require_approval_for: { compute_runs: true } }),
+    );
+    commitAll(projectRoot);
+    const result = await executeComputationManifest({ manifestPath, projectRoot, runDir, runId });
+    expect(result.status).toBe('requires_approval');
+    // The packet JSON must name the substituted preflight argv. Packets
+    // land under the run's approvals/ directory.
+    const packets: string[] = [];
+    const walk = (dir: string): void => {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const child = path.join(dir, entry.name);
+        if (entry.isDirectory()) walk(child);
+        else if (entry.name.endsWith('.json')) packets.push(child);
+      }
+    };
+    walk(path.join(runDir, 'approvals'));
+    const packetWithPreflight = packets.some((file) => {
+      try {
+        const parsed = JSON.parse(fs.readFileSync(file, 'utf-8')) as { commands?: string[] };
+        return (parsed.commands ?? []).some(command => command.startsWith('[preflight] ') && command.includes('py_compile'));
+      } catch {
+        return false;
+      }
+    });
+    expect(packetWithPreflight).toBe(true);
+  });
+});
+
+describe('ambient hints only where they can be followed (r3)', () => {
+  it('crashed_unretried lists only runs the retry entrance would admit', () => {
+    const runId = 'run-hint-admissible';
+    const { projectRoot, runDir } = makeStampedRun(runId);
+    writeFailedStatus(runDir);
+    // A second, UNSTAMPED failed run: the retry verb would refuse it, so
+    // the ambient hint must not send the operator there.
+    const ghostDir = path.join(projectRoot, 'artifacts', 'runs', 'run-hint-unstamped');
+    fs.mkdirSync(path.join(ghostDir, 'computation'), { recursive: true });
+    fs.writeFileSync(
+      path.join(ghostDir, 'computation', 'execution_status.json'),
+      JSON.stringify({ status: 'failed', errors: ['x'] }),
+    );
+    const view = buildTraceabilityView(projectRoot);
+    expect(view.runs.crashed_unretried).toContain(runId);
+    expect(view.runs.crashed_unretried).not.toContain('run-hint-unstamped');
+  });
+
+  it('a relocated workspace is seen by the crashed scan too', () => {
+    const runId = 'run-hint-relocated';
+    const { projectRoot, runDir } = makeStampedRun(runId);
+    fs.mkdirSync(path.join(runDir, 'work'), { recursive: true });
+    fs.writeFileSync(
+      path.join(runDir, 'work', 'execution_status.json'),
+      JSON.stringify({ status: 'failed', errors: ['x'] }),
+    );
+    const view = buildTraceabilityView(projectRoot);
+    expect(view.runs.crashed_unretried).toContain(runId);
   });
 });

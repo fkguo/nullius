@@ -53,7 +53,16 @@ function bridgeDetails(prepared: PreparedManifest): string {
 }
 
 function buildApprovalPacket(prepared: PreparedManifest, requestedAt: string, approvalId: string) {
-  const commands = prepared.steps.map(step => step.argv.join(' '));
+  // The manifest preflight executes between approval and the first step, so
+  // the packet must list it — an approved run must never execute a command
+  // the approver did not see.
+  const preflight = (prepared.manifest as { preflight?: string[] }).preflight;
+  const commands = [
+    ...(preflight && preflight.length > 0
+      ? [`[preflight] ${preflight.map(part => part.split('{entry}').join(prepared.entryPointScriptPath)).join(' ')}`]
+      : []),
+    ...prepared.steps.map(step => step.argv.join(' ')),
+  ];
   const outputs = prepared.topLevelOutputs.length > 0
     ? prepared.topLevelOutputs
     : prepared.steps.flatMap(step => step.expectedOutputs.map(output => `computation/${output}`));

@@ -339,6 +339,12 @@ export function readValidityLedger(projectRoot: string): ValidityLedgerView {
   // property of the whole chain, not of any single event.
   const ordinalOrigins = new Map<string, Map<number, RunOriginV1>>();
   const ordinalClosures = new Map<string, Map<number, string>>();
+  // The event that OPENED each ordinal (the stamp event for 1, the attempt
+  // event whose embedded origin bound k for k>1) and the predecessor link
+  // each closure claims — resolved against each other after the stream so
+  // `supersedes_attempt_event` is a LOAD-BEARING reference, not decoration.
+  const ordinalOpeners = new Map<string, Map<number, string>>();
+  const closureLinks = new Map<string, Map<number, string | null>>();
   const bindingFor = (runId: string): Map<number, RunOriginV1> => {
     let m = ordinalOrigins.get(runId);
     if (!m) { m = new Map(); ordinalOrigins.set(runId, m); }
@@ -348,6 +354,14 @@ export function readValidityLedger(projectRoot: string): ValidityLedgerView {
     let m = ordinalClosures.get(runId);
     if (!m) { m = new Map(); ordinalClosures.set(runId, m); }
     return m;
+  };
+  const recordOpener = (runId: string, ordinal: number, eventId: string): void => {
+    let m = ordinalOpeners.get(runId);
+    if (!m) { m = new Map(); ordinalOpeners.set(runId, m); }
+    // First opener in effective order wins — the same resolution rule the
+    // retry writer uses to pick its predecessor, so writer and reader
+    // agree on what a well-formed link points at.
+    if (!m.has(ordinal)) m.set(ordinal, eventId);
   };
   const recordBinding = (entry: RunValidity, ordinal: number, incoming: RunOriginV1): void => {
     const bindings = bindingFor(entry.run_id);
@@ -377,6 +391,7 @@ export function readValidityLedger(projectRoot: string): ValidityLedgerView {
             entry.attempts.chain_defect = true;
           } else {
             recordBinding(entry, 1, incoming);
+            recordOpener(entry.run_id, 1, event.event_id);
           }
         }
         break;
@@ -398,6 +413,9 @@ export function readValidityLedger(projectRoot: string): ValidityLedgerView {
           entry.attempts.conflicting_attempts = true;
         } else if (existing === undefined) {
           closures.set(record.closes_ordinal, canon);
+          let links = closureLinks.get(entry.run_id);
+          if (!links) { links = new Map(); closureLinks.set(entry.run_id, links); }
+          links.set(record.closes_ordinal, record.supersedes_attempt_event);
           entry.attempts.closures.push({
             ordinal: record.closes_ordinal,
             previous_outcome: record.previous_outcome,
@@ -424,6 +442,7 @@ export function readValidityLedger(projectRoot: string): ValidityLedgerView {
             entry.attempts.chain_defect = true;
           } else {
             recordBinding(entry, openedOrdinal, record.origin);
+            recordOpener(entry.run_id, openedOrdinal, event.event_id);
           }
         }
         break;
@@ -484,6 +503,11 @@ export function readValidityLedger(projectRoot: string): ValidityLedgerView {
     entry.attempts.latest_ordinal = latest;
     entry.origin = bindings.get(latest) ?? null;
     const closures = ordinalClosures.get(runId) ?? new Map<number, string>();
+    // ROOTED chains only: every chain begins at the initial plain stamp.
+    // An attempt-embedded binding with no ordinal-1 record (a dropped,
+    // malformed, or never-written stamp line) must never read as a clean
+    // authoritative origin — that would mint provenance out of one line.
+    if (!bindings.has(1)) entry.attempts.chain_defect = true;
     for (let k = 2; k <= latest; k += 1) {
       if (!bindings.has(k)) entry.attempts.chain_defect = true;
       if (!closures.has(k - 1)) entry.attempts.chain_defect = true;
@@ -498,6 +522,20 @@ export function readValidityLedger(projectRoot: string): ValidityLedgerView {
       // A closure with no binding at all: history about an attempt the
       // ledger never saw opened.
       ensure(runId).attempts.chain_defect = true;
+    }
+  }
+  // Predecessor links are load-bearing: every closure must name the event
+  // that actually OPENED the ordinal it closes. A null link, a link to a
+  // nonexistent event, or a link to the wrong event is a forged or
+  // hand-built line — conservative defect, applied to record-only closures
+  // too (the machine writer always resolves its predecessor or refuses).
+  for (const [runId, links] of closureLinks) {
+    const entry = ensure(runId);
+    const openers = ordinalOpeners.get(runId);
+    for (const [ordinal, link] of links) {
+      if (link === null || openers?.get(ordinal) !== link) {
+        entry.attempts.chain_defect = true;
+      }
     }
   }
 
@@ -536,8 +574,10 @@ export type AppendValidityEventOptions = {
    *  the same in-lock atomicity that onlyIfRunUnstamped gives the first
    *  stamp, extended one level down. Two concurrent retries race to one
    *  append; the loser is skipped instead of manufacturing the divergence
-   *  the reader would have to quarantine. */
-  onlyIfAttemptChainHead?: { closesOrdinal: number };
+   *  the reader would have to quarantine. The guarded ordinal is read from
+   *  the EVENT's own closes_ordinal — a separately supplied number could
+   *  drift from what the line actually says and guard the wrong ordinal. */
+  onlyIfAttemptChainHead?: boolean;
 };
 
 /** Append one event under the ledger's own lock.
@@ -597,7 +637,10 @@ export function appendValidityEvent(
         return 'skipped_run_already_stamped';
       }
       if (options.onlyIfAttemptChainHead) {
-        const target = options.onlyIfAttemptChainHead.closesOrdinal;
+        const target = (event as { attempt?: { closes_ordinal?: number } }).attempt?.closes_ordinal;
+        if (typeof target !== 'number') {
+          throw new Error('onlyIfAttemptChainHead requires an attempt event carrying closes_ordinal');
+        }
         let latestOrdinal = 0;
         let closureExists = false;
         for (const { event: existing } of parsed) {

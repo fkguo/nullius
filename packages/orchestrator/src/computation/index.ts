@@ -1,6 +1,7 @@
 import * as path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { invalidParams } from '@nullius/shared';
+import { assertCommandAllowed } from './path-safety.js';
 import { prepareManifest } from './manifest.js';
 import { ensureA3Approval } from './approval.js';
 import { stampComputationLaunch } from './launch-stamp.js';
@@ -94,19 +95,31 @@ export async function executeComputationManifest(
 /** Manifest-declared preflight: an argv template whose `{entry}` token is
  *  substituted with the resolved entry-point path, run in the workspace.
  *  Generic by construction — the project supplies the interpreter/loader
- *  command; the front door only enforces "exit 0 or nothing gets stamped". */
+ *  command; the front door only enforces "exit 0 or nothing gets stamped".
+ *  The command passes the SAME blocked-command gate as every step, and it
+ *  runs under the entry step's production environment — a preflight that
+ *  inherited the host environment would probe a different world than the
+ *  execution it vouches for. */
 function runManifestPreflight(prepared: {
   manifest: { preflight?: string[] };
   entryPointScriptPath: string;
   workspaceDir: string;
+  steps: Array<{ scriptPath: string; executionEnvironment: { variables: Record<string, string> } }>;
 }): void {
   const template = prepared.manifest.preflight;
   if (!template || template.length === 0) return;
   const argv = template.map(part => part.split('{entry}').join(prepared.entryPointScriptPath));
+  assertCommandAllowed(argv);
+  const entryStep = prepared.steps.find(step => step.scriptPath === prepared.entryPointScriptPath)
+    ?? prepared.steps[0];
+  const environment = entryStep
+    ? entryStep.executionEnvironment.variables
+    : { LANG: 'C', LC_ALL: 'C', PATH: '/usr/bin:/bin', TZ: 'UTC' };
   const result = spawnSync(argv[0]!, argv.slice(1), {
     cwd: prepared.workspaceDir,
     encoding: 'utf-8',
     timeout: 300_000,
+    env: environment,
   });
   if (result.error || result.status !== 0) {
     const detail = result.error
