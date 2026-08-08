@@ -246,7 +246,7 @@ export function segmentCitationBlocks(body: string[]): string[] {
   // is dropped, including a second chunk after a dropped first one.
   const isListShaped = (block: string[]): boolean =>
     block.some(line => LIST_ITEM_PATTERN.test(line))
-    && block.every(line => LIST_ITEM_PATTERN.test(line) || /^\s{2,}/.test(line));
+    && block.every(line => LIST_ITEM_PATTERN.test(line) || /^(?:\t|\s{2,})/.test(line));
   const merged: string[][] = [];
   for (const block of rawBlocks) {
     const allIndented = block.every(line => INDENTED_CODE_LINE.test(line));
@@ -254,7 +254,7 @@ export function segmentCitationBlocks(body: string[]): string[] {
     // continuation — CommonMark continuation only needs the item's content
     // column (commonly two spaces), and even four-space indentation there
     // is continuation, not code.
-    const allContinuation = block.every(line => /^\s{2,}/.test(line));
+    const allContinuation = block.every(line => /^(?:\t|\s{2,})/.test(line));
     const prev = merged.length > 0 ? merged[merged.length - 1]! : null;
     const prevIsList = prev !== null && isListShaped(prev);
     if (allIndented && !prevIsList) {
