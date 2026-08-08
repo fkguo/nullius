@@ -190,6 +190,13 @@ class Stamp(BaseModel):
             description="True when writing the run-directory mirror failed (e.g. read-only bits on legacy runs). The ledger event remains the truth; backfill never fails on filesystem bits."
         ),
     ] = False
+    attempt_ordinal: Annotated[
+        int | None,
+        Field(
+            description="Which execution attempt of the run this capture binds (absent = 1, the initial stamp). Ordinals above 1 are legal only embedded in an `attempt` ledger event — the retry entrance that certifies the prior attempt produced no retained result.",
+            ge=1,
+        ),
+    ] = None
 
 
 class EventType(StrEnum):
@@ -197,6 +204,215 @@ class EventType(StrEnum):
     void = "void"
     reinstate = "reinstate"
     stamp = "stamp"
+    attempt = "attempt"
+
+
+class PreviousOutcome(StrEnum):
+    failed = "failed"
+    missing = "missing"
+    stalled = "stalled"
+    declared_no_result = "declared_no_result"
+
+
+class Method(StrEnum):
+    execution_status = "execution_status"
+    outputs_scan = "outputs_scan"
+    declared = "declared"
+
+
+class Evidence(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    method: Annotated[
+        Method,
+        Field(
+            description="execution_status and outputs_scan are machine-verified; declared is an operator claim and is surfaced second-class everywhere."
+        ),
+    ]
+    detail: Annotated[str, Field(min_length=1)]
+    execution_status_sha256: Annotated[
+        str | None,
+        Field(
+            description="SHA-256 of the execution-status file backing a failed/completed determination, chaining the ruling to the runner's own record.",
+            pattern="^[0-9a-f]{64}$",
+        ),
+    ] = None
+    exit_code: int | None = None
+    quarantined_paths_count: Annotated[int | None, Field(ge=0)] = None
+
+
+class Alignment1(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    window_prev_s: Annotated[
+        float | None,
+        Field(
+            description="Seconds from the aligned commit to the run timestamp.", ge=0.0
+        ),
+    ] = None
+    window_next_s: Annotated[
+        float | None,
+        Field(
+            description="Seconds from the run timestamp to the next commit (null when the aligned commit is the newest).",
+            ge=0.0,
+        ),
+    ] = None
+    nominal_timestamp: Annotated[
+        bool | None,
+        Field(
+            description="True when the run_id carries a hand-rounded (nominal) timestamp — alignment confidence is degraded."
+        ),
+    ] = None
+    ambiguous_candidates: Annotated[
+        list[AmbiguousCandidate] | None,
+        Field(
+            description="Other commits sharing the exact boundary timestamp; non-empty means the alignment choice at that instant was not unique. (Cross-branch near-boundary competition is NOT enumerated here; the all_refs history_scope already marks the binding heuristic.)"
+        ),
+    ] = None
+    history_scope: Annotated[
+        HistoryScope | None,
+        Field(
+            description="Which commit set the alignment drew from. all_refs: every ref (git log --all) — side branches compete with the mainline, part of why the binding is heuristic."
+        ),
+    ] = None
+
+
+class Origin(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    schema_id: Annotated[
+        Literal["run_origin_v1"],
+        Field(description="Schema discriminator, always run_origin_v1."),
+    ]
+    event_id: Annotated[
+        str,
+        Field(
+            description="ULID minted ONCE per logical stamp; a retry of the same logical stamp (including cross-process crash recovery via --event-id) reuses it, so ledger readers can deduplicate.",
+            pattern="^[0-7][0-9ABCDEFGHJKMNPQRSTVWXYZ]{25}$",
+        ),
+    ]
+    run_id: Annotated[
+        str,
+        Field(
+            description="Run directory name this stamp binds. Unparseable legacy names are accepted verbatim (slug degrades to the whole name).",
+            min_length=1,
+        ),
+    ]
+    captured_at_utc: Annotated[
+        AwareDatetime,
+        Field(
+            description="ISO 8601 UTC instant the stamp was taken. This, not the run_id timestamp, is the machine time truth."
+        ),
+    ]
+    binding_quality: Annotated[
+        BindingQuality,
+        Field(
+            description="exact_clean: tree clean, code IS baseline_commit. exact_tracked_snapshot: tracked modifications captured as snapshot_commit (tree = snapshot_tree), untracked_count 0. head_plus_untracked: untracked files present — tracked-history identity is baseline_commit (or snapshot_commit when tracked modifications were also present) but the binding is NOT exact; consumers must render outcomes against it as qualified (e.g. current-modulo-untracked), never as unqualified exact/current. aligned_heuristic: retroactive timestamp alignment (backfill) — a heuristic, never presented as exact. unbound: no repository or no alignable identity (no_repo_reason required)."
+        ),
+    ]
+    baseline_commit: Annotated[
+        str | None,
+        Field(
+            description="Full sha of HEAD at stamp time (null only when unbound).",
+            pattern="^[0-9a-f]{40}$",
+        ),
+    ]
+    snapshot_commit: Annotated[
+        str | None,
+        Field(
+            description="Commit object capturing tracked modifications (git stash create semantics; parent = baseline_commit), pinned at refs/nullius/runs/<sanitized-run-id> so gc cannot prune it. Null when the tracked tree was clean. The EFFECTIVE CODE IDENTITY of a run is snapshot_commit ?? baseline_commit.",
+            pattern="^[0-9a-f]{40}$",
+        ),
+    ] = None
+    snapshot_tree: Annotated[
+        str | None,
+        Field(
+            description="Tree sha of the snapshot commit (or of baseline_commit when clean). Byte-identical code between two runs is decidable by equality of this field.",
+            pattern="^[0-9a-f]{40}$",
+        ),
+    ] = None
+    dirty: Dirty
+    deps: Annotated[
+        dict[str, str] | None,
+        Field(
+            description="Optional dependency-repository commits, keyed by a caller-chosen repository name."
+        ),
+    ] = None
+    no_repo_reason: Annotated[
+        str | None,
+        Field(
+            description="Required non-empty when binding_quality is unbound: why no commit identity exists (e.g. project has no git repository; unparseable_run_id with no usable timestamp)."
+        ),
+    ] = None
+    aligned_commit: Annotated[
+        str | None,
+        Field(
+            description="Backfill only: the latest commit at or before the run timestamp. A heuristic binding — rebased or force-pushed history can make it plausible-but-wrong, which is why aligned_heuristic is never rendered as exact.",
+            pattern="^[0-9a-f]{40}$",
+        ),
+    ] = None
+    alignment: Annotated[
+        Alignment1 | None,
+        Field(
+            description="Backfill only: the evidence behind an aligned_heuristic binding."
+        ),
+    ] = None
+    run_dir_unwritable: Annotated[
+        bool | None,
+        Field(
+            description="True when writing the run-directory mirror failed (e.g. read-only bits on legacy runs). The ledger event remains the truth; backfill never fails on filesystem bits."
+        ),
+    ] = False
+    attempt_ordinal: Annotated[
+        int | None,
+        Field(
+            description="Which execution attempt of the run this capture binds (absent = 1, the initial stamp). Ordinals above 1 are legal only embedded in an `attempt` ledger event — the retry entrance that certifies the prior attempt produced no retained result.",
+            ge=1,
+        ),
+    ] = None
+
+
+class AttemptRecord(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    closes_ordinal: Annotated[
+        int,
+        Field(
+            description="The attempt ordinal being closed (the initial stamp is ordinal 1). Explicit — chain logic never keys on sub-millisecond event order.",
+            ge=1,
+        ),
+    ]
+    previous_outcome: Annotated[
+        PreviousOutcome,
+        Field(
+            description="failed: execution evidence records failure. missing: the stamp predates the source/status that never materialized (self-heal; never counts against attempt budgets). stalled: declared stall of a long execution. declared_no_result: operator declaration where no machine evidence exists (visibly second-class)."
+        ),
+    ]
+    evidence: Evidence
+    quarantined_to: Annotated[
+        str | None,
+        Field(
+            description="Run-relative directory the prior attempt's residue was archived into (never deleted), or null when the surface was already clean.",
+            min_length=1,
+        ),
+    ]
+    supersedes_attempt_event: Annotated[
+        str | None,
+        Field(
+            description="The event that opened the attempt being closed (the initial stamp event for ordinal 1). Skew-immune predecessor binding alongside the explicit ordinal.",
+            pattern="^[0-7][0-9ABCDEFGHJKMNPQRSTVWXYZ]{25}$",
+        ),
+    ]
+    origin: Annotated[
+        Origin | None,
+        Field(
+            description="The NEXT attempt's full origin payload (attempt_ordinal = closes_ordinal + 1), captured fresh at ITS launch; null records the closure without opening a retry (abandonment bookkeeping)."
+        ),
+    ]
 
 
 class ValidityeventV1(BaseModel):
@@ -258,4 +474,7 @@ class ValidityeventV1(BaseModel):
             description="Origin stamp binding one run to the exact code state that produced it. The authoritative copy of this payload is the `stamp` event appended to the project validity ledger; the run-directory `run_origin.json` is a best-effort human-browsable mirror of the same object. The binding_quality ladder is the honesty core: `exact` wording is reserved for the two levels where the recorded commit tree IS the tracked code that ran. Exactness refers to the snapshot object captured at stamp time; runs launched while the same worktree was being edited concurrently are outside this guarantee (one-worktree-per-lane norm).",
             title="RunOrigin V1",
         ),
+    ] = None
+    attempt: Annotated[
+        AttemptRecord | None, Field(description="attempt events only.")
     ] = None

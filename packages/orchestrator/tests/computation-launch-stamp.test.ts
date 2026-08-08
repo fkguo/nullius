@@ -187,7 +187,7 @@ describe('computation front door launch stamp', () => {
     expect(view.runs.get(runId)?.conflicting_stamps).toBe(false);
   });
 
-  it('a relaunch on CHANGED tracked code reports stale_stamp and refuses to silently rebind', async () => {
+  it('relaunching a COMPLETED run on CHANGED tracked code is REFUSED before execution (attempt boundary)', async () => {
     const projectRoot = makeTmpDir();
     registerCleanup(projectRoot);
     initRepo(projectRoot);
@@ -199,15 +199,16 @@ describe('computation front door launch stamp', () => {
     const first = await executeComputationManifest({ manifestPath, projectRoot, runDir, runId });
     expect((first as { origin_stamp?: { status: string } }).origin_stamp?.status).toBe('stamped');
 
-    // The code that will produce the rerun's results is no longer the code
-    // the recorded stamp describes.
+    // The code that would produce the rerun's results is no longer the code
+    // the recorded stamp describes — and the recorded execution COMPLETED,
+    // so running would overwrite a completed result's provenance. This is
+    // the one deliberate exception to never-blocks: refused, with the
+    // ceremony named.
     fs.writeFileSync(path.join(projectRoot, 'solver.py'), 'VERSION = 2\n');
     commitAll(projectRoot);
 
-    const second = await executeComputationManifest({ manifestPath, projectRoot, runDir, runId });
-    const stamp = (second as { origin_stamp?: { status: string; detail?: string } }).origin_stamp;
-    expect(stamp?.status).toBe('stale_stamp');
-    expect(stamp?.detail).toContain('fresh run id');
+    await expect(executeComputationManifest({ manifestPath, projectRoot, runDir, runId }))
+      .rejects.toThrow(/COMPLETED execution.*content territory/s);
     expect(ledgerStampEvents(projectRoot, runId)).toHaveLength(1);
   });
 
@@ -380,25 +381,31 @@ describe('re-entry untracked-delta grading (review r1 of the version batch)', ()
 
     // A new UNTRACKED project-level script is a code-bearing delta: the
     // recorded exact grade no longer describes what a relaunch executes.
+    // The manual CLI verb refuses on it (graded against the attempt-1
+    // stamp, BEFORE any retry advances the chain).
     fs.writeFileSync(path.join(projectRoot, 'new_helper.py'), 'h = 1\n');
-    const third = await executeComputationManifest({ manifestPath, projectRoot, runDir, runId });
-    const stamp = (third as { origin_stamp?: { status: string; detail?: string } }).origin_stamp;
-    expect(stamp?.status).toBe('stale_stamp');
-    expect(stamp?.detail).toContain('untracked path(s)');
-    expect(stamp?.detail).toContain('Commit the new files or use a fresh run id');
-    // Nothing was appended in any of this.
-    expect(ledgerStampEvents(projectRoot, runId)).toHaveLength(1);
-
-    // The manual CLI verb refuses identically.
     const io = { out: [] as string[], err: [] as string[] };
     const cliIo = { cwd: projectRoot, stdout: (t: string) => io.out.push(t), stderr: (t: string) => io.err.push(t) };
     const code = runTraceCommand(projectRoot, {
       action: 'stamp' as const,
       target: path.join('artifacts', 'runs', runId),
-      by: null, reason: null, scope: null, actor: 't', eventId: null, deps: {},
+      by: null, reason: null, scope: null, actor: 't', eventId: null, recordOnly: false, deps: {},
     }, cliIo);
     expect(code).toBe(1);
     expect(io.err.join('')).toContain('no longer describes the tree');
+    expect(ledgerStampEvents(projectRoot, runId)).toHaveLength(1);
+
+    // The front door, by contrast, consults the attempt boundary: the
+    // recorded execution FAILED, so the relaunch auto-records the retry
+    // (attempt 1 closed, attempt 2 opened on the changed tree) and
+    // executes — zero operator commands.
+    const third = await executeComputationManifest({ manifestPath, projectRoot, runDir, runId });
+    const stamp = (third as { origin_stamp?: { status: string; opened_ordinal?: number } }).origin_stamp;
+    expect(stamp?.status).toBe('retried');
+    expect(stamp?.opened_ordinal).toBe(2);
+    // Plain stamp events stay at one — the retry binding rides inside the
+    // attempt event.
+    expect(ledgerStampEvents(projectRoot, runId)).toHaveLength(1);
   });
 });
 
@@ -446,11 +453,16 @@ describe('re-entry signal derives from the manifest (review r2)', () => {
 
     // A new UNDECLARED module inside computation/ — a helper the manifest
     // could reference from anywhere — is a code-bearing delta (no location
-    // whitelist may clear it).
+    // whitelist may clear it). This fixture's executions record FAILED
+    // status, so the attempt boundary auto-records the retry and executes
+    // on the changed tree (the completed+changed case is covered by the
+    // refusal test above).
     fs.mkdirSync(path.join(runDir, 'computation', 'helpers'), { recursive: true });
     fs.writeFileSync(path.join(runDir, 'computation', 'helpers', 'plugin.py'), 'p = 1\n');
     const third = await executeComputationManifest({ manifestPath, projectRoot, runDir, runId });
-    expect((third as { origin_stamp?: { status: string } }).origin_stamp?.status).toBe('stale_stamp');
+    const stamp = (third as { origin_stamp?: { status: string; opened_ordinal?: number } }).origin_stamp;
+    expect(stamp?.status).toBe('retried');
+    expect(stamp?.opened_ordinal).toBe(2);
     expect(ledgerStampEvents(projectRoot, runId)).toHaveLength(1);
   });
 });

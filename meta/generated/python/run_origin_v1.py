@@ -190,3 +190,10 @@ class RunoriginV1(BaseModel):
             description="True when writing the run-directory mirror failed (e.g. read-only bits on legacy runs). The ledger event remains the truth; backfill never fails on filesystem bits."
         ),
     ] = False
+    attempt_ordinal: Annotated[
+        int | None,
+        Field(
+            description="Which execution attempt of the run this capture binds (absent = 1, the initial stamp). Ordinals above 1 are legal only embedded in an `attempt` ledger event — the retry entrance that certifies the prior attempt produced no retained result.",
+            ge=1,
+        ),
+    ] = None

@@ -126,7 +126,12 @@ export type {
 } from "./validation-chain-binding-v1.js";
 export type { ValidationCheckerRequestV1 } from "./validation-checker-request-v1.js";
 export * from "./validation-checker-verdict-v1.js";
-export type { ValidityEventV1 } from "./validity-event-v1.js";
+export type {
+  RunOriginV11,
+  ValidityEventV1,
+  AttemptRecord,
+  AttemptRecord1,
+} from "./validity-event-v1.js";
 export type {
   VerificationCheckRunV1,
   DecisiveVerificationCheckRun,
