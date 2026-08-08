@@ -17,6 +17,7 @@ import {
   registerCleanup,
 } from './executeManifestTestUtils.js';
 import { executeComputationManifest } from '../src/computation/index.js';
+import { runCli } from '../src/cli.js';
 import { stampComputationLaunch } from '../src/computation/launch-stamp.js';
 
 /** Negative controls for the attempt–run separation: the retriable boundary
@@ -883,19 +884,37 @@ describe('confirmation-round regressions (review r6)', () => {
     expect(fs.existsSync(path.join(runDir, 'attempts', `unattributed-${orphanId}`, 'computation', 'execution_status.json'))).toBe(true);
   });
 
-  it('an UNREADABLE terminal artifact refuses the retry — truncation cannot launder a completed run', () => {
+  it('an UNREADABLE terminal artifact refuses every consumer — truncation and dangling links cannot launder', () => {
     const runId = 'run-unreadable-witness';
     const { projectRoot, runDir } = makeStampedRun(runId);
+    const artifactPath = path.join(runDir, 'artifacts', 'computation_result_v1.json');
     fs.mkdirSync(path.join(runDir, 'artifacts'), { recursive: true });
-    fs.writeFileSync(path.join(runDir, 'artifacts', 'computation_result_v1.json'), '{"execution_status": "comp');
+    fs.writeFileSync(artifactPath, '{"execution_status": "comp');
     writeFailedStatus(runDir);
     const result = openRetryAttempt(projectRoot, runDir, { actor: 'test' });
     expect(result.kind).toBe('rejected');
     if (result.kind === 'rejected') expect(result.message).toContain('unreadable');
+    // A DANGLING SYMLINK is an entry that exists but resolves nowhere —
+    // existsSync would call it absent; the witness must call it unreadable.
+    fs.rmSync(artifactPath);
+    fs.symlinkSync('no-such-target.json', artifactPath);
+    const symlinked = openRetryAttempt(projectRoot, runDir, { actor: 'test' });
+    expect(symlinked.kind).toBe('rejected');
+    if (symlinked.kind === 'rejected') expect(symlinked.message).toContain('unreadable');
+    // The ambient hint never advertises the refusing verb…
+    expect(buildTraceabilityView(projectRoot).runs.crashed_unretried).not.toContain(runId);
+    // …and the changed-tree relaunch fork refuses on the same witness.
+    fs.writeFileSync(path.join(projectRoot, 'seed.txt'), 'changed for relaunch\n');
+    execFileSync('git', ['-C', projectRoot, 'add', '-A']);
+    execFileSync('git', ['-C', projectRoot, 'commit', '-q', '-m', 'change']);
+    const relaunch = stampComputationLaunch(projectRoot, runDir);
+    expect(relaunch.status).toBe('refused_relaunch');
+    if (relaunch.status === 'refused_relaunch') expect(relaunch.detail).toContain('unreadable');
     // A FAILED terminal artifact (what every front-door crash writes) is
     // NOT a refusal — the entrance admits it as ordinary residue.
+    fs.rmSync(artifactPath);
     fs.writeFileSync(
-      path.join(runDir, 'artifacts', 'computation_result_v1.json'),
+      artifactPath,
       JSON.stringify({ schema_version: 1, run_id: runId, execution_status: 'failed' }),
     );
     const admitted = openRetryAttempt(projectRoot, runDir, { actor: 'test' });
@@ -917,6 +936,34 @@ describe('confirmation-round regressions (review r6)', () => {
     // under full-suite parallel load.
     fs.rmSync(bulk, { recursive: true, force: true });
   }, 120_000); // 10k mkdirs + the bounded walk are slow under full-suite parallel load
+
+  it('the `result set-current` CLI echo carries the +untracked qualifier', async () => {
+    const projectRoot = makeTmpDir();
+    registerCleanup(projectRoot);
+    initRepo(projectRoot);
+    const runId = 'run-cli-echo-untracked';
+    const runDir = path.join(projectRoot, 'artifacts', 'runs', runId);
+    fs.mkdirSync(runDir, { recursive: true });
+    fs.writeFileSync(path.join(projectRoot, 'seed.txt'), 'seed\n');
+    commitAll(projectRoot);
+    fs.writeFileSync(path.join(projectRoot, 'helper.py'), 'h = 1\n'); // untracked at capture
+    expect(stampRunDirectory(projectRoot, runDir, { actor: 'test' }).kind).toBe('stamped');
+    fs.writeFileSync(path.join(runDir, 'value.json'), '{"v": 1}\n');
+    fs.writeFileSync(path.join(projectRoot, 'project_index.md'), [
+      '# Index', '',
+      '<!-- RESULT_REGISTRY_START -->',
+      '| Result | Run | Artifact | SHA-256 | Supersedes | Superseded by |',
+      '| --- | --- | --- | --- | --- | --- |',
+      '<!-- RESULT_REGISTRY_END -->', '',
+    ].join('\n'));
+    const out: string[] = [];
+    const code = await runCli(
+      ['result', 'set-current', 'headline', '--run', runId, '--artifact', `artifacts/runs/${runId}/value.json`],
+      { cwd: projectRoot, stdout: (text: string) => out.push(text), stderr: (text: string) => out.push(text) },
+    );
+    expect(code).toBe(0);
+    expect(out.join('')).toContain('+untracked');
+  });
 
   it('a product that CANNOT be quarantined aborts admission — never left live under the next binding', () => {
     const runId = 'run-unmovable-product';
