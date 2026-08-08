@@ -14,6 +14,7 @@ import {
 } from '../src/notebook-current-state.js';
 import { checkNotebookStaleness } from '../src/notebook-staleness.js';
 import { stampRunDirectory } from '../src/run-stamp.js';
+import { buildTraceabilityView } from '../src/traceability-view.js';
 
 let projectRoot: string;
 
@@ -26,8 +27,12 @@ afterEach(() => {
 
 const notebookPath = (): string => path.join(projectRoot, 'research_notebook.md');
 
-const EMPTY: CurrentStateProjection = { current_rows: [], total_rows: 0, issue_codes: [] };
+const EMPTY: CurrentStateProjection = {
+  registry_block_found: true, current_rows: [], total_rows: 0, issue_codes: [],
+};
+const NO_REGISTRY: CurrentStateProjection = { ...EMPTY, registry_block_found: false };
 const ONE_ROW: CurrentStateProjection = {
+  registry_block_found: true,
   current_rows: [{
     result_id: 'headline', run_id: '20260808-m1-r010-final',
     effective_commit: 'a'.repeat(40), has_snapshot: true,
@@ -44,6 +49,20 @@ describe('renderCurrentStateBlock', () => {
     expect(block).toContain('an honest');
     expect(block.startsWith(CURRENT_STATE_START)).toBe(true);
     expect(block.endsWith(CURRENT_STATE_END)).toBe(true);
+  });
+
+  it('never calls a MISSING registry an honest empty state', () => {
+    const block = renderCurrentStateBlock({ ...EMPTY, registry_block_found: false });
+    expect(block).not.toContain('No result is promoted yet');
+    expect(block).toContain('no results-registry block');
+    expect(block).toContain('RESULT_REGISTRY');
+  });
+
+  it('reports zero-parsed-rows-with-issues as a possible unseen row, and always renders issue codes', () => {
+    const block = renderCurrentStateBlock({ ...EMPTY, issue_codes: ['malformed_result_row'] });
+    expect(block).not.toContain('No result is promoted yet');
+    expect(block).toContain('a written row may be going unseen');
+    expect(block).toContain('malformed_result_row');
   });
 
   it('renders registered rows with snapshot qualifier, and marks defective rows', () => {
@@ -65,7 +84,7 @@ describe('refresh + check', () => {
     const text = fs.readFileSync(notebookPath(), 'utf-8');
     expect(text.indexOf(CURRENT_STATE_START)).toBeLessThan(text.indexOf('## Results'));
     expect(checkNotebookStaleness(projectRoot).sections.map(section => section.heading)).toEqual(before);
-    expect(checkCurrentStateBlock(projectRoot, EMPTY).in_sync).toBe(true);
+    expect(checkCurrentStateBlock(projectRoot, NO_REGISTRY).in_sync).toBe(true);
   });
 
   it('replaces template placeholder content between markers, then is idempotent', () => {
@@ -76,7 +95,7 @@ describe('refresh + check', () => {
     ].join('\n'));
     expect(refreshNotebookCurrentState(projectRoot, { insertIfMissing: false }).action).toBe('rewritten');
     expect(refreshNotebookCurrentState(projectRoot, { insertIfMissing: false }).action).toBe('unchanged');
-    expect(checkCurrentStateBlock(projectRoot, EMPTY).in_sync).toBe(true);
+    expect(checkCurrentStateBlock(projectRoot, NO_REGISTRY).in_sync).toBe(true);
   });
 
   it('names the two out-of-sync causes distinctly: state moved vs hand edit', () => {
@@ -104,14 +123,47 @@ describe('refresh + check', () => {
     expect(checkCurrentStateBlock(projectRoot, EMPTY).duplicated_markers).toBe(true);
   });
 
+  it('names a never-rendered block (template placeholder, no digest line) as its own cause', () => {
+    fs.writeFileSync(notebookPath(), [
+      '# Memo', '',
+      CURRENT_STATE_START, '(rendered at init)', CURRENT_STATE_END,
+      '', '## Results',
+    ].join('\n'));
+    const status = checkCurrentStateBlock(projectRoot, EMPTY);
+    expect(status.in_sync).toBe(false);
+    expect(status.reason).toContain('never rendered');
+  });
+
+  it('treats a CRLF notebook as in sync and splices CRLF back on rewrite', () => {
+    const lf = `# Memo\n\n${renderCurrentStateBlock(NO_REGISTRY)}\n\n## Results\nBody.\n`;
+    fs.writeFileSync(notebookPath(), lf.replace(/\n/g, '\r\n'));
+    expect(checkCurrentStateBlock(projectRoot, NO_REGISTRY).in_sync).toBe(true);
+    expect(refreshNotebookCurrentState(projectRoot, { insertIfMissing: false }).action).toBe('unchanged');
+    // A projection change rewrites the block but preserves the file's EOL flavor.
+    fs.writeFileSync(notebookPath(), lf.replace('state-digest: ', 'state-digest: 0').replace(/\n/g, '\r\n'));
+    expect(refreshNotebookCurrentState(projectRoot, { insertIfMissing: false }).action).toBe('rewritten');
+    const text = fs.readFileSync(notebookPath(), 'utf-8');
+    expect(text).toContain('\r\n');
+    expect(checkCurrentStateBlock(projectRoot, NO_REGISTRY).in_sync).toBe(true);
+  });
+
+  it('a memo with no ## heading gets the block after its title, never glued to EOF prose', () => {
+    fs.writeFileSync(notebookPath(), '# Memo\nProse only, single-hash sections.\nLast line without newline');
+    expect(refreshNotebookCurrentState(projectRoot, { insertIfMissing: true }).action).toBe('inserted');
+    const text = fs.readFileSync(notebookPath(), 'utf-8');
+    expect(text.startsWith(`# Memo\n\n${CURRENT_STATE_START}`)).toBe(true);
+    expect(text).not.toContain(`newline${CURRENT_STATE_START}`);
+    expect(checkCurrentStateBlock(projectRoot, NO_REGISTRY).in_sync).toBe(true);
+  });
+
   it('a fenced example quoting the markers is neither a block nor duplication', () => {
     fs.writeFileSync(notebookPath(), [
       '# Memo', '',
-      renderCurrentStateBlock(EMPTY),
+      renderCurrentStateBlock(NO_REGISTRY),
       '', '## Mechanism notes',
       '```', CURRENT_STATE_START, 'example', CURRENT_STATE_END, '```',
     ].join('\n'));
-    const status = checkCurrentStateBlock(projectRoot, EMPTY);
+    const status = checkCurrentStateBlock(projectRoot, NO_REGISTRY);
     expect(status.duplicated_markers).toBe(false);
     expect(status.in_sync).toBe(true);
   });
@@ -119,15 +171,15 @@ describe('refresh + check', () => {
   it('a canonical block moved below a heading is out of sync, and sync relocates it to front matter', () => {
     fs.writeFileSync(notebookPath(), [
       '# Memo', '', '## Results', 'Body.', '',
-      renderCurrentStateBlock(EMPTY), '',
+      renderCurrentStateBlock(NO_REGISTRY), '',
     ].join('\n'));
-    const status = checkCurrentStateBlock(projectRoot, EMPTY);
+    const status = checkCurrentStateBlock(projectRoot, NO_REGISTRY);
     expect(status.in_sync).toBe(false);
     expect(status.reason).toContain('front matter');
     expect(refreshNotebookCurrentState(projectRoot, { insertIfMissing: false }).action).toBe('rewritten');
     const text = fs.readFileSync(notebookPath(), 'utf-8');
     expect(text.indexOf(CURRENT_STATE_START)).toBeLessThan(text.indexOf('## Results'));
-    expect(checkCurrentStateBlock(projectRoot, EMPTY).in_sync).toBe(true);
+    expect(checkCurrentStateBlock(projectRoot, NO_REGISTRY).in_sync).toBe(true);
   });
 
   it('skips a missing notebook, and skips (with the adoption hint) when markers are absent and insertion is off', () => {
@@ -141,7 +193,7 @@ describe('refresh + check', () => {
 });
 
 describe('stamp hook stability', () => {
-  it('a stamp renders the placeholder once; further stamps leave the block untouched (registry projection unchanged)', () => {
+  it('stamps of unregistered runs never touch the notebook at all (cheap pre-check, zero churn)', () => {
     execFileSync('git', ['-C', projectRoot, 'init', '-q']);
     execFileSync('git', ['-C', projectRoot, 'config', 'user.email', 't@example.com']);
     execFileSync('git', ['-C', projectRoot, 'config', 'user.name', 'T']);
@@ -152,20 +204,42 @@ describe('stamp hook stability', () => {
     ].join('\n'));
     execFileSync('git', ['-C', projectRoot, 'add', '-A']);
     execFileSync('git', ['-C', projectRoot, 'commit', '-q', '-m', 'seed']);
+    const beforeStamps = fs.readFileSync(notebookPath(), 'utf-8');
 
     const runA = path.join(projectRoot, 'artifacts/runs/20260808-m1-r001-first');
     const runB = path.join(projectRoot, 'artifacts/runs/20260808-m1-r002-second');
     fs.mkdirSync(runA, { recursive: true });
     fs.mkdirSync(runB, { recursive: true });
-
     expect(stampRunDirectory(projectRoot, runA, { actor: 'test' }).kind).toBe('stamped');
-    const afterFirst = fs.readFileSync(notebookPath(), 'utf-8');
-    expect(afterFirst).toContain('No result is promoted yet');
-    expect(checkCurrentStateBlock(projectRoot, computeCurrentStateProjection(projectRoot)).in_sync).toBe(true);
-
     expect(stampRunDirectory(projectRoot, runB, { actor: 'test' }).kind).toBe('stamped');
-    // Stamp-stability by construction: the second stamp changes no
-    // registry-relevant state, so the notebook bytes are identical.
-    expect(fs.readFileSync(notebookPath(), 'utf-8')).toBe(afterFirst);
+    // Neither run is referenced by project_index.md, so the hot path skips
+    // the projection entirely: the notebook bytes are untouched — the
+    // placeholder render is init's and sync's job, not the stamp path's.
+    expect(fs.readFileSync(notebookPath(), 'utf-8')).toBe(beforeStamps);
+
+    // Rendering the placeholder is one `notebook sync` away.
+    expect(refreshNotebookCurrentState(projectRoot, { insertIfMissing: true }).action).toBe('rewritten');
+    expect(fs.readFileSync(notebookPath(), 'utf-8')).toContain('no results-registry block');
+    expect(checkCurrentStateBlock(projectRoot, computeCurrentStateProjection(projectRoot)).in_sync).toBe(true);
+  });
+});
+
+describe('gate key binding', () => {
+  it('the view JSON carries the exact key paths the fold gate reads', () => {
+    // The Python gate degrades OPEN on a missing key (deliberate launcher
+    // compatibility), so a silent rename on the TS side would disarm both
+    // new refusals with every suite green. Pin the key paths here.
+    execFileSync('git', ['-C', projectRoot, 'init', '-q']);
+    fs.writeFileSync(notebookPath(), '# Memo\n\n## Results\nBody.\n');
+    const view = JSON.parse(JSON.stringify(buildTraceabilityView(projectRoot))) as Record<string, any>;
+    const notebook = view.notebook as Record<string, any>;
+    expect(notebook).toHaveProperty('current_state_block');
+    for (const key of ['notebook_found', 'block_found', 'duplicated_markers', 'in_sync', 'reason']) {
+      expect(Object.keys(notebook.current_state_block as object)).toContain(key);
+    }
+    expect(notebook).toHaveProperty('run_links');
+    expect(Object.keys(notebook.run_links as object)).toContain('unacknowledged_dead');
+    // And the entry shape the gate destructures:
+    expect(Array.isArray(notebook.run_links.unacknowledged_dead)).toBe(true);
   });
 });

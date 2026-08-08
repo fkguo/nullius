@@ -212,6 +212,23 @@ describe('dead-citation acknowledgment union', () => {
     expect(report.unacknowledged_dead).toHaveLength(1);
   });
 
+  it('a run slug containing a token word never self-acknowledges (link destinations are blanked)', () => {
+    const slugDead = '20260808-m1-r007-void-check';
+    const ledger = syntheticLedger([
+      { id: slugDead, ts: '2026-08-08T01:00:00.000Z', validity: 'void' },
+    ]);
+    writeNotebook(`# Memo\n## Results\nThe clearance came from [this run](artifacts/runs/${slugDead}/out.tsv).\n`);
+    const report = analyzeNotebookRunLinks(projectRoot, ledger, new Set());
+    expect(report.unacknowledged_dead).toHaveLength(1);
+    expect(report.unacknowledged_dead[0]!.run_id).toBe(slugDead);
+  });
+
+  it('accepts the present-tense charter idiom: "run B supersedes the earlier estimate"', () => {
+    writeNotebook(`# Memo\n## Results\nA later run supersedes the earlier estimate; see [the old record](artifacts/runs/${dead}/out.tsv).\n`);
+    const report = analyzeNotebookRunLinks(projectRoot, ledgerWithDead('superseded'), new Set());
+    expect(report.dead_citations[0]!.ack_channel).toBe('token');
+  });
+
   it('detects a dead run cited only via a reference-style link', () => {
     writeNotebook([
       '# Memo', '## Results',

@@ -901,7 +901,7 @@ export function renderTraceabilityProse(view: TraceabilityView): string {
     lines.push(
       `- APPEND DRIFT: section "${heading}" reads as a run-ordered log`
       + `${section ? ` (${section.citing_paragraphs} citing paragraphs, ${Math.round((section.ascending_share ?? 0) * 100)}% ascending)` : ''}`
-      + ' — the charter says rewrite by problem structure; a deliberate chronicle declares '
+      + " — the memo's own discipline says rewrite by problem structure; a deliberate chronicle declares "
       + '`<!-- notebook-section-role: log -->`.',
     );
   }

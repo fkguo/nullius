@@ -19,7 +19,11 @@ import type { ValidityLedgerView, ValidityState } from './validity-ledger.js';
  *    comparable-pairs floor the section is `assessed: false`, never guessed.
  *  - A contiguous list (tight or loose) is ONE citation block: a curated
  *    ascending evidence list inside a healthy rewritten section must not
- *    read as forty-five append-log paragraphs.
+ *    read as forty-five append-log paragraphs. The deliberate cost of that
+ *    choice: an append log REWRITTEN AS a bullet list (or a table) is one
+ *    block too and therefore invisible to the drift signals — a recorded
+ *    limitation, chosen over false-flagging curated lists, and bounded by
+ *    the fact that drift is advisory everywhere.
  *  - Dead-citation acknowledgment is a UNION of channels: a replacement-
  *    chain link (language-neutral), a small fixed token list (the charter's
  *    own lesson idiom links the OLD run record, and void runs have no
@@ -38,7 +42,9 @@ export const DRIFT_SINGLE_RUN_FRACTION_THRESHOLD = 0.6;
  *  already links a dead run, and widening the list widens accidental
  *  masking. Non-English memos use the replacement-link channel or the
  *  section-role escape (recorded limitation, not an oversight). */
-export const DEAD_ACK_TOKENS = ['superseded', 'void', 'voided', 'replaced', 'ruled out', 'dead end'] as const;
+export const DEAD_ACK_TOKENS = [
+  'supersede', 'supersedes', 'superseded', 'void', 'voided', 'replaced', 'ruled out', 'dead end',
+] as const;
 
 /** Section-scoped escape for deliberate chronicles. Grants no currency and
  *  is always visible in the JSON report as `exempt_declared_log`. */
@@ -64,6 +70,18 @@ const RUN_LINK_PATTERN = /^(?:\.\/)?(?:artifacts|team)\/runs\/([^/#?]+)/;
  *  RAW body before this sanitization. */
 function sanitizeProse(text: string): string {
   return text.replace(/<!--[\s\S]*?-->/g, ' ').replace(/`[^`]*`/g, ' ');
+}
+
+/** For TOKEN matching only: link destinations are paths, not prose — a run
+ *  directory slug containing "-void-" or "-superseded-" is word-bounded by
+ *  its hyphens and would otherwise acknowledge its own death. Blank every
+ *  inline destination and reference-definition target before scanning. */
+function blankLinkDestinations(text: string): string {
+  return text
+    .replace(/\]\([^()\s]+\)/g, '](#)')
+    .split('\n')
+    .map(line => line.replace(REFERENCE_DEFINITION_PATTERN, (_full, label: string) => `[${label}]: #`))
+    .join('\n');
 }
 
 export type AckChannel = 'replacement-link' | 'token' | 'declared-log';
@@ -106,7 +124,7 @@ export type NotebookRunLinksReport = {
   unknown_run_ids: string[];
 };
 
-type CitationBlock = { runIds: string[]; sanitized: string };
+type CitationBlock = { runIds: string[]; tokenText: string };
 
 const LIST_ITEM_PATTERN = /^\s*(?:[-*+]|\d+[.)])\s/;
 
@@ -252,7 +270,7 @@ export function analyzeNotebookRunLinks(
           report.unknown_run_ids.push(id);
         }
       }
-      if (runIds.length > 0) blocks.push({ runIds, sanitized });
+      if (runIds.length > 0) blocks.push({ runIds, tokenText: blankLinkDestinations(sanitized) });
     }
 
     const citing = blocks.length;
@@ -326,7 +344,7 @@ export function analyzeNotebookRunLinks(
         if ([...chain].some(replacement => sectionRunIds.has(replacement))) {
           channel = 'replacement-link';
         } else if (blocks.some(block => block.runIds.includes(id)
-          && ACK_TOKEN_PATTERNS.some(pattern => pattern.test(block.sanitized)))) {
+          && ACK_TOKEN_PATTERNS.some(pattern => pattern.test(block.tokenText)))) {
           channel = 'token';
         }
       }

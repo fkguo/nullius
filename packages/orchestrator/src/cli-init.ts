@@ -296,6 +296,15 @@ export async function runInitCommand(projectRoot: string | null, cwd: string, ar
   io.stdout(`[ok] runtime dir: ${runtimeDir}\n`);
   if (options.runtimeOnly) {
     ensureGitPresence(repoRoot, options, scaffold, manager, io);
+    // A notebook scaffolded elsewhere may still carry the template's
+    // placeholder markers; render them here too so a reconnect-only init
+    // never leaves a never-rendered block to confuse the freshness reason.
+    try {
+      const { refreshNotebookCurrentState } = await import('./notebook-current-state.js');
+      refreshNotebookCurrentState(repoRoot, { insertIfMissing: false });
+    } catch {
+      // the next status/current read names the block state
+    }
     io.stdout(`[ok] project-local fallback launcher ready: ${projectLocalNulliusRelativePath()} (${launcher.launcher_mode})\n`);
     io.stdout('[ok] project scaffold skipped (--runtime-only)\n');
     return;
