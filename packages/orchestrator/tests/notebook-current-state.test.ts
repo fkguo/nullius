@@ -15,6 +15,7 @@ import {
 import { checkNotebookStaleness } from '../src/notebook-staleness.js';
 import { stampRunDirectory } from '../src/run-stamp.js';
 import { buildTraceabilityView } from '../src/traceability-view.js';
+import { appendValidityEvent, buildValidityEvent } from '../src/validity-ledger.js';
 
 let projectRoot: string;
 
@@ -112,7 +113,7 @@ describe('refresh + check', () => {
     expect(edited.reason).toContain('hand edit');
   });
 
-  it('refuses duplicated markers instead of guessing', () => {
+  it('refuses duplicated complete blocks instead of guessing', () => {
     fs.writeFileSync(notebookPath(), [
       '# Memo',
       CURRENT_STATE_START, 'a', CURRENT_STATE_END,
@@ -121,6 +122,38 @@ describe('refresh + check', () => {
     ].join('\n'));
     expect(refreshNotebookCurrentState(projectRoot, { insertIfMissing: true }).action).toBe('skipped');
     expect(checkCurrentStateBlock(projectRoot, EMPTY).duplicated_markers).toBe(true);
+  });
+
+  it('stray unpaired marker lines are NOT duplication (claim nothing, advisory only), and block adoption', () => {
+    fs.writeFileSync(notebookPath(), [
+      '# Memo',
+      CURRENT_STATE_START,
+      'prose that mentions markers twice',
+      CURRENT_STATE_START,
+      '## Results',
+    ].join('\n'));
+    const status = checkCurrentStateBlock(projectRoot, EMPTY);
+    expect(status.duplicated_markers).toBe(false);
+    expect(status.block_found).toBe(false);
+    expect(status.in_sync).toBe(null);
+    expect(status.reason).toContain('stray');
+    const outcome = refreshNotebookCurrentState(projectRoot, { insertIfMissing: true });
+    expect(outcome.action).toBe('skipped');
+    expect(outcome.reason).toContain('stray');
+  });
+
+  it('markers inside four-space-indented code are examples, not blocks', () => {
+    fs.writeFileSync(notebookPath(), [
+      '# Memo', '',
+      renderCurrentStateBlock(NO_REGISTRY), '',
+      '## Documentation', '',
+      `    ${CURRENT_STATE_START}`,
+      '    example',
+      `    ${CURRENT_STATE_END}`,
+    ].join('\n'));
+    const status = checkCurrentStateBlock(projectRoot, NO_REGISTRY);
+    expect(status.duplicated_markers).toBe(false);
+    expect(status.in_sync).toBe(true);
   });
 
   it('names a never-rendered block (template placeholder, no digest line) as its own cause', () => {
@@ -230,7 +263,12 @@ describe('gate key binding', () => {
     // compatibility), so a silent rename on the TS side would disarm both
     // new refusals with every suite green. Pin the key paths here.
     execFileSync('git', ['-C', projectRoot, 'init', '-q']);
-    fs.writeFileSync(notebookPath(), '# Memo\n\n## Results\nBody.\n');
+    const deadRun = '20260808-m1-r001-early';
+    fs.writeFileSync(notebookPath(),
+      `# Memo\n\n## Results\nThe value came from [this run](artifacts/runs/${deadRun}/out.tsv).\n`);
+    appendValidityEvent(projectRoot, buildValidityEvent({
+      event: 'void', run_id: deadRun, actor: 'test', reason: 'bad configuration',
+    }));
     const view = JSON.parse(JSON.stringify(buildTraceabilityView(projectRoot))) as Record<string, any>;
     const notebook = view.notebook as Record<string, any>;
     expect(notebook).toHaveProperty('current_state_block');
@@ -238,8 +276,11 @@ describe('gate key binding', () => {
       expect(Object.keys(notebook.current_state_block as object)).toContain(key);
     }
     expect(notebook).toHaveProperty('run_links');
-    expect(Object.keys(notebook.run_links as object)).toContain('unacknowledged_dead');
-    // And the entry shape the gate destructures:
-    expect(Array.isArray(notebook.run_links.unacknowledged_dead)).toBe(true);
+    // The gate destructures entry.section / entry.run_id / entry.validity:
+    // pin those exact keys on a REAL entry so a TS-side rename cannot leave
+    // every suite green while both refusals stop firing.
+    const dead = notebook.run_links.unacknowledged_dead as Array<Record<string, unknown>>;
+    expect(dead).toHaveLength(1);
+    expect(dead[0]).toMatchObject({ section: 'Results', run_id: deadRun, validity: 'void' });
   });
 });

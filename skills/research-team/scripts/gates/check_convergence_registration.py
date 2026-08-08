@@ -276,10 +276,13 @@ def verify_against_view(decl: Declaration, view: dict) -> list[str]:
 
     # Current-state block: only a PRESENT block claims currency. Views from
     # launchers predating the block report no field and add no clause.
-    # Duplicated markers are CORRUPT, not missing: marker text exists in the
-    # file (the reader locates markers fence-aware, so a fenced example
-    # quoting them never trips this), and an ill-formed currency surface is
-    # worse than a stale one — repair is a one-command fix.
+    # `duplicated_markers` is true ONLY when duplication coexists with at
+    # least one complete START..END pair — an ambiguous CURRENCY CLAIM
+    # (which of the structures is authoritative?), hence a refusal. Stray
+    # unpaired marker lines claim nothing: the reader reports them as an
+    # advisory reason with block_found=false, and this gate stays silent
+    # (R3: a missing block never refuses). Fenced or indented-code examples
+    # quoting the markers never reach either state.
     block = notebook.get("current_state_block") or {}
     if block.get("duplicated_markers"):
         failures.append(

@@ -69,7 +69,11 @@ const RUN_LINK_PATTERN = /^(?:\.\/)?(?:artifacts|team)\/runs\/([^/#?]+)/;
  *  the shared section splitter.) The section-role marker is read from the
  *  RAW body before this sanitization. */
 function sanitizeProse(text: string): string {
-  return text.replace(/<!--[\s\S]*?-->/g, ' ').replace(/`[^`]*`/g, ' ');
+  // Code spans open with a run of backticks and close with an EQUAL run
+  // (CommonMark) — a single-backtick-only pattern would leave
+  // double-backtick examples (the idiom for code containing a backtick)
+  // visible to extraction.
+  return text.replace(/<!--[\s\S]*?-->/g, ' ').replace(/(`+)[\s\S]*?\1/g, ' ');
 }
 
 /** For TOKEN matching only: link destinations are paths, not prose — a run
@@ -124,7 +128,27 @@ export type NotebookRunLinksReport = {
   unknown_run_ids: string[];
 };
 
-type CitationBlock = { runIds: string[]; tokenText: string };
+/** One drift-counting block, carrying its token-scope UNITS: a plain
+ *  paragraph is one unit; a merged list is one unit PER ITEM, because a
+ *  token in one bullet must not acknowledge a dead run linked from the
+ *  next bullet — list merging is a drift-granularity decision and must not
+ *  widen acknowledgment scope. */
+type TokenUnit = { runIds: string[]; tokenText: string };
+type CitationBlock = { runIds: string[]; units: TokenUnit[] };
+
+/** Split a merged list block back into items (continuation lines attach to
+ *  the item above); non-list blocks are a single unit. */
+function splitTokenUnits(blockText: string): string[] {
+  const lines = blockText.split('\n');
+  const listShaped = lines.every(line => LIST_ITEM_PATTERN.test(line) || /^\s{2,}/.test(line));
+  if (!listShaped) return [blockText];
+  const items: string[][] = [];
+  for (const line of lines) {
+    if (LIST_ITEM_PATTERN.test(line) || items.length === 0) items.push([line]);
+    else items[items.length - 1]!.push(line);
+  }
+  return items.map(item => item.join('\n'));
+}
 
 const LIST_ITEM_PATTERN = /^\s*(?:[-*+]|\d+[.)])\s/;
 
@@ -158,7 +182,12 @@ export function segmentCitationBlocks(body: string[]): string[] {
   return merged.map(block => block.join('\n'));
 }
 
-function runIdFromTarget(target: string): string | null {
+function runIdFromTarget(rawTarget: string): string | null {
+  // CommonMark permits an angle-bracketed destination in both inline links
+  // and reference definitions: `[r]: <artifacts/runs/x/f>`.
+  const target = rawTarget.startsWith('<') && rawTarget.endsWith('>')
+    ? rawTarget.slice(1, -1)
+    : rawTarget;
   const runMatch = RUN_LINK_PATTERN.exec(target);
   if (!runMatch) return null;
   const id = runMatch[1]!;
@@ -270,7 +299,17 @@ export function analyzeNotebookRunLinks(
           report.unknown_run_ids.push(id);
         }
       }
-      if (runIds.length > 0) blocks.push({ runIds, tokenText: blankLinkDestinations(sanitized) });
+      if (runIds.length > 0) {
+        const units = splitTokenUnits(blockText).map(unitText => {
+          const unitSanitized = sanitizeProse(unitText);
+          return {
+            runIds: extractRunIds(unitSanitized, definitions)
+              .filter(id => ledger.runs.has(id) || existingRunDirIds.has(id)),
+            tokenText: blankLinkDestinations(unitSanitized),
+          };
+        });
+        blocks.push({ runIds, units });
+      }
     }
 
     const citing = blocks.length;
@@ -343,8 +382,8 @@ export function analyzeNotebookRunLinks(
         const chain = replacementChain(ledger, id);
         if ([...chain].some(replacement => sectionRunIds.has(replacement))) {
           channel = 'replacement-link';
-        } else if (blocks.some(block => block.runIds.includes(id)
-          && ACK_TOKEN_PATTERNS.some(pattern => pattern.test(block.tokenText)))) {
+        } else if (blocks.some(block => block.units.some(unit => unit.runIds.includes(id)
+          && ACK_TOKEN_PATTERNS.some(pattern => pattern.test(unit.tokenText))))) {
           channel = 'token';
         }
       }
