@@ -31,6 +31,7 @@ export type CurrentStateRow = {
   run_id: string;
   effective_commit: string | null;
   has_snapshot: boolean;
+  has_untracked: boolean;
   artifact: string | null;
   defective: boolean;
 };
@@ -58,6 +59,7 @@ export function projectionFromRegistryState(registry: ValidatedRegistry): Curren
       run_id: row.run_id,
       effective_commit: row.effective_commit,
       has_snapshot: row.has_snapshot,
+      has_untracked: row.has_untracked,
       artifact: row.artifact_target,
       defective: registry.defective_result_ids.has(row.result_id),
     })),
@@ -121,7 +123,7 @@ export function renderCurrentStateBlock(projection: CurrentStateProjection): str
     for (const row of projection.current_rows) {
       const identity = row.effective_commit === null
         ? '(no exact identity)'
-        : `${row.effective_commit.slice(0, 12)}${row.has_snapshot ? '+snapshot' : ''}`;
+        : `${row.effective_commit.slice(0, 12)}${row.has_snapshot ? '+snapshot' : ''}${row.has_untracked ? '+untracked' : ''}`;
       const artifact = row.artifact === null ? '(none)' : `[${row.artifact}](${row.artifact})`;
       const marker = row.defective ? ' **DEFECTIVE**' : '';
       lines.push(`| ${row.result_id}${marker} | ${row.run_id} | ${identity} | ${artifact} |`);
