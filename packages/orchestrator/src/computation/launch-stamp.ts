@@ -254,18 +254,24 @@ export function stampComputationLaunch(projectRoot: string, runDir: string, reen
   } catch (error) {
     // The ledger read that DECIDES whether this run is already stamped can
     // itself throw (unreadable file, replaced by a directory) — before the
-    // fail-closed case is ever entered. The run's own mirror is the local
-    // witness that a stamp was recorded: if it exists, this launch is a
-    // RELAUNCH that cannot be graded, and executing blind would overwrite
-    // whatever the unreadable ledger protects. No mirror → first launch →
+    // fail-closed case is ever entered. The run's own LOCAL witnesses of a
+    // prior stamped execution — the mirror, a terminal result artifact,
+    // an attempt archive — say this launch is a RELAUNCH that cannot be
+    // graded, and executing blind would overwrite whatever the unreadable
+    // ledger protects. (The mirror alone is not enough: a stamp recorded
+    // with run_dir_unwritable has no mirror, but a completed execution
+    // always leaves its terminal artifact.) No witness → first launch →
     // the never-blocks doctrine stands (a missing stamp is visible; a
     // killed run is lost science).
-    if (fs.existsSync(path.join(runDir, 'run_origin.json'))) {
+    const priorExecutionWitness = fs.existsSync(path.join(runDir, 'run_origin.json'))
+      || readTerminalResultWitness(runDir) !== 'absent'
+      || fs.existsSync(path.join(runDir, 'attempts'));
+    if (priorExecutionWitness) {
       return {
         status: 'refused_relaunch',
-        detail: `the launch boundary could not read the ledger while this run carries a recorded stamp mirror `
-          + `(${error instanceof Error ? error.message : String(error)}) — executing without grading the relaunch `
-          + 'is refused; repair the ledger state first.',
+        detail: `the launch boundary could not read the ledger while this run carries local evidence of a prior `
+          + `stamped execution (${error instanceof Error ? error.message : String(error)}) — executing without `
+          + 'grading the relaunch is refused; repair the ledger state first.',
       };
     }
     return { status: 'failed', error: error instanceof Error ? error.message : String(error) };

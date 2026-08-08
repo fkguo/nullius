@@ -799,11 +799,15 @@ export function readTerminalResultWitness(runDir: string): TerminalResultWitness
   // existsSync follows symlinks, so a dangling symlink planted where the
   // artifact lived would read as 'absent' — reopening exactly the
   // laundering path the witness closes. An entry that exists but cannot
-  // be read (dangling link, permission, truncation) is 'unreadable'.
+  // be read (dangling link, permission, truncation) is 'unreadable' — and
+  // so is an entry whose EXISTENCE cannot be determined (an unsearchable
+  // parent directory): only "provably no entry" (ENOENT/ENOTDIR) may say
+  // 'absent'.
   try {
     fs.lstatSync(artifactPath);
-  } catch {
-    return 'absent';
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    return code === 'ENOENT' || code === 'ENOTDIR' ? 'absent' : 'unreadable';
   }
   try {
     const parsed = JSON.parse(fs.readFileSync(artifactPath, 'utf-8')) as {

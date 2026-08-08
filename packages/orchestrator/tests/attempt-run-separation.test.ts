@@ -937,6 +937,75 @@ describe('confirmation-round regressions (review r6)', () => {
     fs.rmSync(bulk, { recursive: true, force: true });
   }, 120_000); // 10k mkdirs + the bounded walk are slow under full-suite parallel load
 
+  it('the hint resolves a DETACHED budget manifest exactly like the entrance', () => {
+    const runId = 'run-hint-detached-budget';
+    const { projectRoot, runDir } = makeStampedRun(runId);
+    // Status in one workspace, the SOLE manifest in another: the entrance
+    // falls back to the single manifest anywhere and refuses the budget —
+    // the hint must resolve it the same way and not list the run.
+    writeFailedStatus(runDir);
+    fs.mkdirSync(path.join(runDir, 'other'), { recursive: true });
+    fs.writeFileSync(path.join(runDir, 'other', 'manifest.json'), JSON.stringify({ max_attempts: 1 }));
+    const entrance = openRetryAttempt(projectRoot, runDir, { actor: 'test' });
+    expect(entrance.kind).toBe('rejected');
+    if (entrance.kind === 'rejected') expect(entrance.message).toContain('crash budget');
+    expect(buildTraceabilityView(projectRoot).runs.crashed_unretried).not.toContain(runId);
+  });
+
+  it('an all-moves-failed abort leaves NO .staging skeleton behind', () => {
+    const runId = 'run-abort-no-skeleton';
+    const { projectRoot, runDir } = makeStampedRun(runId);
+    const work = path.join(runDir, 'work');
+    fs.mkdirSync(path.join(work, 'scripts'), { recursive: true });
+    // The manifest credits inputs, forcing PER-FILE moves inside work/
+    // (a workspace without inputs would move as one whole directory,
+    // which only needs write permission on the PARENT).
+    fs.writeFileSync(path.join(work, 'manifest.json'), JSON.stringify({
+      schema_version: 1,
+      entry_point: { script: 'scripts/main.py', tool: 'python' },
+      steps: [{ id: 's', tool: 'python', script: 'scripts/main.py', expected_outputs: [] }],
+    }));
+    fs.writeFileSync(path.join(work, 'scripts', 'main.py'), 'print(1)\n');
+    fs.writeFileSync(path.join(work, 'execution_status.json'), JSON.stringify({ status: 'failed', errors: ['x'] }));
+    // Read-only workspace: evidence reads fine (r-x) but the per-file
+    // rename out of it fails → moved === 0, and the mkdir skeleton must
+    // not survive to lock the retry the message advises.
+    fs.chmodSync(work, 0o555);
+    try {
+      const aborted = openRetryAttempt(projectRoot, runDir, { actor: 'test' });
+      expect(aborted.kind).toBe('rejected');
+      if (aborted.kind === 'rejected') expect(aborted.message).toContain('cannot quarantine');
+      const attemptsDir = path.join(runDir, 'attempts');
+      const leftovers = fs.existsSync(attemptsDir)
+        ? fs.readdirSync(attemptsDir).filter(name => name.startsWith('.staging-'))
+        : [];
+      expect(leftovers).toEqual([]);
+    } finally {
+      fs.chmodSync(work, 0o755);
+    }
+    // The advised remedy works IMMEDIATELY — no in-flight lockout.
+    const retried = openRetryAttempt(projectRoot, runDir, { actor: 'test' });
+    expect(retried.kind).toBe('retried');
+  });
+
+  it('an unreadable ledger with a stamp mirror present refuses the launch (pre-read fail-closed)', () => {
+    const runId = 'run-ledger-poisoned-mirror';
+    const { projectRoot, runDir } = makeStampedRun(runId);
+    expect(fs.existsSync(path.join(runDir, 'run_origin.json'))).toBe(true);
+    const ledgerPath = path.join(projectRoot, 'artifacts', 'runs', 'validity_ledger.jsonl');
+    const ledgerBytes = fs.readFileSync(ledgerPath);
+    fs.rmSync(ledgerPath);
+    fs.mkdirSync(ledgerPath); // a directory where the ledger FILE must be
+    try {
+      const stamp = stampComputationLaunch(projectRoot, runDir);
+      expect(stamp.status).toBe('refused_relaunch');
+      if (stamp.status === 'refused_relaunch') expect(stamp.detail).toContain('could not read the ledger');
+    } finally {
+      fs.rmdirSync(ledgerPath);
+      fs.writeFileSync(ledgerPath, ledgerBytes);
+    }
+  });
+
   it('the `result set-current` CLI echo carries the +untracked qualifier', async () => {
     const projectRoot = makeTmpDir();
     registerCleanup(projectRoot);
