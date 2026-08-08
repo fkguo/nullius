@@ -348,7 +348,7 @@ describe('dead-citation acknowledgment union', () => {
 
   it('a curated loose list with links in indented continuations stays ONE citation block', () => {
     const ledger = ascendingLedger(9);
-    for (const indent of ['  ', '    ']) { // two-space and four-space continuations are both prose
+    for (const indent of ['  ', '    ', '\t']) { // two-space, four-space, and tab continuations are all prose
       const items = Array.from({ length: 9 }, (_, i) => [
         `- sweep ${i + 1}:`,
         '',
