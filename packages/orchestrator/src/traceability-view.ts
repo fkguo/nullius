@@ -89,10 +89,12 @@ export type TraceabilityView = {
        *  to it after diverging. */
       revisited?: true;
       /** The boundary into this episode falls between two capture points
-       *  sharing one captured_at (or lacking one): their order comes from
-       *  the stamp event ULIDs (truthful mint order), but wall-clock alone
-       *  cannot confirm the sequence — presented as uncertain, never as
-       *  invented chronology. */
+       *  sharing one captured_at (or lacking one). Their relative order is
+       *  the ledger's effective (ts_utc, event_id) order — deterministic,
+       *  but carrying NO time information below one recorded instant (a
+       *  ULID's sub-millisecond suffix is random) — so the sequence across
+       *  this boundary is disclosed as uncertain, never presented as
+       *  established chronology. */
       order_uncertain?: true;
       /** Absent on the first state. `files`/`total` cover RESEARCH files
        *  only — control-plane and traceability bookkeeping are filtered
@@ -363,7 +365,7 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
   // Code states: group runs with an exact tracked-tree identity by their
   // recorded snapshot tree. The stamps already carry the complete evolution
   // of the tracked research tree across a working session; this organizes it.
-  type StatePoint = { runId: string; tree: string; at: string | null; eventId: string };
+  type StatePoint = { runId: string; tree: string; at: string | null };
   const statePoints: StatePoint[] = [];
   let codeStatesExcludedInexact = 0;
   // WHITELIST of qualities whose snapshot_tree is an exact tracked-tree
@@ -372,8 +374,19 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
   // excluded AND counted: a degenerate record must not silently vanish
   // from the classification's own arithmetic.
   const EXACT_TREE_QUALITIES = new Set(['exact_clean', 'exact_tracked_snapshot', 'head_plus_untracked']);
-  for (const known of ledger.runs.values()) {
-    if (!known.stamped) continue;
+  // Point order IS the ledger's effective (ts_utc, event_id) order — the
+  // ledger reader's one existing chronology contract, reused instead of a
+  // second view-private sort. Sub-second event-id order is NOT a time
+  // claim (a ULID's suffix is random within one millisecond), which is
+  // exactly what the order_uncertain boundary marker below discloses; the
+  // view invents no key of its own (a payload-embedded id would even be
+  // freely choosable by a hand-written ledger line).
+  const seenStampRuns = new Set<string>();
+  for (const event of ledger.events) {
+    if (event.event !== 'stamp' || seenStampRuns.has(event.run_id)) continue;
+    seenStampRuns.add(event.run_id);
+    const known = ledger.runs.get(event.run_id);
+    if (!known?.stamped) continue;
     const record = known.origin as unknown as Record<string, unknown> | null;
     const quality = record?.binding_quality;
     const tree = record && typeof record.snapshot_tree === 'string' ? record.snapshot_tree : null;
@@ -385,30 +398,18 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
       runId: known.run_id,
       tree,
       at: typeof record.captured_at_utc === 'string' ? record.captured_at_utc : null,
-      eventId: typeof record.event_id === 'string' ? record.event_id : '',
     });
   }
-  // Chronological EPISODES, not unique-tree cohorts: sort every capture
-  // point on the time axis and break a segment whenever the tree changes.
-  // A tree the session RETURNS to (edit → run → revert → run) forms a new
-  // episode marked `revisited` — folding it into the first occurrence
-  // would erase the return transition from the narrative.
-  //
-  // Tie-breaking must not INVENT chronology: within one captured_at (and
-  // for the null-time fallback) the order is the stamp EVENT ID — a ULID
-  // minted in the same call that captured the tree, so its lexicographic
-  // order is the truthful mint order down to the millisecond. Where an
-  // episode boundary still falls between two points sharing one
-  // captured_at, the later episode is marked order_uncertain: a tie is
-  // presented as a tie, never dressed up as sequence.
-  const orderedPoints = [...statePoints].sort((a, b) => {
-    if (a.at === null && b.at === null) return a.eventId < b.eventId ? -1 : 1;
-    if (a.at === null) return 1;
-    if (b.at === null) return -1;
-    return a.at < b.at ? -1
-      : a.at > b.at ? 1
-        : a.eventId < b.eventId ? -1 : 1;
-  });
+  // Chronological EPISODES, not unique-tree cohorts: walk the capture
+  // points in the ledger's effective order and break a segment whenever
+  // the tree changes. A tree the session RETURNS to (edit → run → revert
+  // → run) forms a new episode marked `revisited` — folding it into the
+  // first occurrence would erase the return transition from the
+  // narrative. Where an episode boundary falls between two points sharing
+  // one captured_at (or lacking one), the sub-second order carries no
+  // time information, and the later episode says so (order_uncertain): a
+  // tie is presented as a tie, never dressed up as sequence.
+  const orderedPoints = statePoints;
   const seenTrees = new Set<string>();
   const codeStates: TraceabilityView['runs']['code_states'] = [];
   let previousPoint: StatePoint | null = null;
