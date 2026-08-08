@@ -3,7 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { mintUlid } from '@nullius/shared';
-import { openRetryAttempt, stampRunDirectory } from '../src/run-stamp.js';
+import { openRetryAttempt, removeEmptyDirTree, stampRunDirectory } from '../src/run-stamp.js';
 import { appendValidityEvent, buildValidityEvent, readValidityLedger } from '../src/validity-ledger.js';
 import { setCurrentResult, validateResultRegistry } from '../src/result-registry.js';
 import { buildTraceabilityView, renderTraceabilityProse } from '../src/traceability-view.js';
@@ -1000,10 +1000,56 @@ describe('confirmation-round regressions (review r6)', () => {
       const stamp = stampComputationLaunch(projectRoot, runDir);
       expect(stamp.status).toBe('refused_relaunch');
       if (stamp.status === 'refused_relaunch') expect(stamp.detail).toContain('could not read the ledger');
+      // A DANGLING mirror symlink is still a witness (an entry exists) —
+      // the refusal must not degrade to existsSync semantics.
+      fs.rmSync(path.join(runDir, 'run_origin.json'));
+      fs.symlinkSync('no-such-mirror.json', path.join(runDir, 'run_origin.json'));
+      const dangling = stampComputationLaunch(projectRoot, runDir);
+      expect(dangling.status).toBe('refused_relaunch');
     } finally {
       fs.rmdirSync(ledgerPath);
       fs.writeFileSync(ledgerPath, ledgerBytes);
     }
+  });
+
+  it('a genuinely fresh run with an EMPTY migrated attempts/ dir keeps never-blocks under a broken ledger', () => {
+    const projectRoot = makeTmpDir();
+    registerCleanup(projectRoot);
+    initRepo(projectRoot);
+    const runId = 'run-fresh-empty-attempts';
+    const runDir = path.join(projectRoot, 'artifacts', 'runs', runId);
+    fs.mkdirSync(path.join(runDir, 'attempts'), { recursive: true }); // empty skeleton, no stamp ever
+    fs.writeFileSync(path.join(projectRoot, 'seed.txt'), 'seed\n');
+    commitAll(projectRoot);
+    const ledgerPath = path.join(projectRoot, 'artifacts', 'runs', 'validity_ledger.jsonl');
+    fs.mkdirSync(ledgerPath, { recursive: true }); // poisoned before any stamp exists
+    try {
+      const stamp = stampComputationLaunch(projectRoot, runDir);
+      // No witness of any prior execution → the never-blocks doctrine
+      // stands: a bookkeeping failure is carried, not a refusal.
+      expect(stamp.status).toBe('failed');
+      // A NON-EMPTY attempts/ flips it to the refusal.
+      fs.mkdirSync(path.join(runDir, 'attempts', 'attempt-1'), { recursive: true });
+      fs.writeFileSync(path.join(runDir, 'attempts', 'attempt-1', 'residue.txt'), 'x\n');
+      const witnessed = stampComputationLaunch(projectRoot, runDir);
+      expect(witnessed.status).toBe('refused_relaunch');
+    } finally {
+      fs.rmdirSync(ledgerPath);
+    }
+  });
+
+  it('the zero-move skeleton cleanup never deletes a sibling\'s staged content (empty dirs only)', () => {
+    const scratch = makeTmpDir();
+    registerCleanup(scratch);
+    const staging = path.join(scratch, '.staging-demo');
+    fs.mkdirSync(path.join(staging, 'a', 'empty1', 'empty2'), { recursive: true });
+    fs.mkdirSync(path.join(staging, 'b'), { recursive: true });
+    fs.writeFileSync(path.join(staging, 'b', 'staged-product.json'), '{"kept": true}\n');
+    removeEmptyDirTree(staging);
+    // The empty chain is gone; the branch holding content survives whole.
+    expect(fs.existsSync(path.join(staging, 'a'))).toBe(false);
+    expect(fs.existsSync(path.join(staging, 'b', 'staged-product.json'))).toBe(true);
+    expect(fs.existsSync(staging)).toBe(true);
   });
 
   it('the `result set-current` CLI echo carries the +untracked qualifier', async () => {

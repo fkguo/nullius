@@ -915,14 +915,34 @@ function quarantineFailedAttempt(
     // Nothing of ours is inside; the mkdir skeleton left by failed renames
     // must not survive — an empty .staging-* would lock every later retry
     // behind the in-flight refusal while promising a self-heal that has
-    // nothing to heal.
-    try {
-      fs.rmSync(stagingAbs, { recursive: true, force: true });
-    } catch {
-      // visible leftover; recovery parks it
-    }
+    // nothing to heal. EMPTY directories only, never a recursive delete: a
+    // caller-supplied --event-id can make two invocations share this
+    // staging name, and a recursive remove would erase the sibling's
+    // staged products.
+    removeEmptyDirTree(stagingAbs);
   }
   return { staging: moved > 0 ? stagingRel : null, moved, failed };
+}
+
+/** Remove a directory tree that consists ONLY of empty directories,
+ *  bottom-up; any file (or unremovable entry) stops that branch. Exported
+ *  for its negative control — the semantics (skeleton dies, content
+ *  survives) are load-bearing for concurrent stagings sharing a name. */
+export function removeEmptyDirTree(dir: string): void {
+  let entries: fs.Dirent[];
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    if (entry.isDirectory() && !entry.isSymbolicLink()) removeEmptyDirTree(path.join(dir, entry.name));
+  }
+  try {
+    fs.rmdirSync(dir);
+  } catch {
+    // non-empty (or protected) stays visible
+  }
 }
 
 /** Move whatever remains of a staging directory to the visible
