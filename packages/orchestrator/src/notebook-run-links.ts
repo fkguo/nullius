@@ -62,8 +62,9 @@ const SECTION_ROLE_PATTERN = /<!--\s*notebook-section-role:\s*log\s*-->/;
  *  citations. A dead run cited ONLY via a shortcut reference escapes the
  *  analysis (recorded limitation). */
 /** Inline destinations accept a plain path, an angle-bracketed path, and an
- *  optional quoted title (CommonMark's three everyday forms). */
-const LINK_TARGET_PATTERN = /\]\(\s*(<[^<>]*>|[^()\s]+)(?:\s+"[^"]*")?\s*\)/g;
+ *  optional double- or single-quoted title (parenthesized titles stay
+ *  unparsed — a recorded rarity). */
+const LINK_TARGET_PATTERN = /\]\(\s*(<[^<>]*>|[^()\s]+)(?:\s+(?:"[^"]*"|'[^']*'))?\s*\)/g;
 const REFERENCE_DEFINITION_PATTERN = /^\s{0,3}\[([^\]]+)\]:\s*(\S+)/;
 const REFERENCE_FULL_PATTERN = /\[[^\]]*\]\[([^\]]+)\]/g;
 const REFERENCE_COLLAPSED_PATTERN = /\[([^\]]+)\]\[\]/g;
@@ -76,7 +77,10 @@ const RUN_LINK_PATTERN = /^(?:\.\/)?(?:artifacts|team)\/runs\/([^/#?]+)/;
  *  containing a backtick) are covered too. (Fenced blocks are already
  *  excluded by the shared section splitter.) */
 function stripCodeSpans(text: string): string {
-  return text.replace(/(`+)[\s\S]*?\1/g, ' ');
+  // The closing run must be EXACTLY the opening length (CommonMark): the
+  // backreference alone would let a lazy match close inside a longer run
+  // and swallow live prose between mismatched delimiters.
+  return text.replace(/(?<!`)(`+)(?!`)([\s\S]*?)(?<!`)\1(?!`)/g, ' ');
 }
 
 /** HTML comments render nowhere. Stripped at SECTION level, before
@@ -181,10 +185,15 @@ function splitTokenUnits(blockText: string): string[] {
 
 const LIST_ITEM_PATTERN = /^\s*(?:[-*+]|\d+[.)])\s/;
 
+const INDENTED_CODE_LINE = /^(?: {4}|\t)/;
+
 /** Blank-line paragraph segmentation over a section body (already
  *  fence-stripped by the shared splitter), then consecutive list-item
  *  blocks merge into ONE block — tight or loose, a list is one citation
- *  unit. */
+ *  unit. A blank-line-separated block whose EVERY line is four-space/tab
+ *  indented is an indented CODE block (CommonMark's second code form) and
+ *  is dropped — unless the preceding block is list-shaped, where the same
+ *  indentation is a loose list continuation, i.e. prose. */
 export function segmentCitationBlocks(body: string[]): string[] {
   const rawBlocks: string[][] = [];
   let current: string[] = [];
@@ -197,12 +206,18 @@ export function segmentCitationBlocks(body: string[]): string[] {
   }
   if (current.length > 0) rawBlocks.push(current);
 
+  const isListShaped = (block: string[]): boolean =>
+    block.every(line => LIST_ITEM_PATTERN.test(line) || /^\s{2,}/.test(line));
   const merged: string[][] = [];
-  for (const block of rawBlocks) {
-    const isList = block.every(line => LIST_ITEM_PATTERN.test(line) || /^\s{2,}/.test(line));
+  for (let index = 0; index < rawBlocks.length; index += 1) {
+    const block = rawBlocks[index]!;
+    const prevRaw = index > 0 ? rawBlocks[index - 1]! : null;
+    if (block.every(line => INDENTED_CODE_LINE.test(line))
+      && (prevRaw === null || !isListShaped(prevRaw))) {
+      continue; // indented code, not prose
+    }
     const prev = merged.length > 0 ? merged[merged.length - 1]! : null;
-    const prevIsList = prev !== null && prev.every(line => LIST_ITEM_PATTERN.test(line) || /^\s{2,}/.test(line));
-    if (isList && prevIsList && prev) {
+    if (isListShaped(block) && prev !== null && isListShaped(prev)) {
       prev.push(...block);
     } else {
       merged.push([...block]);
@@ -317,8 +332,11 @@ export function analyzeNotebookRunLinks(
     const rawBody = section.body.join('\n');
     // Role detection runs on code-stripped text (the marker IS an HTML
     // comment, so it must happen before comment stripping — but a
-    // backticked example of the marker must not smuggle the exemption in).
-    const declaredLog = SECTION_ROLE_PATTERN.test(stripCodeSpans(rawBody));
+    // backticked example of the marker must not smuggle the exemption in),
+    // and only on lines that are not indented code (CommonMark's second
+    // code form — a four-space-indented example must not opt out either).
+    const declaredLog = stripCodeSpans(rawBody).split('\n')
+      .some(line => !INDENTED_CODE_LINE.test(line) && SECTION_ROLE_PATTERN.test(line));
     // Comments are stripped at SECTION level, before segmentation: a
     // commented-out passage spanning blank lines must not leak its
     // interior as a live citing block.

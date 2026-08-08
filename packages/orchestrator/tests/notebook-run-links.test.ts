@@ -243,6 +243,41 @@ describe('dead-citation acknowledgment union', () => {
     expect(report.dead_citations).toHaveLength(0);
   });
 
+  it('accepts single-quoted link titles', () => {
+    writeNotebook(`# Memo\n## Results\nSee [old](artifacts/runs/${dead}/out.json 'record').\n`);
+    const report = analyzeNotebookRunLinks(projectRoot, ledgerWithDead('void'), new Set());
+    expect(report.unacknowledged_dead.map(entry => entry.run_id)).toEqual([dead]);
+  });
+
+  it('a longer backtick run does not close a shorter opener (equal-run rule)', () => {
+    writeNotebook([
+      '# Memo', '## Results',
+      `A \`tick\` here, then \`\`code\`\` and the live link [r](artifacts/runs/${dead}/out.tsv) stays prose.`,
+    ].join('\n'));
+    const report = analyzeNotebookRunLinks(projectRoot, ledgerWithDead('void'), new Set());
+    expect(report.unacknowledged_dead.map(entry => entry.run_id)).toEqual([dead]);
+  });
+
+  it('an indented-code role marker does not opt the section out, and indented-code links are not citations', () => {
+    const ledger = ascendingLedger(9);
+    writeNotebook([
+      '# Memo', '## Results',
+      `    <!-- notebook-section-role: log -->`,
+      '',
+      ...Array.from({ length: 9 }, (_, i) => `${paragraphCiting(i + 1)}\n`),
+      '## Docs',
+      'Prose introducing an example:',
+      '',
+      `    [example](artifacts/runs/${runId(1)}/out.tsv)`,
+    ].join('\n'));
+    const report = analyzeNotebookRunLinks(projectRoot, ledger, new Set());
+    const results = report.sections.find(entry => entry.heading === 'Results')!;
+    expect(results.declared_log_role).toBe(false);
+    expect(results.verdict).toBe('drifted');
+    const docs = report.sections.find(entry => entry.heading === 'Docs')!;
+    expect(docs.citing_paragraphs).toBe(0);
+  });
+
   it('a backticked example of the role marker does not smuggle the log exemption in', () => {
     const ledger = ascendingLedger(9);
     writeNotebook([

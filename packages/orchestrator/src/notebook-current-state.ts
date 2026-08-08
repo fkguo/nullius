@@ -164,6 +164,8 @@ type BlockLocation = {
   /** Any marker line present at all (paired or stray) — adoption must not
    *  insert a second structure next to leftovers. */
   markerLinesPresent: boolean;
+  /** Marker lines not consumed by a complete pair: advisory garbage. */
+  strayMarkerLines: number;
   /** Byte offset of the first `##` heading outside fences/indented code
    *  (text.length when none) — the block's required position is strictly
    *  before it. */
@@ -203,14 +205,24 @@ function locateBlock(text: string): BlockLocation {
     offset = offset + line.length + 1;
   }
   const markerLinesPresent = starts.length > 0 || ends.length > 0;
-  const pairPresent = starts.length > 0 && ends.length > 0
-    && ends.some(end => starts.some(start => end.start > start.start));
-  const duplicated = pairPresent && (starts.length > 1 || ends.length > 1);
-  const bounds = starts.length === 1 && ends.length === 1 && ends[0]!.start > starts[0]!.start
-    ? { start: starts[0]!.start, end: ends[0]!.end }
-    : null;
+  // Greedy pairing: each START claims the next unclaimed END after it. The
+  // COMPLETE pairs are the candidate currency claims; markers left over are
+  // strays. One complete block plus a stray marker is an unambiguous claim
+  // with garbage nearby — advisory, never a refusal; TWO complete blocks
+  // are an ambiguous claim — that alone is `duplicated`.
+  const completeBlocks: BlockBounds[] = [];
+  let endCursor = 0;
+  for (const start of starts) {
+    while (endCursor < ends.length && ends[endCursor]!.start <= start.start) endCursor += 1;
+    if (endCursor >= ends.length) break;
+    completeBlocks.push({ start: start.start, end: ends[endCursor]!.end });
+    endCursor += 1;
+  }
+  const duplicated = completeBlocks.length > 1;
+  const bounds = completeBlocks.length === 1 ? completeBlocks[0]! : null;
+  const strayMarkerLines = (starts.length + ends.length) - 2 * completeBlocks.length;
   const positionOk = bounds === null ? true : bounds.start < firstHeadingOffset;
-  return { bounds, duplicated, markerLinesPresent, firstHeadingOffset, positionOk };
+  return { bounds, duplicated, markerLinesPresent, strayMarkerLines, firstHeadingOffset, positionOk };
 }
 
 export function checkCurrentStateBlock(
@@ -228,7 +240,7 @@ export function checkCurrentStateBlock(
     return status;
   }
   status.notebook_found = true;
-  const { bounds, duplicated, markerLinesPresent, positionOk } = locateBlock(text);
+  const { bounds, duplicated, markerLinesPresent, strayMarkerLines, positionOk } = locateBlock(text);
   status.duplicated_markers = duplicated;
   if (duplicated) {
     status.reason = 'duplicated current-state markers — repair by hand, then `nullius notebook sync`';
@@ -243,13 +255,18 @@ export function checkCurrentStateBlock(
     }
     return status;
   }
+  // One complete block plus stray marker garbage: the block's own verdict
+  // proceeds below; the strays ride along as an advisory suffix.
+  const straySuffix = strayMarkerLines > 0
+    ? `; ${strayMarkerLines} stray marker line(s) also present — remove them`
+    : '';
   status.block_found = true;
   if (!positionOk) {
     // A block inside a section is not the fixed front surface the contract
     // names — and mechanically its links would read as section citations.
     status.in_sync = false;
     status.reason = 'block is not in the front matter (before the first `##` heading) — '
-      + '`nullius notebook sync` relocates it';
+      + `\`nullius notebook sync\` relocates it${straySuffix}`;
     return status;
   }
   // EOL-normalized comparison: an editor or a checkout filter converting
@@ -260,16 +277,20 @@ export function checkCurrentStateBlock(
   const rendered = renderCurrentStateBlock(projection);
   if (onDisk === rendered) {
     status.in_sync = true;
+    if (straySuffix.length > 0) {
+      status.reason = `in sync${straySuffix}`;
+    }
     return status;
   }
   status.in_sync = false;
   const digestMatch = DIGEST_LINE_PATTERN.exec(onDisk);
-  status.reason = digestMatch === null
+  status.reason = (digestMatch === null
     ? 'the block was never rendered (template placeholder, or its digest line was removed) — '
       + 'run `nullius notebook sync`'
     : digestMatch[1] !== projectionDigest(projection)
       ? 'registry/validity state changed since the block was written'
-      : 'block text differs from the canonical render (hand edit inside the markers, or a renderer update)';
+      : 'block text differs from the canonical render (hand edit inside the markers, or a renderer update)')
+    + straySuffix;
   return status;
 }
 
@@ -287,6 +308,13 @@ export function stripCurrentStateBlock(text: string): string {
 export type RefreshOutcome = {
   action: 'inserted' | 'rewritten' | 'unchanged' | 'skipped';
   reason: string | null;
+  /** The projection this refresh rendered (and wrote, unless skipped). A
+   *  caller that wants a post-write freshness verdict must check against
+   *  THIS projection, not recompute its own: between a recompute and the
+   *  earlier write another writer may land, and the check would then
+   *  compare the file against a projection nobody rendered — reporting a
+   *  freshly-written block as stale or, worse, a stale one as current. */
+  projection: CurrentStateProjection;
 };
 
 const normalizeEol = (value: string): string => value.replace(/\r\n/g, '\n');
@@ -323,9 +351,9 @@ export function refreshNotebookCurrentState(
   },
 ): RefreshOutcome {
   const notebookPath = path.join(projectRoot, 'research_notebook.md');
-  const rendered = renderCurrentStateBlock(
-    options?.projection ?? computeCurrentStateProjection(projectRoot, options?.ledgerView),
-  );
+  const projection = options?.projection
+    ?? computeCurrentStateProjection(projectRoot, options?.ledgerView);
+  const rendered = renderCurrentStateBlock(projection);
   // Optimistic concurrency: the notebook is a human-owned file an editor may
   // save between our read and our write, and a whole-file reconstruction
   // built on a stale read would silently discard that prose. Re-reading
@@ -337,11 +365,11 @@ export function refreshNotebookCurrentState(
     try {
       text = fs.readFileSync(notebookPath, 'utf-8');
     } catch {
-      return { action: 'skipped', reason: 'research_notebook.md not found' };
+      return { projection, action: 'skipped', reason: 'research_notebook.md not found' };
     }
     const { bounds, duplicated, markerLinesPresent, positionOk } = locateBlock(text);
     if (duplicated) {
-      return { action: 'skipped', reason: 'duplicated current-state markers — repair by hand first' };
+      return { projection, action: 'skipped', reason: 'duplicated current-state markers — repair by hand first' };
     }
     // Respect the file's own end-of-line flavor: comparison is
     // EOL-normalized, and a CRLF file gets a CRLF block spliced in —
@@ -355,12 +383,13 @@ export function refreshNotebookCurrentState(
         // Inserting a fresh block NEXT TO leftover marker lines would
         // manufacture the duplicated state the gate refuses on.
         return {
+          projection,
           action: 'skipped',
           reason: 'stray current-state marker line(s) present without a complete block — remove them first',
         };
       }
       if (!options?.insertIfMissing) {
-        return { action: 'skipped', reason: 'no current-state block (run `nullius notebook sync` to adopt)' };
+        return { projection, action: 'skipped', reason: 'no current-state block (run `nullius notebook sync` to adopt)' };
       }
       updated = insertAtFrontMatter(text, renderedForFile, eol);
       action = 'inserted';
@@ -373,7 +402,7 @@ export function refreshNotebookCurrentState(
       action = 'rewritten';
     } else {
       const onDisk = text.slice(bounds.start, bounds.end);
-      if (normalizeEol(onDisk) === rendered) return { action: 'unchanged', reason: null };
+      if (normalizeEol(onDisk) === rendered) return { projection, action: 'unchanged', reason: null };
       updated = text.slice(0, bounds.start) + renderedForFile + text.slice(bounds.end);
       action = 'rewritten';
     }
@@ -399,9 +428,10 @@ export function refreshNotebookCurrentState(
       }
       throw error;
     }
-    return { action, reason: null };
+    return { projection, action, reason: null };
   }
   return {
+    projection,
     action: 'skipped',
     reason: 'concurrent notebook edits kept landing during refresh — re-run `nullius notebook sync`',
   };
