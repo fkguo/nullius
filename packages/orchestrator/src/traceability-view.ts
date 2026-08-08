@@ -168,7 +168,11 @@ export type TraceabilityView = {
     run_links: {
       sections: NotebookRunLinksReport['sections'];
       drifted_sections: string[];
-      dead_citations: number;
+      /** FULL entries with their acknowledgment channel: an auditor must be
+       *  able to see that a citation was waved through by the declared-log
+       *  escape rather than by the charter idiom without joining against
+       *  the sections list. */
+      dead_citations: NotebookRunLinksReport['dead_citations'];
       unacknowledged_dead: NotebookRunLinksReport['unacknowledged_dead'];
       unknown_run_ids: string[];
     };
@@ -749,7 +753,7 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
       run_links: {
         sections: runLinks.sections,
         drifted_sections: runLinks.drifted_sections,
-        dead_citations: runLinks.dead_citations.length,
+        dead_citations: runLinks.dead_citations,
         unacknowledged_dead: runLinks.unacknowledged_dead,
         unknown_run_ids: runLinks.unknown_run_ids,
       },
@@ -889,7 +893,12 @@ export function renderTraceabilityProse(view: TraceabilityView): string {
     if (block.duplicated_markers) {
       lines.push(`- CURRENT-STATE BLOCK: ${block.reason}`);
     } else if (!block.block_found) {
-      lines.push('- current-state block: none yet — adopt with `nullius notebook sync` '
+      // Stray-marker states carry their own actionable reason; plain
+      // absence gets the adoption hint. Sending a stray-marker reader to
+      // `notebook sync` alone would point at a command that refuses.
+      lines.push(block.reason !== null
+        ? `- current-state block: ${block.reason}.`
+        : '- current-state block: none yet — adopt with `nullius notebook sync` '
         + '(machine-maintained summary of registered results at the top of the notebook).');
     } else if (block.in_sync === false) {
       lines.push(`- CURRENT-STATE BLOCK OUT OF SYNC: ${block.reason} — refresh with \`nullius notebook sync\`.`);

@@ -231,6 +231,52 @@ describe('dead-citation acknowledgment union', () => {
     }
   });
 
+  it('a reference LABEL derived from a dead slug never self-acknowledges', () => {
+    const slugDead = '20260808-m1-r007-void-check';
+    const ledger = syntheticLedger([
+      { id: slugDead, ts: '2026-08-08T01:00:00.000Z', validity: 'void' },
+    ]);
+    writeNotebook([
+      '# Memo', '## Results',
+      'The clearance rests on [the early sweep][r007-void-check] at threshold.',
+      '',
+      `[r007-void-check]: artifacts/runs/${slugDead}/out.tsv`,
+    ].join('\n'));
+    const report = analyzeNotebookRunLinks(projectRoot, ledger, new Set());
+    expect(report.unacknowledged_dead.map(entry => entry.run_id)).toEqual([slugDead]);
+  });
+
+  it('a lead-in paragraph\'s token does not acknowledge the tight list below it', () => {
+    const deadB = runId(3);
+    const ledger = syntheticLedger([
+      { id: dead, ts: '2026-08-08T01:00:00.000Z', validity: 'void' },
+      { id: deadB, ts: '2026-08-08T01:30:00.000Z', validity: 'superseded' },
+    ]);
+    writeNotebook([
+      '# Memo', '## Results',
+      'The exploratory sweep was voided for a bad seed:',
+      `- [sweep A](artifacts/runs/${dead}/out.tsv) — the voided attempt`,
+      `- [sweep C](artifacts/runs/${deadB}/out.tsv) — the current best value`,
+    ].join('\n'));
+    const report = analyzeNotebookRunLinks(projectRoot, ledger, new Set());
+    const byRun = Object.fromEntries(report.dead_citations.map(entry => [entry.run_id, entry]));
+    expect(byRun[dead]!.acknowledged).toBe(true); // its own bullet says "voided"
+    expect(byRun[deadB]!.acknowledged).toBe(false); // the lead-in's word must not reach it
+  });
+
+  it('an inline <!-- mid-paragraph never swallows the following paragraphs', () => {
+    writeNotebook([
+      '# Memo', '## Results',
+      'The opening delimiter is written <!-- in HTML.',
+      '',
+      `The clearance rests on [the reanalysis](artifacts/runs/${dead}/out.tsv).`,
+      '',
+      'Stamps close with --> at the end.',
+    ].join('\n'));
+    const report = analyzeNotebookRunLinks(projectRoot, ledgerWithDead('void'), new Set());
+    expect(report.unacknowledged_dead.map(entry => entry.run_id)).toEqual([dead]);
+  });
+
   it('a commented-out passage spanning blank lines never leaks its interior as live citation', () => {
     writeNotebook([
       '# Memo', '## Results',

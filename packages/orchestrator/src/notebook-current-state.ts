@@ -418,13 +418,24 @@ export function refreshNotebookCurrentState(
     }
     try {
       writeBytesAtomicDurable(notebookPath, Buffer.from(updated, 'utf-8'), mode, () => {
-        if (fs.readFileSync(notebookPath, 'utf-8') !== text) {
+        let latest: string;
+        try {
+          latest = fs.readFileSync(notebookPath, 'utf-8');
+        } catch {
+          // The notebook vanished mid-refresh: abort the write and report
+          // an honest skip, never a raw filesystem error.
+          throw new Error('notebook unreadable during refresh');
+        }
+        if (latest !== text) {
           throw new Error('concurrent notebook edit during refresh');
         }
       });
     } catch (error) {
       if (error instanceof Error && error.message.includes('concurrent notebook edit')) {
         continue; // recompute on the new content
+      }
+      if (error instanceof Error && error.message.includes('notebook unreadable')) {
+        return { projection, action: 'skipped', reason: 'research_notebook.md unreadable during refresh' };
       }
       throw error;
     }
