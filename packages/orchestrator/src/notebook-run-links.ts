@@ -205,7 +205,12 @@ function splitTokenUnits(blockText: string): string[] {
       || (inList && LIST_ITEM_PATTERN.test(line));
     if (startsItem || units.length === 0) {
       units.push([line]);
-      inList = inList || startsItem;
+      // Latch also from a first line that IS an ordered item (a list may
+      // legitimately start at any number when it opens the block — e.g.
+      // split across a heading, or its first item commented out); without
+      // this, a `2.`-headed list never latches and collapses into one
+      // unit, letting a lead-in token blanket-acknowledge every bullet.
+      inList = inList || startsItem || LIST_ITEM_PATTERN.test(line);
     } else {
       units[units.length - 1]!.push(line);
     }

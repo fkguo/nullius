@@ -96,8 +96,12 @@ export async function runCli(argv: string[], io: CliIo = defaultIo()): Promise<n
       } else {
         io.stdout(
           `notebook sync: current-state block ${outcome.action}`
-          + `${status.in_sync === true ? ' (in sync)' : ''}`
-          + `${status.in_sync === true && status.reason !== null ? ` — ${status.reason}` : ''}\n`,
+          // The reason already reads "in sync; …" when strays ride along —
+          // print one or the other, never both.
+          + `${status.in_sync === true ? (status.reason !== null ? ` — ${status.reason}` : ' (in sync)') : ''}`
+          + `${status.in_sync === false
+            ? ` — WARNING: post-write check reports out-of-sync (${status.reason ?? 'unknown cause'}); a concurrent writer may have landed`
+            : ''}\n`,
         );
       }
       return outcome.action === 'skipped' ? 1 : 0;
