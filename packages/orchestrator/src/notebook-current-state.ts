@@ -131,15 +131,47 @@ export type CurrentStateBlockStatus = {
 
 type BlockBounds = { start: number; end: number };
 
-function locateBlock(text: string): { bounds: BlockBounds | null; duplicated: boolean } {
-  const firstStart = text.indexOf(CURRENT_STATE_START);
-  const firstEnd = text.indexOf(CURRENT_STATE_END);
-  const duplicated = text.indexOf(CURRENT_STATE_START, firstStart + 1) !== -1
-    || text.indexOf(CURRENT_STATE_END, firstEnd + 1) !== -1;
-  if (firstStart === -1 || firstEnd === -1 || firstEnd < firstStart) {
-    return { bounds: null, duplicated };
+type BlockLocation = {
+  bounds: BlockBounds | null;
+  duplicated: boolean;
+  /** Byte offset of the first `##` heading outside fences (text.length when
+   *  none) — the block's required position is strictly before it. */
+  firstHeadingOffset: number;
+  /** False when a well-formed block sits at or after the first heading:
+   *  inside a section it would be read as section content by the staleness
+   *  classifier and its links would read as citations — the front-matter
+   *  position is load-bearing, not cosmetic. */
+  positionOk: boolean;
+};
+
+/** Fence-aware, line-based marker location: a fenced example QUOTING the
+ *  markers (documentation of this very mechanism) must neither count as a
+ *  block nor trip the duplicated-markers refusal. */
+function locateBlock(text: string): BlockLocation {
+  const lines = text.split('\n');
+  let inFence = false;
+  let offset = 0;
+  let firstHeadingOffset = text.length;
+  const starts: BlockBounds[] = [];
+  const ends: BlockBounds[] = [];
+  for (const line of lines) {
+    const lineEnd = offset + line.length;
+    if (/^\s*(```|~~~)/.test(line)) {
+      inFence = !inFence;
+    } else if (!inFence) {
+      const trimmed = line.trim();
+      if (trimmed === CURRENT_STATE_START) starts.push({ start: offset, end: lineEnd });
+      else if (trimmed === CURRENT_STATE_END) ends.push({ start: offset, end: lineEnd });
+      else if (/^##\s+/.test(line) && firstHeadingOffset === text.length) firstHeadingOffset = offset;
+    }
+    offset = lineEnd + 1;
   }
-  return { bounds: { start: firstStart, end: firstEnd + CURRENT_STATE_END.length }, duplicated };
+  const duplicated = starts.length > 1 || ends.length > 1;
+  const bounds = starts.length === 1 && ends.length === 1 && ends[0]!.start > starts[0]!.start
+    ? { start: starts[0]!.start, end: ends[0]!.end }
+    : null;
+  const positionOk = bounds === null ? true : bounds.start < firstHeadingOffset;
+  return { bounds, duplicated, firstHeadingOffset, positionOk };
 }
 
 export function checkCurrentStateBlock(
@@ -157,7 +189,7 @@ export function checkCurrentStateBlock(
     return status;
   }
   status.notebook_found = true;
-  const { bounds, duplicated } = locateBlock(text);
+  const { bounds, duplicated, positionOk } = locateBlock(text);
   status.duplicated_markers = duplicated;
   if (duplicated) {
     status.reason = 'duplicated current-state markers — repair by hand, then `nullius notebook sync`';
@@ -165,6 +197,14 @@ export function checkCurrentStateBlock(
   }
   if (!bounds) return status;
   status.block_found = true;
+  if (!positionOk) {
+    // A block inside a section is not the fixed front surface the contract
+    // names — and mechanically its links would read as section citations.
+    status.in_sync = false;
+    status.reason = 'block is not in the front matter (before the first `##` heading) — '
+      + '`nullius notebook sync` relocates it';
+    return status;
+  }
   const onDisk = text.slice(bounds.start, bounds.end);
   const rendered = renderCurrentStateBlock(projection);
   if (onDisk === rendered) {
@@ -195,20 +235,14 @@ export type RefreshOutcome = {
   reason: string | null;
 };
 
-/** Insert position: immediately before the first `##` heading outside
- *  fenced code (front matter placement — structurally invisible to the
- *  section-based staleness classifier); a notebook with no headings gets
- *  the block appended. */
-function insertionOffset(text: string): number {
-  const lines = text.split('\n');
-  let inFence = false;
-  let offset = 0;
-  for (const line of lines) {
-    if (/^\s*(```|~~~)/.test(line)) inFence = !inFence;
-    else if (!inFence && /^##\s+/.test(line)) return offset;
-    offset += line.length + 1;
-  }
-  return text.length;
+/** Front-matter insertion (before the first `##` heading, fence-aware),
+ *  with blank-line padding on both sides. */
+function insertAtFrontMatter(text: string, rendered: string): string {
+  const offset = locateBlock(text).firstHeadingOffset;
+  const before = text.slice(0, offset);
+  const after = text.slice(offset);
+  const needsLeadingNewline = before.length > 0 && !before.endsWith('\n\n') && before.endsWith('\n');
+  return `${before}${needsLeadingNewline ? '\n' : ''}${rendered}\n\n${after}`;
 }
 
 export function refreshNotebookCurrentState(
@@ -216,32 +250,57 @@ export function refreshNotebookCurrentState(
   options?: { insertIfMissing?: boolean; ledgerView?: ValidityLedgerView },
 ): RefreshOutcome {
   const notebookPath = path.join(projectRoot, 'research_notebook.md');
-  let text: string;
-  try {
-    text = fs.readFileSync(notebookPath, 'utf-8');
-  } catch {
-    return { action: 'skipped', reason: 'research_notebook.md not found' };
-  }
-  const { bounds, duplicated } = locateBlock(text);
-  if (duplicated) {
-    return { action: 'skipped', reason: 'duplicated current-state markers — repair by hand first' };
-  }
   const rendered = renderCurrentStateBlock(computeCurrentStateProjection(projectRoot, options?.ledgerView));
-  if (!bounds) {
-    if (!options?.insertIfMissing) {
-      return { action: 'skipped', reason: 'no current-state block (run `nullius notebook sync` to adopt)' };
+  // Optimistic concurrency: the notebook is a human-owned file an editor may
+  // save between our read and our write, and a whole-file reconstruction
+  // built on a stale read would silently discard that prose. Re-reading
+  // immediately before the atomic replace and restarting on any difference
+  // shrinks the loss window to the replace itself; persistent contention
+  // yields an honest skip (the next read names the block out-of-sync).
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    let text: string;
+    try {
+      text = fs.readFileSync(notebookPath, 'utf-8');
+    } catch {
+      return { action: 'skipped', reason: 'research_notebook.md not found' };
     }
-    const offset = insertionOffset(text);
-    const before = text.slice(0, offset);
-    const after = text.slice(offset);
-    const needsLeadingNewline = before.length > 0 && !before.endsWith('\n\n') && before.endsWith('\n');
-    const updated = `${before}${needsLeadingNewline ? '\n' : ''}${rendered}\n\n${after}`;
+    const { bounds, duplicated, positionOk } = locateBlock(text);
+    if (duplicated) {
+      return { action: 'skipped', reason: 'duplicated current-state markers — repair by hand first' };
+    }
+    let updated: string;
+    let action: RefreshOutcome['action'];
+    if (!bounds) {
+      if (!options?.insertIfMissing) {
+        return { action: 'skipped', reason: 'no current-state block (run `nullius notebook sync` to adopt)' };
+      }
+      updated = insertAtFrontMatter(text, rendered);
+      action = 'inserted';
+    } else if (!positionOk) {
+      // Relocate: a block below the first heading is inside a section,
+      // where the classifier and the citation analyzer would read it as
+      // content. Remove it there, reinsert canonically in front matter.
+      const removed = text.slice(0, bounds.start) + text.slice(bounds.end);
+      updated = insertAtFrontMatter(removed, rendered);
+      action = 'rewritten';
+    } else {
+      const onDisk = text.slice(bounds.start, bounds.end);
+      if (onDisk === rendered) return { action: 'unchanged', reason: null };
+      updated = text.slice(0, bounds.start) + rendered + text.slice(bounds.end);
+      action = 'rewritten';
+    }
+    let latest: string;
+    try {
+      latest = fs.readFileSync(notebookPath, 'utf-8');
+    } catch {
+      return { action: 'skipped', reason: 'research_notebook.md unreadable during refresh' };
+    }
+    if (latest !== text) continue; // a concurrent edit landed — recompute on the new content
     writeBytesAtomicDurable(notebookPath, Buffer.from(updated, 'utf-8'));
-    return { action: 'inserted', reason: null };
+    return { action, reason: null };
   }
-  const onDisk = text.slice(bounds.start, bounds.end);
-  if (onDisk === rendered) return { action: 'unchanged', reason: null };
-  const updated = text.slice(0, bounds.start) + rendered + text.slice(bounds.end);
-  writeBytesAtomicDurable(notebookPath, Buffer.from(updated, 'utf-8'));
-  return { action: 'rewritten', reason: null };
+  return {
+    action: 'skipped',
+    reason: 'concurrent notebook edits kept landing during refresh — re-run `nullius notebook sync`',
+  };
 }

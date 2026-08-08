@@ -1,6 +1,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { splitNotebookSections } from './notebook-staleness.js';
+import { stripCurrentStateBlock } from './notebook-current-state.js';
 import type { ValidityLedgerView, ValidityState } from './validity-ledger.js';
 
 /** Link-derived run citations, append-drift signals, and dead-citation
@@ -43,11 +44,27 @@ export const DEAD_ACK_TOKENS = ['superseded', 'void', 'voided', 'replaced', 'rul
  *  is always visible in the JSON report as `exempt_declared_log`. */
 const SECTION_ROLE_PATTERN = /<!--\s*notebook-section-role:\s*log\s*-->/;
 
-/** Inline markdown link targets only. Reference-style links and autolinks
- *  are not parsed — an under-firing direction (a citation written that way
- *  escapes analysis; it can never cause a false alarm). */
+/** Inline markdown link targets, plus the two explicit reference-link forms
+ *  (`[text][label]`, `[label][]`) resolved against same-section definitions
+ *  (`[label]: target`). Shortcut references (`[label]` alone) and autolinks
+ *  are not parsed — plain bracketed prose is indistinguishable from a
+ *  shortcut without a full CommonMark pass, and guessing would create false
+ *  citations. A dead run cited ONLY via a shortcut reference escapes the
+ *  analysis (recorded limitation). */
 const LINK_TARGET_PATTERN = /\]\(([^()\s]+)\)/g;
+const REFERENCE_DEFINITION_PATTERN = /^\s{0,3}\[([^\]]+)\]:\s*(\S+)/;
+const REFERENCE_FULL_PATTERN = /\[[^\]]*\]\[([^\]]+)\]/g;
+const REFERENCE_COLLAPSED_PATTERN = /\[([^\]]+)\]\[\]/g;
 const RUN_LINK_PATTERN = /^(?:\.\/)?(?:artifacts|team)\/runs\/([^/#?]+)/;
+
+/** Inline code spans and HTML comments are not prose: a dead-run link inside
+ *  backticks documents a path, it does not cite evidence — counting it would
+ *  manufacture false fold refusals. (Fenced blocks are already excluded by
+ *  the shared section splitter.) The section-role marker is read from the
+ *  RAW body before this sanitization. */
+function sanitizeProse(text: string): string {
+  return text.replace(/<!--[\s\S]*?-->/g, ' ').replace(/`[^`]*`/g, ' ');
+}
 
 export type AckChannel = 'replacement-link' | 'token' | 'declared-log';
 
@@ -89,7 +106,7 @@ export type NotebookRunLinksReport = {
   unknown_run_ids: string[];
 };
 
-type CitationBlock = { runIds: string[] };
+type CitationBlock = { runIds: string[]; sanitized: string };
 
 const LIST_ITEM_PATTERN = /^\s*(?:[-*+]|\d+[.)])\s/;
 
@@ -123,15 +140,41 @@ export function segmentCitationBlocks(body: string[]): string[] {
   return merged.map(block => block.join('\n'));
 }
 
-function extractRunIds(blockText: string): string[] {
+function runIdFromTarget(target: string): string | null {
+  const runMatch = RUN_LINK_PATTERN.exec(target);
+  if (!runMatch) return null;
+  const id = runMatch[1]!;
+  if (id.includes('.')) return null; // a file directly under the runs root (ledger, attributes), not a run
+  return id;
+}
+
+/** Reference-link definitions of one section: lowercased label → run id.
+ *  A definition line renders invisibly, so the definition's own block never
+ *  counts as a citation — only blocks that USE the label do. */
+function collectReferenceDefinitions(body: string[]): Map<string, string> {
+  const definitions = new Map<string, string>();
+  for (const line of body) {
+    const match = REFERENCE_DEFINITION_PATTERN.exec(sanitizeProse(line));
+    if (!match) continue;
+    const id = runIdFromTarget(match[2]!);
+    if (id !== null) definitions.set(match[1]!.trim().toLowerCase(), id);
+  }
+  return definitions;
+}
+
+function extractRunIds(sanitizedBlockText: string, definitions: ReadonlyMap<string, string>): string[] {
   const ids: string[] = [];
-  for (const match of blockText.matchAll(LINK_TARGET_PATTERN)) {
-    const target = match[1]!;
-    const runMatch = RUN_LINK_PATTERN.exec(target);
-    if (!runMatch) continue;
-    const id = runMatch[1]!;
-    if (id.includes('.')) continue; // a file directly under the runs root (ledger, attributes), not a run
-    if (!ids.includes(id)) ids.push(id);
+  const push = (id: string | null): void => {
+    if (id !== null && !ids.includes(id)) ids.push(id);
+  };
+  for (const match of sanitizedBlockText.matchAll(LINK_TARGET_PATTERN)) {
+    push(runIdFromTarget(match[1]!));
+  }
+  for (const match of sanitizedBlockText.matchAll(REFERENCE_FULL_PATTERN)) {
+    push(definitions.get(match[1]!.trim().toLowerCase()) ?? null);
+  }
+  for (const match of sanitizedBlockText.matchAll(REFERENCE_COLLAPSED_PATTERN)) {
+    push(definitions.get(match[1]!.trim().toLowerCase()) ?? null);
   }
   return ids;
 }
@@ -191,12 +234,17 @@ export function analyzeNotebookRunLinks(
   }
 
   const unknownSeen = new Set<string>();
-  for (const section of splitNotebookSections(text)) {
+  // The machine-rendered current-state block is a view, not prose: its
+  // artifact links must never count as citations, wherever the block sits.
+  for (const section of splitNotebookSections(stripCurrentStateBlock(text))) {
     const body = section.body.join('\n');
+    // Role detection reads the RAW body — the marker IS an HTML comment.
     const declaredLog = SECTION_ROLE_PATTERN.test(body);
+    const definitions = collectReferenceDefinitions(section.body);
     const blocks: CitationBlock[] = [];
     for (const blockText of segmentCitationBlocks(section.body)) {
-      const candidates = extractRunIds(blockText);
+      const sanitized = sanitizeProse(blockText);
+      const candidates = extractRunIds(sanitized, definitions);
       const runIds = candidates.filter(id => ledger.runs.has(id) || existingRunDirIds.has(id));
       for (const id of candidates) {
         if (!ledger.runs.has(id) && !existingRunDirIds.has(id) && !unknownSeen.has(id)) {
@@ -204,7 +252,7 @@ export function analyzeNotebookRunLinks(
           report.unknown_run_ids.push(id);
         }
       }
-      if (runIds.length > 0) blocks.push({ runIds });
+      if (runIds.length > 0) blocks.push({ runIds, sanitized });
     }
 
     const citing = blocks.length;
@@ -254,7 +302,14 @@ export function analyzeNotebookRunLinks(
     });
     if (verdict === 'drifted') report.drifted_sections.push(section.heading);
 
-    // Dead citations, acknowledged at section scope.
+    // Dead citations. Channel scopes differ deliberately:
+    //  - replacement-link: SECTION scope — a chain member names the specific
+    //    dead run it replaces, so it can never acknowledge a different one;
+    //  - token: the CITING BLOCK only — generic words ("superseded") in one
+    //    paragraph must not blanket-acknowledge every other dead run the
+    //    section happens to cite (the charter's lesson idiom puts word and
+    //    link in the same sentence anyway);
+    //  - declared-log: SECTION scope by definition.
     const deadInSection = new Map<string, Exclude<ValidityState, 'active'>>();
     const sectionRunIds = new Set(blocks.flatMap(block => block.runIds));
     for (const id of sectionRunIds) {
@@ -270,7 +325,8 @@ export function analyzeNotebookRunLinks(
         const chain = replacementChain(ledger, id);
         if ([...chain].some(replacement => sectionRunIds.has(replacement))) {
           channel = 'replacement-link';
-        } else if (ACK_TOKEN_PATTERNS.some(pattern => pattern.test(body))) {
+        } else if (blocks.some(block => block.runIds.includes(id)
+          && ACK_TOKEN_PATTERNS.some(pattern => pattern.test(block.sanitized)))) {
           channel = 'token';
         }
       }

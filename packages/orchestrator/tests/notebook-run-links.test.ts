@@ -212,6 +212,48 @@ describe('dead-citation acknowledgment union', () => {
     expect(report.unacknowledged_dead).toHaveLength(1);
   });
 
+  it('detects a dead run cited only via a reference-style link', () => {
+    writeNotebook([
+      '# Memo', '## Results',
+      'The [old result][r] anchored the first estimate.',
+      '',
+      `[r]: artifacts/runs/${dead}/out.json`,
+    ].join('\n'));
+    const report = analyzeNotebookRunLinks(projectRoot, ledgerWithDead('void'), new Set());
+    expect(report.unacknowledged_dead).toHaveLength(1);
+    expect(report.unacknowledged_dead[0]!.run_id).toBe(dead);
+  });
+
+  it('ignores dead-run links inside inline code and HTML comments — documentation, not prose evidence', () => {
+    writeNotebook([
+      '# Memo', '## Results',
+      `Paths look like \`[example](artifacts/runs/${dead}/out.json)\` in run records.`,
+      '',
+      `<!-- [hidden](artifacts/runs/${dead}/out.json) -->`,
+    ].join('\n'));
+    const report = analyzeNotebookRunLinks(projectRoot, ledgerWithDead('void'), new Set());
+    expect(report.dead_citations).toHaveLength(0);
+  });
+
+  it('a token acknowledging one dead run does not blanket-acknowledge another block\'s dead run', () => {
+    const deadB = runId(3);
+    const ledger = syntheticLedger([
+      { id: dead, ts: '2026-08-08T01:00:00.000Z', validity: 'void' },
+      { id: deadB, ts: '2026-08-08T01:30:00.000Z', validity: 'void' },
+    ]);
+    writeNotebook([
+      '# Memo', '## Results',
+      `Run [B](artifacts/runs/${deadB}/out.tsv) was voided (bad configuration).`,
+      '',
+      `Run [A](artifacts/runs/${dead}/out.tsv) established the clearance.`,
+    ].join('\n'));
+    const report = analyzeNotebookRunLinks(projectRoot, ledger, new Set());
+    const byRun = Object.fromEntries(report.dead_citations.map(entry => [entry.run_id, entry]));
+    expect(byRun[deadB]!.acknowledged).toBe(true);
+    expect(byRun[dead]!.acknowledged).toBe(false);
+    expect(report.unacknowledged_dead.map(entry => entry.run_id)).toEqual([dead]);
+  });
+
   it('acknowledges through the declared log role', () => {
     writeNotebook([
       '# Memo', '## History',
