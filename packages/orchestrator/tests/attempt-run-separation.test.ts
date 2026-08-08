@@ -1038,6 +1038,32 @@ describe('confirmation-round regressions (review r6)', () => {
     }
   });
 
+  it('the terminal-artifact arm of the pre-read witness refuses alone (run_dir_unwritable shape)', () => {
+    const projectRoot = makeTmpDir();
+    registerCleanup(projectRoot);
+    initRepo(projectRoot);
+    const runId = 'run-artifact-only-witness';
+    const runDir = path.join(projectRoot, 'artifacts', 'runs', runId);
+    fs.mkdirSync(path.join(runDir, 'artifacts'), { recursive: true });
+    // No mirror, no attempts/ — only the terminal artifact a completed
+    // execution always leaves (the stamp may have recorded
+    // run_dir_unwritable, or stamping may have failed entirely).
+    fs.writeFileSync(
+      path.join(runDir, 'artifacts', 'computation_result_v1.json'),
+      JSON.stringify({ schema_version: 1, run_id: runId, execution_status: 'completed' }),
+    );
+    fs.writeFileSync(path.join(projectRoot, 'seed.txt'), 'seed\n');
+    commitAll(projectRoot);
+    const ledgerPath = path.join(projectRoot, 'artifacts', 'runs', 'validity_ledger.jsonl');
+    fs.mkdirSync(ledgerPath, { recursive: true });
+    try {
+      const stamp = stampComputationLaunch(projectRoot, runDir);
+      expect(stamp.status).toBe('refused_relaunch');
+    } finally {
+      fs.rmdirSync(ledgerPath);
+    }
+  });
+
   it('the zero-move skeleton cleanup never deletes a sibling\'s staged content (empty dirs only)', () => {
     const scratch = makeTmpDir();
     registerCleanup(scratch);
