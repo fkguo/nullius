@@ -336,6 +336,23 @@ describe('dead-citation acknowledgment union', () => {
     expect(report.dead_citations[0]!.ack_channel).toBe('token');
   });
 
+  it('a list numbered from 2. splits into per-item units (the latch engages on the opening item)', () => {
+    const deadB = runId(3);
+    const ledger = syntheticLedger([
+      { id: dead, ts: '2026-08-08T01:00:00.000Z', validity: 'void' },
+      { id: deadB, ts: '2026-08-08T01:30:00.000Z', validity: 'void' },
+    ]);
+    writeNotebook([
+      '# Memo', '## Results',
+      `2. run A was voided (bad seed): [A](artifacts/runs/${dead}/out.tsv)`,
+      `3. [B](artifacts/runs/${deadB}/out.tsv) established the clearance`,
+    ].join('\n'));
+    const report = analyzeNotebookRunLinks(projectRoot, ledger, new Set());
+    const byRun = Object.fromEntries(report.dead_citations.map(entry => [entry.run_id, entry]));
+    expect(byRun[dead]!.acknowledged).toBe(true);
+    expect(byRun[deadB]!.acknowledged).toBe(false);
+  });
+
   it('a hard-wrapped line starting with "3)" is not a unit boundary (only 1./1) interrupts a paragraph)', () => {
     writeNotebook([
       '# Memo', '## Results',

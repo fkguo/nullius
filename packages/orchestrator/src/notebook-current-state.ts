@@ -186,9 +186,11 @@ function locateBlock(text: string): BlockLocation {
   let inFence = false;
   let offset = 0;
   let firstHeadingOffset = text.length;
-  const starts: BlockBounds[] = [];
-  const ends: BlockBounds[] = [];
-  for (const line of lines) {
+  type MarkerLine = BlockBounds & { lineIndex: number };
+  const starts: MarkerLine[] = [];
+  const ends: MarkerLine[] = [];
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
+    const line = lines[lineIndex]!;
     // A CRLF file splits into lines with a trailing '\r'; the marker-line
     // extent must exclude it so block slices never carry a stray '\r'.
     const content = line.endsWith('\r') ? line.slice(0, -1) : line;
@@ -198,8 +200,8 @@ function locateBlock(text: string): BlockLocation {
       inFence = !inFence;
     } else if (!inFence && !indentedCode) {
       const trimmed = content.trim();
-      if (trimmed === CURRENT_STATE_START) starts.push({ start: offset, end: contentEnd });
-      else if (trimmed === CURRENT_STATE_END) ends.push({ start: offset, end: contentEnd });
+      if (trimmed === CURRENT_STATE_START) starts.push({ start: offset, end: contentEnd, lineIndex });
+      else if (trimmed === CURRENT_STATE_END) ends.push({ start: offset, end: contentEnd, lineIndex });
       else if (/^##\s+/.test(content) && firstHeadingOffset === text.length) firstHeadingOffset = offset;
     }
     offset = offset + line.length + 1;
@@ -214,8 +216,8 @@ function locateBlock(text: string): BlockLocation {
   // complete blocks (duplicated → refusal, no write). One complete block
   // plus stray markers is an unambiguous claim with garbage nearby —
   // advisory, never a refusal.
-  const completeBlocks: BlockBounds[] = [];
-  const unclaimedStarts: BlockBounds[] = [];
+  const pairedBlocks: Array<{ bounds: BlockBounds; interiorLines: string[] }> = [];
+  const unclaimedStarts: MarkerLine[] = [];
   let strayEnds = 0;
   const markers = [...starts.map(marker => ({ ...marker, kind: 'start' as const })),
     ...ends.map(marker => ({ ...marker, kind: 'end' as const }))]
@@ -225,14 +227,37 @@ function locateBlock(text: string): BlockLocation {
       unclaimedStarts.push(marker);
     } else if (unclaimedStarts.length > 0) {
       const opener = unclaimedStarts.pop()!;
-      completeBlocks.push({ start: opener.start, end: marker.end });
+      pairedBlocks.push({
+        bounds: { start: opener.start, end: marker.end },
+        interiorLines: lines.slice(opener.lineIndex + 1, marker.lineIndex),
+      });
     } else {
       strayEnds += 1;
     }
   }
+  // Interior validation — the last line of defense against splicing away
+  // researcher prose. A REAL block's interior is machine-rendered (always
+  // carries the digest line); the template placeholder's interior is a
+  // short contiguous note (no blank line). An interior with a `##` heading,
+  // or with blank lines but no digest, is a stray marker pair wrapped
+  // around human prose: its markers are strays, never a rewritable block.
+  let strayFromInvalidPairs = 0;
+  const completeBlocks: BlockBounds[] = [];
+  for (const pair of pairedBlocks) {
+    const interiorContent = pair.interiorLines
+      .map(line => (line.endsWith('\r') ? line.slice(0, -1) : line));
+    const containsHeading = interiorContent.some(line => /^##\s+/.test(line));
+    const containsBlank = interiorContent.some(line => line.trim() === '');
+    const containsDigest = DIGEST_LINE_PATTERN.test(interiorContent.join('\n'));
+    if (containsHeading || (containsBlank && !containsDigest)) {
+      strayFromInvalidPairs += 2;
+      continue;
+    }
+    completeBlocks.push(pair.bounds);
+  }
   const duplicated = completeBlocks.length > 1;
   const bounds = completeBlocks.length === 1 ? completeBlocks[0]! : null;
-  const strayMarkerLines = unclaimedStarts.length + strayEnds;
+  const strayMarkerLines = unclaimedStarts.length + strayEnds + strayFromInvalidPairs;
   // The whole block must sit BEFORE the first heading: a start-only check
   // would bless a span that swallowed the heading.
   const positionOk = bounds === null ? true : bounds.end <= firstHeadingOffset;

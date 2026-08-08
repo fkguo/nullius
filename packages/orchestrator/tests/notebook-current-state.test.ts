@@ -193,6 +193,32 @@ describe('refresh + check', () => {
     expect(text).toContain('## Method');
   });
 
+  it('a lone stray pair wrapped around researcher prose is NEVER a rewritable block (interior validation)', () => {
+    for (const interior of [
+      ['## Results', 'Six months of analysis prose.', 'Another finding.'], // heading inside
+      ['Front-matter paragraph one.', '', 'Front-matter paragraph two.'], // blank line, no digest
+    ]) {
+      fs.writeFileSync(notebookPath(), [
+        '# Memo',
+        CURRENT_STATE_START,
+        ...interior,
+        CURRENT_STATE_END,
+        '## Method', 'Method prose.',
+      ].join('\n'));
+      const status = checkCurrentStateBlock(projectRoot, NO_REGISTRY);
+      expect(status.block_found).toBe(false);
+      expect(status.duplicated_markers).toBe(false);
+      expect(status.reason).toContain('stray');
+      // Adoption refuses; nothing is ever spliced.
+      const before = fs.readFileSync(notebookPath(), 'utf-8');
+      expect(refreshNotebookCurrentState(projectRoot, { insertIfMissing: true }).action).toBe('skipped');
+      expect(fs.readFileSync(notebookPath(), 'utf-8')).toBe(before);
+      for (const line of interior) {
+        if (line) expect(before).toContain(line);
+      }
+    }
+  });
+
   it('nested marker pairs are duplicated (two complete blocks) and refresh refuses to write', () => {
     fs.writeFileSync(notebookPath(), [
       '# Memo',
@@ -233,8 +259,14 @@ describe('refresh + check', () => {
     fs.writeFileSync(notebookPath(), lf.replace(/\n/g, '\r\n'));
     expect(checkCurrentStateBlock(projectRoot, NO_REGISTRY).in_sync).toBe(true);
     expect(refreshNotebookCurrentState(projectRoot, { insertIfMissing: false }).action).toBe('unchanged');
-    // A projection change rewrites the block but preserves the file's EOL flavor.
-    fs.writeFileSync(notebookPath(), lf.replace('state-digest: ', 'state-digest: 0').replace(/\n/g, '\r\n'));
+    // A projection change rewrites the block but preserves the file's EOL
+    // flavor. Simulate it with a DIFFERENT VALID 64-hex digest — a
+    // length-corrupted digest line is deliberately treated as a stray pair
+    // (blank-containing interiors without a valid digest are never
+    // destructively rewritten).
+    fs.writeFileSync(notebookPath(), lf
+      .replace(/state-digest: ([0-9a-f])/, (_m, c: string) => `state-digest: ${c === '0' ? '1' : '0'}`)
+      .replace(/\n/g, '\r\n'));
     expect(refreshNotebookCurrentState(projectRoot, { insertIfMissing: false }).action).toBe('rewritten');
     const text = fs.readFileSync(notebookPath(), 'utf-8');
     expect(text).toContain('\r\n');
