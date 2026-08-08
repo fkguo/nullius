@@ -324,6 +324,32 @@ describe('dead-citation acknowledgment union', () => {
     expect(docs.citing_paragraphs).toBe(0);
   });
 
+  it('a SECOND consecutive indented-code chunk is still code, not loose-list continuation', () => {
+    const ledger = ascendingLedger(1);
+    writeNotebook([
+      '# Memo', '## Docs',
+      'Two examples follow:',
+      '',
+      '    first indented example',
+      '',
+      `    [example](artifacts/runs/${runId(1)}/out.tsv)`,
+    ].join('\n'));
+    const docs = analyzeNotebookRunLinks(projectRoot, ledger, new Set())
+      .sections.find(entry => entry.heading === 'Docs')!;
+    expect(docs.citing_paragraphs).toBe(0);
+  });
+
+  it('an inline comment opened in one loose-list item cannot swallow the next item\'s live link', () => {
+    writeNotebook([
+      '# Memo', '## Results',
+      '- first attempt <!-- note started here',
+      '',
+      `- the value rests on [this run](artifacts/runs/${dead}/out.tsv) -->`,
+    ].join('\n'));
+    const report = analyzeNotebookRunLinks(projectRoot, ledgerWithDead('void'), new Set());
+    expect(report.unacknowledged_dead.map(entry => entry.run_id)).toEqual([dead]);
+  });
+
   it('a backticked example of the role marker does not smuggle the log exemption in', () => {
     const ledger = ascendingLedger(9);
     writeNotebook([

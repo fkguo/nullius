@@ -221,8 +221,13 @@ export function segmentCitationBlocks(body: string[]): string[] {
   }
   if (current.length > 0) rawBlocks.push(current);
 
+  // List-shaped requires at least one ACTUAL item line: an all-indented
+  // block satisfies the continuation pattern on every line, and treating
+  // it as a list would let a second indented-code chunk ride in as the
+  // "continuation" of the first dropped one.
   const isListShaped = (block: string[]): boolean =>
-    block.every(line => LIST_ITEM_PATTERN.test(line) || /^\s{2,}/.test(line));
+    block.some(line => LIST_ITEM_PATTERN.test(line))
+    && block.every(line => LIST_ITEM_PATTERN.test(line) || /^\s{2,}/.test(line));
   const merged: string[][] = [];
   for (let index = 0; index < rawBlocks.length; index += 1) {
     const block = rawBlocks[index]!;
@@ -360,26 +365,32 @@ export function analyzeNotebookRunLinks(
     const definitions = collectReferenceDefinitions(commentlessLines);
     const blocks: CitationBlock[] = [];
     for (const blockText of segmentCitationBlocks(commentlessLines)) {
-      const sanitized = sanitizeProse(blockText);
-      const candidates = extractRunIds(sanitized, definitions);
-      const runIds = candidates.filter(id => ledger.runs.has(id) || existingRunDirIds.has(id));
-      for (const id of candidates) {
+      // Everything derives from the token-scope UNITS: sanitizing (and
+      // extracting from) the merged block as one string would let an
+      // inline comment opened in one loose-list item and closed in the
+      // next swallow the live link between them — the items were separated
+      // by a blank line in the source, which merging removed.
+      const units: TokenUnit[] = [];
+      const candidateSet: string[] = [];
+      for (const unitText of splitTokenUnits(blockText)) {
+        const unitSanitized = sanitizeProse(unitText);
+        const candidates = extractRunIds(unitSanitized, definitions);
+        for (const id of candidates) {
+          if (!candidateSet.includes(id)) candidateSet.push(id);
+        }
+        units.push({
+          runIds: candidates.filter(id => ledger.runs.has(id) || existingRunDirIds.has(id)),
+          tokenText: blankKnownRunIds(blankLinkDestinations(unitSanitized), knownIds),
+        });
+      }
+      const runIds = candidateSet.filter(id => ledger.runs.has(id) || existingRunDirIds.has(id));
+      for (const id of candidateSet) {
         if (!ledger.runs.has(id) && !existingRunDirIds.has(id) && !unknownSeen.has(id)) {
           unknownSeen.add(id);
           report.unknown_run_ids.push(id);
         }
       }
-      if (runIds.length > 0) {
-        const units = splitTokenUnits(blockText).map(unitText => {
-          const unitSanitized = sanitizeProse(unitText);
-          return {
-            runIds: extractRunIds(unitSanitized, definitions)
-              .filter(id => ledger.runs.has(id) || existingRunDirIds.has(id)),
-            tokenText: blankKnownRunIds(blankLinkDestinations(unitSanitized), knownIds),
-          };
-        });
-        blocks.push({ runIds, units });
-      }
+      if (runIds.length > 0) blocks.push({ runIds, units });
     }
 
     const citing = blocks.length;
