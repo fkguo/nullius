@@ -356,6 +356,17 @@ export function validateResultRegistry(
       if (known.conflicting_stamps) {
         state.issues.push(issue('result_run_conflicting_stamps', `${row.result_id} names run ${row.run_id}, which carries CONFLICTING origin stamps`));
       }
+      // Attempt-chain health is validity truth the WRITE path already
+      // refuses on; the read side must keep saying it after registration
+      // too, or a row registered clean would keep rendering as a clean
+      // current result after a union merge lands a defective closure or a
+      // record-only booking marks the head attempt resultless.
+      if (known.attempts.chain_defect || known.attempts.conflicting_attempts) {
+        state.issues.push(issue('result_run_attempt_chain_defect', `${row.result_id} names run ${row.run_id}, whose attempt chain carries ${known.attempts.conflicting_attempts ? 'CONFLICTING attempt closures' : 'a chain defect'}`));
+      }
+      if (row.superseded_by === 'none' && known.attempts.latest_failed) {
+        state.issues.push(issue('result_run_latest_attempt_failed', `${row.result_id} names run ${row.run_id}, whose latest attempt is closed as resultless — a current result must come from a delivering attempt`));
+      }
       const effective = known.origin ? effectiveCodeIdentity(known.origin as RunOriginV1) : null;
       if (row.superseded_by === 'none') {
         if (known.validity !== 'active') {

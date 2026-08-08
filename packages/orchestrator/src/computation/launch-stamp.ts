@@ -101,10 +101,26 @@ export function stampComputationLaunch(projectRoot: string, runDir: string, reen
           };
         }
         if (executionStatus === 'failed') {
-          const retry = openRetryAttempt(projectRoot, runDir, {
-            actor: defaultStampActor(),
-            reason: 'front-door relaunch under a changed tree after a failed execution (auto-recorded)',
-          });
+          // The boundary consult is FAIL-CLOSED on exception: a throw here
+          // (lock contention, pin conflict, ledger I/O) means the machine
+          // could not rule — and executing without a ruling would overwrite
+          // exactly what the boundary protects. This narrows the general
+          // never-blocks doctrine only where a recorded stamp already
+          // binds a different tree over a failed execution.
+          let retry: ReturnType<typeof openRetryAttempt>;
+          try {
+            retry = openRetryAttempt(projectRoot, runDir, {
+              actor: defaultStampActor(),
+              reason: 'front-door relaunch under a changed tree after a failed execution (auto-recorded)',
+            });
+          } catch (error) {
+            return {
+              status: 'refused_relaunch',
+              detail: `the attempt boundary could not rule (${error instanceof Error ? error.message : String(error)}) `
+                + '— executing without a ruling would overwrite what the boundary protects; retry shortly or run '
+                + '`nullius trace retry` by hand.',
+            };
+          }
           if (retry.kind === 'retried' && retry.origin) {
             const origin = retry.origin as unknown as Record<string, unknown>;
             return {
