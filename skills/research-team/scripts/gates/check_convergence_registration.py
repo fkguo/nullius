@@ -43,8 +43,9 @@ undeclared objects belong to `nullius current`, not to this fold):
     block claims nothing and is advisory territory, never a fold refusal;
   - a declared rewritten section must carry zero unacknowledged links to
     superseded/void runs (the read model accepts any acknowledgment
-    channel: a visible superseded/void word in the paragraph's section, a
-    link to the replacement run, or a declared log-role section).
+    channel: a visible superseded/void word in the CITING paragraph or
+    list item, a link to the replacement run anywhere in the section, or a
+    declared log-role section).
 
 Scope limits (deliberate): this gate does not audit undeclared runs, does
 not enforce global ledger cleanliness, and does not re-check the cycle
