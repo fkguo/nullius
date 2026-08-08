@@ -296,9 +296,29 @@ export async function runInitCommand(projectRoot: string | null, cwd: string, ar
   io.stdout(`[ok] runtime dir: ${runtimeDir}\n`);
   if (options.runtimeOnly) {
     ensureGitPresence(repoRoot, options, scaffold, manager, io);
+    // A notebook scaffolded elsewhere may still carry the template's
+    // placeholder markers; render them here too so a reconnect-only init
+    // never leaves a never-rendered block to confuse the freshness reason.
+    try {
+      const { refreshNotebookCurrentState } = await import('./notebook-current-state.js');
+      refreshNotebookCurrentState(repoRoot, { insertIfMissing: false });
+    } catch {
+      // the next status/current read names the block state
+    }
     io.stdout(`[ok] project-local fallback launcher ready: ${projectLocalNulliusRelativePath()} (${launcher.launcher_mode})\n`);
     io.stdout('[ok] project scaffold skipped (--runtime-only)\n');
     return;
+  }
+  // Render the notebook's current-state block BEFORE the git bootstrap so
+  // the scaffold commit already carries the canonical render (a post-commit
+  // refresh would leave a fresh project dirty on its first stamp). A
+  // pre-existing notebook without markers is skipped — adopting one is the
+  // explicit `nullius notebook sync` decision, never an init side effect.
+  try {
+    const { refreshNotebookCurrentState } = await import('./notebook-current-state.js');
+    refreshNotebookCurrentState(repoRoot, { insertIfMissing: false });
+  } catch {
+    // the next status/current read names the block out-of-sync
   }
   ensureGitPresence(repoRoot, options, scaffold, manager, io);
   if (options.refresh) {

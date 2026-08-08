@@ -6,6 +6,7 @@ import type { RunOriginV1, ValidityEventV1 } from '@nullius/shared';
 import { mintUlid, ULID_PATTERN, writeBytesAtomicDurable } from '@nullius/shared';
 import { appendValidityEvent, buildValidityEvent, readValidityLedger } from './validity-ledger.js';
 import { captureRunOrigin, isTraceabilityArtifactPath } from './run-origin.js';
+import { refreshNotebookCurrentState } from './notebook-current-state.js';
 
 /** The actor recorded on ledger events when the caller has no better name:
  *  the OS user, matching what the hand-invoked CLI has always written. */
@@ -448,6 +449,34 @@ export function stampRunDirectory(
       runId,
       recordedOrigin: postRead.runs.get(runId)?.origin ?? null,
     };
+  }
+  // Best-effort notebook current-state refresh at the ONE writer shared by
+  // the CLI stamp verb and the computation front door's launch stamp. The
+  // block renders from the registry projection, so a plain stamp almost
+  // never changes it (zero writes at fast cadence); it does change when a
+  // stamp flips a REGISTERED run's sentinel status. Computing the full
+  // projection re-hashes every registered artifact — unacceptable per stamp
+  // at field cadence — so the hot path first checks cheaply whether this
+  // run id appears in project_index.md at all: a stamp for an unregistered
+  // run cannot alter the projection. (Unrelated pre-existing staleness is
+  // the read side's job to name, not this hook's job to repair.) A refresh
+  // failure must never fail the stamp — the ledger event is the record.
+  if (appendOutcome === 'appended') {
+    try {
+      let registryMentionsRun = false;
+      try {
+        registryMentionsRun = fs
+          .readFileSync(path.join(projectRoot, 'project_index.md'), 'utf-8')
+          .includes(runId);
+      } catch {
+        // no index, nothing registered, nothing to refresh
+      }
+      if (registryMentionsRun) {
+        refreshNotebookCurrentState(projectRoot, { insertIfMissing: false });
+      }
+    } catch {
+      // surfaced on the next status/current read as out-of-sync
+    }
   }
   return {
     kind: 'stamped',

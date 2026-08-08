@@ -79,6 +79,37 @@ export async function runCli(argv: string[], io: CliIo = defaultIo()): Promise<n
     const { runCurrentCommand } = await import('./cli-trace.js');
     return runCurrentCommand(projectRoot, parsed.json, io);
   }
+  if (parsed.command === 'notebook') {
+    const { refreshNotebookCurrentState, checkCurrentStateBlock } = await import('./notebook-current-state.js');
+    try {
+      // The post-write check compares against the projection the refresh
+      // actually RENDERED (one compute, and no window for a concurrent
+      // writer's newer block to be misjudged against a stale recompute —
+      // or vice versa).
+      const outcome = refreshNotebookCurrentState(projectRoot, { insertIfMissing: true });
+      const status = checkCurrentStateBlock(projectRoot, outcome.projection);
+      if (parsed.json) {
+        io.stdout(`${JSON.stringify({ action: outcome.action, reason: outcome.reason, block: status }, null, 2)}\n`);
+      } else if (outcome.action === 'skipped') {
+        io.stderr(`notebook sync: ${outcome.reason}\n`);
+        return 1;
+      } else {
+        io.stdout(
+          `notebook sync: current-state block ${outcome.action}`
+          // The reason already reads "in sync; …" when strays ride along —
+          // print one or the other, never both.
+          + `${status.in_sync === true ? (status.reason !== null ? ` — ${status.reason}` : ' (in sync)') : ''}`
+          + `${status.in_sync !== true
+            ? ` — WARNING: post-write check does not confirm the block (${status.reason ?? (status.block_found ? 'out of sync' : 'block not found')}); a concurrent writer may have landed`
+            : ''}\n`,
+        );
+      }
+      return outcome.action === 'skipped' ? 1 : 0;
+    } catch (error) {
+      io.stderr(`notebook sync: ${error instanceof Error ? error.message : String(error)}\n`);
+      return 1;
+    }
+  }
   if (parsed.command === 'release') {
     const { runReleaseCommand } = await import('./cli-release.js');
     try {
@@ -106,6 +137,16 @@ export async function runCli(argv: string[], io: CliIo = defaultIo()): Promise<n
         + `${row.effective_commit ? ` @ ${row.effective_commit}${row.has_snapshot ? '+snapshot' : ''}` : ''}`
         + `${row.supersedes !== 'none' ? ` (supersedes ${row.supersedes})` : ''}\n`,
       );
+      // Registering a result is exactly the change the notebook's
+      // current-state block exists to reflect; best-effort, never fails
+      // the registration itself.
+      try {
+        const { refreshNotebookCurrentState } = await import('./notebook-current-state.js');
+        const refreshed = refreshNotebookCurrentState(projectRoot, { insertIfMissing: false });
+        if (refreshed.action === 'rewritten') io.stdout('notebook current-state block refreshed.\n');
+      } catch {
+        // surfaced as out-of-sync on the next status/current read
+      }
       return 0;
     } catch (error) {
       io.stderr(`result set-current: ${error instanceof Error ? error.message : String(error)}\n`);

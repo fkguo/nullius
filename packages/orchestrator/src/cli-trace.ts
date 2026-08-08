@@ -2,6 +2,7 @@ import { appendValidityEvent, buildValidityEvent } from './validity-ledger.js';
 import { defaultStampActor, gradeExistingStamp, stampRunDirectory } from './run-stamp.js';
 import { buildTraceabilityView, renderTraceabilityProse } from './traceability-view.js';
 import { backfillRunOrigins, confirmRoundChains, proposeRoundChains } from './trace-backfill.js';
+import { refreshNotebookCurrentState } from './notebook-current-state.js';
 
 /** `nullius trace <stamp|supersede|void|reinstate>` — the write surface of
  *  the validity ledger and origin stamps — and `nullius current`, the human
@@ -31,6 +32,22 @@ export type TraceParsed = {
   deps: Record<string, string>;
 };
 
+/** Best-effort current-state refresh after a ledger-writing verb: one call
+ *  per COMMAND (not per event), silent unless the block actually changed,
+ *  and a failure never fails the verb — the next status/current read names
+ *  the block out-of-sync. */
+function refreshCurrentStateAfterWrite(projectRoot: string, io: CliIo): void {
+  try {
+    const outcome = refreshNotebookCurrentState(projectRoot, { insertIfMissing: false });
+    if (outcome.action === 'rewritten') {
+      io.stdout('notebook current-state block refreshed.\n');
+    }
+  } catch (error) {
+    io.stderr(`note: notebook current-state refresh failed (${error instanceof Error ? error.message : String(error)}); `
+      + 'the next `nullius current` read will name the block out-of-sync.\n');
+  }
+}
+
 export function runTraceCommand(projectRoot: string, parsed: TraceParsed, io: CliIo): number {
   const actor = parsed.actor ?? defaultStampActor();
   switch (parsed.action) {
@@ -44,6 +61,7 @@ export function runTraceCommand(projectRoot: string, parsed: TraceParsed, io: Cl
         `backfill: ${result.aligned} aligned (heuristic — never exact), ${result.unbound} unbound, `
         + `${result.skipped} already stamped. Validity was NOT backfilled; run \`nullius trace propose-chains\` next.\n`,
       );
+      refreshCurrentStateAfterWrite(projectRoot, io);
       return 0;
     }
     case 'propose-chains': {
@@ -61,6 +79,10 @@ export function runTraceCommand(projectRoot: string, parsed: TraceParsed, io: Cl
         `confirmed: ${appended} supersede event(s) appended, ${already} already recorded`
         + `${skippedDecided > 0 ? `, ${skippedDecided} skipped (decided since the proposal — not relitigated)` : ''}.\n`,
       );
+      // The batch writer bypasses stampRunDirectory — without this hook a
+      // confirmed chain touching a registered run would leave the block
+      // silently behind (judge-verified miss).
+      if (appended > 0) refreshCurrentStateAfterWrite(projectRoot, io);
       return 0;
     }
     case 'stamp': {
@@ -142,6 +164,7 @@ export function runTraceCommand(projectRoot: string, parsed: TraceParsed, io: Cl
         + `${parsed.scope && parsed.scope !== 'full' ? ` [scope: ${parsed.scope}]` : ''}\n`
         + `event ${event.event_id}\n`,
       );
+      if (outcome === 'appended') refreshCurrentStateAfterWrite(projectRoot, io);
       return 0;
     }
   }

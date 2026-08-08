@@ -409,3 +409,89 @@ def test_supersession_of_a_cleaned_up_run_directory_passes(tmp_path: Path) -> No
         _project_root(tmp_path, view),
     )
     assert result.returncode == 0, result.stderr + result.stdout
+
+
+def test_out_of_sync_current_state_block_fails(tmp_path: Path) -> None:
+    view = json.loads(json.dumps(DEFAULT_VIEW))
+    view["notebook"]["current_state_block"] = {
+        "notebook_found": True,
+        "block_found": True,
+        "duplicated_markers": False,
+        "in_sync": False,
+        "reason": "registry/validity state changed since the block was written",
+    }
+    result = _run_gate(
+        _convergence_json(tmp_path),
+        _adjudication(tmp_path, GOOD_DECLARATION),
+        _project_root(tmp_path, view),
+    )
+    assert result.returncode == 1
+    assert "OUT OF SYNC" in result.stderr
+
+
+def test_missing_current_state_block_never_refuses_a_fold(tmp_path: Path) -> None:
+    # A missing block claims nothing: advisory on status, never a fold
+    # refusal — the owner's fail-closed-only-where-currency-is-claimed line.
+    view = json.loads(json.dumps(DEFAULT_VIEW))
+    view["notebook"]["current_state_block"] = {
+        "notebook_found": True,
+        "block_found": False,
+        "duplicated_markers": False,
+        "in_sync": None,
+        "reason": None,
+    }
+    result = _run_gate(
+        _convergence_json(tmp_path),
+        _adjudication(tmp_path, GOOD_DECLARATION),
+        _project_root(tmp_path, view),
+    )
+    assert result.returncode == 0, result.stderr + result.stdout
+
+
+def test_duplicated_block_markers_fail(tmp_path: Path) -> None:
+    view = json.loads(json.dumps(DEFAULT_VIEW))
+    view["notebook"]["current_state_block"] = {
+        "notebook_found": True,
+        "block_found": False,
+        "duplicated_markers": True,
+        "in_sync": None,
+        "reason": "duplicated current-state markers",
+    }
+    result = _run_gate(
+        _convergence_json(tmp_path),
+        _adjudication(tmp_path, GOOD_DECLARATION),
+        _project_root(tmp_path, view),
+    )
+    assert result.returncode == 1
+    assert "duplicated" in result.stderr
+
+
+def test_unacknowledged_dead_citation_in_declared_rewrite_fails(tmp_path: Path) -> None:
+    view = json.loads(json.dumps(DEFAULT_VIEW))
+    view["notebook"]["run_links"] = {
+        "unacknowledged_dead": [
+            {"section": "Spectrum results", "run_id": "20260808-m2-r003-old", "validity": "superseded"},
+        ],
+    }
+    result = _run_gate(
+        _convergence_json(tmp_path),
+        _adjudication(tmp_path, GOOD_DECLARATION),
+        _project_root(tmp_path, view),
+    )
+    assert result.returncode == 1
+    assert "live-looking prose" in result.stderr
+
+
+def test_unacknowledged_dead_citation_outside_declared_sections_stays_advisory(tmp_path: Path) -> None:
+    view = json.loads(json.dumps(DEFAULT_VIEW))
+    view["notebook"]["run_links"] = {
+        "unacknowledged_dead": [
+            {"section": "Old formalism", "run_id": "20260808-m2-r003-old", "validity": "void"},
+        ],
+    }
+    result = _run_gate(
+        _convergence_json(tmp_path),
+        _adjudication(tmp_path, GOOD_DECLARATION),
+        _project_root(tmp_path, view),
+    )
+    assert result.returncode == 0, result.stderr + result.stdout

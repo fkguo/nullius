@@ -5,6 +5,8 @@ import { readValidityLedger, validityLedgerPath, type ValidityLedgerView, type R
 import { isTraceabilityArtifactPath, listSubmodulePaths } from './run-origin.js';
 import { validateResultRegistry } from './result-registry.js';
 import { checkNotebookStaleness, type NotebookStalenessReport } from './notebook-staleness.js';
+import { analyzeNotebookRunLinks, type NotebookRunLinksReport } from './notebook-run-links.js';
+import { checkCurrentStateBlock, projectionFromRegistryState, type CurrentStateBlockStatus } from './notebook-current-state.js';
 import { canonicalJson } from './validity-ledger.js';
 
 /** ONE read model behind both consumers of the acceptance sentence:
@@ -157,6 +159,23 @@ export type TraceabilityView = {
     sections: Array<{ heading: string; class: NotebookStalenessReport['sections'][number]['class']; cause: string }>;
     stale: Array<{ heading: string; cause: string }>;
     incomparable: Array<{ heading: string; cause: string }>;
+    /** The machine-written current-state block: present-and-in-sync is the
+     *  only state that CLAIMS currency (out-of-sync is a fold refusal);
+     *  a missing block claims nothing and only warns. */
+    current_state_block: CurrentStateBlockStatus;
+    /** Link-derived rewrite-discipline signals. Advisory everywhere; the
+     *  fold gate consumes only the sections a packet declares rewritten. */
+    run_links: {
+      sections: NotebookRunLinksReport['sections'];
+      drifted_sections: string[];
+      /** FULL entries with their acknowledgment channel: an auditor must be
+       *  able to see that a citation was waved through by the declared-log
+       *  escape rather than by the charter idiom without joining against
+       *  the sections list. */
+      dead_citations: NotebookRunLinksReport['dead_citations'];
+      unacknowledged_dead: NotebookRunLinksReport['unacknowledged_dead'];
+      unknown_run_ids: string[];
+    };
   };
   warnings: {
     /** Slugs whose run count crossed the bounded-rounds threshold. An
@@ -506,6 +525,12 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
   // the whole ledger a second time on every status read.
   const resultRegistry = validateResultRegistry(projectRoot, ledger);
   const notebook = checkNotebookStaleness(projectRoot, ledger);
+  const runLinks = analyzeNotebookRunLinks(
+    projectRoot, ledger, new Set(directories.map(entry => entry.run_id)),
+  );
+  const currentStateBlock = checkCurrentStateBlock(
+    projectRoot, projectionFromRegistryState(resultRegistry),
+  );
 
   // D9 round-cap observation: same-slug run counts across BOTH roots against
   // the configured team-cycle threshold (default 5). Slug = run id minus
@@ -724,6 +749,14 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
         .map(section => ({ heading: section.heading, cause: section.cause })),
       incomparable: notebook.sections.filter(section => section.class === 'incomparable')
         .map(section => ({ heading: section.heading, cause: section.cause })),
+      current_state_block: currentStateBlock,
+      run_links: {
+        sections: runLinks.sections,
+        drifted_sections: runLinks.drifted_sections,
+        dead_citations: runLinks.dead_citations,
+        unacknowledged_dead: runLinks.unacknowledged_dead,
+        unknown_run_ids: runLinks.unknown_run_ids,
+      },
     },
     warnings: {
       round_cap: roundCap,
@@ -854,6 +887,51 @@ export function renderTraceabilityProse(view: TraceabilityView): string {
     for (const section of view.notebook.incomparable.slice(0, 5)) {
       lines.push(`- incomparable: ${section.heading} (${section.cause})`);
     }
+  }
+  const block = view.notebook.current_state_block;
+  if (block.notebook_found) {
+    if (block.duplicated_markers) {
+      lines.push(`- CURRENT-STATE BLOCK: ${block.reason}`);
+    } else if (!block.block_found) {
+      // Stray-marker states carry their own actionable reason; plain
+      // absence gets the adoption hint. Sending a stray-marker reader to
+      // `notebook sync` alone would point at a command that refuses.
+      lines.push(block.reason !== null
+        ? `- current-state block: ${block.reason}.`
+        : '- current-state block: none yet — adopt with `nullius notebook sync` '
+        + '(machine-maintained summary of registered results at the top of the notebook).');
+    } else if (block.in_sync === false) {
+      lines.push(`- CURRENT-STATE BLOCK OUT OF SYNC: ${block.reason} — refresh with \`nullius notebook sync\`.`);
+    } else if (block.in_sync === true && block.reason !== null) {
+      // The in-sync-with-strays state is where a leftover marker is most
+      // dangerous — keep it visible on the human surface, not JSON-only.
+      lines.push(`- current-state block: ${block.reason}.`);
+    }
+  }
+  const runLinks = view.notebook.run_links;
+  for (const heading of runLinks.drifted_sections.slice(0, 3)) {
+    const section = runLinks.sections.find(entry => entry.heading === heading);
+    lines.push(
+      `- APPEND DRIFT: section "${heading}" reads as a run-ordered log`
+      + `${section ? ` (${section.citing_paragraphs} citing paragraphs, ${Math.round((section.ascending_share ?? 0) * 100)}% ascending)` : ''}`
+      + " — the memo's own discipline says rewrite by problem structure; a deliberate chronicle declares "
+      + '`<!-- notebook-section-role: log -->`.',
+    );
+  }
+  if (runLinks.drifted_sections.length > 3) {
+    lines.push(`- append drift: ${runLinks.drifted_sections.length - 3} more section(s) — see \`nullius current --json\`.`);
+  }
+  if (runLinks.unacknowledged_dead.length > 0) {
+    const worst = runLinks.unacknowledged_dead.slice(0, 3)
+      .map(entry => `${entry.run_id} (${entry.validity}) in "${entry.section}"`).join('; ');
+    lines.push(
+      `- DEAD CITATIONS: ${runLinks.unacknowledged_dead.length} link(s) to superseded/void runs read as live prose: `
+      + `${worst}${runLinks.unacknowledged_dead.length > 3 ? '; …' : ''} — acknowledge in place or link the replacement.`,
+    );
+  }
+  if (runLinks.unknown_run_ids.length > 0) {
+    lines.push(`- ${runLinks.unknown_run_ids.length} notebook run link(s) match no ledger event and no directory: `
+      + `${runLinks.unknown_run_ids.slice(0, 3).join(', ')}${runLinks.unknown_run_ids.length > 3 ? ', …' : ''}`);
   }
   lines.push('');
 

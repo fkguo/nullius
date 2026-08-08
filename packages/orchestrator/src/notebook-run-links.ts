@@ -1,0 +1,511 @@
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import { splitNotebookSections } from './notebook-staleness.js';
+import { stripCurrentStateBlock } from './notebook-current-state.js';
+import type { ValidityLedgerView, ValidityState } from './validity-ledger.js';
+
+/** Link-derived run citations, append-drift signals, and dead-citation
+ *  acknowledgment for the living research memo. Everything here is inferred
+ *  from the ordinary relative markdown links the memo already carries —
+ *  zero per-paragraph annotations — and every verdict is ADVISORY: the only
+ *  fail-closed consumer is the fold-boundary gate, and only for sections a
+ *  convergence packet explicitly declares rewritten.
+ *
+ *  Design notes that are load-bearing (judge-panel verified):
+ *  - The ascending-chronology signal orders runs by their stamp events'
+ *    effective (ts_utc, event_id) order but EXCLUDES same-ts_utc pairs from
+ *    numerator and denominator: sub-millisecond ULID order is minted, not
+ *    measured, and must never be presented as chronology. Below the
+ *    comparable-pairs floor the section is `assessed: false`, never guessed.
+ *  - A contiguous list (tight or loose) is ONE citation block: a curated
+ *    ascending evidence list inside a healthy rewritten section must not
+ *    read as forty-five append-log paragraphs. The deliberate cost of that
+ *    choice: an append log REWRITTEN AS a bullet list (or a table) is one
+ *    block too and therefore invisible to the drift signals — a recorded
+ *    limitation, chosen over false-flagging curated lists, and bounded by
+ *    the fact that drift is advisory everywhere.
+ *  - Dead-citation acknowledgment is a UNION of channels with two scopes:
+ *    a replacement-chain link counts SECTION-wide (a chain member names the
+ *    one dead run it replaces — it cannot mask another), and a declared
+ *    `log` section role is section-wide by definition; the generic TOKEN
+ *    channel counts only in the CITING paragraph or list item — the
+ *    charter's lesson idiom puts word and link in one sentence, and a wider
+ *    scope would let one "superseded" blanket-acknowledge unrelated dead
+ *    runs (and void runs have no replacement chain, so the token channel
+ *    must exist at all — link-only acknowledgment would refuse
+ *    charter-exact prose).
+ */
+
+export const DRIFT_FLOOR_CITING_PARAGRAPHS = 8;
+export const DRIFT_FLOOR_DISTINCT_RUNS = 8;
+export const DRIFT_FLOOR_COMPARABLE_PAIRS = 6;
+export const DRIFT_ASCENDING_SHARE_THRESHOLD = 0.85;
+export const DRIFT_SINGLE_RUN_FRACTION_THRESHOLD = 0.6;
+
+/** Kept deliberately small: a token only matters inside a paragraph that
+ *  already links a dead run, and widening the list widens accidental
+ *  masking. Non-English memos use the replacement-link channel or the
+ *  section-role escape (recorded limitation, not an oversight). */
+export const DEAD_ACK_TOKENS = [
+  'supersede', 'supersedes', 'superseded', 'void', 'voided', 'replaced', 'ruled out', 'dead end',
+] as const;
+
+/** Section-scoped escape for deliberate chronicles. Grants no currency and
+ *  is always visible in the JSON report as `exempt_declared_log`. */
+const SECTION_ROLE_PATTERN = /<!--\s*notebook-section-role:\s*log\s*-->/;
+
+/** Inline markdown link targets, plus the two explicit reference-link forms
+ *  (`[text][label]`, `[label][]`) resolved against same-section definitions
+ *  (`[label]: target`). Shortcut references (`[label]` alone) and autolinks
+ *  are not parsed — plain bracketed prose is indistinguishable from a
+ *  shortcut without a full CommonMark pass, and guessing would create false
+ *  citations. A dead run cited ONLY via a shortcut reference escapes the
+ *  analysis (recorded limitation). */
+/** Inline destinations accept a plain path, an angle-bracketed path, and an
+ *  optional double- or single-quoted title (parenthesized titles stay
+ *  unparsed — a recorded rarity). */
+const LINK_TARGET_PATTERN = /\]\(\s*(<[^<>]*>|[^()\s]+)(?:\s+(?:"[^"]*"|'[^']*'))?\s*\)/g;
+const REFERENCE_DEFINITION_PATTERN = /^\s{0,3}\[([^\]]+)\]:\s*(<[^<>]*>|\S+)/;
+const REFERENCE_FULL_PATTERN = /\[[^\]]*\]\[([^\]]+)\]/g;
+const REFERENCE_COLLAPSED_PATTERN = /\[([^\]]+)\]\[\]/g;
+const RUN_LINK_PATTERN = /^(?:\.\/)?(?:artifacts|team)\/runs\/([^/#?]+)/;
+
+/** Code spans are not prose: a dead-run link inside backticks documents a
+ *  path, it does not cite evidence — counting it would manufacture false
+ *  fold refusals. Spans open with a run of backticks and close with an
+ *  EQUAL run (CommonMark), so double-backtick examples (the idiom for code
+ *  containing a backtick) are covered too. (Fenced blocks are already
+ *  excluded by the shared section splitter.) */
+function stripCodeSpans(text: string): string {
+  // The closing run must be EXACTLY the opening length (CommonMark): the
+  // backreference alone would let a lazy match close inside a longer run
+  // and swallow live prose between mismatched delimiters.
+  return text.replace(/(?<!`)(`+)(?!`)([\s\S]*?)(?<!`)\1(?!`)/g, ' ');
+}
+
+/** HTML comments render nowhere, but their two CommonMark forms have
+ *  different reach and must be stripped at different scopes:
+ *  - a comment whose `<!--` BEGINS a line is an HTML block and may span
+ *    blank lines — stripped at SECTION level, before segmentation, so a
+ *    commented-out passage cannot leak its interior as a live block;
+ *  - an inline `<!--` mid-paragraph may NOT span a blank line (an unclosed
+ *    one renders literally), so it is stripped per BLOCK — one
+ *    section-wide lazy regex would let a stray inline `<!--` swallow live
+ *    paragraphs up to an unrelated `-->`.
+ *  The section-role marker IS a comment, so role detection runs before
+ *  either pass. */
+function stripLineInitialComments(text: string): string {
+  return text.replace(/^[ \t]{0,3}<!--[\s\S]*?-->/gm, ' ');
+}
+
+function stripInlineComments(text: string): string {
+  return text.replace(/<!--[\s\S]*?-->/g, ' ');
+}
+
+function sanitizeProse(text: string): string {
+  return stripInlineComments(stripCodeSpans(text));
+}
+
+/** For TOKEN matching only: link destinations are paths and reference
+ *  LABELS are machine plumbing that renders nowhere — a run directory slug
+ *  (or a label derived from one) containing "-void-" or "-superseded-" is
+ *  word-bounded by its hyphens and would otherwise acknowledge its own
+ *  death. Blank inline destinations, definition lines entirely, and the
+ *  label part of both reference-usage forms before scanning. */
+function blankLinkDestinations(text: string): string {
+  // The FULL form's label ([text][label]) renders nowhere and is blanked;
+  // the COLLAPSED form's label ([label][]) IS the rendered link text —
+  // visible prose — and stays (a token word there is on the page for the
+  // reader; id-shaped labels are handled by known-id blanking).
+  return text
+    .replace(LINK_TARGET_PATTERN, '](#)')
+    .replace(/(\[[^\]]*\]\[)[^\]]+(\])/g, '$1#$2')
+    .split('\n')
+    .map(line => line.replace(REFERENCE_DEFINITION_PATTERN, () => '[#]: #'))
+    .join('\n');
+}
+
+/** The same slug hazard reaches token scope through link TEXT and bare
+ *  prose mentions ("Run <id> produced X"), which destination blanking
+ *  cannot touch: blank every KNOWN run id string outright before scanning.
+ *  Longest first — with one known id a prefix of another, blanking the
+ *  short one first would leave the long one's tail ("#-void") behind. */
+function blankKnownRunIds(text: string, knownIds: readonly string[]): string {
+  let out = text;
+  for (const id of [...knownIds].sort((a, b) => b.length - a.length)) {
+    if (out.includes(id)) out = out.split(id).join('#');
+  }
+  return out;
+}
+
+export type AckChannel = 'replacement-link' | 'token' | 'declared-log';
+
+export type DeadCitation = {
+  section: string;
+  run_id: string;
+  validity: Exclude<ValidityState, 'active'>;
+  acknowledged: boolean;
+  ack_channel: AckChannel | null;
+};
+
+export type SectionDriftReport = {
+  heading: string;
+  declared_log_role: boolean;
+  citing_paragraphs: number;
+  distinct_runs: number;
+  /** Fraction of citing paragraphs citing exactly one run; null when no
+   *  paragraph cites. */
+  single_run_fraction: number | null;
+  comparable_pairs: number;
+  /** Ascending fraction over comparable adjacent pairs; null when no pair
+   *  is comparable. */
+  ascending_share: number | null;
+  /** True only when every floor is met — below floors the verdict is
+   *  `insufficient_signal` and the numbers above are disclosure, not
+   *  evidence. */
+  assessed: boolean;
+  verdict: 'drifted' | 'insufficient_signal' | 'not_drifted' | 'exempt_declared_log';
+};
+
+export type NotebookRunLinksReport = {
+  notebook_found: boolean;
+  sections: SectionDriftReport[];
+  drifted_sections: string[];
+  dead_citations: DeadCitation[];
+  unacknowledged_dead: DeadCitation[];
+  /** Run-shaped link targets (no file extension) with no ledger event and
+   *  no run directory — likely typos or deleted runs. Advisory. */
+  unknown_run_ids: string[];
+};
+
+/** One drift-counting block, carrying its token-scope UNITS: a plain
+ *  paragraph is one unit; a merged list is one unit PER ITEM, because a
+ *  token in one bullet must not acknowledge a dead run linked from the
+ *  next bullet — list merging is a drift-granularity decision and must not
+ *  widen acknowledgment scope. */
+type TokenUnit = { runIds: string[]; tokenText: string };
+type CitationBlock = { runIds: string[]; units: TokenUnit[] };
+
+/** Split a block into token-scope units: every list-item line STARTS a new
+ *  unit (continuation lines attach to the unit above), including inside a
+ *  block whose first lines are lead-in prose — "The sweep was voided:"
+ *  followed by a tight list must not let the lead-in's word acknowledge
+ *  every bullet's dead run. A block with no list items is one unit. */
+function splitTokenUnits(blockText: string): string[] {
+  const lines = blockText.split('\n');
+  const units: string[][] = [];
+  let inList = false;
+  for (const line of lines) {
+    // A bullet always starts an item; an ORDERED marker only interrupts a
+    // paragraph when it is `1.`/`1)` (CommonMark) or we are already inside
+    // a list — a hard-wrapped sentence continuing onto a `3)` line is one
+    // paragraph on the page and must stay one token unit.
+    const startsItem: boolean = /^\s*[-*+]\s/.test(line)
+      || /^\s*1[.)]\s/.test(line)
+      || (inList && LIST_ITEM_PATTERN.test(line));
+    if (startsItem || units.length === 0) {
+      units.push([line]);
+      // Latch also from a first line that IS an ordered item (a list may
+      // legitimately start at any number when it opens the block — e.g.
+      // split across a heading, or its first item commented out); without
+      // this, a `2.`-headed list never latches and collapses into one
+      // unit, letting a lead-in token blanket-acknowledge every bullet.
+      inList = inList || startsItem || LIST_ITEM_PATTERN.test(line);
+    } else {
+      units[units.length - 1]!.push(line);
+    }
+  }
+  return units.map(unit => unit.join('\n'));
+}
+
+const LIST_ITEM_PATTERN = /^\s*(?:[-*+]|\d+[.)])\s/;
+
+const INDENTED_CODE_LINE = /^(?: {4}|\t)/;
+
+/** Blank-line paragraph segmentation over a section body (already
+ *  fence-stripped by the shared splitter), then consecutive list-item
+ *  blocks merge into ONE block — tight or loose, a list is one citation
+ *  unit. A blank-line-separated block whose EVERY line is four-space/tab
+ *  indented is an indented CODE block (CommonMark's second code form) and
+ *  is dropped — unless the preceding block is list-shaped, where the same
+ *  indentation is a loose list continuation, i.e. prose. */
+export function segmentCitationBlocks(body: string[]): string[] {
+  const rawBlocks: string[][] = [];
+  let current: string[] = [];
+  for (const line of body) {
+    if (line.trim() === '') {
+      if (current.length > 0) { rawBlocks.push(current); current = []; }
+    } else {
+      current.push(line);
+    }
+  }
+  if (current.length > 0) rawBlocks.push(current);
+
+  // List-shaped requires at least one ACTUAL item line: an all-indented
+  // block satisfies the continuation pattern on every line, and calling it
+  // a list would let indented CODE pose as one. Whether an all-indented
+  // block is code or a loose-list CONTINUATION is decided against the
+  // previous RETAINED block — after a list it continues the list (and
+  // merges into it, so a curated list whose links live in indented
+  // continuations stays ONE citation block); anywhere else it is code and
+  // is dropped, including a second chunk after a dropped first one.
+  const isListShaped = (block: string[]): boolean =>
+    block.some(line => LIST_ITEM_PATTERN.test(line))
+    && block.every(line => LIST_ITEM_PATTERN.test(line) || /^(?:\t|\s{2,})/.test(line));
+  const merged: string[][] = [];
+  for (const block of rawBlocks) {
+    const allIndented = block.every(line => INDENTED_CODE_LINE.test(line));
+    // After a LIST, any all-indented-by-two-or-more block is a loose-list
+    // continuation — CommonMark continuation only needs the item's content
+    // column (commonly two spaces), and even four-space indentation there
+    // is continuation, not code.
+    const allContinuation = block.every(line => /^(?:\t|\s{2,})/.test(line));
+    const prev = merged.length > 0 ? merged[merged.length - 1]! : null;
+    const prevIsList = prev !== null && isListShaped(prev);
+    if (allIndented && !prevIsList) {
+      continue; // indented code, not prose
+    }
+    if (prevIsList && (isListShaped(block) || allContinuation)) {
+      prev.push(...block);
+    } else {
+      merged.push([...block]);
+    }
+  }
+  return merged.map(block => block.join('\n'));
+}
+
+function runIdFromTarget(rawTarget: string): string | null {
+  // CommonMark permits an angle-bracketed destination in both inline links
+  // and reference definitions: `[r]: <artifacts/runs/x/f>`.
+  const target = rawTarget.startsWith('<') && rawTarget.endsWith('>')
+    ? rawTarget.slice(1, -1)
+    : rawTarget;
+  const runMatch = RUN_LINK_PATTERN.exec(target);
+  if (!runMatch) return null;
+  const id = runMatch[1]!;
+  if (id.includes('.')) return null; // a file directly under the runs root (ledger, attributes), not a run
+  return id;
+}
+
+/** Reference-link definitions of one section: lowercased label → run id.
+ *  A definition line renders invisibly, so the definition's own block never
+ *  counts as a citation — only blocks that USE the label do. */
+function collectReferenceDefinitions(body: string[]): Map<string, string> {
+  const definitions = new Map<string, string>();
+  for (const line of body) {
+    const match = REFERENCE_DEFINITION_PATTERN.exec(sanitizeProse(line));
+    if (!match) continue;
+    const id = runIdFromTarget(match[2]!);
+    if (id !== null) definitions.set(match[1]!.trim().toLowerCase(), id);
+  }
+  return definitions;
+}
+
+function extractRunIds(sanitizedBlockText: string, definitions: ReadonlyMap<string, string>): string[] {
+  const ids: string[] = [];
+  const push = (id: string | null): void => {
+    if (id !== null && !ids.includes(id)) ids.push(id);
+  };
+  for (const match of sanitizedBlockText.matchAll(LINK_TARGET_PATTERN)) {
+    push(runIdFromTarget(match[1]!));
+  }
+  for (const match of sanitizedBlockText.matchAll(REFERENCE_FULL_PATTERN)) {
+    push(definitions.get(match[1]!.trim().toLowerCase()) ?? null);
+  }
+  for (const match of sanitizedBlockText.matchAll(REFERENCE_COLLAPSED_PATTERN)) {
+    push(definitions.get(match[1]!.trim().toLowerCase()) ?? null);
+  }
+  return ids;
+}
+
+/** Word-bounded token matching: `void` must not match inside `avoid`, and
+ *  multi-word tokens tolerate any whitespace run between words. */
+const ACK_TOKEN_PATTERNS = DEAD_ACK_TOKENS.map(
+  token => new RegExp(`\\b${token.replace(/ /g, '\\s+')}\\b`, 'i'),
+);
+
+/** Follow the supersede chain from a dead run, cycle-guarded. Returns every
+ *  run id reachable as a replacement (any of which acknowledges the death
+ *  when linked from the same section). */
+function replacementChain(ledger: ValidityLedgerView, runId: string): Set<string> {
+  const chain = new Set<string>();
+  let cursor = ledger.runs.get(runId)?.superseded_by ?? null;
+  let hops = 0;
+  while (cursor && !chain.has(cursor) && hops < 32) {
+    chain.add(cursor);
+    cursor = ledger.runs.get(cursor)?.superseded_by ?? null;
+    hops += 1;
+  }
+  return chain;
+}
+
+export function analyzeNotebookRunLinks(
+  projectRoot: string,
+  ledger: ValidityLedgerView,
+  existingRunDirIds: ReadonlySet<string>,
+): NotebookRunLinksReport {
+  const report: NotebookRunLinksReport = {
+    notebook_found: false,
+    sections: [],
+    drifted_sections: [],
+    dead_citations: [],
+    unacknowledged_dead: [],
+    unknown_run_ids: [],
+  };
+  const notebookPath = path.join(projectRoot, 'research_notebook.md');
+  if (!fs.existsSync(notebookPath)) return report;
+  report.notebook_found = true;
+  let text: string;
+  try {
+    text = fs.readFileSync(notebookPath, 'utf-8');
+  } catch {
+    return report;
+  }
+
+  // First stamp event per run in the ledger's effective order gives the
+  // chronology axis. ts_utc alone is compared; equal timestamps are later
+  // excluded pair-by-pair.
+  const stampTs = new Map<string, string>();
+  for (const event of ledger.events) {
+    if (event.event === 'stamp' && !stampTs.has(event.run_id)) {
+      stampTs.set(event.run_id, event.ts_utc);
+    }
+  }
+
+  const unknownSeen = new Set<string>();
+  const knownIds = [...new Set([...ledger.runs.keys(), ...existingRunDirIds])];
+  // The machine-rendered current-state block is a view, not prose: its
+  // artifact links must never count as citations, wherever the block sits.
+  for (const section of splitNotebookSections(stripCurrentStateBlock(text))) {
+    const rawBody = section.body.join('\n');
+    // Role detection runs on code-stripped text (the marker IS an HTML
+    // comment, so it must happen before comment stripping — but a
+    // backticked example of the marker must not smuggle the exemption in),
+    // and only on lines that are not indented code (CommonMark's second
+    // code form — a four-space-indented example must not opt out either).
+    const declaredLog = stripCodeSpans(rawBody).split('\n')
+      .some(line => !INDENTED_CODE_LINE.test(line) && SECTION_ROLE_PATTERN.test(line));
+    // Line-initial (HTML-block) comments are stripped at SECTION level,
+    // before segmentation: a commented-out passage spanning blank lines
+    // must not leak its interior as a live citing block. Inline comments
+    // are stripped per block below — they cannot span a blank line.
+    const commentlessLines = stripLineInitialComments(rawBody).split('\n');
+    const definitions = collectReferenceDefinitions(commentlessLines);
+    const blocks: CitationBlock[] = [];
+    for (const blockText of segmentCitationBlocks(commentlessLines)) {
+      // Everything derives from the token-scope UNITS: sanitizing (and
+      // extracting from) the merged block as one string would let an
+      // inline comment opened in one loose-list item and closed in the
+      // next swallow the live link between them — the items were separated
+      // by a blank line in the source, which merging removed.
+      const units: TokenUnit[] = [];
+      const candidateSet: string[] = [];
+      for (const unitText of splitTokenUnits(blockText)) {
+        const unitSanitized = sanitizeProse(unitText);
+        const candidates = extractRunIds(unitSanitized, definitions);
+        for (const id of candidates) {
+          if (!candidateSet.includes(id)) candidateSet.push(id);
+        }
+        units.push({
+          runIds: candidates.filter(id => ledger.runs.has(id) || existingRunDirIds.has(id)),
+          tokenText: blankKnownRunIds(blankLinkDestinations(unitSanitized), knownIds),
+        });
+      }
+      const runIds = candidateSet.filter(id => ledger.runs.has(id) || existingRunDirIds.has(id));
+      for (const id of candidateSet) {
+        if (!ledger.runs.has(id) && !existingRunDirIds.has(id) && !unknownSeen.has(id)) {
+          unknownSeen.add(id);
+          report.unknown_run_ids.push(id);
+        }
+      }
+      if (runIds.length > 0) blocks.push({ runIds, units });
+    }
+
+    const citing = blocks.length;
+    const distinct = new Set(blocks.flatMap(block => block.runIds)).size;
+    const singleRunBlocks = blocks.filter(block => block.runIds.length === 1);
+    const singleRunFraction = citing > 0 ? singleRunBlocks.length / citing : null;
+
+    // Adjacent pairs over the single-run sequence in document order.
+    let comparable = 0;
+    let ascending = 0;
+    for (let i = 1; i < singleRunBlocks.length; i += 1) {
+      const a = stampTs.get(singleRunBlocks[i - 1]!.runIds[0]!);
+      const b = stampTs.get(singleRunBlocks[i]!.runIds[0]!);
+      if (a === undefined || b === undefined) continue; // unstamped: not orderable, excluded
+      if (a === b) continue; // same-ts tie: minted order, never chronology
+      comparable += 1;
+      if (a < b) ascending += 1;
+    }
+    const ascendingShare = comparable > 0 ? ascending / comparable : null;
+
+    const floorsMet = citing >= DRIFT_FLOOR_CITING_PARAGRAPHS
+      && distinct >= DRIFT_FLOOR_DISTINCT_RUNS
+      && comparable >= DRIFT_FLOOR_COMPARABLE_PAIRS;
+    let verdict: SectionDriftReport['verdict'];
+    if (declaredLog) {
+      verdict = 'exempt_declared_log';
+    } else if (!floorsMet) {
+      verdict = 'insufficient_signal';
+    } else if (
+      (ascendingShare ?? 0) >= DRIFT_ASCENDING_SHARE_THRESHOLD
+      && (singleRunFraction ?? 0) >= DRIFT_SINGLE_RUN_FRACTION_THRESHOLD
+    ) {
+      verdict = 'drifted';
+    } else {
+      verdict = 'not_drifted';
+    }
+    report.sections.push({
+      heading: section.heading,
+      declared_log_role: declaredLog,
+      citing_paragraphs: citing,
+      distinct_runs: distinct,
+      single_run_fraction: singleRunFraction,
+      comparable_pairs: comparable,
+      ascending_share: ascendingShare,
+      assessed: floorsMet && !declaredLog,
+      verdict,
+    });
+    if (verdict === 'drifted') report.drifted_sections.push(section.heading);
+
+    // Dead citations. Channel scopes differ deliberately:
+    //  - replacement-link: SECTION scope — a chain member names the specific
+    //    dead run it replaces, so it can never acknowledge a different one;
+    //  - token: the CITING BLOCK only — generic words ("superseded") in one
+    //    paragraph must not blanket-acknowledge every other dead run the
+    //    section happens to cite (the charter's lesson idiom puts word and
+    //    link in the same sentence anyway);
+    //  - declared-log: SECTION scope by definition.
+    const deadInSection = new Map<string, Exclude<ValidityState, 'active'>>();
+    const sectionRunIds = new Set(blocks.flatMap(block => block.runIds));
+    for (const id of sectionRunIds) {
+      const validity = ledger.runs.get(id)?.validity;
+      if (validity === 'superseded' || validity === 'void') deadInSection.set(id, validity);
+    }
+    if (deadInSection.size === 0) continue;
+    for (const [id, validity] of deadInSection) {
+      let channel: AckChannel | null = null;
+      if (declaredLog) {
+        channel = 'declared-log';
+      } else {
+        const chain = replacementChain(ledger, id);
+        if ([...chain].some(replacement => sectionRunIds.has(replacement))) {
+          channel = 'replacement-link';
+        } else if (blocks.some(block => block.units.some(unit => unit.runIds.includes(id)
+          && ACK_TOKEN_PATTERNS.some(pattern => pattern.test(unit.tokenText))))) {
+          channel = 'token';
+        }
+      }
+      const citation: DeadCitation = {
+        section: section.heading,
+        run_id: id,
+        validity,
+        acknowledged: channel !== null,
+        ack_channel: channel,
+      };
+      report.dead_citations.push(citation);
+      if (!citation.acknowledged) report.unacknowledged_dead.push(citation);
+    }
+  }
+  return report;
+}
