@@ -34,7 +34,7 @@ function makeIo(cwd: string) {
 }
 
 function createComputationFixture(projectRoot: string, runId: string): { runDir: string; manifestPath: string } {
-  const runDir = path.join(projectRoot, runId);
+  const runDir = path.join(projectRoot, 'artifacts', 'runs', runId);
   const scriptPath = path.join(runDir, 'computation', 'scripts', 'write_ok.py');
   const manifestPath = path.join(runDir, 'computation', 'manifest.json');
   fs.mkdirSync(path.dirname(scriptPath), { recursive: true });
@@ -150,7 +150,7 @@ function writeValidationChecker(
   runId: string,
   status: 'passed' | 'failed' | 'blocked',
 ): string {
-  const runDir = path.join(projectRoot, runId);
+  const runDir = path.join(projectRoot, 'artifacts', 'runs', runId);
   const checkerPath = path.join(runDir, 'verification', 'decisive_checker.py');
   fs.mkdirSync(path.dirname(checkerPath), { recursive: true });
   const emittedStatus = status === 'passed' ? 'pass' : status === 'failed' ? 'fail' : 'blocked';
@@ -185,8 +185,8 @@ async function recordVerification(
   const checkerPath = writeValidationChecker(projectRoot, runId, status);
   const manifestRef = fixtureArtifactRef(
     runId,
-    path.join(projectRoot, runId),
-    path.join(projectRoot, runId, 'computation', 'manifest.json'),
+    path.join(projectRoot, 'artifacts', 'runs', runId),
+    path.join(projectRoot, 'artifacts', 'runs', runId, 'computation', 'manifest.json'),
     'reference',
   );
   return handleOrchRunRecordVerification({
@@ -297,7 +297,7 @@ describe('final conclusions consumer', () => {
       status: 'passed',
     });
 
-    const result = readJson<Record<string, unknown>>(path.join(projectRoot, runId, 'artifacts', 'computation_result_v1.json'));
+    const result = readJson<Record<string, unknown>>(path.join(projectRoot, 'artifacts', 'runs', runId, 'artifacts', 'computation_result_v1.json'));
     expect(result.verification_refs).toMatchObject({
       check_run_refs: [expect.objectContaining({ kind: 'verification_check_run' })],
     });
@@ -323,7 +323,7 @@ describe('final conclusions consumer', () => {
       }),
     ]));
 
-    const verdict = readJson<Record<string, unknown>>(path.join(projectRoot, runId, 'artifacts', 'verification_subject_verdict_computation_result_v1.json'));
+    const verdict = readJson<Record<string, unknown>>(path.join(projectRoot, 'artifacts', 'runs', runId, 'artifacts', 'verification_subject_verdict_computation_result_v1.json'));
     expect(verdict).toMatchObject({
       status: 'verified',
       summary: 'Decisive verification completed successfully.',
@@ -331,7 +331,7 @@ describe('final conclusions consumer', () => {
     });
     expect(verdict.check_run_refs).toEqual([expect.objectContaining({ kind: 'verification_check_run' })]);
 
-    const coverage = readJson<Record<string, unknown>>(path.join(projectRoot, runId, 'artifacts', 'verification_coverage_v1.json'));
+    const coverage = readJson<Record<string, unknown>>(path.join(projectRoot, 'artifacts', 'runs', runId, 'artifacts', 'verification_coverage_v1.json'));
     expect(coverage).toMatchObject({
       summary: {
         subjects_verified: 1,
@@ -450,7 +450,7 @@ describe('final conclusions consumer', () => {
         approved_via: 'orch_run_approve',
       },
     });
-    const updatedResult = readJson<Record<string, unknown>>(path.join(projectRoot, runId, 'artifacts', 'computation_result_v1.json'));
+    const updatedResult = readJson<Record<string, unknown>>(path.join(projectRoot, 'artifacts', 'runs', runId, 'artifacts', 'computation_result_v1.json'));
     expect((((updatedResult.workspace_feedback as Record<string, unknown>).workspace as Record<string, unknown>).nodes)).toEqual(expect.arrayContaining([
       expect.objectContaining({
         node_id: `decision:final-conclusions:${runId}`,

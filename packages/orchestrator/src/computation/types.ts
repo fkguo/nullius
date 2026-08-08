@@ -112,6 +112,15 @@ export interface ApprovalRequiredExecutionResult {
   message: string;
 }
 
+/** Outcome of the automatic launch-time origin stamp on the execution
+ *  front door. Semantics documented at the producer (launch-stamp.ts). */
+export type ExecutionOriginStampOutcome =
+  | { status: 'stamped'; event_id: string; binding_quality: string; baseline_commit: string | null }
+  | { status: 'already_stamped'; binding_quality: string; detail: string }
+  | { status: 'stale_stamp'; detail: string }
+  | { status: 'skipped'; reason: string }
+  | { status: 'failed'; error: string };
+
 export interface CompletedExecutionResult {
   status: 'completed';
   ok: true;
@@ -124,6 +133,9 @@ export interface CompletedExecutionResult {
   followup_bridge_refs: ComputationResultV1['followup_bridge_refs'];
   summary: string;
   produced_outputs: string[];
+  /** Outcome of the automatic launch-time origin stamp (absent only on
+   *  results produced before the stamp wiring existed). */
+  origin_stamp?: ExecutionOriginStampOutcome;
 }
 
 export interface FailedExecutionResult {
@@ -138,6 +150,9 @@ export interface FailedExecutionResult {
   followup_bridge_refs: ComputationResultV1['followup_bridge_refs'];
   summary: string;
   errors: string[];
+  /** Outcome of the automatic launch-time origin stamp (absent only on
+   *  results produced before the stamp wiring existed). */
+  origin_stamp?: ExecutionOriginStampOutcome;
 }
 
 export type ExecuteComputationManifestResult =

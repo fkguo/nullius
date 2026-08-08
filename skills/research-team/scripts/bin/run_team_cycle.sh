@@ -1085,6 +1085,28 @@ safe_tag="${RESOLVED_TAG}"
 run_dir="${OUT_DIR}/runs/${safe_tag}"
 mkdir -p "${run_dir}"
 run_dir_abs="$(cd "${run_dir}" && pwd)"
+# Origin stamp at run creation: bind this cycle's run directory to the exact
+# code state BEFORE any member work starts — recorded now, when the binding
+# is exact, not reconstructed later, when it can only be a heuristic. The
+# stamp is bookkeeping, never a gate: a missing launcher or a failed stamp
+# must not abort the cycle (the run then surfaces as unstamped in the
+# traceability read model until stamped by hand). Re-entry safety lives in
+# the stamp writer itself, which is ledger-idempotent (one stamp per run id,
+# enforced under the ledger lock; a same-tree re-stamp is a no-op success) —
+# the LEDGER is the authority, so no on-disk mirror file is consulted here.
+# (PROJECT_ROOT at this point is the notebook's directory, the same root the
+# project-local launcher anchors to under the notebook-at-root convention.)
+NULLIUS_LAUNCHER="${PROJECT_ROOT}/.nullius/bin/nullius"
+if [[ -x "${NULLIUS_LAUNCHER}" ]]; then
+  if stamp_output="$("${NULLIUS_LAUNCHER}" --project-root "${PROJECT_ROOT}" trace stamp "${run_dir_abs}" 2>&1)"; then
+    echo "[trace] origin ${stamp_output}" | head -n 1
+  else
+    echo "[trace] WARNING: origin stamp failed for ${run_dir}: ${stamp_output}" >&2
+    echo "[trace] the run's origin record was NOT updated by this cycle — see the refusal above (an unstamped run can be stamped by hand: nullius trace stamp '${run_dir_abs}'; a stale stamp means this tag belongs to different code — use a fresh run id)." >&2
+  fi
+else
+  echo "[trace] note: no nullius launcher at .nullius/bin/nullius; run origin not stamped (enable with 'nullius init --runtime-only', then runs bind to code automatically)." >&2
+fi
 attempt_logs_dir="${run_dir}/logs"
 # Per-member subdirs isolate attempt logs so deny_other_outputs can revoke cross-member access.
 mkdir -p "${attempt_logs_dir}" "${attempt_logs_dir}/member_a" "${attempt_logs_dir}/member_b" >/dev/null 2>&1 || true
@@ -3433,7 +3455,29 @@ else
   echo "[gate] WARN: adjudication completeness gate or convergence JSON unavailable; withholding automatic plan/claim fold" >&2
   dispositions_ok=0
 fi
-if [[ ${dispositions_ok} -eq 1 ]]; then
+# Second fold guard, result registration: milestone convergence is when
+# "which result is current" changes, so the fold also owes the traceability
+# record its update — headline result registered (or none, with a reason),
+# replaced runs superseded, rewritten memo sections stamped — declared in
+# the adjudication's 'Result registration' section and verified against
+# `nullius current --json`. check_convergence_registration.py is the
+# machine consumer; it SKIPs (exit 0) on projects without a nullius
+# launcher, where the registration contract does not apply. On a project
+# WITH a launcher, a converged cycle whose adjudication (and declaration)
+# does not exist yet is withheld — writing it is part of the convergence
+# deliverable, not a later chore.
+registration_ok=1
+CONVERGENCE_REGISTRATION_GATE="${GATES_DIR}/check_convergence_registration.py"
+fold_adjudication_path="${run_dir}/${RESOLVED_TAG}_adjudication.md"
+if [[ -f "${CONVERGENCE_REGISTRATION_GATE}" && -f "${gate_json}" ]]; then
+  if ! python3 "${CONVERGENCE_REGISTRATION_GATE}" --convergence-json "${gate_json}" --adjudication "${fold_adjudication_path}" --project-root "${PROJECT_ROOT}" > "${run_dir}/${RESOLVED_TAG}_registration_gate.json"; then
+    registration_ok=0
+  fi
+else
+  echo "[gate] WARN: convergence registration gate or convergence JSON unavailable; withholding automatic plan/claim fold" >&2
+  registration_ok=0
+fi
+if [[ ${dispositions_ok} -eq 1 && ${registration_ok} -eq 1 ]]; then
   if [[ -f "${PLAN_UPDATE_SCRIPT}" ]]; then
     python3 "${PLAN_UPDATE_SCRIPT}" --notes "${NOTEBOOK_PATH}" --tag "${RESOLVED_TAG}" --status "converged" >/dev/null 2>&1 || true
   fi
@@ -3443,17 +3487,22 @@ if [[ ${dispositions_ok} -eq 1 ]]; then
 else
   pending_marker="${run_dir}/${RESOLVED_TAG}_dispositions_pending.md"
   {
-    echo "# Dispositions pending — automatic plan/claim fold withheld"
+    echo "# Fold pending — automatic plan/claim fold withheld"
     echo ""
-    echo "The cycle converged, but recorded Minor Issues lack completed"
-    echo "dispositions (or the completeness check could not run)."
+    echo "The cycle converged, but the fold guards below are not satisfied:"
+    echo "- dispositions gate: $([[ ${dispositions_ok} -eq 1 ]] && echo satisfied || echo PENDING) (every recorded Minor Issue owes an explicit disposition)"
+    echo "- result registration gate: $([[ ${registration_ok} -eq 1 ]] && echo satisfied || echo PENDING) (headline result / supersessions / rewritten-section stamps declared and on the record)"
+    echo ""
     echo "Before folding results:"
-    echo "1. Build the adjudication skeleton: scripts/bin/build_adjudication_response.py"
+    echo "1. Build the adjudication skeleton: scripts/bin/build_adjudication_response.py (its template carries both the disposition table and the 'Result registration' declaration section)"
     echo "2. Fill every disposition row (fix now / acceptance point <name> / discard: <reason>)"
-    echo "3. Re-run: python3 ${ADJUDICATION_COMPLETENESS_GATE} --convergence-json ${gate_json} --member-report ${member_a_out} --member-report ${member_b_out} --adjudication <adjudication.md>"
-    echo "4. Then apply the plan/claim updates (update_research_plan_progress.py / claim auto-update)."
+    echo "3. Register the traceability updates the adjudication declares: \`nullius result set-current <result-id> --run <run_id> --artifact <path>\` (or declare \`none — <reason>\`), \`nullius trace supersede <old> --by <new> --reason \"...\"\` per replaced run, and a fresh \`<!-- written-against: <commit> -->\` stamp on each rewritten memo section"
+    echo "4. Re-run both gates:"
+    echo "   python3 '${ADJUDICATION_COMPLETENESS_GATE}' --convergence-json '${gate_json}' --member-report '${member_a_out}' --member-report '${member_b_out}' --adjudication '${fold_adjudication_path}'"
+    echo "   python3 '${CONVERGENCE_REGISTRATION_GATE}' --convergence-json '${gate_json}' --adjudication '${fold_adjudication_path}' --project-root '${PROJECT_ROOT}'"
+    echo "5. Then apply the plan/claim updates (update_research_plan_progress.py / claim auto-update)."
   } > "${pending_marker}"
-  echo "[gate] NOTE: dispositions pending — automatic plan/claim fold withheld; see ${pending_marker}" >&2
+  echo "[gate] NOTE: fold pending (dispositions and/or result registration) — automatic plan/claim fold withheld; see ${pending_marker}" >&2
 fi
 # At convergence, best-effort render dependency graphs through the `nullius graph`
 # front door (SSOT = @nullius/shared/graph-viz), replacing the retired Python claim

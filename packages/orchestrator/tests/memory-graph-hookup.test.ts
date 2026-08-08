@@ -60,7 +60,7 @@ function fixtureArtifactRef(runId: string, runDir: string, filePath: string, kin
 }
 
 async function recordValidationPass(projectRoot: string, runId: string): Promise<Record<string, unknown>> {
-  const runDir = path.join(projectRoot, runId);
+  const runDir = path.join(projectRoot, 'artifacts', 'runs', runId);
   const checkerPath = path.join(runDir, 'verification', 'decisive_checker.py');
   fs.mkdirSync(path.dirname(checkerPath), { recursive: true });
   fs.writeFileSync(checkerPath, [
@@ -103,7 +103,7 @@ async function recordValidationPass(projectRoot: string, runId: string): Promise
 }
 
 function createCompletedFixture(projectRoot: string, runId: string): { runDir: string; manifestPath: string } {
-  const runDir = path.join(projectRoot, runId);
+  const runDir = path.join(projectRoot, 'artifacts', 'runs', runId);
   const scriptPath = path.join(runDir, 'computation', 'scripts', 'write_ok.py');
   const manifestPath = path.join(runDir, 'computation', 'manifest.json');
   fs.mkdirSync(path.dirname(scriptPath), { recursive: true });
@@ -143,7 +143,7 @@ function createCompletedFixture(projectRoot: string, runId: string): { runDir: s
 }
 
 function createFailedFixture(projectRoot: string, runId: string): { runDir: string; manifestPath: string } {
-  const runDir = path.join(projectRoot, runId);
+  const runDir = path.join(projectRoot, 'artifacts', 'runs', runId);
   const scriptPath = path.join(runDir, 'computation', 'scripts', 'fail.py');
   const manifestPath = path.join(runDir, 'computation', 'manifest.json');
   fs.mkdirSync(path.dirname(scriptPath), { recursive: true });
@@ -289,7 +289,7 @@ describe('memory-graph hookup', () => {
       expect.objectContaining({ signal: 'package:julia:looptools' }),
     ]));
 
-    const storedResult = readJson<Record<string, unknown>>(path.join(projectRoot, runId, 'artifacts', 'computation_result_v1.json'));
+    const storedResult = readJson<Record<string, unknown>>(path.join(projectRoot, 'artifacts', 'runs', runId, 'artifacts', 'computation_result_v1.json'));
     expect(storedResult.verification_refs).toMatchObject({
       check_run_refs: [expect.objectContaining({ uri: verification.check_run_uri })],
     });
@@ -472,6 +472,11 @@ describe('memory-graph hookup', () => {
       }),
     });
     expect((proposal.evidence_traces as unknown[]).length).toBeGreaterThanOrEqual(3);
+    // Every emitted evidence path must exist on disk: a proposal whose
+    // traces point at a layout no writer uses is unauditable evidence.
+    for (const trace of proposal.evidence_traces as Array<{ file_path: string }>) {
+      expect(fs.existsSync(path.join(projectRoot, trace.file_path)), trace.file_path).toBe(true);
+    }
 
     const statusView = await handleOrchRunStatus({ project_root: projectRoot }) as Record<string, unknown>;
     expect(statusView.skill_proposal).toMatchObject({

@@ -5,6 +5,7 @@ import { writeJsonAtomic } from './computation/io.js';
 import type { CliIo } from './cli-lifecycle.js';
 import { resolveLifecycleProjectRoot } from './cli-project-root.js';
 import { resolveUserPath } from './project-policy.js';
+import { runDirFor } from './run-paths.js';
 import { StateManager } from './state-manager.js';
 import type { RunState, WorkflowOutputView } from './types.js';
 import { utcNowIso } from './util.js';
@@ -251,7 +252,14 @@ function resolveRunInput(input: RunCommandInput, io: CliIo): AnyResolvedRunInput
       dryRun: input.dryRun,
     };
   }
-  const runDir = input.runDir ? resolveUserPath(input.runDir, io.cwd) : path.join(projectRoot, runId);
+  // Default run dir lives under artifacts/runs/ — the canonical stampable
+  // run root — so a front-door run is visible to the traceability read model
+  // and receives its automatic launch stamp without any flag. runDirFor is
+  // the ONE definition shared with every lifecycle reader (verification,
+  // final-conclusions, team summary, proposal genesis).
+  const runDir = input.runDir
+    ? resolveUserPath(input.runDir, io.cwd)
+    : runDirFor(projectRoot, runId);
   if (!isWithinPath(projectRoot, runDir)) {
     throw new Error(`run dir must stay within project root: ${runDir}`);
   }

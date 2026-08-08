@@ -55,7 +55,7 @@ function makeIo(cwd: string) {
 async function prepareCompletedRun() {
   const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'nullius-validation-chain-'));
   const runId = 'validation-chain-run';
-  const runDir = path.join(projectRoot, runId);
+  const runDir = path.join(projectRoot, 'artifacts', 'runs', runId);
   const computationDir = path.join(runDir, 'computation');
   const entryPath = path.join(computationDir, 'entry.py');
   const helperPath = path.join(computationDir, 'helper.py');
@@ -555,7 +555,7 @@ describe('Nullius-owned validation-chain binding at the A5 boundary', () => {
   it('rejects a dummy entry point that is not exactly one actual step', async () => {
     const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'nullius-dummy-entry-'));
     const runId = 'dummy-entry';
-    const runDir = path.join(projectRoot, runId);
+    const runDir = path.join(projectRoot, 'artifacts', 'runs', runId);
     const computationDir = path.join(runDir, 'computation');
     fs.mkdirSync(computationDir, { recursive: true });
     fs.writeFileSync(path.join(computationDir, 'dummy.py'), 'raise SystemExit(0)\n');
@@ -585,7 +585,7 @@ describe('Nullius-owned validation-chain binding at the A5 boundary', () => {
   it('detects step 1 rewriting step 2 before step 2 is spawned', async () => {
     const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'nullius-step-rewrite-'));
     const runId = 'step-rewrite';
-    const runDir = path.join(projectRoot, runId);
+    const runDir = path.join(projectRoot, 'artifacts', 'runs', runId);
     const computationDir = path.join(runDir, 'computation');
     fs.mkdirSync(computationDir, { recursive: true });
     fs.writeFileSync(path.join(computationDir, 'step1.py'), "from pathlib import Path\nPath('one.json').write_text('{}\\n')\nPath('step2.py').write_text('# changed\\n')\n");
@@ -620,7 +620,7 @@ describe('Nullius-owned validation-chain binding at the A5 boundary', () => {
   it('fails execution when a later step overwrites an earlier declared output', async () => {
     const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'nullius-output-overwrite-'));
     const runId = 'output-overwrite';
-    const runDir = path.join(projectRoot, runId);
+    const runDir = path.join(projectRoot, 'artifacts', 'runs', runId);
     const computationDir = path.join(runDir, 'computation');
     fs.mkdirSync(computationDir, { recursive: true });
     fs.writeFileSync(path.join(computationDir, 'step1.py'), "from pathlib import Path\nPath('one.json').write_text('one\\n')\n");
@@ -654,7 +654,7 @@ describe('Nullius-owned validation-chain binding at the A5 boundary', () => {
   it('rejects relative external dependency refs before execution instead of resolving them against process cwd', async () => {
     const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'nullius-relative-external-ref-'));
     const runId = 'relative-external-ref';
-    const runDir = path.join(projectRoot, runId);
+    const runDir = path.join(projectRoot, 'artifacts', 'runs', runId);
     const computationDir = path.join(runDir, 'computation');
     fs.mkdirSync(computationDir, { recursive: true });
     fs.writeFileSync(path.join(computationDir, 'entry.py'), "raise SystemExit(0)\n", 'utf-8');

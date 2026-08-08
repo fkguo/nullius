@@ -227,6 +227,12 @@ jobs:
       - name: Fold guard runner integration tests
         run: python -m pytest skills/research-team/tests/test_fold_guard_runner_integration.py -q
 
+      - name: Convergence registration gate tests
+        run: python -m pytest skills/research-team/tests/test_convergence_registration_gate.py -q
+
+      - name: Run origin stamp at creation tests
+        run: python -m pytest skills/research-team/tests/test_run_origin_stamp_at_creation.py -q
+
       - name: Review baseline-binding tests
         run: python -m pytest skills/review-swarm/tests/test_baseline_binding.py -q
 

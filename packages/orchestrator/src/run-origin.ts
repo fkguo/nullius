@@ -124,6 +124,13 @@ export type CaptureRunOriginOptions = {
   /** Reuse a previously minted event id (crash-recovery retry of the SAME
    *  logical stamp). */
   eventId?: string;
+  /** When false, capture WITHOUT pinning the snapshot at
+   *  refs/nullius/runs/<run-id> — a read-only identity probe (the stash
+   *  object stays an unreferenced dangling commit for git to collect). Used
+   *  to compare the current tree against an already-recorded stamp before
+   *  deciding whether a new ledger event is warranted. Default true: a
+   *  recorded stamp must always pin what it describes. */
+  pin?: boolean;
 };
 
 /** Capture the origin of `runId` in the repository at `projectRoot`. */
@@ -175,7 +182,7 @@ export function captureRunOrigin(
   let snapshotTree: string | null = null;
   let trackedModified = 0;
   if (snapshotCommit && SHA_PATTERN.test(snapshotCommit)) {
-    pinSnapshotRef(projectRoot, runId, snapshotCommit);
+    if (options.pin !== false) pinSnapshotRef(projectRoot, runId, snapshotCommit);
     snapshotTree = git(projectRoot, ['rev-parse', `${snapshotCommit}^{tree}`])!.trim();
     const diff = git(projectRoot, ['diff', '--name-only', baselineCommit, snapshotCommit])!;
     trackedModified = diff.split('\n').filter(line => line.trim().length > 0).length;
