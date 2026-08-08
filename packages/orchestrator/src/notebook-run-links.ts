@@ -65,7 +65,7 @@ const SECTION_ROLE_PATTERN = /<!--\s*notebook-section-role:\s*log\s*-->/;
  *  optional double- or single-quoted title (parenthesized titles stay
  *  unparsed — a recorded rarity). */
 const LINK_TARGET_PATTERN = /\]\(\s*(<[^<>]*>|[^()\s]+)(?:\s+(?:"[^"]*"|'[^']*'))?\s*\)/g;
-const REFERENCE_DEFINITION_PATTERN = /^\s{0,3}\[([^\]]+)\]:\s*(\S+)/;
+const REFERENCE_DEFINITION_PATTERN = /^\s{0,3}\[([^\]]+)\]:\s*(<[^<>]*>|\S+)/;
 const REFERENCE_FULL_PATTERN = /\[[^\]]*\]\[([^\]]+)\]/g;
 const REFERENCE_COLLAPSED_PATTERN = /\[([^\]]+)\]\[\]/g;
 const RUN_LINK_PATTERN = /^(?:\.\/)?(?:artifacts|team)\/runs\/([^/#?]+)/;
@@ -83,39 +83,53 @@ function stripCodeSpans(text: string): string {
   return text.replace(/(?<!`)(`+)(?!`)([\s\S]*?)(?<!`)\1(?!`)/g, ' ');
 }
 
-/** HTML comments render nowhere. Stripped at SECTION level, before
- *  paragraph segmentation — a commented-out passage spanning blank lines
- *  would otherwise leak its interior as a live block. The section-role
- *  marker IS a comment, so role detection runs before this (on
- *  code-stripped text, lest a backticked example of the marker smuggle the
- *  exemption in). */
-function stripHtmlComments(text: string): string {
+/** HTML comments render nowhere, but their two CommonMark forms have
+ *  different reach and must be stripped at different scopes:
+ *  - a comment whose `<!--` BEGINS a line is an HTML block and may span
+ *    blank lines — stripped at SECTION level, before segmentation, so a
+ *    commented-out passage cannot leak its interior as a live block;
+ *  - an inline `<!--` mid-paragraph may NOT span a blank line (an unclosed
+ *    one renders literally), so it is stripped per BLOCK — one
+ *    section-wide lazy regex would let a stray inline `<!--` swallow live
+ *    paragraphs up to an unrelated `-->`.
+ *  The section-role marker IS a comment, so role detection runs before
+ *  either pass. */
+function stripLineInitialComments(text: string): string {
+  return text.replace(/^[ \t]{0,3}<!--[\s\S]*?-->/gm, ' ');
+}
+
+function stripInlineComments(text: string): string {
   return text.replace(/<!--[\s\S]*?-->/g, ' ');
 }
 
 function sanitizeProse(text: string): string {
-  return stripHtmlComments(stripCodeSpans(text));
+  return stripInlineComments(stripCodeSpans(text));
 }
 
-/** For TOKEN matching only: link destinations are paths, not prose — a run
- *  directory slug containing "-void-" or "-superseded-" is word-bounded by
- *  its hyphens and would otherwise acknowledge its own death. Blank every
- *  inline destination and reference-definition target before scanning. */
+/** For TOKEN matching only: link destinations are paths and reference
+ *  LABELS are machine plumbing that renders nowhere — a run directory slug
+ *  (or a label derived from one) containing "-void-" or "-superseded-" is
+ *  word-bounded by its hyphens and would otherwise acknowledge its own
+ *  death. Blank inline destinations, definition lines entirely, and the
+ *  label part of both reference-usage forms before scanning. */
 function blankLinkDestinations(text: string): string {
   return text
     .replace(LINK_TARGET_PATTERN, '](#)')
+    .replace(/(\[[^\]]*\]\[)[^\]]+(\])/g, '$1#$2')
+    .replace(/\[[^\]]+\](\[\])/g, '[#]$1')
     .split('\n')
-    .map(line => line.replace(REFERENCE_DEFINITION_PATTERN, (_full, label: string) => `[${label}]: #`))
+    .map(line => line.replace(REFERENCE_DEFINITION_PATTERN, () => '[#]: #'))
     .join('\n');
 }
 
-/** The same slug hazard reaches token scope through link TEXT, reference
- *  labels, and bare prose mentions ("Run <id> produced X"), which
- *  destination blanking cannot touch: blank every KNOWN run id string
- *  outright before scanning. */
+/** The same slug hazard reaches token scope through link TEXT and bare
+ *  prose mentions ("Run <id> produced X"), which destination blanking
+ *  cannot touch: blank every KNOWN run id string outright before scanning.
+ *  Longest first — with one known id a prefix of another, blanking the
+ *  short one first would leave the long one's tail ("#-void") behind. */
 function blankKnownRunIds(text: string, knownIds: readonly string[]): string {
   let out = text;
-  for (const id of knownIds) {
+  for (const id of [...knownIds].sort((a, b) => b.length - a.length)) {
     if (out.includes(id)) out = out.split(id).join('#');
   }
   return out;
@@ -169,18 +183,19 @@ export type NotebookRunLinksReport = {
 type TokenUnit = { runIds: string[]; tokenText: string };
 type CitationBlock = { runIds: string[]; units: TokenUnit[] };
 
-/** Split a merged list block back into items (continuation lines attach to
- *  the item above); non-list blocks are a single unit. */
+/** Split a block into token-scope units: every list-item line STARTS a new
+ *  unit (continuation lines attach to the unit above), including inside a
+ *  block whose first lines are lead-in prose — "The sweep was voided:"
+ *  followed by a tight list must not let the lead-in's word acknowledge
+ *  every bullet's dead run. A block with no list items is one unit. */
 function splitTokenUnits(blockText: string): string[] {
   const lines = blockText.split('\n');
-  const listShaped = lines.every(line => LIST_ITEM_PATTERN.test(line) || /^\s{2,}/.test(line));
-  if (!listShaped) return [blockText];
-  const items: string[][] = [];
+  const units: string[][] = [];
   for (const line of lines) {
-    if (LIST_ITEM_PATTERN.test(line) || items.length === 0) items.push([line]);
-    else items[items.length - 1]!.push(line);
+    if (LIST_ITEM_PATTERN.test(line) || units.length === 0) units.push([line]);
+    else units[units.length - 1]!.push(line);
   }
-  return items.map(item => item.join('\n'));
+  return units.map(unit => unit.join('\n'));
 }
 
 const LIST_ITEM_PATTERN = /^\s*(?:[-*+]|\d+[.)])\s/;
@@ -337,14 +352,15 @@ export function analyzeNotebookRunLinks(
     // code form — a four-space-indented example must not opt out either).
     const declaredLog = stripCodeSpans(rawBody).split('\n')
       .some(line => !INDENTED_CODE_LINE.test(line) && SECTION_ROLE_PATTERN.test(line));
-    // Comments are stripped at SECTION level, before segmentation: a
-    // commented-out passage spanning blank lines must not leak its
-    // interior as a live citing block.
-    const commentlessLines = stripHtmlComments(rawBody).split('\n');
+    // Line-initial (HTML-block) comments are stripped at SECTION level,
+    // before segmentation: a commented-out passage spanning blank lines
+    // must not leak its interior as a live citing block. Inline comments
+    // are stripped per block below — they cannot span a blank line.
+    const commentlessLines = stripLineInitialComments(rawBody).split('\n');
     const definitions = collectReferenceDefinitions(commentlessLines);
     const blocks: CitationBlock[] = [];
     for (const blockText of segmentCitationBlocks(commentlessLines)) {
-      const sanitized = stripCodeSpans(blockText);
+      const sanitized = sanitizeProse(blockText);
       const candidates = extractRunIds(sanitized, definitions);
       const runIds = candidates.filter(id => ledger.runs.has(id) || existingRunDirIds.has(id));
       for (const id of candidates) {
@@ -355,7 +371,7 @@ export function analyzeNotebookRunLinks(
       }
       if (runIds.length > 0) {
         const units = splitTokenUnits(blockText).map(unitText => {
-          const unitSanitized = stripCodeSpans(unitText);
+          const unitSanitized = sanitizeProse(unitText);
           return {
             runIds: extractRunIds(unitSanitized, definitions)
               .filter(id => ledger.runs.has(id) || existingRunDirIds.has(id)),
