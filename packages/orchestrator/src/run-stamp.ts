@@ -582,7 +582,17 @@ export type ComputationWorkspace = {
 
 export function findComputationWorkspaces(runDir: string): ComputationWorkspace[] {
   const found: ComputationWorkspace[] = [];
-  const walk = (rel: string, depth: number): void => {
+  // The manifest may sit at ANY depth (prepareManifest only requires
+  // containment in the run directory), so discovery has no depth cap — a
+  // capped walk would leave every boundary blind to a deep workspace. The
+  // walk stays cheap by pruning a discovered workspace's own product
+  // subtrees (logs/outputs/workspace — a manifest planted inside runner
+  // products is not an execution surface), never following directory
+  // symlinks, and bounding pathological trees by visited-directory count.
+  let visited = 0;
+  const walk = (rel: string): void => {
+    if (visited >= 10_000) return;
+    visited += 1;
     const abs = rel === '' ? runDir : path.join(runDir, rel);
     let entries: fs.Dirent[];
     try {
@@ -591,49 +601,59 @@ export function findComputationWorkspaces(runDir: string): ComputationWorkspace[
       return;
     }
     const fileNames = new Set(entries.filter(entry => entry.isFile()).map(entry => entry.name));
-    if (fileNames.has('manifest.json') || fileNames.has('execution_status.json')) {
+    const isWorkspace = fileNames.has('manifest.json') || fileNames.has('execution_status.json');
+    if (isWorkspace) {
       found.push({
         workspaceRel: rel,
         manifestPath: fileNames.has('manifest.json') ? path.join(abs, 'manifest.json') : null,
         statusPath: fileNames.has('execution_status.json') ? path.join(abs, 'execution_status.json') : null,
       });
     }
-    if (depth >= 4) return;
     for (const entry of entries) {
-      if (!entry.isDirectory()) continue;
+      if (!entry.isDirectory() || entry.isSymbolicLink()) continue;
       if (entry.name.startsWith('.')) continue;
       if (rel === '' && (entry.name === 'attempts' || entry.name === 'artifacts')) continue;
-      walk(rel === '' ? entry.name : path.posix.join(rel, entry.name), depth + 1);
+      if (isWorkspace && (entry.name === 'logs' || entry.name === 'outputs' || entry.name === 'workspace')) continue;
+      walk(rel === '' ? entry.name : path.posix.join(rel, entry.name));
     }
   };
-  walk('', 0);
+  walk('');
   return found;
 }
 
-/** Script paths a manifest names, workspace-relative → run-relative.
- *  Malformed entries (absolute, dot-dot) are simply not credited as inputs
- *  — conservative toward the product side. */
+/** Every INPUT path a manifest declares, workspace-relative → run-relative:
+ *  the manifest itself, the scripts it names, and the declared dependency
+ *  surface (lock files, data files, external dependency refs) — all of
+ *  which the relaunch requires in place. Malformed entries (absolute,
+ *  dot-dot, URI-schemed) are simply not credited — conservative toward the
+ *  product side. */
 function manifestInputPaths(workspace: ComputationWorkspace): Set<string> {
   const inputs = new Set<string>();
   if (!workspace.manifestPath) return inputs;
   const prefix = workspace.workspaceRel;
   const toRunRel = (wsRel: string): string => (prefix === '' ? wsRel : path.posix.join(prefix, wsRel));
   inputs.add(toRunRel('manifest.json'));
+  const credit = (declared: unknown): void => {
+    if (typeof declared !== 'string' || declared.length === 0) return;
+    const clean = declared.split('\\').join('/');
+    if (clean.startsWith('/') || clean.split('/').includes('..') || /^[A-Za-z][A-Za-z0-9+.-]*:/u.test(clean)) return;
+    inputs.add(toRunRel(clean));
+  };
   try {
     const parsed = JSON.parse(fs.readFileSync(workspace.manifestPath, 'utf-8')) as {
       entry_point?: { script?: string };
       steps?: Array<{ script?: string }>;
+      dependencies?: {
+        lock_files?: string[];
+        data_files?: string[];
+        external_dependency_refs?: Array<{ path?: string }>;
+      };
     };
-    const scripts = [
-      parsed.entry_point?.script,
-      ...(parsed.steps ?? []).map(step => step.script),
-    ];
-    for (const script of scripts) {
-      if (typeof script !== 'string' || script.length === 0) continue;
-      const clean = script.split('\\').join('/');
-      if (clean.startsWith('/') || clean.split('/').includes('..')) continue;
-      inputs.add(toRunRel(clean));
-    }
+    credit(parsed.entry_point?.script);
+    for (const step of parsed.steps ?? []) credit(step.script);
+    for (const lockFile of parsed.dependencies?.lock_files ?? []) credit(lockFile);
+    for (const dataFile of parsed.dependencies?.data_files ?? []) credit(dataFile);
+    for (const ref of parsed.dependencies?.external_dependency_refs ?? []) credit(ref?.path);
   } catch {
     // Unreadable manifest credits nothing as input beyond itself.
   }
@@ -756,8 +776,15 @@ function completedResultArtifactPresent(runDir: string): boolean {
   const artifactPath = path.join(runDir, 'artifacts', 'computation_result_v1.json');
   try {
     if (!fs.existsSync(artifactPath)) return false;
-    const parsed = JSON.parse(fs.readFileSync(artifactPath, 'utf-8')) as { status?: string; ok?: boolean };
-    return parsed.status === 'completed' || parsed.ok === true;
+    const parsed = JSON.parse(fs.readFileSync(artifactPath, 'utf-8')) as {
+      execution_status?: string;
+      status?: string;
+      ok?: boolean;
+    };
+    // The canonical artifact (computation/result.ts) records
+    // `execution_status`; the extra spellings keep hand-written or older
+    // artifacts conservative.
+    return parsed.execution_status === 'completed' || parsed.status === 'completed' || parsed.ok === true;
   } catch {
     // An unreadable terminal artifact is suspicious, not conclusive; the
     // status-file path still governs.
@@ -869,6 +896,28 @@ function restoreQuarantine(runDir: string, stagingRel: string): void {
  *  the debris of a CRASHED invocation (rather than a concurrent one still
  *  in flight) and recovers it. In-flight retries hold staging for seconds. */
 const STALE_STAGING_MS = 10 * 60_000;
+
+/** Staging directories whose event id the ledger does NOT know: either a
+ *  retry in flight right now or one that crashed inside the recovery
+ *  window. Their contents are part of the surface being judged, so while
+ *  one exists no honest evidence reading is possible. */
+function listUnrecordedStagings(runDir: string, view: ValidityLedgerView): string[] {
+  const attemptsDir = path.join(runDir, 'attempts');
+  let entries: string[];
+  try {
+    entries = fs.readdirSync(attemptsDir);
+  } catch {
+    return [];
+  }
+  const unrecorded: string[] = [];
+  for (const name of entries) {
+    if (!name.startsWith('.staging-')) continue;
+    const stagedEventId = name.slice('.staging-'.length);
+    if (!ULID_PATTERN.test(stagedEventId)) continue;
+    if (!view.events.some(event => event.event_id === stagedEventId)) unrecorded.push(name);
+  }
+  return unrecorded;
+}
 
 /** Crash recovery for the two windows a prior retry can die in:
  *  - staged but never appended (event id absent from the ledger) → the
@@ -1001,6 +1050,20 @@ export function openRetryAttempt(
   // judges the true surface (a stranded archive would otherwise hide the
   // very residue — or terminal artifact — the checks exist to see).
   recoverOrphanStagings(runDir, view, runId);
+  // Anything still staged and unrecorded after recovery is FRESH — a
+  // sibling retry in flight or one that crashed moments ago. Its staging
+  // holds products this boundary is about to judge (an emptied surface
+  // would misread as `missing`), so the entrance waits rather than reads.
+  const unrecordedStagings = listUnrecordedStagings(runDir, view);
+  if (unrecordedStagings.length > 0) {
+    return {
+      kind: 'rejected',
+      message: `trace retry: ${runId} has ${unrecordedStagings.length} in-flight or freshly crashed retry `
+        + `staging director${unrecordedStagings.length === 1 ? 'y' : 'ies'} under attempts/ `
+        + `(${unrecordedStagings.join(', ')}) — evidence is unreadable while products sit in staging; `
+        + 'retry again shortly (stale stagings recover automatically after ~10 minutes)',
+    };
+  }
   if (completedResultArtifactPresent(runDir)) {
     return {
       kind: 'rejected',

@@ -490,6 +490,105 @@ describe('crash-window recovery and honest fallbacks (r3)', () => {
   });
 });
 
+describe('confirmation-round regressions (review r4)', () => {
+  it('the canonical terminal artifact field (execution_status) blocks completed-result laundering', () => {
+    const runId = 'run-canonical-artifact';
+    const { projectRoot, runDir } = makeStampedRun(runId);
+    fs.mkdirSync(path.join(runDir, 'artifacts'), { recursive: true });
+    // Exactly what computation/result.ts writes for a completed run —
+    // no `status`, no `ok`, only `execution_status`.
+    fs.writeFileSync(
+      path.join(runDir, 'artifacts', 'computation_result_v1.json'),
+      JSON.stringify({ schema_version: 1, run_id: runId, execution_status: 'completed' }),
+    );
+    writeFailedStatus(runDir); // the laundering edit
+    const result = openRetryAttempt(projectRoot, runDir, { actor: 'test' });
+    expect(result.kind).toBe('rejected');
+    if (result.kind === 'rejected') expect(result.message).toContain('COMPLETED');
+  });
+
+  it('an origin-bearing second closure of an already-closed ordinal conflicts; its binding never promotes', () => {
+    const runId = 'run-smuggled-origin';
+    const { projectRoot, runDir } = makeStampedRun(runId);
+    writeFailedStatus(runDir);
+    const recordOnly = openRetryAttempt(projectRoot, runDir, { actor: 'test', recordOnly: true, reason: 'booked' });
+    expect(recordOnly.kind).toBe('retried');
+    const view = readValidityLedger(projectRoot);
+    const recordedClosure = view.events.find(event => event.event === 'attempt' && event.run_id === runId)!;
+    const recordedAttempt = (recordedClosure as { attempt?: Record<string, unknown> }).attempt!;
+    // Forge a second closure of ordinal 1 with IDENTICAL non-origin fields
+    // but an embedded ordinal-2 origin — the smuggle the origin-excluded
+    // closure identity used to admit.
+    appendValidityEvent(projectRoot, buildValidityEvent({
+      event: 'attempt', run_id: runId, actor: 'forger', reason: recordedClosure.reason ?? 'booked',
+      attempt: {
+        ...recordedAttempt,
+        origin: {
+          schema_id: 'run_origin_v1', event_id: mintUlid(), run_id: runId,
+          captured_at_utc: new Date().toISOString(), binding_quality: 'unbound',
+          baseline_commit: null,
+          no_repo_reason: 'forged',
+          dirty: { tracked_modified: 0, untracked_count: 0, untracked_sample: [] },
+          attempt_ordinal: 2,
+        },
+      },
+    } as never));
+    const after = readValidityLedger(projectRoot).runs.get(runId)!;
+    expect(after.attempts.conflicting_attempts).toBe(true);
+    expect(after.attempts.latest_ordinal).toBe(1);
+    expect((after.origin as { attempt_ordinal?: number } | null)?.attempt_ordinal ?? 1).toBe(1);
+  });
+
+  it('a FRESH unrecorded staging refuses the retry — never misread as an empty surface', () => {
+    const runId = 'run-fresh-staging';
+    const { projectRoot, runDir } = makeStampedRun(runId);
+    // A sibling retry staged the products moments ago and has not appended.
+    const freshRel = path.join('attempts', `.staging-${mintUlid()}`);
+    fs.mkdirSync(path.join(runDir, freshRel, 'computation'), { recursive: true });
+    fs.writeFileSync(
+      path.join(runDir, freshRel, 'computation', 'execution_status.json'),
+      JSON.stringify({ status: 'failed', errors: ['staged by sibling'] }),
+    );
+    const result = openRetryAttempt(projectRoot, runDir, { actor: 'test' });
+    expect(result.kind).toBe('rejected');
+    if (result.kind === 'rejected') expect(result.message).toContain('staging');
+  });
+
+  it('declared dependency inputs (lock files, data files) survive quarantine', () => {
+    const runId = 'run-declared-inputs';
+    const { projectRoot, runDir } = makeStampedRun(runId);
+    const computation = path.join(runDir, 'computation');
+    fs.mkdirSync(path.join(computation, 'scripts'), { recursive: true });
+    fs.writeFileSync(path.join(computation, 'manifest.json'), JSON.stringify({
+      schema_version: 1,
+      entry_point: { script: 'scripts/main.py', tool: 'python' },
+      steps: [{ id: 's', tool: 'python', script: 'scripts/main.py', expected_outputs: [] }],
+      dependencies: { lock_files: ['requirements.lock'], data_files: ['data/input.csv'] },
+    }));
+    fs.writeFileSync(path.join(computation, 'scripts', 'main.py'), 'print(1)\n');
+    fs.writeFileSync(path.join(computation, 'requirements.lock'), 'numpy==2.0\n');
+    fs.mkdirSync(path.join(computation, 'data'), { recursive: true });
+    fs.writeFileSync(path.join(computation, 'data', 'input.csv'), '1,2\n');
+    writeFailedStatus(runDir);
+    const result = openRetryAttempt(projectRoot, runDir, { actor: 'test' });
+    expect(result.kind).toBe('retried');
+    expect(fs.existsSync(path.join(computation, 'requirements.lock'))).toBe(true);
+    expect(fs.existsSync(path.join(computation, 'data', 'input.csv'))).toBe(true);
+    expect(fs.existsSync(path.join(computation, 'execution_status.json'))).toBe(false);
+  });
+
+  it('a workspace at depth five is discovered — the boundary is never blind to a deep manifest', () => {
+    const runId = 'run-deep-workspace';
+    const { projectRoot, runDir } = makeStampedRun(runId);
+    const deep = path.join(runDir, 'a', 'b', 'c', 'd', 'e');
+    fs.mkdirSync(deep, { recursive: true });
+    fs.writeFileSync(path.join(deep, 'execution_status.json'), JSON.stringify({ status: 'completed' }));
+    const result = openRetryAttempt(projectRoot, runDir, { actor: 'test' });
+    expect(result.kind).toBe('rejected');
+    if (result.kind === 'rejected') expect(result.message).toContain('COMPLETED');
+  });
+});
+
 describe('front-door preflight', () => {
   it('a failing preflight aborts BEFORE any capture: no stamp, no ledger', async () => {
     const projectRoot = makeTmpDir();

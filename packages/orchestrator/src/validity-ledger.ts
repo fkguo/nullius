@@ -407,7 +407,14 @@ export function readValidityLedger(projectRoot: string): ValidityLedgerView {
         } }).attempt;
         if (!record) break; // schema-guarded; a malformed line never reaches here
         const closures = closuresFor(entry.run_id);
-        const canon = canonicalJson({ ...record, origin: undefined });
+        // Closure identity is the FULL record, origin included: with the
+        // origin excluded, a record-only closure and a later origin-bearing
+        // closure sharing the same evidence would read as one clean closure
+        // while the second smuggled in a new binding — the exact silent
+        // rebind this event type exists to make unrepresentable. One
+        // ordinal, one closure; a byte-different second claim is the same
+        // severity class as conflicting stamps.
+        const canon = canonicalJson(record);
         const existing = closures.get(record.closes_ordinal);
         if (existing !== undefined && existing !== canon) {
           entry.attempts.conflicting_attempts = true;
@@ -428,21 +435,24 @@ export function readValidityLedger(projectRoot: string): ValidityLedgerView {
           if (record.previous_outcome !== 'missing') {
             entry.attempts.crash_retry_count += 1;
           }
-        }
-        if (record.origin) {
-          const openedOrdinal = (record.origin as { attempt_ordinal?: number }).attempt_ordinal ?? null;
-          const originRunId = (record.origin as { run_id?: string }).run_id ?? null;
-          if (openedOrdinal !== record.closes_ordinal + 1
-            || originRunId !== event.run_id
-            // A retry always knows what it closes: the initial stamp for
-            // ordinal 1, the opening attempt event otherwise. A null
-            // predecessor on an OPENING closure is a forged or hand-built
-            // line — conservative defect, binding never promoted.
-            || record.supersedes_attempt_event === null) {
-            entry.attempts.chain_defect = true;
-          } else {
-            recordBinding(entry, openedOrdinal, record.origin);
-            recordOpener(entry.run_id, openedOrdinal, event.event_id);
+          // The embedded origin is processed ONLY for the closure that
+          // actually records the ordinal — a conflicting later claim's
+          // origin must never bind anything (D9: flagged, never trusted).
+          if (record.origin) {
+            const openedOrdinal = (record.origin as { attempt_ordinal?: number }).attempt_ordinal ?? null;
+            const originRunId = (record.origin as { run_id?: string }).run_id ?? null;
+            if (openedOrdinal !== record.closes_ordinal + 1
+              || originRunId !== event.run_id
+              // A retry always knows what it closes: the initial stamp for
+              // ordinal 1, the opening attempt event otherwise. A null
+              // predecessor on an OPENING closure is a forged or hand-built
+              // line — conservative defect, binding never promoted.
+              || record.supersedes_attempt_event === null) {
+              entry.attempts.chain_defect = true;
+            } else {
+              recordBinding(entry, openedOrdinal, record.origin);
+              recordOpener(entry.run_id, openedOrdinal, event.event_id);
+            }
           }
         }
         break;
