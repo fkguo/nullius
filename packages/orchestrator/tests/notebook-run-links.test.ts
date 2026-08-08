@@ -324,6 +324,43 @@ describe('dead-citation acknowledgment union', () => {
     expect(docs.citing_paragraphs).toBe(0);
   });
 
+  it('a collapsed reference label is rendered prose: its visible token acknowledges', () => {
+    writeNotebook([
+      '# Memo', '## Results',
+      'The [voided calibration][] no longer supports the number.',
+      '',
+      `[voided calibration]: artifacts/runs/${dead}/out.json`,
+    ].join('\n'));
+    const report = analyzeNotebookRunLinks(projectRoot, ledgerWithDead('void'), new Set());
+    expect(report.dead_citations).toHaveLength(1);
+    expect(report.dead_citations[0]!.ack_channel).toBe('token');
+  });
+
+  it('a hard-wrapped line starting with "3)" is not a unit boundary (only 1./1) interrupts a paragraph)', () => {
+    writeNotebook([
+      '# Memo', '## Results',
+      `That estimate was voided; between [the early sweep](artifacts/runs/${dead}/out.tsv) and then`,
+      '3) the finer grid, the latter carries the value.',
+    ].join('\n'));
+    const report = analyzeNotebookRunLinks(projectRoot, ledgerWithDead('void'), new Set());
+    expect(report.dead_citations[0]!.ack_channel).toBe('token');
+  });
+
+  it('a curated loose list with links in indented continuations stays ONE citation block', () => {
+    const ledger = ascendingLedger(9);
+    const items = Array.from({ length: 9 }, (_, i) => [
+      `- sweep ${i + 1}:`,
+      '',
+      `    the record lives at [run ${i + 1}](artifacts/runs/${runId(i + 1)}/out.tsv)`,
+      '',
+    ]).flat();
+    writeNotebook(['# Memo', '## Evidence', 'One framing paragraph.', '', ...items].join('\n'));
+    const section = analyzeNotebookRunLinks(projectRoot, ledger, new Set())
+      .sections.find(entry => entry.heading === 'Evidence')!;
+    expect(section.citing_paragraphs).toBeLessThan(DRIFT_FLOOR_CITING_PARAGRAPHS);
+    expect(section.verdict).toBe('insufficient_signal');
+  });
+
   it('a SECOND consecutive indented-code chunk is still code, not loose-list continuation', () => {
     const ledger = ascendingLedger(1);
     writeNotebook([

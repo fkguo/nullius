@@ -205,23 +205,37 @@ function locateBlock(text: string): BlockLocation {
     offset = offset + line.length + 1;
   }
   const markerLinesPresent = starts.length > 0 || ends.length > 0;
-  // Greedy pairing: each START claims the next unclaimed END after it. The
-  // COMPLETE pairs are the candidate currency claims; markers left over are
-  // strays. One complete block plus a stray marker is an unambiguous claim
-  // with garbage nearby — advisory, never a refusal; TWO complete blocks
-  // are an ambiguous claim — that alone is `duplicated`.
+  // INNERMOST pairing: each END claims the NEAREST PRECEDING unclaimed
+  // START. Outermost pairing was a proven data-loss hazard — a stray START
+  // above the real block claimed the real block's END, the bounds spanned
+  // the human prose (headings included) in between, and the next
+  // best-effort refresh spliced it all away. With innermost pairing a
+  // block never contains another marker line; nested pairs surface as TWO
+  // complete blocks (duplicated → refusal, no write). One complete block
+  // plus stray markers is an unambiguous claim with garbage nearby —
+  // advisory, never a refusal.
   const completeBlocks: BlockBounds[] = [];
-  let endCursor = 0;
-  for (const start of starts) {
-    while (endCursor < ends.length && ends[endCursor]!.start <= start.start) endCursor += 1;
-    if (endCursor >= ends.length) break;
-    completeBlocks.push({ start: start.start, end: ends[endCursor]!.end });
-    endCursor += 1;
+  const unclaimedStarts: BlockBounds[] = [];
+  let strayEnds = 0;
+  const markers = [...starts.map(marker => ({ ...marker, kind: 'start' as const })),
+    ...ends.map(marker => ({ ...marker, kind: 'end' as const }))]
+    .sort((a, b) => a.start - b.start);
+  for (const marker of markers) {
+    if (marker.kind === 'start') {
+      unclaimedStarts.push(marker);
+    } else if (unclaimedStarts.length > 0) {
+      const opener = unclaimedStarts.pop()!;
+      completeBlocks.push({ start: opener.start, end: marker.end });
+    } else {
+      strayEnds += 1;
+    }
   }
   const duplicated = completeBlocks.length > 1;
   const bounds = completeBlocks.length === 1 ? completeBlocks[0]! : null;
-  const strayMarkerLines = (starts.length + ends.length) - 2 * completeBlocks.length;
-  const positionOk = bounds === null ? true : bounds.start < firstHeadingOffset;
+  const strayMarkerLines = unclaimedStarts.length + strayEnds;
+  // The whole block must sit BEFORE the first heading: a start-only check
+  // would bless a span that swallowed the heading.
+  const positionOk = bounds === null ? true : bounds.end <= firstHeadingOffset;
   return { bounds, duplicated, markerLinesPresent, strayMarkerLines, firstHeadingOffset, positionOk };
 }
 

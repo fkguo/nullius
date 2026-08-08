@@ -167,6 +167,42 @@ describe('refresh + check', () => {
     expect(status.reason).toContain('stray');
   });
 
+  it('a stray START above the real block can NEVER swallow the prose between them (innermost pairing)', () => {
+    const realBlock = renderCurrentStateBlock(NO_REGISTRY);
+    fs.writeFileSync(notebookPath(), [
+      '# Memo',
+      CURRENT_STATE_START, // stray leftover from a botched hand repair
+      'Front matter prose the researcher wrote.',
+      '## Results',
+      'Real analysis prose here.',
+      realBlock,
+      '## Method',
+    ].join('\n'));
+    const status = checkCurrentStateBlock(projectRoot, NO_REGISTRY);
+    expect(status.duplicated_markers).toBe(false);
+    expect(status.block_found).toBe(true);
+    // The real block sits after the first heading → out of position; the
+    // refresh RELOCATES exactly the real block and touches nothing else.
+    expect(status.in_sync).toBe(false);
+    const outcome = refreshNotebookCurrentState(projectRoot, { insertIfMissing: false });
+    expect(outcome.action).toBe('rewritten');
+    const text = fs.readFileSync(notebookPath(), 'utf-8');
+    expect(text).toContain('Front matter prose the researcher wrote.');
+    expect(text).toContain('## Results');
+    expect(text).toContain('Real analysis prose here.');
+    expect(text).toContain('## Method');
+  });
+
+  it('nested marker pairs are duplicated (two complete blocks) and refresh refuses to write', () => {
+    fs.writeFileSync(notebookPath(), [
+      '# Memo',
+      CURRENT_STATE_START, CURRENT_STATE_START, 'inner', CURRENT_STATE_END, CURRENT_STATE_END,
+      '## Results',
+    ].join('\n'));
+    expect(checkCurrentStateBlock(projectRoot, NO_REGISTRY).duplicated_markers).toBe(true);
+    expect(refreshNotebookCurrentState(projectRoot, { insertIfMissing: true }).action).toBe('skipped');
+  });
+
   it('markers inside four-space-indented code are examples, not blocks', () => {
     fs.writeFileSync(notebookPath(), [
       '# Memo', '',

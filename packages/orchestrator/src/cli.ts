@@ -96,7 +96,8 @@ export async function runCli(argv: string[], io: CliIo = defaultIo()): Promise<n
       } else {
         io.stdout(
           `notebook sync: current-state block ${outcome.action}`
-          + `${status.in_sync === true ? ' (in sync)' : ''}\n`,
+          + `${status.in_sync === true ? ' (in sync)' : ''}`
+          + `${status.in_sync === true && status.reason !== null ? ` — ${status.reason}` : ''}\n`,
         );
       }
       return outcome.action === 'skipped' ? 1 : 0;

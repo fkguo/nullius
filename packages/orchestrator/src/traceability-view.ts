@@ -902,6 +902,10 @@ export function renderTraceabilityProse(view: TraceabilityView): string {
         + '(machine-maintained summary of registered results at the top of the notebook).');
     } else if (block.in_sync === false) {
       lines.push(`- CURRENT-STATE BLOCK OUT OF SYNC: ${block.reason} — refresh with \`nullius notebook sync\`.`);
+    } else if (block.in_sync === true && block.reason !== null) {
+      // The in-sync-with-strays state is where a leftover marker is most
+      // dangerous — keep it visible on the human surface, not JSON-only.
+      lines.push(`- current-state block: ${block.reason}.`);
     }
   }
   const runLinks = view.notebook.run_links;
