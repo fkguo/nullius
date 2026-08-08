@@ -1,10 +1,5 @@
-import * as fs from 'node:fs';
-import * as os from 'node:os';
-import * as path from 'node:path';
-import type { ValidityEventV1 } from '@nullius/shared';
-import { mintUlid, ULID_PATTERN, writeBytesAtomicDurable } from '@nullius/shared';
-import { appendValidityEvent, buildValidityEvent, readValidityLedger } from './validity-ledger.js';
-import { captureRunOrigin } from './run-origin.js';
+import { appendValidityEvent, buildValidityEvent } from './validity-ledger.js';
+import { defaultStampActor, gradeExistingStamp, stampRunDirectory } from './run-stamp.js';
 import { buildTraceabilityView, renderTraceabilityProse } from './traceability-view.js';
 import { backfillRunOrigins, confirmRoundChains, proposeRoundChains } from './trace-backfill.js';
 
@@ -36,16 +31,8 @@ export type TraceParsed = {
   deps: Record<string, string>;
 };
 
-function defaultActor(): string {
-  try {
-    return os.userInfo().username || 'unknown';
-  } catch {
-    return 'unknown';
-  }
-}
-
 export function runTraceCommand(projectRoot: string, parsed: TraceParsed, io: CliIo): number {
-  const actor = parsed.actor ?? defaultActor();
+  const actor = parsed.actor ?? defaultStampActor();
   switch (parsed.action) {
     case 'backfill': {
       const result = backfillRunOrigins(projectRoot);
@@ -77,154 +64,46 @@ export function runTraceCommand(projectRoot: string, parsed: TraceParsed, io: Cl
       return 0;
     }
     case 'stamp': {
-      const runDir = path.isAbsolute(parsed.target)
-        ? parsed.target
-        : path.resolve(projectRoot, parsed.target);
-      if (!fs.existsSync(runDir) || !fs.statSync(runDir).isDirectory()) {
-        io.stderr(`trace stamp: run directory not found: ${runDir}\n`);
-        return 1;
-      }
-      // Only the two run roots are stampable: a stamp elsewhere would land
-      // in the ledger but be invisible to every directory scan — a record
-      // about a run the read model can never show is a silent hole. The
-      // check is SYMLINK-RESOLVED on both sides, and a run directory that is
-      // itself a symlink is refused outright: the directory scan skips
-      // symlink entries, so stamping one would create the same invisible
-      // record through a side door.
-      if (fs.lstatSync(runDir).isSymbolicLink()) {
-        io.stderr(`trace stamp: ${parsed.target} is a symlink; run directories must be real directories under a run root\n`);
-        return 1;
-      }
-      const resolvedRunDir = fs.realpathSync(runDir);
-      const inRunRoot = ['artifacts/runs', 'team/runs'].some((relRoot) => {
-        const root = path.resolve(projectRoot, relRoot);
-        if (!fs.existsSync(root)) return false;
-        return path.dirname(resolvedRunDir) === fs.realpathSync(root);
+      // Full flow (containment, event-id idempotency, mirror rollback) lives
+      // in stampRunDirectory, shared with the computation front door's
+      // automatic launch stamp; this case only renders the outcome.
+      const result = stampRunDirectory(projectRoot, parsed.target, {
+        actor,
+        eventId: parsed.eventId,
+        deps: parsed.deps,
       });
-      if (!inRunRoot) {
-        io.stderr(
-          'trace stamp: run directories live directly under artifacts/runs/ or team/runs/; '
-          + `${parsed.target} is outside both roots and would be invisible to the read model\n`,
-        );
+      if (result.kind === 'rejected') {
+        io.stderr(`${result.message}\n`);
         return 1;
       }
-      const runId = path.basename(runDir);
-      // Canonical-root rule (D9): when the same run id exists under BOTH run
-      // roots, artifacts/runs is the canonical location and stamps are
-      // written there — stamping the team/runs mirror would seed two
-      // divergent origin records for one logical run.
-      const canonicalDir = path.join(projectRoot, 'artifacts', 'runs', runId);
-      const mirrorDirOfCanonical = path.join(projectRoot, 'team', 'runs', runId);
-      if (
-        path.resolve(runDir) === path.resolve(mirrorDirOfCanonical)
-        && fs.existsSync(canonicalDir)
-      ) {
-        io.stderr(
-          `trace stamp: ${runId} exists under artifacts/runs (canonical) and team/runs (review mirror); `
-          + `stamp the canonical directory: artifacts/runs/${runId}\n`,
-        );
-        return 1;
+      if (result.kind === 'already_recorded') {
+        io.stdout(`already stamped ${result.runId} (event ${result.eventId} recorded)\n`);
+        return 0;
       }
-      // One logical stamp = one ULID for life: with --event-id the retry
-      // entrance is the LEDGER (was this event already recorded?), not a
-      // payload comparison — a re-capture would legitimately differ (time
-      // moved, the tree may have moved) and must not read as divergence.
-      // The short-circuit accepts ONLY a stamp event for THIS run: reusing
-      // an id that belongs to any other event must fail loudly, never
-      // report a stamp that was not taken. Validation happens BEFORE any
-      // mirror write so a rejected id leaves no half-state behind.
-      if (parsed.eventId) {
-        if (!ULID_PATTERN.test(parsed.eventId)) {
-          io.stderr(`trace stamp: --event-id ${JSON.stringify(parsed.eventId)} is not a ULID\n`);
-          return 1;
-        }
-        const ledgerView = readValidityLedger(projectRoot);
-        // Divergent ids are excluded from `events` by the reader's dedup —
-        // check the defect list too, or a divergent id would sail past this
-        // preflight into a mirror write before the append rejects it.
-        if (ledgerView.integrity_defects.some(defect => defect.event_id === parsed.eventId)) {
-          io.stderr(
-            `trace stamp: event ${parsed.eventId} is a ledger-integrity defect (divergent payloads); `
-            + 'repair the ledger and mint a fresh event id\n',
+      if (result.kind === 'run_already_stamped') {
+        // One run id, one stamp. Same research tree → benign no-op (an
+        // agent following "stamp at launch" after the front door already
+        // stamped must not manufacture a conflicting-stamps defect);
+        // different tree → refuse and name the honest fix.
+        const graded = gradeExistingStamp(projectRoot, result.runId, result.recordedOrigin);
+        if (graded.grade === 'same_tree') {
+          io.stdout(
+            `already stamped ${result.runId}: ${graded.bindingQuality} (existing stamp binds the same tracked code tree)\n`,
           );
-          return 1;
-        }
-        const existing = ledgerView.events.find(event => event.event_id === parsed.eventId);
-        if (existing) {
-          if (existing.event !== 'stamp' || existing.run_id !== runId) {
-            io.stderr(
-              `trace stamp: event ${parsed.eventId} is already recorded as a ${existing.event} `
-              + `for ${existing.run_id}; it cannot identify a stamp of ${runId}\n`,
-            );
-            return 1;
-          }
-          io.stdout(`already stamped ${existing.run_id} (event ${parsed.eventId} recorded)\n`);
           return 0;
         }
+        io.stderr(
+          `trace stamp: ${result.runId} already carries an origin stamp bound to a DIFFERENT tracked code tree; `
+          + 'a run id never silently rebinds. Use a fresh run id for the changed code (round-suffix convention).\n',
+        );
+        return 1;
       }
-      const eventId = parsed.eventId ?? mintUlid();
-      const origin = captureRunOrigin(projectRoot, runId, {
-        deps: parsed.deps,
-        eventId,
-      });
-      // Mirror attempted before the append so its outcome is recorded in the
-      // authoritative event; AUTHORITY stays with the ledger regardless of
-      // write order (all consumers read the ledger, D2).
-      const mirrorPath = path.join(runDir, 'run_origin.json');
-      const previousMirror = fs.existsSync(mirrorPath) ? fs.readFileSync(mirrorPath, 'utf-8') : null;
-      let mirrorWritten = true;
-      try {
-        writeBytesAtomicDurable(mirrorPath, `${JSON.stringify(origin, null, 2)}\n`);
-      } catch {
-        mirrorWritten = false;
-        // Commit-uncertain: the atomic helper renames before its final
-        // durability step, so on failure the destination may already hold
-        // the new bytes. Best-effort restore either way — harmless when the
-        // rename never happened, and the only defense against clobbering a
-        // pre-existing legacy mirror with no ledger event behind it.
-        try {
-          if (previousMirror !== null) writeBytesAtomicDurable(mirrorPath, previousMirror);
-          else fs.rmSync(mirrorPath, { force: true });
-        } catch {
-          // Restore is best-effort; the divergence scan surfaces leftovers.
-        }
-      }
-      const payload = {
-        ...(origin as unknown as Record<string, unknown>),
-        ...(mirrorWritten ? {} : { run_dir_unwritable: true }),
-      };
-      const event = buildValidityEvent({
-        event: 'stamp',
-        run_id: runId,
-        actor,
-        reason: null,
-        stamp: payload as ValidityEventV1['stamp'],
-        event_id: eventId,
-        ts_utc: (payload as { captured_at_utc: string }).captured_at_utc,
-      });
-      let outcome;
-      try {
-        outcome = appendValidityEvent(projectRoot, event);
-      } catch (error) {
-        // No orphan and no clobber: a mirror this invocation created is
-        // removed; a pre-existing one is restored to its prior content.
-        if (mirrorWritten) {
-          try {
-            if (previousMirror !== null) writeBytesAtomicDurable(mirrorPath, previousMirror);
-            else fs.rmSync(mirrorPath, { force: true });
-          } catch {
-            // A failing restore must not mask the append error; the
-            // divergence scan surfaces the leftover mirror on the next read.
-          }
-        }
-        throw error;
-      }
-      const record = payload as { binding_quality?: string; baseline_commit?: string | null };
+      const record = result.origin as unknown as { binding_quality?: string; baseline_commit?: string | null };
       io.stdout(
-        `${outcome === 'appended' ? 'stamped' : 'already stamped'} ${runId}: `
+        `${result.appendOutcome === 'appended' ? 'stamped' : 'already stamped'} ${result.runId}: `
         + `${record.binding_quality}${record.baseline_commit ? ` @ ${record.baseline_commit.slice(0, 12)}` : ''}`
-        + `${mirrorWritten ? '' : ' (run directory unwritable; ledger event is the record)'}\n`
-        + `event ${event.event_id}\n`,
+        + `${result.mirrorWritten ? '' : ' (run directory unwritable; ledger event is the record)'}\n`
+        + `event ${result.eventId}\n`,
       );
       return 0;
     }

@@ -340,7 +340,20 @@ export function readValidityLedger(projectRoot: string): ValidityLedgerView {
   };
 }
 
-export type AppendOutcome = 'appended' | 'already_present';
+export type AppendOutcome = 'appended' | 'already_present' | 'skipped_run_already_stamped';
+
+export type AppendValidityEventOptions = {
+  /** Stamp-writer guard, evaluated INSIDE the ledger lock: refuse to append
+   *  when ANY stamp event for this run_id is already on the ledger, returning
+   *  'skipped_run_already_stamped' instead. One run id carries one stamp —
+   *  a second, byte-different payload is the reader's conflicting-stamps
+   *  defect, so the race two concurrent stampers would otherwise run
+   *  (both read "unstamped", both append) is closed at the only place that
+   *  can close it atomically. The equal-event-id idempotency check still
+   *  runs first: a crash-retry of the SAME logical stamp stays a no-op
+   *  success, never a skip. */
+  onlyIfRunUnstamped?: boolean;
+};
 
 /** Append one event under the ledger's own lock.
  *
@@ -355,6 +368,7 @@ export type AppendOutcome = 'appended' | 'already_present';
 export function appendValidityEvent(
   projectRoot: string,
   event: ValidityEventV1,
+  options: AppendValidityEventOptions = {},
 ): AppendOutcome {
   if (!ULID_PATTERN.test(event.event_id)) {
     throw new Error(`event_id ${JSON.stringify(event.event_id)} is not a ULID`);
@@ -392,6 +406,10 @@ export function appendValidityEvent(
           );
         }
         return 'already_present';
+      }
+      if (options.onlyIfRunUnstamped
+        && parsed.some(({ event: existing }) => existing.event === 'stamp' && existing.run_id === event.run_id)) {
+        return 'skipped_run_already_stamped';
       }
       // A hand edit can leave the last line unterminated; appending blindly
       // would corrupt both lines. Repair in place (append-only, inode kept).

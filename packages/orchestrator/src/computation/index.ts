@@ -1,5 +1,9 @@
+import * as path from 'node:path';
+import { invalidParams } from '@nullius/shared';
 import { prepareManifest } from './manifest.js';
 import { ensureA3Approval } from './approval.js';
+import { stampComputationLaunch } from './launch-stamp.js';
+import { isInsideStampableRoot } from '../run-stamp.js';
 import { runPreparedManifest } from './runner.js';
 import type {
   DryRunExecutionResult,
@@ -35,6 +39,28 @@ function dryRunResult(input: ExecuteComputationManifestInput): DryRunExecutionRe
 export async function executeComputationManifest(
   input: ExecuteComputationManifestInput,
 ): Promise<ExecuteComputationManifestResult> {
+  // Inside a stampable run root, a run's directory basename IS its identity:
+  // the traceability read model scans directories by name and the launch
+  // stamp derives its ledger run id from the basename, while the execution
+  // result carries the supplied runId. Letting them differ there splits one
+  // run into two identities (a stamp for one name, results under another),
+  // so the mismatch is refused before anything happens — dry-run included,
+  // validation being exactly what dry-run is for. OUTSIDE the run roots
+  // (the MCP surface's free-location workspaces) no stamp is taken, no
+  // directory-scan identity exists, and the names may legitimately differ.
+  // Root membership uses the SAME symlink-resolved predicate as the stamp
+  // containment — two resolution semantics would let an aliased project
+  // root stamp a directory this check called outside.
+  const runDirBasename = path.basename(path.resolve(input.runDir));
+  if (isInsideStampableRoot(input.projectRoot, input.runDir) && runDirBasename !== input.runId) {
+    throw invalidParams(
+      'run_id must equal the run directory basename inside a run root (one run, one identity)',
+      {
+        run_id: input.runId,
+        run_dir_basename: runDirBasename,
+      },
+    );
+  }
   if (input.dryRun) {
     return dryRunResult(input);
   }
@@ -43,7 +69,12 @@ export async function executeComputationManifest(
   if (approval) {
     return approval;
   }
-  return runPreparedManifest(input.projectRoot, prepared);
+  // Origin stamp at launch: approval has cleared and the next thing that
+  // happens is execution, so the tree captured here IS the code that
+  // produces the results. Never blocks the run (see launch-stamp.ts).
+  const originStamp = stampComputationLaunch(input.projectRoot, input.runDir);
+  const result = await runPreparedManifest(input.projectRoot, prepared);
+  return { ...result, origin_stamp: originStamp };
 }
 
 export async function planComputationFromRunDir(input: {

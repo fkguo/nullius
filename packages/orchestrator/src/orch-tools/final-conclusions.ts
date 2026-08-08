@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { runDirFor } from '../run-paths.js';
 import type {
   ApprovalPacketV1,
   ArtifactRefV1,
@@ -64,7 +65,7 @@ ajv.addSchema?.(
 const finalConclusionsValidator = ajv.compile(finalConclusionsSchema as Record<string, unknown>);
 
 function runDirFromProjectRoot(projectRoot: string, runId: string): string {
-  return path.join(projectRoot, runId);
+  return runDirFor(projectRoot, runId);
 }
 
 function approvalArtifacts(projectRoot: string, runId: string, approvalId: string) {

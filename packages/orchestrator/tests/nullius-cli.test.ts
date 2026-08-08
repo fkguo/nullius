@@ -49,7 +49,7 @@ function extractTopLevelCommands(helpText: string): string[] {
 }
 
 function createComputationFixture(projectRoot: string, runId: string): { runDir: string; manifestPath: string } {
-  const runDir = path.join(projectRoot, runId);
+  const runDir = path.join(projectRoot, 'artifacts', 'runs', runId);
   const scriptPath = path.join(runDir, 'computation', 'scripts', 'write_ok.py');
   const manifestPath = path.join(runDir, 'computation', 'manifest.json');
   fs.mkdirSync(path.dirname(scriptPath), { recursive: true });
@@ -101,7 +101,7 @@ function fixtureArtifactRef(runId: string, runDir: string, filePath: string, kin
 }
 
 function writeValidationChecker(projectRoot: string, runId: string): string {
-  const runDir = path.join(projectRoot, runId);
+  const runDir = path.join(projectRoot, 'artifacts', 'runs', runId);
   const checkerPath = path.join(runDir, 'verification', 'decisive_checker.py');
   fs.mkdirSync(path.dirname(checkerPath), { recursive: true });
   fs.writeFileSync(checkerPath, [
@@ -445,7 +445,7 @@ describe('nullius CLI', () => {
       state.run_status = 'running';
       state.gate_satisfied.A3 = 'A3-0001';
       manager.saveState(state);
-      const runDir = path.join(projectRoot, runId);
+      const runDir = path.join(projectRoot, 'artifacts', 'runs', runId);
       const scriptPath = path.join(runDir, 'computation', 'scripts', 'fail.py');
       const manifestPath = path.join(runDir, 'computation', 'manifest.json');
       fs.mkdirSync(path.dirname(scriptPath), { recursive: true });

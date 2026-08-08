@@ -57,8 +57,13 @@ export type TraceabilityView = {
     /** Ledger events about run_ids with no directory on disk (renames,
      *  removals): reported, never silently dropped. */
     ledger_only_run_ids: string[];
-    superseded: Array<{ run_id: string; by: string | null; reason: string | null }>;
-    voided: Array<{ run_id: string; reason: string | null }>;
+    /** EVERY superseded relation the ledger records — including runs whose
+     *  directory is gone (cleaned up after replacement). A consumer
+     *  verifying "was old→new recorded?" must see the ledger truth, not a
+     *  directory-scan projection of it; rows without a directory carry the
+     *  marker instead of vanishing. */
+    superseded: Array<{ run_id: string; by: string | null; reason: string | null; directory_missing?: true }>;
+    voided: Array<{ run_id: string; reason: string | null; directory_missing?: true }>;
     no_authoritative_identity: string[];
   };
   ledger: {
@@ -101,6 +106,11 @@ export type TraceabilityView = {
   notebook: {
     found: boolean;
     counts: NotebookStalenessReport['counts'];
+    /** Every section with its staleness class — the per-section truth a
+     *  fold-boundary gate needs to verify that a declared rewrite actually
+     *  carries a fresh written-against stamp (the aggregates alone cannot
+     *  name which section is which). */
+    sections: Array<{ heading: string; class: NotebookStalenessReport['sections'][number]['class']; cause: string }>;
     stale: Array<{ heading: string; cause: string }>;
     incomparable: Array<{ heading: string; cause: string }>;
   };
@@ -266,6 +276,18 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
     if (known.no_authoritative_identity) noIdentity.push(entry.run_id);
   }
   const ledgerOnly = [...ledger.runs.keys()].filter(runId => !directoryIds.has(runId)).sort();
+  // Superseded/void relations are LEDGER truth: a run replaced and then
+  // cleaned off disk still was replaced — dropping its row because the
+  // directory scan cannot see it would make the relation unverifiable
+  // (and tempt a caller into appending a duplicate supersede event).
+  for (const runId of ledgerOnly) {
+    const known = ledger.runs.get(runId)!;
+    if (known.validity === 'superseded') {
+      superseded.push({ run_id: runId, by: known.superseded_by, reason: known.reason, directory_missing: true });
+    } else if (known.validity === 'void') {
+      voided.push({ run_id: runId, reason: known.reason, directory_missing: true });
+    }
+  }
 
   // Binding-quality distribution and stamp conflicts cover EVERY stamped run
   // the ledger knows — including ledger-only ids whose directory is gone. A
@@ -498,6 +520,11 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
     notebook: {
       found: notebook.notebook_found,
       counts: notebook.counts,
+      sections: notebook.sections.map(section => ({
+        heading: section.heading,
+        class: section.class,
+        cause: section.cause,
+      })),
       stale: notebook.sections.filter(section => section.class === 'stale')
         .map(section => ({ heading: section.heading, cause: section.cause })),
       incomparable: notebook.sections.filter(section => section.class === 'incomparable')
@@ -645,10 +672,10 @@ export function renderTraceabilityProse(view: TraceabilityView): string {
         : ''}`);
   }
   for (const entry of view.runs.superseded.slice(0, 10)) {
-    lines.push(`- superseded: ${entry.run_id}${entry.by ? ` → ${entry.by}` : ''}${entry.reason ? ` (${entry.reason})` : ''}`);
+    lines.push(`- superseded: ${entry.run_id}${entry.directory_missing ? ' [directory removed]' : ''}${entry.by ? ` → ${entry.by}` : ''}${entry.reason ? ` (${entry.reason})` : ''}`);
   }
   for (const entry of view.runs.voided.slice(0, 10)) {
-    lines.push(`- void: ${entry.run_id}${entry.reason ? ` (${entry.reason})` : ''}`);
+    lines.push(`- void: ${entry.run_id}${entry.directory_missing ? ' [directory removed]' : ''}${entry.reason ? ` (${entry.reason})` : ''}`);
   }
   if (view.runs.no_authoritative_identity.length > 0) {
     lines.push(`- LEDGER INTEGRITY: ${view.runs.no_authoritative_identity.length} run(s) have divergent ledger events and no authoritative identity: ${view.runs.no_authoritative_identity.join(', ')}`);
