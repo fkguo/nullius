@@ -486,6 +486,29 @@ describe('refresh, hooks, and staleness', () => {
     expect(text).toContain(`render ${renders}`);
   });
 
+  it('an ACTIVE but never-stamped run cannot star a clean current result (reinstate-only entry)', () => {
+    const projectRoot = makeProject();
+    const runId = '20260809-m1-r001-reinstate-only';
+    mkRun(projectRoot, runId);
+    // A ledger entry with validity active and stamped=false: only a
+    // reinstate event, no stamp payload, hence no origin either — the
+    // shape that slips past a binding-quality check alone.
+    appendValidityEvent(projectRoot, buildValidityEvent({
+      event: 'reinstate', run_id: runId, actor: 'test', reason: 'undo an earlier void',
+    }));
+    // A HAND-WRITTEN current row (set-current would refuse the unstamped
+    // run; hand edits stay legal and must not read as clean currency).
+    const indexPath = path.join(projectRoot, 'project_index.md');
+    fs.writeFileSync(indexPath, fs.readFileSync(indexPath, 'utf-8').replace(
+      '<!-- RESULT_REGISTRY_END -->',
+      `| handrow | [x](artifacts/runs/${runId}/x.json) | ${'0'.repeat(64)} | ${runId} | none | none |\n<!-- RESULT_REGISTRY_END -->`,
+    ));
+    const projection = computeRunIndexProjection(projectRoot);
+    const family = projection.families.find(candidate => candidate.current_results.length > 0)!;
+    expect(family.current_results).toEqual([{ result_id: 'handrow', defective: true }]);
+    expect(renderRunIndexBlock(projection)).toContain('★handrow (DEFECTIVE)');
+  });
+
   it('ledger reads are shared, not repeated: a supplied view is used as-is', () => {
     const projectRoot = makeProject();
     mkRun(projectRoot, '20260809-m1-r001-shared-view');
