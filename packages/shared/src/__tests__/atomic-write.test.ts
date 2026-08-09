@@ -37,6 +37,7 @@ import {
   appendBytesDurable,
   appendJsonlDurable,
   commitStagedDurable,
+  moveEntryDurable,
   fsyncParentDirectoryDurable,
   type AtomicWriteAuditEvent,
   writeBytesAtomicDurable,
@@ -363,6 +364,24 @@ describe('end-to-end behavior', () => {
     commitStagedDurable(staged, final);
     expect(fs.existsSync(staged)).toBe(false);
     expect(JSON.parse(fs.readFileSync(final, 'utf-8'))).toEqual({ x: 1 });
+  });
+
+  it('moveEntryDurable moves files and whole directory trees across parents', () => {
+    const sourceDir = path.join(tmp, 'live', 'outputs');
+    fs.mkdirSync(sourceDir, { recursive: true });
+    fs.writeFileSync(path.join(sourceDir, 'partial.tsv'), '1\t2\n');
+    const destDir = path.join(tmp, 'archive', 'attempt-1', 'outputs');
+    fs.mkdirSync(path.dirname(destDir), { recursive: true });
+    moveEntryDurable(sourceDir, destDir);
+    expect(fs.existsSync(sourceDir)).toBe(false);
+    expect(fs.readFileSync(path.join(destDir, 'partial.tsv'), 'utf-8')).toBe('1\t2\n');
+
+    const file = path.join(tmp, 'live', 'status.json');
+    fs.writeFileSync(file, '{"status":"failed"}');
+    const fileDest = path.join(tmp, 'archive', 'status.json');
+    moveEntryDurable(file, fileDest);
+    expect(fs.existsSync(file)).toBe(false);
+    expect(fs.readFileSync(fileDest, 'utf-8')).toBe('{"status":"failed"}');
   });
 
   it('audit hook restore() correctly removes the hook', () => {
