@@ -12,7 +12,8 @@ import {
 } from '../src/run-index.js';
 import { openRetryAttempt, stampRunDirectory } from '../src/run-stamp.js';
 import { appendValidityEvent, buildValidityEvent, readValidityLedger } from '../src/validity-ledger.js';
-import { setCurrentResult } from '../src/result-registry.js';
+import { parseResultRegistry, setCurrentResult } from '../src/result-registry.js';
+import { refreshManagedBlock } from '../src/managed-block.js';
 import { buildTraceabilityView, renderTraceabilityProse } from '../src/traceability-view.js';
 import { runCli } from '../src/cli.js';
 import { runTraceCommand } from '../src/cli-trace.js';
@@ -110,7 +111,7 @@ describe('projection and render', () => {
     const dstar = projection.families[0]!;
     expect(dstar).toMatchObject({ runs: 2, active: 1, void: 1, unclassified: 0 });
     expect(dstar.latest.run_id).toBe('20260809-m1-r002-dstar-dk-scan');
-    expect(dstar.current_result_ids).toEqual(['headline']);
+    expect(dstar.current_results).toEqual([{ result_id: 'headline', defective: false }]);
 
     const rendered = renderRunIndexBlock(projection);
     expect(rendered).toContain('| dstar-dk | 2 | 1 | 0 | 1 | 0 |');
@@ -348,7 +349,11 @@ describe('refresh, hooks, and staleness', () => {
     const cliTrace = read('cli-trace.ts');
     expect(cliTrace).toContain('refreshRunIndexBlock(projectRoot, { insertIfMissing: false })');
     expect(read('cli.ts')).toContain('refreshRunIndexBlock(projectRoot, { insertIfMissing: false })');
-    expect(read('cli-init.ts')).toContain('refreshRunIndexBlock(repoRoot, { insertIfMissing: false })');
+    // cli-init has TWO call sites (full init and --runtime-only); a single
+    // substring check would stay green if one were deleted.
+    const cliInit = read('cli-init.ts');
+    const initCalls = cliInit.match(/refreshRunIndexBlock\(repoRoot, \{ insertIfMissing: false \}\)/g) ?? [];
+    expect(initCalls.length).toBeGreaterThanOrEqual(2);
   });
 
   it('the SHIPPED scaffold template block adopts as-is (locked against the real file, not a copy)', () => {
@@ -393,7 +398,92 @@ describe('refresh, hooks, and staleness', () => {
       expect(exit).toBe(0);
       const block = blockText(projectRoot);
       expect(block).toMatch(/\| 1 \| 0 \| 0 \| 1 \| 0 \|/);
+      // The star must not present a result on a VOID run as clean currency.
+      expect(block).toContain('\u2605headline (DEFECTIVE)');
     });
+  });
+
+  it('a basename carrying a literal registry marker cannot forge a second marker (angle brackets escape)', async () => {
+    const projectRoot = makeProject();
+    const runId = '20260809-m1-r001-ok';
+    mkRun(projectRoot, runId);
+    stampRun(projectRoot, runId);
+    mkRun(projectRoot, '20260809-m1-r002-x<!-- RESULT_REGISTRY_START -->');
+    expect(refreshRunIndexBlock(projectRoot, { insertIfMissing: false }).action).toBe('rewritten');
+    // The genuine registry still parses (exactly one marker pair)…
+    const registry = parseResultRegistry(projectRoot);
+    expect(registry.block_found).toBe(true);
+    // …and registration through the CLI still works on the same file.
+    fs.writeFileSync(path.join(projectRoot, 'artifacts', 'runs', runId, 'value.json'), '{"v":1}\n');
+    const code = await runCli(
+      ['result', 'set-current', 'headline', '--run', runId, '--artifact', `artifacts/runs/${runId}/value.json`],
+      { cwd: projectRoot, stdout: () => {}, stderr: () => {} },
+    );
+    expect(code).toBe(0);
+    expect(blockText(projectRoot)).toContain('★headline');
+  });
+
+  it('the projection never re-hashes registered artifacts (parse-only, revert-sensitive)', async () => {
+    const projectRoot = makeProject();
+    const runId = '20260809-m1-r001-parse-only';
+    mkRun(projectRoot, runId);
+    stampRun(projectRoot, runId);
+    const artifact = path.join(projectRoot, 'artifacts', 'runs', runId, 'value.json');
+    fs.writeFileSync(artifact, '{"v":1}\n');
+    const code = await runCli(
+      ['result', 'set-current', 'headline', '--run', runId, '--artifact', `artifacts/runs/${runId}/value.json`],
+      { cwd: projectRoot, stdout: () => {}, stderr: () => {} },
+    );
+    expect(code).toBe(0);
+    // Make the artifact unreadable: a validating (hashing) projection
+    // would have to open these bytes; a parse-only one never touches them.
+    fs.chmodSync(artifact, 0o000);
+    try {
+      const projection = computeRunIndexProjection(projectRoot);
+      expect(projection.families[0]!.current_results.map(entry => entry.result_id)).toContain('headline');
+    } finally {
+      fs.chmodSync(artifact, 0o644);
+    }
+  });
+
+  it('the engine renders AFTER reading the carrier: a rival landing mid-refresh forces a re-render, never a stale replay', () => {
+    const projectRoot = makeProject();
+    mkRun(projectRoot, '20260809-m1-r001-order');
+    const carrier = path.join(projectRoot, 'project_index.md');
+    let renders = 0;
+    const outcome = refreshManagedBlock(
+      carrier,
+      () => {
+        renders += 1;
+        if (renders === 1) {
+          // Simulate the rival: it lands AFTER our read (the engine read
+          // the carrier before calling us), so the write guard must see
+          // changed bytes and retry with a second, fresh render. Under
+          // the reverted (render-before-read) ordering this mutation
+          // happens BEFORE the read, no retry occurs, and renders
+          // stays 1 — turning this control red.
+          fs.appendFileSync(carrier, '\nrival line\n');
+        }
+        return [RUN_INDEX_START, '<!-- run-index-digest: ' + 'a'.repeat(64) + ' -->', `render ${renders}`, RUN_INDEX_END].join('\n');
+      },
+      {
+        startMarker: RUN_INDEX_START,
+        endMarker: RUN_INDEX_END,
+        digestFirstLinePattern: /^ {0,3}<!--\s*run-index-digest:\s*[0-9a-f]{64}\s*--> *$/,
+        blockNoun: 'run-index',
+        syncCommand: '`nullius index sync`',
+        fileLabel: 'project_index.md',
+        carrierNoun: 'project_index.md',
+        frontMatterPosition: false,
+        stateChangedReason: 'run/ledger state changed since the block was written',
+      },
+      { insertIfMissing: false, missingBlockReason: 'unused', insertAt: () => 0 },
+    );
+    expect(outcome.action).toBe('rewritten');
+    expect(renders).toBeGreaterThanOrEqual(2);
+    const text = fs.readFileSync(carrier, 'utf-8');
+    expect(text).toContain('rival line');
+    expect(text).toContain(`render ${renders}`);
   });
 
   it('ledger reads are shared, not repeated: a supplied view is used as-is', () => {
