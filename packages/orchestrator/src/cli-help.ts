@@ -255,6 +255,20 @@ markers: a present block that no longer matches its canonical render is
 reported OUT OF SYNC by \`nullius status --json\` / \`nullius current\` and
 refuses milestone convergence until refreshed.
 `,
+  index: `nullius index sync [--json]
+
+Insert (first run) or refresh the machine-maintained run-index block in
+project_index.md. The block renders every run directory grouped by slug
+family — run counts, the validity split (active / superseded / void /
+unclassified), the latest run of each family, and which registered current
+results rest on it — from the same directory scan and validity ledger
+behind \`nullius current\`. It rewrites itself automatically after
+ledger-writing commands; this verb exists for adoption in an existing
+project and for repair after a hand edit. Never edit between the block's
+markers: an out-of-sync block is reported by \`nullius status --json\` /
+\`nullius current\` until refreshed. Defect details and crashed-run hints
+stay with \`nullius current\`.
+`,
   result: `nullius result set-current <result-id> --run <run_id> --artifact <path> [--description "..."] [--supersedes <result-id>]
 
 Register or update a row of the current-results registry in project_index.md

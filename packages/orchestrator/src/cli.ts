@@ -110,6 +110,33 @@ export async function runCli(argv: string[], io: CliIo = defaultIo()): Promise<n
       return 1;
     }
   }
+  if (parsed.command === 'index') {
+    const { refreshRunIndexBlock, checkRunIndexBlock } = await import('./run-index.js');
+    try {
+      // Same post-write discipline as `notebook sync`: the check compares
+      // against the projection the refresh actually RENDERED.
+      const outcome = refreshRunIndexBlock(projectRoot, { insertIfMissing: true });
+      const status = checkRunIndexBlock(projectRoot, outcome.projection);
+      if (parsed.json) {
+        io.stdout(`${JSON.stringify({ action: outcome.action, reason: outcome.reason, block: status }, null, 2)}\n`);
+      } else if (outcome.action === 'skipped') {
+        io.stderr(`index sync: ${outcome.reason}\n`);
+        return 1;
+      } else {
+        io.stdout(
+          `index sync: run-index block ${outcome.action}`
+          + `${status.in_sync === true ? (status.reason !== null ? ` — ${status.reason}` : ' (in sync)') : ''}`
+          + `${status.in_sync !== true
+            ? ` — WARNING: post-write check does not confirm the block (${status.reason ?? (status.block_found ? 'out of sync' : 'block not found')}); a concurrent writer may have landed`
+            : ''}\n`,
+        );
+      }
+      return outcome.action === 'skipped' ? 1 : 0;
+    } catch (error) {
+      io.stderr(`index sync: ${error instanceof Error ? error.message : String(error)}\n`);
+      return 1;
+    }
+  }
   if (parsed.command === 'release') {
     const { runReleaseCommand } = await import('./cli-release.js');
     try {
@@ -144,6 +171,13 @@ export async function runCli(argv: string[], io: CliIo = defaultIo()): Promise<n
         const { refreshNotebookCurrentState } = await import('./notebook-current-state.js');
         const refreshed = refreshNotebookCurrentState(projectRoot, { insertIfMissing: false });
         if (refreshed.action === 'rewritten') io.stdout('notebook current-state block refreshed.\n');
+      } catch {
+        // surfaced as out-of-sync on the next status/current read
+      }
+      try {
+        const { refreshRunIndexBlock } = await import('./run-index.js');
+        const refreshedIndex = refreshRunIndexBlock(projectRoot, { insertIfMissing: false });
+        if (refreshedIndex.action === 'rewritten') io.stdout('run index refreshed.\n');
       } catch {
         // surfaced as out-of-sync on the next status/current read
       }
