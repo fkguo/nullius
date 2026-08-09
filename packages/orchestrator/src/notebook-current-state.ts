@@ -4,6 +4,8 @@ import { canonicalJson, readValidityLedger, type ValidityLedgerView } from './va
 import { validateResultRegistry } from './result-registry.js';
 import {
   checkManagedBlock,
+  encodeLinkTarget,
+  escapeMarkdownCell,
   locateManagedBlock,
   refreshManagedBlock,
   type ManagedBlockLocation,
@@ -134,7 +136,13 @@ export function renderCurrentStateBlock(projection: CurrentStateProjection): str
       const identity = row.effective_commit === null
         ? '(no exact identity)'
         : `${row.effective_commit.slice(0, 12)}${row.has_snapshot ? '+snapshot' : ''}${row.has_untracked ? '+untracked' : ''}`;
-      const artifact = row.artifact === null ? '(none)' : `[${row.artifact}](${row.artifact})`;
+      // Registry-derived text is UNTRUSTED for this marker-delimited
+      // surface: a hand-written artifact cell carrying a comment delimiter
+      // could forge a second block marker (the same injection the
+      // run-index renderer is hardened against).
+      const artifact = row.artifact === null
+        ? '(none)'
+        : `[${escapeMarkdownCell(row.artifact)}](${encodeLinkTarget(row.artifact)})`;
       const marker = row.defective ? ' **DEFECTIVE**' : '';
       lines.push(`| ${row.result_id}${marker} | ${row.run_id} | ${identity} | ${artifact} |`);
     }

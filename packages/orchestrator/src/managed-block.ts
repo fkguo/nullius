@@ -344,3 +344,31 @@ export function refreshManagedBlock(
     reason: `concurrent ${spec.carrierNoun} edits kept landing during refresh — re-run ${spec.syncCommand}`,
   };
 }
+
+/** Cell text rendered into a managed block often comes from UNTRUSTED
+ *  names (directory basenames, registry cells) — hostile names
+ *  are possible, and an unescaped `|` mints extra table columns while `]`
+ *  terminates a link label. Control characters (a legal POSIX basename may
+ *  carry a NEWLINE) are replaced outright: one smuggled line break would
+ *  end the table row mid-cell — or fabricate a heading/marker line that
+ *  wedges the whole block behind the interior whitelist, with the machine's
+ *  own markers reported as strays the operator cannot meaningfully remove.
+ *  Then backslash-escape the structural characters — INCLUDING `<`/`>`: a
+ *  basename carrying a literal `<!-- RESULT_REGISTRY_START -->` would
+ *  otherwise mint a second marker substring and make the registry parser
+ *  refuse the genuine block. Backticks stay (they cannot break table,
+ *  link, or marker structure). */
+export function escapeMarkdownCell(text: string): string {
+  return text
+    .replace(/[\u0000-\u001f\u007f]/g, ' ')
+    .replace(/([\\|[\]<>])/g, '\\$1');
+}
+
+/** Link destination: percent-encode so spaces, parentheses, angle
+ *  brackets, control characters, and the reserved `#`/`?` (which encodeURI
+ *  leaves alone but which start a fragment/query in a rendered link) in a
+ *  directory name cannot terminate or corrupt the target. */
+export function encodeLinkTarget(target: string): string {
+  return encodeURI(target).replace(/[()#?\u0000-\u001f\u007f]/g,
+    char => `%${char.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0')}`);
+}

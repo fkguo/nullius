@@ -588,7 +588,62 @@ describe('refresh, hooks, and staleness', () => {
       runId,
       artifactRelPath: `artifacts/runs/${runId}/value.json`,
       description: 'x<!-- RESULT_REGISTRY_END -->',
-    })).toThrow(/angle brackets|'<'/);
+    })).toThrow(/<!--/);
+  });
+
+  it('a broken supersession chain marks its stars defective (parse-level, parity with the validator)', () => {
+    const projectRoot = makeProject();
+    const runId = '20260809-m1-r001-chain-break';
+    mkRun(projectRoot, runId);
+    stampRun(projectRoot, runId);
+    fs.writeFileSync(path.join(projectRoot, 'artifacts', 'runs', runId, 'value.json'), '{"v":1}\n');
+    setCurrentResult(projectRoot, {
+      resultId: 'v2', runId, artifactRelPath: `artifacts/runs/${runId}/value.json`,
+    });
+    // Hand-break the chain: v2 claims to supersede v1, but no v1 row
+    // records the back direction (one-directional relation).
+    const indexPath = path.join(projectRoot, 'project_index.md');
+    const text = fs.readFileSync(indexPath, 'utf-8');
+    const mangled = text.replace('| `none` | `none` |', '| `v1` | `none` |');
+    expect(mangled).not.toBe(text);
+    fs.writeFileSync(indexPath, mangled);
+    const projection = computeRunIndexProjection(projectRoot);
+    const starred = projection.families[0]!.current_results[0]!;
+    expect(starred.result_id).toBe('v2');
+    expect(starred.defective).toBe(true);
+    const validated = validateResultRegistry(projectRoot, readValidityLedger(projectRoot));
+    expect(validated.defective_result_ids.has('v2')).toBe(true);
+  });
+
+  it('inequality prose in a description stays registrable; only comment delimiters refuse', () => {
+    const projectRoot = makeProject();
+    const runId = '20260809-m1-r001-chi2';
+    mkRun(projectRoot, runId);
+    stampRun(projectRoot, runId);
+    fs.writeFileSync(path.join(projectRoot, 'artifacts', 'runs', runId, 'value.json'), '{"v":1}\n');
+    const { row } = setCurrentResult(projectRoot, {
+      resultId: 'fitq', runId, artifactRelPath: `artifacts/runs/${runId}/value.json`,
+      description: 'fit quality χ²/dof < 1 across the scan',
+    });
+    expect(row.result_id).toBe('fitq');
+  });
+
+  it('a head_plus_untracked binding renders its star QUALIFIED — ★id (+untracked), not unqualified', () => {
+    const projectRoot = makeProject();
+    const runId = '20260809-m1-r001-untracked-star';
+    mkRun(projectRoot, runId);
+    // An untracked stray at capture time: the binding grade every other
+    // current-result surface qualifies.
+    fs.writeFileSync(path.join(projectRoot, 'helper.py'), 'h = 1\n');
+    stampRun(projectRoot, runId);
+    fs.writeFileSync(path.join(projectRoot, 'artifacts', 'runs', runId, 'value.json'), '{"v":1}\n');
+    setCurrentResult(projectRoot, {
+      resultId: 'headline', runId, artifactRelPath: `artifacts/runs/${runId}/value.json`,
+    });
+    const projection = computeRunIndexProjection(projectRoot);
+    const starred = projection.families[0]!.current_results[0]!;
+    expect(starred).toMatchObject({ result_id: 'headline', defective: false, untracked: true });
+    expect(renderRunIndexBlock(projection)).toContain('★headline (+untracked)');
   });
 
   it('star and validator agree on the no-IO defect rule (parity control)', () => {
