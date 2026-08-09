@@ -256,20 +256,18 @@ export function refreshNotebookCurrentState(
     projection?: CurrentStateProjection;
   },
 ): RefreshOutcome {
-  // First attempt renders the caller's projection (one compute per
-  // command); a retry after a detected concurrent edit re-renders from
-  // the NOW-current state so a lost race never replaces the winner's
-  // newer block with stale bytes.
-  let latestProjection = options?.projection
-    ?? computeCurrentStateProjection(projectRoot, options?.ledgerView);
-  let firstAttempt = true;
+  // EVERY attempt — the first included — recomputes from fresh state,
+  // never from a caller-supplied projection: the supplied value predates
+  // the carrier read, and a rival's registry write can land in exactly
+  // that window (the engine's optimistic guard only catches rivals that
+  // touch the carrier AFTER our read). The supplied projection/ledgerView
+  // seed only the returned projection on the render-free skip path, so a
+  // normal refresh computes exactly one projection.
+  let latestProjection: CurrentStateProjection | null = null;
   const outcome = refreshManagedBlock(
     path.join(projectRoot, 'research_notebook.md'),
     () => {
-      if (!firstAttempt) {
-        latestProjection = computeCurrentStateProjection(projectRoot);
-      }
-      firstAttempt = false;
+      latestProjection = computeCurrentStateProjection(projectRoot);
       return renderCurrentStateBlock(latestProjection);
     },
     NOTEBOOK_BLOCK_SPEC,
@@ -279,5 +277,11 @@ export function refreshNotebookCurrentState(
       insertAt: frontMatterInsertOffset,
     },
   );
-  return { projection: latestProjection, action: outcome.action, reason: outcome.reason };
+  return {
+    projection: latestProjection
+      ?? options?.projection
+      ?? computeCurrentStateProjection(projectRoot, options?.ledgerView),
+    action: outcome.action,
+    reason: outcome.reason,
+  };
 }

@@ -28,9 +28,9 @@ import {
  *
  *  Deterministic render + digest/byte dual-channel freshness, exactly the
  *  notebook current-state block's contract (shared engine). Inputs are
- *  the directory scan, the ledger view, and the registry validation only
- *  — no git subprocesses, so the per-ledger-write refresh hooks stay
- *  cheap. */
+ *  the directory scan, the ledger view, and the registry PARSE only —
+ *  no artifact hashing and no git subprocesses, so the per-ledger-write
+ *  refresh hooks stay cheap. */
 
 export const RUN_INDEX_START = '<!-- RUN_INDEX_START -->';
 export const RUN_INDEX_END = '<!-- RUN_INDEX_END -->';
@@ -68,8 +68,12 @@ export type RunIndexFamily = {
   /** Directories with no ledger event at all (legacy / never stamped). */
   unclassified: number;
   latest: RunIndexFamilyLatest;
-  /** CURRENT registry rows whose run belongs to this family. */
-  current_result_ids: string[];
+  /** CURRENT registry rows whose run belongs to this family. A row is
+   *  DEFECTIVE when the ledger already contradicts its currency claim
+   *  (run not active, resultless head attempt, chain/identity defects,
+   *  inexact binding) — pure Map lookups on the ledger view, never the
+   *  validator's artifact re-hash. */
+  current_results: Array<{ result_id: string; defective: boolean }>;
 };
 
 export type RunIndexProjection = {
@@ -86,6 +90,9 @@ export type RunIndexProjection = {
     no_authoritative_identity: string[];
     /** Ledger events about run ids with no directory on disk. */
     ledger_only: string[];
+    /** CURRENT registry rows naming a run with NO directory on disk —
+     *  the star would otherwise silently vanish from every family row. */
+    registry_only_current: string[];
   };
   registry_block_found: boolean;
 };
@@ -129,7 +136,7 @@ export function computeRunIndexProjection(
      *  is looking for. (D3 revised accordingly; ids without a date prefix
      *  order lexicographically, an honest stated limit.) */
     latestKey: string;
-    current_result_ids: string[];
+    current_results: Array<{ result_id: string; defective: boolean }>;
   };
   const families = new Map<string, FamilyAccumulator>();
   const totals = { active: 0, superseded: 0, void: 0, unclassified: 0, stamped: 0 };
@@ -152,7 +159,7 @@ export function computeRunIndexProjection(
     const family = slugFamilyOf(entry.run_id);
     const accumulator = families.get(family) ?? {
       family, runs: 0, active: 0, superseded: 0, void: 0, unclassified: 0,
-      latest, latestKey: entry.run_id, current_result_ids: [],
+      latest, latestKey: entry.run_id, current_results: [],
     };
     accumulator.runs += 1;
     accumulator[validity] += 1;
@@ -161,11 +168,30 @@ export function computeRunIndexProjection(
       accumulator.latestKey = entry.run_id;
     }
     const currents = currentByRun.get(entry.run_id);
-    if (currents) accumulator.current_result_ids.push(...currents);
+    if (currents) {
+      const bindingQuality = (known?.origin as { binding_quality?: string } | null | undefined)?.binding_quality;
+      const defective = !known
+        || known.validity !== 'active'
+        || known.no_authoritative_identity
+        || known.conflicting_stamps
+        || known.attempts.chain_defect
+        || known.attempts.conflicting_attempts
+        || known.attempts.latest_failed
+        || bindingQuality === 'aligned_heuristic'
+        || bindingQuality === 'unbound';
+      accumulator.current_results.push(...currents.map(resultId => ({ result_id: resultId, defective })));
+    }
     families.set(family, accumulator);
   }
 
   const ledgerOnly = [...ledger.runs.keys()].filter(runId => !directoryIds.has(runId)).sort();
+  // A CURRENT registry row naming a run with NO directory would otherwise
+  // simply vanish from every family row — the star must fail loudly, not
+  // silently.
+  const registryOnlyCurrent = [...currentByRun.entries()]
+    .filter(([runId]) => !directoryIds.has(runId))
+    .flatMap(([runId, resultIds]) => resultIds.map(resultId => `${resultId} (run ${runId})`))
+    .sort();
 
   return {
     run_directories: directories.length,
@@ -175,7 +201,8 @@ export function computeRunIndexProjection(
       .sort((a, b) => b.runs - a.runs || (a.family < b.family ? -1 : 1))
       .map(({ latestKey: _latestKey, ...family }) => ({
         ...family,
-        current_result_ids: [...family.current_result_ids].sort(),
+        current_results: [...family.current_results]
+          .sort((a, b) => (a.result_id < b.result_id ? -1 : 1)),
       })),
     defects: {
       conflicting_stamps: [...ledger.runs.values()].filter(entry => entry.conflicting_stamps)
@@ -186,6 +213,7 @@ export function computeRunIndexProjection(
       no_authoritative_identity: [...ledger.runs.values()].filter(entry => entry.no_authoritative_identity)
         .map(entry => entry.run_id).sort(),
       ledger_only: ledgerOnly,
+      registry_only_current: registryOnlyCurrent,
     },
     registry_block_found: registry.block_found,
   };
@@ -205,12 +233,15 @@ const listWithCap = (ids: string[], cap = 5): string =>
  *  end the table row mid-cell — or fabricate a heading/marker line that
  *  wedges the whole block behind the interior whitelist, with the machine's
  *  own markers reported as strays the operator cannot meaningfully remove.
- *  Then backslash-escape the structural characters; backticks stay (they
- *  cannot break table/link structure). */
+ *  Then backslash-escape the structural characters — INCLUDING `<`/`>`: a
+ *  basename carrying a literal `<!-- RESULT_REGISTRY_START -->` would
+ *  otherwise mint a second marker substring and make the registry parser
+ *  refuse the genuine block. Backticks stay (they cannot break table,
+ *  link, or marker structure). */
 function escapeMarkdownCell(text: string): string {
   return text
     .replace(/[\u0000-\u001f\u007f]/g, ' ')
-    .replace(/([\\|[\]])/g, '\\$1');
+    .replace(/([\\|[\]<>])/g, '\\$1');
 }
 
 /** Link destination: percent-encode so spaces, parentheses, angle
@@ -252,8 +283,10 @@ export function renderRunIndexBlock(projection: RunIndexProjection): string {
       if (latest.latest_ordinal > 1) notes.push(`attempt ${latest.latest_ordinal}`);
       const latestCell = `[${escapeMarkdownCell(latest.run_id)}](${encodeLinkTarget(`${latest.root}/${latest.run_id}/`)})`
         + (notes.length > 0 ? ` (${notes.join(', ')})` : '');
-      const currentCell = family.current_result_ids.length > 0
-        ? family.current_result_ids.map(id => `★${escapeMarkdownCell(id)}`).join(', ')
+      const currentCell = family.current_results.length > 0
+        ? family.current_results
+          .map(entry => `★${escapeMarkdownCell(entry.result_id)}${entry.defective ? ' (DEFECTIVE)' : ''}`)
+          .join(', ')
         : '—';
       lines.push(`| ${escapeMarkdownCell(family.family)} | ${family.runs} | ${family.active} | ${family.superseded} `
         + `| ${family.void} | ${family.unclassified} | ${latestCell} | ${currentCell} |`);
@@ -272,6 +305,9 @@ export function renderRunIndexBlock(projection: RunIndexProjection): string {
   }
   if (defects.ledger_only.length > 0) {
     defectParts.push(`${defects.ledger_only.length} ledger-only run id(s) with no directory: ${listWithCap(defects.ledger_only)}`);
+  }
+  if (defects.registry_only_current.length > 0) {
+    defectParts.push(`${defects.registry_only_current.length} CURRENT result(s) naming a run with no directory: ${listWithCap(defects.registry_only_current)}`);
   }
   if (defectParts.length > 0) {
     lines.push('');
@@ -355,8 +391,11 @@ export function refreshRunIndexBlock(
   // the carrier read, which is exactly the window a rival's append hides
   // in). The engine renders after reading the carrier, so a rival is
   // either folded into this recompute or caught by the write guard.
-  let latestProjection = options?.projection
-    ?? computeRunIndexProjection(projectRoot, options?.ledgerView);
+  // The supplied projection/ledgerView therefore never reach a RENDER;
+  // they only seed the returned projection on the one path that renders
+  // nothing (carrier missing → skipped), so a normal refresh computes
+  // exactly one projection.
+  let latestProjection: RunIndexProjection | null = null;
   const outcome = refreshManagedBlock(
     path.join(projectRoot, 'project_index.md'),
     () => {
@@ -370,5 +409,11 @@ export function refreshRunIndexBlock(
       insertAt: runIndexInsertOffset,
     },
   );
-  return { projection: latestProjection, action: outcome.action, reason: outcome.reason };
+  return {
+    projection: latestProjection
+      ?? options?.projection
+      ?? computeRunIndexProjection(projectRoot, options?.ledgerView),
+    action: outcome.action,
+    reason: outcome.reason,
+  };
 }
