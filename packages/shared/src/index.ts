@@ -87,6 +87,7 @@ export {
   appendBytesDurable,
   writeExecutableAtomicDurable,
   commitStagedDurable,
+  moveEntryDurable,
   fsyncParentDirectoryDurable,
   // Test-only: audit hook for sequence-locking regression tests.
   _setAtomicWriteAuditHook,

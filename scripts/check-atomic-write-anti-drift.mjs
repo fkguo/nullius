@@ -205,6 +205,7 @@ function main() {
       '  - appendBytesDurable(filePath, bytes)\n' +
       '  - writeExecutableAtomicDurable(filePath, script)\n' +
       '  - commitStagedDurable(stagedPath, finalPath)\n' +
+      '  - moveEntryDurable(fromPath, toPath)   (cross-parent durable move)\n' +
       '\nIf the new call site genuinely cannot use a primitive (e.g. cross-parent\n' +
       'rename inside an outer durably-committed staging area), add it to the\n' +
       'ALLOWLIST in scripts/check-atomic-write-anti-drift.mjs with a justification.\n',
