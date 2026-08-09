@@ -357,3 +357,24 @@ export function commitStagedDurable(
   audit({ kind: 'rename', from: stagedPath, to: finalPath });
   fsyncParentDirectoryDurable(finalPath);
 }
+
+/**
+ * Durably MOVE an existing directory entry (file or directory tree) to a
+ * destination under a DIFFERENT parent — the cross-parent counterpart of
+ * `commitStagedDurable`. Both parent directories are fsync'd: the entry's
+ * disappearance from the source directory and its appearance in the
+ * destination directory are separate dirent updates, and a crash between
+ * them must not leave a recorded state (e.g. a ledger event naming an
+ * archive location) pointing at an entry whose move never became durable.
+ *
+ * Same-filesystem only (rename semantics); an EXDEV crossing throws to the
+ * caller, which owns the fallback policy. The destination must not exist —
+ * rename would otherwise clobber it on POSIX for files (and fail
+ * confusingly for directories), so existence is the caller's check.
+ */
+export function moveEntryDurable(fromPath: string, toPath: string): void {
+  fs.renameSync(fromPath, toPath);
+  audit({ kind: 'rename', from: fromPath, to: toPath });
+  fsyncParentDirectoryDurable(toPath);
+  fsyncParentDirectoryDurable(fromPath);
+}
