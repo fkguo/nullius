@@ -256,11 +256,22 @@ export function refreshNotebookCurrentState(
     projection?: CurrentStateProjection;
   },
 ): RefreshOutcome {
-  const projection = options?.projection
+  // First attempt renders the caller's projection (one compute per
+  // command); a retry after a detected concurrent edit re-renders from
+  // the NOW-current state so a lost race never replaces the winner's
+  // newer block with stale bytes.
+  let latestProjection = options?.projection
     ?? computeCurrentStateProjection(projectRoot, options?.ledgerView);
+  let firstAttempt = true;
   const outcome = refreshManagedBlock(
     path.join(projectRoot, 'research_notebook.md'),
-    renderCurrentStateBlock(projection),
+    () => {
+      if (!firstAttempt) {
+        latestProjection = computeCurrentStateProjection(projectRoot);
+      }
+      firstAttempt = false;
+      return renderCurrentStateBlock(latestProjection);
+    },
     NOTEBOOK_BLOCK_SPEC,
     {
       insertIfMissing: options?.insertIfMissing === true,
@@ -268,5 +279,5 @@ export function refreshNotebookCurrentState(
       insertAt: frontMatterInsertOffset,
     },
   );
-  return { projection, action: outcome.action, reason: outcome.reason };
+  return { projection: latestProjection, action: outcome.action, reason: outcome.reason };
 }

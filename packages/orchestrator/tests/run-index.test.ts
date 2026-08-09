@@ -160,6 +160,36 @@ describe('projection and render', () => {
     expect(rendered).toContain('see `nullius current`');
   });
 
+  it('hostile directory names cannot break the table or the link (markdown escaping)', () => {
+    const projectRoot = makeProject();
+    mkRun(projectRoot, '20260809-m1-r001-a|b]c');
+    mkRun(projectRoot, '20260809-m1-r002-space (x)');
+    const rendered = renderRunIndexBlock(computeRunIndexProjection(projectRoot));
+    // Structural characters are escaped in cells and labels…
+    expect(rendered).toContain('a\\|b\\]c');
+    // …and the link target is percent-encoded, never raw.
+    expect(rendered).toContain('%20');
+    expect(rendered).toContain('%28x%29');
+    // Every table row still has exactly the 8 declared columns (9 pipes).
+    for (const line of rendered.split('\n').filter(candidate => candidate.startsWith('| '))) {
+      expect(line.split('\n')[0]!.match(/(?<!\\)\|/g)!.length).toBe(9);
+    }
+  });
+
+  it('a mixed-EOL file keeps the replaced block in its own EOL flavor', () => {
+    const projectRoot = makeProject();
+    mkRun(projectRoot, '20260809-m1-r001-mixed-eol');
+    expect(refreshRunIndexBlock(projectRoot).action).toBe('rewritten');
+    const indexPath = path.join(projectRoot, 'project_index.md');
+    // The block stays LF; one stray CRLF line is appended elsewhere.
+    fs.appendFileSync(indexPath, 'stray CRLF line\r\n');
+    mkRun(projectRoot, '20260809-m1-r002-mixed-eol');
+    expect(refreshRunIndexBlock(projectRoot).action).toBe('rewritten');
+    const block = blockText(projectRoot);
+    expect(block.includes('\r\n')).toBe(false);
+    expect(checkRunIndexBlock(projectRoot, computeRunIndexProjection(projectRoot)).in_sync).toBe(true);
+  });
+
   it('a retried run shows its attempt ordinal in the latest cell', () => {
     const projectRoot = makeProject();
     const runDir = mkRun(projectRoot, '20260809-m1-r001-retry-family');
@@ -278,6 +308,22 @@ describe('refresh, hooks, and staleness', () => {
     const outcome = refreshRunIndexBlock(projectRoot);
     expect(outcome.action).toBe('rewritten');
     expect(blockText(projectRoot)).toContain('1 unclassified');
+  });
+
+  it('hook-coverage lock: every surface that refreshes the notebook block also refreshes the index', () => {
+    // Source-level on purpose (the pattern the notebook lock proved):
+    // removing only the index half of a shared hook must go red here.
+    const src = path.join(__dirname, '..', 'src');
+    const read = (name: string): string => fs.readFileSync(path.join(src, name), 'utf-8');
+    const runStamp = read('run-stamp.ts');
+    expect(runStamp).toContain("import { refreshRunIndexBlock } from './run-index.js'");
+    // Two call sites: the shared stamp writer AND the retry entrance.
+    expect((runStamp.match(/refreshRunIndexBlock\(projectRoot, \{ insertIfMissing: false \}\)/g) ?? []).length)
+      .toBeGreaterThanOrEqual(2);
+    const cliTrace = read('cli-trace.ts');
+    expect(cliTrace).toContain('refreshRunIndexBlock(projectRoot, { insertIfMissing: false })');
+    expect(read('cli.ts')).toContain('refreshRunIndexBlock(projectRoot, { insertIfMissing: false })');
+    expect(read('cli-init.ts')).toContain('refreshRunIndexBlock(repoRoot, { insertIfMissing: false })');
   });
 
   it('ledger reads are shared, not repeated: a supplied view is used as-is', () => {

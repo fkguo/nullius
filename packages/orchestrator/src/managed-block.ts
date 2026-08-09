@@ -231,13 +231,17 @@ export type ManagedBlockRefreshOutcome = {
   reason: string | null;
 };
 
-/** Refresh the block in place. `insertAt` chooses the insertion offset for
- *  a file that has no block yet (given the located structure); it returns
- *  a byte offset into `text`. The engine owns padding, EOL flavor, the
- *  optimistic-concurrency retry loop, and mode preservation. */
+/** Refresh the block in place. `renderLatest` is invoked ONCE PER RETRY
+ *  ATTEMPT: on a detected concurrent edit the loop must re-render from the
+ *  now-current state, or a writer that lost the first race would replace
+ *  the winner's NEWER block with its own stale bytes (real for any block
+ *  whose projection moves on every write — the run index — and harmless
+ *  redundancy for stamp-stable blocks). `insertAt` chooses the insertion
+ *  offset for a file that has no block yet. The engine owns padding, EOL
+ *  flavor, the optimistic-concurrency retry loop, and mode preservation. */
 export function refreshManagedBlock(
   filePath: string,
-  rendered: string,
+  renderLatest: () => string,
   spec: ManagedBlockSpec,
   options: {
     insertIfMissing: boolean;
@@ -246,6 +250,7 @@ export function refreshManagedBlock(
   },
 ): ManagedBlockRefreshOutcome {
   for (let attempt = 0; attempt < 3; attempt += 1) {
+    const rendered = renderLatest();
     let text: string;
     try {
       text = fs.readFileSync(filePath, 'utf-8');
@@ -257,7 +262,11 @@ export function refreshManagedBlock(
     if (duplicated) {
       return { action: 'skipped', reason: `duplicated ${spec.blockNoun} markers — repair by hand first` };
     }
-    const eol = text.includes('\r\n') ? '\r\n' : '\n';
+    // EOL flavor: a REPLACED block keeps its own local convention (a
+    // mixed-EOL file must not have its LF block flipped to CRLF by one
+    // stray CRLF line elsewhere); an INSERTED block follows the file.
+    const blockLocalEol = bounds !== null && text.slice(bounds.start, bounds.end).includes('\r\n');
+    const eol = (bounds !== null ? blockLocalEol : text.includes('\r\n')) ? '\r\n' : '\n';
     const renderedForFile = eol === '\r\n' ? rendered.replace(/\n/g, '\r\n') : rendered;
     const insertRendered = (base: string): string => {
       const offset = options.insertAt(base, locateManagedBlock(base, spec));
