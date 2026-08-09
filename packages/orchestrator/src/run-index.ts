@@ -1,7 +1,7 @@
 import * as path from 'node:path';
 import { createHash } from 'node:crypto';
 import { canonicalJson, readValidityLedger, type ValidityLedgerView } from './validity-ledger.js';
-import { validateResultRegistry } from './result-registry.js';
+import { parseResultRegistry } from './result-registry.js';
 import { listRunDirectories, slugFamilyOf } from './run-directories.js';
 import {
   checkManagedBlock,
@@ -95,7 +95,12 @@ export function computeRunIndexProjection(
   ledgerView?: ValidityLedgerView,
 ): RunIndexProjection {
   const ledger = ledgerView ?? readValidityLedger(projectRoot);
-  const registry = validateResultRegistry(projectRoot, ledger);
+  // PARSE, never validate: the projection consumes only the parsed rows
+  // and block presence. validateResultRegistry re-reads and SHA-256s
+  // EVERY registered artifact — a cost the notebook hook deliberately
+  // gates behind registryMentionsRun, and which must never ride on the
+  // ungated per-stamp index hook (nor run twice per status read).
+  const registry = parseResultRegistry(projectRoot);
   const directories = listRunDirectories(projectRoot);
   const directoryIds = new Set(directories.map(entry => entry.run_id));
 
@@ -115,10 +120,15 @@ export function computeRunIndexProjection(
     void: number;
     unclassified: number;
     latest: RunIndexFamilyLatest;
-    /** Sort key for "latest": effective-origin capture time when stamped,
-     *  else empty — with the run id (date-prefixed by convention) as the
-     *  tiebreak, so unstamped legacy chains still order sensibly. */
-    latestKey: [string, string];
+    /** Sort key for "latest": the run id itself (date-prefixed by
+     *  convention, so lexicographic order IS launch order). Capture time
+     *  deliberately does not participate: in a family mixing stamped and
+     *  unstamped runs an unstamped run has no capture time, and any
+     *  time-first key would make a September hand-made directory lose to
+     *  an August stamped run — the exact directory a browsing researcher
+     *  is looking for. (D3 revised accordingly; ids without a date prefix
+     *  order lexicographically, an honest stated limit.) */
+    latestKey: string;
     current_result_ids: string[];
   };
   const families = new Map<string, FamilyAccumulator>();
@@ -132,9 +142,6 @@ export function computeRunIndexProjection(
     totals[validity] += 1;
     const stamped = known?.stamped === true;
     if (stamped) totals.stamped += 1;
-    const capturedAt = typeof (known?.origin as { captured_at_utc?: string } | null | undefined)?.captured_at_utc === 'string'
-      ? (known!.origin as unknown as { captured_at_utc: string }).captured_at_utc
-      : '';
     const latest: RunIndexFamilyLatest = {
       run_id: entry.run_id,
       root: entry.canonical_root.split(path.sep).join('/'),
@@ -142,19 +149,16 @@ export function computeRunIndexProjection(
       stamped,
       latest_ordinal: known?.attempts.latest_ordinal ?? 1,
     };
-    const key: [string, string] = [capturedAt, entry.run_id];
     const family = slugFamilyOf(entry.run_id);
     const accumulator = families.get(family) ?? {
       family, runs: 0, active: 0, superseded: 0, void: 0, unclassified: 0,
-      latest, latestKey: key, current_result_ids: [],
+      latest, latestKey: entry.run_id, current_result_ids: [],
     };
     accumulator.runs += 1;
     accumulator[validity] += 1;
-    if (key[0] > accumulator.latestKey[0]
-      || (key[0] === accumulator.latestKey[0] && key[1] > accumulator.latestKey[1])
-      || accumulator.runs === 1) {
+    if (entry.run_id > accumulator.latestKey || accumulator.runs === 1) {
       accumulator.latest = latest;
-      accumulator.latestKey = key;
+      accumulator.latestKey = entry.run_id;
     }
     const currents = currentByRun.get(entry.run_id);
     if (currents) accumulator.current_result_ids.push(...currents);
@@ -196,16 +200,26 @@ const listWithCap = (ids: string[], cap = 5): string =>
 
 /** Run ids and family stems come from DIRECTORY BASENAMES — hostile names
  *  are possible, and an unescaped `|` mints extra table columns while `]`
- *  terminates a link label. Backslash-escape the structural characters;
- *  backticks stay (they cannot break table/link structure). */
+ *  terminates a link label. Control characters (a legal POSIX basename may
+ *  carry a NEWLINE) are replaced outright: one smuggled line break would
+ *  end the table row mid-cell — or fabricate a heading/marker line that
+ *  wedges the whole block behind the interior whitelist, with the machine's
+ *  own markers reported as strays the operator cannot meaningfully remove.
+ *  Then backslash-escape the structural characters; backticks stay (they
+ *  cannot break table/link structure). */
 function escapeMarkdownCell(text: string): string {
-  return text.replace(/([\\|[\]])/g, '\\$1');
+  return text
+    .replace(/[\u0000-\u001f\u007f]/g, ' ')
+    .replace(/([\\|[\]])/g, '\\$1');
 }
 
-/** Link destination: percent-encode so spaces, parentheses, and angle
- *  brackets in a directory name cannot terminate or corrupt the target. */
+/** Link destination: percent-encode so spaces, parentheses, angle
+ *  brackets, control characters, and the reserved `#`/`?` (which encodeURI
+ *  leaves alone but which start a fragment/query in a rendered link) in a
+ *  directory name cannot terminate or corrupt the target. */
 function encodeLinkTarget(target: string): string {
-  return encodeURI(target).replace(/[()]/g, char => (char === '(' ? '%28' : '%29'));
+  return encodeURI(target).replace(/[()#?\u0000-\u001f\u007f]/g,
+    char => `%${char.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0')}`);
 }
 
 /** The full block, markers inclusive. Deterministic — byte-compare against
@@ -336,18 +350,17 @@ export function refreshRunIndexBlock(
   },
 ): RunIndexRefreshOutcome {
   // The index projection moves on EVERY write, so the stale-render race
-  // is real here: a retry after a detected concurrent edit must re-render
-  // from the now-current state, never replay its first computation.
+  // is real here: EVERY attempt recomputes from a fresh ledger read
+  // (never a caller-supplied projection or ledger view — those predate
+  // the carrier read, which is exactly the window a rival's append hides
+  // in). The engine renders after reading the carrier, so a rival is
+  // either folded into this recompute or caught by the write guard.
   let latestProjection = options?.projection
     ?? computeRunIndexProjection(projectRoot, options?.ledgerView);
-  let firstAttempt = true;
   const outcome = refreshManagedBlock(
     path.join(projectRoot, 'project_index.md'),
     () => {
-      if (!firstAttempt) {
-        latestProjection = computeRunIndexProjection(projectRoot);
-      }
-      firstAttempt = false;
+      latestProjection = computeRunIndexProjection(projectRoot);
       return renderRunIndexBlock(latestProjection);
     },
     RUN_INDEX_BLOCK_SPEC,
