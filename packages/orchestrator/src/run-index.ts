@@ -171,6 +171,10 @@ export function computeRunIndexProjection(
     if (currents) {
       const bindingQuality = (known?.origin as { binding_quality?: string } | null | undefined)?.binding_quality;
       const defective = !known
+        // Active-but-UNSTAMPED is reachable (e.g. a reinstate-only entry)
+        // and carries no origin at all — the binding-quality arm below
+        // cannot see it, and the registry read side calls it defective.
+        || !known.stamped
         || known.validity !== 'active'
         || known.no_authoritative_identity
         || known.conflicting_stamps
