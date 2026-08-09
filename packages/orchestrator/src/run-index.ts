@@ -1,7 +1,7 @@
 import * as path from 'node:path';
 import { createHash } from 'node:crypto';
 import { canonicalJson, readValidityLedger, type ValidityLedgerView } from './validity-ledger.js';
-import { parseResultRegistry } from './result-registry.js';
+import { currentRowLedgerDefective, parseResultRegistry, type ResultRegistryRow } from './result-registry.js';
 import { listRunDirectories, slugFamilyOf } from './run-directories.js';
 import {
   checkManagedBlock,
@@ -68,12 +68,13 @@ export type RunIndexFamily = {
   /** Directories with no ledger event at all (legacy / never stamped). */
   unclassified: number;
   latest: RunIndexFamilyLatest;
-  /** CURRENT registry rows whose run belongs to this family. A row is
-   *  DEFECTIVE when the ledger already contradicts its currency claim
-   *  (run not active, resultless head attempt, chain/identity defects,
-   *  inexact binding) — pure Map lookups on the ledger view, never the
-   *  validator's artifact re-hash. */
-  current_results: Array<{ result_id: string; defective: boolean }>;
+  /** CURRENT registry rows whose run belongs to this family. `defective`
+   *  is the ONE shared no-IO rule (currentRowLedgerDefective in
+   *  result-registry: run-level ledger state plus row↔stamp fidelity),
+   *  plus table-level duplicate ids — never the validator's artifact
+   *  re-hash. `untracked` marks a head_plus_untracked binding so the star
+   *  renders qualified, matching every other current-result surface. */
+  current_results: Array<{ result_id: string; defective: boolean; untracked?: true }>;
 };
 
 export type RunIndexProjection = {
@@ -111,11 +112,11 @@ export function computeRunIndexProjection(
   const directories = listRunDirectories(projectRoot);
   const directoryIds = new Set(directories.map(entry => entry.run_id));
 
-  const currentByRun = new Map<string, string[]>();
+  const currentByRun = new Map<string, ResultRegistryRow[]>();
   for (const row of registry.rows) {
     if (row.superseded_by !== 'none') continue;
     const list = currentByRun.get(row.run_id) ?? [];
-    list.push(row.result_id);
+    list.push(row);
     currentByRun.set(row.run_id, list);
   }
 
@@ -136,7 +137,7 @@ export function computeRunIndexProjection(
      *  is looking for. (D3 revised accordingly; ids without a date prefix
      *  order lexicographically, an honest stated limit.) */
     latestKey: string;
-    current_results: Array<{ result_id: string; defective: boolean }>;
+    current_results: Array<{ result_id: string; defective: boolean; untracked?: true }>;
   };
   const families = new Map<string, FamilyAccumulator>();
   const totals = { active: 0, superseded: 0, void: 0, unclassified: 0, stamped: 0 };
@@ -169,21 +170,18 @@ export function computeRunIndexProjection(
     }
     const currents = currentByRun.get(entry.run_id);
     if (currents) {
-      const bindingQuality = (known?.origin as { binding_quality?: string } | null | undefined)?.binding_quality;
-      const defective = !known
-        // Active-but-UNSTAMPED is reachable (e.g. a reinstate-only entry)
-        // and carries no origin at all — the binding-quality arm below
-        // cannot see it, and the registry read side calls it defective.
-        || !known.stamped
-        || known.validity !== 'active'
-        || known.no_authoritative_identity
-        || known.conflicting_stamps
-        || known.attempts.chain_defect
-        || known.attempts.conflicting_attempts
-        || known.attempts.latest_failed
-        || bindingQuality === 'aligned_heuristic'
-        || bindingQuality === 'unbound';
-      accumulator.current_results.push(...currents.map(resultId => ({ result_id: resultId, defective })));
+      // ONE shared no-IO defect rule (result-registry owns it): run-level
+      // ledger state AND row-vs-stamp fidelity, never artifact IO. A
+      // duplicated result id is a table-level defect the parse reports.
+      const untracked = (known?.origin as { binding_quality?: string } | null | undefined)?.binding_quality
+        === 'head_plus_untracked';
+      accumulator.current_results.push(...currents.map(row => ({
+        result_id: row.result_id,
+        defective: currentRowLedgerDefective(row, known) || registry.duplicate_ids.has(row.result_id),
+        // The one binding grade every other surface qualifies must not
+        // render here as an unqualified star.
+        ...(untracked ? { untracked: true as const } : {}),
+      })));
     }
     families.set(family, accumulator);
   }
@@ -194,7 +192,7 @@ export function computeRunIndexProjection(
   // silently.
   const registryOnlyCurrent = [...currentByRun.entries()]
     .filter(([runId]) => !directoryIds.has(runId))
-    .flatMap(([runId, resultIds]) => resultIds.map(resultId => `${resultId} (run ${runId})`))
+    .flatMap(([runId, rows]) => rows.map(row => `${row.result_id} (run ${runId})`))
     .sort();
 
   return {
@@ -205,8 +203,11 @@ export function computeRunIndexProjection(
       .sort((a, b) => b.runs - a.runs || (a.family < b.family ? -1 : 1))
       .map(({ latestKey: _latestKey, ...family }) => ({
         ...family,
+        // Total order by code point: the rendered bytes are the freshness
+        // truth, so ties must not fall back to a locale-sensitive input
+        // sequence that differs across machines.
         current_results: [...family.current_results]
-          .sort((a, b) => (a.result_id < b.result_id ? -1 : 1)),
+          .sort((a, b) => (a.result_id < b.result_id ? -1 : a.result_id > b.result_id ? 1 : 0)),
       })),
     defects: {
       conflicting_stamps: [...ledger.runs.values()].filter(entry => entry.conflicting_stamps)
@@ -289,7 +290,9 @@ export function renderRunIndexBlock(projection: RunIndexProjection): string {
         + (notes.length > 0 ? ` (${notes.join(', ')})` : '');
       const currentCell = family.current_results.length > 0
         ? family.current_results
-          .map(entry => `★${escapeMarkdownCell(entry.result_id)}${entry.defective ? ' (DEFECTIVE)' : ''}`)
+          .map(entry => `★${escapeMarkdownCell(entry.result_id)}`
+            + `${entry.untracked && !entry.defective ? ' (+untracked)' : ''}`
+            + `${entry.defective ? ' (DEFECTIVE)' : ''}`)
           .join(', ')
         : '—';
       lines.push(`| ${escapeMarkdownCell(family.family)} | ${family.runs} | ${family.active} | ${family.superseded} `
