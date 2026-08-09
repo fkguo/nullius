@@ -3,7 +3,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import type { RunOriginV1, ValidityEventV1 } from '@nullius/shared';
-import { mintUlid, ULID_PATTERN, writeBytesAtomicDurable } from '@nullius/shared';
+import { mintUlid, moveEntryDurable, ULID_PATTERN, writeBytesAtomicDurable } from '@nullius/shared';
 import { createHash } from 'node:crypto';
 import { appendValidityEvent, buildValidityEvent, readValidityLedger, type ValidityLedgerView } from './validity-ledger.js';
 import { captureRunOrigin, isTraceabilityArtifactPath, readAttemptSnapshotRef, swapAttemptSnapshotRef } from './run-origin.js';
@@ -866,7 +866,7 @@ function moveTreeMerge(fromDir: string, toDir: string): number {
     }
     try {
       fs.mkdirSync(path.dirname(to), { recursive: true });
-      fs.renameSync(from, to);
+      moveEntryDurable(from, to);
       moved += 1;
     } catch {
       // leave in place; visible, never lost
@@ -911,7 +911,7 @@ function quarantineFailedAttempt(
     const to = path.join(stagingAbs, rel);
     try {
       fs.mkdirSync(path.dirname(to), { recursive: true });
-      fs.renameSync(from, to);
+      moveEntryDurable(from, to);
       moved += 1;
     } catch {
       // A product that CANNOT move is a product that would stay live under
@@ -961,7 +961,7 @@ function parkStagingRemainder(runDir: string, stagingRel: string, eventId: strin
   if (!fs.existsSync(from)) return;
   const dest = path.join(runDir, 'attempts', `unattributed-${eventId}`);
   try {
-    if (!fs.existsSync(dest)) fs.renameSync(from, dest);
+    if (!fs.existsSync(dest)) moveEntryDurable(from, dest);
     else moveTreeMerge(from, dest);
   } catch {
     // deepest fallback: stays visible under the staging name
@@ -976,7 +976,7 @@ function promoteQuarantine(runDir: string, stagingRel: string, closedOrdinal: nu
   const destAbs = path.join(runDir, destRel);
   const stagingAbs = path.join(runDir, stagingRel);
   if (!fs.existsSync(destAbs)) {
-    fs.renameSync(stagingAbs, destAbs);
+    moveEntryDurable(stagingAbs, destAbs);
     return destRel;
   }
   moveTreeMerge(stagingAbs, destAbs);
