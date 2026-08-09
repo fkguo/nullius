@@ -97,6 +97,10 @@ as malformed (fail-closed).
 
 ---
 
+<!-- RUN_INDEX_START -->
+(machine-maintained run index — per-family map of every run directory; rendered by `nullius index sync` and refreshed automatically after ledger-writing commands; do not edit between these markers)
+<!-- RUN_INDEX_END -->
+
 <!-- PROJECT_INDEX_AUTO_START -->
 <!-- This block is auto-generated. Do not edit by hand. -->
 <!-- PROJECT_INDEX_AUTO_END -->

@@ -68,6 +68,7 @@ export type ParsedCliArgs =
   }
   | { command: 'current'; projectRoot: string | null; json: boolean }
   | { command: 'notebook'; projectRoot: string | null; action: 'sync'; json: boolean }
+  | { command: 'index'; projectRoot: string | null; action: 'sync'; json: boolean }
   | {
     command: 'result';
     projectRoot: string | null;
@@ -232,6 +233,22 @@ function parseNotebookArgs(args: string[]): { action: 'sync'; json: boolean } {
       continue;
     }
     throw new Error(`unknown notebook sync argument: ${arg}`);
+  }
+  return { action: 'sync', json };
+}
+
+function parseIndexArgs(args: string[]): { action: 'sync'; json: boolean } {
+  if (args.length === 0 || args[0] !== 'sync') {
+    throw new Error('index: expected `nullius index sync [--json]` '
+      + '(inserts the machine-maintained run-index block in project_index.md if missing, refreshes it otherwise)');
+  }
+  let json = false;
+  for (const arg of args.slice(1)) {
+    if (arg === '--json') {
+      json = true;
+      continue;
+    }
+    throw new Error(`unknown index sync argument: ${arg}`);
   }
   return { action: 'sync', json };
 }
@@ -1113,6 +1130,8 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
       return { command: 'current', projectRoot, ...parseStatusArgs(rest) };
     case 'notebook':
       return { command: 'notebook', projectRoot, ...parseNotebookArgs(rest) };
+    case 'index':
+      return { command: 'index', projectRoot, ...parseIndexArgs(rest) };
     case 'result':
       return { command: 'result', projectRoot, ...parseResultArgs(rest) };
     case 'release':

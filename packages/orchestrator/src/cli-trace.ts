@@ -3,6 +3,7 @@ import { defaultStampActor, gradeExistingStamp, openRetryAttempt, stampRunDirect
 import { buildTraceabilityView, renderTraceabilityProse } from './traceability-view.js';
 import { backfillRunOrigins, confirmRoundChains, proposeRoundChains } from './trace-backfill.js';
 import { refreshNotebookCurrentState } from './notebook-current-state.js';
+import { refreshRunIndexBlock } from './run-index.js';
 
 /** `nullius trace <stamp|supersede|void|reinstate>` — the write surface of
  *  the validity ledger and origin stamps — and `nullius current`, the human
@@ -45,6 +46,15 @@ function refreshCurrentStateAfterWrite(projectRoot: string, io: CliIo): void {
     }
   } catch (error) {
     io.stderr(`note: notebook current-state refresh failed (${error instanceof Error ? error.message : String(error)}); `
+      + 'the next `nullius current` read will name the block out-of-sync.\n');
+  }
+  try {
+    const indexOutcome = refreshRunIndexBlock(projectRoot, { insertIfMissing: false });
+    if (indexOutcome.action === 'rewritten') {
+      io.stdout('run index refreshed.\n');
+    }
+  } catch (error) {
+    io.stderr(`note: run-index refresh failed (${error instanceof Error ? error.message : String(error)}); `
       + 'the next `nullius current` read will name the block out-of-sync.\n');
   }
 }
