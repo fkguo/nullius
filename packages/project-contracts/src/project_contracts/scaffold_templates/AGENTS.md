@@ -46,6 +46,7 @@ Verification runs on events, not on reminders: each moment below is the trigger,
 | A result replaced an earlier run's, or a run's output was found wrong | `nullius trace supersede <old> --by <new> --reason "..."` (or `nullius trace void <run_id> --reason "..."`) — record it on the validity ledger while the reason is fresh |
 | A headline result converged, or you need to know which results and runs currently count | `nullius result set-current` to register; `nullius current` to read the whole answer — current results, producing code revision, manuscript pointer, notebook staleness, run validity — as prose |
 | `nullius status --json` reports the notebook's current-state block missing or OUT OF SYNC (it is machine-maintained; never edit between its markers) | `nullius notebook sync` — insert or refresh the block; ledger-writing commands normally refresh it themselves |
+| `nullius status --json` reports the run index in project_index.md missing or OUT OF SYNC (machine-maintained per-family map of every run directory; never edit between its markers) | `nullius index sync` — insert or refresh the block; ledger-writing commands normally refresh it themselves |
 
 ## Verification granularity and severity
 

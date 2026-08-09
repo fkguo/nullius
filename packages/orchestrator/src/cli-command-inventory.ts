@@ -9,6 +9,7 @@ export const NULLIUS_PUBLIC_COMMAND_INVENTORY = [
   { command: 'trace', usage: 'nullius trace stamp <run_dir> [--dep name=path] [--event-id <ulid>] [--actor <who>] | nullius trace retry <run_dir> [--reason \"...\"] [--record-only] [--event-id <ulid>] [--actor <who>] | nullius trace supersede <old_run_id> --by <new_run_id> --reason \"...\" [--scope <name>] [--event-id <ulid>] [--actor <who>] | nullius trace void <run_id> --reason \"...\" [--scope <name>] [--event-id <ulid>] [--actor <who>] | nullius trace reinstate <run_id> --reason \"...\" [--event-id <ulid>] [--actor <who>] | nullius trace backfill | nullius trace propose-chains | nullius trace confirm-chains [--actor <who>]' },
   { command: 'current', usage: 'nullius current [--json]' },
   { command: 'notebook', usage: 'nullius notebook sync [--json]' },
+  { command: 'index', usage: 'nullius index sync [--json]' },
   { command: 'result', usage: 'nullius result set-current <result-id> --run <run_id> --artifact <path> [--description "..."] [--supersedes <result-id>]' },
   { command: 'release', usage: 'nullius release <target-dir> [--commit <sha>] [--tag <name>] [--actor <who>] [--dry-run]' },
   { command: 'approve', usage: 'nullius approve <approval_id> [--note "..."]' },
