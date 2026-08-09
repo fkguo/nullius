@@ -192,7 +192,21 @@ export function runIndexDigest(projection: RunIndexProjection): string {
 }
 
 const listWithCap = (ids: string[], cap = 5): string =>
-  `${ids.slice(0, cap).join(', ')}${ids.length > cap ? `, +${ids.length - cap} more` : ''}`;
+  `${ids.slice(0, cap).map(escapeMarkdownCell).join(', ')}${ids.length > cap ? `, +${ids.length - cap} more` : ''}`;
+
+/** Run ids and family stems come from DIRECTORY BASENAMES — hostile names
+ *  are possible, and an unescaped `|` mints extra table columns while `]`
+ *  terminates a link label. Backslash-escape the structural characters;
+ *  backticks stay (they cannot break table/link structure). */
+function escapeMarkdownCell(text: string): string {
+  return text.replace(/([\\|[\]])/g, '\\$1');
+}
+
+/** Link destination: percent-encode so spaces, parentheses, and angle
+ *  brackets in a directory name cannot terminate or corrupt the target. */
+function encodeLinkTarget(target: string): string {
+  return encodeURI(target).replace(/[()]/g, char => (char === '(' ? '%28' : '%29'));
+}
 
 /** The full block, markers inclusive. Deterministic — byte-compare against
  *  this render is the freshness truth (no dates, no counters). */
@@ -222,12 +236,12 @@ export function renderRunIndexBlock(projection: RunIndexProjection): string {
       const notes: string[] = [];
       if (latest.validity !== 'active') notes.push(latest.validity);
       if (latest.latest_ordinal > 1) notes.push(`attempt ${latest.latest_ordinal}`);
-      const latestCell = `[${latest.run_id}](${latest.root}/${latest.run_id}/)`
+      const latestCell = `[${escapeMarkdownCell(latest.run_id)}](${encodeLinkTarget(`${latest.root}/${latest.run_id}/`)})`
         + (notes.length > 0 ? ` (${notes.join(', ')})` : '');
       const currentCell = family.current_result_ids.length > 0
-        ? family.current_result_ids.map(id => `★${id}`).join(', ')
+        ? family.current_result_ids.map(id => `★${escapeMarkdownCell(id)}`).join(', ')
         : '—';
-      lines.push(`| ${family.family} | ${family.runs} | ${family.active} | ${family.superseded} `
+      lines.push(`| ${escapeMarkdownCell(family.family)} | ${family.runs} | ${family.active} | ${family.superseded} `
         + `| ${family.void} | ${family.unclassified} | ${latestCell} | ${currentCell} |`);
     }
   }
@@ -321,11 +335,21 @@ export function refreshRunIndexBlock(
     projection?: RunIndexProjection;
   },
 ): RunIndexRefreshOutcome {
-  const projection = options?.projection
+  // The index projection moves on EVERY write, so the stale-render race
+  // is real here: a retry after a detected concurrent edit must re-render
+  // from the now-current state, never replay its first computation.
+  let latestProjection = options?.projection
     ?? computeRunIndexProjection(projectRoot, options?.ledgerView);
+  let firstAttempt = true;
   const outcome = refreshManagedBlock(
     path.join(projectRoot, 'project_index.md'),
-    renderRunIndexBlock(projection),
+    () => {
+      if (!firstAttempt) {
+        latestProjection = computeRunIndexProjection(projectRoot);
+      }
+      firstAttempt = false;
+      return renderRunIndexBlock(latestProjection);
+    },
     RUN_INDEX_BLOCK_SPEC,
     {
       insertIfMissing: options?.insertIfMissing === true,
@@ -333,5 +357,5 @@ export function refreshRunIndexBlock(
       insertAt: runIndexInsertOffset,
     },
   );
-  return { projection, action: outcome.action, reason: outcome.reason };
+  return { projection: latestProjection, action: outcome.action, reason: outcome.reason };
 }
