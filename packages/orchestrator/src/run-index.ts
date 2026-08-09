@@ -1,10 +1,12 @@
 import * as path from 'node:path';
 import { createHash } from 'node:crypto';
 import { canonicalJson, readValidityLedger, type ValidityLedgerView } from './validity-ledger.js';
-import { currentRowLedgerDefective, parseResultRegistry, type ResultRegistryRow } from './result-registry.js';
+import { checkChains, currentRowLedgerDefective, parseResultRegistry, type ResultRegistryRow } from './result-registry.js';
 import { listRunDirectories, slugFamilyOf } from './run-directories.js';
 import {
   checkManagedBlock,
+  encodeLinkTarget,
+  escapeMarkdownCell,
   refreshManagedBlock,
   type ManagedBlockLocation,
   type ManagedBlockSpec,
@@ -119,6 +121,19 @@ export function computeRunIndexProjection(
     list.push(row);
     currentByRun.set(row.run_id, list);
   }
+  // Supersession-chain health is parse-level and zero-IO: broken or
+  // cyclic supersedes/superseded_by relations mark their rows defective
+  // exactly as the validator does (checkChains is the validator's own
+  // function; the issue list is discarded — only membership matters here).
+  const chainDefective = new Set<string>();
+  checkChains(registry.rows, [], chainDefective);
+  // Both direction columns must agree (the validator's zero-IO relation
+  // rule): a current row whose `supersedes` names a missing row, or one
+  // whose named row does not record the back-direction, is defective.
+  const rowsById = new Map(registry.rows.map(row => [row.result_id, row]));
+  const relationBroken = (row: ResultRegistryRow): boolean =>
+    row.supersedes !== 'none'
+    && rowsById.get(row.supersedes)?.superseded_by !== row.result_id;
 
   type FamilyAccumulator = {
     family: string;
@@ -177,7 +192,10 @@ export function computeRunIndexProjection(
         === 'head_plus_untracked';
       accumulator.current_results.push(...currents.map(row => ({
         result_id: row.result_id,
-        defective: currentRowLedgerDefective(row, known) || registry.duplicate_ids.has(row.result_id),
+        defective: currentRowLedgerDefective(row, known)
+          || registry.duplicate_ids.has(row.result_id)
+          || chainDefective.has(row.result_id)
+          || relationBroken(row),
         // The one binding grade every other surface qualifies must not
         // render here as an unqualified star.
         ...(untracked ? { untracked: true as const } : {}),
@@ -200,7 +218,7 @@ export function computeRunIndexProjection(
     mirrored,
     totals,
     families: [...families.values()]
-      .sort((a, b) => b.runs - a.runs || (a.family < b.family ? -1 : 1))
+      .sort((a, b) => b.runs - a.runs || (a.family < b.family ? -1 : a.family > b.family ? 1 : 0))
       .map(({ latestKey: _latestKey, ...family }) => ({
         ...family,
         // Total order by code point: the rendered bytes are the freshness
@@ -230,33 +248,6 @@ export function runIndexDigest(projection: RunIndexProjection): string {
 
 const listWithCap = (ids: string[], cap = 5): string =>
   `${ids.slice(0, cap).map(escapeMarkdownCell).join(', ')}${ids.length > cap ? `, +${ids.length - cap} more` : ''}`;
-
-/** Run ids and family stems come from DIRECTORY BASENAMES — hostile names
- *  are possible, and an unescaped `|` mints extra table columns while `]`
- *  terminates a link label. Control characters (a legal POSIX basename may
- *  carry a NEWLINE) are replaced outright: one smuggled line break would
- *  end the table row mid-cell — or fabricate a heading/marker line that
- *  wedges the whole block behind the interior whitelist, with the machine's
- *  own markers reported as strays the operator cannot meaningfully remove.
- *  Then backslash-escape the structural characters — INCLUDING `<`/`>`: a
- *  basename carrying a literal `<!-- RESULT_REGISTRY_START -->` would
- *  otherwise mint a second marker substring and make the registry parser
- *  refuse the genuine block. Backticks stay (they cannot break table,
- *  link, or marker structure). */
-function escapeMarkdownCell(text: string): string {
-  return text
-    .replace(/[\u0000-\u001f\u007f]/g, ' ')
-    .replace(/([\\|[\]<>])/g, '\\$1');
-}
-
-/** Link destination: percent-encode so spaces, parentheses, angle
- *  brackets, control characters, and the reserved `#`/`?` (which encodeURI
- *  leaves alone but which start a fragment/query in a rendered link) in a
- *  directory name cannot terminate or corrupt the target. */
-function encodeLinkTarget(target: string): string {
-  return encodeURI(target).replace(/[()#?\u0000-\u001f\u007f]/g,
-    char => `%${char.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0')}`);
-}
 
 /** The full block, markers inclusive. Deterministic — byte-compare against
  *  this render is the freshness truth (no dates, no counters). */

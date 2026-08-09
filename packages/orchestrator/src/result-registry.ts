@@ -46,14 +46,20 @@ export type ResultRegistryRow = {
  *  silently-unseen row makes the acceptance surface state a falsehood
  *  ("no result registered") — the exact silent-false-precision failure the
  *  design forbids. The writer refuses them up front. */
-const CELL_BREAKERS = /[|\r\n<>]/;
+const CELL_BREAKERS = /[|\r\n]/;
+const COMMENT_DELIMITERS = /<!--|-->/;
 
 function assertCellSafe(label: string, value: string): void {
   if (CELL_BREAKERS.test(value)) {
+    throw new Error(`${label} must not contain '|' or newlines (they would break the registry table round-trip)`);
+  }
+  // Only the two comment-delimiter substrings can poison the marker
+  // locator; a bare '<' or '>' (inequality prose like "χ²/dof < 1") is
+  // harmless and stays legal.
+  if (COMMENT_DELIMITERS.test(value)) {
     throw new Error(
-      `${label} must not contain '|', '<', '>', or newlines — a pipe or newline breaks the registry table `
-      + 'round-trip, and angle brackets could smuggle a literal marker comment into the very file whose '
-      + 'markers delimit this registry',
+      `${label} must not contain '<!--' or '-->' — an HTML comment delimiter could smuggle a literal marker `
+      + 'into the very file whose markers delimit this registry',
     );
   }
 }
@@ -329,9 +335,12 @@ export function resolveResultArtifact(
  *  keeps the two from drifting. `known` is the ledger entry for
  *  row.run_id (undefined when the ledger has none). */
 export function currentRowLedgerDefective(
-  row: Pick<ResultRegistryRow, 'effective_commit' | 'has_snapshot' | 'has_untracked'>,
+  row: Pick<ResultRegistryRow, 'effective_commit' | 'has_snapshot' | 'has_untracked' | 'artifact_sha256'>,
   known: RunValidity | undefined,
 ): boolean {
+  // A malformed SHA-256 cell is a zero-IO row defect (format only; the
+  // content comparison stays with the validator's artifact read).
+  if (!/^[0-9a-f]{64}$/.test(row.artifact_sha256)) return true;
   if (!known || !known.stamped) return true;
   if (known.validity !== 'active') return true;
   if (known.no_authoritative_identity || known.conflicting_stamps) return true;
@@ -613,6 +622,7 @@ export function setCurrentResult(
       );
     }
     description = existing.description.replace(/\]\([^)]*\)/, `](${input.artifactRelPath})`);
+    assertCellSafe('carried-forward description', description);
   } else {
     description = `[${input.resultId}](${input.artifactRelPath})`;
   }
