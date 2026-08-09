@@ -9,6 +9,7 @@ import { appendValidityEvent, buildValidityEvent, readValidityLedger, type Valid
 import { captureRunOrigin, isTraceabilityArtifactPath, readAttemptSnapshotRef, swapAttemptSnapshotRef } from './run-origin.js';
 import { validateResultRegistry } from './result-registry.js';
 import { refreshNotebookCurrentState } from './notebook-current-state.js';
+import { refreshRunIndexBlock } from './run-index.js';
 
 /** The actor recorded on ledger events when the caller has no better name:
  *  the OS user, matching what the hand-invoked CLI has always written. */
@@ -513,6 +514,13 @@ export function stampRunDirectory(
       if (registryMentionsRun) {
         refreshNotebookCurrentState(projectRoot, { insertIfMissing: false });
       }
+    } catch {
+      // surfaced on the next status/current read as out-of-sync
+    }
+    try {
+      // The run INDEX changes on every new stamp by design (its whole
+      // purpose is to show every run) — no registry gate here.
+      refreshRunIndexBlock(projectRoot, { insertIfMissing: false });
     } catch {
       // surfaced on the next status/current read as out-of-sync
     }
@@ -1572,6 +1580,14 @@ export function openRetryAttempt(
       // staged files stay visible under attempts/.staging-<event>; the
       // event's quarantined_to names the canonical intent
     }
+  }
+  // A retry advances the chain the index displays (attempt ordinal,
+  // latest-run cell); best-effort, one call per retry, covers the CLI
+  // verb and the front-door auto-retry alike.
+  try {
+    refreshRunIndexBlock(projectRoot, { insertIfMissing: false });
+  } catch {
+    // surfaced on the next status/current read as out-of-sync
   }
 
   return {

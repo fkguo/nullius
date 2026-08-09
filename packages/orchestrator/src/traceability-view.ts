@@ -8,6 +8,8 @@ import { validateResultRegistry } from './result-registry.js';
 import { checkNotebookStaleness, type NotebookStalenessReport } from './notebook-staleness.js';
 import { analyzeNotebookRunLinks, type NotebookRunLinksReport } from './notebook-run-links.js';
 import { checkCurrentStateBlock, projectionFromRegistryState, type CurrentStateBlockStatus } from './notebook-current-state.js';
+import { listRunDirectories as listRunDirectoriesShared, slugFamilyOf, type RunDirEntry as SharedRunDirEntry } from './run-directories.js';
+import { checkRunIndexBlock, computeRunIndexProjection, type RunIndexBlockStatus } from './run-index.js';
 import { canonicalJson } from './validity-ledger.js';
 
 /** ONE read model behind both consumers of the acceptance sentence:
@@ -27,14 +29,7 @@ export const BINDING_CAVEAT =
   'exact refers to the snapshot object captured at stamp time; runs launched while the same '
   + 'worktree was being edited concurrently are outside this guarantee (one-worktree-per-lane norm)';
 
-const RUN_ROOTS = [path.join('artifacts', 'runs'), path.join('team', 'runs')] as const;
-
-export type RunDirEntry = {
-  run_id: string;
-  /** Canonical location: artifacts/runs when present there, else team/runs. */
-  canonical_root: string;
-  mirrored: boolean;
-};
+export type RunDirEntry = SharedRunDirEntry;
 
 export type TraceabilityRunClass = 'active' | 'superseded' | 'void' | 'unclassified';
 
@@ -149,6 +144,10 @@ export type TraceabilityView = {
      *  `nullius report-validate`; this reader never claims validated. */
     validation: 'deferred';
   };
+  /** The machine-written run index in project_index.md: same claim
+   *  semantics as the notebook current-state block (present-and-in-sync
+   *  claims currency; missing only warns). */
+  run_index: RunIndexBlockStatus;
   results: {
     block_found: boolean;
     current: Array<{
@@ -230,31 +229,7 @@ function git(projectRoot: string, args: string[]): string | null {
   }
 }
 
-export function listRunDirectories(projectRoot: string): RunDirEntry[] {
-  const seen = new Map<string, RunDirEntry>();
-  for (const relRoot of RUN_ROOTS) {
-    const absRoot = path.join(projectRoot, relRoot);
-    if (!fs.existsSync(absRoot)) continue;
-    let entries: fs.Dirent[];
-    try {
-      entries = fs.readdirSync(absRoot, { withFileTypes: true });
-    } catch {
-      continue;
-    }
-    for (const entry of entries) {
-      if (!entry.isDirectory()) continue;
-      const existing = seen.get(entry.name);
-      if (existing) {
-        // Same run id in both roots: ONE logical run; artifacts/runs is the
-        // canonical location (it is scanned first), team/runs the mirror.
-        existing.mirrored = true;
-        continue;
-      }
-      seen.set(entry.name, { run_id: entry.name, canonical_root: relRoot, mirrored: false });
-    }
-  }
-  return [...seen.values()].sort((a, b) => a.run_id.localeCompare(b.run_id));
-}
+export const listRunDirectories = listRunDirectoriesShared;
 
 const REGISTRY_START = '<!-- MAIN_RESEARCH_REPORT_REGISTRY_START -->';
 const REGISTRY_END = '<!-- MAIN_RESEARCH_REPORT_REGISTRY_END -->';
@@ -544,11 +519,9 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
 
   // Slug stem families: display grouping of one-off exploratory slugs into
   // concept families (first two words of the slug).
-  const SLUG_STEM_FROM_ID = /^(?:\d{8}(?:T\d{6}Z)?)[-_.](?:m\d+-)?(?:r\d+-)?(.+?)(?:-r\d+)?$/;
   const familyStats = new Map<string, { runs: number; void: number; superseded: number }>();
   for (const entry of directories) {
-    const slug = SLUG_STEM_FROM_ID.exec(entry.run_id)?.[1] ?? entry.run_id;
-    const family = slug.split('-').slice(0, 2).join('-');
+    const family = slugFamilyOf(entry.run_id);
     const stats = familyStats.get(family) ?? { runs: 0, void: 0, superseded: 0 };
     stats.runs += 1;
     const validity = ledger.runs.get(entry.run_id)?.validity;
@@ -568,6 +541,7 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
   const runLinks = analyzeNotebookRunLinks(
     projectRoot, ledger, new Set(directories.map(entry => entry.run_id)),
   );
+  const runIndexBlock = checkRunIndexBlock(projectRoot, computeRunIndexProjection(projectRoot, ledger));
   const currentStateBlock = checkCurrentStateBlock(
     projectRoot, projectionFromRegistryState(resultRegistry),
   );
@@ -885,6 +859,7 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
       round_cap: roundCap,
       mirror_divergence: mirrorDivergence,
     },
+    run_index: runIndexBlock,
     results: {
       block_found: resultRegistry.block_found,
       current: resultRegistry.current.map(row => ({
@@ -1030,6 +1005,21 @@ export function renderTraceabilityProse(view: TraceabilityView): string {
       // The in-sync-with-strays state is where a leftover marker is most
       // dangerous — keep it visible on the human surface, not JSON-only.
       lines.push(`- current-state block: ${block.reason}.`);
+    }
+  }
+  const runIndex = view.run_index;
+  if (runIndex.project_index_found) {
+    if (runIndex.duplicated_markers) {
+      lines.push(`- RUN INDEX: ${runIndex.reason}`);
+    } else if (!runIndex.block_found) {
+      lines.push(runIndex.reason !== null
+        ? `- run index: ${runIndex.reason}.`
+        : '- run index: none yet — adopt with `nullius index sync` '
+        + '(machine-maintained per-family map of every run directory in project_index.md).');
+    } else if (runIndex.in_sync === false) {
+      lines.push(`- RUN INDEX OUT OF SYNC: ${runIndex.reason} — refresh with \`nullius index sync\`.`);
+    } else if (runIndex.in_sync === true && runIndex.reason !== null) {
+      lines.push(`- run index: ${runIndex.reason}.`);
     }
   }
   const runLinks = view.notebook.run_links;

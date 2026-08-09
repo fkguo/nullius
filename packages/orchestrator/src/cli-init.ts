@@ -305,6 +305,12 @@ export async function runInitCommand(projectRoot: string | null, cwd: string, ar
     } catch {
       // the next status/current read names the block state
     }
+    try {
+      const { refreshRunIndexBlock } = await import('./run-index.js');
+      refreshRunIndexBlock(repoRoot, { insertIfMissing: false });
+    } catch {
+      // the next status/current read names the block state
+    }
     io.stdout(`[ok] project-local fallback launcher ready: ${projectLocalNulliusRelativePath()} (${launcher.launcher_mode})\n`);
     io.stdout('[ok] project scaffold skipped (--runtime-only)\n');
     return;
@@ -317,6 +323,12 @@ export async function runInitCommand(projectRoot: string | null, cwd: string, ar
   try {
     const { refreshNotebookCurrentState } = await import('./notebook-current-state.js');
     refreshNotebookCurrentState(repoRoot, { insertIfMissing: false });
+  } catch {
+    // the next status/current read names the block out-of-sync
+  }
+  try {
+    const { refreshRunIndexBlock } = await import('./run-index.js');
+    refreshRunIndexBlock(repoRoot, { insertIfMissing: false });
   } catch {
     // the next status/current read names the block out-of-sync
   }
