@@ -251,8 +251,10 @@ export function refreshNotebookCurrentState(
   options?: {
     insertIfMissing?: boolean;
     ledgerView?: ValidityLedgerView;
-    /** A caller that already computed the projection passes it here so one
-     *  command never hashes the registered artifacts twice. */
+    /** NEVER rendered: every render attempt recomputes from fresh state
+     *  (a supplied projection predates the carrier read — the window a
+     *  rival's registry write hides in). Seeds only the returned
+     *  projection on the render-free skip path (notebook missing). */
     projection?: CurrentStateProjection;
   },
 ): RefreshOutcome {

@@ -39,7 +39,10 @@ export function listRunDirectories(projectRoot: string): RunDirEntry[] {
       seen.set(entry.name, { run_id: entry.name, canonical_root: relRoot, mirrored: false });
     }
   }
-  return [...seen.values()].sort((a, b) => a.run_id.localeCompare(b.run_id));
+  // Code-point order, never localeCompare: downstream renders are
+  // byte-compared for freshness, and locale collation differs across
+  // machines' ICU data — identical state must render identical bytes.
+  return [...seen.values()].sort((a, b) => (a.run_id < b.run_id ? -1 : a.run_id > b.run_id ? 1 : 0));
 }
 
 /** Slug stem family (first two hyphen-separated words of the slug, after

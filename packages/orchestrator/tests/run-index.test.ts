@@ -12,7 +12,8 @@ import {
 } from '../src/run-index.js';
 import { openRetryAttempt, stampRunDirectory } from '../src/run-stamp.js';
 import { appendValidityEvent, buildValidityEvent, readValidityLedger } from '../src/validity-ledger.js';
-import { parseResultRegistry, setCurrentResult } from '../src/result-registry.js';
+import { parseResultRegistry, setCurrentResult, validateResultRegistry } from '../src/result-registry.js';
+import { refreshNotebookCurrentState } from '../src/notebook-current-state.js';
 import { refreshManagedBlock } from '../src/managed-block.js';
 import { buildTraceabilityView, renderTraceabilityProse } from '../src/traceability-view.js';
 import { runCli } from '../src/cli.js';
@@ -51,7 +52,6 @@ function makeProject(options?: { withIndexFile?: boolean; git?: boolean }): stri
   if (options?.git !== false) {
     initRepo(projectRoot);
     fs.writeFileSync(path.join(projectRoot, 'seed.txt'), 'seed\n');
-    commitAll(projectRoot);
   }
   if (options?.withIndexFile !== false) {
     fs.writeFileSync(path.join(projectRoot, 'project_index.md'), [
@@ -63,6 +63,9 @@ function makeProject(options?: { withIndexFile?: boolean; git?: boolean }): stri
       PLACEHOLDER_BLOCK, '',
     ].join('\n'));
   }
+  // Committed AFTER the index file exists: an untracked project_index.md
+  // would make every stamp head_plus_untracked and pollute the fixtures.
+  if (options?.git !== false) commitAll(projectRoot);
   return projectRoot;
 }
 
@@ -437,6 +440,8 @@ describe('refresh, hooks, and staleness', () => {
     expect(code).toBe(0);
     // Make the artifact unreadable: a validating (hashing) projection
     // would have to open these bytes; a parse-only one never touches them.
+    // chmod cannot bar root: under uid 0 this control is vacuous, so skip.
+    if (typeof process.getuid === 'function' && process.getuid() === 0) return;
     fs.chmodSync(artifact, 0o000);
     try {
       const projection = computeRunIndexProjection(projectRoot);
@@ -507,6 +512,106 @@ describe('refresh, hooks, and staleness', () => {
     const family = projection.families.find(candidate => candidate.current_results.length > 0)!;
     expect(family.current_results).toEqual([{ result_id: 'handrow', defective: true }]);
     expect(renderRunIndexBlock(projection)).toContain('★handrow (DEFECTIVE)');
+  });
+
+  it('a supplied projection is NEVER rendered — both consumers recompute on every attempt (revert-sensitive)', () => {
+    const projectRoot = makeProject();
+    const runId = '20260809-m1-r001-fresh-render';
+    mkRun(projectRoot, runId);
+    stampRun(projectRoot, runId);
+    // A fabricated stale projection claiming an empty project: if either
+    // consumer ever rendered a supplied projection, the block would claim
+    // zero runs while one exists on disk.
+    const fake = { ...computeRunIndexProjection(projectRoot) };
+    fake.run_directories = 0;
+    fake.families = [];
+    const outcome = refreshRunIndexBlock(projectRoot, { insertIfMissing: false, projection: fake });
+    // The stamp hook already wrote the REAL block, so an honest refresh is
+    // a no-op; under the reverted semantics the fake would render
+    // ('rewritten' into an empty-state block that loses the run id).
+    expect(outcome.action).toBe('unchanged');
+    expect(blockText(projectRoot)).toContain(runId);
+    // Same rule for the notebook consumer: a fake projection with a row
+    // must not render — the real (empty) registry state must.
+    fs.writeFileSync(path.join(projectRoot, 'research_notebook.md'), [
+      '# Notebook', '',
+      '<!-- NOTEBOOK_CURRENT_STATE_START -->',
+      '(placeholder)',
+      '<!-- NOTEBOOK_CURRENT_STATE_END -->', '',
+    ].join('\n'));
+    const fakeNotebook = {
+      registry_block_found: true,
+      current_rows: [{
+        result_id: 'phantom', run_id: runId, effective_commit: 'a'.repeat(12),
+        has_snapshot: false, artifact: null, defective: false,
+      }],
+      total_rows: 1,
+      issue_codes: [],
+    };
+    const notebookOutcome = refreshNotebookCurrentState(projectRoot, {
+      insertIfMissing: false,
+      projection: fakeNotebook,
+    });
+    expect(notebookOutcome.action).toBe('rewritten');
+    const notebook = fs.readFileSync(path.join(projectRoot, 'research_notebook.md'), 'utf-8');
+    expect(notebook).not.toContain('phantom');
+  });
+
+  it('a CURRENT row naming a run with NO directory renders in the defects footer (never a silent lost star)', async () => {
+    const projectRoot = makeProject();
+    const runId = '20260809-m1-r001-move-away';
+    mkRun(projectRoot, runId);
+    stampRun(projectRoot, runId);
+    fs.writeFileSync(path.join(projectRoot, 'artifacts', 'runs', runId, 'value.json'), '{"v":1}\n');
+    const code = await runCli(
+      ['result', 'set-current', 'headline', '--run', runId, '--artifact', `artifacts/runs/${runId}/value.json`],
+      { cwd: projectRoot, stdout: () => {}, stderr: () => {} },
+    );
+    expect(code).toBe(0);
+    fs.renameSync(
+      path.join(projectRoot, 'artifacts', 'runs', runId),
+      path.join(projectRoot, `parked-${runId}`),
+    );
+    const projection = computeRunIndexProjection(projectRoot);
+    expect(projection.defects.registry_only_current).toEqual([`headline (run ${runId})`]);
+    expect(renderRunIndexBlock(projection)).toContain('CURRENT result(s) naming a run with no directory');
+  });
+
+  it('the registry WRITER refuses angle brackets in cells (marker-forgery parity with the renderer)', () => {
+    const projectRoot = makeProject();
+    const runId = '20260809-m1-r001-writer-guard';
+    mkRun(projectRoot, runId);
+    stampRun(projectRoot, runId);
+    fs.writeFileSync(path.join(projectRoot, 'artifacts', 'runs', runId, 'value.json'), '{"v":1}\n');
+    expect(() => setCurrentResult(projectRoot, {
+      resultId: 'headline',
+      runId,
+      artifactRelPath: `artifacts/runs/${runId}/value.json`,
+      description: 'x<!-- RESULT_REGISTRY_END -->',
+    })).toThrow(/angle brackets|'<'/);
+  });
+
+  it('star and validator agree on the no-IO defect rule (parity control)', () => {
+    const projectRoot = makeProject();
+    const runId = '20260809-m1-r001-parity';
+    mkRun(projectRoot, runId);
+    stampRun(projectRoot, runId);
+    fs.writeFileSync(path.join(projectRoot, 'artifacts', 'runs', runId, 'value.json'), '{"v":1}\n');
+    setCurrentResult(projectRoot, {
+      resultId: 'headline', runId, artifactRelPath: `artifacts/runs/${runId}/value.json`,
+    });
+    // Hand-edit the row's commit cell to a wrong sha: a pure row↔stamp
+    // fidelity defect (no artifact IO involved).
+    const indexPath = path.join(projectRoot, 'project_index.md');
+    const text = fs.readFileSync(indexPath, 'utf-8');
+    const mangled = text.replace(/ @ [0-9a-f]{12}/, ' @ deadbeefdead');
+    expect(mangled).not.toBe(text);
+    fs.writeFileSync(indexPath, mangled);
+    const projection = computeRunIndexProjection(projectRoot);
+    const starred = projection.families[0]!.current_results[0]!;
+    expect(starred.defective).toBe(true);
+    const validated = validateResultRegistry(projectRoot, readValidityLedger(projectRoot));
+    expect(validated.defective_result_ids.has('headline')).toBe(true);
   });
 
   it('ledger reads are shared, not repeated: a supplied view is used as-is', () => {
