@@ -14,6 +14,8 @@ import { openRetryAttempt, stampRunDirectory } from '../src/run-stamp.js';
 import { appendValidityEvent, buildValidityEvent, readValidityLedger } from '../src/validity-ledger.js';
 import { setCurrentResult } from '../src/result-registry.js';
 import { buildTraceabilityView, renderTraceabilityProse } from '../src/traceability-view.js';
+import { runCli } from '../src/cli.js';
+import { runTraceCommand } from '../src/cli-trace.js';
 import { cleanupRegisteredDirs, makeTmpDir, registerCleanup } from './executeManifestTestUtils.js';
 import { mintUlid } from '@nullius/shared';
 
@@ -69,6 +71,11 @@ function mkRun(projectRoot: string, runId: string): string {
   return runDir;
 }
 
+function stampRun(projectRoot: string, runId: string): void {
+  const stamped = stampRunDirectory(projectRoot, path.join('artifacts', 'runs', runId), { actor: 'test' });
+  expect(stamped.kind).toBe('stamped');
+}
+
 function blockText(projectRoot: string): string {
   const text = fs.readFileSync(path.join(projectRoot, 'project_index.md'), 'utf-8');
   const start = text.indexOf(RUN_INDEX_START);
@@ -119,13 +126,21 @@ describe('projection and render', () => {
     expect(rendered).not.toContain('| Family |');
   });
 
-  it('an unstamped-only family orders its latest by run id (date-prefixed convention)', () => {
+  it('latest is the lexicographically highest run id — a stamped August run never outranks a September directory', () => {
     const projectRoot = makeProject();
     mkRun(projectRoot, '20260801-m1-r001-legacy-chain');
     mkRun(projectRoot, '20260805-m1-r002-legacy-chain');
     const projection = computeRunIndexProjection(projectRoot);
     expect(projection.families[0]!.latest.run_id).toBe('20260805-m1-r002-legacy-chain');
     expect(projection.families[0]!.latest.validity).toBe('unclassified');
+    // Mixed family: the OLDER run is stamped, the NEWER directory is not.
+    // A capture-time-first key would send the browsing researcher to
+    // August; the id key sends them to September (D3 as revised).
+    stampRun(projectRoot, '20260801-m1-r001-legacy-chain');
+    mkRun(projectRoot, '20260901-m1-r003-legacy-chain');
+    const mixed = computeRunIndexProjection(projectRoot);
+    expect(mixed.families[0]!.latest.run_id).toBe('20260901-m1-r003-legacy-chain');
+    expect(mixed.families[0]!.latest.stamped).toBe(false);
   });
 
   it('defects render unconditionally: chain defects, ledger-only ids, and the +more cap', () => {
@@ -160,19 +175,29 @@ describe('projection and render', () => {
     expect(rendered).toContain('see `nullius current`');
   });
 
-  it('hostile directory names cannot break the table or the link (markdown escaping)', () => {
+  it('hostile directory names cannot break the table, the link, or the block structure', () => {
     const projectRoot = makeProject();
     mkRun(projectRoot, '20260809-m1-r001-a|b]c');
     mkRun(projectRoot, '20260809-m1-r002-space (x)');
+    mkRun(projectRoot, '20260809-m1-r003-scan#2?q');
+    mkRun(projectRoot, '20260809-m1-r004-x\n## boom');
     const rendered = renderRunIndexBlock(computeRunIndexProjection(projectRoot));
     // Structural characters are escaped in cells and labels…
     expect(rendered).toContain('a\\|b\\]c');
-    // …and the link target is percent-encoded, never raw.
+    // …the link target is percent-encoded, never raw — including the
+    // reserved # and ? that encodeURI leaves alone…
     expect(rendered).toContain('%20');
     expect(rendered).toContain('%28x%29');
+    expect(rendered).toContain('%232');
+    expect(rendered).toContain('%3F');
+    // …and a NEWLINE in a basename cannot fabricate a heading or marker
+    // LINE (the char is replaced, so the text stays inside its cell):
+    // nothing in the rendered block may start a line as a heading, or the
+    // interior whitelist would demote the machine's own markers to strays.
+    expect(rendered.split('\n').some(line => /^ {0,3}#/.test(line))).toBe(false);
     // Every table row still has exactly the 8 declared columns (9 pipes).
     for (const line of rendered.split('\n').filter(candidate => candidate.startsWith('| '))) {
-      expect(line.split('\n')[0]!.match(/(?<!\\)\|/g)!.length).toBe(9);
+      expect(line.match(/(?<!\\)\|/g)!.length).toBe(9);
     }
   });
 
@@ -324,6 +349,51 @@ describe('refresh, hooks, and staleness', () => {
     expect(cliTrace).toContain('refreshRunIndexBlock(projectRoot, { insertIfMissing: false })');
     expect(read('cli.ts')).toContain('refreshRunIndexBlock(projectRoot, { insertIfMissing: false })');
     expect(read('cli-init.ts')).toContain('refreshRunIndexBlock(repoRoot, { insertIfMissing: false })');
+  });
+
+  it('the SHIPPED scaffold template block adopts as-is (locked against the real file, not a copy)', () => {
+    const templatePath = path.join(
+      __dirname, '..', '..', 'project-contracts', 'src', 'project_contracts', 'scaffold_templates', 'project_index.md',
+    );
+    const template = fs.readFileSync(templatePath, 'utf-8');
+    expect(template).toContain(RUN_INDEX_START);
+    const projectRoot = makeProject({ withIndexFile: false });
+    fs.writeFileSync(path.join(projectRoot, 'project_index.md'), template);
+    mkRun(projectRoot, '20260809-m1-r001-template-adopt');
+    // The real placeholder must pass the interior whitelist: a freshly
+    // scaffolded project's first refresh rewrites, never reports strays.
+    const outcome = refreshRunIndexBlock(projectRoot, { insertIfMissing: false });
+    expect(outcome.action).toBe('rewritten');
+    const status = checkRunIndexBlock(projectRoot, computeRunIndexProjection(projectRoot));
+    expect(status.in_sync).toBe(true);
+  });
+
+  it('void and result registration both refresh the block (behavioral, not just the source lock)', () => {
+    const projectRoot = makeProject();
+    const runId = '20260809-m1-r001-hooked';
+    mkRun(projectRoot, runId);
+    stampRun(projectRoot, runId);
+    // The stamp hook already refreshed the placeholder block in passing.
+    expect(blockText(projectRoot)).toContain(runId);
+    // Register a current result THROUGH THE CLI: the hook must land ★.
+    fs.writeFileSync(path.join(projectRoot, 'artifacts', 'runs', runId, 'value.json'), '{"v":1}\n');
+    const out: string[] = [];
+    return runCli(
+      ['result', 'set-current', 'headline', '--run', runId, '--artifact', `artifacts/runs/${runId}/value.json`],
+      { cwd: projectRoot, stdout: (text: string) => out.push(text), stderr: (text: string) => out.push(text) },
+    ).then((code) => {
+      expect(code).toBe(0);
+      expect(blockText(projectRoot)).toContain('★headline');
+      // Void the run THROUGH THE CLI VERB: the hook must move the count.
+      const io = { cwd: projectRoot, stdout: () => {}, stderr: () => {} };
+      const exit = runTraceCommand(projectRoot, {
+        action: 'void', target: runId, by: null, reason: 'behavioral hook test', scope: null,
+        actor: 'test', eventId: null, recordOnly: false, deps: {},
+      } as never, io);
+      expect(exit).toBe(0);
+      const block = blockText(projectRoot);
+      expect(block).toMatch(/\| 1 \| 0 \| 0 \| 1 \| 0 \|/);
+    });
   });
 
   it('ledger reads are shared, not repeated: a supplied view is used as-is', () => {

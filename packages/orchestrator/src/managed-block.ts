@@ -250,13 +250,20 @@ export function refreshManagedBlock(
   },
 ): ManagedBlockRefreshOutcome {
   for (let attempt = 0; attempt < 3; attempt += 1) {
-    const rendered = renderLatest();
     let text: string;
     try {
       text = fs.readFileSync(filePath, 'utf-8');
     } catch {
       return { action: 'skipped', reason: `${spec.fileLabel} not found` };
     }
+    // Render AFTER the carrier read: a rival whose ledger write precedes
+    // its carrier write is then either visible to this render (rival's
+    // carrier write already landed → our read saw it → our render reads
+    // even later state) or caught by the optimistic guard at write time
+    // (rival lands between our read and our rename → text changed →
+    // retry). Rendering first would leave a window where a stale render
+    // silently replaces the rival's fresher block.
+    const rendered = renderLatest();
     const location = locateManagedBlock(text, spec);
     const { bounds, duplicated, markerLinesPresent, positionOk } = location;
     if (duplicated) {
