@@ -1319,6 +1319,18 @@ def _postprocess_result(
         result["contract_errors"] = contract_errors
     elif "contract_errors" in result:
         result.pop("contract_errors", None)
+    # Disposition hint for the leader (SKILL.md "Malformed delivery ≠ rejected
+    # opinion"): a contract-invalid delivery that still carries a verdict is an
+    # UNFINISHED delivery — the one disposition is a same-model format rerun.
+    # It must never be folded into convergence as a downgraded or side opinion.
+    if contract_ok is False and result.get("verdict"):
+        result["contract_remedy"] = (
+            "same-model rerun naming the missing pieces (see contract_errors); "
+            "a malformed delivery is an incomplete delivery, never a downgraded "
+            "opinion — exclude it from convergence until a contract-valid rerun lands"
+        )
+    else:
+        result.pop("contract_remedy", None)
 
     command_success = bool(result.get("command_success", result.get("success", False)))
     failure_reason: Optional[str] = None

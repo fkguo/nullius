@@ -674,8 +674,10 @@ python3 scripts/bin/run_multi_task.py \
 it is **not** the acceptance convergence defined in the gate-loop discipline
 below: two similar NOT_READY reviews sharing the same blockers score high
 similarity while the artifact is not accepted at all. Acceptance convergence
-is always read from the verdicts (zero BLOCKING findings on the current
-artifact, dispositions complete), never from this similarity score.
+is always read from **contract-valid** verdicts (zero BLOCKING findings on the
+current artifact, dispositions complete), never from this similarity score; a
+malformed delivery joins the count only after its same-model normalization
+rerun (see the disposition rule under Contract checking).
 
 ### Re-review after every fix (gate-loop discipline)
 
@@ -760,6 +762,35 @@ reported manifest SHA-256 in an external closeout record before accepting the ve
 **Contract failures are informational only** — they never trigger fallback. Content matters more than format.
 
 If you want models to output a specific format, include format instructions in your system/user prompt.
+
+### Malformed delivery ≠ rejected opinion (disposition rule)
+
+A failed contract check means the reviewer has not finished **delivering** — never that the
+review's substance was weighed and found wanting. The contract validates delivery shape
+(parseable verdict line, the fixed severity homes, archivability against the next round);
+it has no opinion about the reasoning inside. Dispose of a contract-invalid review in
+exactly one way:
+
+- **Rerun same-model with the missing pieces named** (the runner records them in
+  `contract_errors` and a `contract_remedy` hint). The reviewer already did the reading;
+  re-emitting in contract shape is one cheap round. The Gemini and OpenCode caveats above
+  are instances of this rule, not backend-specific allowances.
+- **Never record a hybrid terminal state.** "Format-invalid but substantively supportive"
+  must not enter a convergence count, a formal status line, or a closeout packet — not as
+  a downgraded vote, not as a qualified-consensus footnote. Convergence counts
+  contract-valid verdicts only; every other seat is either rerun until valid or honestly
+  recorded as "this seat delivered no valid review" (a seat failure, handled by the
+  fallback policy), with the invalid output retained for diagnosis.
+- **The inverse also holds.** Contract-valid says nothing about substance: a well-formed
+  placeholder verdict is still rejected by the substantive checks (blank/short-output
+  detection, source-grounding requirements).
+
+The failure mode this rule closes: a reviewer reads the material, reaches a grounded
+verdict, misses required sections — and the leader "honestly downgrades" it to a
+format-disqualified side opinion, excluded from convergence yet still cited. That inverts
+substance-over-format twice: the substance is discarded where it counts (the gate) and
+kept where it cannot be checked (the prose). Rerun the seat; count only what is both
+contract-valid and substantively grounded.
 
 Standalone checker:
 
