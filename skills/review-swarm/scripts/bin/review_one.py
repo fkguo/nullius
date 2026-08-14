@@ -1099,6 +1099,12 @@ def _print_summary(
     print(f"acceptance_status: {freshness_status}")
     print(f"verdict: {agent.get('verdict') or 'NONE'}")
     print(f"contract_ok: {json.dumps(agent.get('contract_ok'))}")
+    if agent.get("contract_ok") is False and agent.get("verdict"):
+        print(
+            "contract_remedy: same-model rerun to normalize the delivery — the verdict above "
+            "is not convergence-usable until a contract-valid rerun lands, and must not be "
+            "recorded as a downgraded opinion (SKILL.md: malformed delivery != rejected opinion)"
+        )
     print(f"output: {agent.get('out') or ''}")
     print(f"packet: {packet_path}")
     print(f"meta: {meta_path}")
