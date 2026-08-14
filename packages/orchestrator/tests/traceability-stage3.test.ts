@@ -701,3 +701,25 @@ describe('validity verbs: run-id normalization, existence gate, landing receipts
     expect((resolved as { message: string }).message).toContain('outside the project root');
   });
 });
+
+describe('validity verbs: dot references and plain files never satisfy the existence gate (codex r1)', () => {
+  it("'.' and '..' are refused everywhere: strip, resolver, and the writer backstop", () => {
+    expect(stripRunRootPrefix('.')).toBeNull();
+    expect(stripRunRootPrefix('..')).toBeNull();
+    expect(stripRunRootPrefix('./')).toBeNull();
+    fs.mkdirSync(path.join(projectRoot, 'artifacts', 'runs'), { recursive: true });
+    const resolved = resolveRunIdReference(projectRoot, '.', { verb: 'trace void', role: 'run id' });
+    expect(resolved.kind).toBe('rejected');
+    expect(() => appendValidityEvent(projectRoot, buildValidityEvent({
+      event: 'void', run_id: '.', actor: 'test', reason: 'stray',
+    }))).toThrow(/directory reference/);
+  });
+
+  it('a plain file directly on a run root does not count as an existing run', () => {
+    fs.mkdirSync(path.join(projectRoot, 'artifacts', 'runs'), { recursive: true });
+    fs.writeFileSync(path.join(projectRoot, 'artifacts', 'runs', '.gitattributes'), 'x\n');
+    const resolved = resolveRunIdReference(projectRoot, '.gitattributes', { verb: 'trace void', role: 'run id' });
+    expect(resolved.kind).toBe('rejected');
+    expect((resolved as { message: string }).message).toContain('names no run directory and no ledger entry');
+  });
+});

@@ -335,12 +335,16 @@ export function renderRunIndexBlock(projection: RunIndexProjection): string {
   if (defects.path_shaped_ledger_only.length > 0) {
     lines.push('');
     lines.push(`Misaddressed verdicts: ${defects.path_shaped_ledger_only.length} ledger event id(s) are run-root`);
-    lines.push('PATHS naming runs that exist — each verdict landed on the path string, so');
+    lines.push('PATHS naming runs the project knows — each verdict landed on the path string, so');
     lines.push('the real run silently kept its previous validity. Re-issue each verb');
     lines.push('against the bare id (the ledger is append-only: the stray line stays,');
     lines.push('but stops mattering once the bare id carries the verdict):');
+    // Historical ledger values are untrusted input: escape exactly like
+    // every other defect list (control characters, marker-forgery
+    // characters), or a stray id carrying a newline could inject a line
+    // into the managed block.
     for (const entry of defects.path_shaped_ledger_only) {
-      lines.push(`- \`${entry.recorded_id}\` → re-issue against \`${entry.resolves_to}\``);
+      lines.push(`- ${escapeMarkdownCell(entry.recorded_id)} → re-issue against ${escapeMarkdownCell(entry.resolves_to)}`);
     }
   }
   if (!projection.registry_block_found && projection.run_directories > 0) {

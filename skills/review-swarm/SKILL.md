@@ -725,10 +725,12 @@ is unaffected — the cap bounds how many candidate revisions the loop may consu
 revision gets its confirmation. Batch fixes: one confirmation round
 covers the whole accumulated fix batch, scoped to the exact delta by default (see packet composition
 above). Review verdicts are judged on content: a source-grounded READY whose verdict string or label
-spelling deviates from the requested format is a normalization task, never a new blocking round.
-Prefer a same-model rerun to normalize; leader transcription (with the original archived) is
-acceptable only when the archived output contains an explicit, unambiguous affirmative verdict —
-an ambiguous verdict is not normalized into a pass, it fails closed as usual.
+spelling deviates from the requested format is a normalization task, never a new blocking round —
+a same-model rerun re-emits it in contract shape (the disposition rule under Contract checking).
+Leader transcription is NOT a convergence path: an output the reviewer did not re-deliver in
+contract shape stays out of the count no matter how unambiguous its verdict reads — archive the
+original for diagnosis and rerun the seat. An ambiguous verdict is never normalized into a pass;
+it fails closed as usual.
 
 The verdict is scoped to the exact hashes in `inputs/review_input_manifest.json`.
 Before counting an older run toward a later convergence or closeout, rerun the
@@ -756,10 +758,14 @@ This gate catches accidental or uncoordinated post-review drift. If deliberate c
 of both an input and its manifest is in scope, commit the review directory or persist the
 reported manifest SHA-256 in an external closeout record before accepting the verdict.
 
-## Contract checking (informational)
+## Contract checking (delivery shape)
 
 `--check-review-contract` validates output format compliance and records results in `meta.json`.
-**Contract failures are informational only** — they never trigger fallback. Content matters more than format.
+Contract failures never trigger backend fallback and never mark the lane failed — content
+matters more than format, and the output is always retained. They DO withhold the lane from
+convergence/credit aggregation (`excluded_contract_invalid` in the convergence record, and no
+dual-review comparison seat): an unfinished delivery cannot occupy a seat. The remedy is the
+disposition rule below, never silent exclusion.
 
 If you want models to output a specific format, include format instructions in your system/user prompt.
 
@@ -779,8 +785,10 @@ exactly one way:
   must not enter a convergence count, a formal status line, or a closeout packet — not as
   a downgraded vote, not as a qualified-consensus footnote. Convergence counts
   contract-valid verdicts only; every other seat is either rerun until valid or honestly
-  recorded as "this seat delivered no valid review" (a seat failure, handled by the
-  fallback policy), with the invalid output retained for diagnosis.
+  recorded as "this seat delivered no valid review". Once same-model rerun attempts are
+  exhausted (bounded by your retry budget), the leader applies the fallback policy exactly
+  as for any other failed seat — substitution or honest degradation; the runner itself
+  never auto-falls-back on contract grounds. The invalid output is retained for diagnosis.
 - **The inverse also holds.** Contract-valid says nothing about substance: a well-formed
   placeholder verdict is still rejected by the substantive checks (blank/short-output
   detection, source-grounding requirements).

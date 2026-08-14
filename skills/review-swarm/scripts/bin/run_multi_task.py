@@ -2955,11 +2955,22 @@ def main() -> int:
     )
     _append_jsonl(trace_path, {"ts": _utc_now(), "event": "independence", **independence})
 
+    def _contract_invalid(r: dict[str, Any]) -> bool:
+        # Disposition rule (SKILL.md "Malformed delivery ≠ rejected opinion"):
+        # a contract-invalid delivery is an UNFINISHED delivery — it must not
+        # occupy a comparison seat or enter the similarity set until its
+        # same-model normalization rerun lands. contract_ok is None when the
+        # check was not requested; only an explicit False excludes.
+        return r.get("contract_ok") is False
+
     def _credit_eligible(r: dict[str, Any]) -> bool:
         # A failed lane produced no reviewable output: it can no more occupy
         # a comparison seat or enter the similarity set than an excluded one.
-        return bool(r.get("success")) and (
-            _lane_exclusion_reason(r, backend_tool_modes, contaminated_lane_indices)
+        # A contract-invalid lane HAS output but has not finished delivering.
+        return (
+            bool(r.get("success"))
+            and not _contract_invalid(r)
+            and _lane_exclusion_reason(r, backend_tool_modes, contaminated_lane_indices)
             is None
         )
 
@@ -2970,7 +2981,12 @@ def main() -> int:
         excluded_non_independent = sorted(
             _execution_spec(r)
             for r in results
-            if r.get("success") and not _credit_eligible(r)
+            if r.get("success") and not _credit_eligible(r) and not _contract_invalid(r)
+        )
+        excluded_contract_invalid = sorted(
+            _execution_spec(r)
+            for r in results
+            if r.get("success") and _contract_invalid(r)
         )
         output_files = [
             Path(r["out"])
@@ -2992,6 +3008,9 @@ def main() -> int:
             # Successful lanes whose output was withheld from the similarity
             # set (zero convergence credit) — visible, never silent.
             "excluded_non_independent": excluded_non_independent,
+            # Successful lanes withheld because the delivery failed the
+            # review-output contract: unfinished, pending a same-model rerun.
+            "excluded_contract_invalid": excluded_contract_invalid,
         }
         _append_jsonl(trace_path, {"ts": _utc_now(), "event": "convergence_check", **convergence_info})
 
