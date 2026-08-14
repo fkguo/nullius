@@ -166,7 +166,9 @@ describe('projection and render', () => {
         },
       },
     } as never));
-    // Seven ledger-only ids: the footer caps at 5 and says how many more.
+    // Seven ledger-only ids: the defect list is the repair worklist, so it
+    // renders in FULL — a "+N more" tail would hide work the reader is
+    // being told to do.
     for (let index = 0; index < 7; index += 1) {
       appendValidityEvent(projectRoot, buildValidityEvent({
         event: 'void', run_id: `20260701-m0-r00${index}-gone-run`, actor: 'test', reason: 'directory removed',
@@ -175,8 +177,41 @@ describe('projection and render', () => {
     const rendered = renderRunIndexBlock(computeRunIndexProjection(projectRoot));
     expect(rendered).toContain('1 attempt-chain defect(s): 20260809-m1-r001-defect-run');
     expect(rendered).toContain('7 ledger-only run id(s) with no directory:');
-    expect(rendered).toContain('+2 more');
+    expect(rendered).not.toContain('+2 more');
+    for (let index = 0; index < 7; index += 1) {
+      expect(rendered).toContain(`20260701-m0-r00${index}-gone-run`);
+    }
     expect(rendered).toContain('see `nullius current`');
+  });
+
+  it('path-shaped ledger ids render the misaddressed-verdicts repair list instead of posing as ghost runs', () => {
+    const projectRoot = makeProject();
+    mkRun(projectRoot, '20260810-m2-r378-replay');
+    // Historical stray lines predate the writer's path-shape backstop, so
+    // the fixture appends raw JSONL exactly as an old CLI recorded it.
+    const ledgerPath = path.join(projectRoot, 'artifacts', 'runs', 'validity_ledger.jsonl');
+    fs.mkdirSync(path.dirname(ledgerPath), { recursive: true });
+    fs.appendFileSync(ledgerPath, `${JSON.stringify({
+      schema_id: 'validity_event_v1', event_id: mintUlid(), ts_utc: new Date().toISOString(),
+      event: 'void', run_id: 'artifacts/runs/20260810-m2-r378-replay', actor: 'test', reason: 'meant for the real run',
+    })}\n`);
+    // A genuine ghost (bare id, no directory) must stay in the plain
+    // ledger-only list — the split must not swallow it.
+    appendValidityEvent(projectRoot, buildValidityEvent({
+      event: 'void', run_id: '20260701-m0-r001-gone-run', actor: 'test', reason: 'directory removed',
+    }));
+    const projection = computeRunIndexProjection(projectRoot);
+    expect(projection.defects.path_shaped_ledger_only).toEqual([
+      { recorded_id: 'artifacts/runs/20260810-m2-r378-replay', resolves_to: '20260810-m2-r378-replay' },
+    ]);
+    const rendered = renderRunIndexBlock(projection);
+    expect(rendered).toContain('Misaddressed verdicts');
+    expect(rendered).toContain('- `artifacts/runs/20260810-m2-r378-replay` → re-issue against `20260810-m2-r378-replay`');
+    expect(rendered).toContain('1 ledger-only run id(s) with no directory: 20260701-m0-r001-gone-run');
+    // The stray void landed on the path string, not the run: the family
+    // row must still show the real directory unclassified, not void.
+    const family = projection.families.find(f => f.latest.run_id === '20260810-m2-r378-replay');
+    expect(family?.latest.validity).toBe('unclassified');
   });
 
   it('hostile directory names cannot break the table, the link, or the block structure', () => {

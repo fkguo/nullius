@@ -6,6 +6,7 @@ import type { ValidityEventV1 } from '@nullius/shared';
 import type { RunOriginV1 } from '@nullius/shared';
 import validityEventSchema from '../../../meta/schemas/validity_event_v1.schema.json' with { type: 'json' };
 import runOriginSchema from '../../../meta/schemas/run_origin_v1.schema.json' with { type: 'json' };
+import { RUN_ROOTS } from './run-directories.js';
 
 /** Project validity ledger: the append-only record separating result VALIDITY
  *  ("does this run's result still count") from execution status ("did it
@@ -608,6 +609,23 @@ export function appendValidityEvent(
   if (!ULID_PATTERN.test(event.event_id)) {
     throw new Error(`event_id ${JSON.stringify(event.event_id)} is not a ULID`);
   }
+  // Writer-side reference gate: ledger events name runs by BARE id (the
+  // basename under a run root), never by path. A path-shaped id records a
+  // verdict against a run that does not exist, so the real run silently
+  // keeps its old validity (measured in the field: seven voids lost this
+  // way before anyone noticed). CLI verbs normalize path forms before
+  // reaching here; this throw is the backstop for every other caller.
+  for (const [field, value] of [
+    ['run_id', event.run_id],
+    ['by_run_id', (event as { by_run_id?: string | null }).by_run_id],
+  ] as const) {
+    if (typeof value === 'string' && (value.includes('/') || value.includes('\\'))) {
+      throw new Error(
+        `${field} ${JSON.stringify(value)} is path-shaped; ledger events reference runs by bare id — `
+        + 'strip the run-root prefix (artifacts/runs/ or team/runs/)',
+      );
+    }
+  }
   // Writer-side schema gate (stage-2 acceptance hook, native r4 nb#1): the
   // compiled validator that guards every read also guards the write, so a
   // schema-invalid event is refused HERE instead of being appended and then
@@ -722,4 +740,122 @@ export function buildValidityEvent(
       Object.entries(fields).filter(([k]) => k !== 'event_id' && k !== 'ts_utc'),
     ),
   } as ValidityEventV1;
+}
+
+// --- Run-id reference resolution for ledger-writing verbs -------------------
+//
+// `trace stamp` has always accepted a run DIRECTORY path (tab completion
+// hands one out), so operators carry the same habit to `trace void` — which
+// historically accepted any string and recorded the verdict against a run
+// that does not exist. Resolution gives every validity verb one shared
+// answer: strip recognizable run-root path forms to the bare id, and refuse
+// ids that neither the disk nor the ledger knows.
+
+/** Strip a recognizable run-root path form down to the bare run id.
+ *  Returns null for a slash-bearing string that is NOT a run-root path —
+ *  such input is unidentifiable, never guessed at. A bare id passes
+ *  through unchanged. Pure on purpose: the projection layer classifies
+ *  historical ledger lines with the same rule the CLI normalizes by. */
+export function stripRunRootPrefix(raw: string): string | null {
+  let value = raw.trim().split('\\').join('/');
+  while (value.endsWith('/')) value = value.slice(0, -1);
+  if (value.startsWith('./')) value = value.slice(2);
+  if (!value.includes('/')) return value.length > 0 ? value : null;
+  const match = /^(?:artifacts|team)\/runs\/([^/]+)$/.exec(value);
+  return match ? match[1] : null;
+}
+
+export type RunIdReferenceResolution =
+  | {
+    kind: 'ok';
+    runId: string;
+    /** The raw input when normalization changed it, else null. */
+    normalizedFrom: string | null;
+    known: 'directory' | 'ledger' | 'both';
+  }
+  | { kind: 'rejected'; message: string };
+
+function editDistance(a: string, b: string): number {
+  const dp: number[] = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    let prev = dp[0];
+    dp[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const tmp = dp[j];
+      dp[j] = Math.min(dp[j] + 1, dp[j - 1] + 1, prev + (a[i - 1] === b[j - 1] ? 0 : 1));
+      prev = tmp;
+    }
+  }
+  return dp[b.length];
+}
+
+function nearestRunIds(target: string, candidates: Iterable<string>, count: number): string[] {
+  return [...new Set(candidates)]
+    .map(id => ({ id, distance: editDistance(target, id) }))
+    .sort((a, b) => a.distance - b.distance || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+    .slice(0, count)
+    .map(entry => entry.id);
+}
+
+/** Resolve a run-id argument of a validity verb (`void`/`supersede`/
+ *  `reinstate`, including `--by`): normalize path forms, then require the
+ *  id to be KNOWN — a run directory on disk, or a run the ledger already
+ *  has events for (a voided run whose directory was later archived away
+ *  must stay addressable). Unknown ids are refused with the nearest real
+ *  ids named, because the alternative is a verdict recorded into the void. */
+export function resolveRunIdReference(
+  projectRoot: string,
+  raw: string,
+  context: { verb: string; role: string },
+  ledgerView?: ValidityLedgerView,
+): RunIdReferenceResolution {
+  let value = raw.trim();
+  if (path.isAbsolute(value)) {
+    const relative = path.relative(projectRoot, value);
+    if (relative.startsWith('..') || path.isAbsolute(relative)) {
+      return {
+        kind: 'rejected',
+        message: `${context.verb}: ${context.role} ${JSON.stringify(raw)} is an absolute path outside the project root`,
+      };
+    }
+    value = relative;
+  }
+  const bare = stripRunRootPrefix(value);
+  if (bare === null || bare.length === 0) {
+    return {
+      kind: 'rejected',
+      message: `${context.verb}: ${context.role} ${JSON.stringify(raw)} is neither a bare run id nor a `
+        + 'run-root path (artifacts/runs/<id> or team/runs/<id>)',
+    };
+  }
+  const view = ledgerView ?? readValidityLedger(projectRoot);
+  const onDisk = RUN_ROOTS.some(root => fs.existsSync(path.join(projectRoot, root, bare)));
+  const inLedger = view.runs.has(bare);
+  if (!onDisk && !inLedger) {
+    const candidates = new Set<string>(view.runs.keys());
+    for (const root of RUN_ROOTS) {
+      const absRoot = path.join(projectRoot, root);
+      if (!fs.existsSync(absRoot)) continue;
+      try {
+        for (const entry of fs.readdirSync(absRoot, { withFileTypes: true })) {
+          if (entry.isDirectory()) candidates.add(entry.name);
+        }
+      } catch {
+        // Unreadable root: suggestions degrade, refusal stands.
+      }
+    }
+    const nearest = nearestRunIds(bare, candidates, 3);
+    return {
+      kind: 'rejected',
+      message: `${context.verb}: ${context.role} ${JSON.stringify(bare)} names no run directory and no ledger entry; `
+        + 'refusing to record a verdict no run would carry'
+        + (nearest.length > 0 ? `. Nearest known run ids: ${nearest.join(', ')}` : ''),
+    };
+  }
+  return {
+    kind: 'ok',
+    runId: bare,
+    normalizedFrom: bare === raw ? null : raw,
+    known: onDisk && inLedger ? 'both' : onDisk ? 'directory' : 'ledger',
+  };
 }
