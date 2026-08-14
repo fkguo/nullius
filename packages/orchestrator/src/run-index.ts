@@ -1,6 +1,6 @@
 import * as path from 'node:path';
 import { createHash } from 'node:crypto';
-import { canonicalJson, readValidityLedger, type ValidityLedgerView } from './validity-ledger.js';
+import { canonicalJson, readValidityLedger, stripRunRootPrefix, type ValidityLedgerView } from './validity-ledger.js';
 import { checkChains, currentRowLedgerDefective, parseResultRegistry, type ResultRegistryRow } from './result-registry.js';
 import { listRunDirectories, slugFamilyOf } from './run-directories.js';
 import {
@@ -93,6 +93,12 @@ export type RunIndexProjection = {
     no_authoritative_identity: string[];
     /** Ledger events about run ids with no directory on disk. */
     ledger_only: string[];
+    /** The subset of `ledger_only` whose id is a run-root PATH naming a
+     *  run that actually exists — a verdict recorded against the path
+     *  string instead of the run, so the real run silently kept its old
+     *  validity. Each carries the bare id the verdict was meant for, so
+     *  the render can hand the operator the exact repair command. */
+    path_shaped_ledger_only: Array<{ recorded_id: string; resolves_to: string }>;
     /** CURRENT registry rows naming a run with NO directory on disk —
      *  the star would otherwise silently vanish from every family row. */
     registry_only_current: string[];
@@ -205,6 +211,16 @@ export function computeRunIndexProjection(
   }
 
   const ledgerOnly = [...ledger.runs.keys()].filter(runId => !directoryIds.has(runId)).sort();
+  // Path-shaped strays: the same normalization rule the CLI applies on
+  // write, run over historical ledger lines — an id that strips to a run
+  // the directory scan or the ledger actually knows is a misaddressed
+  // verdict, not a ghost run, and its repair is mechanical.
+  const pathShapedLedgerOnly = ledgerOnly.flatMap((recordedId) => {
+    const bare = stripRunRootPrefix(recordedId);
+    if (bare === null || bare === recordedId) return [];
+    if (!directoryIds.has(bare) && !ledger.runs.has(bare)) return [];
+    return [{ recorded_id: recordedId, resolves_to: bare }];
+  });
   // A CURRENT registry row naming a run with NO directory would otherwise
   // simply vanish from every family row — the star must fail loudly, not
   // silently.
@@ -236,6 +252,7 @@ export function computeRunIndexProjection(
       no_authoritative_identity: [...ledger.runs.values()].filter(entry => entry.no_authoritative_identity)
         .map(entry => entry.run_id).sort(),
       ledger_only: ledgerOnly,
+      path_shaped_ledger_only: pathShapedLedgerOnly,
       registry_only_current: registryOnlyCurrent,
     },
     registry_block_found: registry.block_found,
@@ -246,8 +263,10 @@ export function runIndexDigest(projection: RunIndexProjection): string {
   return createHash('sha256').update(canonicalJson(projection), 'utf-8').digest('hex');
 }
 
-const listWithCap = (ids: string[], cap = 5): string =>
-  `${ids.slice(0, cap).map(escapeMarkdownCell).join(', ')}${ids.length > cap ? `, +${ids.length - cap} more` : ''}`;
+// Defect lists render in FULL, never capped: the list is the repair
+// worklist, and a `+4 more` tail turns "repair each of these" into an
+// instruction the reader cannot follow from the page it appears on.
+const listAll = (ids: string[]): string => ids.map(escapeMarkdownCell).join(', ');
 
 /** The full block, markers inclusive. Deterministic — byte-compare against
  *  this render is the freshness truth (no dates, no counters). */
@@ -293,23 +312,36 @@ export function renderRunIndexBlock(projection: RunIndexProjection): string {
   const { defects } = projection;
   const defectParts: string[] = [];
   if (defects.conflicting_stamps.length > 0) {
-    defectParts.push(`${defects.conflicting_stamps.length} conflicting stamp(s): ${listWithCap(defects.conflicting_stamps)}`);
+    defectParts.push(`${defects.conflicting_stamps.length} conflicting stamp(s): ${listAll(defects.conflicting_stamps)}`);
   }
   if (defects.attempt_chain_defects.length > 0) {
-    defectParts.push(`${defects.attempt_chain_defects.length} attempt-chain defect(s): ${listWithCap(defects.attempt_chain_defects)}`);
+    defectParts.push(`${defects.attempt_chain_defects.length} attempt-chain defect(s): ${listAll(defects.attempt_chain_defects)}`);
   }
   if (defects.no_authoritative_identity.length > 0) {
-    defectParts.push(`${defects.no_authoritative_identity.length} run(s) without authoritative identity: ${listWithCap(defects.no_authoritative_identity)}`);
+    defectParts.push(`${defects.no_authoritative_identity.length} run(s) without authoritative identity: ${listAll(defects.no_authoritative_identity)}`);
   }
-  if (defects.ledger_only.length > 0) {
-    defectParts.push(`${defects.ledger_only.length} ledger-only run id(s) with no directory: ${listWithCap(defects.ledger_only)}`);
+  const pathShapedIds = new Set(defects.path_shaped_ledger_only.map(entry => entry.recorded_id));
+  const ghostLedgerOnly = defects.ledger_only.filter(id => !pathShapedIds.has(id));
+  if (ghostLedgerOnly.length > 0) {
+    defectParts.push(`${ghostLedgerOnly.length} ledger-only run id(s) with no directory: ${listAll(ghostLedgerOnly)}`);
   }
   if (defects.registry_only_current.length > 0) {
-    defectParts.push(`${defects.registry_only_current.length} CURRENT result(s) naming a run with no directory: ${listWithCap(defects.registry_only_current)}`);
+    defectParts.push(`${defects.registry_only_current.length} CURRENT result(s) naming a run with no directory: ${listAll(defects.registry_only_current)}`);
   }
   if (defectParts.length > 0) {
     lines.push('');
     lines.push(`Defects: ${defectParts.join('; ')} — repair before trusting; see \`nullius current\`.`);
+  }
+  if (defects.path_shaped_ledger_only.length > 0) {
+    lines.push('');
+    lines.push(`Misaddressed verdicts: ${defects.path_shaped_ledger_only.length} ledger event id(s) are run-root`);
+    lines.push('PATHS naming runs that exist — each verdict landed on the path string, so');
+    lines.push('the real run silently kept its previous validity. Re-issue each verb');
+    lines.push('against the bare id (the ledger is append-only: the stray line stays,');
+    lines.push('but stops mattering once the bare id carries the verdict):');
+    for (const entry of defects.path_shaped_ledger_only) {
+      lines.push(`- \`${entry.recorded_id}\` → re-issue against \`${entry.resolves_to}\``);
+    }
   }
   if (!projection.registry_block_found && projection.run_directories > 0) {
     lines.push('');
