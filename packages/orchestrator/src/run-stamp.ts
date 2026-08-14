@@ -6,7 +6,7 @@ import type { RunOriginV1, ValidityEventV1 } from '@nullius/shared';
 import { mintUlid, moveEntryDurable, ULID_PATTERN, writeBytesAtomicDurable } from '@nullius/shared';
 import { createHash } from 'node:crypto';
 import { appendValidityEvent, buildValidityEvent, readValidityLedger, type ValidityLedgerView } from './validity-ledger.js';
-import { captureRunOrigin, isTraceabilityArtifactPath, readAttemptSnapshotRef, swapAttemptSnapshotRef } from './run-origin.js';
+import { captureRunOrigin, isControlPlanePath, isTraceabilityArtifactPath, readAttemptSnapshotRef, swapAttemptSnapshotRef } from './run-origin.js';
 import { validateResultRegistry } from './result-registry.js';
 import { refreshNotebookCurrentState } from './notebook-current-state.js';
 import { refreshRunIndexBlock } from './run-index.js';
@@ -104,16 +104,6 @@ export function stampedCodeCommit(origin: unknown): string | null {
   const snapshot = typeof record.snapshot_commit === 'string' ? record.snapshot_commit : null;
   const baseline = typeof record.baseline_commit === 'string' ? record.baseline_commit : null;
   return snapshot ?? baseline;
-}
-
-/** Control-plane bookkeeping the execution machinery itself rewrites on
- *  every launch (run state, the decision ledger, approval receipts under
- *  .nullius/). Counting those as research-code drift would make EVERY
- *  relaunch read as "different code" — the same self-referential noise the
- *  untracked-side exclusion (isTraceabilityArtifactPath) already handles. */
-function isControlPlanePath(relativePath: string): boolean {
-  const normalized = relativePath.split('\\').join('/');
-  return normalized === '.nullius' || normalized.startsWith('.nullius/');
 }
 
 /** True when two stamped code identities differ ONLY in control-plane
