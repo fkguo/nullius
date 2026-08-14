@@ -619,10 +619,16 @@ export function appendValidityEvent(
     ['run_id', event.run_id],
     ['by_run_id', (event as { by_run_id?: string | null }).by_run_id],
   ] as const) {
-    if (typeof value === 'string' && (value.includes('/') || value.includes('\\'))) {
+    if (typeof value !== 'string') continue;
+    if (value.includes('/') || value.includes('\\')) {
       throw new Error(
         `${field} ${JSON.stringify(value)} is path-shaped; ledger events reference runs by bare id — `
         + 'strip the run-root prefix (artifacts/runs/ or team/runs/)',
+      );
+    }
+    if (value === '.' || value === '..') {
+      throw new Error(
+        `${field} ${JSON.stringify(value)} names a directory reference, not a run id`,
       );
     }
   }
@@ -756,13 +762,31 @@ export function buildValidityEvent(
  *  such input is unidentifiable, never guessed at. A bare id passes
  *  through unchanged. Pure on purpose: the projection layer classifies
  *  historical ledger lines with the same rule the CLI normalizes by. */
+// Built from RUN_ROOTS so the recognized prefixes cannot drift from the
+// directory scan's definition of a run root. Stated limit: the '\'→'/'
+// normalization below means a POSIX basename that literally contains a
+// backslash is never addressable by these verbs (and the writer backstop
+// refuses it) — conservative, and matching the Windows-tolerant reading
+// everywhere else in this file's consumers.
+const RUN_ROOT_PREFIX_PATTERN = new RegExp(
+  `^(?:${RUN_ROOTS.map(root => root.split(path.sep).join('/')).join('|')})/([^/]+)$`,
+);
+
 export function stripRunRootPrefix(raw: string): string | null {
   let value = raw.trim().split('\\').join('/');
   while (value.endsWith('/')) value = value.slice(0, -1);
   if (value.startsWith('./')) value = value.slice(2);
-  if (!value.includes('/')) return value.length > 0 ? value : null;
-  const match = /^(?:artifacts|team)\/runs\/([^/]+)$/.exec(value);
-  return match ? match[1] : null;
+  if (value.includes('/')) {
+    const match = RUN_ROOT_PREFIX_PATTERN.exec(value);
+    if (!match) return null;
+    value = match[1]!;
+  }
+  // '.' and '..' survive the slash checks but name the root itself (or its
+  // parent) — never a run. Letting them through would make the existence
+  // gate "verify" against the run root directory and hand back a receipt
+  // for a verdict no run carries.
+  if (value === '.' || value === '..' || value.length === 0) return null;
+  return value;
 }
 
 export type RunIdReferenceResolution =
@@ -829,7 +853,18 @@ export function resolveRunIdReference(
     };
   }
   const view = ledgerView ?? readValidityLedger(projectRoot);
-  const onDisk = RUN_ROOTS.some(root => fs.existsSync(path.join(projectRoot, root, bare)));
+  // A run is a real DIRECTORY directly under a run root; a plain file
+  // there (the ledger itself, .gitattributes) must not satisfy the gate,
+  // and neither must a symlink — the directory scan and the stamp
+  // containment both refuse symlinks, and this gate must agree with them
+  // about what exists (lstat, so a symlink-to-directory does not pass).
+  const onDisk = RUN_ROOTS.some(root => {
+    try {
+      return fs.lstatSync(path.join(projectRoot, root, bare)).isDirectory();
+    } catch {
+      return false;
+    }
+  });
   const inLedger = view.runs.has(bare);
   if (!onDisk && !inLedger) {
     const candidates = new Set<string>(view.runs.keys());

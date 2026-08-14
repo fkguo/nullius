@@ -206,7 +206,7 @@ describe('projection and render', () => {
     ]);
     const rendered = renderRunIndexBlock(projection);
     expect(rendered).toContain('Misaddressed verdicts');
-    expect(rendered).toContain('- `artifacts/runs/20260810-m2-r378-replay` → re-issue against `20260810-m2-r378-replay`');
+    expect(rendered).toContain('- artifacts/runs/20260810-m2-r378-replay → re-issue against 20260810-m2-r378-replay');
     expect(rendered).toContain('1 ledger-only run id(s) with no directory: 20260701-m0-r001-gone-run');
     // The stray void landed on the path string, not the run: the family
     // row must still show the real directory unclassified, not void.
@@ -710,5 +710,39 @@ describe('refresh, hooks, and staleness', () => {
     const ledger = readValidityLedger(projectRoot);
     const projection = computeRunIndexProjection(projectRoot, ledger);
     expect(projection.run_directories).toBe(1);
+  });
+});
+
+describe('misaddressed-verdict rendering treats historical ledger ids as untrusted input (codex r1)', () => {
+  it('control characters and marker text in a stray id cannot inject lines into the managed block', () => {
+    const projectRoot = makeProject();
+    const hostileBare = '20260810-m2-r378-replay\nINJECTED LINE <!-- RUN_INDEX_END -->';
+    const ledgerPath = path.join(projectRoot, 'artifacts', 'runs', 'validity_ledger.jsonl');
+    fs.mkdirSync(path.dirname(ledgerPath), { recursive: true });
+    // Two historical stray lines predating the writer's backstops: one BARE
+    // hostile id (so the ledger KNOWS the bare form) and one path-shaped id
+    // that strips to it. The second condition is what routes the entry into
+    // the misaddressed-verdicts repair list — the render path under test.
+    // A fixture whose bare form is unknown would classify as a plain ghost
+    // and pass on the already-escaped list even with the defect present
+    // (native-seat r1: the lock must go red on the defective renderer).
+    for (const runId of [hostileBare, `artifacts/runs/${hostileBare}`]) {
+      fs.appendFileSync(ledgerPath, `${JSON.stringify({
+        schema_id: 'validity_event_v1', event_id: mintUlid(), ts_utc: new Date().toISOString(),
+        event: 'void', run_id: runId, actor: 'test', reason: 'hostile id',
+      })}\n`);
+    }
+    const projection = computeRunIndexProjection(projectRoot);
+    expect(projection.defects.path_shaped_ledger_only).toEqual([
+      { recorded_id: `artifacts/runs/${hostileBare}`, resolves_to: hostileBare },
+    ]);
+    const rendered = renderRunIndexBlock(projection);
+    // The newline is neutralized (no line starts with the injected text)
+    // and the angle-bracket escaping means exactly ONE line in the block is
+    // the real end marker — the injected copy cannot terminate the block.
+    const renderedLines = rendered.split('\n');
+    expect(renderedLines.some(line => line.startsWith('INJECTED LINE'))).toBe(false);
+    expect(renderedLines.filter(line => line.trim() === RUN_INDEX_END)).toHaveLength(1);
+    expect(rendered.trim().endsWith(RUN_INDEX_END)).toBe(true);
   });
 });

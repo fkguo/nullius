@@ -190,17 +190,22 @@ function emitRefreshSummary(io: CliIo, scaffold: ProjectScaffoldResult, dryRun: 
       // Migration nudge for pre-existing projects: refresh never edits a
       // user-owned .gitignore, so a project scaffolded before backups were
       // in the ignore template keeps them visible forever unless told.
+      // Only exit 1 means "definitely not ignored"; a non-repo root
+      // (exit 128) or a missing git binary is indeterminate, and an
+      // ignore nudge in a project with no git status to pollute is noise.
       try {
         execFileSync('git', ['-C', repoRoot, 'check-ignore', '-q', '.nullius/backups'], {
           stdio: ['ignore', 'ignore', 'ignore'],
           timeout: 10_000,
         });
-      } catch {
-        io.stdout(
-          'note: .nullius/backups/ is not git-ignored in this project; add `.nullius/backups/` to .gitignore '
-          + '(alongside .nullius/HARNESS_INVOCATION and .nullius/ledger.jsonl) to keep machine-local '
-          + 'bookkeeping out of git status — refresh never edits your .gitignore.\n',
-        );
+      } catch (error) {
+        if ((error as { status?: number }).status === 1) {
+          io.stdout(
+            'note: .nullius/backups/ is not git-ignored in this project; add `.nullius/backups/` to .gitignore '
+            + '(alongside .nullius/HARNESS_INVOCATION and .nullius/ledger.jsonl) to keep machine-local '
+            + 'bookkeeping out of git status — refresh never edits your .gitignore.\n',
+          );
+        }
       }
     }
   }

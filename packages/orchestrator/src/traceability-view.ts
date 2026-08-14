@@ -1089,13 +1089,17 @@ export function renderTraceabilityProse(view: TraceabilityView): string {
   if (view.runs.attempt_chain_defects.length > 0) {
     lines.push(`- ATTEMPT CHAIN DEFECTS: ${view.runs.attempt_chain_defects.join(', ')} — repair before trusting these bindings.`);
   }
+  // Both lists below are repair worklists, and this surface is the "full
+  // answer" the run-index block points at — render them in full, never
+  // capped (a "…" tail here would leave NO surface listing the work).
   if (view.runs.crashed_unretried.length > 0) {
-    lines.push(`- CRASHED, unretried: ${view.runs.crashed_unretried.slice(0, 5).join(', ')}`
-      + `${view.runs.crashed_unretried.length > 5 ? ', …' : ''} — \`nullius trace retry <run_dir>\` chains the next attempt, `
+    lines.push(`- CRASHED, unretried: ${view.runs.crashed_unretried.join(', ')}`
+      + ' — `nullius trace retry <run_dir>` chains the next attempt, '
       + 'or --record-only books an abandoned crash.');
   }
   if (view.runs.ledger_only_run_ids.length > 0) {
-    lines.push(`- ${view.runs.ledger_only_run_ids.length} ledger-known run id(s) have no directory on disk: ${view.runs.ledger_only_run_ids.slice(0, 5).join(', ')}${view.runs.ledger_only_run_ids.length > 5 ? ', …' : ''}`);
+    lines.push(`- ${view.runs.ledger_only_run_ids.length} ledger-known run id(s) have no directory on disk: ${view.runs.ledger_only_run_ids.join(', ')}`
+      + ' (a path-shaped id here is a misaddressed verdict — the run index block carries the exact re-issue command)');
   }
   if (view.ledger.malformed_lines > 0 || view.ledger.integrity_defects > 0) {
     lines.push(`- ledger health: ${view.ledger.malformed_lines} malformed line(s), ${view.ledger.integrity_defects} integrity defect(s).`);
