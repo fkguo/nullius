@@ -110,3 +110,31 @@ describe('captureRunOrigin with foreign run artifacts on disk', () => {
     expect(origin.binding_quality).toBe('exact_clean');
   });
 });
+
+describe('control-plane paths under .nullius/ are machine bookkeeping, never code drift', () => {
+  it('untracked .nullius/backups/ (and friends) do not demote the binding quality', () => {
+    initRepoWithCommit();
+    fs.mkdirSync(path.join(projectRoot, '.nullius', 'backups', '20260808T000000Z'), { recursive: true });
+    fs.writeFileSync(path.join(projectRoot, '.nullius', 'backups', '20260808T000000Z', 'AGENTS.md'), 'backup\n');
+    fs.writeFileSync(path.join(projectRoot, '.nullius', 'HARNESS_INVOCATION'), '{}\n');
+    fs.mkdirSync(path.join(projectRoot, 'artifacts', 'runs', 'run-clean'), { recursive: true });
+    const origin = captureRunOrigin(projectRoot, 'run-clean', { pin: false });
+    // The tool's own refresh backups previously held every later stamp at
+    // head_plus_untracked until the qualifier stopped discriminating
+    // (measured: 19/19 registered results qualified on one project).
+    expect(origin.binding_quality).toBe('exact_clean');
+    expect(origin.dirty.untracked_count).toBe(0);
+  });
+
+  it('a genuine research stray still demotes even when control-plane noise is present', () => {
+    initRepoWithCommit();
+    fs.mkdirSync(path.join(projectRoot, '.nullius', 'backups'), { recursive: true });
+    fs.writeFileSync(path.join(projectRoot, '.nullius', 'backups', 'old.md'), 'backup\n');
+    fs.writeFileSync(path.join(projectRoot, 'stray_analysis.py'), 'y = 2\n');
+    fs.mkdirSync(path.join(projectRoot, 'artifacts', 'runs', 'run-dirty'), { recursive: true });
+    const origin = captureRunOrigin(projectRoot, 'run-dirty', { pin: false });
+    expect(origin.binding_quality).toBe('head_plus_untracked');
+    expect(origin.dirty.untracked_count).toBe(1);
+    expect(origin.dirty.untracked_sample).toEqual(['stray_analysis.py']);
+  });
+});

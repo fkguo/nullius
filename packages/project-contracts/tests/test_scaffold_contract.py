@@ -141,6 +141,27 @@ class TestScaffoldContract(unittest.TestCase):
         self.assertIn("/tmp/", patterns)
         self.assertNotIn("tmp/", patterns)
 
+    def test_gitignore_template_ignores_machine_local_nullius_bookkeeping(self) -> None:
+        # Machine-local bookkeeping the tool itself rewrites (invocation
+        # anchor, event ledger, refresh backups) must be ignored by default:
+        # visible backups previously demoted every later origin stamp to
+        # head_plus_untracked until the qualifier stopped discriminating.
+        # The stable launcher, HARNESS, approval policy, state, and decision
+        # ledger stay tracked — only these three are machine-local churn.
+        text = (scaffold_template_dir() / "project_gitignore.txt").read_text(encoding="utf-8")
+        patterns = [
+            line.strip()
+            for line in text.splitlines()
+            if line.strip() and not line.strip().startswith("#")
+        ]
+        self.assertIn(".nullius/HARNESS_INVOCATION", patterns)
+        self.assertIn(".nullius/ledger.jsonl", patterns)
+        self.assertIn(".nullius/backups/", patterns)
+        # Never the whole control directory: HARNESS, state, decisions,
+        # approval policy, and the launcher are project truth worth tracking.
+        self.assertNotIn(".nullius/", patterns)
+        self.assertNotIn(".nullius", patterns)
+
     def test_scaffold_and_contract_sync_use_neutral_authority(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             root = Path(td) / "proj"
