@@ -301,6 +301,27 @@ describe('projection and render', () => {
     expect(resolution.kind).toBe('ok');
   });
 
+  it('a dot-reference subject renders guidance, never a command the gate refuses (native r6 counterexample)', () => {
+    const projectRoot = makeProject();
+    mkRun(projectRoot, '20260811-m2-r414-closure-audit');
+    const ledgerPath = path.join(projectRoot, 'artifacts', 'runs', 'validity_ledger.jsonl');
+    // Historical hand-written line: subject '.', by path-shaped-known.
+    // '.' passes the shell-safe charset but the gate's own normalization
+    // maps it to null — a rendered command would paste-and-fail.
+    fs.appendFileSync(ledgerPath, `${JSON.stringify({
+      schema_id: 'validity_event_v1', event_id: mintUlid(), ts_utc: new Date().toISOString(),
+      event: 'supersede', run_id: '.',
+      by_run_id: 'artifacts/runs/20260811-m2-r414-closure-audit',
+      actor: 'test', reason: 'subject was mistyped as a dot',
+    })}\n`);
+    const projection = computeRunIndexProjection(projectRoot);
+    expect(projection.defects.misaddressed_rulings).toHaveLength(1);
+    expect(projection.defects.misaddressed_rulings[0]!.subject).toBe('.');
+    const rendered = renderRunIndexBlock(projection);
+    expect(rendered).not.toContain('nullius trace supersede .');
+    expect(rendered).toContain('not pasteable');
+  });
+
   it('transcription targets the CLI grammar: dead-weight --by on a void and explicit full scope are dropped (codex r4)', () => {
     const projectRoot = makeProject();
     mkRun(projectRoot, '20260811-m2-r420-budget-run');
@@ -996,7 +1017,7 @@ describe('misaddressed-verdict rendering treats historical ledger ids as untrust
     const rendered = renderRunIndexBlock(projection);
     // The subject falls outside the shell-safe charset, so the line
     // degrades to a pointer instead of a paste-mangled command…
-    expect(rendered).toContain('unsafe for a copy-paste command');
+    expect(rendered).toContain('not pasteable as a command');
     expect(rendered).not.toContain(`nullius trace void ${hostileBare}`);
     // …the newline is neutralized (no line starts with the injected text)
     // and the angle-bracket escaping means exactly ONE line in the block is
