@@ -872,7 +872,7 @@ export function resolveRunIdReference(
     // verbs exist to refuse. Both separators — normalization treats '\'
     // as '/', so a backslash key is equally path-shaped.
     const candidates = new Set<string>(
-      [...view.runs.keys()].filter(id => !id.includes('/') && !id.includes('\\')),
+      [...view.runs.keys()].filter(id => !id.includes('/') && !id.includes('\\') && id !== '.' && id !== '..'),
     );
     for (const root of RUN_ROOTS) {
       const absRoot = path.join(projectRoot, root);

@@ -262,14 +262,18 @@ export function computeRunIndexProjection(
     const byBare = rawBy === null ? null : knownBareOf(rawBy);
     if (subjectBare === null && byBare === null) continue;
     const subject = subjectBare ?? event.run_id;
-    // Both sides of a rendered command necessarily pass the trace verbs'
-    // existence gate (probed while disposing codex r5): the subject is
+    // Gate-consistency, PROVEN RANGE ONLY (native r6 counterexample
+    // narrowed the original claim): an argument that survives the gate's
+    // own normalization as itself (strip-identity — checked at render
+    // time) necessarily passes the existence gate, because the subject is
     // either a run directory (bare known) or this event's own ledger
     // subject, and a supersede's --by is registered as a ledger entry by
-    // the reader the moment the stray line exists — and ledger-known is
+    // the reader the moment the stray line exists — ledger-known being
     // exactly what the resolver accepts (archived runs stay addressable).
-    // Re-issuing reproduces the original ruling's reference faithfully;
-    // whether that reference was itself wise stays the operator's call.
+    // A subject like '.' fails strip-identity and renders as guidance,
+    // never as a paste-and-fail command. Re-issuing reproduces the
+    // original ruling's reference faithfully; whether that reference was
+    // wise stays the operator's call.
     // CLI-grammar projection (codex r4): the rendered command must be
     // EXECUTABLE, so transcription targets the verb grammar rather than
     // the schema's historical tolerance — --by exists only on supersede
@@ -451,21 +455,31 @@ export function renderRunIndexBlock(projection: RunIndexProjection): string {
     // outside the charset degrades to a pointer instead of a command a
     // paste would mangle. The verb is a closed enum and needs neither.
     for (const entry of defects.misaddressed_rulings) {
-      const commandArguments = [
+      // An ID argument must also survive the gate's own normalization as
+      // itself ('.'/'..'/path forms map elsewhere): shell-safe charset
+      // alone let a dot-reference subject render a command the gate
+      // refuses (native r6). Scope is not an id and needs charset only.
+      const idArguments = [
         entry.subject,
         ...(entry.by_run_id !== null ? [entry.by_run_id] : []),
-        ...(entry.scope !== null ? [entry.scope] : []),
       ];
+      const commandSafe = idArguments.every(argument =>
+        SHELL_SAFE_ARGUMENT.test(argument) && stripRunRootPrefix(argument) === argument)
+        && (entry.scope === null || SHELL_SAFE_ARGUMENT.test(entry.scope));
       // No missing---by branch: the schema REQUIRES by_run_id on a
       // supersede, so a target-less one is quarantined at read time and
       // never reaches this scan (codex r4 — the defensive branch here was
       // unreachable, i.e. a promise nothing could keep).
       const label = `- ${entry.verb} ${escapeMarkdownCell(entry.recorded_id)} → `;
-      if (commandArguments.every(argument => SHELL_SAFE_ARGUMENT.test(argument))) {
-        // The --reason placeholder is deliberately UNQUOTED: a careless
-        // whole-line paste must fail loudly at the shell (the '<' is a
-        // redirect), never book placeholder text as a recorded reason
-        // (native r5).
+      if (commandSafe) {
+        // The --reason placeholder is deliberately UNQUOTED so a careless
+        // whole-line paste fails loudly instead of booking placeholder
+        // text as a recorded reason (native r5). What actually stops it
+        // depends on the copy path (native r6): from the rendered view the
+        // real '<' is a shell redirect error; from the source view the
+        // escaped \< is literal, and the unmatched apostrophe in "line's"
+        // aborts the paste — with the CLI's extra-positional-argument
+        // refusal as the final backstop if the wording ever changes.
         lines.push(
           `${label}nullius trace ${entry.verb} ${entry.subject}`
           + (entry.by_run_id !== null ? ` --by ${entry.by_run_id}` : '')
@@ -477,7 +491,7 @@ export function renderRunIndexBlock(projection: RunIndexProjection): string {
           `${label}re-issue ${entry.verb} against ${escapeMarkdownCell(entry.subject)}`
           + (entry.by_run_id !== null ? ` (--by ${escapeMarkdownCell(entry.by_run_id)})` : '')
           + (entry.scope !== null ? ` (--scope ${escapeMarkdownCell(entry.scope)})` : '')
-          + ' — an argument contains characters unsafe for a copy-paste command; see `nullius current --json`',
+          + ' — an argument is not pasteable as a command (not a bare addressable id, or unsafe characters); see `nullius current --json`',
         );
       }
     }
