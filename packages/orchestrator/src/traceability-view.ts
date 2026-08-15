@@ -59,6 +59,11 @@ export type TraceabilityView = {
     /** Ledger events about run_ids with no directory on disk (renames,
      *  removals): reported, never silently dropped. */
     ledger_only_run_ids: string[];
+    /** How many misaddressed rulings the run-index block currently lists
+     *  with re-issue arguments (path-shaped strays naming known runs).
+     *  Strays whose ruling was already re-issued on the bare id are
+     *  suppressed there and survive only as ledger history. */
+    misaddressed_ruling_count: number;
     /** EVERY superseded relation the ledger records — including runs whose
      *  directory is gone (cleaned up after replacement). A consumer
      *  verifying "was old→new recorded?" must see the ledger truth, not a
@@ -541,7 +546,8 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
   const runLinks = analyzeNotebookRunLinks(
     projectRoot, ledger, new Set(directories.map(entry => entry.run_id)),
   );
-  const runIndexBlock = checkRunIndexBlock(projectRoot, computeRunIndexProjection(projectRoot, ledger));
+  const runIndexProjection = computeRunIndexProjection(projectRoot, ledger);
+  const runIndexBlock = checkRunIndexBlock(projectRoot, runIndexProjection);
   const currentStateBlock = checkCurrentStateBlock(
     projectRoot, projectionFromRegistryState(resultRegistry),
   );
@@ -736,6 +742,7 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
       binding_quality_counts: bindingQualityCounts,
       conflicting_stamps: conflictingStamps,
       ledger_only_run_ids: ledgerOnly,
+      misaddressed_ruling_count: runIndexProjection.defects.misaddressed_rulings.length,
       superseded,
       voided,
       no_authoritative_identity: noIdentity,
@@ -1099,9 +1106,10 @@ export function renderTraceabilityProse(view: TraceabilityView): string {
   }
   if (view.runs.ledger_only_run_ids.length > 0) {
     lines.push(`- ${view.runs.ledger_only_run_ids.length} ledger-known run id(s) have no directory on disk: ${view.runs.ledger_only_run_ids.join(', ')}`
-      + ' (a stray ruling naming a path-shaped id the project knows is listed in the run index '
-      + 'block with its re-issue arguments — verb, subject, target, scope; only --reason is '
-      + 'copied from the stray line)');
+      + (view.runs.misaddressed_ruling_count > 0
+        ? ` (${view.runs.misaddressed_ruling_count} stray ruling(s) among them carry re-issue arguments in the run index block; `
+        : ' (this list is the full ledger record; ')
+      + 'strays whose ruling was already re-issued on the bare id are kept only as ledger history)');
   }
   if (view.ledger.malformed_lines > 0 || view.ledger.integrity_defects > 0) {
     lines.push(`- ledger health: ${view.ledger.malformed_lines} malformed line(s), ${view.ledger.integrity_defects} integrity defect(s).`);
