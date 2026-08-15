@@ -1099,7 +1099,8 @@ export function renderTraceabilityProse(view: TraceabilityView): string {
   }
   if (view.runs.ledger_only_run_ids.length > 0) {
     lines.push(`- ${view.runs.ledger_only_run_ids.length} ledger-known run id(s) have no directory on disk: ${view.runs.ledger_only_run_ids.join(', ')}`
-      + ' (a path-shaped id here is a misaddressed verdict — the run index block carries the exact re-issue command)');
+      + ' (a path-shaped id whose bare form the project knows is a misaddressed verdict — '
+      + 'the run index block carries its exact re-issue command)');
   }
   if (view.ledger.malformed_lines > 0 || view.ledger.integrity_defects > 0) {
     lines.push(`- ledger health: ${view.ledger.malformed_lines} malformed line(s), ${view.ledger.integrity_defects} integrity defect(s).`);
@@ -1111,10 +1112,12 @@ export function renderTraceabilityProse(view: TraceabilityView): string {
     );
   }
   if (view.warnings.mirror_divergence.length > 0) {
+    // A repair worklist like the two above (each entry has a mechanical
+    // fix), so the same no-cap rule applies.
     lines.push(
       `- MIRROR DIVERGENCE: ${view.warnings.mirror_divergence.length} run director(y/ies) hold a run_origin.json `
-      + `that no longer matches the authoritative ledger stamp: ${view.warnings.mirror_divergence.slice(0, 5).join(', ')}`
-      + `${view.warnings.mirror_divergence.length > 5 ? ', …' : ''} — trust the ledger.`,
+      + `that no longer matches the authoritative ledger stamp: ${view.warnings.mirror_divergence.join(', ')}`
+      + ' — trust the ledger.',
     );
   }
   if (view.runs.code_states.length > 0) {

@@ -851,9 +851,11 @@ How it works:
 Conformance is machine-checked after phase 2 (same code path as
 `check_review_output_contract.py --two-phase PHASE1_FILE PHASE2_FILE`): a BLOCKING finding
 whose category is neither declared nor covered by a revision declaration is a conformance
-failure. Like the single-phase contract check, **conformance failures are informational** —
-recorded per agent in `meta.json` under `two_phase` (`conformance_ok`,
-`conformance_errors`), never a fallback trigger. Phase-1 failures are different: if the
+failure. **Conformance failures are purely informational** — recorded per agent in
+`meta.json` under `two_phase` (`conformance_ok`, `conformance_errors`), never a fallback
+trigger, and (deliberately, unlike single-phase contract failures) never withheld from
+convergence/credit aggregation: judging whether a criteria revision was legitimate is the
+synthesis agent's job, not a mechanical exclusion. Phase-1 failures are different: if the
 phase-1 call fails or returns no parseable criteria block, phase 2 is skipped and the agent
 is marked failed (`phase1_command_failed`, `phase1_empty_output`, or
 `phase1_criteria_invalid`); rerun that reviewer same-model. A phase-1 empty output is
