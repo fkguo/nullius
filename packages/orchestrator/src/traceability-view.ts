@@ -1110,6 +1110,10 @@ export function renderTraceabilityProse(view: TraceabilityView): string {
         ? ` (${view.runs.misaddressed_ruling_count} stray ruling(s) among them carry re-issue arguments in the run index block; `
         : ' (this list is the full ledger record; ')
       + 'strays whose ruling was already re-issued on the bare id are kept only as ledger history)');
+  } else if (view.runs.misaddressed_ruling_count > 0) {
+    // Misaddressed rulings can exist with an empty ghost list (every stray
+    // side covered elsewhere): the count must still reach the reader.
+    lines.push(`- ${view.runs.misaddressed_ruling_count} misaddressed ruling(s) carry re-issue arguments in the run index block.`);
   }
   if (view.ledger.malformed_lines > 0 || view.ledger.integrity_defects > 0) {
     lines.push(`- ledger health: ${view.ledger.malformed_lines} malformed line(s), ${view.ledger.integrity_defects} integrity defect(s).`);

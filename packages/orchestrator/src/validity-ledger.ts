@@ -879,7 +879,12 @@ export function resolveRunIdReference(
       if (!fs.existsSync(absRoot)) continue;
       try {
         for (const entry of fs.readdirSync(absRoot, { withFileTypes: true })) {
-          if (entry.isDirectory()) candidates.add(entry.name);
+          // Same separator filter as the ledger keys: a backslash-bearing
+          // directory name is not addressable after normalization, so
+          // suggesting it would recommend an input the verbs refuse.
+          if (entry.isDirectory() && !entry.name.includes('/') && !entry.name.includes('\\')) {
+            candidates.add(entry.name);
+          }
         }
       } catch {
         // Unreadable root: suggestions degrade, refusal stands.

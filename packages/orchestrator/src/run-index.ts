@@ -251,11 +251,25 @@ export function computeRunIndexProjection(
   const coveredStrayIds = new Set<string>();
   for (const [eventIndex, event] of ledger.events.entries()) {
     if (event.event !== 'void' && event.event !== 'supersede' && event.event !== 'reinstate') continue;
-    const rawBy = (event as { by_run_id?: string | null }).by_run_id ?? null;
+    // The --by side participates in classification ONLY for supersede
+    // (native r5: a healthy void carrying dead-weight by_run_id must not
+    // earn a bogus repair line telling the operator to re-issue a ruling
+    // that already landed).
+    const rawBy = event.event === 'supersede'
+      ? (event as { by_run_id?: string | null }).by_run_id ?? null
+      : null;
     const subjectBare = knownBareOf(event.run_id);
     const byBare = rawBy === null ? null : knownBareOf(rawBy);
     if (subjectBare === null && byBare === null) continue;
     const subject = subjectBare ?? event.run_id;
+    // Both sides of a rendered command necessarily pass the trace verbs'
+    // existence gate (probed while disposing codex r5): the subject is
+    // either a run directory (bare known) or this event's own ledger
+    // subject, and a supersede's --by is registered as a ledger entry by
+    // the reader the moment the stray line exists — and ledger-known is
+    // exactly what the resolver accepts (archived runs stay addressable).
+    // Re-issuing reproduces the original ruling's reference faithfully;
+    // whether that reference was itself wise stays the operator's call.
     // CLI-grammar projection (codex r4): the rendered command must be
     // EXECUTABLE, so transcription targets the verb grammar rather than
     // the schema's historical tolerance — --by exists only on supersede
@@ -291,9 +305,10 @@ export function computeRunIndexProjection(
     if (rawBy !== null && byBare !== null) coveredStrayIds.add(rawBy);
     if (reissued) continue;
     const recordedId = subjectBare !== null ? event.run_id : (rawBy as string);
-    // NUL-escape joined: ids may contain spaces, and a non-injective key
-    // would silently collapse two distinct rulings into one line (r4 N3).
-    const key = [event.event, recordedId, subject, by ?? '', scope ?? ''].join('\u0000');
+    // canonicalJson key: strictly injective over the tuple (codex r5
+    // proved a concrete collision for any fixed join separator — ids are
+    // JSON strings and may contain ANY character, including NUL).
+    const key = canonicalJson([event.event, recordedId, subject, by, scope]);
     misaddressed.set(key, {
       recorded_id: recordedId,
       verb: event.event,
@@ -447,11 +462,15 @@ export function renderRunIndexBlock(projection: RunIndexProjection): string {
       // unreachable, i.e. a promise nothing could keep).
       const label = `- ${entry.verb} ${escapeMarkdownCell(entry.recorded_id)} → `;
       if (commandArguments.every(argument => SHELL_SAFE_ARGUMENT.test(argument))) {
+        // The --reason placeholder is deliberately UNQUOTED: a careless
+        // whole-line paste must fail loudly at the shell (the '<' is a
+        // redirect), never book placeholder text as a recorded reason
+        // (native r5).
         lines.push(
           `${label}nullius trace ${entry.verb} ${entry.subject}`
           + (entry.by_run_id !== null ? ` --by ${entry.by_run_id}` : '')
           + (entry.scope !== null ? ` --scope ${entry.scope}` : '')
-          + ' --reason "<the stray line\'s reason, verbatim from the ledger>"',
+          + ` --reason ${escapeMarkdownCell("<the stray line's reason, verbatim from the ledger>")}`,
         );
       } else {
         lines.push(

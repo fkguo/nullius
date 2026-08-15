@@ -11,7 +11,7 @@ import {
   RUN_INDEX_START,
 } from '../src/run-index.js';
 import { openRetryAttempt, stampRunDirectory } from '../src/run-stamp.js';
-import { appendValidityEvent, buildValidityEvent, readValidityLedger } from '../src/validity-ledger.js';
+import { appendValidityEvent, buildValidityEvent, readValidityLedger, resolveRunIdReference } from '../src/validity-ledger.js';
 import { parseResultRegistry, setCurrentResult, validateResultRegistry } from '../src/result-registry.js';
 import { refreshNotebookCurrentState } from '../src/notebook-current-state.js';
 import { refreshManagedBlock } from '../src/managed-block.js';
@@ -265,6 +265,40 @@ describe('projection and render', () => {
     const rendered = renderRunIndexBlock(projection);
     expect(rendered).toContain('--scope budget-only --reason');
     expect(rendered).not.toContain('reinstate');
+  });
+
+  it('a rendered command always passes the existence gate: the stray itself ledger-registers its --by (codex r5 probe)', () => {
+    const projectRoot = makeProject();
+    mkRun(projectRoot, '20260811-m2-r412-rectangle');
+    const ledgerPath = path.join(projectRoot, 'artifacts', 'runs', 'validity_ledger.jsonl');
+    // The --by names an id with no directory and no prior event — but the
+    // stray line itself registers it in the ledger view, and ledger-known
+    // is exactly what the resolver accepts (archived runs stay
+    // addressable). The command renders and reproduces the original
+    // ruling's reference faithfully; the paste cannot be gate-refused.
+    fs.appendFileSync(ledgerPath, `${JSON.stringify({
+      schema_id: 'validity_event_v1', event_id: mintUlid(), ts_utc: new Date().toISOString(),
+      event: 'supersede', run_id: 'artifacts/runs/20260811-m2-r412-rectangle',
+      by_run_id: '20260811-m2-r999-nowhere',
+      actor: 'test', reason: 'replacement was never created',
+    })}\n`);
+    const projection = computeRunIndexProjection(projectRoot);
+    expect(projection.defects.misaddressed_rulings).toEqual([
+      {
+        recorded_id: 'artifacts/runs/20260811-m2-r412-rectangle',
+        verb: 'supersede',
+        subject: '20260811-m2-r412-rectangle',
+        by_run_id: '20260811-m2-r999-nowhere',
+        scope: null,
+      },
+    ]);
+    const rendered = renderRunIndexBlock(projection);
+    expect(rendered).toContain(
+      'nullius trace supersede 20260811-m2-r412-rectangle --by 20260811-m2-r999-nowhere --reason',
+    );
+    // And the resolver really does accept the ledger-registered reference:
+    const resolution = resolveRunIdReference(projectRoot, '20260811-m2-r999-nowhere', { verb: 'trace supersede', role: '--by' });
+    expect(resolution.kind).toBe('ok');
   });
 
   it('transcription targets the CLI grammar: dead-weight --by on a void and explicit full scope are dropped (codex r4)', () => {
