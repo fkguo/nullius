@@ -94,11 +94,17 @@ export type RunIndexProjection = {
     /** Ledger events about run ids with no directory on disk. */
     ledger_only: string[];
     /** The subset of `ledger_only` whose id is a run-root PATH naming a
-     *  run that actually exists — a verdict recorded against the path
-     *  string instead of the run, so the real run silently kept its old
-     *  validity. Each carries the bare id the verdict was meant for, so
-     *  the render can hand the operator the exact repair command. */
-    path_shaped_ledger_only: Array<{ recorded_id: string; resolves_to: string }>;
+     *  run the project knows — a verdict recorded against the path string
+     *  instead of the run, so the real run silently kept its old
+     *  validity. Each carries what a re-issue needs: the bare id, the
+     *  verb (the stray id's aggregated end state), and the normalized
+     *  supersede target. Only --reason stays with the operator. */
+    path_shaped_ledger_only: Array<{
+      recorded_id: string;
+      resolves_to: string;
+      verb: 'void' | 'supersede' | 'reinstate';
+      by_run_id: string | null;
+    }>;
     /** CURRENT registry rows naming a run with NO directory on disk —
      *  the star would otherwise silently vanish from every family row. */
     registry_only_current: string[];
@@ -215,11 +221,35 @@ export function computeRunIndexProjection(
   // write, run over historical ledger lines — an id that strips to a run
   // the directory scan or the ledger actually knows is a misaddressed
   // verdict, not a ghost run, and its repair is mechanical.
+  // Only ids that carried an event as its SUBJECT get a re-issue line: a
+  // path-shaped id that exists purely as a supersede's --by reference has
+  // no verdict to re-issue — it heals when the subject side is re-issued
+  // with the bare --by — and a fabricated "reinstate" command for it
+  // would be actively misleading. It stays on the plain ghost list.
+  const subjectIds = new Set(ledger.events.map(event => event.run_id));
   const pathShapedLedgerOnly = ledgerOnly.flatMap((recordedId) => {
+    if (!subjectIds.has(recordedId)) return [];
     const bare = stripRunRootPrefix(recordedId);
     if (bare === null || bare === recordedId) return [];
     if (!directoryIds.has(bare) && !ledger.runs.has(bare)) return [];
-    return [{ recorded_id: recordedId, resolves_to: bare }];
+    // Carry the event data a re-issue needs (codex r2): the verb is the
+    // stray id's aggregated end state, and a supersede target is itself
+    // normalized when path-shaped (the field case had BOTH sides stray).
+    // Only --reason stays with the operator — it is semantic content the
+    // machine must not write, and the original wording is on the stray
+    // ledger line.
+    const stray = ledger.runs.get(recordedId);
+    const verb: 'void' | 'supersede' | 'reinstate' = stray?.validity === 'void'
+      ? 'void'
+      : stray?.validity === 'superseded' ? 'supersede' : 'reinstate';
+    const strayBy = stray?.superseded_by ?? null;
+    const byBare = strayBy === null ? null : stripRunRootPrefix(strayBy) ?? strayBy;
+    return [{
+      recorded_id: recordedId,
+      resolves_to: bare,
+      verb,
+      by_run_id: verb === 'supersede' ? byBare : null,
+    }];
   });
   // A CURRENT registry row naming a run with NO directory would otherwise
   // simply vanish from every family row — the star must fail loudly, not
@@ -342,9 +372,14 @@ export function renderRunIndexBlock(projection: RunIndexProjection): string {
     // Historical ledger values are untrusted input: escape exactly like
     // every other defect list (control characters, marker-forgery
     // characters), or a stray id carrying a newline could inject a line
-    // into the managed block.
+    // into the managed block. The verb is a closed enum and needs none.
     for (const entry of defects.path_shaped_ledger_only) {
-      lines.push(`- ${escapeMarkdownCell(entry.recorded_id)} → re-issue against ${escapeMarkdownCell(entry.resolves_to)}`);
+      lines.push(
+        `- ${entry.verb} ${escapeMarkdownCell(entry.recorded_id)} → nullius trace ${entry.verb} `
+        + escapeMarkdownCell(entry.resolves_to)
+        + (entry.by_run_id !== null ? ` --by ${escapeMarkdownCell(entry.by_run_id)}` : '')
+        + ' --reason "<the stray line\'s reason, verbatim from the ledger>"',
+      );
     }
   }
   if (!projection.registry_block_found && projection.run_directories > 0) {

@@ -184,6 +184,39 @@ describe('projection and render', () => {
     expect(rendered).toContain('see `nullius current`');
   });
 
+  it('a stray supersede renders its verb and a normalized --by target (the field case had both sides path-shaped)', () => {
+    const projectRoot = makeProject();
+    mkRun(projectRoot, '20260811-m2-r412-rectangle');
+    mkRun(projectRoot, '20260811-m2-r414-closure-audit');
+    const ledgerPath = path.join(projectRoot, 'artifacts', 'runs', 'validity_ledger.jsonl');
+    fs.appendFileSync(ledgerPath, `${JSON.stringify({
+      schema_id: 'validity_event_v1', event_id: mintUlid(), ts_utc: new Date().toISOString(),
+      event: 'supersede', run_id: 'artifacts/runs/20260811-m2-r412-rectangle',
+      by_run_id: 'artifacts/runs/20260811-m2-r414-closure-audit',
+      actor: 'test', reason: 'replaced by the closure audit',
+    })}\n`);
+    const projection = computeRunIndexProjection(projectRoot);
+    expect(projection.defects.path_shaped_ledger_only).toEqual([
+      {
+        recorded_id: 'artifacts/runs/20260811-m2-r412-rectangle',
+        resolves_to: '20260811-m2-r412-rectangle',
+        verb: 'supersede',
+        by_run_id: '20260811-m2-r414-closure-audit',
+      },
+    ]);
+    const rendered = renderRunIndexBlock(projection);
+    expect(rendered).toContain(
+      '- supersede artifacts/runs/20260811-m2-r412-rectangle → nullius trace supersede '
+      + '20260811-m2-r412-rectangle --by 20260811-m2-r414-closure-audit --reason',
+    );
+    // The stray --by REFERENCE is a ghost, never a repair line: it carried
+    // no verdict, so a fabricated re-issue command would mislead. It heals
+    // when the subject side above is re-issued with the bare --by.
+    expect(rendered).toContain('ledger-only run id(s) with no directory:');
+    expect(rendered).toContain('artifacts/runs/20260811-m2-r414-closure-audit');
+    expect(rendered).not.toContain('nullius trace reinstate');
+  });
+
   it('path-shaped ledger ids render the misaddressed-verdicts repair list instead of posing as ghost runs', () => {
     const projectRoot = makeProject();
     mkRun(projectRoot, '20260810-m2-r378-replay');
@@ -202,11 +235,20 @@ describe('projection and render', () => {
     }));
     const projection = computeRunIndexProjection(projectRoot);
     expect(projection.defects.path_shaped_ledger_only).toEqual([
-      { recorded_id: 'artifacts/runs/20260810-m2-r378-replay', resolves_to: '20260810-m2-r378-replay' },
+      {
+        recorded_id: 'artifacts/runs/20260810-m2-r378-replay',
+        resolves_to: '20260810-m2-r378-replay',
+        verb: 'void',
+        by_run_id: null,
+      },
     ]);
     const rendered = renderRunIndexBlock(projection);
     expect(rendered).toContain('Misaddressed verdicts');
-    expect(rendered).toContain('- artifacts/runs/20260810-m2-r378-replay → re-issue against 20260810-m2-r378-replay');
+    // The repair line is a complete command up to --reason (codex r2):
+    // verb and bare id spelled out, reason left to the operator.
+    expect(rendered).toContain(
+      '- void artifacts/runs/20260810-m2-r378-replay → nullius trace void 20260810-m2-r378-replay --reason',
+    );
     expect(rendered).toContain('1 ledger-only run id(s) with no directory: 20260701-m0-r001-gone-run');
     // The stray void landed on the path string, not the run: the family
     // row must still show the real directory unclassified, not void.
@@ -734,7 +776,12 @@ describe('misaddressed-verdict rendering treats historical ledger ids as untrust
     }
     const projection = computeRunIndexProjection(projectRoot);
     expect(projection.defects.path_shaped_ledger_only).toEqual([
-      { recorded_id: `artifacts/runs/${hostileBare}`, resolves_to: hostileBare },
+      {
+        recorded_id: `artifacts/runs/${hostileBare}`,
+        resolves_to: hostileBare,
+        verb: 'void',
+        by_run_id: null,
+      },
     ]);
     const rendered = renderRunIndexBlock(projection);
     // The newline is neutralized (no line starts with the injected text)
