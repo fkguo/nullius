@@ -1319,6 +1319,18 @@ def _postprocess_result(
         result["contract_errors"] = contract_errors
     elif "contract_errors" in result:
         result.pop("contract_errors", None)
+    # Disposition hint for the leader (SKILL.md "Malformed delivery ≠ rejected
+    # opinion"): a contract-invalid delivery that still carries a verdict is an
+    # UNFINISHED delivery — the one disposition is a same-model format rerun.
+    # It must never be folded into convergence as a downgraded or side opinion.
+    if contract_ok is False and result.get("verdict"):
+        result["contract_remedy"] = (
+            "same-model rerun naming the missing pieces (see contract_errors); "
+            "a malformed delivery is an incomplete delivery, never a downgraded "
+            "opinion — exclude it from convergence until a contract-valid rerun lands"
+        )
+    else:
+        result.pop("contract_remedy", None)
 
     command_success = bool(result.get("command_success", result.get("success", False)))
     failure_reason: Optional[str] = None
@@ -2943,11 +2955,22 @@ def main() -> int:
     )
     _append_jsonl(trace_path, {"ts": _utc_now(), "event": "independence", **independence})
 
+    def _contract_invalid(r: dict[str, Any]) -> bool:
+        # Disposition rule (SKILL.md "Malformed delivery ≠ rejected opinion"):
+        # a contract-invalid delivery is an UNFINISHED delivery — it must not
+        # occupy a comparison seat or enter the similarity set until its
+        # same-model normalization rerun lands. contract_ok is None when the
+        # check was not requested; only an explicit False excludes.
+        return r.get("contract_ok") is False
+
     def _credit_eligible(r: dict[str, Any]) -> bool:
         # A failed lane produced no reviewable output: it can no more occupy
         # a comparison seat or enter the similarity set than an excluded one.
-        return bool(r.get("success")) and (
-            _lane_exclusion_reason(r, backend_tool_modes, contaminated_lane_indices)
+        # A contract-invalid lane HAS output but has not finished delivering.
+        return (
+            bool(r.get("success"))
+            and not _contract_invalid(r)
+            and _lane_exclusion_reason(r, backend_tool_modes, contaminated_lane_indices)
             is None
         )
 
@@ -2958,7 +2981,12 @@ def main() -> int:
         excluded_non_independent = sorted(
             _execution_spec(r)
             for r in results
-            if r.get("success") and not _credit_eligible(r)
+            if r.get("success") and not _credit_eligible(r) and not _contract_invalid(r)
+        )
+        excluded_contract_invalid = sorted(
+            _execution_spec(r)
+            for r in results
+            if r.get("success") and _contract_invalid(r)
         )
         output_files = [
             Path(r["out"])
@@ -2980,6 +3008,9 @@ def main() -> int:
             # Successful lanes whose output was withheld from the similarity
             # set (zero convergence credit) — visible, never silent.
             "excluded_non_independent": excluded_non_independent,
+            # Successful lanes withheld because the delivery failed the
+            # review-output contract: unfinished, pending a same-model rerun.
+            "excluded_contract_invalid": excluded_contract_invalid,
         }
         _append_jsonl(trace_path, {"ts": _utc_now(), "event": "convergence_check", **convergence_info})
 

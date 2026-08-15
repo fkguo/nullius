@@ -11,7 +11,7 @@ import {
   RUN_INDEX_START,
 } from '../src/run-index.js';
 import { openRetryAttempt, stampRunDirectory } from '../src/run-stamp.js';
-import { appendValidityEvent, buildValidityEvent, readValidityLedger } from '../src/validity-ledger.js';
+import { appendValidityEvent, buildValidityEvent, readValidityLedger, resolveRunIdReference } from '../src/validity-ledger.js';
 import { parseResultRegistry, setCurrentResult, validateResultRegistry } from '../src/result-registry.js';
 import { refreshNotebookCurrentState } from '../src/notebook-current-state.js';
 import { refreshManagedBlock } from '../src/managed-block.js';
@@ -166,7 +166,9 @@ describe('projection and render', () => {
         },
       },
     } as never));
-    // Seven ledger-only ids: the footer caps at 5 and says how many more.
+    // Seven ledger-only ids: the defect list is the repair worklist, so it
+    // renders in FULL — a "+N more" tail would hide work the reader is
+    // being told to do.
     for (let index = 0; index < 7; index += 1) {
       appendValidityEvent(projectRoot, buildValidityEvent({
         event: 'void', run_id: `20260701-m0-r00${index}-gone-run`, actor: 'test', reason: 'directory removed',
@@ -175,8 +177,332 @@ describe('projection and render', () => {
     const rendered = renderRunIndexBlock(computeRunIndexProjection(projectRoot));
     expect(rendered).toContain('1 attempt-chain defect(s): 20260809-m1-r001-defect-run');
     expect(rendered).toContain('7 ledger-only run id(s) with no directory:');
-    expect(rendered).toContain('+2 more');
+    expect(rendered).not.toContain('+2 more');
+    for (let index = 0; index < 7; index += 1) {
+      expect(rendered).toContain(`20260701-m0-r00${index}-gone-run`);
+    }
     expect(rendered).toContain('see `nullius current`');
+  });
+
+  it('a stray supersede renders its verb and a normalized --by target (the field case had both sides path-shaped)', () => {
+    const projectRoot = makeProject();
+    mkRun(projectRoot, '20260811-m2-r412-rectangle');
+    mkRun(projectRoot, '20260811-m2-r414-closure-audit');
+    const ledgerPath = path.join(projectRoot, 'artifacts', 'runs', 'validity_ledger.jsonl');
+    fs.appendFileSync(ledgerPath, `${JSON.stringify({
+      schema_id: 'validity_event_v1', event_id: mintUlid(), ts_utc: new Date().toISOString(),
+      event: 'supersede', run_id: 'artifacts/runs/20260811-m2-r412-rectangle',
+      by_run_id: 'artifacts/runs/20260811-m2-r414-closure-audit',
+      actor: 'test', reason: 'replaced by the closure audit',
+    })}\n`);
+    const projection = computeRunIndexProjection(projectRoot);
+    expect(projection.defects.misaddressed_rulings).toEqual([
+      {
+        recorded_id: 'artifacts/runs/20260811-m2-r412-rectangle',
+        verb: 'supersede',
+        subject: '20260811-m2-r412-rectangle',
+        by_run_id: '20260811-m2-r414-closure-audit',
+        scope: null,
+      },
+    ]);
+    const rendered = renderRunIndexBlock(projection);
+    expect(rendered).toContain(
+      '- supersede artifacts/runs/20260811-m2-r412-rectangle → nullius trace supersede '
+      + '20260811-m2-r412-rectangle --by 20260811-m2-r414-closure-audit --reason',
+    );
+    // Both stray sides are covered by the ruling line — neither repeats
+    // as a ghost, and no verb is ever invented for the --by reference.
+    expect(projection.defects.ledger_only).toEqual([]);
+    expect(rendered).not.toContain('nullius trace reinstate');
+  });
+
+  it('a healthy subject whose --by alone is path-shaped still gets its supersede re-issued (one-sided field case)', () => {
+    const projectRoot = makeProject();
+    mkRun(projectRoot, '20260811-m2-r412-rectangle');
+    mkRun(projectRoot, '20260811-m2-r414-closure-audit');
+    const ledgerPath = path.join(projectRoot, 'artifacts', 'runs', 'validity_ledger.jsonl');
+    fs.appendFileSync(ledgerPath, `${JSON.stringify({
+      schema_id: 'validity_event_v1', event_id: mintUlid(), ts_utc: new Date().toISOString(),
+      event: 'supersede', run_id: '20260811-m2-r412-rectangle',
+      by_run_id: 'artifacts/runs/20260811-m2-r414-closure-audit',
+      actor: 'test', reason: 'replaced by the closure audit',
+    })}\n`);
+    const projection = computeRunIndexProjection(projectRoot);
+    expect(projection.defects.misaddressed_rulings).toEqual([
+      {
+        recorded_id: 'artifacts/runs/20260811-m2-r414-closure-audit',
+        verb: 'supersede',
+        subject: '20260811-m2-r412-rectangle',
+        by_run_id: '20260811-m2-r414-closure-audit',
+        scope: null,
+      },
+    ]);
+    expect(projection.defects.ledger_only).toEqual([]);
+    expect(renderRunIndexBlock(projection)).toContain(
+      '→ nullius trace supersede 20260811-m2-r412-rectangle --by 20260811-m2-r414-closure-audit --reason',
+    );
+  });
+
+  it('a scoped stray ruling re-issues with its --scope, never as a fabricated reinstate', () => {
+    const projectRoot = makeProject();
+    mkRun(projectRoot, '20260811-m2-r420-budget-run');
+    const ledgerPath = path.join(projectRoot, 'artifacts', 'runs', 'validity_ledger.jsonl');
+    fs.appendFileSync(ledgerPath, `${JSON.stringify({
+      schema_id: 'validity_event_v1', event_id: mintUlid(), ts_utc: new Date().toISOString(),
+      event: 'void', run_id: 'artifacts/runs/20260811-m2-r420-budget-run',
+      actor: 'test', reason: 'budget annotation only', scope: 'budget-only',
+    })}\n`);
+    const projection = computeRunIndexProjection(projectRoot);
+    expect(projection.defects.misaddressed_rulings).toEqual([
+      {
+        recorded_id: 'artifacts/runs/20260811-m2-r420-budget-run',
+        verb: 'void',
+        subject: '20260811-m2-r420-budget-run',
+        by_run_id: null,
+        scope: 'budget-only',
+      },
+    ]);
+    const rendered = renderRunIndexBlock(projection);
+    expect(rendered).toContain('--scope budget-only --reason');
+    expect(rendered).not.toContain('reinstate');
+  });
+
+  it('a rendered command always passes the existence gate: the stray itself ledger-registers its --by (codex r5 probe)', () => {
+    const projectRoot = makeProject();
+    mkRun(projectRoot, '20260811-m2-r412-rectangle');
+    const ledgerPath = path.join(projectRoot, 'artifacts', 'runs', 'validity_ledger.jsonl');
+    // The --by names an id with no directory and no prior event — but the
+    // stray line itself registers it in the ledger view, and ledger-known
+    // is exactly what the resolver accepts (archived runs stay
+    // addressable). The command renders and reproduces the original
+    // ruling's reference faithfully; the paste cannot be gate-refused.
+    fs.appendFileSync(ledgerPath, `${JSON.stringify({
+      schema_id: 'validity_event_v1', event_id: mintUlid(), ts_utc: new Date().toISOString(),
+      event: 'supersede', run_id: 'artifacts/runs/20260811-m2-r412-rectangle',
+      by_run_id: '20260811-m2-r999-nowhere',
+      actor: 'test', reason: 'replacement was never created',
+    })}\n`);
+    const projection = computeRunIndexProjection(projectRoot);
+    expect(projection.defects.misaddressed_rulings).toEqual([
+      {
+        recorded_id: 'artifacts/runs/20260811-m2-r412-rectangle',
+        verb: 'supersede',
+        subject: '20260811-m2-r412-rectangle',
+        by_run_id: '20260811-m2-r999-nowhere',
+        scope: null,
+      },
+    ]);
+    const rendered = renderRunIndexBlock(projection);
+    expect(rendered).toContain(
+      'nullius trace supersede 20260811-m2-r412-rectangle --by 20260811-m2-r999-nowhere --reason',
+    );
+    // And the resolver really does accept the ledger-registered reference:
+    const resolution = resolveRunIdReference(projectRoot, '20260811-m2-r999-nowhere', { verb: 'trace supersede', role: '--by' });
+    expect(resolution.kind).toBe('ok');
+  });
+
+  it('a healthy ruling with a dead-weight path-shaped --by earns NO repair line (native r5/r7 probe as fixture)', () => {
+    const projectRoot = makeProject();
+    mkRun(projectRoot, '20260811-m2-r420-budget-run');
+    mkRun(projectRoot, '20260811-m2-r414-closure-audit');
+    const ledgerPath = path.join(projectRoot, 'artifacts', 'runs', 'validity_ledger.jsonl');
+    // The ruling already LANDED (bare subject); the schema-tolerated
+    // by_run_id on a void is dead weight — but ITS value is path-shaped
+    // and strips to a known run, which before the verb gate made the
+    // classifier emit a bogus repair line instructing the operator to
+    // re-issue a ruling that had already landed. Discriminating for the
+    // verb gate: the earlier grammar fixture used a BARE dead-weight by,
+    // which never classified in any version.
+    fs.appendFileSync(ledgerPath, `${JSON.stringify({
+      schema_id: 'validity_event_v1', event_id: mintUlid(), ts_utc: new Date().toISOString(),
+      event: 'void', run_id: '20260811-m2-r420-budget-run',
+      by_run_id: 'artifacts/runs/20260811-m2-r414-closure-audit',
+      actor: 'test', reason: 'landed ruling with dead-weight path by',
+    })}\n`);
+    const projection = computeRunIndexProjection(projectRoot);
+    expect(projection.defects.misaddressed_rulings).toEqual([]);
+    expect(projection.defects.ledger_only).toEqual([]);
+    expect(renderRunIndexBlock(projection)).not.toContain('Misaddressed');
+  });
+
+  it('a dot-reference subject renders guidance, never a command the gate refuses (native r6 counterexample)', () => {
+    const projectRoot = makeProject();
+    mkRun(projectRoot, '20260811-m2-r414-closure-audit');
+    const ledgerPath = path.join(projectRoot, 'artifacts', 'runs', 'validity_ledger.jsonl');
+    // Historical hand-written line: subject '.', by path-shaped-known.
+    // '.' passes the shell-safe charset but the gate's own normalization
+    // maps it to null — a rendered command would paste-and-fail.
+    fs.appendFileSync(ledgerPath, `${JSON.stringify({
+      schema_id: 'validity_event_v1', event_id: mintUlid(), ts_utc: new Date().toISOString(),
+      event: 'supersede', run_id: '.',
+      by_run_id: 'artifacts/runs/20260811-m2-r414-closure-audit',
+      actor: 'test', reason: 'subject was mistyped as a dot',
+    })}\n`);
+    const projection = computeRunIndexProjection(projectRoot);
+    expect(projection.defects.misaddressed_rulings).toHaveLength(1);
+    expect(projection.defects.misaddressed_rulings[0]!.subject).toBe('.');
+    const rendered = renderRunIndexBlock(projection);
+    expect(rendered).not.toContain('nullius trace supersede .');
+    expect(rendered).toContain('not pasteable');
+  });
+
+  it('transcription targets the CLI grammar: dead-weight --by on a void and explicit full scope are dropped (codex r4)', () => {
+    const projectRoot = makeProject();
+    mkRun(projectRoot, '20260811-m2-r420-budget-run');
+    mkRun(projectRoot, '20260811-m2-r414-closure-audit');
+    const ledgerPath = path.join(projectRoot, 'artifacts', 'runs', 'validity_ledger.jsonl');
+    // The schema tolerates by_run_id on a void and an explicit 'full'
+    // scope on a reinstate; the CLI accepts neither. A transcribed
+    // command must be EXECUTABLE, so both project away.
+    fs.appendFileSync(ledgerPath, `${JSON.stringify({
+      schema_id: 'validity_event_v1', event_id: mintUlid(), ts_utc: '2026-08-11T10:00:00.000Z',
+      event: 'void', run_id: 'artifacts/runs/20260811-m2-r420-budget-run',
+      by_run_id: '20260811-m2-r414-closure-audit', actor: 'test', reason: 'stray with dead-weight by',
+    })}\n`);
+    fs.appendFileSync(ledgerPath, `${JSON.stringify({
+      schema_id: 'validity_event_v1', event_id: mintUlid(), ts_utc: '2026-08-11T11:00:00.000Z',
+      event: 'reinstate', run_id: 'artifacts/runs/20260811-m2-r420-budget-run',
+      scope: 'full', actor: 'test', reason: 'stray reinstate with explicit full scope',
+    })}\n`);
+    const projection = computeRunIndexProjection(projectRoot);
+    expect(projection.defects.misaddressed_rulings).toEqual([
+      {
+        recorded_id: 'artifacts/runs/20260811-m2-r420-budget-run',
+        verb: 'reinstate',
+        subject: '20260811-m2-r420-budget-run',
+        by_run_id: null,
+        scope: null,
+      },
+      {
+        recorded_id: 'artifacts/runs/20260811-m2-r420-budget-run',
+        verb: 'void',
+        subject: '20260811-m2-r420-budget-run',
+        by_run_id: null,
+        scope: null,
+      },
+    ]);
+    const rendered = renderRunIndexBlock(projection);
+    expect(rendered).toContain('nullius trace void 20260811-m2-r420-budget-run --reason');
+    expect(rendered).toContain('nullius trace reinstate 20260811-m2-r420-budget-run --reason');
+    expect(rendered).not.toContain('--by 20260811-m2-r414-closure-audit');
+    expect(rendered).not.toContain('--scope full');
+  });
+
+  it('a stamp-only stray subject gets NO re-issue line — no ruling ever existed to re-issue', () => {
+    const projectRoot = makeProject();
+    mkRun(projectRoot, '20260811-m2-r421-stamped-run');
+    const strayId = 'artifacts/runs/20260811-m2-r421-stamped-run';
+    const eventId = mintUlid();
+    const ledgerPath = path.join(projectRoot, 'artifacts', 'runs', 'validity_ledger.jsonl');
+    fs.appendFileSync(ledgerPath, `${JSON.stringify({
+      schema_id: 'validity_event_v1', event_id: eventId, ts_utc: new Date().toISOString(),
+      event: 'stamp', run_id: strayId, actor: 'test', reason: null,
+      stamp: {
+        schema_id: 'run_origin_v1', event_id: eventId, run_id: strayId,
+        captured_at_utc: new Date().toISOString(), binding_quality: 'unbound',
+        baseline_commit: null, no_repo_reason: 'fixture',
+        dirty: { tracked_modified: 0, untracked_count: 0, untracked_sample: [] },
+      },
+    })}\n`);
+    const projection = computeRunIndexProjection(projectRoot);
+    expect(projection.defects.misaddressed_rulings).toEqual([]);
+    expect(projection.defects.ledger_only).toEqual([strayId]);
+    expect(renderRunIndexBlock(projection)).not.toContain('nullius trace');
+  });
+
+  it('an EARLIER same-shape bare ruling is not a re-issue: the stray still renders its repair line (native r4 B1)', () => {
+    const projectRoot = makeProject();
+    mkRun(projectRoot, '20260810-m2-r378-replay');
+    // The documented undo flow followed by a stray re-void: void →
+    // reinstate → (path-shaped) void. The bare void at t1 predates the
+    // stray at t3 — it cannot be its re-issue, and treating it as one
+    // would erase a still-lost ruling from BOTH surfaces while the family
+    // row keeps showing the run active (silent failure as success).
+    appendValidityEvent(projectRoot, buildValidityEvent({
+      event: 'void', run_id: '20260810-m2-r378-replay', actor: 'test', reason: 'first ruling',
+      ts_utc: '2026-08-10T10:00:00.000Z',
+    }));
+    appendValidityEvent(projectRoot, buildValidityEvent({
+      event: 'reinstate', run_id: '20260810-m2-r378-replay', actor: 'test', reason: 'undone',
+      ts_utc: '2026-08-10T11:00:00.000Z',
+    }));
+    const ledgerPath = path.join(projectRoot, 'artifacts', 'runs', 'validity_ledger.jsonl');
+    fs.appendFileSync(ledgerPath, `${JSON.stringify({
+      schema_id: 'validity_event_v1', event_id: mintUlid(), ts_utc: '2026-08-10T12:00:00.000Z',
+      event: 'void', run_id: 'artifacts/runs/20260810-m2-r378-replay', actor: 'test', reason: 'void again — stray',
+    })}\n`);
+    const projection = computeRunIndexProjection(projectRoot);
+    expect(projection.defects.misaddressed_rulings).toEqual([
+      {
+        recorded_id: 'artifacts/runs/20260810-m2-r378-replay',
+        verb: 'void',
+        subject: '20260810-m2-r378-replay',
+        by_run_id: null,
+        scope: null,
+      },
+    ]);
+    expect(renderRunIndexBlock(projection)).toContain('nullius trace void 20260810-m2-r378-replay --reason');
+  });
+
+  it('a ruling already re-issued cleanly on the bare side suppresses its repair line and its ghost entry', () => {
+    const projectRoot = makeProject();
+    mkRun(projectRoot, '20260810-m2-r378-replay');
+    const ledgerPath = path.join(projectRoot, 'artifacts', 'runs', 'validity_ledger.jsonl');
+    // Explicit timestamps: suppression requires the clean re-issue to come
+    // LATER in effective order, and two same-millisecond ULIDs order
+    // randomly — a now()/now() fixture would flake.
+    fs.appendFileSync(ledgerPath, `${JSON.stringify({
+      schema_id: 'validity_event_v1', event_id: mintUlid(), ts_utc: '2026-08-10T10:00:00.000Z',
+      event: 'void', run_id: 'artifacts/runs/20260810-m2-r378-replay', actor: 'test', reason: 'stray',
+    })}\n`);
+    appendValidityEvent(projectRoot, buildValidityEvent({
+      event: 'void', run_id: '20260810-m2-r378-replay', actor: 'test', reason: 're-issued against the bare id',
+      ts_utc: '2026-08-10T11:00:00.000Z',
+    }));
+    const projection = computeRunIndexProjection(projectRoot);
+    expect(projection.defects.misaddressed_rulings).toEqual([]);
+    expect(projection.defects.ledger_only).toEqual([]);
+    expect(renderRunIndexBlock(projection)).not.toContain('Misaddressed');
+  });
+
+  it('path-shaped ledger ids render the misaddressed-verdicts repair list instead of posing as ghost runs', () => {
+    const projectRoot = makeProject();
+    mkRun(projectRoot, '20260810-m2-r378-replay');
+    // Historical stray lines predate the writer's path-shape backstop, so
+    // the fixture appends raw JSONL exactly as an old CLI recorded it.
+    const ledgerPath = path.join(projectRoot, 'artifacts', 'runs', 'validity_ledger.jsonl');
+    fs.mkdirSync(path.dirname(ledgerPath), { recursive: true });
+    fs.appendFileSync(ledgerPath, `${JSON.stringify({
+      schema_id: 'validity_event_v1', event_id: mintUlid(), ts_utc: new Date().toISOString(),
+      event: 'void', run_id: 'artifacts/runs/20260810-m2-r378-replay', actor: 'test', reason: 'meant for the real run',
+    })}\n`);
+    // A genuine ghost (bare id, no directory) must stay in the plain
+    // ledger-only list — the split must not swallow it.
+    appendValidityEvent(projectRoot, buildValidityEvent({
+      event: 'void', run_id: '20260701-m0-r001-gone-run', actor: 'test', reason: 'directory removed',
+    }));
+    const projection = computeRunIndexProjection(projectRoot);
+    expect(projection.defects.misaddressed_rulings).toEqual([
+      {
+        recorded_id: 'artifacts/runs/20260810-m2-r378-replay',
+        verb: 'void',
+        subject: '20260810-m2-r378-replay',
+        by_run_id: null,
+        scope: null,
+      },
+    ]);
+    const rendered = renderRunIndexBlock(projection);
+    expect(rendered).toContain('Misaddressed rulings');
+    // The repair line is a complete command up to --reason (codex r2):
+    // verb and bare id spelled out, reason left to the operator.
+    expect(rendered).toContain(
+      '- void artifacts/runs/20260810-m2-r378-replay → nullius trace void 20260810-m2-r378-replay --reason',
+    );
+    expect(rendered).toContain('1 ledger-only run id(s) with no directory: 20260701-m0-r001-gone-run');
+    // The stray void landed on the path string, not the run: the family
+    // row must still show the real directory unclassified, not void.
+    const family = projection.families.find(f => f.latest.run_id === '20260810-m2-r378-replay');
+    expect(family?.latest.validity).toBe('unclassified');
   });
 
   it('hostile directory names cannot break the table, the link, or the block structure', () => {
@@ -675,5 +1001,54 @@ describe('refresh, hooks, and staleness', () => {
     const ledger = readValidityLedger(projectRoot);
     const projection = computeRunIndexProjection(projectRoot, ledger);
     expect(projection.run_directories).toBe(1);
+  });
+});
+
+describe('misaddressed-verdict rendering treats historical ledger ids as untrusted input (codex r1)', () => {
+  it('control characters and marker text in a stray id cannot inject lines into the managed block', () => {
+    const projectRoot = makeProject();
+    const hostileBare = '20260810-m2-r378-replay\nINJECTED LINE <!-- RUN_INDEX_END -->';
+    const ledgerPath = path.join(projectRoot, 'artifacts', 'runs', 'validity_ledger.jsonl');
+    fs.mkdirSync(path.dirname(ledgerPath), { recursive: true });
+    // Two historical stray lines predating the writer's backstops: one BARE
+    // hostile id (so the ledger KNOWS the bare form) and one path-shaped id
+    // that strips to it. The second condition is what routes the entry into
+    // the misaddressed-verdicts repair list — the render path under test.
+    // A fixture whose bare form is unknown would classify as a plain ghost
+    // and pass on the already-escaped list even with the defect present
+    // (native-seat r1: the lock must go red on the defective renderer).
+    // The bare stray uses a DIFFERENT verb, so the clean-reissue
+    // suppression cannot swallow the void's repair line.
+    for (const [eventName, runId] of [
+      ['reinstate', hostileBare],
+      ['void', `artifacts/runs/${hostileBare}`],
+    ] as const) {
+      fs.appendFileSync(ledgerPath, `${JSON.stringify({
+        schema_id: 'validity_event_v1', event_id: mintUlid(), ts_utc: new Date().toISOString(),
+        event: eventName, run_id: runId, actor: 'test', reason: 'hostile id',
+      })}\n`);
+    }
+    const projection = computeRunIndexProjection(projectRoot);
+    expect(projection.defects.misaddressed_rulings).toEqual([
+      {
+        recorded_id: `artifacts/runs/${hostileBare}`,
+        verb: 'void',
+        subject: hostileBare,
+        by_run_id: null,
+        scope: null,
+      },
+    ]);
+    const rendered = renderRunIndexBlock(projection);
+    // The subject falls outside the shell-safe charset, so the line
+    // degrades to a pointer instead of a paste-mangled command…
+    expect(rendered).toContain('not pasteable as a command');
+    expect(rendered).not.toContain(`nullius trace void ${hostileBare}`);
+    // …the newline is neutralized (no line starts with the injected text)
+    // and the angle-bracket escaping means exactly ONE line in the block is
+    // the real end marker — the injected copy cannot terminate the block.
+    const renderedLines = rendered.split('\n');
+    expect(renderedLines.some(line => line.startsWith('INJECTED LINE'))).toBe(false);
+    expect(renderedLines.filter(line => line.trim() === RUN_INDEX_END)).toHaveLength(1);
+    expect(rendered.trim().endsWith(RUN_INDEX_END)).toBe(true);
   });
 });

@@ -1,6 +1,6 @@
 import * as path from 'node:path';
 import { createHash } from 'node:crypto';
-import { canonicalJson, readValidityLedger, type ValidityLedgerView } from './validity-ledger.js';
+import { canonicalJson, readValidityLedger, stripRunRootPrefix, type ValidityLedgerView } from './validity-ledger.js';
 import { checkChains, currentRowLedgerDefective, parseResultRegistry, type ResultRegistryRow } from './result-registry.js';
 import { listRunDirectories, slugFamilyOf } from './run-directories.js';
 import {
@@ -79,6 +79,20 @@ export type RunIndexFamily = {
   current_results: Array<{ result_id: string; defective: boolean; untracked?: true }>;
 };
 
+/** One misaddressed RULING: a void/supersede/reinstate event whose subject
+ *  or --by was a run-root path stripping to an id the project knows. Verb
+ *  and scope come from the event itself (never an aggregated state, which
+ *  invents rulings); `subject`/`by_run_id` are the normalized re-issue
+ *  arguments; `recorded_id` is the as-recorded stray field for display.
+ *  Only --reason stays with the operator. */
+export type RunIndexMisaddressedRuling = {
+  recorded_id: string;
+  verb: 'void' | 'supersede' | 'reinstate';
+  subject: string;
+  by_run_id: string | null;
+  scope: string | null;
+};
+
 export type RunIndexProjection = {
   run_directories: number;
   mirrored: number;
@@ -91,8 +105,13 @@ export type RunIndexProjection = {
     conflicting_stamps: string[];
     attempt_chain_defects: string[];
     no_authoritative_identity: string[];
-    /** Ledger events about run ids with no directory on disk. */
+    /** Ledger ids with no directory on disk, GHOSTS ONLY: a stray id
+     *  covered by a misaddressed ruling below (or whose ruling was
+     *  already cleanly re-issued on the bare side) is not repeated here —
+     *  the append-only ledger keeps the full record. */
     ledger_only: string[];
+    /** Misaddressed rulings with their re-issue arguments (see the type). */
+    misaddressed_rulings: RunIndexMisaddressedRuling[];
     /** CURRENT registry rows naming a run with NO directory on disk —
      *  the star would otherwise silently vanish from every family row. */
     registry_only_current: string[];
@@ -205,6 +224,109 @@ export function computeRunIndexProjection(
   }
 
   const ledgerOnly = [...ledger.runs.keys()].filter(runId => !directoryIds.has(runId)).sort();
+  // Misaddressed rulings (the r1→r3 review arc, both seats): the same
+  // normalization rule the CLI applies on write, run over EVERY historical
+  // validity ruling. A void/supersede/reinstate whose subject or --by is a
+  // run-root PATH stripping to an id the project knows recorded its ruling
+  // against a string, not the run. Faithfulness rules, each one a finding:
+  // - PER EVENT, verb from the event itself — any aggregated-state mapping
+  //   invents rulings (a stamp-only or scoped-only stray aggregates to
+  //   'active', and rendering that as `reinstate` would instruct the
+  //   operator to issue a ruling nobody ever made). stamp/attempt events
+  //   get no re-issue line at all: an unstamped bare run already reports
+  //   as unclassified, and their repair is the stamp surface's own.
+  // - EVERY event is scanned, not just ledger-only subjects: a healthy
+  //   subject whose --by alone is path-shaped still needs its supersede
+  //   re-issued with the bare target (one-sided field case).
+  // - A ruling already present on the bare side (same verb, same --by,
+  //   same scope, both fields healthy) suppresses the line — the operator
+  //   who noticed and re-issued within the minute must not face a
+  //   permanent stale instruction.
+  const knownBareOf = (value: string): string | null => {
+    const bare = stripRunRootPrefix(value);
+    if (bare === null || bare === value) return null;
+    return directoryIds.has(bare) || ledger.runs.has(bare) ? bare : null;
+  };
+  const misaddressed = new Map<string, RunIndexMisaddressedRuling>();
+  const coveredStrayIds = new Set<string>();
+  for (const [eventIndex, event] of ledger.events.entries()) {
+    if (event.event !== 'void' && event.event !== 'supersede' && event.event !== 'reinstate') continue;
+    // The --by side participates in classification ONLY for supersede
+    // (native r5: a healthy void carrying dead-weight by_run_id must not
+    // earn a bogus repair line telling the operator to re-issue a ruling
+    // that already landed).
+    const rawBy = event.event === 'supersede'
+      ? (event as { by_run_id?: string | null }).by_run_id ?? null
+      : null;
+    const subjectBare = knownBareOf(event.run_id);
+    const byBare = rawBy === null ? null : knownBareOf(rawBy);
+    if (subjectBare === null && byBare === null) continue;
+    const subject = subjectBare ?? event.run_id;
+    // Gate-consistency, PROVEN RANGE ONLY (native r6 counterexample
+    // narrowed the original claim): an argument that survives the gate's
+    // own normalization as itself (strip-identity — checked at render
+    // time) necessarily passes the existence gate, because the subject is
+    // either a run directory (bare known) or this event's own ledger
+    // subject, and a supersede's --by is registered as a ledger entry by
+    // the reader the moment the stray line exists — ledger-known being
+    // exactly what the resolver accepts (archived runs stay addressable).
+    // A subject like '.' fails strip-identity and renders as guidance,
+    // never as a paste-and-fail command. Re-issuing reproduces the
+    // original ruling's reference faithfully; whether that reference was
+    // wise stays the operator's call.
+    // CLI-grammar projection (codex r4): the rendered command must be
+    // EXECUTABLE, so transcription targets the verb grammar rather than
+    // the schema's historical tolerance — --by exists only on supersede
+    // (a stray by_run_id on a void is dead weight the schema tolerates),
+    // an explicit 'full' scope is the default and never rendered, and
+    // reinstate takes no --scope at all (the schema pins reinstate
+    // scopes to 'full', so nothing is lost). Suppression and dedup
+    // compare these projected values, or a dead-weight field would make
+    // equivalent rulings look distinct.
+    const projectRuling = (verb: string, candidateBy: string | null, candidateScope: string | null) => ({
+      by: verb === 'supersede' ? candidateBy : null,
+      scope: candidateScope === null || candidateScope === 'full' || verb === 'reinstate' ? null : candidateScope,
+    });
+    const { by, scope } = projectRuling(event.event, rawBy === null ? null : (byBare ?? rawBy), (event as { scope?: string | null }).scope ?? null);
+    // Already re-issued cleanly? Only a ruling that comes LATER in
+    // effective order counts (native r4 B1: an earlier same-shape bare
+    // ruling — void → reinstate → stray re-void — is history, not a
+    // re-issue; treating it as one erases a still-lost ruling from both
+    // surfaces while the run keeps counting). `ledger.events` is already
+    // in effective (ts_utc, event_id) order, so the index IS the order.
+    // Literal-healthy fields mean the stray itself never self-suppresses.
+    const reissued = ledger.events.some((candidate, candidateIndex) => {
+      if (candidateIndex <= eventIndex) return false;
+      if (candidate.event !== event.event || candidate.run_id !== subject) return false;
+      const projected = projectRuling(
+        candidate.event,
+        (candidate as { by_run_id?: string | null }).by_run_id ?? null,
+        (candidate as { scope?: string | null }).scope ?? null,
+      );
+      return projected.by === by && projected.scope === scope;
+    });
+    if (subjectBare !== null) coveredStrayIds.add(event.run_id);
+    if (rawBy !== null && byBare !== null) coveredStrayIds.add(rawBy);
+    if (reissued) continue;
+    const recordedId = subjectBare !== null ? event.run_id : (rawBy as string);
+    // canonicalJson key: strictly injective over the tuple (codex r5
+    // proved a concrete collision for any fixed join separator — ids are
+    // JSON strings and may contain ANY character, including NUL).
+    const key = canonicalJson([event.event, recordedId, subject, by, scope]);
+    misaddressed.set(key, {
+      recorded_id: recordedId,
+      verb: event.event,
+      subject,
+      by_run_id: by,
+      scope,
+    });
+  }
+  const misaddressedRulings = [...misaddressed.values()].sort((a, b) =>
+    (a.recorded_id < b.recorded_id ? -1 : a.recorded_id > b.recorded_id ? 1 : 0)
+    || (a.verb < b.verb ? -1 : a.verb > b.verb ? 1 : 0)
+    || (a.subject < b.subject ? -1 : a.subject > b.subject ? 1 : 0)
+    || ((a.by_run_id ?? '') < (b.by_run_id ?? '') ? -1 : (a.by_run_id ?? '') > (b.by_run_id ?? '') ? 1 : 0)
+    || ((a.scope ?? '') < (b.scope ?? '') ? -1 : (a.scope ?? '') > (b.scope ?? '') ? 1 : 0));
   // A CURRENT registry row naming a run with NO directory would otherwise
   // simply vanish from every family row — the star must fail loudly, not
   // silently.
@@ -235,7 +357,8 @@ export function computeRunIndexProjection(
         .map(entry => entry.run_id).sort(),
       no_authoritative_identity: [...ledger.runs.values()].filter(entry => entry.no_authoritative_identity)
         .map(entry => entry.run_id).sort(),
-      ledger_only: ledgerOnly,
+      ledger_only: ledgerOnly.filter(runId => !coveredStrayIds.has(runId)),
+      misaddressed_rulings: misaddressedRulings,
       registry_only_current: registryOnlyCurrent,
     },
     registry_block_found: registry.block_found,
@@ -246,8 +369,17 @@ export function runIndexDigest(projection: RunIndexProjection): string {
   return createHash('sha256').update(canonicalJson(projection), 'utf-8').digest('hex');
 }
 
-const listWithCap = (ids: string[], cap = 5): string =>
-  `${ids.slice(0, cap).map(escapeMarkdownCell).join(', ')}${ids.length > cap ? `, +${ids.length - cap} more` : ''}`;
+// Defect lists render in FULL, never capped: the list is the repair
+// worklist, and a `+4 more` tail turns "repair each of these" into an
+// instruction the reader cannot follow from the page it appears on.
+const listAll = (ids: string[]): string => ids.map(escapeMarkdownCell).join(', ');
+
+// The charset a rendered copy-paste command may contain verbatim: safe in
+// POSIX shells unquoted AND inert in Markdown, so no escaping layer has to
+// compose with another. The FIRST character additionally excludes '-' — a
+// leading dash would parse as a flag, not an argument (native r4). Anything
+// else degrades to a pointer line.
+const SHELL_SAFE_ARGUMENT = /^[A-Za-z0-9._][A-Za-z0-9._-]*$/;
 
 /** The full block, markers inclusive. Deterministic — byte-compare against
  *  this render is the freshness truth (no dates, no counters). */
@@ -293,23 +425,76 @@ export function renderRunIndexBlock(projection: RunIndexProjection): string {
   const { defects } = projection;
   const defectParts: string[] = [];
   if (defects.conflicting_stamps.length > 0) {
-    defectParts.push(`${defects.conflicting_stamps.length} conflicting stamp(s): ${listWithCap(defects.conflicting_stamps)}`);
+    defectParts.push(`${defects.conflicting_stamps.length} conflicting stamp(s): ${listAll(defects.conflicting_stamps)}`);
   }
   if (defects.attempt_chain_defects.length > 0) {
-    defectParts.push(`${defects.attempt_chain_defects.length} attempt-chain defect(s): ${listWithCap(defects.attempt_chain_defects)}`);
+    defectParts.push(`${defects.attempt_chain_defects.length} attempt-chain defect(s): ${listAll(defects.attempt_chain_defects)}`);
   }
   if (defects.no_authoritative_identity.length > 0) {
-    defectParts.push(`${defects.no_authoritative_identity.length} run(s) without authoritative identity: ${listWithCap(defects.no_authoritative_identity)}`);
+    defectParts.push(`${defects.no_authoritative_identity.length} run(s) without authoritative identity: ${listAll(defects.no_authoritative_identity)}`);
   }
   if (defects.ledger_only.length > 0) {
-    defectParts.push(`${defects.ledger_only.length} ledger-only run id(s) with no directory: ${listWithCap(defects.ledger_only)}`);
+    defectParts.push(`${defects.ledger_only.length} ledger-only run id(s) with no directory: ${listAll(defects.ledger_only)}`);
   }
   if (defects.registry_only_current.length > 0) {
-    defectParts.push(`${defects.registry_only_current.length} CURRENT result(s) naming a run with no directory: ${listWithCap(defects.registry_only_current)}`);
+    defectParts.push(`${defects.registry_only_current.length} CURRENT result(s) naming a run with no directory: ${listAll(defects.registry_only_current)}`);
   }
   if (defectParts.length > 0) {
     lines.push('');
     lines.push(`Defects: ${defectParts.join('; ')} — repair before trusting; see \`nullius current\`.`);
+  }
+  if (defects.misaddressed_rulings.length > 0) {
+    lines.push('');
+    lines.push(`Misaddressed rulings: ${defects.misaddressed_rulings.length} validity ruling(s) name a run-root`);
+    lines.push('PATH instead of a run id the project knows, so the ruling never reached the');
+    lines.push('real run. Re-issue each (the ledger is append-only: the stray line stays,');
+    lines.push('but stops mattering once the bare id carries the ruling):');
+    // Historical ledger values are untrusted input. A command is rendered
+    // only when every argument fits the conservative shell-safe charset —
+    // Markdown escaping and shell quoting compose badly, so anything
+    // outside the charset degrades to a pointer instead of a command a
+    // paste would mangle. The verb is a closed enum and needs neither.
+    for (const entry of defects.misaddressed_rulings) {
+      // An ID argument must also survive the gate's own normalization as
+      // itself ('.'/'..'/path forms map elsewhere): shell-safe charset
+      // alone let a dot-reference subject render a command the gate
+      // refuses (native r6). Scope is not an id and needs charset only.
+      const idArguments = [
+        entry.subject,
+        ...(entry.by_run_id !== null ? [entry.by_run_id] : []),
+      ];
+      const commandSafe = idArguments.every(argument =>
+        SHELL_SAFE_ARGUMENT.test(argument) && stripRunRootPrefix(argument) === argument)
+        && (entry.scope === null || SHELL_SAFE_ARGUMENT.test(entry.scope));
+      // No missing---by branch: the schema REQUIRES by_run_id on a
+      // supersede, so a target-less one is quarantined at read time and
+      // never reaches this scan (codex r4 — the defensive branch here was
+      // unreachable, i.e. a promise nothing could keep).
+      const label = `- ${entry.verb} ${escapeMarkdownCell(entry.recorded_id)} → `;
+      if (commandSafe) {
+        // The --reason placeholder is deliberately UNQUOTED so a careless
+        // whole-line paste fails loudly instead of booking placeholder
+        // text as a recorded reason (native r5). The actual interceptor on
+        // EITHER copy path is the unmatched apostrophe in "line's" — the
+        // shell rejects the whole line at tokenization, before any
+        // redirect could run (codex r7 corrected the earlier per-path
+        // account) — with the CLI's extra-positional-argument refusal as
+        // the final backstop if the wording ever loses its apostrophe.
+        lines.push(
+          `${label}nullius trace ${entry.verb} ${entry.subject}`
+          + (entry.by_run_id !== null ? ` --by ${entry.by_run_id}` : '')
+          + (entry.scope !== null ? ` --scope ${entry.scope}` : '')
+          + ` --reason ${escapeMarkdownCell("<the stray line's reason, verbatim from the ledger>")}`,
+        );
+      } else {
+        lines.push(
+          `${label}re-issue ${entry.verb} against ${escapeMarkdownCell(entry.subject)}`
+          + (entry.by_run_id !== null ? ` (--by ${escapeMarkdownCell(entry.by_run_id)})` : '')
+          + (entry.scope !== null ? ` (--scope ${escapeMarkdownCell(entry.scope)})` : '')
+          + ' — an argument is not pasteable as a command (not a bare addressable id, or unsafe characters); see `nullius current --json`',
+        );
+      }
+    }
   }
   if (!projection.registry_block_found && projection.run_directories > 0) {
     lines.push('');

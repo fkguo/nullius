@@ -169,7 +169,7 @@ function findParentProjectRoot(start: string): string | null {
   return candidate === resolved ? null : candidate;
 }
 
-function emitRefreshSummary(io: CliIo, scaffold: ProjectScaffoldResult, dryRun: boolean): void {
+function emitRefreshSummary(io: CliIo, scaffold: ProjectScaffoldResult, dryRun: boolean, repoRoot: string): void {
   io.stdout(`[ok] scaffold refresh${dryRun ? ' preview (--dry-run, no files written)' : ''}:\n`);
   const verb = dryRun ? 'would refresh' : 'refreshed';
   const lines: string[] = [];
@@ -187,6 +187,26 @@ function emitRefreshSummary(io: CliIo, scaffold: ProjectScaffoldResult, dryRun: 
       io.stdout(
         `[ok] backed up ${scaffold.backedUp.length} changed managed file(s) to ${scaffold.backupDir ?? '.nullius/backups/'} — review to re-apply any host customizations.\n`,
       );
+      // Migration nudge for pre-existing projects: refresh never edits a
+      // user-owned .gitignore, so a project scaffolded before backups were
+      // in the ignore template keeps them visible forever unless told.
+      // Only exit 1 means "definitely not ignored"; a non-repo root
+      // (exit 128) or a missing git binary is indeterminate, and an
+      // ignore nudge in a project with no git status to pollute is noise.
+      try {
+        execFileSync('git', ['-C', repoRoot, 'check-ignore', '-q', '.nullius/backups'], {
+          stdio: ['ignore', 'ignore', 'ignore'],
+          timeout: 10_000,
+        });
+      } catch (error) {
+        if ((error as { status?: number }).status === 1) {
+          io.stdout(
+            'note: .nullius/backups/ is not git-ignored in this project; add `.nullius/backups/` to .gitignore '
+            + '(alongside .nullius/HARNESS_INVOCATION and .nullius/ledger.jsonl) to keep machine-local '
+            + 'bookkeeping out of git status — refresh never edits your .gitignore.\n',
+          );
+        }
+      }
     }
   }
 }
@@ -206,7 +226,7 @@ export async function runInitCommand(projectRoot: string | null, cwd: string, ar
   const runtimeDir = path.dirname(manager.statePath);
   if (options.refresh && options.dryRun) {
     const preview = ensureProjectScaffold(repoRoot, { refresh: true, dryRun: true });
-    emitRefreshSummary(io, preview, true);
+    emitRefreshSummary(io, preview, true, repoRoot);
     if (options.mode !== null) {
       io.stdout(`[ok] would declare execution mode: ${options.mode} (--dry-run, not written)\n`);
     }
@@ -334,7 +354,7 @@ export async function runInitCommand(projectRoot: string | null, cwd: string, ar
   }
   ensureGitPresence(repoRoot, options, scaffold, manager, io);
   if (options.refresh) {
-    emitRefreshSummary(io, scaffold!, false);
+    emitRefreshSummary(io, scaffold!, false, repoRoot);
   } else if (scaffold && scaffold.created.length > 0) {
     io.stdout('[ok] scaffold created:\n');
     for (const relativePath of scaffold.created.slice(0, 50)) {

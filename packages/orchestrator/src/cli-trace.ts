@@ -1,4 +1,4 @@
-import { appendValidityEvent, buildValidityEvent } from './validity-ledger.js';
+import { appendValidityEvent, buildValidityEvent, readValidityLedger, resolveRunIdReference } from './validity-ledger.js';
 import { defaultStampActor, gradeExistingStamp, openRetryAttempt, stampRunDirectory } from './run-stamp.js';
 import { buildTraceabilityView, renderTraceabilityProse } from './traceability-view.js';
 import { backfillRunOrigins, confirmRoundChains, proposeRoundChains } from './trace-backfill.js';
@@ -196,20 +196,52 @@ export function runTraceCommand(projectRoot: string, parsed: TraceParsed, io: Cl
         io.stderr('trace supersede: --by <new_run_id> is required (the run whose result replaces the old one)\n');
         return 1;
       }
+      // Verdicts land on the BARE run id, and only on a run something
+      // actually knows: tab completion hands out directory paths (stamp
+      // accepts them), and the historical behavior of recording that
+      // string verbatim silently stranded the verdict on a run id that
+      // does not exist while the real run kept its old validity.
+      const verb = `trace ${parsed.action}`;
+      const preView = readValidityLedger(projectRoot);
+      const targetRef = resolveRunIdReference(projectRoot, parsed.target, { verb, role: 'run id' }, preView);
+      if (targetRef.kind === 'rejected') {
+        io.stderr(`${targetRef.message}\n`);
+        return 1;
+      }
+      let byRef: { runId: string; normalizedFrom: string | null } | null = null;
+      if (parsed.action === 'supersede') {
+        const resolved = resolveRunIdReference(projectRoot, parsed.by as string, { verb, role: '--by' }, preView);
+        if (resolved.kind === 'rejected') {
+          io.stderr(`${resolved.message}\n`);
+          return 1;
+        }
+        byRef = resolved;
+      }
       const event = buildValidityEvent({
         event: parsed.action,
-        run_id: parsed.target,
+        run_id: targetRef.runId,
         actor,
         reason: parsed.reason,
-        ...(parsed.action === 'supersede' ? { by_run_id: parsed.by } : {}),
+        ...(byRef ? { by_run_id: byRef.runId } : {}),
         ...(parsed.scope ? { scope: parsed.scope } : {}),
         ...(parsed.eventId ? { event_id: parsed.eventId } : {}),
       });
       const outcome = appendValidityEvent(projectRoot, event);
+      // Post-write receipt: re-derive and print the run's validity so the
+      // operator sees the verdict LAND, not just the input echoed back —
+      // seven of eight stray verdicts in the field went unnoticed exactly
+      // because the echo looked like success.
+      const postValidity = readValidityLedger(projectRoot).runs.get(targetRef.runId)?.validity ?? 'unclassified';
+      const normalizationNotes = [
+        ...(targetRef.normalizedFrom ? [`run id normalized from ${JSON.stringify(targetRef.normalizedFrom)}`] : []),
+        ...(byRef?.normalizedFrom ? [`--by normalized from ${JSON.stringify(byRef.normalizedFrom)}`] : []),
+      ];
       io.stdout(
-        `${outcome === 'appended' ? 'recorded' : 'already recorded'} ${parsed.action} for ${parsed.target}`
-        + `${parsed.action === 'supersede' ? ` → ${parsed.by}` : ''}`
-        + `${parsed.scope && parsed.scope !== 'full' ? ` [scope: ${parsed.scope}]` : ''}\n`
+        `${outcome === 'appended' ? 'recorded' : 'already recorded'} ${parsed.action} for ${targetRef.runId}`
+        + `${byRef ? ` → ${byRef.runId}` : ''}`
+        + `${parsed.scope && parsed.scope !== 'full' ? ` [scope: ${parsed.scope}]` : ''}`
+        + ` — validity now: ${postValidity}\n`
+        + `${normalizationNotes.length > 0 ? `(${normalizationNotes.join('; ')})\n` : ''}`
         + `event ${event.event_id}\n`,
       );
       if (outcome === 'appended') refreshCurrentStateAfterWrite(projectRoot, io);

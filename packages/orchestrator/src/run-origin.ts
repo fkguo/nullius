@@ -48,6 +48,23 @@ export function isTraceabilityArtifactPath(relativePath: string): boolean {
     && (normalized.startsWith('artifacts/runs/') || normalized.startsWith('team/runs/'));
 }
 
+/** Control-plane bookkeeping under .nullius/ — run state, the decision
+ *  ledger, approval receipts, scaffold-refresh backups. The execution
+ *  machinery itself rewrites these on every launch (and `init --refresh`
+ *  drops timestamped backup directories there), no research code ever
+ *  lives beneath the prefix, and nothing a run executes can import from
+ *  it. Counting such paths as unknown code delta would demote every
+ *  stamp after the first refresh for self-referential noise — measured
+ *  in the field: two backup directories held every later stamp at
+ *  head_plus_untracked until the qualifier stopped discriminating.
+ *  Shared with the stamped-identity comparison in run-stamp (the "same
+ *  research tree" rule) so both sides of the honesty grade agree on what
+ *  counts as machine bookkeeping. */
+export function isControlPlanePath(relativePath: string): boolean {
+  const normalized = relativePath.split('\\').join('/');
+  return normalized === '.nullius' || normalized.startsWith('.nullius/');
+}
+
 /** Paths inside ANOTHER run's directory under either run root. Counted
  *  SEPARATELY (dirty.foreign_run_untracked) so a reader can see how much
  *  of the untracked total is other runs' accumulation (measured: a 91-run
@@ -322,11 +339,16 @@ export function captureRunOrigin(
   // delta" would demote every stamp after the first for self-referential
   // noise, not for actual code drift. (They still belong in version control;
   // exclusion here only keeps the honesty grade about the RESEARCH tree.)
+  // Control-plane paths under .nullius/ are excluded on the same argument
+  // (see isControlPlanePath): they are the machinery's own bookkeeping,
+  // and the conservative "over-counting is a safe label" asymmetry that
+  // keeps FOREIGN research files in the grade does not apply to files the
+  // tool itself wrote and no run can execute.
   const untrackedOutput = git(projectRoot, ['ls-files', '--others', '--exclude-standard'])!;
   const untracked = untrackedOutput
     .split('\n')
     .filter(line => line.trim().length > 0)
-    .filter(line => !isTraceabilityArtifactPath(line));
+    .filter(line => !isTraceabilityArtifactPath(line) && !isControlPlanePath(line));
   // Split for REPORTING only: the count and the grade stay conservative
   // over the full set (see isForeignRunPath); the sample leads with the
   // paths that actually bear on this run's code identity.

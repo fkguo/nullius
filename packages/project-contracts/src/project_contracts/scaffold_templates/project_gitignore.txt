@@ -12,6 +12,17 @@ artifacts/cache/
 # Local scratch (root-anchored so evidence subtrees named tmp stay visible).
 /tmp/
 
+# Nullius machine-local bookkeeping: rewritten by the tool itself (the
+# invocation anchor on every reconnect, the event ledger on every write,
+# refresh backups on every `nullius init --refresh`). Never research
+# content; leaving these visible pollutes git status AND, for backups,
+# permanently demotes every later origin stamp to head_plus_untracked.
+# The stable launcher, HARNESS, approval policy, state, and decision
+# ledger stay tracked.
+.nullius/HARNESS_INVOCATION
+.nullius/ledger.jsonl
+.nullius/backups/
+
 # Run evidence roots (artifacts/runs/, team/runs/, provider run records) and
 # reference source snapshots are deliberately NOT listed here: whether to
 # track them is a project decision — declare it explicitly (and record it

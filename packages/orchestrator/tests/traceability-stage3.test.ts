@@ -5,7 +5,7 @@ import * as path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { mintUlid } from '@nullius/shared';
 import type { ValidityEventV1 } from '@nullius/shared';
-import { appendValidityEvent, buildValidityEvent, readValidityLedger } from '../src/validity-ledger.js';
+import { appendValidityEvent, buildValidityEvent, readValidityLedger, resolveRunIdReference, stripRunRootPrefix } from '../src/validity-ledger.js';
 import {
   backfillRunOrigins,
   confirmRoundChains,
@@ -16,7 +16,7 @@ import {
 import { checkNotebookStaleness } from '../src/notebook-staleness.js';
 import { buildTraceabilityView, renderTraceabilityProse } from '../src/traceability-view.js';
 import { captureRunOrigin } from '../src/run-origin.js';
-import { runTraceCommand } from '../src/cli-trace.js';
+import { runTraceCommand, type TraceParsed } from '../src/cli-trace.js';
 import { checkChains, setCurrentResult, validateResultRegistry, type ResultRegistryRow } from '../src/result-registry.js';
 
 let projectRoot: string;
@@ -599,5 +599,127 @@ describe('round-cap warning and mirror divergence in the view (D9 + hook)', () =
     expect(prose).toContain('ROUND CAP');
     expect(prose).toContain('MIRROR DIVERGENCE');
     expect(prose).toContain('trust the ledger');
+  });
+});
+
+describe('validity verbs: run-id normalization, existence gate, landing receipts', () => {
+  function collectIo(): { io: { cwd: string; stdout: (t: string) => void; stderr: (t: string) => void }; out: string[]; err: string[] } {
+    const out: string[] = [];
+    const err: string[] = [];
+    return { io: { cwd: projectRoot, stdout: (t: string) => out.push(t), stderr: (t: string) => err.push(t) }, out, err };
+  }
+  const verbArgs = (action: 'void' | 'supersede' | 'reinstate', target: string, by: string | null = null): TraceParsed => ({
+    action, target, by, reason: 'fixture reason', scope: null,
+    actor: 'test', eventId: null, recordOnly: false, deps: {},
+  });
+
+  it('void with a run-root path (tab completion shape) lands on the bare id and reports the landing validity', () => {
+    mkRun('20260810-m2-r376-count');
+    const { io, out } = collectIo();
+    const code = runTraceCommand(projectRoot, verbArgs('void', 'artifacts/runs/20260810-m2-r376-count/'), io);
+    expect(code).toBe(0);
+    const view = readValidityLedger(projectRoot);
+    expect(view.events).toHaveLength(1);
+    expect(view.events[0]!.run_id).toBe('20260810-m2-r376-count');
+    expect(view.runs.get('20260810-m2-r376-count')!.validity).toBe('void');
+    const receipt = out.join('');
+    expect(receipt).toContain('validity now: void');
+    expect(receipt).toContain('normalized from');
+  });
+
+  it('void refuses an id neither disk nor ledger knows, naming the nearest real ids, and appends nothing', () => {
+    mkRun('20260810-m2-r376-count');
+    mkRun('20260810-m2-r377-count-replay');
+    const { io, err } = collectIo();
+    const code = runTraceCommand(projectRoot, verbArgs('void', '20260810-m2-r376-covnt'), io);
+    expect(code).toBe(1);
+    const message = err.join('');
+    expect(message).toContain('names no run directory and no ledger entry');
+    expect(message).toContain('20260810-m2-r376-count');
+    expect(readValidityLedger(projectRoot).events).toHaveLength(0);
+  });
+
+  it('supersede normalizes --by too, and refuses an unknown --by without appending', () => {
+    mkRun('20260810-m2-r376-count');
+    mkRun('20260811-m2-r412-rectangle');
+    const { io } = collectIo();
+    const code = runTraceCommand(
+      projectRoot,
+      verbArgs('supersede', '20260810-m2-r376-count', 'artifacts/runs/20260811-m2-r412-rectangle'),
+      io,
+    );
+    expect(code).toBe(0);
+    const view = readValidityLedger(projectRoot);
+    expect(view.events[0]!.by_run_id).toBe('20260811-m2-r412-rectangle');
+    expect(view.runs.get('20260810-m2-r376-count')!.superseded_by).toBe('20260811-m2-r412-rectangle');
+
+    const bad = collectIo();
+    const badCode = runTraceCommand(
+      projectRoot,
+      verbArgs('supersede', '20260810-m2-r376-count', 'artifacts/runs/20260811-m2-r999-nowhere'),
+      bad.io,
+    );
+    expect(badCode).toBe(1);
+    expect(bad.err.join('')).toContain('--by');
+    expect(readValidityLedger(projectRoot).events).toHaveLength(1);
+  });
+
+  it('a ledger-known id whose directory is gone stays addressable (archived runs must accept verbs)', () => {
+    appendValidityEvent(projectRoot, buildValidityEvent({
+      event: 'void', run_id: '20260701-m0-r001-gone', actor: 'test', reason: 'archived away',
+    }));
+    const { io, out } = collectIo();
+    const code = runTraceCommand(projectRoot, verbArgs('reinstate', '20260701-m0-r001-gone'), io);
+    expect(code).toBe(0);
+    expect(out.join('')).toContain('validity now: active');
+  });
+
+  it('the ledger writer itself refuses path-shaped ids in run_id and by_run_id (backstop for every caller)', () => {
+    expect(() => appendValidityEvent(projectRoot, buildValidityEvent({
+      event: 'void', run_id: 'artifacts/runs/20260810-m2-r376-count', actor: 'test', reason: 'stray',
+    }))).toThrow(/path-shaped/);
+    expect(() => appendValidityEvent(projectRoot, buildValidityEvent({
+      event: 'supersede', run_id: '20260810-m2-r376-count', actor: 'test', reason: 'stray',
+      by_run_id: 'artifacts/runs/20260811-m2-r412-rectangle',
+    }))).toThrow(/path-shaped/);
+  });
+
+  it('stripRunRootPrefix strips exactly the recognizable run-root shapes', () => {
+    expect(stripRunRootPrefix('20260810-m2-r376-count')).toBe('20260810-m2-r376-count');
+    expect(stripRunRootPrefix('artifacts/runs/20260810-m2-r376-count')).toBe('20260810-m2-r376-count');
+    expect(stripRunRootPrefix('team/runs/20260810-m2-r376-count/')).toBe('20260810-m2-r376-count');
+    expect(stripRunRootPrefix('./artifacts/runs/20260810-m2-r376-count')).toBe('20260810-m2-r376-count');
+    expect(stripRunRootPrefix('artifacts\\runs\\20260810-m2-r376-count')).toBe('20260810-m2-r376-count');
+    expect(stripRunRootPrefix('some/other/path')).toBeNull();
+    expect(stripRunRootPrefix('artifacts/runs/nested/deeper')).toBeNull();
+    expect(stripRunRootPrefix('')).toBeNull();
+  });
+
+  it('resolveRunIdReference refuses absolute paths outside the project root', () => {
+    const resolved = resolveRunIdReference(projectRoot, '/somewhere/else/artifacts/runs/x', { verb: 'trace void', role: 'run id' });
+    expect(resolved.kind).toBe('rejected');
+    expect((resolved as { message: string }).message).toContain('outside the project root');
+  });
+});
+
+describe('validity verbs: dot references and plain files never satisfy the existence gate (codex r1)', () => {
+  it("'.' and '..' are refused everywhere: strip, resolver, and the writer backstop", () => {
+    expect(stripRunRootPrefix('.')).toBeNull();
+    expect(stripRunRootPrefix('..')).toBeNull();
+    expect(stripRunRootPrefix('./')).toBeNull();
+    fs.mkdirSync(path.join(projectRoot, 'artifacts', 'runs'), { recursive: true });
+    const resolved = resolveRunIdReference(projectRoot, '.', { verb: 'trace void', role: 'run id' });
+    expect(resolved.kind).toBe('rejected');
+    expect(() => appendValidityEvent(projectRoot, buildValidityEvent({
+      event: 'void', run_id: '.', actor: 'test', reason: 'stray',
+    }))).toThrow(/directory reference/);
+  });
+
+  it('a plain file directly on a run root does not count as an existing run', () => {
+    fs.mkdirSync(path.join(projectRoot, 'artifacts', 'runs'), { recursive: true });
+    fs.writeFileSync(path.join(projectRoot, 'artifacts', 'runs', '.gitattributes'), 'x\n');
+    const resolved = resolveRunIdReference(projectRoot, '.gitattributes', { verb: 'trace void', role: 'run id' });
+    expect(resolved.kind).toBe('rejected');
+    expect((resolved as { message: string }).message).toContain('names no run directory and no ledger entry');
   });
 });
