@@ -59,6 +59,11 @@ export type TraceabilityView = {
     /** Ledger events about run_ids with no directory on disk (renames,
      *  removals): reported, never silently dropped. */
     ledger_only_run_ids: string[];
+    /** How many misaddressed rulings the run-index block currently lists
+     *  with re-issue arguments (path-shaped strays naming known runs).
+     *  Strays whose ruling was already re-issued on the bare id are
+     *  suppressed there and survive only as ledger history. */
+    misaddressed_ruling_count: number;
     /** EVERY superseded relation the ledger records — including runs whose
      *  directory is gone (cleaned up after replacement). A consumer
      *  verifying "was old→new recorded?" must see the ledger truth, not a
@@ -541,7 +546,8 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
   const runLinks = analyzeNotebookRunLinks(
     projectRoot, ledger, new Set(directories.map(entry => entry.run_id)),
   );
-  const runIndexBlock = checkRunIndexBlock(projectRoot, computeRunIndexProjection(projectRoot, ledger));
+  const runIndexProjection = computeRunIndexProjection(projectRoot, ledger);
+  const runIndexBlock = checkRunIndexBlock(projectRoot, runIndexProjection);
   const currentStateBlock = checkCurrentStateBlock(
     projectRoot, projectionFromRegistryState(resultRegistry),
   );
@@ -736,6 +742,7 @@ export function buildTraceabilityView(projectRoot: string): TraceabilityView {
       binding_quality_counts: bindingQualityCounts,
       conflicting_stamps: conflictingStamps,
       ledger_only_run_ids: ledgerOnly,
+      misaddressed_ruling_count: runIndexProjection.defects.misaddressed_rulings.length,
       superseded,
       voided,
       no_authoritative_identity: noIdentity,
@@ -1089,13 +1096,24 @@ export function renderTraceabilityProse(view: TraceabilityView): string {
   if (view.runs.attempt_chain_defects.length > 0) {
     lines.push(`- ATTEMPT CHAIN DEFECTS: ${view.runs.attempt_chain_defects.join(', ')} — repair before trusting these bindings.`);
   }
+  // Both lists below are repair worklists, and this surface is the "full
+  // answer" the run-index block points at — render them in full, never
+  // capped (a "…" tail here would leave NO surface listing the work).
   if (view.runs.crashed_unretried.length > 0) {
-    lines.push(`- CRASHED, unretried: ${view.runs.crashed_unretried.slice(0, 5).join(', ')}`
-      + `${view.runs.crashed_unretried.length > 5 ? ', …' : ''} — \`nullius trace retry <run_dir>\` chains the next attempt, `
+    lines.push(`- CRASHED, unretried: ${view.runs.crashed_unretried.join(', ')}`
+      + ' — `nullius trace retry <run_dir>` chains the next attempt, '
       + 'or --record-only books an abandoned crash.');
   }
   if (view.runs.ledger_only_run_ids.length > 0) {
-    lines.push(`- ${view.runs.ledger_only_run_ids.length} ledger-known run id(s) have no directory on disk: ${view.runs.ledger_only_run_ids.slice(0, 5).join(', ')}${view.runs.ledger_only_run_ids.length > 5 ? ', …' : ''}`);
+    lines.push(`- ${view.runs.ledger_only_run_ids.length} ledger-known run id(s) have no directory on disk: ${view.runs.ledger_only_run_ids.join(', ')}`
+      + (view.runs.misaddressed_ruling_count > 0
+        ? ` (${view.runs.misaddressed_ruling_count} stray ruling(s) among them carry re-issue arguments in the run index block; `
+        : ' (this list is the full ledger record; ')
+      + 'strays whose ruling was already re-issued on the bare id are kept only as ledger history)');
+  } else if (view.runs.misaddressed_ruling_count > 0) {
+    // Misaddressed rulings can exist with an empty ghost list (every stray
+    // side covered elsewhere): the count must still reach the reader.
+    lines.push(`- ${view.runs.misaddressed_ruling_count} misaddressed ruling(s) carry re-issue arguments in the run index block.`);
   }
   if (view.ledger.malformed_lines > 0 || view.ledger.integrity_defects > 0) {
     lines.push(`- ledger health: ${view.ledger.malformed_lines} malformed line(s), ${view.ledger.integrity_defects} integrity defect(s).`);
@@ -1107,10 +1125,12 @@ export function renderTraceabilityProse(view: TraceabilityView): string {
     );
   }
   if (view.warnings.mirror_divergence.length > 0) {
+    // A repair worklist like the two above (each entry has a mechanical
+    // fix), so the same no-cap rule applies.
     lines.push(
       `- MIRROR DIVERGENCE: ${view.warnings.mirror_divergence.length} run director(y/ies) hold a run_origin.json `
-      + `that no longer matches the authoritative ledger stamp: ${view.warnings.mirror_divergence.slice(0, 5).join(', ')}`
-      + `${view.warnings.mirror_divergence.length > 5 ? ', …' : ''} — trust the ledger.`,
+      + `that no longer matches the authoritative ledger stamp: ${view.warnings.mirror_divergence.join(', ')}`
+      + ' — trust the ledger.',
     );
   }
   if (view.runs.code_states.length > 0) {

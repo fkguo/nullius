@@ -674,8 +674,10 @@ python3 scripts/bin/run_multi_task.py \
 it is **not** the acceptance convergence defined in the gate-loop discipline
 below: two similar NOT_READY reviews sharing the same blockers score high
 similarity while the artifact is not accepted at all. Acceptance convergence
-is always read from the verdicts (zero BLOCKING findings on the current
-artifact, dispositions complete), never from this similarity score.
+is always read from **contract-valid** verdicts (zero BLOCKING findings on the
+current artifact, dispositions complete), never from this similarity score; a
+malformed delivery joins the count only after its same-model normalization
+rerun (see the disposition rule under Contract checking).
 
 ### Re-review after every fix (gate-loop discipline)
 
@@ -723,10 +725,12 @@ is unaffected — the cap bounds how many candidate revisions the loop may consu
 revision gets its confirmation. Batch fixes: one confirmation round
 covers the whole accumulated fix batch, scoped to the exact delta by default (see packet composition
 above). Review verdicts are judged on content: a source-grounded READY whose verdict string or label
-spelling deviates from the requested format is a normalization task, never a new blocking round.
-Prefer a same-model rerun to normalize; leader transcription (with the original archived) is
-acceptable only when the archived output contains an explicit, unambiguous affirmative verdict —
-an ambiguous verdict is not normalized into a pass, it fails closed as usual.
+spelling deviates from the requested format is a normalization task, never a new blocking round —
+a same-model rerun re-emits it in contract shape (the disposition rule under Contract checking).
+Leader transcription is NOT a convergence path: an output the reviewer did not re-deliver in
+contract shape stays out of the count no matter how unambiguous its verdict reads — archive the
+original for diagnosis and rerun the seat. An ambiguous verdict is never normalized into a pass;
+it fails closed as usual.
 
 The verdict is scoped to the exact hashes in `inputs/review_input_manifest.json`.
 Before counting an older run toward a later convergence or closeout, rerun the
@@ -754,12 +758,47 @@ This gate catches accidental or uncoordinated post-review drift. If deliberate c
 of both an input and its manifest is in scope, commit the review directory or persist the
 reported manifest SHA-256 in an external closeout record before accepting the verdict.
 
-## Contract checking (informational)
+## Contract checking (delivery shape)
 
 `--check-review-contract` validates output format compliance and records results in `meta.json`.
-**Contract failures are informational only** — they never trigger fallback. Content matters more than format.
+Contract failures never trigger backend fallback and never mark the lane failed — content
+matters more than format, and the output is always retained. They DO withhold the lane from
+convergence/credit aggregation (`excluded_contract_invalid` in the convergence record, and no
+dual-review comparison seat): an unfinished delivery cannot occupy a seat. The remedy is the
+disposition rule below, never silent exclusion.
 
 If you want models to output a specific format, include format instructions in your system/user prompt.
+
+### Malformed delivery ≠ rejected opinion (disposition rule)
+
+A failed contract check means the reviewer has not finished **delivering** — never that the
+review's substance was weighed and found wanting. The contract validates delivery shape
+(parseable verdict line, the fixed severity homes, archivability against the next round);
+it has no opinion about the reasoning inside. Dispose of a contract-invalid review in
+exactly one way:
+
+- **Rerun same-model with the missing pieces named** (the runner records them in
+  `contract_errors` and a `contract_remedy` hint). The reviewer already did the reading;
+  re-emitting in contract shape is one cheap round. The Gemini and OpenCode caveats above
+  are instances of this rule, not backend-specific allowances.
+- **Never record a hybrid terminal state.** "Format-invalid but substantively supportive"
+  must not enter a convergence count, a formal status line, or a closeout packet — not as
+  a downgraded vote, not as a qualified-consensus footnote. Convergence counts
+  contract-valid verdicts only; every other seat is either rerun until valid or honestly
+  recorded as "this seat delivered no valid review". Once same-model rerun attempts are
+  exhausted (bounded by your retry budget), the leader applies the fallback policy exactly
+  as for any other failed seat — substitution or honest degradation; the runner itself
+  never auto-falls-back on contract grounds. The invalid output is retained for diagnosis.
+- **The inverse also holds.** Contract-valid says nothing about substance: a well-formed
+  placeholder verdict is still rejected by the substantive checks (blank/short-output
+  detection, source-grounding requirements).
+
+The failure mode this rule closes: a reviewer reads the material, reaches a grounded
+verdict, misses required sections — and the leader "honestly downgrades" it to a
+format-disqualified side opinion, excluded from convergence yet still cited. That inverts
+substance-over-format twice: the substance is discarded where it counts (the gate) and
+kept where it cannot be checked (the prose). Rerun the seat; count only what is both
+contract-valid and substantively grounded.
 
 Standalone checker:
 
@@ -812,9 +851,11 @@ How it works:
 Conformance is machine-checked after phase 2 (same code path as
 `check_review_output_contract.py --two-phase PHASE1_FILE PHASE2_FILE`): a BLOCKING finding
 whose category is neither declared nor covered by a revision declaration is a conformance
-failure. Like the single-phase contract check, **conformance failures are informational** —
-recorded per agent in `meta.json` under `two_phase` (`conformance_ok`,
-`conformance_errors`), never a fallback trigger. Phase-1 failures are different: if the
+failure. **Conformance failures are purely informational** — recorded per agent in
+`meta.json` under `two_phase` (`conformance_ok`, `conformance_errors`), never a fallback
+trigger, and (deliberately, unlike single-phase contract failures) never withheld from
+convergence/credit aggregation: judging whether a criteria revision was legitimate is the
+synthesis agent's job, not a mechanical exclusion. Phase-1 failures are different: if the
 phase-1 call fails or returns no parseable criteria block, phase 2 is skipped and the agent
 is marked failed (`phase1_command_failed`, `phase1_empty_output`, or
 `phase1_criteria_invalid`); rerun that reviewer same-model. A phase-1 empty output is

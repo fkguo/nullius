@@ -250,3 +250,91 @@ class MultiReviewFlowTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestContractInvalidExcludedFromCredit(unittest.TestCase):
+    """Disposition rule: a contract-invalid delivery is unfinished — it must
+    not enter the similarity set or hold a comparison seat, while the lane
+    itself still succeeds (informational, never a failure)."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.mod = _load_run_multi_task_module()
+        os.environ["REVIEW_SWARM_NO_AUTO_CONFIG"] = "1"
+
+    @classmethod
+    def tearDownClass(cls):
+        os.environ.pop("REVIEW_SWARM_NO_AUTO_CONFIG", None)
+
+    def test_contract_invalid_lane_withheld_from_convergence_credit(self):
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            out_dir = td_path / "out"
+            system = td_path / "system.md"
+            prompt = td_path / "prompt.md"
+            claude_runner = td_path / "run_claude.sh"
+            gemini_runner = td_path / "run_gemini.sh"
+            opencode_runner = td_path / "run_opencode.sh"
+            codex_runner = td_path / "run_codex.sh"
+
+            _write_runner(claude_runner, _runner_valid_contract())
+            # The field case this rule exists for: a grounded verdict on the
+            # first line, every required section missing.
+            _write_runner(gemini_runner, """#!/usr/bin/env bash
+set -euo pipefail
+out=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --out) out="$2"; shift 2 ;;
+    *) shift ;;
+  esac
+done
+cat >"${out}" <<'TXT'
+VERDICT: READY
+
+The numbers check out against the source; no blocking concerns found.
+TXT
+""")
+            _write_runner(opencode_runner, _runner_valid_contract())
+            _write_runner(codex_runner, _runner_valid_contract())
+            system.write_text("SYSTEM\n", encoding="utf-8")
+            prompt.write_text("PROMPT\n", encoding="utf-8")
+
+            argv = [
+                "run_multi_task.py",
+                "--out-dir",
+                str(out_dir),
+                "--opencode-runner",
+                str(opencode_runner),
+                "--claude-runner",
+                str(claude_runner),
+                "--gemini-runner",
+                str(gemini_runner),
+                "--codex-runner",
+                str(codex_runner),
+                "--system",
+                str(system),
+                "--prompt",
+                str(prompt),
+                "--models",
+                "claude/default,gemini/default",
+                "--check-review-contract",
+                "--check-convergence",
+                "--fallback-mode",
+                "off",
+                "--no-parallel",
+            ]
+            code = _run_main_with_argv(self.mod, argv)
+            self.assertEqual(code, 0)
+            meta = json.loads((out_dir / "meta.json").read_text(encoding="utf-8"))
+            # The lane still SUCCEEDS (informational), but is withheld from
+            # the similarity set and named in excluded_contract_invalid.
+            self.assertEqual(meta["success_count"], 2)
+            convergence = meta["convergence"]
+            gemini_agent = [a for a in meta["agents"] if a.get("backend") == "gemini"][0]
+            self.assertFalse(gemini_agent.get("contract_ok"))
+            self.assertIn("contract_remedy", gemini_agent)
+            self.assertEqual(convergence["excluded_contract_invalid"], ["gemini/default"])
+            self.assertNotIn("gemini/default", convergence["excluded_non_independent"])
+            for out_path in convergence["evaluated_outputs"]:
+                self.assertNotIn("gemini", Path(out_path).name)
