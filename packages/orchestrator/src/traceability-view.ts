@@ -1099,9 +1099,9 @@ export function renderTraceabilityProse(view: TraceabilityView): string {
   }
   if (view.runs.ledger_only_run_ids.length > 0) {
     lines.push(`- ${view.runs.ledger_only_run_ids.length} ledger-known run id(s) have no directory on disk: ${view.runs.ledger_only_run_ids.join(', ')}`
-      + ' (a path-shaped id whose bare form the project knows is a misaddressed verdict — '
-      + 'the run index block spells out its re-issue command, verb and target included; '
-      + 'only --reason is copied from the stray line)');
+      + ' (a stray ruling naming a path-shaped id the project knows is listed in the run index '
+      + 'block with its re-issue arguments — verb, subject, target, scope; only --reason is '
+      + 'copied from the stray line)');
   }
   if (view.ledger.malformed_lines > 0 || view.ledger.integrity_defects > 0) {
     lines.push(`- ledger health: ${view.ledger.malformed_lines} malformed line(s), ${view.ledger.integrity_defects} integrity defect(s).`);

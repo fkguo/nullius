@@ -867,7 +867,10 @@ export function resolveRunIdReference(
   });
   const inLedger = view.runs.has(bare);
   if (!onDisk && !inLedger) {
-    const candidates = new Set<string>(view.runs.keys());
+    // Path-shaped ledger keys (historical strays) are excluded: suggesting
+    // one as a "known run id" would recommend the exact input shape these
+    // verbs exist to refuse.
+    const candidates = new Set<string>([...view.runs.keys()].filter(id => !id.includes('/')));
     for (const root of RUN_ROOTS) {
       const absRoot = path.join(projectRoot, root);
       if (!fs.existsSync(absRoot)) continue;
