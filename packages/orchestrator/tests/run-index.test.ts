@@ -267,6 +267,48 @@ describe('projection and render', () => {
     expect(rendered).not.toContain('reinstate');
   });
 
+  it('transcription targets the CLI grammar: dead-weight --by on a void and explicit full scope are dropped (codex r4)', () => {
+    const projectRoot = makeProject();
+    mkRun(projectRoot, '20260811-m2-r420-budget-run');
+    mkRun(projectRoot, '20260811-m2-r414-closure-audit');
+    const ledgerPath = path.join(projectRoot, 'artifacts', 'runs', 'validity_ledger.jsonl');
+    // The schema tolerates by_run_id on a void and an explicit 'full'
+    // scope on a reinstate; the CLI accepts neither. A transcribed
+    // command must be EXECUTABLE, so both project away.
+    fs.appendFileSync(ledgerPath, `${JSON.stringify({
+      schema_id: 'validity_event_v1', event_id: mintUlid(), ts_utc: '2026-08-11T10:00:00.000Z',
+      event: 'void', run_id: 'artifacts/runs/20260811-m2-r420-budget-run',
+      by_run_id: '20260811-m2-r414-closure-audit', actor: 'test', reason: 'stray with dead-weight by',
+    })}\n`);
+    fs.appendFileSync(ledgerPath, `${JSON.stringify({
+      schema_id: 'validity_event_v1', event_id: mintUlid(), ts_utc: '2026-08-11T11:00:00.000Z',
+      event: 'reinstate', run_id: 'artifacts/runs/20260811-m2-r420-budget-run',
+      scope: 'full', actor: 'test', reason: 'stray reinstate with explicit full scope',
+    })}\n`);
+    const projection = computeRunIndexProjection(projectRoot);
+    expect(projection.defects.misaddressed_rulings).toEqual([
+      {
+        recorded_id: 'artifacts/runs/20260811-m2-r420-budget-run',
+        verb: 'reinstate',
+        subject: '20260811-m2-r420-budget-run',
+        by_run_id: null,
+        scope: null,
+      },
+      {
+        recorded_id: 'artifacts/runs/20260811-m2-r420-budget-run',
+        verb: 'void',
+        subject: '20260811-m2-r420-budget-run',
+        by_run_id: null,
+        scope: null,
+      },
+    ]);
+    const rendered = renderRunIndexBlock(projection);
+    expect(rendered).toContain('nullius trace void 20260811-m2-r420-budget-run --reason');
+    expect(rendered).toContain('nullius trace reinstate 20260811-m2-r420-budget-run --reason');
+    expect(rendered).not.toContain('--by 20260811-m2-r414-closure-audit');
+    expect(rendered).not.toContain('--scope full');
+  });
+
   it('a stamp-only stray subject gets NO re-issue line — no ruling ever existed to re-issue', () => {
     const projectRoot = makeProject();
     mkRun(projectRoot, '20260811-m2-r421-stamped-run');
@@ -289,16 +331,54 @@ describe('projection and render', () => {
     expect(renderRunIndexBlock(projection)).not.toContain('nullius trace');
   });
 
+  it('an EARLIER same-shape bare ruling is not a re-issue: the stray still renders its repair line (native r4 B1)', () => {
+    const projectRoot = makeProject();
+    mkRun(projectRoot, '20260810-m2-r378-replay');
+    // The documented undo flow followed by a stray re-void: void →
+    // reinstate → (path-shaped) void. The bare void at t1 predates the
+    // stray at t3 — it cannot be its re-issue, and treating it as one
+    // would erase a still-lost ruling from BOTH surfaces while the family
+    // row keeps showing the run active (silent failure as success).
+    appendValidityEvent(projectRoot, buildValidityEvent({
+      event: 'void', run_id: '20260810-m2-r378-replay', actor: 'test', reason: 'first ruling',
+      ts_utc: '2026-08-10T10:00:00.000Z',
+    }));
+    appendValidityEvent(projectRoot, buildValidityEvent({
+      event: 'reinstate', run_id: '20260810-m2-r378-replay', actor: 'test', reason: 'undone',
+      ts_utc: '2026-08-10T11:00:00.000Z',
+    }));
+    const ledgerPath = path.join(projectRoot, 'artifacts', 'runs', 'validity_ledger.jsonl');
+    fs.appendFileSync(ledgerPath, `${JSON.stringify({
+      schema_id: 'validity_event_v1', event_id: mintUlid(), ts_utc: '2026-08-10T12:00:00.000Z',
+      event: 'void', run_id: 'artifacts/runs/20260810-m2-r378-replay', actor: 'test', reason: 'void again — stray',
+    })}\n`);
+    const projection = computeRunIndexProjection(projectRoot);
+    expect(projection.defects.misaddressed_rulings).toEqual([
+      {
+        recorded_id: 'artifacts/runs/20260810-m2-r378-replay',
+        verb: 'void',
+        subject: '20260810-m2-r378-replay',
+        by_run_id: null,
+        scope: null,
+      },
+    ]);
+    expect(renderRunIndexBlock(projection)).toContain('nullius trace void 20260810-m2-r378-replay --reason');
+  });
+
   it('a ruling already re-issued cleanly on the bare side suppresses its repair line and its ghost entry', () => {
     const projectRoot = makeProject();
     mkRun(projectRoot, '20260810-m2-r378-replay');
     const ledgerPath = path.join(projectRoot, 'artifacts', 'runs', 'validity_ledger.jsonl');
+    // Explicit timestamps: suppression requires the clean re-issue to come
+    // LATER in effective order, and two same-millisecond ULIDs order
+    // randomly — a now()/now() fixture would flake.
     fs.appendFileSync(ledgerPath, `${JSON.stringify({
-      schema_id: 'validity_event_v1', event_id: mintUlid(), ts_utc: new Date().toISOString(),
+      schema_id: 'validity_event_v1', event_id: mintUlid(), ts_utc: '2026-08-10T10:00:00.000Z',
       event: 'void', run_id: 'artifacts/runs/20260810-m2-r378-replay', actor: 'test', reason: 'stray',
     })}\n`);
     appendValidityEvent(projectRoot, buildValidityEvent({
       event: 'void', run_id: '20260810-m2-r378-replay', actor: 'test', reason: 're-issued against the bare id',
+      ts_utc: '2026-08-10T11:00:00.000Z',
     }));
     const projection = computeRunIndexProjection(projectRoot);
     expect(projection.defects.misaddressed_rulings).toEqual([]);

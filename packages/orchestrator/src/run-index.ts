@@ -249,28 +249,51 @@ export function computeRunIndexProjection(
   };
   const misaddressed = new Map<string, RunIndexMisaddressedRuling>();
   const coveredStrayIds = new Set<string>();
-  for (const event of ledger.events) {
+  for (const [eventIndex, event] of ledger.events.entries()) {
     if (event.event !== 'void' && event.event !== 'supersede' && event.event !== 'reinstate') continue;
     const rawBy = (event as { by_run_id?: string | null }).by_run_id ?? null;
     const subjectBare = knownBareOf(event.run_id);
     const byBare = rawBy === null ? null : knownBareOf(rawBy);
     if (subjectBare === null && byBare === null) continue;
     const subject = subjectBare ?? event.run_id;
-    const by = rawBy === null ? null : (byBare ?? rawBy);
-    const scope = (event as { scope?: string | null }).scope ?? null;
-    // Already re-issued cleanly? Only a ruling whose OWN fields are
-    // healthy counts — the stray event itself (or a second stray) never
-    // suppresses its repair.
-    const reissued = ledger.events.some(candidate =>
-      candidate.event === event.event
-      && candidate.run_id === subject
-      && (((candidate as { by_run_id?: string | null }).by_run_id ?? null) === by)
-      && (((candidate as { scope?: string | null }).scope ?? null) === scope));
+    // CLI-grammar projection (codex r4): the rendered command must be
+    // EXECUTABLE, so transcription targets the verb grammar rather than
+    // the schema's historical tolerance — --by exists only on supersede
+    // (a stray by_run_id on a void is dead weight the schema tolerates),
+    // an explicit 'full' scope is the default and never rendered, and
+    // reinstate takes no --scope at all (the schema pins reinstate
+    // scopes to 'full', so nothing is lost). Suppression and dedup
+    // compare these projected values, or a dead-weight field would make
+    // equivalent rulings look distinct.
+    const projectRuling = (verb: string, candidateBy: string | null, candidateScope: string | null) => ({
+      by: verb === 'supersede' ? candidateBy : null,
+      scope: candidateScope === null || candidateScope === 'full' || verb === 'reinstate' ? null : candidateScope,
+    });
+    const { by, scope } = projectRuling(event.event, rawBy === null ? null : (byBare ?? rawBy), (event as { scope?: string | null }).scope ?? null);
+    // Already re-issued cleanly? Only a ruling that comes LATER in
+    // effective order counts (native r4 B1: an earlier same-shape bare
+    // ruling — void → reinstate → stray re-void — is history, not a
+    // re-issue; treating it as one erases a still-lost ruling from both
+    // surfaces while the run keeps counting). `ledger.events` is already
+    // in effective (ts_utc, event_id) order, so the index IS the order.
+    // Literal-healthy fields mean the stray itself never self-suppresses.
+    const reissued = ledger.events.some((candidate, candidateIndex) => {
+      if (candidateIndex <= eventIndex) return false;
+      if (candidate.event !== event.event || candidate.run_id !== subject) return false;
+      const projected = projectRuling(
+        candidate.event,
+        (candidate as { by_run_id?: string | null }).by_run_id ?? null,
+        (candidate as { scope?: string | null }).scope ?? null,
+      );
+      return projected.by === by && projected.scope === scope;
+    });
     if (subjectBare !== null) coveredStrayIds.add(event.run_id);
     if (rawBy !== null && byBare !== null) coveredStrayIds.add(rawBy);
     if (reissued) continue;
     const recordedId = subjectBare !== null ? event.run_id : (rawBy as string);
-    const key = [event.event, recordedId, subject, by ?? '', scope ?? ''].join(' ');
+    // NUL-escape joined: ids may contain spaces, and a non-injective key
+    // would silently collapse two distinct rulings into one line (r4 N3).
+    const key = [event.event, recordedId, subject, by ?? '', scope ?? ''].join('\u0000');
     misaddressed.set(key, {
       recorded_id: recordedId,
       verb: event.event,
@@ -282,6 +305,7 @@ export function computeRunIndexProjection(
   const misaddressedRulings = [...misaddressed.values()].sort((a, b) =>
     (a.recorded_id < b.recorded_id ? -1 : a.recorded_id > b.recorded_id ? 1 : 0)
     || (a.verb < b.verb ? -1 : a.verb > b.verb ? 1 : 0)
+    || (a.subject < b.subject ? -1 : a.subject > b.subject ? 1 : 0)
     || ((a.by_run_id ?? '') < (b.by_run_id ?? '') ? -1 : (a.by_run_id ?? '') > (b.by_run_id ?? '') ? 1 : 0)
     || ((a.scope ?? '') < (b.scope ?? '') ? -1 : (a.scope ?? '') > (b.scope ?? '') ? 1 : 0));
   // A CURRENT registry row naming a run with NO directory would otherwise
@@ -333,8 +357,10 @@ const listAll = (ids: string[]): string => ids.map(escapeMarkdownCell).join(', '
 
 // The charset a rendered copy-paste command may contain verbatim: safe in
 // POSIX shells unquoted AND inert in Markdown, so no escaping layer has to
-// compose with another. Anything else degrades to a pointer line.
-const SHELL_SAFE_ARGUMENT = /^[A-Za-z0-9._-]+$/;
+// compose with another. The FIRST character additionally excludes '-' — a
+// leading dash would parse as a flag, not an argument (native r4). Anything
+// else degrades to a pointer line.
+const SHELL_SAFE_ARGUMENT = /^[A-Za-z0-9._][A-Za-z0-9._-]*$/;
 
 /** The full block, markers inclusive. Deterministic — byte-compare against
  *  this render is the freshness truth (no dates, no counters). */
@@ -415,12 +441,12 @@ export function renderRunIndexBlock(projection: RunIndexProjection): string {
         ...(entry.by_run_id !== null ? [entry.by_run_id] : []),
         ...(entry.scope !== null ? [entry.scope] : []),
       ];
+      // No missing---by branch: the schema REQUIRES by_run_id on a
+      // supersede, so a target-less one is quarantined at read time and
+      // never reaches this scan (codex r4 — the defensive branch here was
+      // unreachable, i.e. a promise nothing could keep).
       const label = `- ${entry.verb} ${escapeMarkdownCell(entry.recorded_id)} → `;
-      if (entry.verb === 'supersede' && entry.by_run_id === null) {
-        // A supersede with no target cannot be re-issued (the CLI requires
-        // --by); inventing one would be a fabricated ruling.
-        lines.push(`${label}unresolvable: the stray supersede names no --by target — decide the replacement, then re-issue`);
-      } else if (commandArguments.every(argument => SHELL_SAFE_ARGUMENT.test(argument))) {
+      if (commandArguments.every(argument => SHELL_SAFE_ARGUMENT.test(argument))) {
         lines.push(
           `${label}nullius trace ${entry.verb} ${entry.subject}`
           + (entry.by_run_id !== null ? ` --by ${entry.by_run_id}` : '')
