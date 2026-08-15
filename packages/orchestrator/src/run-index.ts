@@ -474,12 +474,12 @@ export function renderRunIndexBlock(projection: RunIndexProjection): string {
       if (commandSafe) {
         // The --reason placeholder is deliberately UNQUOTED so a careless
         // whole-line paste fails loudly instead of booking placeholder
-        // text as a recorded reason (native r5). What actually stops it
-        // depends on the copy path (native r6): from the rendered view the
-        // real '<' is a shell redirect error; from the source view the
-        // escaped \< is literal, and the unmatched apostrophe in "line's"
-        // aborts the paste — with the CLI's extra-positional-argument
-        // refusal as the final backstop if the wording ever changes.
+        // text as a recorded reason (native r5). The actual interceptor on
+        // EITHER copy path is the unmatched apostrophe in "line's" — the
+        // shell rejects the whole line at tokenization, before any
+        // redirect could run (codex r7 corrected the earlier per-path
+        // account) — with the CLI's extra-positional-argument refusal as
+        // the final backstop if the wording ever loses its apostrophe.
         lines.push(
           `${label}nullius trace ${entry.verb} ${entry.subject}`
           + (entry.by_run_id !== null ? ` --by ${entry.by_run_id}` : '')

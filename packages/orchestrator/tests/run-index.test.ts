@@ -301,6 +301,30 @@ describe('projection and render', () => {
     expect(resolution.kind).toBe('ok');
   });
 
+  it('a healthy ruling with a dead-weight path-shaped --by earns NO repair line (native r5/r7 probe as fixture)', () => {
+    const projectRoot = makeProject();
+    mkRun(projectRoot, '20260811-m2-r420-budget-run');
+    mkRun(projectRoot, '20260811-m2-r414-closure-audit');
+    const ledgerPath = path.join(projectRoot, 'artifacts', 'runs', 'validity_ledger.jsonl');
+    // The ruling already LANDED (bare subject); the schema-tolerated
+    // by_run_id on a void is dead weight — but ITS value is path-shaped
+    // and strips to a known run, which before the verb gate made the
+    // classifier emit a bogus repair line instructing the operator to
+    // re-issue a ruling that had already landed. Discriminating for the
+    // verb gate: the earlier grammar fixture used a BARE dead-weight by,
+    // which never classified in any version.
+    fs.appendFileSync(ledgerPath, `${JSON.stringify({
+      schema_id: 'validity_event_v1', event_id: mintUlid(), ts_utc: new Date().toISOString(),
+      event: 'void', run_id: '20260811-m2-r420-budget-run',
+      by_run_id: 'artifacts/runs/20260811-m2-r414-closure-audit',
+      actor: 'test', reason: 'landed ruling with dead-weight path by',
+    })}\n`);
+    const projection = computeRunIndexProjection(projectRoot);
+    expect(projection.defects.misaddressed_rulings).toEqual([]);
+    expect(projection.defects.ledger_only).toEqual([]);
+    expect(renderRunIndexBlock(projection)).not.toContain('Misaddressed');
+  });
+
   it('a dot-reference subject renders guidance, never a command the gate refuses (native r6 counterexample)', () => {
     const projectRoot = makeProject();
     mkRun(projectRoot, '20260811-m2-r414-closure-audit');
