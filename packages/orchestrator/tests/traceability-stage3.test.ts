@@ -303,6 +303,25 @@ describe('stage-3 r1 review locks', () => {
     expect(report.sections[0]!.class).toBe('current');
   });
 
+  it('a mixed-delimiter fence does not expose a quoted section heading', () => {
+    initRepo(projectRoot);
+    const c1 = commitAt(projectRoot, '2026-08-01T10:00:00Z', 'a.txt');
+    fs.writeFileSync(path.join(projectRoot, 'research_notebook.md'), [
+      '# Notebook',
+      '## Real section',
+      `<!-- written-against: ${c1} -->`,
+      '~~~',
+      '```',
+      '## Quoted section',
+      '<!-- written-against: deadbeef00 -->',
+      '~~~',
+      'more text of the real section',
+    ].join('\n'));
+    const report = checkNotebookStaleness(projectRoot);
+    expect(report.sections).toHaveLength(1);
+    expect(report.sections[0]!.heading).toBe('Real section');
+  });
+
   it('a vanished mirror is divergence unless the ledger recorded run_dir_unwritable', () => {
     initRepo(projectRoot);
     commitAt(projectRoot, '2026-08-01T10:00:00Z', 'a.txt');
