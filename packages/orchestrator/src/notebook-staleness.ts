@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { advanceMarkdownFence, type MarkdownFence } from './managed-block.js';
 import { readValidityLedger, type ValidityLedgerView } from './validity-ledger.js';
 import { validateResultRegistry } from './result-registry.js';
 
@@ -97,13 +98,12 @@ export function splitNotebookSections(text: string): NotebookSection[] {
   const lines = text.split('\n');
   const sections: NotebookSection[] = [];
   let currentSection: NotebookSection | null = null;
-  let inFence = false;
+  let fence: MarkdownFence | null = null;
   for (const line of lines) {
-    if (/^\s*(```|~~~)/.test(line)) {
-      inFence = !inFence;
-      continue;
-    }
-    if (inFence) {
+    const fenceLine = line.endsWith('\r') ? line.slice(0, -1) : line;
+    const priorFence: MarkdownFence | null = fence;
+    fence = advanceMarkdownFence(fence, fenceLine);
+    if (priorFence !== fence || fence !== null) {
       continue;
     }
     if (/^##\s+/.test(line)) {

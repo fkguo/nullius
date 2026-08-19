@@ -4,10 +4,12 @@ import { canonicalJson, readValidityLedger, stripRunRootPrefix, type ValidityLed
 import { checkChains, currentRowLedgerDefective, parseResultRegistry, type ResultRegistryRow } from './result-registry.js';
 import { listRunDirectories, slugFamilyOf } from './run-directories.js';
 import {
+  advanceMarkdownFence,
   checkManagedBlock,
   encodeLinkTarget,
   escapeMarkdownCell,
   refreshManagedBlock,
+  type MarkdownFence,
   type ManagedBlockLocation,
   type ManagedBlockSpec,
   type ManagedBlockStatus,
@@ -540,13 +542,14 @@ export function checkRunIndexBlock(
  *  engine's own scanner reads markers. */
 function runIndexInsertOffset(text: string, _location: ManagedBlockLocation): number {
   const lines = text.split('\n');
-  let inFence = false;
+  let fence: MarkdownFence | null = null;
   let offset = 0;
   for (const line of lines) {
     const content = line.endsWith('\r') ? line.slice(0, -1) : line;
-    if (/^\s{0,3}(```|~~~)/.test(content)) {
-      inFence = !inFence;
-    } else if (!inFence && !/^(?: {4}|\t)/.test(content) && content.trim() === PROJECT_INDEX_AUTO_START) {
+    const priorFence: MarkdownFence | null = fence;
+    fence = advanceMarkdownFence(fence, content);
+    if (priorFence === fence && fence === null
+      && !/^(?: {4}|\t)/.test(content) && content.trim() === PROJECT_INDEX_AUTO_START) {
       return offset;
     }
     offset += line.length + 1;

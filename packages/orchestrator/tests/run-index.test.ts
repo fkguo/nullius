@@ -618,6 +618,20 @@ describe('refresh, hooks, and staleness', () => {
     expect(eofText.trimEnd().endsWith(RUN_INDEX_END)).toBe(true);
   });
 
+  it('does not use a PROJECT_INDEX_AUTO marker quoted in a mixed-delimiter fence', () => {
+    const projectRoot = makeProject({ withIndexFile: false });
+    fs.writeFileSync(path.join(projectRoot, 'project_index.md'), [
+      '# Index', '',
+      '~~~', '```',
+      '<!-- PROJECT_INDEX_AUTO_START -->',
+      '<!-- PROJECT_INDEX_AUTO_END -->',
+      '~~~',
+    ].join('\n'));
+    expect(refreshRunIndexBlock(projectRoot, { insertIfMissing: true }).action).toBe('inserted');
+    const text = fs.readFileSync(path.join(projectRoot, 'project_index.md'), 'utf-8');
+    expect(text.indexOf(RUN_INDEX_START)).toBeGreaterThan(text.lastIndexOf('~~~'));
+  });
+
   it('without insertIfMissing a blockless file is a skip, and duplicated markers refuse', () => {
     const projectRoot = makeProject({ withIndexFile: false });
     fs.writeFileSync(path.join(projectRoot, 'project_index.md'), '# Bare\n');

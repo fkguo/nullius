@@ -335,6 +335,33 @@ describe('refresh + check', () => {
     expect(status.in_sync).toBe(true);
   });
 
+  it('a mixed-delimiter fence keeps quoted markers out of the managed block', () => {
+    const quoted = renderCurrentStateBlock(NO_REGISTRY);
+    fs.writeFileSync(notebookPath(), [
+      '# Memo', '',
+      '~~~', '```', quoted, '~~~',
+    ].join('\n'));
+    const status = checkCurrentStateBlock(projectRoot, NO_REGISTRY);
+    expect(status.block_found).toBe(false);
+    expect(status.duplicated_markers).toBe(false);
+    expect(refreshNotebookCurrentState(projectRoot, { insertIfMissing: true }).action).toBe('inserted');
+    const text = fs.readFileSync(notebookPath(), 'utf-8');
+    const openingFence = text.indexOf('~~~');
+    expect(text.indexOf(CURRENT_STATE_START)).toBeLessThan(openingFence);
+    expect(text.indexOf(CURRENT_STATE_END)).toBeLessThan(openingFence);
+    expect(text.lastIndexOf(CURRENT_STATE_START)).toBeGreaterThan(openingFence);
+  });
+
+  it('a shorter matching delimiter does not close a quoted marker block', () => {
+    fs.writeFileSync(notebookPath(), [
+      '# Memo', '',
+      '~~~~', '~~~', renderCurrentStateBlock(NO_REGISTRY), '~~~~',
+    ].join('\n'));
+    const status = checkCurrentStateBlock(projectRoot, NO_REGISTRY);
+    expect(status.block_found).toBe(false);
+    expect(status.duplicated_markers).toBe(false);
+  });
+
   it('a canonical block moved below a heading is out of sync, and sync relocates it to front matter', () => {
     fs.writeFileSync(notebookPath(), [
       '# Memo', '', '## Results', 'Body.', '',

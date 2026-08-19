@@ -64,9 +64,31 @@ export type ManagedBlockLocation = {
 
 export const normalizeEol = (value: string): string => value.replace(/\r\n/g, '\n');
 
+/** A CommonMark fenced-code delimiter.  Closing fences must match the
+ * opener's character and be at least as long; a different delimiter inside
+ * a fence is ordinary code, not a close. */
+export type MarkdownFence = { marker: '`' | '~'; length: number };
+
+/** Advance a fenced-code state by one physical line.  The caller owns what
+ * to do with a fence line; returning the same object means that the line is
+ * ordinary content inside an open fence. */
+export function advanceMarkdownFence(
+  active: MarkdownFence | null,
+  line: string,
+): MarkdownFence | null {
+  if (active !== null) {
+    const closing = new RegExp(`^ {0,3}${active.marker}{${active.length},}[ \\t]*$`);
+    return closing.test(line) ? null : active;
+  }
+  const opening = /^ {0,3}(`{3,}|~{3,})/.exec(line);
+  if (opening === null) return null;
+  const delimiter = opening[1]!;
+  return { marker: delimiter[0]! as MarkdownFence['marker'], length: delimiter.length };
+}
+
 export function locateManagedBlock(text: string, spec: ManagedBlockSpec): ManagedBlockLocation {
   const lines = text.split('\n');
-  let inFence = false;
+  let fence: MarkdownFence | null = null;
   let offset = 0;
   let firstHeadingOffset = text.length;
   type MarkerLine = BlockBounds & { lineIndex: number };
@@ -77,9 +99,9 @@ export function locateManagedBlock(text: string, spec: ManagedBlockSpec): Manage
     const content = line.endsWith('\r') ? line.slice(0, -1) : line;
     const contentEnd = offset + content.length;
     const indentedCode = /^(?: {4}|\t)/.test(content);
-    if (/^\s{0,3}(```|~~~)/.test(content)) {
-      inFence = !inFence;
-    } else if (!inFence && !indentedCode) {
+    const priorFence: MarkdownFence | null = fence;
+    fence = advanceMarkdownFence(fence, content);
+    if (priorFence === fence && fence === null && !indentedCode) {
       const trimmed = content.trim();
       if (trimmed === spec.startMarker) starts.push({ start: offset, end: contentEnd, lineIndex });
       else if (trimmed === spec.endMarker) ends.push({ start: offset, end: contentEnd, lineIndex });
