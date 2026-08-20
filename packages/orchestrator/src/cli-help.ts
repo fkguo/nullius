@@ -49,6 +49,8 @@ Behavior:
   A \`connection_scan\` step with an empty \`recids\` paper set is skipped with a structured no-input result instead of being reported as a tool failure.
   Workflow-step execution requires a configured local MCP stdio server via \`NULLIUS_RUN_MCP_COMMAND\`
   plus optional \`NULLIUS_RUN_MCP_ARGS_JSON\` / \`NULLIUS_RUN_MCP_ENV_JSON\`.
+  Secrets must be declared separately through \`NULLIUS_RUN_MCP_CREDENTIALS_JSON\`; ambient credentials are not inherited.
+  Declare mandatory server credentials with \`NULLIUS_RUN_MCP_REQUIRED_CREDENTIALS_JSON\`; a missing value fails before spawn.
 
 Output:
   JSON execution result is written to stdout.

@@ -1,4 +1,6 @@
 import { createHash } from 'node:crypto';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import { McpError, internalError } from '@nullius/shared';
 import type { MessageContent, MessageParam, ToolResultContent, ToolUseContent } from './backends/chat-backend.js';
 import { normalizeStopReason } from './agent-runner-stop-reasons.js';
@@ -9,15 +11,45 @@ import {
   type AgentRuntimeMarkerEvent,
   type AgentRuntimeState,
 } from './agent-runner-runtime-state.js';
-import { groupToolUsesForExecution } from './agent-runner-tool-groups.js';
+import {
+  groupToolUsesForExecution,
+  snapshotJsonExecutionValue,
+  type FrozenToolUseExecution,
+  type FrozenToolUseExecutionGroup,
+} from './agent-runner-tool-groups.js';
 import type { McpToolResult, ToolCaller } from './mcp-client.js';
-import type { RunManifest, StepCheckpoint } from './run-manifest.js';
+import {
+  canonicalJson,
+  createToolAttemptIdentity,
+  type RunManifestManager,
+  type ToolAttemptClassification,
+  type ToolAttemptIdentity,
+} from './run-manifest.js';
 import type { SpanCollector } from './tracing.js';
+import { parseRunGateApprovalRequest, type RunGateApprovalRequest } from './tool-approval-envelope.js';
+import type { ToolPermissionView } from './tool-execution-policy.js';
 
 export type AgentEvent =
   | { type: 'text'; text: string }
   | { type: 'tool_call'; name: string; input: unknown; result: unknown }
-  | { type: 'approval_required'; approvalId: string; packetPath: string }
+  | {
+      type: 'approval_required';
+      authority: 'run_gate';
+      gateId: string;
+      runId: string;
+      approvalId: string;
+      packetPath: string;
+      approvalPacketSha256: string;
+    }
+  | {
+      type: 'tool_outcome_unknown';
+      stepId: string;
+      name: string;
+      inputSha256: string;
+      phase: 'dialogue' | 'recovery';
+      reason: 'dispatch_interrupted' | 'missing_durable_intent';
+      message: string;
+    }
   | AgentRuntimeMarkerEvent
   | { type: 'done'; stopReason: string; turnCount: number }
   | { type: 'error'; error: McpError };
@@ -28,100 +60,367 @@ export function asMcpError(error: unknown, prefix = ''): McpError {
   return new McpError('INTERNAL_ERROR', `${prefix}${message}`);
 }
 
-function stableStringify(value: unknown): string {
-  if (value === null || value === undefined) return 'null';
-  if (typeof value === 'string') return JSON.stringify(value);
-  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
-  if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`;
-  if (typeof value !== 'object') return JSON.stringify(value);
-  const entries = Object.entries(value as Record<string, unknown>)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([key, nested]) => `${JSON.stringify(key)}:${stableStringify(nested)}`);
-  return `{${entries.join(',')}}`;
-}
-
 function hashText(text: string): string {
   return createHash('sha256').update(text).digest('hex').slice(0, 12);
 }
 
-function checkpointSummary(result: McpToolResult): string {
-  if (typeof result.rawText === 'string' && result.rawText.length > 0) {
-    return result.rawText;
-  }
-  if (result.json !== null) {
-    return JSON.stringify(result.json);
-  }
-  return '';
-}
-
 type ToolExecutionSignature = { call: string; outcome: string; isError: boolean };
 
-async function executeToolCall(params: {
-  block: ToolUseContent;
-  turnCount: number;
-  traceId: string;
-  mcpClient: ToolCaller;
-  spanCollector: SpanCollector | null;
-  checkpointRecorder?: ((stepId: string, resultSummary: string) => void | Promise<void>) | null;
-}): Promise<{ events: AgentEvent[]; toolResult: ToolResultContent; done: boolean; signature: ToolExecutionSignature }> {
-  const toolSpan = params.spanCollector?.startSpan(params.block.name, params.traceId);
-  try {
-    const result = await params.mcpClient.callTool(params.block.name, params.block.input);
-    await params.checkpointRecorder?.(params.block.id, checkpointSummary(result));
-    toolSpan?.end(result.isError ? 'ERROR' : 'OK');
-    const resultValue = result.json ?? result.rawText;
-    const events: AgentEvent[] = [{ type: 'tool_call', name: params.block.name, input: params.block.input, result: resultValue }];
-    const json = result.json as Record<string, unknown> | null;
-    const inputSignature = stableStringify(params.block.input);
-    const callSignature = `${params.block.name}:${inputSignature}`;
-    const outcomeSignature = `${callSignature}:${result.isError ? 'err' : 'ok'}:${hashText(result.rawText)}`;
-    const signature: ToolExecutionSignature = { call: callSignature, outcome: outcomeSignature, isError: result.isError };
-    if (json?.['requires_approval'] === true) {
-      events.push({ type: 'approval_required', approvalId: String(json['approval_id'] ?? ''), packetPath: String(json['packet_path'] ?? '') });
-      events.push({ type: 'done', stopReason: 'approval_required', turnCount: params.turnCount });
-      return { events, toolResult: { type: 'tool_result', tool_use_id: params.block.id, content: result.rawText }, done: true, signature };
-    }
-    return { events, toolResult: { type: 'tool_result', tool_use_id: params.block.id, content: result.rawText }, done: false, signature };
-  } catch (error) {
-    toolSpan?.end('ERROR');
-    throw asMcpError(error, 'Tool call failed: ');
+type ToolExecution = {
+  events: AgentEvent[];
+  toolResult: ToolResultContent | null;
+  done: boolean;
+  signature: ToolExecutionSignature | null;
+  unknown: boolean;
+};
+
+function snapshotAssistantContent(blocks: MessageContent[]): MessageContent[] {
+  const snapshot = snapshotJsonExecutionValue(blocks, 'assistant response.content');
+  if (!Array.isArray(snapshot)) {
+    throw internalError('Assistant response content must be an array.');
   }
+  for (const [index, block] of snapshot.entries()) {
+    if (!block || typeof block !== 'object' || Array.isArray(block)) {
+      throw internalError(`Assistant response block ${index} must be an object.`);
+    }
+    const type = (block as Record<string, unknown>)['type'];
+    if (type !== 'text' && type !== 'tool_use' && type !== 'tool_result') {
+      throw internalError(`Assistant response block ${index} has an unsupported type.`);
+    }
+    if (type === 'text' && typeof (block as Record<string, unknown>)['text'] !== 'string') {
+      throw internalError(`Assistant response text block ${index} is malformed.`);
+    }
+    if (type === 'tool_result'
+      && (typeof (block as Record<string, unknown>)['tool_use_id'] !== 'string'
+        || typeof (block as Record<string, unknown>)['content'] !== 'string')) {
+      throw internalError(`Assistant response tool-result block ${index} is malformed.`);
+    }
+  }
+  return snapshot as MessageContent[];
 }
 
-async function executeToolUseGroups(params: {
-  blocks: ToolUseContent[];
+function toolExecutionSignature(block: ToolUseContent, result: McpToolResult): ToolExecutionSignature {
+  const call = `${block.name}:${canonicalJson(block.input)}`;
+  return {
+    call,
+    outcome: `${call}:${result.isError ? 'err' : 'ok'}:${hashText(result.rawText)}`,
+    isError: result.isError,
+  };
+}
+
+function toolCallEvent(block: ToolUseContent, result: McpToolResult): AgentEvent {
+  return { type: 'tool_call', name: block.name, input: block.input, result: result.json ?? result.rawText };
+}
+
+function approvalEvents(request: RunGateApprovalRequest, turnCount: number): AgentEvent[] {
+  return [
+    {
+      type: 'approval_required',
+      authority: request.authority,
+      gateId: request.gateId,
+      runId: request.runId,
+      approvalId: request.approvalId,
+      packetPath: request.packetPath,
+      approvalPacketSha256: request.approvalPacketSha256,
+    },
+    { type: 'done', stopReason: 'approval_required', turnCount },
+  ];
+}
+
+function unknownExecution(params: {
+  attempt: ToolAttemptIdentity;
+  block: ToolUseContent;
+  phase: 'dialogue' | 'recovery';
   turnCount: number;
+  reason: 'dispatch_interrupted' | 'missing_durable_intent';
+  error?: unknown;
+}): ToolExecution {
+  const detail = params.error instanceof Error ? params.error.message : params.error ? String(params.error) : '';
+  const message = params.reason === 'missing_durable_intent'
+    ? 'The pending tool call has no durable pre-dispatch intent. Automatic execution is unsafe.'
+    : `The tool was dispatched but its outcome is not durably known.${detail ? ` ${detail}` : ''}`;
+  return {
+    events: [
+      {
+        type: 'tool_outcome_unknown',
+        stepId: params.attempt.step_id,
+        name: params.block.name,
+        inputSha256: params.attempt.input_sha256,
+        phase: params.phase,
+        reason: params.reason,
+        message,
+      },
+      { type: 'done', stopReason: 'tool_outcome_unknown', turnCount: params.turnCount },
+    ],
+    toolResult: null,
+    done: true,
+    signature: null,
+    unknown: true,
+  };
+}
+
+function committedExecution(params: {
+  frozen: FrozenToolUseExecution;
+  result: McpToolResult;
+  turnCount: number;
+}): ToolExecution {
+  const approval = parseRunGateApprovalRequest(
+    params.frozen.toolUse.name,
+    params.result,
+    params.frozen.executionPolicy,
+  );
+  if (approval) {
+    throw internalError('A run-gate approval response must never be stored as a committed tool checkpoint.');
+  }
+  return {
+    events: [toolCallEvent(params.frozen.toolUse, params.result)],
+    toolResult: {
+      type: 'tool_result',
+      tool_use_id: params.frozen.toolUse.id,
+      content: params.result.rawText,
+    },
+    done: false,
+    signature: toolExecutionSignature(params.frozen.toolUse, params.result),
+    unknown: false,
+  };
+}
+
+async function callDispatchedTool(params: {
+  frozen: FrozenToolUseExecution;
+  attempt: ToolAttemptIdentity;
+  turnCount: number;
+  phase: 'dialogue' | 'recovery';
   traceId: string;
   mcpClient: ToolCaller;
   spanCollector: SpanCollector | null;
-  checkpointRecorder?: ((stepId: string, resultSummary: string) => void | Promise<void>) | null;
+  manifestManager: RunManifestManager;
+  runId: string;
+  approvalRunId: string;
+}): Promise<ToolExecution> {
+  const { frozen, attempt } = params;
+  const toolSpan = params.spanCollector?.startSpan(frozen.toolUse.name, params.traceId);
+  let result: McpToolResult;
+  try {
+    result = await params.mcpClient.callTool(frozen.toolUse.name, frozen.toolUse.input);
+  } catch (error) {
+    toolSpan?.end('ERROR');
+    return unknownExecution({
+      attempt,
+      block: frozen.toolUse,
+      phase: params.phase,
+      turnCount: params.turnCount,
+      reason: 'dispatch_interrupted',
+      error,
+    });
+  }
+
+  let approval: RunGateApprovalRequest | null;
+  try {
+    approval = parseRunGateApprovalRequest(frozen.toolUse.name, result, frozen.executionPolicy);
+  } catch (error) {
+    try {
+      params.manifestManager.commitToolAttempt(params.runId, attempt, result);
+    } catch (commitError) {
+      toolSpan?.end('ERROR');
+      return unknownExecution({
+        attempt,
+        block: frozen.toolUse,
+        phase: params.phase,
+        turnCount: params.turnCount,
+        reason: 'dispatch_interrupted',
+        error: commitError,
+      });
+    }
+    toolSpan?.end('ERROR');
+    throw error;
+  }
+
+  if (approval) {
+    if (approval.runId !== params.approvalRunId) {
+      try {
+        params.manifestManager.commitToolAttempt(params.runId, attempt, result);
+      } catch (commitError) {
+        toolSpan?.end('ERROR');
+        return unknownExecution({
+          attempt,
+          block: frozen.toolUse,
+          phase: params.phase,
+          turnCount: params.turnCount,
+          reason: 'dispatch_interrupted',
+          error: commitError,
+        });
+      }
+      toolSpan?.end('ERROR');
+      throw internalError(
+        `Tool ${frozen.toolUse.name} returned an approval for run ${approval.runId}, expected ${params.approvalRunId}.`,
+      );
+    }
+    try {
+      params.manifestManager.resetOutcomeUnknownAtApprovalBoundary(params.runId, attempt, {
+        authority: approval.authority,
+        gate_id: approval.gateId,
+        run_id: approval.runId,
+        approval_id: approval.approvalId,
+        packet_path: approval.packetPath,
+        approval_packet_sha256: approval.approvalPacketSha256,
+      });
+    } catch (error) {
+      toolSpan?.end('ERROR');
+      return unknownExecution({
+        attempt,
+        block: frozen.toolUse,
+        phase: params.phase,
+        turnCount: params.turnCount,
+        reason: 'dispatch_interrupted',
+        error,
+      });
+    }
+    toolSpan?.end('OK');
+    return {
+      events: [toolCallEvent(frozen.toolUse, result), ...approvalEvents(approval, params.turnCount)],
+      toolResult: null,
+      done: true,
+      signature: toolExecutionSignature(frozen.toolUse, result),
+      unknown: false,
+    };
+  }
+
+  try {
+    params.manifestManager.commitToolAttempt(params.runId, attempt, result);
+  } catch (error) {
+    toolSpan?.end('ERROR');
+    return unknownExecution({
+      attempt,
+      block: frozen.toolUse,
+      phase: params.phase,
+      turnCount: params.turnCount,
+      reason: 'dispatch_interrupted',
+      error,
+    });
+  }
+  toolSpan?.end(result.isError ? 'ERROR' : 'OK');
+  return committedExecution({ frozen, result, turnCount: params.turnCount });
+}
+
+function classificationByStep(
+  classifications: ReadonlyArray<ToolAttemptClassification>,
+): Map<string, ToolAttemptClassification> {
+  return new Map(classifications.map(classification => [classification.identity.step_id, classification]));
+}
+
+function normalizedProjectRoot(value: string): string {
+  const expanded = value === '~'
+    ? os.homedir()
+    : value.startsWith('~/')
+      ? path.join(os.homedir(), value.slice(2))
+      : value;
+  return path.resolve(expanded);
+}
+
+async function executePreparedToolUseGroups(params: {
+  groups: ReadonlyArray<FrozenToolUseExecutionGroup>;
+  attempts: ReadonlyArray<ToolAttemptIdentity>;
+  turnCount: number;
+  phase: 'dialogue' | 'recovery';
+  traceId: string;
+  mcpClient: ToolCaller;
+  spanCollector: SpanCollector | null;
+  manifestManager: RunManifestManager;
+  runId: string;
+  approvalRunId: string;
 }): Promise<{ events: AgentEvent[]; toolResults: ToolResultContent[]; done: boolean; signatures: ToolExecutionSignature[] }> {
+  const classifications = params.manifestManager.classifyToolAttempts(params.runId, params.attempts);
+  const classificationMap = classificationByStep(classifications);
+  const unsafe = classifications.find(item => item.state === 'outcome_unknown' || item.state === 'missing');
+  if (unsafe) {
+    const frozen = params.groups.flat().find(item => item.toolUse.id === unsafe.identity.step_id);
+    if (!frozen) throw internalError(`Missing frozen tool use for ${unsafe.identity.step_id}.`);
+    const unknown = unknownExecution({
+      attempt: unsafe.identity,
+      block: frozen.toolUse,
+      phase: params.phase,
+      turnCount: params.turnCount,
+      reason: unsafe.state === 'missing' ? 'missing_durable_intent' : 'dispatch_interrupted',
+    });
+    return { events: unknown.events, toolResults: [], done: true, signatures: [] };
+  }
+
   const events: AgentEvent[] = [];
   const toolResults: ToolResultContent[] = [];
   const signatures: ToolExecutionSignature[] = [];
 
-  for (const group of groupToolUsesForExecution(params.blocks, params.mcpClient)) {
-    const executions = group.length > 1
-      ? await Promise.all(group.map(block => executeToolCall({ ...params, block })))
-      : [await executeToolCall({ ...params, block: group[0]! })];
+  for (const group of params.groups) {
+    const toDispatch = group.filter(item => classificationMap.get(item.toolUse.id)?.state === 'not_started');
+    if (toDispatch.length > 0) {
+      params.manifestManager.markToolIntentsDispatched(
+        params.runId,
+        toDispatch.map(item => params.attempts.find(attempt => attempt.step_id === item.toolUse.id)!),
+      );
+    }
 
-    for (const [index, execution] of executions.entries()) {
-      if (group.length > 1 && execution.done) {
-        throw internalError(
-          `Batch-safe tool ${group[index]!.name} unexpectedly requested approval during parallel execution.`,
-        );
+    const executions = await Promise.all(group.map(async frozen => {
+      const attempt = params.attempts.find(item => item.step_id === frozen.toolUse.id);
+      if (!attempt) throw internalError(`Missing tool attempt identity for ${frozen.toolUse.id}.`);
+      const classification = classificationMap.get(frozen.toolUse.id);
+      if (!classification) throw internalError(`Missing tool attempt classification for ${frozen.toolUse.id}.`);
+      if (classification.state === 'committed') {
+        return committedExecution({ frozen, result: classification.result, turnCount: params.turnCount });
       }
+      return callDispatchedTool({ ...params, frozen, attempt });
+    }));
+
+    const unknown = executions.find(execution => execution.unknown);
+    if (unknown) {
+      return { events: [...events, ...unknown.events], toolResults: [], done: true, signatures };
+    }
+    for (const execution of executions) {
       events.push(...execution.events);
+      if (execution.signature) signatures.push(execution.signature);
       if (execution.done) {
-        signatures.push(execution.signature);
-        return { events, toolResults, signatures, done: true };
+        return { events, toolResults: [], done: true, signatures };
       }
-      toolResults.push(execution.toolResult);
-      signatures.push(execution.signature);
+      if (execution.toolResult) toolResults.push(execution.toolResult);
     }
   }
+  return { events, toolResults, done: false, signatures };
+}
 
-  return { events, toolResults, signatures, done: false };
+function prepareToolUses(params: {
+  blocks: ToolUseContent[];
+  runId: string;
+  approvalRunId: string;
+  approvalProjectRoot: string;
+  permissionView: ToolPermissionView;
+  manifestManager: RunManifestManager;
+  observe: boolean;
+}): { groups: ReadonlyArray<FrozenToolUseExecutionGroup>; attempts: ToolAttemptIdentity[] } {
+  // Authorize and freeze the entire turn before persisting or dispatching any
+  // model-authored call. Approval-producing tools must target the root run in
+  // their input; validating only the returned envelope would be too late for a
+  // stateful tool that already acted on a different run.
+  const groups = groupToolUsesForExecution(params.blocks, params.permissionView);
+  for (const frozen of groups.flat()) {
+    if (frozen.executionPolicy.approval_behavior !== 'may_request') continue;
+    if (frozen.toolUse.input['run_id'] !== params.approvalRunId) {
+      throw internalError(
+        `Approval-producing tool ${frozen.toolUse.name} must target root run ${params.approvalRunId}.`,
+      );
+    }
+    const requestedProjectRoot = frozen.toolUse.input['project_root'];
+    if (typeof requestedProjectRoot !== 'string'
+      || normalizedProjectRoot(requestedProjectRoot) !== normalizedProjectRoot(params.approvalProjectRoot)) {
+      throw internalError(
+        `Approval-producing tool ${frozen.toolUse.name} must target the delegated runtime project root.`,
+      );
+    }
+  }
+  const attempts = groups.flat().map(frozen => createToolAttemptIdentity({
+    stepId: frozen.toolUse.id,
+    toolName: frozen.toolUse.name,
+    input: frozen.toolUse.input,
+  }));
+  if (params.observe) params.manifestManager.observeToolIntents(params.runId, attempts);
+  return { groups, attempts };
 }
 
 export async function handleAssistantResponse(params: {
@@ -131,70 +430,57 @@ export async function handleAssistantResponse(params: {
   turnCount: number;
   runtimeState: AgentRuntimeState;
   traceId: string;
+  runId: string;
+  approvalRunId: string;
+  approvalProjectRoot: string;
   mcpClient: ToolCaller;
+  permissionView: ToolPermissionView;
+  manifestManager: RunManifestManager;
   spanCollector: SpanCollector | null;
-  checkpointRecorder?: ((stepId: string, resultSummary: string) => void | Promise<void>) | null;
 }): Promise<{ events: AgentEvent[]; messages: MessageParam[]; done: boolean }> {
-  const assistantContent: MessageContent[] = [];
-  const toolResults: ToolResultContent[] = [];
-  const events: AgentEvent[] = [];
-  let pendingToolUses: ToolUseContent[] = [];
-  const toolSignatures: ToolExecutionSignature[] = [];
-
-  const flushPendingToolUses = async (): Promise<boolean> => {
-    if (pendingToolUses.length === 0) {
-      return false;
-    }
-    const grouped = await executeToolUseGroups({
-      blocks: pendingToolUses,
-      turnCount: params.turnCount,
-      traceId: params.traceId,
-      mcpClient: params.mcpClient,
-      spanCollector: params.spanCollector,
-      checkpointRecorder: params.checkpointRecorder,
-    });
-    pendingToolUses = [];
-    events.push(...grouped.events);
-    if (grouped.done) {
-      return true;
-    }
-    toolResults.push(...grouped.toolResults);
-    toolSignatures.push(...grouped.signatures);
-    return false;
-  };
-
-  for (const block of params.blocks) {
-    if (block.type === 'text') {
-      if (await flushPendingToolUses()) return { events, messages: params.messages, done: true };
-      assistantContent.push(block);
-      if (block.text.trim()) events.push({ type: 'text', text: block.text });
-      continue;
-    }
-    if (block.type !== 'tool_use') {
-      if (await flushPendingToolUses()) return { events, messages: params.messages, done: true };
-      assistantContent.push(block);
-      continue;
-    }
-    assistantContent.push(block);
-    pendingToolUses.push(block);
-  }
-
-  if (await flushPendingToolUses()) return { events, messages: params.messages, done: true };
-
+  const assistantContent = snapshotAssistantContent(params.blocks);
+  const toolUses = assistantContent.filter((block): block is ToolUseContent => block.type === 'tool_use');
+  const events: AgentEvent[] = assistantContent.flatMap(block => (
+    block.type === 'text' && block.text.trim() ? [{ type: 'text' as const, text: block.text }] : []
+  ));
   const stopReason = normalizeStopReason(params.stopReason);
-  if (toolResults.length > 0) {
+
+  if (toolUses.length > 0) {
     if (stopReason.kind === 'truncation') {
       throw internalError('Assistant response hit max_tokens while requesting tool execution.');
     }
-    const callSignature = toolSignatures.map(signature => signature.call).join('|');
-    const outcomeSignature = toolSignatures.map(signature => signature.outcome).join('|');
-    const toolErrorCount = toolSignatures.filter(signature => signature.isError).length;
+    const prepared = prepareToolUses({
+      blocks: toolUses,
+      runId: params.runId,
+      approvalRunId: params.approvalRunId,
+      approvalProjectRoot: params.approvalProjectRoot,
+      permissionView: params.permissionView,
+      manifestManager: params.manifestManager,
+      observe: true,
+    });
+    const executed = await executePreparedToolUseGroups({
+      ...prepared,
+      turnCount: params.turnCount,
+      phase: 'dialogue',
+      traceId: params.traceId,
+      mcpClient: params.mcpClient,
+      spanCollector: params.spanCollector,
+      manifestManager: params.manifestManager,
+      runId: params.runId,
+      approvalRunId: params.approvalRunId,
+    });
+    events.push(...executed.events);
+    if (executed.done) return { events, messages: params.messages, done: true };
+
+    const callSignature = executed.signatures.map(signature => signature.call).join('|');
+    const outcomeSignature = executed.signatures.map(signature => signature.outcome).join('|');
+    const toolErrorCount = executed.signatures.filter(signature => signature.isError).length;
     const lowGain = evaluateLowGainTurn({
       turnCount: params.turnCount,
       runtimeState: params.runtimeState,
       toolCallSignature: callSignature,
       toolOutcomeSignature: outcomeSignature,
-      toolCallCount: toolSignatures.length,
+      toolCallCount: executed.signatures.length,
       toolErrorCount,
     });
     events.push(...lowGain.markers);
@@ -207,11 +493,12 @@ export async function handleAssistantResponse(params: {
       messages: [
         ...params.messages,
         { role: 'assistant', content: assistantContent },
-        { role: 'user', content: toolResults },
+        { role: 'user', content: executed.toolResults },
       ],
       done: false,
     };
   }
+
   if (stopReason.kind === 'tool_use') {
     throw internalError('Assistant returned tool_use stop_reason without tool_use blocks.');
   }
@@ -235,76 +522,44 @@ export async function handleAssistantResponse(params: {
 
 export async function resolveIncompleteToolUses(params: {
   messages: MessageParam[];
-  manifest: RunManifest | null;
+  runId: string;
+  approvalRunId: string;
+  approvalProjectRoot: string;
   mcpClient: ToolCaller;
-  checkpointRecorder?: ((stepId: string, resultSummary: string) => void | Promise<void>) | null;
-  shouldSkipStep?: ((manifest: RunManifest, stepId: string) => boolean) | null;
+  permissionView: ToolPermissionView;
+  manifestManager: RunManifestManager;
+  traceId?: string;
+  spanCollector?: SpanCollector | null;
 }): Promise<{ events: AgentEvent[]; messages: MessageParam[]; done: boolean } | null> {
   const last = params.messages[params.messages.length - 1];
   if (!last || last.role !== 'assistant' || !Array.isArray(last.content)) return null;
-  const pendingToolUses = last.content.filter((block): block is ToolUseContent => (block as MessageContent).type === 'tool_use');
+  const pendingToolUses = last.content.filter((block): block is ToolUseContent => block.type === 'tool_use');
   if (pendingToolUses.length === 0) return null;
 
-  // B-8 fix: all-or-nothing batch staging.
-  //
-  // Previously this loop committed cached `tool_result` blocks to the
-  // message thread *eagerly* and only checked for an approval gate on the
-  // fresh tool call. If a batch contained `[cached_block, approval_block]`
-  // the cached result was committed BEFORE the approval gate fired, leaving
-  // the message thread in an inconsistent state on resume (the cached
-  // block looked resolved; the approval block looked unresolved) and
-  // leaking partial state to the model if approval was later denied.
-  //
-  // Fix: stage all events + tool_results locally. If ANY fresh tool call
-  // in the batch raises `requires_approval`, return with the approval
-  // event but discard ALL staged tool_results (`messages: params.messages`
-  // unchanged). The whole batch re-runs after approval, including the
-  // cached lookups (which are idempotent — they just re-emit the same
-  // cached value from the manifest checkpoint).
-  const events: AgentEvent[] = [];
-  const stagedToolResults: ToolResultContent[] = [];
-  let approvalRequired: { approvalId: string; packetPath: string } | null = null;
-
-  for (const toolUse of pendingToolUses) {
-    const checkpoint = params.manifest?.checkpoints.find((item: StepCheckpoint) => item.step_id === toolUse.id);
-    const shouldSkip = checkpoint && params.manifest
-      ? (params.shouldSkipStep?.(params.manifest, toolUse.id) ?? Boolean(params.manifest.resume_from))
-      : false;
-    if (checkpoint && shouldSkip) {
-      const cached = checkpoint.result_summary ?? '';
-      events.push({ type: 'tool_call', name: toolUse.name, input: toolUse.input, result: cached });
-      stagedToolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, content: cached });
-      continue;
-    }
-    try {
-      const result = await params.mcpClient.callTool(toolUse.name, toolUse.input);
-      await params.checkpointRecorder?.(toolUse.id, checkpointSummary(result));
-      const resultValue = result.json ?? result.rawText;
-      const json = result.json as Record<string, unknown> | null;
-      events.push({ type: 'tool_call', name: toolUse.name, input: toolUse.input, result: resultValue });
-      if (json?.['requires_approval'] === true) {
-        approvalRequired = {
-          approvalId: String(json['approval_id'] ?? ''),
-          packetPath: String(json['packet_path'] ?? ''),
-        };
-        break;
-      }
-      stagedToolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, content: result.rawText });
-    } catch (error) {
-      const mcpError = asMcpError(error);
-      events.push({ type: 'error', error: mcpError });
-      stagedToolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, content: `Error: ${mcpError.message}` });
-    }
-  }
-
-  if (approvalRequired) {
-    events.push({ type: 'approval_required', approvalId: approvalRequired.approvalId, packetPath: approvalRequired.packetPath });
-    events.push({ type: 'done', stopReason: 'approval_required', turnCount: 0 });
-    // All-or-nothing: discard every staged tool_result; do NOT extend the
-    // message thread. The next resume re-enters this function and re-runs
-    // the whole batch (cached lookups are idempotent).
-    return { events, messages: params.messages, done: true };
-  }
-
-  return { events, messages: [...params.messages, { role: 'user', content: stagedToolResults }], done: false };
+  const prepared = prepareToolUses({
+    blocks: pendingToolUses,
+    runId: params.runId,
+    approvalRunId: params.approvalRunId,
+    approvalProjectRoot: params.approvalProjectRoot,
+    permissionView: params.permissionView,
+    manifestManager: params.manifestManager,
+    observe: false,
+  });
+  const executed = await executePreparedToolUseGroups({
+    ...prepared,
+    turnCount: 0,
+    phase: 'recovery',
+    traceId: params.traceId ?? 'recovery',
+    mcpClient: params.mcpClient,
+    spanCollector: params.spanCollector ?? null,
+    manifestManager: params.manifestManager,
+    runId: params.runId,
+    approvalRunId: params.approvalRunId,
+  });
+  if (executed.done) return { events: executed.events, messages: params.messages, done: true };
+  return {
+    events: executed.events,
+    messages: [...params.messages, { role: 'user', content: executed.toolResults }],
+    done: false,
+  };
 }

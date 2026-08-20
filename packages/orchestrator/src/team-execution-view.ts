@@ -39,9 +39,7 @@ export interface TeamAssignmentView {
   forked_from_session_id: string | null;
   last_completed_step: string | null;
   resume_from: string | null;
-  approval_id: string | null;
-  approval_packet_path: string | null;
-  approval_requested_at: string | null;
+  pending_approval: TeamExecutionState['delegate_assignments'][number]['pending_approval'];
   delegation_protocol: TeamDelegationProtocol;
 }
 
@@ -64,7 +62,7 @@ export interface TeamBackgroundTaskView {
   checkpoint_id: string | null;
   last_completed_step: string | null;
   resume_from: string | null;
-  approval_id: string | null;
+  pending_approval: TeamExecutionState['delegate_assignments'][number]['pending_approval'];
 }
 
 export interface TeamLiveStatusView {
@@ -130,9 +128,7 @@ function toAssignmentView(
     forked_from_session_id: assignment.forked_from_session_id,
     last_completed_step: assignment.last_completed_step,
     resume_from: assignment.resume_from,
-    approval_id: assignment.approval_id,
-    approval_packet_path: assignment.approval_packet_path,
-    approval_requested_at: assignment.approval_requested_at,
+    pending_approval: assignment.pending_approval ? { ...assignment.pending_approval } : null,
     delegation_protocol: assignment.delegation_protocol,
   };
 }
@@ -166,7 +162,7 @@ function toBackgroundTaskView(
     checkpoint_id: assignment.checkpoint_id,
     last_completed_step: assignment.last_completed_step,
     resume_from: assignment.resume_from,
-    approval_id: assignment.approval_id,
+    pending_approval: assignment.pending_approval ? { ...assignment.pending_approval } : null,
   };
 }
 

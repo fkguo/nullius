@@ -55,8 +55,30 @@ export function buildDelegatedToolPermissionView(
 
 type DelegatedRuntimePermissionCompileInput = TeamExecutionAssignmentInput & Partial<Pick<
   TeamDelegateAssignment,
-  'approval_id' | 'approval_packet_path' | 'approval_requested_at'
+  'pending_approval'
 >>;
+
+function assignmentApprovalGrantMetadata(
+  assignment: DelegatedRuntimePermissionCompileInput,
+): {
+  assignment_approval_id: string | null;
+  assignment_approval_packet_path: string | null;
+  assignment_approval_requested_at: string | null;
+} {
+  const pending = assignment.pending_approval;
+  if (pending?.authority !== 'team_assignment') {
+    return {
+      assignment_approval_id: null,
+      assignment_approval_packet_path: null,
+      assignment_approval_requested_at: null,
+    };
+  }
+  return {
+    assignment_approval_id: pending.approval_id,
+    assignment_approval_packet_path: pending.packet_path,
+    assignment_approval_requested_at: pending.requested_at,
+  };
+}
 
 function runtimeToolNames(tools: ReadonlyArray<Pick<Tool, 'name'>>): string[] {
   const names = new Set<string>();
@@ -100,9 +122,7 @@ export function compileDelegatedRuntimePermissionProfile(
         mode: 'inherit_gate',
         grant_scope: 'assignment',
         reviewer: assignment.owner_role,
-        assignment_approval_id: assignment.approval_id ?? null,
-        assignment_approval_packet_path: assignment.approval_packet_path ?? null,
-        assignment_approval_requested_at: assignment.approval_requested_at ?? null,
+        ...assignmentApprovalGrantMetadata(assignment),
       },
     });
   }
@@ -199,9 +219,7 @@ export function compileDelegatedRuntimePermissionProfile(
       mode: 'inherit_gate',
       grant_scope: 'assignment',
       reviewer: assignment.owner_role,
-      assignment_approval_id: assignment.approval_id ?? null,
-      assignment_approval_packet_path: assignment.approval_packet_path ?? null,
-      assignment_approval_requested_at: assignment.approval_requested_at ?? null,
+      ...assignmentApprovalGrantMetadata(assignment),
     },
   });
 }

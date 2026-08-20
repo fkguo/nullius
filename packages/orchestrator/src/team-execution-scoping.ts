@@ -28,7 +28,7 @@ function pendingApprovalFromAssignment(
   runId: string,
   assignment: TeamDelegateAssignment,
 ): TeamPendingApproval | null {
-  if (!assignment.approval_id || !assignment.approval_packet_path || !assignment.approval_requested_at) {
+  if (!assignment.pending_approval) {
     return null;
   }
   if (!assignmentNeedsApprovalAttention(assignment.status, assignment.paused_from_status)) {
@@ -39,13 +39,11 @@ function pendingApprovalFromAssignment(
     assignment_id: assignment.assignment_id,
   });
   return {
-    approval_id: assignment.approval_id,
+    ...assignment.pending_approval,
     agent_id: assignment.delegate_id,
     assignment_id: assignment.assignment_id,
     session_id: assignment.session_id,
     runtime_run_id: execution.runtime_run_id,
-    packet_path: assignment.approval_packet_path,
-    requested_at: assignment.approval_requested_at,
   };
 }
 
@@ -108,15 +106,11 @@ export function normalizeTeamScopingState(state: TeamExecutionState, runId: stri
           : {}),
       };
     }
-    assignment.approval_id ??= null;
-    assignment.approval_packet_path ??= null;
-    assignment.approval_requested_at ??= null;
+    assignment.pending_approval ??= null;
     assignment.pending_redirect ??= null;
     if (['completed', 'failed', 'timed_out', 'cancelled', 'cascade_stopped'].includes(assignment.status)) {
       assignment.pending_redirect = null;
-      assignment.approval_id = null;
-      assignment.approval_packet_path = null;
-      assignment.approval_requested_at = null;
+      assignment.pending_approval = null;
     }
   }
   const assignmentIds = new Set(state.delegate_assignments.map(item => item.assignment_id));

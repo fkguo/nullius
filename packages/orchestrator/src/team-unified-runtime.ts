@@ -76,9 +76,7 @@ export async function executeUnifiedTeamRuntime(
     permissions: input.permissions,
   }, input.runId);
   for (const assignment of state.delegate_assignments) {
-    assignment.approval_id ??= null;
-    assignment.approval_packet_path ??= null;
-    assignment.approval_requested_at ??= null;
+    assignment.pending_approval ??= null;
     assignment.pending_redirect ??= null;
     assignment.session_id ??= null;
   }
@@ -88,7 +86,9 @@ export async function executeUnifiedTeamRuntime(
   preparedAssignments.forEach(assignment =>
     ensureAssignmentRegistration(state, input, assignment),
   );
-  for (const command of input.interventions ?? []) applyTeamIntervention(state, command);
+  for (const command of input.interventions ?? []) {
+    applyTeamIntervention(state, command, { projectRoot: input.projectRoot });
+  }
   for (const assignment of state.delegate_assignments) {
     assignment.delegation_protocol = buildRuntimeProtocol(input, state, assignment, assignment.assignment_id);
   }

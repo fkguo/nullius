@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import { ORCH_RUN_APPROVE } from '@nullius/shared';
 
 import {
   compileWorkflowRuntimeRequest,
   executeWorkflowRuntimeRequest,
+  loadWorkflowToolServerConfigFromEnv,
   normalizeWorkflowRuntimeResult,
   type PersistedWorkflowPlanStep,
   type WorkflowRuntimeRequest,
@@ -53,8 +55,13 @@ function makeRequest(overrides?: Partial<WorkflowRuntimeRequest>): WorkflowRunti
 }
 
 async function withEnv<T>(env: Record<string, string | undefined>, fn: () => Promise<T>): Promise<T> {
+  const isolatedEnv = {
+    NULLIUS_RUN_MCP_CREDENTIALS_JSON: undefined,
+    NULLIUS_RUN_MCP_REQUIRED_CREDENTIALS_JSON: undefined,
+    ...env,
+  };
   const previous = new Map<string, string | undefined>();
-  for (const [key, value] of Object.entries(env)) {
+  for (const [key, value] of Object.entries(isolatedEnv)) {
     previous.set(key, process.env[key]);
     if (value === undefined) {
       delete process.env[key];
@@ -199,6 +206,75 @@ describe('workflow runtime normalize', () => {
 });
 
 describe('workflow runtime diagnostics', () => {
+  it('keeps MCP config and credentials in distinct explicit maps', async () => {
+    await withEnv({
+      NULLIUS_RUN_MCP_COMMAND: 'mock-mcp',
+      NULLIUS_RUN_MCP_ARGS_JSON: '["--stdio"]',
+      NULLIUS_RUN_MCP_ENV_JSON: '{"HEP_TOOL_MODE":"standard"}',
+      NULLIUS_RUN_MCP_CREDENTIALS_JSON: '{"OPENALEX_API_KEY":"declared-secret"}',
+      NULLIUS_RUN_MCP_REQUIRED_CREDENTIALS_JSON: '["OPENALEX_API_KEY"]',
+    }, async () => {
+      expect(loadWorkflowToolServerConfigFromEnv()).toEqual({
+        command: 'mock-mcp',
+        args: ['--stdio'],
+        configEnv: { HEP_TOOL_MODE: 'standard' },
+        credentials: { OPENALEX_API_KEY: 'declared-secret' },
+        requiredCredentialNames: ['OPENALEX_API_KEY'],
+      });
+    });
+  });
+
+  it('rejects non-string MCP credential declarations without exposing values', async () => {
+    await withEnv({
+      NULLIUS_RUN_MCP_COMMAND: 'mock-mcp',
+      NULLIUS_RUN_MCP_ARGS_JSON: undefined,
+      NULLIUS_RUN_MCP_ENV_JSON: undefined,
+      NULLIUS_RUN_MCP_CREDENTIALS_JSON: '{"OPENALEX_API_KEY":123}',
+    }, async () => {
+      expect(() => loadWorkflowToolServerConfigFromEnv()).toThrow(
+        'NULLIUS_RUN_MCP_CREDENTIALS_JSON must decode to a JSON object with string values',
+      );
+    });
+  });
+
+  it('rejects malformed required-credential declarations', async () => {
+    await withEnv({
+      NULLIUS_RUN_MCP_COMMAND: 'mock-mcp',
+      NULLIUS_RUN_MCP_ARGS_JSON: undefined,
+      NULLIUS_RUN_MCP_ENV_JSON: undefined,
+      NULLIUS_RUN_MCP_CREDENTIALS_JSON: undefined,
+      NULLIUS_RUN_MCP_REQUIRED_CREDENTIALS_JSON: '{"OPENALEX_API_KEY":true}',
+    }, async () => {
+      expect(() => loadWorkflowToolServerConfigFromEnv()).toThrow(
+        'NULLIUS_RUN_MCP_REQUIRED_CREDENTIALS_JSON must decode to a JSON string array',
+      );
+    });
+  });
+
+  it('never dispatches an approval resolver through the workflow adapter', async () => {
+    let calls = 0;
+    const result = await executeWorkflowRuntimeRequest(
+      makeRequest({ tool: ORCH_RUN_APPROVE }),
+      {
+        workflowToolCaller: {
+          callTool: async () => {
+            calls += 1;
+            return { ok: true, isError: false, rawText: 'forbidden', json: null, errorCode: null };
+          },
+        },
+      },
+    );
+
+    expect(calls).toBe(0);
+    expect(result.status).toBe('failed');
+    expect(result.diagnostics).toEqual([
+      expect.objectContaining({
+        code: 'tool_call_failed',
+        message: expect.stringContaining('canonical host/operator approval surface'),
+      }),
+    ]);
+  });
+
   it('classifies unsupported tool execution as skipped when degrade_mode=skip_with_reason', async () => {
     const result = await executeWorkflowRuntimeRequest(
       makeRequest({ degrade_mode: 'skip_with_reason' }),

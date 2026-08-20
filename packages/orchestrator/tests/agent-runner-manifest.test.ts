@@ -4,6 +4,8 @@ import * as path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AgentRunner, _resetLaneQueue, type AgentEvent, type MessageParam, type Tool } from '../src/agent-runner.js';
 import { RunManifestManager } from '../src/run-manifest.js';
+import { createToolAttemptIdentity } from '../src/run-manifest.js';
+import { buildDirectRuntimePermissionProfile } from '../src/runtime-permission-profile.js';
 import type { McpClient, McpToolResult } from '../src/mcp-client.js';
 
 function makeTmpDir(): string {
@@ -60,6 +62,8 @@ describe('AgentRunner durable execution checkpoints', () => {
       const runner = new AgentRunner({
         model: 'claude-opus-4-6',
         runId: 'run-save',
+        approvalRunId: 'run-save',
+        approvalProjectRoot: tmpDir,
         mcpClient: makeMockMcpClient({
           ok: true,
           isError: false,
@@ -67,6 +71,7 @@ describe('AgentRunner durable execution checkpoints', () => {
           json: null,
           errorCode: null,
         }),
+        permissionProfile: buildDirectRuntimePermissionProfile({ tools: TOOLS }),
         manifestManager,
         _messagesCreate: createFn,
       });
@@ -84,7 +89,8 @@ describe('AgentRunner durable execution checkpoints', () => {
       expect(manifest?.checkpoints).toHaveLength(1);
       expect(manifest?.checkpoints[0]).toMatchObject({
         step_id: 'tu_saved',
-        result_summary: 'tool-result',
+        tool_name: 'do_thing',
+        outcome: { raw_text: 'tool-result', is_error: false },
       });
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
@@ -95,10 +101,14 @@ describe('AgentRunner durable execution checkpoints', () => {
     const tmpDir = makeTmpDir();
     try {
       const manifestManager = new RunManifestManager(path.join(tmpDir, 'runs'));
+      const attempt = createToolAttemptIdentity({ stepId: 'tu_replay', toolName: 'do_thing', input: {} });
+      manifestManager.observeToolIntents('run-recovery', [attempt]);
       const createFn = vi.fn().mockResolvedValueOnce(textResponse('resumed'));
       const runner = new AgentRunner({
         model: 'claude-opus-4-6',
         runId: 'run-recovery',
+        approvalRunId: 'run-recovery',
+        approvalProjectRoot: tmpDir,
         mcpClient: makeMockMcpClient({
           ok: true,
           isError: false,
@@ -106,6 +116,7 @@ describe('AgentRunner durable execution checkpoints', () => {
           json: null,
           errorCode: null,
         }),
+        permissionProfile: buildDirectRuntimePermissionProfile({ tools: TOOLS }),
         manifestManager,
         _messagesCreate: createFn,
       });
@@ -124,8 +135,54 @@ describe('AgentRunner durable execution checkpoints', () => {
       expect(manifest?.last_completed_step).toBe('tu_replay');
       expect(manifest?.checkpoints[0]).toMatchObject({
         step_id: 'tu_replay',
-        result_summary: 'replayed-result',
+        tool_name: 'do_thing',
+        outcome: { raw_text: 'replayed-result', is_error: false },
       });
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('does not call the transport or model when recovery finds outcome_unknown', async () => {
+    const tmpDir = makeTmpDir();
+    try {
+      const manifestManager = new RunManifestManager(path.join(tmpDir, 'runs'));
+      const attempt = createToolAttemptIdentity({ stepId: 'tu_unknown', toolName: 'do_thing', input: {} });
+      manifestManager.observeToolIntents('run-unknown', [attempt]);
+      manifestManager.markToolIntentsDispatched('run-unknown', [attempt]);
+      const mcpClient = makeMockMcpClient({
+        ok: true,
+        isError: false,
+        rawText: 'must-not-run',
+        json: null,
+        errorCode: null,
+      });
+      const createFn = vi.fn();
+      const runner = new AgentRunner({
+        model: 'claude-opus-4-6',
+        runId: 'run-unknown',
+        approvalRunId: 'run-unknown',
+        approvalProjectRoot: tmpDir,
+        mcpClient,
+        permissionProfile: buildDirectRuntimePermissionProfile({ tools: TOOLS }),
+        manifestManager,
+        _messagesCreate: createFn,
+      });
+      const messages: MessageParam[] = [
+        { role: 'user', content: 'resume' },
+        { role: 'assistant', content: [{ type: 'tool_use', id: 'tu_unknown', name: 'do_thing', input: {} }] },
+      ];
+
+      const events = await collectEvents(runner.run(messages, TOOLS));
+
+      expect(mcpClient.callTool).not.toHaveBeenCalled();
+      expect(createFn).not.toHaveBeenCalled();
+      expect(events).toContainEqual(expect.objectContaining({
+        type: 'tool_outcome_unknown',
+        stepId: 'tu_unknown',
+        phase: 'recovery',
+      }));
+      expect(events.at(-1)).toMatchObject({ type: 'done', stopReason: 'tool_outcome_unknown' });
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
