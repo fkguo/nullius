@@ -47,6 +47,9 @@ export interface RuntimeDiagnosticsBridgeArtifactV1 {
       exists: boolean;
       last_completed_step: string | null;
       checkpoint_count: number;
+      not_started_count: number;
+      outcome_unknown_count: number;
+      outcome_unknown_step_ids: string[];
     };
     spans: {
       path: string;
@@ -68,9 +71,14 @@ export function writeRuntimeDiagnosticsBridgeArtifact(params: {
   spansPath: string;
   savedManifest: RunManifest | null;
 }): { artifactPath: string; payload: RuntimeDiagnosticsBridgeArtifactV1 } {
-  const runDir = path.join(params.projectRoot, 'artifacts', 'runs', params.runId);
   const artifactName = 'runtime_diagnostics_bridge_v1.json';
-  const artifactPath = path.posix.join('artifacts', 'runs', params.runId, artifactName);
+  const runtimeDirPath = path.posix.dirname(params.manifestPath);
+  const artifactPath = path.posix.join(runtimeDirPath, artifactName);
+  const runDir = path.resolve(params.projectRoot, ...runtimeDirPath.split('/'));
+  const relativeRunDir = path.relative(path.resolve(params.projectRoot), runDir);
+  if (relativeRunDir.startsWith('..') || path.isAbsolute(relativeRunDir)) {
+    throw new Error('delegated runtime diagnostics path escapes project root');
+  }
 
   const markers: RuntimeMarkerEvidenceV1[] = params.runtimeProjection.projected_turns.flatMap(turn =>
     turn.runtime_marker_kinds.map(kind => ({
@@ -101,6 +109,14 @@ export function writeRuntimeDiagnosticsBridgeArtifact(params: {
         exists: fs.existsSync(path.join(params.projectRoot, params.manifestPath)),
         last_completed_step: params.savedManifest?.last_completed_step ?? null,
         checkpoint_count: params.savedManifest?.checkpoints.length ?? 0,
+        not_started_count: params.savedManifest?.pending_tool_intents
+          .filter(intent => intent.state === 'not_started').length ?? 0,
+        outcome_unknown_count: params.savedManifest?.pending_tool_intents
+          .filter(intent => intent.state === 'outcome_unknown').length ?? 0,
+        outcome_unknown_step_ids: params.savedManifest?.pending_tool_intents
+          .filter(intent => intent.state === 'outcome_unknown')
+          .map(intent => intent.step_id)
+          .sort() ?? [],
       },
       spans: {
         path: params.spansPath,

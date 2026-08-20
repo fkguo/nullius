@@ -48,6 +48,11 @@ describe('RuntimePermissionProfileV1', () => {
       authority: 'runtime_permission_profile',
       authority_source: 'host_runtime',
       allowed_tool_names: ['tool_a', 'tool_b', 'tool_c'],
+      approvals: {
+        mode: 'inherit_gate',
+        grant_scope: 'session',
+        reviewer: null,
+      },
     });
     expect(filterToolsForPermissionView(TOOLS, view).map(tool => tool.name)).toEqual(['tool_a', 'tool_b', 'tool_c']);
     expect(Object.keys(view.execution_policies)).toEqual(['tool_a', 'tool_b', 'tool_c']);
@@ -101,9 +106,12 @@ describe('RuntimePermissionProfileV1', () => {
           inherit_from_assignment_id: 'assignment-parent',
           additive_tool_names: ['tool_b'],
         },
-        approval_id: 'apr_child',
-        approval_packet_path: 'artifacts/runs/run__child/approval_packet_v1.json',
-        approval_requested_at: '2026-04-07T00:00:00Z',
+        pending_approval: {
+          authority: 'team_assignment',
+          approval_id: 'apr_child',
+          packet_path: 'artifacts/runs/run__child/approval_packet_v1.json',
+          requested_at: '2026-04-07T00:00:00Z',
+        },
       },
       TOOLS,
       state,
@@ -134,9 +142,44 @@ describe('RuntimePermissionProfileV1', () => {
       authority: 'runtime_permission_profile',
       authority_source: 'team_permission_matrix',
       allowed_tool_names: ['tool_a', 'tool_b'],
+      approvals: {
+        mode: 'inherit_gate',
+        grant_scope: 'assignment',
+        reviewer: 'lead',
+        assignment_approval_id: 'apr_child',
+        assignment_approval_packet_path: 'artifacts/runs/run__child/approval_packet_v1.json',
+        assignment_approval_requested_at: '2026-04-07T00:00:00Z',
+      },
     });
     expect(filterToolsForPermissionView(TOOLS, view).map(tool => tool.name)).toEqual(['tool_a', 'tool_b']);
     expect(Object.keys(view.execution_policies)).toEqual(['tool_a', 'tool_b']);
     expect(Object.values(view.execution_policies).map(policy => policy.metadata_source)).toEqual(['safe_fallback', 'safe_fallback']);
+
+    const runGateProfile = compileDelegatedRuntimePermissionProfile(
+      permissions,
+      {
+        assignment_id: 'assignment-run-gate',
+        owner_role: 'lead',
+        delegate_role: 'delegate',
+        delegate_id: 'delegate-3',
+        task_id: 'task-run-gate',
+        task_kind: 'compute',
+        pending_approval: {
+          authority: 'run_gate',
+          gate_id: 'A3',
+          run_id: 'run__assignment-run-gate',
+          approval_id: 'A3-0001',
+          packet_path: 'artifacts/runs/run__assignment-run-gate/approval_packet_v1.json',
+          approval_packet_sha256: 'e'.repeat(64),
+          requested_at: '2026-04-07T00:00:00Z',
+        },
+      },
+      TOOLS,
+    );
+    expect(runGateProfile.approvals).toMatchObject({
+      assignment_approval_id: null,
+      assignment_approval_packet_path: null,
+      assignment_approval_requested_at: null,
+    });
   });
 });

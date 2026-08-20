@@ -9,8 +9,10 @@ import {
   type Tool,
 } from '../src/index.js';
 import { buildDelegatedRuntimeHandleV1 } from '../src/delegated-runtime-handle.js';
+import { buildDelegatedExecutionIdentity } from '../src/execution-identity.js';
 import type { McpClient, McpToolResult } from '../src/mcp-client.js';
 import { buildDirectRuntimePermissionProfile } from '../src/runtime-permission-profile.js';
+import { createToolAttemptIdentity, RunManifestManager } from '../src/run-manifest.js';
 
 function makeTmpDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'research-loop-agent-runtime-'));
@@ -105,7 +107,11 @@ describe('executeDelegatedAgentRuntime', () => {
           },
         ],
       });
-      expect(result.manifest?.checkpoints[0]).toMatchObject({ step_id: 'tu_live', result_summary: 'tool-result' });
+      expect(result.manifest?.checkpoints[0]).toMatchObject({
+        step_id: 'tu_live',
+        tool_name: 'do_thing',
+        outcome: { raw_text: 'tool-result', is_error: false },
+      });
       expect(fs.existsSync(path.join(projectRoot, result.manifest_path))).toBe(true);
       expect(fs.existsSync(path.join(projectRoot, result.runtime_diagnostics_bridge_path))).toBe(true);
       expect(result.runtime_diagnostics_summary).toEqual({
@@ -113,6 +119,100 @@ describe('executeDelegatedAgentRuntime', () => {
         primary_cause: 'none',
         recommended_action: 'none',
       });
+    } finally {
+      fs.rmSync(projectRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('keeps root, direct-agent, and team-derived journals in disjoint namespaces', async () => {
+    const projectRoot = makeTmpDir();
+    try {
+      const derived = buildDelegatedExecutionIdentity({
+        project_run_id: 'root-run',
+        assignment_id: 'assignment',
+      });
+      const rootRuns = new RunManifestManager(path.join(projectRoot, 'artifacts', 'runs'));
+      const rootAttempt = createToolAttemptIdentity({
+        stepId: 'tu_namespace',
+        toolName: 'do_thing',
+        input: {},
+      });
+      rootRuns.observeToolIntents(derived.runtime_run_id, [rootAttempt]);
+      rootRuns.markToolIntentsDispatched(derived.runtime_run_id, [rootAttempt]);
+      rootRuns.commitToolAttempt(derived.runtime_run_id, rootAttempt, {
+        ok: true,
+        isError: false,
+        rawText: 'root-namespace-result',
+        json: null,
+        errorCode: null,
+      });
+
+      const delegatedClient = makeMockMcpClient({
+        ok: true,
+        isError: false,
+        rawText: 'delegated-result',
+        json: null,
+        errorCode: null,
+      });
+      const result = await executeDelegatedAgentRuntime({
+        projectRoot,
+        runId: derived.runtime_run_id,
+        model: 'claude-opus-4-6',
+        messages: [{ role: 'user', content: 'execute in delegated namespace' }],
+        tools: TOOLS,
+        mcpClient: delegatedClient.client,
+        permissionProfile: directPermissionProfile(),
+        _messagesCreate: vi.fn()
+          .mockResolvedValueOnce(toolUseResponse('tu_namespace', 'do_thing'))
+          .mockResolvedValueOnce(textResponse('done')),
+      });
+
+      expect(delegatedClient.callTool).toHaveBeenCalledOnce();
+      expect(result.manifest_path).toBe(
+        `artifacts/delegated-runs/direct/${derived.runtime_run_id}/manifest.json`,
+      );
+      expect(result.manifest?.checkpoints[0]?.outcome.raw_text).toBe('delegated-result');
+      expect(rootRuns.loadManifest(derived.runtime_run_id)?.checkpoints[0]?.outcome.raw_text)
+        .toBe('root-namespace-result');
+
+      const handle = buildDelegatedRuntimeHandleV1({
+        project_run_id: 'root-run',
+        assignment_id: 'assignment',
+        session_id: 'session',
+        task_id: 'task',
+        checkpoint_id: null,
+        parent_session_id: null,
+        forked_from_assignment_id: null,
+        forked_from_session_id: null,
+      });
+      expect(handle.identity.runtime_run_id).toBe(derived.runtime_run_id);
+      const teamClient = makeMockMcpClient({
+        ok: true,
+        isError: false,
+        rawText: 'team-result',
+        json: null,
+        errorCode: null,
+      });
+      const teamResult = await executeDelegatedAgentRuntime({
+        projectRoot,
+        runId: handle.identity.runtime_run_id,
+        model: 'claude-opus-4-6',
+        messages: [{ role: 'user', content: 'execute in team namespace' }],
+        tools: TOOLS,
+        mcpClient: teamClient.client,
+        permissionProfile: directPermissionProfile(),
+        delegated_runtime_handle: handle,
+        _messagesCreate: vi.fn()
+          .mockResolvedValueOnce(toolUseResponse('tu_namespace', 'do_thing'))
+          .mockResolvedValueOnce(textResponse('done')),
+      });
+
+      expect(teamClient.callTool).toHaveBeenCalledOnce();
+      expect(teamResult.manifest_path).toBe(
+        `artifacts/delegated-runs/team/${derived.runtime_run_id}/manifest.json`,
+      );
+      expect(teamResult.manifest?.checkpoints[0]?.outcome.raw_text).toBe('team-result');
+      expect(result.manifest?.checkpoints[0]?.outcome.raw_text).toBe('delegated-result');
     } finally {
       fs.rmSync(projectRoot, { recursive: true, force: true });
     }
@@ -284,6 +384,49 @@ describe('executeDelegatedAgentRuntime', () => {
     }
   });
 
+  it('validates delegated runtime handle identity before starting the model or writing runtime state', async () => {
+    const projectRoot = makeTmpDir();
+    try {
+      const handle = buildDelegatedRuntimeHandleV1({
+        project_run_id: 'run-handle',
+        assignment_id: 'assignment-handle',
+        session_id: 'session-handle',
+        task_id: 'task-handle',
+        checkpoint_id: null,
+        parent_session_id: null,
+        forked_from_assignment_id: null,
+        forked_from_session_id: null,
+      });
+      const createFn = vi.fn().mockResolvedValueOnce(textResponse('must-not-run'));
+
+      await expect(executeDelegatedAgentRuntime({
+        projectRoot,
+        runId: handle.identity.runtime_run_id,
+        model: 'claude-opus-4-6',
+        messages: [{ role: 'user', content: 'use-handle' }],
+        tools: TOOLS,
+        mcpClient: makeMockMcpClient({
+          ok: true,
+          isError: false,
+          rawText: 'must-not-run',
+          json: null,
+          errorCode: null,
+        }).client,
+        permissionProfile: directPermissionProfile(),
+        delegated_runtime_handle: {
+          ...handle,
+          identity: { ...handle.identity, assignment_id: 'forged-assignment' },
+        },
+        _messagesCreate: createFn,
+      })).rejects.toThrow('identity.runtime_run_id is not canonical');
+
+      expect(createFn).not.toHaveBeenCalled();
+      expect(fs.existsSync(path.join(projectRoot, 'artifacts'))).toBe(false);
+    } finally {
+      fs.rmSync(projectRoot, { recursive: true, force: true });
+    }
+  });
+
   it('surfaces auditable truncation recovery through the shared delegated runtime entrypoint', async () => {
     const projectRoot = makeTmpDir();
     try {
@@ -357,6 +500,56 @@ describe('executeDelegatedAgentRuntime', () => {
       expect(diagnostics.evidence.terminal_event?.phase).toBe('dialogue');
       expect(diagnostics.evidence.terminal_event?.turn_count).toBe(2);
       expect(diagnostics.evidence.terminal_event?.stop_reason).toBe('end_turn');
+    } finally {
+      fs.rmSync(projectRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('writes operator diagnostics and stops when a recovered tool outcome is unknown', async () => {
+    const projectRoot = makeTmpDir();
+    try {
+      const manager = new RunManifestManager(path.join(projectRoot, 'artifacts', 'delegated-runs', 'direct'));
+      const attempt = createToolAttemptIdentity({ stepId: 'tu-unknown', toolName: 'do_thing', input: {} });
+      manager.observeToolIntents('run-unknown', [attempt]);
+      manager.markToolIntentsDispatched('run-unknown', [attempt]);
+      const client = makeMockMcpClient({
+        ok: true,
+        isError: false,
+        rawText: 'must-not-run',
+        json: null,
+        errorCode: null,
+      });
+      const createFn = vi.fn();
+
+      const result = await executeDelegatedAgentRuntime({
+        projectRoot,
+        runId: 'run-unknown',
+        model: 'claude-opus-4-6',
+        messages: [
+          { role: 'user', content: 'resume' },
+          { role: 'assistant', content: [{ type: 'tool_use', id: 'tu-unknown', name: 'do_thing', input: {} }] },
+        ],
+        tools: TOOLS,
+        mcpClient: client.client,
+        permissionProfile: directPermissionProfile(),
+        _messagesCreate: createFn,
+      });
+
+      expect(client.callTool).not.toHaveBeenCalled();
+      expect(createFn).not.toHaveBeenCalled();
+      expect(result.events.at(-1)).toMatchObject({ type: 'done', stopReason: 'tool_outcome_unknown' });
+      expect(result.runtime_diagnostics_summary).toEqual({
+        status: 'needs_recovery',
+        primary_cause: 'tool_outcome_unknown',
+        recommended_action: 'inspect_external_state_before_resume',
+      });
+      const diagnostics = JSON.parse(
+        fs.readFileSync(path.join(projectRoot, result.runtime_diagnostics_bridge_path), 'utf-8'),
+      ) as { evidence: { manifest: { outcome_unknown_count: number; outcome_unknown_step_ids: string[] } } };
+      expect(diagnostics.evidence.manifest).toMatchObject({
+        outcome_unknown_count: 1,
+        outcome_unknown_step_ids: ['tu-unknown'],
+      });
     } finally {
       fs.rmSync(projectRoot, { recursive: true, force: true });
     }

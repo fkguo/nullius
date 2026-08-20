@@ -1,4 +1,5 @@
 import { shortId } from '@nullius/shared';
+import { StateManager } from './state-manager.js';
 import { utcNowIso } from './util.js';
 import {
   appendRegisteredAssignment,
@@ -24,6 +25,10 @@ import type {
   TeamInterventionRecord,
 } from './team-execution-types.js';
 
+export interface TeamInterventionAuthorityContext {
+  projectRoot: string;
+}
+
 function resolveTargetAssignment(
   state: TeamExecutionState,
   command: TeamInterventionCommand,
@@ -46,9 +51,7 @@ function nextAssignmentUpdate(
   assignment: TeamExecutionState['delegate_assignments'][number],
   command: TeamInterventionCommand['kind'],
 ): {
-  approval_id?: string | null;
-  approval_packet_path?: string | null;
-  approval_requested_at?: string | null;
+  pending_approval?: TeamExecutionState['delegate_assignments'][number]['pending_approval'];
   pending_redirect?: TeamExecutionState['delegate_assignments'][number]['pending_redirect'];
   status: TeamExecutionState['delegate_assignments'][number]['status'];
   paused_from_status?: TeamExecutionState['delegate_assignments'][number]['paused_from_status'];
@@ -62,10 +65,13 @@ function nextAssignmentUpdate(
     };
   }
   if (command === 'resume') {
+    const status = assignment.status === 'paused'
+      ? (assignment.paused_from_status ?? 'running')
+      : assignment.status === 'awaiting_approval' && assignment.pending_approval?.authority === 'run_gate'
+        ? 'pending'
+        : assignment.status;
     return {
-      status: assignment.status === 'paused'
-        ? (assignment.paused_from_status ?? 'running')
-        : assignment.status,
+      status,
       paused_from_status: null,
     };
   }
@@ -73,9 +79,7 @@ function nextAssignmentUpdate(
     return {
       status: 'pending',
       paused_from_status: null,
-      approval_id: null,
-      approval_packet_path: null,
-      approval_requested_at: null,
+      pending_approval: null,
     };
   }
   if (command === 'cancel') {
@@ -83,18 +87,14 @@ function nextAssignmentUpdate(
       status: 'cancelled',
       paused_from_status: null,
       pending_redirect: null,
-      approval_id: null,
-      approval_packet_path: null,
-      approval_requested_at: null,
+      pending_approval: null,
     };
   }
   return {
     status: 'cascade_stopped',
     paused_from_status: null,
     pending_redirect: null,
-    approval_id: null,
-    approval_packet_path: null,
-    approval_requested_at: null,
+    pending_approval: null,
   };
 }
 
@@ -137,9 +137,46 @@ function buildRecord(command: TeamInterventionCommand, timestamp: string): TeamI
   };
 }
 
+function assertCanonicalRunGateSatisfied(
+  state: TeamExecutionState,
+  assignments: TeamDelegateAssignment[],
+  authorityContext: TeamInterventionAuthorityContext | undefined,
+): void {
+  const runGateAssignments = assignments.filter(assignment =>
+    assignment.status === 'awaiting_approval'
+    && assignment.pending_approval?.authority === 'run_gate',
+  );
+  if (runGateAssignments.length === 0) return;
+  if (!authorityContext) {
+    throw new Error(
+      'resume intervention cannot release run-gate authority without the canonical root-run state',
+    );
+  }
+  const rootState = new StateManager(authorityContext.projectRoot).readState();
+  for (const assignment of runGateAssignments) {
+    const pending = assignment.pending_approval;
+    if (!pending || pending.authority !== 'run_gate') continue;
+    const historyConfirmsApproval = rootState.approval_history.some(entry =>
+      entry.decision === 'approved'
+      && entry.category === pending.gate_id
+      && entry.approval_id === pending.approval_id,
+    );
+    if (state.run_id !== pending.run_id
+      || rootState.run_id !== pending.run_id
+      || rootState.pending_approval !== null
+      || rootState.gate_satisfied[pending.gate_id] !== pending.approval_id
+      || !historyConfirmsApproval) {
+      throw new Error(
+        `resume intervention cannot release run-gate authority: canonical approval ${pending.approval_id} for ${pending.gate_id} is not satisfied`,
+      );
+    }
+  }
+}
+
 export function applyTeamIntervention(
   state: TeamExecutionState,
   command: TeamInterventionCommand,
+  authorityContext?: TeamInterventionAuthorityContext,
 ): TeamInterventionRecord {
   assertInterventionAllowed(state.permissions, command);
   assertInterventionImplemented(command);
@@ -223,6 +260,12 @@ export function applyTeamIntervention(
   }
 
   const affectedAssignments = resolveAffectedAssignments(state, command);
+  if (command.kind === 'resume') {
+    // Team state is a projection, not root approval authority. Re-dispatch is
+    // allowed only after the canonical root handler has durably approved the
+    // exact run/gate/approval tuple.
+    assertCanonicalRunGateSatisfied(state, affectedAssignments, authorityContext);
+  }
   if (command.kind === 'approve') {
     const [assignment] = affectedAssignments;
     if (!assignment) throw new Error('unknown team assignment for intervention target');
@@ -232,9 +275,16 @@ export function applyTeamIntervention(
     if (!assignment.delegate_id) {
       throw new Error('approve intervention requires delegated approval ownership metadata');
     }
-    // Approval authority now lives on the assignment itself; there is no separate approval projection registry.
-    if (!assignment.approval_id || !assignment.approval_packet_path || !assignment.approval_requested_at) {
+    // Approval authority lives on the tagged assignment reference. A run gate
+    // can only be resolved through the canonical root-run approval surface;
+    // team-local intervention metadata is not an approval grant.
+    if (!assignment.pending_approval) {
       throw new Error('approve intervention requires canonical assignment approval metadata');
+    }
+    if (assignment.pending_approval.authority === 'run_gate') {
+      throw new Error(
+        'approve intervention cannot resolve run-gate authority; use canonical orch_run_approve/nullius approve, then resume the assignment',
+      );
     }
   }
   const record = buildRecord(command, timestamp);

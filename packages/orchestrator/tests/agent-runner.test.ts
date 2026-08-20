@@ -1,7 +1,26 @@
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { ORCH_RUN_CREATE, ORCH_RUN_LIST, ORCH_RUN_STATUS } from '@nullius/shared';
-import { AgentRunner, _resetLaneQueue, type MessageParam, type Tool, type AgentEvent } from '../src/agent-runner.js';
+import {
+  ORCH_POLICY_QUERY,
+  ORCH_RUN_APPROVE,
+  ORCH_RUN_CREATE,
+  ORCH_RUN_EXECUTE_MANIFEST,
+  ORCH_RUN_LIST,
+  ORCH_RUN_STATUS,
+} from '@nullius/shared';
+import {
+  AgentRunner,
+  _resetLaneQueue,
+  type AgentEvent,
+  type AgentRunnerOptions,
+  type MessageParam,
+  type Tool,
+} from '../src/agent-runner.js';
 import type { McpClient, McpToolResult } from '../src/mcp-client.js';
+import { buildDirectRuntimePermissionProfile } from '../src/runtime-permission-profile.js';
+import { createToolAttemptIdentity, RunManifestManager } from '../src/run-manifest.js';
 
 // ─── Minimal mocks ────────────────────────────────────────────────────────────
 
@@ -48,6 +67,77 @@ function multiToolUseResponse(blocks: Array<{ id: string; name: string; input?: 
 
 const TOOLS: Tool[] = [{ name: 'do_thing', input_schema: { type: 'object', properties: {} } }];
 
+const DEFAULT_PERMISSION_TOOL_NAMES = [
+  'do_thing',
+  'side_effect_tool',
+  ORCH_POLICY_QUERY,
+  ORCH_RUN_APPROVE,
+  ORCH_RUN_CREATE,
+  ORCH_RUN_EXECUTE_MANIFEST,
+  ORCH_RUN_LIST,
+  ORCH_RUN_STATUS,
+];
+
+function toolDefinition(name: string): Tool {
+  return { name, input_schema: { type: 'object', properties: {} } };
+}
+
+function approvalEnvelope(params: {
+  runId: string;
+  approvalId: string;
+  packetPath: string;
+  gateId?: string;
+  digestCharacter?: string;
+}): Record<string, unknown> {
+  return {
+    status: 'requires_approval',
+    requires_approval: true,
+    gate_id: params.gateId ?? 'A3',
+    run_id: params.runId,
+    approval_id: params.approvalId,
+    packet_path: params.packetPath,
+    approval_packet_sha256: (params.digestCharacter ?? 'a').repeat(64),
+  };
+}
+
+function resultWithJson(json: Record<string, unknown>): McpToolResult {
+  return {
+    ok: true,
+    isError: false,
+    rawText: JSON.stringify(json),
+    json,
+    errorCode: null,
+  };
+}
+
+type TestRunnerOptions = Omit<AgentRunnerOptions, 'manifestManager' | 'permissionProfile' | 'approvalRunId' | 'approvalProjectRoot'> & {
+  allowedToolNames?: string[];
+  manifestManager?: RunManifestManager;
+  approvalRunId?: string;
+  approvalProjectRoot?: string;
+};
+
+let testRunsDir = '';
+
+function makeRunner(options: TestRunnerOptions): AgentRunner {
+  const {
+    allowedToolNames = DEFAULT_PERMISSION_TOOL_NAMES,
+    manifestManager = new RunManifestManager(testRunsDir),
+    approvalRunId,
+    approvalProjectRoot = '/project',
+    ...runnerOptions
+  } = options;
+  return new AgentRunner({
+    ...runnerOptions,
+    approvalRunId: approvalRunId ?? runnerOptions.runId,
+    approvalProjectRoot,
+    permissionProfile: buildDirectRuntimePermissionProfile({
+      tools: allowedToolNames.map(name => ({ name })),
+    }),
+    manifestManager,
+  });
+}
+
 async function collectEvents(gen: AsyncGenerator<AgentEvent>): Promise<AgentEvent[]> {
   const events: AgentEvent[] = [];
   for await (const ev of gen) {
@@ -61,16 +151,19 @@ async function collectEvents(gen: AsyncGenerator<AgentEvent>): Promise<AgentEven
 describe('AgentRunner', () => {
   beforeEach(() => {
     _resetLaneQueue();
+    testRunsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-runner-test-'));
   });
 
   afterEach(() => {
     _resetLaneQueue();
     vi.restoreAllMocks();
+    fs.rmSync(testRunsDir, { recursive: true, force: true });
+    testRunsDir = '';
   });
 
   it('single-turn text response emits text + done events', async () => {
     const createFn = vi.fn().mockResolvedValue(textResponse('Hello world'));
-    const runner = new AgentRunner({
+    const runner = makeRunner({
       model: 'claude-opus-4-6',
       runId: 'run-1',
       mcpClient: makeMockMcpClient(),
@@ -121,7 +214,7 @@ describe('AgentRunner', () => {
       .mockResolvedValueOnce(toolUseResponse('tu_1', 'do_thing'))
       .mockResolvedValueOnce(textResponse('All done'));
 
-    const runner = new AgentRunner({
+    const runner = makeRunner({
       model: 'claude-opus-4-6',
       runId: 'run-2',
       mcpClient,
@@ -187,7 +280,7 @@ describe('AgentRunner', () => {
         { id: 'tu_list', name: ORCH_RUN_LIST },
       ]))
       .mockResolvedValueOnce(textResponse('Parallel tools complete'));
-    const runner = new AgentRunner({
+    const runner = makeRunner({
       model: 'claude-opus-4-6',
       runId: 'run-batch-safe-group',
       mcpClient,
@@ -237,7 +330,7 @@ describe('AgentRunner', () => {
         { id: 'tu_list', name: ORCH_RUN_LIST },
       ]))
       .mockResolvedValueOnce(textResponse('Mixed tools complete'));
-    const runner = new AgentRunner({
+    const runner = makeRunner({
       model: 'claude-opus-4-6',
       runId: 'run-mixed-grouping',
       mcpClient,
@@ -260,7 +353,7 @@ describe('AgentRunner', () => {
 
   it('routing config: direct route key resolves to backend model', async () => {
     const createFn = vi.fn().mockResolvedValue(textResponse('routed'));
-    const runner = new AgentRunner({
+    const runner = makeRunner({
       model: 'fast',
       runId: 'run-route-direct',
       mcpClient: makeMockMcpClient(),
@@ -288,7 +381,7 @@ describe('AgentRunner', () => {
 
   it('default routing config uses the shared default max token budget', async () => {
     const createFn = vi.fn().mockResolvedValue(textResponse('default-route'));
-    const runner = new AgentRunner({
+    const runner = makeRunner({
       model: 'claude-opus-4-6',
       runId: 'run-route-default-budget',
       mcpClient: makeMockMcpClient(),
@@ -305,7 +398,7 @@ describe('AgentRunner', () => {
 
   it('routing config: use-case alias resolves via JSON loader', async () => {
     const createFn = vi.fn().mockResolvedValue(textResponse('aliased'));
-    const runner = new AgentRunner({
+    const runner = makeRunner({
       model: 'analysis',
       runId: 'run-route-alias',
       mcpClient: makeMockMcpClient(),
@@ -329,7 +422,7 @@ describe('AgentRunner', () => {
   });
 
   it('routing config: unknown route key fails closed', async () => {
-    expect(() => new AgentRunner({
+    expect(() => makeRunner({
       model: 'missing',
       runId: 'run-route-missing',
       mcpClient: makeMockMcpClient(),
@@ -346,7 +439,7 @@ describe('AgentRunner', () => {
   });
 
   it('routing config: invalid JSON and unknown backend fail closed', async () => {
-    expect(() => new AgentRunner({
+    expect(() => makeRunner({
       model: 'default',
       runId: 'run-route-json',
       mcpClient: makeMockMcpClient(),
@@ -354,7 +447,7 @@ describe('AgentRunner', () => {
       _messagesCreate: vi.fn(),
     })).toThrow(/Invalid routing config JSON/);
 
-    expect(() => new AgentRunner({
+    expect(() => makeRunner({
       model: 'default',
       runId: 'run-route-backend',
       mcpClient: makeMockMcpClient(),
@@ -372,9 +465,13 @@ describe('AgentRunner', () => {
 
   it('maxTurns enforcement: emits done with max_turns stopReason', async () => {
     // Always return a tool_use so the loop never terminates on its own
-    const createFn = vi.fn().mockResolvedValue(toolUseResponse('tu_x', 'do_thing'));
+    let responseCount = 0;
+    const createFn = vi.fn().mockImplementation(() => {
+      responseCount += 1;
+      return Promise.resolve(toolUseResponse(`tu_${responseCount}`, 'do_thing'));
+    });
     let callCount = 0;
-    const runner = new AgentRunner({
+    const runner = makeRunner({
       model: 'claude-opus-4-6',
       maxTurns: 3,
       runId: 'run-maxturn',
@@ -403,7 +500,7 @@ describe('AgentRunner', () => {
       .mockResolvedValueOnce(toolUseResponse('tu_2', 'do_thing'))
       .mockResolvedValueOnce(toolUseResponse('tu_3', 'do_thing'))
       .mockResolvedValueOnce(textResponse('unexpected completion'));
-    const runner = new AgentRunner({
+    const runner = makeRunner({
       model: 'claude-opus-4-6',
       maxTurns: 10,
       runId: 'run-diminishing-returns',
@@ -441,7 +538,7 @@ describe('AgentRunner', () => {
       .mockResolvedValueOnce(toolUseResponse('tu_1', 'do_thing'))
       .mockResolvedValueOnce(toolUseResponse('tu_2', 'do_thing'))
       .mockResolvedValueOnce(textResponse('unexpected completion'));
-    const runner = new AgentRunner({
+    const runner = makeRunner({
       model: 'claude-opus-4-6',
       maxTurns: 10,
       runId: 'run-diminishing-returns-all-errors',
@@ -481,7 +578,7 @@ describe('AgentRunner', () => {
       .mockResolvedValueOnce(toolUseResponse('tu_1', 'do_thing'))
       .mockResolvedValueOnce(toolUseResponse('tu_2', 'do_thing'))
       .mockResolvedValueOnce(textResponse('recovered and completed'));
-    const runner = new AgentRunner({
+    const runner = makeRunner({
       model: 'claude-opus-4-6',
       maxTurns: 10,
       runId: 'run-diminishing-returns-reset',
@@ -506,32 +603,43 @@ describe('AgentRunner', () => {
     expect(events.at(-1)).toMatchObject({ type: 'done', stopReason: 'end_turn', turnCount: 3 });
   });
 
-  it('approval gate: requires_approval in tool result emits approval_required event', async () => {
-    const mcpClient = makeMockMcpClient({
-      do_thing: {
-        ok: true,
-        isError: false,
-        rawText: '{"requires_approval":true,"approval_id":"apr_abc","packet_path":"/runs/1/packet.json"}',
-        json: { requires_approval: true, approval_id: 'apr_abc', packet_path: '/runs/1/packet.json' },
-        errorCode: null,
-      },
+  it('approval gate accepts only a complete envelope from a registered approval producer', async () => {
+    const envelope = approvalEnvelope({
+      runId: 'run-approval',
+      approvalId: 'apr_abc',
+      packetPath: 'artifacts/runs/run-approval/packet.json',
     });
-    const createFn = vi.fn().mockResolvedValue(toolUseResponse('tu_apr', 'do_thing'));
+    const mcpClient = makeMockMcpClient({
+      [ORCH_RUN_EXECUTE_MANIFEST]: resultWithJson(envelope),
+    });
+    const createFn = vi.fn().mockResolvedValue(
+      toolUseResponse('tu_apr', ORCH_RUN_EXECUTE_MANIFEST, {
+        run_id: 'run-approval',
+        project_root: '/project',
+      }),
+    );
 
-    const runner = new AgentRunner({
+    const runner = makeRunner({
       model: 'claude-opus-4-6',
       runId: 'run-approval',
       mcpClient,
       _messagesCreate: createFn,
     });
 
-    const events = await collectEvents(runner.run([{ role: 'user', content: 'Execute' }], TOOLS));
+    const events = await collectEvents(runner.run(
+      [{ role: 'user', content: 'Execute' }],
+      [toolDefinition(ORCH_RUN_EXECUTE_MANIFEST)],
+    ));
 
     const aprEvt = events.find((e) => e.type === 'approval_required');
     expect(aprEvt).toMatchObject({
       type: 'approval_required',
+      authority: 'run_gate',
+      gateId: 'A3',
+      runId: 'run-approval',
       approvalId: 'apr_abc',
-      packetPath: '/runs/1/packet.json',
+      packetPath: 'artifacts/runs/run-approval/packet.json',
+      approvalPacketSha256: 'a'.repeat(64),
     });
 
     const doneEvt = events.find((e) => e.type === 'done');
@@ -540,58 +648,56 @@ describe('AgentRunner', () => {
     expect(createFn).toHaveBeenCalledTimes(1);
   });
 
-  it('approval gate: fails fast — second tool in same turn is NOT called', async () => {
-    // Simulate a response with two tool_use blocks; the first requires approval.
-    // The second tool must NOT be called (fail-closed safety).
-    const secondToolCalls: string[] = [];
+  it('approval gate stops before a later side-effect tool in the same turn', async () => {
+    const transportCalls: string[] = [];
+    const envelope = approvalEnvelope({
+      runId: 'run-failfast',
+      approvalId: 'apr_1',
+      packetPath: 'artifacts/runs/run-failfast/packet.json',
+    });
     const mcpClient = {
       callTool: vi.fn(async (name: string) => {
-        if (name === 'approve_tool') {
-          return {
-            ok: true, isError: false, errorCode: null,
-            rawText: '{"requires_approval":true,"approval_id":"apr_1","packet_path":"/p.json"}',
-            json: { requires_approval: true, approval_id: 'apr_1', packet_path: '/p.json' },
-          };
-        }
-        secondToolCalls.push(name);
+        transportCalls.push(name);
+        if (name === ORCH_RUN_EXECUTE_MANIFEST) return resultWithJson(envelope);
         return { ok: true, isError: false, rawText: 'result', json: null, errorCode: null };
       }),
     } as unknown as McpClient;
 
     const createFn = vi.fn().mockResolvedValue({
       content: [
-        { type: 'tool_use' as const, id: 'tu_1', name: 'approve_tool', input: {} },
+        {
+          type: 'tool_use' as const,
+          id: 'tu_1',
+          name: ORCH_RUN_EXECUTE_MANIFEST,
+          input: { run_id: 'run-failfast', project_root: '/project' },
+        },
         { type: 'tool_use' as const, id: 'tu_2', name: 'side_effect_tool', input: {} },
       ],
       stop_reason: 'tool_use',
     });
 
-    const runner = new AgentRunner({
+    const runner = makeRunner({
       model: 'claude-opus-4-6',
       runId: 'run-failfast',
       mcpClient,
       _messagesCreate: createFn,
     });
 
-    await collectEvents(runner.run([{ role: 'user', content: 'go' }], TOOLS));
+    await collectEvents(runner.run(
+      [{ role: 'user', content: 'go' }],
+      [toolDefinition(ORCH_RUN_EXECUTE_MANIFEST), toolDefinition('side_effect_tool')],
+    ));
 
-    // side_effect_tool must NOT have been called
-    expect(secondToolCalls).toHaveLength(0);
+    expect(transportCalls).toEqual([ORCH_RUN_EXECUTE_MANIFEST]);
   });
 
-  it('fails closed when a batch-safe parallel tool unexpectedly returns requires_approval', async () => {
+  it('treats orch_policy_query requires_approval as advisory data, not a run gate', async () => {
     const started: string[] = [];
     const mcpClient = {
       callTool: vi.fn(async (name: string) => {
         started.push(name);
-        if (name === ORCH_RUN_STATUS) {
-          return {
-            ok: true,
-            isError: false,
-            rawText: '{"requires_approval":true,"approval_id":"apr_parallel","packet_path":"/parallel.json"}',
-            json: { requires_approval: true, approval_id: 'apr_parallel', packet_path: '/parallel.json' },
-            errorCode: null,
-          };
+        if (name === ORCH_POLICY_QUERY) {
+          return resultWithJson({ operation: 'compute_runs', requires_approval: true });
         }
         return {
           ok: true,
@@ -602,67 +708,223 @@ describe('AgentRunner', () => {
         };
       }),
     } as unknown as McpClient;
-    const createFn = vi.fn().mockResolvedValue(multiToolUseResponse([
-      { id: 'tu_status', name: ORCH_RUN_STATUS },
-      { id: 'tu_list', name: ORCH_RUN_LIST },
-    ]));
+    const createFn = vi.fn()
+      .mockResolvedValueOnce(multiToolUseResponse([
+        { id: 'tu_policy', name: ORCH_POLICY_QUERY },
+        { id: 'tu_list', name: ORCH_RUN_LIST },
+      ]))
+      .mockResolvedValueOnce(textResponse('Advisory policy read complete'));
 
-    const runner = new AgentRunner({
+    const runner = makeRunner({
       model: 'claude-opus-4-6',
-      runId: 'run-batch-safe-approval-guard',
+      runId: 'run-policy-advisory',
       mcpClient,
       _messagesCreate: createFn,
     });
 
     const events = await collectEvents(runner.run([{ role: 'user', content: 'Inspect the runtime state' }], [
-      { name: ORCH_RUN_STATUS, input_schema: { type: 'object', properties: {} } },
-      { name: ORCH_RUN_LIST, input_schema: { type: 'object', properties: {} } },
+      toolDefinition(ORCH_POLICY_QUERY),
+      toolDefinition(ORCH_RUN_LIST),
     ]));
 
-    expect(started).toEqual([ORCH_RUN_STATUS, ORCH_RUN_LIST]);
-    expect(events).toMatchObject([
-      {
-        type: 'error',
-        error: {
-          message: expect.stringContaining('unexpectedly requested approval during parallel execution'),
-        },
-      },
-    ]);
+    expect(started).toEqual([ORCH_POLICY_QUERY, ORCH_RUN_LIST]);
+    expect(events.some(event => event.type === 'approval_required')).toBe(false);
+    expect(events.some(event => event.type === 'error')).toBe(false);
+    expect(events.at(-1)).toMatchObject({ type: 'done', stopReason: 'end_turn' });
+    expect(createFn).toHaveBeenCalledTimes(2);
+  });
+
+  it('fails closed when a non-producer returns a complete approval envelope', async () => {
+    const envelope = approvalEnvelope({
+      runId: 'run-nonproducer-envelope',
+      approvalId: 'apr_invalid',
+      packetPath: 'artifacts/runs/run-nonproducer-envelope/invalid.json',
+    });
+    const mcpClient = makeMockMcpClient({ do_thing: resultWithJson(envelope) });
+    const createFn = vi.fn().mockResolvedValue(toolUseResponse('tu_invalid_envelope', 'do_thing'));
+    const runner = makeRunner({
+      model: 'claude-opus-4-6',
+      runId: 'run-nonproducer-envelope',
+      mcpClient,
+      _messagesCreate: createFn,
+    });
+
+    const events = await collectEvents(runner.run([{ role: 'user', content: 'Execute' }], TOOLS));
+
+    expect(events.at(-1)).toMatchObject({
+      type: 'error',
+      error: { message: expect.stringContaining('not registered as an approval producer') },
+    });
     expect(events.some(event => event.type === 'approval_required')).toBe(false);
     expect(events.some(event => event.type === 'done')).toBe(false);
     expect(createFn).toHaveBeenCalledTimes(1);
   });
 
-  it('crash recovery: approval_required during recovery emits done and halts', async () => {
-    // Simulate a crash where the last message is an assistant turn with a pending tool_use
-    // that, when re-executed, returns requires_approval.
-    const mcpClient = makeMockMcpClient({
-      recover_tool: {
-        ok: true, isError: false, errorCode: null,
-        rawText: '{"requires_approval":true,"approval_id":"apr_rec","packet_path":"/rec.json"}',
-        json: { requires_approval: true, approval_id: 'apr_rec', packet_path: '/rec.json' },
+  it('rejects a proxied backend tool block without reading traps or dispatching transport', async () => {
+    let propertyReads = 0;
+    const proxiedToolUse = new Proxy(
+      { type: 'tool_use' as const, id: 'tu_proxy', name: 'do_thing', input: {} },
+      {
+        get(target, key, receiver) {
+          propertyReads += 1;
+          return Reflect.get(target, key, receiver);
+        },
       },
+    );
+    const mcpClient = makeMockMcpClient();
+    const createFn = vi.fn().mockResolvedValue({
+      content: [proxiedToolUse],
+      stop_reason: 'tool_use',
     });
-    const createFn = vi.fn(); // should never be called
-
-    const runner = new AgentRunner({
+    const runner = makeRunner({
       model: 'claude-opus-4-6',
-      runId: 'run-recovery-apr',
+      runId: 'run-proxy-block',
       mcpClient,
       _messagesCreate: createFn,
     });
 
-    // Messages already end with an unanswered assistant tool_use (crash scenario)
+    const events = await collectEvents(runner.run([{ role: 'user', content: 'Execute' }], TOOLS));
+
+    expect(propertyReads).toBe(0);
+    expect(mcpClient.callTool).not.toHaveBeenCalled();
+    expect(events.at(-1)).toMatchObject({
+      type: 'error',
+      error: { message: expect.stringContaining('Proxy values are not allowed') },
+    });
+  });
+
+  it('fails closed before transport when a producer input targets another root run', async () => {
+    const manifestManager = new RunManifestManager(testRunsDir);
+    const envelope = approvalEnvelope({
+      runId: 'other-root-run',
+      approvalId: 'apr_cross_run',
+      packetPath: 'artifacts/runs/other-root-run/approval.json',
+    });
+    const mcpClient = makeMockMcpClient({
+      [ORCH_RUN_EXECUTE_MANIFEST]: resultWithJson(envelope),
+    });
+    const createFn = vi.fn().mockResolvedValue(
+      toolUseResponse('tu_cross_run', ORCH_RUN_EXECUTE_MANIFEST, {
+        run_id: 'other-root-run',
+        project_root: '/project',
+      }),
+    );
+    const runner = makeRunner({
+      model: 'claude-opus-4-6',
+      runId: 'runtime-run',
+      approvalRunId: 'expected-root-run',
+      mcpClient,
+      manifestManager,
+      _messagesCreate: createFn,
+    });
+
+    const events = await collectEvents(runner.run(
+      [{ role: 'user', content: 'Execute' }],
+      [toolDefinition(ORCH_RUN_EXECUTE_MANIFEST)],
+    ));
+
+    expect(events.at(-1)).toMatchObject({
+      type: 'error',
+      error: { message: expect.stringContaining('must target root run expected-root-run') },
+    });
+    expect(events.some(event => event.type === 'approval_required')).toBe(false);
+    expect(mcpClient.callTool).not.toHaveBeenCalled();
+    expect(manifestManager.loadManifest('runtime-run')).toMatchObject({
+      pending_tool_intents: [],
+      checkpoints: [],
+    });
+  });
+
+  it('fails closed before transport when a producer input targets another project root', async () => {
+    const envelope = approvalEnvelope({
+      runId: 'expected-root-run',
+      approvalId: 'apr_cross_project',
+      packetPath: 'artifacts/runs/expected-root-run/approval.json',
+    });
+    const mcpClient = makeMockMcpClient({
+      [ORCH_RUN_EXECUTE_MANIFEST]: resultWithJson(envelope),
+    });
+    const createFn = vi.fn().mockResolvedValue(
+      toolUseResponse('tu_cross_project', ORCH_RUN_EXECUTE_MANIFEST, {
+        run_id: 'expected-root-run',
+        project_root: '/other-project',
+      }),
+    );
+    const runner = makeRunner({
+      model: 'claude-opus-4-6',
+      runId: 'runtime-project-run',
+      approvalRunId: 'expected-root-run',
+      approvalProjectRoot: '/project',
+      mcpClient,
+      _messagesCreate: createFn,
+    });
+
+    const events = await collectEvents(runner.run(
+      [{ role: 'user', content: 'Execute' }],
+      [toolDefinition(ORCH_RUN_EXECUTE_MANIFEST)],
+    ));
+
+    expect(events.at(-1)).toMatchObject({
+      type: 'error',
+      error: { message: expect.stringContaining('must target the delegated runtime project root') },
+    });
+    expect(mcpClient.callTool).not.toHaveBeenCalled();
+  });
+
+  it('crash recovery can resume a durable not_started approval-producing intent', async () => {
+    const runId = 'run-recovery-apr';
+    const toolUse = {
+      type: 'tool_use' as const,
+      id: 'tu_rec',
+      name: ORCH_RUN_EXECUTE_MANIFEST,
+      input: { run_id: runId, project_root: '/project' },
+    };
+    const envelope = approvalEnvelope({
+      runId,
+      approvalId: 'apr_rec',
+      packetPath: 'artifacts/runs/run-recovery-apr/packet.json',
+      digestCharacter: 'b',
+    });
+    const mcpClient = makeMockMcpClient({
+      [ORCH_RUN_EXECUTE_MANIFEST]: resultWithJson(envelope),
+    });
+    const createFn = vi.fn();
+    const manifestManager = new RunManifestManager(testRunsDir);
+    manifestManager.ensureManifest(runId);
+    manifestManager.observeToolIntents(runId, [createToolAttemptIdentity({
+      stepId: toolUse.id,
+      toolName: toolUse.name,
+      input: toolUse.input,
+    })]);
+
+    const runner = makeRunner({
+      model: 'claude-opus-4-6',
+      runId,
+      mcpClient,
+      manifestManager,
+      _messagesCreate: createFn,
+    });
+
     const messages: MessageParam[] = [
       { role: 'user', content: 'start' },
-      { role: 'assistant', content: [{ type: 'tool_use', id: 'tu_rec', name: 'recover_tool', input: {} }] },
+      { role: 'assistant', content: [toolUse] },
     ];
 
-    const events = await collectEvents(runner.run(messages, TOOLS));
+    const events = await collectEvents(runner.run(
+      messages,
+      [toolDefinition(ORCH_RUN_EXECUTE_MANIFEST)],
+    ));
 
-    // Must emit approval_required + done, never reach LLM
     const aprEvt = events.find((e) => e.type === 'approval_required');
-    expect(aprEvt).toMatchObject({ type: 'approval_required', approvalId: 'apr_rec', packetPath: '/rec.json' });
+    expect(aprEvt).toMatchObject({
+      type: 'approval_required',
+      authority: 'run_gate',
+      gateId: 'A3',
+      runId,
+      approvalId: 'apr_rec',
+      packetPath: 'artifacts/runs/run-recovery-apr/packet.json',
+      approvalPacketSha256: 'b'.repeat(64),
+    });
     const doneEvt = events.find((e) => e.type === 'done');
     expect(doneEvt).toMatchObject({ type: 'done', stopReason: 'approval_required' });
     expect(runner.runtimeProjection).toMatchObject({
@@ -694,6 +956,87 @@ describe('AgentRunner', () => {
     expect(createFn).not.toHaveBeenCalled();
   });
 
+  it.each([
+    {
+      label: 'denied tool',
+      laterTool: 'blocked_tool',
+      allowedToolNames: [ORCH_RUN_STATUS],
+      message: 'is not visible',
+    },
+    {
+      label: 'approval resolver',
+      laterTool: ORCH_RUN_APPROVE,
+      allowedToolNames: [ORCH_RUN_STATUS, ORCH_RUN_APPROVE],
+      message: 'reserved for the host/operator boundary',
+    },
+  ])('preflights a later $label before dispatching any tool in the turn', async ({
+    laterTool,
+    allowedToolNames,
+    message,
+  }) => {
+    const mcpClient = { callTool: vi.fn() } as unknown as McpClient;
+    const createFn = vi.fn().mockResolvedValue(multiToolUseResponse([
+      { id: 'tu_allowed_first', name: ORCH_RUN_STATUS },
+      { id: 'tu_denied_later', name: laterTool },
+    ]));
+    const runner = makeRunner({
+      model: 'claude-opus-4-6',
+      runId: `run-preflight-${laterTool}`,
+      mcpClient,
+      allowedToolNames,
+      _messagesCreate: createFn,
+    });
+
+    const events = await collectEvents(runner.run(
+      [{ role: 'user', content: 'Execute both' }],
+      [toolDefinition(ORCH_RUN_STATUS), toolDefinition(laterTool)],
+    ));
+
+    expect(mcpClient.callTool).not.toHaveBeenCalled();
+    expect(events.at(-1)).toMatchObject({
+      type: 'error',
+      error: { message: expect.stringContaining(message) },
+    });
+    expect(createFn).toHaveBeenCalledTimes(1);
+  });
+
+  it('stops with tool_outcome_unknown when the transport rejects after durable dispatch', async () => {
+    const runId = 'run-transport-reject';
+    const manifestManager = new RunManifestManager(testRunsDir);
+    const mcpClient = {
+      callTool: vi.fn().mockRejectedValue(new Error('transport connection lost')),
+    } as unknown as McpClient;
+    const createFn = vi.fn().mockResolvedValue(toolUseResponse('tu_transport_reject', 'do_thing'));
+    const runner = makeRunner({
+      model: 'claude-opus-4-6',
+      runId,
+      mcpClient,
+      manifestManager,
+      _messagesCreate: createFn,
+    });
+
+    const events = await collectEvents(runner.run([{ role: 'user', content: 'Execute' }], TOOLS));
+
+    expect(events).toContainEqual(expect.objectContaining({
+      type: 'tool_outcome_unknown',
+      stepId: 'tu_transport_reject',
+      name: 'do_thing',
+      phase: 'dialogue',
+      reason: 'dispatch_interrupted',
+      message: expect.stringContaining('outcome is not durably known'),
+    }));
+    expect(events.at(-1)).toMatchObject({
+      type: 'done',
+      stopReason: 'tool_outcome_unknown',
+      turnCount: 1,
+    });
+    expect(mcpClient.callTool).toHaveBeenCalledTimes(1);
+    expect(createFn).toHaveBeenCalledTimes(1);
+    expect(manifestManager.loadManifest(runId)?.pending_tool_intents).toMatchObject([
+      { step_id: 'tu_transport_reject', state: 'outcome_unknown' },
+    ]);
+  });
+
   it('lane queue: same runId calls are serialized', async () => {
     const execOrder: string[] = [];
 
@@ -713,7 +1056,7 @@ describe('AgentRunner', () => {
         return textResponse('R2');
       });
 
-    const runner = new AgentRunner({
+    const runner = makeRunner({
       model: 'claude-opus-4-6',
       runId: 'run-lane',
       mcpClient: makeMockMcpClient(),
@@ -762,13 +1105,13 @@ describe('AgentRunner', () => {
       return textResponse('B');
     });
 
-    const runnerA = new AgentRunner({
+    const runnerA = makeRunner({
       model: 'claude-opus-4-6',
       runId: 'run-A',
       mcpClient: makeMockMcpClient(),
       _messagesCreate: createA,
     });
-    const runnerB = new AgentRunner({
+    const runnerB = makeRunner({
       model: 'claude-opus-4-6',
       runId: 'run-B',
       mcpClient: makeMockMcpClient(),
@@ -792,7 +1135,7 @@ describe('AgentRunner', () => {
 
   it('error from LLM is emitted as error event', async () => {
     const createFn = vi.fn().mockRejectedValue(new Error('API error'));
-    const runner = new AgentRunner({
+    const runner = makeRunner({
       model: 'claude-opus-4-6',
       runId: 'run-err',
       mcpClient: makeMockMcpClient(),
@@ -808,7 +1151,7 @@ describe('AgentRunner', () => {
     const createFn = vi.fn()
       .mockResolvedValueOnce(textResponse('partial answer', 'max_tokens', { input_tokens: 120, output_tokens: 80, total_tokens: 200 }))
       .mockResolvedValueOnce(textResponse('completed answer'));
-    const runner = new AgentRunner({
+    const runner = makeRunner({
       model: 'claude-opus-4-6',
       runId: 'run-truncation-retry',
       mcpClient: makeMockMcpClient(),
@@ -840,7 +1183,7 @@ describe('AgentRunner', () => {
     const createFn = vi.fn()
       .mockResolvedValueOnce(textResponse('partial answer', 'max_tokens'))
       .mockResolvedValueOnce(textResponse('still partial', 'max_tokens'));
-    const runner = new AgentRunner({
+    const runner = makeRunner({
       model: 'claude-opus-4-6',
       runId: 'run-truncation-exhausted',
       mcpClient: makeMockMcpClient(),
@@ -861,7 +1204,7 @@ describe('AgentRunner', () => {
     const createFn = vi.fn()
       .mockRejectedValueOnce(new Error('prompt is too long for the model context window'))
       .mockResolvedValueOnce(textResponse('overflow recovered'));
-    const runner = new AgentRunner({
+    const runner = makeRunner({
       model: 'claude-opus-4-6',
       runId: 'run-overflow-retry',
       mcpClient: makeMockMcpClient(),
@@ -892,7 +1235,7 @@ describe('AgentRunner', () => {
 
   it('fails closed when the backend returns an unknown stop_reason', async () => {
     const createFn = vi.fn().mockResolvedValue(textResponse('mystery response', 'weird_reason'));
-    const runner = new AgentRunner({
+    const runner = makeRunner({
       model: 'claude-opus-4-6',
       runId: 'run-unknown-stop-reason',
       mcpClient: makeMockMcpClient(),

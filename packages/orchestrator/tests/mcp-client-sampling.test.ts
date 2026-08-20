@@ -4,7 +4,6 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 
 import { McpClient, loadSamplingRoutingConfig } from '../src/index.js';
-import { bindToolPermissionView } from '../src/mcp-client.js';
 import { handleMcpServerRequest } from '../src/mcp-server-request-handler.js';
 import { buildDirectRuntimePermissionProfile } from '../src/runtime-permission-profile.js';
 import { buildRuntimeToolPermissionView } from '../src/tool-execution-policy.js';
@@ -95,7 +94,7 @@ describe('McpClient sampling support', () => {
       },
     });
 
-    await client.start(process.execPath, [scriptPath], { RESULT_PATH: resultPath });
+    await client.start(process.execPath, [scriptPath], { configEnv: { RESULT_PATH: resultPath } });
     const result = JSON.parse(await waitForFile(resultPath));
     await client.close();
 
@@ -125,7 +124,7 @@ describe('McpClient sampling support', () => {
     await client.close();
   });
 
-  it('blocks bound tool calls before tools/call reaches the server', async () => {
+  it('blocks denied tool calls before tools/call reaches the server', async () => {
     const tmpDir = makeTmpDir();
     tmpDirs.push(tmpDir);
     const scriptPath = path.join(tmpDir, 'stub-server.mjs');
@@ -153,16 +152,13 @@ describe('McpClient sampling support', () => {
     `);
 
     const client = new McpClient();
-    await client.start(process.execPath, [scriptPath], { RESULT_PATH: resultPath });
+    await client.start(process.execPath, [scriptPath], { configEnv: { RESULT_PATH: resultPath } });
 
-    const scoped = bindToolPermissionView(
-      client,
-      buildRuntimeToolPermissionView(buildDirectRuntimePermissionProfile({
-        tools: [{ name: 'allowed_tool', input_schema: {} }],
-      })),
-    );
+    const permissionView = buildRuntimeToolPermissionView(buildDirectRuntimePermissionProfile({
+      tools: [{ name: 'allowed_tool', input_schema: {} }],
+    }));
 
-    await expect(scoped.callTool('blocked_tool', {})).rejects.toMatchObject({
+    await expect(client.callToolWithPermissionView('blocked_tool', {}, permissionView)).rejects.toMatchObject({
       code: 'INVALID_PARAMS',
     });
 
@@ -173,7 +169,7 @@ describe('McpClient sampling support', () => {
     expect(result.methods).not.toContain('tools/call');
   });
 
-  it('keeps visible tool calls backward compatible through the bound permission seam', async () => {
+  it('dispatches visible tool calls only after the explicit permission seam passes', async () => {
     const tmpDir = makeTmpDir();
     tmpDirs.push(tmpDir);
     const scriptPath = path.join(tmpDir, 'stub-server.mjs');
@@ -201,16 +197,13 @@ describe('McpClient sampling support', () => {
     `);
 
     const client = new McpClient();
-    await client.start(process.execPath, [scriptPath], { RESULT_PATH: resultPath });
+    await client.start(process.execPath, [scriptPath], { configEnv: { RESULT_PATH: resultPath } });
 
-    const scoped = bindToolPermissionView(
-      client,
-      buildRuntimeToolPermissionView(buildDirectRuntimePermissionProfile({
-        tools: [{ name: 'allowed_tool', input_schema: {} }],
-      })),
-    );
+    const permissionView = buildRuntimeToolPermissionView(buildDirectRuntimePermissionProfile({
+      tools: [{ name: 'allowed_tool', input_schema: {} }],
+    }));
 
-    const result = await scoped.callTool('allowed_tool', {});
+    const result = await client.callToolWithPermissionView('allowed_tool', {}, permissionView);
     const methods = await waitForJson<{ methods: string[] }>(resultPath, value => value.methods.includes('tools/call'));
     await client.close();
 
